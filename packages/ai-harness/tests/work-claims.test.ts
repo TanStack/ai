@@ -6,7 +6,7 @@ import {
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, definePlugin } from '../src'
+import { createHarnessHost, defineHarness, definePlugin, logIdOf } from '../src'
 import {
   after,
   gate,
@@ -20,6 +20,8 @@ import type { WorkClaimStore } from '@tanstack/ai-persistence'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
+/** The id of the log of `THREAD` in the store. */
+const LOG = logIdOf({ logId: THREAD })
 const NAME = 'test/work-claims'
 const later = () => Date.now() + 60 * 60_000
 
@@ -251,7 +253,7 @@ async function seedStoppedTurn(
   persistence: ReturnType<typeof durablePersistence>,
 ) {
   await persistence.stores.log.append({
-    logId: THREAD,
+    logId: LOG,
     seq: 1,
     epoch: UNOWNED_EPOCH,
     records: [
@@ -292,7 +294,7 @@ const settledRecord = async (
   persistence: ReturnType<typeof durablePersistence>,
   inputId: string,
 ) =>
-  (await persistence.stores.log.read({ logId: THREAD }))
+  (await persistence.stores.log.read({ logId: LOG }))
     .map((entry) => entry.record)
     .find(
       (record) =>
@@ -304,7 +306,7 @@ async function seedStoppedAgent(
   persistence: ReturnType<typeof durablePersistence>,
 ) {
   await persistence.stores.log.append({
-    logId: THREAD,
+    logId: LOG,
     seq: 1,
     epoch: UNOWNED_EPOCH,
     records: [
@@ -375,7 +377,7 @@ describe('host.resumePending', () => {
   it('runs an input that was stored just before the host stopped', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
-      logId: THREAD,
+      logId: LOG,
       seq: 1,
       epoch: UNOWNED_EPOCH,
       records: [
@@ -473,7 +475,7 @@ describe('host.resumePending', () => {
   it('continues a resumable background agent whose host stopped', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
-      logId: THREAD,
+      logId: LOG,
       seq: 1,
       epoch: UNOWNED_EPOCH,
       records: [

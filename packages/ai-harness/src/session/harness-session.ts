@@ -225,10 +225,12 @@ export class SessionImpl<
         this.stopOnLogFailure(error),
       )
       this.feed = tapFeed(this.writer, this.notifyHost, this.eventListeners)
+      // The logs of the subagent children are in the tenant of this session.
       const view = {
         writer: this.writer,
         store,
         ...(project ? { project } : {}),
+        ...(this.tenantId !== undefined ? { tenantId: this.tenantId } : {}),
       }
       this.messages = sessionMessageStore(view)
       this.engine = engineMessageStore(view)

@@ -173,7 +173,22 @@ describe('createMediaStore', () => {
       name: 'cat.png',
     })
     const blobKey = (await persistence.stores.artifacts.get(record.id))?.blobKey
-    expect(blobKey).toBe(`artifacts/upload:..%2Fx/${record.id}`)
+    expect(blobKey).toBe(`artifacts/upload::..%2Fx/${record.id}`)
+  })
+
+  it('puts the tenant in the upload folder of the blob key', async () => {
+    const persistence = memoryPersistence()
+    const store = createMediaStore({
+      persistence,
+      threadId: 't1',
+      tenantId: 'org/1',
+    })
+    const record = await store.put(encoder.encode('hello'), {
+      mimeType: 'image/png',
+      name: 'cat.png',
+    })
+    const blobKey = (await persistence.stores.artifacts.get(record.id))?.blobKey
+    expect(blobKey).toBe(`artifacts/upload:org%2F1:t1/${record.id}`)
   })
 
   it('throws 404 for an id that does not exist', async () => {

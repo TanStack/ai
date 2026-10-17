@@ -15,6 +15,7 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
+  logIdOf,
 } from '@tanstack/ai-harness'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -597,7 +598,7 @@ describe('createHarnessMcpServer', () => {
       arguments: { threadId: 't-sig', records: [{ type: 'app.signal', n: 1 }] },
     })
     expect(ok.isError).toBeFalsy()
-    const stored = await log.read({ logId: 't-sig' })
+    const stored = await log.read({ logId: logIdOf({ logId: 't-sig' }) })
     expect(JSON.stringify(stored)).toContain('"type":"app.signal"')
     const refused = await client.callTool({
       name: 'append',

@@ -9,6 +9,7 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
+  logIdOf,
   oauthConnector,
 } from '../src'
 import { createHarnessHandler } from '../src/server'
@@ -501,7 +502,7 @@ describe('sign-ins in a shared thread', () => {
     ).json()
     await expect(session.operation(receipt.operationId)).resolves.toBe('bob')
     expect(ran).toEqual(['bob'])
-    const commands = (await stores.log.read({ logId: 't' }))
+    const commands = (await stores.log.read({ logId: logIdOf({ logId: 't' }) }))
       .map((entry) => entry.record)
       .filter(
         (record) =>

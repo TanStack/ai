@@ -2,13 +2,15 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, getLogRecords, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, durableTool } from '../src'
+import { createHarnessHost, defineHarness, durableTool, logIdOf } from '../src'
 import { INTERRUPTED_TOOL_RESULT } from '../src/resume'
 import { gate, mockAdapter, text, toolCall } from './helpers'
 import type { AnyChatMiddleware, AnyTool, StreamChunk } from '@tanstack/ai'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
+/** The id of the log of `THREAD` in the store. */
+const LOG = logIdOf({ logId: THREAD })
 
 function durablePersistence() {
   const { runs, metadata } = memoryPersistence().stores
@@ -35,7 +37,7 @@ async function openDurable(
 
 /** The records of the log, of one type. */
 async function recordsOf(persistence: Durable, type: string) {
-  return (await persistence.stores.log.read({ logId: THREAD }))
+  return (await persistence.stores.log.read({ logId: LOG }))
     .map((entry) => entry.record)
     .filter((record) => record.type === type)
 }

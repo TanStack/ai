@@ -154,7 +154,8 @@ function setup() {
       }),
     ],
   })
-  const host = createHarnessHost({ persistence: memoryPersistence() })
+  const persistence = memoryPersistence()
+  const host = createHarnessHost({ persistence })
   const updates: Array<{ sessionId: string; update: SessionUpdate }> = []
   const permissions: Array<{ title: string; toolCallId: string }> = []
   // The answer of the editor to each permission request. Default: Reject.
@@ -216,6 +217,7 @@ function setup() {
     )
   return {
     harness,
+    persistence,
     host,
     editor,
     updates,
@@ -693,6 +695,31 @@ describe('ACP agent handlers', () => {
           ],
         }),
       ).rejects.toMatchObject({ code: -32602 })
+    })
+  })
+
+  it('refuses a subagent child: the editor reaches it through its parent', async () => {
+    const { harness, persistence, host, editor } = setup()
+    close = () => host.close()
+    await persistence.stores.sessions.upsert({
+      threadId: 'subagent:run-1',
+      parentThreadId: 'lead',
+      harness: harness.name,
+      members: [],
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
+      await ctx.request('initialize', {
+        protocolVersion: 2,
+        info: { name: 'editor', version: '1.0.0' },
+      })
+      await expect(
+        ctx.request('session/resume', {
+          sessionId: 'subagent:run-1',
+          cwd: '/tmp',
+        }),
+      ).rejects.toMatchObject({ code: -32002 })
     })
   })
 

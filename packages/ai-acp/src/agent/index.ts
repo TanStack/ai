@@ -251,13 +251,17 @@ export function createAcpAgent(options: AcpAgentOptions): AgentApp {
   const live = (sessionId: string) =>
     host.open(harness, { threadId: sessionId })
 
-  /** The session of an id that this agent or the session index knows. */
+  /**
+   * The session of an id that this agent or the session index knows. A
+   * subagent child is not a session of its own: ACP reaches it through its
+   * parent.
+   */
   const known = async (sessionId: string) => {
-    if (
-      !opened.has(sessionId) &&
-      (await host.sessions.get(sessionId))?.harness !== harness.name
-    ) {
-      throw RequestError.resourceNotFound(sessionId)
+    if (!opened.has(sessionId)) {
+      const entry = await host.sessions.get({ threadId: sessionId })
+      const isOwnSession =
+        entry?.harness === harness.name && entry.parentThreadId === undefined
+      if (!isOwnSession) throw RequestError.resourceNotFound(sessionId)
     }
     opened.add(sessionId)
     return live(sessionId)

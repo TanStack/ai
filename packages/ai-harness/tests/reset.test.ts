@@ -6,7 +6,7 @@ import {
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness, logIdOf } from '../src'
 import {
   after,
   gate,
@@ -294,7 +294,7 @@ describe('reset on a durable host', () => {
     const { runs, metadata } = memoryPersistence().stores
     const persistence = { stores: { log, runs, metadata } }
     await log.append({
-      logId: 't1',
+      logId: logIdOf({ logId: 't1' }),
       seq: 1,
       epoch: UNOWNED_EPOCH,
       records: [

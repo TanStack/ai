@@ -2,7 +2,7 @@ import { EventType } from '@tanstack/ai'
 import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import type { CredentialStore } from '@tanstack/ai/byok'
-import { SharedLog, loadLogState } from './log'
+import { SharedLog, loadLogState, logIdOf } from './log'
 import { LEASE } from './resume'
 import { SessionImpl } from './session/harness-session'
 import { HARNESS_EVENTS } from './types'
@@ -22,6 +22,7 @@ import type {
   MetadataStore,
   WorkClaimStore,
   SessionIndexEntry,
+  SessionIndexKey,
   SessionIndexListOptions,
   SessionIndexPage,
   SessionIndexStore,
@@ -62,8 +63,9 @@ type DurableLeases =
  *   in the inbox for the owner instead (receipt `queued`).
  *
  * Without `artifacts`, `blobs`, and `generationRuns`, media is kept in memory.
- * With `sessions`, the host keeps one index entry per thread (see
- * `host.sessions`).
+ * With `sessions`, the host keeps one index entry per tenant and thread (see
+ * `host.sessions`). The store needs `getVersioned` and `upsertIf`, or the host
+ * throws at the start.
  */
 export type HarnessPersistence =
   | AIPersistence<
@@ -117,7 +119,12 @@ export interface HarnessHostOptions {
 export interface OpenSessionOptions {
   /** The conversation id. Opening the same id again returns the live session. */
   threadId: string
-  /** Who opened the session. Stored on inputs and run records. */
+  /**
+   * Who opened the session. Stored on inputs and run records. Its
+   * `tenantId` is the tenant of the session (without it, the default
+   * tenant): one `threadId` in two tenants is two sessions, with two index
+   * entries and two logs.
+   */
   principal?: Principal
   /**
    * The log of the session, on a durable host. Sessions with the same log id
@@ -134,20 +141,43 @@ export interface OpenSessionOptions {
 }
 
 /**
- * The session index of a host: one entry per thread, for a list of
- * sessions. The host writes the entry when a session opens and after each
+ * The session index of a host: one entry per tenant and thread, for a list
+ * of sessions. The host writes the entry when a session opens and after each
  * turn. Without `stores.sessions`, `list` is empty, `get` is `undefined`,
  * and `rename` and `delete` write nothing.
+ *
+ * Each method takes a `principal`. Its `tenantId` picks the tenant (without
+ * it, the default tenant), as in `host.open`. A method never reads or
+ * changes the entries of another tenant.
  */
 export interface HostSessions {
   /**
-   * Entries, newest `updatedAt` first. Default: only top-level sessions
-   * (`parentThreadId: null`). Pass a thread id to get its child sessions.
-   * Pass `principal` to get only the sessions of that user.
+   * The entries of the tenant of `principal`, newest `updatedAt` first.
+   * Default: only top-level sessions (`parentThreadId: null`). Pass a thread
+   * id to get its child sessions.
+   *
+   * @example
+   * ```ts
+   * const page = await host.sessions.list({ principal, limit: 20 })
+   * ```
    */
-  list: (options?: SessionIndexListOptions) => Promise<SessionIndexPage>
-  /** The entry of a thread, or `undefined`. */
-  get: (threadId: string) => Promise<SessionIndexEntry | undefined>
+  list: (
+    options?: Omit<SessionIndexListOptions, 'tenantId' | 'memberId'> & {
+      principal?: Principal
+    },
+  ) => Promise<SessionIndexPage>
+  /**
+   * The entry of a thread, or `undefined`.
+   *
+   * @example
+   * ```ts
+   * const entry = await host.sessions.get({ threadId: 't-1', principal })
+   * ```
+   */
+  get: (options: {
+    threadId: string
+    principal?: Principal
+  }) => Promise<SessionIndexEntry | undefined>
   /**
    * Set the title of a thread. Resolves to the changed entry, or to
    * `undefined` for a thread that has no entry.
@@ -155,6 +185,7 @@ export interface HostSessions {
   rename: (change: {
     threadId: string
     title: string
+    principal?: Principal
   }) => Promise<SessionIndexEntry | undefined>
   /**
    * Change the entry of a thread from app code, with no session open: its
@@ -182,21 +213,32 @@ export interface HostSessions {
     harness: THarness
     threadId: string
     update: SessionEntryUpdate<SessionMetadataOf<THarness>>
+    principal?: Principal
   }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>> | undefined>
   /**
-   * Remove the index entry of a thread. Only the entry: the transcript, the
-   * log, and the other data of the thread stay in their stores.
+   * Remove the index entry of a thread. After it, `get` is `undefined`, and
+   * the next open of the thread writes a new entry. Only the entry goes: the
+   * transcript, the log, and the other data of the thread stay in their
+   * stores.
+   *
+   * @example
+   * ```ts
+   * await host.sessions.delete({ threadId: 't-1', principal })
+   * ```
    */
-  delete: (threadId: string) => Promise<void>
+  delete: (options: {
+    threadId: string
+    principal?: Principal
+  }) => Promise<void>
   /**
    * Fork a thread into a new thread with `host.fork`, so the fork gets the
    * settings, plugin config, and media too. `{ through: id }` copies the
    * messages up to and including `id`. `{ before: id }` copies the messages
    * before `id`, so a fork before the first message has no messages. The new
-   * thread gets its own entry, with the title of the old one plus ` (fork)`,
-   * the harness, and the owner of the old one. Resolves to the new entry.
-   * Throws when the message id is not in the transcript, or when the entry
-   * of the thread names another harness.
+   * thread gets its own entry in the same tenant, with the title of the old
+   * one plus ` (fork)`, the harness, and the owner and members of the old
+   * one. Resolves to the new entry. Throws when the message id is not in the
+   * transcript, or when the entry of the thread names another harness.
    *
    * @example
    * ```ts
@@ -204,14 +246,16 @@ export interface HostSessions {
    *   harness: assistant,
    *   threadId: 't-1',
    *   at: { before: messageId },
+   *   principal,
    * })
-   * const fork = await host.open(assistant, { threadId: entry.threadId })
+   * const fork = await host.open(assistant, { threadId: entry.threadId, principal })
    * ```
    */
   fork: (options: {
     harness: AnyHarness
     threadId: string
     at: ForkPoint
+    principal?: Principal
   }) => Promise<SessionIndexEntry>
 }
 
@@ -219,17 +263,20 @@ export interface HostSessions {
  * An open session of the host changed its status. `running`: an operation
  * runs. `waiting`: a question or an interrupt waits for an answer. `idle`:
  * nothing runs or waits. `at` is the time of the change, in epoch ms.
+ * `tenantId` is the tenant of the session, when it is not the default
+ * tenant.
  */
 export interface HostStatusEvent {
   type: 'status'
   threadId: string
+  tenantId?: string
   status: 'idle' | 'running' | 'waiting'
   at: number
 }
 
 /**
  * The host wrote the index entry of a thread: a new session, the end of a
- * turn, a rename, or a fork. `entry` is the new entry.
+ * turn, a rename, or a fork. `entry` is the new entry, with its `tenantId`.
  */
 export interface HostSessionEvent {
   type: 'session'
@@ -261,7 +308,10 @@ export interface ForkSessionOptions {
    * id the thread does not have throws.
    */
   at?: string | null
-  /** Who opens the new thread, as in `open`. */
+  /**
+   * Who opens the new thread, as in `open`. Its `tenantId` is the tenant of
+   * both threads.
+   */
   principal?: Principal
   /** The log of the source thread, as in `open`. Default: `threadId`. */
   logId?: string
@@ -286,9 +336,11 @@ export interface ResumePendingOptions {
 /** Runs sessions for one or more harnesses in this process. */
 export interface HarnessHost {
   /**
-   * Open a session of `harness`, or return the live one for this harness and
-   * thread. Session plugins are set up here, so a plugin error rejects the
-   * promise.
+   * Open a session of `harness`, or return the live one for this harness,
+   * tenant, and thread. Session plugins are set up here, so a plugin error
+   * rejects the promise. A subagent child thread (its index entry has a
+   * `parentThreadId`) does not open: open its root thread, and read the
+   * child with `session.agentTranscript`.
    *
    * @example
    * ```ts
@@ -299,8 +351,14 @@ export interface HarnessHost {
     harness: THarness,
     options: OpenSessionOptions,
   ) => Promise<HarnessSession<THarness>>
-  /** Is a session of `harness` open on `threadId` on this host? */
-  isOpen: (harness: AnyHarness, options: { threadId: string }) => boolean
+  /**
+   * Is a session of `harness` open on `threadId` on this host, in the tenant
+   * of `principal`?
+   */
+  isOpen: (
+    harness: AnyHarness,
+    options: { threadId: string; principal?: Principal },
+  ) => boolean
   /**
    * Start a new thread as a copy of another one, and return its open
    * session of `harness`. It copies the transcript up to and including the
@@ -325,8 +383,10 @@ export interface HarnessHost {
    * each thread goes to one of them. Call it at boot, and from a cron job or
    * a Durable Object alarm. Resolves with the threads it opened.
    *
-   * Known limit: a thread that this host has open already is claimed, but
+   * Known limits: a thread that this host has open already is claimed, but
    * its session does not recover again. Call `host.recover(threadId)` for it.
+   * A claim has no tenant, so the sweep opens each thread in the default
+   * tenant.
    *
    * @example
    * ```ts
@@ -370,9 +430,10 @@ export interface HarnessHost {
   close: (options?: { recoverable?: boolean }) => Promise<void>
   /**
    * The `durability.reduce` fold of `harness` for a log that has an open
-   * session in this host. `undefined` when no session has the log open, or
-   * when the reduce of another harness folded the log (the harness of its
-   * first session folds a shared log).
+   * session in this host. `logId` is the `logId` of `open`, in the tenant of
+   * `principal`. `undefined` when no session has the log open, or when the
+   * reduce of another harness folded the log (the harness of its first
+   * session folds a shared log).
    *
    * @example
    * ```ts
@@ -382,6 +443,7 @@ export interface HarnessHost {
   logState: <THarness extends AnyHarness>(options: {
     harness: THarness
     logId: string
+    principal?: Principal
   }) => HarnessLogStateOf<THarness> | undefined
   /** The session index: list, rename, delete, and fork sessions. */
   sessions: HostSessions
@@ -416,39 +478,39 @@ function checkHarness(
 let warned = false
 
 /**
- * Writes to the session index. `upsert` replaces the whole entry, so a
- * change reads the entry, changes a copy, and writes it back. The changes of
- * one thread run one at a time, so no change loses the fields of another.
- * A store with `getVersioned` and `upsertIf` also stops the lost writes of
- * other hosts: a change that another host wrote first runs again on the new
- * entry. `onChange` gets each write and each removal.
+ * Writes to the session index. A write replaces the whole entry, so a change
+ * reads the entry with its revision, changes a copy, and writes it back with
+ * `upsertIf`. A change that another host wrote first runs again on the new
+ * entry. The changes of one key run one at a time on this host, so no change
+ * loses the fields of another. `onChange` gets each write and each removal.
  */
 function sessionIndex(
   store: SessionIndexStore | undefined,
   onChange: (event: HostSessionEvent | HostSessionDeletedEvent) => void,
 ) {
   const tails = new Map<string, Promise<void>>()
-  const serial = <T>(threadId: string, task: () => Promise<T>) => {
+  const serial = <T>(key: SessionIndexKey, task: () => Promise<T>) => {
+    const id = logIdOf({ tenantId: key.tenantId, logId: key.threadId })
     // The tail never rejects, so a failed change does not stop the next one.
-    const run = (tails.get(threadId) ?? Promise.resolve()).then(task)
+    const run = (tails.get(id) ?? Promise.resolve()).then(task)
     const tail = run.then(
       () => {},
       () => {},
     )
-    tails.set(threadId, tail)
+    tails.set(id, tail)
     void tail.then(() => {
-      if (tails.get(threadId) === tail) tails.delete(threadId)
+      if (tails.get(id) === tail) tails.delete(id)
     })
     return run
   }
   return {
-    get: async (threadId: string) => store?.get(threadId),
+    get: async (key: SessionIndexKey) => store?.get(key),
     /**
-     * Write `change(entry)` for the thread. `change` gets `undefined` when
-     * the thread has no entry, and returns `undefined` to write nothing.
+     * Write `change(entry)` for the key. `change` gets `undefined` when the
+     * key has no entry, and returns `undefined` to write nothing.
      */
     update: (
-      threadId: string,
+      key: SessionIndexKey,
       change: (
         entry: SessionIndexEntry | undefined,
       ) =>
@@ -456,23 +518,16 @@ function sessionIndex(
         | undefined
         | Promise<SessionIndexEntry | undefined>,
     ) =>
-      serial(threadId, async () => {
+      serial(key, async () => {
         if (!store) return undefined
-        if (!store.getVersioned || !store.upsertIf) {
-          const next = await change(await store.get(threadId))
-          if (next) {
-            await store.upsert(next)
-            onChange({ type: 'session', threadId, entry: next })
-          }
-          return next
-        }
+        const { threadId } = key
         for (let attempt = 0; attempt < 5; attempt += 1) {
-          const current = await store.getVersioned(threadId)
+          const current = await store.getVersioned(key)
           const next = await change(current?.entry)
           if (!next) return undefined
           const written = await store.upsertIf({
             entry: next,
-            expectedRevision: current?.revision ?? null,
+            revision: current?.revision ?? null,
           })
           if (!written.ok) continue
           onChange({ type: 'session', threadId, entry: next })
@@ -482,15 +537,44 @@ function sessionIndex(
           `The session index entry of ${threadId} changed on another host 5 times in a row.`,
         )
       }),
-    remove: (threadId: string) =>
-      serial(threadId, async () => {
+    /** Remove the entry of the key: a hard delete. */
+    remove: (key: SessionIndexKey) =>
+      serial(key, async () => {
         if (!store) return
-        const entry = await store.get(threadId)
-        await store.delete(threadId)
-        if (entry) onChange({ type: 'session-deleted', threadId, entry })
+        const entry = await store.get(key)
+        await store.delete(key)
+        if (entry) {
+          onChange({ type: 'session-deleted', threadId: key.threadId, entry })
+        }
       }),
   }
 }
+
+/**
+ * Throw a clear error for a sessions store without compare-and-set. The
+ * types need both methods, but a store in plain JS can leave them out.
+ */
+function checkSessionStore(store: SessionIndexStore | undefined) {
+  if (store === undefined) return
+  const hasCompareAndSet =
+    typeof store.getVersioned === 'function' &&
+    typeof store.upsertIf === 'function'
+  if (!hasCompareAndSet) {
+    throw new Error(
+      'stores.sessions needs getVersioned and upsertIf. The host changes an index entry with compare-and-set, so two hosts do not lose the changes of each other.',
+    )
+  }
+}
+
+/**
+ * The key of an open session in the host: the harness, the tenant, and the
+ * thread. One thread id in two tenants is two sessions.
+ */
+const sessionKey = (
+  harness: string,
+  tenantId: string | undefined,
+  threadId: string,
+) => `${harness}\u0000${logIdOf({ tenantId, logId: threadId })}`
 
 /** @internal How a session writes its index entry. */
 export type SessionIndexWriter = ReturnType<typeof sessionIndex>
@@ -527,26 +611,31 @@ function statusAfter(session: HarnessSession, event: StreamChunk) {
   }
 }
 
+/** Where a host looks for the open session of a chat turn. */
+interface TurnLookup {
+  harness: AnyHarness
+  /** Only the sessions of this tenant. */
+  tenantId: string | undefined
+  operationId: string
+}
+
 /** How each host finds the open session of a chat turn. Not public API. */
 const turnFinders = new WeakMap<
   object,
-  (harness: string, operationId: string) => Promise<HarnessSession | undefined>
+  (lookup: TurnLookup) => Promise<HarnessSession | undefined>
 >()
 
 /**
- * @internal The open session of `harness` in `host` that has the chat turn
- * `operationId`, running or ended. A turn's events live in the host that runs
- * it, so the handler joins a run through this.
+ * @internal The open session of `harness` in `host`, in the tenant
+ * `tenantId`, that has the chat turn `operationId`, running or ended. A
+ * turn's events live in the host that runs it, so the handler joins a run
+ * through this.
  */
 export function sessionOfTurn(
   host: HarnessHost,
-  harness: AnyHarness,
-  operationId: string,
+  lookup: TurnLookup,
 ): Promise<HarnessSession | undefined> {
-  return (
-    turnFinders.get(host)?.(harness.name, operationId) ??
-    Promise.resolve(undefined)
-  )
+  return turnFinders.get(host)?.(lookup) ?? Promise.resolve(undefined)
 }
 
 /** The log and run stores of each durable host. Not public API. */
@@ -601,6 +690,7 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
   const persistence: HarnessPersistence =
     options.persistence ?? memoryPersistence()
   checkDurableStores(persistence)
+  checkSessionStore(persistence.stores.sessions)
   const memory = memoryPersistence().stores
   // ponytail: a memory inbox when the stores have none. Pass `stores.inbox`
   // to keep accepted inputs across restarts. A durable host keeps them in
@@ -641,13 +731,14 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
   const statuses = new Map<string, HostStatusEvent>()
   const setStatus = (
     key: string,
-    threadId: string,
+    of: SessionIndexKey,
     status: HostStatusEvent['status'],
   ) => {
     if (statuses.get(key)?.status === status) return
     const event: HostStatusEvent = {
       type: 'status',
-      threadId,
+      threadId: of.threadId,
+      ...(of.tenantId !== undefined ? { tenantId: of.tenantId } : {}),
       status,
       at: Date.now(),
     }
@@ -656,7 +747,7 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
   }
   const index = sessionIndex(sessionStore, emit)
   const coalesceMs = options.log?.coalesceMs ?? 100
-  /** The shared log of each log id with an open session, by log id. */
+  /** The shared log of each log with an open session, by its store log id. */
   const logs = new Map<string, Promise<SharedLog>>()
   /** The resolved shared logs, and the reduce that folds each one, for `logState`. */
   const resolved = new Map<
@@ -664,10 +755,15 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
     { log: SharedLog; reduce: ReduceOptions<unknown> | undefined }
   >()
   /**
-   * The shared log of `logId`. The harness of the session that opens it
-   * first gives the `project` and `reduce` that fold it.
+   * The shared log with the store log id `logId`, whose records with no
+   * `thread` field belong to `rootThread`. The harness of the session that
+   * opens it first gives the `project` and `reduce` that fold it.
    */
-  const sharedLog = (store: LogStore, logId: string, harness: AnyHarness) => {
+  const sharedLog = (
+    store: LogStore,
+    { logId, rootThread }: { logId: string; rootThread: string },
+    harness: AnyHarness,
+  ) => {
     const open = logs.get(logId)
     if (open) return open
     const project = harness.durability?.project
@@ -675,6 +771,7 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
     const loaded = loadLogState({
       store,
       logId,
+      rootThread,
       ...(metadata ? { metadata } : {}),
       ...(project ? { project } : {}),
       ...(reduce ? { reduce } : {}),
@@ -682,6 +779,7 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
       const log = new SharedLog({
         store,
         logId,
+        rootThread,
         state,
         coalesceMs,
         ...(project ? { project } : {}),
@@ -711,24 +809,42 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
   const closing = new Map<string, Promise<void>>()
   const hostId = `host-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
 
+  /** Throw when the index entry of the thread names a parent thread. */
+  const refuseChild = async (key: SessionIndexKey) => {
+    const parent = (await index.get(key))?.parentThreadId
+    if (parent === undefined) return
+    throw new Error(
+      `${JSON.stringify(key.threadId)} is a child thread of ${JSON.stringify(parent)}. Open the root thread and read the child through it.`,
+    )
+  }
+
   /**
-   * `host.open`. It gives the session class, so the host can call the
-   * members that the `HarnessSession` type does not have.
+   * `host.open`, in the tenant `tenantId`. It gives the session class, so
+   * the host can call the members that the `HarnessSession` type does not
+   * have. An internal open can pass a tenant with no principal, so it does
+   * not claim an entry with no owner.
    */
   const openSession = <THarness extends AnyHarness>(
     harness: THarness,
     { threadId, principal, logId: openLogId, promptCache }: OpenSessionOptions,
+    tenantId: string | undefined,
   ) => {
-    const key = `${harness.name}\u0000${threadId}`
+    const key = sessionKey(harness.name, tenantId, threadId)
+    const of = { tenantId, threadId }
     let session = sessions.get(key)
     // The app opened a thread that a sweep opened: it stays open.
     if (session) sweptOnly.delete(key)
     if (!session) {
       const logId = openLogId ?? threadId
+      // The one place where the log id of the app becomes the id in the
+      // store: the tenant is part of it.
+      const storeLogId = logIdOf({ tenantId, logId })
       const created = new SessionImpl({
         harness,
         threadId,
         logId,
+        storeLogId,
+        ...(tenantId !== undefined ? { tenantId } : {}),
         persistence,
         inbox,
         credentials,
@@ -743,11 +859,12 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
                   ? { project: harness.durability.project }
                   : {}),
                 open: async (sessionThread, onFailure) => {
-                  let log = await sharedLog(logStore, logId, harness)
+                  const ids = { logId: storeLogId, rootThread: logId }
+                  let log = await sharedLog(logStore, ids, harness)
                   // The log closed while this open waited, and the host
                   // dropped it.
                   while (!log.isOpen) {
-                    log = await sharedLog(logStore, logId, harness)
+                    log = await sharedLog(logStore, ids, harness)
                   }
                   return log.view(sessionThread, onFailure)
                 },
@@ -759,7 +876,7 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
         ...(promptCache ? { promptCache } : {}),
         onEvent: (event) => {
           const status = statusAfter(created, event)
-          if (status) setStatus(key, threadId, status)
+          if (status) setStatus(key, of, status)
         },
         onClose: () => {
           // A sweep may have put a new session under this key already. It
@@ -772,12 +889,13 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
       // the thread first.
       const closed = closing.get(key) ?? Promise.resolve()
       session = closed
+        .then(() => refuseChild(of))
         .then(() => created.open())
         .then(
           () => {
             // A recovered turn can run already. Else the new session is
             // idle.
-            if (!statuses.has(key)) setStatus(key, threadId, 'idle')
+            if (!statuses.has(key)) setStatus(key, of, 'idle')
             return created
           },
           (error: unknown) => {
@@ -792,20 +910,27 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
   }
 
   const host: HarnessHost = {
-    open: openSession,
-    isOpen(harness, { threadId }) {
-      return sessions.has(`${harness.name}\u0000${threadId}`)
+    open: (harness, openOptions) =>
+      openSession(harness, openOptions, openOptions.principal?.tenantId),
+    isOpen(harness, { threadId, principal }) {
+      return sessions.has(
+        sessionKey(harness.name, principal?.tenantId, threadId),
+      )
     },
     async fork(harness, { threadId, newThreadId, at, principal, logId }) {
       if (newThreadId === threadId) {
         throw new Error('A fork needs a new thread: newThreadId is threadId.')
       }
+      const tenantId = principal?.tenantId
       // A source that only this fork opens closes again at the end.
-      const wasOpen = host.isOpen(harness, { threadId })
-      const source = await openSession(harness, {
-        threadId,
-        ...(logId ? { logId } : {}),
-      })
+      const wasOpen = sessions.has(sessionKey(harness.name, tenantId, threadId))
+      // In the tenant of the fork, with no principal: the fork does not
+      // become the owner of a source with no owner.
+      const source = await openSession(
+        harness,
+        { threadId, ...(logId ? { logId } : {}) },
+        tenantId,
+      )
       try {
         const transcript = await source.transcript()
         const end =
@@ -819,8 +944,10 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
             `Thread ${JSON.stringify(threadId)} has no message ${JSON.stringify(at)}.`,
           )
         }
+        // The new thread opens with no `logId`, so its log is its own.
+        const newLogId = logIdOf({ tenantId, logId: newThreadId })
         const isUsed = logStore
-          ? (await logStore.read({ logId: newThreadId, limit: 1 })).length > 0
+          ? (await logStore.read({ logId: newLogId, limit: 1 })).length > 0
           : ((await persistence.stores.messages?.loadThread(newThreadId))
               ?.length ?? 0) > 0
         if (isUsed) {
@@ -828,10 +955,11 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
             `Thread ${JSON.stringify(newThreadId)} is not empty. Fork into a new thread.`,
           )
         }
-        const fork = await openSession(harness, {
-          threadId: newThreadId,
-          ...(principal ? { principal } : {}),
-        })
+        const fork = await openSession(
+          harness,
+          { threadId: newThreadId, ...(principal ? { principal } : {}) },
+          tenantId,
+        )
         await fork.adoptFork(source, transcript.slice(0, end))
         return fork
       } finally {
@@ -879,14 +1007,16 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
           until: Date.now() + ttlMs,
         })
         if (!isMine) continue
-        const key = `${name}\u0000${threadId}`
+        // ponytail: a work claim has a thread id and no tenant, so the sweep
+        // opens the thread in the default tenant. PR 5 replaces work claims.
+        const key = sessionKey(name, undefined, threadId)
         // Only a session that this sweep opens closes when idle. A session
         // that the app has open stays open.
         const isOwn = close === 'whenIdle' && !sessions.has(key)
         if (isOwn) sweptOnly.add(key)
         let session: SessionImpl
         try {
-          session = await openSession(harness, { threadId })
+          session = await openSession(harness, { threadId }, undefined)
         } catch (error) {
           // One thread that cannot open must not stop the sweep. The claim
           // goes back, so the next sweep tries again.
@@ -962,8 +1092,10 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
           .map((entry) => entry.value.close(closeOptions)),
       )
     },
-    logState: ({ harness, logId }) => {
-      const folded = resolved.get(logId)
+    logState: ({ harness, logId, principal }) => {
+      const folded = resolved.get(
+        logIdOf({ tenantId: principal?.tenantId, logId }),
+      )
       // The reduce of another harness folded this log: its state has
       // another type.
       if (folded?.reduce !== harness.durability?.reduce) return undefined
@@ -974,40 +1106,49 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
         | undefined
     },
     sessions: {
-      list: async (listOptions) =>
+      list: async ({ principal, ...filters } = {}) =>
         (await sessionStore?.list({
           parentThreadId: null,
-          ...listOptions,
+          ...filters,
+          // Last, so a filter never names another tenant.
+          tenantId: principal?.tenantId,
         })) ?? {
           entries: [],
         },
-      get: (threadId) => index.get(threadId),
-      rename: ({ threadId, title }) =>
+      get: ({ threadId, principal }) =>
+        index.get({ tenantId: principal?.tenantId, threadId }),
+      rename: ({ threadId, title, principal }) =>
         index.update(
-          threadId,
+          { tenantId: principal?.tenantId, threadId },
           (entry) => entry && { ...entry, title, updatedAt: Date.now() },
         ),
-      update: async ({ harness, threadId, update }) =>
+      update: async ({ harness, threadId, update, principal }) =>
         // The schema checked the metadata, so it has the harness type.
-        (await index.update(threadId, (entry) => {
-          checkHarness(entry, harness)
-          return changedEntry(
-            entry,
-            update as SessionEntryUpdate<any, SessionEntryChange<any>>,
-            harness.metadataSchema,
-          )
-        })) as SessionIndexEntry<SessionMetadataOf<typeof harness>> | undefined,
-      delete: (threadId) => index.remove(threadId),
-      async fork({ harness, threadId, at }) {
+        (await index.update(
+          { tenantId: principal?.tenantId, threadId },
+          (entry) => {
+            checkHarness(entry, harness)
+            return changedEntry(
+              entry,
+              update as SessionEntryUpdate<any, SessionEntryChange<any>>,
+              harness.metadataSchema,
+            )
+          },
+        )) as SessionIndexEntry<SessionMetadataOf<typeof harness>> | undefined,
+      delete: ({ threadId, principal }) =>
+        index.remove({ tenantId: principal?.tenantId, threadId }),
+      async fork({ harness, threadId, at, principal }) {
+        const tenantId = principal?.tenantId
         // Check before a session opens. Without a sessions store there is no
         // entry, so there is nothing to check.
-        const source = await index.get(threadId)
+        const source = await index.get({ tenantId, threadId })
         checkHarness(source, harness)
         // `host.fork` takes the last message to copy, so `before` becomes
         // the message just before it, or `null` before the first one.
         let last: string | null = 'through' in at ? at.through : null
         if ('before' in at) {
-          const opened = await host.open(harness, { threadId })
+          // With no principal, as `host.fork` opens the source.
+          const opened = await openSession(harness, { threadId }, tenantId)
           const transcript = await opened.transcript()
           const position = transcript.findIndex(({ id }) => id === at.before)
           if (position === -1) {
@@ -1027,26 +1168,38 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
           threadId,
           newThreadId: `thread-${crypto.randomUUID()}`,
           at: last,
-          ...(source?.principal ? { principal: source.principal } : {}),
+          ...(principal ? { principal } : {}),
         })
         const now = Date.now()
-        // A sibling of the old thread, not a child: no parentThreadId.
+        // A sibling of the old thread, not a child: no parentThreadId. The
+        // same users can open it as the old thread.
         const entry: SessionIndexEntry = {
+          ...(tenantId !== undefined ? { tenantId } : {}),
           threadId: forked.threadId,
+          ...(source?.ownerId !== undefined ? { ownerId: source.ownerId } : {}),
+          members: source?.members ?? [],
           createdAt: now,
           updatedAt: now,
           harness: harness.name,
           ...(source?.title ? { title: `${source.title} (fork)` } : {}),
-          ...(source?.principal ? { principal: source.principal } : {}),
         }
-        // The open of the fork wrote an entry already: keep what it holds.
         return (
-          (await index.update(entry.threadId, (current) => ({
-            ...entry,
-            ...current,
-            ...(entry.title ? { title: entry.title } : {}),
-            updatedAt: now,
-          }))) ?? entry
+          (await index.update(
+            { tenantId, threadId: entry.threadId },
+            (current) => {
+              // The open of the fork wrote an entry already: keep what it
+              // holds, but not its owner. The owner and the members come
+              // from the old thread.
+              const { ownerId: _opener, ...opened } = current ?? entry
+              return {
+                ...entry,
+                ...opened,
+                ...(entry.title ? { title: entry.title } : {}),
+                members: entry.members,
+                updatedAt: now,
+              }
+            },
+          )) ?? entry
         )
       },
     },
@@ -1084,9 +1237,12 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
     const { runs } = persistence.stores
     durableStores.set(host, { log: logStore, ...(runs ? { runs } : {}) })
   }
-  turnFinders.set(host, async (name, operationId) => {
+  turnFinders.set(host, async ({ harness, tenantId, operationId }) => {
+    // The key of a session with an empty thread id is the start of the keys
+    // of the harness and tenant: the encoded tenant has no `:`.
+    const prefix = sessionKey(harness.name, tenantId, '')
     for (const [key, opening] of sessions) {
-      if (!key.startsWith(`${name}\u0000`)) continue
+      if (!key.startsWith(prefix)) continue
       const session = await opening.catch(() => undefined)
       if (session?.operation(operationId)?.kind === 'chat') return session
     }

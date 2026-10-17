@@ -5,7 +5,7 @@ import {
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness, logIdOf } from '../src'
 import {
   after,
   gate,
@@ -21,6 +21,8 @@ import type { HarnessTurnOptions } from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
+/** The id of the log of `THREAD` in the store. */
+const LOG = logIdOf({ logId: THREAD })
 
 /**
  * A durable store set. `batches` has the record types of each append.
@@ -117,7 +119,7 @@ async function seedStoppedTurn(
       : []),
   ]
   await persistence.stores.log.append({
-    logId: THREAD,
+    logId: LOG,
     seq: 1,
     epoch: UNOWNED_EPOCH,
     records,
@@ -428,7 +430,7 @@ describe('the join rule', () => {
     // It did not join, so it ends with the session that stopped.
     await expect(join).rejects.toThrow('Session closed.')
 
-    const types = (await inner.read({ logId: THREAD })).map(
+    const types = (await inner.read({ logId: LOG })).map(
       (entry) => entry.record.type,
     )
     expect(types).not.toContain('harness.input.joined')
@@ -516,7 +518,7 @@ describe('the join rule', () => {
 
     await turn
     expect(messageTexts(calls[1]).slice(-2)).toEqual(['more', 'only now'])
-    expect(JSON.stringify(await inner.read({ logId: THREAD }))).not.toContain(
+    expect(JSON.stringify(await inner.read({ logId: LOG }))).not.toContain(
       'only now',
     )
     await host.close()
@@ -556,7 +558,7 @@ describe('the join rule', () => {
       outcome: 'completed',
       operationId: turn.id,
     })
-    const types = (await inner.read({ logId: THREAD }))
+    const types = (await inner.read({ logId: LOG }))
       .map((entry) => entry.record)
       .filter((record) => record.inputId === 's1')
       .map((record) => record.type)

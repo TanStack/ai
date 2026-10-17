@@ -227,16 +227,12 @@ function parseSessionOp(body: unknown) {
 }
 
 /**
- * The entry belongs to `principal`: the same id, and the same tenant when
- * the principal has one. The same rule as the `principal` filter of the
- * index `list`, so a user changes only the sessions the user can list.
+ * The entry belongs to `principal`: its owner is the principal, in the
+ * tenant of the principal. The list of sessions keeps the same entries, so a
+ * user changes only the sessions the user can list.
  */
 function isOwnedBy(entry: SessionIndexEntry, principal: Principal) {
-  const owner = entry.principal
-  if (!owner || owner.id !== principal.id) return false
-  return (
-    principal.tenantId === undefined || owner.tenantId === principal.tenantId
-  )
+  return entry.ownerId === principal.id && entry.tenantId === principal.tenantId
 }
 
 /** Base64url to bytes, or `undefined` for a value that is not base64url. */
@@ -421,7 +417,11 @@ export function createHarnessHandler(
     const offset = new URL(request.url).searchParams.get('offset')
     const resumeFrom =
       request.headers.get('Last-Event-ID') ?? (offset === '-1' ? null : offset)
-    const session = await sessionOfTurn(host, harness, runId)
+    const session = await sessionOfTurn(host, {
+      harness,
+      tenantId: principal.tenantId,
+      operationId: runId,
+    })
     const turn = session?.operation(runId)
     if (session && turn) {
       if (!(await canAccess(principal, session.threadId))) {
@@ -446,7 +446,7 @@ export function createHarnessHandler(
     if (!(await canAccess(principal, threadId))) {
       return json({ error: 'forbidden' }, 403)
     }
-    const entry = await host.sessions.get(threadId)
+    const entry = await host.sessions.get({ threadId, principal })
     if (entry?.harness !== undefined && entry.harness !== harness.name) {
       return json({ error: 'unknown run' }, 404)
     }
@@ -571,10 +571,14 @@ export function createHarnessHandler(
         // The same rule as `POST sessions`: `canAccess`, and the owner in
         // the index. A deleted entry comes with the event.
         const mayWatch = async (event: HostEvent) => {
+          // The status of a session in another tenant.
+          const isOtherTenant =
+            event.type === 'status' && event.tenantId !== principal.tenantId
+          if (isOtherTenant) return false
           if (!(await canAccess(principal, event.threadId))) return false
           const entry =
             event.type === 'status'
-              ? await host.sessions.get(event.threadId)
+              ? await host.sessions.get({ threadId: event.threadId, principal })
               : event.entry
           return entry !== undefined && isOwnedBy(entry, principal)
         }
@@ -655,8 +659,12 @@ export function createHarnessHandler(
             .filter(([key]) => key.startsWith('metadata.'))
             .map(([key, value]) => [key.slice('metadata.'.length), value]),
         )
-        // The store keeps only this principal's entries of this harness.
+        // The store keeps only the entries of this harness in the tenant of
+        // this principal. This principal sees the ones it owns, and
         // `canAccess` can still refuse some of them.
+        // ponytail: the owner check runs after the page, so a page can have
+        // fewer entries than `limit`. The access node lists by member in
+        // the store.
         const page = await host.sessions.list({
           principal,
           harness: harness.name,
@@ -667,8 +675,10 @@ export function createHarnessHandler(
           ...(search ? { search } : {}),
         })
         const allowed = await Promise.all(
-          page.entries.map(async (entry) =>
-            canAccess(principal, entry.threadId),
+          page.entries.map(
+            async (entry) =>
+              isOwnedBy(entry, principal) &&
+              canAccess(principal, entry.threadId),
           ),
         )
         return json({
@@ -684,7 +694,10 @@ export function createHarnessHandler(
           return json({ error: 'forbidden' }, 403)
         // The session of another user answers as a missing one, so its
         // thread id tells the caller nothing.
-        const entry = await host.sessions.get(op.threadId)
+        const entry = await host.sessions.get({
+          threadId: op.threadId,
+          principal,
+        })
         if (!entry || !isOwnedBy(entry, principal))
           return json({ error: 'not found' }, 404)
         switch (op.op) {
@@ -692,6 +705,7 @@ export function createHarnessHandler(
             const renamed = await host.sessions.rename({
               threadId: op.threadId,
               title: op.title,
+              principal,
             })
             return renamed ? json(renamed) : json({ error: 'not found' }, 404)
           }
@@ -708,6 +722,7 @@ export function createHarnessHandler(
                 harness,
                 threadId: op.threadId,
                 update: op.change,
+                principal,
               })
               return updated ? json(updated) : json({ error: 'not found' }, 404)
             } catch (error) {
@@ -720,7 +735,7 @@ export function createHarnessHandler(
             }
           }
           case 'delete':
-            await host.sessions.delete(op.threadId)
+            await host.sessions.delete({ threadId: op.threadId, principal })
             return new Response(null, { status: 204 })
           case 'fork':
             // The host can run more harnesses than this handler serves.
@@ -731,6 +746,7 @@ export function createHarnessHandler(
                 harness,
                 threadId: op.threadId,
                 at: op.at,
+                principal,
               }),
             )
         }

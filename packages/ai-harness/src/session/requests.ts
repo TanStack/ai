@@ -833,7 +833,7 @@ export abstract class SessionRequests<
       transcript: () => this.transcript(),
       replaceTranscript: (messages) =>
         this.messages.saveThread(this.threadId, messages),
-      entry: () => this.index.get(this.threadId),
+      entry: () => this.index.get(this.indexKey),
       updateEntry: (update) => {
         // Only these fields: a plugin cannot change the owner, the parent,
         // or the pin.
@@ -847,7 +847,7 @@ export abstract class SessionRequests<
             metadata: change.metadata,
             usage: change.usage,
           }
-        return this.index.update(this.threadId, (entry) =>
+        return this.index.update(this.indexKey, (entry) =>
           changedEntry(
             entry,
             typeof update === 'function'

@@ -7,6 +7,7 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
+  logIdOf,
 } from '../src'
 import { SessionImpl } from '../src/session/harness-session'
 import {
@@ -22,6 +23,8 @@ import type { AnyTextAdapter } from '@tanstack/ai'
 import type { ChatTurnResult, Operation } from '../src'
 
 const THREAD = 't1'
+/** The id of the log of `THREAD` in the store. */
+const LOG = logIdOf({ logId: THREAD })
 const NAME = 'test/forwarding'
 
 /** Stores that several hosts share, as on a serverless platform. */
@@ -299,7 +302,7 @@ describe('an input that reaches a host that does not own the thread', () => {
         }),
       ).toBeNull(),
     )
-    const log = await persistence.stores.log.read({ logId: THREAD })
+    const log = await persistence.stores.log.read({ logId: LOG })
     expect(JSON.stringify(log)).not.toContain('hunter2')
   })
 

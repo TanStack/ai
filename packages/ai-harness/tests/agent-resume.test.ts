@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness, logIdOf } from '../src'
 import {
   messageTexts,
   mockAdapter,
@@ -14,6 +14,8 @@ import type { AnyTextAdapter } from '@tanstack/ai'
 import type { HarnessDurability } from '../src'
 
 const THREAD = 't1'
+/** The id of the log of `THREAD` in the store. */
+const LOG = logIdOf({ logId: THREAD })
 const alice = { id: 'alice' }
 
 /**
@@ -91,7 +93,7 @@ async function stopDuringAgent(options: {
   refuse.mockRestore()
   await stores.runs.update(operation.id, { leaseExpiresAt: Date.now() - 1000 })
 
-  const record = (await log.read({ logId: THREAD }))
+  const record = (await log.read({ logId: LOG }))
     .map((entry) => entry.record)
     .find(
       (entry) =>

@@ -8,6 +8,7 @@ import { loadChildTranscript } from '@tanstack/ai-persistence'
 import { checkConfigValue } from '../config'
 import { isRecord } from '../utils'
 import { changedEntry } from '../session-entry'
+import { threadOf } from '../log'
 import { mediaIdOf, mediaOfMessage, mediaPart } from '../media-ref'
 import {
   BackgroundJobs,
@@ -89,19 +90,36 @@ export abstract class SessionState<
 
   /**
    * Write the index entry of this thread on open: a new entry the first
-   * time, else a new `updatedAt`. The owner is who opened the thread first,
-   * so an open by another user does not change it.
+   * time, in the tenant of this session, else a new `updatedAt`. The owner
+   * is who opened the thread first, so an open by another user does not
+   * change it. The owner is the first member, with the role `owner`.
    */
   protected async openEntry() {
     const now = Date.now()
-    await this.index.update(this.threadId, (entry) => ({
-      threadId: this.threadId,
-      createdAt: now,
-      ...entry,
-      harness: entry?.harness ?? this.harness.name,
-      updatedAt: now,
-      ...storedPrincipal(entry?.principal ?? this.principal),
-    }))
+    const { principal, tenantId, threadId } = this
+    await this.index.update(this.indexKey, (entry) => {
+      const current: SessionIndexEntry = entry ?? {
+        ...(tenantId !== undefined ? { tenantId } : {}),
+        threadId,
+        members: [],
+        createdAt: now,
+        updatedAt: now,
+      }
+      // ponytail: an entry with no owner goes to the next opener with a
+      // principal. The access node allows this only when access is off.
+      const isClaim = current.ownerId === undefined && principal !== undefined
+      return {
+        ...current,
+        harness: current.harness ?? this.harness.name,
+        updatedAt: now,
+        ...(isClaim
+          ? {
+              ownerId: principal.id,
+              members: [{ userId: principal.id, role: 'owner' as const }],
+            }
+          : {}),
+      }
+    })
   }
 
   snapshot(): SessionSnapshot {
@@ -430,7 +448,7 @@ export abstract class SessionState<
     SessionIndexEntry<SessionMetadataOf<THarness>> | undefined
   > {
     // The schema checked the metadata on each write.
-    return (await this.index.get(this.threadId)) as
+    return (await this.index.get(this.indexKey)) as
       | SessionIndexEntry<SessionMetadataOf<THarness>>
       | undefined
   }
@@ -445,7 +463,7 @@ export abstract class SessionState<
   async updateEntry(
     update: SessionEntryUpdate<SessionMetadataOf<THarness>>,
   ): Promise<SessionIndexEntry<SessionMetadataOf<THarness>> | undefined> {
-    return (await this.index.update(this.threadId, (entry) =>
+    return (await this.index.update(this.indexKey, (entry) =>
       changedEntry(
         entry,
         update as SessionEntryUpdate<any, SessionEntryChange<any>>,
@@ -602,13 +620,13 @@ export abstract class SessionState<
     let after = 0
     for (;;) {
       const entries = await this.log.store.read({
-        logId: this.logId,
+        logId: this.storeLogId,
         after,
         limit: 256,
       })
       for (const { seq, record } of entries) {
         after = seq
-        const isOwn = (record.thread ?? this.logId) === this.threadId
+        const isOwn = threadOf(record, this.logId) === this.threadId
         if (isOwn && record.type === type) found.push(record)
       }
       // A store can return fewer than `limit` before the end: stop only at
@@ -841,14 +859,14 @@ export abstract class SessionState<
       let after = 0
       for (;;) {
         const entries = await this.log.store.read({
-          logId: this.logId,
+          logId: this.storeLogId,
           after,
           limit: 256,
         })
         for (const { seq, record } of entries) {
           after = seq
           if (
-            (record.thread ?? this.logId) !== this.threadId ||
+            threadOf(record, this.logId) !== this.threadId ||
             record.type !== 'harness.event' ||
             !isRecord(record.event)
           )

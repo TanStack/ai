@@ -12,6 +12,7 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
+  logIdOf,
 } from '../src'
 import { credentialsFor } from '../src/auth'
 import { after, gate, mockAdapter, text, toolCall } from './helpers'
@@ -26,6 +27,8 @@ import type {
 } from '../src'
 
 const THREAD = 't1'
+/** The id of the log of `THREAD` in the store. */
+const LOG = logIdOf({ logId: THREAD })
 const alice = { id: 'alice' }
 const bob = { id: 'bob' }
 
@@ -89,7 +92,7 @@ describe('the sender of each input', () => {
     await session.send('And now?', { inputId: 'in-default' })
 
     expect(seen.map((entry) => entry.principal)).toEqual(['bob', 'alice'])
-    const inputs = (await persistence.stores.log.read({ logId: THREAD }))
+    const inputs = (await persistence.stores.log.read({ logId: LOG }))
       .map((entry): LogRecord => entry.record)
       .filter((record) => record.type === 'harness.input')
       .map((record) => [record['inputId'], record['principal']])
@@ -489,7 +492,7 @@ describe('recovery keeps the sender and the context', () => {
   it('runs an input that never ran with its sender and context', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
-      logId: THREAD,
+      logId: LOG,
       seq: 1,
       epoch: UNOWNED_EPOCH,
       records: [
@@ -538,7 +541,7 @@ describe('recovery keeps the sender and the context', () => {
   it('runs a turn whose host stopped again with its message, sender, and context', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
-      logId: THREAD,
+      logId: LOG,
       seq: 1,
       epoch: UNOWNED_EPOCH,
       records: [

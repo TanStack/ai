@@ -46,6 +46,7 @@ import type {
   InboxEntry,
   InboxStore,
   MessageStore,
+  SessionIndexKey,
   SessionIndexStore,
 } from '@tanstack/ai-persistence'
 import type { AuthRequiredError, CredentialsAccess } from '../auth'
@@ -126,6 +127,12 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   readonly registry: AgentRegistryView
 
   protected readonly harness: THarness
+  /** The tenant of this session: the tenant of the principal that opened it. */
+  protected readonly tenantId: string | undefined
+  /** The id of the log of this session in the store, with the tenant. */
+  protected readonly storeLogId: string
+  /** The key of the session index entry of this thread. */
+  protected readonly indexKey: SessionIndexKey
   protected readonly persistence: HarnessPersistence
   protected readonly inbox: InboxStore
   protected readonly principal: Principal | undefined
@@ -308,6 +315,9 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     this.harness = deps.harness as THarness
     this.threadId = deps.threadId
     this.logId = deps.logId
+    this.tenantId = deps.tenantId
+    this.storeLogId = deps.storeLogId
+    this.indexKey = { tenantId: deps.tenantId, threadId: deps.threadId }
     // The session value wins over the harness value, field by field.
     const own = cacheObject(deps.promptCache)
     const shared = cacheObject(this.harness.promptCache)
@@ -321,6 +331,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     this.mediaStore = createMediaStore({
       persistence: deps.media,
       threadId: deps.threadId,
+      ...(deps.tenantId !== undefined ? { tenantId: deps.tenantId } : {}),
       options: this.harness.media,
     })
     this.principal = deps.principal
@@ -550,9 +561,9 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   }): RunContext {
     const { principal } = storedPrincipal(options.principal)
     return {
-      ...(principal?.tenantId ? { tenantId: principal.tenantId } : {}),
+      ...(this.tenantId !== undefined ? { tenantId: this.tenantId } : {}),
       principal,
-      logId: this.logId,
+      logId: this.storeLogId,
       threadId: this.threadId,
       runId: options.runId,
       ...(options.parentRunId ? { parentRunId: options.parentRunId } : {}),

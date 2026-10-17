@@ -679,7 +679,8 @@ export abstract class SessionTurn<
             middleware: [
               ...bridges,
               detachOnShutdown,
-              withPersistence(chatPersistence),
+              // The index entries of subagent children go in this tenant.
+              withPersistence(chatPersistence, { tenantId: this.tenantId }),
               checkpoint,
               // The same text as the recovery repair. Early, so a later
               // middleware can still replace the result of a cut call.
@@ -1025,7 +1026,7 @@ export abstract class SessionTurn<
     const { total } = this.usage()
     await this.index
       .update(
-        this.threadId,
+        this.indexKey,
         (entry) =>
           entry && {
             ...entry,

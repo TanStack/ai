@@ -435,11 +435,17 @@ export interface Principal {
  * ```
  */
 export interface RunContext {
-  /** The tenant of the session. */
+  /**
+   * The tenant of the session: the tenant of the principal that opened it.
+   * `undefined` in the default tenant.
+   */
   tenantId?: string
   /** The user who started this run. `undefined` in a session with no user. */
   principal: { id: string; tenantId?: string } | undefined
-  /** The log of the session. */
+  /**
+   * The id of the log of the session in the `LogStore`: the tenant and the
+   * `logId` of `host.open`, from `logIdOf`.
+   */
   logId: string
   threadId: string
   /** The operation id of this run. */

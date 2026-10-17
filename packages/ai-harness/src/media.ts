@@ -6,6 +6,7 @@ import {
   retrieveBlob,
   withGenerationPersistence,
 } from '@tanstack/ai-persistence'
+import { logIdOf } from './log'
 import { kindOf, mediaIdOf } from './media-ref'
 import type {
   AnyTranscriptionAdapter,
@@ -72,9 +73,10 @@ const ALL_KINDS: ReadonlyArray<MediaKind> = [
 ]
 
 // Uploads are artifact records with the run id `upload:<threadId>`. Their
-// bytes use the key `artifacts/upload:<encoded threadId>/<id>`: the thread id
-// comes from the client, and a raw `../` would leave the folder of a
-// filesystem blob store. Generated media keeps what
+// bytes use the key `artifacts/upload:<encoded tenant>:<encoded threadId>/<id>`
+// (`logIdOf` of the tenant and the thread), so one thread id in two tenants
+// has two folders. The thread id comes from the client, and a raw `../` would
+// leave the folder of a filesystem blob store. Generated media keeps what
 // `withGenerationPersistence` gives it: a generation run id
 // `<operation>[:<subagentRunId>...]:<activity>-<n>`.
 function uploadRunId(threadId: string) {
@@ -160,10 +162,13 @@ export function toBase64(bytes: Uint8Array) {
 export function createMediaStore({
   persistence,
   threadId,
+  tenantId,
   options = {},
 }: {
   persistence: MediaPersistence
   threadId: string
+  /** The tenant of the thread. Without it, the default tenant. */
+  tenantId?: string
   options?: MediaOptions
 }) {
   const { artifacts, blobs } = persistence.stores
@@ -217,7 +222,7 @@ export function createMediaStore({
 
       const id = crypto.randomUUID()
       const runId = uploadRunId(threadId)
-      const blobKey = `artifacts/upload:${encodeURIComponent(threadId)}/${id}`
+      const blobKey = `artifacts/upload:${logIdOf({ tenantId, logId: threadId })}/${id}`
       // A stream has no length up front, so count it as the store reads it.
       let seen = 0
       const counted =

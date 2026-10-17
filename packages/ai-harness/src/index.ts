@@ -27,7 +27,7 @@ export type {
   ToolStep,
 } from './durable-tool'
 
-export { LogVersionError, logMessageStore } from './log'
+export { LogVersionError, logIdOf, logMessageStore } from './log'
 export type { ProjectOptions, ProjectRecord, ReduceOptions } from './log'
 export type { LeaseOptions } from './resume'
 export type {

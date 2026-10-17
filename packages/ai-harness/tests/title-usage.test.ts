@@ -49,7 +49,9 @@ describe('title()', () => {
 
     expect(turn.text).toBe('answer')
     await vi.waitFor(async () =>
-      expect((await host.sessions.get('t'))?.title).toBe('Trip to Rome'),
+      expect((await host.sessions.get({ threadId: 't' }))?.title).toBe(
+        'Trip to Rome',
+      ),
     )
     expect(messageTexts(titler.calls[0])[0]).toContain(
       'Plan a trip to Rome for me',
@@ -65,13 +67,17 @@ describe('title()', () => {
     const { host, session } = await open([title({ adapter: titler.adapter })])
     await session.send('Plan a trip to Rome for me')
     await vi.waitFor(async () =>
-      expect((await host.sessions.get('t'))?.title).toBe('Trip to Rome'),
+      expect((await host.sessions.get({ threadId: 't' }))?.title).toBe(
+        'Trip to Rome',
+      ),
     )
 
     await session.send('Add a day in Florence')
 
     expect(titler.calls).toHaveLength(1)
-    expect((await host.sessions.get('t'))?.title).toBe('Trip to Rome')
+    expect((await host.sessions.get({ threadId: 't' }))?.title).toBe(
+      'Trip to Rome',
+    )
     await host.close()
   })
 
@@ -97,7 +103,7 @@ describe('title()', () => {
     await vi.waitFor(() =>
       expect(failures).toEqual([{ message: 'title model down' }]),
     )
-    expect((await host.sessions.get('t'))?.title).toBeUndefined()
+    expect((await host.sessions.get({ threadId: 't' }))?.title).toBeUndefined()
     await host.close()
   })
 
@@ -181,7 +187,9 @@ describe('usage()', () => {
       cacheWriteTokens: 500_000,
       cost: 0.5,
     })
-    expect((await host.sessions.get('t'))?.usage?.cost).toBeCloseTo(3.75, 10)
+    expect(
+      (await host.sessions.get({ threadId: 't' }))?.usage?.cost,
+    ).toBeCloseTo(3.75, 10)
     await host.close()
   })
 
@@ -195,7 +203,7 @@ describe('usage()', () => {
     expect(await session.command({ name: 'usage' })).toBe(
       `${CALL_LINE} Cost: $0.5000.`,
     )
-    expect((await host.sessions.get('t'))?.usage?.cost).toBe(0.5)
+    expect((await host.sessions.get({ threadId: 't' }))?.usage?.cost).toBe(0.5)
     await host.close()
   })
 
@@ -208,7 +216,9 @@ describe('usage()', () => {
     await session.send('two')
 
     // Two calls at $0.50. The host writes no cost of its own.
-    expect((await host.sessions.get('t'))?.usage?.cost).toBeCloseTo(1, 10)
+    expect(
+      (await host.sessions.get({ threadId: 't' }))?.usage?.cost,
+    ).toBeCloseTo(1, 10)
     await host.close()
   })
 
@@ -223,7 +233,7 @@ describe('usage()', () => {
     await session.send('two')
 
     // Two lead calls and one worker call.
-    expect((await host.sessions.get('t'))?.usage).toEqual({
+    expect((await host.sessions.get({ threadId: 't' }))?.usage).toEqual({
       turns: 3,
       promptTokens: 3_000_000,
       completionTokens: 300_000,
@@ -279,7 +289,7 @@ describe('usage()', () => {
     await session.send('one')
     await session.send('two')
 
-    expect((await host.sessions.get('t'))?.usage).toEqual({
+    expect((await host.sessions.get({ threadId: 't' }))?.usage).toEqual({
       turns: 2,
       promptTokens: 2_000_000,
       completionTokens: 200_000,
@@ -301,7 +311,7 @@ describe('usage()', () => {
     expect(await session.command({ name: 'usage' })).toBe(
       `${CALL_LINE} Cost: $0.0000 (cost unknown for 1 call).`,
     )
-    expect((await host.sessions.get('t'))?.usage).toEqual({
+    expect((await host.sessions.get({ threadId: 't' }))?.usage).toEqual({
       turns: 1,
       promptTokens: 1_000_000,
       completionTokens: 100_000,

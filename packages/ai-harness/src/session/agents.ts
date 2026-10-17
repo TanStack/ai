@@ -928,7 +928,11 @@ export abstract class SessionAgents<
           chatMiddleware: [
             // Every run keeps its transcript in the chain's thread.
             ...(this.chatPersistence
-              ? [withPersistence(this.chatPersistence)]
+              ? [
+                  withPersistence(this.chatPersistence, {
+                    tenantId: this.tenantId,
+                  }),
+                ]
               : []),
             ...(durable?.middleware ?? []),
             this.agentSteering(chain, inputId, operation),
@@ -1055,38 +1059,45 @@ export abstract class SessionAgents<
   }
 
   /**
-   * The index entry of an agent run: thread `subagent:<subagentRunId>`, with
-   * this thread as its parent and the harness of this thread. `upsert`
-   * replaces the whole entry, so the fields of other writers stay. A failed
-   * write does not fail the run.
+   * The index entry of an agent run: thread `subagent:<subagentRunId>`, in
+   * the tenant of this thread, with this thread as its parent and the
+   * harness of this thread. Its owner is the owner of this thread, else the
+   * user of the run. It has no members: access to a child goes through its
+   * parent. A write replaces the whole entry, so the fields of other writers
+   * stay. A failed write does not fail the run.
    */
   protected async indexAgent(
     operation: OperationImpl<unknown>,
     child: AgentChild,
     principal: Principal | undefined,
   ) {
+    const { tenantId } = this
     const threadId = `subagent:${child.subagentRunId}`
     const now = Date.now()
-    await this.index
-      .update(threadId, (entry) => ({
+    try {
+      const parent = await this.index.get(this.indexKey)
+      const ownerId = parent?.ownerId ?? principal?.id
+      await this.index.update({ tenantId, threadId }, (entry) => ({
         ...entry,
+        ...(tenantId !== undefined ? { tenantId } : {}),
         threadId,
         parentThreadId: this.threadId,
         ...(child.parentToolCallId !== undefined && {
           parentToolCallId: child.parentToolCallId,
         }),
         harness: this.harness.name,
+        ...(ownerId !== undefined ? { ownerId } : {}),
+        members: [],
         createdAt: entry?.createdAt ?? now,
         updatedAt: now,
-        ...storedPrincipal(entry?.principal ?? principal),
       }))
-      .catch((error: unknown) =>
-        this.warn(
-          operation,
-          'harness:sessions',
-          `The session index was not updated. ${String(error)}`,
-        ),
+    } catch (error) {
+      this.warn(
+        operation,
+        'harness:sessions',
+        `The session index was not updated. ${String(error)}`,
       )
+    }
   }
 
   /**

@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, definePlugin } from '../src'
+import { createHarnessHost, defineHarness, definePlugin, logIdOf } from '../src'
 import { applyInput } from '../src/server'
 import { after, gate, mockAdapter, text, toolCall } from './helpers'
 import type { AnyTool, AnyTextAdapter } from '@tanstack/ai'
@@ -17,6 +17,8 @@ import type {
 } from '../src'
 
 const THREAD = 't1'
+/** The id of the log of `THREAD` in the store. */
+const LOG = logIdOf({ logId: THREAD })
 /** Opens the session. She has a token too, so a fall back to her shows. */
 const olga = { id: 'olga' }
 const alice = { id: 'alice' }
@@ -344,7 +346,7 @@ describe('the sender of each control input', () => {
     }
     await session.whenIdle()
 
-    const logged = (await log.read({ logId: THREAD }))
+    const logged = (await log.read({ logId: LOG }))
       .map((entry) => entry.record)
       .filter((record) => record.type === 'harness.input')
       .map((record) => [opOf(record), record['principal']])
@@ -356,6 +358,38 @@ describe('the sender of each control input', () => {
       ['config', { id: 'bob' }],
       ['agent', { id: 'bob' }],
     ])
+    await host.close()
+  })
+})
+
+describe('the tenant of a run', () => {
+  it('names the tenant of the session and the id of its log in the store', async () => {
+    const seen: Array<{ tenantId: string | undefined; logId: string }> = []
+    const probe = toolDefinition({
+      name: 'probe',
+      description: 'Read the run context',
+      inputSchema: z.object({}),
+    }).server<HarnessRunContext>(async (_input, { context }) => {
+      seen.push({ tenantId: context.run.tenantId, logId: context.run.logId })
+      return {}
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const harness = defineHarness({
+      name: 'test/run-tenant',
+      adapter: mockAdapter([
+        () => toolCall('probe', {}, 'p1'),
+        () => text('ok'),
+      ]).adapter,
+      tools: [probe],
+    })
+    const session = await host.open(harness, {
+      threadId: THREAD,
+      principal: { id: 'ada', tenantId: 'org-a' },
+    })
+
+    await session.send('Read the run.')
+
+    expect(seen).toEqual([{ tenantId: 'org-a', logId: 'org-a:t1' }])
     await host.close()
   })
 })

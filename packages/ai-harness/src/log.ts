@@ -525,12 +525,37 @@ export function sessionOf(state: SharedLogState<unknown>, thread: string) {
   return session
 }
 
-/** The session of a record: its `thread`, or the session whose thread id is the log id. */
-export const threadOf = (record: LogRecord, logId: string) =>
-  typeof record.thread === 'string' ? record.thread : logId
+/**
+ * The id of a log in the `LogStore`: the tenant and the log id, each
+ * URL-encoded, with a `:` between them. Without `tenantId`, the log is in the
+ * default tenant. So one log id in two tenants is two logs. `logId` is the
+ * `logId` of `host.open`, and its default is the thread id.
+ *
+ * @example
+ * ```ts
+ * const entries = await log.read({ logId: logIdOf({ tenantId: 'org-1', logId: threadId }) })
+ * ```
+ */
+export function logIdOf({
+  tenantId,
+  logId,
+}: {
+  tenantId?: string
+  logId: string
+}) {
+  return `${encodeURIComponent(tenantId ?? '')}:${encodeURIComponent(logId)}`
+}
+
+/**
+ * The session of a record: its `thread`, or the root thread of the log. The
+ * root thread is the thread whose id is the `logId` of `host.open`.
+ */
+export const threadOf = (record: LogRecord, rootThread: string) =>
+  typeof record.thread === 'string' ? record.thread : rootThread
 
 interface FoldOptions<TState> {
-  logId: string
+  /** The thread of the records that have no `thread` field. */
+  rootThread: string
   project?: ProjectRecord
   reduce?: ReduceOptions<TState>
 }
@@ -556,7 +581,7 @@ export function foldLogEntry<TState>(
     )
   }
   foldEntry(
-    sessionOf(state, threadOf(record, options.logId)),
+    sessionOf(state, threadOf(record, options.rootThread)),
     entry,
     options.project,
   )
@@ -700,17 +725,20 @@ const versionsOf = (
 })
 
 /**
- * Fold the log `logId`. With `metadata`, start from the newest fold
- * checkpoint when it is valid for this log and these versions.
+ * Fold the log `logId`, the id in the store (see {@link logIdOf}). The
+ * records with no `thread` field belong to `rootThread`. With `metadata`,
+ * start from the newest fold checkpoint when it is valid for this log and
+ * these versions.
  */
 export async function loadLogState<TState = unknown>(options: {
   store: LogStore
   logId: string
+  rootThread: string
   metadata?: MetadataStore
   project?: ProjectOptions
   reduce?: ReduceOptions<TState>
 }) {
-  const { store, logId, metadata, project, reduce } = options
+  const { store, logId, rootThread, metadata, project, reduce } = options
   const saved = metadata
     ? await metadata.get(CHECKPOINT_NAMESPACE, logId).catch(() => null)
     : null
@@ -727,7 +755,7 @@ export async function loadLogState<TState = unknown>(options: {
     if (!atCheckpoint) state = emptySharedLogState(reduce)
   }
   const fold: FoldOptions<TState> = {
-    logId,
+    rootThread,
     ...(project ? { project: project.record } : {}),
     ...(reduce ? { reduce } : {}),
   }
@@ -774,6 +802,7 @@ function deltaKey(thread: string, operationId: string, event: StreamChunk) {
 /** A session's view of its log. It is also the session's {@link EventFeed}. */
 export interface LogWriter extends EventFeed {
   readonly threadId: string
+  /** The id of the log in the store. See {@link logIdOf}. */
   readonly logId: string
   /**
    * The fold of this session. In a shared log, `seq` is this session's last
@@ -810,7 +839,10 @@ export interface LogWriter extends EventFeed {
  * rejects.
  */
 export class SharedLog<TState = unknown> {
+  /** The id of the log in the store. See {@link logIdOf}. */
   readonly logId: string
+  /** The thread of the records that have no `thread` field. */
+  readonly rootThread: string
   readonly state: SharedLogState<TState>
   private readonly store: LogStore
   private readonly fold: FoldOptions<TState>
@@ -852,7 +884,10 @@ export class SharedLog<TState = unknown> {
 
   constructor(options: {
     store: LogStore
+    /** The id of the log in the store. See {@link logIdOf}. */
     logId: string
+    /** The thread of the records that have no `thread` field. */
+    rootThread: string
     state: SharedLogState<TState>
     coalesceMs: number
     project?: ProjectOptions
@@ -863,12 +898,13 @@ export class SharedLog<TState = unknown> {
   }) {
     this.store = options.store
     this.logId = options.logId
+    this.rootThread = options.rootThread
     this.state = options.state
     this.metadata = options.metadata
     this.coalesceMs = options.coalesceMs
     this.onIdle = options.onIdle ?? (() => {})
     this.fold = {
-      logId: options.logId,
+      rootThread: options.rootThread,
       ...(options.project ? { project: options.project.record } : {}),
       ...(options.reduce ? { reduce: options.reduce } : {}),
     }
@@ -972,9 +1008,9 @@ export class SharedLog<TState = unknown> {
       })
   }
 
-  /** Stamp a record with its session, unless it names one or the session is the log's own. */
+  /** Stamp a record with its session, unless it names one or the session is the root thread. */
   private stamp(record: LogRecord, thread: string): LogRecord {
-    if (typeof record.thread === 'string' || thread === this.logId) {
+    if (typeof record.thread === 'string' || thread === this.rootThread) {
       return record
     }
     return { ...record, thread }
@@ -1221,7 +1257,10 @@ export class SharedLog<TState = unknown> {
     foldLogEntry(this.state, entry, this.fold)
     const event = sessionEventOf(entry)
     if (!event) return
-    this.tail.push({ thread: threadOf(entry.record, this.logId), entry: event })
+    this.tail.push({
+      thread: threadOf(entry.record, this.rootThread),
+      entry: event,
+    })
     if (this.tail.length > MAX_TAIL) {
       const dropped = this.tail.shift()
       if (dropped) this.tailFrom = Number(dropped.entry.cursor)
@@ -1271,7 +1310,7 @@ export class SharedLog<TState = unknown> {
           if (entry.seq > upTo || signal?.aborted) break
           after = entry.seq
           const event = sessionEventOf(entry)
-          const isOwn = threadOf(entry.record, this.logId) === thread
+          const isOwn = threadOf(entry.record, this.rootThread) === thread
           if (event && isOwn && accepts(event)) yield event
         }
         if (page.length === 0) after = upTo
@@ -1346,20 +1385,27 @@ function sessionEventOf(entry: LogEntry) {
   return event
 }
 
-/**
- * The `MessageStore` a durable session gives `withPersistence`. Its own
- * thread goes through the session's writer. Another thread (a subagent
- * transcript) reads and appends that thread's log directly.
- */
-export function sessionMessageStore(options: {
+/** What a durable session needs for the message stores of its log. */
+interface SessionLogView {
   writer: LogWriter
   store: LogStore
   project?: ProjectOptions
-}) {
+  /** The tenant of the session. The logs of its subagent children are in it. */
+  tenantId?: string
+}
+
+/**
+ * The `MessageStore` a durable session gives `withPersistence`. Its own
+ * thread goes through the session's writer. Another thread (a subagent
+ * transcript) reads and appends that thread's log directly, in the tenant of
+ * the session.
+ */
+export function sessionMessageStore(options: SessionLogView) {
   const { writer } = options
   const other = logMessageStore({
     store: options.store,
     ...(options.project ? { project: options.project } : {}),
+    ...(options.tenantId !== undefined ? { tenantId: options.tenantId } : {}),
   })
   const messages: MessageStore = {
     loadThread: async (threadId: string) =>
@@ -1384,11 +1430,7 @@ export function sessionMessageStore(options: {
  * engine's list and gives the model the fold, so the two are the same at
  * every model call.
  */
-export function engineMessageStore(options: {
-  writer: LogWriter
-  store: LogStore
-  project?: ProjectOptions
-}) {
+export function engineMessageStore(options: SessionLogView) {
   const { writer } = options
   const shared = sessionMessageStore(options)
   const fold = () => [...writer.state.messages]
@@ -1494,19 +1536,31 @@ export function engineMessageStore(options: {
 export function logMessageStore(options: {
   store: LogStore
   project?: ProjectOptions
-  /** Read the threads of this log. Default: each thread is its own log. */
+  /**
+   * Read the threads of this log: the `logId` of `host.open`. Default: each
+   * thread is its own log.
+   */
   logId?: string
+  /**
+   * The tenant of the threads: the `principal.tenantId` of `host.open`.
+   * Default: the default tenant.
+   */
+  tenantId?: string
 }) {
-  const { store, project } = options
+  const { store, project, tenantId } = options
   // ponytail: each read and save folds the whole log of the thread, with no
   // checkpoint: O(n) per save, so O(n²) over a long child transcript. Pass
   // `metadata` to loadLogState and write checkpoints here when a child with
   // many tool phases gets slow.
-  const logOf = (threadId: string) => options.logId ?? threadId
+  /** The root thread of the log of `threadId`. */
+  const rootOf = (threadId: string) => options.logId ?? threadId
+  const logOf = (threadId: string) =>
+    logIdOf({ tenantId, logId: rootOf(threadId) })
   const load = (threadId: string) =>
     loadLogState({
       store,
       logId: logOf(threadId),
+      rootThread: rootOf(threadId),
       ...(project ? { project } : {}),
     })
   const messages: MessageStore = {
@@ -1521,7 +1575,7 @@ export function logMessageStore(options: {
           sessionOf(state, threadId).messages,
           list,
         ).map((record) =>
-          logOf(threadId) === threadId
+          rootOf(threadId) === threadId
             ? record
             : { ...record, thread: threadId },
         )

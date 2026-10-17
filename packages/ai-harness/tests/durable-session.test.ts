@@ -5,7 +5,7 @@ import {
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, definePlugin } from '../src'
+import { createHarnessHost, defineHarness, definePlugin, logIdOf } from '../src'
 import { loadLogState, sessionOf } from '../src/log'
 import {
   gate,
@@ -22,6 +22,8 @@ import type { HarnessSession, ProjectOptions, SessionEvent } from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
+/** The id of the log of `THREAD` in the store. */
+const LOG = logIdOf({ logId: THREAD })
 
 /** The stores of a durable host: a log, runs, and metadata. */
 function durablePersistence(log: LogStore = memoryLogStore()) {
@@ -275,7 +277,7 @@ describe('durable session log', () => {
 
     // The deltas reach the log after the coalescing window.
     await vi.waitFor(async () => {
-      const entries = await persistence.stores.log.read({ logId: THREAD })
+      const entries = await persistence.stores.log.read({ logId: LOG })
       const events = entries.map((entry) => entry.record.event)
       expect(JSON.stringify(events)).toContain('wor')
     })
@@ -446,7 +448,8 @@ describe('durable session log', () => {
     const rebuilt = sessionOf(
       await loadLogState({
         store: persistence.stores.log,
-        logId: THREAD,
+        logId: LOG,
+        rootThread: THREAD,
         project,
       }),
       THREAD,
@@ -493,7 +496,8 @@ describe('durable session log', () => {
     const rebuilt = sessionOf(
       await loadLogState({
         store: persistence.stores.log,
-        logId: THREAD,
+        logId: LOG,
+        rootThread: THREAD,
         project,
       }),
       THREAD,
@@ -517,7 +521,7 @@ describe('durable session log', () => {
     const harness = defineHarness({ name: 'test/conflict', adapter })
     const session = await host.open(harness, { threadId: THREAD })
     await inner.append({
-      logId: THREAD,
+      logId: LOG,
       seq: 1,
       epoch: UNOWNED_EPOCH,
       records: [{ type: 'app.from-another-host' }],
@@ -595,7 +599,11 @@ describe('durable session log', () => {
 
     // A fold of the log gives the same messages.
     const rebuilt = sessionOf(
-      await loadLogState({ store: persistence.stores.log, logId: THREAD }),
+      await loadLogState({
+        store: persistence.stores.log,
+        logId: LOG,
+        rootThread: THREAD,
+      }),
       THREAD,
     )
     expect(rebuilt.messages).toEqual(transcript)
@@ -642,7 +650,8 @@ describe('LogRecordsCapability', () => {
     const rebuilt = sessionOf(
       await loadLogState({
         store: persistence.stores.log,
-        logId: THREAD,
+        logId: LOG,
+        rootThread: THREAD,
         project,
       }),
       THREAD,
@@ -697,7 +706,7 @@ describe('LogRecordsCapability', () => {
       '[signal] saved',
     )
     const entries = await persistence.stores.log.read({
-      logId: THREAD,
+      logId: LOG,
       after: 0,
     })
     expect(entries.some((entry) => entry.record.type === 'app.signal')).toBe(
@@ -706,7 +715,8 @@ describe('LogRecordsCapability', () => {
     const rebuilt = sessionOf(
       await loadLogState({
         store: persistence.stores.log,
-        logId: THREAD,
+        logId: LOG,
+        rootThread: THREAD,
         project,
       }),
       THREAD,
@@ -819,7 +829,8 @@ describe('compaction-style host records from a middleware', () => {
   async function rebuild(persistence: ReturnType<typeof durablePersistence>) {
     const state = await loadLogState({
       store: persistence.stores.log,
-      logId: THREAD,
+      logId: LOG,
+      rootThread: THREAD,
       project,
     })
     return sessionOf(state, THREAD).messages
@@ -860,7 +871,7 @@ describe('compaction-style host records from a middleware', () => {
 
     // (a) The record comes after the transcript record that saved the reply.
     const entries = await persistence.stores.log.read({
-      logId: THREAD,
+      logId: LOG,
       after: 0,
     })
     const replyAt = entries.findIndex(

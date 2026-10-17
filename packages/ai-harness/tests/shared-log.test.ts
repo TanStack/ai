@@ -4,7 +4,12 @@ import {
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, logMessageStore } from '../src'
+import {
+  createHarnessHost,
+  defineHarness,
+  logIdOf,
+  logMessageStore,
+} from '../src'
 import {
   gate,
   messageTexts,
@@ -18,6 +23,8 @@ import type { ReduceOptions } from '../src'
 import type { Reply } from './helpers'
 
 const LOG = 'agent-1'
+/** The id of the log `LOG` in the store. */
+const STORE_LOG = logIdOf({ logId: LOG })
 
 function durablePersistence(log: LogStore = memoryLogStore()) {
   const { runs, metadata } = memoryPersistence().stores
@@ -113,7 +120,11 @@ describe('sessions that share one log', () => {
       'child answer',
       'second child question',
     ])
-    expect(await persistence.stores.log.read({ logId: 'task-1' })).toEqual([])
+    expect(
+      await persistence.stores.log.read({
+        logId: logIdOf({ logId: 'task-1' }),
+      }),
+    ).toEqual([])
     await host.close().catch(() => {})
     await next.close()
   })
@@ -134,7 +145,7 @@ describe('sessions that share one log', () => {
 
     await root.append(pair)
     const types = async () =>
-      (await inner.read({ logId: LOG })).map((entry) => entry.record.type)
+      (await inner.read({ logId: STORE_LOG })).map((entry) => entry.record.type)
     expect(await types()).toEqual(['app.child_created', 'app.child_linked'])
 
     // The writer tries twice, so both tries fail.
@@ -233,9 +244,9 @@ describe('sessions that share one log', () => {
     await root.append([{ type: 'app.signal' }])
 
     // Another writer takes the next position of the log.
-    const written = await persistence.stores.log.read({ logId: LOG })
+    const written = await persistence.stores.log.read({ logId: STORE_LOG })
     await persistence.stores.log.append({
-      logId: LOG,
+      logId: STORE_LOG,
       seq: written.length + 1,
       epoch: UNOWNED_EPOCH,
       records: [{ type: 'app.other' }],

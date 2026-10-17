@@ -215,6 +215,8 @@ export interface SessionDependencies {
     generationRuns: GenerationRunStore
   }>
   principal?: Principal
+  /** The tenant of the session. Without it, the default tenant. */
+  tenantId?: string
   /** Identifies this host on run leases. */
   hostId: string
   /** Writes the session index entry of the thread. */
@@ -229,8 +231,14 @@ export interface SessionDependencies {
       onFailure: (error: unknown) => void,
     ) => Promise<LogWriter>
   }
-  /** The log of the session. Default: the thread id. */
+  /**
+   * The log of the session: the `logId` of `host.open`, else the thread id.
+   * The records of that log with no `thread` field belong to the thread
+   * with this id.
+   */
   logId: string
+  /** The id of that log in the store, with the tenant. See `logIdOf`. */
+  storeLogId: string
   lease?: LeaseOptions
   /** The `promptCache` of `host.open()`. It overrides the harness value. */
   promptCache?: PromptCacheOptions
