@@ -24,7 +24,7 @@ import {
 } from './protocol'
 import { base64url, isRecord } from './utils'
 import { SessionMetadataError } from './session-entry'
-import { SessionImpl } from './session/harness-session'
+import { SessionImpl, scrubbedBy } from './session/harness-session'
 import { liveSessionOf, storedRunsOf } from './session/observed-session'
 import type { ModelMessage, UIMessage, WebSocketLike } from '@tanstack/ai'
 import type { SessionIndexEntry, SessionMember } from '@tanstack/ai-persistence'
@@ -542,6 +542,9 @@ export function createHarnessHandler<P extends Principal = Principal>(
       }
     try {
       return await answer(keep)
+    } catch (error) {
+      // The answer is a frame that leaves the session: no secret of it.
+      throw scrubbedBy(session, error)
     } finally {
       if (!isKept) void session.close()
     }
@@ -1292,7 +1295,10 @@ export function handleHarnessSocket<P extends Principal = Principal>(
           })
           void stream(subscription.view, frame.from)
             .catch((error: unknown) =>
-              send({ type: 'harness.error', message: errorMessage(error) }),
+              send({
+                type: 'harness.error',
+                message: errorMessage(scrubbedBy(holding, error)),
+              }),
             )
             // The feed ended while the socket is open: close it, so the
             // client subscribes again.
@@ -1324,7 +1330,12 @@ export function handleHarnessSocket<P extends Principal = Principal>(
           ...receipt,
         })
       } catch (error) {
-        send({ type: 'harness.error', message: errorMessage(error) })
+        // The held session scrubs its secrets. Before the first input,
+        // no session is open, so there is none to scrub.
+        send({
+          type: 'harness.error',
+          message: errorMessage(scrubbedBy(holding, error)),
+        })
       }
     })()
   })

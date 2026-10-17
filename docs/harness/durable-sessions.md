@@ -293,7 +293,24 @@ const ownedHost = createHarnessHost({
 
 An input that waits for the owner keeps its JSON overrides (`model`, `modelOptions`, `reasoning`, and `promptCache`). The `adapter` and `tools` overrides are objects, so the owner runs the input without them.
 
-A question from `ctx.session.ask` waits in the memory of the host that asked, so that host keeps the thread until the answer comes. An answer that reaches another host goes to the host that asked. Until then, the answer waits in the log store as the user typed it. The log keeps a secret answer as `[secret]`.
+A question from `ctx.session.ask` waits in the memory of the host that asked, so that host keeps the thread until the answer comes. An answer that reaches another host goes to the host that asked. Until then, a plain answer waits in the log store as the user typed it. The log keeps a secret answer as `[secret]`.
+
+### Secret answers on another host
+
+A question with `secret: true` asks for a key or a password. The answer must not wait in the log store as the user typed it. So when the answer reaches a host that does not own the thread, it goes through the credential store:
+
+1. The host saves the answer in the `credentials` store of `createHarnessHost`, as a one-time reference for the user who answered.
+2. Only the reference goes into the log store.
+3. The owner reads the answer, deletes it from the store, and answers the question.
+
+If the host does not find the question in the log, it treats the answer as a secret too.
+
+Pass the same `credentials` store to every host. A secret answer can be rejected:
+
+- `secret_answer_needs_credentials`: the host has no `credentials` store, so it cannot send the answer.
+- `unknown_secret_answer`: the reference was used before, or it belongs to another user.
+
+The ids of the references start with `harness:answer:`. `run.credentials.list()` does not show them. A reference that the owner never reads stays in the store.
 
 ### When a host loses a thread
 

@@ -52,6 +52,11 @@ interface AcceptOptions {
   runId?: string
   /** The overrides, preamble, and ephemeral messages of a turn. */
   turn?: TurnExtras
+  /**
+   * The input that goes to the owner when another host owns the log, if it
+   * is not the input that this host logs. It throws to refuse the input.
+   */
+  offer?: () => Promise<HarnessInput>
 }
 
 /** The offer that the next `accept` applies. See `applyOffer`. */
@@ -569,7 +574,13 @@ export abstract class SessionInputs<
     principal: Principal | undefined
     options: AcceptOptions
   }): Promise<Admission> {
-    const record = offeredInputRecord({ inputId, input, principal, ...options })
+    const { offer, ...extras } = options
+    const record = offeredInputRecord({
+      inputId,
+      input: offer ? await offer() : input,
+      principal,
+      ...extras,
+    })
     const offered = await this.writer.offer(inputId, record)
     if (offered === 'conflict') return 'conflict'
     this.offeredInputs.add(inputId)
@@ -788,6 +799,7 @@ export abstract class SessionInputs<
           session.answer({
             questionId: input.questionId,
             value: input.value,
+            ...(input.ref !== undefined ? { ref: input.ref } : {}),
             inputId,
             ...user,
           }),

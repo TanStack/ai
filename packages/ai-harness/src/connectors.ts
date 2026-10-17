@@ -77,11 +77,26 @@ export function oauthConnector(options: OAuthConnectorOptions) {
         let credential = await credentials.require(id, { wait })
         if (credential.type === 'api_key') return credential.value
         if (isExpired(credential) && credential.refreshToken) {
-          credential = await refreshCredential(oauth, credential, {
-            fetch: options.fetch,
-            signal: run.signal,
-          })
-          await credentials.set({ id, credential })
+          // `refresh` runs one refresh at a time and saves it where the
+          // credential is. The saved one can be fresh already: another call
+          // refreshed it after the read above.
+          // The request runs with the host signal: when this run stops,
+          // only this call fails, and the refresh goes on for the others.
+          const fresh = await credentials.refresh(
+            id,
+            (current, signal) =>
+              isExpired(current) &&
+              current.type === 'oauth' &&
+              current.refreshToken
+                ? refreshCredential(oauth, current, {
+                    fetch: options.fetch,
+                    signal,
+                  })
+                : Promise.resolve(current),
+            { signal: run.signal },
+          )
+          // The credential was deleted meanwhile: ask for a sign-in.
+          credential = fresh ?? (await credentials.require(id, { wait }))
         }
         if (credential.type === 'api_key') return credential.value
         return credential.accessToken

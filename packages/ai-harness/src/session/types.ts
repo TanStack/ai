@@ -9,6 +9,7 @@ import type {
   UIMessage,
 } from '@tanstack/ai'
 import type { OperationImpl } from '../operation'
+import type { RefreshFlights } from '../auth'
 import type { ToolTurn } from '../tool-turn'
 import type {
   AIPersistence,
@@ -234,6 +235,17 @@ export interface SessionDependencies {
   threadId: string
   persistence: HarnessPersistence
   credentials: CredentialStore
+  /**
+   * The credential store that the app gave the host, shared by every host.
+   * A secret answer goes through it to the host that owns the log. Without
+   * it, a secret answer that reaches another host is refused.
+   */
+  sharedCredentials?: CredentialStore
+  /**
+   * The OAuth refreshes that run now, shared by every session of the host,
+   * so one host refreshes a token once. Without it, the session has its own.
+   */
+  refreshes?: RefreshFlights
   /** Where media lives: file records, bytes, and generation runs. */
   media: AIPersistence<{
     artifacts: ArtifactStore

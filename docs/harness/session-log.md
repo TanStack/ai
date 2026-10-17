@@ -39,6 +39,7 @@ await session.append([{ type: 'app.signal', text: 'The build failed.' }])
 - `append` resolves when the records are in the log.
 - A record can belong to a child thread of the same log. See [One log for a session tree](./shared-logs).
 - In a tool, use `append` from [`durableTool`](./durable-tools), so the records land with the tool batch.
+- A key or a token of the session in a record goes into the log as `[redacted]`. See [Keep tokens out of the log and the model](./auth#keep-tokens-out-of-the-log-and-the-model).
 
 ## Fold records into the model context
 

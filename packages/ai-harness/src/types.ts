@@ -248,7 +248,16 @@ export type HarnessInput = (
       delivery: WaitingInput['delivery']
     }
   | { op: 'command'; name: string; input?: unknown }
-  | { op: 'answer'; questionId: string; value: unknown }
+  | {
+      op: 'answer'
+      questionId: string
+      value: unknown
+      /**
+       * @internal A secret answer that another host saved in the credential
+       * store, for the owner of the log. The owner reads it once.
+       */
+      ref?: string
+    }
   | { op: 'config'; key: string; value: unknown }
   /** Run one tool in `expose.tools` with no model. See `session.tool`. */
   | { op: 'tool'; name: string; args?: unknown; meta?: Record<string, unknown> }

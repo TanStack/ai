@@ -10,6 +10,7 @@ import {
   loggedRunOf,
   parseLogId,
 } from './log'
+import { refreshFlights } from './auth'
 import { HostPlugins } from './host-plugins'
 import { purgeThreadData } from './purge'
 import { HostOwnership } from './ownership'
@@ -1099,6 +1100,10 @@ export function createHarnessHost<P extends Principal = Principal>(
   // ponytail: memory credentials when none are given. Pass `credentials`
   // to keep sign-ins across restarts.
   const credentials = options.credentials ?? memoryCredentialStore()
+  // One OAuth refresh at a time per saved credential, for all sessions.
+  // `close()` aborts the refreshes that run.
+  const stopRefreshes = new AbortController()
+  const refreshes = refreshFlights(stopRefreshes)
   // ponytail: memory media stores when the stores have none. Pass
   // `stores.artifacts`, `stores.blobs`, and `stores.generationRuns` to keep
   // media across restarts.
@@ -1463,6 +1468,10 @@ export function createHarnessHost<P extends Principal = Principal>(
         ...(tenantId !== undefined ? { tenantId } : {}),
         persistence,
         credentials,
+        ...(options.credentials
+          ? { sharedCredentials: options.credentials }
+          : {}),
+        refreshes,
         media,
         index,
         retention,
@@ -2169,6 +2178,7 @@ export function createHarnessHost<P extends Principal = Principal>(
     async close(closeOptions) {
       // First: no open starts while the sessions close.
       isClosed = true
+      stopRefreshes.abort(hostClosed())
       for (const key of holds.keys()) cancelIdle(key)
       // The event reads of `host.observe` views end.
       for (const { log } of resolved.values()) log.stopReaders()

@@ -48,6 +48,8 @@ export const checkout = durableTool(
 
 Add it to `tools` in `defineHarness`, as any other tool. Each finished step is in the [session log](./durable-sessions) before `step.do` resolves.
 
+The log keeps a step value without the secrets of the session, and `step.do` returns that same value. So a token in a step value comes back as `[redacted]`, also on the first run. Return an id, not a token. See [Keep tokens out of the log and the model](./auth#keep-tokens-out-of-the-log-and-the-model).
+
 ## Rules for steps
 
 - Give each step a name that is the same on every run, for example `charge:${orderId}`.
@@ -115,6 +117,8 @@ After a crash, the harness looks at each call of the batch:
 - A call that finished keeps its result. It does not run again.
 - A `durableTool` call, or another tool with `replay: 'safe'`, runs again.
 - Any other call gets a tool error: nobody knows if the tool ran, so the model checks before it tries again.
+
+The kept result is the one that the model saw before the crash. The log keeps it after every `onAfterToolCall` hook, without the secrets of the session. If a hook replaced the result, the replacement wins, also on an error.
 
 ## Outside a durable session
 

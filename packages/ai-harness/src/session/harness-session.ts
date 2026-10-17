@@ -7,6 +7,7 @@ import { mountPlugins } from '../plugins'
 import {
   CUT_OFF_NOTE,
   checkpointMiddleware,
+  toolResultRecorder,
   repairSteps,
   repairTranscript,
 } from '../resume'
@@ -114,6 +115,26 @@ export class SessionImpl<
    */
   [Symbol.asyncDispose](): Promise<void> {
     return this.close()
+  }
+
+  /**
+   * @internal `error` without the secrets of this session, for an error
+   * frame that leaves it (the HTTP handler, the socket, a worker). An
+   * `Error` keeps its class: its message and stack are scrubbed in place.
+   * The same value when it has no secret.
+   */
+  scrubError(error: unknown): unknown {
+    if (!(error instanceof Error)) return this.redactor.redact(error)
+    const message = this.scrub(error.message)
+    if (message === error.message) return error
+    try {
+      error.message = message
+      if (error.stack !== undefined) error.stack = this.scrub(error.stack)
+      return error
+    } catch {
+      // A message that cannot change (a getter only): a plain error.
+      return new Error(message)
+    }
   }
 
   /** @internal Mount session plugins and recover the work in the log. */
@@ -493,9 +514,15 @@ export class SessionImpl<
         (!this.isIdle() || this.jobs.size > 0 || this.recovering > 0) &&
         this.sleeping === 0,
       onOffers: () => void this.drainOffers(),
+      redact: this.redactor.redact,
     })
     this.logWriter = writer
-    this.feed = tapFeed(writer, this.notifyHost, this.eventListeners)
+    this.feed = tapFeed(
+      writer,
+      this.notifyHost,
+      this.eventListeners,
+      this.redactor,
+    )
     // The child threads (agent chains and subagent runs) are in this log.
     const view = { writer }
     this.messages = sessionMessageStore(view)
@@ -515,15 +542,16 @@ export class SessionImpl<
     this.checkpoint = checkpointMiddleware({
       runs,
       messages: engineMessages,
-      // The log keeps each finished tool result, so a crash later in the
-      // batch does not lose it.
       onToolStart: ({ toolCallId, name, replay }) =>
         writer.append([
           { type: 'harness.tool.started', toolCallId, name, replay },
         ]),
-      onToolResult: ({ toolCallId, message }) =>
-        writer.append([{ type: 'harness.tool.result', toolCallId, message }]),
     })
+    // The log keeps each finished tool result, so a crash later in the
+    // batch does not lose it. It is the final result, after every plugin.
+    this.toolRecorder = toolResultRecorder(({ toolCallId, message }) =>
+      writer.append([{ type: 'harness.tool.result', toolCallId, message }]),
+    )
   }
 
   /**
@@ -1191,3 +1219,10 @@ function appliedOperationId(input: InputState): string {
   }
   return input.operationId
 }
+
+/**
+ * `error` without the secrets of `session`, when it is a session of this
+ * package. Else the same `error`: a code path with no session leaves it.
+ */
+export const scrubbedBy = (session: unknown, error: unknown): unknown =>
+  session instanceof SessionImpl ? session.scrubError(error) : error

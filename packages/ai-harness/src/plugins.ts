@@ -625,6 +625,7 @@ export const SESSION_PLUGIN_CREDENTIALS: CredentialsAccess = {
   get: noUser('credentials'),
   require: noUser('credentials'),
   set: noUser('credentials'),
+  refresh: noUser('credentials'),
   delete: noUser('credentials'),
   list: noUser('credentials'),
 }
@@ -661,6 +662,7 @@ const NO_SERVICES: PluginServices = {
     get: unavailable('ctx.credentials'),
     require: unavailable('ctx.credentials'),
     set: unavailable('ctx.credentials'),
+    refresh: unavailable('ctx.credentials'),
     delete: unavailable('ctx.credentials'),
     list: unavailable('ctx.credentials'),
   },
