@@ -7,6 +7,7 @@ import {
   parseControlFrame,
   requestIdOf,
 } from './protocol'
+import { wireFrame } from './wire'
 import type { AnyHarness } from './define'
 import type { HarnessPersistence } from './host'
 import type { ControlFrame, HarnessErrorCode, HostFrame } from './protocol'
@@ -33,7 +34,10 @@ export async function runHarnessWorker(
   options: HarnessWorkerOptions = {},
 ): Promise<void> {
   const output = options.output ?? process.stdout
-  const send = (frame: HostFrame) => output.write(`${JSON.stringify(frame)}\n`)
+  const send = (frame: HostFrame | string) =>
+    output.write(
+      `${typeof frame === 'string' ? frame : JSON.stringify(frame)}\n`,
+    )
   const host = createHarnessHost(
     options.persistence ? { persistence: options.persistence } : {},
   )
@@ -90,8 +94,8 @@ export async function runHarnessWorker(
             signal: reader.signal,
           })
           void (async () => {
-            for await (const entry of events)
-              send({ type: 'harness.event', ...entry })
+            // Each event goes out as an AG-UI wire chunk.
+            for await (const entry of events) send(wireFrame(entry))
           })().catch((error: unknown) => fail(error, requestId))
           continue
         }
@@ -111,6 +115,7 @@ export async function runHarnessWorker(
           harness,
           session,
           input: frame.input,
+          ...(frame.traceparent ? { traceparent: frame.traceparent } : {}),
         })
         send({
           type: 'harness.receipt',

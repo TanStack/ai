@@ -66,9 +66,12 @@ export type HostFrame =
       type: 'harness.error'
       /** A short reason, for people. Read `code` in code. */
       message: string
-      code?: HarnessErrorCode
-      /** The `requestId` of the frame or the request that failed. */
-      requestId?: string
+      code: HarnessErrorCode
+      /**
+       * The `requestId` of the frame or the request that failed. A frame or
+       * a request with no id gets an id from the server.
+       */
+      requestId: string
       /** With `unsupported_version`: the versions that the host speaks. */
       supported?: ReadonlyArray<number>
     }
@@ -271,14 +274,18 @@ export async function applyInput({
   session,
   input,
   principal,
+  traceparent,
 }: {
   harness: AnyHarness
   session: HarnessSession
   input: HarnessInput
   principal?: Principal
+  /** A W3C `traceparent` of the caller, for a message to the session. */
+  traceparent?: string
 }): Promise<Receipt> {
   // The log keeps who sent each input, for every input kind.
   const user = principal ? { principal } : {}
+  const traced = traceparent === undefined ? {} : { traceparent }
   const id = {
     ...(input.inputId === undefined ? {} : { inputId: input.inputId }),
     ...user,
@@ -301,6 +308,7 @@ export async function applyInput({
           ...(input.busy ? { busy: input.busy } : {}),
           ...(input.ephemeral ? { ephemeral: input.ephemeral } : {}),
           ...sent,
+          ...traced,
         }),
       )
     case 'continue':
@@ -313,7 +321,7 @@ export async function applyInput({
     case 'steer':
     case 'followUp':
       return turnReceipt(
-        session.send(input.message, { ...sent, mode: input.op }),
+        session.send(input.message, { ...sent, ...traced, mode: input.op }),
       )
     case 'resolve':
       return session.resolve({ resume: input.resume, ...id })

@@ -865,26 +865,43 @@ export type SessionIndexWriter = ReturnType<typeof sessionIndex>
  * question waits. When an operation ends or a question gets its answer, the
  * session waits while a question or an interrupt still waits, runs while
  * another operation runs, and else is idle.
+ *
+ * The snapshot has only the work of this host. `seen` keeps the operations
+ * that run and the questions that wait from the events, so the events that
+ * another host wrote count too.
  */
-function statusAfter(session: HarnessSession, event: StreamChunk) {
+function statusAfter(
+  session: HarnessSession,
+  event: StreamChunk,
+  seen: { running: Set<string>; asked: Set<string> },
+) {
   if (event.type !== EventType.CUSTOM) return undefined
+  const value = isRecord(event.value) ? event.value : {}
+  const { operationId, questionId } = value
   switch (event.name) {
     case HARNESS_EVENTS.operationStarted:
+      if (typeof operationId === 'string') seen.running.add(operationId)
       return 'running'
     case HARNESS_EVENTS.question:
+      if (typeof questionId === 'string') seen.asked.add(questionId)
       return 'waiting'
     case HARNESS_EVENTS.operationFinished:
     case HARNESS_EVENTS.questionAnswered: {
+      if (typeof operationId === 'string') seen.running.delete(operationId)
+      if (typeof questionId === 'string') seen.asked.delete(questionId)
+      // An operation asks each question, so with no operation, none waits.
+      if (seen.running.size === 0) seen.asked.clear()
       const { pendingQuestions, pendingInterrupts, activeOperations } =
         session.snapshot()
-      const isInterrupted =
-        isRecord(event.value) && event.value.status === 'interrupted'
+      const isInterrupted = value.status === 'interrupted'
       const stillWaits =
         isInterrupted ||
         pendingQuestions.length > 0 ||
-        pendingInterrupts.length > 0
+        pendingInterrupts.length > 0 ||
+        seen.asked.size > 0
       if (stillWaits) return 'waiting'
-      return activeOperations.length > 0 ? 'running' : 'idle'
+      const isRunning = activeOperations.length > 0 || seen.running.size > 0
+      return isRunning ? 'running' : 'idle'
     }
     default:
       return undefined
@@ -1456,6 +1473,8 @@ export function createHarnessHost<P extends Principal = Principal>(
       // The log of a session tree has the id of its root thread, in its
       // tenant. Only a root opens: its child threads write to this log.
       const storeLogId = logIdOf({ tenantId, logId: threadId })
+      // For the status rule. See `statusAfter`.
+      const seen = { running: new Set<string>(), asked: new Set<string>() }
       const created = new SessionImpl({
         harness,
         threadId,
@@ -1486,7 +1505,7 @@ export function createHarnessHost<P extends Principal = Principal>(
         onEvent: (event) => {
           // A session that left the cache has no status any more.
           if (sessions.get(key) !== session) return
-          const status = statusAfter(created, event)
+          const status = statusAfter(created, event, seen)
           if (status === 'running') cancelIdle(key)
           if (status) setStatus(key, of, status)
         },

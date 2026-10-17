@@ -15,12 +15,10 @@ keywords:
 <!--
 DRAFT (PR 11, node 11-F). Node 11-N checks this page against the final code and removes this comment.
 This page describes the behavior that PR 11 ships. These parts land in later nodes of the same PR:
-- 11-D: GET events and the socket send AG-UI wire chunks (toWireChunk), the hello frame on GET events, ?v= on GET events, code and requestId on every socket and SSE error frame, X-Request-Id, the SSE heartbeat and slow close on GET events, the socket heartbeat and backpressure, and the heartbeat comment on POST run and GET run.
-- 11-E: the harness.gap event (with PR 5 snapshots).
 - 11-H: threadId and parentRunId on the harness.event frame.
 - 11-I (with PR 7, 9, 10): the publishers of harness.input.queued, harness.ownership.changed, harness.stranded, harness.handoff, harness.transferred, harness.wait.opened, and harness.wait.settled.
-- 11-L: the traceparent header on POST run and POST control, and the span link.
-Already in the code (f4d11209d): protocol version 2, negotiation and error codes in the stdio worker, the traceparent field on the harness.input frame, and the stream writers in sse.ts.
+- 11-L: the traceparent header on POST run and POST control, and the span link. (The traceparent field of the harness.input frame already reaches the session.)
+Already in the code: everything else on this page (11-A, 11-B, 11-D, 11-E).
 -->
 
 You want a client for a harness that is not `useChat` or `createHarnessClient`: a Python service, a mobile app, or a proxy of your own. This page lists every route, frame, and `harness.*` event, so you can write that client in any language.
@@ -108,6 +106,7 @@ These routes are enough for a full client. [Connect clients to a harness](./conn
 - `POST control`: the body is `{ threadId, input }`. The answer is the receipt as JSON.
 - `GET snapshot?threadId=` and `GET transcript?threadId=`: the state and the saved messages of the thread. When the client starts, load both.
 - `GET capabilities`: the AG-UI capabilities. `custom.tanstack.protocol` is the protocol version of the server.
+- `GET host-events?v=`: the status changes and session list changes that the user may read, as SSE. Its `harness.hello` frame has no `threadId`.
 - `POST run` and `GET run`: standard AG-UI for `useChat`. These routes send plain AG-UI events, with no `harness.*` frames around them.
 
 `POST control` answers with these statuses:
@@ -164,6 +163,7 @@ The socket closes with these codes:
 | --- | --- | --- |
 | `4401` | `identify` refused the user. | Sign in again. |
 | `4403` | The user cannot read the thread, or lost access. | Stop. |
+| `4400` | The server does not speak the `v` of the subscribe. | Read `supported`, then subscribe again with a version from it. |
 | `4408` | The client read too slowly. See [Fixed stream values](#fixed-stream-values). | Subscribe again from the last cursor. |
 | `1011` | The event feed of the thread ended. | Subscribe again from the last cursor. |
 
@@ -321,18 +321,18 @@ A `harness.error` frame has a `code` and a `requestId`. `message` is for people,
 | `code` | Why | Does the stream close? |
 | --- | --- | --- |
 | `unauthorized` | `identify` refused the user. | Yes. |
-| `forbidden` | The user cannot read the thread, or lost access. | Yes. |
-| `invalid_frame` | The frame is not valid JSON, has an unknown `type`, comes before `harness.subscribe`, or is a second `harness.subscribe`. | No. |
+| `forbidden` | The user cannot read the thread, or lost access. On the socket, also when the host refuses one input. | Yes. When the host refuses one input, no. |
+| `invalid_frame` | The frame is not valid JSON, has an unknown `type` or a bad `input`, comes before `harness.subscribe`, or is a second `harness.subscribe`. | No. |
 | `unsupported_version` | The server does not speak the `v` that you sent. | Yes. |
 | `slow_consumer` | The client read too slowly. | Yes. |
-| `internal` | The server failed to read the events. | Yes. Connect again from the last cursor. |
+| `internal` | The server failed to read the events, or failed to apply one input. | When the read failed, yes: connect again from the last cursor. When one input failed, no. |
 
 On HTTP, a refused login or action before the stream starts is the `401` or `403` status of the request, with no frame.
 
 The `requestId` connects the error to its request:
 
-- On the socket and the stdio worker, it is the `requestId` of the frame that failed. A frame with no `requestId` gets an id from the server.
-- On HTTP, if you send a short id in the `X-Request-Id` header, it is that id. Else the server makes one.
+- On the socket and the stdio worker, it is the `requestId` of the frame that failed. A frame with no `requestId` gets an id from the server. On the socket, that id is the id of the upgrade request.
+- On HTTP, the id is your `X-Request-Id` header when it is a short safe id: 1 to 128 letters, digits, `-`, `_`, `.`, or `:`. Else the server makes a new UUID.
 - Every HTTP answer of the handler sends the id back in the `X-Request-Id` header.
 
 Log the `requestId` with your errors. Then you can find the request in the server logs.

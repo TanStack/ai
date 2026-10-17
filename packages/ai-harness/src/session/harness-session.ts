@@ -21,6 +21,7 @@ import {
   CONTROL_OPS,
   hasFinalAnswer,
   loggedExtras,
+  notifyListeners,
   offeredInputRecord,
   SHUTDOWN_REASON,
   storedPrincipal,
@@ -493,6 +494,13 @@ export class SessionImpl<
         (!this.isIdle() || this.jobs.size > 0 || this.recovering > 0) &&
         this.sleeping === 0,
       onOffers: () => void this.drainOffers(),
+      // An event that another host wrote: the host status and the `onEvent`
+      // listeners see it, as they see the events of this host at publish.
+      onRemoteEvent: ({ operationId, event }) =>
+        notifyListeners(this.notifyHost, this.eventListeners, {
+          operationId,
+          event,
+        }),
     })
     this.logWriter = writer
     this.feed = tapFeed(writer, this.notifyHost, this.eventListeners)

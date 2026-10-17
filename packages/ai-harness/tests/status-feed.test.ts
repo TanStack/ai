@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
-import { memoryPersistence } from '@tanstack/ai-persistence'
+import {
+  memoryLogBackend,
+  memoryLogStore,
+  memoryPersistence,
+} from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { HostEvent } from '../src'
@@ -150,5 +154,35 @@ describe('host.events', () => {
     await vi.waitFor(() => expect(feed.seen).toHaveLength(1))
     await feed.stop()
     await host.close()
+  })
+})
+
+describe('host.events on a host that does not own the log', () => {
+  it('shows running, then idle, for a turn that another host runs', async () => {
+    const backend = memoryLogBackend()
+    const hostOn = () =>
+      createHarnessHost({
+        persistence: { stores: { log: memoryLogStore({ backend }) } },
+      })
+    const owner = hostOn()
+    const other = hostOn()
+    const harness = plainHarness()
+    const running = await owner.open(harness, { threadId: 'r' })
+    const reading = await other.open(harness, { threadId: 'r' })
+    const feed = watch((signal) => other.events({ signal }))
+
+    await running.send('hi')
+
+    // Coverage runs in CI are slow, so the check waits up to 5 s.
+    await vi.waitFor(
+      () =>
+        expect(statusesOf(feed.seen, 'r')).toEqual(['idle', 'running', 'idle']),
+      { timeout: 5_000 },
+    )
+    await feed.stop()
+    await reading.close()
+    await running.close()
+    await other.close()
+    await owner.close()
   })
 })

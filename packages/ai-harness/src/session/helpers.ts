@@ -798,6 +798,34 @@ export const notOpenMessages: MessageStore = {
 }
 
 /**
+ * Give one event to `notifyHost` and each of `listeners`. A listener that
+ * throws, or whose promise rejects, is logged, and the others still run.
+ */
+export function notifyListeners(
+  notifyHost: (event: StreamChunk) => void,
+  listeners: Set<EventListener>,
+  entry: Parameters<EventListener>[0],
+) {
+  const report = (error: unknown) =>
+    console.error('[@tanstack/ai-harness] An onEvent listener threw.', error)
+  try {
+    notifyHost(entry.event)
+  } catch (error) {
+    report(error)
+  }
+  for (const listener of [...listeners]) {
+    // A listener that an earlier listener stopped gets nothing.
+    if (!listeners.has(listener)) continue
+    try {
+      const result: unknown = listener(entry)
+      if (result instanceof Promise) result.catch(report)
+    } catch (error) {
+      report(error)
+    }
+  }
+}
+
+/**
  * `feed`, then `notifyHost` and each of `listeners` after each publish. This
  * is how the host and `onEvent` see events. The caller keeps `listeners`, so
  * they survive a new tap of another feed.
@@ -810,26 +838,7 @@ export function tapFeed(
   return {
     publish: (operationId, event) => {
       feed.publish(operationId, event)
-      const report = (error: unknown) =>
-        console.error(
-          '[@tanstack/ai-harness] An onEvent listener threw.',
-          error,
-        )
-      try {
-        notifyHost(event)
-      } catch (error) {
-        report(error)
-      }
-      for (const listener of [...listeners]) {
-        // A listener that an earlier listener stopped gets nothing.
-        if (!listeners.has(listener)) continue
-        try {
-          const result: unknown = listener({ operationId, event })
-          if (result instanceof Promise) result.catch(report)
-        } catch (error) {
-          report(error)
-        }
-      }
+      notifyListeners(notifyHost, listeners, { operationId, event })
     },
     listen: (listener) => {
       // A new entry per call: a listener added twice is called twice.

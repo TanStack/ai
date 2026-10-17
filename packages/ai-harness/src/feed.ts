@@ -6,6 +6,7 @@ import type { StreamChunk } from '@tanstack/ai'
 import type {
   AuthRequest,
   Cursor,
+  EventGap,
   LiveEvent,
   MediaRecord,
   OnEvent,
@@ -168,9 +169,9 @@ function isUsageUpdate(value: unknown): value is UsageUpdate {
  * with each event.
  */
 // ponytail: it keeps the newest `eventBytes` of events (the JSON length of
-// each). A reader whose cursor fell out of them resumes from the oldest kept
-// event. Durable cross-process delivery goes through StreamDurability in the
-// protocol layer.
+// each). A reader whose cursor fell out of them gets a `harness.gap` event,
+// then resumes from the oldest kept event. Durable cross-process delivery
+// goes through StreamDurability in the protocol layer.
 export class SessionFeed implements EventFeed {
   /** The kept events. Their cursors are consecutive numbers. */
   private readonly entries: Array<SessionEvent> = []
@@ -228,6 +229,13 @@ export class SessionFeed implements EventFeed {
     if (!Number.isFinite(after)) after = 0
     while (true) {
       if (options.signal?.aborted) return
+      // The feed dropped events after `after`: say so once, then go on from
+      // the oldest kept event.
+      const oldest = this.sequence - this.entries.length + 1
+      if (this.entries.length > 0 && after < oldest - 1) {
+        yield gapEvent(String(after), String(oldest - 1), 'evicted')
+        after = oldest - 1
+      }
       const next = this.after(after, options.filter)
       for (const entry of next) {
         if (options.signal?.aborted) return
@@ -271,6 +279,29 @@ export class SessionFeed implements EventFeed {
       this.waiters.add(done)
       signal?.addEventListener('abort', done, { once: true })
     })
+  }
+}
+
+/**
+ * The `harness.gap` event for a reader at `from`: the events after `from`
+ * are gone, and the stream goes on after `resumeAt`, the cursor of this event.
+ */
+export function gapEvent(
+  from: Cursor,
+  resumeAt: Cursor,
+  reason: EventGap['reason'],
+): SessionEvent {
+  const value: EventGap = { from, resumeAt, reason }
+  return {
+    cursor: resumeAt,
+    // No operation made it. Like a session input, it belongs to the session.
+    operationId: 'session',
+    event: {
+      type: EventType.CUSTOM,
+      name: HARNESS_EVENTS.gap,
+      value,
+      timestamp: Date.now(),
+    },
   }
 }
 

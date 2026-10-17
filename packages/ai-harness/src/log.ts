@@ -5,6 +5,7 @@ import {
   OwnershipLostError,
   UNOWNED_EPOCH,
 } from '@tanstack/ai-persistence'
+import { gapEvent } from './feed'
 import { LogOwnedElsewhereError } from './ownership'
 import { HARNESS_EVENTS } from './types'
 import {
@@ -39,7 +40,6 @@ import type {
 } from './log-records'
 import type {
   Cursor,
-  EventGap,
   HarnessInput,
   InputSettlement,
   SettlementOutcome,
@@ -1135,6 +1135,11 @@ export interface LogViewHooks {
    * host offered still waits.
    */
   onOffers: () => void
+  /**
+   * An event of the session that another host wrote, after this log folded
+   * it. Own events never come here: the session saw them at publish.
+   */
+  onRemoteEvent?: (entry: SessionEvent) => void
 }
 
 /**
@@ -1252,6 +1257,8 @@ export class SharedLog<TState = unknown> {
   }> = []
   /** The sum of the sizes in `tail`. */
   private tailBytes = 0
+  /** While `catchUp` folds: the events that other writers appended. */
+  private remote: Array<{ thread: string; entry: SessionEvent }> | undefined
   private readonly eventBytes: number
   /** Every event after this position is in `tail`. */
   private tailFrom: number
@@ -2011,6 +2018,10 @@ export class SharedLog<TState = unknown> {
   private async catchUp() {
     if (this.failure !== undefined) return
     const before = this.state.seq
+    // Only this fold reads the records of other writers. Own records fold
+    // in `write`, so an own event never reaches `onRemoteEvent`.
+    const remote: Array<{ thread: string; entry: SessionEvent }> = []
+    this.remote = remote
     try {
       await readAll(this.store, this.logId, this.state, (entry) =>
         this.apply(entry),
@@ -2018,12 +2029,22 @@ export class SharedLog<TState = unknown> {
     } catch (error) {
       if (!(error instanceof LogTruncatedError)) throw error
       await this.foldFromSnapshot(error)
+    } finally {
+      this.remote = undefined
     }
     if (this.state.seq === before) return
     if (this.epoch !== undefined) {
       this.lose(new OwnershipLostError(this.logId, this.epoch))
     }
     this.wake()
+    // After the whole fold, so a hook reads the state after the events.
+    for (const { thread, entry } of remote) {
+      try {
+        this.views.get(thread)?.hooks.onRemoteEvent?.(entry)
+      } catch {
+        // A hook never stops the fold of the log.
+      }
+    }
   }
 
   /**
@@ -2068,6 +2089,7 @@ export class SharedLog<TState = unknown> {
     }
     const event = sessionEventOf(entry)
     if (!event) return
+    this.remote?.push({ thread, entry: event })
     // The fold has JSON values only, so this cannot throw.
     const size = JSON.stringify(event.event).length
     this.tail.push({ thread, entry: event, size })
@@ -2127,7 +2149,7 @@ export class SharedLog<TState = unknown> {
           // A truncate dropped the events after `after`: say so once, then
           // go on from the first stored record.
           const resumeAt = error.firstSeq - 1
-          yield gapEvent(String(after), String(resumeAt))
+          yield gapEvent(String(after), String(resumeAt), 'truncated')
           after = resumeAt
           continue
         }
@@ -2198,22 +2220,6 @@ function mergeDelta(first: StreamChunk, second: StreamChunk): StreamChunk {
     return { ...first, delta: first.delta + rest, timestamp: second.timestamp }
   }
   return second
-}
-
-/** The `harness.gap` event for a reader at `from`. Its cursor is `resumeAt`. */
-function gapEvent(from: Cursor, resumeAt: Cursor): SessionEvent {
-  const value: EventGap = { from, resumeAt, reason: 'truncated' }
-  return {
-    cursor: resumeAt,
-    // No operation made it. Like a session input, it belongs to the session.
-    operationId: 'session',
-    event: {
-      type: EventType.CUSTOM,
-      name: HARNESS_EVENTS.gap,
-      value,
-      timestamp: Date.now(),
-    },
-  }
 }
 
 function sessionEventOf(entry: LogEntry) {

@@ -60,7 +60,7 @@ describe('SessionFeed', () => {
     expect(feed.head()).toBe('3')
   })
 
-  it('keeps the newest events that fit in eventBytes, and starts an older cursor at the oldest kept', async () => {
+  it('keeps the newest events that fit in eventBytes, and starts an older cursor with a gap at the oldest kept', async () => {
     const size = JSON.stringify(custom('e1')).length
     const feed = new SessionFeed({ eventBytes: size * 3 })
     for (const name of ['e1', 'e2', 'e3', 'e4', 'e5']) {
@@ -68,7 +68,12 @@ describe('SessionFeed', () => {
     }
     feed.close()
 
-    expect(await namesOf(feed.read({ from: '0' }))).toEqual(['e3', 'e4', 'e5'])
+    expect(await namesOf(feed.read({ from: '0' }))).toEqual([
+      'harness.gap',
+      'e3',
+      'e4',
+      'e5',
+    ])
     expect(await namesOf(feed.read({ from: '3' }))).toEqual(['e4', 'e5'])
     expect(feed.head()).toBe('5')
   })
@@ -79,7 +84,10 @@ describe('SessionFeed', () => {
     feed.publish('op', custom('e2'))
     feed.close()
 
-    expect(await namesOf(feed.read({ from: '0' }))).toEqual(['e2'])
+    expect(await namesOf(feed.read({ from: '0' }))).toEqual([
+      'harness.gap',
+      'e2',
+    ])
   })
 
   it('ends a read when wake() finds until() true, with no new event', async () => {

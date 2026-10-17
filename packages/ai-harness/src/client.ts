@@ -549,8 +549,15 @@ export function createHarnessClient<THarness extends AnyHarness>(
       if (!response.body)
         throw new Error('Harness host-events failed: the answer has no body')
       for await (const frame of sseFrames(response.body, signal)) {
-        // The handler sends `HostEvent` frames only.
-        yield frame as HostEvent
+        // The handler sends `HostEvent` frames, and `harness.*` frames (the
+        // hello first, an error last) that are not host events.
+        const isHarnessFrame =
+          typeof frame === 'object' &&
+          frame !== null &&
+          'type' in frame &&
+          typeof frame.type === 'string' &&
+          frame.type.startsWith('harness.')
+        if (!isHarnessFrame) yield frame as HostEvent
       }
     } catch (error) {
       if (signal?.aborted) return

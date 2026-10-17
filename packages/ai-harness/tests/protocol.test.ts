@@ -4,6 +4,7 @@ import { defineAgent } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import {
+  applyInput,
   createHarnessHandler,
   handleHarnessSocket,
   parseControlFrame,
@@ -167,7 +168,15 @@ describe('HTTP handler', () => {
       ),
       isTurnEnd,
     )
-    expect(first.every((frame) => frame.type === 'harness.event')).toBe(true)
+    // The hello comes first, then the events.
+    expect(first[0]).toEqual({
+      type: 'harness.hello',
+      v: 2,
+      threadId: 'user-1-t',
+    })
+    expect(
+      first.slice(1).every((frame) => frame.type === 'harness.event'),
+    ).toBe(true)
     const last = first.at(-1)
     const cursor = last?.type === 'harness.event' ? last.cursor : ''
 
@@ -181,11 +190,13 @@ describe('HTTP handler', () => {
       isTurnEnd,
     )
     expect(
-      second.every(
-        (frame) =>
-          frame.type === 'harness.event' &&
-          Number(frame.cursor) > Number(cursor),
-      ),
+      second
+        .slice(1)
+        .every(
+          (frame) =>
+            frame.type === 'harness.event' &&
+            Number(frame.cursor) > Number(cursor),
+        ),
     ).toBe(true)
     expect(JSON.stringify(second)).toContain('again')
     await host.close()
@@ -504,5 +515,40 @@ describe('requestIdOf', () => {
     expect(requestIdOf('{not json')).toBeUndefined()
     expect(requestIdOf('null')).toBeUndefined()
     expect(requestIdOf('{"requestId":7}')).toBeUndefined()
+  })
+})
+
+describe('traceparent on an input', () => {
+  const traceparent = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
+
+  it('applyInput passes the traceparent to the send of a message', async () => {
+    const { host, harness } = setup()
+    const session = await host.open(harness, {
+      threadId: 'user-1-trace',
+      principal: user,
+    })
+    const send = vi.spyOn(session, 'send')
+
+    await applyInput({
+      harness,
+      session,
+      input: { op: 'prompt', message: 'hi' },
+      principal: user,
+      traceparent,
+    })
+    await applyInput({
+      harness,
+      session,
+      input: { op: 'steer', message: 'more' },
+      principal: user,
+      traceparent,
+    })
+
+    expect(send.mock.calls.map(([, options]) => options?.traceparent)).toEqual([
+      traceparent,
+      traceparent,
+    ])
+    await session.close()
+    await host.close()
   })
 })
