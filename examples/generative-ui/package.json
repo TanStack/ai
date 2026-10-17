@@ -16,6 +16,7 @@
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-anthropic": "workspace:*",
     "@tanstack/ai-generative-ui": "workspace:*",
+    "@tanstack/ai-mcp": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
     "@tanstack/ai-react": "workspace:*",

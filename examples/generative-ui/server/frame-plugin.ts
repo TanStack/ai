@@ -19,6 +19,33 @@ import type { Plugin } from 'vite'
 import { buildCsp, buildShellDocument, type ArtifactRecord, type FrameTheme } from '@tanstack/ai-generative-ui'
 import { RUNTIME_NPM, RUNTIME_SHIMS } from './frame-runtime'
 import { registry, seedFixtures, store } from './frame-host'
+import { mcpServer } from './mcp-server'
+
+/** Bridge a Node request → web Request → mcpServer.fetch → Node response. */
+async function handleMcp(req: any, res: any): Promise<void> {
+  const chunks: Array<Buffer> = []
+  for await (const c of req) chunks.push(c as Buffer)
+  const headers = new Headers()
+  for (const [k, v] of Object.entries(req.headers)) if (typeof v === 'string') headers.set(k, v)
+  const method = req.method || 'GET'
+  const request = new Request(`http://${req.headers.host}${req.url}`, {
+    method,
+    headers,
+    body: method === 'GET' || method === 'HEAD' ? undefined : Buffer.concat(chunks),
+  })
+  const response = await mcpServer.fetch(request)
+  res.statusCode = response.status
+  response.headers.forEach((value: string, key: string) => res.setHeader(key, value))
+  if (response.body) {
+    const reader = response.body.getReader()
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      if (value) res.write(Buffer.from(value))
+    }
+  }
+  res.end()
+}
 
 // esbuild is a transitive dep of Vite (not a direct example dep); resolve its
 // bundler through Vite so the config needs no extra dependency.
@@ -103,6 +130,13 @@ export function frameApiPlugin(): Plugin {
         const appOrigin = `http://${req.headers.host}`
 
         try {
+          // ---- MCP server: generative UI over MCP for external hosts (§11) ----
+          if (url === '/mcp') {
+            await seedFixtures()
+            await handleMcp(req, res)
+            return
+          }
+
           // ---- Library list: every stored artifact (fixtures + authored) ----
           if (req.method === 'GET' && url === '/api/frame/list') {
             await seedFixtures()
