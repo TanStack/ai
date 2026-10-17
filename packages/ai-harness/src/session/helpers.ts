@@ -241,13 +241,6 @@ export const scopeOf = (
   ...(principal?.tenantId ? { tenantId: principal.tenantId } : {}),
 })
 
-/** What the log and the inbox keep of a principal: its id and tenant. */
-/** The `metadata.tanstack` of a logged event, if it has one. */
-export const tanstackOf = (event: Record<string, unknown>) =>
-  isRecord(event.metadata) && isRecord(event.metadata.tanstack)
-    ? event.metadata.tanstack
-    : undefined
-
 /** The tool call an interrupt waits on: an approval or a client tool. */
 export const toolCallOf = (interrupt: Interrupt) => {
   const binding = readInterruptBinding(interrupt)

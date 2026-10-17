@@ -10,13 +10,12 @@ const THREAD_METADATA = [USAGE, 'harness:revert']
 
 /**
  * Delete the stored data of one thread: its log (with its settings, config,
- * plugin state, and interrupted turn), its media, and the harness metadata
- * rows. `storeId` is the store key of the thread, from `logIdOf`. It is also
+ * plugin state, interrupted turn, runs, and interrupts), its media, and the
+ * harness metadata rows. `storeId` is the store key of the thread, from `logIdOf`. It is also
  * the store id of the thread's own log. A store the persistence does not
  * have is skipped.
  */
-// ponytail: runs, interrupts, the inbox, and work claims stay. PR 5 moves
-// them into the log or removes them, so `deleteLog` covers them.
+// ponytail: the inbox and the work claims stay. PR 5 removes them.
 export async function purgeThreadData({
   storeId,
   stores,

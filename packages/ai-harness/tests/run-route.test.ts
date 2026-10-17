@@ -5,7 +5,15 @@ import { fakeText } from '@tanstack/ai/testing'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import { createHarnessHandler } from '../src/server'
-import { after, gate, mockAdapter, text, toolCall } from './helpers'
+import {
+  after,
+  appendToLog,
+  gate,
+  mockAdapter,
+  storedRun,
+  text,
+  toolCall,
+} from './helpers'
 import type { Interrupt } from '@tanstack/ai'
 import type { FakeResponse } from '@tanstack/ai/testing'
 import type { AnyHarness } from '../src'
@@ -32,6 +40,25 @@ const deploy = toolDefinition({
 })
 
 const user = { id: 'user-1' }
+
+/** A run that another host wrote to the log of thread `t-1`. */
+const STORED_RUN = {
+  runId: 'run-x',
+  threadId: 't-1',
+  status: 'completed',
+  startedAt: 1,
+} as const
+
+/** A persistence whose log of `t-1` has {@link STORED_RUN} already. */
+async function withStoredRun() {
+  const persistence = memoryPersistence()
+  await appendToLog(persistence.stores.log, { threadId: 't-1' }, [
+    { type: 'harness.run', run: STORED_RUN },
+  ])
+  const stored = () =>
+    storedRun(persistence.stores.log, { threadId: 't-1' }, 'run-x')
+  return { persistence, stored }
+}
 
 /** A handler for `user`. `authorize` decides each action. */
 function setup(
@@ -158,15 +185,8 @@ describe('POST run', () => {
     await host.close()
   })
 
-  it('refuses a runId that a stored run already has, and leaves that run alone', async () => {
-    const persistence = memoryPersistence()
-    const { runs } = persistence.stores
-    await runs.createOrResume({
-      runId: 'run-x',
-      threadId: 'other',
-      startedAt: 1,
-    })
-    const stored = await runs.get('run-x')
+  it('refuses a runId that a run in the log already has, and leaves that run alone', async () => {
+    const { persistence, stored } = await withStoredRun()
     const { adapter, calls } = mockAdapter([() => text('hello')])
     const { host, run } = setup(
       defineHarness({ name: 'test/run-route', adapter }),
@@ -181,20 +201,13 @@ describe('POST run', () => {
     expect(response.status).toBe(409)
     expect(await response.json()).toEqual({ error: 'conflict' })
     expect(calls).toHaveLength(0)
-    expect(await runs.get('run-x')).toEqual(stored)
+    expect(await stored()).toEqual(STORED_RUN)
     await host.close()
   })
 
-  it('refuses a resume whose runId a stored run already has, and keeps the interrupt', async () => {
+  it('refuses a resume whose runId a run in the log already has, and keeps the interrupt', async () => {
     deployed.length = 0
-    const persistence = memoryPersistence()
-    const { runs } = persistence.stores
-    await runs.createOrResume({
-      runId: 'run-x',
-      threadId: 'other',
-      startedAt: 1,
-    })
-    const stored = await runs.get('run-x')
+    const { persistence, stored } = await withStoredRun()
     const { host, run } = setup(
       approvalHarness([
         { toolCalls: [{ name: 'deploy', input: { env: 'prod' } }] },
@@ -220,7 +233,7 @@ describe('POST run', () => {
     ]
     const refused = await run({ runId: 'run-x', resume })
     expect(refused.status).toBe(409)
-    expect(await runs.get('run-x')).toEqual(stored)
+    expect(await stored()).toEqual(STORED_RUN)
     expect(deployed).toEqual([])
     const session = await host.open(approvalHarness([]), {
       threadId: 't-1',
@@ -579,14 +592,27 @@ describe('join a running turn', () => {
     await host.close()
   })
 
-  it('answers 404 for a run this host does not run', async () => {
+  it('answers 404 for a run that the log of the thread does not have', async () => {
+    const { adapter } = mockAdapter([])
+    const { host, call } = setup(
+      defineHarness({ name: 'test/run-route', adapter }),
+    )
+    const response = await call('run?runId=nope&threadId=t-1&offset=-1')
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({ error: 'unknown run' })
+    await host.close()
+  })
+
+  it('answers 400 for a join with no threadId of a run this host does not run', async () => {
     const { adapter } = mockAdapter([])
     const { host, call } = setup(
       defineHarness({ name: 'test/run-route', adapter }),
     )
     const response = await call('run?runId=nope&offset=-1')
-    expect(response.status).toBe(404)
-    expect(await response.json()).toEqual({ error: 'unknown run' })
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({
+      error: 'threadId is required to join a run of another instance',
+    })
     await host.close()
   })
 })

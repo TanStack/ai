@@ -7,6 +7,7 @@ import {
   memoryPersistence,
 } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, logMessageStore } from '../src'
+import { isRecord } from '../src/utils'
 import {
   after,
   gate,
@@ -18,7 +19,13 @@ import {
   wrapLogStore,
 } from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
-import type { AnyHarness, HarnessSession, Operation } from '../src'
+import type { LogRecord } from '@tanstack/ai-persistence'
+import type {
+  AnyHarness,
+  HarnessPersistence,
+  HarnessSession,
+  Operation,
+} from '../src'
 
 const THREAD = 't1'
 const alice = { id: 'alice' }
@@ -26,7 +33,7 @@ const alice = { id: 'alice' }
 /** Open `harness` for alice. */
 async function open<THarness extends AnyHarness>(
   harness: THarness,
-  persistence = memoryPersistence(),
+  persistence: HarnessPersistence = memoryPersistence(),
 ) {
   const host = createHarnessHost({ persistence })
   const session = await host.open(harness, {
@@ -201,10 +208,10 @@ describe('follow-ups to an agent run', () => {
           ? Promise.reject(new LogConflictError(batch.logId, batch.seq))
           : inner.append(batch),
     })
-    const { runs, metadata } = memoryPersistence().stores
+    const { metadata } = memoryPersistence().stores
     const model = mockAdapter([untilAborted(), () => text('Draft two.')])
     const host = createHarnessHost({
-      persistence: { stores: { log, runs, metadata } },
+      persistence: { stores: { log, metadata } },
     })
     const session = await host.open(writing(model.adapter), {
       threadId: THREAD,
@@ -352,7 +359,6 @@ describe('agentRuns() and agentRun(id)', () => {
     const persistence = {
       stores: {
         log: memoryLogStore(),
-        runs: stores.runs,
         metadata: stores.metadata,
       },
     }
@@ -580,7 +586,7 @@ function durable() {
   const stores = memoryPersistence().stores
   const log = memoryLogStore()
   const persistence = {
-    stores: { log, runs: stores.runs, metadata: stores.metadata },
+    stores: { log, metadata: stores.metadata },
   }
   const stop = async (
     session: Pick<HarnessSession, 'append'>,
@@ -717,27 +723,30 @@ describe('messages to an agent run after its host stopped', () => {
   })
 })
 
-describe('an agent run whose store fails', () => {
-  it('fails the run when the run store cannot record its end', async () => {
-    const persistence = memoryPersistence()
-    const { runs } = persistence.stores
-    const update = runs.update.bind(runs)
+describe('an agent run whose log write fails', () => {
+  it('fails the run when the log cannot record its end', async () => {
+    const inner = memoryLogStore()
     let agentRunId = ''
     // Only the end record of the agent run itself fails.
-    vi.spyOn(runs, 'update').mockImplementation(async (runId, patch) => {
-      if (runId === agentRunId && patch.status === 'completed') {
-        throw new Error('runs down')
-      }
-      return update(runId, patch)
+    const isAgentEnd = (record: LogRecord) =>
+      record.type === 'harness.run.update' &&
+      record.runId === agentRunId &&
+      isRecord(record.patch) &&
+      record.patch.status === 'completed'
+    const log = wrapLogStore(inner, {
+      append: (batch) =>
+        batch.records.some(isAgentEnd)
+          ? Promise.reject(new Error('log down'))
+          : inner.append(batch),
     })
     const { session, host } = await open(
       writing(mockAdapter([() => text('Done.')]).adapter),
-      persistence,
+      { stores: { log } },
     )
 
     const run = session.agents.writer.start(undefined)
     agentRunId = run.id
-    await expect(run).rejects.toThrow('runs down')
+    await expect(run).rejects.toThrow('log down')
     expect(run.status()).toBe('failed')
     await host.close()
   })

@@ -1,6 +1,5 @@
 import {
   EventType,
-  compactForModel,
   createSubagentId,
   runAgentStream,
   validateWithStandardSchema,
@@ -566,10 +565,9 @@ export abstract class SessionAgents<
    */
   protected resumable(inputId: string, run: RunContext) {
     const { writer } = this
-    const { runs } = this.persistence.stores
     const key = agentKey(inputId)
     const checkpoint = checkpointMiddleware({
-      ...(runs ? { runs } : {}),
+      runs: this.runStore,
       messages: this.engine,
       // As in a turn, each finished tool result goes to the session log at
       // once, under a key of this run. A run again puts it back.
@@ -602,10 +600,10 @@ export abstract class SessionAgents<
    */
   protected async continueAgentThread(agentThread: string, inputId: string) {
     const store = this.engine
-    const runs = this.persistence.stores.runs
-    const records = (await runs?.listByThread?.(agentThread)) ?? []
+    const runs = this.runStore
+    const records = (await runs.listByThread?.(agentThread)) ?? []
     for (const run of records.filter((item) => item.status === 'running')) {
-      await runs?.update(run.runId, {
+      await runs.update(run.runId, {
         status: 'failed',
         finishedAt: Date.now(),
         error: { message: AGENT_STOPPED },
@@ -837,8 +835,8 @@ export abstract class SessionAgents<
 
     operation.setStatus('running')
     await this.applied(inputId, operation.id)
-    const runs = this.persistence.stores.runs
-    await runs?.createOrResume({
+    const runs = this.runStore
+    await runs.createOrResume({
       runId: operation.id,
       threadId: this.threadId,
       startedAt: Date.now(),
@@ -970,16 +968,16 @@ export abstract class SessionAgents<
     const value = result !== undefined ? result : text
     // The run record and the log keep how the agent ended, so recovery
     // leaves it alone. After a log failure, another host owns the thread and
-    // decides how the run ended, so this host writes neither. The log keeps
-    // the raw result too, so `agentResult` has it after a restart.
+    // decides how the run ended, so this host writes neither. The result is
+    // in the `harness.agent.result` record only, so `agentResult` has it
+    // after a restart.
     const end = async (
-      run: Pick<RunRecord, 'status'> &
-        Partial<Pick<RunRecord, 'error' | 'result'>>,
+      run: Pick<RunRecord, 'status'> & Partial<Pick<RunRecord, 'error'>>,
       settlement: SettlementOutcome,
       ended: Omit<AgentResultRecord, 'inputId'>,
     ) => {
       if (this.logFailure) return
-      await runs?.update(operation.id, { ...run, finishedAt: Date.now() })
+      await runs.update(operation.id, { ...run, finishedAt: Date.now() })
       // A refused append stops the session. The operation still ends. The
       // steers that joined the run settle with it, in one append.
       const joined = this.joinedInputs(operation.id, inputId)
@@ -1041,7 +1039,7 @@ export abstract class SessionAgents<
           timestamp: Date.now(),
         } as StreamChunk)
         await end(
-          { status: 'completed', result: compactForModel(value) },
+          { status: 'completed' },
           { outcome: 'completed' },
           { status: 'completed', result: value },
         )
@@ -1148,7 +1146,7 @@ export abstract class SessionAgents<
   }): Promise<void> {
     const { operationId, inputId } = stopped
     const error = stopped.error ?? { message: AGENT_STOPPED }
-    await this.persistence.stores.runs?.update(operationId, {
+    await this.runStore.update(operationId, {
       status: 'failed',
       finishedAt: Date.now(),
       error,

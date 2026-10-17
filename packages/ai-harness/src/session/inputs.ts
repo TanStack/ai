@@ -541,17 +541,12 @@ export abstract class SessionInputs<
   }
 
   /**
-   * Does `stores.runs` have a run with this id, on any thread of any tenant?
-   * A client run id must not reuse it. A store that fails counts as yes, so
-   * nothing runs.
+   * Does the log of this thread have a run with this id? A client run id
+   * must not reuse it. The log id has the tenant, so another tenant's run
+   * with this id is not here.
    */
-  protected async isRunTaken(runId: string): Promise<boolean> {
-    const runs = this.hostRuns
-    if (!runs) return false
-    return runs.get(runId).then(
-      (run) => run !== null,
-      () => true,
-    )
+  protected isRunTaken(runId: string) {
+    return this.writer.state.thread.runs.has(runId)
   }
 
   /**

@@ -14,11 +14,13 @@ import { addUsage, emptyUsage, isSessionUsage } from './usage'
 import { isRecord } from './utils'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type {
+  InterruptRecord,
   LogEntry,
   LogRecord,
   LogStore,
   MessageStore,
   MetadataStore,
+  RunRecord,
 } from '@tanstack/ai-persistence'
 import type { EventFeed } from './feed'
 import type { HostOwnership } from './ownership'
@@ -529,6 +531,10 @@ export function foldEntry(
     case 'harness.input.turn':
     case 'harness.schedule':
     case 'harness.schedule.done':
+    case 'harness.run':
+    case 'harness.run.update':
+    case 'harness.interrupt':
+    case 'harness.interrupt.end':
       state.thread = foldThreadRecord(state.thread, record)
       return
   }
@@ -582,9 +588,8 @@ export function sessionOf(state: SharedLogState<unknown>, thread: string) {
  * default tenant. So one log id in two tenants is two logs. `logId` is the
  * `logId` of `host.open`, and its default is the thread id.
  *
- * The other stores that the harness keys by thread (messages, runs,
- * interrupts, metadata, inbox, work claims, leases, and media) use the same
- * key, with the thread id as `logId`.
+ * The other stores that the harness keys by thread (metadata, inbox, work
+ * claims, and media) use the same key, with the thread id as `logId`.
  *
  * @example
  * ```ts
@@ -665,7 +670,7 @@ interface CheckpointVersions {
 }
 
 /** The checkpoint version. A checkpoint of another version folds from the start. */
-const CHECKPOINT_VERSION = 3
+const CHECKPOINT_VERSION = 4
 
 /** The thread state of a session as JSON: each map as its entries. */
 function serializeThread(thread: ThreadStateFold) {
@@ -677,6 +682,8 @@ function serializeThread(thread: ThreadStateFold) {
     agentResults: [...thread.agentResults],
     turnOverrides: [...thread.turnOverrides],
     schedules: [...thread.schedules],
+    runs: [...thread.runs],
+    interrupts: [...thread.interrupts],
   }
 }
 
@@ -684,12 +691,15 @@ function serializeThread(thread: ThreadStateFold) {
 function parseThread(value: unknown) {
   if (!isRecord(value) || !isRecord(value.settings)) return undefined
   const { config, plugins, agentResults, turnOverrides, schedules } = value
+  const { runs, interrupts } = value
   const isShaped =
     Array.isArray(config) &&
     Array.isArray(plugins) &&
     Array.isArray(agentResults) &&
     Array.isArray(turnOverrides) &&
-    Array.isArray(schedules)
+    Array.isArray(schedules) &&
+    Array.isArray(runs) &&
+    Array.isArray(interrupts)
   if (!isShaped) return undefined
   // The harness wrote these values with `serializeThread`.
   const thread: ThreadStateFold = {
@@ -702,6 +712,8 @@ function parseThread(value: unknown) {
       turnOverrides as Array<[string, NamedTurnOverrides]>,
     ),
     schedules: new Map(schedules as Array<[string, ScheduleRecord]>),
+    runs: new Map(runs as Array<[string, RunRecord]>),
+    interrupts: new Map(interrupts as Array<[string, InterruptRecord]>),
   }
   return thread
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryLogStore } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, logIdOf } from '../src'
 import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
@@ -10,6 +10,7 @@ import {
   messageTexts,
   mockAdapter,
   ownershipExpired,
+  storedRun,
   text,
   toolCall,
   untilAborted,
@@ -326,10 +327,10 @@ describe('a durable host with no run store', () => {
   })
 })
 
-describe('a durable host with a run store', () => {
+describe('the runs in the log of a durable host', () => {
   it('keeps the failed run when the stopped host ends its agent later', async () => {
-    const { runs } = memoryPersistence().stores
-    const persistence = { stores: { log: memoryLogStore(), runs } }
+    const log = memoryLogStore()
+    const persistence = { stores: { log } }
     const harness = defineHarness({
       name: 'test/leases',
       adapter: mockAdapter([]).adapter,
@@ -343,7 +344,9 @@ describe('a durable host with a run store', () => {
       await first.open(harness, { threadId: THREAD })
     ).agents.waiter.start()
     await vi.waitFor(async () =>
-      expect((await runs.get(run.id))?.status).toBe('running'),
+      expect((await storedRun(log, { threadId: THREAD }, run.id))?.status).toBe(
+        'running',
+      ),
     )
 
     await ownershipExpired()
@@ -355,17 +358,18 @@ describe('a durable host with a run store', () => {
       'Another host took this thread over',
     )
 
-    expect((await runs.get(run.id))?.status).toBe('failed')
+    expect((await storedRun(log, { threadId: THREAD }, run.id))?.status).toBe(
+      'failed',
+    )
     await first.close().catch(() => {})
     await next.close()
   })
 })
 
 describe('close({ recoverable: true })', () => {
-  /** A durable store set with a run store. */
+  /** A durable store set. */
   function durableStores() {
-    const { runs } = memoryPersistence().stores
-    return { stores: { log: memoryLogStore(), runs } }
+    return { stores: { log: memoryLogStore() } }
   }
 
   async function openOn(
@@ -401,7 +405,10 @@ describe('close({ recoverable: true })', () => {
     expect(
       (await logRecords(persistence)).map((record) => record.type),
     ).not.toContain('harness.input.settled')
-    expect((await persistence.stores.runs.get(turn.id))?.status).toBe('running')
+    expect(
+      (await storedRun(persistence.stores.log, { threadId: THREAD }, turn.id))
+        ?.status,
+    ).toBe('running')
     const next = await openOn(persistence, [() => text('recovered')])
     expect(await next.session.settled('in-1')).toMatchObject({
       outcome: 'completed',
@@ -466,7 +473,10 @@ describe('close({ recoverable: true })', () => {
     await first.host.close()
 
     await expect(turn).rejects.toThrow('Cancelled.')
-    expect((await persistence.stores.runs.get(turn.id))?.status).toBe('aborted')
+    expect(
+      (await storedRun(persistence.stores.log, { threadId: THREAD }, turn.id))
+        ?.status,
+    ).toBe('aborted')
     const next = await openOn(persistence, [() => text('never')])
     expect(await next.session.settled('in-1')).toMatchObject({
       outcome: 'aborted',

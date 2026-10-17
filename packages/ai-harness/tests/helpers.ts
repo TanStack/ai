@@ -7,7 +7,7 @@ import type {
   StreamChunk,
   WebSocketLike,
 } from '@tanstack/ai'
-import type { LogRecord, LogStore } from '@tanstack/ai-persistence'
+import type { LogRecord, LogStore, RunRecord } from '@tanstack/ai-persistence'
 import type { HostFrame } from '../src/protocol'
 
 /**
@@ -57,6 +57,36 @@ export async function storedThreadState(
     rootThread: threadId,
   })
   return sessionOf(state, threadId).thread
+}
+
+/**
+ * The log record of run `runId` of thread `threadId`, as a host that stopped
+ * left it: `'running'`, and started a minute ago.
+ */
+export function stoppedRun(
+  runId: string,
+  threadId: string,
+  extra: Partial<Pick<RunRecord, 'kind' | 'agent' | 'checkpoint'>> = {},
+): LogRecord {
+  return {
+    type: 'harness.run',
+    run: {
+      runId,
+      threadId,
+      status: 'running',
+      startedAt: Date.now() - 60_000,
+      ...extra,
+    },
+  }
+}
+
+/** The run `runId` in the log of a thread, as a new host reads it. */
+export async function storedRun(
+  log: LogStore,
+  thread: StoredThread,
+  runId: string,
+) {
+  return (await storedThreadState(log, thread)).runs.get(runId)
 }
 
 /**

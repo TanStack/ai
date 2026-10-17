@@ -11,6 +11,7 @@ import {
   gate,
   messageTexts,
   mockAdapter,
+  stoppedRun,
   text,
   toolCall,
   wrapLogStore,
@@ -122,17 +123,12 @@ async function seedStoppedTurn(
     logId: LOG,
     seq: 1,
     epoch: UNOWNED_EPOCH,
-    records,
-  })
-  await persistence.stores.runs.createOrResume({
-    runId: 'op-stopped',
-    threadId: LOG,
-    startedAt: Date.now() - 60_000,
-  })
-  await persistence.stores.runs.update('op-stopped', {
-    leaseOwner: 'host-gone',
-    leaseExpiresAt: Date.now() - 1_000,
-    checkpoint: { at: 1, pendingTools: [] },
+    records: [
+      ...records,
+      stoppedRun('op-stopped', THREAD, {
+        checkpoint: { at: 1, pendingTools: [] },
+      }),
+    ],
   })
 }
 

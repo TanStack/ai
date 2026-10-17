@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { defineAgent } from '@tanstack/ai'
-import { memoryLeaseStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import { mockAdapter, text } from './helpers'
 import type { HarnessPersistence, RetentionLimits } from '../src'
@@ -104,26 +104,19 @@ describe('retention', () => {
     await host.close()
   })
 
-  it('keeps the ids of forgotten operations only as long as both windows', async () => {
-    // Without `stores.runs`, only the session refuses a reused run id. The
-    // interrupts store needs the runs store, so it goes too. A lease store
-    // finds a crashed host instead.
-    const persistence = {
-      stores: {
-        ...memoryPersistence().stores,
-        runs: undefined,
-        interrupts: undefined,
-        leases: memoryLeaseStore(),
-      },
-    }
-    const { host, session } = await openWith(
-      { settledOperations: 2, settledAgentRuns: 1 },
-      persistence,
-    )
+  it('keeps the ids of forgotten operations only as long as both windows, and the log refuses the id after', async () => {
+    const { host, session } = await openWith({
+      settledOperations: 2,
+      settledAgentRuns: 1,
+    })
     await session.send('Hi', { runId: 'run-0' })
     for (let index = 0; index < 2; index += 1) await session.send('Hi')
     expect(session.operation('run-0')).toBe(undefined)
+    // Both windows keep 3 operations.
+    for (let index = 0; index < 4; index += 1) await session.send('Hi')
+    expect(privateSetSize(session, 'retiredIds')).toBe(3)
 
+    // The log keeps every run, so the id stays taken.
     const reused = session.send('Hi', { runId: 'run-0' })
     expect(await reused.receipt).toMatchObject({
       status: 'rejected',
@@ -133,14 +126,6 @@ describe('retention', () => {
       () => undefined,
       () => undefined,
     )
-    // Both windows keep 3 operations. Then the id is free again.
-    for (let index = 0; index < 4; index += 1) await session.send('Hi')
-
-    expect(privateSetSize(session, 'retiredIds')).toBe(3)
-    await expect(session.send('Hi', { runId: 'run-0' })).resolves.toEqual({
-      text: 'done',
-      media: [],
-    })
     await host.close()
   })
 

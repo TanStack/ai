@@ -2,6 +2,7 @@ import { EventType } from '@tanstack/ai'
 import { REDACTED_THINKING_ID_PREFIX } from '@tanstack/ai/adapter-internals'
 import { LogConflictError } from '@tanstack/ai-persistence'
 import { engineMessageStore, sessionMessageStore } from '../log'
+import { logChatStores } from '../log-stores'
 import { mountPlugins } from '../plugins'
 import {
   CUT_OFF_NOTE,
@@ -22,6 +23,7 @@ import {
   loggedExtras,
   SHUTDOWN_REASON,
   tapFeed,
+  toolCallOf,
 } from './helpers'
 import { SessionTurn } from './turn'
 import type { ModelMessage } from '@tanstack/ai'
@@ -252,9 +254,9 @@ export class SessionImpl<
 
   /**
    * The host gives the session its view of the log, and the session writes
-   * through it: the log is the event feed and the transcript. Then the
-   * session builds the stores that `withPersistence` and the checkpoints
-   * get.
+   * through it: the log is the event feed, the transcript, and the runs and
+   * interrupts. Then the session builds the stores that `withPersistence`
+   * and the checkpoints get.
    */
   protected async openLog(): Promise<void> {
     const { stores } = this.persistence
@@ -278,17 +280,19 @@ export class SessionImpl<
     this.messages = sessionMessageStore(view)
     const engineMessages = engineMessageStore(view)
     this.openEngine = engineMessages
+    const { runs, interrupts } = logChatStores(writer)
+    this.logStores = { runs, interrupts }
     this.chatPersistence = {
       stores: {
         messages: engineMessages,
-        ...(stores.runs ? { runs: stores.runs } : {}),
-        ...(stores.interrupts ? { interrupts: stores.interrupts } : {}),
+        runs,
+        interrupts,
         ...(stores.metadata ? { metadata: stores.metadata } : {}),
         ...(stores.sessions ? { sessions: stores.sessions } : {}),
       },
     }
     this.checkpoint = checkpointMiddleware({
-      ...(stores.runs ? { runs: stores.runs } : {}),
+      runs,
       messages: engineMessages,
       // The log keeps each finished tool result, so a crash later in the
       // batch does not lose it.
@@ -548,7 +552,7 @@ export class SessionImpl<
     writer: LogWriter,
     isTaken: (input: InputState) => boolean,
   ): Promise<void> {
-    const runs = this.persistence.stores.runs
+    const runs = this.runStore
     const maxAttempts = this.harness.durability?.maxAttempts ?? 10
     const logged = [...writer.state.inputs.values()]
     for (const input of logged) {
@@ -687,7 +691,7 @@ export class SessionImpl<
       // This host owns the log (see `recoverFromLog`), so no other host
       // drives this turn.
       if (isTaken(input)) continue
-      const run = input.operationId ? await runs?.get(input.operationId) : null
+      const run = input.operationId ? await runs.get(input.operationId) : null
       const now = Date.now()
       if (first) {
         // A run that ended before its settle record landed did not stop.
@@ -695,7 +699,7 @@ export class SessionImpl<
           const isResumable = first.input.resume === true
           if (isResumable && input.attempt < maxAttempts) {
             if (input.operationId) {
-              await runs?.update(input.operationId, {
+              await runs.update(input.operationId, {
                 status: 'failed',
                 finishedAt: now,
                 error: {
@@ -726,7 +730,7 @@ export class SessionImpl<
         continue
       }
       if (run?.status === 'running') {
-        await runs?.update(run.runId, {
+        await runs.update(run.runId, {
           status: 'failed',
           finishedAt: now,
           error: { message: 'The host stopped during this turn.' },
@@ -798,22 +802,40 @@ export class SessionImpl<
         continue
       }
       if (input.input.op === 'resolve') {
-        const store = this.persistence.stores.interrupts
-        const records = store
-          ? await Promise.all(
-              input.input.resume.map((item) => store.get(item.interruptId)),
-            )
-          : []
-        const consumed =
-          records.length > 0 &&
-          records.every(
-            (record) =>
-              record !== null &&
-              record.threadId === this.threadId &&
-              record.status !== 'pending',
-          )
+        const { resume } = input.input
+        const store = this.interruptStore
+        const records = await Promise.all(
+          resume.map((item) => store.get(item.interruptId)),
+        )
         const newPhase =
           this.interrupted && this.interrupted.runId === operationId
+        // The tools of the resume ran, and the log failed before their
+        // resolve records landed. They are used up all the same, so they
+        // never run twice.
+        const isRunOut =
+          !newPhase &&
+          resume.length > 0 &&
+          resume.every((item) => {
+            const interrupt = this.interrupted?.interrupts.find(
+              (candidate) => candidate.id === item.interruptId,
+            )
+            const toolCallId = interrupt ? toolCallOf(interrupt) : undefined
+            return toolCallId !== undefined && hasToolResult(writer, toolCallId)
+          })
+        if (isRunOut) {
+          await this.consumeResume(resume)
+          this.dropInterrupts(resume)
+          await this.saveInterrupted(this.interrupted)
+        }
+        const consumed =
+          isRunOut ||
+          (records.length > 0 &&
+            records.every(
+              (record) =>
+                record !== null &&
+                record.threadId === this.threadId &&
+                record.status !== 'pending',
+            ))
         if (
           consumed ||
           newPhase ||
@@ -914,6 +936,20 @@ export class SessionImpl<
       })
     }
   }
+}
+
+/**
+ * Does the log have the result of tool call `toolCallId`: a stored result,
+ * or a tool message in the transcript? Then the call ran to its end.
+ */
+function hasToolResult(writer: LogWriter, toolCallId: string) {
+  const { toolResults, messages } = writer.state
+  return (
+    toolResults.has(toolCallId) ||
+    messages.some(
+      (message) => message.role === 'tool' && message.toolCallId === toolCallId,
+    )
+  )
 }
 
 /**

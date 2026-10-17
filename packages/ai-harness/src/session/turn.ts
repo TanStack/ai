@@ -266,7 +266,7 @@ export abstract class SessionTurn<
     let error: { message: string; code?: string } | undefined
     try {
       await this.applied(inputId, operation.id)
-      await this.refreshInterrupted(undefined, false, false)
+      await this.refreshInterrupted(undefined, false)
       if (this.interrupted) {
         error = {
           message: 'The thread waits for interrupts. Resolve them first.',
@@ -337,7 +337,7 @@ export abstract class SessionTurn<
     // A new turn may ask for a sign-in the user cancelled before.
     if (!turn.answers) this.declinedSignIns.clear()
     try {
-      await this.refreshInterrupted(undefined, false, false)
+      await this.refreshInterrupted(undefined, false)
     } catch (error) {
       this.warn(operation, 'harness:interrupts', error)
       return failEarly(error)
@@ -613,8 +613,7 @@ export abstract class SessionTurn<
       let routed = isRoutedBag(bag)
       if (routed) {
         // The same record withPersistence opens, so its open resumes this one.
-        const { runs } = this.persistence.stores
-        await runs?.createOrResume({
+        await this.runStore.createOrResume({
           runId: operation.id,
           threadId: this.threadId,
           startedAt: Date.now(),
@@ -926,7 +925,7 @@ export abstract class SessionTurn<
             // succeeds, so its interrupts are still open.
             message = undefined
             // withPersistence failed the run. It runs again, for the retry.
-            await this.persistence.stores.runs?.update(operation.id, {
+            await this.runStore.update(operation.id, {
               status: 'running',
               finishedAt: undefined,
               error: undefined,
@@ -979,7 +978,7 @@ export abstract class SessionTurn<
         parentRunId = undefined
         // withPersistence finished the run. It runs again, for the join or
         // the hook's additions.
-        await this.persistence.stores.runs?.update(operation.id, {
+        await this.runStore.update(operation.id, {
           status: 'running',
           finishedAt: undefined,
           error: undefined,
@@ -1128,15 +1127,10 @@ export abstract class SessionTurn<
         this.warn(operation, 'harness:interrupts', error),
       )
     }
-    await this.refreshTurnInterrupts(
-      operation,
-      observedInterrupts,
-      didResumedToolsRun ||
-        (turn.resume !== undefined &&
-          failure === undefined &&
-          !isResumeRefused &&
-          !operation.abortController.signal.aborted),
-    )
+    await this.refreshTurnInterrupts(operation, observedInterrupts)
+    // A failed log write can keep their records pending. Here they are used
+    // up all the same.
+    if (didResumedToolsRun) this.dropInterrupts(resumed)
     if (this.logFailure) {
       operation.fail('failed', this.logFailure)
     } else if (timedOut) {

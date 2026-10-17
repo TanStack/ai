@@ -15,7 +15,7 @@ import {
   logIdOf,
 } from '../src'
 import { credentialsFor } from '../src/auth'
-import { after, gate, mockAdapter, text, toolCall } from './helpers'
+import { after, gate, mockAdapter, stoppedRun, text, toolCall } from './helpers'
 import type { LogRecord } from '@tanstack/ai-persistence'
 import type {
   HarnessPlugin,
@@ -563,17 +563,10 @@ describe('recovery keeps the sender and the context', () => {
           keep: 0,
           add: [{ id: 'u1', role: 'user', content: 'go' }],
         },
+        stoppedRun('op-stopped', THREAD, {
+          checkpoint: { at: 1, pendingTools: [] },
+        }),
       ],
-    })
-    await persistence.stores.runs.createOrResume({
-      runId: 'op-stopped',
-      threadId: LOG,
-      startedAt: Date.now() - 60_000,
-    })
-    await persistence.stores.runs.update('op-stopped', {
-      leaseOwner: 'host-gone',
-      leaseExpiresAt: Date.now() - 1_000,
-      checkpoint: { at: 1, pendingTools: [] },
     })
     const { plugins, turns, seen } = recorder()
     const { adapter } = mockAdapter([

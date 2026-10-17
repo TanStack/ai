@@ -6,7 +6,7 @@ import {
   defineAgent,
   toolDefinition,
 } from '@tanstack/ai'
-import { memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import {
   HARNESS_EVENTS,
   createHarnessHost,
@@ -16,17 +16,27 @@ import {
 } from '../src'
 import {
   after,
+  appendToLog,
   gate,
   hideSecret,
   messageTexts,
   mockAdapter,
   text,
   toolCall,
+  storedThreadState,
   untilAborted,
   wakeMessages,
+  wrapLogStore,
 } from './helpers'
+import { isRecord } from '../src/utils'
 import type { AnyChatMiddleware, ContentPart, StreamChunk } from '@tanstack/ai'
-import type { HarnessTurnOptions, Receipt, SessionEvent } from '../src'
+import type { LogRecord } from '@tanstack/ai-persistence'
+import type {
+  HarnessPersistence,
+  HarnessTurnOptions,
+  Receipt,
+  SessionEvent,
+} from '../src'
 import type { Reply } from './helpers'
 
 /** A memory host. A session closes as soon as its last handle closes and it is idle. */
@@ -366,8 +376,10 @@ describe('agents', () => {
     expect(result).toEqual({ vendor: 'acme', cents: 1200 })
     expect(run.kind).toBe('agent')
 
-    const record = await persistence.stores.runs.get(run.id)
-    expect(record).toMatchObject({
+    const { runs } = await storedThreadState(persistence.stores.log, {
+      threadId: 't1',
+    })
+    expect(runs.get(run.id)).toMatchObject({
       kind: 'agent',
       agent: 'pricer',
       status: 'completed',
@@ -489,15 +501,26 @@ describe('inputs', () => {
         threadId: 't1',
       },
     )
-    vi.spyOn(persistence.stores.interrupts, 'listPending').mockRejectedValue(
-      new Error('interrupts down'),
-    )
+    // Another host wrote an interrupt whose descriptor does not match it.
+    await appendToLog(persistence.stores.log, { threadId: 't1' }, [
+      {
+        type: 'harness.interrupt',
+        interrupt: {
+          interruptId: 'i-1',
+          runId: 'r-1',
+          threadId: 't1',
+          requestedAt: 1,
+          payload: { id: 'i-2', toolCallId: 'c-1', reason: 'r', message: 'm' },
+        },
+      },
+    ])
 
     const turn = session.send('Go.', { inputId: 'in-early' })
-    await expect(turn).rejects.toThrow('interrupts down')
+    const invalid = 'The stored interrupt descriptor is invalid.'
+    await expect(turn).rejects.toThrow(invalid)
     expect(await session.settled('in-early')).toMatchObject({
       outcome: 'failed',
-      error: { message: 'interrupts down' },
+      error: { message: invalid },
     })
     const events: Array<StreamChunk> = []
     for await (const chunk of turn.stream()) events.push(chunk)
@@ -761,7 +784,7 @@ describe('joins', () => {
   async function openJoins(
     replies: Array<Reply>,
     turn: HarnessTurnOptions,
-    persistence = memoryPersistence(),
+    persistence: HarnessPersistence = memoryPersistence(),
   ) {
     const started = gate()
     const done = gate()
@@ -846,25 +869,30 @@ describe('joins', () => {
   })
 
   it('refuses a cancel that lands after the late-join check', async () => {
-    const persistence = memoryPersistence()
-    const { runs } = persistence.stores
+    const inner = memoryLogStore()
     const inUpdate = gate()
     const releaseUpdate = gate()
     let isArmed = false
-    const update = runs.update.bind(runs)
-    runs.update = async (...args: Parameters<typeof runs.update>) => {
-      if (isArmed && args[1].status === 'running') {
-        isArmed = false
-        inUpdate.open()
-        await releaseUpdate.opened
-      }
-      return update(...args)
-    }
+    /** The run of the turn starts again, for the late steer. */
+    const isRunAgain = (record: LogRecord) =>
+      record.type === 'harness.run.update' &&
+      isRecord(record.patch) &&
+      record.patch.status === 'running'
+    const log = wrapLogStore(inner, {
+      append: async (batch) => {
+        if (isArmed && batch.records.some(isRunAgain)) {
+          isArmed = false
+          inUpdate.open()
+          await releaseUpdate.opened
+        }
+        return inner.append(batch)
+      },
+    })
     const release = gate()
     const { host, session, calls } = await openJoins(
       [after(release.opened, 'first answer'), () => text('late answer')],
       {},
-      persistence,
+      { stores: { log } },
     )
 
     const turn = session.send('first')
@@ -875,10 +903,14 @@ describe('joins', () => {
     release.open()
     // The turn decided to run the model again for the late steer.
     await inUpdate.opened
-    const receipt = await session.cancel({ operationId: late.id })
+    // Its input record waits for the log write of the run.
+    const receipt = session.cancel({ operationId: late.id })
     releaseUpdate.open()
 
-    expect(receipt).toMatchObject({ status: 'rejected', reason: 'not_running' })
+    expect(await receipt).toMatchObject({
+      status: 'rejected',
+      reason: 'not_running',
+    })
     expect(await turn).toEqual({ text: 'first answerlate answer', media: [] })
     expect(calls).toHaveLength(2)
     expect(messageTexts(calls[1]).at(-1)).toBe('late')

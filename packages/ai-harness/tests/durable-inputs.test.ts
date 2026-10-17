@@ -23,6 +23,8 @@ import {
   untilAborted,
   appendToLog,
   ownershipExpired,
+  stoppedRun,
+  storedRun,
   storedThreadState,
   wakeMessages,
   wrapLogStore,
@@ -42,11 +44,15 @@ const THREAD = 't1'
 const LOG = logIdOf({ logId: THREAD })
 
 function durablePersistence() {
-  const { runs, metadata } = memoryPersistence().stores
-  return { stores: { log: memoryLogStore(), runs, metadata } }
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log: memoryLogStore(), metadata } }
 }
 
 type Durable = ReturnType<typeof durablePersistence>
+
+/** The run `runId` in the log of `THREAD`. */
+const runIn = (persistence: Durable, runId: string) =>
+  storedRun(persistence.stores.log, { threadId: THREAD }, runId)
 
 /** The log record of a prompt. With no other record, it never ran. */
 const pendingInput = (inputId: string, message: string): LogRecord => ({
@@ -107,20 +113,15 @@ async function seedStoppedTurn(
     ...(options.abort
       ? [{ type: 'harness.input.abort', inputId: 'in-1' }]
       : []),
+    stoppedRun('op-stopped', THREAD, {
+      checkpoint: { at: 1, pendingTools: [] },
+    }),
   ]
   await persistence.stores.log.append({
     logId: LOG,
     seq: 1,
     epoch: UNOWNED_EPOCH,
     records,
-  })
-  await persistence.stores.runs.createOrResume({
-    runId: 'op-stopped',
-    threadId: LOG,
-    startedAt: Date.now() - 60_000,
-  })
-  await persistence.stores.runs.update('op-stopped', {
-    checkpoint: { at: 1, pendingTools: [] },
   })
 }
 
@@ -184,9 +185,7 @@ describe('recovery of a durable input', () => {
       },
     })
     expect(calls).toHaveLength(0)
-    expect((await persistence.stores.runs.get('op-stopped'))?.status).toBe(
-      'failed',
-    )
+    expect((await runIn(persistence, 'op-stopped'))?.status).toBe('failed')
     await host.close()
   })
 
@@ -567,14 +566,8 @@ describe('recovery of a durable input', () => {
           operationId: 'op-agent',
           attempt: 1,
         },
+        stoppedRun('op-agent', THREAD, { kind: 'agent', agent: 'waiter' }),
       ],
-    })
-    await persistence.stores.runs.createOrResume({
-      runId: 'op-agent',
-      threadId: LOG,
-      startedAt: Date.now() - 60_000,
-      kind: 'agent',
-      agent: 'waiter',
     })
 
     const { host, session, calls } = await openDurable({
@@ -587,9 +580,7 @@ describe('recovery of a durable input', () => {
       '[waiter failed] The host stopped during this agent run.',
       'Background agent waiter failed: [waiter failed] The host stopped during this agent run.',
     ])
-    expect((await persistence.stores.runs.get('op-agent'))?.status).toBe(
-      'failed',
-    )
+    expect((await runIn(persistence, 'op-agent'))?.status).toBe('failed')
     await vi.waitFor(async () =>
       expect(wakeMessages(await session.transcript())).toEqual([
         'Background agent waiter failed: [waiter failed] The host stopped during this agent run.',
@@ -1592,15 +1583,7 @@ describe('settled() of a live input', () => {
 
 describe('durable approval recovery', () => {
   it('uses up the approval when a resume hits the time limit after its tool ran', async () => {
-    const stores = memoryPersistence().stores
-    const persistence = {
-      stores: {
-        log: memoryLogStore(),
-        runs: stores.runs,
-        metadata: stores.metadata,
-        interrupts: stores.interrupts,
-      },
-    }
+    const persistence = durablePersistence()
     const execute = vi.fn(async () => 'removed')
     const tool = toolDefinition({
       name: 'remove',
@@ -1636,7 +1619,10 @@ describe('durable approval recovery', () => {
     // again would run it a second time, so it is used up.
     expect(execute).toHaveBeenCalledTimes(1)
     expect(session.snapshot().pendingInterrupts).toEqual([])
-    expect((await stores.interrupts.get(approval.id))?.status).toBe('resolved')
+    const { interrupts } = await storedThreadState(persistence.stores.log, {
+      threadId: THREAD,
+    })
+    expect(interrupts.get(approval.id)?.status).toBe('resolved')
     await host.close()
     const next = createHarnessHost({ persistence })
     const reopened = await next.open(config, { threadId: THREAD })
@@ -1653,16 +1639,8 @@ describe('durable approval recovery', () => {
   })
 
   it('keeps approval after an early applied failure', async () => {
-    const stores = memoryPersistence().stores
-    const log = memoryLogStore()
-    const persistence = {
-      stores: {
-        runs: stores.runs,
-        metadata: stores.metadata,
-        interrupts: stores.interrupts,
-        log,
-      },
-    }
+    const persistence = durablePersistence()
+    const { log } = persistence.stores
     const execute = vi.fn(async () => 'removed')
     const tool = toolDefinition({
       name: 'remove',
@@ -1716,198 +1694,126 @@ describe('durable approval recovery', () => {
     await next.close()
   })
 
-  it.each([false, true])(
-    'replays an applied resolve after a crash (interrupt store: %s)',
-    async (withStore) => {
-      const stores = memoryPersistence().stores
-      const log = memoryLogStore()
-      const persistence = {
-        stores: {
-          runs: stores.runs,
-          metadata: stores.metadata,
-          ...(withStore ? { interrupts: stores.interrupts } : {}),
-          log,
-        },
-      }
-      const execute = vi.fn(async () => 'removed')
-      const tool = toolDefinition({
-        name: 'remove',
-        description: 'Remove',
-        needsApproval: true,
-        inputSchema: z.object({ path: z.string() }),
-      }).server(execute)
-      const firstAdapter = mockAdapter([
-        () => toolCall('remove', { path: 'a.txt' }, 'crash-call'),
-      ])
-      const first = createHarnessHost({ persistence })
-      const firstSession = await first.open(
-        defineHarness({
-          name: 'crash-approval',
-          adapter: firstAdapter.adapter,
-          tools: [tool],
-        }),
-        {
-          threadId: THREAD,
-        },
-      )
-      const result = await firstSession.send('remove')
-      const approval = result.interrupts?.[0]
-      if (!approval) throw new Error('The turn did not stop for approval.')
-      await first.close()
-      // A host that applied a resolve and then crashed.
-      await appendToLog(log, { threadId: THREAD }, [
-        {
-          type: 'harness.input',
-          inputId: 'resume-crash',
-          input: {
-            op: 'resolve',
-            resume: [
-              { interruptId: approval.id, status: 'resolved', payload: true },
-            ],
-          },
-          at: Date.now(),
-        },
-        {
-          type: 'harness.input.applied',
-          inputId: 'resume-crash',
-          operationId: 'resume-stopped',
-          attempt: 1,
-        },
-      ])
-      await stores.runs.createOrResume({
-        runId: 'resume-stopped',
-        threadId: LOG,
-        startedAt: Date.now() - 60000,
-      })
-      const nextAdapter = mockAdapter([() => text('Recovered approval.')])
-      const next = createHarnessHost({ persistence })
-      const session = await next.open(
-        defineHarness({
-          name: 'crash-approval',
-          adapter: nextAdapter.adapter,
-          tools: [tool],
-        }),
-        {
-          threadId: THREAD,
-        },
-      )
-      expect(await session.settled('resume-crash')).toMatchObject({
-        outcome: 'completed',
-      })
-      expect(execute).toHaveBeenCalledExactlyOnceWith(
-        { path: 'a.txt' },
-        expect.anything(),
-      )
-      expect(nextAdapter.calls).toHaveLength(1)
-      expect(session.snapshot().pendingInterrupts).toEqual([])
-      await next.close()
-    },
-  )
-
-  it.each([false, true])(
-    'does not revive a consumed approval from a stale interrupted record (interrupt store: %s)',
-    async (withStore) => {
-      const stores = memoryPersistence().stores
-      const log = memoryLogStore()
-      const persistence = {
-        stores: {
-          runs: stores.runs,
-          metadata: stores.metadata,
-          ...(withStore ? { interrupts: stores.interrupts } : {}),
-          log,
-        },
-      }
-      const execute = vi.fn(async () => 'removed')
-      const tool = toolDefinition({
-        name: 'remove',
-        description: 'Remove',
-        needsApproval: true,
-      }).server(execute)
-      const adapter = mockAdapter([
-        () => toolCall('remove', {}, 'consumed-call'),
-        () => text('Done.'),
-      ])
-      const host = createHarnessHost({ persistence })
-      const config = defineHarness({
-        name: 'consumed-approval',
-        adapter: adapter.adapter,
+  it('replays an applied resolve after a crash', async () => {
+    const persistence = durablePersistence()
+    const { log } = persistence.stores
+    const execute = vi.fn(async () => 'removed')
+    const tool = toolDefinition({
+      name: 'remove',
+      description: 'Remove',
+      needsApproval: true,
+      inputSchema: z.object({ path: z.string() }),
+    }).server(execute)
+    const firstAdapter = mockAdapter([
+      () => toolCall('remove', { path: 'a.txt' }, 'crash-call'),
+    ])
+    const first = createHarnessHost({ persistence })
+    const firstSession = await first.open(
+      defineHarness({
+        name: 'crash-approval',
+        adapter: firstAdapter.adapter,
         tools: [tool],
-      })
-      const session = await host.open(config, { threadId: THREAD })
-      const result = await session.send('remove')
-      const approval = result.interrupts?.[0]
-      if (!approval) throw new Error('The turn did not stop for approval.')
-      const { interrupted: cached } = await storedThreadState(log, {
+      }),
+      {
         threadId: THREAD,
-      })
-      if (!cached) throw new Error('No stored interrupted turn.')
-      const receipt = await session.resolve({
-        resume: [
-          { interruptId: approval.id, status: 'resolved', payload: true },
-        ],
-      })
-      await session.operation(receipt.operationId ?? '')
-      expect(session.snapshot().pendingInterrupts).toEqual([])
-      await host.close()
-      // A stale copy of the stopped turn lands after the resolve.
-      await appendToLog(log, { threadId: THREAD }, [
-        { type: 'harness.interrupted', turn: cached },
-      ])
-      const next = createHarnessHost({ persistence })
-      const reopened = await next.open(config, { threadId: THREAD })
-      expect(reopened.snapshot().pendingInterrupts).toEqual([])
-      expect(
-        await reopened.resolve({
+      },
+    )
+    const result = await firstSession.send('remove')
+    const approval = result.interrupts?.[0]
+    if (!approval) throw new Error('The turn did not stop for approval.')
+    await first.close()
+    // A host that applied a resolve and then crashed.
+    await appendToLog(log, { threadId: THREAD }, [
+      {
+        type: 'harness.input',
+        inputId: 'resume-crash',
+        input: {
+          op: 'resolve',
           resume: [
             { interruptId: approval.id, status: 'resolved', payload: true },
           ],
-        }),
-      ).toMatchObject({ status: 'rejected', reason: 'no_pending_interrupts' })
-      expect(execute).toHaveBeenCalledTimes(1)
-      await next.close()
-    },
-  )
-})
-
-describe('approval consumption with no interrupt store', () => {
-  it('keeps a consumed approval cleared after a restart', async () => {
-    const stores = memoryPersistence().stores
-    const persistence = {
-      stores: {
-        log: stores.log,
-        runs: stores.runs,
-        metadata: stores.metadata,
+        },
+        at: Date.now(),
       },
-    }
+      {
+        type: 'harness.input.applied',
+        inputId: 'resume-crash',
+        operationId: 'resume-stopped',
+        attempt: 1,
+      },
+      stoppedRun('resume-stopped', THREAD),
+    ])
+    const nextAdapter = mockAdapter([() => text('Recovered approval.')])
+    const next = createHarnessHost({ persistence })
+    const session = await next.open(
+      defineHarness({
+        name: 'crash-approval',
+        adapter: nextAdapter.adapter,
+        tools: [tool],
+      }),
+      {
+        threadId: THREAD,
+      },
+    )
+    expect(await session.settled('resume-crash')).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(execute).toHaveBeenCalledExactlyOnceWith(
+      { path: 'a.txt' },
+      expect.anything(),
+    )
+    expect(nextAdapter.calls).toHaveLength(1)
+    expect(session.snapshot().pendingInterrupts).toEqual([])
+    await next.close()
+  })
+
+  it('does not revive a consumed approval from a stale interrupted record', async () => {
+    const persistence = durablePersistence()
+    const { log } = persistence.stores
     const execute = vi.fn(async () => 'removed')
     const tool = toolDefinition({
       name: 'remove',
       description: 'Remove',
       needsApproval: true,
     }).server(execute)
-    const main = mockAdapter([
-      () => toolCall('remove', {}, 'metadata-only-call'),
+    const adapter = mockAdapter([
+      () => toolCall('remove', {}, 'consumed-call'),
       () => text('Done.'),
     ])
+    const host = createHarnessHost({ persistence })
     const config = defineHarness({
-      name: 'metadata-only-approval',
-      adapter: main.adapter,
+      name: 'consumed-approval',
+      adapter: adapter.adapter,
       tools: [tool],
     })
-    const host = createHarnessHost({ persistence })
     const session = await host.open(config, { threadId: THREAD })
-    const initial = await session.send('remove')
-    const approval = initial.interrupts?.[0]
-    if (!approval) throw new Error('The approval is missing.')
+    const result = await session.send('remove')
+    const approval = result.interrupts?.[0]
+    if (!approval) throw new Error('The turn did not stop for approval.')
+    const { interrupted: cached } = await storedThreadState(log, {
+      threadId: THREAD,
+    })
+    if (!cached) throw new Error('No stored interrupted turn.')
     const receipt = await session.resolve({
       resume: [{ interruptId: approval.id, status: 'resolved', payload: true }],
     })
     await session.operation(receipt.operationId ?? '')
     expect(session.snapshot().pendingInterrupts).toEqual([])
     await host.close()
+    // A stale copy of the stopped turn lands after the resolve.
+    await appendToLog(log, { threadId: THREAD }, [
+      { type: 'harness.interrupted', turn: cached },
+    ])
     const next = createHarnessHost({ persistence })
     const reopened = await next.open(config, { threadId: THREAD })
     expect(reopened.snapshot().pendingInterrupts).toEqual([])
+    expect(
+      await reopened.resolve({
+        resume: [
+          { interruptId: approval.id, status: 'resolved', payload: true },
+        ],
+      }),
+    ).toMatchObject({ status: 'rejected', reason: 'no_pending_interrupts' })
     expect(execute).toHaveBeenCalledTimes(1)
     await next.close()
   })

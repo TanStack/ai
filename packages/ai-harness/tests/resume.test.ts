@@ -10,7 +10,14 @@ import {
   checkpointMiddleware,
   repairTranscript,
 } from '../src/resume'
-import { canOtherHostTake, gate, mockAdapter, text, toolCall } from './helpers'
+import {
+  canOtherHostTake,
+  gate,
+  mockAdapter,
+  storedRun,
+  text,
+  toolCall,
+} from './helpers'
 import type { AnyChatMiddleware, AnyTool, ModelMessage } from '@tanstack/ai'
 
 /** Run one chat() turn with the checkpoint middleware and a fresh run record. */
@@ -53,6 +60,12 @@ const waiter = defineAgent({
     ),
 })
 
+/** The run `runId` in the log of thread `t1`. */
+const runIn = (
+  persistence: ReturnType<typeof memoryPersistence>,
+  runId: string,
+) => storedRun(persistence.stores.log, { threadId: 't1' }, runId)
+
 /** Can another host acquire the log of thread `t1` now? */
 const isTakeable = (persistence: ReturnType<typeof memoryPersistence>) =>
   canOtherHostTake(persistence.stores.log, logIdOf({ logId: 't1' }))
@@ -88,7 +101,7 @@ describe('checkpoints and ownership', () => {
     await started.opened
     // Another host cannot take the thread while the turn runs.
     expect(await isTakeable(persistence)).toBe(false)
-    const running = await persistence.stores.runs.get(turn.id)
+    const running = await runIn(persistence, turn.id)
     expect(running?.checkpoint?.pendingTools).toEqual([
       { toolCallId: 'call-1', name: 'lookup', replay: 'safe' },
     ])
@@ -98,7 +111,7 @@ describe('checkpoints and ownership', () => {
 
     release.open()
     await turn
-    const finished = await persistence.stores.runs.get(turn.id)
+    const finished = await runIn(persistence, turn.id)
     expect(finished?.checkpoint?.pendingTools).toEqual([])
     await host.close()
   })
@@ -120,9 +133,7 @@ describe('checkpoints and ownership', () => {
 
     const run = session.agents.waiter.start()
     await vi.waitFor(async () =>
-      expect((await persistence.stores.runs.get(run.id))?.status).toBe(
-        'running',
-      ),
+      expect((await runIn(persistence, run.id))?.status).toBe('running'),
     )
     expect(await isTakeable(persistence)).toBe(false)
 

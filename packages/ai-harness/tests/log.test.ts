@@ -927,6 +927,8 @@ describe('fold checkpoints', () => {
     agentResults: [],
     turnOverrides: [],
     schedules: [],
+    runs: [],
+    interrupts: [],
     ...overrides,
   })
 
@@ -934,7 +936,7 @@ describe('fold checkpoints', () => {
     overrides: Record<string, unknown>,
     thread: unknown = threadOf(),
   ) => ({
-    v: 3,
+    v: 4,
     seq: 1,
     version: 'v1',
     sessions: [
@@ -1036,7 +1038,7 @@ describe('fold checkpoints', () => {
 
     await expect
       .poll(() => metadata.get(NAMESPACE, LOG))
-      .toMatchObject({ v: 3, seq: 50, version: 'v1' })
+      .toMatchObject({ v: 4, seq: 50, version: 'v1' })
   })
 
   it('keeps the position of the last transcript record', async () => {

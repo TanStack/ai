@@ -1,5 +1,4 @@
 import {
-  EventType,
   INTERRUPT_BINDING_METADATA_KEY,
   convertSchemaToJsonSchema,
   validateWithStandardSchema,
@@ -22,8 +21,6 @@ import { HARNESS_EVENTS } from '../types'
 import {
   createInputId,
   customEvent,
-  tanstackOf,
-  toolCallOf,
   storedPrincipal,
   changeSettings,
 } from './helpers'
@@ -769,211 +766,92 @@ export abstract class SessionState<
     ])
   }
 
-  /** Keep the snapshot in line with the committed interrupt records. */
+  /**
+   * Keep the snapshot in line with the pending interrupt records in the
+   * fold of the log.
+   */
   protected async refreshInterrupted(
     observed?: InterruptedTurn,
-    consumed = false,
     persist = true,
   ): Promise<void> {
     const previous = observed ?? this.interrupted
-    const store = this.persistence.stores.interrupts
-    let next = previous
-    if (store) {
-      const pending = await store.listPending(this.threadId)
-      const owned = pending.filter((record) => {
-        const payload = record.payload
-        const metadata = isRecord(payload.metadata)
-          ? payload.metadata
-          : undefined
-        return (
-          previous?.interrupts.some((item) => item.id === record.interruptId) ||
-          typeof payload.toolCallId === 'string' ||
-          metadata?.kind === 'approval' ||
-          metadata?.kind === 'client_tool' ||
-          (metadata !== undefined &&
-            INTERRUPT_BINDING_METADATA_KEY in metadata) ||
-          typeof payload.id !== 'string' ||
-          typeof payload.reason !== 'string' ||
-          typeof payload.message !== 'string'
-        )
-      })
-      if (new Set(owned.map((record) => record.runId)).size > 1) {
-        throw new Error('Pending interrupts belong to more than one run.')
-      }
-      const runId = owned.at(-1)?.runId
-      const records = owned.filter((record) => record.runId === runId)
-      const interrupts: Array<Interrupt> = []
-      for (const record of records) {
-        const payload = record.payload
-        if (
-          payload.id !== record.interruptId ||
-          record.threadId !== this.threadId ||
-          typeof payload.reason !== 'string' ||
-          typeof payload.message !== 'string'
-        ) {
-          throw new Error('The stored interrupt descriptor is invalid.')
-        }
-        interrupts.push({
-          ...payload,
-          id: payload.id,
-          reason: payload.reason,
-          message: payload.message,
-        })
-      }
-      const savedInput = [...this.writer.state.inputs.values()].find(
-        (input) => input.operationId === runId,
+    const pending = await this.interruptStore.listPending(this.threadId)
+    const owned = pending.filter((record) => {
+      const payload = record.payload
+      const metadata = isRecord(payload.metadata) ? payload.metadata : undefined
+      return (
+        previous?.interrupts.some((item) => item.id === record.interruptId) ||
+        typeof payload.toolCallId === 'string' ||
+        metadata?.kind === 'approval' ||
+        metadata?.kind === 'client_tool' ||
+        (metadata !== undefined &&
+          INTERRUPT_BINDING_METADATA_KEY in metadata) ||
+        typeof payload.id !== 'string' ||
+        typeof payload.reason !== 'string' ||
+        typeof payload.message !== 'string'
       )
-      const context =
-        previous !== undefined && previous.runId === runId
-          ? previous.context
-          : savedInput && 'context' in savedInput.input
-            ? savedInput.input.context
-            : undefined
-      next =
-        runId && interrupts.length > 0
-          ? {
-              runId,
-              interrupts,
-              ...(previous !== undefined &&
-              previous.runId === runId &&
-              previous.routed
-                ? { routed: previous.routed }
-                : {}),
-              ...storedPrincipal(
-                previous !== undefined && previous.runId === runId
-                  ? previous.principal
-                  : savedInput?.principal,
-              ),
-              ...(context !== undefined ? { context } : {}),
-            }
-          : undefined
-    } else if (consumed && observed === undefined) {
-      next = undefined
-    } else if (observed === undefined) {
-      let after = 0
-      for (;;) {
-        const entries = await this.log.store.read({
-          logId: this.storeLogId,
-          after,
-          limit: 256,
-        })
-        for (const { seq, record } of entries) {
-          after = seq
-          if (
-            threadOf(record, this.logId) !== this.threadId ||
-            record.type !== 'harness.event' ||
-            !isRecord(record.event)
-          )
-            continue
-          const event = record.event
-          // A later result of an interrupt's tool call: its resume ran, so it
-          // is used up, also when that turn failed after the tool.
-          if (
-            event.type === EventType.TOOL_CALL_RESULT &&
-            typeof event.toolCallId === 'string' &&
-            next !== undefined
-          ) {
-            if (!(await this.isRunResult(event, record.operationId))) continue
-            const remaining = next.interrupts.filter(
-              (interrupt) => toolCallOf(interrupt) !== event.toolCallId,
-            )
-            if (remaining.length !== next.interrupts.length) {
-              next =
-                remaining.length > 0
-                  ? { ...next, interrupts: remaining }
-                  : undefined
-            }
-            continue
-          }
-          if (
-            event.type !== EventType.RUN_FINISHED ||
-            event.subagentRunId ||
-            typeof record.operationId !== 'string'
-          )
-            continue
-          if (
-            isRecord(event.outcome) &&
-            event.outcome.type === 'interrupt' &&
-            Array.isArray(event.outcome.interrupts)
-          ) {
-            const interrupts: Array<Interrupt> = []
-            for (const item of event.outcome.interrupts) {
-              if (
-                !isRecord(item) ||
-                typeof item.id !== 'string' ||
-                typeof item.reason !== 'string' ||
-                typeof item.message !== 'string'
-              ) {
-                throw new Error('The logged interrupt descriptor is invalid.')
-              }
-              interrupts.push({
-                ...item,
-                id: item.id,
-                reason: item.reason,
-                message: item.message,
-              })
-            }
-            const savedInput = [...this.writer.state.inputs.values()].find(
-              (input) => input.operationId === record.operationId,
-            )
-            const context =
-              previous !== undefined && previous.runId === record.operationId
-                ? previous.context
-                : savedInput && 'context' in savedInput.input
-                  ? savedInput.input.context
-                  : undefined
-            next = {
-              runId: record.operationId,
-              interrupts,
-              ...(previous !== undefined &&
-              previous.runId === record.operationId &&
-              previous.routed
-                ? { routed: previous.routed }
-                : {}),
-              ...storedPrincipal(
-                previous !== undefined && previous.runId === record.operationId
-                  ? previous.principal
-                  : savedInput?.principal,
-              ),
-              ...(context !== undefined ? { context } : {}),
-            }
-          } else if (
-            (await this.persistence.stores.runs?.get(record.operationId))
-              ?.status === 'completed'
-          )
-            next = undefined
-        }
-        if (entries.length < 256) break
-      }
+    })
+    if (new Set(owned.map((record) => record.runId)).size > 1) {
+      throw new Error('Pending interrupts belong to more than one run.')
     }
+    const runId = owned.at(-1)?.runId
+    const records = owned.filter((record) => record.runId === runId)
+    const interrupts: Array<Interrupt> = []
+    for (const record of records) {
+      const payload = record.payload
+      if (
+        payload.id !== record.interruptId ||
+        record.threadId !== this.threadId ||
+        typeof payload.reason !== 'string' ||
+        typeof payload.message !== 'string'
+      ) {
+        throw new Error('The stored interrupt descriptor is invalid.')
+      }
+      interrupts.push({
+        ...payload,
+        id: payload.id,
+        reason: payload.reason,
+        message: payload.message,
+      })
+    }
+    const savedInput = [...this.writer.state.inputs.values()].find(
+      (input) => input.operationId === runId,
+    )
+    const context =
+      previous !== undefined && previous.runId === runId
+        ? previous.context
+        : savedInput && 'context' in savedInput.input
+          ? savedInput.input.context
+          : undefined
+    const next =
+      runId && interrupts.length > 0
+        ? {
+            runId,
+            interrupts,
+            ...(previous !== undefined &&
+            previous.runId === runId &&
+            previous.routed
+              ? { routed: previous.routed }
+              : {}),
+            ...storedPrincipal(
+              previous !== undefined && previous.runId === runId
+                ? previous.principal
+                : savedInput?.principal,
+            ),
+            ...(context !== undefined ? { context } : {}),
+          }
+        : undefined
     this.interrupted = next
     if (persist) await this.saveInterrupted(next)
   }
 
   /**
-   * True when a logged tool result means its tool ran: it is not cancelled,
-   * and an error result does not come from a stopped run.
-   */
-  protected async isRunResult(
-    event: Record<string, unknown>,
-    operationId: unknown,
-  ) {
-    const tanstack = tanstackOf(event)
-    if (tanstack?.toolResultOutcome === 'cancelled') return false
-    if (tanstack?.state !== 'output-error') return true
-    if (typeof operationId !== 'string') return false
-    const run = await this.persistence.stores.runs?.get(operationId)
-    return run !== null && run !== undefined && run.status !== 'aborted'
-  }
-
-  /**
-   * Mark the interrupts of `resume` answered in the interrupt store, the same
-   * way `withPersistence` commits them at a success boundary. Records that are
-   * no longer pending are left as they are.
+   * Mark the interrupts of `resume` answered in the log, the same way
+   * `withPersistence` commits them at a success boundary. Records that are no
+   * longer pending are left as they are.
    */
   protected async consumeResume(resume: ReadonlyArray<RunAgentResumeItem>) {
-    const store = this.persistence.stores.interrupts
-    if (!store) return
+    const store = this.interruptStore
     for (const item of resume) {
       const record = await store.get(item.interruptId)
       if (record?.status !== 'pending' || record.threadId !== this.threadId) {
@@ -987,13 +865,23 @@ export abstract class SessionState<
     }
   }
 
+  /** Take the interrupts of `resume` out of the interrupted turn, in memory. */
+  protected dropInterrupts(resume: ReadonlyArray<RunAgentResumeItem>) {
+    if (!this.interrupted) return
+    const used = new Set(resume.map((item) => item.interruptId))
+    const left = this.interrupted.interrupts.filter(
+      (interrupt) => !used.has(interrupt.id),
+    )
+    this.interrupted =
+      left.length > 0 ? { ...this.interrupted, interrupts: left } : undefined
+  }
+
   /** Refresh even when a turn failed before its main try block. */
   protected async refreshTurnInterrupts(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
     observed?: InterruptedTurn,
-    consumed = false,
   ): Promise<void> {
-    await this.refreshInterrupted(observed, consumed).catch((error: unknown) =>
+    await this.refreshInterrupted(observed).catch((error: unknown) =>
       this.warn(operation, 'harness:interrupts', error),
     )
   }

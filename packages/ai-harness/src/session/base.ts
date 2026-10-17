@@ -18,7 +18,6 @@ import {
 import { createMediaStore } from '../media'
 import { logIdOf } from '../log'
 import { pluginStateDeltas } from '../log-records'
-import { tenantStores } from '../tenant-stores'
 import { SESSION_PLUGIN_CREDENTIALS, SESSION_PLUGIN_KEYS } from '../plugins'
 import { OWNERSHIP } from '../ownership'
 import { HARNESS_EVENTS } from '../types'
@@ -48,13 +47,13 @@ import type {
   ChatTranscriptStores,
   InboxEntry,
   MessageStore,
-  RunStore,
   SessionIndexKey,
   SessionIndexStore,
 } from '@tanstack/ai-persistence'
 import type { AuthRequiredError, CredentialsAccess } from '../auth'
 import type { EventListener, ListenedFeed } from '../feed'
 import type { LogWriter, RevertState, engineMessageStore } from '../log'
+import type { logChatStores } from '../log-stores'
 import type { OwnershipOptions } from '../ownership'
 import type { MediaStore } from '../media'
 import type { PluginSessionApi } from '../commands'
@@ -243,23 +242,17 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /**
    * The key of this thread in the stores that the session keys by thread
    * id: the tenant and the thread id, from `logIdOf`. The metadata rows, the
-   * inbox, and the work claims use it. `persistence` gives the
-   * runs and interrupts in the tenant already.
+   * inbox, and the work claims use it.
    */
   protected readonly storeThreadId: string
   /** The key of the session index entry of this thread. */
   protected readonly indexKey: SessionIndexKey
   /**
-   * The stores of the host. Its runs and interrupts are in the tenant of
-   * this session (see `tenantStores`): they take the thread id of the app.
-   * The session does not use `messages`: its transcript is in the log.
+   * The stores of the host, without `runs` and `interrupts`: the runs and
+   * interrupts of the session are in its log (see `runStore`). The session
+   * does not use `messages`: its transcript is in the log.
    */
   protected readonly persistence: AIPersistence
-  /**
-   * The run store of the host, in all tenants. A run id is one key for all
-   * tenants, so the check of a client run id reads this one.
-   */
-  protected readonly hostRuns: RunStore | undefined
   protected readonly principal: Principal | undefined
   /** The owner of the index entry, once the session read it. */
   protected owner: Principal | undefined
@@ -284,6 +277,18 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected chatPersistence:
     | AIPersistence<ChatTranscriptStores & { sessions?: SessionIndexStore }>
     | undefined
+  /** The runs and interrupts of the session, in its log, once `open()` ran. */
+  protected logStores: ReturnType<typeof logChatStores> | undefined
+  /** The runs of the session and of its child runs, in its log. Throws before `open()`. */
+  protected get runStore() {
+    if (!this.logStores) throw new Error('The session log is not open yet.')
+    return this.logStores.runs
+  }
+  /** The interrupts of the session and of its child runs, in its log. Throws before `open()`. */
+  protected get interruptStore() {
+    if (!this.logStores) throw new Error('The session log is not open yet.')
+    return this.logStores.interrupts
+  }
   /** The message store the chat engine saves through, once `open()` ran. */
   protected openEngine: ReturnType<typeof engineMessageStore> | undefined
   /** The message store the chat engine saves through. Throws before `open()`. */
@@ -309,8 +314,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * The ids of forgotten operations, oldest first, so a client `runId` does
    * not take one.
    */
-  // ponytail: as many ids as both windows keep. Past that, only
-  // `stores.runs` refuses a reused run id.
+  // ponytail: as many ids as both windows keep. Past that, only the runs
+  // in the log refuse a reused run id.
   protected readonly retiredIds = new Set<string>()
   /** See {@link InputRecords.admitted}. */
   protected get admitted() {
@@ -479,11 +484,13 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       retention: own?.retention ?? shared?.retention ?? 'short',
       key: own?.key ?? shared?.key ?? deps.threadId,
     }
-    const { stores } = deps.persistence
-    this.persistence = {
-      stores: { ...stores, ...tenantStores(stores, deps.tenantId) },
-    }
-    this.hostRuns = stores.runs
+    // The runs and interrupts are in the log, so no read takes them here.
+    const {
+      runs: _runs,
+      interrupts: _interrupts,
+      ...stores
+    } = deps.persistence.stores
+    this.persistence = { stores }
     this.media = deps.media
     this.mediaStore = createMediaStore({
       persistence: deps.media,

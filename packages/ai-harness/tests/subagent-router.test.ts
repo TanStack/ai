@@ -8,6 +8,7 @@ import {
   gate,
   messageTexts,
   mockAdapter,
+  storedRun,
   text,
   toolCall,
 } from './helpers'
@@ -71,9 +72,9 @@ async function openRouted(options: {
   ownership?: OwnershipOptions
   tools?: ReadonlyArray<AnyTool>
 }) {
-  const { runs, metadata } = memoryPersistence().stores
+  const { metadata } = memoryPersistence().stores
   const log = memoryLogStore()
-  const persistence = { stores: { log, runs, metadata } }
+  const persistence = { stores: { log, metadata } }
   const main = mockAdapter(options.replies ?? [])
   const routerSaw: Array<Array<string>> = []
   const host = createHarnessHost({
@@ -97,7 +98,7 @@ async function openRouted(options: {
       threadId: THREAD,
     },
   )
-  return { host, session, runs, log, routerSaw, calls: main.calls }
+  return { host, session, log, routerSaw, calls: main.calls }
 }
 
 describe('subagents.router', () => {
@@ -173,13 +174,15 @@ describe('subagents.router', () => {
         return 'Done.'
       },
     })
-    const { host, session, runs, log } = await openRouted({
+    const { host, session, log } = await openRouted({
       agent,
       pick: 'writer',
     })
     const turn = session.send('go')
     await started.opened
-    expect((await runs.get(turn.id))?.status).toBe('running')
+    expect((await storedRun(log, { threadId: THREAD }, turn.id))?.status).toBe(
+      'running',
+    )
     expect(await canOtherHostTake(log, LOG)).toBe(false)
     release.open()
     expect((await turn).text).toBe('writer:\nDone.')

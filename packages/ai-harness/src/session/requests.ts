@@ -186,8 +186,8 @@ export abstract class SessionRequests<
             this.answerDuplicate(operation, inputId, admission)
             return
           }
-          // Awaited only for a client run id, so other prompts keep their order.
-          if (runId !== undefined && (await this.isRunTaken(runId))) {
+          // A client run id must be new in the log of this thread.
+          if (runId !== undefined && this.isRunTaken(runId)) {
             this.reject(inputId, 'conflict')
             this.refuse(operation, {
               inputId,
@@ -521,7 +521,7 @@ export abstract class SessionRequests<
         runId !== undefined &&
         (this.operations.has(runId) ||
           this.retiredIds.has(runId) ||
-          (await this.isRunTaken(runId)))
+          this.isRunTaken(runId))
       if (isTaken) {
         this.reject(inputId, 'conflict')
         return { inputId, status: 'rejected', reason: 'conflict' }
@@ -916,8 +916,8 @@ export abstract class SessionRequests<
    * handle.
    *
    * With `recoverable`, the running turns and agent runs stop as on a host
-   * crash: the log gets none of their later writes, they do not settle, and
-   * the run store gets no aborted state. The host gives the log up, so the
+   * crash: the log gets none of their later writes, so they do not settle
+   * and their runs get no aborted state. The host gives the log up, so the
    * next host that opens the thread runs them again at once. `host.close`
    * passes it when a host shuts down, for example for a deploy.
    */

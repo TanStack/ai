@@ -10,9 +10,9 @@ import {
 } from '@tanstack/ai'
 import { parseRangeHeader, resolveBlobRange } from '@tanstack/ai-persistence'
 import { AccessDeniedError } from './access'
-import { accessOf, durableStoresOf, sessionOfTurn } from './host'
+import { accessOf, sessionOfTurn } from './host'
+import { activeRunIn } from './log-stores'
 import { MediaError } from './media'
-import { tenantStores } from './tenant-stores'
 import {
   HARNESS_PROTOCOL_VERSION,
   applyInput,
@@ -25,13 +25,8 @@ import {
 import { base64url, isRecord } from './utils'
 import { SessionMetadataError } from './session-entry'
 import { SessionImpl } from './session/harness-session'
-import { liveSessionOf } from './session/observed-session'
-import type {
-  ModelMessage,
-  RunStore,
-  UIMessage,
-  WebSocketLike,
-} from '@tanstack/ai'
+import { liveSessionOf, storedRunsOf } from './session/observed-session'
+import type { ModelMessage, UIMessage, WebSocketLike } from '@tanstack/ai'
 import type { SessionIndexEntry, SessionMember } from '@tanstack/ai-persistence'
 import type { AnyHarness } from './define'
 import type { HarnessHost, HostEvent } from './host'
@@ -412,11 +407,11 @@ function watchRevoke<P extends Principal>(
  * - `GET  .../run?threadId=`: the transcript, the running turn, and the
  *   waiting interrupts, as the `ChatHydrationResult` that a `ChatClient` with
  *   `persistence` reads.
- * - `GET  .../run?runId=` (or `X-Run-Id`): the chat turn with that run id, as
- *   SSE from its start, so a reloaded `ChatClient` joins it. Each event id is
- *   a cursor, so `Last-Event-ID` resumes it. With `stores.runs`, any
- *   instance finds the turn in the shared log. Without it, 404 for a turn
- *   this host does not run.
+ * - `GET  .../run?runId=&threadId=` (or `X-Run-Id`): the chat turn with
+ *   that run id, as SSE from its start, so a reloaded `ChatClient` joins it.
+ *   Each event id is a cursor, so `Last-Event-ID` resumes it. Any instance
+ *   finds the turn in the log of `threadId`. Without `threadId`, only the
+ *   instance that runs the turn finds it, and another instance answers 400.
  * - `GET  .../events?threadId=&from=`: the session stream as SSE. Each event id
  *   is a cursor, so `Last-Event-ID` resumes it.
  * - `POST .../control`: `{ threadId, input }`. Returns the receipt.
@@ -486,14 +481,9 @@ export function createHarnessHandler<P extends Principal = Principal>(
   const { host, harness, media } = options
   const usersOf = requestUsers('createHarnessHandler', host, options.openAccess)
   const hasAccess = accessOf(host) !== undefined
-  const hostRuns = durableStoresOf(host)?.runs
 
   const openFor = (principal: P | undefined, threadId: string) =>
     host.open(harness, { threadId, ...(principal ? { principal } : {}) })
-
-  /** The run store of the host, in the tenant of `principal`. */
-  const runsOf = (principal: P | undefined) =>
-    hostRuns && tenantStores({ runs: hostRuns }, principal?.tenantId).runs
 
   /** The view of a thread for a read route. See `observeToRead`. */
   const viewFor = (principal: P | undefined, threadId: string) =>
@@ -633,24 +623,27 @@ export function createHarnessHandler<P extends Principal = Principal>(
    * Stream the chat turn `runId` from its start: the `joinRun` of a
    * ChatClient after a reload. Each event has its cursor as `id`, so
    * `Last-Event-ID` resumes after it. A turn that ended gives the events the
-   * feed still has.
+   * feed still has. `threadId` (from the query) names the log of the turn.
    */
   const joinTurn = async (
     request: Request,
     principal: P | undefined,
     runId: string,
   ) => {
+    const { searchParams } = new URL(request.url)
     // `offset=-1` is the start. A reconnect sends the last cursor it saw.
-    const offset = new URL(request.url).searchParams.get('offset')
+    const offset = searchParams.get('offset')
     const resumeFrom =
       request.headers.get('Last-Event-ID') ?? (offset === '-1' ? null : offset)
+    const named = searchParams.get('threadId')
     const running = await sessionOfTurn(host, {
       harness,
       tenantId: principal?.tenantId,
       operationId: runId,
     })
     const turn = running?.operation(runId)
-    if (running && turn) {
+    const isNamedThread = named === null || running?.threadId === named
+    if (running && turn && isNamedThread) {
       const { threadId } = running
       // The view checks the read. The turn keeps its session busy, so the
       // session does not close on idle while the turn streams.
@@ -665,18 +658,25 @@ export function createHarnessHandler<P extends Principal = Principal>(
         closeOnRevoke(principal, threadId),
       )
     }
-    // Another instance runs the turn. The host finds its thread in the run
-    // store, and its events in the shared log. Not a child run or an
-    // agent run: only a chat turn of a thread.
-    const record = await runsOf(principal)?.get(runId)
-    const isChatTurn =
-      record != null &&
-      record.kind !== 'agent' &&
-      record.parentRunId === undefined
-    if (!record || !isChatTurn) return json({ error: 'unknown run' }, 404)
-    const { threadId } = record
+    // Another instance runs the turn: the log of the thread has its run
+    // and its events. Not a child run or an agent run: only a chat turn of
+    // the thread.
+    if (!named) {
+      return json(
+        { error: 'threadId is required to join a run of another instance' },
+        400,
+      )
+    }
+    const threadId = named
     const view = await viewFor(principal, threadId)
     if (!view) return json({ error: 'unknown run' }, 404)
+    const record = (await storedRunsOf(view)).get(runId)
+    const isChatTurn =
+      record !== undefined &&
+      record.threadId === threadId &&
+      record.kind !== 'agent' &&
+      record.parentRunId === undefined
+    if (!isChatTurn) return json({ error: 'unknown run' }, 404)
     const entry = await view.entry()
     if (entry?.harness !== undefined && entry.harness !== harness.name) {
       return json({ error: 'unknown run' }, 404)
@@ -823,7 +823,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
       if (!view) {
         return json({ messages: [], activeRun: null, interrupts: null })
       }
-      return json(await hydration(view, runsOf(principal)))
+      return json(await hydration(view))
     }
 
     if (request.method === 'GET' && route === 'events') {
@@ -1075,9 +1075,9 @@ export function createHarnessHandler<P extends Principal = Principal>(
  * What a `ChatClient` with `persistence` reads when it loads a thread (a
  * `ChatHydrationResult`): the transcript, the running chat turn (the client
  * joins it with `GET run?runId=`), and the interrupts that the last turn
- * waits for. With `runs`, it finds a turn that another instance runs.
+ * waits for. The log has the turns that other instances run.
  */
-async function hydration(view: ObservedSession, runs?: RunStore) {
+async function hydration(view: ObservedSession) {
   const { pendingInterrupts, activeOperations } = await view.snapshot()
   const [first] = pendingInterrupts
   const runId = first
@@ -1090,7 +1090,9 @@ async function hydration(view: ObservedSession, runs?: RunStore) {
       item.kind === 'chat' &&
       session?.operation(item.id)?.status() === 'running',
   )
-  const remote = running ? undefined : await runs?.findActiveRun(view.threadId)
+  const remote = running
+    ? undefined
+    : activeRunIn(await storedRunsOf(view), view.threadId)
   const runningId =
     running?.id ?? (remote?.kind !== 'agent' ? remote?.runId : undefined)
   return {

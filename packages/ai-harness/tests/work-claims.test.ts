@@ -11,6 +11,7 @@ import {
   after,
   gate,
   mockAdapter,
+  stoppedRun,
   text,
   toolCall,
   wrapLogStore,
@@ -270,17 +271,10 @@ async function seedStoppedTurn(
         keep: 0,
         add: [{ id: 'u1', role: 'user', content: 'go' }],
       },
+      stoppedRun('op-stopped', THREAD, {
+        checkpoint: { at: 1, pendingTools: [] },
+      }),
     ],
-  })
-  await persistence.stores.runs.createOrResume({
-    runId: 'op-stopped',
-    threadId: LOG,
-    startedAt: Date.now() - 60_000,
-  })
-  await persistence.stores.runs.update('op-stopped', {
-    leaseOwner: 'host-gone',
-    leaseExpiresAt: Date.now() - 1_000,
-    checkpoint: { at: 1, pendingTools: [] },
   })
   await expireClaim(persistence.stores.workClaims)
 }
@@ -318,18 +312,8 @@ async function seedStoppedAgent(
         operationId: 'op-agent',
         attempt: 1,
       },
+      stoppedRun('op-agent', THREAD, { kind: 'agent', agent: 'waiter' }),
     ],
-  })
-  await persistence.stores.runs.createOrResume({
-    runId: 'op-agent',
-    threadId: LOG,
-    startedAt: Date.now() - 60_000,
-    kind: 'agent',
-    agent: 'waiter',
-  })
-  await persistence.stores.runs.update('op-agent', {
-    leaseOwner: 'host-gone',
-    leaseExpiresAt: Date.now() - 1_000,
   })
 }
 
@@ -487,18 +471,8 @@ describe('host.resumePending', () => {
           operationId: 'op-agent',
           attempt: 1,
         },
+        stoppedRun('op-agent', THREAD, { kind: 'agent', agent: 'worker' }),
       ],
-    })
-    await persistence.stores.runs.createOrResume({
-      runId: 'op-agent',
-      threadId: LOG,
-      startedAt: Date.now() - 60_000,
-      kind: 'agent',
-      agent: 'worker',
-    })
-    await persistence.stores.runs.update('op-agent', {
-      leaseOwner: 'host-gone',
-      leaseExpiresAt: Date.now() - 1_000,
     })
     await expireClaim(persistence.stores.workClaims)
     const agentModel = mockAdapter([() => text('Worked.')])

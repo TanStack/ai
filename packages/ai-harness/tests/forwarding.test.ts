@@ -18,8 +18,10 @@ import {
   text,
   toolCall,
   wakeMessages,
+  wrapLogStore,
 } from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
+import type { LogStore } from '@tanstack/ai-persistence'
 import type { ChatTurnResult, Operation } from '../src'
 
 const THREAD = 't1'
@@ -27,13 +29,26 @@ const THREAD = 't1'
 const LOG = logIdOf({ logId: THREAD })
 const NAME = 'test/forwarding'
 
+/**
+ * `log`, with each append that starts a run waiting for `until` first: the
+ * owner holds the log while its run record waits.
+ */
+const runWritesAfter = (log: LogStore, until: Promise<void>) =>
+  wrapLogStore(log, {
+    append: async (batch) => {
+      if (batch.records.some((record) => record.type === 'harness.run')) {
+        await until
+      }
+      return log.append(batch)
+    },
+  })
+
 /** Stores that several hosts share, as on a serverless platform. */
 function sharedStores(options: { inbox?: boolean } = {}) {
-  const { runs, metadata, workClaims, inbox } = memoryPersistence().stores
+  const { metadata, workClaims, inbox } = memoryPersistence().stores
   return {
     stores: {
       log: memoryLogStore(),
-      runs,
       metadata,
       workClaims,
       ...(options.inbox === false ? {} : { inbox }),
@@ -174,21 +189,13 @@ describe('an input that reaches a host that does not own the thread', () => {
     const persistence = sharedStores()
     const { adapter, calls } = mockAdapter([() => text('One.')])
     const harness = harnessWith(adapter)
-    // The owner stores the input, then waits before it writes its run lease.
-    const leaseWrite = gate()
-    const shared = persistence.stores.runs
+    // The owner stores the input, then waits before it writes its run.
+    const runWrite = gate()
     const owner = await createHarnessHost({
       persistence: {
         stores: {
           ...persistence.stores,
-          runs: Object.assign(Object.create(persistence.stores.runs), {
-            createOrResume: async (
-              ...args: Parameters<typeof shared.createOrResume>
-            ) => {
-              await leaseWrite.opened
-              return shared.createOrResume(...args)
-            },
-          }),
+          log: runWritesAfter(persistence.stores.log, runWrite.opened),
         },
       },
     }).open(harness, { threadId: THREAD })
@@ -199,7 +206,7 @@ describe('an input that reaches a host that does not own the thread', () => {
     const other = await createHarnessHost({ persistence }).open(harness, {
       threadId: THREAD,
     })
-    leaseWrite.open()
+    runWrite.open()
     expect((await turn).text).toBe('One.')
     expect(calls).toHaveLength(1)
     await other.close()
@@ -527,17 +534,15 @@ describe('an input that reaches a host that does not own the thread', () => {
       () => text('Two.'),
     ])
     const harness = harnessWith(adapter)
-    // The owner stores its input, then stops in its turn. It never renews
-    // its claim or its ownership of the log, as after a crash.
-    const runs = persistence.stores.runs
+    // The owner stores its input, then stops in its turn: its run record
+    // never lands. It never renews its claim or its ownership of the log,
+    // as after a crash.
     const owner = await createHarnessHost({
       ownership: { ttlMs: 200, renewMs: 60_000 },
       persistence: {
         stores: {
           ...persistence.stores,
-          runs: Object.assign(Object.create(runs), {
-            createOrResume: () => new Promise(() => {}),
-          }),
+          log: runWritesAfter(persistence.stores.log, new Promise(() => {})),
         },
       },
     }).open(harness, { threadId: THREAD })

@@ -213,6 +213,10 @@ describe('foldThreadRecord', () => {
       'harness.input.turn',
       'harness.schedule',
       'harness.schedule.done',
+      'harness.run',
+      'harness.run.update',
+      'harness.interrupt',
+      'harness.interrupt.end',
     ])
   })
 })

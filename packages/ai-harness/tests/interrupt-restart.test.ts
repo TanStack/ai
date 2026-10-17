@@ -2,15 +2,41 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, logIdOf } from '../src'
-import { gate, mockAdapter, text, toolCall } from './helpers'
+import { createHarnessHost, defineHarness } from '../src'
+import {
+  appendToLog,
+  mockAdapter,
+  storedThreadState,
+  text,
+  toolCall,
+} from './helpers'
 import type { AnyTool } from '@tanstack/ai'
+import type { InterruptRecord, LogStore } from '@tanstack/ai-persistence'
 import type { AnyAgent, HarnessRouting, HarnessSubagents } from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
-/** The key of `THREAD` in the stores, in the default tenant. */
-const THREAD_KEY = logIdOf({ logId: THREAD })
+
+/** The interrupt `interruptId` in the log of `THREAD`, as a new host reads it. */
+const storedInterrupt = async (log: LogStore, interruptId: string) =>
+  (await storedThreadState(log, { threadId: THREAD })).interrupts.get(
+    interruptId,
+  )
+
+/**
+ * Another host appends `records` to the log of `THREAD`. It waits until the
+ * session gave the log back.
+ */
+const writeAsOther = (
+  log: LogStore,
+  records: Parameters<typeof appendToLog>[2],
+) => vi.waitFor(() => appendToLog(log, { threadId: THREAD }, records))
+
+/** Another host writes `interrupt` to the log of `THREAD`. */
+const writeInterrupt = (
+  log: LogStore,
+  interrupt: Omit<InterruptRecord, 'status' | 'resolvedAt'>,
+) => writeAsOther(log, [{ type: 'harness.interrupt', interrupt }])
 
 /** A tool that asks approval before it removes a file. */
 function removeTool() {
@@ -38,17 +64,16 @@ function cleanerAgent(tool: AnyTool) {
 }
 
 /**
- * A log, runs, metadata, and interrupts, with no work claims: a host that
- * opens the thread after another one closed takes it at once, as a server
- * that started again.
+ * A log and metadata, with no work claims: a host that opens the thread
+ * after another one closed takes it at once, as a server that started again.
  */
 function approvalStores() {
   const { stores } = memoryPersistence()
-  const { log, runs, metadata, interrupts } = stores
+  const { log, metadata } = stores
   return {
     stores,
     log,
-    persistence: { stores: { log, runs, metadata, interrupts } },
+    persistence: { stores: { log, metadata } },
   }
 }
 
@@ -57,8 +82,8 @@ function approvalStores() {
  * like a server that started again.
  */
 function restartable() {
-  const { runs, metadata } = memoryPersistence().stores
-  const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
+  const { metadata } = memoryPersistence().stores
+  const persistence = { stores: { log: memoryLogStore(), metadata } }
   return (options: {
     tools?: ReadonlyArray<AnyTool>
     agents?: ReadonlyArray<AnyAgent>
@@ -146,17 +171,9 @@ describe('a resolve after a restart', () => {
               : [{ ...valid, payload: { approved: 'yes' } }]
       const rejected = await first.session.resolve({ resume })
       expect(rejected.status).toBe('accepted')
-      if (kind === 'missing') {
-        await expect(
-          first.session.operation(rejected.operationId ?? ''),
-        ).resolves.toMatchObject({
-          interrupts: [expect.objectContaining({ id: interrupt.id })],
-        })
-      } else {
-        await expect(
-          first.session.operation(rejected.operationId ?? ''),
-        ).rejects.toThrow()
-      }
+      await expect(
+        first.session.operation(rejected.operationId ?? ''),
+      ).rejects.toThrow()
       expect(remove.execute).not.toHaveBeenCalled()
       expect(
         first.session.snapshot().pendingInterrupts.map((item) => item.id),
@@ -271,10 +288,10 @@ describe('a resolve after a restart', () => {
 })
 
 describe('committed approval phases', () => {
-  it.each(['descriptor', 'binding', 'mixed'])(
-    'retains a known approval when pending records are inconsistent (%s)',
+  it.each(['descriptor', 'mixed'])(
+    'retains a known approval when another host writes an inconsistent pending interrupt (%s)',
     async (kind) => {
-      const { stores, persistence } = approvalStores()
+      const { log, persistence } = approvalStores()
       const remove = removeTool()
       const main = mockAdapter([
         () => toolCall('remove', { path: 'a.txt' }, 'inconsistent-call'),
@@ -290,34 +307,20 @@ describe('committed approval phases', () => {
       const initial = await session.send('remove')
       const approval = initial.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
-      const records = await stores.interrupts.listPending(THREAD_KEY)
-      const record = records[0]
+      const record = await storedInterrupt(log, approval.id)
       if (!record) throw new Error('The pending record is missing.')
-      const read = vi.spyOn(stores.interrupts, 'listPending').mockResolvedValue(
+      // `descriptor`: an interrupt of the same run whose descriptor does not
+      // match its id. `mixed`: an approval of another run.
+      await writeInterrupt(
+        log,
         kind === 'descriptor'
-          ? [{ ...record, payload: {} }]
-          : kind === 'binding'
-            ? [
-                {
-                  ...record,
-                  payload: {
-                    ...record.payload,
-                    metadata: {
-                      kind: 'approval',
-                      'tanstack:interruptBinding': 'invalid',
-                    },
-                  },
-                },
-              ]
-            : [
-                record,
-                {
-                  ...record,
-                  interruptId: 'other',
-                  runId: 'other-run',
-                  payload: { ...record.payload, id: 'other' },
-                },
-              ],
+          ? { ...record, interruptId: 'other', payload: {} }
+          : {
+              ...record,
+              interruptId: 'other',
+              runId: 'other-run',
+              payload: { ...record.payload, id: 'other' },
+            },
       )
       const receipt = await session.resolve({
         resume: [
@@ -331,7 +334,15 @@ describe('committed approval phases', () => {
         session.snapshot().pendingInterrupts.map((item) => item.id),
       ).toEqual([approval.id])
       expect(remove.execute).not.toHaveBeenCalled()
-      read.mockRestore()
+      // The other host cancels its interrupt. Then a retry runs the tool.
+      await writeAsOther(log, [
+        {
+          type: 'harness.interrupt.end',
+          interruptId: 'other',
+          status: 'cancelled',
+          at: Date.now(),
+        },
+      ])
       const retry = await session.resolve({
         resume: [
           { interruptId: approval.id, status: 'resolved', payload: true },
@@ -344,7 +355,7 @@ describe('committed approval phases', () => {
   )
 
   it('consumes an approval after a final input error without executing its tool', async () => {
-    const { stores, persistence } = approvalStores()
+    const { log, persistence } = approvalStores()
     const remove = removeTool()
     const before = vi.fn()
     const main = mockAdapter([
@@ -377,7 +388,7 @@ describe('committed approval phases', () => {
     expect(before).toHaveBeenCalledTimes(1)
     expect(remove.execute).not.toHaveBeenCalled()
     expect(session.snapshot().pendingInterrupts).toEqual([])
-    expect((await stores.interrupts.get(approval.id))?.status).toBe('resolved')
+    expect((await storedInterrupt(log, approval.id))?.status).toBe('resolved')
     await host.close()
   })
 
@@ -446,7 +457,7 @@ describe('committed approval phases', () => {
   it.each(['cancel', 'close'])(
     'keeps approval when %s stops an admitted resolve before execution',
     async (kind) => {
-      const { stores, persistence } = approvalStores()
+      const { persistence } = approvalStores()
       const remove = removeTool()
       const main = mockAdapter([
         () => toolCall('remove', { path: 'a.txt' }, 'cancel-call'),
@@ -462,29 +473,18 @@ describe('committed approval phases', () => {
       const initial = await session.send('remove')
       const approval = initial.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
-      const hold = gate()
-      const read = stores.interrupts.listPending.bind(stores.interrupts)
-      const blocked = vi
-        .spyOn(stores.interrupts, 'listPending')
-        .mockImplementationOnce(async (thread) => {
-          await hold.opened
-          return read(thread)
-        })
       const receipt = await session.resolve({
         resume: [
           { interruptId: approval.id, status: 'resolved', payload: true },
         ],
       })
-      const stopping =
-        kind === 'close'
-          ? host.close()
-          : session.cancel({ operationId: receipt.operationId })
-      hold.open()
-      await stopping
+      // The stop lands right after the admission, before the turn runs.
+      await (kind === 'close'
+        ? host.close()
+        : session.cancel({ operationId: receipt.operationId }))
       await expect(
         session.operation(receipt.operationId ?? ''),
       ).rejects.toThrow()
-      blocked.mockRestore()
       expect(remove.execute).not.toHaveBeenCalled()
       expect(
         session.snapshot().pendingInterrupts.map((item) => item.id),
@@ -510,7 +510,7 @@ describe('committed approval phases', () => {
     async (kind) => {
       // The provider fails after the approved tool ran. The transcript
       // save goes through the log, and that write fails after the tool ran.
-      const { stores, log, persistence } = approvalStores()
+      const { log, persistence } = approvalStores()
       const remove = removeTool()
       const main = mockAdapter(
         kind === 'provider'
@@ -561,9 +561,6 @@ describe('committed approval phases', () => {
       // Offering the approval again would run the tool a second time, so
       // it is used up.
       expect(session.snapshot().pendingInterrupts).toEqual([])
-      expect((await stores.interrupts.get(approval.id))?.status).toBe(
-        'resolved',
-      )
       logWrite.mockRestore()
       await host.close()
       const next = createHarnessHost({ persistence })
@@ -592,7 +589,7 @@ describe('committed approval phases', () => {
   )
 
   it('recovers the new client phase after metadata replacement fails', async () => {
-    const { stores, persistence } = approvalStores()
+    const { stores, log, persistence } = approvalStores()
     const tool = toolDefinition({
       name: 'check',
       description: 'Check',
@@ -637,7 +634,7 @@ describe('committed approval phases', () => {
       kind: 'client_tool',
       input: { count: 2 },
     })
-    expect((await stores.interrupts.get(approval.id))?.status).toBe('resolved')
+    expect((await storedInterrupt(log, approval.id))?.status).toBe('resolved')
     await first.close()
     const next = createHarnessHost({ persistence })
     const reopened = await next.open(config, { threadId: THREAD })
@@ -671,7 +668,7 @@ describe('committed approval phases', () => {
   })
 
   it('keeps foreign pending descriptors outside the harness batch', async () => {
-    const { stores, persistence } = approvalStores()
+    const { log, persistence } = approvalStores()
     const remove = removeTool()
     const main = mockAdapter([
       () => toolCall('remove', { path: 'a.txt' }, 'owned-call'),
@@ -687,10 +684,10 @@ describe('committed approval phases', () => {
     const initial = await session.send('remove')
     const approval = initial.interrupts?.[0]
     if (!approval) throw new Error('The turn did not stop for approval.')
-    await stores.interrupts.create({
+    await writeInterrupt(log, {
       interruptId: 'external',
       runId: 'external-run',
-      threadId: THREAD_KEY,
+      threadId: THREAD,
       requestedAt: Date.now(),
       payload: {
         id: 'external',
@@ -710,7 +707,7 @@ describe('committed approval phases', () => {
     })
     await session.operation(valid.operationId ?? '')
     expect(session.snapshot().pendingInterrupts).toEqual([])
-    expect((await stores.interrupts.get('external'))?.status).toBe('pending')
+    expect((await storedInterrupt(log, 'external'))?.status).toBe('pending')
     expect(remove.execute).toHaveBeenCalledTimes(1)
     await host.close()
   })

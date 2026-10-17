@@ -80,11 +80,12 @@ type SharedStores = {
 export type HarnessPersistence = AIPersistence<
   {
     log: LogStore
+    /** Not used: the log keeps the interrupts of each thread. */
     interrupts?: InterruptStore
     metadata?: MetadataStore
     /** Inputs for the host that owns a thread. Needs `workClaims`. */
     inbox?: InboxStore
-    /** Turn checkpoints. The host finds a crashed turn from the log. */
+    /** Not used: the log keeps the runs of each thread. */
     runs?: RunStore
     /** Not used: the log keeps which host owns each thread. */
     leases?: LeaseStore
@@ -307,15 +308,15 @@ export interface HostSessions<P extends Principal = Principal> {
    * - closes its open sessions on this host, of every harness, for every
    *   handle. A handle that calls again opens an empty thread.
    * - deletes its log, with its thread settings, plugin config, plugin
-   *   state, and interrupted turn.
+   *   state, interrupted turn, runs, and interrupts.
    * - deletes its media: the uploads and the generated files, records and
    *   bytes.
    * - deletes its log checkpoint from `stores.metadata`.
    * - removes its index entry. Then `get` is `undefined`, and the next open
    *   of the thread writes a new entry.
    *
-   * A store the host does not have is skipped. Runs, interrupts, the inbox,
-   * and work claims stay. Only the tenant of `principal` is touched.
+   * A store the host does not have is skipped. The inbox and the work
+   * claims stay. Only the tenant of `principal` is touched.
    *
    * @example
    * ```ts
@@ -912,17 +913,6 @@ export function hostCountsOf<P extends Principal>(host: HarnessHost<P>) {
   const count = counters.get(host)
   if (!count) throw new Error('Not a host of createHarnessHost.')
   return count()
-}
-
-/** The log and run stores of each host. Not public API. */
-const durableStores = new WeakMap<object, { log: LogStore; runs?: RunStore }>()
-
-/**
- * @internal The log and run stores of `host`. `undefined` only for an object
- * that `createHarnessHost` did not make.
- */
-export function durableStoresOf<P extends Principal>(host: HarnessHost<P>) {
-  return durableStores.get(host)
 }
 
 /** The `access` of each host that has one. Not public API. */
@@ -2290,8 +2280,6 @@ export function createHarnessHost<P extends Principal = Principal>(
       }
     },
   }
-  const { runs } = persistence.stores
-  durableStores.set(host, { log: logStore, ...(runs ? { runs } : {}) })
   if (access) accesses.set(host, access)
   counters.set(host, () => ({
     sessions: sessions.size,

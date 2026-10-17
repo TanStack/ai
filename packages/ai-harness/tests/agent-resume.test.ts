@@ -33,7 +33,7 @@ async function stopDuringAgent(options: {
   const stores = memoryPersistence().stores
   const log = memoryLogStore()
   const persistence = {
-    stores: { log, runs: stores.runs, metadata: stores.metadata },
+    stores: { log, metadata: stores.metadata },
   }
   const effects: Array<string> = []
   const lookup = toolDefinition({
@@ -91,7 +91,6 @@ async function stopDuringAgent(options: {
   await expect(sessionA.append([{ type: 'app.ping' }])).rejects.toThrow()
   await expect(operation).rejects.toThrow()
   refuse.mockRestore()
-  await stores.runs.update(operation.id, { leaseExpiresAt: Date.now() - 1000 })
 
   const record = (await log.read({ logId: LOG }))
     .map((entry) => entry.record)

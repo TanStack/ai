@@ -2,7 +2,11 @@ import { loadChildTranscript } from '@tanstack/ai-persistence'
 import { logMessageStore, visibleMessages } from '../log'
 import { createMediaStore } from '../media'
 import type { ModelMessage } from '@tanstack/ai'
-import type { BlobRange, SessionIndexEntry } from '@tanstack/ai-persistence'
+import type {
+  BlobRange,
+  RunRecord,
+  SessionIndexEntry,
+} from '@tanstack/ai-persistence'
 import type { LogReader, ReduceOptions } from '../log'
 import type { MediaPersistence } from '../media'
 import type { SessionUsage } from '../usage'
@@ -129,6 +133,22 @@ const liveSessions = new WeakMap<
  */
 export function liveSessionOf(view: ObservedSession) {
   return liveSessions.get(view)?.()
+}
+
+/** How each view reads the runs in its log, for the HTTP handler. Not public API. */
+const storedRuns = new WeakMap<
+  object,
+  () => Promise<ReadonlyMap<string, RunRecord>>
+>()
+
+/**
+ * @internal The runs in the log of the thread of `view`, by run id: the
+ * runs that any host wrote to it.
+ */
+export function storedRunsOf(view: ObservedSession) {
+  const read = storedRuns.get(view)
+  if (!read) throw new Error('Not a view of host.observe.')
+  return read()
 }
 
 /** The view of `host.observe`. See {@link ObservedSession}. */
@@ -268,5 +288,10 @@ export function observedSession<THarness extends AnyHarness>(
     },
   }
   liveSessions.set(view, live)
+  // The fold changes by copy, so this map stays as it is after the read.
+  storedRuns.set(view, () => {
+    check()
+    return fromLog(({ state }) => state.thread.runs)
+  })
   return view
 }

@@ -15,6 +15,7 @@ import {
   messageTexts,
   mockAdapter,
   ownershipExpired,
+  storedRun,
   text,
   toolCall,
   untilAborted,
@@ -111,10 +112,10 @@ async function open(options: {
   tools?: Array<AnyTool>
 }) {
   const { adapter, calls } = mockAdapter(options.replies)
-  const { runs, metadata, interrupts } = memoryPersistence().stores
+  const { metadata } = memoryPersistence().stores
   const log = memoryLogStore()
   const host = createHarnessHost({
-    persistence: { stores: { log, runs, metadata, interrupts } },
+    persistence: { stores: { log, metadata } },
   })
   const session = await host.open(
     defineHarness({
@@ -128,7 +129,7 @@ async function open(options: {
       threadId: THREAD,
     },
   )
-  return { host, session, calls, runs, log }
+  return { host, session, calls, log }
 }
 
 /** The events of one operation, as `type` or `type:name`. */
@@ -356,7 +357,7 @@ describe('turn.onModelError', () => {
   })
 
   it('clears the error of the run record after a successful retry', async () => {
-    const { host, session, runs } = await open({
+    const { host, session, log } = await open({
       replies: [failsWith('503 Service Unavailable'), () => text('ok')],
       turn: { onModelError: retryTransientErrors({ baseDelayMs: 1 }) },
     })
@@ -364,7 +365,7 @@ describe('turn.onModelError', () => {
     const turn = session.send('go')
     await turn
 
-    const record = await runs.get(turn.id)
+    const record = await storedRun(log, { threadId: THREAD }, turn.id)
     expect(record?.status).toBe('completed')
     expect(record?.error).toBeUndefined()
     await host.close()

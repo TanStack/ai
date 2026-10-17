@@ -6,8 +6,19 @@ import type {
   ReasoningOption,
   UIMessage,
 } from '@tanstack/ai'
-import type { LogRecord } from '@tanstack/ai-persistence'
+import type {
+  InterruptRecord,
+  LogRecord,
+  RunRecord,
+  RunStore,
+} from '@tanstack/ai-persistence'
 import type { HarnessInput, ThreadSettings } from './types'
+
+/** A change to a run record, as `RunStore.update` takes it. */
+export type RunPatch = Parameters<RunStore['update']>[1]
+
+/** A field of a run record that a change can remove. */
+export type ClearableRunField = Exclude<keyof RunPatch, 'status'>
 
 /** Who sent an input, as the log keeps it. */
 export interface RecordPrincipal {
@@ -116,6 +127,31 @@ export type ThreadRecord =
   | ({ type: 'harness.schedule'; scheduleId: string } & ScheduleRecord)
   /** A schedule ran, or was cancelled. */
   | { type: 'harness.schedule.done'; scheduleId: string }
+  /** A run started. A run id that the fold has already keeps its record. */
+  | { type: 'harness.run'; run: RunRecord }
+  /**
+   * A change to a known run. `unset` names the fields that the change
+   * removes: JSON has no `undefined`.
+   */
+  | {
+      type: 'harness.run.update'
+      runId: string
+      patch: RunPatch
+      unset?: Array<ClearableRunField>
+    }
+  /** An interrupt opened. An interrupt id that the fold has already keeps its record. */
+  | {
+      type: 'harness.interrupt'
+      interrupt: Omit<InterruptRecord, 'status' | 'resolvedAt'>
+    }
+  /** A known interrupt was answered or cancelled at `at` (epoch ms). */
+  | {
+      type: 'harness.interrupt.end'
+      interruptId: string
+      status: 'resolved' | 'cancelled'
+      at: number
+      response?: unknown
+    }
 
 /** The record types that {@link foldThreadRecord} folds. */
 export const THREAD_RECORD_TYPES = [
@@ -127,6 +163,10 @@ export const THREAD_RECORD_TYPES = [
   'harness.input.turn',
   'harness.schedule',
   'harness.schedule.done',
+  'harness.run',
+  'harness.run.update',
+  'harness.interrupt',
+  'harness.interrupt.end',
 ] as const satisfies ReadonlyArray<ThreadRecord['type']>
 
 const THREAD_TYPES = new Set<string>(THREAD_RECORD_TYPES)
@@ -151,6 +191,10 @@ export interface ThreadStateFold {
   turnOverrides: Map<string, NamedTurnOverrides>
   /** The schedules that did not run yet, by schedule id. */
   schedules: Map<string, ScheduleRecord>
+  /** Every run of the thread and of its child runs, by run id, oldest first. */
+  runs: Map<string, RunRecord>
+  /** Every interrupt of the thread and of its child runs, by id, oldest first. */
+  interrupts: Map<string, InterruptRecord>
 }
 
 /** The thread state of a log with no thread-state records. */
@@ -163,6 +207,8 @@ export function emptyThreadState() {
     agentResults: new Map(),
     turnOverrides: new Map(),
     schedules: new Map(),
+    runs: new Map(),
+    interrupts: new Map(),
   }
   return state
 }
@@ -283,6 +329,47 @@ export function foldThreadRecord(state: ThreadStateFold, record: LogRecord) {
         ...state,
         schedules: withoutEntry(state.schedules, record.scheduleId),
       }
+    case 'harness.run': {
+      const { run } = record
+      if (state.runs.has(run.runId)) return state
+      return { ...state, runs: withEntry(state.runs, run.runId, run) }
+    }
+    case 'harness.run.update': {
+      const current = state.runs.get(record.runId)
+      if (!current) return state
+      const next: RunRecord = { ...current, ...record.patch }
+      for (const field of record.unset ?? []) delete next[field]
+      return { ...state, runs: withEntry(state.runs, record.runId, next) }
+    }
+    case 'harness.interrupt': {
+      const { interrupt } = record
+      if (state.interrupts.has(interrupt.interruptId)) return state
+      const opened: InterruptRecord = { ...interrupt, status: 'pending' }
+      return {
+        ...state,
+        interrupts: withEntry(state.interrupts, interrupt.interruptId, opened),
+      }
+    }
+    case 'harness.interrupt.end': {
+      const current = state.interrupts.get(record.interruptId)
+      if (!current) return state
+      const { response: _response, ...rest } = current
+      const ended: InterruptRecord =
+        record.status === 'resolved'
+          ? {
+              ...rest,
+              status: 'resolved',
+              resolvedAt: record.at,
+              ...(record.response !== undefined
+                ? { response: record.response }
+                : {}),
+            }
+          : { ...current, status: 'cancelled', resolvedAt: record.at }
+      return {
+        ...state,
+        interrupts: withEntry(state.interrupts, record.interruptId, ended),
+      }
+    }
     default: {
       const unhandled: never = record
       return unhandled
