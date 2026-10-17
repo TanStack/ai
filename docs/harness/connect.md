@@ -134,9 +134,10 @@ const client = createHarnessClient<typeof assistant>({
   headers: { authorization: 'Bearer my-token' },
 })
 
+const { cursor } = await client.snapshot()
 await client.send('Summarize my open tickets.')
 
-for await (const entry of client.events()) {
+for await (const entry of client.events({ from: cursor })) {
   if (entry.event.type === 'TEXT_MESSAGE_CONTENT') {
     console.log(entry.event.delta)
   }
@@ -144,6 +145,8 @@ for await (const entry of client.events()) {
 ```
 
 `events()` reconnects after a network error and continues from the last cursor. A second tab, a phone, or a reload all see the same session.
+
+Without `from`, `events()` starts at the newest event, so it sends no old events. That is why the example reads the snapshot cursor before it sends. To read every event from the start of the session, pass `from: '0'`.
 
 To upload files and show the media that your agents make, read [Send and show media](./media).
 

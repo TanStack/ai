@@ -19,6 +19,7 @@ import type {
   AgentSendOptions,
   CancelOptions,
   ChatTurnResult,
+  Cursor,
   HarnessInput,
   Operation,
   Principal,
@@ -978,13 +979,21 @@ export abstract class SessionRequests<
   // Chat turns
   // ===========================
 
-  protected createTurnOperation(id?: string): OperationImpl<ChatTurnResult> {
+  /**
+   * `id`: a stored or chosen run id. `startedCursor`: the start of a run
+   * that a restart rebuilds from the log.
+   */
+  protected createTurnOperation(
+    id?: string,
+    startedCursor?: Cursor,
+  ): OperationImpl<ChatTurnResult> {
     const operation = new OperationImpl<ChatTurnResult>(
       'chat',
       this.feed,
       (target) => this.cancel({ operationId: target.id }),
       undefined,
       id,
+      startedCursor,
     )
     this.track(operation as OperationImpl<unknown>)
     return operation
@@ -1063,7 +1072,11 @@ export abstract class SessionRequests<
     }
     const live = this.turnOperations.get(inputId)
     if (live) return live
-    const replay = this.createTurnOperation(logged?.operationId)
+    // A join of the replayed turn reads its events from its run start.
+    const replay = this.createTurnOperation(
+      logged?.operationId,
+      this.runStart(logged?.operationId),
+    )
     this.answerDuplicate(replay, inputId, 'duplicate')
     return replay
   }

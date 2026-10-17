@@ -98,7 +98,11 @@ describe('events() reconnects', () => {
     const removed = vi.spyOn(controller.signal, 'removeEventListener')
 
     const seen: Array<string> = []
-    for await (const entry of client.events({ signal: controller.signal })) {
+    // A cursor, so the client does not ask for the snapshot head first.
+    for await (const entry of client.events({
+      from: '0',
+      signal: controller.signal,
+    })) {
       seen.push(entry.cursor)
       if (seen.length === 20) break
     }
@@ -122,7 +126,7 @@ describe('events() reconnects', () => {
     })
     const controller = new AbortController()
     const iterator = client
-      .events({ signal: controller.signal })
+      .events({ from: '0', signal: controller.signal })
       [Symbol.asyncIterator]()
 
     const first = iterator.next()

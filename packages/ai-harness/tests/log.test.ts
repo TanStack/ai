@@ -1484,6 +1484,23 @@ describe('engine message store', () => {
       ]),
     ).toEqual([user('u1', 'one'), toolCallMessage, toolResult, signal])
   })
+
+  it('skips a second commit of the same model call when nothing changed', async () => {
+    const { writer, engine } = await engineOnLog()
+    await engine.loadThread(THREAD)
+    const list = [user('u1', 'one'), toolCallMessage, toolResult]
+    await engine.beforeModel(list)
+    const commit = vi.spyOn(writer, 'commit')
+
+    // The same message objects and the same fold: no commit.
+    expect(await engine.beforeModel([...list])).toBeUndefined()
+    expect(commit).not.toHaveBeenCalled()
+
+    // A host record changes the fold: the next call commits and gives it.
+    await writer.append([{ type: 'app.signal', text: '[signal] build failed' }])
+    expect(await engine.beforeModel([...list])).toEqual([...list, signal])
+    expect(commit).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('logIdOf', () => {

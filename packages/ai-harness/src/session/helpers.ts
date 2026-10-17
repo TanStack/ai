@@ -809,7 +809,12 @@ export function tapFeed(
 ): ListenedFeed {
   return {
     publish: (operationId, event) => {
-      feed.publish(operationId, event)
+      // Core sends the whole transcript as a MESSAGES_SNAPSHOT at each
+      // interrupt. The log has the transcript already, so the snapshot goes
+      // to the live listeners only, and the log does not keep a copy.
+      if (event.type !== EventType.MESSAGES_SNAPSHOT) {
+        feed.publish(operationId, event)
+      }
       const report = (error: unknown) =>
         console.error(
           '[@tanstack/ai-harness] An onEvent listener threw.',

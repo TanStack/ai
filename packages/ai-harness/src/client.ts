@@ -209,7 +209,9 @@ export interface HarnessClient<THarness extends AnyHarness> {
   /** End the revert that stands, as `session.unrevert` does. */
   unrevert: () => Promise<Receipt>
   /**
-   * The session events from `from` (exclusive). Reconnects after a network
+   * The session events from `from` (exclusive). Without `from`, the events
+   * start at the cursor of the snapshot: only new events come. Pass
+   * `from: '0'` to read the events from the start. Reconnects after a network
    * error and resumes from the last cursor. Ends when `signal` aborts.
    * `onConnection` reports `'open'` for each connection and `'reconnecting'`
    * before each new try. When the log dropped the events after `from`, the
@@ -590,6 +592,21 @@ export function createHarnessClient<THarness extends AnyHarness>(
       while (!signal?.aborted) {
         try {
           const query = new URLSearchParams({ threadId: options.threadId })
+          // No `from`: start at the head, so the stream does not send the
+          // whole history first. A thread with no entry has no events yet.
+          if (cursor === undefined) {
+            const head = await doFetch(`${base}/snapshot?${query}`, {
+              headers: headers(),
+              ...(signal ? { signal } : {}),
+            })
+            if (head.status === 404) cursor = '0'
+            else if (!head.ok) {
+              throw new Error(`Harness snapshot failed (${head.status})`)
+            } else {
+              // The handler answers /snapshot with a SessionSnapshot.
+              cursor = ((await head.json()) as SessionSnapshot).cursor
+            }
+          }
           if (cursor) query.set('from', cursor)
           const response = await doFetch(`${base}/events?${query}`, {
             headers: headers(),

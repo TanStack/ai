@@ -1,5 +1,5 @@
 import { loadChildTranscript } from '@tanstack/ai-persistence'
-import { visibleMessages } from '../log'
+import { runStartOf, visibleMessages } from '../log'
 import { createMediaStore } from '../media'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
@@ -149,6 +149,13 @@ const storedRuns = new WeakMap<
   object,
   () => Promise<ReadonlyMap<string, RunRecord>>
 >()
+/** How each view reads one run and its start, for the HTTP handler. */
+const storedRun = new WeakMap<
+  object,
+  (
+    runId: string,
+  ) => Promise<{ record: RunRecord | undefined; start: Cursor | undefined }>
+>()
 
 /**
  * @internal The runs in the log of the thread of `view`, by run id: the
@@ -158,6 +165,16 @@ export function storedRunsOf(view: ObservedSession) {
   const read = storedRuns.get(view)
   if (!read) throw new Error('Not a view of host.observe.')
   return read()
+}
+
+/**
+ * @internal The run `runId` in the log of the thread of `view`, and the
+ * cursor before its first event (`undefined` when the log does not know it).
+ */
+export function storedRunOf(view: ObservedSession, runId: string) {
+  const read = storedRun.get(view)
+  if (!read) throw new Error('Not a view of host.observe.')
+  return read(runId)
 }
 
 /** The view of `host.observe`. See {@link ObservedSession}. */
@@ -306,6 +323,13 @@ export function observedSession<THarness extends AnyHarness>(
   storedRuns.set(view, () => {
     check()
     return fromLog(({ state }) => state.thread.runs)
+  })
+  storedRun.set(view, (runId) => {
+    check()
+    return fromLog(({ state }) => ({
+      record: state.thread.runs.get(runId),
+      start: runStartOf(state, runId),
+    }))
   })
   return view
 }

@@ -50,6 +50,7 @@ import type {
   AgentRun,
   AgentSendOptions,
   ChatTurnResult,
+  Cursor,
   InputSettlement,
   SettlementOutcome,
   MediaRecord,
@@ -352,6 +353,7 @@ export abstract class SessionAgents<
       const operation = this.agentOperation(
         first.input.agent,
         input.operationId,
+        input.operationId && this.runStart(input.operationId),
       )
       this.endAgentRun(operation, input.settlement)
       return {
@@ -521,14 +523,22 @@ export abstract class SessionAgents<
     }
   }
 
-  /** A new agent run operation. `id`: a stored one, after a restart. */
-  protected agentOperation(agent: string, id?: string): AgentRunImpl {
+  /**
+   * A new agent run operation. `id`: a stored one, after a restart.
+   * `startedCursor`: the start of a run that the log rebuilds.
+   */
+  protected agentOperation(
+    agent: string,
+    id?: string,
+    startedCursor?: Cursor,
+  ): AgentRunImpl {
     const operation = new OperationImpl<unknown>(
       'agent',
       this.feed,
       (running) => this.cancel({ operationId: running.id }),
       agent,
       id,
+      startedCursor,
     )
     const run = Object.assign(
       // `kind` and `agent` are fixed by the constructor call above.

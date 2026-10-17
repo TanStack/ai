@@ -6,20 +6,32 @@ import {
 } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import { createHarnessHandler } from '../src/server'
-import { gate, mockAdapter, text } from './helpers'
+import { appendToLog, gate, mockAdapter, text, wrapLogStore } from './helpers'
 import type { Reply } from './helpers'
+import type { SnapshotTiming } from '../src/log'
 
 /**
  * Two server instances over the same stores, with no sticky routing: a run
  * that starts on host A must be joinable and resumable from host B. The two
  * log stores are two connections to one database.
  */
-function twoHosts() {
+function twoHosts(options: { snapshot?: SnapshotTiming } = {}) {
   const backend = memoryLogBackend()
   const { metadata, sessions } = memoryPersistence().stores
-  const persistenceOf = () => ({
-    stores: { log: memoryLogStore({ backend }), metadata, sessions },
-  })
+  /** The `after` of each log read of host B. */
+  const readsOfB: Array<number> = []
+  const persistenceOf = (reads?: Array<number>) => {
+    const inner = memoryLogStore({ backend })
+    const log = reads
+      ? wrapLogStore(inner, {
+          read: (query) => {
+            reads.push(query.after ?? 0)
+            return inner.read(query)
+          },
+        })
+      : inner
+    return { stores: { log, metadata, sessions } }
+  }
   const release = gate()
   // RUN_STARTED, then the rest after `release`. By RUN_STARTED, host A holds
   // the run lease, so host B only reads.
@@ -32,10 +44,13 @@ function twoHosts() {
     })()
   const { adapter, calls } = mockAdapter([reply])
   const harness = defineHarness({ name: 'test/run-hosts', adapter })
-  const handlerOf = () => {
+  const handlerOf = (reads?: Array<number>) => {
     const host = createHarnessHost({
-      persistence: persistenceOf(),
-      log: { coalesceMs: 0 },
+      persistence: persistenceOf(reads),
+      log: {
+        coalesceMs: 0,
+        ...(options.snapshot ? { snapshot: options.snapshot } : {}),
+      },
       access: {
         identify: ({ request }) => ({
           id: request.headers.get('x-user') ?? 'user-1',
@@ -55,7 +70,7 @@ function twoHosts() {
     return { host, call }
   }
   const a = handlerOf()
-  const b = handlerOf()
+  const b = handlerOf(readsOfB)
   const post = (on: typeof a, headers: Record<string, string> = {}) =>
     on.call('run', {
       method: 'POST',
@@ -69,7 +84,7 @@ function twoHosts() {
       }),
     })
   const close = () => Promise.all([a.host.close(), b.host.close()])
-  return { a, b, post, release, calls, close }
+  return { a, b, post, release, calls, close, backend, readsOfB }
 }
 
 /** SSE events with their `id:` lines. */
@@ -125,6 +140,36 @@ describe('a run on a durable host, across instances', () => {
     )
     expect(events.at(-1)?.chunk.name).toBe('harness.operation.finished')
     expect(events.every((event) => event.id !== undefined)).toBe(true)
+    await close()
+  })
+
+  it('reads the log on host B from the start of the run, not from the start of the log', async () => {
+    const { a, b, post, release, close, backend, readsOfB } = twoHosts({
+      // Host A writes a snapshot at each write, so host B folds from it.
+      snapshot: { afterBytes: 1 },
+    })
+    // Records before the run, so the run does not start at the log start.
+    const history = Array.from({ length: 20 }, (_, n) => ({
+      type: 'app.history',
+      n,
+    }))
+    await appendToLog(
+      memoryLogStore({ backend }),
+      { threadId: 'user-1-t' },
+      history,
+    )
+    const started = await readThenCut(await post(a))
+    expect(started.at(-1)?.chunk.type).toBe('RUN_STARTED')
+
+    const joined = await b.call('run?runId=run-a&threadId=user-1-t&offset=-1')
+    expect(joined.status).toBe(200)
+    release.open()
+    const events = withIds(await joined.text())
+    expect(events.slice(0, started.length)).toEqual(started)
+    expect(events.at(-1)?.chunk.name).toBe('harness.operation.finished')
+    // No read of host B walks the history before the run.
+    expect(readsOfB.length).toBeGreaterThan(0)
+    expect(Math.min(...readsOfB)).toBeGreaterThanOrEqual(history.length)
     await close()
   })
 

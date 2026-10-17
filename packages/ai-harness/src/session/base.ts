@@ -15,6 +15,7 @@ import {
   onQuestionOf,
   onUsageOf,
 } from '../feed'
+import { runStartOf } from '../log'
 import { createMediaStore } from '../media'
 import { pluginStateDeltas } from '../log-records'
 import { SESSION_PLUGIN_CREDENTIALS, SESSION_PLUGIN_KEYS } from '../plugins'
@@ -247,6 +248,15 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected get writer() {
     if (!this.logWriter) throw new Error('The session log is not open yet.')
     return this.logWriter
+  }
+
+  /**
+   * The cursor before the first event of the logged run `id`, for an
+   * operation that a restart rebuilds. `undefined` for a new run.
+   */
+  protected runStart(id: string | undefined) {
+    if (id === undefined || !this.logWriter) return undefined
+    return runStartOf(this.logWriter.state, id)
   }
   protected feed: ListenedFeed
   /** The host's view of each event: its status feed. */

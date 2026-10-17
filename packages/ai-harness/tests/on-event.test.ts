@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
+import { tapFeed } from '../src/session/helpers'
 import { mockAdapter, text } from './helpers'
+import type { StreamChunk } from '@tanstack/ai'
+import type { EventFeed } from '../src/feed'
 import type { HarnessPersistence, LiveEvent, SessionEvent } from '../src'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
@@ -181,5 +184,40 @@ describe('operation.onEvent', () => {
     expect(ofFirst.length).toBeGreaterThan(0)
     expect(new Set(ofFirst)).toEqual(new Set([first.id]))
     await host.close()
+  })
+})
+
+describe('a MESSAGES_SNAPSHOT event', () => {
+  it('goes to the listeners but not to the log', () => {
+    const published: Array<StreamChunk> = []
+    const feed: EventFeed = {
+      publish: (_operationId, event) => void published.push(event),
+      head: () => '0',
+      read: () => (async function* () {})(),
+      close: () => {},
+      wake: () => {},
+    }
+    const heard: Array<string> = []
+    const tapped = tapFeed(feed, () => {}, new Set())
+    tapped.listen(({ event }) => void heard.push(event.type))
+    const snapshot: StreamChunk = {
+      type: EventType.MESSAGES_SNAPSHOT,
+      messages: [],
+      timestamp: 1,
+    }
+    const started: StreamChunk = {
+      type: EventType.RUN_STARTED,
+      threadId: 't1',
+      runId: 'r1',
+      timestamp: 1,
+    }
+
+    tapped.publish('r1', snapshot)
+    tapped.publish('r1', started)
+
+    expect(heard).toEqual([EventType.MESSAGES_SNAPSHOT, EventType.RUN_STARTED])
+    expect(published.map((event) => event.type)).toEqual([
+      EventType.RUN_STARTED,
+    ])
   })
 })

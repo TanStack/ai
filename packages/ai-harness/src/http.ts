@@ -28,6 +28,7 @@ import { SessionImpl } from './session/harness-session'
 import {
   liveSessionOf,
   mediaStoreOf,
+  storedRunOf,
   storedRunsOf,
 } from './session/observed-session'
 import type { ModelMessage, UIMessage, WebSocketLike } from '@tanstack/ai'
@@ -692,7 +693,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
     const threadId = named
     const view = await viewFor(principal, threadId)
     if (!view) return json({ error: 'unknown run' }, 404)
-    const record = (await storedRunsOf(view)).get(runId)
+    const { record, start } = await storedRunOf(view, runId)
     const isChatTurn =
       record !== undefined &&
       record.threadId === threadId &&
@@ -703,12 +704,12 @@ export function createHarnessHandler<P extends Principal = Principal>(
     if (entry?.harness !== undefined && entry.harness !== harness.name) {
       return json({ error: 'unknown run' }, 404)
     }
-    // ponytail: from the start of the log without a cursor. Store the
-    // started position on the run record if long threads make this slow.
+    // Without a cursor, from the start of the run: its first input record.
+    // A fold snapshot from before input positions does not know it: from 0.
     return cursorResponse(
       (signal) =>
         followOperation(
-          view.events({ from: resumeFrom ?? '0', signal }),
+          view.events({ from: resumeFrom ?? start ?? '0', signal }),
           runId,
         ),
       closeOnRevoke(principal, threadId),
@@ -793,13 +794,18 @@ export function createHarnessHandler<P extends Principal = Principal>(
           }
           if (!receipt.operationId) return json({ error: 'rejected' }, 409)
           const { operationId } = receipt
+          // Without a cursor, from the start of the resumed run, not from
+          // the start of the log.
+          const from =
+            lastEventId ??
+            session
+              .snapshot()
+              .activeOperations.find((item) => item.id === operationId)
+              ?.startedCursor
           return cursorResponse(
             (signal) =>
               followOperation(
-                session.events({
-                  ...(lastEventId ? { from: lastEventId } : {}),
-                  signal,
-                }),
+                session.events({ ...(from ? { from } : {}), signal }),
                 operationId,
               ),
             keep(watch),
@@ -825,9 +831,13 @@ export function createHarnessHandler<P extends Principal = Principal>(
         // sends the same request with `Last-Event-ID`, maybe to another
         // instance: the run id finds the same turn, and it streams from
         // there.
-        const from = lastEventId || '0'
+        // Without it, the operation reads from its own start.
         return cursorResponse(
-          (signal) => operation.events({ from, signal }),
+          (signal) =>
+            operation.events({
+              ...(lastEventId ? { from: lastEventId } : {}),
+              signal,
+            }),
           keep(watch),
         )
       })
