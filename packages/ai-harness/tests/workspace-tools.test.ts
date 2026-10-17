@@ -1126,6 +1126,31 @@ describe('a workspace for each thread', () => {
     )
   }
 
+  it('closes the workspace that bind gave when the session closes', async () => {
+    const { workspace } = threadWorkspaces()
+    const closed: Array<string> = []
+    const closing: WorkspaceBinder = {
+      bind: async (input) => ({
+        ...(await workspace.bind(input)),
+        close: async ({ reason }) => {
+          closed.push(reason)
+        },
+      }),
+    }
+    const { adapter } = mockAdapter([
+      () => toolCall('read_file', { path: 'mine.txt' }, 'c0'),
+      () => text('done'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await openThread(host, closing, adapter, 'a')
+    await session.send('read')
+    expect(closed).toEqual([])
+
+    await host.close()
+
+    expect(closed).toEqual(['closed'])
+  })
+
   it('keeps a thread in its root: no path through .. or a link reaches another root', async () => {
     const { workspace } = threadWorkspaces()
     const { adapter, calls } = mockAdapter([

@@ -160,7 +160,12 @@ describe('bash', () => {
     expect(execs).toEqual([
       {
         command: 'make',
-        options: { cwd: root, env: { AGENT: '1' }, timeoutMs: 120_000 },
+        options: {
+          cwd: root,
+          env: { AGENT: '1' },
+          timeoutMs: 120_000,
+          signal: expect.any(AbortSignal),
+        },
       },
     ])
   })

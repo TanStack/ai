@@ -113,6 +113,40 @@ describe('hostBackend', () => {
     expect((await job.wait()).exitCode).not.toBe(0)
   })
 
+  it('keeps the newest 1 MiB of the output of a background command', async () => {
+    // 1 MiB of x, then `end`: 3 bytes too many.
+    const job = hostBackend.spawn(
+      `node --no-warnings -e "process.stdout.write('x'.repeat(1048576) + 'end')"`,
+    )
+    await job.wait()
+    const marker = '[3 earlier bytes were dropped.]\n'
+    const output = job.output()
+    expect(output.length).toBe(marker.length + 1024 * 1024)
+    expect(output.startsWith(marker)).toBe(true)
+    expect(output.endsWith('xxend')).toBe(true)
+  })
+
+  // `start /b` runs node, and `cmd.exe` ends at once. Node keeps the output
+  // pipes open, so the job does not end. `taskkill /T` cannot find node from
+  // the shell that ended.
+  it.runIf(process.platform === 'win32')(
+    'kills a command that its shell left running',
+    async () => {
+      const job = hostBackend.spawn(
+        `start /b node --no-warnings -e "console.log(process.pid); setTimeout(function () {}, 60000)"`,
+      )
+      let pid = Number.NaN
+      for (let tries = 0; tries < 100 && Number.isNaN(pid); tries++) {
+        await new Promise((done) => setTimeout(done, 100))
+        pid = Number.parseInt(job.output(), 10)
+      }
+      job.kill()
+      await job.wait()
+      expect(() => process.kill(pid, 0)).toThrow()
+    },
+    20_000,
+  )
+
   // cmd.exe looks in the current folder before the PATH. A cloned repo can
   // put an `rg.cmd` there, and grep runs `rg` with no question.
   it.runIf(process.platform === 'win32')(

@@ -3,15 +3,83 @@ import { shellQuote } from './journal'
 import type { WorkspaceBackend } from '@tanstack/ai-harness/plugins/coding'
 import type { ExecResult, SandboxHandle } from './contracts'
 
-/** The most output a background job keeps, in characters. */
-const MAX_OUTPUT = 10 * 1024 * 1024
+/** A background job keeps the newest 1 MiB of its output. */
+const MAX_JOB_OUTPUT = 1024 * 1024
 /** `realpath` follows at most this many links, like Linux. */
 const MAX_LINKS = 40
+
+const encoder = new TextEncoder()
+const decoder = new TextDecoder()
+
+/** True for a byte in the middle of a UTF-8 character (`10xxxxxx`). */
+const isContinuation = (byte: number) => (byte & 0xc0) === 0x80
+
+/**
+ * The newest output of a command, at most `maxBytes` bytes. When more comes,
+ * the oldest bytes are dropped. `text()` gives the output as UTF-8 text, and
+ * starts with a line that tells how many bytes were dropped.
+ *
+ * A copy of `createOutputTail` in `@tanstack/ai-harness`
+ * (`src/first-party/coding/ring-buffer.ts`). That package does not export
+ * it. Change both.
+ */
+function createOutputTail(maxBytes: number) {
+  // The chunks from `start` on are the output. The ones before are dropped.
+  const chunks: Array<Uint8Array> = []
+  let start = 0
+  let size = 0
+  let dropped = 0
+
+  const push = (chunk: Uint8Array | string) => {
+    const bytes = typeof chunk === 'string' ? encoder.encode(chunk) : chunk
+    // A copy of the end only, so a big chunk is not kept whole.
+    const kept = bytes.byteLength > maxBytes ? bytes.slice(-maxBytes) : bytes
+    dropped += bytes.byteLength - kept.byteLength
+    chunks.push(kept)
+    size += kept.byteLength
+    while (size > maxBytes) {
+      const first = chunks[start]
+      if (first === undefined) break
+      const over = size - maxBytes
+      const cut = Math.min(over, first.byteLength)
+      if (cut === first.byteLength) start += 1
+      else chunks[start] = first.subarray(cut)
+      size -= cut
+      dropped += cut
+    }
+    // Remove the dropped chunks from the array now and then, not each time.
+    if (start > 1024 && start * 2 > chunks.length) {
+      chunks.splice(0, start)
+      start = 0
+    }
+  }
+
+  const text = () => {
+    let bytes = Buffer.concat(chunks.slice(start))
+    if (dropped === 0) return decoder.decode(bytes)
+    // The cut can be in a character. Start at the next whole one.
+    let from = 0
+    while (from < 3 && from < bytes.length && isContinuation(bytes[from] ?? 0))
+      from += 1
+    bytes = bytes.subarray(from)
+    return `[${dropped + from} earlier bytes were dropped.]\n${decoder.decode(bytes)}`
+  }
+
+  return { push, text }
+}
 
 /**
  * A `WorkspaceBackend` over a live sandbox. With it, `workspaceTools()`
  * reads and writes files and runs commands in the sandbox, not on this
- * machine. You start the sandbox before, and you stop it after.
+ * machine.
+ *
+ * Who stops the sandbox:
+ *
+ * - By default, you. `close()` of the backend stops the jobs that it
+ *   started, and leaves the sandbox running.
+ * - With `owned: true`, the backend. `close({ reason: 'closed' })` also
+ *   destroys the sandbox. Use it for a sandbox that you create in
+ *   `workspace.bind`, one for each thread.
  *
  * - Paths are POSIX paths in the sandbox, like `/workspace/src/a.ts`.
  * - `exec` gives exit code 124 when `timeoutMs` stops a command, and 1 when
@@ -25,19 +93,35 @@ const MAX_LINKS = 40
  *   `readlink` in the sandbox reads its target. A sandbox without `lstat`
  *   cannot find links, so `realpath` throws, and the tools refuse each path.
  *
+ * - `spawn` keeps the newest 1 MiB of the output of a job.
+ * - `close({ reason: 'moved' })` keeps the jobs and the sandbox, so the
+ *   next machine can resume them.
+ *
  * @param handle - The sandbox, from `provider.create()` or `provider.resume()`.
+ * @param options - `owned: true` when the backend owns the sandbox. Then
+ *   `close` destroys it. Default: `false`.
  *
  * @example
  * ```ts
- * const handle = await localProcessSandbox().create({})
+ * const provider = localProcessSandbox()
  * workspaceTools({
- *   root: '/workspace',
- *   backend: sandboxWorkspaceBackend(handle),
+ *   workspace: {
+ *     bind: async () => ({
+ *       ...sandboxWorkspaceBackend(await provider.create({}), { owned: true }),
+ *       root: '/workspace',
+ *     }),
+ *   },
  * })
  * ```
  */
-export function sandboxWorkspaceBackend(handle: SandboxHandle) {
+export function sandboxWorkspaceBackend(
+  handle: SandboxHandle,
+  { owned = false }: { owned?: boolean } = {},
+) {
   const { fs } = handle
+  // The jobs that this backend started and that still run.
+  const running = new Set<{ kill: () => void }>()
+  let destroyed: Promise<void> | undefined
 
   // The read of the sandbox follows links, so this follows links too. A
   // path that `readBytes` cannot read is a folder.
@@ -136,13 +220,9 @@ export function sandboxWorkspaceBackend(handle: SandboxHandle) {
   }
 
   const spawn: WorkspaceBackend['spawn'] = (command, options) => {
-    // ponytail: keeps the last 10 MiB of a long job, like `hostBackend`.
-    let output = ''
+    const output = createOutputTail(MAX_JOB_OUTPUT)
     const collect = async (stream: AsyncIterable<string>) => {
-      for await (const chunk of stream) {
-        output += chunk
-        if (output.length > 2 * MAX_OUTPUT) output = output.slice(-MAX_OUTPUT)
-      }
+      for await (const chunk of stream) output.push(chunk)
     }
     const started = handle.process.spawn(command, options)
     // Wait for the end of the output too, so `output()` is complete.
@@ -156,17 +236,29 @@ export function sandboxWorkspaceBackend(handle: SandboxHandle) {
         return { exitCode }
       })
       .catch((error: unknown) => {
-        output += String(error)
+        output.push(String(error))
         return { exitCode: 1 }
       })
-    return {
+    const job = {
       wait: () => exited,
       // Before the process starts, this kills it when it starts.
       kill: () => {
-        started.then((job) => job.kill()).catch(() => undefined)
+        started.then((each) => each.kill()).catch(() => undefined)
       },
-      output: () => output,
+      output: output.text,
     }
+    running.add(job)
+    void exited.then(() => running.delete(job))
+    return job
+  }
+
+  const close: NonNullable<WorkspaceBackend['close']> = async ({ reason }) => {
+    // The next machine resumes the sandbox and its jobs.
+    if (reason === 'moved') return
+    for (const job of running) job.kill()
+    if (!owned) return
+    destroyed ??= handle.destroy()
+    await destroyed
   }
 
   return {
@@ -231,5 +323,6 @@ export function sandboxWorkspaceBackend(handle: SandboxHandle) {
       })
     },
     ...(handle.capabilities.backgroundProcesses ? { spawn } : {}),
+    close,
   } satisfies WorkspaceBackend
 }

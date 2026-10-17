@@ -104,20 +104,52 @@ export function bashResources(input: unknown) {
   return splitCommand(stringArg(input, 'command'))
 }
 
-/** The number of background jobs started, by the signal that stops them. */
-const jobCounts = new WeakMap<AbortSignal, { started: number }>()
+/** At most this many background jobs run at a time in a session. */
+const DEFAULT_MAX_JOBS = 8
+
+/** The jobs of one session: the ones that run, and how many started. */
+interface Jobs {
+  started: number
+  running: Set<{ kill: () => void }>
+}
+
+/**
+ * The jobs of each session, by its signal. A session signal outlives a
+ * reload, so the jobs from before a reload are still found, killed, and
+ * counted. Each signal gets one abort listener, not one for each setup.
+ */
+const sessionJobs = new WeakMap<AbortSignal, Jobs>()
+
+/** The jobs of the session of `signal`. Without it, new jobs of their own. */
+function jobsOf(signal: AbortSignal | undefined) {
+  const known = signal && sessionJobs.get(signal)
+  if (known) return known
+  const jobs: Jobs = { started: 0, running: new Set() }
+  if (!signal) return jobs
+  sessionJobs.set(signal, jobs)
+  signal.addEventListener(
+    'abort',
+    () => {
+      for (const job of jobs.running) job.kill()
+    },
+    { once: true },
+  )
+  return jobs
+}
 
 /**
  * `bash`: run a shell command in the workspace folder. Every command gets
  * `AGENT=1` in its environment. The model gets the exit code and the last
- * part of the output.
+ * part of the output. The abort signal of the run stops the command.
  *
  * With `background: true`, the call returns at once with a job id, and
  * `note` tells the model when the job ends. Background jobs need
- * `env.backend.spawn`. They are killed when `signal` aborts.
+ * `env.backend.spawn`. At most `maxJobs` run at a time in a session. They
+ * are killed when `signal` aborts.
  *
  * A command that runs in the foreground supports `detach` of the tool
- * context: the host can move it to the background while it runs.
+ * context: the host can move it to the background while it runs. Then the
+ * end of the run does not stop it, and `signal` kills it like a job.
  */
 export function bashTools(
   env: ToolEnv,
@@ -136,6 +168,11 @@ export function bashTools(
     signal?: AbortSignal
     /** Told when a background job starts and ends. A durable session logs it. */
     jobs?: { started: (jobId: string) => void; ended: (jobId: string) => void }
+    /**
+     * At most this many background jobs run at a time in the session of
+     * `signal`. One more gives a tool error. Default: 8.
+     */
+    maxJobs?: number
   } = {},
 ) {
   const {
@@ -143,17 +180,13 @@ export function bashTools(
     note,
     spillDir,
     signal,
+    maxJobs = DEFAULT_MAX_JOBS,
   } = options
   // A restart cannot reach these processes. `options.jobs` lets a durable
-  // session note the jobs that a crash stopped.
-  const jobs = new Set<{ kill: () => void }>()
-  // The count belongs to the signal. A session signal outlives a reload, so a
-  // job after a reload does not reuse the id of a job that still runs.
-  const count = (signal && jobCounts.get(signal)) || { started: 0 }
-  if (signal) jobCounts.set(signal, count)
-  signal?.addEventListener('abort', () => {
-    for (const job of jobs) job.kill()
-  })
+  // session note the jobs that a crash stopped. The ids come from the
+  // session, so a job after a reload does not reuse the id of a job that
+  // still runs.
+  const jobs = jobsOf(signal)
 
   /** Save the full output in `dir`. Gives back the note for the model. */
   const spill = async (dir: string, output: string) => {
@@ -183,14 +216,22 @@ export function bashTools(
     if (!env.backend.spawn) {
       throw new Error('This workspace cannot run commands in the background.')
     }
+    if (signal?.aborted) throw new Error('The session is closed.')
+    if (jobs.running.size >= maxJobs) {
+      throw new Error(
+        `${jobs.running.size} background jobs run already, and the limit is ${maxJobs}. Wait until a job ends, then start this one.`,
+      )
+    }
     const job = env.backend.spawn(command, { cwd, env: AGENT_ENV })
-    count.started += 1
-    const jobId = `bash-${count.started}`
-    jobs.add(job)
+    jobs.started += 1
+    const jobId = `bash-${jobs.started}`
+    jobs.running.add(job)
     options.jobs?.started(jobId)
     const tell = async () => {
-      const { exitCode } = await job.wait()
-      jobs.delete(job)
+      // A job that fails to wait gives its place back too.
+      const { exitCode } = await job
+        .wait()
+        .finally(() => jobs.running.delete(job))
       // A closed session keeps the job as running in the log, so the next
       // host tells the model that it stopped.
       if (signal?.aborted) return
@@ -239,6 +280,14 @@ export function bashTools(
       const requested = isRecord(args) ? args.timeoutMs : undefined
       // A timeout of 0 would mean no timeout, so it gets the default.
       const isTimeout = typeof requested === 'number' && requested > 0
+      // The run stops the command while it runs in the foreground.
+      const stop = new AbortController()
+      const runSignal = context?.abortSignal
+      const onRunAbort = () => stop.abort()
+      runSignal?.addEventListener('abort', onRunAbort, { once: true })
+      if (runSignal?.aborted) stop.abort()
+      const job = { kill: () => stop.abort() }
+      let isDone = false
       const work = env.backend
         .exec(command, {
           cwd,
@@ -246,6 +295,12 @@ export function bashTools(
           timeoutMs: isTimeout
             ? Math.min(requested, MAX_TIMEOUT_MS)
             : defaultTimeoutMs,
+          signal: stop.signal,
+        })
+        .finally(() => {
+          isDone = true
+          runSignal?.removeEventListener('abort', onRunAbort)
+          jobs.running.delete(job)
         })
         .then(({ exitCode, stdout, stderr }) =>
           report(exitCode, `${stdout}${stderr ? `\nstderr:\n${stderr}` : ''}`),
@@ -253,7 +308,17 @@ export function bashTools(
       // The host can move the command to the background. The timeout still
       // applies to it.
       const detach = context?.detach
-      return detach ? Promise.race([work, detach(work)]) : work
+      if (!detach) return work
+      const moved = detach(work).then((text) => {
+        // The run can end now, and the command goes on as a job of the
+        // session. The session signal kills it, not the run.
+        runSignal?.removeEventListener('abort', onRunAbort)
+        if (!isDone) jobs.running.add(job)
+        // The session closed already, so its listener does not run again.
+        if (signal?.aborted) job.kill()
+        return text
+      })
+      return Promise.race([work, moved])
     }),
   ]
 }

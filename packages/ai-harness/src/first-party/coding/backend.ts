@@ -2,6 +2,7 @@ import * as childProcess from 'node:child_process'
 import * as fs from 'node:fs/promises'
 import * as nodePath from 'node:path'
 import { isRecord } from '../../utils'
+import { createOutputTail } from './ring-buffer'
 import type { WorkspaceHooks } from '../workspace-hooks'
 
 /**
@@ -83,7 +84,10 @@ export interface WorkspaceBackend {
   ) => Promise<{ exitCode: number; stdout: string; stderr: string }>
   /**
    * Start a shell command in the background. `output()` is stdout and
-   * stderr so far. Optional: without it, background commands give an error.
+   * stderr so far: the newest 1 MiB, with a first line that tells how many
+   * older bytes were dropped. `kill()` stops the command and every command
+   * it started, also right after the start. Optional: without it,
+   * background commands give an error.
    */
   spawn?: (
     command: string,
@@ -93,6 +97,20 @@ export interface WorkspaceBackend {
     kill: () => void
     output: () => string
   }
+  /**
+   * The tools are done with this backend. Before they call it, they stop
+   * the jobs of the session. `reason` tells why:
+   *
+   * - `'closed'`: the session closed. Stop the jobs that this backend
+   *   started, and destroy what it made for itself, like a sandbox that it
+   *   created.
+   * - `'moved'`: the session continues on another machine. Keep what that
+   *   machine can resume, like a sandbox.
+   *
+   * Never destroy a sandbox that the backend did not create. Optional: a
+   * backend with nothing to release has none.
+   */
+  close?: (input: { reason: 'closed' | 'moved' }) => Promise<void>
 }
 
 /**
@@ -159,7 +177,9 @@ export function pathsOf(backend: WorkspaceBackend) {
 
 /**
  * The variables of this process that a command gets. The others, like
- * provider keys and `DATABASE_URL`, stay in the server.
+ * provider keys and `DATABASE_URL`, stay in the server. The
+ * `ai-sandbox-local-process` package has a copy of these lists and of
+ * {@link commandEnv} in `handle.ts`. Change both.
  */
 const KEPT_ENV = ['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'TEMP', 'TMP']
 /** On Windows, a command also gets these, so programs can start. */
@@ -212,10 +232,121 @@ const pageDecoder = new TextDecoder()
 /** `exec` stops a command that writes more than 10 MiB of output. */
 const MAX_EXEC_OUTPUT = 10 * 1024 * 1024
 
+/** `spawn` keeps the newest 1 MiB of the output of a background command. */
+const MAX_JOB_OUTPUT = 1024 * 1024
+
+/** Resolves after `ms` milliseconds, or with the first of `events`. */
+const firstOf = (ms: number, events: ReadonlyArray<Promise<unknown>>) =>
+  Promise.race([
+    new Promise<void>((done) => setTimeout(done, ms).unref()),
+    ...events,
+  ])
+
+/**
+ * Run a program of Windows by its full path, and resolve with its stdout.
+ * Node looks for a bare name in the current folder first, and that folder
+ * can be a cloned repo. A failed program resolves too.
+ */
+function runWindowsProgram(path: string, args: Array<string>) {
+  const system = nodePath.join(
+    process.env.SystemRoot ?? 'C:\\Windows',
+    'System32',
+  )
+  return new Promise<string>((done) => {
+    childProcess.execFile(
+      nodePath.join(system, path),
+      args,
+      { windowsHide: true },
+      (_error, stdout) => done(String(stdout)),
+    )
+  })
+}
+
+/** Kill `pid` and the processes it started, with `taskkill`. */
+const taskkill = (pid: number) =>
+  runWindowsProgram('taskkill.exe', ['/pid', String(pid), '/T', '/F'])
+
+/**
+ * The processes that `pid` started between `from` and `to` (times in
+ * milliseconds). The time range skips the processes of another process
+ * that gets the same pid later.
+ */
+async function windowsChildren(pid: number, from: number, to: number) {
+  // One statement on each line.
+  const script = [
+    `$from = [DateTimeOffset]::FromUnixTimeMilliseconds(${from}).LocalDateTime`,
+    `$to = [DateTimeOffset]::FromUnixTimeMilliseconds(${to}).LocalDateTime`,
+    `Get-CimInstance Win32_Process -Filter 'ParentProcessId=${pid}' | Where-Object { $_.CreationDate -ge $from -and $_.CreationDate -le $to } | ForEach-Object { $_.ProcessId }`,
+  ].join('\n')
+  const stdout = await runWindowsProgram(
+    'WindowsPowerShell\\v1.0\\powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-Command', script],
+  )
+  return stdout
+    .split(/\s+/)
+    .filter((line) => /^\d+$/.test(line))
+    .map(Number)
+}
+
+/** True when a process with `pid` runs now. Signal 0 only checks. */
+function isAlive(pid: number) {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Kill `child`, a `cmd.exe`, and every command it started. A killed
+ * `cmd.exe` alone leaves its commands running. `taskkill /T` finds the
+ * commands when it starts, so it can miss a command that the shell starts
+ * at the same moment. That command keeps the output pipes open, and the
+ * shell never gives `close`. So:
+ *
+ * 1. `taskkill /T` again while the shell runs.
+ * 2. When the shell ended but the pipes stay open, kill the commands that
+ *    it started, found by their parent pid.
+ * 3. When the pipes are still open after that, close them, so `close` comes.
+ */
+async function killWindowsShell(shell: ShellProcess, pid: number) {
+  // `exit` comes at once after the end of the shell. So before it, the pid
+  // is still the shell, and a new `taskkill` cannot hit another process.
+  for (let tries = 0; tries < 5 && shell.exitedAt === undefined; tries++) {
+    await taskkill(pid)
+    await firstOf(500, [shell.exited])
+  }
+  const isClosed = await firstOf(1000, [shell.closed.then(() => true)])
+  const { exitedAt } = shell
+  if (isClosed === true || exitedAt === undefined) return
+  // Another process with the same pid would run now. Its commands are not ours.
+  if (!isAlive(pid)) {
+    const started = await windowsChildren(
+      pid,
+      shell.startedAt - 100,
+      exitedAt + 100,
+    )
+    await Promise.all(started.map(taskkill))
+  }
+  await firstOf(2000, [shell.closed])
+  shell.child.stdout?.destroy()
+  shell.child.stderr?.destroy()
+}
+
+/** A shell from {@link startShell}, and when it started and ended. */
+interface ShellProcess {
+  child: childProcess.ChildProcessWithoutNullStreams
+  startedAt: number
+  /** Set in the `exit` event, so it is there at once. */
+  exitedAt?: number
+  exited: Promise<void>
+  closed: Promise<void>
+}
+
 /**
  * Start `command` in the system shell. `kill` stops the shell and every
- * command it started: on Windows, a killed `cmd.exe` leaves its commands
- * running.
+ * command it started, also when it comes right after the start.
  */
 function startShell(
   command: string,
@@ -230,23 +361,30 @@ function startShell(
     shell: true,
     detached: !isWindows,
   })
+  // The listeners are added now, so `kill` does not miss an event that
+  // came before it.
+  const shell: ShellProcess = {
+    child,
+    startedAt: Date.now(),
+    exited: new Promise((done) =>
+      child.once('exit', () => {
+        shell.exitedAt = Date.now()
+        done()
+      }),
+    ),
+    closed: new Promise((done) => child.once('close', () => done())),
+  }
+  let isKilled = false
   const kill = () => {
-    if (child.pid === undefined) return
+    // The shell did not start. `error` ends the command.
+    const { pid } = child
+    if (isKilled || pid === undefined) return
+    isKilled = true
     if (isWindows) {
-      // The full path: Node looks for a bare name in the current folder
-      // first, and that folder can be a cloned repo.
-      const system = nodePath.join(
-        process.env.SystemRoot ?? 'C:\\Windows',
-        'System32',
-      )
-      childProcess.execFile(
-        nodePath.join(system, 'taskkill.exe'),
-        ['/pid', String(child.pid), '/T', '/F'],
-        () => undefined,
-      )
+      void killWindowsShell(shell, pid)
       return
     }
-    const group = -child.pid
+    const group = -pid
     try {
       process.kill(group, 'SIGTERM')
     } catch {
@@ -426,28 +564,21 @@ export const hostBackend = {
     }),
   spawn: (command, options = {}) => {
     const { child, kill } = startShell(command, options)
-    // ponytail: keeps the last 10 MiB of a long job, like `exec` keeps the first.
-    let output = ''
-    const collect = (chunk: string) => {
-      output = keepTail(output + chunk)
-    }
-    // The stream decodes UTF-8, so a character split over two chunks stays whole.
-    child.stdout.setEncoding('utf8').on('data', collect)
-    child.stderr.setEncoding('utf8').on('data', collect)
+    // Bytes, not text: the text is made at `output()`, so a character split
+    // over two chunks stays whole.
+    const output = createOutputTail(MAX_JOB_OUTPUT)
+    child.stdout.on('data', output.push)
+    child.stderr.on('data', output.push)
     const exited = new Promise<{ exitCode: number }>((done) => {
       child.on('close', (code) => done({ exitCode: code ?? 1 }))
       child.on('error', (error) => {
-        output += String(error)
+        output.push(String(error))
         done({ exitCode: 1 })
       })
     })
-    return { wait: () => exited, kill, output: () => output }
+    return { wait: () => exited, kill, output: output.text }
   },
 } satisfies WorkspaceBackend
-
-/** Keep the last `MAX_EXEC_OUTPUT` characters. Cuts at twice that, so it copies rarely. */
-const keepTail = (text: string) =>
-  text.length > 2 * MAX_EXEC_OUTPUT ? text.slice(-MAX_EXEC_OUTPUT) : text
 
 const MAX_OUTPUT = 20_000
 

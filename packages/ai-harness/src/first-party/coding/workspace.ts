@@ -79,6 +79,8 @@ export type WorkspaceToolsOptions = WorkspaceSource & {
    * full output in this folder. Relative to `root`, or absolute.
    */
   spillDir?: string
+  /** How many background jobs can run at a time in a session. Default 8. */
+  maxJobs?: number
 }
 
 /** What the tools need from the session for a path outside the workspace. */
@@ -436,6 +438,7 @@ function bindTools(
       spillDir: options.spillDir,
       signal: session.signal,
       jobs: session.jobs,
+      maxJobs: options.maxJobs,
     }),
     ...(options.web === false ? [] : webTools(options.web)),
   ]
@@ -487,6 +490,19 @@ function threadTools(
   const bindings = new Map<string, Promise<BoundTools>>()
   const bound = new Map<string, BoundTools>()
   const keyOf = (run: RunContext) => `${run.logId}\0${run.threadId}`
+  // The workspaces that `bind` gave. They belong to the tools, so the tools
+  // close them when the session ends. A fixed `backend` option belongs to
+  // the caller and is never closed here.
+  const workspaces = new Set<BoundWorkspace>()
+  session.signal?.addEventListener(
+    'abort',
+    () => {
+      for (const workspace of workspaces) {
+        void workspace.close?.({ reason: 'closed' }).catch(() => undefined)
+      }
+    },
+    { once: true },
+  )
 
   /** The tools of the workspace of `run`. */
   const bind = (run: RunContext | undefined) => {
@@ -499,6 +515,7 @@ function threadTools(
     const known = bindings.get(key)
     if (known) return known
     const binding = binder.bind({ run }).then((workspace) => {
+      workspaces.add(workspace)
       const tools = bindTools(
         { backend: workspace, root: workspace.root },
         options,

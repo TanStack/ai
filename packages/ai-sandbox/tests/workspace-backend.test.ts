@@ -16,6 +16,8 @@ import type {
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
+/** The output that a background job keeps: 1 MiB. */
+const MIB = 1024 * 1024
 
 interface FsSeed {
   files?: Record<string, string>
@@ -112,7 +114,8 @@ async function* fromChunks(chunks: Array<string>) {
  * that cannot stop it, and only notes the abort in `aborted`.
  *
  * `spawn` prints `<command> out` and `<command> err`. `serve` runs until it
- * is killed, then ends with 143. `nope` does not start.
+ * is killed, then ends with 143. `nope` does not start. `flood` prints 1 MiB
+ * of `x` before `flood out`.
  *
  * `readlink -- '<name>'` prints the target of the link `name` in the folder,
  * from `links`, like `readlink` in a sandbox.
@@ -151,6 +154,7 @@ function fakeProcesses(links: ReadonlyMap<string, string> = new Map()) {
           ? new Promise<void>((resolve) => (end = resolve))
           : Promise.resolve()
       async function* stdout() {
+        if (command === 'flood') yield 'x'.repeat(MIB)
         yield `${command} out\n`
         await ended
       }
@@ -173,20 +177,24 @@ function fakeProcesses(links: ReadonlyMap<string, string> = new Map()) {
   return { process, aborted, killed }
 }
 
-/** A sandbox handle with `memoryFs` and `fakeProcesses`. */
+/**
+ * A sandbox handle with `memoryFs` and `fakeProcesses`, and its backend.
+ * `sandbox.destroyed` tells whether the sandbox was destroyed.
+ */
 function fakeSandbox(
   seed: FsSeed = {},
-  options: { withLstat?: boolean; caps?: SandboxCapabilities } = {},
+  options: {
+    withLstat?: boolean
+    caps?: SandboxCapabilities
+    owned?: boolean
+  } = {},
 ) {
   const { fs, files, dirs, links } = memoryFs(seed, options.withLstat)
   const { process, aborted, killed } = fakeProcesses(links)
-  const handle: SandboxHandle = {
-    ...makeFakeHandle('sandbox-1', 'fake', options.caps),
-    fs,
-    process,
-  }
-  const backend = sandboxWorkspaceBackend(handle)
-  return { backend, files, dirs, aborted, killed }
+  const sandbox = makeFakeHandle('sandbox-1', 'fake', options.caps)
+  const handle: SandboxHandle = { ...sandbox, fs, process }
+  const backend = sandboxWorkspaceBackend(handle, { owned: options.owned })
+  return { backend, files, dirs, aborted, killed, sandbox }
 }
 
 const SEED: FsSeed = {
@@ -397,6 +405,43 @@ describe('sandboxWorkspaceBackend spawn', () => {
       { caps: { ...FULL_CAPS, backgroundProcesses: false } },
     )
     expect(backend.spawn).toBeUndefined()
+  })
+
+  it('keeps the newest 1 MiB of the output, and tells how much was dropped', async () => {
+    const { backend } = fakeSandbox()
+    const job = backend.spawn?.('flood')
+    await job?.wait()
+    // 1 MiB of x, then `flood out\n` and `flood err\n`: 20 bytes too many.
+    const marker = '[20 earlier bytes were dropped.]\n'
+    const output = job?.output() ?? ''
+    expect(output.startsWith(marker)).toBe(true)
+    expect(output.length).toBe(marker.length + MIB)
+    expect(output.endsWith('xflood err\nflood out\n')).toBe(true)
+  })
+})
+
+describe('sandboxWorkspaceBackend close', () => {
+  it('kills its jobs, and leaves a sandbox that it did not create', async () => {
+    const { backend, killed, sandbox } = fakeSandbox()
+    const job = backend.spawn?.('serve')
+    await backend.close({ reason: 'closed' })
+    expect(await job?.wait()).toEqual({ exitCode: 143 })
+    expect(killed).toEqual(['serve'])
+    expect(sandbox.destroyed).toBe(false)
+  })
+
+  it('destroys a sandbox that it owns', async () => {
+    const { backend, sandbox } = fakeSandbox({}, { owned: true })
+    await backend.close({ reason: 'closed' })
+    expect(sandbox.destroyed).toBe(true)
+  })
+
+  it('keeps the jobs and an owned sandbox when the session moves', async () => {
+    const { backend, killed, sandbox } = fakeSandbox({}, { owned: true })
+    backend.spawn?.('serve')
+    await backend.close({ reason: 'moved' })
+    expect(killed).toEqual([])
+    expect(sandbox.destroyed).toBe(false)
   })
 })
 
