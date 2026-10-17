@@ -892,7 +892,7 @@ describe('turn.beforeFinish', () => {
     expect(await session.send('go')).toEqual({ text: 'done', media: [] })
     expect(calls).toHaveLength(1)
     expect(
-      (await log.read(THREAD)).map((entry) => entry.record.type),
+      (await log.read({ logId: THREAD })).map((entry) => entry.record.type),
     ).toContain('app.state_write')
     await host.close()
   })
@@ -971,7 +971,9 @@ describe('turn.beforeFinish', () => {
       REMINDER,
     ])
     expect(JSON.stringify(await session.transcript())).not.toContain(REMINDER)
-    expect(JSON.stringify(await log.read(THREAD))).not.toContain(REMINDER)
+    expect(JSON.stringify(await log.read({ logId: THREAD }))).not.toContain(
+      REMINDER,
+    )
     await host.close()
   })
 

@@ -1,4 +1,10 @@
-import { LogConflictError, defineAIPersistence } from './types'
+import {
+  LogConflictError,
+  LogTruncatedError,
+  OwnershipLostError,
+  UNOWNED_EPOCH,
+  defineAIPersistence,
+} from './types'
 import { resolveBlobRange } from './blob-range'
 import type { ActivityRecord, ModelMessage } from '@tanstack/ai'
 import type {
@@ -20,9 +26,10 @@ import type {
   InterruptCommitEntry,
   InterruptRecord,
   InterruptStore,
-  LogEntry,
   LogRecord,
+  LogSnapshot,
   LogStore,
+  OrphanedLog,
   MessageStore,
   MetadataStore,
   RunRecord,
@@ -680,81 +687,482 @@ class MemoryInboxStore implements InboxStore {
   }
 }
 
-/** A JSON copy, so the log never shares an object with a caller. */
-function copyRecord(record: LogRecord): LogRecord {
-  return JSON.parse(JSON.stringify(record))
+/**
+ * A JSON copy, so a store never shares an object with a caller. Throws when
+ * the value cannot become JSON (a `BigInt`, a cycle).
+ */
+function copyJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value))
 }
 
-class MemoryLogStore implements LogStore {
-  private readonly threads = new Map<string, Array<LogRecord>>()
-  private readonly listeners = new Map<string, Set<() => void>>()
+/**
+ * Throw a `RangeError` for a duration that the log contract refuses: a value
+ * below 0, `NaN`, or 0 when `allowZero` is false.
+ */
+function assertMs({
+  name,
+  value,
+  allowZero,
+}: {
+  name: string
+  value: number
+  allowZero: boolean
+}) {
+  const isValid = allowZero ? value >= 0 : value > 0
+  if (!isValid) {
+    const rule = allowZero ? '0 or more' : 'more than 0'
+    throw new RangeError(`${name} must be ${rule}, got ${value}.`)
+  }
+}
 
-  append({
-    threadId,
-    seq,
-    records,
-  }: {
-    threadId: string
-    seq: number
-    records: ReadonlyArray<LogRecord>
-  }): Promise<void> {
-    if (records.length === 0) return Promise.resolve()
-    const log = this.threads.get(threadId) ?? []
-    if (seq !== log.length + 1) {
-      return Promise.reject(new LogConflictError(threadId, seq))
-    }
-    // Copy the whole batch before the push, so a record that cannot become
-    // JSON rejects the batch with nothing written.
-    let copies: Array<LogRecord>
-    try {
-      copies = records.map(copyRecord)
-    } catch (error) {
-      return Promise.reject(error)
-    }
-    log.push(...copies)
-    this.threads.set(threadId, log)
-    for (const listener of [...(this.listeners.get(threadId) ?? [])]) {
-      // The batch is written. A listener error must not fail the append.
+/**
+ * The ownership record of a log that a host acquired. The record stays after
+ * a release, because the epoch never goes down.
+ */
+interface Ownership {
+  harness: string
+  ownerId: string
+  epoch: number
+  /** Epoch milliseconds, from the store clock. */
+  expiresAt: number
+  released: boolean
+  /** Epoch milliseconds, from `release({ wakeInMs })`. */
+  wakeAt?: number
+}
+
+/** An input that a host offered to a log. */
+interface Offer {
+  record: LogRecord
+  /** Epoch milliseconds, from the store clock. */
+  offeredAt: number
+  /** True after an append consumed it. The id stays, so a retry is a duplicate. */
+  consumed: boolean
+}
+
+/** The offers of one log. */
+interface Lane {
+  /** The harness of the latest offer, for `listOrphaned`. */
+  harness: string
+  /** By input id, in offer order. */
+  inputs: Map<string, Offer>
+}
+
+/** The records that a log keeps. A truncate drops the first ones. */
+interface KeptLog {
+  /** The position of `records[0]`. A truncate moves it up. */
+  firstSeq: number
+  records: Array<LogRecord>
+}
+
+/**
+ * The last position of the log, or 0 for a log with no records. A truncate
+ * does not change it.
+ */
+function headOf(log: KeptLog) {
+  return log.firstSeq - 1 + log.records.length
+}
+
+/** The listeners of one store instance, by log id. */
+type Listeners = Map<string, Set<() => void>>
+
+/**
+ * A shared log state for {@link memoryLogStore}. It is a handle only: make one
+ * with {@link memoryLogBackend}, and pass it to `memoryLogStore({ backend })`.
+ */
+export interface MemoryLogBackend {
+  readonly kind: 'memory-log-backend'
+}
+
+/**
+ * The state of the memory log, shared by every store instance on it. Two
+ * instances on one state act as two machines on one database: they see the
+ * same records, owners, offers, and snapshots, and a write on one calls the
+ * listeners of both.
+ */
+class LogBackendState {
+  readonly logs = new Map<string, KeptLog>()
+  readonly snapshots = new Map<string, LogSnapshot>()
+  readonly owners = new Map<string, Ownership>()
+  // Kept apart from `owners`, because a log that no host acquired can have a
+  // pin too (`setAffinity` with UNOWNED_EPOCH).
+  readonly affinities = new Map<string, string>()
+  // Kept apart from `owners`, because any machine can offer to a log that no
+  // host acquired.
+  readonly lanes = new Map<string, Lane>()
+  /** The listeners of each store instance on this backend. */
+  readonly instances = new Set<Listeners>()
+
+  /**
+   * Call the listeners of `logId` on every store instance. The write is done,
+   * so a listener error must not fail it or stop the other listeners.
+   */
+  notify(logId: string) {
+    const instances = [...this.instances]
+    const listeners = instances.flatMap((instance) => [
+      ...(instance.get(logId) ?? []),
+    ])
+    for (const listener of listeners) {
       try {
         listener()
       } catch (error) {
         console.error('[ai-persistence] log listener failed', error)
       }
     }
-    return Promise.resolve()
+  }
+}
+
+// The state behind each handle from `memoryLogBackend()`. The handle shows no
+// state, so the public type stays opaque.
+const backendStates = new WeakMap<MemoryLogBackend, LogBackendState>()
+
+// The methods are `async`, so a thrown error becomes a rejection. They never
+// await, so each call runs to its end before the next one starts, also across
+// the store instances on one backend.
+class MemoryLogStore implements LogStore {
+  private readonly backend: LogBackendState
+  private readonly listeners: Listeners = new Map()
+
+  constructor(backend: LogBackendState) {
+    this.backend = backend
+    backend.instances.add(this.listeners)
   }
 
-  read(
-    threadId: string,
-    options?: { after?: number; limit?: number },
-  ): Promise<Array<LogEntry>> {
-    const log = this.threads.get(threadId) ?? []
-    const after = options?.after ?? 0
-    const end =
-      options?.limit === undefined ? log.length : after + options.limit
-    const entries = log.slice(after, end).map((record, index) => ({
+  /**
+   * The fence of every fenced write. A log that a host acquired needs the
+   * current epoch and an owner that did not release it. A log that no host
+   * acquired needs UNOWNED_EPOCH.
+   */
+  private canWrite(logId: string, epoch: number) {
+    const owner = this.backend.owners.get(logId)
+    if (owner === undefined) return epoch === UNOWNED_EPOCH
+    return owner.epoch === epoch && !owner.released
+  }
+
+  /** The record, when `ownerId` holds the log at `epoch` and did not release it. */
+  private heldBy(logId: string, ownerId: string, epoch: number) {
+    const owner = this.backend.owners.get(logId)
+    const isHolder =
+      owner?.ownerId === ownerId && owner.epoch === epoch && !owner.released
+    return isHolder ? owner : undefined
+  }
+
+  /** The kept records of `logId`, or an empty log that is not stored yet. */
+  private logOf(logId: string) {
+    return this.backend.logs.get(logId) ?? { firstSeq: 1, records: [] }
+  }
+
+  /** The offers of `logId` that no append consumed, in offer order. */
+  private pending(logId: string) {
+    const inputs = this.backend.lanes.get(logId)?.inputs ?? []
+    return [...inputs].filter(([, offer]) => !offer.consumed)
+  }
+
+  async append({
+    logId,
+    seq,
+    epoch,
+    records,
+    consumes = [],
+  }: Parameters<LogStore['append']>[0]) {
+    const isNoop = records.length === 0 && consumes.length === 0
+    if (isNoop) return
+    // The fence comes first, so a stale writer gets OwnershipLostError, also
+    // at a taken position.
+    if (!this.canWrite(logId, epoch)) {
+      throw new OwnershipLostError(logId, epoch)
+    }
+    const log = this.logOf(logId)
+    // The position check comes before the consumes check, so the writer that
+    // lost a race gets LogConflictError, also when the winner consumed the
+    // same offers.
+    if (seq !== headOf(log) + 1) throw new LogConflictError(logId, seq)
+    const inputs = this.backend.lanes.get(logId)?.inputs
+    const offers = consumes.map((inputId) => {
+      const offer = inputs?.get(inputId)
+      const isPending = offer !== undefined && !offer.consumed
+      if (!isPending) {
+        throw new TypeError(
+          `Input ${JSON.stringify(inputId)} is not a pending offer of log ${JSON.stringify(logId)}.`,
+        )
+      }
+      return offer
+    })
+    // Copy the whole batch before the write, so a record that cannot become
+    // JSON rejects the batch with nothing written and nothing consumed.
+    const copies = records.map(copyJson)
+    log.records.push(...copies)
+    this.backend.logs.set(logId, log)
+    for (const offer of offers) offer.consumed = true
+    this.backend.notify(logId)
+  }
+
+  async read({ logId, after = 0, limit }: Parameters<LogStore['read']>[0]) {
+    const log = this.logOf(logId)
+    // The record at `after + 1` is dropped, so the page would have a hole.
+    if (after < log.firstSeq - 1) {
+      throw new LogTruncatedError(logId, log.firstSeq)
+    }
+    const start = after - (log.firstSeq - 1)
+    const end = limit === undefined ? log.records.length : start + limit
+    return log.records.slice(start, end).map((record, index) => ({
       seq: after + index + 1,
-      record: copyRecord(record),
+      record: copyJson(record),
     }))
-    return Promise.resolve(entries)
   }
 
-  subscribe({
-    threadId,
-    listener,
-  }: {
-    threadId: string
-    listener: () => void
-  }): () => void {
-    let set = this.listeners.get(threadId)
+  subscribe({ logId, listener }: Parameters<LogStore['subscribe']>[0]) {
+    let set = this.listeners.get(logId)
     if (!set) {
       set = new Set()
-      this.listeners.set(threadId, set)
+      this.listeners.set(logId, set)
     }
     set.add(listener)
     return () => {
       set.delete(listener)
     }
+  }
+
+  async acquire({
+    logId,
+    harness,
+    ownerId,
+    ttlMs,
+    affinity,
+  }: Parameters<LogStore['acquire']>[0]) {
+    assertMs({ name: 'ttlMs', value: ttlMs, allowZero: false })
+    const now = Date.now()
+    const owner = this.backend.owners.get(logId)
+    const isLive =
+      owner !== undefined && !owner.released && owner.expiresAt > now
+    if (isLive && owner.ownerId !== ownerId) return null
+    const pin = this.backend.affinities.get(logId)
+    if (pin !== undefined && pin !== affinity) return null
+    // The caller holds the log already: extend it at the same epoch.
+    if (isLive) {
+      owner.expiresAt = now + ttlMs
+      return { epoch: owner.epoch }
+    }
+    const epoch = (owner?.epoch ?? UNOWNED_EPOCH) + 1
+    this.backend.owners.set(logId, {
+      harness,
+      ownerId,
+      epoch,
+      expiresAt: now + ttlMs,
+      released: false,
+    })
+    return { epoch }
+  }
+
+  async renew({
+    logId,
+    ownerId,
+    epoch,
+    ttlMs,
+  }: Parameters<LogStore['renew']>[0]) {
+    assertMs({ name: 'ttlMs', value: ttlMs, allowZero: false })
+    // An expired owner can renew. A new acquire would have changed the epoch.
+    const owner = this.heldBy(logId, ownerId, epoch)
+    if (owner === undefined) return false
+    owner.expiresAt = Date.now() + ttlMs
+    return true
+  }
+
+  async release({
+    logId,
+    ownerId,
+    epoch,
+    wakeInMs,
+  }: Parameters<LogStore['release']>[0]) {
+    if (wakeInMs !== undefined) {
+      assertMs({ name: 'wakeInMs', value: wakeInMs, allowZero: true })
+    }
+    const owner = this.heldBy(logId, ownerId, epoch)
+    if (owner === undefined) return
+    owner.released = true
+    if (wakeInMs !== undefined) owner.wakeAt = Date.now() + wakeInMs
+  }
+
+  async setAffinity({
+    logId,
+    epoch,
+    affinity,
+  }: Parameters<LogStore['setAffinity']>[0]) {
+    if (!this.canWrite(logId, epoch)) {
+      throw new OwnershipLostError(logId, epoch)
+    }
+    if (affinity === null) this.backend.affinities.delete(logId)
+    else this.backend.affinities.set(logId, affinity)
+  }
+
+  async listOrphaned({
+    limit,
+    harnesses,
+    affinity,
+  }: Parameters<LogStore['listOrphaned']>[0]) {
+    const now = Date.now()
+    // A log with offers can have no ownership record, so look in both maps.
+    const logIds = new Set([
+      ...this.backend.owners.keys(),
+      ...this.backend.lanes.keys(),
+    ])
+    const due: Array<{ orphan: OrphanedLog; dueAt: number }> = []
+    for (const logId of logIds) {
+      const found = this.orphanOf(logId, now)
+      if (found === undefined) continue
+      const pin = this.backend.affinities.get(logId)
+      const isOtherHarness =
+        harnesses !== undefined && !harnesses.includes(found.orphan.harness)
+      const isOtherAffinity = pin !== undefined && pin !== affinity
+      if (isOtherHarness || isOtherAffinity) continue
+      due.push(found)
+    }
+    // The log that is due first comes first.
+    due.sort((left, right) => left.dueAt - right.dueAt)
+    return due.slice(0, limit).map(({ orphan }) => orphan)
+  }
+
+  /**
+   * Why `logId` is orphaned and when it became due, or `undefined` when it
+   * has no work. The first reason that applies wins: `'expired'`, then
+   * `'offered'`, then `'wake'`.
+   */
+  private orphanOf(logId: string, now: number) {
+    const owner = this.backend.owners.get(logId)
+    const lane = this.backend.lanes.get(logId)
+    const [firstPending] = this.pending(logId)
+    const found = (
+      reason: OrphanedLog['reason'],
+      harness: string,
+      dueAt: number,
+    ) => ({ orphan: { logId, harness, reason }, dueAt })
+    // An owner that did not release the log has the work until it expires.
+    const isHeld = owner !== undefined && !owner.released
+    if (isHeld) {
+      const isExpired = owner.expiresAt <= now
+      return isExpired
+        ? found('expired', owner.harness, owner.expiresAt)
+        : undefined
+    }
+    if (lane !== undefined && firstPending !== undefined) {
+      const [, offer] = firstPending
+      return found('offered', lane.harness, offer.offeredAt)
+    }
+    const wakeAt = owner?.wakeAt
+    const isWakeDue = owner !== undefined && wakeAt !== undefined
+    if (isWakeDue && wakeAt <= now) {
+      return found('wake', owner.harness, wakeAt)
+    }
+    return undefined
+  }
+
+  async offer({
+    logId,
+    harness,
+    inputId,
+    record,
+  }: Parameters<LogStore['offer']>[0]) {
+    // Copy first, so a record that cannot become JSON stores nothing.
+    const copy = copyJson(record)
+    const inputs =
+      this.backend.lanes.get(logId)?.inputs ?? new Map<string, Offer>()
+    // A consumed id stays taken too.
+    const previous = inputs.get(inputId)
+    if (previous !== undefined) {
+      const isEqual = JSON.stringify(previous.record) === JSON.stringify(copy)
+      return isEqual ? 'duplicate' : 'conflict'
+    }
+    inputs.set(inputId, {
+      record: copy,
+      offeredAt: Date.now(),
+      consumed: false,
+    })
+    // The latest offer names the harness of the log.
+    this.backend.lanes.set(logId, { harness, inputs })
+    this.backend.notify(logId)
+    return 'offered'
+  }
+
+  async offered({ logId }: Parameters<LogStore['offered']>[0]) {
+    return this.pending(logId).map(([inputId, offer]) => ({
+      inputId,
+      record: copyJson(offer.record),
+      offeredAt: offer.offeredAt,
+    }))
+  }
+
+  async getSnapshot({ logId }: Parameters<LogStore['getSnapshot']>[0]) {
+    const snapshot = this.backend.snapshots.get(logId)
+    return snapshot === undefined ? null : copyJson(snapshot)
+  }
+
+  async putSnapshot({
+    logId,
+    epoch,
+    seq,
+    version,
+    state,
+  }: Parameters<LogStore['putSnapshot']>[0]) {
+    if (!this.canWrite(logId, epoch)) {
+      throw new OwnershipLostError(logId, epoch)
+    }
+    const log = this.logOf(logId)
+    const head = headOf(log)
+    if (seq > head) {
+      throw new RangeError(
+        `Snapshot position ${seq} is after the last position ${head} of log ${JSON.stringify(logId)}.`,
+      )
+    }
+    // A reader replays the records after the snapshot. The records before
+    // `firstSeq` are dropped, so the lowest snapshot is at `firstSeq - 1`.
+    const lowest = log.firstSeq - 1
+    if (seq < lowest) {
+      throw new RangeError(
+        `Snapshot position ${seq} is before position ${lowest} of log ${JSON.stringify(logId)}. The log dropped the records before ${log.firstSeq}.`,
+      )
+    }
+    // Copy last, so a state that cannot become JSON keeps the old snapshot.
+    this.backend.snapshots.set(logId, copyJson({ seq, version, state }))
+  }
+
+  async truncate({
+    logId,
+    epoch,
+    beforeSeq,
+  }: Parameters<LogStore['truncate']>[0]) {
+    if (!this.canWrite(logId, epoch)) {
+      throw new OwnershipLostError(logId, epoch)
+    }
+    // A reader that gets LogTruncatedError loads the snapshot, so the
+    // snapshot must hold every record that the cut drops.
+    const snapshot = this.backend.snapshots.get(logId)
+    const isCovered = snapshot !== undefined && snapshot.seq >= beforeSeq - 1
+    if (!isCovered) {
+      throw new RangeError(
+        `Log ${JSON.stringify(logId)} has no snapshot at position ${beforeSeq - 1} or later, so it keeps the records before ${beforeSeq}.`,
+      )
+    }
+    // A snapshot is never after the head, so the cut drops kept records
+    // only. A cut before `firstSeq` drops nothing.
+    const log = this.logOf(logId)
+    const dropCount = beforeSeq - log.firstSeq
+    if (dropCount <= 0) return
+    log.records.splice(0, dropCount)
+    log.firstSeq = beforeSeq
+  }
+
+  async deleteLog({ logId }: Parameters<LogStore['deleteLog']>[0]) {
+    this.backend.logs.delete(logId)
+    this.backend.snapshots.delete(logId)
+    this.backend.lanes.delete(logId)
+    this.backend.affinities.delete(logId)
+    // Keep the epoch counter, so a write with an old epoch still fails. The
+    // log has no owner now, as after a release with no wake.
+    const owner = this.backend.owners.get(logId)
+    if (owner !== undefined) {
+      owner.released = true
+      owner.wakeAt = undefined
+    }
+    this.backend.notify(logId)
   }
 }
 
@@ -766,6 +1174,11 @@ class MemoryLogStore implements LogStore {
  * keeps the transcript and the inputs in the log, so leave out `messages`
  * and `inbox`.
  *
+ * @param options.backend - The log state to use. Pass one
+ *   {@link memoryLogBackend} to two stores, and they act as two machines on
+ *   one database. Without it, the store makes its own state.
+ * @throws {TypeError} When `backend` was not made by {@link memoryLogBackend}.
+ *
  * @example
  * ```ts
  * const { runs, metadata, workClaims, sessions } = memoryPersistence().stores
@@ -774,8 +1187,45 @@ class MemoryLogStore implements LogStore {
  * })
  * ```
  */
-export function memoryLogStore(): LogStore {
-  return new MemoryLogStore()
+export function memoryLogStore({
+  backend,
+}: { backend?: MemoryLogBackend } = {}): LogStore {
+  if (backend === undefined) return new MemoryLogStore(new LogBackendState())
+  const state = backendStates.get(backend)
+  if (state === undefined) {
+    throw new TypeError(
+      'memoryLogStore: this backend was not made by memoryLogBackend().',
+    )
+  }
+  return new MemoryLogStore(state)
+}
+
+/**
+ * A new log state for {@link memoryLogStore}. Give one backend to two stores
+ * to test two hosts in one process: an append on one store calls the
+ * listeners on the other, and both see one owner per log.
+ *
+ * @example
+ * ```ts
+ * const backend = memoryLogBackend()
+ * const hostA = memoryLogStore({ backend })
+ * const hostB = memoryLogStore({ backend })
+ * hostB.subscribe({ logId: 'session-1', listener: () => console.log('new') })
+ * await hostA.append({
+ *   logId: 'session-1',
+ *   seq: 1,
+ *   epoch: UNOWNED_EPOCH,
+ *   records: [{ type: 'hello' }],
+ * })
+ * // The listener on hostB ran.
+ * ```
+ */
+export function memoryLogBackend() {
+  const handle: MemoryLogBackend = Object.freeze({
+    kind: 'memory-log-backend',
+  })
+  backendStates.set(handle, new LogBackendState())
+  return handle
 }
 
 type WorkClaim = Parameters<WorkClaimStore['claim']>[0]

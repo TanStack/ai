@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { EventType, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import {
+  UNOWNED_EPOCH,
+  memoryLogStore,
+  memoryPersistence,
+} from '@tanstack/ai-persistence'
 import { InputRejectedError, createHarnessHost, defineHarness } from '../src'
 import {
   after,
@@ -12,6 +16,7 @@ import {
   toolCall,
   untilAborted,
   wakeMessages,
+  wrapLogStore,
 } from './helpers'
 import type { AnyTool, ModelMessage } from '@tanstack/ai'
 import type { LeaseStore, LogRecord } from '@tanstack/ai-persistence'
@@ -87,7 +92,12 @@ async function seedStoppedTurn(
       ? [{ type: 'harness.input.abort', inputId: 'in-1' }]
       : []),
   ]
-  await persistence.stores.log.append({ threadId: THREAD, seq: 1, records })
+  await persistence.stores.log.append({
+    logId: THREAD,
+    seq: 1,
+    epoch: UNOWNED_EPOCH,
+    records,
+  })
   await persistence.stores.runs.createOrResume({
     runId: 'op-stopped',
     threadId: THREAD,
@@ -121,7 +131,9 @@ async function openDurable(options: {
 }
 
 const logRecords = async (persistence: Durable) =>
-  (await persistence.stores.log.read(THREAD)).map((entry) => entry.record)
+  (await persistence.stores.log.read({ logId: THREAD })).map(
+    (entry) => entry.record,
+  )
 
 const recordTypes = async (persistence: Durable) =>
   (await logRecords(persistence)).map((record) => record.type)
@@ -216,8 +228,9 @@ describe('recovery of a durable input', () => {
   it('settles aborted a pending input that was cancelled before it ran', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
-      threadId: THREAD,
+      logId: THREAD,
       seq: 1,
+      epoch: UNOWNED_EPOCH,
       records: [
         pendingInput('in-1', 'go'),
         { type: 'harness.input.abort', inputId: 'in-1' },
@@ -411,14 +424,15 @@ describe('recovery of a durable input', () => {
     await first.host.close()
     // The host stopped after it saved the answer, before the turn settled.
     // The live run gave the call its result. A log from before that has none.
-    const entries = await persistence.stores.log.read(THREAD)
+    const entries = await persistence.stores.log.read({ logId: THREAD })
     const settledAt = entries.findIndex(
       (entry) => entry.record.type === 'harness.input.settled',
     )
     const stopped = durablePersistence()
     await stopped.stores.log.append({
-      threadId: THREAD,
+      logId: THREAD,
       seq: 1,
+      epoch: UNOWNED_EPOCH,
       records: entries.slice(0, settledAt).map(({ record }) =>
         Array.isArray(record.add)
           ? {
@@ -516,8 +530,9 @@ describe('recovery of a durable input', () => {
   it('fails a background agent whose host stopped, and wakes the thread', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
-      threadId: THREAD,
+      logId: THREAD,
       seq: 1,
+      epoch: UNOWNED_EPOCH,
       records: [
         {
           type: 'harness.input',
@@ -579,8 +594,9 @@ describe('recovery of a durable input', () => {
   it('keeps the wake mark of a logged follow-up that never ran', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
-      threadId: THREAD,
+      logId: THREAD,
       seq: 1,
+      epoch: UNOWNED_EPOCH,
       records: [
         {
           type: 'harness.input',
@@ -671,8 +687,9 @@ describe('recovery of a durable input', () => {
   it('asks the recover hook about an input that never ran', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
-      threadId: THREAD,
+      logId: THREAD,
       seq: 1,
+      epoch: UNOWNED_EPOCH,
       records: [pendingInput('in-new', 'later')],
     })
 
@@ -695,8 +712,9 @@ describe('recovery of a durable input', () => {
     records: Array<LogRecord>,
   ) =>
     persistence.stores.log.append({
-      threadId: THREAD,
-      seq: (await persistence.stores.log.read(THREAD)).length + 1,
+      logId: THREAD,
+      seq: (await persistence.stores.log.read({ logId: THREAD })).length + 1,
+      epoch: UNOWNED_EPOCH,
       records,
     })
 
@@ -851,12 +869,7 @@ describe('session.recover()', () => {
     const quiet: Durable = {
       stores: {
         ...persistence.stores,
-        log: {
-          append: ({ threadId, seq, records }) =>
-            log.append({ threadId, seq, records }),
-          read: (threadId, options) => log.read(threadId, options),
-          subscribe: () => () => {},
-        },
+        log: wrapLogStore(log, { subscribe: () => () => {} }),
       },
     }
     const { host, session, calls } = await openDurable({
@@ -866,10 +879,11 @@ describe('session.recover()', () => {
     expect(calls).toHaveLength(0)
 
     // The other host stored one more input, then stopped.
-    const head = (await log.read(THREAD)).length
+    const head = (await log.read({ logId: THREAD })).length
     await log.append({
-      threadId: THREAD,
+      logId: THREAD,
       seq: head + 1,
+      epoch: UNOWNED_EPOCH,
       records: [pendingInput('in-2', 'next')],
     })
     await expireLease(persistence)
@@ -1183,8 +1197,9 @@ describe('waiting inputs', () => {
     async (_when, landed) => {
       const persistence = durablePersistence()
       await persistence.stores.log.append({
-        threadId: THREAD,
+        logId: THREAD,
         seq: 1,
+        epoch: UNOWNED_EPOCH,
         records: [
           pendingInput('in-1', 'go'),
           controlInput({ op: 'cancelInput', inputId: 'in-1' }),
@@ -1218,8 +1233,9 @@ describe('waiting inputs', () => {
     async (_when, landed) => {
       const persistence = durablePersistence()
       await persistence.stores.log.append({
-        threadId: THREAD,
+        logId: THREAD,
         seq: 1,
+        epoch: UNOWNED_EPOCH,
         records: [
           pendingInput('in-1', 'first'),
           pendingInput('in-2', 'second'),
@@ -1413,8 +1429,9 @@ describe('session.continue()', () => {
     async (_name, messages) => {
       const persistence = durablePersistence()
       await persistence.stores.log.append({
-        threadId: THREAD,
+        logId: THREAD,
         seq: 1,
+        epoch: UNOWNED_EPOCH,
         records: [transcript(...messages)],
       })
       const { host, session, calls } = await openDurable({
@@ -1440,8 +1457,9 @@ describe('session.continue()', () => {
   it('returns the first operation for a duplicate inputId, and runs once', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
-      threadId: THREAD,
+      logId: THREAD,
       seq: 1,
+      epoch: UNOWNED_EPOCH,
       records: [transcript(user)],
     })
     const { host, session, calls } = await openDurable({
@@ -1461,8 +1479,9 @@ describe('session.continue()', () => {
   it('runs a continue that a stopped host left pending', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
-      threadId: THREAD,
+      logId: THREAD,
       seq: 1,
+      epoch: UNOWNED_EPOCH,
       records: [
         transcript(user),
         {
@@ -1498,8 +1517,9 @@ describe('session.continue()', () => {
       const persistence = durablePersistence()
       if (records.length > 0) {
         await persistence.stores.log.append({
-          threadId: THREAD,
+          logId: THREAD,
           seq: 1,
+          epoch: UNOWNED_EPOCH,
           records,
         })
       }
@@ -1725,10 +1745,11 @@ describe('durable approval recovery', () => {
       const approval = result.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
       await first.close()
-      const entries = await log.read(THREAD)
+      const entries = await log.read({ logId: THREAD })
       await log.append({
-        threadId: THREAD,
+        logId: THREAD,
         seq: entries.length + 1,
+        epoch: UNOWNED_EPOCH,
         records: [
           {
             type: 'harness.input',

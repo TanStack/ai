@@ -583,7 +583,8 @@ export abstract class SessionState<
     if (!this.writer || !this.log) return found
     let after = 0
     for (;;) {
-      const entries = await this.log.store.read(this.logId, {
+      const entries = await this.log.store.read({
+        logId: this.logId,
         after,
         limit: 256,
       })
@@ -811,7 +812,8 @@ export abstract class SessionState<
     } else if (observed === undefined && this.writer && this.log) {
       let after = 0
       for (;;) {
-        const entries = await this.log.store.read(this.logId, {
+        const entries = await this.log.store.read({
+          logId: this.logId,
           after,
           limit: 256,
         })

@@ -16,6 +16,9 @@ export {
   defineLeaseStore,
   defineSessionIndexStore,
   LogConflictError,
+  LogTruncatedError,
+  OwnershipLostError,
+  UNOWNED_EPOCH,
   // Run lifecycle helpers owned by @tanstack/ai, transiting through ./types so
   // this package's public surface stays a single import for backend authors.
   isTerminalRunStatus,
@@ -40,7 +43,11 @@ export type {
   InboxStore,
   LogEntry,
   LogRecord,
+  LogSnapshot,
   LogStore,
+  OfferedInput,
+  OfferResult,
+  OrphanedLog,
   LeaseStore,
   TurnLease,
   TurnLeaseKey,
@@ -131,7 +138,13 @@ export {
 export { parseRangeHeader, resolveBlobRange } from './blob-range'
 
 // Reference in-memory implementation
-export { memoryLeaseStore, memoryLogStore, memoryPersistence } from './memory'
+export {
+  memoryLeaseStore,
+  memoryLogBackend,
+  memoryLogStore,
+  memoryPersistence,
+} from './memory'
+export type { MemoryLogBackend } from './memory'
 
 // Persistence-owned capabilities only. Locks: @tanstack/ai.
 export {

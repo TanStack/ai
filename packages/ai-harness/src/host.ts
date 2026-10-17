@@ -783,7 +783,7 @@ export function createHarnessHost<TLogState = undefined>(
           )
         }
         const isUsed = logStore
-          ? (await logStore.read(newThreadId, { limit: 1 })).length > 0
+          ? (await logStore.read({ logId: newThreadId, limit: 1 })).length > 0
           : ((await persistence.stores.messages?.loadThread(newThreadId))
               ?.length ?? 0) > 0
         if (isUsed) {

@@ -485,7 +485,7 @@ describe('sign-ins in a shared thread', () => {
     ).json()
     await expect(session.operation(receipt.operationId)).resolves.toBe('bob')
     expect(ran).toEqual(['bob'])
-    const commands = (await stores.log.read('t'))
+    const commands = (await stores.log.read({ logId: 't' }))
       .map((entry) => entry.record)
       .filter(
         (record) =>

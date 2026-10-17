@@ -480,7 +480,7 @@ describe('host.sessions', () => {
       },
     })
 
-    const records = await log.read(fork.threadId)
+    const records = await log.read({ logId: fork.threadId })
     expect(records.map(({ record }) => [record.type, record.keep])).toEqual([
       ['harness.transcript', 0],
     ])

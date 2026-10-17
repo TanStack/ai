@@ -1,5 +1,5 @@
 import { EventType } from '@tanstack/ai'
-import { LogConflictError } from '@tanstack/ai-persistence'
+import { LogConflictError, UNOWNED_EPOCH } from '@tanstack/ai-persistence'
 import { addUsage, emptyUsage, isSessionUsage } from './usage'
 import { isRecord } from './utils'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
@@ -719,7 +719,8 @@ export async function loadLogState<TState = unknown>(options: {
     emptySharedLogState(reduce)
   if (state.seq > 0) {
     // A checkpoint past the end of the log belongs to another log.
-    const [atCheckpoint] = await store.read(logId, {
+    const [atCheckpoint] = await store.read({
+      logId,
       after: state.seq - 1,
       limit: 1,
     })
@@ -747,7 +748,11 @@ async function readAll(
   onEntry: (entry: LogEntry) => void,
 ) {
   for (;;) {
-    const page = await store.read(logId, { after: from.seq, limit: READ_PAGE })
+    const page = await store.read({
+      logId,
+      after: from.seq,
+      limit: READ_PAGE,
+    })
     if (page.length === 0) return
     for (const entry of page) onEntry(entry)
   }
@@ -872,7 +877,7 @@ export class SharedLog<TState = unknown> {
     // Records from another writer (this host only reads) join the fold. A
     // call during this writer's own append is its own records.
     this.unsubscribe = options.store.subscribe({
-      threadId: options.logId,
+      logId: options.logId,
       listener: () => {
         if (this.writing) return
         // A read that fails leaves the fold behind the log: stop, as after
@@ -1149,15 +1154,21 @@ export class SharedLog<TState = unknown> {
    * error gets one more try.
    */
   private async appendOnce(seq: number, batch: ReadonlyArray<LogRecord>) {
+    const write = {
+      logId: this.logId,
+      seq,
+      epoch: UNOWNED_EPOCH,
+      records: batch,
+    }
     try {
-      await this.store.append({ threadId: this.logId, seq, records: batch })
+      await this.store.append(write)
       return
     } catch (error) {
       if (await this.landed(seq, batch)) return
       if (error instanceof LogConflictError) throw error
     }
     try {
-      await this.store.append({ threadId: this.logId, seq, records: batch })
+      await this.store.append(write)
     } catch (error) {
       if (await this.landed(seq, batch)) return
       throw error
@@ -1166,7 +1177,8 @@ export class SharedLog<TState = unknown> {
 
   private async landed(seq: number, batch: ReadonlyArray<LogRecord>) {
     try {
-      const entries = await this.store.read(this.logId, {
+      const entries = await this.store.read({
+        logId: this.logId,
         after: seq - 1,
         limit: batch.length,
       })
@@ -1191,7 +1203,8 @@ export class SharedLog<TState = unknown> {
     if (this.failure !== undefined) return
     const before = this.state.seq
     if (this.hasWritten) {
-      const [first] = await this.store.read(this.logId, {
+      const [first] = await this.store.read({
+        logId: this.logId,
         after: before,
         limit: 1,
       })
@@ -1249,7 +1262,8 @@ export class SharedLog<TState = unknown> {
       if (after < this.tailFrom) {
         // Older than the in-memory tail: page it from the store.
         const upTo = this.tailFrom
-        const page = await this.store.read(this.logId, {
+        const page = await this.store.read({
+          logId: this.logId,
           after,
           limit: READ_PAGE,
         })
@@ -1517,8 +1531,9 @@ export function logMessageStore(options: {
         }
         try {
           await store.append({
-            threadId: logOf(threadId),
+            logId: logOf(threadId),
             seq: state.seq + 1,
+            epoch: UNOWNED_EPOCH,
             records,
           })
           return

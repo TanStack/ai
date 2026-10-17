@@ -75,7 +75,7 @@ On a [durable host](./durable-sessions), like the host above, the steps are `tan
 ```ts group=harness-snapshots
 await session.send('Fix the login form.')
 
-for (const { record } of await log.read('fix-login')) {
+for (const { record } of await log.read({ logId: 'fix-login' })) {
   if (record.type !== 'tanstack/snapshots:step') continue
   if (typeof record.from !== 'string' || typeof record.to !== 'string') continue
   const { files, patch } = await history.diff(record.from, record.to)

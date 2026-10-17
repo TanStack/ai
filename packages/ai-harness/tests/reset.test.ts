@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import {
+  UNOWNED_EPOCH,
+  memoryLogStore,
+  memoryPersistence,
+} from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import {
   after,
@@ -281,8 +285,9 @@ describe('reset on a durable host', () => {
     const { runs, metadata } = memoryPersistence().stores
     const persistence = { stores: { log, runs, metadata } }
     await log.append({
-      threadId: 't1',
+      logId: 't1',
       seq: 1,
+      epoch: UNOWNED_EPOCH,
       records: [
         {
           type: 'harness.input',

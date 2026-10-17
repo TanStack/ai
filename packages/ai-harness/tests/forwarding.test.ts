@@ -298,7 +298,7 @@ describe('an input that reaches a host that does not own the thread', () => {
         }),
       ).toBeNull(),
     )
-    const log = await persistence.stores.log.read(THREAD)
+    const log = await persistence.stores.log.read({ logId: THREAD })
     expect(JSON.stringify(log)).not.toContain('hunter2')
   })
 

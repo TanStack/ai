@@ -124,7 +124,7 @@ await client.continue()
 The store is yours, so read your records back from it, for example to rebuild your state when a session opens:
 
 ```ts group=harness-session-log
-const entries = await log.read('thread-1')
+const entries = await log.read({ logId: 'thread-1' })
 const signals = entries.filter((entry) => entry.record.type === 'app.signal')
 console.log(signals.map((entry) => entry.seq))
 ```

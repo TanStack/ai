@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import {
   LogConflictError,
+  UNOWNED_EPOCH,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -15,6 +16,7 @@ import {
   sessionMessageStore,
   sessionOf,
 } from '../src/log'
+import { wrapLogStore } from './helpers'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type {
   LogRecord,
@@ -55,30 +57,22 @@ const loadSession = async (
 /** A store that records the record types of each append batch. */
 function recordingStore(inner: LogStore = memoryLogStore()) {
   const batches: Array<Array<string>> = []
-  const store: LogStore = {
-    append: async ({ threadId, seq, records }) => {
-      await inner.append({ threadId, seq, records })
-      batches.push(records.map((record) => record.type))
+  const store = wrapLogStore(inner, {
+    append: async (batch) => {
+      await inner.append(batch)
+      batches.push(batch.records.map((record) => record.type))
     },
-    read: (threadId, options) => inner.read(threadId, options),
-    subscribe: ({ threadId, listener }) =>
-      inner.subscribe({ threadId, listener }),
-  }
+  })
   return { store, batches }
 }
 
 /** A view of `inner` that never notifies, like a store in another process. */
-function silentStore(inner: LogStore): LogStore {
-  return {
-    append: ({ threadId, seq, records }) =>
-      inner.append({ threadId, seq, records }),
-    read: (threadId, options) => inner.read(threadId, options),
-    subscribe: () => () => {},
-  }
+function silentStore(inner: LogStore) {
+  return wrapLogStore(inner, { subscribe: () => () => {} })
 }
 
-const records = async (store: LogStore, threadId = THREAD) =>
-  (await store.read(threadId)).map((entry) => entry.record)
+const records = async (store: LogStore, logId = THREAD) =>
+  (await store.read({ logId })).map((entry) => entry.record)
 
 const user = (id: string, content: string): ModelMessage => ({
   id,
@@ -248,18 +242,15 @@ describe('fold robustness', () => {
 
   it('folds every page of a store that returns short pages', async () => {
     const inner = memoryLogStore()
-    const capped: LogStore = {
-      ...silentStore(inner),
-      read: (threadId, options) =>
-        inner.read(threadId, {
-          ...options,
-          limit: Math.min(options?.limit ?? 2, 2),
-        }),
-    }
+    const capped = wrapLogStore(silentStore(inner), {
+      read: (query) =>
+        inner.read({ ...query, limit: Math.min(query.limit ?? 2, 2) }),
+    })
     for (let seq = 1; seq <= 5; seq += 1) {
       await inner.append({
-        threadId: THREAD,
+        logId: THREAD,
         seq,
+        epoch: UNOWNED_EPOCH,
         records: [{ type: 'app.signal', text: `s${seq}` }],
       })
     }
@@ -347,8 +338,9 @@ describe('input fold', () => {
       retries,
     })
     await store.append({
-      threadId: THREAD,
+      logId: THREAD,
       seq: 1,
+      epoch: UNOWNED_EPOCH,
       records: [
         {
           type: 'harness.input',
@@ -363,12 +355,18 @@ describe('input fold', () => {
     )
 
     await store.append({
-      threadId: THREAD,
+      logId: THREAD,
       seq: 2,
+      epoch: UNOWNED_EPOCH,
       records: [retry(1), retry(2)],
     })
     expect((await loadSession({ store })).inputs.get('in-1')?.retries).toBe(2)
-    await store.append({ threadId: THREAD, seq: 4, records: [retry(0)] })
+    await store.append({
+      logId: THREAD,
+      seq: 4,
+      epoch: UNOWNED_EPOCH,
+      records: [retry(0)],
+    })
     expect((await loadSession({ store })).inputs.get('in-1')?.retries).toBe(0)
   })
 })
@@ -450,7 +448,7 @@ describe('events and batches', () => {
       writer.flush(),
     ])
 
-    const entries = await store.read(THREAD)
+    const entries = await store.read({ logId: THREAD })
     expect(entries.map((entry) => [entry.seq, entry.record.type])).toEqual([
       [1, 'harness.event'],
       [2, 'app.a'],
@@ -541,8 +539,9 @@ describe('write failures', () => {
     await old.commit({ messages: [user('u1', 'one')] })
     // A newer host appends a harness record type that this version does not know.
     await store.append({
-      threadId: THREAD,
+      logId: THREAD,
       seq: 2,
+      epoch: UNOWNED_EPOCH,
       records: [{ type: 'harness.later', value: 1 }],
     })
     const state = await loadLogState({ store, logId: THREAD })
@@ -574,8 +573,9 @@ describe('write failures', () => {
       onFailure: (error) => failures.push(error),
     })
     await store.append({
-      threadId: THREAD,
+      logId: THREAD,
       seq: 1,
+      epoch: UNOWNED_EPOCH,
       records: [{ type: 'app.from-another-host' }],
     })
 
@@ -594,14 +594,13 @@ describe('write failures', () => {
   it('counts a batch that landed before an error as written', async () => {
     const inner = memoryLogStore()
     let calls = 0
-    const flaky: LogStore = {
-      ...silentStore(inner),
-      append: async ({ threadId, seq, records: batch }) => {
+    const flaky = wrapLogStore(silentStore(inner), {
+      append: async (batch) => {
         calls += 1
-        await inner.append({ threadId, seq, records: batch })
+        await inner.append(batch)
         if (calls === 1) throw new Error('timeout after the write')
       },
-    }
+    })
     const writer = newWriter(flaky)
 
     await writer.append([{ type: 'app.one' }])
@@ -617,22 +616,20 @@ describe('write failures', () => {
   it('stops when a read of records from another writer fails', async () => {
     const inner = memoryLogStore()
     let isDown = false
-    const store: LogStore = {
-      ...silentStore(inner),
-      read: async (threadId, options) => {
+    const store = wrapLogStore(inner, {
+      read: async (query) => {
         if (isDown) throw new Error('read failed')
-        return inner.read(threadId, options)
+        return inner.read(query)
       },
-      subscribe: ({ threadId, listener }) =>
-        inner.subscribe({ threadId, listener }),
-    }
+    })
     const failures: Array<unknown> = []
     newWriter(store, { onFailure: (e) => failures.push(e) })
     isDown = true
 
     await inner.append({
-      threadId: THREAD,
+      logId: THREAD,
       seq: 1,
+      epoch: UNOWNED_EPOCH,
       records: [{ type: 'app.other' }],
     })
 
@@ -643,22 +640,21 @@ describe('write failures', () => {
   it('counts a landed batch as written when the store reorders its keys', async () => {
     const inner = memoryLogStore()
     let calls = 0
-    const reordering: LogStore = {
-      ...silentStore(inner),
-      append: async ({ threadId, seq, records: batch }) => {
+    const reordering = wrapLogStore(silentStore(inner), {
+      append: async (batch) => {
         calls += 1
-        await inner.append({ threadId, seq, records: batch })
+        await inner.append(batch)
         if (calls === 1) throw new Error('timeout after the write')
       },
-      read: async (threadId, options) =>
-        (await inner.read(threadId, options)).map((entry) => ({
+      read: async (query) =>
+        (await inner.read(query)).map((entry) => ({
           ...entry,
           record: {
             ...Object.fromEntries(Object.entries(entry.record).reverse()),
             type: entry.record.type,
           },
         })),
-    }
+    })
     const writer = newWriter(reordering)
 
     await writer.append([{ type: 'app.one', a: 1, b: { c: 2, d: 3 } }])
@@ -669,13 +665,12 @@ describe('write failures', () => {
 
   it('tries once more after a store error, then fails with that error', async () => {
     let calls = 0
-    const down: LogStore = {
-      ...silentStore(memoryLogStore()),
+    const down = wrapLogStore(silentStore(memoryLogStore()), {
       append: async () => {
         calls += 1
         throw new Error('network down')
       },
-    }
+    })
     const failures: Array<unknown> = []
     const writer = newWriter(down, { onFailure: (e) => failures.push(e) })
 
@@ -835,13 +830,15 @@ describe('fold checkpoints', () => {
     async (_name, value, reduce) => {
       const store = memoryLogStore()
       await store.append({
-        threadId: THREAD,
+        logId: THREAD,
         seq: 1,
+        epoch: UNOWNED_EPOCH,
         records: [{ type: 'app.tick' }],
       })
       await store.append({
-        threadId: THREAD,
+        logId: THREAD,
         seq: 2,
+        epoch: UNOWNED_EPOCH,
         records: [{ type: 'app.tick' }],
       })
       const { metadata } = memoryPersistence().stores
@@ -1031,21 +1028,16 @@ describe('message stores', () => {
   it('logMessageStore reloads and tries once more after a conflict', async () => {
     const inner = memoryLogStore()
     let raced = false
-    const racing: LogStore = {
-      ...silentStore(inner),
-      append: async ({ threadId, seq, records: batch }) => {
+    const racing = wrapLogStore(silentStore(inner), {
+      append: async (batch) => {
         if (!raced) {
           raced = true
           // Another writer takes the position first.
-          await inner.append({
-            threadId,
-            seq,
-            records: [{ type: 'app.other' }],
-          })
+          await inner.append({ ...batch, records: [{ type: 'app.other' }] })
         }
-        await inner.append({ threadId, seq, records: batch })
+        await inner.append(batch)
       },
-    }
+    })
 
     await logMessageStore({ store: racing }).saveThread('t9', [
       user('u1', 'hi'),
@@ -1096,7 +1088,7 @@ describe('a log shared by sessions', () => {
 
     await root.append([{ type: 'app.note', text: 'one' }])
 
-    expect((await store.read('log-1')).map((entry) => entry.record)).toEqual([
+    expect(await records(store, 'log-1')).toEqual([
       { type: 'app.note', text: 'one' },
     ])
   })
@@ -1111,7 +1103,7 @@ describe('a log shared by sessions', () => {
       { type: 'app.child_linked', child: 'child' },
     ])
 
-    expect((await store.read('log-1')).map((entry) => entry.record)).toEqual([
+    expect(await records(store, 'log-1')).toEqual([
       { type: 'app.note', text: 'from the child', thread: 'child' },
       { type: 'app.child_created', thread: 'child' },
       { type: 'app.child_linked', child: 'child' },
@@ -1220,8 +1212,9 @@ describe('a log shared by sessions', () => {
 
     // Another writer takes the next position.
     await store.append({
-      threadId: 'log-1',
+      logId: 'log-1',
       seq: 2,
+      epoch: UNOWNED_EPOCH,
       records: [{ type: 'app.other' }],
     })
     await expect(root.append([{ type: 'app.late' }])).rejects.toBeInstanceOf(
@@ -1261,13 +1254,12 @@ describe('a log shared by sessions', () => {
     const held = new Promise<void>((resolve) => {
       release = resolve
     })
-    const store: LogStore = {
-      ...silentStore(inner),
-      append: async (options) => {
+    const store = wrapLogStore(silentStore(inner), {
+      append: async (batch) => {
         await held
-        await inner.append(options)
+        await inner.append(batch)
       },
-    }
+    })
     const log = new SharedLog({
       store,
       logId: THREAD,

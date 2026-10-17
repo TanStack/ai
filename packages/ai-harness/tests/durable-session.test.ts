@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { EventType, getLogRecords, toolDefinition } from '@tanstack/ai'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import {
+  UNOWNED_EPOCH,
+  memoryLogStore,
+  memoryPersistence,
+} from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import { loadLogState, sessionOf } from '../src/log'
 import {
@@ -10,6 +14,7 @@ import {
   mockAdapter,
   text,
   toolCall,
+  wrapLogStore,
 } from './helpers'
 import type { ChatMiddleware, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { LogStore } from '@tanstack/ai-persistence'
@@ -270,7 +275,7 @@ describe('durable session log', () => {
 
     // The deltas reach the log after the coalescing window.
     await vi.waitFor(async () => {
-      const entries = await persistence.stores.log.read(THREAD)
+      const entries = await persistence.stores.log.read({ logId: THREAD })
       const events = entries.map((entry) => entry.record.event)
       expect(JSON.stringify(events)).toContain('wor')
     })
@@ -300,19 +305,16 @@ describe('durable session log', () => {
   it('writes host records in the same batch as the waiting events, in order', async () => {
     const inner = memoryLogStore()
     const batches: Array<Array<unknown>> = []
-    const log: LogStore = {
-      append: async ({ threadId, seq, records }) => {
-        await inner.append({ threadId, seq, records })
+    const log = wrapLogStore(inner, {
+      append: async (batch) => {
+        await inner.append(batch)
         batches.push(
-          records.map((record) =>
+          batch.records.map((record) =>
             record.type === 'harness.event' ? record.event : record,
           ),
         )
       },
-      read: (threadId, options) => inner.read(threadId, options),
-      subscribe: ({ threadId, listener }) =>
-        inner.subscribe({ threadId, listener }),
-    }
+    })
     const release = gate()
     const { adapter } = mockAdapter([
       streamsThenWaits('m1', ['partial'], release.opened),
@@ -491,19 +493,15 @@ describe('durable session log', () => {
   it('stops the session when another host wrote to the thread', async () => {
     const inner = memoryLogStore()
     // This host does not see the other writer, like one in another process.
-    const log: LogStore = {
-      append: ({ threadId, seq, records }) =>
-        inner.append({ threadId, seq, records }),
-      read: (threadId, options) => inner.read(threadId, options),
-      subscribe: () => () => {},
-    }
+    const log = wrapLogStore(inner, { subscribe: () => () => {} })
     const { adapter } = mockAdapter([() => text('never saved')])
     const host = createHarnessHost({ persistence: durablePersistence(log) })
     const harness = defineHarness({ name: 'test/conflict', adapter })
     const session = await host.open(harness, { threadId: THREAD })
     await inner.append({
-      threadId: THREAD,
+      logId: THREAD,
       seq: 1,
+      epoch: UNOWNED_EPOCH,
       records: [{ type: 'app.from-another-host' }],
     })
 
@@ -674,7 +672,10 @@ describe('LogRecordsCapability', () => {
     expect(transcript.map((message) => message.content)).toContain(
       '[signal] saved',
     )
-    const entries = await persistence.stores.log.read(THREAD, { after: 0 })
+    const entries = await persistence.stores.log.read({
+      logId: THREAD,
+      after: 0,
+    })
     expect(entries.some((entry) => entry.record.type === 'app.signal')).toBe(
       true,
     )
@@ -824,7 +825,10 @@ describe('compaction-style host records from a middleware', () => {
     await session.send('q2')
 
     // (a) The record comes after the transcript record that saved the reply.
-    const entries = await persistence.stores.log.read(THREAD, { after: 0 })
+    const entries = await persistence.stores.log.read({
+      logId: THREAD,
+      after: 0,
+    })
     const replyAt = entries.findIndex(
       (entry) =>
         entry.record.type === 'harness.transcript' &&
