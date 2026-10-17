@@ -1122,7 +1122,8 @@
         {
           "label": "Add skills",
           "to": "harness/skills",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Use MCP servers",
