@@ -70,6 +70,14 @@ const membersHost = createHarnessHost({
   persistence: memoryPersistence(),
   access: { identify, authorize: membersOnly() },
 })
+// A host that closes a session as soon as no handle holds it and it is idle.
+// A request picks it with the `x-harness-idle: close` header, so a read
+// after a turn finds a closed session.
+const idleHost = createHarnessHost({
+  persistence: memoryPersistence(),
+  access: tenantAccess,
+  lifecycle: { idleCloseMs: 0 },
+})
 // On the durable host, an `app.signal` record that a client appends becomes
 // a user message. The host without a log does not read it.
 const signalProject: ProjectOptions = {
@@ -309,9 +317,16 @@ function harnessFor(request: Request) {
   })
   const isMembersOnly = request.headers.get('x-harness-access') === 'members'
   const isDurable = request.headers.get('x-harness-durable') === '1'
+  const isIdleClose = request.headers.get('x-harness-idle') === 'close'
   return {
     harness,
-    host: isMembersOnly ? membersHost : isDurable ? durableHost : host,
+    host: isMembersOnly
+      ? membersHost
+      : isDurable
+        ? durableHost
+        : isIdleClose
+          ? idleHost
+          : host,
   }
 }
 
