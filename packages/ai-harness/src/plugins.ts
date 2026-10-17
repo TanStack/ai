@@ -488,7 +488,9 @@ export function definePlugin<
   definition: TDefinition & {
     metadataSchema?: TMetadataSchema
   } & NoSetupKeys,
-): HarnessPlugin<TDefinition, MetadataOf<TMetadataSchema>> {
+  // `NoInfer`: the type of a plugins array around the call must not pick
+  // `TDefinition`. Only the definition does.
+): HarnessPlugin<NoInfer<TDefinition>, MetadataOf<TMetadataSchema>> {
   if (definition.name.trim() === '') {
     throw new Error('definePlugin requires a non-empty name')
   }
