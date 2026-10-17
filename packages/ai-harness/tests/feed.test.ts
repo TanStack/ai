@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import { SessionFeed } from '../src/feed'
+import { OperationImpl } from '../src/operation'
 import type { StreamChunk } from '@tanstack/ai'
 import type { SessionEvent } from '../src/types'
 
@@ -95,5 +96,27 @@ describe('SessionFeed', () => {
     done = true
     feed.wake()
     expect(await reading).toBe(1)
+  })
+})
+
+describe('operation stream', () => {
+  it('starts at the operation start, so an older event of its id does not show', async () => {
+    const feed = new SessionFeed({ eventBytes: EVENT_BYTES })
+    // A restart builds an operation again with its stored id.
+    feed.publish('op-1', custom('before'))
+    const operation = new OperationImpl<undefined>(
+      'chat',
+      Object.assign(feed, { listen: () => () => {} }),
+      () => Promise.reject(new Error('no cancel')),
+      undefined,
+      'op-1',
+    )
+    feed.publish('op-1', custom('after'))
+    operation.finish('completed', undefined)
+
+    const names: Array<string> = []
+    for await (const event of operation.stream())
+      names.push(event.type === EventType.CUSTOM ? event.name : '')
+    expect(names).toEqual(['after'])
   })
 })

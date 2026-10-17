@@ -1,5 +1,6 @@
 // Browser-safe: runtime imports only from @tanstack/ai, @tanstack/store,
-// ../types, ../media-ref, and ./reduce. Everything else is a type.
+// ../types, ../media-ref, and ./reduce (it also reads ../usage). Everything
+// else is a type.
 import {
   EventType,
   INTERRUPT_PAYLOAD_METADATA_KEY,
@@ -50,7 +51,6 @@ import type {
 } from '../types'
 import type { ItemFactory } from './reduce'
 import type {
-  AgentPart,
   Approval,
   ApproveOptions,
   ClientToolCall,
@@ -292,6 +292,19 @@ export interface SessionView {
   /** Add a line of your own to the messages. */
   notice: (text: string) => void
   /**
+   * Fill the agent part `id` of a saved message with what that child wrote.
+   * After a reload, a saved child shows only its card (name, status, result)
+   * until you call this, for example when the user opens it. Its nested
+   * children load the same way. Without `source.agentTranscript`, it does
+   * nothing.
+   *
+   * @example
+   * ```ts
+   * await view.loadAgent({ id: part.id })
+   * ```
+   */
+  loadAgent: (options: { id: string }) => Promise<void>
+  /**
    * Listen for a view event (`'approval'`, `'turnEnd'`, ...) or a plugin event.
    * Returns a function that stops listening.
    */
@@ -312,7 +325,16 @@ function userInput(line: string, attachments: ReadonlyArray<MediaRecord>) {
   return input
 }
 
-/** Events after which the snapshot can differ. */
+/** The shown form of a message, and the media parts it shows. */
+interface ShownMessage {
+  message: ViewMessage
+  media: Array<MediaPart>
+}
+
+/**
+ * Events after which the snapshot can differ. A config change is not in the
+ * snapshot. A usage event changes only the usage, and the reducer adds it.
+ */
 function changesSnapshot(entry: SessionEvent) {
   const { event } = entry
   if (
@@ -324,8 +346,27 @@ function changesSnapshot(entry: SessionEvent) {
   }
   return (
     event.type === EventType.CUSTOM &&
-    /^harness\.(operation|input|question|config|usage)/.test(event.name)
+    /^harness\.(operation|input|question)/.test(event.name)
   )
+}
+
+/**
+ * A usage event that the reducer could not add, and that the view does not
+ * count yet: a call was missed, so the view reads the usage again.
+ */
+function missesUsage({ event }: SessionEvent, state: SessionViewState) {
+  if (event.type !== EventType.CUSTOM || event.name !== HARNESS_EVENTS.usage)
+    return false
+  const { value } = event
+  const total: unknown =
+    typeof value === 'object' && value !== null && 'total' in value
+      ? value.total
+      : undefined
+  const calls =
+    typeof total === 'object' && total !== null && 'calls' in total
+      ? total.calls
+      : undefined
+  return typeof calls !== 'number' || calls > (state.usage?.total.calls ?? 0)
 }
 
 /**
@@ -398,8 +439,14 @@ export function createSessionView(source: SessionViewSource) {
   const agentNames = new Map<string, string>()
   const mediaParts = new Map<string, MediaPart>()
   const urlRefreshes = new Map<string, ReturnType<typeof setTimeout>>()
-  /** The media ids the last commit shows. */
-  let shownMedia = new Set<string>()
+  /**
+   * The shown form of each message, and the media parts it shows, by message
+   * object. The reducer keeps a message that did not change, so a commit
+   * walks only the new messages.
+   */
+  const shownOf = new WeakMap<ViewMessage, ShownMessage>()
+  /** The agent parts of saved messages, that `loadAgent` can fill. */
+  let savedAgents = new Set<string>()
   /** The agent parts of a reload that loaded, or load now. */
   const loadedAgents = new Set<string>()
   /** The ids the first transcript has. See `replayed`. */
@@ -415,9 +462,16 @@ export function createSessionView(source: SessionViewSource) {
   const get = () => internal.state
   const commit = (next: SessionViewState) => {
     if (disposed) return
-    shownMedia = new Set()
-    const shown = withMediaActions(next)
+    const entries = next.messages.map(withActions)
+    const messages = keep(
+      next.messages,
+      entries.map((entry) => entry.message),
+    )
+    const shown = messages === next.messages ? next : { ...next, messages }
     // A media file that no message shows now (after a revert) needs no URL.
+    const shownMedia = new Set(
+      entries.flatMap((entry) => entry.media.map((part) => part.id)),
+    )
     for (const id of mediaParts.keys()) {
       if (shownMedia.has(id)) continue
       clearTimeout(urlRefreshes.get(id))
@@ -497,7 +551,6 @@ export function createSessionView(source: SessionViewSource) {
   }
   /** The view's own part for a media id: it loads from the source and gets a url once. */
   const mediaActions = (part: MediaPart) => {
-    shownMedia.add(part.id)
     const known = mediaParts.get(part.id)
     if (known) return known
     const { id } = part
@@ -512,33 +565,58 @@ export function createSessionView(source: SessionViewSource) {
     void fetchUrl(id)
     return shown
   }
-  const partsWithActions = (parts: Array<ViewPart>): Array<ViewPart> =>
+  /** The parts with the view's media parts. Each media part goes in `found`. */
+  const partsWithActions = (
+    parts: Array<ViewPart>,
+    found: Array<MediaPart>,
+  ): Array<ViewPart> =>
     keep(
       parts,
       parts.map((part) => {
-        if (part.type === 'media') return mediaActions(part)
+        if (part.type === 'media') {
+          const shown = mediaActions(part)
+          found.push(shown)
+          return shown
+        }
         if (part.type !== 'agent') return part
-        const inner = partsWithActions(part.parts)
+        const inner = partsWithActions(part.parts, found)
         return inner === part.parts ? part : { ...part, parts: inner }
       }),
     )
-  const messageWithActions = (message: ViewMessage) => {
+  const messageWithActions = (
+    message: ViewMessage,
+    found: Array<MediaPart>,
+  ) => {
     if (message.role === 'assistant') {
-      const parts = partsWithActions(message.parts)
+      const parts = partsWithActions(message.parts, found)
       return parts === message.parts ? message : { ...message, parts }
     }
     if (message.role !== 'user' || !message.media) return message
-    const media = keep(message.media, message.media.map(mediaActions))
+    const media = keep(
+      message.media,
+      message.media.map((part) => {
+        const shown = mediaActions(part)
+        found.push(shown)
+        return shown
+      }),
+    )
     return media === message.media ? message : { ...message, media }
   }
-  // ponytail: this walks every message on each commit. Track new media ids
-  // instead if a long session gets slow.
-  const withMediaActions = (state: SessionViewState) => {
-    const messages = keep(
-      state.messages,
-      state.messages.map(messageWithActions),
+  /**
+   * The shown form of `message`. A known message is walked again only when
+   * one of its media parts changed (a new URL) or went (after a revert).
+   */
+  const withActions = (message: ViewMessage): ShownMessage => {
+    const known = shownOf.get(message)
+    const isCurrent = known?.media.every(
+      (part) => mediaParts.get(part.id) === part,
     )
-    return messages === state.messages ? state : { ...state, messages }
+    if (known && isCurrent) return known
+    const media: Array<MediaPart> = []
+    const entry = { message: messageWithActions(message, media), media }
+    shownOf.set(message, entry)
+    shownOf.set(entry.message, entry)
+    return entry
   }
 
   /**
@@ -712,31 +790,32 @@ export function createSessionView(source: SessionViewSource) {
     }
   })
 
+  /** The ids of the agent parts in `messages` that show no parts yet. */
+  const agentIdsIn = (messages: ReadonlyArray<ViewMessage>) =>
+    emptyAgentsIn(messages).map((agent) => agent.id)
+
   /**
-   * Fill the agent parts `ids` that the saved messages made, from the saved
-   * messages of each child, then the nested children those hold.
+   * Fill the saved agent part `id` from the saved messages of its child. Its
+   * nested children become saved agent parts too, and load on their own call.
    */
-  const loadAgents = async (agents: Array<AgentPart>): Promise<void> => {
-    if (!source.agentTranscript) return
-    // ponytail: every child loads at start. Load on demand if long sessions
-    // get slow.
-    await Promise.all(
-      agents.map(async ({ id }) => {
-        // A continued child has one id for each of its calls.
-        if (loadedAgents.has(id)) return
-        loadedAgents.add(id)
-        try {
-          const messages = (await source.agentTranscript?.(id)) ?? []
-          const parts = agentPartsFrom(messages)
-          if (disposed) return
-          // A child that failed before its first message has only its card.
-          commit(withAgentParts(get(), id, parts, endOf(messages)))
-          await loadAgents(emptyAgentsIn([{ id, role: 'assistant', parts }]))
-        } catch (error) {
-          fail(error)
-        }
-      }),
-    )
+  const loadAgent = async (id: string): Promise<void> => {
+    // A continued child has one id for each of its calls.
+    const isWaiting = savedAgents.has(id) && !loadedAgents.has(id)
+    if (!source.agentTranscript || !isWaiting) return
+    loadedAgents.add(id)
+    try {
+      const messages = await source.agentTranscript(id)
+      const parts = agentPartsFrom(messages)
+      if (disposed) return
+      // A child that failed before its first message has only its card.
+      commit(withAgentParts(get(), id, parts, endOf(messages)))
+      const inner = agentIdsIn([{ id, role: 'assistant', parts }])
+      for (const child of inner) savedAgents.add(child)
+    } catch (error) {
+      // A later call can try again.
+      loadedAgents.delete(id)
+      fail(error)
+    }
   }
 
   // A revert changes which saved messages show. The session is idle then.
@@ -746,8 +825,12 @@ export function createSessionView(source: SessionViewSource) {
       if (disposed) return
       const messages = messagesFromTranscript(transcript)
       commit({ ...get(), messages })
+      // The children that loaded before load again, a parent before its
+      // nested children.
+      const loaded = [...loadedAgents]
       loadedAgents.clear()
-      await loadAgents(emptyAgentsIn(messages))
+      savedAgents = new Set(agentIdsIn(messages))
+      for (const id of loaded) await loadAgent(id)
     } catch (error) {
       fail(error)
     }
@@ -839,7 +922,7 @@ export function createSessionView(source: SessionViewSource) {
     const after = applyEvent(before, entry)
     commit(after)
     fire(entry, before, after)
-    if (changesSnapshot(entry)) refreshSnapshot()
+    if (changesSnapshot(entry) || missesUsage(entry, after)) refreshSnapshot()
   }
 
   /**
@@ -958,7 +1041,7 @@ export function createSessionView(source: SessionViewSource) {
     // ponytail: a background child that runs now can save a model call
     // before its saved messages load, and that call then shows twice. Drop
     // live parts by id if that shows up.
-    void loadAgents(emptyAgentsIn(get().messages))
+    savedAgents = new Set(agentIdsIn(get().messages))
     void read(snapshot ? String(from) : undefined)
   })()
 
@@ -1055,6 +1138,11 @@ export function createSessionView(source: SessionViewSource) {
     notice: (text) => {
       alive()
       commit(withNotice(get(), 'ui', text))
+    },
+    loadAgent: async ({ id }) => {
+      alive()
+      await ready
+      await loadAgent(id)
     },
     on,
     dispose: () => {

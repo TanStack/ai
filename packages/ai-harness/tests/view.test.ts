@@ -463,21 +463,25 @@ describe('the agents of a session view', () => {
 
     const view = createSessionView(session)
     await view.ready
+    const message = view.store.get().messages[1]
+    const card = message?.role === 'assistant' ? message.parts[1] : undefined
+    // Until it loads, the child shows only its card.
+    expect(card).toMatchObject({ type: 'agent', status: 'done', parts: [] })
 
-    await vi.waitFor(() =>
-      expect(view.store.get().messages[1]).toMatchObject({
-        role: 'assistant',
-        parts: [
-          { type: 'tool-call', id: 'call-1', status: 'done' },
-          {
-            type: 'agent',
-            name: 'writer',
-            status: 'done',
-            parts: [{ type: 'text', text: 'Note 1' }],
-          },
-        ],
-      }),
-    )
+    await view.loadAgent({ id: card?.type === 'agent' ? card.id : '' })
+
+    expect(view.store.get().messages[1]).toMatchObject({
+      role: 'assistant',
+      parts: [
+        { type: 'tool-call', id: 'call-1', status: 'done' },
+        {
+          type: 'agent',
+          name: 'writer',
+          status: 'done',
+          parts: [{ type: 'text', text: 'Note 1' }],
+        },
+      ],
+    })
     view.dispose()
     await host.close()
   })

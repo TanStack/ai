@@ -5,9 +5,11 @@ import {
 } from '@tanstack/ai'
 import { isMediaRecord, mediaIdOf, mediaOfMessage } from '../media-ref'
 import { HARNESS_EVENTS } from '../types'
+import { addUsage } from '../usage'
 import type { Interrupt, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { SessionDescription, SessionSnapshot } from '../session/index'
 import type { SessionEvent } from '../types'
+import type { UsageCall } from '../usage'
 import type {
   AgentPart,
   Approval,
@@ -203,7 +205,10 @@ function appendText(
   if (delta === '') return parts
   const last = parts.at(-1)
   if (last?.type === type) {
-    return [...parts.slice(0, -1), { type, text: last.text + delta }]
+    // One copy of the parts: the last part changes, the others stay.
+    const next = [...parts]
+    next[next.length - 1] = { type, text: last.text + delta }
+    return next
   }
   return [...parts, { type, text: delta }]
 }
@@ -483,6 +488,32 @@ function failRunning(
   )
 }
 
+/**
+ * Add the call of a `harness.usage` event to the usage. Only the next call
+ * adds: a replayed call is in the usage already. The view reads the usage
+ * again when a call was missed.
+ */
+function withUsage(
+  state: SessionViewState,
+  value: Record<string, unknown>,
+): SessionViewState {
+  const { usage } = state
+  const total = recordOf(value.total)
+  const isNext = usage !== undefined && total.calls === usage.total.calls + 1
+  if (!isNext || typeof value.model !== 'string' || !isRecord(value.usage))
+    return state
+  const next = structuredClone(usage)
+  addUsage(next, {
+    model: value.model,
+    ...(typeof value.sender === 'string'
+      ? { principal: { id: value.sender } }
+      : {}),
+    // The harness sends the counts of `UsageCall['usage']`.
+    usage: value.usage as UsageCall['usage'],
+  })
+  return { ...state, usage: next }
+}
+
 function withSignIn(state: SessionViewState, signIn: SignIn): SessionViewState {
   return {
     ...state,
@@ -548,6 +579,7 @@ export function applyEvent(
     return isMediaRecord(value)
       ? withMedia(state, operationId, value, value.subagentRunId)
       : state
+  if (event.name === HARNESS_EVENTS.usage) return withUsage(state, value)
   if (event.name === HARNESS_EVENTS.operationResumed)
     return withNotice(state, 'info', 'Resumed a turn that a crash stopped.')
   // A retry that does not continue the partial answer starts the model call

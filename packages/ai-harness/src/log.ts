@@ -307,7 +307,9 @@ export function commonPrefix(
 ) {
   const length = Math.min(a.length, b.length)
   let index = 0
-  while (index < length && sameJson(a[index], b[index])) index += 1
+  // The same message object is the same JSON, so it skips the stringify.
+  const isSame = (i: number) => a[i] === b[i] || sameJson(a[i], b[i])
+  while (index < length && isSame(index)) index += 1
   return index
 }
 

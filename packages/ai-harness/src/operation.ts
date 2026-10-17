@@ -145,7 +145,10 @@ export class OperationImpl<TResult> implements Operation<TResult> {
   async *stream(options?: {
     signal?: AbortSignal
   }): AsyncIterable<StreamChunk> {
-    for await (const entry of this.events({ from: '0', ...options })) {
+    // Every event of this operation comes after its start, so the read does
+    // not walk the older events of the feed.
+    const from = this.startedCursor
+    for await (const entry of this.events({ from, ...options })) {
       yield entry.event
     }
   }

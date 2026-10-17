@@ -9,6 +9,7 @@ import {
 import {
   LogVersionError,
   SharedLog,
+  commonPrefix,
   emptySharedLogState,
   engineMessageStore,
   loadLogState,
@@ -135,6 +136,29 @@ const project: ProjectOptions = {
     return undefined
   },
 }
+
+describe('commonPrefix', () => {
+  it('counts the same and the equal messages, and does not stringify the same object', () => {
+    const toJSON = vi.fn(() => ({ role: 'user', content: 'hi' }))
+    const shared: ModelMessage = { role: 'user', content: 'hi' }
+    Object.assign(shared, { toJSON })
+    const a: Array<ModelMessage> = [
+      shared,
+      { role: 'assistant', content: 'yes' },
+      { role: 'user', content: 'one' },
+    ]
+    const b: Array<ModelMessage> = [
+      shared,
+      { role: 'assistant', content: 'yes' },
+      { role: 'user', content: 'two' },
+    ]
+
+    expect(commonPrefix(a, b)).toBe(2)
+    expect(commonPrefix(a, a.slice(0, 1))).toBe(1)
+    expect(commonPrefix([], b)).toBe(0)
+    expect(toJSON).not.toHaveBeenCalled()
+  })
+})
 
 describe('transcript fold', () => {
   it('writes each change as one splice record and folds it back', async () => {

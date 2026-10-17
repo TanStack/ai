@@ -1236,6 +1236,8 @@ describe('session view reload', () => {
         },
       ],
     })
+    await view.loadAgent({ id: 's1' })
+    await view.loadAgent({ id: 's2' })
 
     await vi.waitFor(() =>
       expect(view.store.get().messages[0]).toMatchObject({
@@ -1283,6 +1285,7 @@ describe('session view reload', () => {
       ],
       snapshot: () => sessionSnapshot({ cursor: '3' }),
     })
+    await view.loadAgent({ id: 's1' })
     const child = { subagentRunId: 's1' }
 
     stream.push(
@@ -1311,7 +1314,7 @@ describe('session view reload', () => {
     )
   })
 
-  it('fills the agent part of a saved agent call from its own messages', async () => {
+  it('fills the agent part of a saved agent call from its own messages, only on loadAgent', async () => {
     const asked: Array<string> = []
     const { view } = await openView({
       transcript: async () => [
@@ -1341,24 +1344,31 @@ describe('session view reload', () => {
         ]
       },
     })
+    await drain()
+    // Until it loads, the child shows its card from the saved result.
+    expect(asked).toEqual([])
+    expect(view.store.get().messages[0]).toMatchObject({
+      parts: [{ type: 'tool-call' }, { type: 'agent', id: 's1', parts: [] }],
+    })
 
-    await vi.waitFor(() =>
-      expect(view.store.get().messages).toMatchObject([
-        {
-          role: 'assistant',
-          parts: [
-            { type: 'tool-call', id: 'c1', status: 'done' },
-            {
-              type: 'agent',
-              id: 's1',
-              name: 'writer',
-              status: 'done',
-              parts: [{ type: 'text', text: 'Note 1' }],
-            },
-          ],
-        },
-      ]),
-    )
+    await view.loadAgent({ id: 's1' })
+    await view.loadAgent({ id: 's1' })
+
+    expect(view.store.get().messages).toMatchObject([
+      {
+        role: 'assistant',
+        parts: [
+          { type: 'tool-call', id: 'c1', status: 'done' },
+          {
+            type: 'agent',
+            id: 's1',
+            name: 'writer',
+            status: 'done',
+            parts: [{ type: 'text', text: 'Note 1' }],
+          },
+        ],
+      },
+    ])
     expect(asked).toEqual(['s1'])
   })
 
@@ -1389,6 +1399,66 @@ describe('session view reload', () => {
     stream.push(custom(HARNESS_EVENTS.usage, { model: 'fast' }))
 
     await vi.waitFor(() => expect(view.store.get().usage?.total.calls).toBe(2))
+  })
+
+  it('adds the next usage call from its event, with no new snapshot read', async () => {
+    const counts = (calls: number) => ({
+      ...emptyUsage().total,
+      calls,
+      totalTokens: calls * 10,
+    })
+    const snapshot = vi.fn(() =>
+      sessionSnapshot({ usage: { ...emptyUsage(), total: counts(1) } }),
+    )
+    const { view, stream } = await openView({ snapshot })
+    const call = { ...counts(1), calls: undefined }
+    const usage = (calls: number) =>
+      custom(HARNESS_EVENTS.usage, {
+        model: 'fast',
+        sender: 'ada',
+        usage: call,
+        total: counts(calls),
+      })
+
+    // The first call is in the snapshot already (a replay). The second is new.
+    stream.push(usage(1), usage(2))
+    await drain()
+
+    expect(snapshot).toHaveBeenCalledTimes(1)
+    expect(view.store.get().usage).toMatchObject({
+      total: { calls: 2, totalTokens: 20 },
+      byModel: { fast: { calls: 1, totalTokens: 10 } },
+      bySender: { ada: { calls: 1 } },
+    })
+  })
+
+  it('walks only the messages that changed on a commit', async () => {
+    const { view, stream } = await openView({
+      transcript: async () => [
+        { id: 'm0', role: 'assistant', content: 'Old.' },
+      ],
+    })
+    const old = view.store.get().messages[0]
+    let reads = 0
+    if (old?.role === 'assistant') {
+      const { parts } = old
+      Object.defineProperty(old, 'parts', {
+        get: () => {
+          reads += 1
+          return parts
+        },
+      })
+    }
+
+    stream.push(says('Hello'), says(' there'))
+
+    await vi.waitFor(() =>
+      expect(view.store.get().messages[1]).toMatchObject({
+        parts: [{ type: 'text', text: 'Hello there' }],
+      }),
+    )
+    expect(view.store.get().messages[0]).toBe(old)
+    expect(reads).toBe(0)
   })
 })
 
