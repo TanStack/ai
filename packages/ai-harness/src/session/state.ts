@@ -41,7 +41,11 @@ import type { RevertState } from '../log'
 import type { ThreadRecord } from '../log-records'
 import type { Question } from '../commands'
 import type { ConfigOption } from '../config'
-import type { AnyHarness, SessionMetadataOf } from '../define'
+import type {
+  AnyHarness,
+  HarnessLogStateOf,
+  SessionMetadataOf,
+} from '../define'
 import type { SessionEntryChange, SessionEntryUpdate } from '../session-entry'
 import type {
   ChatTurnResult,
@@ -510,6 +514,25 @@ export abstract class SessionState<
     )
   }
 
+  /**
+   * The `durability.reduce` fold of the harness for the log of this session:
+   * every host record of the root thread and of its child threads, in log
+   * order. `undefined` for a harness without `reduce`. A session of another
+   * machine folds the same log, so it gets the same state.
+   *
+   * @example
+   * ```ts
+   * const state = await session.logState()
+   * ```
+   */
+  async logState(): Promise<HarnessLogStateOf<THarness> | undefined> {
+    // The reduce of `harness` folded the state, so it has that type. A log
+    // cannot carry a state type.
+    return this.writer.reducedBy(this.harness.durability?.reduce) as
+      | HarnessLogStateOf<THarness>
+      | undefined
+  }
+
   /** The index of the revert message in `messages`, or -1. */
   protected revertedAt(messages: ReadonlyArray<ModelMessage>) {
     const id = this.reverted?.messageId
@@ -637,7 +660,7 @@ export abstract class SessionState<
       })
       for (const { seq, record } of entries) {
         after = seq
-        const isOwn = threadOf(record, this.logId) === this.threadId
+        const isOwn = threadOf(record, this.threadId) === this.threadId
         if (isOwn && record.type === type) found.push(record)
       }
       // A store can return fewer than `limit` before the end: stop only at

@@ -37,7 +37,7 @@ import type {
   HarnessAccess,
 } from './access'
 import type { HandleGuard } from './session/handle'
-import type { AnyHarness, HarnessLogStateOf, SessionMetadataOf } from './define'
+import type { AnyHarness, SessionMetadataOf } from './define'
 import type { SessionEntryChange, SessionEntryUpdate } from './session-entry'
 import type { ReduceOptions } from './log'
 import type { OwnershipOptions } from './ownership'
@@ -194,12 +194,6 @@ export interface OpenSessionOptions<P extends Principal = Principal> {
    * entries and two logs. Required when the host has `access`.
    */
   principal?: P
-  /**
-   * The log of the session. Sessions with the same log id
-   * share one log and one writer: one append can hold records for several of
-   * them. Default: `threadId`.
-   */
-  logId?: string
   /**
    * Prompt caching for this session. It overrides the harness `promptCache`,
    * for example with a stable affinity key. Opening the same `threadId` again
@@ -453,8 +447,6 @@ export interface ForkSessionOptions<P extends Principal = Principal> {
    * it owns the new thread.
    */
   principal?: P
-  /** The log of the source thread, as in `open`. Default: `threadId`. */
-  logId?: string
 }
 
 export interface ResumePendingOptions {
@@ -562,7 +554,7 @@ export interface HarnessHost<P extends Principal = Principal> {
    */
   observe: <THarness extends AnyHarness>(
     harness: THarness,
-    options: Pick<OpenSessionOptions<P>, 'threadId' | 'principal' | 'logId'>,
+    options: Pick<OpenSessionOptions<P>, 'threadId' | 'principal'>,
   ) => Promise<ObservedSession<THarness>>
   /**
    * Is a session of `harness` open on `threadId` on this host, in the tenant
@@ -667,24 +659,6 @@ export interface HarnessHost<P extends Principal = Principal> {
    * ```
    */
   close: (options?: { recoverable?: boolean }) => Promise<void>
-  /**
-   * The `durability.reduce` fold of `harness` for a log that has an open
-   * session or a running `observe` read in this host. `logId` is the `logId`
-   * of `open`, in the tenant of `principal`. `undefined` when nothing has the
-   * log open, or when the reduce of another harness folded the log (the
-   * harness of its first session folds a shared log). `view.logState()` of
-   * `host.observe` reads a log that is not open too.
-   *
-   * @example
-   * ```ts
-   * const state = host.logState({ harness: assistant, logId: 'agent-1' })
-   * ```
-   */
-  logState: <THarness extends AnyHarness>(options: {
-    harness: THarness
-    logId: string
-    principal?: P
-  }) => HarnessLogStateOf<THarness> | undefined
   /** The session index: list, rename, delete, fork, and share sessions. */
   sessions: HostSessions<P>
   /**
@@ -1163,7 +1137,7 @@ export function createHarnessHost<P extends Principal = Principal>(
   })
   /** The shared log of each log with an open session, by its store log id. */
   const logs = new Map<string, Promise<SharedLog>>()
-  /** The resolved shared logs, and the reduce that folds each one, for `logState`. */
+  /** The resolved shared logs, and the reduce that folds each one, for `observe`. */
   const resolved = new Map<
     string,
     { log: SharedLog; reduce: ReduceOptions<unknown> | undefined }
@@ -1434,7 +1408,7 @@ export function createHarnessHost<P extends Principal = Principal>(
    */
   const openSession = <THarness extends AnyHarness>(
     harness: THarness,
-    { threadId, principal, logId: openLogId, promptCache }: OpenSessionOptions,
+    { threadId, principal, promptCache }: OpenSessionOptions,
     tenantId: string | undefined,
   ) => {
     if (isClosed) return Promise.reject(hostClosed())
@@ -1453,14 +1427,12 @@ export function createHarnessHost<P extends Principal = Principal>(
     if (session) endSweep(key)
     if (!session) {
       makeRoom()
-      const logId = openLogId ?? threadId
-      // The one place where the log id of the app becomes the id in the
-      // store: the tenant is part of it.
-      const storeLogId = logIdOf({ tenantId, logId })
+      // The log of a session tree has the id of its root thread, in its
+      // tenant. Only a root opens: its child threads write to this log.
+      const storeLogId = logIdOf({ tenantId, logId: threadId })
       const created = new SessionImpl({
         harness,
         threadId,
-        logId,
         storeLogId,
         ...(tenantId !== undefined ? { tenantId } : {}),
         persistence,
@@ -1471,11 +1443,8 @@ export function createHarnessHost<P extends Principal = Principal>(
         hostPlugins,
         log: {
           store: logStore,
-          ...(harness.durability?.project
-            ? { project: harness.durability.project }
-            : {}),
           open: async (sessionThread, hooks) => {
-            const ids = { logId: storeLogId, rootThread: logId }
+            const ids = { logId: storeLogId, rootThread: threadId }
             let log = await sharedLog(logStore, ids, harness)
             // The log closed while this open waited, and the host dropped
             // it.
@@ -1889,7 +1858,7 @@ export function createHarnessHost<P extends Principal = Principal>(
    */
   const forkInto = async <THarness extends AnyHarness>(
     harness: THarness,
-    { threadId, newThreadId, at, principal, logId }: ForkSessionOptions<P>,
+    { threadId, newThreadId, at, principal }: ForkSessionOptions<P>,
   ) => {
     if (newThreadId === threadId) {
       throw new Error('A fork needs a new thread: newThreadId is threadId.')
@@ -1901,11 +1870,7 @@ export function createHarnessHost<P extends Principal = Principal>(
     try {
       // In the tenant of the fork, with no principal: the fork does not
       // become the owner of a source with no owner.
-      const source = await openSession(
-        harness,
-        { threadId, ...(logId ? { logId } : {}) },
-        tenantId,
-      )
+      const source = await openSession(harness, { threadId }, tenantId)
       const transcript = await source.transcript()
       const end =
         at === undefined
@@ -1918,7 +1883,7 @@ export function createHarnessHost<P extends Principal = Principal>(
           `Thread ${JSON.stringify(threadId)} has no message ${JSON.stringify(at)}.`,
         )
       }
-      // The new thread opens with no `logId`, so its log is its own.
+      // The new thread is a new root, so its log is its own.
       const newLogId = logIdOf({ tenantId, logId: newThreadId })
       // With access, a thread with an entry belongs to someone already.
       const isTaken =
@@ -1989,20 +1954,25 @@ export function createHarnessHost<P extends Principal = Principal>(
         throw error
       }
     },
-    async observe(harness, { threadId, principal, logId: openLogId }) {
+    async observe(harness, { threadId, principal }) {
       if (isClosed) throw hostClosed()
       const tenantId = principal?.tenantId
+      const entry = await index.get({ tenantId, threadId })
       if (access) {
         const user = need(principal, 'host.observe')
-        const entry = await index.get({ tenantId, threadId })
         // No entry is not found: the same answer as a refusal.
         if (!entry) throw new AccessDeniedError({ action: 'read', threadId })
         // `allow` checks a child thread through its root thread.
         await allow({ principal: user, action: 'read', threadId, entry })
       }
       const key = sessionKey(harness.name, tenantId, threadId)
-      const logId = openLogId ?? threadId
-      const ids = { logId: logIdOf({ tenantId, logId }), rootThread: logId }
+      // A child thread has its records in the log of its root, with its
+      // thread on each. A thread with no entry is a root.
+      const root = entry ? (await rootOf(entry)).threadId : threadId
+      const ids = {
+        logId: logIdOf({ tenantId, logId: root }),
+        rootThread: root,
+      }
       return observedSession({
         harness,
         threadId,
@@ -2019,7 +1989,6 @@ export function createHarnessHost<P extends Principal = Principal>(
           if (isClosed) throw hostClosed()
         },
         index,
-        persistence,
         media,
         readLog: () => readLog(logStore, ids, harness, threadId),
       })
@@ -2162,20 +2131,6 @@ export function createHarnessHost<P extends Principal = Principal>(
       // The sessions gave their logs back. A release that did not land yet
       // goes now, and the renewal timer stops.
       await ownership.close()
-    },
-    logState: ({ harness, logId, principal }) => {
-      if (access) need(principal, 'host.logState')
-      const folded = resolved.get(
-        logIdOf({ tenantId: principal?.tenantId, logId }),
-      )
-      // The reduce of another harness folded this log: its state has
-      // another type.
-      if (folded?.reduce !== harness.durability?.reduce) return undefined
-      // The reduce of `harness` folded the state, so it has that type. A
-      // map of logs cannot carry a state type per log.
-      return folded?.log.state.reduced as
-        | HarnessLogStateOf<typeof harness>
-        | undefined
     },
     sessions: {
       async list({ principal, ...filters } = {}) {

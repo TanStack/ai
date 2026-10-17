@@ -1183,7 +1183,7 @@ describe('engine message store', () => {
   async function engineOnLog() {
     const store = memoryLogStore()
     const writer = newWriter(store, { project })
-    const engine = engineMessageStore({ writer, store, project })
+    const engine = engineMessageStore({ writer })
     return { writer, engine }
   }
 
@@ -1322,10 +1322,10 @@ describe('message stores', () => {
     ).toEqual(['app.other', 'harness.transcript'])
   })
 
-  it('sessionMessageStore uses the writer for its thread and the log for others', async () => {
+  it('sessionMessageStore writes its thread and each child thread to the one log of the writer', async () => {
     const store = memoryLogStore()
     const writer = newWriter(store)
-    const messages = sessionMessageStore({ writer, store })
+    const messages = sessionMessageStore({ writer })
 
     await messages.saveThread(THREAD, [user('u1', 'main')])
     await messages.saveThread('subagent:1', [user('c1', 'child')])
@@ -1335,11 +1335,12 @@ describe('message stores', () => {
     expect(await messages.loadThread('subagent:1')).toEqual([
       user('c1', 'child'),
     ])
-    const child: Array<LogRecord> = await records(
-      store,
-      logIdOf({ logId: 'subagent:1' }),
-    )
-    expect(child).toHaveLength(1)
+    const written: Array<LogRecord> = await records(store, writer.logId)
+    expect(written.map((record) => record.thread)).toEqual([
+      undefined,
+      'subagent:1',
+    ])
+    expect(await records(store, logIdOf({ logId: 'subagent:1' }))).toEqual([])
   })
 })
 

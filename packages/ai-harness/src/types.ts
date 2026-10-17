@@ -454,7 +454,7 @@ export interface RunContext {
   principal: { id: string; tenantId?: string } | undefined
   /**
    * The id of the log of the session in the `LogStore`: the tenant and the
-   * `logId` of `host.open`, from `logIdOf`.
+   * root thread of the session tree, from `logIdOf`.
    */
   logId: string
   threadId: string

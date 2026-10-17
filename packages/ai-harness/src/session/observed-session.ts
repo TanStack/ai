@@ -1,9 +1,10 @@
 import { loadChildTranscript } from '@tanstack/ai-persistence'
-import { logMessageStore, visibleMessages } from '../log'
+import { visibleMessages } from '../log'
 import { createMediaStore } from '../media'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
   BlobRange,
+  MessageStore,
   RunRecord,
   SessionIndexEntry,
 } from '@tanstack/ai-persistence'
@@ -15,7 +16,7 @@ import type {
   HarnessLogStateOf,
   SessionMetadataOf,
 } from '../define'
-import type { HarnessPersistence, SessionIndexWriter } from '../host'
+import type { SessionIndexWriter } from '../host'
 import type { Cursor, MediaRecord, SessionEvent } from '../types'
 import type { SessionImpl } from './harness-session'
 import type { SessionSnapshot } from './types'
@@ -92,8 +93,9 @@ export interface ObservedSession<THarness extends AnyHarness = AnyHarness> {
   >
   /**
    * The `durability.reduce` fold of the harness for the log of the thread,
-   * as `host.logState` gives it. `undefined` when the harness has no
-   * `reduce`, and when the reduce of another harness folds the log.
+   * as `session.logState()` gives it. For a child thread, it is the fold of
+   * the log of its root. `undefined` when the harness has no `reduce`, and
+   * when the reduce of another harness folds the log.
    */
   logState: () => Promise<HarnessLogStateOf<THarness> | undefined>
 }
@@ -108,12 +110,11 @@ export interface ObservedSources<THarness extends AnyHarness> {
   /** Throws when the host is closed. */
   check: () => void
   index: SessionIndexWriter
-  /** The stores of the host, in all tenants. */
-  persistence: HarnessPersistence
   media: MediaPersistence
   /**
-   * A reader of the log of the thread, and the `reduce` that folds the log.
-   * The caller closes the reader.
+   * A reader of the thread in the log of its session tree (the log of its
+   * root thread), and the `reduce` that folds the log. The caller closes
+   * the reader.
    */
   readLog: () => Promise<{
     reader: LogReader
@@ -156,15 +157,7 @@ export function observedSession<THarness extends AnyHarness>(
   sources: ObservedSources<THarness>,
 ) {
   const { harness, threadId, tenantId, live, check, index, readLog } = sources
-  const { stores } = sources.persistence
   const tenant = tenantId !== undefined ? { tenantId } : {}
-  const project = harness.durability?.project
-  // The children of a session each have their own log.
-  const childMessages = logMessageStore({
-    store: stores.log,
-    ...(project ? { project } : {}),
-    ...tenant,
-  })
   const mediaStore = createMediaStore({
     persistence: sources.media,
     threadId,
@@ -250,10 +243,22 @@ export function observedSession<THarness extends AnyHarness>(
     },
     async agentTranscript(subagentRunId) {
       check()
-      return (
-        (await loadChildTranscript(childMessages, subagentRunId, threadId)) ??
-        []
-      )
+      const { reader } = await readLog()
+      try {
+        // The child threads are in the log of the session tree. A read
+        // writes nothing.
+        const children: MessageStore = {
+          loadThread: (thread) =>
+            Promise.resolve([...reader.stateOf(thread).messages]),
+          saveThread: () =>
+            Promise.reject(new Error('host.observe writes nothing.')),
+        }
+        return (
+          (await loadChildTranscript(children, subagentRunId, threadId)) ?? []
+        )
+      } finally {
+        reader.close()
+      }
     },
     getMedia(id) {
       check()

@@ -588,7 +588,8 @@ export function sessionOf(state: SharedLogState<unknown>, thread: string) {
  * The id of a log in the `LogStore`: the tenant and the log id, each
  * URL-encoded, with a `:` between them. Without `tenantId`, the log is in the
  * default tenant. So one log id in two tenants is two logs. `logId` is the
- * `logId` of `host.open`, and its default is the thread id.
+ * thread id of the root session: one log keeps the root and all of its child
+ * threads (agent chains and subagent runs).
  *
  * The other stores that the harness keys by thread (metadata and media) use
  * the same key, with the thread id as `logId`.
@@ -621,7 +622,7 @@ export function parseLogId(id: string) {
 
 /**
  * The session of a record: its `thread`, or the root thread of the log. The
- * root thread is the thread whose id is the `logId` of `host.open`.
+ * root thread is the thread whose id is the log id (see {@link logIdOf}).
  */
 export const threadOf = (record: LogRecord, rootThread: string) =>
   typeof record.thread === 'string' ? record.thread : rootThread
@@ -958,12 +959,25 @@ export interface LogWriter extends EventFeed {
    */
   stage: (records: ReadonlyArray<LogRecord>, toolCallId?: string) => void
   /**
+   * The fold of `thread` in this log: a child thread of the session (an
+   * agent chain or a subagent run). Empty when the log has no record of it.
+   */
+  stateOf: (thread: string) => LogState
+  /**
+   * The `reduce` fold of the whole log, when `reduce` is the reduce that
+   * folds this log. Else `undefined`.
+   */
+  reducedBy: (reduce: ReduceOptions<unknown> | undefined) => unknown
+  /**
    * One batch: the pending events, the transcript change to `messages` (if
-   * any), the staged records of this session, then `records`.
+   * any), the staged records of this session, then `records`. With
+   * `thread`, the transcript is the one of that child thread of the
+   * session, and its records carry that thread.
    */
   commit: (options: {
     messages: ReadonlyArray<ModelMessage>
     records?: ReadonlyArray<LogRecord>
+    thread?: string
   }) => Promise<void>
   /** Append the pending events now. */
   flush: () => Promise<void>
@@ -1008,6 +1022,12 @@ export interface LogViewHooks {
   /** The session has work, so the host keeps the log. */
   isBusy: () => boolean
   /**
+   * The session has work that can run now, not only work that waits for a
+   * schedule. When its view closes with such work (a recoverable close), the
+   * release asks the store to wake a worker at once. Default: `isBusy`.
+   */
+  hasWorkNow?: () => boolean
+  /**
    * The log can have offers for the session to apply: another host offered
    * an input to this owner, this host got the log, or an input that this
    * host offered still waits.
@@ -1022,6 +1042,8 @@ export interface LogViewHooks {
 export interface LogReader<TState = unknown> {
   /** The fold of the session. Empty when the log has no record of it. */
   readonly state: LogState
+  /** The fold of another thread of the log: a child thread of the session. */
+  stateOf: (thread: string) => LogState
   /** The `reduce` fold of the whole log. */
   readonly reduced: TState | undefined
   /** The log position. */
@@ -1125,6 +1147,11 @@ export class SharedLog<TState = unknown> {
   /** `stopReaders` ran: every read of a reader ends. */
   private readersStopped = false
   private idle = false
+  /**
+   * A view closed while its session had work: the next owner must run it.
+   * The next acquire of this host clears it.
+   */
+  private hasLeftWork = false
   private writing = false
   private writesSinceCheckpoint = 0
   private readonly unsubscribe: () => void
@@ -1196,6 +1223,7 @@ export class SharedLog<TState = unknown> {
    * release gives it to the store, so a worker takes the log then.
    */
   private wakeInMs() {
+    if (this.hasLeftWork) return 0
     const sessions = [...this.state.sessions.values()]
     const times = sessions.flatMap((session) =>
       [...session.thread.schedules.values()].map((schedule) => schedule.at),
@@ -1231,6 +1259,7 @@ export class SharedLog<TState = unknown> {
         // Not `sessionOf`: a read adds no session to the fold.
         return shared.sessions.get(threadId) ?? emptyLogState()
       },
+      stateOf: (thread) => shared.sessions.get(thread) ?? emptyLogState(),
       get reduced() {
         return shared.reduced
       },
@@ -1295,6 +1324,11 @@ export class SharedLog<TState = unknown> {
       get fenced() {
         return own.fenced
       },
+      stateOf: (thread) => sessionOf(shared, thread),
+      reducedBy: (reduce) =>
+        reduce !== undefined && reduce === this.fold.reduce
+          ? shared.reduced
+          : undefined,
       publish: (operationId, event) => {
         if (!isDropped()) this.publish(threadId, operationId, event)
       },
@@ -1308,7 +1342,9 @@ export class SharedLog<TState = unknown> {
         if (!isDropped()) this.stage(threadId, records, toolCallId)
       },
       commit: (options) =>
-        isDropped() ? refused() : this.commit(threadId, options),
+        isDropped()
+          ? refused()
+          : this.commit(options.thread ?? threadId, options),
       flush: () => this.flush(),
       catchUp: () => this.enqueue(() => this.catchUp()),
       unfence: () => {
@@ -1323,6 +1359,10 @@ export class SharedLog<TState = unknown> {
       close: () => {
         if (closed) return
         closed = true
+        // A session that closes with work (a recoverable close) leaves it
+        // in the log. The release asks the store to wake a worker at once.
+        const { hooks } = own
+        if ((hooks.hasWorkNow ?? hooks.isBusy)()) this.hasLeftWork = true
         this.release(threadId, own)
       },
     }
@@ -1624,6 +1664,7 @@ export class SharedLog<TState = unknown> {
       throw error
     }
     this.epoch = epoch
+    this.hasLeftWork = false
     // The new owner applies the inputs that wait for an owner. Later, so the
     // write that acquired the log goes first.
     queueMicrotask(() => this.notifyOffers())
@@ -1943,34 +1984,24 @@ function sessionEventOf(entry: LogEntry) {
 /** What a durable session needs for the message stores of its log. */
 interface SessionLogView {
   writer: LogWriter
-  store: LogStore
-  project?: ProjectOptions
-  /** The tenant of the session. The logs of its subagent children are in it. */
-  tenantId?: string
 }
 
 /**
- * The `MessageStore` a durable session gives `withPersistence`. Its own
- * thread goes through the session's writer. Another thread (a subagent
- * transcript) reads and appends that thread's log directly, in the tenant of
- * the session.
+ * The `MessageStore` a durable session gives `withPersistence`. Every
+ * thread goes through the session's writer, into the one log of the session
+ * tree: its own thread, and each child thread (an agent chain or a subagent
+ * transcript), whose records carry that thread.
  */
-export function sessionMessageStore(options: SessionLogView) {
-  const { writer } = options
-  const other = logMessageStore({
-    store: options.store,
-    ...(options.project ? { project: options.project } : {}),
-    ...(options.tenantId !== undefined ? { tenantId: options.tenantId } : {}),
-  })
+export function sessionMessageStore({ writer }: SessionLogView) {
   const messages: MessageStore = {
-    loadThread: async (threadId: string) =>
-      threadId === writer.threadId
-        ? [...writer.state.messages]
-        : other.loadThread(threadId),
+    loadThread: async (threadId: string) => [
+      ...writer.stateOf(threadId).messages,
+    ],
     saveThread: (threadId, list) =>
-      threadId === writer.threadId
-        ? writer.commit({ messages: list })
-        : other.saveThread(threadId, list),
+      writer.commit({
+        messages: list,
+        ...(threadId === writer.threadId ? {} : { thread: threadId }),
+      }),
   }
   return messages
 }
@@ -2080,10 +2111,12 @@ export function engineMessageStore(options: SessionLogView) {
 
 /**
  * A `MessageStore` view of a session log, for a reader outside a session
- * (for example `reconstructChat`). `loadThread` folds the log. `saveThread`
- * appends the change as one transcript record, with no owner: the store
- * refuses it on a log that a host acquired. The logs of subagent children
- * have no owner.
+ * (for example `reconstructChat`). Each thread id is the root thread of a
+ * session tree, whose log it reads. A child thread (an agent chain or a
+ * subagent run) is in the log of its root: read it through `host.observe`.
+ * `loadThread` folds the log. `saveThread` appends the change as one
+ * transcript record, with no owner: the store refuses it on a log that a
+ * host acquired.
  *
  * @example
  * ```ts
@@ -2094,11 +2127,6 @@ export function logMessageStore(options: {
   store: LogStore
   project?: ProjectOptions
   /**
-   * Read the threads of this log: the `logId` of `host.open`. Default: each
-   * thread is its own log.
-   */
-  logId?: string
-  /**
    * The tenant of the threads: the `principal.tenantId` of `host.open`.
    * Default: the default tenant.
    */
@@ -2106,18 +2134,14 @@ export function logMessageStore(options: {
 }) {
   const { store, project, tenantId } = options
   // ponytail: each read and save folds the whole log of the thread, with no
-  // checkpoint: O(n) per save, so O(n²) over a long child transcript. Pass
-  // `metadata` to loadLogState and write checkpoints here when a child with
-  // many tool phases gets slow.
-  /** The root thread of the log of `threadId`. */
-  const rootOf = (threadId: string) => options.logId ?? threadId
-  const logOf = (threadId: string) =>
-    logIdOf({ tenantId, logId: rootOf(threadId) })
+  // checkpoint: O(n) per save. Pass `metadata` to loadLogState and write
+  // checkpoints here when a long log gets slow.
+  const logOf = (threadId: string) => logIdOf({ tenantId, logId: threadId })
   const load = (threadId: string) =>
     loadLogState({
       store,
       logId: logOf(threadId),
-      rootThread: rootOf(threadId),
+      rootThread: threadId,
       ...(project ? { project } : {}),
     })
   const messages: MessageStore = {
@@ -2131,10 +2155,6 @@ export function logMessageStore(options: {
         const records = transcriptRecord(
           sessionOf(state, threadId).messages,
           list,
-        ).map((record) =>
-          rootOf(threadId) === threadId
-            ? record
-            : { ...record, thread: threadId },
         )
         if (records.length === 0) return
         if (state.newerRecord !== undefined) {

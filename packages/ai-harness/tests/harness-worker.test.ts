@@ -15,6 +15,7 @@ import {
   mockAdapter,
   text,
   toolCall,
+  untilAborted,
   wrapLogStore,
 } from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
@@ -250,6 +251,41 @@ describe('createHarnessWorker', () => {
     await pause()
     expect(looks).toHaveBeenCalledTimes(count)
     await host.close()
+  })
+
+  it('finishes a turn whose host closed with recoverable: true while it ran', async () => {
+    const { a, b } = twoStores()
+    const first = mockAdapter([untilAborted()])
+    const hostA = hostOn(a)
+    const session = await hostA.open(harnessWith(first.adapter), {
+      threadId: THREAD,
+    })
+    void session.send('Go.', { inputId: 'in-1' }).then(
+      () => {},
+      () => {},
+    )
+    await vi.waitFor(() => expect(first.calls).toHaveLength(1))
+
+    // A deploy: host A stops with the turn still running. Its release wakes
+    // a worker at once.
+    await hostA.close({ recoverable: true })
+    expect(await settledRecord(a, 'in-1')).toBeUndefined()
+    const next = mockAdapter([() => text('Done.')])
+    const hostB = hostOn(b)
+    const worker = createHarnessWorker({
+      host: hostB,
+      harnesses: [harnessWith(next.adapter)],
+      pollMs: 10,
+    })
+
+    await vi.waitFor(async () =>
+      expect(await settledRecord(b, 'in-1')).toMatchObject({
+        outcome: 'completed',
+      }),
+    )
+    await worker.stop()
+    expect(next.calls).toHaveLength(1)
+    await hostB.close()
   })
 
   it('refuses a concurrency below 1', () => {

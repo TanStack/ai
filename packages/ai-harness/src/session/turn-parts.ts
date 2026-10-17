@@ -103,6 +103,9 @@ export abstract class SessionTurnParts<
    * view cannot drop the writes of one turn only. The wake makes it durable
    * when the host stops.
    */
+  /** The `step.sleep` calls that wait now. */
+  protected sleeping = 0
+
   protected async sleepUntil({
     writer,
     scheduleId,
@@ -121,7 +124,12 @@ export abstract class SessionTurnParts<
           { type: 'harness.schedule', scheduleId, at: wakeAt },
         ])
       }
-      await waitUntil(wakeAt, signal)
+      this.sleeping += 1
+      try {
+        await waitUntil(wakeAt, signal)
+      } finally {
+        this.sleeping -= 1
+      }
     }
     if (isWaiting()) {
       await writer.append([{ type: 'harness.schedule.done', scheduleId }])

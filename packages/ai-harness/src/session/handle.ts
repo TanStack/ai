@@ -209,6 +209,7 @@ function laterOperation<TSession, TOperation extends Operation<unknown>>({
 const REOPENING_READS: ReadonlySet<PropertyKey> = new Set([
   'transcript',
   'agentTranscript',
+  'logState',
   'entry',
   'settled',
 ])

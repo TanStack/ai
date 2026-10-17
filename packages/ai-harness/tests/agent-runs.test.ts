@@ -6,7 +6,7 @@ import {
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, logMessageStore } from '../src'
+import { createHarnessHost, defineHarness, logIdOf } from '../src'
 import { isRecord } from '../src/utils'
 import {
   after,
@@ -88,8 +88,23 @@ function researching(replies: Parameters<typeof mockAdapter>[0]) {
 }
 
 describe('the thread of an agent run', () => {
-  it('keeps the messages of each background run in a thread of its own', async () => {
+  it('keeps the messages of each background run in a thread of its own, in the log of the root thread', async () => {
     const persistence = memoryPersistence()
+    const log = persistence.stores.log
+    // Every log that the host writes to.
+    const written = new Set<string>()
+    const tracked = {
+      ...persistence,
+      stores: {
+        ...persistence.stores,
+        log: wrapLogStore(log, {
+          append: (write) => {
+            written.add(write.logId)
+            return log.append(write)
+          },
+        }),
+      },
+    }
     const model = mockAdapter([() => text('Drafted.')])
     let thread = ''
     const drafter = defineAgent({
@@ -109,20 +124,27 @@ describe('the thread of an agent run', () => {
         adapter: mockAdapter([]).adapter,
         agents: [drafter],
       }),
-      persistence,
+      tracked,
     )
 
     await session.agents.drafter.start()
 
     expect(thread).toMatch(/^t1:drafter:in-/)
-    // The chain thread has a log of its own, in the default tenant.
-    const saved = JSON.stringify(
-      await logMessageStore({ store: persistence.stores.log }).loadThread(
-        thread,
-      ),
-    )
+    // One log for the whole tree: the chain thread writes to the log of t1.
+    const root = logIdOf({ logId: THREAD })
+    expect([...written]).toEqual([root])
+    const chain = (await log.read({ logId: root }))
+      .map((entry) => entry.record)
+      .filter((record) => record.thread === thread)
+    const saved = JSON.stringify(chain)
     expect(saved).toContain('Draft it.')
     expect(saved).toContain('Drafted.')
+    expect(await log.read({ logId: logIdOf({ logId: thread }) })).toEqual([])
+    // The transcript of the root thread does not have the chain messages,
+    // only the note of the result.
+    expect(JSON.stringify(await session.transcript())).not.toContain(
+      'Draft it.',
+    )
     await host.close()
   })
 })

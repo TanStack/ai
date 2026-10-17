@@ -17,12 +17,7 @@ import type {
   GenerationRunStore,
   LogStore,
 } from '@tanstack/ai-persistence'
-import type {
-  InputState,
-  LogViewHooks,
-  LogWriter,
-  ProjectOptions,
-} from '../log'
+import type { InputState, LogViewHooks, LogWriter } from '../log'
 import type { ConfigOption } from '../config'
 import type { SessionUsage } from '../usage'
 import type { AgentInputOf, AgentResultOf, AnyAgent } from '../agents'
@@ -257,17 +252,14 @@ export interface SessionDependencies {
   /** The session log. */
   log: {
     store: LogStore
-    project?: ProjectOptions
     /** The view of this session in its shared log. */
     open: (threadId: string, hooks: LogViewHooks) => Promise<LogWriter>
   }
   /**
-   * The log of the session: the `logId` of `host.open`, else the thread id.
-   * The records of that log with no `thread` field belong to the thread
-   * with this id.
+   * The id of the log of the session in the store: its tenant and its
+   * thread id (see `logIdOf`). The records of the log with no `thread`
+   * field belong to this thread. Its child threads write to it too.
    */
-  logId: string
-  /** The id of that log in the store, with the tenant. See `logIdOf`. */
   storeLogId: string
   /** The `promptCache` of `host.open()`. It overrides the harness value. */
   promptCache?: PromptCacheOptions

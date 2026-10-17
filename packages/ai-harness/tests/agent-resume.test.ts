@@ -108,7 +108,7 @@ async function stopDuringAgent(options: {
     threadId: THREAD,
     principal: alice,
   })
-  return { sessionB, hostB, inputId, effects, agentModel, main, stores }
+  return { sessionB, hostB, inputId, effects, agentModel, main, stores, log }
 }
 
 describe('a background agent with resume: true', () => {
@@ -121,6 +121,16 @@ describe('a background agent with resume: true', () => {
     expect(await run.sessionB.settled(run.inputId)).toMatchObject({
       outcome: 'completed',
     })
+    // The chain thread of the run is in the log of the root thread, on both
+    // hosts: one thread stamp, and no log of its own.
+    const threads = new Set(
+      (await run.log.read({ logId: LOG })).flatMap((entry) =>
+        typeof entry.record.thread === 'string' ? [entry.record.thread] : [],
+      ),
+    )
+    expect([...threads]).toEqual([expect.stringMatching(/^t1:worker:in-/)])
+    const [chain = ''] = threads
+    expect(await run.log.read({ logId: logIdOf({ logId: chain }) })).toEqual([])
     // The step and the finished tool call did not run again.
     expect(run.effects).toEqual(['reserve', 'lookup'])
     // The model continues from the saved transcript, with the tool result.
