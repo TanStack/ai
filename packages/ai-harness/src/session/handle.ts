@@ -486,6 +486,14 @@ export function sessionHandle<THarness extends AnyHarness>({
       updateEntry: (update: Parameters<Session<THarness>['updateEntry']>[0]) =>
         acting('configure', (target) => target.updateEntry(update)),
       reload: () => acting('configure', (target) => target.reload()),
+      // A schedule needs the action of the input it runs later.
+      schedule: (options: Parameters<Session<THarness>['schedule']>[0]) =>
+        acting(actionOf(options.input), (target) =>
+          target.schedule(as(options)),
+        ),
+      cancelSchedule: (
+        options: Parameters<Session<THarness>['cancelSchedule']>[0],
+      ) => acting('cancel', (target) => target.cancelSchedule(options)),
       events,
       close,
     }),

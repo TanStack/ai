@@ -27,7 +27,12 @@ import type { ConfigOption } from '../config'
 import type { SessionUsage } from '../usage'
 import type { AgentInputOf, AgentResultOf, AnyAgent } from '../agents'
 import type { AnyHarness, HarnessAgentsOf } from '../define'
-import type { HarnessPersistence, Retention, SessionIndexWriter } from '../host'
+import type {
+  HarnessPersistence,
+  Retention,
+  SessionIndexWriter,
+  SubmitInput,
+} from '../host'
 import type { PluginLifetime } from '../plugins'
 import type { HostPlugins } from '../host-plugins'
 import type {
@@ -44,6 +49,21 @@ import type {
   UserInput,
   WaitingInput,
 } from '../types'
+
+/** Options for `session.schedule`. */
+export interface ScheduleOptions {
+  /** When the input runs, in epoch milliseconds. A time that passed runs at once. */
+  at: number
+  /** The input to run then. Any input that `host.submit` takes. */
+  input: SubmitInput
+  /**
+   * The id of the schedule, for `cancelSchedule`. A second call with the
+   * id of a schedule that waits writes nothing. Default: a new id.
+   */
+  scheduleId?: string
+  /** Who sends the input when it runs. Default: the principal of the open. */
+  principal?: Principal
+}
 
 /** Options for running an agent from code. */
 export interface AgentRunOptions {

@@ -12,16 +12,18 @@ const invoiceDefinition = toolDefinition({
   inputSchema: z.object({ orderId: z.string() }),
 })
 
+/** The run of each step of {@link mapStep}: the key `key:<name>`, epoch 7. */
+const keyOf = (name: string) => ({ idempotencyKey: `key:${name}`, epoch: 7 })
+
 /**
  * A step that remembers values in a map, like the session log does. Each
- * step gets the key `key:<name>` and epoch 7, unless `run` says else.
+ * step gets the key `key:<name>` and epoch 7, unless `run` says else. Each
+ * `sleep` adds the wake time it waits for to `sleeps`, and returns at once.
  */
 function mapStep(
   stored: Map<string, unknown>,
-  run: (name: string) => StepRun = (name) => ({
-    idempotencyKey: `key:${name}`,
-    epoch: 7,
-  }),
+  run: (name: string) => StepRun = keyOf,
+  sleeps: Array<{ name: string; wakeAt: number }> = [],
 ) {
   return createToolStep({
     recorded: (name) =>
@@ -32,6 +34,9 @@ function mapStep(
       stored.set(name, value)
     },
     run,
+    sleep: async (sleep) => {
+      sleeps.push(sleep)
+    },
   })
 }
 
@@ -142,6 +147,62 @@ describe('createToolStep', () => {
     await expect(step.do('same', () => 2)).rejects.toThrow(
       'the step name "same" is already used',
     )
+  })
+})
+
+describe('step.sleep', () => {
+  it('stores the wake time once, so a run again waits for the same time', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: 1_000 })
+    try {
+      const stored = new Map<string, unknown>()
+      const sleeps: Array<{ name: string; wakeAt: number }> = []
+      await mapStep(stored, keyOf, sleeps).sleep({ name: 'day', ms: 500 })
+      // The run again starts later, after a crash.
+      vi.setSystemTime(1_200)
+      await mapStep(stored, keyOf, sleeps).sleep({ name: 'day', ms: 500 })
+
+      expect(stored.get('sleep:day')).toBe(1_500)
+      expect(sleeps).toEqual([
+        { name: 'day', wakeAt: 1_500 },
+        { name: 'day', wakeAt: 1_500 },
+      ])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('refuses a negative time, and stores nothing', async () => {
+    const stored = new Map<string, unknown>()
+
+    await expect(
+      mapStep(stored).sleep({ name: 'back', ms: -1 }),
+    ).rejects.toThrow(RangeError)
+    expect(stored.size).toBe(0)
+  })
+
+  it('waits the full time outside a session', async () => {
+    vi.useFakeTimers({ now: 0 })
+    try {
+      const waited = vi.fn()
+      const nap = durableTool(
+        toolDefinition({ name: 'nap', description: 'Wait, then answer' }),
+        async (_args, { step }) => {
+          await step.sleep({ name: 'nap', ms: 1_000 })
+          waited()
+          return 'awake'
+        },
+      )
+      const execute = nap.execute
+      if (!execute) throw new Error('A durable tool has an execute.')
+
+      const result = execute({}, { toolCallId: 'call-1', emitCustomEvent() {} })
+      await vi.advanceTimersByTimeAsync(999)
+      expect(waited).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      await expect(result).resolves.toBe('awake')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

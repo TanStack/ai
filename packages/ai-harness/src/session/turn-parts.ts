@@ -1,5 +1,6 @@
 import { LogRecordsCapability, provideLogRecords } from '@tanstack/ai'
 import { bindDurable, createToolStep } from '../durable-tool'
+import { waitUntil } from '../utils'
 import { commonPrefix, stepKey } from '../log'
 import { mediaIdOf, mediaOfMessage } from '../media-ref'
 import { LogOwnedElsewhereError } from '../ownership'
@@ -52,7 +53,8 @@ export abstract class SessionTurnParts<
    * The `step` and `append` a durable tool call gets, in `run`. A step value
    * is in the log before `step.do` resolves. Staged records land with the
    * call's stored result, so a call that a crash cuts leaves none of them.
-   * A step does not start after another host took the log.
+   * A step does not start after another host took the log. A `step.sleep`
+   * keeps a wake schedule in the log while it waits (see `sleepUntil`).
    */
   protected durableBinding(
     writer: LogWriter,
@@ -75,12 +77,55 @@ export abstract class SessionTurnParts<
           epoch: run.epoch,
         }
       },
+      sleep: ({ name, wakeAt }) =>
+        this.sleepUntil({
+          writer,
+          scheduleId: `sleep:${toolCallId}:${name}`,
+          wakeAt,
+          signal: run.signal,
+        }),
     })
     const append = (records: ReadonlyArray<LogRecord>) => {
       checkHostRecords(records)
       writer.stage(records, toolCallId)
     }
     return { step, append }
+  }
+
+  /**
+   * Wait for a `step.sleep` until `wakeAt`. While it waits, the log keeps a
+   * wake schedule (no input) with `scheduleId`: a host that stops releases
+   * the log with that wake, so a worker takes the log at the wake time and
+   * recovery runs the call again. The schedule ends when the sleep ends.
+   *
+   * ponytail: the sleep waits in this process, and the host keeps the log
+   * while it waits. It does not end the attempt and free the host: the log
+   * view cannot drop the writes of one turn only. The wake makes it durable
+   * when the host stops.
+   */
+  protected async sleepUntil({
+    writer,
+    scheduleId,
+    wakeAt,
+    signal,
+  }: {
+    writer: LogWriter
+    scheduleId: string
+    wakeAt: number
+    signal: AbortSignal
+  }) {
+    const isWaiting = () => writer.state.thread.schedules.has(scheduleId)
+    if (Date.now() < wakeAt) {
+      if (!isWaiting()) {
+        await writer.append([
+          { type: 'harness.schedule', scheduleId, at: wakeAt },
+        ])
+      }
+      await waitUntil(wakeAt, signal)
+    }
+    if (isWaiting()) {
+      await writer.append([{ type: 'harness.schedule.done', scheduleId }])
+    }
   }
 
   /**

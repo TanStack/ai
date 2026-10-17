@@ -22,6 +22,7 @@ import type {
   GenerationRunStore,
   LogStore,
   MetadataStore,
+  OrphanedLog,
   SessionIndexEntry,
   SessionIndexKey,
   SessionIndexListOptions,
@@ -592,7 +593,7 @@ export interface HarnessHost<P extends Principal = Principal> {
   /**
    * Store an input for a thread, and run nothing. The input waits in the log
    * of the thread until a host owns the log and runs it: the host that runs
-   * the thread now, or a later `resumePending`. Resolves with the receipt:
+   * the thread now, a later `resumePending`, or a `createHarnessWorker`. Resolves with the receipt:
    * `queued`, or `rejected` with `conflict` for an id that another input
    * has.
    *
@@ -613,8 +614,8 @@ export interface HarnessHost<P extends Principal = Principal> {
   submit: (options: SubmitOptions<P>) => Promise<Receipt>
   /**
    * Continue the work that no live host runs. It lists the logs with work
-   * and no live owner (an owner that stopped, or inputs that wait), for a
-   * harness in `harnesses`. It gets each log, opens its thread, recovers the
+   * and no live owner (an owner that stopped, inputs that wait, or a
+   * schedule that is due), for a harness in `harnesses`. It gets each log, opens its thread, recovers the
    * work, and runs the inputs that wait. Two hosts can call it at once: each
    * log goes to one of them. Call it at boot, and from a cron job or a
    * Durable Object alarm. Resolves with the threads it took over.
@@ -918,6 +919,49 @@ export function sessionOfTurn<P extends Principal>(
   return turnFinders.get(host)?.(lookup) ?? Promise.resolve(undefined)
 }
 
+/** A log that a sweep took over, and the end of what the sweep opened. */
+export interface TakenLog {
+  thread: ResumedThread
+  /**
+   * Resolves when the session that the sweep opened closed, or when the app
+   * opened the thread too. At once when the app had the thread open.
+   */
+  released: Promise<void>
+}
+
+/** What `createHarnessWorker` needs of a host. Not public API. */
+export interface HostSweep {
+  /** The logs of the harnesses named in `harnesses` with work and no live owner. */
+  listOrphaned: (query: {
+    limit: number
+    harnesses: ReadonlyArray<string>
+  }) => Promise<Array<OrphanedLog>>
+  /**
+   * Acquire the log of `orphan`, open its thread with `harness`, and take
+   * its work over, as `host.resumePending` does for each log. Resolves
+   * `null` when another host got the log. Rejects when the thread does not
+   * open: the log goes back, so a later sweep tries again.
+   */
+  takeOver: (
+    orphan: OrphanedLog,
+    harness: AnyHarness,
+    close: 'whenIdle' | 'never',
+  ) => Promise<TakenLog | null>
+}
+
+/** The sweep of each host. Not public API. */
+const sweeps = new WeakMap<object, HostSweep>()
+
+/**
+ * @internal The sweep of `host`: what `createHarnessWorker` lists and takes
+ * over.
+ */
+export function sweepOf<P extends Principal>(host: HarnessHost<P>) {
+  const sweep = sweeps.get(host)
+  if (!sweep) throw new Error('Not a host of createHarnessHost.')
+  return sweep
+}
+
 /** What a host keeps for each session key: its handles and its idle timer. */
 interface Hold {
   /** The handles that hold the session now. */
@@ -1182,6 +1226,18 @@ export function createHarnessHost<P extends Principal = Principal>(
    * open by the app takes a key out.
    */
   const sweptOnly = new Set<string>()
+  /**
+   * Called when the session of a key in `sweptOnly` leaves the sweep: it
+   * closed, or the app opened its thread. By key.
+   */
+  const sweepEnds = new Map<string, () => void>()
+  /** The session of `key` left the sweep. */
+  const endSweep = (key: string) => {
+    sweptOnly.delete(key)
+    const end = sweepEnds.get(key)
+    sweepEnds.delete(key)
+    end?.()
+  }
   /** The closes of sessions that left the cache, by key. */
   const closing = new Map<string, Promise<void>>()
   const idleCloseMs = options.lifecycle?.idleCloseMs ?? 60_000
@@ -1244,7 +1300,7 @@ export function createHarnessHost<P extends Principal = Principal>(
     live.delete(key)
     sessions.delete(key)
     statuses.delete(key)
-    sweptOnly.delete(key)
+    endSweep(key)
     cancelIdle(key)
     dropHold(key)
   }
@@ -1394,7 +1450,7 @@ export function createHarnessHost<P extends Principal = Principal>(
       session = undefined
     }
     // The app opened a thread that a sweep opened: it stays open.
-    if (session) sweptOnly.delete(key)
+    if (session) endSweep(key)
     if (!session) {
       makeRoom()
       const logId = openLogId ?? threadId
@@ -1478,6 +1534,49 @@ export function createHarnessHost<P extends Principal = Principal>(
     // The key names the harness, so the session is a session of `harness`.
     // A map of sessions cannot carry a harness type per key.
     return session as Promise<SessionImpl<THarness>>
+  }
+
+  /** See {@link HostSweep.takeOver}. */
+  const takeOver: HostSweep['takeOver'] = async (orphan, harness, close) => {
+    const { logId: storeLogId, harness: name } = orphan
+    // Of two hosts that sweep at once, one gets the log.
+    const epoch = await ownership.acquire(storeLogId, name)
+    if (epoch === null) return null
+    // The store id of a log is its tenant and its root thread.
+    const { tenantId, logId: threadId } = parseLogId(storeLogId)
+    const key = sessionKey(name, tenantId, threadId)
+    // Only a session that this sweep opens closes at once when idle. A
+    // session that the app has open stays open. No handle holds the
+    // session, so it closes on idle in any case.
+    const isOwn = close === 'whenIdle' && !sessions.has(key)
+    let released = Promise.resolve()
+    if (isOwn) {
+      sweptOnly.add(key)
+      // Before the open: a session with no work closes in the open.
+      const ended = new Promise<void>((resolve) => sweepEnds.set(key, resolve))
+      released = ended.then(() => closing.get(key))
+    }
+    try {
+      const session = await openSession(harness, { threadId }, tenantId)
+      // Also a session that was open already: it recovers again. The log
+      // goes back when the thread has no work.
+      if (!(await session.takeOver())) {
+        // Another host got the log in between.
+        await ownership.release(storeLogId, epoch)
+        return null
+      }
+    } catch (error) {
+      // The log goes back, so the next sweep tries again.
+      if (isOwn) endSweep(key)
+      await ownership.release(storeLogId, epoch).catch(() => {})
+      throw error
+    }
+    const thread: ResumedThread = {
+      threadId,
+      harness: name,
+      ...(tenantId !== undefined ? { tenantId } : {}),
+    }
+    return { thread, released }
   }
 
   /**
@@ -1995,42 +2094,16 @@ export function createHarnessHost<P extends Principal = Principal>(
       })
       const opened: Array<ResumedThread> = []
       const failures: Array<unknown> = []
-      for (const { logId: storeLogId, harness: name } of orphaned) {
-        const harness = byName.get(name)
+      for (const orphan of orphaned) {
+        const harness = byName.get(orphan.harness)
         if (!harness) continue
-        // Of two hosts that sweep at once, one gets the log.
-        const epoch = await ownership.acquire(storeLogId, name)
-        if (epoch === null) continue
-        // The store id of a log is its tenant and its root thread.
-        const { tenantId, logId: threadId } = parseLogId(storeLogId)
-        const key = sessionKey(name, tenantId, threadId)
-        // Only a session that this sweep opens closes at once when idle. A
-        // session that the app has open stays open. No handle holds the
-        // session, so it closes on idle in any case.
-        const isOwn = close === 'whenIdle' && !sessions.has(key)
-        if (isOwn) sweptOnly.add(key)
         try {
-          const session = await openSession(harness, { threadId }, tenantId)
-          // Also a session that was open already: it recovers again. The
-          // log goes back when the thread has no work.
-          if (!(await session.takeOver())) {
-            // Another host got the log in between.
-            await ownership.release(storeLogId, epoch)
-            continue
-          }
+          const taken = await takeOver(orphan, harness, close)
+          if (taken) opened.push(taken.thread)
         } catch (error) {
-          // One thread that cannot open must not stop the sweep. The log
-          // goes back, so the next sweep tries again.
-          sweptOnly.delete(key)
-          await ownership.release(storeLogId, epoch).catch(() => {})
+          // One thread that cannot open must not stop the sweep.
           failures.push(error)
-          continue
         }
-        opened.push({
-          threadId,
-          harness: name,
-          ...(tenantId !== undefined ? { tenantId } : {}),
-        })
       }
       if (failures.length > 0) {
         // `opened` says which threads did start.
@@ -2336,6 +2409,10 @@ export function createHarnessHost<P extends Principal = Principal>(
     },
   }
   if (access) accesses.set(host, access)
+  sweeps.set(host, {
+    listOrphaned: (query) => logStore.listOrphaned(query),
+    takeOver,
+  })
   counters.set(host, () => ({
     sessions: sessions.size,
     handles: [...holds.values()].reduce(

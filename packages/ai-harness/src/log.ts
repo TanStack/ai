@@ -1129,6 +1129,7 @@ export class SharedLog<TState = unknown> {
   private writesSinceCheckpoint = 0
   private readonly unsubscribe: () => void
   private readonly stopLost: () => void
+  private readonly stopWake: () => void
 
   constructor(options: {
     store: LogStore
@@ -1184,6 +1185,23 @@ export class SharedLog<TState = unknown> {
     this.stopLost = options.ownership.onLost(options.logId, (error) =>
       this.lose(error),
     )
+    this.stopWake = options.ownership.setWake(options.logId, () =>
+      this.wakeInMs(),
+    )
+  }
+
+  /**
+   * The milliseconds until the first schedule of any session of the log is
+   * due (0 when one is due now), or `undefined` when the log has none. A
+   * release gives it to the store, so a worker takes the log then.
+   */
+  private wakeInMs() {
+    const sessions = [...this.state.sessions.values()]
+    const times = sessions.flatMap((session) =>
+      [...session.thread.schedules.values()].map((schedule) => schedule.at),
+    )
+    if (times.length === 0) return undefined
+    return Math.max(0, Math.min(...times) - Date.now())
   }
 
   /**
@@ -1346,6 +1364,7 @@ export class SharedLog<TState = unknown> {
         this.idle = true
         this.unsubscribe()
         this.stopLost()
+        this.stopWake()
         this.onIdle()
       })
   }

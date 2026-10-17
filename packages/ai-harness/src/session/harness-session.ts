@@ -21,17 +21,20 @@ import {
   CONTROL_OPS,
   hasFinalAnswer,
   loggedExtras,
+  offeredInputRecord,
   SHUTDOWN_REASON,
+  storedPrincipal,
   tapFeed,
   toolCallOf,
 } from './helpers'
 import { SessionTurn } from './turn'
+import { MAX_TIMER_MS } from '../utils'
 import type { ModelMessage } from '@tanstack/ai'
 import type { InputState, LogWriter } from '../log'
 import type { AnyHarness } from '../define'
 import type { RecoverContext, RecoverDecision } from '../turn'
 import type { SettlementOutcome, TurnOverrides } from '../types'
-import type { WaitingSteer } from './types'
+import type { ScheduleOptions, WaitingSteer } from './types'
 
 /**
  * A handle to a live harness session: one conversation (`threadId`) with its
@@ -94,6 +97,10 @@ export class SessionImpl<
 > extends SessionTurn<THarness> {
   /** The recoveries that run. The host keeps the log while one runs. */
   private recovering = 0
+  /** The timer of the next schedule of this thread. See `armSchedules`. */
+  private scheduleTimer: ReturnType<typeof setTimeout> | undefined
+  /** The schedule writes and runs, one at a time. */
+  private scheduling: Promise<void> = Promise.resolve()
 
   /** This session, typed as the public type, for the hooks of each layer. */
   protected override self(): HarnessSession<THarness> {
@@ -123,6 +130,7 @@ export class SessionImpl<
       // Inputs that other hosts offered while no host owned the log.
       this.acceptsOffers = true
       void this.drainOffers()
+      this.armSchedules()
     } catch (error) {
       // A session that fails to open stops what it started: the plugins and
       // the turns that recovery queued or runs. It stops them as on a crash,
@@ -135,6 +143,10 @@ export class SessionImpl<
 
   /** Also waits for the last append of the log, so a reopen reads it. */
   override async close(options?: { recoverable?: boolean }): Promise<void> {
+    // The log keeps the schedules. The release of the log gives the store
+    // their wake time.
+    clearTimeout(this.scheduleTimer)
+    this.scheduleTimer = undefined
     await super.close(options)
     // A recovery in flight queues turns after the stop: wait for it, then
     // drop what it queued.
@@ -257,15 +269,180 @@ export class SessionImpl<
 
   /**
    * @internal For a sweep that acquired the log of this session: recover
-   * the work, apply the offers, then give the log back when the thread has
-   * no work. Resolves `false` when another live host owns the log.
+   * the work, apply the offers, run the schedules that are due, then give
+   * the log back when the thread has no work. Resolves `false` when another
+   * live host owns the log.
    */
   async takeOver(): Promise<boolean> {
     await this.recover()
+    // A log that a worker took for its wake has a schedule that is due.
+    await this.runDueSchedules()
     const isOwner = await this.writer.own()
     // A recovery with no work did not write, so the log goes back here.
     await this.writer.rest()
     return isOwner
+  }
+
+  /**
+   * Run `input` at the time `at` (epoch ms), on the host that owns the log
+   * then. The log keeps the schedule, so it runs once, also after a restart
+   * or on another machine: when no host has the thread open, the log store
+   * wakes a worker at that time (see `createHarnessWorker`). Resolves with
+   * the id of the schedule when the log has it.
+   *
+   * Throws `LogOwnedElsewhereError` when another live host owns the log of
+   * the thread, and a `RangeError` for an `at` that is not a finite number.
+   *
+   * @example
+   * ```ts
+   * const { scheduleId } = await session.schedule({
+   *   at: Date.now() + 60 * 60 * 1000,
+   *   input: { op: 'prompt', message: 'Write the daily summary.' },
+   * })
+   * ```
+   */
+  async schedule(options: ScheduleOptions): Promise<{ scheduleId: string }> {
+    const { at, input } = options
+    if (!Number.isFinite(at)) {
+      throw new RangeError(`schedule: at must be a finite number, got ${at}.`)
+    }
+    const scheduleId = options.scheduleId ?? createScheduleId()
+    const principal = options.principal ?? this.principal
+    await this.inSchedules(async () => {
+      if (this.writer.state.thread.schedules.has(scheduleId)) return
+      await this.writer.append([
+        {
+          type: 'harness.schedule',
+          scheduleId,
+          at,
+          input,
+          ...storedPrincipal(principal),
+        },
+      ])
+    })
+    this.armSchedules()
+    return { scheduleId }
+  }
+
+  /**
+   * Stop a schedule that did not run yet. A schedule that ran, or an id that
+   * the thread does not know, changes nothing. Throws
+   * `LogOwnedElsewhereError` when another live host owns the log.
+   *
+   * @example
+   * ```ts
+   * await session.cancelSchedule({ scheduleId })
+   * ```
+   */
+  async cancelSchedule({ scheduleId }: { scheduleId: string }): Promise<void> {
+    await this.inSchedules(async () => {
+      if (!this.writer.state.thread.schedules.has(scheduleId)) return
+      await this.writer.append([{ type: 'harness.schedule.done', scheduleId }])
+    })
+    this.armSchedules()
+  }
+
+  /** Run `task` after the schedule tasks before it. */
+  private inSchedules(task: () => Promise<void>) {
+    const run = this.scheduling.then(task)
+    this.scheduling = run.catch(() => {})
+    return run
+  }
+
+  /**
+   * Run the schedules that are due now, and set the timer for the first one
+   * that is not. When the timer fires, the session runs the schedules that
+   * are due, if this host can own the log. With `isRetry`, a schedule that
+   * is still due (another host owns the log, or a write failed) waits
+   * `SCHEDULE_RETRY_MS` before the next try.
+   */
+  private armSchedules({ isRetry = false }: { isRetry?: boolean } = {}) {
+    clearTimeout(this.scheduleTimer)
+    this.scheduleTimer = undefined
+    if (this.closing || this.logWriter === undefined) return
+    const schedules = [...this.writer.state.thread.schedules.values()]
+    if (schedules.length === 0) return
+    const first = Math.min(...schedules.map((schedule) => schedule.at))
+    const left = first - Date.now()
+    if (left <= 0 && !isRetry) {
+      // At once, so the thread is busy before the host can close it on idle.
+      this.runDueSchedules().catch((error: unknown) =>
+        this.warnSession('harness:schedules', error),
+      )
+      return
+    }
+    // A longer wait fires early, finds nothing due, and sets the timer again.
+    const delay = Math.min(left > 0 ? left : SCHEDULE_RETRY_MS, MAX_TIMER_MS)
+    const timer = setTimeout(() => {
+      this.scheduleTimer = undefined
+      this.runDueSchedules().catch((error: unknown) =>
+        this.warnSession('harness:schedules', error),
+      )
+    }, delay)
+    // The log store wakes a worker for the schedule, so the timer must not
+    // keep a process alive.
+    if (typeof timer === 'object' && 'unref' in timer) timer.unref()
+    this.scheduleTimer = timer
+  }
+
+  /**
+   * Run the schedules of this thread that are due, the first one first, and
+   * set the timer for the next one. Only the owner of the log runs them:
+   * when another live host owns it, that host runs them.
+   */
+  protected runDueSchedules(): Promise<void> {
+    // The thread is busy while it runs, so it does not close on idle.
+    return this.admitting(() =>
+      this.inSchedules(() => this.fireDueSchedules()),
+    ).finally(() => this.armSchedules({ isRetry: true }))
+  }
+
+  /**
+   * Each due schedule with an input offers the input, with the input id
+   * `schedule:<scheduleId>`, to the input lane, and then writes its done
+   * record. The store keeps each input id once: when a crash comes between
+   * the two writes, the next owner offers the same input again, gets a
+   * duplicate, and the input still runs once. A due wake (a `step.sleep`)
+   * writes its done record, and the session recovers the run that waits.
+   */
+  private async fireDueSchedules() {
+    const { writer } = this
+    const now = Date.now()
+    const due = [...writer.state.thread.schedules]
+      .filter(([, schedule]) => schedule.at <= now)
+      .sort(([, left], [, right]) => left.at - right.at)
+    const isStopped = () =>
+      this.closing !== undefined || this.logFailure !== undefined
+    if (due.length === 0 || isStopped()) return
+    if (!(await writer.own())) return
+    let hasWake = false
+    for (const [scheduleId, schedule] of due) {
+      if (isStopped() || writer.fenced) return
+      if (schedule.input) {
+        const inputId = `schedule:${scheduleId}`
+        const offered = await writer.offer(
+          inputId,
+          offeredInputRecord({
+            inputId,
+            input: schedule.input,
+            principal: schedule.principal,
+          }),
+        )
+        if (offered === 'conflict') {
+          this.warnSession(
+            'harness:schedules',
+            `Schedule ${scheduleId} did not run: another input has the id ${inputId}.`,
+          )
+        }
+      } else {
+        hasWake = true
+      }
+      await writer.append([{ type: 'harness.schedule.done', scheduleId }])
+    }
+    if (hasWake) await this.recover()
+    await this.drainOffers()
+    // A schedule that started no work gives the log back.
+    void writer.rest()
   }
 
   /**
@@ -947,6 +1124,14 @@ export class SessionImpl<
       })
     }
   }
+}
+
+/** How long a schedule that could not run waits before the next try. */
+const SCHEDULE_RETRY_MS = 1_000
+
+/** A new schedule id. */
+function createScheduleId() {
+  return `sched-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
 }
 
 /**

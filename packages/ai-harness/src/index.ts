@@ -95,6 +95,8 @@ export type {
 } from './agents'
 
 export { createHarnessHost } from './host'
+export { createHarnessWorker } from './harness-worker'
+export type { HarnessWorkerPoolOptions } from './harness-worker'
 export type {
   ForkSessionOptions,
   HarnessHost,
@@ -141,6 +143,7 @@ export type {
   AgentRunOptions,
   AgentStartOptions,
   DynamicAgentHandle,
+  ScheduleOptions,
   SessionDescription,
   SessionInspection,
   SessionSnapshot,

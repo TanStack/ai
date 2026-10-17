@@ -53,6 +53,11 @@ export class HostOwnership {
    * for its release, so a late release never gives up a new acquire.
    */
   private readonly releasing = new Map<string, Promise<void>>()
+  /**
+   * How long until each log has work again, by store log id. A release
+   * passes it to the store as `wakeInMs`, so a worker takes the log then.
+   */
+  private readonly wakes = new Map<string, () => number | undefined>()
   private timer: ReturnType<typeof setInterval> | undefined
   /** A renewal round runs. The next tick skips, so rounds never overlap. */
   private renewing = false
@@ -101,14 +106,21 @@ export class HostOwnership {
 
   /**
    * Give `logId` up. With `epoch`, only that ownership: a later acquire
-   * keeps the log. A log that this host does not own does nothing.
+   * keeps the log. A log that this host does not own does nothing. The
+   * store gets the wake time of {@link setWake}, when the log has one.
    */
   release(logId: string, epoch = this.owned.get(logId)) {
     const isOwned = epoch !== undefined && this.owned.get(logId) === epoch
     if (!isOwned) return Promise.resolve()
     this.forget(logId)
+    const wakeInMs = this.wakes.get(logId)?.()
     const released = this.store
-      .release({ logId, ownerId: this.ownerId, epoch })
+      .release({
+        logId,
+        ownerId: this.ownerId,
+        epoch,
+        ...(wakeInMs !== undefined ? { wakeInMs } : {}),
+      })
       .finally(() => {
         if (this.releasing.get(logId) === released) {
           this.releasing.delete(logId)
@@ -116,6 +128,18 @@ export class HostOwnership {
       })
     this.releasing.set(logId, released)
     return released
+  }
+
+  /**
+   * Give each release of `logId` the time until the log has work again:
+   * `wakeIn` returns milliseconds, or `undefined` for no wake. Returns a
+   * function that stops it.
+   */
+  setWake(logId: string, wakeIn: () => number | undefined) {
+    this.wakes.set(logId, wakeIn)
+    return () => {
+      if (this.wakes.get(logId) === wakeIn) this.wakes.delete(logId)
+    }
   }
 
   /**

@@ -6,7 +6,7 @@ import type {
   ToolDefinition,
   ToolExecutionContext,
 } from '@tanstack/ai'
-import { jsonCopy } from './utils'
+import { jsonCopy, waitUntil } from './utils'
 import type { LogRecord } from '@tanstack/ai-persistence'
 
 /** What the `fn` of one `step.do` gets. */
@@ -49,6 +49,25 @@ export interface ToolStep {
    * ```
    */
   do: <T>(name: string, fn: (step: StepRun) => T | Promise<T>) => Promise<T>
+  /**
+   * Wait `ms` milliseconds, once for `name` in this tool call. The first
+   * run stores the wake time in the session log. A run again after a crash
+   * or a restart, on any host, waits only for the time that is left, and a
+   * sleep whose time passed returns at once. While it waits, the log keeps
+   * a wake, so a host that stops lets a worker continue the call at the
+   * wake time (see `createHarnessWorker`).
+   *
+   * The name is a step name: it must be the same on every run, and not the
+   * name of a `do` step of this call. Outside a session, it waits `ms`.
+   *
+   * @example
+   * ```ts
+   * await step.do('send-reminder', () => mail.send(reminder))
+   * await step.sleep({ name: 'wait-a-day', ms: 24 * 60 * 60 * 1000 })
+   * await step.do('send-follow-up', () => mail.send(followUp))
+   * ```
+   */
+  sleep: (options: { name: string; ms: number }) => Promise<void>
 }
 
 /** What the `execute` of a {@link durableTool} gets. */
@@ -75,17 +94,32 @@ export const DURABLE_EXECUTE: unique symbol = Symbol(
   'tanstack.ai-harness.durable-execute',
 )
 
+/** The step name that keeps the wake time of `step.sleep({ name })`. */
+const sleepStepName = (name: string) => `sleep:${name}`
+
 /**
  * @internal Steps over `recorded` values, stored with `record`. `run` gives
  * the `fn` of a step what it gets, and throws when the step must not start.
+ * `sleep` waits until the stored wake time of a `step.sleep`.
  */
 export function createToolStep(options: {
   recorded: (name: string) => { found: true; value: unknown } | { found: false }
   record: (name: string, value: unknown) => Promise<void>
   run: (name: string) => StepRun
+  sleep: (sleep: { name: string; wakeAt: number }) => Promise<void>
 }) {
   const used = new Set<string>()
   const step = {
+    sleep: async ({ name, ms }: { name: string; ms: number }) => {
+      if (!Number.isFinite(ms) || ms < 0) {
+        throw new RangeError(
+          `step.sleep: ms must be 0 or more, got ${ms} for ${JSON.stringify(name)}.`,
+        )
+      }
+      // Stored once, so a run again waits for the same time.
+      const wakeAt = await step.do(sleepStepName(name), () => Date.now() + ms)
+      await options.sleep({ name, wakeAt })
+    },
     do: async <T>(name: string, fn: (step: StepRun) => T | Promise<T>) => {
       if (used.has(name)) {
         throw new Error(
@@ -187,6 +221,7 @@ export function durableTool<
         recorded: () => ({ found: false }),
         record: async () => {},
         run: stepRunWithoutSession,
+        sleep: ({ wakeAt }) => waitUntil(wakeAt, context?.abortSignal),
       }),
       append: noLog,
     }),

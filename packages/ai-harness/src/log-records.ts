@@ -85,10 +85,16 @@ export interface NamedTurnOverrides {
   liveOnly?: Array<'adapter' | 'tools'>
 }
 
-/** An input that the session runs at `at` (epoch ms). */
+/**
+ * Work that the session does at `at` (epoch ms). With `input`, the session
+ * runs the input then, as `principal`. With no `input`, it is a wake: a
+ * `step.sleep` waits for it, and the host that owns the log then recovers
+ * the run.
+ */
 export type ScheduleRecord = {
   at: number
-  input: HarnessInput
+  input?: HarnessInput
+  principal?: RecordPrincipal
 }
 
 /**
@@ -318,10 +324,15 @@ export function foldThreadRecord(state: ThreadStateFold, record: LogRecord) {
         ),
       }
     case 'harness.schedule': {
-      const { scheduleId, at, input } = record
+      const { scheduleId, at, input, principal } = record
+      const schedule: ScheduleRecord = {
+        at,
+        ...(input ? { input } : {}),
+        ...(principal ? { principal } : {}),
+      }
       return {
         ...state,
-        schedules: withEntry(state.schedules, scheduleId, { at, input }),
+        schedules: withEntry(state.schedules, scheduleId, schedule),
       }
     }
     case 'harness.schedule.done':

@@ -698,6 +698,8 @@ export interface MemoryLogBackend {
  * listeners of both.
  */
 class LogBackendState {
+  /** The store clock, in epoch milliseconds. */
+  readonly now: () => number
   readonly logs = new Map<string, KeptLog>()
   readonly snapshots = new Map<string, LogSnapshot>()
   readonly owners = new Map<string, Ownership>()
@@ -709,6 +711,10 @@ class LogBackendState {
   readonly lanes = new Map<string, Lane>()
   /** The listeners of each store instance on this backend. */
   readonly instances = new Set<Listeners>()
+
+  constructor(now: () => number) {
+    this.now = now
+  }
 
   /**
    * Call the listeners of `logId` on every store instance. The write is done,
@@ -848,7 +854,7 @@ class MemoryLogStore implements LogStore {
     affinity,
   }: Parameters<LogStore['acquire']>[0]) {
     assertMs({ name: 'ttlMs', value: ttlMs, allowZero: false })
-    const now = Date.now()
+    const now = this.backend.now()
     const owner = this.backend.owners.get(logId)
     const isLive =
       owner !== undefined && !owner.released && owner.expiresAt > now
@@ -881,7 +887,7 @@ class MemoryLogStore implements LogStore {
     // An expired owner can renew. A new acquire would have changed the epoch.
     const owner = this.heldBy(logId, ownerId, epoch)
     if (owner === undefined) return false
-    owner.expiresAt = Date.now() + ttlMs
+    owner.expiresAt = this.backend.now() + ttlMs
     return true
   }
 
@@ -897,7 +903,7 @@ class MemoryLogStore implements LogStore {
     const owner = this.heldBy(logId, ownerId, epoch)
     if (owner === undefined) return
     owner.released = true
-    if (wakeInMs !== undefined) owner.wakeAt = Date.now() + wakeInMs
+    if (wakeInMs !== undefined) owner.wakeAt = this.backend.now() + wakeInMs
   }
 
   async setAffinity({
@@ -917,7 +923,7 @@ class MemoryLogStore implements LogStore {
     harnesses,
     affinity,
   }: Parameters<LogStore['listOrphaned']>[0]) {
-    const now = Date.now()
+    const now = this.backend.now()
     // A log with offers can have no ownership record, so look in both maps.
     const logIds = new Set([
       ...this.backend.owners.keys(),
@@ -991,7 +997,7 @@ class MemoryLogStore implements LogStore {
     }
     inputs.set(inputId, {
       record: copy,
-      offeredAt: Date.now(),
+      offeredAt: this.backend.now(),
       consumed: false,
     })
     // The latest offer names the harness of the log.
@@ -1107,7 +1113,9 @@ class MemoryLogStore implements LogStore {
 export function memoryLogStore({
   backend,
 }: { backend?: MemoryLogBackend } = {}): LogStore {
-  if (backend === undefined) return new MemoryLogStore(new LogBackendState())
+  if (backend === undefined) {
+    return new MemoryLogStore(new LogBackendState(() => Date.now()))
+  }
   const state = backendStates.get(backend)
   if (state === undefined) {
     throw new TypeError(
@@ -1136,12 +1144,24 @@ export function memoryLogStore({
  * })
  * // The listener on hostB ran.
  * ```
+ *
+ * @param options.now - The store clock, in epoch milliseconds. Ownership
+ *   expiry, wake times, and offer times use it. Default: `Date.now()`. Give a
+ *   test clock to move time in a test.
+ *
+ * @example
+ * ```ts
+ * let clock = 0
+ * const backend = memoryLogBackend({ now: () => clock })
+ * // A wake time of 5 s from now is due after this:
+ * clock += 5_000
+ * ```
  */
-export function memoryLogBackend() {
+export function memoryLogBackend({ now }: { now?: () => number } = {}) {
   const handle: MemoryLogBackend = Object.freeze({
     kind: 'memory-log-backend',
   })
-  backendStates.set(handle, new LogBackendState())
+  backendStates.set(handle, new LogBackendState(now ?? (() => Date.now())))
   return handle
 }
 

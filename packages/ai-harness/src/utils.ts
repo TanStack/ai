@@ -23,3 +23,35 @@ export function jsonCopy(value: unknown) {
     return undefined
   }
 }
+
+/**
+ * The longest delay of one `setTimeout` (about 24.8 days). A longer wait
+ * waits in parts.
+ */
+export const MAX_TIMER_MS = 2_147_483_647
+
+/**
+ * Resolve at the epoch time `until`, or reject with the reason of `signal`
+ * when it aborts first.
+ */
+export async function waitUntil(until: number, signal?: AbortSignal) {
+  for (;;) {
+    signal?.throwIfAborted()
+    const left = until - Date.now()
+    if (left <= 0) return
+    await new Promise<void>((resolve, reject) => {
+      const onAbort = () => {
+        clearTimeout(timer)
+        reject(signal?.reason)
+      }
+      const timer = setTimeout(
+        () => {
+          signal?.removeEventListener('abort', onAbort)
+          resolve()
+        },
+        Math.min(left, MAX_TIMER_MS),
+      )
+      signal?.addEventListener('abort', onAbort, { once: true })
+    })
+  }
+}
