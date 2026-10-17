@@ -63,6 +63,7 @@ export interface AcpAgentModule {
     principal?: P
   }) => {
     closed: Promise<unknown>
+    close: () => void
   }
 }
 

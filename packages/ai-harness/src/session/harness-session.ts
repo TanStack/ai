@@ -32,8 +32,10 @@ import type { HarnessInput, SettlementOutcome } from '../types'
 import type { WaitingSteer } from './types'
 
 /**
- * A live harness session: one conversation (`threadId`) with its plugins,
- * operations, inbox, and event stream. Open one with `host.open()`.
+ * A handle to a live harness session: one conversation (`threadId`) with its
+ * plugins, operations, inbox, and event stream. Open one with `host.open()`.
+ * Each open gives its own handle. Release it with `close()`, or with
+ * `await using`, when you are done.
  */
 export interface HarnessSession<
   THarness extends AnyHarness = AnyHarness,
@@ -47,7 +49,39 @@ export interface HarnessSession<
   | 'checked'
   | 'cancelWorkOf'
   | 'agentHandle'
-> {}
+  | 'isIdle'
+  | 'isClosing'
+  // A handle closes itself, not the session.
+  | 'close'
+> {
+  /**
+   * Release this handle. The session stays open while another handle holds
+   * it. When no handle holds it and it is idle, the host closes it after
+   * `lifecycle.idleCloseMs`. A second call does nothing. A call on the handle
+   * after the session closed opens it again. To stop the work of every
+   * session, call `host.close()`.
+   *
+   * @example
+   * ```ts
+   * const session = await host.open(assistant, { threadId })
+   * try {
+   *   await session.send('Hello.')
+   * } finally {
+   *   await session.close()
+   * }
+   * ```
+   */
+  close: () => Promise<void>
+  /**
+   * `close()`, for `await using`.
+   *
+   * @example
+   * ```ts
+   * await using session = await host.open(assistant, { threadId })
+   * ```
+   */
+  [Symbol.asyncDispose]: () => Promise<void>
+}
 
 /**
  * The session class. The package does not export it: apps get the
@@ -59,6 +93,14 @@ export class SessionImpl<
   /** This session, typed as the public type, for the hooks of each layer. */
   protected override self(): HarnessSession<THarness> {
     return this
+  }
+
+  /**
+   * @internal Close the session, for `await using` on the class. A handle of
+   * `host.open` releases itself instead.
+   */
+  [Symbol.asyncDispose](): Promise<void> {
+    return this.close()
   }
 
   /** @internal Mount session plugins and replay inputs left in the inbox. */
@@ -118,11 +160,11 @@ export class SessionImpl<
   protected async mountSessionPlugins(): Promise<void> {
     this.plugins = this.harness.plugins?.() ?? []
     this.sessionPlugins = await mountPlugins(
-      this.plugins.filter(
-        (plugin) => (plugin.lifetime ?? 'session') === 'session',
-      ),
+      // The session plugins and the host plugins. A turn mounts the rest.
+      this.plugins.filter((plugin) => plugin.lifetime !== 'turn'),
       {
         threadId: this.threadId,
+        hostPlugin: (plugin) => this.hostPlugins.acquire(this.harness, plugin),
         registry: this.agentRegistry,
         harnessTools: this.harness.tools ?? [],
         harnessProvides: (this.harness.middleware ?? []).flatMap(

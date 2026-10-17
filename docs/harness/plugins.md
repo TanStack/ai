@@ -24,7 +24,7 @@ export const today = definePlugin({
 })
 ```
 
-Add it with `plugins: () => [today]` in `defineHarness`. `setup` runs once per session.
+Add it with `plugins: () => [today]` in `defineHarness`. `setup` runs once per session. To share one setup between all the sessions of a host, see [Share one setup between sessions](#share-one-setup-between-sessions).
 
 ## What `setup` can return
 
@@ -258,6 +258,7 @@ Where each part of a plugin reads the run:
 - A command: `run` of the command context. Its `credentials` is the same as `run.credentials`.
 - A plugin with `lifetime: 'turn'`: `ctx.turn.run`. Its `ctx.credentials` and `ctx.keys` belong to the same user.
 - A session plugin (the default lifetime): `ctx.credentials` and `ctx.keys` have no user, so each call throws. `ctx.session.principal` is the owner of the session.
+- A plugin with `lifetime: 'host'`: its setup has no user and no session. Its tools read the user of each call from `ctx.context.run`.
 
 The run has these fields:
 
@@ -401,9 +402,71 @@ Read `ctx.collect` at run time (in a command, a tool, or a middleware hook). Dur
 
 ## Clean up resources
 
-Open resources with `ctx.resources.acquire(open, close)`. They close when the session closes, newest first. If a later plugin fails in `setup`, every plugin set up so far is cleaned up, and no model request is sent.
+Open resources with `ctx.resources.acquire(open, close)`. They close when the plugin is cleaned up, newest first: when the session closes, or after the turn for `lifetime: 'turn'`. If a later plugin fails in `setup`, every plugin set up so far is cleaned up, and no model request is sent.
 
 Set `lifetime: 'turn'` to set a plugin up again for each turn.
+
+## Share one setup between sessions
+
+A plugin that opens a database pool, or starts a process, does that work again for each session. A host with 300 open sessions then holds 300 pools. Set `lifetime: 'host'`, and the host sets the plugin up one time and shares it with every session:
+
+```ts group=harness-plugins-host
+import { toolDefinition } from '@tanstack/ai'
+import { definePlugin } from '@tanstack/ai-harness'
+
+// Your shared client, for example a database pool.
+async function connect() {
+  return { countOrders: async () => 42, end: async () => {} }
+}
+
+export const orders = definePlugin({
+  name: 'acme/orders',
+  lifetime: 'host',
+  setup: async (ctx) => {
+    const db = await ctx.resources.acquire(connect, (pool) => pool.end())
+    return {
+      tools: [
+        toolDefinition({ name: 'count_orders', description: 'Count the orders' }).server(
+          async () => db.countOrders(),
+        ),
+      ],
+    }
+  },
+})
+```
+
+- The host sets the plugin up one time for each harness. Every session of that harness shares this setup.
+- The host cleans it up when the last session that uses it closes, or at `host.close()`.
+- Its setup context has no session, no credentials, no keys, and no commands. It has `harness`, the name of the harness, and `resources`.
+- A tool of the plugin reads the user of its call from `ctx.context.run`. See [Act as the user of a run](#act-as-the-user-of-a-run).
+
+Some parts need the session: a command, a setting, plugin state, or a question to the user. Return them from `session`. It runs for each session, with the same context as a session plugin:
+
+```ts group=harness-plugins-host
+import { defineCommand } from '@tanstack/ai-harness'
+
+export const pool = definePlugin({
+  name: 'acme/pool',
+  lifetime: 'host',
+  setup: async (ctx) => {
+    const db = await ctx.resources.acquire(connect, (shared) => shared.end())
+    return {
+      session: (session) => ({
+        commands: {
+          orders: defineCommand({
+            description: 'Count the orders',
+            run: async () => `${await db.countOrders()} orders in ${session.session.threadId}`,
+          }),
+        },
+      }),
+    }
+  },
+})
+```
+
+The session gets the shared contributions and the `session` contributions together. The resources of `session` close with the session.
+
+The [MCP plugin](./mcp) works this way for `stdio` servers: one process serves every session of the host.
 
 ## Reload plugins
 

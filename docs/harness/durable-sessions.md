@@ -77,7 +77,7 @@ A background agent that you started with `resume: true` runs again on the next h
 
 ## Stop a host for a deploy
 
-`host.close()` ends each running turn `aborted`, so no host runs it again. When the server stops only for a deploy, close it with `recoverable: true`. The running turns stop, but they stay open in the log, and the next host continues them at once:
+`host.close()` closes every session of the host and refuses later opens. It ends each running turn `aborted`, so no host runs it again. When the server stops only for a deploy, close it with `recoverable: true`. The running turns stop, but they stay open in the log, and the next host continues them at once:
 
 ```ts group=harness-durable
 process.on('SIGTERM', async () => {
@@ -89,7 +89,7 @@ process.on('SIGTERM', async () => {
 - Running turns and background agents stop. The host writes no end for them and gives their leases back, so the next host does not wait for the lease to expire.
 - A tool that the stop cut gets the same result as after a crash. See [Mark tools that are safe to run again](#mark-tools-that-are-safe-to-run-again).
 - A turn that a user cancelled still ends `aborted`.
-- `session.close({ recoverable: true })` does the same for one session.
+- `session.close()` releases only your handle. It does not stop the work of the session. See [Lifecycle and retention](./lifecycle#open-and-release-a-session).
 
 During a rolling deploy, old and new hosts run at the same time. A host that reads a log record type from a newer version does not write to that log. Its session stops with `LogVersionError`, and the new hosts continue the thread.
 
@@ -165,7 +165,7 @@ It resolves with the threads that it opened, as `{ threadId, harness }` entries.
 The `close` option sets what happens to a session that the sweep opened:
 
 - `'whenIdle'` (default): the session closes when its work ends. If the app opened the same thread too, the session stays open.
-- `'never'`: the session stays open, like any session that you open.
+- `'never'`: the session closes like any session that no handle holds, after `lifecycle.idleCloseMs`. See [When a session closes](./lifecycle#when-a-session-closes).
 
 ### Watch for claim warnings
 

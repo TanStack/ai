@@ -8,7 +8,7 @@ import { loadChildTranscript } from '@tanstack/ai-persistence'
 import { checkConfigValue } from '../config'
 import { isRecord } from '../utils'
 import { changedEntry } from '../session-entry'
-import { threadOf } from '../log'
+import { threadOf, visibleMessages } from '../log'
 import { mediaIdOf, mediaOfMessage, mediaPart } from '../media-ref'
 import {
   BackgroundJobs,
@@ -491,9 +491,10 @@ export abstract class SessionState<
    * the messages after its message are hidden.
    */
   async transcript() {
-    const messages = [...(await this.messages.loadThread(this.threadId))]
-    const at = this.revertedAt(messages)
-    return at < 0 ? messages : messages.slice(0, at + 1)
+    return visibleMessages(
+      await this.messages.loadThread(this.threadId),
+      this.reverted,
+    )
   }
 
   /**

@@ -197,8 +197,9 @@ export abstract class SessionAgents<
   /**
    * The agent run `operationId`: a run of this session, or on a durable
    * host a run in the log that ended, so a follow-up continues it after a
-   * restart. `undefined` for an unknown run, and for one that another host
-   * runs.
+   * restart. `undefined` for an unknown run, for one that another host
+   * runs, and on a host without a log for a run older than the window of
+   * settled agent runs (`lifecycle.retention.settledAgentRuns`).
    */
   agentRun(operationId: string): AgentRun<unknown> | undefined {
     const chain = this.chainOf.get(operationId) ?? this.loggedChain(operationId)
@@ -208,8 +209,10 @@ export abstract class SessionAgents<
   }
 
   /**
-   * The agent runs of this session, oldest first. On a durable host it also
-   * lists the runs in the log, so it works after a restart.
+   * The agent runs of this session, oldest first: the running ones, and the
+   * settled ones in the window of `lifecycle.retention.settledAgentRuns`. On
+   * a durable host it also lists the runs in the log, so it works after a
+   * restart.
    */
   agentRuns(): Array<AgentRunInfo> {
     const live = [...this.agentChains.values()].flatMap((chain) =>

@@ -403,12 +403,10 @@ describe('an input that reaches a host that does not own the thread', () => {
       ownerId: 'busy-host',
       until: Date.now() + 60_000,
     })
-    const other = await createHarnessHost({ persistence }).open(
-      harnessWith(mockAdapter([]).adapter),
-      {
-        threadId: THREAD,
-      },
-    )
+    const otherHost = createHarnessHost({ persistence })
+    const other = await otherHost.open(harnessWith(mockAdapter([]).adapter), {
+      threadId: THREAD,
+    })
     let last = ''
     let operation: Operation<ChatTurnResult> | undefined
     for (let index = 0; index < 510; index++) {
@@ -419,7 +417,7 @@ describe('an input that reaches a host that does not own the thread', () => {
     expect(forwarded.size).toBe(500)
     expect(forwarded.has(last)).toBe(true)
     // The owner runs the input. The follower here ends with the session.
-    await other.close()
+    await otherHost.close()
     await expect(operation).rejects.toThrow('Session closed.')
   })
 

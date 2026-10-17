@@ -85,6 +85,11 @@ function uploadRunId(storeThreadId: string) {
   return `upload:${storeThreadId}`
 }
 
+/** @internal The key prefix of the upload bytes of a thread in the blob store. */
+export function uploadBlobPrefix(storeThreadId: string) {
+  return `artifacts/${uploadRunId(storeThreadId)}/`
+}
+
 /** The media record of `record`, an artifact of the thread `threadId`. */
 function toMediaRecord(
   record: ArtifactRecord,
@@ -230,7 +235,7 @@ export function createMediaStore({
 
       const id = crypto.randomUUID()
       const runId = uploadRunId(storeThreadId)
-      const blobKey = `artifacts/${runId}/${id}`
+      const blobKey = `${uploadBlobPrefix(storeThreadId)}${id}`
       // A stream has no length up front, so count it as the store reads it.
       let seen = 0
       const counted =

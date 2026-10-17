@@ -15,11 +15,6 @@ import type {
   UsageUpdate,
 } from './types'
 
-// ponytail: in-memory log capped at MAX_EVENTS per session. A reader whose
-// cursor fell out of the window resumes from the oldest kept event. Durable
-// cross-process delivery goes through StreamDurability in the protocol layer.
-const MAX_EVENTS = 10_000
-
 /**
  * The ordered event stream of one session. Every operation publishes here. A
  * host without a log uses {@link SessionFeed}. A durable host uses a feed
@@ -172,21 +167,54 @@ function isUsageUpdate(value: unknown): value is UsageUpdate {
  * The in-memory {@link EventFeed}. Cursors are opaque to callers and increase
  * with each event.
  */
+// ponytail: it keeps the newest `eventBytes` of events (the JSON length of
+// each). A reader whose cursor fell out of them resumes from the oldest kept
+// event. Durable cross-process delivery goes through StreamDurability in the
+// protocol layer.
 export class SessionFeed implements EventFeed {
+  /** The kept events. Their cursors are consecutive numbers. */
   private readonly entries: Array<SessionEvent> = []
+  /** The JSON length of each event in `entries`, in the same order. */
+  private readonly sizes: Array<number> = []
+  /** The sum of `sizes`. */
+  private bytes = 0
+  private readonly eventBytes: number
   private sequence = 0
   private readonly waiters = new Set<() => void>()
   private closed = false
 
+  /** `eventBytes`: how many bytes of events to keep. */
+  constructor(options: { eventBytes: number }) {
+    this.eventBytes = options.eventBytes
+  }
+
   publish(operationId: string, event: StreamChunk): void {
     this.sequence += 1
+    const size = jsonLength(event)
     this.entries.push({ cursor: String(this.sequence), operationId, event })
-    if (this.entries.length > MAX_EVENTS) this.entries.shift()
+    this.sizes.push(size)
+    this.bytes += size
+    // The newest event stays, so a live reader still gets it.
+    while (this.bytes > this.eventBytes && this.entries.length > 1) {
+      this.entries.shift()
+      this.bytes -= this.sizes.shift() ?? 0
+    }
     this.wake()
   }
 
   head(): Cursor {
     return String(this.sequence)
+  }
+
+  /** The kept events after the cursor `after` that `filter` accepts. */
+  private after(
+    after: number,
+    filter: ((entry: SessionEvent) => boolean) | undefined,
+  ) {
+    const first = this.sequence - this.entries.length + 1
+    return this.entries
+      .slice(Math.max(0, after + 1 - first))
+      .filter((entry) => (filter ? filter(entry) : true))
   }
 
   async *read(options: {
@@ -200,11 +228,7 @@ export class SessionFeed implements EventFeed {
     if (!Number.isFinite(after)) after = 0
     while (true) {
       if (options.signal?.aborted) return
-      const next = this.entries.filter(
-        (entry) =>
-          Number(entry.cursor) > after &&
-          (options.filter ? options.filter(entry) : true),
-      )
+      const next = this.after(after, options.filter)
       for (const entry of next) {
         if (options.signal?.aborted) return
         after = Number(entry.cursor)
@@ -215,12 +239,7 @@ export class SessionFeed implements EventFeed {
         after = Math.max(after, this.sequence)
       }
       if (this.closed || options.until?.()) {
-        const rest = this.entries.filter(
-          (entry) =>
-            Number(entry.cursor) > after &&
-            (options.filter ? options.filter(entry) : true),
-        )
-        for (const entry of rest) yield entry
+        for (const entry of this.after(after, options.filter)) yield entry
         return
       }
       // Events published while the reader handled `next` woke nobody, so
@@ -252,5 +271,17 @@ export class SessionFeed implements EventFeed {
       this.waiters.add(done)
       signal?.addEventListener('abort', done, { once: true })
     })
+  }
+}
+
+/**
+ * The JSON length of `event`. A value that JSON cannot encode (a `BigInt`
+ * from a plugin) counts as 0, so the publish does not throw.
+ */
+function jsonLength(event: StreamChunk) {
+  try {
+    return JSON.stringify(event).length
+  } catch {
+    return 0
   }
 }

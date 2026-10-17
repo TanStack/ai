@@ -487,6 +487,8 @@ export const handler = createHarnessHandler({ host, harness: assistant })
 
 The handler also serves `GET transcript` and `GET describe`. The view reads them when it starts. For the other routes, see [Connect clients](./connect).
 
+`GET transcript`, `GET snapshot`, `GET events`, and the other read paths read the thread without a session, so they start no plugins on the server. `GET describe` opens the session, because the plugins give the commands and the settings. To read a thread in a route of your own, use `host.observe`. See [Read a thread without a session](./lifecycle#read-a-thread-without-a-session).
+
 ### In the browser
 
 Make the view one time, in code that runs in the browser. Then read it in your components:

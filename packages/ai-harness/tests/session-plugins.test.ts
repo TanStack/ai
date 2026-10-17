@@ -289,9 +289,11 @@ describe('questions', () => {
     await vi.waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
-    await session.close()
-    await expect(open).rejects.toThrow('Session closed.')
     await host.close()
+    // The close cancels the command that waits for its answer.
+    await expect(open).rejects.toBeDefined()
+    expect(open.status()).toBe('cancelled')
+    expect(session.snapshot().pendingQuestions).toEqual([])
   })
 
   it('rejects the questions of a turn when the turn is cancelled', async () => {

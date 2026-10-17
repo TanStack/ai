@@ -58,7 +58,9 @@ export const assistant = defineHarness({
 
 - The user runs `/connect github`.
 - With `login: 'loopback'`, the CLI opens the browser. The harness listens on `127.0.0.1` on a random port for one callback, with PKCE and a random `state`.
+- With `oauth.issuer` set, the sign-in refuses a code that the service sends with another `iss` (RFC 9207).
 - The token goes into the credential store. `/disconnect github` deletes it.
+- A cancel of the command, or a close of the session, stops a sign-in that waits. The listener on `127.0.0.1` closes at once.
 
 `login` is required. Use `login: 'device'` for a harness on a server, and for SSH sessions, containers, and CI. The user then gets a code to enter on the service's page. Device login needs `oauth.deviceUrl`.
 
@@ -198,8 +200,77 @@ Your plugin reads the credentials of the user of each run:
 
 See [Act as the user of a run](./plugins#act-as-the-user-of-a-run).
 
+## Write your own sign-in command
+
+`oauthConnector` covers most services. For a sign-in of your own, use the helpers from `@tanstack/ai-harness/oauth`. Pass the `signal` of the command, so a cancel stops the sign-in at once:
+
+```ts group=harness-auth-own
+import { defineCommand, definePlugin } from '@tanstack/ai-harness'
+import { deviceLogin, isExpired, refreshCredential } from '@tanstack/ai-harness/oauth'
+import type { OAuthConfig } from '@tanstack/ai-harness/oauth'
+
+const gitlab: OAuthConfig = {
+  authorizationUrl: 'https://gitlab.com/oauth/authorize',
+  tokenUrl: 'https://gitlab.com/oauth/token',
+  deviceUrl: 'https://gitlab.com/oauth/authorize_device',
+  clientId: 'your-gitlab-app-client-id',
+  scopes: ['read_api'],
+}
+
+export const gitlabLogin = definePlugin({
+  name: 'acme/gitlab-login',
+  setup: (ctx) => ({
+    commands: {
+      'connect:gitlab': defineCommand({
+        description: 'Sign in to GitLab',
+        run: async (_input, { credentials, signal }) => {
+          const credential = await deviceLogin(gitlab, {
+            onCode: ({ userCode, verificationUri }) =>
+              ctx.session.authRequired({ connector: 'gitlab', url: verificationUri, userCode }),
+            signal,
+          })
+          await credentials.set({ id: 'gitlab', credential })
+          return 'Connected to GitLab.'
+        },
+      }),
+    },
+  }),
+})
+```
+
+A tool refreshes an expired token with the `signal` of its run, so the refresh stops with the run:
+
+```ts group=harness-auth-own
+import { toolDefinition } from '@tanstack/ai'
+import type { HarnessRunContext } from '@tanstack/ai-harness'
+
+export const gitlabProjects = toolDefinition({
+  name: 'gitlab_projects',
+  description: 'List my GitLab projects',
+}).server<HarnessRunContext>(async (_args, ctx) => {
+  const { credentials, signal } = ctx.context.run
+  let credential = await credentials.require('gitlab')
+  if (isExpired(credential)) {
+    credential = await refreshCredential(gitlab, credential, { signal })
+    await credentials.set({ id: 'gitlab', credential })
+  }
+  const token = credential.type === 'api_key' ? credential.value : credential.accessToken
+  const response = await fetch('https://gitlab.com/api/v4/projects?membership=true', {
+    headers: { authorization: `Bearer ${token}` },
+    signal,
+  })
+  return response.json()
+})
+```
+
+- `deviceLogin`, `loopbackLogin`, `exchangeCode`, and `refreshCredential` take a `signal`. When it aborts, the call stops at once and rejects with the reason of the signal.
+- The `signal` of a command aborts on a cancel of the command and on a close of the session.
+- `loopbackLogin` takes `timeoutMs`. The default is 10 minutes. This timer does not keep the process alive.
+- When another library runs the OAuth flow, `startLoopbackReceiver({ timeoutMs, signal })` only waits for the callback. `waitForCode(state)` gives the code and the `iss` of the callback.
+
 ## What you have now
 
 - Browser and device-code sign-in for any OAuth service.
 - Tools that get a fresh token without the model seeing it.
 - Turns that wait for a sign-in and then finish their work.
+- Sign-ins of your own that stop at once on a cancel.

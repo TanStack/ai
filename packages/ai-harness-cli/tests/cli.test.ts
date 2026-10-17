@@ -1,7 +1,6 @@
 import { memoryCredentialStore } from '@tanstack/ai/byok/server'
-import { Readable } from 'node:stream'
 import { describe, expect, it, vi } from 'vitest'
-import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
+import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import {
   configOption,
@@ -15,90 +14,7 @@ import { createMCPClient } from '@tanstack/ai-mcp'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { EXIT, parseCliArgs, runCli } from '../src'
 import { serve } from '../src/serve'
-import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
-
-const now = () => Date.now()
-const textTurn = (text: string): Array<StreamChunk> => [
-  { type: EventType.RUN_STARTED, runId: 'r', threadId: 't', timestamp: now() },
-  {
-    type: EventType.TEXT_MESSAGE_START,
-    messageId: 'm',
-    role: 'assistant',
-    timestamp: now(),
-  },
-  {
-    type: EventType.TEXT_MESSAGE_CONTENT,
-    messageId: 'm',
-    delta: text,
-    timestamp: now(),
-  },
-  { type: EventType.TEXT_MESSAGE_END, messageId: 'm', timestamp: now() },
-  {
-    type: EventType.RUN_FINISHED,
-    runId: 'r',
-    threadId: 't',
-    timestamp: now(),
-    metadata: { tanstack: { finishReason: 'stop' } },
-  },
-]
-const toolTurn = (name: string, args: string): Array<StreamChunk> => [
-  { type: EventType.RUN_STARTED, runId: 'r', threadId: 't', timestamp: now() },
-  {
-    type: EventType.TOOL_CALL_START,
-    toolCallId: 'call_1',
-    toolCallName: name,
-    timestamp: now(),
-  },
-  {
-    type: EventType.TOOL_CALL_ARGS,
-    toolCallId: 'call_1',
-    delta: args,
-    timestamp: now(),
-  },
-  { type: EventType.TOOL_CALL_END, toolCallId: 'call_1', timestamp: now() },
-  {
-    type: EventType.RUN_FINISHED,
-    runId: 'r',
-    threadId: 't',
-    timestamp: now(),
-    metadata: { tanstack: { finishReason: 'tool_calls' } },
-  },
-]
-
-function scripted(turns: Array<Array<StreamChunk>>) {
-  let call = 0
-  const seen: Array<Array<{ role: string; content: unknown }>> = []
-  const adapter: AnyTextAdapter = {
-    kind: 'text',
-    name: 'mock',
-    model: 'test-model',
-    // `~types` holds types only. Its values are never read, so they are casts.
-    '~types': {
-      providerOptions: {} as Record<string, unknown>,
-      inputModalities: ['text'] as readonly ['text'],
-      messageMetadataByModality: {
-        text: undefined as unknown,
-        image: undefined as unknown,
-        audio: undefined as unknown,
-        video: undefined as unknown,
-        document: undefined as unknown,
-      },
-      toolCapabilities: [] as ReadonlyArray<string>,
-      toolCallMetadata: undefined as unknown,
-      systemPromptMetadata: undefined as never,
-    },
-    chatStream: (options) => {
-      seen.push(options.messages)
-      const chunks = turns[call] ?? textTurn('')
-      call += 1
-      return (async function* () {
-        yield* chunks
-      })()
-    },
-    structuredOutput: async () => ({ data: {}, rawText: '{}' }),
-  }
-  return { adapter, seen }
-}
+import { capture, scripted, stdinFrom, textTurn, toolTurn } from './helpers'
 
 /** `/connect acme` asks for a key as a secret question, then saves it. */
 const acmeKeys = definePlugin({
@@ -124,16 +40,6 @@ const acmeKeys = definePlugin({
   }),
 })
 
-function capture() {
-  let text = ''
-  return {
-    write: (chunk: string) => (text += chunk),
-    get text() {
-      return text
-    },
-  }
-}
-
 const olga = { id: 'olga' }
 const cid = { id: 'cid' }
 const users = new Map([olga, cid].map((user) => [user.id, user]))
@@ -148,15 +54,6 @@ function accessHost() {
       authorize: membersOnly(),
     },
   })
-}
-
-/** A stdin that reads `lines`, as a terminal or as a pipe. */
-function stdinFrom(lines: Array<string>, { isTTY }: { isTTY: boolean }) {
-  // NodeJS.ReadStream is a TTY socket. A test cannot make one without a real
-  // terminal, and runCli only reads the lines and `isTTY`, so this casts.
-  return Object.assign(Readable.from(lines), {
-    isTTY,
-  }) as unknown as NodeJS.ReadStream
 }
 
 describe('parseCliArgs', () => {

@@ -4,9 +4,12 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 import type { CredentialStore } from '@tanstack/ai/byok'
 import { AccessDeniedError, membersOnlyPolicyOf } from './access'
 import { SharedLog, loadLogState, logIdOf, parseLogId } from './log'
+import { HostPlugins } from './host-plugins'
+import { purgeThreadData } from './purge'
 import { LEASE } from './resume'
 import { SessionImpl } from './session/harness-session'
 import { sessionHandle } from './session/handle'
+import { observedSession } from './session/observed-session'
 import { HARNESS_EVENTS } from './types'
 import { isRecord } from './utils'
 import { changedEntry } from './session-entry'
@@ -42,6 +45,7 @@ import type { SessionEntryChange, SessionEntryUpdate } from './session-entry'
 import type { ReduceOptions } from './log'
 import type { LeaseOptions } from './resume'
 import type { HarnessSession } from './session/index'
+import type { ObservedSession } from './session/observed-session'
 import type { ForkPoint, Principal } from './types'
 
 type SharedStores = {
@@ -145,7 +149,58 @@ export interface HarnessHostOptions<P extends Principal = Principal> {
    * Leave it out for the defaults.
    */
   ownership?: LeaseOptions
+  /** How the sessions of this host live. Leave it out for the defaults. */
+  lifecycle?: HostLifecycleOptions
 }
+
+/** How the sessions of a host live. */
+export interface HostLifecycleOptions {
+  /**
+   * How long a session that no handle holds stays open after it goes idle,
+   * in milliseconds. Then the host closes it, and the next call on one of
+   * its handles opens it again. `0` closes it at once. Default 60 000.
+   */
+  idleCloseMs?: number
+  /**
+   * How many sessions the host keeps open. An open past it first closes the
+   * least recently used sessions that no handle holds and that are idle.
+   * When there are none, the open goes on, with one warning. Default 500.
+   */
+  maxOpen?: number
+  /** How much each session keeps in memory. */
+  retention?: RetentionLimits
+}
+
+/**
+ * How much each session keeps in memory, so a long-lived session does not
+ * grow. Leave a field out for its default.
+ */
+export interface RetentionLimits {
+  /**
+   * How many settled operations (turns, commands, resets) a session keeps,
+   * with their receipts and settlements. Inputs with no turn (agent runs,
+   * messages to them, commands, cancels) have a window of the same size.
+   * Past it, `session.operation(id)` is `undefined` for the oldest, and
+   * `settled()` of its input reads the log (a durable host). Default 500.
+   */
+  settledOperations?: number
+  /**
+   * How many settled agent runs a session keeps. Past it, `agentRun(id)`
+   * and `agentRuns()` leave out the oldest, except what the log has (a
+   * durable host). Default 500.
+   */
+  settledAgentRuns?: number
+  /**
+   * How many bytes of events a session keeps in memory for `events()`, as
+   * the JSON length of each event. A reader whose cursor is older starts
+   * at the oldest event kept. A durable host reads older events from the
+   * log. Default 8 000 000.
+   */
+  eventBytes?: number
+}
+
+/** {@link RetentionLimits} with every default filled in. */
+export type Retention = Required<RetentionLimits>
 
 export interface OpenSessionOptions<P extends Principal = Principal> {
   /** The conversation id. Opening the same id again returns the live session. */
@@ -176,7 +231,8 @@ export interface OpenSessionOptions<P extends Principal = Principal> {
  * The session index of a host: one entry per tenant and thread, for a list
  * of sessions. The host writes the entry when a session opens and after each
  * turn. Without `stores.sessions`, `list` is empty, `get` is `undefined`,
- * and `rename` and `delete` write nothing.
+ * and `rename` writes nothing. `delete` still deletes the data of the
+ * thread in the other stores.
  *
  * Each method takes a `principal`. Its `tenantId` picks the tenant (without
  * it, the default tenant), as in `host.open`. A method never reads or
@@ -253,10 +309,22 @@ export interface HostSessions<P extends Principal = Principal> {
     principal?: P
   }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>> | undefined>
   /**
-   * Remove the index entry of a thread. After it, `get` is `undefined`, and
-   * the next open of the thread writes a new entry. Only the entry goes: the
-   * transcript, the log, and the other data of the thread stay in their
-   * stores.
+   * Delete a thread and its child threads (the entries with this thread as
+   * `parentThreadId`, and their children). For each thread, it:
+   *
+   * - closes its open sessions on this host, of every harness, for every
+   *   handle. A handle that calls again opens an empty thread.
+   * - deletes its log, or its messages on a host with no `stores.log`.
+   * - deletes its media: the uploads and the generated files, records and
+   *   bytes.
+   * - deletes its thread settings, plugin config, usage, interrupted turn,
+   *   revert state, and log checkpoint from `stores.metadata`.
+   * - removes its index entry. Then `get` is `undefined`, and the next open
+   *   of the thread writes a new entry.
+   *
+   * A store the host does not have is skipped. Plugin state, runs,
+   * interrupts, the inbox, and work claims stay. Only the tenant of
+   * `principal` is touched.
    *
    * @example
    * ```ts
@@ -413,8 +481,9 @@ export interface ResumePendingOptions {
   harnesses: ReadonlyArray<AnyHarness>
   /**
    * What happens to a session that the sweep opened. `'whenIdle'`
-   * (default): it closes when its pending work ends, unless the app opened
-   * the thread too. `'never'`: it stays open, like any opened session.
+   * (default): it closes as soon as its pending work ends, unless the app
+   * opened the thread too. `'never'`: it closes like any session that no
+   * handle holds, after `lifecycle.idleCloseMs`.
    */
   close?: 'whenIdle' | 'never'
   /**
@@ -438,6 +507,11 @@ export interface HarnessHost<P extends Principal = Principal> {
    * `parentThreadId`) does not open: open its root thread, and read the
    * child with `session.agentTranscript`.
    *
+   * Release the handle with `session.close()`, or with `await using`. The
+   * session closes when no handle holds it and it was idle for
+   * `lifecycle.idleCloseMs`. A call on a handle after that opens the session
+   * again. Throws after `host.close()`.
+   *
    * With access, `principal` is required. A thread that exists needs the
    * `read` action, else the open throws `AccessDeniedError`. A new thread
    * gets the principal as its owner. Then each action of the handle asks
@@ -453,8 +527,35 @@ export interface HarnessHost<P extends Principal = Principal> {
     options: OpenSessionOptions<P>,
   ) => Promise<HarnessSession<THarness>>
   /**
+   * A read-only view of a thread of `harness`, for `principal`: its events,
+   * transcript, snapshot, media, usage, and index entry (see
+   * `ObservedSession`). It mounts no plugins, writes nothing (no index entry, no
+   * metadata), claims nothing, and runs no recovery, so a read of an idle
+   * thread costs only store reads. When the session of the thread is open on
+   * this host, the view reads through it, and it never holds it open. On a
+   * durable host, the views of one log share its fold and its events. Use
+   * `open` for a write, or for what needs plugins (`describe`).
+   *
+   * With access, `principal` is required, and the thread needs the `read`
+   * action, else the call throws `AccessDeniedError`. A child thread is
+   * checked through its root thread. A thread with no index entry gets the
+   * same answer as a refusal: a read creates no thread. Throws after
+   * `host.close()`.
+   *
+   * @example
+   * ```ts
+   * const view = await host.observe(assistant, { threadId: 't-1', principal })
+   * const snapshot = await view.snapshot()
+   * ```
+   */
+  observe: <THarness extends AnyHarness>(
+    harness: THarness,
+    options: Pick<OpenSessionOptions<P>, 'threadId' | 'principal' | 'logId'>,
+  ) => Promise<ObservedSession<THarness>>
+  /**
    * Is a session of `harness` open on `threadId` on this host, in the tenant
-   * of `principal`?
+   * of `principal`? A session that closed on idle is not open, also when a
+   * handle of it still exists.
    */
   isOpen: (
     harness: AnyHarness,
@@ -518,9 +619,14 @@ export interface HarnessHost<P extends Principal = Principal> {
    */
   reload: (harness: AnyHarness) => Promise<void>
   /**
-   * Close every live session. With `recoverable`, their running work stops
-   * with no settlement, and the next host that opens a thread runs it again.
-   * See `session.close`.
+   * Close every live session, for every handle, end the event reads of
+   * every `observe` view, and refuse later opens and views. After it, a call
+   * on a view throws, and so does a call on a handle, except a read that
+   * gives a value at once (`snapshot()`): it reads the last state. With
+   * `recoverable`, the running work stops with no settlement, and the next
+   * host that opens a thread runs it again: use it when a durable host shuts
+   * down, for example for a deploy. Without it, the running work is
+   * cancelled.
    *
    * @example
    * ```ts
@@ -530,10 +636,11 @@ export interface HarnessHost<P extends Principal = Principal> {
   close: (options?: { recoverable?: boolean }) => Promise<void>
   /**
    * The `durability.reduce` fold of `harness` for a log that has an open
-   * session in this host. `logId` is the `logId` of `open`, in the tenant of
-   * `principal`. `undefined` when no session has the log open, or when the
-   * reduce of another harness folded the log (the harness of its first
-   * session folds a shared log).
+   * session or a running `observe` read in this host. `logId` is the `logId`
+   * of `open`, in the tenant of `principal`. `undefined` when nothing has the
+   * log open, or when the reduce of another harness folded the log (the
+   * harness of its first session folds a shared log). `view.logState()` of
+   * `host.observe` reads a log that is not open too.
    *
    * @example
    * ```ts
@@ -763,6 +870,43 @@ export function sessionOfTurn<P extends Principal>(
   return turnFinders.get(host)?.(lookup) ?? Promise.resolve(undefined)
 }
 
+/** What a host keeps for each session key: its handles and its idle timer. */
+interface Hold {
+  /** The handles that hold the session now. */
+  handles: number
+  /** The idle close that waits. */
+  timer: ReturnType<typeof setTimeout> | undefined
+  /** A dropped handle of this session warned already. */
+  warned: boolean
+}
+
+/** What a host counts, for a leak check. */
+interface HostCounts {
+  /** Open sessions, and sessions that open. */
+  sessions: number
+  /** Handles that hold a session. */
+  handles: number
+  /** Session keys with a hold record. */
+  holds: number
+  /** Statuses that `host.events()` starts with. */
+  statuses: number
+  /** Sessions that close now. */
+  closing: number
+}
+
+/** How each host counts. Not public API. */
+const counters = new WeakMap<object, () => HostCounts>()
+
+/**
+ * @internal What `host` keeps now: sessions, handles, hold records,
+ * statuses, and closes. Tests read it to find leaks.
+ */
+export function hostCountsOf<P extends Principal>(host: HarnessHost<P>) {
+  const count = counters.get(host)
+  if (!count) throw new Error('Not a host of createHarnessHost.')
+  return count()
+}
+
 /** The log and run stores of each durable host. Not public API. */
 const durableStores = new WeakMap<object, { log: LogStore; runs?: RunStore }>()
 
@@ -936,6 +1080,12 @@ export function createHarnessHost<P extends Principal = Principal>(
   }
   const index = sessionIndex(sessionStore, emit)
   const coalesceMs = options.log?.coalesceMs ?? 100
+  const limits = options.lifecycle?.retention
+  const retention = {
+    settledOperations: limits?.settledOperations ?? 500,
+    settledAgentRuns: limits?.settledAgentRuns ?? 500,
+    eventBytes: limits?.eventBytes ?? 8_000_000,
+  }
   /** The shared log of each log with an open session, by its store log id. */
   const logs = new Map<string, Promise<SharedLog>>()
   /** The resolved shared logs, and the reduce that folds each one, for `logState`. */
@@ -971,6 +1121,7 @@ export function createHarnessHost<P extends Principal = Principal>(
         rootThread,
         state,
         coalesceMs,
+        eventBytes: retention.eventBytes,
         ...(project ? { project } : {}),
         ...(reduce ? { reduce } : {}),
         ...(metadata ? { metadata } : {}),
@@ -988,15 +1139,194 @@ export function createHarnessHost<P extends Principal = Principal>(
     return loaded
   }
   const sessions = new Map<string, Promise<SessionImpl>>()
+  /** The plugins with `lifetime: 'host'`, shared by the sessions of a harness. */
+  const hostPlugins = new HostPlugins()
+  /** The sessions of `sessions` that finished opening, by key. */
+  const live = new Map<string, SessionImpl>()
   /**
    * The keys of sessions that only a `resumePending` sweep opened. With
-   * `close: 'whenIdle'`, the sweep closes only these. An open by the app
-   * takes a key out.
+   * `close: 'whenIdle'`, such a session closes at once when it goes idle. An
+   * open by the app takes a key out.
    */
   const sweptOnly = new Set<string>()
-  /** The closes of swept sessions that left the cache, by key. */
+  /** The closes of sessions that left the cache, by key. */
   const closing = new Map<string, Promise<void>>()
   const hostId = `host-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
+  const idleCloseMs = options.lifecycle?.idleCloseMs ?? 60_000
+  const maxOpen = options.lifecycle?.maxOpen ?? 500
+  /** `host.close()` ran: no session opens any more. */
+  let isClosed = false
+  /**
+   * The handles and the idle timer of each session key, the least recently
+   * used key first. Each open session has one.
+   */
+  const holds = new Map<string, Hold>()
+  /** The open went past `maxOpen` with no session to close, and warned. */
+  let warnedFull = false
+
+  const hostClosed = () =>
+    new Error('The host is closed. Create a new host to open sessions.')
+
+  /** The hold of `key`, now the most recently used. */
+  const touch = (key: string) => {
+    const held = holds.get(key) ?? {
+      handles: 0,
+      timer: undefined,
+      warned: false,
+    }
+    holds.delete(key)
+    holds.set(key, held)
+    return held
+  }
+
+  /** Stop the idle close of `key` that waits. */
+  const cancelIdle = (key: string) => {
+    const held = holds.get(key)
+    clearTimeout(held?.timer)
+    if (held) held.timer = undefined
+  }
+
+  /** Drop the hold record of `key` when no handle and no session uses it. */
+  const dropHold = (key: string) => {
+    const held = holds.get(key)
+    if (!held || held.handles > 0 || sessions.has(key)) return
+    clearTimeout(held.timer)
+    holds.delete(key)
+  }
+
+  /** Keep the close of `key`, so the next open of the key waits for it. */
+  const trackClose = (key: string, closed: Promise<void>) => {
+    const settled = closed.then(
+      () => {},
+      () => {},
+    )
+    closing.set(key, settled)
+    void settled.then(() => {
+      if (closing.get(key) === settled) closing.delete(key)
+    })
+  }
+
+  /** Take `session` out of the open sessions of `key`, when it is the one. */
+  const forget = (key: string, session: SessionImpl) => {
+    if (live.get(key) !== session) return
+    live.delete(key)
+    sessions.delete(key)
+    statuses.delete(key)
+    sweptOnly.delete(key)
+    cancelIdle(key)
+    dropHold(key)
+  }
+
+  /**
+   * Close the session of `key` for every handle. From here on, an open of
+   * the key gets a new session, which waits for this close. A handle opens
+   * the new one on its next call.
+   */
+  const closeShared = (
+    key: string,
+    session: SessionImpl,
+    closeOptions?: { recoverable?: boolean },
+  ) => {
+    forget(key, session)
+    const closed = session.close(closeOptions)
+    trackClose(key, closed)
+    return closed
+  }
+
+  /** `closeShared` of an idle session: a failed close only logs. */
+  const closeIdle = (key: string, session: SessionImpl) =>
+    // ponytail: an idle session has no work to lose.
+    closeShared(key, session).catch((error: unknown) =>
+      console.error(
+        '[@tanstack/ai-harness] An idle session did not close.',
+        error,
+      ),
+    )
+
+  /** No handle holds the open session `session` of `key`, and it is idle. */
+  const isUnused = (key: string, session: SessionImpl) =>
+    live.get(key) === session &&
+    (holds.get(key)?.handles ?? 0) === 0 &&
+    !session.isClosing() &&
+    session.isIdle()
+
+  /**
+   * Start the idle close of the session of `key` when no handle holds it and
+   * it is idle. With a delay of 0, it closes at once. Resolves after a close
+   * that it starts.
+   */
+  const armIdle = (key: string) => {
+    const session = live.get(key)
+    const held = holds.get(key)
+    if (!session || !held) {
+      dropHold(key)
+      return Promise.resolve()
+    }
+    if (held.timer !== undefined || !isUnused(key, session)) {
+      return Promise.resolve()
+    }
+    const delay = sweptOnly.has(key) ? 0 : idleCloseMs
+    if (delay <= 0) return closeIdle(key, session)
+    const timer = setTimeout(() => {
+      held.timer = undefined
+      // A session that is busy now arms again when it goes idle.
+      if (isUnused(key, session)) void closeIdle(key, session)
+    }, delay)
+    // The timer must not keep a process alive.
+    if (typeof timer === 'object' && 'unref' in timer) timer.unref()
+    held.timer = timer
+    return Promise.resolve()
+  }
+
+  /** One more handle on the session of `key`: it does not close on idle. */
+  const hold = (key: string) => {
+    touch(key).handles += 1
+    cancelIdle(key)
+  }
+
+  /** One handle less on the session of `key`. Resolves after its close. */
+  const release = (key: string) => {
+    const held = holds.get(key)
+    if (!held) return Promise.resolve()
+    held.handles = Math.max(0, held.handles - 1)
+    touch(key)
+    return armIdle(key)
+  }
+
+  /** The first dropped handle of a session warns. */
+  const warnDropped = (key: string, threadId: string) => {
+    const held = holds.get(key)
+    if (!held || held.warned) return
+    held.warned = true
+    console.warn(
+      `[@tanstack/ai-harness] A handle of thread ${JSON.stringify(threadId)} was dropped without close(), so the host released it. Call session.close(), or open the session with await using.`,
+    )
+  }
+
+  /**
+   * Room for one more session: close the least recently used sessions that
+   * no handle holds and that are idle. When none is, warn once.
+   */
+  const makeRoom = () => {
+    let excess = sessions.size + 1 - maxOpen
+    if (excess <= 0) {
+      warnedFull = false
+      return
+    }
+    const keys = [...holds.keys()]
+    for (const key of keys) {
+      if (excess <= 0) break
+      const session = live.get(key)
+      if (!session || !isUnused(key, session)) continue
+      void closeIdle(key, session)
+      excess -= 1
+    }
+    if (excess <= 0 || warnedFull) return
+    warnedFull = true
+    console.warn(
+      `[@tanstack/ai-harness] The host has ${sessions.size} open sessions, more than lifecycle.maxOpen (${maxOpen}), and each one is busy or held by a handle. Release handles with session.close().`,
+    )
+  }
 
   /** Throw when the index entry of the thread names a parent thread. */
   const refuseChild = async (key: SessionIndexKey) => {
@@ -1008,22 +1338,33 @@ export function createHarnessHost<P extends Principal = Principal>(
   }
 
   /**
-   * `host.open`, in the tenant `tenantId`. It gives the session class, so
-   * the host can call the members that the `HarnessSession` type does not
-   * have. An internal open can pass a tenant with no principal, so it does
-   * not claim an entry with no owner.
+   * `host.open`, in the tenant `tenantId`, with no checks and no handle. It
+   * gives the session class, so the host can call the members that the
+   * `HarnessSession` type does not have. An internal open can pass a tenant
+   * with no principal, so it does not claim an entry with no owner. Hold the
+   * key first (`hold`), or the session can close on idle at once.
    */
   const openSession = <THarness extends AnyHarness>(
     harness: THarness,
     { threadId, principal, logId: openLogId, promptCache }: OpenSessionOptions,
     tenantId: string | undefined,
   ) => {
+    if (isClosed) return Promise.reject(hostClosed())
     const key = sessionKey(harness.name, tenantId, threadId)
     const of = { tenantId, threadId }
+    touch(key)
     let session = sessions.get(key)
+    // A session that closes by itself (its log failed) takes no new work.
+    const stopping = live.get(key)
+    if (session && stopping?.isClosing()) {
+      forget(key, stopping)
+      trackClose(key, stopping.close())
+      session = undefined
+    }
     // The app opened a thread that a sweep opened: it stays open.
     if (session) sweptOnly.delete(key)
     if (!session) {
+      makeRoom()
       const logId = openLogId ?? threadId
       // The one place where the log id of the app becomes the id in the
       // store: the tenant is part of it.
@@ -1040,6 +1381,8 @@ export function createHarnessHost<P extends Principal = Principal>(
         media,
         hostId,
         index,
+        retention,
+        hostPlugins,
         ...(logStore
           ? {
               log: {
@@ -1065,37 +1408,50 @@ export function createHarnessHost<P extends Principal = Principal>(
         ...(promptCache ? { promptCache } : {}),
         ...(access ? { access: { envKeys: access.envKeys === true } } : {}),
         onEvent: (event) => {
+          // A session that left the cache has no status any more.
+          if (sessions.get(key) !== session) return
           const status = statusAfter(created, event)
+          if (status === 'running') cancelIdle(key)
           if (status) setStatus(key, of, status)
         },
-        onClose: () => {
-          // A sweep may have put a new session under this key already. It
-          // opens only after this one closed, so its status is not set yet.
-          if (sessions.get(key) === session) sessions.delete(key)
-          statuses.delete(key)
-        },
+        // A new session under this key opens only after this one closed.
+        onClose: () => forget(key, created),
+        // After the call: the session may close, but not inside its own code.
+        onIdle: () =>
+          queueMicrotask(() => {
+            if (live.get(key) === created) void armIdle(key)
+          }),
       })
-      // A swept session under this key may still close: it lets go of
-      // the thread first.
+      // A session under this key may still close: it lets go of the thread
+      // first.
       const closed = closing.get(key) ?? Promise.resolve()
       session = closed
         .then(() => refuseChild(of))
         .then(() => created.open())
         .then(
           () => {
+            if (sessions.get(key) !== session) return created
+            live.set(key, created)
             // A recovered turn can run already. Else the new session is
             // idle.
             if (!statuses.has(key)) setStatus(key, of, 'idle')
+            // A session that no handle holds (a sweep) closes on idle too.
+            void armIdle(key)
             return created
           },
           (error: unknown) => {
-            sessions.delete(key)
-            statuses.delete(key)
+            if (sessions.get(key) === session) {
+              sessions.delete(key)
+              statuses.delete(key)
+            }
+            dropHold(key)
             throw error
           },
         )
       sessions.set(key, session)
     }
+    // The key names the harness, so the session is a session of `harness`.
+    // A map of sessions cannot carry a harness type per key.
     return session as Promise<SessionImpl<THarness>>
   }
 
@@ -1253,36 +1609,160 @@ export function createHarnessHost<P extends Principal = Principal>(
     }
   }
 
-  /** The handle of `session` for `principal`. With access, it checks. */
-  const handleOf = <THarness extends AnyHarness>(
-    session: SessionImpl<THarness>,
-    principal: P | undefined,
-  ) =>
-    sessionHandle({
+  /**
+   * `openSession` with the checks of `host.open`: with access, a thread that
+   * exists needs the `read` action, and a new thread is checked unless its
+   * open made the principal its owner. Hold the key first.
+   */
+  const openChecked = async <THarness extends AnyHarness>(
+    harness: THarness,
+    openOptions: OpenSessionOptions<P>,
+  ) => {
+    if (!access) {
+      return openSession(harness, openOptions, openOptions.principal?.tenantId)
+    }
+    const principal = need(openOptions.principal, 'host.open')
+    const { threadId } = openOptions
+    const ids = { tenantId: principal.tenantId, threadId }
+    const before = await index.get(ids)
+    // The open refuses a child thread, and says why.
+    const isRoot = before !== undefined && before.parentThreadId === undefined
+    if (isRoot) {
+      await allow({ principal, action: 'read', threadId, entry: before })
+    }
+    const session = await openSession(harness, openOptions, principal.tenantId)
+    if (!before) {
+      // Two users can create one thread at once. Only the user whose open
+      // wrote the entry needs no check.
+      const created = await index.get(ids)
+      if (created?.ownerId !== principal.id) {
+        await allow({ principal, action: 'read', threadId, entry: created })
+      }
+    }
+    return session
+  }
+
+  /**
+   * The handle of the session of `key` for the principal of `openOptions`.
+   * It holds the key already (`hold`), and releases it on close. With access,
+   * it checks. A call on it after the session closed opens it again with
+   * `openOptions`.
+   */
+  const handleOf = <THarness extends AnyHarness>({
+    harness,
+    session,
+    openOptions,
+    key,
+  }: {
+    harness: THarness
+    session: SessionImpl<THarness>
+    openOptions: OpenSessionOptions<P>
+    key: string
+  }) => {
+    const { principal } = openOptions
+    const { threadId } = session
+    return sessionHandle({
       session,
       principal,
-      ...(access && principal
-        ? { guard: guardOf(principal, session.threadId) }
-        : {}),
+      ...(access && principal ? { guard: guardOf(principal, threadId) } : {}),
+      lease: {
+        current: () => {
+          // After `host.close()`, a call refuses at once.
+          const open = isClosed ? undefined : live.get(key)
+          // The key names the harness, so the session is a session of
+          // `harness`, as in `openSession`.
+          return open && !open.isClosing()
+            ? (open as SessionImpl<THarness>)
+            : undefined
+        },
+        reopen: () => {
+          if (isClosed) throw hostClosed()
+          return openChecked(harness, openOptions)
+        },
+        hold: () => hold(key),
+        release: (releaseOptions) => {
+          if (releaseOptions?.dropped) warnDropped(key, threadId)
+          return release(key)
+        },
+      },
     })
+  }
+
+  /** The session keys of a thread of a tenant on this host, of any harness. */
+  const keysOf = (tenantId: string | undefined, threadId: string) => {
+    const suffix = `\u0000${logIdOf({ tenantId, logId: threadId })}`
+    return [...sessions.keys()].filter((key) => key.endsWith(suffix))
+  }
 
   /** The open sessions of a thread of a tenant on this host, of any harness. */
   const openSessionsOf = async (
     tenantId: string | undefined,
     threadId: string,
   ) => {
-    const suffix = `\u0000${logIdOf({ tenantId, logId: threadId })}`
-    const live = await Promise.allSettled(
-      [...sessions].flatMap(([key, session]) =>
-        key.endsWith(suffix) ? [session] : [],
-      ),
+    const opened = await Promise.allSettled(
+      keysOf(tenantId, threadId).flatMap((key) => sessions.get(key) ?? []),
     )
-    return live.flatMap((entry) =>
+    return opened.flatMap((entry) =>
       entry.status === 'fulfilled' ? [entry.value] : [],
     )
   }
 
-  /** `host.fork` after its checks: the session class of the new thread. */
+  /** The thread ids of the index entries with `threadId` as parent. */
+  const childrenOf = async (tenantId: string | undefined, threadId: string) => {
+    if (!sessionStore) return []
+    const children: Array<string> = []
+    let cursor: string | undefined
+    do {
+      const page = await sessionStore.list({
+        tenantId,
+        parentThreadId: threadId,
+        ...(cursor !== undefined ? { cursor } : {}),
+      })
+      children.push(...page.entries.map((entry) => entry.threadId))
+      cursor = page.truncated ? page.cursor : undefined
+    } while (cursor !== undefined)
+    return children
+  }
+
+  /**
+   * `host.sessions.delete` after its check: close the open sessions of the
+   * thread, purge its children depth first, then delete its data and its
+   * entry. `seen` stops a loop of parent ids.
+   */
+  const purge = async (
+    tenantId: string | undefined,
+    threadId: string,
+    seen: Set<string>,
+  ): Promise<void> => {
+    if (seen.has(threadId)) return
+    seen.add(threadId)
+    // First, so no session of the thread writes or starts a child while
+    // the purge runs. For every handle.
+    const keys = keysOf(tenantId, threadId)
+    for (const key of keys) {
+      const session = await sessions.get(key)?.catch(() => undefined)
+      if (session) await closeShared(key, session)
+    }
+    const children = await childrenOf(tenantId, threadId)
+    for (const child of children) await purge(tenantId, child, seen)
+    const storeId = logIdOf({ tenantId, logId: threadId })
+    // A `host.observe` view can still hold the shared log of the thread.
+    // Its reads end, and the next open folds the log from the store.
+    resolved.get(storeId)?.log.stopReaders()
+    logs.delete(storeId)
+    resolved.delete(storeId)
+    await purgeThreadData({
+      storeId,
+      stores: persistence.stores,
+      media: media.stores,
+    })
+    await index.remove({ tenantId, threadId })
+  }
+
+  /**
+   * `host.fork` after its checks: the session class of the new thread, and
+   * its key, which the fork holds. Give the hold to a handle, or release it.
+   */
   const forkInto = async <THarness extends AnyHarness>(
     harness: THarness,
     { threadId, newThreadId, at, principal, logId }: ForkSessionOptions<P>,
@@ -1291,16 +1771,17 @@ export function createHarnessHost<P extends Principal = Principal>(
       throw new Error('A fork needs a new thread: newThreadId is threadId.')
     }
     const tenantId = principal?.tenantId
-    // A source that only this fork opens closes again at the end.
-    const wasOpen = sessions.has(sessionKey(harness.name, tenantId, threadId))
-    // In the tenant of the fork, with no principal: the fork does not
-    // become the owner of a source with no owner.
-    const source = await openSession(
-      harness,
-      { threadId, ...(logId ? { logId } : {}) },
-      tenantId,
-    )
+    // The fork holds the source while it reads it.
+    const sourceKey = sessionKey(harness.name, tenantId, threadId)
+    hold(sourceKey)
     try {
+      // In the tenant of the fork, with no principal: the fork does not
+      // become the owner of a source with no owner.
+      const source = await openSession(
+        harness,
+        { threadId, ...(logId ? { logId } : {}) },
+        tenantId,
+      )
       const transcript = await source.transcript()
       const end =
         at === undefined
@@ -1331,61 +1812,99 @@ export function createHarnessHost<P extends Principal = Principal>(
           `Thread ${JSON.stringify(newThreadId)} is not empty. Fork into a new thread.`,
         )
       }
-      const fork = await openSession(
-        harness,
-        { threadId: newThreadId, ...(principal ? { principal } : {}) },
-        tenantId,
-      )
-      await fork.adoptFork(source, transcript.slice(0, end))
-      return fork
+      const key = sessionKey(harness.name, tenantId, newThreadId)
+      hold(key)
+      try {
+        const fork = await openSession(
+          harness,
+          { threadId: newThreadId, ...(principal ? { principal } : {}) },
+          tenantId,
+        )
+        await fork.adoptFork(source, transcript.slice(0, end))
+        return { fork, key }
+      } catch (error) {
+        await release(key)
+        throw error
+      }
     } finally {
-      // A failed close must not hide the fork's own error.
-      if (!wasOpen)
-        await source
-          .close()
-          .catch((error: unknown) =>
-            console.error(
-              '[@tanstack/ai-harness] The source session did not close.',
-              error,
-            ),
-          )
+      // A source that only this fork opened closes on idle.
+      await release(sourceKey)
+    }
+  }
+
+  /**
+   * A reader of the log `ids` for the thread `threadId`, on a durable host,
+   * and the reduce that folds the log. It shares the log of the open
+   * sessions and the other readers. Close it after the read.
+   */
+  const readLog = async (
+    store: LogStore,
+    ids: { logId: string; rootThread: string },
+    harness: AnyHarness,
+    threadId: string,
+  ) => {
+    let log = await sharedLog(store, ids, harness)
+    // The log closed while this read waited, and the host dropped it.
+    while (!log.isOpen) log = await sharedLog(store, ids, harness)
+    // `host.close()` ran while the log loaded: it stopped the readers.
+    if (isClosed) throw hostClosed()
+    return {
+      reader: log.reader(threadId),
+      reduce: resolved.get(ids.logId)?.reduce,
     }
   }
 
   const host: HarnessHost<P> = {
     async open(harness, openOptions) {
-      if (!access) {
-        const { principal } = openOptions
-        const session = await openSession(
-          harness,
-          openOptions,
-          principal?.tenantId,
-        )
-        return handleOf(session, principal)
+      if (isClosed) throw hostClosed()
+      const tenantId = openOptions.principal?.tenantId
+      const key = sessionKey(harness.name, tenantId, openOptions.threadId)
+      // Before the open, so the session never closes on idle under it.
+      hold(key)
+      try {
+        const session = await openChecked(harness, openOptions)
+        return handleOf({ harness, session, openOptions, key })
+      } catch (error) {
+        await release(key)
+        throw error
       }
-      const principal = need(openOptions.principal, 'host.open')
-      const { threadId } = openOptions
-      const key = { tenantId: principal.tenantId, threadId }
-      const before = await index.get(key)
-      // The open refuses a child thread, and says why.
-      const isRoot = before !== undefined && before.parentThreadId === undefined
-      if (isRoot) {
-        await allow({ principal, action: 'read', threadId, entry: before })
+    },
+    async observe(harness, { threadId, principal, logId: openLogId }) {
+      if (isClosed) throw hostClosed()
+      const tenantId = principal?.tenantId
+      if (access) {
+        const user = need(principal, 'host.observe')
+        const entry = await index.get({ tenantId, threadId })
+        // No entry is not found: the same answer as a refusal.
+        if (!entry) throw new AccessDeniedError({ action: 'read', threadId })
+        // `allow` checks a child thread through its root thread.
+        await allow({ principal: user, action: 'read', threadId, entry })
       }
-      const session = await openSession(
+      const key = sessionKey(harness.name, tenantId, threadId)
+      const logId = openLogId ?? threadId
+      const ids = { logId: logIdOf({ tenantId, logId }), rootThread: logId }
+      return observedSession({
         harness,
-        openOptions,
-        principal.tenantId,
-      )
-      if (!before) {
-        // Two users can create one thread at once. Only the user whose open
-        // wrote the entry needs no check.
-        const created = await index.get(key)
-        if (created?.ownerId !== principal.id) {
-          await allow({ principal, action: 'read', threadId, entry: created })
-        }
-      }
-      return handleOf(session, principal)
+        threadId,
+        tenantId,
+        live: () => {
+          const open = isClosed ? undefined : live.get(key)
+          // The key names the harness, so the session is a session of
+          // `harness`, as in `openSession`.
+          return open && !open.isClosing()
+            ? (open as SessionImpl<typeof harness>)
+            : undefined
+        },
+        check: () => {
+          if (isClosed) throw hostClosed()
+        },
+        index,
+        persistence,
+        media,
+        readLog: logStore
+          ? () => readLog(logStore, ids, harness, threadId)
+          : undefined,
+      })
     },
     isOpen(harness, { threadId, principal }) {
       if (access) need(principal, 'host.isOpen')
@@ -1395,10 +1914,13 @@ export function createHarnessHost<P extends Principal = Principal>(
     },
     async fork(harness, forkOptions) {
       await checkFork('host.fork', forkOptions)
-      return handleOf(
-        await forkInto(harness, forkOptions),
-        forkOptions.principal,
-      )
+      const { fork, key } = await forkInto(harness, forkOptions)
+      const { principal } = forkOptions
+      const openOptions = {
+        threadId: fork.threadId,
+        ...(principal ? { principal } : {}),
+      }
+      return handleOf({ harness, session: fork, openOptions, key })
     },
     revoke: ({ threadId, principal }) =>
       revokeUser({
@@ -1450,13 +1972,13 @@ export function createHarnessHost<P extends Principal = Principal>(
         // A claim is on the store key of the thread: its tenant and its id.
         const { tenantId, logId: threadId } = parseLogId(claimed)
         const key = sessionKey(name, tenantId, threadId)
-        // Only a session that this sweep opens closes when idle. A session
-        // that the app has open stays open.
+        // Only a session that this sweep opens closes at once when idle. A
+        // session that the app has open stays open. No handle holds the
+        // session, so it closes on idle in any case.
         const isOwn = close === 'whenIdle' && !sessions.has(key)
         if (isOwn) sweptOnly.add(key)
-        let session: SessionImpl
         try {
-          session = await openSession(harness, { threadId }, tenantId)
+          await openSession(harness, { threadId }, tenantId)
         } catch (error) {
           // One thread that cannot open must not stop the sweep. The claim
           // goes back, so the next sweep tries again.
@@ -1466,23 +1988,6 @@ export function createHarnessHost<P extends Principal = Principal>(
             .catch(() => {})
           failures.push(error)
           continue
-        }
-        if (isOwn) {
-          const stop = session.onIdle(() => {
-            stop()
-            // The app opened it since: it stays open.
-            if (!sweptOnly.delete(key)) return
-            // From here on, an open gets a new session, so a new prompt
-            // never reaches this one while it closes.
-            sessions.delete(key)
-            // ponytail: a failed close is dropped, as an idle session has no
-            // work to lose.
-            const closed = session.close().catch(() => {})
-            closing.set(key, closed)
-            void closed.then(() => {
-              if (closing.get(key) === closed) closing.delete(key)
-            })
-          })
         }
         opened.push({ threadId, harness: name })
       }
@@ -1499,9 +2004,9 @@ export function createHarnessHost<P extends Principal = Principal>(
       return opened
     },
     async recover(threadId) {
-      const live = await Promise.allSettled(sessions.values())
+      const opened = await Promise.allSettled(sessions.values())
       await Promise.all(
-        live.flatMap((entry) =>
+        opened.flatMap((entry) =>
           entry.status === 'fulfilled' &&
           (threadId === undefined || entry.value.threadId === threadId)
             ? [entry.value.recover()]
@@ -1511,13 +2016,13 @@ export function createHarnessHost<P extends Principal = Principal>(
     },
     async reload(harness) {
       const prefix = `${harness.name}\u0000`
-      const live = await Promise.allSettled(
+      const opened = await Promise.allSettled(
         [...sessions].flatMap(([key, session]) =>
           key.startsWith(prefix) ? [session] : [],
         ),
       )
       const results = await Promise.allSettled(
-        live.flatMap((entry) =>
+        opened.flatMap((entry) =>
           entry.status === 'fulfilled' ? [entry.value.reload()] : [],
         ),
       )
@@ -1526,13 +2031,20 @@ export function createHarnessHost<P extends Principal = Principal>(
       }
     },
     async close(closeOptions) {
+      // First: no open starts while the sessions close.
+      isClosed = true
+      for (const key of holds.keys()) cancelIdle(key)
+      // The event reads of `host.observe` views end.
+      for (const { log } of resolved.values()) log.stopReaders()
       await Promise.allSettled(closing.values())
-      const live = await Promise.allSettled(sessions.values())
+      const opened = await Promise.allSettled(sessions.values())
       await Promise.all(
-        live
+        opened
           .filter((entry) => entry.status === 'fulfilled')
           .map((entry) => entry.value.close(closeOptions)),
       )
+      // After the sessions: each one gave its host plugins back.
+      await hostPlugins.close()
     },
     logState: ({ harness, logId, principal }) => {
       if (access) need(principal, 'host.logState')
@@ -1615,25 +2127,11 @@ export function createHarnessHost<P extends Principal = Principal>(
         )) as SessionIndexEntry<SessionMetadataOf<typeof harness>> | undefined
       },
       async delete({ threadId, principal }) {
-        const tenantId = principal?.tenantId
-        const entry = await checkEntry('host.sessions.delete', 'delete', {
+        await checkEntry('host.sessions.delete', 'delete', {
           threadId,
           principal,
         })
-        // The transcript goes with the entry, so the next opener of this
-        // thread id cannot read it. ponytail: the log or the messages only;
-        // PR 4 adds a purge of blobs, metadata, and children.
-        if (entry?.harness !== undefined) {
-          const open = sessions.get(
-            sessionKey(entry.harness, tenantId, threadId),
-          )
-          if (open) await (await open).close()
-        }
-        const storeId = logIdOf({ tenantId, logId: threadId })
-        const { log, messages } = persistence.stores
-        if (log) await log.deleteLog({ logId: storeId })
-        else await messages?.saveThread(storeId, [])
-        await index.remove({ tenantId, threadId })
+        await purge(principal?.tenantId, threadId, new Set())
       },
       async fork({ harness, threadId, at, members, principal }) {
         const tenantId = principal?.tenantId
@@ -1647,30 +2145,41 @@ export function createHarnessHost<P extends Principal = Principal>(
         // `host.fork` takes the last message to copy, so `before` becomes
         // the message just before it, or `null` before the first one.
         let last: string | null = 'through' in at ? at.through : null
-        if ('before' in at) {
-          // With no principal, as `host.fork` opens the source.
-          const opened = await openSession(harness, { threadId }, tenantId)
-          const transcript = await opened.transcript()
-          const position = transcript.findIndex(({ id }) => id === at.before)
-          if (position === -1) {
-            throw new Error(
-              `The transcript has no message with id ${at.before}.`,
-            )
-          }
-          if (position > 0) {
-            const previous = transcript[position - 1]?.id
-            if (!previous) {
-              throw new Error(`The message before ${at.before} has no id.`)
+        // The source stays open from the read of `before` to the fork.
+        const sourceKey = sessionKey(harness.name, tenantId, threadId)
+        hold(sourceKey)
+        let forked: SessionImpl
+        try {
+          if ('before' in at) {
+            // With no principal, as `host.fork` opens the source.
+            const opened = await openSession(harness, { threadId }, tenantId)
+            const transcript = await opened.transcript()
+            const position = transcript.findIndex(({ id }) => id === at.before)
+            if (position === -1) {
+              throw new Error(
+                `The transcript has no message with id ${at.before}.`,
+              )
             }
-            last = previous
+            if (position > 0) {
+              const previous = transcript[position - 1]?.id
+              if (!previous) {
+                throw new Error(`The message before ${at.before} has no id.`)
+              }
+              last = previous
+            }
           }
+          const { fork, key } = await forkInto(harness, {
+            threadId,
+            newThreadId: `thread-${crypto.randomUUID()}`,
+            at: last,
+            ...(principal ? { principal } : {}),
+          })
+          forked = fork
+          // No handle takes the fork: it closes on idle.
+          await release(key)
+        } finally {
+          await release(sourceKey)
         }
-        const forked = await forkInto(harness, {
-          threadId,
-          newThreadId: `thread-${crypto.randomUUID()}`,
-          at: last,
-          ...(principal ? { principal } : {}),
-        })
         const mode =
           members ?? (access ? (policy?.fork.members ?? 'self') : undefined)
         const { ownerId, members: people } = forkedMembers(
@@ -1787,6 +2296,16 @@ export function createHarnessHost<P extends Principal = Principal>(
     durableStores.set(host, { log: logStore, ...(runs ? { runs } : {}) })
   }
   if (access) accesses.set(host, access)
+  counters.set(host, () => ({
+    sessions: sessions.size,
+    handles: [...holds.values()].reduce(
+      (total, held) => total + held.handles,
+      0,
+    ),
+    holds: holds.size,
+    statuses: statuses.size,
+    closing: closing.size,
+  }))
   turnFinders.set(host, async ({ harness, tenantId, operationId }) => {
     // The key of a session with an empty thread id is the start of the keys
     // of the harness and tenant: the encoded tenant has no `:`.

@@ -102,7 +102,7 @@ const host = createHarnessHost({ persistence: memoryPersistence() })
 const session = await host.open(assistant, { threadId: 'thread-1' })
 ```
 
-Opening the same `threadId` again returns the live session.
+Opening the same `threadId` again gives another handle to the same live session. Release a handle with `await session.close()`, or open it with `await using`, so an idle session can close. See [Lifecycle and retention](./lifecycle).
 
 Does the host serve many users? Give it `access`, so each user reaches only their own sessions. See [Access and tenants](./access).
 
@@ -191,7 +191,7 @@ export const withClock = defineHarness({
 })
 ```
 
-`plugins` is a function, so every session gets its own plugin instances. Set `lifetime: 'turn'` on a plugin to set it up again for each turn.
+`plugins` is a function, so every session gets its own plugin instances. Set `lifetime: 'turn'` on a plugin to set it up again for each turn, or `lifetime: 'host'` to share one setup between all the sessions of the host.
 
 If two plugins add a tool with the same name, `host.open` fails and names both plugins. To write your own, see [Write a harness plugin](./plugins).
 
@@ -230,7 +230,7 @@ const support = await host.open(assistant, {
 })
 ```
 
-If the `threadId` already has a live session, `host.open` returns that session with its first `promptCache` value. The agents that the model calls as tools use the retention of the turn. `session.usage()` shows the cache reads and writes, see [Track usage and cost](./usage). For the options and the cost, see [Prompt Caching](../advanced/prompt-caching).
+If the `threadId` already has a live session, `host.open` gives a handle to that session, which keeps its first `promptCache` value. The agents that the model calls as tools use the retention of the turn. `session.usage()` shows the cache reads and writes, see [Track usage and cost](./usage). For the options and the cost, see [Prompt Caching](../advanced/prompt-caching).
 
 To change it for one prompt, pass `overrides.promptCache`. See [Give one prompt its own settings](./turn-control#give-one-prompt-its-own-settings).
 

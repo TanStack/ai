@@ -67,6 +67,23 @@ async function openWith(
   return { host, session, model }
 }
 
+/** A stdio server config that runs this file as an SDK server. */
+function stdioServer(): McpServerConfig {
+  return {
+    type: 'stdio',
+    command: process.execPath,
+    args: ['--import', 'jiti/register', fileURLToPath(import.meta.url)],
+    cwd: fileURLToPath(new URL('..', import.meta.url)),
+    env: { [childEnv]: '1' },
+  }
+}
+
+/** The pid that the `pid` tool gave in model call `call` of `model`. */
+function pidOf(model: ReturnType<typeof recorder> | undefined, call: number) {
+  const seen = JSON.stringify(model?.calls[call]?.messages)
+  return Number(/pid:(\d+)/.exec(seen)?.[1])
+}
+
 function isRunning(pid: number) {
   try {
     process.kill(pid, 0)
@@ -381,26 +398,47 @@ if (process.env[childEnv] === '1') {
       )
     })
 
-    it('runs a stdio server as a child process and stops it when the session closes', async () => {
+    it('runs a stdio server as a child process and stops it when the host closes', async () => {
       const model = recorder('local_pid')
-      const { host, session } = await openWith(
-        {
-          local: {
-            type: 'stdio',
-            command: process.execPath,
-            args: ['--import', 'jiti/register', fileURLToPath(import.meta.url)],
-            cwd: fileURLToPath(new URL('..', import.meta.url)),
-            env: { [childEnv]: '1' },
-          },
-        },
-        model,
-      )
+      const { host, session } = await openWith({ local: stdioServer() }, model)
       await session.send('which process runs the server?')
-      const seen = JSON.stringify(model.calls[1]?.messages)
-      const pid = Number(/pid:(\d+)/.exec(seen)?.[1])
+      const pid = pidOf(model, 1)
       expect(isRunning(pid)).toBe(true)
 
       await host.close()
+      await vi.waitFor(() => expect(isRunning(pid)).toBe(false), {
+        timeout: 10_000,
+      })
+    }, 120_000)
+
+    it('runs one stdio child for two sessions, and stops it when the last one closes', async () => {
+      const host = createHarnessHost({
+        persistence: memoryPersistence(),
+        lifecycle: { idleCloseMs: 0 },
+      })
+      cleanups.push(() => host.close())
+      // One harness definition, so one shared setup. The model calls the
+      // tool on the first call of each turn: calls 1 and 3.
+      const model = recorder('local_pid', (call) => call % 2 === 1)
+      const harness = defineHarness({
+        name: 'test/mcp-plugin',
+        adapter: model.adapter,
+        plugins: () => [mcp({ servers: { local: stdioServer() } })],
+      })
+      const [first, second] = await Promise.all([
+        host.open(harness, { threadId: 't-0' }),
+        host.open(harness, { threadId: 't-1' }),
+      ])
+
+      await first.send('which process runs the server?')
+      await second.send('which process runs the server?')
+      const pid = pidOf(model, 1)
+      expect(pid).toBeGreaterThan(0)
+      expect(pidOf(model, 3)).toBe(pid)
+
+      await first.close()
+      expect(isRunning(pid)).toBe(true)
+      await second.close()
       await vi.waitFor(() => expect(isRunning(pid)).toBe(false), {
         timeout: 10_000,
       })

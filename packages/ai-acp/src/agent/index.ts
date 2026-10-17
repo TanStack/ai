@@ -249,6 +249,11 @@ const APPROVAL_OPTIONS = [
  * checks each action, and a session that the principal may not read is not
  * found. Without `principal`, a host with access throws at the start.
  *
+ * The agent holds one handle per session. `session/close` releases it, and
+ * the close of the connection releases them all. The host then closes each
+ * session when it is idle. `session/resume` only checks the session index:
+ * the session opens at its first prompt.
+ *
  * ACP v2 is a draft, so this API is experimental too.
  */
 export function createAcpAgent<P extends Principal = Principal>(
@@ -260,36 +265,65 @@ export function createAcpAgent<P extends Principal = Principal>(
       'createAcpAgent needs a principal: the host has access. Pass the local user as principal.',
     )
   }
-  /** The ids of the sessions that this agent opened. */
-  const opened = new Set<string>()
+  /**
+   * The handle of each session that this agent opened, by session id. The
+   * agent holds one per session. `session/close` releases it, and so does
+   * the close of the connection.
+   */
+  const handles = new Map<string, Promise<HarnessSession>>()
   /** The last pump of each session. The pumps of one session run in order. */
   const tails = new Map<string, Promise<void>>()
 
-  // The host gives back a handle to the live session of a thread, or opens
-  // it again after it closed, so the agent keeps no session objects.
-  const live = (sessionId: string) =>
-    host.open(harness, { threadId: sessionId, principal })
+  /** The handle of a session: the one that the agent holds, or a new one. */
+  const live = (sessionId: string) => {
+    const held = handles.get(sessionId)
+    if (held) return held
+    const opening = host.open(harness, { threadId: sessionId, principal })
+    handles.set(sessionId, opening)
+    // A failed open holds nothing, so the next request opens again.
+    opening.catch(() => {
+      if (handles.get(sessionId) === opening) handles.delete(sessionId)
+    })
+    return opening
+  }
+
+  /** Release the handle of a session. The session closes on idle. */
+  const release = async (sessionId: string) => {
+    const held = handles.get(sessionId)
+    if (!held) return
+    handles.delete(sessionId)
+    await held.then(
+      (session) => session.close(),
+      () => {},
+    )
+  }
 
   /**
-   * The session of an id that this agent or the session index knows. A
-   * subagent child is not a session of its own: ACP reaches it through its
-   * parent. A session that the principal may not read gets the same answer
-   * as an unknown id.
+   * Throw unless this agent or the session index knows the id. A subagent
+   * child is not a session of its own: ACP reaches it through its parent. A
+   * session that the principal may not read gets the same answer as an
+   * unknown id. It reads the index only: no session opens.
    */
-  const known = async (sessionId: string) => {
+  const checkKnown = async (sessionId: string) => {
+    if (handles.has(sessionId)) return
     try {
-      if (!opened.has(sessionId)) {
-        const entry = await host.sessions.get({
-          threadId: sessionId,
-          principal,
-        })
-        const isOwnSession =
-          entry?.harness === harness.name && entry.parentThreadId === undefined
-        if (!isOwnSession) throw RequestError.resourceNotFound(sessionId)
+      const entry = await host.sessions.get({ threadId: sessionId, principal })
+      const isOwnSession =
+        entry?.harness === harness.name && entry.parentThreadId === undefined
+      if (!isOwnSession) throw RequestError.resourceNotFound(sessionId)
+    } catch (error) {
+      if (error instanceof AccessDeniedError) {
+        throw RequestError.resourceNotFound(sessionId)
       }
-      const session = await live(sessionId)
-      opened.add(sessionId)
-      return session
+      throw error
+    }
+  }
+
+  /** The session of an id that this agent or the session index knows. */
+  const known = async (sessionId: string) => {
+    await checkKnown(sessionId)
+    try {
+      return await live(sessionId)
     } catch (error) {
       if (error instanceof AccessDeniedError) {
         throw RequestError.resourceNotFound(sessionId)
@@ -463,94 +497,98 @@ export function createAcpAgent<P extends Principal = Principal>(
     )
   }
 
-  return agent()
-    .onRequest('initialize', () => ({
-      protocolVersion: PROTOCOL_VERSION,
-      info: { name: harness.name, version: options.version ?? '0.0.0' },
-      // Text and resource links are the baseline. Images, audio, and embedded
-      // resources go to the media store of the session.
-      capabilities: {
-        session: { prompt: { image: {}, audio: {}, embeddedContext: {} } },
-      },
-    }))
-    .onRequest('session/new', async () => {
-      const sessionId = `acp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
-      opened.add(sessionId)
-      await live(sessionId)
-      return { sessionId }
-    })
-    .onRequest('session/list', async ({ params }) => {
-      // ponytail: the harness keeps no cwd per thread, so every session
-      // reports the cwd of the agent. Store one per thread when one agent
-      // serves more than one project.
-      const cwd = options.cwd ?? process.cwd()
-      if (params.cwd && params.cwd !== cwd) return { sessions: [] }
-      const page = await host.sessions.list({
-        principal,
-        harness: harness.name,
-        limit: LIST_PAGE_SIZE,
-        ...(params.cursor ? { cursor: params.cursor } : {}),
+  return (
+    agent()
+      .onConnect((connection) => {
+        // The handles of the sessions go with the connection.
+        void connection.closed.then(() =>
+          Promise.all([...handles.keys()].map(release)),
+        )
       })
-      return {
-        sessions: page.entries.map((entry) => ({
-          sessionId: entry.threadId,
-          cwd,
-          title: entry.title ?? null,
-          updatedAt: new Date(entry.updatedAt).toISOString(),
-        })),
-        nextCursor: page.truncated ? page.cursor : null,
-      }
-    })
-    .onRequest('session/resume', async ({ params }) => {
-      await known(params.sessionId)
-      return {}
-    })
-    .onRequest('session/prompt', async ({ params, client }) => {
-      const { sessionId } = params
-      const session = await known(sessionId)
-      const input = await promptInput(session, params.prompt).catch(
-        (error: unknown) => {
-          // The editor sent a file the harness refuses, so the prompt is
-          // invalid: answer with the reason, not an internal error.
-          if (error instanceof MediaError) {
-            throw RequestError.invalidParams(
-              { status: error.status },
-              error.message,
-            )
-          }
-          throw error
+      .onRequest('initialize', () => ({
+        protocolVersion: PROTOCOL_VERSION,
+        info: { name: harness.name, version: options.version ?? '0.0.0' },
+        // Text and resource links are the baseline. Images, audio, and embedded
+        // resources go to the media store of the session.
+        capabilities: {
+          session: { prompt: { image: {}, audio: {}, embeddedContext: {} } },
         },
-      )
-      const messageId = `user-${crypto.randomUUID()}`
-      await notify(client, sessionId, {
-        sessionUpdate: 'user_message',
-        messageId,
-        content: params.prompt,
+      }))
+      .onRequest('session/new', async () => {
+        const sessionId = `acp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
+        await live(sessionId)
+        return { sessionId }
       })
-      // `pump` catches its own errors and always reports idle. The prompts of
-      // one session go to the harness in order, each after the turn before it
-      // ended, so a later prompt cannot overtake a permission request.
-      const tail = (tails.get(sessionId) ?? Promise.resolve()).then(() =>
-        pump(client, sessionId, session, input),
-      )
-      tails.set(sessionId, tail)
-      void tail.then(() => {
-        if (tails.get(sessionId) === tail) tails.delete(sessionId)
+      .onRequest('session/list', async ({ params }) => {
+        // ponytail: the harness keeps no cwd per thread, so every session
+        // reports the cwd of the agent. Store one per thread when one agent
+        // serves more than one project.
+        const cwd = options.cwd ?? process.cwd()
+        if (params.cwd && params.cwd !== cwd) return { sessions: [] }
+        const page = await host.sessions.list({
+          principal,
+          harness: harness.name,
+          limit: LIST_PAGE_SIZE,
+          ...(params.cursor ? { cursor: params.cursor } : {}),
+        })
+        return {
+          sessions: page.entries.map((entry) => ({
+            sessionId: entry.threadId,
+            cwd,
+            title: entry.title ?? null,
+            updatedAt: new Date(entry.updatedAt).toISOString(),
+          })),
+          nextCursor: page.truncated ? page.cursor : null,
+        }
       })
-      return { messageId }
-    })
-    .onRequest('session/close', async ({ params }) => {
-      if (!opened.delete(params.sessionId)) return
-      // ponytail: a handle has no close of its own yet, so this closes the
-      // live session of the thread on this host, for every handle.
-      await (await live(params.sessionId)).close()
-    })
-    .onNotification('session/cancel', async ({ params }) => {
-      // While the client asks for an approval, no turn runs: the client
-      // answers that request with `cancelled`, and the turn stops there.
-      if (!opened.has(params.sessionId)) return
-      await (await live(params.sessionId)).cancel()
-    })
+      // The session opens at its first prompt: a resume mounts nothing.
+      .onRequest('session/resume', async ({ params }) => {
+        await checkKnown(params.sessionId)
+        return {}
+      })
+      .onRequest('session/prompt', async ({ params, client }) => {
+        const { sessionId } = params
+        const session = await known(sessionId)
+        const input = await promptInput(session, params.prompt).catch(
+          (error: unknown) => {
+            // The editor sent a file the harness refuses, so the prompt is
+            // invalid: answer with the reason, not an internal error.
+            if (error instanceof MediaError) {
+              throw RequestError.invalidParams(
+                { status: error.status },
+                error.message,
+              )
+            }
+            throw error
+          },
+        )
+        const messageId = `user-${crypto.randomUUID()}`
+        await notify(client, sessionId, {
+          sessionUpdate: 'user_message',
+          messageId,
+          content: params.prompt,
+        })
+        // `pump` catches its own errors and always reports idle. The prompts of
+        // one session go to the harness in order, each after the turn before it
+        // ended, so a later prompt cannot overtake a permission request.
+        const tail = (tails.get(sessionId) ?? Promise.resolve()).then(() =>
+          pump(client, sessionId, session, input),
+        )
+        tails.set(sessionId, tail)
+        void tail.then(() => {
+          if (tails.get(sessionId) === tail) tails.delete(sessionId)
+        })
+        return { messageId }
+      })
+      // Only the handle of this agent goes. Other handles keep the session.
+      .onRequest('session/close', ({ params }) => release(params.sessionId))
+      .onNotification('session/cancel', async ({ params }) => {
+        // While the client asks for an approval, no turn runs: the client
+        // answers that request with `cancelled`, and the turn stops there.
+        if (!handles.has(params.sessionId)) return
+        await (await live(params.sessionId)).cancel()
+      })
+  )
 }
 
 /**

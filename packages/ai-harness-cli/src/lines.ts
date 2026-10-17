@@ -31,16 +31,16 @@ function typedText(raw: string) {
 
 /**
  * Hide what the user types in a terminal while a secret question (a key)
- * waits. Raw mode stops the echo. It also stops Ctrl+C, so this sends
- * SIGINT itself. Does nothing for a pipe.
+ * waits. Raw mode stops the echo. It also makes Ctrl+C a typed character
+ * and not SIGINT, so this calls `onCtrlC`. Does nothing for a pipe.
  */
-function secretTyping(input: NodeJS.ReadableStream) {
+function secretTyping(input: NodeJS.ReadableStream, onCtrlC: () => void) {
   const terminal = isTerminal(input) ? input : undefined
   let hidden = false
   const onKeys = (chunk: unknown) => {
     if (!String(chunk).includes('\u0003')) return
     show()
-    process.kill(process.pid, 'SIGINT')
+    onCtrlC()
   }
   const show = () => {
     if (!terminal || !hidden) return
@@ -71,16 +71,24 @@ function secretTyping(input: NodeJS.ReadableStream) {
  * `openSignIns`: open sign-in links in the browser (for an interactive terminal).
  * `mediaDir`: the folder for the media a turn makes. Each new file is saved
  * there, with one `[image saved: <path>]` line.
+ * `signal`: stop reading lines when it aborts.
+ * `onCtrlC`: runs on Ctrl+C while typing is hidden, as the terminal then
+ * sends no SIGINT.
  */
 export async function runLines(
   session: HarnessSession,
   input: NodeJS.ReadableStream,
   stdout: Output,
-  options: { openSignIns?: boolean; mediaDir: string },
+  options: {
+    openSignIns?: boolean
+    mediaDir: string
+    signal: AbortSignal
+    onCtrlC: () => void
+  },
 ) {
   const view = createSessionView(session)
   const saves: Array<Promise<unknown>> = []
-  const typing = secretTyping(input)
+  const typing = secretTyping(input, options.onCtrlC)
   const printer = createPrinter((text) => stdout.write(text), {
     onMedia: (part) => {
       const saved = saveMediaLine(session, part, options.mediaDir)
@@ -99,10 +107,16 @@ export async function runLines(
     : () => {}
   const line = printer.line
 
-  const lines = createInterface({ input, crlfDelay: Infinity })
+  const lines = createInterface({
+    input,
+    crlfDelay: Infinity,
+    signal: options.signal,
+  })
   const pendingLater: Array<Promise<void>> = []
   try {
     for await (const raw of lines) {
+      // Lines that came before the stop do not run.
+      if (options.signal.aborted) break
       const typed = typing.isHidden() ? typedText(raw) : raw
       typing.show()
       const snapshot = session.snapshot()

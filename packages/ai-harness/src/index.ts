@@ -39,8 +39,12 @@ export type {
 export { definePlugin } from './plugins'
 export type {
   HarnessPlugin,
+  HostPluginContext,
+  HostPluginContributions,
+  HostPluginDefinition,
   PluginContributions,
   PluginDefinition,
+  PluginResources,
   PluginLifetime,
   PluginPrompt,
   AgentGroup,
@@ -48,6 +52,7 @@ export type {
   PluginCommands,
   PluginSetupContext,
   PluginState,
+  SessionPluginDefinition,
 } from './plugins'
 
 export { createExtensionPoint, createPluginEvent } from './extensions'
@@ -100,6 +105,7 @@ export type {
   HarnessHostOptions,
   HarnessPersistence,
   HostEvent,
+  HostLifecycleOptions,
   HostRevokedEvent,
   HostSessionDeletedEvent,
   HostSessionEvent,
@@ -107,6 +113,7 @@ export type {
   HostStatusEvent,
   OpenSessionOptions,
   ResumePendingOptions,
+  RetentionLimits,
 } from './host'
 export { AccessDeniedError, membersOnly, membersOnlyPolicyOf } from './access'
 export type {
@@ -139,6 +146,7 @@ export type {
   SessionInspection,
   SessionSnapshot,
 } from './session/index'
+export type { ObservedSession } from './session/observed-session'
 export type { SessionUsage, UsageCounts } from './usage'
 export type { OnHarnessEvent } from './feed'
 

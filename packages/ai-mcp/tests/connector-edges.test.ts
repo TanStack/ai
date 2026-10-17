@@ -362,6 +362,41 @@ describe('mcpConnector /connect', () => {
     )
   })
 
+  it('stops its OAuth requests when the command is cancelled', async () => {
+    const { server, host } = await setup()
+    let requested: () => void = () => {}
+    const firstRequest = new Promise<void>((resolve) => {
+      requested = resolve
+    })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/cancel',
+        adapter: recorder().adapter,
+        plugins: () => [
+          mcpConnector({
+            id: 'demo',
+            label: 'Demo',
+            url: server.url,
+            // The server never answers: only the signal ends a request.
+            fetch: (_input, init) =>
+              new Promise<Response>((_, reject) => {
+                requested()
+                const signal = init?.signal
+                if (signal?.aborted) return reject(signal.reason)
+                signal?.addEventListener('abort', () => reject(signal.reason))
+              }),
+          }),
+        ],
+      }),
+      { threadId: 't', principal: { id: 'user-1' } },
+    )
+    const connecting = session.command({ name: 'connect:demo' })
+    await firstRequest
+    await connecting.cancel()
+    await expect(connecting).rejects.toBeDefined()
+    expect(connecting.status()).toBe('cancelled')
+  })
+
   it('passes the iss of the callback on, for a server that sends one (RFC 9207)', async () => {
     const { server, credentials, host } = await setup(undefined, {
       issParameter: true,
