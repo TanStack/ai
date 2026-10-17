@@ -86,6 +86,7 @@ describe('session view client tools', () => {
     )
     expect(controls.at(-1)).toEqual({
       op: 'resolve',
+      inputId: expect.any(String),
       resume: [
         {
           interruptId: call?.id,

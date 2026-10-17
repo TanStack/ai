@@ -213,14 +213,30 @@ function commandPattern(glob: string) {
   return new RegExp(`^${source}$`)
 }
 
+/** The most compiled rule patterns kept. */
+const MAX_PATTERNS = 1000
+
+// ponytail: one cache for all sessions. It is cleared when it is full, so
+// many saved answers cannot grow it forever.
+const patterns = new Map<string, RegExp>()
+
+/** The RegExp of a rule `glob` for `resource`, compiled once. */
+function patternOf(glob: string, resource: Resource) {
+  const flags = resource.foldCase ? 'i' : ''
+  const key = `${resource.type}:${flags}:${glob}`
+  const cached = patterns.get(key)
+  if (cached) return cached
+  if (patterns.size >= MAX_PATTERNS) patterns.clear()
+  const pattern =
+    resource.type === 'command'
+      ? commandPattern(glob)
+      : new RegExp(globToRegExp(glob.replaceAll('\\', '/')).source, flags)
+  patterns.set(key, pattern)
+  return pattern
+}
+
 function matchesResource(glob: string, resource: Resource) {
-  if (resource.type === 'command') {
-    return commandPattern(glob).test(resource.match)
-  }
-  const pattern = globToRegExp(glob.replaceAll('\\', '/'))
-  return new RegExp(pattern.source, resource.foldCase ? 'i' : '').test(
-    resource.match,
-  )
+  return patternOf(glob, resource).test(resource.match)
 }
 
 function strictest(decisions: ReadonlyArray<PermissionDecision>) {

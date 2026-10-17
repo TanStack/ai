@@ -873,6 +873,22 @@ export async function mountPlugins(
   // mount leaves it pending, so no plugin acts on a session that never opens.
   let markReady = () => {}
   const ready = new Promise<void>((resolve) => (markReady = resolve))
+  // The values of each extension point, built again only when it grows.
+  // Contributions are only added, so the length tells when a copy is old.
+  const snapshots = new Map<
+    string,
+    { length: number; values: Array<unknown> }
+  >()
+  const valuesOf = (point: string) => {
+    const items = extensions.get(point) ?? []
+    const cached = snapshots.get(point)
+    if (cached?.length === items.length) return cached.values
+    const fresh = items.map((item) => item.value)
+    snapshots.set(point, { length: items.length, values: fresh })
+    return fresh
+  }
+  // True after the last setup. No plugin contributes after that.
+  let settled = false
   const ownerOf = (name: string) =>
     commands.get(name)?.owner ?? env.takenCommands?.get(name)?.owner
 
@@ -937,16 +953,15 @@ export async function mountPlugins(
           },
         },
         collect: <T>(point: ExtensionPoint<T>): ReadonlyArray<T> => {
-          let items = extensions.get(point.name)
-          if (!items) {
-            items = []
-            extensions.set(point.name, items)
-          }
-          const source = items
-          const live = () => source.map((item) => item.value as T)
-          // A live view: items contributed after this call appear too. Array
-          // methods like `filter` also check that an index exists, so every
-          // trap reads the items, not the empty target.
+          const name = point.name
+          if (!extensions.has(name)) extensions.set(name, [])
+          // The values are the `T` items that plugins gave for this point.
+          const live = () => valuesOf(name) as Array<T>
+          // After setup, the list does not change: give the array itself.
+          if (settled) return live()
+          // During setup, a live view: items contributed after this call
+          // appear too. Array methods like `filter` also check that an index
+          // exists, so every trap reads the items, not the empty target.
           return new Proxy<Array<T>>([], {
             get: (_target, key) => Reflect.get(live(), key),
             has: (_target, key) => Reflect.has(live(), key),
@@ -1136,6 +1151,7 @@ export async function mountPlugins(
         }
       : undefined
 
+  settled = true
   markReady()
   let disposed: Promise<void> | undefined
   return {
