@@ -464,9 +464,15 @@ export class SessionImpl<
         (!this.isIdle() || this.jobs.size > 0 || this.recovering > 0) &&
         this.sleeping === 0,
       onOffers: () => void this.drainOffers(),
+      redact: this.redactor.redact,
     })
     this.logWriter = writer
-    this.feed = tapFeed(writer, this.notifyHost, this.eventListeners)
+    this.feed = tapFeed(
+      writer,
+      this.notifyHost,
+      this.eventListeners,
+      this.redactor,
+    )
     // The child threads (agent chains and subagent runs) are in this log.
     const view = { writer }
     this.messages = sessionMessageStore(view)

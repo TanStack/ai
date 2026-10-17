@@ -9,6 +9,7 @@ import {
 } from '@tanstack/ai'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { withPersistence } from '@tanstack/ai-persistence'
+import { redactMiddleware } from '../auth'
 import { bindDurable } from '../durable-tool'
 import { mediaMiddleware } from '../media'
 import { OperationImpl } from '../operation'
@@ -730,6 +731,8 @@ export abstract class SessionTurn<
                 ),
                 transcribe: this.harness.media?.transcribe,
               }),
+              // After the media, so the model gets no secret of the session.
+              redactMiddleware(this.redactor),
               // The registry types of the harness interrupts do not line up
               // with the middleware tuple chat() infers. Only this field.
             ] as never,

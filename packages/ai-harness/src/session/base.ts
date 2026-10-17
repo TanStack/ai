@@ -5,7 +5,7 @@ import {
   maxIterations,
   untilFinishReason,
 } from '@tanstack/ai'
-import { credentialsFor, providerKeysFor, scrubSecrets } from '../auth'
+import { Redactor, credentialsFor, providerKeysFor } from '../auth'
 import { AgentRegistry } from '../agents'
 import {
   SessionFeed,
@@ -412,8 +412,12 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected readonly stateWrites = new Map<string, Promise<unknown>>()
   /** The revert that stands. See `revert`. */
   protected reverted: RevertState | undefined
-  /** Each secret value a credentials access of this session handed out. */
-  protected readonly secrets = new Set<string>()
+  /**
+   * Each secret value that a credentials access or the keys of this session
+   * handed out. Every log record, feed event, and model call of the session
+   * goes through it. Call `redactor.add` for a new secret value.
+   */
+  protected readonly redactor = new Redactor()
   /**
    * The connectors whose sign-in the user cancelled. Their `require` with
    * `wait` fails the tool, as without `wait`, until the next new turn.
@@ -472,6 +476,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       new SessionFeed({ eventBytes: deps.retention.eventBytes }),
       deps.onEvent,
       this.eventListeners,
+      this.redactor,
     )
     this.onClose = deps.onClose
     this.notifyIdle = deps.onIdle
@@ -495,7 +500,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
         {
           ...(canWait ? { canWait } : {}),
           onSet: () => this.resumeSignIns(),
-          secrets: this.secrets,
+          secrets: this.redactor,
         },
       )
     this.hasAccess = deps.access !== undefined
@@ -503,7 +508,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     const envFallback = deps.access?.envKeys ?? true
     this.keysOf = (principal) =>
       providerKeysFor(this.credentialsOf(principal), onMissing, {
-        secrets: this.secrets,
+        secrets: this.redactor,
         envFallback,
       })
     this.services = this.pluginServices()
@@ -597,7 +602,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
 
   /** `text` without the credential values this session handed out. */
   protected scrub(text: string) {
-    return scrubSecrets(text, [...this.secrets])
+    return this.redactor.scrub(text)
   }
 
   /** {@link OnEvent} for the events of every operation of this session. */
@@ -843,7 +848,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       const { plugins } = this.writer.state.thread
       // The first write sets the whole value: the log has no value to change.
       const stored = plugins.has(plugin) ? plugins.get(plugin) : undefined
-      const next = change(structuredClone(read()))
+      // Scrubbed here, so the log, the snapshot, and the caller get one value.
+      const next = this.redactor.redact(change(structuredClone(read())))
       // The append is a compare-and-set: it goes at the next position of
       // the log, so a write of another host makes it fail, and no update is
       // lost.
@@ -1046,7 +1052,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * Add an assistant note to the transcript: at once when no turn runs, else
    * before the next turn starts.
    */
-  protected async addNote(note: string) {
+  protected async addNote(text: string) {
+    const note = this.redactor.scrub(text)
     const id = createMessageId()
     this.pendingNotes.push({ id, role: 'assistant', content: note })
     // The log has the note first, so a crash does not lose it.

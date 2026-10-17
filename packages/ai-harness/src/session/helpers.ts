@@ -18,6 +18,7 @@ import type {
   SubagentsBag,
 } from '@tanstack/ai'
 import type { LogRecord, MessageStore } from '@tanstack/ai-persistence'
+import type { Redactor } from '../auth'
 import type { EventFeed, EventListener, ListenedFeed } from '../feed'
 import type { InputState } from '../log'
 import type {
@@ -800,15 +801,18 @@ export const notOpenMessages: MessageStore = {
 /**
  * `feed`, then `notifyHost` and each of `listeners` after each publish. This
  * is how the host and `onEvent` see events. The caller keeps `listeners`, so
- * they survive a new tap of another feed.
+ * they survive a new tap of another feed. Each event goes through
+ * `redactor` first, so no one of them gets a secret of the session.
  */
 export function tapFeed(
   feed: EventFeed,
   notifyHost: (event: StreamChunk) => void,
   listeners: Set<EventListener>,
+  redactor: Redactor,
 ): ListenedFeed {
   return {
-    publish: (operationId, event) => {
+    publish: (operationId, raw) => {
+      const event = redactor.redact(raw)
       feed.publish(operationId, event)
       const report = (error: unknown) =>
         console.error(

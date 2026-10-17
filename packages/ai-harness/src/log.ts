@@ -1047,6 +1047,14 @@ export interface LogViewHooks {
    * host offered still waits.
    */
   onOffers: () => void
+  /**
+   * Scrub the secrets of the session from a value. Each record that the
+   * view appends, stages, commits, or offers goes through it first. It
+   * returns the same value when it changes nothing. The session's feed
+   * (`tapFeed`) scrubs the events before `publish`, so `publish` does not
+   * scrub again.
+   */
+  redact?: <T>(value: T) => T
 }
 
 /**
@@ -1331,6 +1339,7 @@ export class SharedLog<TState = unknown> {
     }
     const own = { hooks, fenced: false }
     this.views.set(threadId, own)
+    const redact = hooks.redact ?? (<T>(value: T) => value)
     const shared = this.state
     // `this` in a getter below is the view.
     const epochOf = () => this.epoch ?? UNOWNED_EPOCH
@@ -1367,16 +1376,24 @@ export class SharedLog<TState = unknown> {
       append: (records, appendOptions) =>
         isDropped()
           ? refused()
-          : this.append(threadId, records, appendOptions?.consumes ?? []),
-      offer: (inputId, record) => this.offer(threadId, inputId, record),
+          : this.append(
+              threadId,
+              redact(records),
+              appendOptions?.consumes ?? [],
+            ),
+      offer: (inputId, record) => this.offer(threadId, inputId, redact(record)),
       offered: () => this.offered(threadId),
       stage: (records, toolCallId) => {
-        if (!isDropped()) this.stage(threadId, records, toolCallId)
+        if (!isDropped()) this.stage(threadId, redact(records), toolCallId)
       },
       commit: (options) =>
         isDropped()
           ? refused()
-          : this.commit(options.thread ?? threadId, options),
+          : this.commit(options.thread ?? threadId, {
+              ...options,
+              messages: redact(options.messages),
+              ...(options.records ? { records: redact(options.records) } : {}),
+            }),
       flush: () => this.flush(),
       catchUp: () => this.enqueue(() => this.catchUp()),
       unfence: () => {

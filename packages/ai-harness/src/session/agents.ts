@@ -5,6 +5,7 @@ import {
   validateWithStandardSchema,
 } from '@tanstack/ai'
 import { withPersistence } from '@tanstack/ai-persistence'
+import { redactMiddleware } from '../auth'
 import { mediaCapture, mediaMiddleware } from '../media'
 import { OperationImpl } from '../operation'
 import {
@@ -450,6 +451,8 @@ export abstract class SessionAgents<
           accepted: options?.accepts,
           transcribe: options?.transcribe,
         }),
+        // After the media, so the model gets no secret of the session.
+        redactMiddleware(this.redactor),
       ],
       keys: run.keys,
       // No `promptCache`: a tool-mode child then uses the retention of the
