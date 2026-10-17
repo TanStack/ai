@@ -4,8 +4,10 @@ import type {
   AnyTextAdapter,
   ModelMessage,
   StreamChunk,
+  WebSocketLike,
 } from '@tanstack/ai'
 import type { LogStore } from '@tanstack/ai-persistence'
+import type { HostFrame } from '../src/protocol'
 
 /**
  * A log store that calls `overrides` for the methods it has, and `inner` for
@@ -203,6 +205,75 @@ export const wakeMessages = (messages: ReadonlyArray<ModelMessage>) =>
         message.role === 'user' && message.metadata?.harness?.wake === true,
     )
     .map((message) => message.content)
+
+/**
+ * A WebSocket for `handleHarnessSocket`. `sent` has each frame it sent,
+ * `closed` each close code. `receive` gives it a frame from the client, and
+ * `fail` fires its error event. With `failSend`, each send throws.
+ */
+export function fakeSocket(options: { failSend?: boolean } = {}) {
+  const handlers: Record<string, Array<(event?: any) => void>> = {}
+  const sent: Array<HostFrame> = []
+  const closed: Array<number | undefined> = []
+  const socket: WebSocketLike = {
+    send: (data) => {
+      if (options.failSend) throw new Error('socket gone')
+      sent.push(JSON.parse(data))
+    },
+    close: (code?: number) => {
+      closed.push(code)
+      handlers.close?.forEach((handler) => handler())
+    },
+    addEventListener: (type: string, handler: (event?: any) => void) => {
+      ;(handlers[type] ??= []).push(handler)
+    },
+  }
+  const receive = (frame: unknown) =>
+    handlers.message?.forEach((handler) =>
+      handler({
+        data: typeof frame === 'string' ? frame : JSON.stringify(frame),
+      }),
+    )
+  const fail = () => handlers.error?.forEach((handler) => handler())
+  return { socket, sent, closed, receive, fail }
+}
+
+/**
+ * The JSON `data` of each SSE event of `response`, until `until` says stop
+ * (then the read is cancelled) or the stream ends.
+ */
+export async function readSse<T>(
+  response: Response,
+  until: (frame: T) => boolean,
+) {
+  if (!response.body) throw new Error('The response has no body.')
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  const frames: Array<T> = []
+  let buffer = ''
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const blocks = buffer.split('\n\n')
+    buffer = blocks.pop() ?? ''
+    for (const block of blocks) {
+      const data = block
+        .split('\n')
+        .find((line) => line.startsWith('data: '))
+        ?.slice(6)
+      if (!data) continue
+      // The handler writes each frame as JSON.
+      const parsed: T = JSON.parse(data)
+      frames.push(parsed)
+      if (until(parsed)) {
+        await reader.cancel()
+        return frames
+      }
+    }
+  }
+  return frames
+}
 
 /**
  * A middleware that sends the model `[hidden]` in place of each message

@@ -2,9 +2,11 @@ import { EventType } from '@tanstack/ai'
 import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import type { CredentialStore } from '@tanstack/ai/byok'
+import { AccessDeniedError, membersOnlyPolicyOf } from './access'
 import { SharedLog, loadLogState, logIdOf } from './log'
 import { LEASE } from './resume'
 import { SessionImpl } from './session/harness-session'
+import { sessionHandle } from './session/handle'
 import { HARNESS_EVENTS } from './types'
 import { isRecord } from './utils'
 import { changedEntry } from './session-entry'
@@ -26,7 +28,15 @@ import type {
   SessionIndexListOptions,
   SessionIndexPage,
   SessionIndexStore,
+  SessionMember,
 } from '@tanstack/ai-persistence'
+import type {
+  AccessAction,
+  AccessRun,
+  AccessSession,
+  HarnessAccess,
+} from './access'
+import type { HandleGuard } from './session/handle'
 import type { AnyHarness, HarnessLogStateOf, SessionMetadataOf } from './define'
 import type { SessionEntryChange, SessionEntryUpdate } from './session-entry'
 import type { ReduceOptions } from './log'
@@ -87,9 +97,30 @@ export type HarnessPersistence =
         SharedStores
     >
 
-export interface HarnessHostOptions {
+export interface HarnessHostOptions<P extends Principal = Principal> {
   /** Where sessions keep their state. Default: in memory, lost on restart. */
   persistence?: HarnessPersistence
+  /**
+   * Who may use the sessions, and what they may do: `identify` reads the
+   * user of a request, and `authorize` decides each action. The principal
+   * type of the host comes from what `identify` returns. With it, every
+   * public host call needs a `principal`, a session is reached only from
+   * its own tenant, and keyed adapters do not read env vars unless
+   * `envKeys` is `true`. It needs `stores.sessions`, where each session
+   * keeps its owner and members. Without it, there is no check: one user
+   * runs the host.
+   *
+   * @example
+   * ```ts
+   * const host = createHarnessHost({
+   *   access: {
+   *     identify: async ({ request }) => getUser(request),
+   *     authorize: membersOnly(),
+   *   },
+   * })
+   * ```
+   */
+  access?: HarnessAccess<P>
   /**
    * Where users' API keys and OAuth tokens are saved: a table in your own
    * database, or a secrets manager. Encrypt the secrets at rest. Default: in
@@ -116,16 +147,17 @@ export interface HarnessHostOptions {
   ownership?: LeaseOptions
 }
 
-export interface OpenSessionOptions {
+export interface OpenSessionOptions<P extends Principal = Principal> {
   /** The conversation id. Opening the same id again returns the live session. */
   threadId: string
   /**
-   * Who opened the session. Stored on inputs and run records. Its
-   * `tenantId` is the tenant of the session (without it, the default
+   * Who opens the session. The session that `open` returns acts as this
+   * principal: a call that passes no `principal` stores it on the input.
+   * Its `tenantId` is the tenant of the session (without it, the default
    * tenant): one `threadId` in two tenants is two sessions, with two index
-   * entries and two logs.
+   * entries and two logs. Required when the host has `access`.
    */
-  principal?: Principal
+  principal?: P
   /**
    * The log of the session, on a durable host. Sessions with the same log id
    * share one log and one writer: one append can hold records for several of
@@ -148,13 +180,18 @@ export interface OpenSessionOptions {
  *
  * Each method takes a `principal`. Its `tenantId` picks the tenant (without
  * it, the default tenant), as in `host.open`. A method never reads or
- * changes the entries of another tenant.
+ * changes the entries of another tenant. With host `access`, the principal
+ * is required, and each method asks `authorize` first: `get` reads, `list`
+ * lists, `rename` and `update` configure, `delete` deletes, `fork` forks, and
+ * `share` and `unshare` share. A refused action throws `AccessDeniedError`.
+ * A child thread is checked through its root thread.
  */
-export interface HostSessions {
+export interface HostSessions<P extends Principal = Principal> {
   /**
    * The entries of the tenant of `principal`, newest `updatedAt` first.
    * Default: only top-level sessions (`parentThreadId: null`). Pass a thread
-   * id to get its child sessions.
+   * id to get its child sessions. With access, only the entries that
+   * `authorize` lets the principal list.
    *
    * @example
    * ```ts
@@ -163,7 +200,7 @@ export interface HostSessions {
    */
   list: (
     options?: Omit<SessionIndexListOptions, 'tenantId' | 'memberId'> & {
-      principal?: Principal
+      principal?: P
     },
   ) => Promise<SessionIndexPage>
   /**
@@ -176,7 +213,7 @@ export interface HostSessions {
    */
   get: (options: {
     threadId: string
-    principal?: Principal
+    principal?: P
   }) => Promise<SessionIndexEntry | undefined>
   /**
    * Set the title of a thread. Resolves to the changed entry, or to
@@ -185,7 +222,7 @@ export interface HostSessions {
   rename: (change: {
     threadId: string
     title: string
-    principal?: Principal
+    principal?: P
   }) => Promise<SessionIndexEntry | undefined>
   /**
    * Change the entry of a thread from app code, with no session open: its
@@ -213,7 +250,7 @@ export interface HostSessions {
     harness: THarness
     threadId: string
     update: SessionEntryUpdate<SessionMetadataOf<THarness>>
-    principal?: Principal
+    principal?: P
   }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>> | undefined>
   /**
    * Remove the index entry of a thread. After it, `get` is `undefined`, and
@@ -226,19 +263,23 @@ export interface HostSessions {
    * await host.sessions.delete({ threadId: 't-1', principal })
    * ```
    */
-  delete: (options: {
-    threadId: string
-    principal?: Principal
-  }) => Promise<void>
+  delete: (options: { threadId: string; principal?: P }) => Promise<void>
   /**
    * Fork a thread into a new thread with `host.fork`, so the fork gets the
    * settings, plugin config, and media too. `{ through: id }` copies the
    * messages up to and including `id`. `{ before: id }` copies the messages
    * before `id`, so a fork before the first message has no messages. The new
    * thread gets its own entry in the same tenant, with the title of the old
-   * one plus ` (fork)`, the harness, and the owner and members of the old
-   * one. Resolves to the new entry. Throws when the message id is not in the
-   * transcript, or when the entry of the thread names another harness.
+   * one plus ` (fork)`, and the harness. Resolves to the new entry. Throws
+   * when the message id is not in the transcript, or when the entry of the
+   * thread names another harness.
+   *
+   * `members` picks who can use the fork. `'self'`: the user who forks is
+   * the owner and the only member. `'all'`: that user is the owner, and the
+   * other members keep their roles (the old owner becomes a `member`). With
+   * access, the default is the `fork.members` of `membersOnly()`, else
+   * `'self'`. Without access and without `members`, the fork gets the owner
+   * and members of the old thread.
    *
    * @example
    * ```ts
@@ -255,8 +296,43 @@ export interface HostSessions {
     harness: AnyHarness
     threadId: string
     at: ForkPoint
-    principal?: Principal
+    members?: 'self' | 'all'
+    principal?: P
   }) => Promise<SessionIndexEntry>
+  /**
+   * Add the user `userId` to the members of a thread with `role`, or change
+   * the role of a member. Needs `membersOnly()` as the host's `authorize`,
+   * and the `share` action (the owner). Resolves to the changed entry, or
+   * `undefined` for a thread that has no entry.
+   *
+   * @example
+   * ```ts
+   * await host.sessions.share({ threadId, userId: 'u3', role: 'member', principal })
+   * ```
+   */
+  share: (options: {
+    threadId: string
+    userId: string
+    role: SessionMember['role']
+    principal?: P
+  }) => Promise<SessionIndexEntry | undefined>
+  /**
+   * Remove the user `userId` from the members of a thread. Needs
+   * `membersOnly()`, and the `share` action. The work that the user started
+   * on the session in this host stops, and `host.revoke` runs for the user.
+   * The owner cannot be removed. Resolves to the changed entry, or
+   * `undefined` for a thread that has no entry.
+   *
+   * @example
+   * ```ts
+   * await host.sessions.unshare({ threadId, userId: 'u3', principal })
+   * ```
+   */
+  unshare: (options: {
+    threadId: string
+    userId: string
+    principal?: P
+  }) => Promise<SessionIndexEntry | undefined>
 }
 
 /**
@@ -291,13 +367,27 @@ export interface HostSessionDeletedEvent {
   entry: SessionIndexEntry
 }
 
+/**
+ * `host.revoke` took the access of the user `principalId` to a thread, or
+ * `host.sessions.unshare` removed the user. The streams of that user on the
+ * thread close.
+ */
+export interface HostRevokedEvent {
+  type: 'revoked'
+  tenantId?: string
+  threadId: string
+  principalId: string
+  at: number
+}
+
 /** What `host.events()` yields. */
 export type HostEvent =
   | HostStatusEvent
   | HostSessionEvent
   | HostSessionDeletedEvent
+  | HostRevokedEvent
 
-export interface ForkSessionOptions {
+export interface ForkSessionOptions<P extends Principal = Principal> {
   /** The thread to copy. */
   threadId: string
   /** The new thread. It must have no messages yet. */
@@ -310,9 +400,10 @@ export interface ForkSessionOptions {
   at?: string | null
   /**
    * Who opens the new thread, as in `open`. Its `tenantId` is the tenant of
-   * both threads.
+   * both threads. With access, it needs the `fork` action on the source, and
+   * it owns the new thread.
    */
-  principal?: Principal
+  principal?: P
   /** The log of the source thread, as in `open`. Default: `threadId`. */
   logId?: string
 }
@@ -333,23 +424,33 @@ export interface ResumePendingOptions {
   limit?: number
 }
 
-/** Runs sessions for one or more harnesses in this process. */
-export interface HarnessHost {
+/**
+ * Runs sessions for one or more harnesses in this process. `P` is the
+ * principal type: what `access.identify` returns.
+ */
+export interface HarnessHost<P extends Principal = Principal> {
   /**
-   * Open a session of `harness`, or return the live one for this harness,
-   * tenant, and thread. Session plugins are set up here, so a plugin error
-   * rejects the promise. A subagent child thread (its index entry has a
+   * Open a session of `harness` for `principal`. Each open gives its own
+   * handle to the live session of this harness, tenant, and thread: a call
+   * that passes no `principal` acts as the principal of the open. Session
+   * plugins are set up on the first open, so a plugin error rejects the
+   * promise. A subagent child thread (its index entry has a
    * `parentThreadId`) does not open: open its root thread, and read the
    * child with `session.agentTranscript`.
    *
+   * With access, `principal` is required. A thread that exists needs the
+   * `read` action, else the open throws `AccessDeniedError`. A new thread
+   * gets the principal as its owner. Then each action of the handle asks
+   * `authorize`, and the handle acts only as its principal.
+   *
    * @example
    * ```ts
-   * const session = await host.open(assistant, { threadId: 't-1' })
+   * const session = await host.open(assistant, { threadId: 't-1', principal })
    * ```
    */
   open: <THarness extends AnyHarness>(
     harness: THarness,
-    options: OpenSessionOptions,
+    options: OpenSessionOptions<P>,
   ) => Promise<HarnessSession<THarness>>
   /**
    * Is a session of `harness` open on `threadId` on this host, in the tenant
@@ -357,7 +458,7 @@ export interface HarnessHost {
    */
   isOpen: (
     harness: AnyHarness,
-    options: { threadId: string; principal?: Principal },
+    options: { threadId: string; principal?: P },
   ) => boolean
   /**
    * Start a new thread as a copy of another one, and return its open
@@ -374,7 +475,7 @@ export interface HarnessHost {
    */
   fork: <THarness extends AnyHarness>(
     harness: THarness,
-    options: ForkSessionOptions,
+    options: ForkSessionOptions<P>,
   ) => Promise<HarnessSession<THarness>>
   /**
    * Continue the work of hosts that stopped. Needs `stores.workClaims`. It
@@ -443,10 +544,33 @@ export interface HarnessHost {
   logState: <THarness extends AnyHarness>(options: {
     harness: THarness
     logId: string
-    principal?: Principal
+    principal?: P
   }) => HarnessLogStateOf<THarness> | undefined
-  /** The session index: list, rename, delete, and fork sessions. */
-  sessions: HostSessions
+  /** The session index: list, rename, delete, fork, and share sessions. */
+  sessions: HostSessions<P>
+  /**
+   * Take the access of the user `principal` to a thread, after your app
+   * changed its own access tables. `host.events()` yields a `revoked`
+   * event, so the user's streams close. On a host with access, the open
+   * handles of that user on the thread throw `AccessDeniedError` from now
+   * on, and a new `host.open` asks `authorize` again. The `tenantId` of
+   * `principal` picks the tenant. Only `id` and `tenantId` are read.
+   *
+   * @example
+   * ```ts
+   * host.revoke({ threadId, principal: { id: 'u3', tenantId: 'acme' } })
+   * ```
+   */
+  revoke: (options: {
+    threadId: string
+    principal: { id: string; tenantId?: string }
+  }) => void
+  /**
+   * The user of `request`, from `access.identify`, or `null` when
+   * `identify` refuses it. Network code other than the HTTP handler (an MCP
+   * server, your own route) uses it. Throws on a host with no `access`.
+   */
+  identify: (options: { request: Request }) => Promise<P | null>
   /**
    * The status changes and the session index changes of this host, for a
    * list of sessions that stays current. First the current status of each
@@ -631,8 +755,8 @@ const turnFinders = new WeakMap<
  * turn's events live in the host that runs it, so the handler joins a run
  * through this.
  */
-export function sessionOfTurn(
-  host: HarnessHost,
+export function sessionOfTurn<P extends Principal>(
+  host: HarnessHost<P>,
   lookup: TurnLookup,
 ): Promise<HarnessSession | undefined> {
   return turnFinders.get(host)?.(lookup) ?? Promise.resolve(undefined)
@@ -645,8 +769,60 @@ const durableStores = new WeakMap<object, { log: LogStore; runs?: RunStore }>()
  * @internal The log and run stores of `host` when it is durable
  * (`stores.log`), else `undefined`.
  */
-export function durableStoresOf(host: HarnessHost) {
+export function durableStoresOf<P extends Principal>(host: HarnessHost<P>) {
   return durableStores.get(host)
+}
+
+/** The `access` of each host that has one. Not public API. */
+const accesses = new WeakMap<object, unknown>()
+
+/**
+ * @internal The `access` of `host`, or `undefined` for a host with no
+ * checks. The HTTP handler reads `identify` from it.
+ */
+export function accessOf<P extends Principal>(host: HarnessHost<P>) {
+  // The host stored its own access under its own key, so it has type P.
+  return accesses.get(host) as HarnessAccess<P> | undefined
+}
+
+/** The key of what `host.revoke` took: one user on one thread of a tenant. */
+const revokedKey = (
+  tenantId: string | undefined,
+  threadId: string,
+  principalId: string,
+) => `${logIdOf({ tenantId, logId: threadId })}\u0000${principalId}`
+
+/**
+ * The owner and members of a fork. `'self'`: the forker alone. `'all'`: the
+ * forker as the owner, and the other members with their roles, the old
+ * owner as a `member`. Without a mode or a forker: those of the source.
+ */
+function forkedMembers(
+  source: SessionIndexEntry | undefined,
+  forker: Principal | undefined,
+  mode: 'self' | 'all' | undefined,
+) {
+  if (mode === undefined || forker === undefined) {
+    return { ownerId: source?.ownerId, members: source?.members ?? [] }
+  }
+  const owner: SessionMember = { userId: forker.id, role: 'owner' }
+  if (mode === 'self') return { ownerId: forker.id, members: [owner] }
+  const oldOwner = source?.ownerId
+  const others = (source?.members ?? [])
+    .filter((member) => member.userId !== forker.id)
+    .map(
+      (member): SessionMember =>
+        member.role === 'owner' ? { ...member, role: 'member' } : member,
+    )
+  // An owner through `ownerId` alone has no entry in `members`.
+  const isListed =
+    oldOwner === undefined ||
+    oldOwner === forker.id ||
+    others.some((member) => member.userId === oldOwner)
+  const old: Array<SessionMember> = isListed
+    ? []
+    : [{ userId: oldOwner, role: 'member' }]
+  return { ownerId: forker.id, members: [owner, ...old, ...others] }
 }
 
 /** Throw a clear error for a durable store set that cannot work. */
@@ -671,7 +847,10 @@ function checkDurableStores(persistence: HarnessPersistence) {
 }
 
 /**
- * Create a host for harness sessions.
+ * Create a host for harness sessions. With `access`, the principal type of
+ * the host is what `access.identify` returns, and each call is checked (see
+ * `HarnessHostOptions.access`). Throws when `access` has no
+ * `stores.sessions` to keep the owner and members in.
  *
  * @example
  * ```ts
@@ -680,7 +859,9 @@ function checkDurableStores(persistence: HarnessPersistence) {
  * const turn = await session.send('Write a haiku about the sea.')
  * ```
  */
-export function createHarnessHost(options: HarnessHostOptions = {}) {
+export function createHarnessHost<P extends Principal = Principal>(
+  options: HarnessHostOptions<P> = {},
+) {
   if (!options.persistence && !warned) {
     warned = true
     console.warn(
@@ -691,6 +872,13 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
     options.persistence ?? memoryPersistence()
   checkDurableStores(persistence)
   checkSessionStore(persistence.stores.sessions)
+  const { access } = options
+  if (access && !persistence.stores.sessions) {
+    throw new Error(
+      'Host access needs stores.sessions: each session keeps its owner and members there.',
+    )
+  }
+  const policy = access && membersOnlyPolicyOf(access.authorize)
   const memory = memoryPersistence().stores
   // ponytail: a memory inbox when the stores have none. Pass `stores.inbox`
   // to keep accepted inputs across restarts. A durable host keeps them in
@@ -874,6 +1062,7 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
         ...(options.ownership ? { lease: options.ownership } : {}),
         ...(principal ? { principal } : {}),
         ...(promptCache ? { promptCache } : {}),
+        ...(access ? { access: { envKeys: access.envKeys === true } } : {}),
         onEvent: (event) => {
           const status = statusAfter(created, event)
           if (status) setStatus(key, of, status)
@@ -909,71 +1098,319 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
     return session as Promise<SessionImpl<THarness>>
   }
 
-  const host: HarnessHost = {
-    open: (harness, openOptions) =>
-      openSession(harness, openOptions, openOptions.principal?.tenantId),
+  /**
+   * How often `host.revoke` took each user's access to each thread. A handle
+   * keeps the count of its open, and refuses each call once it changed.
+   */
+  // ponytail: one count per revoked user and thread, for the life of the
+  // host. Drop the old ones if a host revokes millions.
+  const revocations = new Map<string, number>()
+
+  /** Count a revoke, and tell the readers of `host.events()`. */
+  const revokeUser = ({
+    tenantId,
+    threadId,
+    principalId,
+  }: {
+    tenantId: string | undefined
+    threadId: string
+    principalId: string
+  }) => {
+    const key = revokedKey(tenantId, threadId, principalId)
+    revocations.set(key, (revocations.get(key) ?? 0) + 1)
+    emit({
+      type: 'revoked',
+      ...(tenantId !== undefined ? { tenantId } : {}),
+      threadId,
+      principalId,
+      at: Date.now(),
+    })
+  }
+
+  /** With access, the principal of a public call: it is required. */
+  const need = (principal: P | undefined, call: string) => {
+    if (principal === undefined) {
+      throw new Error(`${call} needs a principal: the host has access.`)
+    }
+    return principal
+  }
+
+  /** The entry of the root thread of `entry`. A child is checked through it. */
+  const rootOf = async (entry: SessionIndexEntry) => {
+    let root = entry
+    const seen = new Set([root.threadId])
+    while (
+      root.parentThreadId !== undefined &&
+      !seen.has(root.parentThreadId)
+    ) {
+      seen.add(root.parentThreadId)
+      const parent = await index.get({
+        tenantId: root.tenantId,
+        threadId: root.parentThreadId,
+      })
+      if (!parent) break
+      root = parent
+    }
+    return root
+  }
+
+  /**
+   * Throw `AccessDeniedError` unless `authorize` lets `principal` do
+   * `action` on the thread of `entry`. Without access, it allows all. The
+   * entries are read in the tenant of the principal, so a session of
+   * another tenant is never found.
+   */
+  const allow = async ({
+    principal,
+    action,
+    threadId,
+    entry,
+    run,
+  }: {
+    principal: P
+    action: AccessAction
+    threadId: string
+    entry: SessionIndexEntry | undefined
+    run?: AccessRun
+  }) => {
+    if (!access) return
+    const { tenantId } = principal
+    // A thread with no entry has no owner and no members.
+    const session: AccessSession = entry
+      ? await rootOf(entry)
+      : {
+          ...(tenantId !== undefined ? { tenantId } : {}),
+          threadId,
+          members: [],
+        }
+    const isAllowed = await access.authorize({
+      principal,
+      action,
+      session,
+      ...(run ? { run } : {}),
+    })
+    if (!isAllowed) throw new AccessDeniedError({ action, threadId })
+  }
+
+  /**
+   * The entry of a thread for a public call, after the check of `action`.
+   * With access, the principal is required, and a thread with no entry
+   * needs no check: the call finds nothing.
+   */
+  const checkEntry = async (
+    call: string,
+    action: AccessAction,
+    { threadId, principal }: { threadId: string; principal?: P | undefined },
+  ) => {
+    const user = access ? need(principal, call) : undefined
+    const entry = await index.get({ tenantId: principal?.tenantId, threadId })
+    if (user && entry) await allow({ principal: user, action, threadId, entry })
+    return entry
+  }
+
+  /** With access, the source of a fork needs an entry and the `fork` action. */
+  const checkFork = async (
+    call: string,
+    target: { threadId: string; principal?: P | undefined },
+  ) => {
+    const source = await checkEntry(call, 'fork', target)
+    // No entry is not found: the same answer as a refusal.
+    if (access && !source) {
+      throw new AccessDeniedError({ action: 'fork', threadId: target.threadId })
+    }
+    return source
+  }
+
+  /** `share` and `unshare` change the members list of `membersOnly()`. */
+  const checkShare = async (
+    call: string,
+    target: { threadId: string; principal?: P | undefined },
+  ) => {
+    if (!policy) {
+      throw new Error(
+        `${call} needs membersOnly() as the authorize of the host access. With your own access tables, change them and call host.revoke.`,
+      )
+    }
+    await checkEntry(call, 'share', target)
+    return need(target.principal, call)
+  }
+
+  /** The checks of a handle of `principal` on `threadId`. */
+  const guardOf = (principal: P, threadId: string): HandleGuard => {
+    const key = revokedKey(principal.tenantId, threadId, principal.id)
+    const count = revocations.get(key) ?? 0
+    return {
+      isRevoked: () => (revocations.get(key) ?? 0) !== count,
+      authorize: async (action, run) =>
+        allow({
+          principal,
+          action,
+          threadId,
+          entry: await index.get({ tenantId: principal.tenantId, threadId }),
+          ...(run ? { run } : {}),
+        }),
+    }
+  }
+
+  /** The handle of `session` for `principal`. With access, it checks. */
+  const handleOf = <THarness extends AnyHarness>(
+    session: SessionImpl<THarness>,
+    principal: P | undefined,
+  ) =>
+    sessionHandle({
+      session,
+      principal,
+      ...(access && principal
+        ? { guard: guardOf(principal, session.threadId) }
+        : {}),
+    })
+
+  /** The open sessions of a thread of a tenant on this host, of any harness. */
+  const openSessionsOf = async (
+    tenantId: string | undefined,
+    threadId: string,
+  ) => {
+    const suffix = `\u0000${logIdOf({ tenantId, logId: threadId })}`
+    const live = await Promise.allSettled(
+      [...sessions].flatMap(([key, session]) =>
+        key.endsWith(suffix) ? [session] : [],
+      ),
+    )
+    return live.flatMap((entry) =>
+      entry.status === 'fulfilled' ? [entry.value] : [],
+    )
+  }
+
+  /** `host.fork` after its checks: the session class of the new thread. */
+  const forkInto = async <THarness extends AnyHarness>(
+    harness: THarness,
+    { threadId, newThreadId, at, principal, logId }: ForkSessionOptions<P>,
+  ) => {
+    if (newThreadId === threadId) {
+      throw new Error('A fork needs a new thread: newThreadId is threadId.')
+    }
+    const tenantId = principal?.tenantId
+    // A source that only this fork opens closes again at the end.
+    const wasOpen = sessions.has(sessionKey(harness.name, tenantId, threadId))
+    // In the tenant of the fork, with no principal: the fork does not
+    // become the owner of a source with no owner.
+    const source = await openSession(
+      harness,
+      { threadId, ...(logId ? { logId } : {}) },
+      tenantId,
+    )
+    try {
+      const transcript = await source.transcript()
+      const end =
+        at === undefined
+          ? transcript.length
+          : at === null
+            ? 0
+            : transcript.findIndex((message) => message.id === at) + 1
+      if (typeof at === 'string' && end === 0) {
+        throw new Error(
+          `Thread ${JSON.stringify(threadId)} has no message ${JSON.stringify(at)}.`,
+        )
+      }
+      // The new thread opens with no `logId`, so its log is its own.
+      const newLogId = logIdOf({ tenantId, logId: newThreadId })
+      // With access, a thread with an entry belongs to someone already.
+      const isTaken =
+        access !== undefined &&
+        (await index.get({ tenantId, threadId: newThreadId })) !== undefined
+      const isUsed =
+        isTaken ||
+        (logStore
+          ? (await logStore.read({ logId: newLogId, limit: 1 })).length > 0
+          : ((await persistence.stores.messages?.loadThread(newThreadId))
+              ?.length ?? 0) > 0)
+      if (isUsed) {
+        throw new Error(
+          `Thread ${JSON.stringify(newThreadId)} is not empty. Fork into a new thread.`,
+        )
+      }
+      const fork = await openSession(
+        harness,
+        { threadId: newThreadId, ...(principal ? { principal } : {}) },
+        tenantId,
+      )
+      await fork.adoptFork(source, transcript.slice(0, end))
+      return fork
+    } finally {
+      // A failed close must not hide the fork's own error.
+      if (!wasOpen)
+        await source
+          .close()
+          .catch((error: unknown) =>
+            console.error(
+              '[@tanstack/ai-harness] The source session did not close.',
+              error,
+            ),
+          )
+    }
+  }
+
+  const host: HarnessHost<P> = {
+    async open(harness, openOptions) {
+      if (!access) {
+        const { principal } = openOptions
+        const session = await openSession(
+          harness,
+          openOptions,
+          principal?.tenantId,
+        )
+        return handleOf(session, principal)
+      }
+      const principal = need(openOptions.principal, 'host.open')
+      const { threadId } = openOptions
+      const key = { tenantId: principal.tenantId, threadId }
+      const before = await index.get(key)
+      // The open refuses a child thread, and says why.
+      const isRoot = before !== undefined && before.parentThreadId === undefined
+      if (isRoot) {
+        await allow({ principal, action: 'read', threadId, entry: before })
+      }
+      const session = await openSession(
+        harness,
+        openOptions,
+        principal.tenantId,
+      )
+      if (!before) {
+        // Two users can create one thread at once. Only the user whose open
+        // wrote the entry needs no check.
+        const created = await index.get(key)
+        if (created?.ownerId !== principal.id) {
+          await allow({ principal, action: 'read', threadId, entry: created })
+        }
+      }
+      return handleOf(session, principal)
+    },
     isOpen(harness, { threadId, principal }) {
+      if (access) need(principal, 'host.isOpen')
       return sessions.has(
         sessionKey(harness.name, principal?.tenantId, threadId),
       )
     },
-    async fork(harness, { threadId, newThreadId, at, principal, logId }) {
-      if (newThreadId === threadId) {
-        throw new Error('A fork needs a new thread: newThreadId is threadId.')
-      }
-      const tenantId = principal?.tenantId
-      // A source that only this fork opens closes again at the end.
-      const wasOpen = sessions.has(sessionKey(harness.name, tenantId, threadId))
-      // In the tenant of the fork, with no principal: the fork does not
-      // become the owner of a source with no owner.
-      const source = await openSession(
-        harness,
-        { threadId, ...(logId ? { logId } : {}) },
-        tenantId,
+    async fork(harness, forkOptions) {
+      await checkFork('host.fork', forkOptions)
+      return handleOf(
+        await forkInto(harness, forkOptions),
+        forkOptions.principal,
       )
-      try {
-        const transcript = await source.transcript()
-        const end =
-          at === undefined
-            ? transcript.length
-            : at === null
-              ? 0
-              : transcript.findIndex((message) => message.id === at) + 1
-        if (typeof at === 'string' && end === 0) {
-          throw new Error(
-            `Thread ${JSON.stringify(threadId)} has no message ${JSON.stringify(at)}.`,
-          )
-        }
-        // The new thread opens with no `logId`, so its log is its own.
-        const newLogId = logIdOf({ tenantId, logId: newThreadId })
-        const isUsed = logStore
-          ? (await logStore.read({ logId: newLogId, limit: 1 })).length > 0
-          : ((await persistence.stores.messages?.loadThread(newThreadId))
-              ?.length ?? 0) > 0
-        if (isUsed) {
-          throw new Error(
-            `Thread ${JSON.stringify(newThreadId)} is not empty. Fork into a new thread.`,
-          )
-        }
-        const fork = await openSession(
-          harness,
-          { threadId: newThreadId, ...(principal ? { principal } : {}) },
-          tenantId,
+    },
+    revoke: ({ threadId, principal }) =>
+      revokeUser({
+        tenantId: principal.tenantId,
+        threadId,
+        principalId: principal.id,
+      }),
+    async identify({ request }) {
+      if (!access) {
+        throw new Error(
+          'host.identify needs host access ({ identify, authorize }).',
         )
-        await fork.adoptFork(source, transcript.slice(0, end))
-        return fork
-      } finally {
-        // A failed close must not hide the fork's own error.
-        if (!wasOpen)
-          await source
-            .close()
-            .catch((error: unknown) =>
-              console.error(
-                '[@tanstack/ai-harness] The source session did not close.',
-                error,
-              ),
-            )
       }
+      return await access.identify({ request })
     },
     async resumePending({ harnesses, close = 'whenIdle', limit = 100 }) {
       const claims = persistence.stores.workClaims
@@ -1093,6 +1530,7 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
       )
     },
     logState: ({ harness, logId, principal }) => {
+      if (access) need(principal, 'host.logState')
       const folded = resolved.get(
         logIdOf({ tenantId: principal?.tenantId, logId }),
       )
@@ -1106,25 +1544,60 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
         | undefined
     },
     sessions: {
-      list: async ({ principal, ...filters } = {}) =>
-        (await sessionStore?.list({
+      async list({ principal, ...filters } = {}) {
+        if (!sessionStore) return { entries: [] }
+        // Last, so a filter never names another tenant.
+        const tenantId = principal?.tenantId
+        if (!access) {
+          return sessionStore.list({
+            parentThreadId: null,
+            ...filters,
+            tenantId,
+          })
+        }
+        const user = need(principal, 'host.sessions.list')
+        const parent = filters.parentThreadId
+        // The children of a thread are read through their root: one check,
+        // and no member filter, as a child has no members.
+        if (typeof parent === 'string') {
+          await checkEntry('host.sessions.list', 'list', {
+            threadId: parent,
+            principal: user,
+          })
+          return sessionStore.list({ ...filters, tenantId })
+        }
+        const page = await sessionStore.list({
           parentThreadId: null,
           ...filters,
-          // Last, so a filter never names another tenant.
-          tenantId: principal?.tenantId,
-        })) ?? {
-          entries: [],
-        },
-      get: ({ threadId, principal }) =>
-        index.get({ tenantId: principal?.tenantId, threadId }),
-      rename: ({ threadId, title, principal }) =>
-        index.update(
+          tenantId,
+          // The store keeps only the sessions of the member, so a page of
+          // `membersOnly()` stays full.
+          ...(policy ? { memberId: user.id } : {}),
+        })
+        const allowed = await Promise.all(
+          page.entries.map(async (session) =>
+            access.authorize({ principal: user, action: 'list', session }),
+          ),
+        )
+        return {
+          ...page,
+          entries: page.entries.filter((_entry, at) => allowed[at]),
+        }
+      },
+      get: (target) => checkEntry('host.sessions.get', 'read', target),
+      async rename({ threadId, title, principal }) {
+        const call = 'host.sessions.rename'
+        await checkEntry(call, 'configure', { threadId, principal })
+        return index.update(
           { tenantId: principal?.tenantId, threadId },
           (entry) => entry && { ...entry, title, updatedAt: Date.now() },
-        ),
-      update: async ({ harness, threadId, update, principal }) =>
+        )
+      },
+      async update({ harness, threadId, update, principal }) {
+        const call = 'host.sessions.update'
+        await checkEntry(call, 'configure', { threadId, principal })
         // The schema checked the metadata, so it has the harness type.
-        (await index.update(
+        return (await index.update(
           { tenantId: principal?.tenantId, threadId },
           (entry) => {
             checkHarness(entry, harness)
@@ -1134,14 +1607,23 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
               harness.metadataSchema,
             )
           },
-        )) as SessionIndexEntry<SessionMetadataOf<typeof harness>> | undefined,
-      delete: ({ threadId, principal }) =>
-        index.remove({ tenantId: principal?.tenantId, threadId }),
-      async fork({ harness, threadId, at, principal }) {
+        )) as SessionIndexEntry<SessionMetadataOf<typeof harness>> | undefined
+      },
+      async delete({ threadId, principal }) {
+        await checkEntry('host.sessions.delete', 'delete', {
+          threadId,
+          principal,
+        })
+        await index.remove({ tenantId: principal?.tenantId, threadId })
+      },
+      async fork({ harness, threadId, at, members, principal }) {
         const tenantId = principal?.tenantId
         // Check before a session opens. Without a sessions store there is no
         // entry, so there is nothing to check.
-        const source = await index.get({ tenantId, threadId })
+        const source = await checkFork('host.sessions.fork', {
+          threadId,
+          principal,
+        })
         checkHarness(source, harness)
         // `host.fork` takes the last message to copy, so `before` becomes
         // the message just before it, or `null` before the first one.
@@ -1164,20 +1646,26 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
             last = previous
           }
         }
-        const forked = await host.fork(harness, {
+        const forked = await forkInto(harness, {
           threadId,
           newThreadId: `thread-${crypto.randomUUID()}`,
           at: last,
           ...(principal ? { principal } : {}),
         })
+        const mode =
+          members ?? (access ? (policy?.fork.members ?? 'self') : undefined)
+        const { ownerId, members: people } = forkedMembers(
+          source,
+          principal,
+          mode,
+        )
         const now = Date.now()
-        // A sibling of the old thread, not a child: no parentThreadId. The
-        // same users can open it as the old thread.
+        // A sibling of the old thread, not a child: no parentThreadId.
         const entry: SessionIndexEntry = {
           ...(tenantId !== undefined ? { tenantId } : {}),
           threadId: forked.threadId,
-          ...(source?.ownerId !== undefined ? { ownerId: source.ownerId } : {}),
-          members: source?.members ?? [],
+          ...(ownerId !== undefined ? { ownerId } : {}),
+          members: people,
           createdAt: now,
           updatedAt: now,
           harness: harness.name,
@@ -1189,7 +1677,7 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
             (current) => {
               // The open of the fork wrote an entry already: keep what it
               // holds, but not its owner. The owner and the members come
-              // from the old thread.
+              // from `members`.
               const { ownerId: _opener, ...opened } = current ?? entry
               return {
                 ...entry,
@@ -1201,6 +1689,48 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
             },
           )) ?? entry
         )
+      },
+      async share({ threadId, userId, role, principal }) {
+        const call = 'host.sessions.share'
+        const user = await checkShare(call, { threadId, principal })
+        return index.update(
+          { tenantId: user.tenantId, threadId },
+          (entry) =>
+            entry && {
+              ...entry,
+              members: [
+                ...entry.members.filter((member) => member.userId !== userId),
+                { userId, role },
+              ],
+              updatedAt: Date.now(),
+            },
+        )
+      },
+      async unshare({ threadId, userId, principal }) {
+        const call = 'host.sessions.unshare'
+        const user = await checkShare(call, { threadId, principal })
+        const { tenantId } = user
+        const changed = await index.update({ tenantId, threadId }, (entry) => {
+          if (!entry) return undefined
+          if (entry.ownerId === userId) {
+            throw new Error(
+              `${JSON.stringify(userId)} owns thread ${JSON.stringify(threadId)}: the owner cannot be removed.`,
+            )
+          }
+          return {
+            ...entry,
+            members: entry.members.filter((member) => member.userId !== userId),
+            updatedAt: Date.now(),
+          }
+        })
+        // After the write, so no new work of the user gets through. The log
+        // keeps who cancelled it.
+        const open = await openSessionsOf(tenantId, threadId)
+        for (const session of open) {
+          await session.cancelWorkOf({ userId, principal: user })
+        }
+        revokeUser({ tenantId, threadId, principalId: userId })
+        return changed
       },
     },
     async *events({ signal } = {}) {
@@ -1237,6 +1767,7 @@ export function createHarnessHost(options: HarnessHostOptions = {}) {
     const { runs } = persistence.stores
     durableStores.set(host, { log: logStore, ...(runs ? { runs } : {}) })
   }
+  if (access) accesses.set(host, access)
   turnFinders.set(host, async ({ harness, tenantId, operationId }) => {
     // The key of a session with an empty thread id is the start of the keys
     // of the harness and tenant: the encoded tenant has no `:`.

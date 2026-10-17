@@ -26,6 +26,18 @@ const asker = definePlugin({
   }),
 })
 
+const user = { id: 'u' }
+
+/** A host where `user` may use every thread but `someone-else`. */
+const accessHost = () =>
+  createHarnessHost({
+    persistence: memoryPersistence(),
+    access: {
+      identify: () => user,
+      authorize: ({ session }) => session.threadId !== 'someone-else',
+    },
+  })
+
 function setup(
   fetchWrap?: (fetch: typeof globalThis.fetch) => typeof globalThis.fetch,
 ) {
@@ -36,13 +48,8 @@ function setup(
     plugins: () => [asker],
     expose: { config: ['tone'], commands: ['confirm'] },
   })
-  const host = createHarnessHost({ persistence: memoryPersistence() })
-  const handler = createHarnessHandler({
-    host,
-    harness,
-    authorize: () => ({ id: 'u' }),
-    canAccess: (_principal, threadId) => threadId !== 'someone-else',
-  })
+  const host = accessHost()
+  const handler = createHarnessHandler({ host, harness })
   const direct: typeof globalThis.fetch = (input, init) =>
     handler(new Request(input, init))
   const client = createHarnessClient({
@@ -51,7 +58,7 @@ function setup(
     fetch: fetchWrap ? fetchWrap(direct) : direct,
     reconnectDelayMs: 1,
   })
-  return { host, client, handler }
+  return { host, harness, client, handler }
 }
 
 describe('client reads and actions', () => {
@@ -131,7 +138,11 @@ describe('client reads and actions', () => {
   })
 
   it('refuses a read without a thread id, or for a thread the user may not open', async () => {
-    const { host, handler } = setup()
+    const { host, harness, handler } = setup()
+    await host.open(harness, {
+      threadId: 'someone-else',
+      principal: { id: 'other' },
+    })
     const statusOf = async (path: string) =>
       (await handler(new Request(`http://local/api/harness/${path}`))).status
 
@@ -153,17 +164,17 @@ describe('client reads and actions', () => {
       () => toolCall('writer', { prompt: 'Take notes' }, 'call-1'),
       () => text('Done.'),
     ])
-    const host = createHarnessHost({ persistence: memoryPersistence() })
-    const handler = createHarnessHandler({
-      host,
-      harness: defineHarness({
-        name: 'test/client-reads-agents',
-        adapter,
-        subagents: { agents: [writer] },
-      }),
-      authorize: () => ({ id: 'u' }),
-      canAccess: (_principal, threadId) => threadId !== 'someone-else',
+    const host = accessHost()
+    const harness = defineHarness({
+      name: 'test/client-reads-agents',
+      adapter,
+      subagents: { agents: [writer] },
     })
+    await host.open(harness, {
+      threadId: 'someone-else',
+      principal: { id: 'other' },
+    })
+    const handler = createHarnessHandler({ host, harness })
     const client = createHarnessClient({
       url: 'http://local/api/harness',
       threadId: 'thread-a',
@@ -210,13 +221,15 @@ describe('client reads and actions', () => {
 
   it('reports the connection state of the event stream', async () => {
     let calls = 0
-    const { host, client } = setup((fetch) => async (input, init) => {
+    const { host, harness, client } = setup((fetch) => async (input, init) => {
       const url = String(input instanceof Request ? input.url : input)
       if (url.includes('/events') && calls++ === 0) {
         return new Response('down', { status: 500 })
       }
       return fetch(input, init)
     })
+    // With host access, a thread with no session has no events to read.
+    await host.open(harness, { threadId: 'thread-r', principal: user })
     const states: Array<string> = []
     const reader = new AbortController()
     const reading = (async () => {

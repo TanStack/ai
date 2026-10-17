@@ -81,6 +81,30 @@ export interface HarnessAccess<P extends Principal = Principal> {
   envKeys?: boolean
 }
 
+/**
+ * Thrown when the host refuses an action: `authorize` returned `false`, or
+ * `host.revoke` took the access of the handle's principal. The HTTP handler
+ * answers it with 403. Catch it with `instanceof AccessDeniedError`.
+ */
+export class AccessDeniedError extends Error {
+  readonly code = 'forbidden'
+  readonly action: AccessAction
+  readonly threadId: string
+
+  constructor({
+    action,
+    threadId,
+  }: {
+    action: AccessAction
+    threadId: string
+  }) {
+    super(`Access denied: ${action} on thread ${JSON.stringify(threadId)}.`)
+    this.name = 'AccessDeniedError'
+    this.action = action
+    this.threadId = threadId
+  }
+}
+
 /** Options for {@link membersOnly}. */
 export interface MembersOnlyOptions {
   fork?: {

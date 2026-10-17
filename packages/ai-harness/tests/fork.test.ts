@@ -113,12 +113,11 @@ describe.each([
     await source.send('one')
     await host.fork(harness, { threadId: SOURCE, newThreadId: FORK })
     // The app opened the source: the fork left it open.
-    expect(await host.open(harness, { threadId: SOURCE })).toBe(source)
+    expect(host.isOpen(harness, { threadId: SOURCE })).toBe(true)
     await source.close()
     await host.fork(harness, { threadId: SOURCE, newThreadId: 'other' })
     // The fork opened the source itself, so it closed it again.
-    const reopened = await host.open(harness, { threadId: SOURCE })
-    expect(reopened).not.toBe(source)
+    expect(host.isOpen(harness, { threadId: SOURCE })).toBe(false)
     await host.close()
   })
 

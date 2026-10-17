@@ -105,9 +105,13 @@ export abstract class SessionState<
         createdAt: now,
         updatedAt: now,
       }
-      // ponytail: an entry with no owner goes to the next opener with a
-      // principal. The access node allows this only when access is off.
-      const isClaim = current.ownerId === undefined && principal !== undefined
+      // A new entry belongs to its opener. Without access, an entry with no
+      // owner goes to the next opener with a principal too. With access, it
+      // stays without an owner: `authorize` decides who may open it.
+      const isClaim =
+        principal !== undefined &&
+        (entry === undefined ||
+          (current.ownerId === undefined && !this.hasAccess))
       return {
         ...current,
         harness: current.harness ?? this.harness.name,

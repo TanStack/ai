@@ -1,11 +1,18 @@
 import { convertSchemaToJsonSchema } from '@tanstack/ai'
+import { AccessDeniedError } from './access'
 import { isRecord } from './utils'
 import { createInputId, errorText } from './session/helpers'
 import type { StreamChunk } from '@tanstack/ai'
 import type { AnyAgent } from './agents'
 import type { AnyHarness } from './define'
 import type { HarnessSession, SessionSnapshot } from './session/index'
-import type { Cursor, HarnessInput, Principal, Receipt } from './types'
+import type {
+  Cursor,
+  HarnessInput,
+  Operation,
+  Principal,
+  Receipt,
+} from './types'
 
 /** The session-tier protocol version. Sent in `subscribe` and `hello`. */
 export const HARNESS_PROTOCOL_VERSION = 1
@@ -208,9 +215,10 @@ export function parseControlFrame(data: string): ControlFrame {
  * only the agents in `expose.agents`. It can run only the commands in
  * `expose.commands` and the tools in `expose.tools`, and change only the
  * settings in `expose.settings` and the config keys in `expose.config`.
- * Resolves to the receipt. `principal` is who
- * sent the input, from your `authorize`, never from the input itself. A chat
- * input runs with its credentials.
+ * Resolves to the receipt. `principal` is who sent the input, from the
+ * login of the request, never from the input itself. A chat input runs with
+ * its credentials. Rejects with `AccessDeniedError` when the host refuses
+ * the input.
  *
  * @example
  * ```ts
@@ -246,39 +254,26 @@ export async function applyInput({
     reason: 'not_exposed',
   }
   switch (input.op) {
-    case 'prompt': {
-      const operation = session.send(input.message, {
-        ...(input.busy ? { busy: input.busy } : {}),
-        ...(input.ephemeral ? { ephemeral: input.ephemeral } : {}),
-        ...sent,
-      })
-      // Nobody may await a turn a client started. Its receipt is the answer.
-      operation.then(
-        () => {},
-        () => {},
+    case 'prompt':
+      return turnReceipt(
+        session.send(input.message, {
+          ...(input.busy ? { busy: input.busy } : {}),
+          ...(input.ephemeral ? { ephemeral: input.ephemeral } : {}),
+          ...sent,
+        }),
       )
-      return operation.receipt
-    }
-    case 'continue': {
-      const operation = session.continue({
-        ...(input.ephemeral ? { ephemeral: input.ephemeral } : {}),
-        ...sent,
-      })
-      operation.then(
-        () => {},
-        () => {},
+    case 'continue':
+      return turnReceipt(
+        session.continue({
+          ...(input.ephemeral ? { ephemeral: input.ephemeral } : {}),
+          ...sent,
+        }),
       )
-      return operation.receipt
-    }
     case 'steer':
-    case 'followUp': {
-      const operation = session.send(input.message, { ...sent, mode: input.op })
-      operation.then(
-        () => {},
-        () => {},
+    case 'followUp':
+      return turnReceipt(
+        session.send(input.message, { ...sent, mode: input.op }),
       )
-      return operation.receipt
-    }
     case 'resolve':
       return session.resolve({ resume: input.resume, ...id })
     case 'cancel':
@@ -305,6 +300,8 @@ export async function applyInput({
         input: input.input,
         ...user,
       })
+      // ponytail: a command has no receipt, so it is accepted at once. A
+      // command that the host refuses fails with a `RUN_ERROR` event.
       operation.then(
         () => {},
         () => {},
@@ -330,18 +327,14 @@ export async function applyInput({
       if (!(harness.expose?.tools ?? []).includes(input.name)) {
         return notExposed
       }
-      const operation = session.tool({
-        name: input.name,
-        args: input.args,
-        ...(input.meta ? { meta: input.meta } : {}),
-        ...id,
-      })
-      // Nobody may await a turn a client started. Its receipt is the answer.
-      operation.then(
-        () => {},
-        () => {},
+      return turnReceipt(
+        session.tool({
+          name: input.name,
+          args: input.args,
+          ...(input.meta ? { meta: input.meta } : {}),
+          ...id,
+        }),
       )
-      return operation.receipt
     }
     case 'append': {
       // A client adds only the exposed types, and only to this thread.
@@ -386,6 +379,8 @@ export async function applyInput({
         return { inputId: '', status: 'rejected', reason: 'unknown_agent' }
       }
       // The run is the client's: its credentials and keys are theirs.
+      // ponytail: accepted at once, as a command. A run that the host
+      // refuses fails with a `RUN_ERROR` event.
       const operation = handle.start(input.input, {
         wake: input.detached === true,
         ...user,
@@ -414,18 +409,33 @@ export async function applyInput({
           reason: 'not_exposed',
         }
       }
-      const operation = session.send(input.message, {
-        to: input.operationId,
-        ...id,
-        ...(input.mode ? { mode: input.mode } : {}),
-      })
-      operation.then(
-        () => {},
-        () => {},
+      return turnReceipt(
+        session.send(input.message, {
+          to: input.operationId,
+          ...id,
+          ...(input.mode ? { mode: input.mode } : {}),
+        }),
       )
-      return operation.receipt
     }
   }
+}
+
+/**
+ * The receipt of a turn that a client started. Nobody may await the turn,
+ * so its failure is handled here. A turn that the host refused throws its
+ * `AccessDeniedError`, as the other inputs do, so a transport answers 403.
+ */
+export async function turnReceipt(operation: Operation<unknown>) {
+  const failure = operation.then(
+    () => undefined,
+    (error: unknown) => error,
+  )
+  const receipt = await operation.receipt
+  if (receipt.status !== 'rejected') return receipt
+  // A refused input fails its operation at once.
+  const error = await failure
+  if (error instanceof AccessDeniedError) throw error
+  return receipt
 }
 
 /**

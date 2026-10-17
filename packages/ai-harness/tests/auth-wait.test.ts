@@ -397,19 +397,23 @@ describe('sign-ins in a shared thread', () => {
     ])
     const persistence = memoryPersistence()
     const credentials = memoryCredentialStore()
-    const host = createHarnessHost({ persistence, credentials })
+    const host = createHarnessHost({
+      persistence,
+      credentials,
+      access: {
+        identify: ({ request }) => ({
+          id: request.headers.get('x-user') ?? '',
+        }),
+        authorize: () => true,
+      },
+    })
     const harness = defineHarness({
       name: 'test/auth-wait-shared-http',
       adapter,
       plugins: () => [github(seen, true)],
       expose: { commands: ['connect:github'] },
     })
-    const handler = createHarnessHandler({
-      host,
-      harness,
-      canAccess: () => true,
-      authorize: (request) => ({ id: request.headers.get('x-user') ?? '' }),
-    })
+    const handler = createHarnessHandler({ host, harness })
     const control = async (user: string, input: object) =>
       (
         await handler(
@@ -481,8 +485,7 @@ describe('sign-ins in a shared thread', () => {
     const handler = createHarnessHandler({
       host,
       harness,
-      canAccess: () => true,
-      authorize: () => bob,
+      openAccess: { principal: bob },
       media: { secret: 'test-secret' },
     })
     const session = await host.open(harness, {

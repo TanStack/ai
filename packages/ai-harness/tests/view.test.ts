@@ -310,8 +310,7 @@ describe('createSessionView', () => {
     const handler = createHarnessHandler({
       host,
       harness,
-      canAccess: () => true,
-      authorize: () => ({ id: 'u' }),
+      openAccess: { principal: { id: 'u' } },
     })
     const client = createHarnessClient({
       url: 'http://local/api/harness',
@@ -347,8 +346,7 @@ describe('createSessionView', () => {
     const handler = createHarnessHandler({
       host,
       harness,
-      canAccess: () => true,
-      authorize: () => ({ id: 'u' }),
+      openAccess: { principal: { id: 'u' } },
     })
     const view = createSessionView(
       createHarnessClient({

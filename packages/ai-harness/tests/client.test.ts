@@ -23,16 +23,17 @@ describe('createHarnessClient', () => {
       agents: [pricer],
       expose: { agents: ['pricer'] },
     })
-    const host = createHarnessHost({ persistence: memoryPersistence() })
-    const handler = createHarnessHandler({
-      host,
-      harness: studio,
-      canAccess: () => true,
-      authorize: (request) =>
-        request.headers.get('authorization') === 'Bearer t'
-          ? { id: 'u' }
-          : null,
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      access: {
+        identify: ({ request }) =>
+          request.headers.get('authorization') === 'Bearer t'
+            ? { id: 'u' }
+            : null,
+        authorize: () => true,
+      },
     })
+    const handler = createHarnessHandler({ host, harness: studio })
     const client = createHarnessClient<typeof studio>({
       url: 'http://local/api/harness/',
       threadId: 'thread-c',
@@ -73,8 +74,7 @@ describe('createHarnessClient', () => {
     const handler = createHarnessHandler({
       host,
       harness: studio,
-      canAccess: () => true,
-      authorize: () => ({ id: 'u' }),
+      openAccess: { principal: { id: 'u' } },
     })
     const client = createHarnessClient<typeof studio>({
       url: 'http://local/api/harness',
@@ -108,8 +108,7 @@ describe('createHarnessClient', () => {
     const handler = createHarnessHandler({
       host,
       harness: studio,
-      canAccess: () => true,
-      authorize: () => ({ id: 'u' }),
+      openAccess: { principal: { id: 'u' } },
     })
     const client = createHarnessClient<typeof studio>({
       url: 'http://local/api/harness',
@@ -143,8 +142,7 @@ describe('createHarnessClient', () => {
     const handler = createHarnessHandler({
       host,
       harness: studio,
-      canAccess: () => true,
-      authorize: () => ({ id: 'u' }),
+      openAccess: { principal: { id: 'u' } },
     })
     const client = createHarnessClient<typeof studio>({
       url: 'http://local/api/harness',
@@ -196,8 +194,7 @@ describe('createHarnessClient', () => {
     const handler = createHarnessHandler({
       host,
       harness: studio,
-      canAccess: () => true,
-      authorize: () => ({ id: 'u' }),
+      openAccess: { principal: { id: 'u' } },
     })
     const client = createHarnessClient<typeof studio>({
       url: 'http://local/api/harness',
@@ -224,13 +221,11 @@ describe('createHarnessClient', () => {
   it('throws on a refused request instead of retrying', async () => {
     const { adapter } = mockAdapter([])
     const studio = defineHarness({ name: 'test/client-denied', adapter })
-    const host = createHarnessHost({ persistence: memoryPersistence() })
-    const handler = createHarnessHandler({
-      host,
-      harness: studio,
-      canAccess: () => true,
-      authorize: () => null,
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      access: { identify: () => null, authorize: () => true },
     })
+    const handler = createHarnessHandler({ host, harness: studio })
     const client = createHarnessClient<typeof studio>({
       url: 'http://local/api/harness',
       threadId: 't',
@@ -266,8 +261,7 @@ describe('client.send to an agent run', () => {
     const handler = createHarnessHandler({
       host,
       harness: studio,
-      canAccess: () => true,
-      authorize: () => ({ id: 'u' }),
+      openAccess: { principal: { id: 'u' } },
     })
     const client = createHarnessClient<typeof studio>({
       url: 'http://local/api/harness',

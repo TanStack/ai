@@ -245,6 +245,12 @@ export interface SessionDependencies {
   /** Gets each event the session publishes, after the feed has it. */
   onEvent: (event: StreamChunk) => void
   onClose: () => void
+  /**
+   * The host checks access (`access` on the host). Then an entry with no
+   * owner stays without one, and provider keys read env vars only with
+   * `envKeys`.
+   */
+  access?: { envKeys: boolean }
 }
 
 export interface QueuedTurn {

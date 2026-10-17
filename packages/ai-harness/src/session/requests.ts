@@ -663,6 +663,28 @@ export abstract class SessionRequests<
   }
 
   /**
+   * @internal Cancel the queued and running work that the user `userId`
+   * started: `host.sessions.unshare` stops it. `principal` is who cancels,
+   * and the log keeps it.
+   */
+  async cancelWorkOf({
+    userId,
+    principal,
+  }: {
+    userId: string
+    principal: Principal
+  }): Promise<void> {
+    const theirs = [...this.operations.values()].filter(
+      (operation) =>
+        !operation.isSettled() &&
+        this.startedBy(operation.id).principalId === userId,
+    )
+    for (const operation of theirs) {
+      await this.cancel({ operationId: operation.id, principal })
+    }
+  }
+
+  /**
    * Cancel an input that waits, so it never runs, also after a restart. It
    * settles `aborted`. An input that started, or that joins the running
    * turn now, is refused with `not_waiting`: stop it with

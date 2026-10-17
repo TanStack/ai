@@ -88,6 +88,7 @@ import type {
   AgentStartOptions,
   AgentChild,
   AgentHandles,
+  DynamicAgentHandle,
   SessionInspection,
   SessionDependencies,
   QueuedTurn,
@@ -310,6 +311,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected readonly mediaStore: MediaStore
   /** The prompt cache of every chat turn of this session. */
   protected readonly promptCache: ResolvedPromptCache
+  /** The host checks access. See `SessionDependencies.access`. */
+  protected readonly hasAccess: boolean
 
   constructor(deps: SessionDependencies) {
     this.harness = deps.harness as THarness
@@ -363,8 +366,14 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
           secrets: this.secrets,
         },
       )
+    this.hasAccess = deps.access !== undefined
+    // Without access, one user runs the host, so the env vars are theirs.
+    const envFallback = deps.access?.envKeys ?? true
     this.keysOf = (principal) =>
-      providerKeysFor(this.credentialsOf(principal), onMissing, this.secrets)
+      providerKeysFor(this.credentialsOf(principal), onMissing, {
+        secrets: this.secrets,
+        envFallback,
+      })
     this.services = this.pluginServices()
     this.registry = this.agentRegistry
     for (const agent of this.harness.agents ?? []) {
@@ -374,16 +383,24 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       this.agentRegistry.add(agent, 'the harness')
     }
     this.agents = new Proxy({} as AgentHandles<THarness>, {
-      get: (_target, name) => {
-        if (typeof name !== 'string') return undefined
-        return {
-          run: (input?: unknown, options?: AgentRunOptions) =>
-            this.runAgent(name, input, { ...options, wake: false }),
-          start: (input?: unknown, options?: AgentStartOptions) =>
-            this.runAgent(name, input, options ?? {}),
-        }
-      },
+      get: (_target, name) =>
+        typeof name === 'string' ? this.agentHandle(name) : undefined,
     })
+  }
+
+  /**
+   * @internal `run` and `start` of the agent `name`, for `principal` when
+   * given. `session.agents` and `session.agent` use it, and so does the
+   * handle of `host.open`, which passes its own principal.
+   */
+  agentHandle(name: string, principal?: Principal): DynamicAgentHandle {
+    const user = principal ? { principal } : {}
+    return {
+      run: (input?: unknown, options?: AgentRunOptions) =>
+        this.runAgent(name, input, { ...options, ...user, wake: false }),
+      start: (input?: unknown, options?: AgentStartOptions) =>
+        this.runAgent(name, input, { ...options, ...user }),
+    }
   }
 
   /**

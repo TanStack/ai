@@ -529,9 +529,10 @@ describe('durable session log', () => {
 
     await expect(session.send('hi')).rejects.toThrow('Another host wrote')
 
-    // The host opens a new session, which folds the log again.
-    await vi.waitFor(async () =>
-      expect(await host.open(harness, { threadId: THREAD })).not.toBe(session),
+    // The host drops the stopped session, so the next open folds the log
+    // again in a new one.
+    await vi.waitFor(() =>
+      expect(host.isOpen(harness, { threadId: THREAD })).toBe(false),
     )
     await host.close()
   })

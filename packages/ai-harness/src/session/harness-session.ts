@@ -40,7 +40,13 @@ export interface HarnessSession<
 > extends Omit<
   SessionImpl<THarness>,
   // The public members that only the host and the handler call.
-  'open' | 'adoptFork' | 'onIdle' | 'resolveForRun'
+  | 'open'
+  | 'adoptFork'
+  | 'onIdle'
+  | 'resolveForRun'
+  | 'checked'
+  | 'cancelWorkOf'
+  | 'agentHandle'
 > {}
 
 /**

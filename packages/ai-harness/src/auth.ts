@@ -149,20 +149,22 @@ export function credentialsFor(
 /**
  * The provider keys of the user of `credentials`. A key is the `api_key`
  * credential saved under the provider id (`/connect <id>` saves it), else
- * the first `provider.env` name that is set. A missing key calls `onMissing`
- * and throws {@link AuthRequiredError}, so the user sees `/connect <id>`.
- * A key read from env goes in `secrets`, like a saved credential.
+ * the first `provider.env` name that is set. With `envFallback: false`, env
+ * vars are not read. A missing key calls `onMissing` and throws
+ * {@link AuthRequiredError}, so the user sees `/connect <id>`. A key read
+ * from env goes in `secrets`, like a saved credential.
  */
 export function providerKeysFor(
   credentials: CredentialsAccess,
   onMissing: (error: AuthRequiredError) => void,
-  secrets?: Set<string>,
+  { secrets, envFallback }: { secrets?: Set<string>; envFallback: boolean },
 ) {
   const providerIdOf = (provider: ByokProvider | ProviderId) =>
     typeof provider === 'string' ? provider : provider.id
   const get = async (provider: ByokProvider | ProviderId) => {
     const saved = await credentials.get(providerIdOf(provider))
     if (saved?.type === 'api_key') return saved.value
+    if (!envFallback) return null
     const fromEnv = envKeyEntry(provider)?.value
     if (fromEnv) secrets?.add(fromEnv)
     return fromEnv ?? null

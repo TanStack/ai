@@ -1,0 +1,263 @@
+import { describe, expect, it, vi } from 'vitest'
+import { memoryPersistence } from '@tanstack/ai-persistence'
+import { createHarnessHost, defineHarness, membersOnly } from '../src'
+import { createHarnessHandler, handleHarnessSocket } from '../src/server'
+import { isMediaRecord } from '../src/media-entry'
+import { fakeSocket, mockAdapter, readSse, text } from './helpers'
+import type { HostEvent } from '../src'
+
+const BASE = 'http://x/api/harness'
+
+const olga = { id: 'olga', tenantId: 'acme' }
+const bea = { id: 'bea', tenantId: 'acme' }
+const cid = { id: 'cid', tenantId: 'acme' }
+const gus = { id: 'gus', tenantId: 'globex' }
+const users = new Map([olga, bea, cid, gus].map((user) => [user.id, user]))
+
+/** A request of the user named by the `x-user` header. */
+const requestAs = (userId: string, path = 'socket', init: RequestInit = {}) =>
+  new Request(`${BASE}/${path}`, {
+    ...init,
+    headers: {
+      'x-user': userId,
+      'content-type': 'application/json',
+      ...init.headers,
+    },
+  })
+
+/** A membersOnly() host whose users come from the `x-user` header. */
+function setup() {
+  const harness = defineHarness({
+    name: 'test/http-access',
+    adapter: mockAdapter(() => text('ok')).adapter,
+  })
+  const host = createHarnessHost({
+    persistence: memoryPersistence(),
+    access: {
+      identify: ({ request }) =>
+        users.get(request.headers.get('x-user') ?? '') ?? null,
+      authorize: membersOnly(),
+    },
+  })
+  const handler = createHarnessHandler({ host, harness })
+  const call = (userId: string, path: string, init?: RequestInit) =>
+    handler(requestAs(userId, path, init))
+  const prompt = (userId: string, threadId: string) =>
+    call(userId, 'control', {
+      method: 'POST',
+      body: JSON.stringify({
+        threadId,
+        input: { op: 'prompt', message: 'Hi.' },
+      }),
+    })
+  const share = (userId: string, role: 'member' | 'viewer') =>
+    host.sessions.share({ threadId: 't1', userId, role, principal: olga })
+  return { host, harness, handler, call, prompt, share }
+}
+
+/** The thread of a host event, from its own field or its entry. */
+const threadOf = (event: HostEvent) =>
+  event.type === 'session' || event.type === 'session-deleted'
+    ? event.entry.threadId
+    : event.threadId
+
+describe('handlers and sockets fail closed', () => {
+  it('throws at the start for a host without access and without openAccess', () => {
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const harness = defineHarness({ name: 'test/open' })
+
+    expect(() => createHarnessHandler({ host, harness })).toThrow(
+      'createHarnessHandler needs host access ({ identify, authorize }) or openAccess: true',
+    )
+    expect(() =>
+      handleHarnessSocket({
+        host,
+        harness,
+        socket: fakeSocket().socket,
+        request: requestAs('olga'),
+      }),
+    ).toThrow(
+      'handleHarnessSocket needs host access ({ identify, authorize }) or openAccess: true',
+    )
+  })
+
+  it('throws at the start for openAccess on a host with access', async () => {
+    const { host, harness } = setup()
+
+    expect(() =>
+      createHarnessHandler({ host, harness, openAccess: true }),
+    ).toThrow(
+      'createHarnessHandler: the host has access, so access.identify reads the user of each request. Remove openAccess.',
+    )
+    expect(() =>
+      handleHarnessSocket({
+        host,
+        harness,
+        socket: fakeSocket().socket,
+        request: requestAs('olga'),
+        openAccess: { principal: olga },
+      }),
+    ).toThrow('handleHarnessSocket: the host has access')
+    await host.close()
+  })
+})
+
+describe('the handler on a host with access', () => {
+  it('refuses a stranger with 403, and a read of a missing thread is 404 and starts nothing', async () => {
+    const { host, call, prompt } = setup()
+    expect((await prompt('olga', 't1')).status).toBe(200)
+
+    expect((await call('cid', 'transcript?threadId=t1')).status).toBe(403)
+    expect((await prompt('cid', 't1')).status).toBe(403)
+    expect((await call('nobody', 'transcript?threadId=t1')).status).toBe(401)
+    expect((await call('cid', 'events?threadId=t-none')).status).toBe(404)
+    expect((await call('cid', 'snapshot?threadId=t-none')).status).toBe(404)
+    expect(
+      await host.sessions.get({ threadId: 't-none', principal: cid }),
+    ).toBeUndefined()
+    await host.close()
+  })
+
+  it('shares and unshares a thread through POST sessions', async () => {
+    const { host, call, prompt } = setup()
+    await prompt('olga', 't1')
+    const sessionsOp = (userId: string, body: object) =>
+      call(userId, 'sessions', { method: 'POST', body: JSON.stringify(body) })
+
+    const shared = await sessionsOp('olga', {
+      op: 'share',
+      threadId: 't1',
+      userId: 'bea',
+      role: 'viewer',
+    })
+    expect((await shared.json()).members).toEqual([
+      { userId: 'olga', role: 'owner' },
+      { userId: 'bea', role: 'viewer' },
+    ])
+    expect((await call('bea', 'transcript?threadId=t1')).status).toBe(200)
+    expect((await prompt('bea', 't1')).status).toBe(403)
+    expect(
+      (
+        await sessionsOp('bea', {
+          op: 'share',
+          threadId: 't1',
+          userId: 'cid',
+          role: 'member',
+        })
+      ).status,
+    ).toBe(403)
+
+    await sessionsOp('olga', { op: 'unshare', threadId: 't1', userId: 'bea' })
+
+    expect((await call('bea', 'transcript?threadId=t1')).status).toBe(403)
+    await host.close()
+  })
+
+  it('refuses a signed media URL after unshare removed its user', async () => {
+    const { host, handler, call, prompt, share } = setup()
+    await prompt('olga', 't1')
+    const uploaded = await call('olga', 'media?threadId=t1&name=cat.png', {
+      method: 'POST',
+      body: 'hello',
+      headers: { 'content-type': 'image/png' },
+    })
+    const record: unknown = await uploaded.json()
+    if (!isMediaRecord(record)) throw new Error('The upload failed.')
+    await share('bea', 'viewer')
+    const signed = await call('bea', `media-url?threadId=t1&id=${record.id}`)
+    const { path }: { path: string } = await signed.json()
+    const fetchSigned = () => handler(new Request(`${BASE}/${path}`))
+    expect(await (await fetchSigned()).text()).toBe('hello')
+
+    await host.sessions.unshare({
+      threadId: 't1',
+      userId: 'bea',
+      principal: olga,
+    })
+
+    expect((await fetchSigned()).status).toBe(403)
+    await host.close()
+  })
+
+  it('closes the open events stream of a user on revoke', async () => {
+    const { host, call, prompt, share } = setup()
+    await prompt('olga', 't1')
+    await share('bea', 'member')
+    const response = await call('bea', 'events?threadId=t1')
+    const reading = readSse(response, () => false)
+
+    host.revoke({ threadId: 't1', principal: bea })
+
+    // The read ends only when the stream closes.
+    await expect(reading).resolves.toBeInstanceOf(Array)
+    await host.close()
+  })
+
+  it('never shows the threads of another tenant in host-events', async () => {
+    const { host, call, prompt } = setup()
+    const reading = readSse(
+      await call('gus', 'host-events'),
+      (event: HostEvent) => threadOf(event) === 'g1',
+    )
+
+    await prompt('olga', 't1')
+    await prompt('gus', 'g1')
+
+    const seen = (await reading).map(threadOf)
+    expect(seen).toContain('g1')
+    expect(seen).not.toContain('t1')
+    await host.close()
+  })
+})
+
+describe('the socket on a host with access', () => {
+  it('refuses a request that identify refuses, and a stranger to a thread', async () => {
+    const { host, harness, prompt } = setup()
+    await prompt('olga', 't1')
+    const nobody = fakeSocket()
+    const stranger = fakeSocket()
+    handleHarnessSocket({
+      host,
+      harness,
+      socket: nobody.socket,
+      request: requestAs('nobody'),
+    })
+    handleHarnessSocket({
+      host,
+      harness,
+      socket: stranger.socket,
+      request: requestAs('cid'),
+    })
+
+    nobody.receive({ type: 'harness.subscribe', threadId: 't1' })
+    stranger.receive({ type: 'harness.subscribe', threadId: 't1' })
+
+    await vi.waitFor(() => expect(nobody.closed).toEqual([4401]))
+    expect(nobody.sent).toEqual([
+      { type: 'harness.error', message: 'unauthorized' },
+    ])
+    await vi.waitFor(() => expect(stranger.closed).toEqual([4403]))
+    expect(stranger.sent).toEqual([
+      { type: 'harness.error', message: 'forbidden' },
+    ])
+    await host.close()
+  })
+
+  it('sends forbidden and closes when the user is revoked', async () => {
+    const { host, harness, prompt, share } = setup()
+    await prompt('olga', 't1')
+    await share('bea', 'member')
+    const { socket, sent, closed, receive } = fakeSocket()
+    handleHarnessSocket({ host, harness, socket, request: requestAs('bea') })
+    receive({ type: 'harness.subscribe', threadId: 't1' })
+    await vi.waitFor(() =>
+      expect(sent.some((frame) => frame.type === 'harness.hello')).toBe(true),
+    )
+
+    host.revoke({ threadId: 't1', principal: bea })
+
+    await vi.waitFor(() => expect(closed).toEqual([4403]))
+    expect(sent.at(-1)).toEqual({ type: 'harness.error', message: 'forbidden' })
+    await host.close()
+  })
+})

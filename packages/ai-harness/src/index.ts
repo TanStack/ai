@@ -100,6 +100,7 @@ export type {
   HarnessHostOptions,
   HarnessPersistence,
   HostEvent,
+  HostRevokedEvent,
   HostSessionDeletedEvent,
   HostSessionEvent,
   HostSessions,
@@ -107,11 +108,23 @@ export type {
   OpenSessionOptions,
   ResumePendingOptions,
 } from './host'
+export { AccessDeniedError, membersOnly, membersOnlyPolicyOf } from './access'
+export type {
+  AccessAction,
+  AccessRun,
+  AccessSession,
+  Authorize,
+  AuthorizeInput,
+  HarnessAccess,
+  MembersOnlyOptions,
+  MembersOnlyPolicy,
+} from './access'
 export type {
   SessionIndexEntry,
   SessionIndexListOptions,
   SessionIndexPage,
   SessionIndexStore,
+  SessionMember,
 } from '@tanstack/ai-persistence'
 
 export type {

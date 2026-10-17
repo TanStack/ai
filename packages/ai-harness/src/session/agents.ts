@@ -84,11 +84,7 @@ export abstract class SessionAgents<
    */
   agent(name: string): DynamicAgentHandle | undefined {
     if (!this.agentRegistry.get(name)) return undefined
-    return {
-      run: (input, options) =>
-        this.runAgent(name, input, { ...options, wake: false }),
-      start: (input, options) => this.runAgent(name, input, options ?? {}),
-    }
+    return this.agentHandle(name)
   }
 
   protected override sendToRun(

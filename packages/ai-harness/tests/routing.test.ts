@@ -304,7 +304,7 @@ describe('routing.router', () => {
     await turn
 
     const ctx = seen[1]
-    expect(ctx?.session).toBe(session)
+    expect(ctx?.session.threadId).toBe(session.threadId)
     expect(ctx?.input).toEqual([{ type: 'text', content: 'second' }])
     expect(ctx?.operationId).toBe(turn.id)
     expect(ctx?.inputId).toBe('in-2')

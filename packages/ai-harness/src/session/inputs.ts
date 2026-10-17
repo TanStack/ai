@@ -13,6 +13,7 @@ import {
   checkHostRecords,
 } from './helpers'
 import { KEPT_SETTLED, SessionBase } from './base'
+import type { AccessRun } from '../access'
 import type { OperationImpl } from '../operation'
 import type { LogRecord } from '@tanstack/ai-persistence'
 import type { HarnessRecord, InputState } from '../log'
@@ -41,6 +42,15 @@ export type Admission =
   | 'owned_elsewhere'
 
 /**
+ * The access check of one input, before `accept` stores it: the input, and
+ * the run that an answer or a cancel targets. It throws to refuse the input.
+ */
+export type InputCheck = (check: {
+  input: HarnessInput
+  run: AccessRun | undefined
+}) => Promise<void>
+
+/**
  * A layer of {@link HarnessSession}: admitting inputs, receipts, and
  * settlements.
  */
@@ -49,6 +59,97 @@ export abstract class SessionInputs<
 > extends SessionBase<THarness> {
   /** Chat inputs that this host passed to the owner of the thread. */
   protected readonly forwarded = new Set<string>()
+
+  /** The check that the next `accept` runs. See `checked`. */
+  private pendingCheck: InputCheck | undefined
+
+  /**
+   * @internal Run `call`, and run `check` on the input that it stores,
+   * before the input is stored. The handle of `host.open` checks access
+   * through it. Each method that stores an input calls `accept` before its
+   * first `await`, so the check reaches the input of `call` and no other. A
+   * call that returns before `accept` stores nothing.
+   */
+  checked<T>(check: InputCheck, call: () => T): T {
+    this.pendingCheck = check
+    try {
+      return call()
+    } finally {
+      this.pendingCheck = undefined
+    }
+  }
+
+  /**
+   * The run that `input` answers or cancels, and who started it, when the
+   * session knows. Other inputs target no run.
+   */
+  protected runOf(input: HarnessInput): AccessRun | undefined {
+    switch (input.op) {
+      case 'resolve': {
+        const stopped = this.interrupted
+        if (!stopped) return undefined
+        return { runId: stopped.runId, ...idOf(stopped.principal) }
+      }
+      case 'answer': {
+        const operationId = this.questions.get(input.questionId)?.operationId
+        return operationId === undefined
+          ? undefined
+          : this.startedBy(operationId)
+      }
+      case 'cancel': {
+        const operationId = input.operationId ?? this.activeTurn?.id
+        return operationId === undefined
+          ? undefined
+          : this.startedBy(operationId)
+      }
+      case 'cancelInput':
+        return { runId: input.inputId, ...idOf(this.senderOf(input.inputId)) }
+      case 'prompt':
+      case 'steer':
+      case 'followUp':
+      case 'continue':
+      case 'tool':
+      case 'reset':
+      case 'command':
+      case 'agent':
+      case 'agentMessage':
+      case 'setDelivery':
+      case 'background':
+      case 'append':
+      case 'configure':
+      case 'config':
+      case 'revert':
+      case 'unrevert':
+        return undefined
+    }
+  }
+
+  /** The operation `operationId`, with the id of who started it when known. */
+  protected startedBy(operationId: string): AccessRun {
+    const chain = this.chainOf.get(operationId)
+    const agentRun = [...(chain?.runs ?? []), ...(chain?.followUps ?? [])].find(
+      (run) => run.operation.id === operationId,
+    )
+    const inputId = this.operationInputs.get(operationId)
+    const principal =
+      this.activeTurn?.id === operationId
+        ? this.turnPrincipal
+        : agentRun
+          ? agentRun.principal
+          : inputId !== undefined
+            ? this.senderOf(inputId)
+            : undefined
+    return { runId: operationId, ...idOf(principal) }
+  }
+
+  /** Who sent the input `inputId`: from the log, or from what waits. */
+  protected senderOf(inputId: string) {
+    return (
+      this.writer?.state.inputs.get(inputId)?.principal ??
+      this.steerQueue.find((steer) => steer.inputId === inputId)?.principal ??
+      this.queue.find((turn) => turn.inputId === inputId)?.principal
+    )
+  }
 
   /**
    * Append host records to the session log, in one batch after the events
@@ -351,7 +452,9 @@ export abstract class SessionInputs<
   /**
    * Store an input, unless its id is known. The check before the first
    * `await` is synchronous, so a second call with the same id in the same
-   * tick is a duplicate too. `principal` is who sent it.
+   * tick is a duplicate too. `principal` is who sent it. The access check of
+   * a `checked` call runs first: a refused input is not stored, and the
+   * error rejects this call.
    */
   protected async accept(
     inputId: string,
@@ -360,6 +463,9 @@ export abstract class SessionInputs<
     /** The AG-UI run id of a turn, so a forwarded turn runs as it. */
     runId?: string,
   ): Promise<Admission> {
+    const check = this.pendingCheck
+    this.pendingCheck = undefined
+    if (check) await check({ input, run: this.runOf(input) })
     const sender = storedPrincipal(principal)
     const payload = inputKey(input, sender.principal)
     const local = this.admitted.get(inputId)
@@ -744,6 +850,10 @@ export abstract class SessionInputs<
     this.publishFinished(operation)
   }
 }
+
+/** The `principalId` field of an {@link AccessRun}, when the run has a user. */
+const idOf = (principal: { id: string } | undefined) =>
+  principal ? { principalId: principal.id } : {}
 
 /** The reason of a rejected input record. A rejected record always has one. */
 function rejectedReason(logged: InputState): string {
