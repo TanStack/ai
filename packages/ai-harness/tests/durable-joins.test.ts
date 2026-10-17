@@ -21,6 +21,12 @@ import type { LogRecord } from '@tanstack/ai-persistence'
 import type { HarnessTurnOptions } from '../src'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store, and its key in the other stores. */
 const LOG = logIdOf({ logId: THREAD })
@@ -186,7 +192,7 @@ describe('durable joins', () => {
     ])
 
     const turn = session.send('first', { inputId: 'host' })
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     const late = session.send('one more thing', {
       busy: 'steer',
       inputId: 'late',
@@ -213,7 +219,7 @@ describe('durable joins', () => {
     ])
 
     const turn = session.send('first', { inputId: 'host' })
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     const late = session.send('this fails', {
       busy: 'steer',
       inputId: 'late',
@@ -595,7 +601,7 @@ describe('the join rule', () => {
     const steer = session.send('stop me', { busy: 'steer', inputId: 's1' })
     await Promise.all([a.receipt, steer.receipt])
     wait.done.open()
-    await vi.waitFor(() => expect(cancelled).toBeDefined())
+    await waitFor(() => expect(cancelled).toBeDefined())
     releaseAbort.open()
 
     expect(await cancelled).toMatchObject({ status: 'accepted' })

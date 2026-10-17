@@ -19,6 +19,12 @@ import type {
   SessionEvent,
 } from '../src'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const acme = defineByokProvider({
   id: 'acme',
   label: 'Acme',
@@ -109,7 +115,7 @@ function authRequired(events: ReadonlyArray<SessionEvent>) {
 /** Start `/connect acme`, and answer its question with `answer`. */
 async function connectWith(session: HarnessSession, answer: string) {
   const result = session.command({ name: 'connect:acme' })
-  await vi.waitFor(() =>
+  await waitFor(() =>
     expect(session.snapshot().pendingQuestions).toHaveLength(1),
   )
   const [question] = session.snapshot().pendingQuestions
@@ -307,7 +313,7 @@ describe('providerKeys', () => {
       plugins: [plugin()],
     })
     const connecting = session.command({ name: 'connect:acme' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
     const [question] = session.snapshot().pendingQuestions
@@ -423,7 +429,7 @@ describe('providerKeys', () => {
       plugins: [plugin()],
     })
     const connecting = session.command({ name: 'connect:acme' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(session.snapshot().pendingQuestions).toMatchObject([
         { message: 'Paste your Acme API key', secret: true },
       ]),

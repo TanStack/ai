@@ -130,11 +130,7 @@ export {
 export { parseRangeHeader, resolveBlobRange } from './blob-range'
 
 // Reference in-memory implementation
-export {
-  memoryLogBackend,
-  memoryLogStore,
-  memoryPersistence,
-} from './memory'
+export { memoryLogBackend, memoryLogStore, memoryPersistence } from './memory'
 export type { MemoryLogBackend } from './memory'
 
 // Persistence-owned capabilities only. Locks: @tanstack/ai.

@@ -27,6 +27,12 @@ import type {
   Operation,
 } from '../src'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 const alice = { id: 'alice' }
 
@@ -180,7 +186,7 @@ describe('follow-ups to an agent run', () => {
     ])
     const { host, session } = await open(writing(model.adapter))
     const run = session.agents.writer.start()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await waitFor(() => expect(model.calls).toHaveLength(1))
 
     const receipt = await run.send('Add a title.', {
       mode: 'followUp',
@@ -210,7 +216,7 @@ describe('follow-ups to an agent run', () => {
     const model = mockAdapter([untilAborted(), () => text('Draft two.')])
     const { host, session } = await open(writing(model.adapter))
     const run = session.agents.writer.start()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await waitFor(() => expect(model.calls).toHaveLength(1))
     const receipt = await run.send('Add a title.', { mode: 'followUp' })
     const followUp = session.operation(receipt.operationId ?? '')
 
@@ -240,7 +246,7 @@ describe('follow-ups to an agent run', () => {
       principal: alice,
     })
     const run = session.agents.writer.start()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await waitFor(() => expect(model.calls).toHaveLength(1))
     const receipt = await run.send('Add a title.', { mode: 'followUp' })
     const followUp = session.operation(receipt.operationId ?? '')
     isBroken = true
@@ -260,14 +266,14 @@ describe('follow-ups to an agent run', () => {
     ])
     const { host, session } = await open(writing(model.adapter))
     const run = session.agents.writer.start()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await waitFor(() => expect(model.calls).toHaveLength(1))
 
     const receipt = await run.send('Use a warmer tone.')
 
     expect(receipt).toMatchObject({ status: 'accepted', operationId: run.id })
     release.open()
     await run
-    await vi.waitFor(() => expect(model.calls).toHaveLength(2))
+    await waitFor(() => expect(model.calls).toHaveLength(2))
     expect(messageTexts(model.calls[1]).at(-1)).toBe('Use a warmer tone.')
     expect(await session.settled(receipt.inputId)).toMatchObject({
       outcome: 'completed',
@@ -296,7 +302,7 @@ describe('steers to an agent run', () => {
     ])
     const { host, session } = await open(harness)
     const run = session.agents.researcher.start()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await waitFor(() => expect(model.calls).toHaveLength(1))
 
     const receipt = await run.send('Only primary sources.')
     release.open()
@@ -320,7 +326,7 @@ describe('steers to an agent run', () => {
     ])
     const { host, session } = await open(harness)
     const run = session.agents.researcher.start()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await waitFor(() => expect(model.calls).toHaveLength(1))
 
     const receipt = await session.send('Ignore the brief.', {
       to: run.id,
@@ -328,7 +334,7 @@ describe('steers to an agent run', () => {
     }).receipt
     release.open()
     await run
-    await vi.waitFor(() => expect(model.calls).toHaveLength(3))
+    await waitFor(() => expect(model.calls).toHaveLength(3))
 
     expect(receipt.status).toBe('queued')
     expect(receipt.operationId).not.toBe(run.id)
@@ -347,7 +353,7 @@ describe('agentRuns() and agentRun(id)', () => {
     ])
     const { host, session } = await open(writing(model.adapter))
     const run = session.agents.writer.start()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await waitFor(() => expect(model.calls).toHaveLength(1))
     const queued = await run.send('Add a title.', { mode: 'followUp' })
 
     expect(session.agentRuns()).toEqual([
@@ -367,7 +373,7 @@ describe('agentRuns() and agentRun(id)', () => {
     expect(session.agentRun(run.id)).toBe(run)
     expect(session.agentRun('op-agent-none')).toBeUndefined()
     release.open()
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(session.agentRuns().map((item) => item.status)).toEqual([
         'completed',
         'completed',
@@ -429,7 +435,7 @@ describe('agentRuns() and agentRun(id)', () => {
     ])
     const { host, session } = await open(harness)
     const run = session.agents.researcher.start()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await waitFor(() => expect(model.calls).toHaveLength(1))
 
     const receipt = await session.send('Ignore the brief.', {
       to: run.id,
@@ -437,7 +443,7 @@ describe('agentRuns() and agentRun(id)', () => {
     }).receipt
     release.open()
     await run
-    await vi.waitFor(() => expect(model.calls).toHaveLength(3))
+    await waitFor(() => expect(model.calls).toHaveLength(3))
 
     expect(session.agentRuns()).toMatchObject([
       { operationId: run.id, agent: 'researcher', principal: alice },
@@ -559,12 +565,12 @@ describe('agents that agent code starts', () => {
       }),
     )
     const run = session.agents.lead.start()
-    await vi.waitFor(() => expect(listening).toEqual(['lead', 'waiter']))
+    await waitFor(() => expect(listening).toEqual(['lead', 'waiter']))
 
     await run.cancel()
 
-    await vi.waitFor(() => expect(stopped).toEqual(['waiter', 'lead']))
-    await vi.waitFor(() =>
+    await waitFor(() => expect(stopped).toEqual(['waiter', 'lead']))
+    await waitFor(() =>
       expect(session.agentRuns().map((item) => item.status)).toEqual([
         'cancelled',
         'cancelled',
@@ -578,7 +584,7 @@ describe('agents that agent code starts', () => {
     const model = mockAdapter([after(release.opened, 'Draft one.')])
     const { host, session } = await open(writing(model.adapter))
     const run = session.agents.writer.start()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await waitFor(() => expect(model.calls).toHaveLength(1))
     const queued = await run.send('Add a title.', { mode: 'followUp' })
 
     const cancelled = await session.cancel({ operationId: queued.operationId })
@@ -634,7 +640,7 @@ describe('messages to an agent run after its host stopped', () => {
       principal: alice,
     })
     const run = sessionA.agents.writer.start(undefined, { resume: true })
-    await vi.waitFor(() => expect(first.calls).toHaveLength(1))
+    await waitFor(() => expect(first.calls).toHaveLength(1))
     await run.send('Cite the source.', { inputId: 'steer-1' })
     await stop(sessionA, run)
 
@@ -661,7 +667,7 @@ describe('messages to an agent run after its host stopped', () => {
       principal: alice,
     })
     const run = sessionA.agents.writer.start()
-    await vi.waitFor(() => expect(first.calls).toHaveLength(1))
+    await waitFor(() => expect(first.calls).toHaveLength(1))
     await run.send('Cite the source.', { inputId: 'steer-1' })
     await stop(sessionA, run)
 
@@ -691,10 +697,10 @@ describe('messages to an agent run after its host stopped', () => {
       principal: alice,
     })
     const run = sessionA.agents.researcher.start()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await waitFor(() => expect(model.calls).toHaveLength(1))
     await run.send('Only primary sources.', { inputId: 'steer-2' })
     release.open()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(2))
+    await waitFor(() => expect(model.calls).toHaveLength(2))
     await stop(sessionA, run)
 
     const hostB = createHarnessHost({ persistence })
@@ -723,7 +729,7 @@ describe('messages to an agent run after its host stopped', () => {
       mode: 'followUp',
       inputId: 'follow-1',
     })
-    await vi.waitFor(() => expect(first.calls).toHaveLength(2))
+    await waitFor(() => expect(first.calls).toHaveLength(2))
     const followUp = sessionA.agentRun(receipt.operationId ?? '')
     if (!followUp) throw new Error('No follow-up run.')
     await stop(sessionA, followUp)

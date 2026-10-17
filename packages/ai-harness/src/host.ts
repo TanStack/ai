@@ -3,7 +3,13 @@ import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import type { CredentialStore } from '@tanstack/ai/byok'
 import { AccessDeniedError, membersOnlyPolicyOf } from './access'
-import { SharedLog, loadLogState, logIdOf, parseLogId } from './log'
+import {
+  SharedLog,
+  loadLogState,
+  logIdOf,
+  loggedRunOf,
+  parseLogId,
+} from './log'
 import { HostPlugins } from './host-plugins'
 import { purgeThreadData } from './purge'
 import { HostOwnership } from './ownership'
@@ -1528,9 +1534,18 @@ export function createHarnessHost<P extends Principal = Principal>(
   /** See {@link HostSweep.takeOver}. */
   const takeOver: HostSweep['takeOver'] = async (orphan, harness, close) => {
     const { logId: storeLogId, harness: name } = orphan
+    // A log that this host owns already keeps its epoch, also when its
+    // record expired in a store outage: the open session writes at that
+    // epoch. A new acquire would give a new epoch and fence that session.
+    const held = ownership.epochOf(storeLogId)
     // Of two hosts that sweep at once, one gets the log.
-    const epoch = await ownership.acquire(storeLogId, name)
+    const epoch = held ?? (await ownership.acquire(storeLogId, name))
     if (epoch === null) return null
+    // Only an ownership that this sweep acquired goes back here.
+    const giveBack = () =>
+      held === undefined
+        ? ownership.release(storeLogId, epoch)
+        : Promise.resolve()
     // The store id of a log is its tenant and its root thread.
     const { tenantId, logId: threadId } = parseLogId(storeLogId)
     const key = sessionKey(name, tenantId, threadId)
@@ -1551,13 +1566,13 @@ export function createHarnessHost<P extends Principal = Principal>(
       // goes back when the thread has no work.
       if (!(await session.takeOver())) {
         // Another host got the log in between.
-        await ownership.release(storeLogId, epoch)
+        await giveBack()
         return null
       }
     } catch (error) {
       // The log goes back, so the next sweep tries again.
       if (isOwn) endSweep(key)
-      await ownership.release(storeLogId, epoch).catch(() => {})
+      await giveBack().catch(() => {})
       throw error
     }
     const thread: ResumedThread = {
@@ -2048,18 +2063,36 @@ export function createHarnessHost<P extends Principal = Principal>(
       if (isClosed) throw hostClosed()
       const tenantId = principal?.tenantId
       const of = { tenantId, threadId }
+      const id = inputId ?? createInputId()
+      // An answer or a cancel is checked with the run that it targets, from
+      // the log. `null`: the log does not have that run.
+      let run: AccessRun | null | undefined
       if (access) {
         const user = need(principal, 'host.submit')
         const entry = await index.get(of)
+        run = await loggedRunOf({
+          store: logStore,
+          logId: logIdOf({ tenantId, logId: threadId }),
+          rootThread: threadId,
+          input,
+        })
         await allow({
           principal: user,
           action: actionOf(input),
           threadId,
           entry,
+          ...(run ? { run } : {}),
         })
       }
       await refuseChild(of)
-      const id = inputId ?? createInputId()
+      if (run === null) {
+        const refused: Receipt = {
+          inputId: id,
+          status: 'rejected',
+          reason: 'unknown_run',
+        }
+        return refused
+      }
       const record = offeredInputRecord({ inputId: id, input, principal })
       const offered = await logStore.offer({
         logId: logIdOf({ tenantId, logId: threadId }),

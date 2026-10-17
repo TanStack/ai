@@ -16,6 +16,12 @@ import type { AnyTool, SubagentRouterPick } from '@tanstack/ai'
 import type { AnyAgent, HarnessSession, OwnershipOptions } from '../src'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
 const LOG = logIdOf({ logId: THREAD })
@@ -200,7 +206,7 @@ describe('subagents.router', () => {
 
     await session.send('go')
 
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await canOtherHostTake(log, LOG)).toBe(true),
     )
     const renewals = renew.mock.calls.length

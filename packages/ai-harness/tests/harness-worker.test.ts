@@ -22,6 +22,12 @@ import type { AnyTextAdapter } from '@tanstack/ai'
 import type { LogRecord, LogStore } from '@tanstack/ai-persistence'
 import type { AnyHarness, HarnessHost } from '../src'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const NAME = 'test/harness-worker'
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
@@ -108,7 +114,7 @@ describe('createHarnessWorker', () => {
       pollMs: 10,
     })
 
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await settledRecord(a, 'in-1')).toMatchObject({
         outcome: 'completed',
       }),
@@ -138,13 +144,13 @@ describe('createHarnessWorker', () => {
       concurrency: 2,
       pollMs: 10,
     })
-    await vi.waitFor(() => expect(calls).toHaveLength(2))
+    await waitFor(() => expect(calls).toHaveLength(2))
     await pause()
     expect(calls).toHaveLength(2)
 
     release.open()
     for (const threadId of threads) {
-      await vi.waitFor(async () =>
+      await waitFor(async () =>
         expect(
           await settledRecord(log, `in-${threadId}`, threadId),
         ).toMatchObject({ outcome: 'completed' }),
@@ -167,7 +173,7 @@ describe('createHarnessWorker', () => {
       harnesses: [harness],
       pollMs: 10,
     })
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
 
     let isStopped = false
     const stopping = worker.stop().then(() => {
@@ -243,7 +249,7 @@ describe('createHarnessWorker', () => {
       signal: controller.signal,
       pollMs: 5,
     })
-    await vi.waitFor(() => expect(looks).toHaveBeenCalled())
+    await waitFor(() => expect(looks).toHaveBeenCalled())
 
     controller.abort()
     await worker.stop()
@@ -264,7 +270,7 @@ describe('createHarnessWorker', () => {
       () => {},
       () => {},
     )
-    await vi.waitFor(() => expect(first.calls).toHaveLength(1))
+    await waitFor(() => expect(first.calls).toHaveLength(1))
 
     // A deploy: host A stops with the turn still running. Its release wakes
     // a worker at once.
@@ -278,7 +284,7 @@ describe('createHarnessWorker', () => {
       pollMs: 10,
     })
 
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await settledRecord(b, 'in-1')).toMatchObject({
         outcome: 'completed',
       }),
@@ -314,7 +320,7 @@ describe('session.schedule', () => {
     })
     expect(calls).toHaveLength(0)
 
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await settledRecord(log, `schedule:${scheduleId}`)).toMatchObject({
         outcome: 'completed',
       }),
@@ -352,7 +358,7 @@ describe('session.schedule', () => {
     await pause()
     expect(calls).toHaveLength(0)
     moveClock(MINUTE)
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await settledRecord(a, 'schedule:daily')).toMatchObject({
         outcome: 'completed',
       }),
@@ -444,7 +450,7 @@ describe('step.sleep', () => {
       () => {},
       () => {},
     )
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(
         (await recordsOf(a)).some(
           (record) => record.type === 'harness.schedule',
@@ -466,7 +472,7 @@ describe('step.sleep', () => {
     expect(later).not.toHaveBeenCalled()
     moveClock(MINUTE)
 
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await settledRecord(a, 'mail-1')).toMatchObject({
         outcome: 'completed',
       }),

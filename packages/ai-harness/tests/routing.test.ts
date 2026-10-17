@@ -25,6 +25,12 @@ import type {
 } from '../src'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 
 /** An agent that answers `answer`, and keeps the messages of each run. */
@@ -503,8 +509,8 @@ describe('routing.router', () => {
     const handle = session.agent('indexer')
     if (!handle) throw new Error('No indexer agent.')
     await handle.start(undefined, { wake: true })
-    await vi.waitFor(() => expect(main.calls).toHaveLength(1))
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(main.calls).toHaveLength(1))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
 
     expect(seen.map((ctx) => ctx.input)).toEqual([
       'Background agent indexer finished: [indexer finished] Indexed',

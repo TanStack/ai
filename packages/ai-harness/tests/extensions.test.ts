@@ -15,6 +15,12 @@ import {
 import { mockAdapter, storedThreadState, text } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 describe('extension points', () => {
   it('lets one plugin read what others contribute, in any order', async () => {
     const Rules = createExtensionPoint<{ tool: string }>('test/rules')
@@ -188,7 +194,7 @@ describe('events and state', () => {
       items: ['milk', 'eggs'],
     })
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         seen.some((event) => event.type === EventType.STATE_SNAPSHOT),
       ).toBe(true),
@@ -306,7 +312,7 @@ describe('commands and questions', () => {
     )
 
     const running = session.command({ name: 'deploy' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
     const [question] = session.snapshot().pendingQuestions

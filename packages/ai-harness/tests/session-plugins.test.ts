@@ -19,6 +19,12 @@ import { fileCommands, projectInstructions } from '../src/first-party/node'
 import { appendToLog, gate, mockAdapter, text, toolCall } from './helpers'
 import type { PluginState, SessionEvent } from '../src'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const settings = definePlugin({
   name: 'test/settings',
   setup: () => ({
@@ -251,7 +257,7 @@ describe('questions', () => {
       },
     )
     const picking = session.command({ name: 'pick' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
     const [question] = session.snapshot().pendingQuestions
@@ -285,7 +291,7 @@ describe('questions', () => {
     expect(await picking).toBe(4)
 
     const open = session.command({ name: 'open' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
     await host.close()
@@ -322,7 +328,7 @@ describe('questions', () => {
       },
     )
     const turn = session.send('Go.')
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
 
@@ -361,7 +367,7 @@ describe('questions', () => {
       },
     )
     const command = session.command({ name: 'confirm' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
 
@@ -507,7 +513,7 @@ describe('plugin state and events', () => {
 
     await session.command({ name: 'ping' })
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(warnings).toEqual([
         { plugin: 'harness:events', message: 'listener broke' },
       ]),
@@ -594,8 +600,8 @@ describe('the plugin session API and inspect', () => {
       { role: 'user', content: 'replaced' },
     ])
     api.send('queued by a plugin')
-    await vi.waitFor(() => expect(calls).toHaveLength(2))
-    await vi.waitFor(() => expect(api.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(calls).toHaveLength(2))
+    await waitFor(() => expect(api.snapshot().status).toBe('idle'))
     expect(JSON.stringify(calls[1].messages)).toContain('replaced')
 
     const inspected = session.inspect()
@@ -662,13 +668,13 @@ describe('first-party plugin edges', () => {
     expect(await session.command({ name: 'review', input: 'src/a.ts' })).toBe(
       'Sent /review.',
     )
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     await session.command({ name: 'plain', input: { who: 'Ada' } })
-    await vi.waitFor(() => expect(calls).toHaveLength(2))
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(calls).toHaveLength(2))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     await session.command({ name: 'plain' })
-    await vi.waitFor(() => expect(calls).toHaveLength(3))
+    await waitFor(() => expect(calls).toHaveLength(3))
 
     // A missing folder gives no commands.
     const empty = await host.open(
@@ -851,7 +857,7 @@ describe('session events', () => {
         seen.push(entry)
     })()
     await session.setConfig({ key: 'verbose', value: true })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         seen.some(
           (entry) =>

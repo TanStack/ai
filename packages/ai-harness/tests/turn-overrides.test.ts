@@ -41,6 +41,12 @@ import type {
 } from '../src'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
 const LOG = logIdOf({ logId: THREAD })
@@ -420,7 +426,7 @@ describe('turn overrides: queue, steer, and recovery', () => {
     const turn = session.send('one', {
       overrides: { adapter: hostModel.adapter },
     })
-    await vi.waitFor(() => expect(hostModel.calls).toHaveLength(1))
+    await waitFor(() => expect(hostModel.calls).toHaveLength(1))
     const steer = session.send('two', {
       busy: 'steer',
       overrides: { adapter: steerModel.adapter },
@@ -457,7 +463,7 @@ describe('turn overrides: queue, steer, and recovery', () => {
         () => {},
         () => {},
       )
-    await vi.waitFor(() => expect(stopped.calls).toHaveLength(1))
+    await waitFor(() => expect(stopped.calls).toHaveLength(1))
     // The first host stops: its ownership of the log expires.
     await ownershipExpired()
 
@@ -505,7 +511,7 @@ describe('turn overrides: queue, steer, and recovery', () => {
         () => {},
         () => {},
       )
-    await vi.waitFor(() => expect(stopped.calls).toHaveLength(1))
+    await waitFor(() => expect(stopped.calls).toHaveLength(1))
     // The first host stops: its ownership of the log expires.
     await ownershipExpired()
     const recovered = mockAdapter([() => text('recovered')])

@@ -1,7 +1,7 @@
 import { EventType } from '@tanstack/ai'
 import { REDACTED_THINKING_ID_PREFIX } from '@tanstack/ai/adapter-internals'
 import { LogConflictError } from '@tanstack/ai-persistence'
-import { engineMessageStore, sessionMessageStore } from '../log'
+import { engineMessageStore, loggedRunOf, sessionMessageStore } from '../log'
 import { logChatStores } from '../log-stores'
 import { mountPlugins } from '../plugins'
 import {
@@ -30,10 +30,11 @@ import {
 import { SessionTurn } from './turn'
 import { MAX_TIMER_MS } from '../utils'
 import type { ModelMessage } from '@tanstack/ai'
+import type { AccessRun } from '../access'
 import type { InputState, LogWriter } from '../log'
 import type { AnyHarness } from '../define'
 import type { RecoverContext, RecoverDecision } from '../turn'
-import type { SettlementOutcome, TurnOverrides } from '../types'
+import type { HarnessInput, SettlementOutcome, TurnOverrides } from '../types'
 import type { ScheduleOptions, WaitingSteer } from './types'
 
 /**
@@ -344,6 +345,34 @@ export class SessionImpl<
     this.armSchedules()
   }
 
+  /**
+   * @internal The run that `authorize` gets for a cancel of the schedule
+   * `scheduleId`: the schedule, and who made it. `undefined` for an id that
+   * the thread does not know.
+   */
+  scheduleRun(scheduleId: string): AccessRun | undefined {
+    const schedule = this.writer.state.thread.schedules.get(scheduleId)
+    if (!schedule) return undefined
+    const { principal } = schedule
+    return {
+      runId: scheduleId,
+      ...(principal ? { principalId: principal.id } : {}),
+    }
+  }
+
+  /**
+   * @internal The run that `input` targets, and who started it, from the
+   * log: the access check of a schedule. See `loggedRunOf`.
+   */
+  loggedRun(input: HarnessInput) {
+    return loggedRunOf({
+      store: this.log.store,
+      logId: this.storeLogId,
+      rootThread: this.threadId,
+      input,
+    })
+  }
+
   /** Run `task` after the schedule tasks before it. */
   private inSchedules(task: () => Promise<void>) {
     const run = this.scheduling.then(task)
@@ -541,6 +570,10 @@ export class SessionImpl<
         operation.abortController.abort(SHUTDOWN_REASON)
       }
     }
+    // None of the inputs that this session took runs here now. A recovery
+    // after this host gets the log back must take them again. The duplicate
+    // check reads the log for the inputs that it stored.
+    this.admitted.clear()
     // With no work that still ends, the session is idle now and unfences.
     queueMicrotask(() => this.checkIdle())
   }

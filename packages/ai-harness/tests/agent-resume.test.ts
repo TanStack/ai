@@ -13,6 +13,12 @@ import {
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type { HarnessDurability } from '../src'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
 const LOG = logIdOf({ logId: THREAD })
@@ -81,7 +87,7 @@ async function stopDuringAgent(options: {
     ...(options.resume ? { resume: true } : {}),
   })
   if (!operation) throw new Error('No worker agent.')
-  await vi.waitFor(() => expect(first.calls).toHaveLength(2))
+  await waitFor(() => expect(first.calls).toHaveLength(2))
   expect(effects).toEqual(['reserve', 'lookup'])
 
   // Host A stops: its log refuses writes, so the session stops writing.
@@ -145,7 +151,7 @@ describe('a background agent with resume: true', () => {
       ),
     ).toBe(true)
     // `wake`: the main model gets the result in a new turn.
-    await vi.waitFor(() => expect(run.main.calls).toHaveLength(1))
+    await waitFor(() => expect(run.main.calls).toHaveLength(1))
     expect(messageTexts(run.main.calls[0]).at(-1)).toContain(
       'Background agent worker finished',
     )

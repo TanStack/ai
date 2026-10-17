@@ -24,6 +24,12 @@ import type { AnyTextAdapter } from '@tanstack/ai'
 import type { LogStore } from '@tanstack/ai-persistence'
 import type { AnyAgent, AnyHarness, HarnessHostOptions } from '../src'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
 const LOG = logIdOf({ logId: THREAD })
@@ -193,7 +199,7 @@ describe('an input that reaches a host that does not own the log', () => {
     const other = await hostOn(b, harness)
 
     const running = owner.session.command({ name: 'ask' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(owner.session.snapshot().pendingQuestions).toHaveLength(1),
     )
     const [question] = owner.session.snapshot().pendingQuestions
@@ -218,7 +224,7 @@ describe('an input that reaches a host that does not own the log', () => {
     const other = await hostOn(b, harness)
 
     const running = owner.session.command({ name: 'ask' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(owner.session.snapshot().pendingQuestions).toHaveLength(1),
     )
     const [question] = owner.session.snapshot().pendingQuestions
@@ -242,7 +248,7 @@ describe('an input that reaches a host that does not own the log', () => {
 
     const turn = owner.session.send('Go.')
     const { operationId } = await turn.receipt
-    await vi.waitFor(() => expect(ownerModel.calls).toHaveLength(1))
+    await waitFor(() => expect(ownerModel.calls).toHaveLength(1))
     const receipt = await other.session.cancel({ operationId })
     expect(receipt.status).toBe('queued')
 
@@ -340,7 +346,7 @@ describe('an input that reaches a host that does not own the log', () => {
     await other.session.send('And then?', { inputId: 'in-b' }).receipt
     // The write fails and stops the session of the owner. The input waits
     // in the lane, and the host that offered it takes the log and runs it.
-    await vi.waitFor(() => expect(turn.status()).toBe('failed'))
+    await waitFor(() => expect(turn.status()).toBe('failed'))
     expect((await other.session.settled('in-b')).outcome).toBe('completed')
     expect(otherModel.calls).toHaveLength(1)
     expect(await waiting(a)).toEqual([])
@@ -403,7 +409,7 @@ describe('an input that reaches a host that does not own the log', () => {
       () => {},
       () => {},
     )
-    await vi.waitFor(() => expect(ownerModel.calls).toHaveLength(1))
+    await waitFor(() => expect(ownerModel.calls).toHaveLength(1))
     const sweeper = createHarnessHost({ persistence: { stores: { log: b } } })
     const harness = harnessWith(sweeperModel.adapter)
     const other = await sweeper.open(harness, { threadId: THREAD })
@@ -414,7 +420,7 @@ describe('an input that reaches a host that does not own the log', () => {
     expect(await sweeper.resumePending({ harnesses: [harness] })).toEqual([
       { threadId: THREAD, harness: NAME },
     ])
-    await vi.waitFor(() => expect(sweeperModel.calls).toHaveLength(2))
+    await waitFor(() => expect(sweeperModel.calls).toHaveLength(2))
     // The input of the stopped owner runs first, then the offered one.
     expect(messageTexts(sweeperModel.calls[0])).not.toContain('Second.')
     expect(messageTexts(sweeperModel.calls[1])).toContain('Second.')
@@ -444,7 +450,7 @@ describe('host.submit', () => {
     expect(await worker.resumePending({ harnesses: [harness] })).toEqual([
       { threadId: THREAD, harness: NAME },
     ])
-    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await waitFor(() => expect(model.calls).toHaveLength(1))
     const session = await worker.open(harness, { threadId: THREAD })
     expect((await session.settled('in-1')).outcome).toBe('completed')
     expect(await waiting(log)).toEqual([])
