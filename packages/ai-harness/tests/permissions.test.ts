@@ -12,7 +12,7 @@ import {
   listSavedPermissions,
   permissions,
 } from '../src/first-party/permissions'
-import { mockAdapter, text, toolCall } from './helpers'
+import { gate, mockAdapter, text, toolCall } from './helpers'
 import type { MetadataStore } from '@tanstack/ai-persistence'
 import type {
   HarnessPersistence,
@@ -375,6 +375,41 @@ describe('permissions()', () => {
 
     expect(tools.ran).toEqual(['read_file', 'read_file'])
     expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    await host.close()
+  })
+
+  it('keeps the mode of a turn until it ends: a change applies at the next turn', async () => {
+    const tools = fakeTools()
+    const started = gate()
+    const release = gate()
+    const { host, session } = await open(
+      memoryPersistence(),
+      [permissions({ root: ROOT }), tools.plugin],
+      [
+        () =>
+          (async function* () {
+            started.open()
+            await release.opened
+            yield* toolCall('bash', { command: 'ls' }, 'c1')
+          })(),
+        () => text('listed'),
+        () => toolCall('bash', { command: 'ls' }, 'c2'),
+      ],
+    )
+
+    const turn = session.send('list it')
+    await started.opened
+    await session.setConfig({ key: 'mode', value: 'bypass' })
+    expect(session.config().mode?.value).toBe('bypass')
+    release.open()
+    // The running turn still has the default mode, so bash asks.
+    await answer(session, { answer: 'once' })
+    await turn
+
+    // The next turn has bypass, so bash runs with no question.
+    await session.send('list it again')
+    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(tools.ran).toEqual(['bash', 'bash'])
     await host.close()
   })
 

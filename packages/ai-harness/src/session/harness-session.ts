@@ -178,6 +178,8 @@ export class SessionImpl<
         ),
         services: this.services,
         inherited: this.storeCapabilities(),
+        // A plugin that this thread removed gives `collect` nothing.
+        hiddenOwners: () => this.removedPlugins(),
       },
     )
     this.loadConfig()

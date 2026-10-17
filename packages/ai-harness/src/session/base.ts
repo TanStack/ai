@@ -98,6 +98,8 @@ import type {
 } from './types'
 import type { HarnessSession } from './harness-session'
 
+const NO_NAMES: ReadonlySet<string> = new Set()
+
 /**
  * What a session keeps for its inputs, by input id: the duplicate check, the
  * receipt, the settlement, the turn operation, and the inputs that joined an
@@ -389,6 +391,11 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     Set<(value: unknown) => void>
   >()
   protected readonly configValues = new Map<string, unknown>()
+  /**
+   * The config values of the log when the running turn started. The turn
+   * uses them until it ends.
+   */
+  protected turnConfig: ReadonlyMap<string, unknown> | undefined
   /** The stored settings of this thread: `session.configure`. */
   protected threadSettings: ThreadSettings = {}
   protected readonly questions = new Map<
@@ -681,9 +688,53 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     }
   }
 
-  protected configValue(key: string): unknown {
-    if (this.configValues.has(key)) return this.configValues.get(key)
+  /** A config value. Plugins read the copy of the running turn, if any. */
+  protected configValue(
+    key: string,
+    values: ReadonlyMap<string, unknown> = this.turnConfig ?? this.configValues,
+  ): unknown {
+    if (values.has(key)) return values.get(key)
     return this.sessionPlugins?.config.get(key)?.option.default
+  }
+
+  /** The last `removedPlugins()` and `threadPlugins()` results. */
+  private threadPluginsCache:
+    | {
+        settings: ThreadSettings
+        removed: ReadonlySet<string>
+        mounted?: MountedPlugins
+        plugins?: MountedPlugins
+      }
+    | undefined
+
+  /** The plugins that the `plugins.remove` setting of this thread names. */
+  protected removedPlugins(): ReadonlySet<string> {
+    const settings = this.threadSettings
+    const remove = settings.plugins?.remove ?? []
+    if (remove.length === 0) return NO_NAMES
+    if (this.threadPluginsCache?.settings !== settings) {
+      this.threadPluginsCache = { settings, removed: new Set(remove) }
+    }
+    return this.threadPluginsCache.removed
+  }
+
+  /**
+   * The session plugins as this thread has them: without everything that
+   * the removed plugins contribute (tools, prompts, every kind of
+   * middleware, agents, subagents, commands, config, extension items, and
+   * capabilities).
+   */
+  protected threadPlugins(): MountedPlugins | undefined {
+    const mounted = this.sessionPlugins
+    const removed = this.removedPlugins()
+    if (!mounted || removed.size === 0) return mounted
+    const cache = this.threadPluginsCache
+    if (!cache) return mounted
+    if (cache.mounted !== mounted || !cache.plugins) {
+      cache.mounted = mounted
+      cache.plugins = mounted.withoutOwners([...removed])
+    }
+    return cache.plugins
   }
 
   /** Put each plugin's saved state in the snapshot before the first read. */

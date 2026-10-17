@@ -14,6 +14,10 @@ const NOW = 1_000_000
 
 const user = { id: 'user-1' }
 
+/** Media signing keys: each one is 32 bytes or more. */
+const SHARED = 'a-shared-secret-of-32-bytes-or-more'
+const OLD_KEY = 'the-old-secret-of-32-bytes-or-more'
+
 const allowUser = (request: Request) =>
   request.headers.get('authorization') === 'Bearer good' ? user : null
 
@@ -41,16 +45,25 @@ function setup(options: { media?: MediaOptions; secret?: string } = {}) {
       },
     })
   const host = hostWith(allowUser)
-  /** `secret` signs the media URLs. Without it, a random key per handler. */
+  /**
+   * `secret` or `keys` sign the media URLs. Without them, a random key per
+   * handler.
+   */
   const handlerWith = (
-    handlerOptions: { host?: typeof host; secret?: string } = {},
+    handlerOptions: {
+      host?: typeof host
+      secret?: string
+      keys?: Array<string>
+    } = {},
   ) =>
     createHarnessHandler({
       host: handlerOptions.host ?? host,
       harness,
       ...(handlerOptions.secret
         ? { media: { secret: handlerOptions.secret } }
-        : {}),
+        : handlerOptions.keys
+          ? { media: { keys: handlerOptions.keys } }
+          : {}),
     })
   const handler = handlerWith({ secret: options.secret })
   const call = (path: string, init: RequestInit = {}) =>
@@ -170,11 +183,11 @@ describe('media upload and signed URLs', () => {
 
   it('serves a signed URL on another instance whose identify refuses everyone', async () => {
     const { host, upload, signedPath, fetchSigned, hostWith, handlerWith } =
-      setup({ secret: 'shared' })
+      setup({ secret: SHARED })
     const record = await upload('user-1-a')
     const { path } = await signedPath(record)
     const other = hostWith(() => null)
-    const refuseAll = handlerWith({ host: other, secret: 'shared' })
+    const refuseAll = handlerWith({ host: other, secret: SHARED })
 
     const signed = await fetchSigned(path, refuseAll)
     const unsigned = await fetchSigned(
@@ -245,6 +258,40 @@ describe('media upload and signed URLs', () => {
     const response = await fetchSigned(`media?${query}`, handlerWith())
 
     expect(response.status).toBe(403)
+    await host.close()
+  })
+
+  it('serves a URL that an old key signed on a handler with keys [new, old]', async () => {
+    const { host, upload, signedPath, fetchSigned, handlerWith } = setup({
+      secret: OLD_KEY,
+    })
+    const record = await upload('user-1-a')
+    const { path } = await signedPath(record)
+
+    const rotated = handlerWith({ keys: [SHARED, OLD_KEY] })
+    const newOnly = handlerWith({ keys: [SHARED] })
+
+    expect((await fetchSigned(path, rotated)).status).toBe(200)
+    expect((await fetchSigned(path, newOnly)).status).toBe(403)
+    await host.close()
+  })
+
+  it('throws at the start for a signing key under 32 bytes', () => {
+    const { host, handlerWith } = setup()
+
+    expect(() => handlerWith({ secret: 'shared' })).toThrow(/at least 32/)
+    void host.close()
+  })
+
+  it('refuses a signed URL of a file whose thread was deleted (404)', async () => {
+    const { host, upload, signedPath, fetchSigned } = setup()
+    const record = await upload('user-1-a')
+    const { path } = await signedPath(record)
+
+    await host.sessions.delete({ threadId: 'user-1-a', principal: user })
+    const response = await fetchSigned(path)
+
+    expect(response.status).toBe(404)
     await host.close()
   })
 
@@ -374,12 +421,12 @@ describe('POST run with media parts', () => {
     label: string
     part: (record: MediaRecord) => ContentPart
   }> = [
-    { label: 'a harness-media URL, and keeps the URL', part: mediaPart },
-    { label: 'a data part, and keeps it as sent', part: () => data },
+    { label: 'a harness-media URL', part: mediaPart },
+    { label: 'a data part', part: () => data },
   ]
 
   it.each(cases)(
-    'gives the model the bytes of $label in the transcript',
+    'gives the model the bytes of $label, and keeps a harness-media URL in the transcript',
     async ({ part }) => {
       const { host, call, upload, calls } = setup()
       const record = await upload('user-1-run')
@@ -398,11 +445,110 @@ describe('POST run with media parts', () => {
         { type: 'text', content: 'What is this?' },
         data,
       ])
+      // A data part moved to the media store. Its URL names a new record.
       expect(transcript[0].content).toEqual([
         { type: 'text', content: 'What is this?' },
-        part(record),
+        {
+          type: 'image',
+          source: {
+            type: 'url',
+            value: expect.stringMatching(/^harness-media:/),
+            mimeType: 'image/png',
+          },
+        },
       ])
       await host.close()
     },
   )
+
+  const refused: Array<{
+    label: string
+    media?: MediaOptions
+    part: ContentPart
+    status: number
+    error: string
+  }> = [
+    {
+      label: 'bytes over media.maxBytes',
+      media: { maxBytes: 4 },
+      part: data,
+      status: 413,
+      error: 'media_too_large',
+    },
+    {
+      label: 'a kind not in media.kinds',
+      media: { kinds: ['audio'] },
+      part: data,
+      status: 415,
+      error: 'media_not_allowed',
+    },
+    {
+      label: 'an external URL',
+      part: {
+        type: 'image',
+        source: { type: 'url', value: 'https://example.com/cat.png' },
+      },
+      status: 400,
+      error: 'media_url_not_allowed',
+    },
+  ]
+
+  it.each(refused)(
+    'refuses $label with $status, and starts no turn',
+    async ({ media, part, status, error }) => {
+      const { host, call, calls } = setup(media ? { media } : {})
+
+      const response = await call('run', {
+        method: 'POST',
+        body: runBody('user-1-run', [question, part]),
+        headers: { 'content-type': 'application/json' },
+      })
+
+      expect(response.status).toBe(status)
+      expect(await response.json()).toEqual({ error })
+      expect(calls).toHaveLength(0)
+      await host.close()
+    },
+  )
+})
+
+describe('request bodies over media.maxBodyBytes', () => {
+  const routes = [
+    {
+      route: 'run',
+      body: runBody('user-1-run', [{ type: 'text', text: 'hi' }]),
+    },
+    {
+      route: 'control',
+      body: JSON.stringify({
+        threadId: 'user-1-run',
+        input: { op: 'prompt', message: 'hi' },
+      }),
+    },
+    {
+      route: 'sessions',
+      body: JSON.stringify({
+        op: 'rename',
+        threadId: 'user-1-run',
+        title: 'x',
+      }),
+    },
+  ]
+
+  it.each(routes)('answers POST $route with 413', async ({ route, body }) => {
+    const { host, call, calls } = setup({ media: { maxBodyBytes: 64 } })
+
+    const response = await call(route, {
+      method: 'POST',
+      body: body.padEnd(65, ' '),
+      headers: { 'content-type': 'application/json' },
+    })
+
+    expect(response.status).toBe(413)
+    expect(await response.json()).toEqual({
+      error: 'The body is bigger than the limit of 64 bytes.',
+    })
+    expect(calls).toHaveLength(0)
+    await host.close()
+  })
 })

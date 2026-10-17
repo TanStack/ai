@@ -211,7 +211,7 @@ export const lateTools = definePlugin({
 })
 ```
 
-- A tool whose name is already taken is skipped. The first tool keeps the name.
+- A tool whose name is already taken is skipped. The first tool keeps the name. When two owners give the same name, clients get one `harness.plugin.warning` event that names both.
 - If `discoverTools` throws, the turn runs without that plugin's tools, and clients get a `harness.plugin.warning` event.
 
 ## What you have now

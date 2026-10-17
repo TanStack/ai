@@ -415,7 +415,7 @@ export abstract class SessionAgents<
       })
     return {
       generationMiddleware: [
-        ...(this.sessionPlugins?.generationMiddleware ?? []),
+        ...(this.threadPlugins()?.generationMiddleware ?? []),
         ...(runPlugins?.generationMiddleware ?? []),
         ...mediaCapture({
           persistence: this.media,
@@ -437,7 +437,7 @@ export abstract class SessionAgents<
       chatMiddleware: [
         // First, so the plugin middleware after it reads the run too.
         runMiddleware(run),
-        ...(this.sessionPlugins?.agentMiddleware ?? []),
+        ...(this.threadPlugins()?.agentMiddleware ?? []),
         ...(runPlugins?.agentMiddleware ?? []),
         // A routed root agent gets the thread too, so a reset cuts it as well.
         resetCut,

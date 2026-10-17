@@ -207,6 +207,8 @@ On the server, the harness does this for each part:
 - An `http:` or `https:` URL is refused. Set `externalUrls` to allow it.
 - A URL with another scheme, for example `file:`, is always refused.
 
+`POST run` (the route of `useChat`) checks the parts of the last user message the same way.
+
 Two options control this:
 
 ```ts group=harness-media-inline
@@ -224,7 +226,7 @@ export const assistant = defineHarness({
 ```
 
 - `externalUrls`: `true` allows every `http:` and `https:` URL. A function decides for each URL. Default `false`.
-- `maxBodyBytes`: the largest request body or socket frame, in bytes. Default 32 MiB.
+- `maxBodyBytes`: the largest request body or socket frame, in bytes. Default 32 MiB. A bigger body answers `413`. A bigger frame closes the socket.
 
 If the harness refuses a part, no turn starts. The receipt is `rejected`, and its `reason` tells you why:
 
@@ -234,6 +236,8 @@ If the harness refuses a part, no turn starts. The receipt is `rejected`, and it
 | `media_not_allowed`     | The kind is not in `kinds`, or the type has no kind.  |
 | `media_invalid`         | The bytes are not base64.                             |
 | `media_url_not_allowed` | `externalUrls` refuses the URL, or the scheme is bad. |
+
+`POST run` has no receipt. It answers with the `reason` as `error`, and with `413` for `media_too_large`, `415` for `media_not_allowed`, or `400` for the other two.
 
 Server code that calls `session.send` directly is not checked. The checks are for inputs from a client.
 

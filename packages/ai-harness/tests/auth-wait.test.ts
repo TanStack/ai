@@ -494,7 +494,7 @@ describe('sign-ins in a shared thread', () => {
       host,
       harness,
       openAccess: { principal: bob },
-      media: { secret: 'test-secret' },
+      media: { secret: 'test-secret-of-at-least-32-bytes!' },
     })
     const session = await host.open(harness, {
       threadId: 't',

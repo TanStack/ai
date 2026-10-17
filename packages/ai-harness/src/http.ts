@@ -13,6 +13,8 @@ import { AccessDeniedError } from './access'
 import { accessOf, sessionOfTurn } from './host'
 import { activeRunIn } from './log-stores'
 import { MediaError } from './media'
+import { maxBodyBytesOf, readBodyText, storeInlineMedia } from './inline-media'
+import { createMediaSigner } from './media-signing'
 import {
   HARNESS_PROTOCOL_VERSION,
   applyInput,
@@ -30,6 +32,8 @@ import type { ModelMessage, UIMessage, WebSocketLike } from '@tanstack/ai'
 import type { SessionIndexEntry, SessionMember } from '@tanstack/ai-persistence'
 import type { AnyHarness } from './define'
 import type { HarnessHost, HostEvent } from './host'
+import type { InlineMediaRefusal } from './inline-media'
+import type { MediaSignerOptions } from './media-signing'
 import type { HostFrame } from './protocol'
 import type { HarnessSession } from './session/index'
 import type { ObservedSession } from './session/observed-session'
@@ -59,18 +63,19 @@ export interface HarnessHandlerOptions<P extends Principal = Principal> {
    */
   openAccess?: OpenAccess<P>
   /**
-   * How the handler signs media URLs. Without it, the handler signs with a
-   * random key of its own, so a signed URL works only on this server, and
-   * only until it restarts. Set it when more than one server answers the
-   * same URL, so each server verifies the URLs of the others.
+   * How the handler signs media URLs (HMAC SHA-256). Without it, the handler
+   * signs with a random key of its own, so a signed URL works only on this
+   * server, and only until it restarts. Set it when more than one server
+   * answers the same URL, so each server verifies the URLs of the others.
+   *
+   * - `{ secret }`: one key. Use the same value on every server.
+   * - `{ keys }`: to rotate keys. The first key signs, and every key
+   *   verifies, so a URL that an old key signed works until it expires.
+   *
+   * Each key must be at least 32 bytes (UTF-8). A shorter key throws at the
+   * start.
    */
-  media?: {
-    /**
-     * The secret that signs media URLs (HMAC SHA-256). Use the same value on
-     * every server behind one URL.
-     */
-    secret: string
-  }
+  media?: MediaSignerOptions
   /**
    * Set `true` when the app also serves `handleHarnessSocket`, so the
    * capabilities say that clients can use a WebSocket. Default `false`.
@@ -80,8 +85,6 @@ export interface HarnessHandlerOptions<P extends Principal = Principal> {
 
 /** How long a signed media URL works. */
 const SIGNED_URL_TTL_MS = 60 * 60 * 1000
-
-const HMAC = { name: 'HMAC', hash: 'SHA-256' }
 
 // Every media answer: a browser must not guess another type, and a `text/*`
 // document must not run as a page of this origin.
@@ -179,8 +182,27 @@ function cursorResponse(
 }
 
 /**
+ * The status of a content part that `storeInlineMedia` refused: 413 for too
+ * many bytes, 415 for a kind the harness does not take, else 400.
+ */
+const REFUSAL_STATUS: Record<InlineMediaRefusal, number> = {
+  media_too_large: 413,
+  media_not_allowed: 415,
+  media_invalid: 400,
+  media_url_not_allowed: 400,
+}
+
+/** True when `text` is more than `limit` bytes as UTF-8. */
+function isOverLimit(text: string, limit: number) {
+  // A UTF-16 code unit is 1 to 3 bytes, so only some texts need encoding.
+  if (text.length > limit) return true
+  if (text.length * 3 <= limit) return false
+  return encoder.encode(text).byteLength > limit
+}
+
+/**
  * A handler error as JSON: a refused action is 403, a `MediaError` keeps its
- * status, the rest is 400.
+ * status (413 for a body over `media.maxBodyBytes`), the rest is 400.
  */
 const failed = (error: unknown) => {
   if (error instanceof AccessDeniedError) return forbidden()
@@ -260,16 +282,6 @@ function parseSessionOp(body: unknown) {
         : undefined
     default:
       return undefined
-  }
-}
-
-/** Base64url to bytes, or `undefined` for a value that is not base64url. */
-function fromBase64url(value: string) {
-  try {
-    const binary = atob(value.replace(/-/g, '+').replace(/_/g, '/'))
-    return Uint8Array.from(binary, (char) => char.charCodeAt(0))
-  } catch {
-    return undefined
   }
 }
 
@@ -469,8 +481,15 @@ function watchRevoke<P extends Principal>(
  * The streams of a user close when `host.revoke` or `unshare` takes their
  * access. Each chat input runs as the principal of its request.
  *
- * Signed media URLs use `media.secret`. Without it, they work only on this
- * server (see `HarnessHandlerOptions.media`).
+ * Signed media URLs use the keys of `media`. Without it, they work only on
+ * this server (see `HarnessHandlerOptions.media`). A URL of a deleted file
+ * is 404.
+ *
+ * A request body over `media.maxBodyBytes` (default 32 MiB) is 413. Inline
+ * media of `POST run` goes to the media store, as in `POST control`. A
+ * refused part is 413 (`media_too_large`), 415 (`media_not_allowed`), or
+ * 400 (`media_invalid`, `media_url_not_allowed`), with the reason as
+ * `error`.
  *
  * Throws at the start for a host without `access` and without
  * `openAccess`, and for a host with both.
@@ -547,18 +566,17 @@ export function createHarnessHandler<P extends Principal = Principal>(
     }
   }
 
-  // ponytail: without `media.secret`, a random key per handler, so a signed
-  // URL works only on this server, until it restarts.
-  const secret =
-    media === undefined
-      ? crypto.getRandomValues(new Uint8Array(32))
-      : encoder.encode(media.secret)
-  let key: Promise<CryptoKey> | undefined
-  const mediaKey = () =>
-    (key ??= crypto.subtle.importKey('raw', secret, HMAC, false, [
-      'sign',
-      'verify',
-    ]))
+  // ponytail: without `media`, a random key per handler, so a signed URL
+  // works only on this server, until it restarts.
+  const signer = createMediaSigner(
+    media ?? { secret: base64url(crypto.getRandomValues(new Uint8Array(32))) },
+  )
+  /**
+   * A request body as JSON, read up to `media.maxBodyBytes`. A bigger body is
+   * a `MediaError` with 413.
+   */
+  const readJson = async (request: Request): Promise<unknown> =>
+    JSON.parse(await readBodyText(request, harness.media))
   /** What a signed media URL holds: who may read which file, until when. */
   interface SignedMedia {
     tenantId: string
@@ -567,25 +585,18 @@ export function createHarnessHandler<P extends Principal = Principal>(
     userId: string
     exp: string
   }
+  // The harness name and the user are in the signed text, so a URL works
+  // only for this harness and for the user that it was signed for.
   const signed = (media: SignedMedia) =>
-    encoder.encode(
-      [
-        harness.name,
-        media.tenantId,
-        media.threadId,
-        media.id,
-        media.userId,
-        media.exp,
-      ].join('\n'),
-    )
-  const sign = async (media: SignedMedia) => {
-    const signature = await crypto.subtle.sign(
-      'HMAC',
-      await mediaKey(),
-      signed(media),
-    )
-    return base64url(new Uint8Array(signature))
-  }
+    [
+      harness.name,
+      media.tenantId,
+      media.threadId,
+      media.id,
+      media.userId,
+      media.exp,
+    ].join('\n')
+  const sign = (media: SignedMedia) => signer.sign(signed(media))
 
   /**
    * Serve a signed media URL. The URL names its user: the read is checked as
@@ -600,17 +611,10 @@ export function createHarnessHandler<P extends Principal = Principal>(
       userId: param('userId'),
       exp: param('exp'),
     }
-    const signature = fromBase64url(param('sig'))
     const isValid =
-      signature !== undefined &&
       Number(payload.exp) > Date.now() &&
       // `verify` compares in constant time.
-      (await crypto.subtle.verify(
-        'HMAC',
-        await mediaKey(),
-        signature,
-        signed(payload),
-      ))
+      (await signer.verify(signed(payload), param('sig')))
     if (!isValid) return forbidden()
     const { tenantId, userId } = payload
     // A signed URL keeps the id and the tenant of its user, as the log does,
@@ -755,7 +759,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
     }
 
     if (request.method === 'POST' && route === 'run') {
-      const params = await chatParamsFromRequestBody(await request.json())
+      const params = await chatParamsFromRequestBody(await readJson(request))
       const message = lastUserInput(params.messages)
       const session = await openFor(principal, params.threadId)
       // The turn runs as the request's run id, so an AG-UI client matches
@@ -791,9 +795,23 @@ export function createHarnessHandler<P extends Principal = Principal>(
         if (message === undefined) {
           return json({ error: 'no user message' }, 400)
         }
+        // Inline bytes go to the media store, and the message keeps a
+        // `harness-media:` reference, as `POST control` does.
+        const checked = Array.isArray(message)
+          ? await storeInlineMedia(message, {
+              options: harness.media,
+              putMedia: (upload) => session.putMedia(upload),
+            })
+          : { parts: message }
+        if ('refused' in checked) {
+          return json(
+            { error: checked.refused },
+            REFUSAL_STATUS[checked.refused],
+          )
+        }
         // AG-UI `forwardedProps` are the input's context.
         const { forwardedProps } = params
-        const operation = session.send(message, {
+        const operation = session.send(checked.parts, {
           ...ids,
           ...(Object.keys(forwardedProps).length > 0
             ? { context: forwardedProps }
@@ -862,7 +880,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
     }
 
     if (request.method === 'POST' && route === 'control') {
-      const body: unknown = await request.json()
+      const body = await readJson(request)
       if (typeof body !== 'object' || body === null || !('threadId' in body)) {
         return json({ error: 'threadId is required' }, 400)
       }
@@ -946,7 +964,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
     }
 
     if (request.method === 'POST' && route === 'sessions') {
-      const op = parseSessionOp(await request.json())
+      const op = parseSessionOp(await readJson(request))
       if (!op) return json({ error: 'not a valid sessions op' }, 400)
       const target = { threadId: op.threadId, ...user }
       const entry = await host.sessions.get(target)
@@ -1258,13 +1276,25 @@ export function handleHarnessSocket<P extends Principal = Principal>(
 
   socket.addEventListener('close', () => reader.abort())
   socket.addEventListener('error', () => reader.abort())
+  const frameLimit = maxBodyBytesOf(harness.media)
   socket.addEventListener('message', (message) => {
+    const data = String(message.data)
+    // A frame over `media.maxBodyBytes` is not parsed. The socket closes.
+    if (isOverLimit(data, frameLimit)) {
+      send({
+        type: 'harness.error',
+        message: `The frame is bigger than the limit of ${frameLimit} bytes.`,
+      })
+      socket.close(1009, 'frame too large')
+      reader.abort()
+      return
+    }
     void (async () => {
       try {
         const user = await who
         if (!user) return refuse('unauthorized')
         const { principal } = user
-        const frame = parseControlFrame(String(message.data))
+        const frame = parseControlFrame(data)
         if (frame.type === 'harness.subscribe') {
           if (subscribed) throw new Error('Already subscribed.')
           const { threadId } = frame

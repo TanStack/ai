@@ -632,6 +632,11 @@ export interface MountEnvironment {
   hostPlugin?: (plugin: HostPluginDefinition<any>) => Promise<SharedHostPlugin>
   /** The harness name a host plugin gets without `hostPlugin`. */
   harnessName?: string
+  /**
+   * The plugins whose extension items `collect` hides now: the plugins that
+   * the thread removed. Read at each `collect` read.
+   */
+  hiddenOwners?: () => ReadonlySet<string>
 }
 
 const unavailable = (what: string) => () => {
@@ -1101,7 +1106,13 @@ export async function mountPlugins(
             extensions.set(point.name, items)
           }
           const source = items
-          const live = () => source.map((item) => item.value as T)
+          const live = () => {
+            const hidden = env.hiddenOwners?.()
+            const shown = hidden?.size
+              ? source.filter((item) => !hidden.has(item.owner))
+              : source
+            return shown.map((item) => item.value as T)
+          }
           // A live view: items contributed after this call appear too. Array
           // methods like `filter` also check that an index exists, so every
           // trap reads the items, not the empty target.

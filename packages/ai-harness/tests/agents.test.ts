@@ -316,6 +316,42 @@ describe('agents', () => {
     await host.close()
   })
 
+  it('gives a thread that removes agents() none of its subagents, rules, or commands', async () => {
+    const { adapter, calls } = mockAdapter([
+      () => text('one'),
+      () => text('two'),
+    ])
+    const careful: AgentProfile = {
+      name: 'careful',
+      description: 'Never writes',
+      mode: 'primary',
+      permissions: [{ tool: 'write_file', decision: 'deny' }],
+    }
+    const { host, session } = await open(adapter, [
+      permissions(),
+      agents({ adapter: () => adapter, agents: [careful], default: 'careful' }),
+    ])
+
+    await session.send('one')
+    expect(
+      await session.configure({
+        settings: { plugins: { remove: ['tanstack/agents'] } },
+      }),
+    ).toMatchObject({ status: 'accepted' })
+    await session.send('two')
+
+    expect(toolNames(calls[0])).toEqual(['read_file', 'general', 'explore'])
+    // No subagent tools, and the deny rule of `careful` is gone.
+    expect(toolNames(calls[1])).toEqual(['read_file', 'write_file'])
+    expect(session.commands().map((command) => command.name)).not.toContain(
+      'agent',
+    )
+    await expect(
+      session.command({ name: 'agent', input: 'build' }),
+    ).rejects.toThrow(/Unknown command: agent/)
+    await host.close()
+  })
+
   it('replaces a built-in agent with one of the same name', async () => {
     const { adapter, calls } = mockAdapter([() => text('planned')])
     const plan: AgentProfile = {

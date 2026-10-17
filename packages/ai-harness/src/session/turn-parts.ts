@@ -140,10 +140,14 @@ export abstract class SessionTurnParts<
    * Ask each plugin for the tools it found since the last turn, for `turn`.
    * A plugin that fails (for example an MCP server that is down) is skipped,
    * and clients get a `harness.plugin.warning` event.
+   *
+   * `taken` has the owner of each tool name. A found tool with a taken name
+   * is skipped: the earlier tool stays. The session warns once for each
+   * name and pair of owners.
    */
   protected async discoverTools(
     discoverers: MountedPlugins['discoverers'],
-    taken: Set<string>,
+    taken: Map<string, string>,
     operation: OperationImpl<ChatTurnResult>,
     turn: TurnInfo,
   ): Promise<Array<AnyTool>> {
@@ -152,8 +156,12 @@ export abstract class SessionTurnParts<
       try {
         const tools = await discover(turn)
         for (const tool of tools) {
-          if (taken.has(tool.name)) continue
-          taken.add(tool.name)
+          const first = taken.get(tool.name)
+          if (first !== undefined) {
+            this.warnToolClash(operation, tool.name, first, owner)
+            continue
+          }
+          taken.set(tool.name, owner)
           found.push(tool)
         }
       } catch (error) {
@@ -161,6 +169,30 @@ export abstract class SessionTurnParts<
       }
     }
     return found
+  }
+
+  /** The tool clashes this session warned about: name and both owners. */
+  protected readonly toolClashes = new Set<string>()
+
+  /** Warn once that `owner` gives a tool `name` that `first` gives too. */
+  protected warnToolClash(
+    operation: OperationImpl<ChatTurnResult>,
+    name: string,
+    first: string,
+    owner: string,
+  ) {
+    // A plugin that finds the same tool again on each turn is no clash.
+    if (first === owner) return
+    const key = JSON.stringify([name, first, owner])
+    if (this.toolClashes.has(key)) return
+    this.toolClashes.add(key)
+    const label = (who: string) =>
+      who === 'the harness' ? who : `plugin ${who}`
+    this.warn(
+      operation,
+      owner,
+      `Two tools are named "${name}": the tool of ${label(first)} is used, and the tool of ${label(owner)} is not.`,
+    )
   }
 
   /**

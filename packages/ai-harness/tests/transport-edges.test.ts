@@ -351,6 +351,37 @@ describe('WebSocket edges', () => {
     await host.close()
   })
 
+  it('closes the socket on a frame over media.maxBodyBytes, and runs nothing', async () => {
+    const { host } = setup()
+    const { adapter, calls } = mockAdapter([() => text('hello')])
+    const harness = defineHarness({
+      name: 'test/transport',
+      adapter,
+      media: { maxBodyBytes: 200 },
+    })
+    const { socket, sent, closed, receive } = fakeSocket()
+    handleHarnessSocket({ host, harness, socket, request: upgrade })
+
+    receive({ type: 'harness.subscribe', threadId: 'user-1-big' })
+    await vi.waitFor(() =>
+      expect(sent.some((frame) => frame.type === 'harness.hello')).toBe(true),
+    )
+    receive({
+      type: 'harness.input',
+      requestId: 'p1',
+      input: { op: 'prompt', message: 'x'.repeat(300) },
+    })
+
+    expect(sent.at(-1)).toEqual({
+      type: 'harness.error',
+      message: 'The frame is bigger than the limit of 200 bytes.',
+    })
+    expect(closed).toEqual([1009])
+    expect(sent.some((frame) => frame.type === 'harness.receipt')).toBe(false)
+    expect(calls).toHaveLength(0)
+    await host.close()
+  })
+
   it('stops reading when the socket cannot send', async () => {
     const { host, harness } = setup()
     const { socket, receive } = fakeSocket({ failSend: true })

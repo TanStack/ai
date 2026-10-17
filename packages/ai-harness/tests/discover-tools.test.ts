@@ -87,6 +87,62 @@ describe('discoverTools', () => {
   })
 })
 
+describe('a tool name that two plugins give', () => {
+  it('keeps the tool of the earlier plugin and warns once with both names', async () => {
+    const finder = (name: string, reply: string) =>
+      definePlugin({
+        name,
+        setup: () => ({ discoverTools: () => [echoTool('search', reply)] }),
+      })
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('search', {}),
+      () => text('found'),
+      () => text('again'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/tool-clash',
+        adapter,
+        plugins: () => [
+          finder('test/first', 'first'),
+          finder('test/second', 'second'),
+        ],
+      }),
+      { threadId: 't' },
+    )
+    const seen: Array<SessionEvent> = []
+    const controller = new AbortController()
+    const reading = (async () => {
+      for await (const entry of session.events({ signal: controller.signal }))
+        seen.push(entry)
+    })()
+
+    await session.send('search')
+    await session.send('search again')
+
+    expect(JSON.stringify(calls[1].messages)).toContain('first')
+    expect(JSON.stringify(calls[1].messages)).not.toContain('second')
+    controller.abort()
+    await reading
+    const warnings = seen.filter(
+      (entry) =>
+        entry.event.type === EventType.CUSTOM &&
+        entry.event.name === 'harness.plugin.warning',
+    )
+    expect(warnings.map((entry) => entry.event)).toMatchObject([
+      {
+        value: {
+          plugin: 'test/second',
+          message:
+            'Two tools are named "search": the tool of plugin test/first is used, and the tool of plugin test/second is not.',
+        },
+      },
+    ])
+    await host.close()
+  })
+})
+
 describe('the default agent loop', () => {
   it('keeps calling the model past five steps', async () => {
     const steps = Array.from(

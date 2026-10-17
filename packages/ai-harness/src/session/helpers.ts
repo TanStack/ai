@@ -25,7 +25,6 @@ import type {
   NamedTurnOverrides,
   ThreadRecord,
 } from '../log-records'
-import type { MountedPlugins } from '../plugins'
 import type {
   HarnessInput,
   MediaKind,
@@ -462,34 +461,22 @@ export function changeSettings(
 }
 
 /**
- * `mounted` without what the `removed` plugins give a turn: their tools,
- * prompts, middleware, adapter picks, discoverers, and preparers.
+ * The owner of each tool name of `tools`: the plugin from `owners`, else
+ * `the harness` (also for the turn's own tools). The first owner of a name
+ * stays.
  */
-export function withoutPlugins(
-  mounted: MountedPlugins,
-  removed: ReadonlySet<string>,
-): MountedPlugins {
-  const { owners } = mounted
-  const toolOwners = new Map(
-    owners.tools.map((entry) => [entry.name, entry.owner]),
-  )
-  const isKept = (owner: string | undefined) =>
-    owner === undefined || !removed.has(owner)
-  return {
-    ...mounted,
-    tools: mounted.tools.filter((tool) => isKept(toolOwners.get(tool.name))),
-    prompts: mounted.prompts.filter((_prompt, index) =>
-      isKept(owners.prompts[index]?.owner),
-    ),
-    middleware: mounted.middleware.filter((_item, index) =>
-      isKept(owners.middleware[index]),
-    ),
-    adapters: mounted.adapters.filter((_pick, index) =>
-      isKept(owners.adapters[index]),
-    ),
-    discoverers: mounted.discoverers.filter((item) => isKept(item.owner)),
-    preparers: mounted.preparers.filter((item) => isKept(item.owner)),
+export function toolOwners(
+  tools: ReadonlyArray<AnyTool>,
+  owners: ReadonlyArray<{ name: string; owner: string }>,
+) {
+  const byName = new Map<string, string>()
+  for (const entry of owners) {
+    if (entry.owner === 'the harness' || byName.has(entry.name)) continue
+    byName.set(entry.name, entry.owner)
   }
+  return new Map(
+    tools.map((tool) => [tool.name, byName.get(tool.name) ?? 'the harness']),
+  )
 }
 
 /**

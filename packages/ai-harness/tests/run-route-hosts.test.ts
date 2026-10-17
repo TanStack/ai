@@ -48,7 +48,7 @@ function twoHosts() {
     const handler = createHarnessHandler({
       host,
       harness,
-      media: { secret: 'shared' },
+      media: { secret: 'a-shared-secret-of-32-bytes-or-more' },
     })
     const call = (path: string, init: RequestInit = {}) =>
       handler(new Request(`http://h.test/api/${path}`, init))

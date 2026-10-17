@@ -92,6 +92,8 @@ await session.command({ name: 'mode', input: 'plan' })
 
 `session.command({ name: 'mode' })` with no input shows the current mode. In `acceptEdits` mode, an edit outside `root` or of a `.env` file still asks.
 
+A mode change applies from the next turn. A turn that runs keeps the mode that it started with, so a switch to `bypass` does not change its later tool calls.
+
 ### Keep the mode on the server
 
 A client that can set `mode` can set `bypass`. Then every call runs with no question. So by default, a client cannot change the mode:

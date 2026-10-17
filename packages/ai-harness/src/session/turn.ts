@@ -24,8 +24,8 @@ import {
   storedPrincipal,
   turnContext,
   withRun,
-  withoutPlugins,
   settingTools,
+  toolOwners,
   resetMarker,
   resetContext,
   resetCut,
@@ -125,7 +125,8 @@ export abstract class SessionTurn<
       }
       return
     }
-    const entry = this.sessionPlugins?.commands.get(name)
+    // A command of a plugin that this thread removed is unknown here.
+    const entry = this.threadPlugins()?.commands.get(name)
     if (!entry) {
       this.reject(inputId, 'unknown_command')
       operation.fail('failed', new Error(`Unknown command: ${name}`))
@@ -235,10 +236,12 @@ export abstract class SessionTurn<
     this.activeTurn = next.operation
     this.activeResume = next.resume !== undefined
     this.turnPrincipal = next.principal
+    this.turnConfig = this.configSnapshot()
     const ended = () => {
       this.activeResume = false
       this.activeTurn = undefined
       this.turnPrincipal = undefined
+      this.turnConfig = undefined
       for (const end of this.turnEnds) end()
       this.turnEnds.clear()
       this.drain()
@@ -403,7 +406,11 @@ export abstract class SessionTurn<
       await this.flushNotes()
       // The stored settings of the thread, as they are when the turn starts.
       const stored = this.threadSettings
-      const removed = new Set(stored.plugins?.remove ?? [])
+      // A removed session plugin stays mounted, but gives this turn nothing:
+      // no tools, prompts, middleware, agents, extension items, or
+      // capabilities, also for the turn plugins below.
+      const removed = this.removedPlugins()
+      const session = this.threadPlugins()
       // The 'turn' plugins. A removed turn plugin is not set up.
       const perRun = this.plugins.filter(
         (plugin) => plugin.lifetime === 'turn' && !removed.has(plugin.name),
@@ -415,28 +422,23 @@ export abstract class SessionTurn<
           registry: this.agentRegistry.fork(),
           harnessTools: [
             ...(this.harness.tools ?? []),
-            ...(this.sessionPlugins?.tools ?? []),
+            ...(session?.tools ?? []),
           ],
           harnessProvides: (this.harness.middleware ?? []).flatMap(
             (middleware) => middleware.provides ?? [],
           ),
-          ...(this.sessionPlugins
+          ...(session
             ? {
-                inherited: this.sessionPlugins.values,
-                takenCommands: this.sessionPlugins.commands,
-                takenConfig: this.sessionPlugins.config,
-                inheritedExtensions: this.sessionPlugins.extensions,
+                inherited: session.values,
+                takenCommands: session.commands,
+                takenConfig: session.config,
+                inheritedExtensions: session.extensions,
               }
             : {}),
           // Bound to this turn's run, not read when a service is called.
           services: this.pluginServices(info),
         })
       }
-      // A removed session plugin stays mounted, but gives this turn nothing.
-      const session =
-        this.sessionPlugins && removed.size > 0
-          ? withoutPlugins(this.sessionPlugins, removed)
-          : this.sessionPlugins
       const bridges = [
         session?.capabilityBridge,
         runPlugins?.capabilityBridge,
@@ -510,7 +512,10 @@ export abstract class SessionTurn<
       ]
       const discovered = await this.discoverTools(
         [...(session?.discoverers ?? []), ...(runPlugins?.discoverers ?? [])],
-        new Set(staticTools.map((tool) => tool.name)),
+        toolOwners(staticTools, [
+          ...(session?.owners.tools ?? []),
+          ...(runPlugins?.owners.tools ?? []),
+        ]),
         operation,
         info,
       )
@@ -608,6 +613,10 @@ export abstract class SessionTurn<
             }
           : undefined
       isRootPart = rootBag !== undefined
+      // A steer does not join a turn that `routing` sent to root agents, or
+      // a `session.tool()` turn: the tool turn has no model to answer it. It
+      // waits and runs as its own turn.
+      const takesJoins = !rootBag && !turn.tool
       /** The subagents of the next chat() call. */
       let bag = rootBag ?? subagents
       let routed = isRoutedBag(bag)
@@ -700,7 +709,7 @@ export abstract class SessionTurn<
               ),
               // Before the harness middleware, so its change of each model
               // call (`onConfig`) gets the messages that join at that call.
-              ...(rootBag ? [] : [this.steering(ephemeral)]),
+              ...(takesJoins ? [this.steering(ephemeral)] : []),
               // Before the harness middleware, so a compaction sees only the
               // context after a reset.
               resetCut,
@@ -958,10 +967,9 @@ export abstract class SessionTurn<
           bag = subagents
           routed = isRoutedBag(bag)
         } else {
-          // A steer does not join a turn that `routing` sent to root agents.
-          // It waits and runs as its own turn. Claimed, so a cancel after
-          // this check cannot leave a run with no new input.
-          const hasLateJoin = !rootBag && (await this.claimJoins()) > 0
+          // See `takesJoins`. Claimed, so a cancel after this check cannot
+          // leave a run with no new input.
+          const hasLateJoin = takesJoins && (await this.claimJoins()) > 0
           if (!hasLateJoin) {
             const goesOn = await this.continueBeforeFinish(
               operation,

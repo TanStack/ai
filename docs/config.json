@@ -1049,7 +1049,7 @@
           "label": "Ask before risky tool calls",
           "to": "harness/permissions",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-16"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Give your agent coding tools",

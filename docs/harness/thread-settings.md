@@ -101,8 +101,9 @@ For `reasoning`, the `overrides` of the prompt win, then the stored setting, the
 
 - A `tools` list keeps only the tools with those names. `{ remove }` drops the tools with those names. Either way, the tools of the prompt `overrides` stay.
 - The harness applies `tools` before the plugins prepare the tool list (`prepareTools`). So a plugin that wraps tools sees only the tools that a thread keeps.
-- `plugins: { remove }` leaves the tools, prompts, middleware, and model pick of those plugins out of the turn. Plugins that run once per session stay mounted.
-- The agents and subagents that a removed plugin gives stay available.
+- `plugins: { remove }` leaves everything that those plugins give out of the thread: tools, prompts, middleware, the model pick, agents, subagents, commands, and the items that they add for other plugins. For example, a thread without `agents()` gets no subagent tools, no `/agent` command, and no permission rules of its agent profiles.
+- Plugins that run once per session stay mounted, but they give the thread nothing.
+- If a plugin that stays needs a capability of a removed plugin, the setting is rejected.
 
 ## The working folder
 

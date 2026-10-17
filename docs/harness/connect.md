@@ -50,6 +50,27 @@ export const handler = createHarnessHandler({ host, harness: assistant })
 
 When more than one instance serves the same URL, also set `media: { secret }`. The secret signs media URLs, so every instance must use the same value. Without it, the handler signs with a random key of its own, so a signed URL works only on this instance, until it restarts.
 
+```ts group=harness-connect
+const mediaKey = process.env.MEDIA_KEY
+const oldMediaKey = process.env.OLD_MEDIA_KEY
+if (!mediaKey || !oldMediaKey) {
+  throw new Error('Set MEDIA_KEY and OLD_MEDIA_KEY.')
+}
+
+export const rotatingHandler = createHarnessHandler({
+  host,
+  harness: assistant,
+  // The first key signs. Every key checks the URLs.
+  media: { keys: [mediaKey, oldMediaKey] },
+})
+```
+
+- Each key must be at least 32 bytes. A shorter key throws at the start.
+- To change the key, put the new key first in `keys` and keep the old key after it. A URL that the old key signed works until it expires (1 hour). Then remove the old key.
+- A signed URL works only for this harness and for the user that it was signed for. When the thread is deleted, its URLs answer `404`.
+
+A request body over `media.maxBodyBytes` (default 32 MiB) answers `413`. See [Files inside a client message](./media#files-inside-a-client-message).
+
 The handler answers these paths under your route. For chat and events:
 
 - `GET capabilities`: the AG-UI capabilities, with the agents in `expose.agents`.
@@ -356,6 +377,7 @@ The client sends `{ type: 'harness.subscribe', threadId }` first. After that, ea
 - The host reads the user from the upgrade request with `identify`, the same as for HTTP. Every input on the socket runs as that user.
 - A user that `identify` refuses gets an `unauthorized` error frame, and the socket closes.
 - A user who cannot read the thread, or who loses access later, gets a `forbidden` error frame, and the socket closes.
+- A frame over `media.maxBodyBytes` (default 32 MiB) gets an error frame, and the socket closes with code `1009`.
 - On a host with no `access`, pass `openAccess`, the same as for `createHarnessHandler`.
 - Pass `socket: true` to `createHarnessHandler` too. Then `GET capabilities` says `transport.websocket: true`, so clients know that they can use the socket. The default is `false`.
 

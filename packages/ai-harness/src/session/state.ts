@@ -301,7 +301,8 @@ export abstract class SessionState<
       result[key] = {
         option: entry.option,
         owner: entry.owner,
-        value: this.configValue(key),
+        // The latest value, also while a turn runs with its own copy.
+        value: this.configValue(key, this.configValues),
       }
     }
     return result
@@ -394,6 +395,7 @@ export abstract class SessionState<
     let next: ThreadSettings
     try {
       next = changeSettings(this.threadSettings, settings, this.settingNames())
+      this.checkRemovable(next)
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
       this.reject(inputId, reason)
@@ -429,6 +431,15 @@ export abstract class SessionState<
     return this.keep({ inputId, status: 'accepted' })
   }
 
+  /**
+   * Throws when the plugins that `settings` removes provide a capability
+   * that a kept session plugin requires.
+   */
+  protected checkRemovable(settings: ThreadSettings) {
+    const remove = settings.plugins?.remove ?? []
+    if (remove.length > 0) this.sessionPlugins?.withoutOwners(remove)
+  }
+
   /** The model and plugin names that a setting can use. */
   protected settingNames(): SettingNames {
     return {
@@ -444,7 +455,7 @@ export abstract class SessionState<
     owner: string
     input?: unknown
   }> {
-    return [...(this.sessionPlugins?.commands ?? [])].map(([name, entry]) => ({
+    return [...(this.threadPlugins()?.commands ?? [])].map(([name, entry]) => ({
       name,
       description: entry.command.description,
       owner: entry.owner,
@@ -752,16 +763,27 @@ export abstract class SessionState<
 
   /** Read the config values of this thread from the log. */
   protected loadConfig() {
-    const stored = this.writer.state.thread.config
-    for (const [key, value] of stored) {
+    for (const [key, value] of this.configSnapshot()) {
+      this.configValues.set(key, value)
+    }
+  }
+
+  /**
+   * The config values in the log now. A turn keeps them until it ends, so a
+   * change while it runs applies at the next turn.
+   */
+  protected configSnapshot(): Map<string, unknown> {
+    const values = new Map<string, unknown>()
+    for (const [key, value] of this.writer.state.thread.config) {
       const entry = this.sessionPlugins?.config.get(key)
       if (!entry) continue
       try {
-        this.configValues.set(key, checkConfigValue(key, entry.option, value))
+        values.set(key, checkConfigValue(key, entry.option, value))
       } catch {
         // A stored value an option no longer accepts falls back to the default.
       }
     }
+    return values
   }
 
   /** Read the stored settings of this thread from the log. */
@@ -770,11 +792,13 @@ export abstract class SessionState<
     const names = this.settingNames()
     for (const [key, value] of Object.entries(stored)) {
       try {
-        this.threadSettings = changeSettings(
+        const next = changeSettings(
           this.threadSettings,
           { [key]: value },
           names,
         )
+        this.checkRemovable(next)
+        this.threadSettings = next
       } catch {
         // A value the harness no longer takes (a removed model or plugin)
         // is dropped.
