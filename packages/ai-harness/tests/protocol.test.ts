@@ -357,6 +357,50 @@ describe('parseHarnessInput', () => {
     ).toThrow("Invalid input: setDelivery needs 'steer' or 'queue'.")
   })
 
+  it('refuses a message part without the fields the harness reads', () => {
+    // An image with no source, then a data source with no MIME type.
+    for (const part of [
+      { type: 'image' },
+      { type: 'image', source: { type: 'data', value: 'aGVsbG8=' } },
+    ]) {
+      expect(() =>
+        parseHarnessInput({ op: 'prompt', message: [part] }),
+      ).toThrow(
+        'Invalid input: prompt needs a message: text, or content parts.',
+      )
+    }
+    expect(() =>
+      parseHarnessInput({
+        op: 'continue',
+        ephemeral: [{ role: 'user', content: [{ type: 'audio' }] }],
+      }),
+    ).toThrow('Invalid input: ephemeral must be an array of user messages.')
+  })
+
+  it('reports the WebSocket in capabilities only when the app serves it', async () => {
+    const { host, harness } = setup()
+    const transportOf = async (socket?: boolean) => {
+      const handler = createHarnessHandler({
+        host,
+        harness,
+        ...(socket === undefined ? {} : { socket }),
+      })
+      const response = await handler(
+        new Request('http://x/api/harness/capabilities', { headers: auth }),
+      )
+      const body: unknown = await response.json()
+      return body
+    }
+
+    expect(await transportOf()).toMatchObject({
+      transport: { streaming: true, websocket: false },
+    })
+    expect(await transportOf(true)).toMatchObject({
+      transport: { streaming: true, websocket: true },
+    })
+    await host.close()
+  })
+
   it('checks the ephemeral messages of prompt and continue', () => {
     const refused =
       'Invalid input: ephemeral must be an array of user messages.'

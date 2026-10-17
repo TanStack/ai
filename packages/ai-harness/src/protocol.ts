@@ -2,9 +2,11 @@ import { convertSchemaToJsonSchema } from '@tanstack/ai'
 import { AccessDeniedError } from './access'
 import { isRecord } from './utils'
 import { createInputId, errorText } from './session/helpers'
-import type { StreamChunk } from '@tanstack/ai'
+import { storeInlineMedia } from './inline-media'
+import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { AnyAgent } from './agents'
 import type { AnyHarness } from './define'
+import type { InlineMediaContext } from './inline-media'
 import type { HarnessSession, SessionSnapshot } from './session/index'
 import type {
   Cursor,
@@ -12,6 +14,7 @@ import type {
   Operation,
   Principal,
   Receipt,
+  UserInput,
 } from './types'
 
 /** The session-tier protocol version. Sent in `subscribe` and `hello`. */
@@ -66,6 +69,31 @@ const INPUT_OPS = new Set([
   'agentMessage',
 ])
 
+const PART_TYPES = new Set(['text', 'image', 'audio', 'video', 'document'])
+
+/**
+ * True for a content part with the fields the harness reads: a string
+ * `content` for text, else a `source` with a string `type` and `value`, and
+ * a string `mimeType` for a `data` source.
+ */
+function isContentPart(value: unknown) {
+  if (!isRecord(value) || typeof value.type !== 'string') return false
+  if (!PART_TYPES.has(value.type)) return false
+  if (value.type === 'text') return typeof value.content === 'string'
+  const { source } = value
+  if (!isRecord(source) || typeof source.type !== 'string') return false
+  if (typeof source.value !== 'string') return false
+  return source.type !== 'data' || typeof source.mimeType === 'string'
+}
+
+/** True for a string, or an array of content parts. */
+function isMessageContent(value: unknown) {
+  return (
+    typeof value === 'string' ||
+    (Array.isArray(value) && value.every(isContentPart))
+  )
+}
+
 /** Check the shape of a client input. Throws with a short reason. */
 export function parseHarnessInput(value: unknown): HarnessInput {
   if (
@@ -80,12 +108,10 @@ export function parseHarnessInput(value: unknown): HarnessInput {
     value.op === 'steer' ||
     value.op === 'followUp' ||
     value.op === 'agentMessage'
-  if (
-    needsMessage &&
-    typeof value.message !== 'string' &&
-    !Array.isArray(value.message)
-  ) {
-    throw new Error(`Invalid input: ${value.op} needs a message.`)
+  if (needsMessage && !isMessageContent(value.message)) {
+    throw new Error(
+      `Invalid input: ${value.op} needs a message: text, or content parts.`,
+    )
   }
   if (value.op === 'resolve' && !Array.isArray(value.resume)) {
     throw new Error('Invalid input: resolve needs a resume array.')
@@ -166,7 +192,9 @@ export function parseHarnessInput(value: unknown): HarnessInput {
   // A client sends user messages only. An assistant or tool message from a
   // client could fake an answer or a tool result in the model context.
   const isUserMessage = (message: unknown) =>
-    isRecord(message) && message.role === 'user'
+    isRecord(message) &&
+    message.role === 'user' &&
+    (message.content === null || isMessageContent(message.content))
   if (
     (value.op === 'prompt' || value.op === 'continue') &&
     value.ephemeral !== undefined &&
@@ -220,6 +248,12 @@ export function parseControlFrame(data: string): ControlFrame {
  * its credentials. Rejects with `AccessDeniedError` when the host refuses
  * the input.
  *
+ * Media in a message, or in an `ephemeral` message, is checked first, as
+ * `storeInlineMedia` does: inline bytes go to the media store and the part
+ * becomes a `harness-media:` reference. An external URL needs
+ * `media.externalUrls`. A refused part gives a rejected receipt with the
+ * reason, for example `media_too_large`.
+ *
  * @example
  * ```ts
  * const receipt = await applyInput({ harness, session, input, principal })
@@ -253,27 +287,45 @@ export async function applyInput({
     status: 'rejected',
     reason: 'not_exposed',
   }
+  const refused = (reason: string) => {
+    const receipt: Receipt = {
+      inputId: input.inputId ?? '',
+      status: 'rejected',
+      reason,
+    }
+    return receipt
+  }
+  const media: InlineMediaContext = {
+    options: harness.media,
+    putMedia: (upload) => session.putMedia(upload),
+  }
   switch (input.op) {
-    case 'prompt':
+    case 'prompt': {
+      const message = await checkedMessage(input.message, media)
+      if ('refused' in message) return refused(message.refused)
+      const ephemeral = await checkedEphemeral(input.ephemeral, media)
+      if ('refused' in ephemeral) return refused(ephemeral.refused)
       return turnReceipt(
-        session.send(input.message, {
+        session.send(message.content, {
           ...(input.busy ? { busy: input.busy } : {}),
-          ...(input.ephemeral ? { ephemeral: input.ephemeral } : {}),
+          ...ephemeral.options,
           ...sent,
         }),
       )
-    case 'continue':
-      return turnReceipt(
-        session.continue({
-          ...(input.ephemeral ? { ephemeral: input.ephemeral } : {}),
-          ...sent,
-        }),
-      )
+    }
+    case 'continue': {
+      const ephemeral = await checkedEphemeral(input.ephemeral, media)
+      if ('refused' in ephemeral) return refused(ephemeral.refused)
+      return turnReceipt(session.continue({ ...ephemeral.options, ...sent }))
+    }
     case 'steer':
-    case 'followUp':
+    case 'followUp': {
+      const message = await checkedMessage(input.message, media)
+      if ('refused' in message) return refused(message.refused)
       return turnReceipt(
-        session.send(input.message, { ...sent, mode: input.op }),
+        session.send(message.content, { ...sent, mode: input.op }),
       )
+    }
     case 'resolve':
       return session.resolve({ resume: input.resume, ...id })
     case 'cancel':
@@ -409,8 +461,10 @@ export async function applyInput({
           reason: 'not_exposed',
         }
       }
+      const message = await checkedMessage(input.message, media)
+      if ('refused' in message) return refused(message.refused)
       return turnReceipt(
-        session.send(input.message, {
+        session.send(message.content, {
           to: input.operationId,
           ...id,
           ...(input.mode ? { mode: input.mode } : {}),
@@ -418,6 +472,35 @@ export async function applyInput({
       )
     }
   }
+}
+
+/** `message` with its inline media stored, or why a part was refused. */
+async function checkedMessage(message: UserInput, media: InlineMediaContext) {
+  if (typeof message === 'string') return { content: message }
+  const checked = await storeInlineMedia(message, media)
+  return 'refused' in checked ? checked : { content: checked.parts }
+}
+
+/**
+ * The `ephemeral` option of a turn, with the inline media of each message
+ * stored, or why a part was refused. No messages give no option.
+ */
+async function checkedEphemeral(
+  messages: ReadonlyArray<ModelMessage & { role: 'user' }> | undefined,
+  media: InlineMediaContext,
+) {
+  if (!messages) return { options: {} }
+  const ephemeral: Array<ModelMessage & { role: 'user' }> = []
+  for (const message of messages) {
+    if (!Array.isArray(message.content)) {
+      ephemeral.push(message)
+      continue
+    }
+    const checked = await storeInlineMedia(message.content, media)
+    if ('refused' in checked) return checked
+    ephemeral.push({ ...message, content: checked.parts })
+  }
+  return { options: { ephemeral } }
 }
 
 /**
@@ -459,8 +542,20 @@ export function describeForClient(
   }
 }
 
-/** The AG-UI capabilities document of a harness. */
-export function capabilitiesOf(harness: AnyHarness) {
+/**
+ * The AG-UI capabilities document of a harness. Pass `socket: true` when the
+ * app also serves `handleHarnessSocket`, so `transport.websocket` tells
+ * clients that they can use a WebSocket. Default `false`.
+ *
+ * @example
+ * ```ts
+ * const capabilities = capabilitiesOf(assistant, { socket: true })
+ * ```
+ */
+export function capabilitiesOf(
+  harness: AnyHarness,
+  { socket = false }: { socket?: boolean } = {},
+) {
   const exposed = new Set<string>(harness.expose?.agents ?? [])
   const subagents: ReadonlyArray<AnyAgent> = harness.subagents?.agents ?? []
   const agents: ReadonlyArray<AnyAgent> = [
@@ -469,7 +564,7 @@ export function capabilitiesOf(harness: AnyHarness) {
   ]
   return {
     identity: { name: harness.name, type: 'tanstack-ai-harness' },
-    transport: { streaming: true, websocket: true },
+    transport: { streaming: true, websocket: socket },
     tools: {
       supported: true,
       items: (harness.tools ?? []).map((tool) => ({

@@ -933,7 +933,7 @@
           "label": "Send and show media",
           "to": "harness/media",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-16"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Connect clients",

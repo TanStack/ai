@@ -76,6 +76,11 @@ export interface HarnessHandlerOptions<P extends Principal = Principal> {
      */
     secret: string
   }
+  /**
+   * Set `true` when the app also serves `handleHarnessSocket`, so the
+   * capabilities say that clients can use a WebSocket. Default `false`.
+   */
+  socket?: boolean
 }
 
 /** How long a signed media URL works. */
@@ -756,7 +761,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
     const user = principal ? { principal } : {}
 
     if (request.method === 'GET' && route === 'capabilities') {
-      return json(capabilitiesOf(harness))
+      return json(capabilitiesOf(harness, { socket: options.socket === true }))
     }
 
     if (request.method === 'POST' && route === 'run') {

@@ -39,6 +39,14 @@ export interface MediaOptions {
   accepts?: ReadonlyArray<MediaKind>
   /** Turns audio into text first when the model cannot read audio. */
   transcribe?: AnyTranscriptionAdapter
+  /**
+   * Whether a client input can send a content part with an `http:` or
+   * `https:` URL. The model provider can fetch that URL. Default `false`: the
+   * input is refused. A function decides for each URL.
+   */
+  externalUrls?: boolean | ((url: URL) => boolean)
+  /** The largest request body or socket frame, in bytes. Default 32 MiB. */
+  maxBodyBytes?: number
 }
 
 /**

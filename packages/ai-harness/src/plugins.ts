@@ -519,6 +519,12 @@ interface Owned<T> {
   owner: string
 }
 
+/** Agents, with the owner of each agent at the same index. */
+interface AgentList {
+  items: Array<AnyAgent>
+  owners: Array<string>
+}
+
 /** Everything a set of mounted plugins contributes, plus its cleanup. */
 export interface MountedPlugins {
   tools: Array<AnyTool>
@@ -556,6 +562,16 @@ export interface MountedPlugins {
     middleware: Array<string>
     /** The owner of each item of `adapters`, at the same index. */
     adapters: Array<string>
+    /** The owner of each item of `agentMiddleware`, at the same index. */
+    agentMiddleware: Array<string>
+    /** The owner of each item of `generationMiddleware`, at the same index. */
+    generationMiddleware: Array<string>
+    /** The owner of each item of `agents`, at the same index. */
+    agents: Array<string>
+    /** The owner of each item of `subagents`, at the same index. */
+    subagents: Array<string>
+    /** The plugin that provided each capability of `values`. */
+    capabilities: Array<{ name: string; owner: string }>
   }
   middleware: Array<AnyChatMiddleware>
   /** Chat middleware for every agent run. See `PluginContributions`. */
@@ -570,6 +586,15 @@ export interface MountedPlugins {
   values: CapabilityValues
   /** Dispose every plugin scope, newest first. Safe to call twice. */
   dispose: () => Promise<void>
+  /**
+   * A copy without everything that the plugins in `names` contributed: tools,
+   * prompts, every kind of middleware, agents, subagents, commands, config,
+   * adapter picks, discoverers, preparers, extension items, and capabilities.
+   * The copy is a snapshot: a later `ctx.agents.set` or `ctx.commands.set`
+   * changes this set only. It shares `dispose` with this set. It throws when
+   * a kept plugin requires a capability that a removed plugin provides.
+   */
+  withoutOwners: (names: ReadonlyArray<string>) => MountedPlugins
 }
 
 export interface MountEnvironment {
@@ -752,6 +777,124 @@ export class CapabilityValues {
   all(): Array<CapabilityHandle> {
     return [...(this.parent?.all() ?? []), ...this.handles]
   }
+
+  /** A copy without the `removed` handles. The parent stays the same. */
+  without(removed: ReadonlySet<CapabilityHandle>) {
+    const copy = new CapabilityValues(this.parent)
+    for (const handle of this.handles) {
+      if (!removed.has(handle)) copy.provide(handle, this.get(handle))
+    }
+    return copy
+  }
+}
+
+/**
+ * Chat middleware that provides every capability of `values` to each chat
+ * run, so any chat middleware can read it with `getX(ctx)`.
+ */
+function capabilityBridgeOf(values: CapabilityValues) {
+  const handles = values.handles
+  if (handles.length === 0) return undefined
+  const bridge: AnyChatMiddleware = {
+    name: 'harness:plugin-capabilities',
+    provides: handles,
+    setup(ctx) {
+      for (const handle of handles) handle[1](ctx, values.get(handle))
+    },
+  }
+  return bridge
+}
+
+/** What `withoutOwners` needs to know about a mount. */
+interface MountRecord {
+  plugins: ReadonlyArray<HarnessPlugin>
+  /** The plugin that provided each capability. */
+  capabilityOwners: ReadonlyMap<CapabilityHandle, string>
+}
+
+/** `mounted` without what the plugins in `names` contributed. */
+function withoutOwnersOf(
+  mounted: MountedPlugins,
+  record: MountRecord,
+  names: ReadonlyArray<string>,
+) {
+  const removed = new Set(names)
+  const isKept = (owner: string | undefined) =>
+    owner === undefined || !removed.has(owner)
+  /** The items of `items` whose owner, at the same index, is kept. */
+  const keep = <T>(items: ReadonlyArray<T>, owners: ReadonlyArray<string>) =>
+    items.filter((_item, index) => isKept(owners[index]))
+  const plugins = record.plugins.filter((plugin) => isKept(plugin.name))
+  for (const plugin of plugins) {
+    for (const handle of plugin.requires ?? []) {
+      const owner = record.capabilityOwners.get(handle)
+      if (isKept(owner)) continue
+      throw new Error(
+        `Cannot remove plugin ${owner}: plugin ${plugin.name} requires its capability "${handle.capabilityName}".`,
+      )
+    }
+  }
+  const removedHandles = new Set<CapabilityHandle>()
+  for (const [handle, owner] of record.capabilityOwners) {
+    if (!isKept(owner)) removedHandles.add(handle)
+  }
+  const values = mounted.values.without(removedHandles)
+  const { owners } = mounted
+  const keptTools = new Set(
+    owners.tools
+      .filter((entry) => isKept(entry.owner))
+      .map((entry) => entry.name),
+  )
+  const extensions = new Map<string, Array<{ value: unknown; owner: string }>>()
+  for (const [point, items] of mounted.extensions) {
+    extensions.set(
+      point,
+      items.filter((item) => isKept(item.owner)),
+    )
+  }
+  const next: MountedPlugins = {
+    tools: mounted.tools.filter((tool) => keptTools.has(tool.name)),
+    prompts: keep(
+      mounted.prompts,
+      owners.prompts.map((entry) => entry.owner),
+    ),
+    middleware: keep(mounted.middleware, owners.middleware),
+    agentMiddleware: keep(mounted.agentMiddleware, owners.agentMiddleware),
+    generationMiddleware: keep(
+      mounted.generationMiddleware,
+      owners.generationMiddleware,
+    ),
+    commands: new Map(
+      [...mounted.commands].filter(([, entry]) => isKept(entry.owner)),
+    ),
+    config: new Map(
+      [...mounted.config].filter(([, entry]) => isKept(entry.owner)),
+    ),
+    extensions,
+    adapters: keep(mounted.adapters, owners.adapters),
+    discoverers: mounted.discoverers.filter((item) => isKept(item.owner)),
+    preparers: mounted.preparers.filter((item) => isKept(item.owner)),
+    agents: keep(mounted.agents, owners.agents),
+    subagents: keep(mounted.subagents, owners.subagents),
+    owners: {
+      plugins: owners.plugins.filter((plugin) => isKept(plugin.name)),
+      tools: owners.tools.filter((entry) => isKept(entry.owner)),
+      prompts: owners.prompts.filter((entry) => isKept(entry.owner)),
+      middleware: owners.middleware.filter(isKept),
+      adapters: owners.adapters.filter(isKept),
+      agentMiddleware: owners.agentMiddleware.filter(isKept),
+      generationMiddleware: owners.generationMiddleware.filter(isKept),
+      agents: owners.agents.filter(isKept),
+      subagents: owners.subagents.filter(isKept),
+      capabilities: owners.capabilities.filter((entry) => isKept(entry.owner)),
+    },
+    capabilityBridge: capabilityBridgeOf(values),
+    values,
+    dispose: mounted.dispose,
+    withoutOwners: (more) =>
+      withoutOwnersOf(next, { ...record, plugins }, more),
+  }
+  return next
 }
 
 function checkCapabilityOrder(
@@ -852,7 +995,10 @@ export async function mountPlugins(
   const middlewareOwners: Array<string> = []
   const adapterOwners: Array<string> = []
   const agentMiddleware: Array<AnyChatMiddleware> = []
+  const agentMiddlewareOwners: Array<string> = []
   const generationMiddleware: Array<AnyGenerationMiddleware> = []
+  const generationMiddlewareOwners: Array<string> = []
+  const capabilityOwners = new Map<CapabilityHandle, string>()
   const commands = new Map<string, { command: AnyCommand; owner: string }>()
   const config = new Map<string, { option: ConfigOption; owner: string }>()
   const extensions = new Map<string, Array<{ value: unknown; owner: string }>>()
@@ -862,12 +1008,15 @@ export async function mountPlugins(
   const adapters: MountedPlugins['adapters'] = []
   const discoverers: MountedPlugins['discoverers'] = []
   const preparers: MountedPlugins['preparers'] = []
-  const agents: Array<AnyAgent> = []
-  const subagents: Array<AnyAgent> = []
+  // Each list keeps the owner of each agent at the same index.
+  const roots: AgentList = { items: [], owners: [] }
+  const subs: AgentList = { items: [], owners: [] }
   const services = env.services ?? NO_SERVICES
-  const remove = (name: string, list: Array<AnyAgent>) => {
-    const at = list.findIndex((item) => item.name === name)
-    if (at >= 0) list.splice(at, 1)
+  const remove = (name: string, list: AgentList) => {
+    const at = list.items.findIndex((item) => item.name === name)
+    if (at < 0) return
+    list.items.splice(at, 1)
+    list.owners.splice(at, 1)
   }
   // `ctx.commands.ready`: resolves after the last plugin is set up. A failed
   // mount leaves it pending, so no plugin acts on a session that never opens.
@@ -913,6 +1062,7 @@ export async function mountPlugins(
           }
           values.provide(handle, value)
           provided.add(handle)
+          capabilityOwners.set(handle, plugin.name)
         },
         agents: {
           list: () => env.registry.list(),
@@ -923,17 +1073,19 @@ export async function mountPlugins(
           group: services.agents.group,
           set: (agent, options) => {
             env.registry.set(agent, plugin.name)
-            const list = options?.subagent ? subagents : agents
-            remove(agent.name, options?.subagent ? agents : subagents)
-            const at = list.findIndex((item) => item.name === agent.name)
-            list.splice(at < 0 ? list.length : at, 1, agent)
+            const list = options?.subagent ? subs : roots
+            remove(agent.name, options?.subagent ? roots : subs)
+            const at = list.items.findIndex((item) => item.name === agent.name)
+            const index = at < 0 ? list.items.length : at
+            list.items.splice(index, 1, agent)
+            list.owners.splice(index, 1, plugin.name)
           },
           delete: (name) => {
             env.registry.delete(name, plugin.name)
             // Still there: another owner has it.
             if (env.registry.get(name)) return
-            remove(name, agents)
-            remove(name, subagents)
+            remove(name, roots)
+            remove(name, subs)
           },
         },
         collect: <T>(point: ExtensionPoint<T>): ReadonlyArray<T> => {
@@ -957,11 +1109,17 @@ export async function mountPlugins(
         },
         emit: (event, value) => services.emit(plugin.name, event.name, value),
         on: (event, handler) => {
-          const off = services.on(event.name, (value) =>
+          const stop = services.on(event.name, (value) =>
             handler(value as never),
           )
           // The listener goes away with the plugin, for example on a reload.
-          scope.signal.addEventListener('abort', off)
+          // `off` also removes this abort listener, so many `on` and `off`
+          // calls do not add up listeners on the plugin signal.
+          const off = () => {
+            scope.signal.removeEventListener('abort', off)
+            stop()
+          }
+          scope.signal.addEventListener('abort', off, { once: true })
           return off
         },
         state: (initial) => services.state(plugin.name, initial),
@@ -1037,8 +1195,14 @@ export async function mountPlugins(
           middleware.push(item)
           middlewareOwners.push(plugin.name)
         }
-        agentMiddleware.push(...(contributions.agentMiddleware ?? []))
-        generationMiddleware.push(...(contributions.generationMiddleware ?? []))
+        for (const item of contributions.agentMiddleware ?? []) {
+          agentMiddleware.push(item)
+          agentMiddlewareOwners.push(plugin.name)
+        }
+        for (const item of contributions.generationMiddleware ?? []) {
+          generationMiddleware.push(item)
+          generationMiddlewareOwners.push(plugin.name)
+        }
         // The session reads commands and config only from its session plugins.
         const isSessionOnly =
           Object.keys(contributions.commands ?? {}).length > 0 ||
@@ -1092,11 +1256,13 @@ export async function mountPlugins(
         }
         for (const agent of contributions.agents ?? []) {
           env.registry.add(agent, plugin.name)
-          agents.push(agent)
+          roots.items.push(agent)
+          roots.owners.push(plugin.name)
         }
         for (const agent of contributions.subagents ?? []) {
           env.registry.add(agent, plugin.name)
-          subagents.push(agent)
+          subs.items.push(agent)
+          subs.owners.push(plugin.name)
         }
       }
     }
@@ -1122,23 +1288,10 @@ export async function mountPlugins(
     throw error
   }
 
-  const bridgeHandles = values.handles
-  const capabilityBridge: AnyChatMiddleware | undefined =
-    bridgeHandles.length > 0
-      ? {
-          name: 'harness:plugin-capabilities',
-          provides: bridgeHandles,
-          setup(ctx) {
-            for (const handle of bridgeHandles) {
-              handle[1](ctx, values.get(handle))
-            }
-          },
-        }
-      : undefined
-
   markReady()
   let disposed: Promise<void> | undefined
-  return {
+  const record: MountRecord = { plugins, capabilityOwners }
+  const mounted: MountedPlugins = {
     tools: tools
       .filter((entry) => entry.owner !== 'the harness')
       .map((entry) => entry.value),
@@ -1152,8 +1305,8 @@ export async function mountPlugins(
     adapters,
     discoverers,
     preparers,
-    agents,
-    subagents,
+    agents: roots.items,
+    subagents: subs.items,
     owners: {
       plugins: plugins.map((plugin) => ({
         name: plugin.name,
@@ -1175,9 +1328,19 @@ export async function mountPlugins(
       })),
       middleware: middlewareOwners,
       adapters: adapterOwners,
+      agentMiddleware: agentMiddlewareOwners,
+      generationMiddleware: generationMiddlewareOwners,
+      agents: roots.owners,
+      subagents: subs.owners,
+      capabilities: [...capabilityOwners].map(([handle, owner]) => ({
+        name: handle.capabilityName,
+        owner,
+      })),
     },
-    capabilityBridge,
+    capabilityBridge: capabilityBridgeOf(values),
     values,
     dispose: () => (disposed ??= disposeAll(scopes)),
+    withoutOwners: (names) => withoutOwnersOf(mounted, record, names),
   }
+  return mounted
 }
