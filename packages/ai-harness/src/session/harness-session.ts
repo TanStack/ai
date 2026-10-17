@@ -150,8 +150,7 @@ export class SessionImpl<
       this.plugins.filter((plugin) => plugin.lifetime !== 'turn'),
       {
         threadId: this.threadId,
-        hostPlugin: (plugin) =>
-          this.hostPlugins.acquire(this.harness.name, plugin),
+        hostPlugin: (plugin) => this.hostPlugins.acquire(this.harness, plugin),
         registry: this.agentRegistry,
         harnessTools: this.harness.tools ?? [],
         harnessProvides: (this.harness.middleware ?? []).flatMap(
