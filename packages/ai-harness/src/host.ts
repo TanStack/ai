@@ -145,7 +145,46 @@ export interface HarnessHostOptions<P extends Principal = Principal> {
    * Leave it out for the defaults.
    */
   ownership?: LeaseOptions
+  /** How the sessions of this host live. Leave it out for the defaults. */
+  lifecycle?: HostLifecycleOptions
 }
+
+/** How the sessions of a host live. */
+export interface HostLifecycleOptions {
+  /** How much each session keeps in memory. */
+  retention?: RetentionLimits
+}
+
+/**
+ * How much each session keeps in memory, so a long-lived session does not
+ * grow. Leave a field out for its default.
+ */
+export interface RetentionLimits {
+  /**
+   * How many settled operations (turns, commands, resets) a session keeps,
+   * with their receipts and settlements. Inputs with no turn (agent runs,
+   * messages to them, commands, cancels) have a window of the same size.
+   * Past it, `session.operation(id)` is `undefined` for the oldest, and
+   * `settled()` of its input reads the log (a durable host). Default 500.
+   */
+  settledOperations?: number
+  /**
+   * How many settled agent runs a session keeps. Past it, `agentRun(id)`
+   * and `agentRuns()` leave out the oldest, except what the log has (a
+   * durable host). Default 500.
+   */
+  settledAgentRuns?: number
+  /**
+   * How many bytes of events a session keeps in memory for `events()`, as
+   * the JSON length of each event. A reader whose cursor is older starts
+   * at the oldest event kept. A durable host reads older events from the
+   * log. Default 8 000 000.
+   */
+  eventBytes?: number
+}
+
+/** {@link RetentionLimits} with every default filled in. */
+export type Retention = Required<RetentionLimits>
 
 export interface OpenSessionOptions<P extends Principal = Principal> {
   /** The conversation id. Opening the same id again returns the live session. */
@@ -936,6 +975,12 @@ export function createHarnessHost<P extends Principal = Principal>(
   }
   const index = sessionIndex(sessionStore, emit)
   const coalesceMs = options.log?.coalesceMs ?? 100
+  const limits = options.lifecycle?.retention
+  const retention = {
+    settledOperations: limits?.settledOperations ?? 500,
+    settledAgentRuns: limits?.settledAgentRuns ?? 500,
+    eventBytes: limits?.eventBytes ?? 8_000_000,
+  }
   /** The shared log of each log with an open session, by its store log id. */
   const logs = new Map<string, Promise<SharedLog>>()
   /** The resolved shared logs, and the reduce that folds each one, for `logState`. */
@@ -971,6 +1016,7 @@ export function createHarnessHost<P extends Principal = Principal>(
         rootThread,
         state,
         coalesceMs,
+        eventBytes: retention.eventBytes,
         ...(project ? { project } : {}),
         ...(reduce ? { reduce } : {}),
         ...(metadata ? { metadata } : {}),
@@ -1040,6 +1086,7 @@ export function createHarnessHost<P extends Principal = Principal>(
         media,
         hostId,
         index,
+        retention,
         ...(logStore
           ? {
               log: {

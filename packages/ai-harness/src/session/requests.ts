@@ -1078,7 +1078,6 @@ export abstract class SessionRequests<
       return
     }
     operation.resolveReceipt(receipt)
-    this.followers.add(operation)
     if (!this.writer) {
       // Without a log, the result of an input from before a restart, or of
       // one the session no longer keeps, is gone.
@@ -1090,6 +1089,7 @@ export abstract class SessionRequests<
       )
       return
     }
+    this.followers.add(operation)
     void this.settled(inputId)
       .then(
         (settlement) => this.settleOperation(operation, settlement),

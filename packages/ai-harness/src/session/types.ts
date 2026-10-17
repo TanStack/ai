@@ -24,7 +24,7 @@ import type { ConfigOption } from '../config'
 import type { SessionUsage } from '../usage'
 import type { AgentInputOf, AgentResultOf, AnyAgent } from '../agents'
 import type { AnyHarness, HarnessAgentsOf } from '../define'
-import type { HarnessPersistence, SessionIndexWriter } from '../host'
+import type { HarnessPersistence, Retention, SessionIndexWriter } from '../host'
 import type { PluginLifetime } from '../plugins'
 import type {
   AgentRun,
@@ -221,6 +221,8 @@ export interface SessionDependencies {
   hostId: string
   /** Writes the session index entry of the thread. */
   index: SessionIndexWriter
+  /** How much the session keeps in memory. */
+  retention: Retention
   /** The session log of a durable host. */
   log?: {
     store: LogStore
@@ -369,7 +371,10 @@ export interface AgentChain {
   budget: SubagentBudget
   /** The newest run that started. */
   current: AgentRunEntry
-  /** Every run that started, oldest first. */
+  /**
+   * Every run that started and that the session still keeps, oldest first.
+   * A run leaves it when it falls out of the window of settled agent runs.
+   */
   runs: Array<AgentRunEntry>
   /** Steers that wait for the current run's next model call. */
   steers: Array<AgentMessage>

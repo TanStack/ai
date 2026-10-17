@@ -27,6 +27,7 @@ import {
   createMessageId,
   customEvent,
   cacheObject,
+  dropOldest,
   scopeOf,
   storedPrincipal,
   notOpenMessages,
@@ -104,15 +105,121 @@ import type {
 import type { HarnessSession } from './harness-session'
 
 /**
- * How many settled operations a session keeps, with their receipts and
- * settlements. Older ones go, so a long-lived session does not grow.
+ * What a session keeps for its inputs, by input id: the duplicate check, the
+ * receipt, the settlement, the turn operation, and the inputs that joined an
+ * operation. An input goes as one piece, so no map keeps a part of it.
+ *
+ * - A chat turn input goes with its operation, when that operation falls out
+ *   of the window of settled operations.
+ * - Every other input (an agent run, a message to one, a command, a cancel, a
+ *   setting) joins its own window of the same size when it ends. So these
+ *   inputs never push a turn out.
  */
-// ponytail: a fixed window. After it, `operation(id)` is undefined, and a
-// duplicate input or `settled()` falls back to the log (a durable host) or
-// the inbox. The duplicate check of an input with no operation of its own (a
-// command, a cancel) keeps its id forever: one string each. Make the window
-// an option if a host needs more.
-export const KEPT_SETTLED = 500
+// ponytail: after its window, `settled()` and a duplicate input fall back to
+// the log (a durable host) or the inbox. An input whose work stops on a
+// failed store write, and never ends, stays until the session closes.
+export class InputRecords {
+  /**
+   * The input and its sender as JSON, by input id: the duplicate check.
+   * `recover()` skips these inputs.
+   */
+  readonly admitted = new Map<string, string>()
+  /** The inputs that joined each turn or agent run, by operation id. */
+  readonly turnJoins = new Map<string, Array<string>>()
+  /** The receipt of each chat input this session answered, by input id. */
+  private readonly receipts = new Map<string, Receipt>()
+  /** How the inputs of this session ended, for `settled()`, by input id. */
+  private readonly settlements = new Map<string, InputSettlement>()
+  private readonly turns = new Map<string, OperationImpl<ChatTurnResult>>()
+  private readonly inputOf = new Map<string, string>()
+  /** The turn operation of each chat input, by input id. See `bind`. */
+  readonly turnOperations: ReadonlyMap<string, OperationImpl<ChatTurnResult>> =
+    this.turns
+  /** The input of each turn operation, by operation id. See `bind`. */
+  readonly operationInputs: ReadonlyMap<string, string> = this.inputOf
+  /** The inputs that ended and have no turn operation, oldest first. */
+  private readonly ended = new Set<string>()
+  private readonly limit: number
+
+  /** `limit`: how many ended inputs with no turn operation to keep. */
+  constructor(limit: number) {
+    this.limit = limit
+  }
+
+  /** Link a turn operation and its input. The input then goes with it. */
+  bind(inputId: string, operation: OperationImpl<ChatTurnResult>) {
+    this.turns.set(inputId, operation)
+    this.inputOf.set(operation.id, inputId)
+    this.ended.delete(inputId)
+  }
+
+  receipt(inputId: string) {
+    return this.receipts.get(inputId)
+  }
+
+  settlement(inputId: string) {
+    return this.settlements.get(inputId)
+  }
+
+  /** Keep the receipt of a chat input, for a duplicate. A refusal ends it. */
+  keep(receipt: Receipt) {
+    this.receipts.set(receipt.inputId, receipt)
+    if (receipt.status === 'rejected') this.end(receipt.inputId)
+    return receipt
+  }
+
+  /**
+   * The session refused the input. It leaves the duplicate check: the store
+   * has it, so a retry with its id is still a duplicate.
+   */
+  reject(receipt: Receipt) {
+    this.admitted.delete(receipt.inputId)
+    return this.keep(receipt)
+  }
+
+  /** The input ended with `settlement`. */
+  settle(settlement: InputSettlement) {
+    const { inputId } = settlement
+    // A turn input leaves the duplicate check with its operation: a client
+    // may send its id again until then. Other inputs leave now.
+    if (!this.turns.has(inputId)) this.admitted.delete(inputId)
+    this.settlements.set(inputId, settlement)
+    this.end(inputId)
+  }
+
+  /**
+   * The input ended. One with no turn operation goes to the end of the
+   * window of ended inputs, and the oldest past the window are forgotten.
+   */
+  end(inputId: string) {
+    if (this.turns.has(inputId)) return
+    // A command ends when it is stored, and again when it settles.
+    this.ended.delete(inputId)
+    this.ended.add(inputId)
+    for (const old of dropOldest(this.ended, this.limit)) this.forget(old)
+  }
+
+  /** Forget what is kept for the settled operation `operationId`. */
+  forgetOperation(operationId: string) {
+    this.turnJoins.delete(operationId)
+    const inputId = this.inputOf.get(operationId)
+    this.inputOf.delete(operationId)
+    // A newer operation of the input (a steer that runs as its own turn)
+    // keeps it.
+    if (inputId === undefined || this.turns.get(inputId)?.id !== operationId) {
+      return
+    }
+    this.turns.delete(inputId)
+    this.forget(inputId)
+  }
+
+  private forget(inputId: string) {
+    this.admitted.delete(inputId)
+    this.receipts.delete(inputId)
+    this.settlements.delete(inputId)
+    this.ended.delete(inputId)
+  }
+}
 
 /**
  * The fields of a {@link HarnessSession}, and the helpers every layer uses. The
@@ -180,30 +287,39 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /** Why the session log stopped taking writes. */
   protected logFailure: Error | undefined
   protected readonly log: SessionDependencies['log']
-  /**
-   * Inputs this session stored or recovered, by id, as JSON: the duplicate
-   * check. `recover()` skips them.
-   */
-  protected readonly admitted = new Map<string, string>()
-  /** The receipt of each chat input this session answered, by input id. */
-  protected readonly receipts = new Map<string, Receipt>()
-  /** The turn operation of each chat input, by input id. */
-  protected readonly turnOperations = new Map<
-    string,
-    OperationImpl<ChatTurnResult>
-  >()
-  /** The input of each turn operation, by operation id. */
-  protected readonly operationInputs = new Map<string, string>()
-  /** The inputs that joined each turn, by operation id. */
-  protected readonly turnJoins = new Map<string, Array<string>>()
-  /** How the chat inputs of this session ended, for `settled()`. */
-  protected readonly settlements = new Map<string, InputSettlement>()
+  /** How much this session keeps in memory. */
+  protected readonly retention: SessionDependencies['retention']
+  /** What this session keeps for its inputs. */
+  protected readonly inputRecords: InputRecords
   protected readonly agentRegistry = new AgentRegistry()
   protected readonly operations = new Map<string, OperationImpl<unknown>>()
-  /** The ids of the settled operations in `operations`, oldest first. */
-  protected readonly settledIds: Array<string> = []
-  /** The ids of forgotten operations, so a client `runId` stays unique. */
+  /** The settled operations in `operations` that are not agent runs, oldest first. */
+  protected readonly settledIds = new Set<string>()
+  /** The settled agent runs in `operations`, oldest first. */
+  protected readonly settledRuns = new Set<string>()
+  /**
+   * The ids of forgotten operations, oldest first, so a client `runId` does
+   * not take one.
+   */
+  // ponytail: as many ids as both windows keep. Past that, only
+  // `stores.runs` refuses a reused run id.
   protected readonly retiredIds = new Set<string>()
+  /** See {@link InputRecords.admitted}. */
+  protected get admitted() {
+    return this.inputRecords.admitted
+  }
+  /** See {@link InputRecords.turnOperations}. */
+  protected get turnOperations() {
+    return this.inputRecords.turnOperations
+  }
+  /** See {@link InputRecords.operationInputs}. */
+  protected get operationInputs() {
+    return this.inputRecords.operationInputs
+  }
+  /** See {@link InputRecords.turnJoins}. */
+  protected get turnJoins() {
+    return this.inputRecords.turnJoins
+  }
   /** The agent chains of this session, by the input id of the first run. */
   protected readonly agentChains = new Map<string, AgentChain>()
   /** The chain of each agent run operation, by operation id. */
@@ -368,8 +484,14 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       options: this.harness.media,
     })
     this.principal = deps.principal
+    this.retention = deps.retention
+    this.inputRecords = new InputRecords(deps.retention.settledOperations)
     this.notifyHost = deps.onEvent
-    this.feed = tapFeed(new SessionFeed(), deps.onEvent, this.eventListeners)
+    this.feed = tapFeed(
+      new SessionFeed({ eventBytes: deps.retention.eventBytes }),
+      deps.onEvent,
+      this.eventListeners,
+    )
     this.onClose = deps.onClose
     this.hostId = deps.hostId
     this.index = deps.index
@@ -434,49 +556,58 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
-   * An operation of this session by id: a running one, an agent run, or one
-   * of the last 500 other operations that settled.
+   * An operation of this session by id: a running one, or one of the last
+   * operations that settled. The host option `lifecycle.retention` sets how
+   * many settled operations and agent runs a session keeps (default 500
+   * each).
    */
   operation(id: string): Operation<unknown> | undefined {
     return this.operations.get(id)
   }
 
-  /** Keep `operation` in `operations`. Once settled, it joins the window. */
-  protected track(operation: OperationImpl<unknown>): void {
+  /**
+   * Keep `operation` in `operations`. Once settled, it joins its window: the
+   * agent runs, or the other operations.
+   */
+  protected track(operation: OperationImpl<unknown>) {
     this.operations.set(operation.id, operation)
-    // ponytail: agent runs stay, so `agentRuns()` lists every run and a
-    // message to an ended run starts its follow-up. Memory grows with the
-    // number of agent runs. Bound them too if a session runs thousands.
-    if (operation.kind === 'agent') return
+    const isRun = operation.kind === 'agent'
+    const window = isRun ? this.settledRuns : this.settledIds
+    const limit = isRun
+      ? this.retention.settledAgentRuns
+      : this.retention.settledOperations
     const settled = () => {
-      this.settledIds.push(operation.id)
-      const old =
-        this.settledIds.length > KEPT_SETTLED && this.settledIds.shift()
-      if (old) this.forget(old)
+      window.add(operation.id)
+      for (const old of dropOldest(window, limit)) this.forget(old)
     }
     void operation.then(settled, settled)
   }
 
   /** Drop what this session keeps for the settled operation `id`. */
-  protected forget(id: string): void {
+  protected forget(id: string) {
+    const chain = this.chainOf.get(id)
     this.operations.delete(id)
-    // ponytail: only the id stays, so a reused `runId` is still refused.
+    this.chainOf.delete(id)
     this.retiredIds.add(id)
-    this.turnJoins.delete(id)
-    const inputId = this.operationInputs.get(id)
-    this.operationInputs.delete(id)
-    if (inputId !== undefined && this.turnOperations.get(inputId)?.id === id) {
-      this.turnOperations.delete(inputId)
-      this.admitted.delete(inputId)
-      this.receipts.delete(inputId)
-      this.settlements.delete(inputId)
+    const { settledOperations, settledAgentRuns } = this.retention
+    dropOldest(this.retiredIds, settledOperations + settledAgentRuns)
+    this.inputRecords.forgetOperation(id)
+    if (chain) this.forgetRun(chain, id)
+  }
+
+  /**
+   * Drop the run `id` from `chain`. A chain with no run left and no
+   * follow-up that waits goes too.
+   */
+  private forgetRun(chain: AgentChain, id: string) {
+    const at = chain.runs.findIndex((run) => run.operation.id === id)
+    if (at >= 0) chain.runs.splice(at, 1)
+    if (chain.runs.length > 0 || chain.followUps.length > 0) return
+    if (this.agentChains.get(chain.runInputId) === chain) {
+      this.agentChains.delete(chain.runInputId)
     }
-    // Steers and agent inputs have no operation of their own here.
-    for (const map of [this.receipts, this.settlements]) {
-      for (const key of map.keys()) {
-        if (map.size <= KEPT_SETTLED) break
-        map.delete(key)
-      }
+    for (const parent of this.agentChains.values()) {
+      parent.children.delete(chain)
     }
   }
 

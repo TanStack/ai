@@ -11,8 +11,9 @@ import {
   WORK_OPS,
   lastAssistantText,
   checkHostRecords,
+  dropOldest,
 } from './helpers'
-import { KEPT_SETTLED, SessionBase } from './base'
+import { SessionBase } from './base'
 import type { AccessRun } from '../access'
 import type { OperationImpl } from '../operation'
 import type { LogRecord } from '@tanstack/ai-persistence'
@@ -426,6 +427,8 @@ export abstract class SessionInputs<
    * the other.
    */
   protected async applyControl(inputId: string, change: HarnessRecord) {
+    // Also an input that recovery took: it has no other end.
+    this.inputRecords.end(inputId)
     if (!this.writer) {
       await this.inbox.markApplied({
         threadId: this.storeThreadId,
@@ -509,8 +512,11 @@ export abstract class SessionInputs<
         })
         // The inbox had the id before this session: a restart.
         if (stored.createdAt !== at || stored.status !== 'pending') {
-          if (inputKey(stored.input, stored.principal) === payload)
+          if (inputKey(stored.input, stored.principal) === payload) {
+            // Nothing runs again, so the input ends here.
+            this.inputRecords.end(inputId)
             return 'duplicate'
+          }
           this.admitted.delete(inputId)
           return 'conflict'
         }
@@ -520,6 +526,8 @@ export abstract class SessionInputs<
       this.admitted.delete(inputId)
       throw error
     }
+    // An input with no work to run (a cancel, a setting) ends once stored.
+    if (!WORK_OPS.has(input.op)) this.inputRecords.end(inputId)
     this.feed.publish(
       'session',
       customEvent(HARNESS_EVENTS.inputAccepted, { inputId, op: input.op }),
@@ -544,10 +552,7 @@ export abstract class SessionInputs<
     // window of settled operations.
     if (CHAT_OPS.has(input.op)) {
       this.forwarded.add(inputId)
-      for (const old of this.forwarded) {
-        if (this.forwarded.size <= KEPT_SETTLED) break
-        this.forwarded.delete(old)
-      }
+      dropOldest(this.forwarded, this.retention.settledOperations)
     }
     await inbox.append({
       inputId,
@@ -628,8 +633,7 @@ export abstract class SessionInputs<
         .catch((error: unknown) => this.warnSession('harness:inbox', error))
     }
     const receipt: Receipt = { inputId, status: 'rejected', reason }
-    this.admitted.delete(inputId)
-    this.receipts.set(inputId, receipt)
+    this.inputRecords.reject(receipt)
     this.feed.publish(
       'session',
       customEvent(HARNESS_EVENTS.inputRejected, { inputId, reason }),
@@ -653,11 +657,7 @@ export abstract class SessionInputs<
       )
     }
     for (const settlement of settlements) {
-      // A turn input leaves the set with its operation (`forget`): a client
-      // may send its id again until then. Other inputs leave now.
-      if (!this.turnOperations.has(settlement.inputId))
-        this.admitted.delete(settlement.inputId)
-      this.settlements.set(settlement.inputId, settlement)
+      this.inputRecords.settle(settlement)
       this.feed.publish(
         settlement.operationId ?? 'session',
         customEvent(HARNESS_EVENTS.inputSettled, { ...settlement }),
@@ -676,9 +676,9 @@ export abstract class SessionInputs<
             status: 'rejected' as const,
             reason: rejectedReason(logged),
           }
-        : this.receipts.get(inputId)
+        : this.inputRecords.receipt(inputId)
     if (refused?.status === 'rejected') throw new InputRejectedError(refused)
-    return this.settlements.get(inputId)
+    return this.inputRecords.settlement(inputId)
   }
 
   protected isChatInput(inputId: string) {
@@ -694,7 +694,7 @@ export abstract class SessionInputs<
       )
     return (
       this.turnOperations.has(inputId) ||
-      this.receipts.has(inputId) ||
+      this.inputRecords.receipt(inputId) !== undefined ||
       this.forwarded.has(inputId)
     )
   }
@@ -704,14 +704,12 @@ export abstract class SessionInputs<
     inputId: string,
     operation: OperationImpl<ChatTurnResult>,
   ) {
-    this.turnOperations.set(inputId, operation)
-    this.operationInputs.set(operation.id, inputId)
+    this.inputRecords.bind(inputId, operation)
   }
 
   /** Keep a chat input's receipt, for a duplicate of the input. */
-  protected keep(receipt: Receipt): Receipt {
-    this.receipts.set(receipt.inputId, receipt)
-    return receipt
+  protected keep(receipt: Receipt) {
+    return this.inputRecords.keep(receipt)
   }
 
   /** Resolve a turn's receipt, and keep it for a duplicate. */
@@ -736,7 +734,7 @@ export abstract class SessionInputs<
       return { inputId, status: 'rejected', reason: admission }
     }
     if (admission === 'forwarded') return { inputId, status: 'queued' }
-    const kept = this.receipts.get(inputId)
+    const kept = this.inputRecords.receipt(inputId)
     if (kept) return kept
     const operationId = this.writer?.state.inputs.get(inputId)?.operationId
     return {

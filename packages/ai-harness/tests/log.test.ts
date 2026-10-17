@@ -30,11 +30,14 @@ import type { SessionEvent } from '../src/types'
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
 const LOG = logIdOf({ logId: THREAD })
+/** The tail of a test log: room for every event of a test. */
+const EVENT_BYTES = 1_000_000
 
 function newWriter(
   store: LogStore,
   options: {
     coalesceMs?: number
+    eventBytes?: number
     project?: ProjectOptions
     metadata?: MetadataStore
     onFailure?: (error: unknown) => void
@@ -47,6 +50,7 @@ function newWriter(
     rootThread: THREAD,
     state: options.state ?? emptySharedLogState(),
     coalesceMs: options.coalesceMs ?? 0,
+    eventBytes: options.eventBytes ?? EVENT_BYTES,
     ...(options.project ? { project: options.project } : {}),
     ...(options.metadata ? { metadata: options.metadata } : {}),
   })
@@ -276,6 +280,23 @@ describe('tool call records', () => {
     toolCallId,
     message: { role: 'tool', toolCallId, content: 'ok' },
   })
+  /** A turn that called `pay` as `call-1`, with the call's result. */
+  const paid: Array<ModelMessage> = [
+    user('u1', 'pay'),
+    {
+      id: 'a1',
+      role: 'assistant',
+      content: '',
+      toolCalls: [
+        {
+          id: 'call-1',
+          type: 'function',
+          function: { name: 'pay', arguments: '{}' },
+        },
+      ],
+    },
+    { role: 'tool', toolCallId: 'call-1', content: 'ok' },
+  ]
 
   it('appends the staged records of a call with its result, not with another commit', async () => {
     const { store, batches } = recordingStore()
@@ -293,18 +314,6 @@ describe('tool call records', () => {
 
   it('forgets the result, start, and steps of a call once its result is in the transcript', async () => {
     const writer = newWriter(memoryLogStore())
-    const call: ModelMessage = {
-      id: 'a1',
-      role: 'assistant',
-      content: '',
-      toolCalls: [
-        {
-          id: 'call-1',
-          type: 'function',
-          function: { name: 'pay', arguments: '{}' },
-        },
-      ],
-    }
     await writer.append([
       {
         type: 'harness.tool.started',
@@ -322,17 +331,79 @@ describe('tool call records', () => {
     ])
     expect(writer.state.toolResults.size).toBe(1)
 
-    await writer.commit({
-      messages: [
-        user('u1', 'pay'),
-        call,
-        { role: 'tool', toolCallId: 'call-1', content: 'ok' },
-      ],
-    })
+    await writer.commit({ messages: paid })
 
     expect(writer.state.toolResults.size).toBe(0)
     expect(writer.state.started.size).toBe(0)
     expect(writer.state.steps.size).toBe(0)
+  })
+
+  it('appends what a call stages after its result is in the transcript with the next commit, and keeps no key for it', async () => {
+    const { store, batches } = recordingStore()
+    const log = new SharedLog({
+      store,
+      logId: LOG,
+      rootThread: THREAD,
+      state: emptySharedLogState(),
+      coalesceMs: 0,
+      eventBytes: EVENT_BYTES,
+    })
+    const writer = log.view(THREAD, () => {})
+    await writer.append([result('call-1')])
+    await writer.commit({ messages: paid })
+
+    // A background job of the call stages a record after that.
+    writer.stage([{ type: 'app.late' }], 'call-1')
+    await writer.commit({ messages: [...paid, user('u2', 'next')] })
+
+    expect(batches).toEqual([
+      ['harness.tool.result'],
+      ['harness.transcript'],
+      ['harness.transcript', 'app.late'],
+    ])
+    // The set of calls that wait for a commit has no public read.
+    const resulted: unknown = Reflect.get(log, 'resulted')
+    expect(resulted).toEqual(new Set())
+  })
+})
+
+describe('the event tail', () => {
+  const custom = (name: string): StreamChunk => ({
+    type: EventType.CUSTOM,
+    name,
+    value: {},
+    timestamp: 0,
+  })
+
+  it('keeps eventBytes of events in memory, and reads older ones from the store', async () => {
+    const inner = memoryLogStore()
+    let reads = 0
+    const store = wrapLogStore(inner, {
+      read: (options) => {
+        reads += 1
+        return inner.read(options)
+      },
+    })
+    const size = JSON.stringify(custom('e1')).length
+    const writer = newWriter(store, { eventBytes: size * 2 })
+    for (const name of ['e1', 'e2', 'e3', 'e4']) {
+      writer.publish('op-1', custom(name))
+    }
+    await writer.flush()
+    reads = 0
+    const namesFrom = async (from: string) => {
+      const names: Array<string> = []
+      for await (const { event } of writer.read({ from, until: () => true })) {
+        names.push(event.type === EventType.CUSTOM ? event.name : '')
+      }
+      return names
+    }
+
+    // Events 3 and 4 are in memory. Events 1 and 2 come from the store.
+    expect(await namesFrom('0')).toEqual(['e1', 'e2', 'e3', 'e4'])
+    expect(reads).toBe(1)
+    expect(await namesFrom('2')).toEqual(['e3', 'e4'])
+    expect(reads).toBe(1)
   })
 })
 
@@ -388,6 +459,7 @@ describe('a closed view', () => {
       rootThread: THREAD,
       state: emptySharedLogState(),
       coalesceMs: 0,
+      eventBytes: EVENT_BYTES,
     })
     const closed = log.view('a', () => {})
     // Another session keeps the log open.
@@ -884,6 +956,7 @@ describe('fold checkpoints', () => {
       rootThread: THREAD,
       state: emptySharedLogState(reduce),
       coalesceMs: 0,
+      eventBytes: EVENT_BYTES,
       reduce,
       metadata,
     })
@@ -1107,6 +1180,7 @@ describe('a log shared by sessions', () => {
       rootThread: 'log-1',
       state: emptySharedLogState(),
       coalesceMs: 0,
+      eventBytes: EVENT_BYTES,
     })
     return {
       log,
@@ -1183,6 +1257,7 @@ describe('a log shared by sessions', () => {
       rootThread: 'log-1',
       state: emptySharedLogState(reduce),
       coalesceMs: 0,
+      eventBytes: EVENT_BYTES,
       reduce,
     })
     const root = log.view('log-1', () => {})
@@ -1248,6 +1323,7 @@ describe('a log shared by sessions', () => {
       rootThread: 'log-1',
       state: emptySharedLogState(),
       coalesceMs: 0,
+      eventBytes: EVENT_BYTES,
       onIdle,
     })
     const rootFailure = vi.fn()
@@ -1312,6 +1388,7 @@ describe('a log shared by sessions', () => {
       rootThread: THREAD,
       state: emptySharedLogState(),
       coalesceMs: 0,
+      eventBytes: EVENT_BYTES,
     })
     const view = log.view(THREAD, () => {})
     void view.append([{ type: 'app.last' }])

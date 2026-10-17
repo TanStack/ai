@@ -606,9 +606,6 @@ const CHECKPOINT_NAMESPACE = 'harness:log-checkpoint'
 // ponytail: a checkpoint every 50 appends. Tune it when a cold fold is slow.
 const CHECKPOINT_EVERY = 50
 const READ_PAGE = 500
-// ponytail: the in-memory event tail, like SessionFeed. Older cursors page
-// from the store.
-const MAX_TAIL = 10_000
 
 interface CheckpointVersions {
   version?: string
@@ -877,15 +874,26 @@ export class SharedLog<TState = unknown> {
    */
   private readonly staged = new Map<string, Array<LogRecord>>()
   /**
-   * The tool calls whose result landed, by `<thread>\0<toolCallId>`.
-   * ponytail: one short key per call, kept until the view closes.
+   * The tool calls whose result landed and is not in the transcript yet, by
+   * `<thread>\0<toolCallId>`.
    */
   private readonly resulted = new Set<string>()
   private timer: ReturnType<typeof setTimeout> | undefined
   private scheduled = false
   private chain: Promise<void> = Promise.resolve()
   private failure: unknown
-  private readonly tail: Array<{ thread: string; entry: SessionEvent }> = []
+  /**
+   * The newest events, like SessionFeed: at most `eventBytes` of them (the
+   * JSON length of each). Older cursors page from the store.
+   */
+  private readonly tail: Array<{
+    thread: string
+    entry: SessionEvent
+    size: number
+  }> = []
+  /** The sum of the sizes in `tail`. */
+  private tailBytes = 0
+  private readonly eventBytes: number
   /** Every event after this position is in `tail`. */
   private tailFrom: number
   private readonly waiters = new Set<() => void>()
@@ -905,6 +913,8 @@ export class SharedLog<TState = unknown> {
     rootThread: string
     state: SharedLogState<TState>
     coalesceMs: number
+    /** How many bytes of events the in-memory tail keeps. */
+    eventBytes: number
     project?: ProjectOptions
     reduce?: ReduceOptions<TState>
     metadata?: MetadataStore
@@ -917,6 +927,7 @@ export class SharedLog<TState = unknown> {
     this.state = options.state
     this.metadata = options.metadata
     this.coalesceMs = options.coalesceMs
+    this.eventBytes = options.eventBytes
     this.onIdle = options.onIdle ?? (() => {})
     this.fold = {
       rootThread: options.rootThread,
@@ -1083,15 +1094,24 @@ export class SharedLog<TState = unknown> {
     records: ReadonlyArray<LogRecord>,
     toolCallId?: string,
   ) {
-    const callKey = `${thread}\u0000${toolCallId}`
     // A call whose result landed (a background job) waits for the commit.
-    const key =
-      toolCallId === undefined || this.resulted.has(callKey) ? thread : callKey
+    const isWaiting =
+      toolCallId !== undefined && !this.hasResult(thread, toolCallId)
+    const key = isWaiting ? `${thread}\u0000${toolCallId}` : thread
     const staged = this.staged.get(key) ?? []
     staged.push(
       ...records.map((record) => normalize(this.stamp(record, thread))),
     )
     this.staged.set(key, staged)
+  }
+
+  /** The result of the call landed: it waits for a commit, or the transcript has it. */
+  private hasResult(thread: string, toolCallId: string) {
+    if (this.resulted.has(`${thread}\u0000${toolCallId}`)) return true
+    // ponytail: a scan of the transcript, only when a call stages records.
+    return sessionOf(this.state, thread).messages.some(
+      (message) => message.role === 'tool' && message.toolCallId === toolCallId,
+    )
   }
 
   private commit(
@@ -1270,15 +1290,27 @@ export class SharedLog<TState = unknown> {
 
   private apply(entry: LogEntry) {
     foldLogEntry(this.state, entry, this.fold)
+    const { record } = entry
+    const thread = threadOf(record, this.rootThread)
+    // A result in the transcript does not wait for a commit any more.
+    if (isHarnessRecord(record) && record.type === 'harness.transcript') {
+      for (const message of record.add) {
+        if (message.role !== 'tool') continue
+        this.resulted.delete(`${thread}\u0000${message.toolCallId}`)
+      }
+    }
     const event = sessionEventOf(entry)
     if (!event) return
-    this.tail.push({
-      thread: threadOf(entry.record, this.rootThread),
-      entry: event,
-    })
-    if (this.tail.length > MAX_TAIL) {
+    // The fold has JSON values only, so this cannot throw.
+    const size = JSON.stringify(event.event).length
+    this.tail.push({ thread, entry: event, size })
+    this.tailBytes += size
+    // The newest event stays, so a live reader gets it from memory.
+    while (this.tailBytes > this.eventBytes && this.tail.length > 1) {
       const dropped = this.tail.shift()
-      if (dropped) this.tailFrom = Number(dropped.entry.cursor)
+      if (!dropped) break
+      this.tailBytes -= dropped.size
+      this.tailFrom = Number(dropped.entry.cursor)
     }
   }
 

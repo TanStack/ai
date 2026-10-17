@@ -100,6 +100,7 @@ export type {
   HarnessHostOptions,
   HarnessPersistence,
   HostEvent,
+  HostLifecycleOptions,
   HostRevokedEvent,
   HostSessionDeletedEvent,
   HostSessionEvent,
@@ -107,6 +108,7 @@ export type {
   HostStatusEvent,
   OpenSessionOptions,
   ResumePendingOptions,
+  RetentionLimits,
 } from './host'
 export { AccessDeniedError, membersOnly, membersOnlyPolicyOf } from './access'
 export type {

@@ -573,6 +573,20 @@ export const WORK_OPS = new Set<string>([
 /** The inputs that change a waiting input. */
 export const CONTROL_OPS = new Set<string>(['cancelInput', 'setDelivery'])
 
+/**
+ * Delete the oldest items of `set` (the first added) until it has at most
+ * `limit` items. Returns the deleted items, oldest first.
+ */
+export function dropOldest<T>(set: Set<T>, limit: number) {
+  const dropped: Array<T> = []
+  for (const item of set) {
+    if (set.size <= limit) break
+    set.delete(item)
+    dropped.push(item)
+  }
+  return dropped
+}
+
 /** Why a turn stops when its input passes its time limit. */
 export const TIMEOUT_REASON = 'harness:input-timeout'
 
