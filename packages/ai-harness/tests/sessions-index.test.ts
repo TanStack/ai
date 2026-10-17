@@ -391,23 +391,18 @@ describe('host.sessions', () => {
     await opener.close()
   })
 
-  it('deletes the index entry only, and a later turn does not bring it back', async () => {
+  it('deletes the entry and the transcript, and closes the open session', async () => {
     const { persistence, host, harness } = hostWith()
     const session = await host.open(harness, { threadId: 't1' })
     await session.send('hi')
 
     await host.sessions.delete({ threadId: 't1' })
-    await session.send('still here')
 
     expect(await host.sessions.get({ threadId: 't1' })).toBeUndefined()
     expect(
       turnsOf(await transcriptOf(persistence.stores.messages, 't1')),
-    ).toEqual([
-      ['user', 'hi'],
-      ['assistant', 'answer'],
-      ['user', 'still here'],
-      ['assistant', 'answer'],
-    ])
+    ).toEqual([])
+    expect(host.isOpen(harness, { threadId: 't1' })).toBe(false)
     await host.close()
   })
 
