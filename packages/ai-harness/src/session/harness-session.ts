@@ -19,6 +19,7 @@ import {
   CHAT_OPS,
   CONTROL_OPS,
   hasFinalAnswer,
+  loggedExtras,
   tapFeed,
 } from './helpers'
 import { SessionTurn } from './turn'
@@ -26,7 +27,7 @@ import type { ModelMessage } from '@tanstack/ai'
 import type { InputState, LogWriter } from '../log'
 import type { AnyHarness } from '../define'
 import type { RecoverContext, RecoverDecision } from '../turn'
-import type { SettlementOutcome } from '../types'
+import type { SettlementOutcome, TurnOverrides } from '../types'
 import type { WaitingSteer } from './types'
 
 /**
@@ -107,7 +108,7 @@ export class SessionImpl<
     await this.openLog()
     try {
       await this.mountSessionPlugins()
-      await this.loadSettings()
+      this.loadSettings()
       this.reverted = this.writer.state.revert
       await this.loadInterrupted()
       // Before recovery: a turn that recovery runs updates this entry.
@@ -160,8 +161,8 @@ export class SessionImpl<
         inherited: this.storeCapabilities(),
       },
     )
-    await this.loadConfig()
-    await this.loadPluginState()
+    this.loadConfig()
+    this.loadPluginState()
   }
 
   /**
@@ -316,6 +317,34 @@ export class SessionImpl<
     // The feed closes with the session, so a failed plugin dispose has no one
     // to tell.
     this.close().catch(() => {})
+  }
+
+  /**
+   * The extras of a turn that recovery runs again: the JSON overrides,
+   * preamble, and ephemeral messages that the log keeps, under the
+   * overrides of the recover hook (`decided`). A turn that had overrides
+   * that the log does not keep (an adapter object, tools) goes on without
+   * them, and the session warns once.
+   */
+  protected recoveredExtras(
+    inputId: string,
+    decided: TurnOverrides | undefined,
+  ) {
+    const named = this.writer.state.thread.turnOverrides.get(inputId)
+    if (named?.liveOnly) {
+      this.warnSession(
+        'harness:overrides',
+        `The turn of input ${inputId} runs again without its ${named.liveOnly.join(' and ')} overrides: the log keeps only JSON overrides. Name the model with overrides.model to keep it.`,
+      )
+    }
+    const logged = named ? loggedExtras(named) : {}
+    const hasOverrides = decided !== undefined || logged.overrides !== undefined
+    return {
+      ...logged,
+      ...(hasOverrides
+        ? { overrides: { ...logged.overrides, ...decided } }
+        : {}),
+    }
   }
 
   /** The recovery decision for `input`: the hook's, or `decision`. */
@@ -567,7 +596,7 @@ export class SessionImpl<
             inputId: input.inputId,
             principal: input.principal,
             context: input.input.context,
-            overrides: decision.overrides,
+            ...this.recoveredExtras(input.inputId, decision.overrides),
             isContinue: true,
           })
           continue
@@ -589,7 +618,7 @@ export class SessionImpl<
           message: input.input.message,
           principal: input.principal,
           context: input.input.context,
-          overrides: decision.overrides,
+          ...this.recoveredExtras(input.inputId, decision.overrides),
           ...(input.input.op === 'followUp' && input.input.wake
             ? { wake: true }
             : {}),
@@ -782,7 +811,7 @@ export class SessionImpl<
           answers: this.interrupted,
           principal: input.principal,
           context: this.interrupted.context,
-          overrides: decision.overrides,
+          ...this.recoveredExtras(input.inputId, decision.overrides),
         })
         continue
       }
@@ -843,7 +872,7 @@ export class SessionImpl<
         principal: input.principal,
         ...('message' in sent ? { sentMessage: sent.message } : {}),
         ...('context' in sent ? { context: sent.context } : {}),
-        overrides: decision.overrides,
+        ...this.recoveredExtras(input.inputId, decision.overrides),
       })
     }
   }

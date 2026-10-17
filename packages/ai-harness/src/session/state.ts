@@ -8,7 +8,7 @@ import { loadChildTranscript } from '@tanstack/ai-persistence'
 import { checkConfigValue } from '../config'
 import { isRecord } from '../utils'
 import { changedEntry } from '../session-entry'
-import { threadOf, visibleMessages } from '../log'
+import { stableJson, threadOf, visibleMessages } from '../log'
 import { mediaIdOf, mediaOfMessage, mediaPart } from '../media-ref'
 import {
   BackgroundJobs,
@@ -20,14 +20,11 @@ import {
 } from '../plugins'
 import { HARNESS_EVENTS } from '../types'
 import {
-  INTERRUPTED,
-  isInterruptedTurn,
   createInputId,
   customEvent,
   tanstackOf,
   toolCallOf,
   storedPrincipal,
-  SETTINGS,
   changeSettings,
 } from './helpers'
 import { SessionInputs } from './inputs'
@@ -44,6 +41,7 @@ import type {
   SessionIndexEntry,
 } from '@tanstack/ai-persistence'
 import type { RevertState } from '../log'
+import type { ThreadRecord } from '../log-records'
 import type { Question } from '../commands'
 import type { ConfigOption } from '../config'
 import type { AnyHarness, SessionMetadataOf } from '../define'
@@ -219,7 +217,8 @@ export abstract class SessionState<
   /**
    * @internal Start this new thread as a fork of `source`, before its first
    * turn: `messages` with their media copied to this thread, and the stored
-   * settings and plugin config of `source`. `host.fork` calls it.
+   * settings and plugin config of `source`. The log of this thread keeps
+   * them. `host.fork` calls it.
    */
   async adoptFork(
     source: SessionImpl,
@@ -271,22 +270,17 @@ export abstract class SessionState<
       })
     }
     await this.messages.saveThread(this.threadId, forked)
-    const { metadata } = this.persistence.stores
     this.threadSettings = source.settings()
+    const records: Array<ThreadRecord> = []
     if (Object.keys(this.threadSettings).length > 0) {
-      await metadata?.set(SETTINGS, this.storeThreadId, this.threadSettings)
+      records.push({ type: 'harness.settings', settings: this.threadSettings })
     }
     for (const [key, value] of source.configValues) {
-      if (this.sessionPlugins?.config.has(key))
-        this.configValues.set(key, value)
+      if (!this.sessionPlugins?.config.has(key)) continue
+      this.configValues.set(key, value)
+      records.push({ type: 'harness.config', key, value })
     }
-    if (this.configValues.size > 0) {
-      await metadata?.set(
-        'harness:config',
-        this.storeThreadId,
-        Object.fromEntries(this.configValues),
-      )
-    }
+    if (records.length > 0) await this.writer.append(records)
   }
 
   // ===========================
@@ -345,12 +339,16 @@ export abstract class SessionState<
       return this.reject(inputId, reason)
     }
     this.configValues.set(key, checked)
-    await this.persistence.stores.metadata?.set(
-      'harness:config',
-      this.storeThreadId,
-      Object.fromEntries(this.configValues),
-    )
-    await this.applied(inputId, 'session')
+    // In the append of the applied record: a crash keeps both or neither.
+    await this.applied(inputId, 'session', [
+      {
+        type: 'harness.config',
+        key,
+        value: checked,
+        inputId,
+        ...storedPrincipal(principal ?? this.principal),
+      },
+    ])
     this.feed.publish(
       'session',
       customEvent(HARNESS_EVENTS.configChanged, { key, value: checked }),
@@ -368,7 +366,7 @@ export abstract class SessionState<
    * `defineHarness({ models })`), `reasoning`, `instructions`, `tools`,
    * `plugins`, and the working folder `cwd`. A field set to `null` is
    * cleared, and a missing field stays. They apply from the next turn, and
-   * the turn's `overrides` win over them. `stores.metadata` keeps them.
+   * the turn's `overrides` win over them. The log keeps them.
    *
    * It is an input, so the log keeps who changed what (`principal`). An
    * unknown field, model, or plugin, or a bad value, is rejected.
@@ -400,11 +398,6 @@ export abstract class SessionState<
       this.reject(inputId, reason)
       return this.keep({ inputId, status: 'rejected', reason })
     }
-    await this.persistence.stores.metadata?.set(
-      SETTINGS,
-      this.storeThreadId,
-      next,
-    )
     const movedFrom = this.threadSettings.cwd
     this.threadSettings = next
     // Tell the model about a new folder, so it stops using the old paths.
@@ -418,7 +411,16 @@ export abstract class SessionState<
           : `The working folder is now ${next.cwd}. Paths are relative to it.`,
       )
     }
-    await this.applied(inputId, 'session')
+    // The checked settings go in the append of the applied record: a crash
+    // keeps both or neither.
+    await this.applied(inputId, 'session', [
+      {
+        type: 'harness.settings',
+        settings: next,
+        inputId,
+        ...storedPrincipal(principal),
+      },
+    ])
     this.feed.publish(
       'session',
       customEvent(HARNESS_EVENTS.settingsChanged, { settings: next }),
@@ -720,13 +722,10 @@ export abstract class SessionState<
     return { inputId, status: 'accepted' }
   }
 
-  protected async loadConfig(): Promise<void> {
-    const stored = await this.persistence.stores.metadata?.get(
-      'harness:config',
-      this.storeThreadId,
-    )
-    if (typeof stored !== 'object' || stored === null) return
-    for (const [key, value] of Object.entries(stored)) {
+  /** Read the config values of this thread from the log. */
+  protected loadConfig() {
+    const stored = this.writer.state.thread.config
+    for (const [key, value] of stored) {
       const entry = this.sessionPlugins?.config.get(key)
       if (!entry) continue
       try {
@@ -737,13 +736,9 @@ export abstract class SessionState<
     }
   }
 
-  /** Read the stored settings of this thread. */
-  protected async loadSettings(): Promise<void> {
-    const stored = await this.persistence.stores.metadata?.get(
-      SETTINGS,
-      this.storeThreadId,
-    )
-    if (!isRecord(stored)) return
+  /** Read the stored settings of this thread from the log. */
+  protected loadSettings() {
+    const stored = this.writer.state.thread.settings
     const names = this.settingNames()
     for (const [key, value] of Object.entries(stored)) {
       try {
@@ -759,14 +754,19 @@ export abstract class SessionState<
     }
   }
 
-  /** Restore the interrupted turn that `stores.metadata` keeps for this thread. */
+  /** Restore the interrupted turn that the log keeps for this thread. */
   protected async loadInterrupted(): Promise<void> {
-    const stored = await this.persistence.stores.metadata?.get(
-      INTERRUPTED,
-      this.storeThreadId,
-    )
-    if (isInterruptedTurn(stored)) this.interrupted = stored
+    this.interrupted = this.writer.state.thread.interrupted ?? undefined
     await this.refreshInterrupted()
+  }
+
+  /** Keep `turn` as the interrupted turn in the log, when it changed. */
+  protected async saveInterrupted(turn: InterruptedTurn | undefined) {
+    const logged = this.writer.state.thread.interrupted
+    if (stableJson(logged) === stableJson(turn ?? null)) return
+    await this.writer.append([
+      { type: 'harness.interrupted', turn: turn ?? null },
+    ])
   }
 
   /** Keep the snapshot in line with the committed interrupt records. */
@@ -947,28 +947,7 @@ export abstract class SessionState<
       }
     }
     this.interrupted = next
-    if (!persist) return
-    if (next)
-      await this.persistence.stores.metadata?.set(
-        INTERRUPTED,
-        this.storeThreadId,
-        next,
-      )
-    else if (previous !== undefined) {
-      try {
-        await this.persistence.stores.metadata?.delete(
-          INTERRUPTED,
-          this.storeThreadId,
-        )
-      } catch (error) {
-        if (!consumed || observed !== undefined) throw error
-        await this.persistence.stores.metadata?.set(
-          INTERRUPTED,
-          this.storeThreadId,
-          null,
-        )
-      }
-    }
+    if (persist) await this.saveInterrupted(next)
   }
 
   /**
@@ -1020,19 +999,17 @@ export abstract class SessionState<
   }
 
   /**
-   * Make `stopped` the interrupted turn. `stores.metadata` gets it first, so a
-   * restart can resolve it too, and a resolve cannot delete the copy before
-   * it is written. A failed write is a warning.
+   * Make `stopped` the interrupted turn. The log gets it first, so a restart
+   * can resolve it too, and a resolve cannot end it before it is written. A
+   * failed write is a warning.
    */
   protected async keepInterrupted(
     operation: OperationImpl<ChatTurnResult>,
     stopped: InterruptedTurn,
   ): Promise<void> {
-    await this.persistence.stores.metadata
-      ?.set(INTERRUPTED, this.storeThreadId, stopped)
-      .catch((error: unknown) =>
-        this.warn(operation, 'harness:interrupts', error),
-      )
+    await this.saveInterrupted(stopped).catch((error: unknown) =>
+      this.warn(operation, 'harness:interrupts', error),
+    )
     this.interrupted = stopped
   }
 

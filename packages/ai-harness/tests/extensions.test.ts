@@ -11,9 +11,8 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
-  logIdOf,
 } from '../src'
-import { mockAdapter, text } from './helpers'
+import { mockAdapter, storedThreadState, text } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
 
 describe('extension points', () => {
@@ -182,12 +181,10 @@ describe('events and state', () => {
       session.command({ name: 'add', input: { text: 3 } }),
     ).rejects.toThrow('Input validation failed')
     expect(heard).toEqual(['milk', 'eggs'])
-    expect(
-      await persistence.stores.metadata.get(
-        'plugin:test/todos',
-        logIdOf({ logId: 't' }),
-      ),
-    ).toEqual({
+    const stored = await storedThreadState(persistence.stores.log, {
+      threadId: 't',
+    })
+    expect(stored.plugins.get('test/todos')).toEqual({
       items: ['milk', 'eggs'],
     })
 

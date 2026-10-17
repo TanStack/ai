@@ -379,16 +379,60 @@ function projectId(root: string) {
   return foldsCase(root) ? path.toLowerCase() : path
 }
 
-/** Where the metadata store keeps the saved rules of `project`. */
-function savedKeyOf(project: string | undefined) {
+/**
+ * Where the metadata store keeps the saved rules of `project` in the tenant
+ * `tenantId`. The tenant is URL-encoded, so it has no `:`, and one project
+ * in two tenants is two keys.
+ */
+function savedKeyOf(project: string | undefined, tenantId: string | undefined) {
+  const tenant = encodeURIComponent(tenantId ?? '')
   return project === undefined
-    ? 'permissions:saved'
-    : `permissions:saved:${projectId(project)}`
+    ? `permissions:saved:${tenant}`
+    : `permissions:saved:${tenant}:${projectId(project)}`
 }
 
+const rulesOf = (stored: unknown) =>
+  Array.isArray(stored) ? stored.filter(isSavedRule) : []
+
 async function readSaved(metadata: MetadataStore, key: string) {
-  const stored = await metadata.get(METADATA_NAMESPACE, key)
-  return Array.isArray(stored) ? stored.filter(isSavedRule) : []
+  return rulesOf(await metadata.get(METADATA_NAMESPACE, key))
+}
+
+// ponytail: 5 tries. Each conflict is a save of another host that landed.
+const SAVE_ATTEMPTS = 5
+
+/**
+ * Change the saved rules at `key` with compare-and-set, so a parallel save
+ * of another host is not lost. `change` returns the new list, or
+ * `undefined` for no change. Throws for a store with no `getVersioned` and
+ * `setIf`.
+ */
+async function updateSaved(
+  metadata: MetadataStore,
+  key: string,
+  change: (rules: Array<PermissionRule>) => Array<PermissionRule> | undefined,
+) {
+  if (!metadata.getVersioned || !metadata.setIf) {
+    throw new Error(
+      'Saved permissions need a metadata store with getVersioned and setIf.',
+    )
+  }
+  for (let attempt = 0; attempt < SAVE_ATTEMPTS; attempt += 1) {
+    const stored = await metadata.getVersioned(METADATA_NAMESPACE, key)
+    const next = change(rulesOf(stored?.value))
+    if (next === undefined) return
+    const revision = stored?.revision ?? null
+    const written = await metadata.setIf(
+      METADATA_NAMESPACE,
+      key,
+      next,
+      revision,
+    )
+    if (written.ok) return
+  }
+  throw new Error(
+    `The saved permissions changed ${SAVE_ATTEMPTS} times during one save.`,
+  )
 }
 
 function isSameRule(a: PermissionRule, b: PermissionRule) {
@@ -400,38 +444,53 @@ function isSameRule(a: PermissionRule, b: PermissionRule) {
   )
 }
 
+/** Which tenant's saved rules a call reads or changes. */
+export interface SavedPermissionsScope {
+  /** The tenant of the sessions. Default: the default tenant. */
+  tenantId?: string
+}
+
 /**
  * The rules that `always` answers saved for `project`, in the saved order.
  * `project` is the `root` of `permissions()`. `stores` is the persistence
- * of the host, for example `persistence.stores`. Without a metadata store,
- * it resolves to an empty list.
+ * of the host, for example `persistence.stores`. Each tenant has its own
+ * rules: pass the `tenantId` of the sessions. Without a metadata store, it
+ * resolves to an empty list.
+ *
+ * @example
+ * ```ts
+ * const rules = await listSavedPermissions(persistence.stores, root, { tenantId: 'org-1' })
+ * ```
  */
 export async function listSavedPermissions(
   stores: { metadata?: MetadataStore },
   project: string | undefined,
+  scope: SavedPermissionsScope = {},
 ) {
-  return stores.metadata ? readSaved(stores.metadata, savedKeyOf(project)) : []
+  const key = savedKeyOf(project, scope.tenantId)
+  return stores.metadata ? readSaved(stores.metadata, key) : []
 }
 
 /**
- * Delete one saved rule of `project`. The rule matches by its fields, as
- * `listSavedPermissions` gives them. An unknown rule does nothing. New
- * sessions stop using the rule. Open sessions can keep it until they open
- * again.
+ * Delete one saved rule of `project` in the tenant `scope.tenantId`. The
+ * rule matches by its fields, as `listSavedPermissions` gives them. An
+ * unknown rule does nothing. New sessions stop using the rule. Open
+ * sessions can keep it until they open again. The change is a
+ * compare-and-set, so the metadata store needs `getVersioned` and `setIf`.
  */
 export async function deleteSavedPermission(
   stores: { metadata?: MetadataStore },
   project: string | undefined,
   rule: PermissionRule,
+  scope: SavedPermissionsScope = {},
 ) {
   const { metadata } = stores
   if (!metadata) return
-  const key = savedKeyOf(project)
-  const rules = await readSaved(metadata, key)
-  // Remove every copy, so a forgotten rule never stays in force.
-  const kept = rules.filter((saved) => !isSameRule(saved, rule))
-  if (kept.length === rules.length) return
-  await metadata.set(METADATA_NAMESPACE, key, kept)
+  await updateSaved(metadata, savedKeyOf(project, scope.tenantId), (rules) => {
+    // Remove every copy, so a forgotten rule never stays in force.
+    const kept = rules.filter((saved) => !isSameRule(saved, rule))
+    return kept.length === rules.length ? undefined : kept
+  })
 }
 
 /** A saved rule as one line: the tool, then the resource. */
@@ -499,38 +558,47 @@ export function permissions(
         )
       }
       const root = options.root
-      const savedKey = savedKeyOf(root)
+      // The rules of the tenant of the session: the tenant of its opener.
+      const scope = (): SavedPermissionsScope => {
+        const tenantId = ctx.session.principal?.tenantId
+        return tenantId !== undefined ? { tenantId } : {}
+      }
+      const savedKey = () => savedKeyOf(root, scope().tenantId)
       // Answers saved in this session. Runs without a metadata store use them.
       const memory: Array<PermissionRule> = []
       const loadSaved = async (metadata: MetadataStore | undefined) => {
-        const rules = metadata ? await readSaved(metadata, savedKey) : []
+        const rules = metadata ? await readSaved(metadata, savedKey()) : []
         return [...rules, ...memory]
       }
-      // ponytail: get + set, a parallel save can drop a rule. It then asks again.
       const save = async (
         metadata: MetadataStore | undefined,
         rules: ReadonlyArray<PermissionRule>,
       ) => {
         memory.push(...rules)
         if (!metadata || rules.length === 0) return
-        const current = await readSaved(metadata, savedKey)
-        const added = rules.filter(
-          (rule) => !current.some((saved) => isSameRule(saved, rule)),
-        )
-        if (added.length === 0) return
-        await metadata.set(METADATA_NAMESPACE, savedKey, [...current, ...added])
+        await updateSaved(metadata, savedKey(), (current) => {
+          const added = rules.filter(
+            (rule) => !current.some((saved) => isSameRule(saved, rule)),
+          )
+          return added.length === 0 ? undefined : [...current, ...added]
+        })
       }
       // The session's store, for commands. A chat run reads its own.
       const sessionMetadata = ctx.getOptional(SessionMetadata)
       const savedRules = async () =>
-        sessionMetadata ? readSaved(sessionMetadata, savedKey) : [...memory]
+        sessionMetadata ? readSaved(sessionMetadata, savedKey()) : [...memory]
       const forget = async (arg: string) => {
         const rules = await savedRules()
         const rule = /^\d+$/.test(arg) ? rules[Number(arg) - 1] : undefined
         if (!rule) {
           return `No saved rule ${arg}. Run /permissions to see the list.`
         }
-        await deleteSavedPermission({ metadata: sessionMetadata }, root, rule)
+        await deleteSavedPermission(
+          { metadata: sessionMetadata },
+          root,
+          rule,
+          scope(),
+        )
         // This session stops using the rule at once.
         const kept = memory.filter((saved) => !isSameRule(saved, rule))
         memory.splice(0, memory.length, ...kept)

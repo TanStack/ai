@@ -1,5 +1,11 @@
 import { isRecord } from './utils'
-import type { Interrupt, ModelMessage, UIMessage } from '@tanstack/ai'
+import type {
+  Interrupt,
+  ModelMessage,
+  PromptCacheOptions,
+  ReasoningOption,
+  UIMessage,
+} from '@tanstack/ai'
 import type { LogRecord } from '@tanstack/ai-persistence'
 import type { HarnessInput, ThreadSettings } from './types'
 
@@ -53,15 +59,19 @@ export type AgentResultRecord = {
 /**
  * The turn overrides that the log can keep: each one is JSON. An adapter
  * object and `tools` are not here, so a run after a restart goes on
- * without them.
+ * without them. `liveOnly` names the ones that the turn had.
  */
 export interface NamedTurnOverrides {
   /** A key of `defineHarness({ models })`. */
   model?: string
   /** JSON. */
   modelOptions?: Record<string, unknown>
-  systemPreamble?: string
+  reasoning?: ReasoningOption
+  promptCache?: PromptCacheOptions
+  systemPreamble?: Array<string>
   ephemeral?: Array<ModelMessage>
+  /** The overrides of the turn that are not JSON, so the log does not keep them. */
+  liveOnly?: Array<'adapter' | 'tools'>
 }
 
 /** An input that the session runs at `at` (epoch ms). */
@@ -161,12 +171,39 @@ export function emptyThreadState() {
 function setAt(current: unknown, path: ReadonlyArray<string>, value: unknown) {
   const [head, ...rest] = path
   if (head === undefined) return value
-  const base = isRecord(current) && !Array.isArray(current) ? current : {}
+  const base = isPlainObject(current) ? current : {}
   const next: Record<string, unknown> = {
     ...base,
     [head]: setAt(base[head], rest, value),
   }
   return next
+}
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  isRecord(value) && !Array.isArray(value)
+
+/**
+ * The deltas that turn the plugin state `current` into `next`. When both are
+ * plain objects and `next` keeps every field of `current`, one delta for
+ * each field whose JSON changed. Else one delta that sets the whole value.
+ *
+ * @example
+ * ```ts
+ * pluginStateDeltas({ a: 1, b: 2 }, { a: 1, b: 3 }) // [{ path: ['b'], value: 3 }]
+ * ```
+ */
+export function pluginStateDeltas(current: unknown, next: unknown) {
+  const isFieldChange =
+    isPlainObject(current) &&
+    isPlainObject(next) &&
+    Object.keys(current).every((key) => Object.hasOwn(next, key))
+  if (!isFieldChange) {
+    const whole: Array<PluginStateDelta> = [{ path: [], value: next }]
+    return whole
+  }
+  return Object.keys(next)
+    .filter((key) => JSON.stringify(current[key]) !== JSON.stringify(next[key]))
+    .map((key) => ({ path: [key], value: next[key] }))
 }
 
 /** A copy of `map` with `key` set to `value`. */

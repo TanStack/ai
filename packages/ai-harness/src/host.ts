@@ -77,6 +77,10 @@ type DurableLeases =
  * With `sessions`, the host keeps one index entry per tenant and thread (see
  * `host.sessions`). The store needs `getVersioned` and `upsertIf`, or the host
  * throws at the start.
+ *
+ * The log keeps the state of each thread. `metadata` is for data that is
+ * wider than one thread, for example the saved rules of `permissions()`.
+ * It needs `getVersioned` and `setIf`, or the host throws at the start.
  */
 export type HarnessPersistence = AIPersistence<
   {
@@ -301,17 +305,16 @@ export interface HostSessions<P extends Principal = Principal> {
    *
    * - closes its open sessions on this host, of every harness, for every
    *   handle. A handle that calls again opens an empty thread.
-   * - deletes its log, or its messages on a host with no `stores.log`.
+   * - deletes its log, with its thread settings, plugin config, plugin
+   *   state, and interrupted turn.
    * - deletes its media: the uploads and the generated files, records and
    *   bytes.
-   * - deletes its thread settings, plugin config, usage, interrupted turn,
-   *   revert state, and log checkpoint from `stores.metadata`.
+   * - deletes its log checkpoint from `stores.metadata`.
    * - removes its index entry. Then `get` is `undefined`, and the next open
    *   of the thread writes a new entry.
    *
-   * A store the host does not have is skipped. Plugin state, runs,
-   * interrupts, the inbox, and work claims stay. Only the tenant of
-   * `principal` is touched.
+   * A store the host does not have is skipped. Runs, interrupts, the inbox,
+   * and work claims stay. Only the tenant of `principal` is touched.
    *
    * @example
    * ```ts
@@ -773,6 +776,22 @@ function sessionIndex(
  * Throw a clear error for a sessions store without compare-and-set. The
  * types need both methods, but a store in plain JS can leave them out.
  */
+/**
+ * Throw a clear error for a metadata store with no compare-and-set. Its data
+ * is wider than one thread, so two hosts can change one key.
+ */
+function checkMetadataStore(store: MetadataStore | undefined) {
+  if (store === undefined) return
+  const hasCompareAndSet =
+    typeof store.getVersioned === 'function' &&
+    typeof store.setIf === 'function'
+  if (!hasCompareAndSet) {
+    throw new Error(
+      'stores.metadata needs getVersioned and setIf. Its data is shared by every thread, so a change uses compare-and-set, and two hosts do not lose the changes of each other.',
+    )
+  }
+}
+
 function checkSessionStore(store: SessionIndexStore | undefined) {
   if (store === undefined) return
   const hasCompareAndSet =
@@ -1004,6 +1023,7 @@ export function createHarnessHost<P extends Principal = Principal>(
     options.persistence ?? memoryPersistence()
   checkDurableStores(persistence)
   checkSessionStore(persistence.stores.sessions)
+  checkMetadataStore(persistence.stores.metadata)
   const { access } = options
   if (access && !persistence.stores.sessions) {
     throw new Error(

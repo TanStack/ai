@@ -2,10 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, definePlugin, logIdOf } from '../src'
+import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import { GoalMet, goal, selectGoal } from '../src/first-party'
 import {
   after,
+  appendToLog,
   gate,
   messageTexts,
   mockAdapter,
@@ -328,11 +329,13 @@ describe('goal', () => {
       note: '',
       queued: '',
     }
-    await persistence.stores.metadata.set(
-      'plugin:tanstack/goal',
-      logIdOf({ logId: 't' }),
-      active,
-    )
+    await appendToLog(persistence.stores.log, { threadId: 't' }, [
+      {
+        type: 'harness.plugin.state',
+        plugin: 'tanstack/goal',
+        delta: { path: [], value: active },
+      },
+    ])
     const { host, session, calls, read } = await start({
       persistence,
       replies: [() => text('Hello.')],

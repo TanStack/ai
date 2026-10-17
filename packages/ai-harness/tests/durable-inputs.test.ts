@@ -20,6 +20,8 @@ import {
   text,
   toolCall,
   untilAborted,
+  appendToLog,
+  storedThreadState,
   wakeMessages,
   wrapLogStore,
 } from './helpers'
@@ -1824,7 +1826,7 @@ describe('durable approval recovery', () => {
   )
 
   it.each([false, true])(
-    'does not revive a consumed approval after a delete failure (interrupt store: %s)',
+    'does not revive a consumed approval from a stale interrupted record (interrupt store: %s)',
     async (withStore) => {
       const stores = memoryPersistence().stores
       const log = memoryLogStore()
@@ -1856,20 +1858,22 @@ describe('durable approval recovery', () => {
       const result = await session.send('remove')
       const approval = result.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
-      const cached = await stores.metadata.get('harness:interrupted', LOG)
-      const deletion = vi
-        .spyOn(stores.metadata, 'delete')
-        .mockRejectedValueOnce(new Error('metadata delete failed'))
+      const { interrupted: cached } = await storedThreadState(log, {
+        threadId: THREAD,
+      })
+      if (!cached) throw new Error('No stored interrupted turn.')
       const receipt = await session.resolve({
         resume: [
           { interruptId: approval.id, status: 'resolved', payload: true },
         ],
       })
       await session.operation(receipt.operationId ?? '')
-      deletion.mockRestore()
       expect(session.snapshot().pendingInterrupts).toEqual([])
       await host.close()
-      await stores.metadata.set('harness:interrupted', LOG, cached)
+      // A stale copy of the stopped turn lands after the resolve.
+      await appendToLog(log, { threadId: THREAD }, [
+        { type: 'harness.interrupted', turn: cached },
+      ])
       const next = createHarnessHost({ persistence })
       const reopened = await next.open(config, { threadId: THREAD })
       expect(reopened.snapshot().pendingInterrupts).toEqual([])
@@ -1886,8 +1890,8 @@ describe('durable approval recovery', () => {
   )
 })
 
-describe('metadata-only approval consumption', () => {
-  it('keeps a consumed approval cleared after one metadata delete failure', async () => {
+describe('approval consumption with no interrupt store', () => {
+  it('keeps a consumed approval cleared after a restart', async () => {
     const stores = memoryPersistence().stores
     const persistence = {
       stores: {
@@ -1916,14 +1920,10 @@ describe('metadata-only approval consumption', () => {
     const initial = await session.send('remove')
     const approval = initial.interrupts?.[0]
     if (!approval) throw new Error('The approval is missing.')
-    const deletion = vi
-      .spyOn(stores.metadata, 'delete')
-      .mockRejectedValueOnce(new Error('delete unavailable'))
     const receipt = await session.resolve({
       resume: [{ interruptId: approval.id, status: 'resolved', payload: true }],
     })
     await session.operation(receipt.operationId ?? '')
-    deletion.mockRestore()
     expect(session.snapshot().pendingInterrupts).toEqual([])
     await host.close()
     const next = createHarnessHost({ persistence })

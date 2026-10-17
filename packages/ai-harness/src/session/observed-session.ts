@@ -1,7 +1,6 @@
 import { loadChildTranscript } from '@tanstack/ai-persistence'
-import { logIdOf, logMessageStore, visibleMessages } from '../log'
+import { logMessageStore, visibleMessages } from '../log'
 import { createMediaStore } from '../media'
-import { INTERRUPTED, isInterruptedTurn } from './helpers'
 import type { ModelMessage } from '@tanstack/ai'
 import type { BlobRange, SessionIndexEntry } from '@tanstack/ai-persistence'
 import type { LogReader, ReduceOptions } from '../log'
@@ -57,11 +56,10 @@ export interface ObservedSession<THarness extends AnyHarness = AnyHarness> {
    * setup:
    *
    * - `status` is `requires_action` while interrupts wait, else `idle`.
-   * - `pendingInterrupts` come from `stores.metadata`, and `usage` from the
-   *   log.
-   * - `plugins` has only the plugin state that `stores.metadata` keeps. The
-   *   state of a plugin that never saved one is left out, because its first
-   *   value comes from the plugin setup.
+   * - `pendingInterrupts`, `usage`, and `plugins` come from the log.
+   *   `plugins` has only the plugin state that the log keeps. The state of
+   *   a plugin that never saved one is left out, because its first value
+   *   comes from the plugin setup.
    * - There are no active operations, queued turns, waiting inputs, or
    *   questions: those live in an open session.
    * - `cursor` is the log position.
@@ -139,8 +137,6 @@ export function observedSession<THarness extends AnyHarness>(
 ) {
   const { harness, threadId, tenantId, live, check, index, readLog } = sources
   const { stores } = sources.persistence
-  const { metadata } = stores
-  const storeThreadId = logIdOf({ tenantId, logId: threadId })
   const tenant = tenantId !== undefined ? { tenantId } : {}
   const project = harness.durability?.project
   // The children of a session each have their own log.
@@ -181,25 +177,6 @@ export function observedSession<THarness extends AnyHarness>(
       cursor: reader.head(),
     }))
 
-  /** The plugin state that `stores.metadata` keeps, by plugin name. */
-  const storedPluginState = async () => {
-    const state = new Map<string, unknown>()
-    if (!metadata) return Object.fromEntries(state)
-    // The plugin list only: no plugin is set up.
-    const names = (harness.plugins?.() ?? []).map((plugin) => plugin.name)
-    const saved = await Promise.all(
-      names.map(async (name) => ({
-        name,
-        value: await metadata.get(`plugin:${name}`, storeThreadId),
-      })),
-    )
-    for (const { name, value } of saved) {
-      if (value !== null && value !== undefined) state.set(name, value)
-    }
-    // fromEntries defines own keys, so a plugin named `__proto__` stays a key.
-    return Object.fromEntries(state)
-  }
-
   async function* events(options: { from?: Cursor; signal?: AbortSignal }) {
     check()
     const { reader } = await readLog()
@@ -223,14 +200,21 @@ export function observedSession<THarness extends AnyHarness>(
     async snapshot() {
       const session = open()
       if (session) return session.snapshot()
-      const [interrupted, plugins, totals] = await Promise.all([
-        metadata?.get(INTERRUPTED, storeThreadId),
-        storedPluginState(),
-        storedTotals(),
-      ])
-      const pendingInterrupts = isInterruptedTurn(interrupted)
-        ? interrupted.interrupts
-        : []
+      // The plugin list only: no plugin is set up.
+      const names = new Set(
+        (harness.plugins?.() ?? []).map((plugin) => plugin.name),
+      )
+      const { pendingInterrupts, plugins, totals } = await fromLog((reader) => {
+        const { thread } = reader.state
+        const saved = [...thread.plugins].filter(([name]) => names.has(name))
+        return structuredClone({
+          pendingInterrupts: thread.interrupted?.interrupts ?? [],
+          // fromEntries defines own keys, so a plugin named `__proto__`
+          // stays a key.
+          plugins: Object.fromEntries(saved),
+          totals: { usage: reader.state.usage, cursor: reader.head() },
+        })
+      })
       const snapshot: SessionSnapshot = {
         threadId,
         status: pendingInterrupts.length > 0 ? 'requires_action' : 'idle',

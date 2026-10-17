@@ -1,5 +1,10 @@
 import { EventType } from '@tanstack/ai'
 import { LogConflictError, UNOWNED_EPOCH } from '@tanstack/ai-persistence'
+import {
+  THREAD_RECORD_TYPES,
+  emptyThreadState,
+  foldThreadRecord,
+} from './log-records'
 import { addUsage, emptyUsage, isSessionUsage } from './usage'
 import { isRecord } from './utils'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
@@ -12,11 +17,20 @@ import type {
 } from '@tanstack/ai-persistence'
 import type { EventFeed } from './feed'
 import type {
+  AgentResultRecord,
+  InterruptedTurnRecord,
+  NamedTurnOverrides,
+  ScheduleRecord,
+  ThreadRecord,
+  ThreadStateFold,
+} from './log-records'
+import type {
   Cursor,
   HarnessInput,
   InputSettlement,
   SettlementOutcome,
   SessionEvent,
+  ThreadSettings,
   WaitingInput,
 } from './types'
 import type { SessionUsage, UsageCall } from './usage'
@@ -78,6 +92,8 @@ export type HarnessRecord =
   | { type: 'harness.job'; jobId: string; ended: boolean }
   /** A note for the transcript. `noteId` is the id of its message. */
   | { type: 'harness.note'; noteId: string; note: string }
+  /** Thread state: settings, config, plugin state, and the rest. */
+  | ThreadRecord
 
 /**
  * A revert that stands: the transcript hides the messages after
@@ -131,6 +147,7 @@ const HARNESS_RECORD_TYPES = new Set<string>([
   'harness.revert',
   'harness.job',
   'harness.note',
+  ...THREAD_RECORD_TYPES,
 ])
 
 /**
@@ -237,6 +254,8 @@ export interface LogState {
   jobs: Set<string>
   /** Notes that are not in the transcript yet, by message id. */
   notes: Map<string, string>
+  /** The thread state that the thread-state records fold to. */
+  thread: ThreadStateFold
 }
 
 export function emptyLogState() {
@@ -251,6 +270,7 @@ export function emptyLogState() {
     usage: emptyUsage(),
     jobs: new Set(),
     notes: new Map(),
+    thread: emptyThreadState(),
   }
   return state
 }
@@ -265,7 +285,7 @@ const sameJson = (left: unknown, right: unknown) =>
   JSON.stringify(left) === JSON.stringify(right)
 
 /** JSON text with sorted object keys. A store (jsonb) can reorder keys. */
-const stableJson = (value: unknown) =>
+export const stableJson = (value: unknown) =>
   JSON.stringify(value, (_key, item: unknown) =>
     isRecord(item) && !Array.isArray(item)
       ? Object.fromEntries(
@@ -495,6 +515,16 @@ export function foldEntry(
     case 'harness.note':
       state.notes.set(record.noteId, record.note)
       return
+    case 'harness.settings':
+    case 'harness.config':
+    case 'harness.plugin.state':
+    case 'harness.interrupted':
+    case 'harness.agent.result':
+    case 'harness.input.turn':
+    case 'harness.schedule':
+    case 'harness.schedule.done':
+      state.thread = foldThreadRecord(state.thread, record)
+      return
   }
 }
 
@@ -628,9 +658,51 @@ interface CheckpointVersions {
   reduceVersion?: string
 }
 
+/** The checkpoint version. A checkpoint of another version folds from the start. */
+const CHECKPOINT_VERSION = 3
+
+/** The thread state of a session as JSON: each map as its entries. */
+function serializeThread(thread: ThreadStateFold) {
+  return {
+    settings: thread.settings,
+    config: [...thread.config],
+    plugins: [...thread.plugins],
+    interrupted: thread.interrupted,
+    agentResults: [...thread.agentResults],
+    turnOverrides: [...thread.turnOverrides],
+    schedules: [...thread.schedules],
+  }
+}
+
+/** The thread state of a checkpoint, or `undefined` when it is not shaped. */
+function parseThread(value: unknown) {
+  if (!isRecord(value) || !isRecord(value.settings)) return undefined
+  const { config, plugins, agentResults, turnOverrides, schedules } = value
+  const isShaped =
+    Array.isArray(config) &&
+    Array.isArray(plugins) &&
+    Array.isArray(agentResults) &&
+    Array.isArray(turnOverrides) &&
+    Array.isArray(schedules)
+  if (!isShaped) return undefined
+  // The harness wrote these values with `serializeThread`.
+  const thread: ThreadStateFold = {
+    settings: value.settings as ThreadSettings,
+    config: new Map(config as Array<[string, unknown]>),
+    plugins: new Map(plugins as Array<[string, unknown]>),
+    interrupted: (value.interrupted ?? null) as InterruptedTurnRecord | null,
+    agentResults: new Map(agentResults as Array<[string, AgentResultRecord]>),
+    turnOverrides: new Map(
+      turnOverrides as Array<[string, NamedTurnOverrides]>,
+    ),
+    schedules: new Map(schedules as Array<[string, ScheduleRecord]>),
+  }
+  return thread
+}
+
 function serialize(state: SharedLogState, versions: CheckpointVersions) {
   return {
-    v: 2,
+    v: CHECKPOINT_VERSION,
     seq: state.seq,
     ...versions,
     // A host that does not know one of these types folds from the start.
@@ -648,6 +720,7 @@ function serialize(state: SharedLogState, versions: CheckpointVersions) {
         revert: session.revert ?? null,
         jobs: [...session.jobs],
         notes: [...session.notes.entries()],
+        thread: serializeThread(session.thread),
       },
     ]),
     reduced: state.reduced ?? null,
@@ -663,7 +736,8 @@ function parseSession(value: unknown, seq: number) {
     Array.isArray(inputs) &&
     Array.isArray(toolResults) &&
     Array.isArray(steps)
-  if (!isShaped) return undefined
+  const thread = parseThread(value.thread)
+  if (!isShaped || !thread) return undefined
   const revert = revertOf(value.revert)
   // The harness wrote these arrays with `serialize`.
   const session: LogState = {
@@ -699,6 +773,7 @@ function parseSession(value: unknown, seq: number) {
         ? (value.notes as Array<[string, string]>)
         : [],
     ),
+    thread,
   }
   return session
 }
@@ -711,7 +786,11 @@ function parseCheckpoint<TState>(
   // A copy: the fold changes its state in place (usage totals), and a store
   // can hand back the object it holds.
   const value = isRecord(saved) ? normalize(saved) : saved
-  if (!isRecord(value) || value.v !== 2 || typeof value.seq !== 'number') {
+  if (
+    !isRecord(value) ||
+    value.v !== CHECKPOINT_VERSION ||
+    typeof value.seq !== 'number'
+  ) {
     return undefined
   }
   if (

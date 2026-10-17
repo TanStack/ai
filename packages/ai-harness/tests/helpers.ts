@@ -1,4 +1,6 @@
 import { EventType } from '@tanstack/ai'
+import { UNOWNED_EPOCH } from '@tanstack/ai-persistence'
+import { loadLogState, logIdOf, sessionOf } from '../src/log'
 import type {
   AnyChatMiddleware,
   AnyTextAdapter,
@@ -6,7 +8,7 @@ import type {
   StreamChunk,
   WebSocketLike,
 } from '@tanstack/ai'
-import type { LogStore } from '@tanstack/ai-persistence'
+import type { LogRecord, LogStore } from '@tanstack/ai-persistence'
 import type { HostFrame } from '../src/protocol'
 
 /**
@@ -34,6 +36,43 @@ export function wrapLogStore(
     truncate: overrides.truncate ?? inner.truncate.bind(inner),
     deleteLog: overrides.deleteLog ?? inner.deleteLog.bind(inner),
   }
+}
+
+/** Where a thread's log is in the store: its thread id, and its tenant. */
+export interface StoredThread {
+  threadId: string
+  tenantId?: string
+}
+
+/**
+ * The thread state (settings, config, plugin state, and the rest) that the
+ * log of a thread folds to, as a new host reads it from the store.
+ */
+export async function storedThreadState(
+  log: LogStore,
+  { threadId, tenantId }: StoredThread,
+) {
+  const state = await loadLogState({
+    store: log,
+    logId: logIdOf({ tenantId, logId: threadId }),
+    rootThread: threadId,
+  })
+  return sessionOf(state, threadId).thread
+}
+
+/** Append `records` at the end of the log of a thread, as another writer does. */
+export async function appendToLog(
+  log: LogStore,
+  thread: StoredThread,
+  records: Array<LogRecord>,
+) {
+  const logId = logIdOf({ tenantId: thread.tenantId, logId: thread.threadId })
+  const { seq } = await loadLogState({
+    store: log,
+    logId,
+    rootThread: thread.threadId,
+  })
+  await log.append({ logId, seq: seq + 1, epoch: UNOWNED_EPOCH, records })
 }
 
 export type Reply = (

@@ -19,10 +19,12 @@ import {
   gate,
   messageTexts,
   mockAdapter,
+  storedThreadState,
   text,
   toolCall,
   untilAborted,
 } from './helpers'
+import { isRecord } from '../src/utils'
 import type {
   AnyChatMiddleware,
   AnyTool,
@@ -49,6 +51,14 @@ function durablePersistence() {
 }
 
 type Durable = ReturnType<typeof durablePersistence>
+
+/** The ephemeral messages that the overrides record of the log keeps. */
+async function loggedEphemeral(persistence: Durable) {
+  const { turnOverrides } = await storedThreadState(persistence.stores.log, {
+    threadId: THREAD,
+  })
+  return [...turnOverrides.values()].flatMap((named) => named.ephemeral ?? [])
+}
 
 /** Open a session whose default adapter answers with `replies`. */
 async function open(
@@ -415,7 +425,7 @@ describe('turn overrides: queue, steer, and recovery', () => {
     await host.close()
   })
 
-  it('runs a recovered turn after a restart with the defaults', async () => {
+  it('runs a recovered turn after a restart with its JSON overrides, without its adapter', async () => {
     const persistence = durablePersistence()
     const stopped = mockAdapter([untilAborted()])
     const first = await open([], {}, { persistence })
@@ -438,13 +448,24 @@ describe('turn overrides: queue, steer, and recovery', () => {
     expect(await next.session.settled('in-1')).toMatchObject({
       outcome: 'completed',
     })
+    // The adapter object is not in the log: the harness adapter runs it.
     expect(stopped.calls).toHaveLength(1)
     expect(next.calls).toHaveLength(1)
-    expect(next.calls[0].reasoning).toBeUndefined()
+    expect(next.calls[0].reasoning).toEqual(HIGH)
     expect(next.calls[0].promptCache).toEqual({
       retention: 'short',
-      key: THREAD,
+      key: 'turn-key',
     })
+    const warnings = (await persistence.stores.log.read({ logId: LOG }))
+      .map(({ record }) => record.event)
+      .filter(
+        (event) =>
+          isRecord(event) &&
+          event.name === 'harness.plugin.warning' &&
+          isRecord(event.value) &&
+          event.value.plugin === 'harness:overrides',
+      )
+    expect(warnings).toHaveLength(1)
     await first.host.close().catch(() => {})
     await next.host.close()
   })
@@ -530,7 +551,7 @@ describe('ephemeral input', () => {
   const NOTE = 'Answer in one word.'
   const note: Array<ModelMessage> = [{ role: 'user', content: NOTE }]
 
-  it('gives the ephemeral messages of a prompt to the model, and no store keeps them', async () => {
+  it('gives the ephemeral messages of a prompt to the model, and only the log keeps them', async () => {
     const persistence = durablePersistence()
     const { host, session, calls } = await open(
       [() => text('done')],
@@ -545,13 +566,11 @@ describe('ephemeral input', () => {
 
     expect(messageTexts(calls[0])).toEqual(['go', NOTE])
     expect(JSON.stringify(await session.transcript())).not.toContain(NOTE)
-    expect(
-      JSON.stringify(await persistence.stores.log.read({ logId: LOG })),
-    ).not.toContain(NOTE)
+    expect(await loggedEphemeral(persistence)).toEqual(note)
     await host.close()
   })
 
-  it('gives the ephemeral messages of continue to the model, and no store keeps them', async () => {
+  it('gives the ephemeral messages of continue to the model, and only the log keeps them', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
       logId: LOG,
@@ -578,9 +597,7 @@ describe('ephemeral input', () => {
 
     expect(messageTexts(calls[0])).toEqual(['go', NOTE])
     expect(JSON.stringify(await session.transcript())).not.toContain(NOTE)
-    expect(
-      JSON.stringify(await persistence.stores.log.read({ logId: LOG })),
-    ).not.toContain(NOTE)
+    expect(await loggedEphemeral(persistence)).toEqual(note)
     await host.close()
   })
 

@@ -478,14 +478,28 @@ export abstract class SessionTurn<
       // A keyed adapter is built for this turn with the user's key. A
       // missing key publishes `auth_required` and fails the turn. It is
       // built before `prepareTools`, which gets its model id. The turn
-      // override, the stored model, a plugin pick, the harness model.
+      // override (an adapter, then a model name), the stored model, a plugin
+      // pick, the harness model.
       const named =
         stored.model === undefined
           ? undefined
           : this.harness.models?.[stored.model]
+      const turnModel =
+        overrides?.model === undefined
+          ? undefined
+          : this.harness.models?.[overrides.model]
+      if (overrides?.model !== undefined && !turnModel) {
+        throw new Error(
+          `Unknown model ${JSON.stringify(overrides.model)}. Add it to defineHarness({ models }).`,
+        )
+      }
       const model = turn.tool
         ? new ToolTurnAdapter(turn.tool, `tool-${turn.inputId ?? operation.id}`)
-        : (overrides?.adapter ?? named ?? picked ?? this.harness.adapter)
+        : (overrides?.adapter ??
+          turnModel ??
+          named ??
+          picked ??
+          this.harness.adapter)
       if (!model) throw new Error(NO_MODEL)
       const adapter: AnyTextAdapter = await run.keys.adapter(model)
       const resolvePrompt = (prompt: string | ((turn: TurnInfo) => string)) =>
@@ -532,6 +546,7 @@ export abstract class SessionTurn<
         keptTools.length > 0 ? keepTurnTools(keptTools) : undefined
       const reasoning =
         overrides?.reasoning ?? stored.reasoning ?? this.harness.reasoning
+      const modelOptions = overrides?.modelOptions ?? this.harness.modelOptions
       // The server's run wins over a `run` key of the client's context.
       const context = withRun(
         turnContext(this.harness.context, turn.context),
@@ -751,9 +766,7 @@ export abstract class SessionTurn<
             ...(this.harness.toolExecution !== undefined
               ? { toolExecution: this.harness.toolExecution }
               : {}),
-            ...(this.harness.modelOptions !== undefined
-              ? { modelOptions: this.harness.modelOptions }
-              : {}),
+            ...(modelOptions !== undefined ? { modelOptions } : {}),
             ...(this.harness.interrupts
               ? { interrupts: this.harness.interrupts }
               : {}),

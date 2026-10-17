@@ -5,7 +5,7 @@ import {
   provideDetachableRun,
   readInterruptBinding,
 } from '@tanstack/ai'
-import { isRecord } from '../utils'
+import { isRecord, jsonCopy } from '../utils'
 import type {
   AnyChatMiddleware,
   AnyTool,
@@ -20,6 +20,11 @@ import type {
 import type { LogRecord, MessageStore } from '@tanstack/ai-persistence'
 import type { EventFeed, EventListener, ListenedFeed } from '../feed'
 import type { InputState } from '../log'
+import type {
+  AgentResultRecord,
+  NamedTurnOverrides,
+  ThreadRecord,
+} from '../log-records'
 import type { MountedPlugins } from '../plugins'
 import type {
   MediaKind,
@@ -27,19 +32,85 @@ import type {
   Principal,
   RunContext,
   ThreadSettings,
+  TurnOverrides,
 } from '../types'
-import type {
-  AgentRunInfo,
-  InterruptedTurn,
-  AgentMessage,
-  AgentInputState,
-} from './types'
-
-/** Where `stores.metadata` keeps the interrupted turn of each thread. */
-export const INTERRUPTED = 'harness:interrupted'
+import type { AgentRunInfo, AgentMessage, AgentInputState } from './types'
 
 /** A metadata row of usage totals that `host.sessions.delete` still deletes. */
 export const USAGE = 'harness:usage'
+
+/**
+ * The log record of how the agent run `runId` ended. Its result is a JSON
+ * copy. A result that is not JSON (a cycle) is left out.
+ */
+export function agentResultRecord(runId: string, ended: AgentResultRecord) {
+  const { result, ...rest } = ended
+  const raw = jsonCopy(result)
+  const record: ThreadRecord = {
+    type: 'harness.agent.result',
+    runId,
+    ...rest,
+    ...(raw !== undefined ? { result: raw } : {}),
+  }
+  return record
+}
+
+/** What a turn gets besides its message: its overrides, preamble, and ephemeral messages. */
+export interface TurnExtras {
+  overrides?: TurnOverrides
+  systemPreamble?: Array<string>
+  ephemeral?: ReadonlyArray<ModelMessage>
+}
+
+/**
+ * The `harness.input.turn` record of input `inputId`: the JSON parts of
+ * `extras`, and the names of the overrides that are not JSON. No record for
+ * a turn with no extras.
+ */
+export function turnRecords(inputId: string, extras: TurnExtras) {
+  const { overrides, systemPreamble, ephemeral } = extras
+  const liveOnly = [
+    ...(overrides?.adapter !== undefined ? ['adapter' as const] : []),
+    ...(overrides?.tools?.length ? ['tools' as const] : []),
+  ]
+  const named: NamedTurnOverrides = {
+    ...(overrides?.model !== undefined ? { model: overrides.model } : {}),
+    ...(overrides?.modelOptions !== undefined
+      ? { modelOptions: overrides.modelOptions }
+      : {}),
+    ...(overrides?.reasoning !== undefined
+      ? { reasoning: overrides.reasoning }
+      : {}),
+    ...(overrides?.promptCache !== undefined
+      ? { promptCache: overrides.promptCache }
+      : {}),
+    ...(systemPreamble?.length ? { systemPreamble } : {}),
+    ...(ephemeral?.length ? { ephemeral: [...ephemeral] } : {}),
+    ...(liveOnly.length > 0 ? { liveOnly } : {}),
+  }
+  const records: Array<ThreadRecord> =
+    Object.keys(named).length === 0
+      ? []
+      : [{ type: 'harness.input.turn', inputId, overrides: named }]
+  return records
+}
+
+/** The extras of a turn from its `harness.input.turn` record. */
+export function loggedExtras(named: NamedTurnOverrides) {
+  const { model, modelOptions, reasoning, promptCache } = named
+  const overrides: TurnOverrides = {
+    ...(model !== undefined ? { model } : {}),
+    ...(modelOptions !== undefined ? { modelOptions } : {}),
+    ...(reasoning !== undefined ? { reasoning } : {}),
+    ...(promptCache !== undefined ? { promptCache } : {}),
+  }
+  const extras: TurnExtras = {
+    ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
+    ...(named.systemPreamble ? { systemPreamble: named.systemPreamble } : {}),
+    ...(named.ephemeral ? { ephemeral: named.ephemeral } : {}),
+  }
+  return extras
+}
 
 /**
  * The key of a resumable agent run in the session log: its steps, and the
@@ -119,24 +190,6 @@ export const loggedStatus = (input: InputState): AgentRunInfo['status'] => {
     case 'interrupted':
       return 'completed'
   }
-}
-
-/** True for an interrupted turn as `stores.metadata` gives it back. */
-export function isInterruptedTurn(value: unknown): value is InterruptedTurn {
-  if (!isRecord(value) || typeof value.runId !== 'string') return false
-  if (!Array.isArray(value.interrupts)) return false
-  if (!value.interrupts.every((item) => isRecord(item))) return false
-  const { routed, principal } = value
-  const isPrincipal =
-    principal === undefined ||
-    (isRecord(principal) && typeof principal.id === 'string')
-  return (
-    isPrincipal &&
-    (routed === undefined ||
-      (isRecord(routed) &&
-        Array.isArray(routed.messages) &&
-        typeof routed.root === 'boolean'))
-  )
 }
 
 /** The connector a sign-in interrupt (`require` with `wait`) waits for. */
@@ -268,9 +321,6 @@ export const runMiddleware = (run: RunContext): AnyChatMiddleware => ({
     ctx.context = withRun(ctx.context, run)
   },
 })
-
-/** Where `stores.metadata` keeps the stored settings of each thread. */
-export const SETTINGS = 'harness:settings'
 
 export const SETTING_KEYS = new Set<string>([
   'model',

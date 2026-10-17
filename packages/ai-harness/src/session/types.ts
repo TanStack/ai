@@ -272,9 +272,9 @@ export interface QueuedTurn {
   systemPreamble?: Array<string>
   /** A `tool()`: its only model call asks for this tool. */
   tool?: ToolTurn
-  /** The settings of this one turn. Kept in memory only, not in the log. */
+  /** The settings of this one turn. The log keeps the JSON ones. */
   overrides?: TurnOverrides
-  /** The `ephemeral` messages of the input. Kept in memory only, as `overrides`. */
+  /** The `ephemeral` messages of the input. The log keeps them, as `overrides`. */
   ephemeral?: ReadonlyArray<ModelMessage>
   /** Who sent the input. Its credentials and keys run the turn. */
   principal?: Principal
@@ -305,6 +305,8 @@ export interface WaitingSteer {
   overrides?: TurnOverrides
   /** Used only when the steer runs as its own turn, as `overrides`. */
   ephemeral?: ReadonlyArray<ModelMessage>
+  /** Used only when the steer runs as its own turn, as `overrides`. */
+  systemPreamble?: Array<string>
   principal?: Principal
   /** Used only when the steer runs as its own turn, as `overrides`. */
   context?: unknown

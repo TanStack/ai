@@ -17,6 +17,7 @@ import {
 import { HARNESS_EVENTS, InputRejectedError } from '../types'
 import {
   agentKey,
+  agentResultRecord,
   chainFields,
   asUserMessage,
   chainInputOf,
@@ -42,6 +43,7 @@ import type {
   SubagentBinding,
 } from '@tanstack/ai'
 import type { InputState, LogWriter } from '../log'
+import type { AgentResultRecord } from '../log-records'
 import { NO_SESSION_CONTEXT } from '../agents'
 import type { AgentStarter, AnyAgent, HarnessAgentContext } from '../agents'
 import type { AnyHarness } from '../define'
@@ -230,6 +232,21 @@ export abstract class SessionAgents<
     ]
   }
 
+  /**
+   * The raw result of the agent run `runId`, as the log keeps it: the value
+   * the run resolved to, as JSON. `undefined` while the run has not ended,
+   * for a run that failed or was cancelled, and for an unknown run. It reads
+   * the log, so it works after a restart, on any host.
+   *
+   * @example
+   * ```ts
+   * const result = session.agentResult({ runId: run.id })
+   * ```
+   */
+  agentResult({ runId }: { runId: string }) {
+    return this.writer.state.thread.agentResults.get(runId)?.result
+  }
+
   /** The agent runs in the log: each input that a run applied. */
   protected loggedRuns(): Array<AgentRunInfo> {
     const { inputs } = this.writer.state
@@ -272,9 +289,8 @@ export abstract class SessionAgents<
     if (logged.some((input) => input.settlement === undefined)) {
       return undefined
     }
-    // ponytail: a run rebuilt from the log resolves to `undefined`. The log
-    // keeps how it ended, not its value. Read `stores.runs` if callers need
-    // the value.
+    // A run rebuilt from the log resolves to the raw result in the log.
+    const { agentResults } = this.writer.state.thread
     const entries = logged.map((input) => {
       const operation = this.agentOperation(
         first.input.agent,
@@ -282,7 +298,7 @@ export abstract class SessionAgents<
       )
       const settlement = input.settlement
       if (settlement?.outcome === 'completed') {
-        operation.finish('completed', undefined)
+        operation.finish('completed', agentResults.get(operation.id)?.result)
       } else {
         operation.fail(
           settlement?.outcome === 'aborted' ? 'cancelled' : 'failed',
@@ -966,23 +982,26 @@ export abstract class SessionAgents<
     const value = result !== undefined ? result : text
     // The run record and the log keep how the agent ended, so recovery
     // leaves it alone. After a log failure, another host owns the thread and
-    // decides how the run ended, so this host writes neither.
+    // decides how the run ended, so this host writes neither. The log keeps
+    // the raw result too, so `agentResult` has it after a restart.
     const end = async (
       run: Pick<RunRecord, 'status'> &
         Partial<Pick<RunRecord, 'error' | 'result'>>,
       settlement: SettlementOutcome,
+      ended: Omit<AgentResultRecord, 'inputId'>,
     ) => {
       if (this.logFailure) return
       await runs?.update(operation.id, { ...run, finishedAt: Date.now() })
       // A refused append stops the session. The operation still ends. The
       // steers that joined the run settle with it, in one append.
       const joined = this.joinedInputs(operation.id, inputId)
-      await this.settle(
-        ...[inputId, ...joined].map((id) => ({
+      await this.settleWith(
+        [inputId, ...joined].map((id) => ({
           inputId: id,
           operationId: operation.id,
           ...settlement,
         })),
+        [agentResultRecord(operation.id, { inputId, ...ended })],
       ).catch((error: unknown) => this.warnSession('harness:agents', error))
     }
     // The run settled already: a note that fails must not leave it open.
@@ -1006,7 +1025,11 @@ export abstract class SessionAgents<
           outcome: { type: 'cancelled' },
           timestamp: Date.now(),
         } as StreamChunk)
-        await end({ status: 'aborted' }, { outcome: 'aborted' })
+        await end(
+          { status: 'aborted' },
+          { outcome: 'aborted' },
+          { status: 'cancelled' },
+        )
         operation.fail('cancelled', new Error('Cancelled.'))
       } else if (failure !== undefined) {
         operation.publish({
@@ -1015,7 +1038,11 @@ export abstract class SessionAgents<
           timestamp: Date.now(),
         })
         const error = { message: failure }
-        await end({ status: 'failed', error }, { outcome: 'failed', error })
+        await end(
+          { status: 'failed', error },
+          { outcome: 'failed', error },
+          { status: 'failed', error },
+        )
         await note('failed', failure)
         operation.fail('failed', new Error(failure))
       } else {
@@ -1029,6 +1056,7 @@ export abstract class SessionAgents<
         await end(
           { status: 'completed', result: compactForModel(value) },
           { outcome: 'completed' },
+          { status: 'completed', result: value },
         )
         await note('finished', value)
         operation.finish('completed', value)
@@ -1143,13 +1171,14 @@ export abstract class SessionAgents<
     })
     if (inputId) {
       // The steers that joined the run settle with it.
-      await this.settle(
-        ...[inputId, ...this.joinedInputs(operationId, inputId)].map((id) => ({
+      await this.settleWith(
+        [inputId, ...this.joinedInputs(operationId, inputId)].map((id) => ({
           inputId: id,
           operationId,
           outcome: 'failed' as const,
           error,
         })),
+        [agentResultRecord(operationId, { inputId, status: 'failed', error })],
       )
     }
     this.feed.publish(operationId, {

@@ -776,8 +776,23 @@ describe('fold checkpoints', () => {
     writer.close()
   }
 
-  const checkpoint = (overrides: Record<string, unknown>) => ({
-    v: 2,
+  /** The thread state of a checkpoint session, as `serialize` writes it. */
+  const threadOf = (overrides: Record<string, unknown> = {}) => ({
+    settings: { instructions: 'from the checkpoint' },
+    config: [['level', 'high']],
+    plugins: [],
+    interrupted: null,
+    agentResults: [],
+    turnOverrides: [],
+    schedules: [],
+    ...overrides,
+  })
+
+  const checkpoint = (
+    overrides: Record<string, unknown>,
+    thread: unknown = threadOf(),
+  ) => ({
+    v: 3,
     seq: 1,
     version: 'v1',
     sessions: [
@@ -788,6 +803,7 @@ describe('fold checkpoints', () => {
           inputs: [],
           toolResults: [],
           steps: [],
+          thread,
         },
       ],
     ],
@@ -808,11 +824,21 @@ describe('fold checkpoints', () => {
       user('marker', 'from the checkpoint'),
       user('u2', 'two'),
     ])
+    expect(state.thread.settings).toEqual({
+      instructions: 'from the checkpoint',
+    })
+    expect([...state.thread.config]).toEqual([['level', 'high']])
   })
 
   it.each([
     ['not an object', 'garbage'],
     ['another format', checkpoint({ v: 1 })],
+    ['the format before thread state', checkpoint({ v: 2 })],
+    ['a session with no thread state', checkpoint({}, null)],
+    [
+      'a thread state that is not shaped',
+      checkpoint({}, threadOf({ config: 'x' })),
+    ],
     ['another projection version', checkpoint({ version: 'v0' })],
     ['a position past the end of the log', checkpoint({ seq: 99 })],
     ['a state that is not shaped', checkpoint({ sessions: 'x' })],
@@ -868,7 +894,7 @@ describe('fold checkpoints', () => {
 
     await expect
       .poll(() => metadata.get(NAMESPACE, LOG))
-      .toMatchObject({ v: 2, seq: 50, version: 'v1' })
+      .toMatchObject({ v: 3, seq: 50, version: 'v1' })
   })
 
   it('keeps the position of the last transcript record', async () => {

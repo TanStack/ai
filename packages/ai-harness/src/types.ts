@@ -23,10 +23,13 @@ export type UserInput = string | Array<ContentPart>
  * `session.send(message, { mode: 'followUp', overrides })`. They apply to every model call
  * of the turn, retries included. The rest of the session keeps its defaults.
  *
- * They live only in memory, on the queued turn, so they are not part of the
- * input: the `inputId` duplicate check does not read them. A turn that
- * recovery runs again after a restart uses the defaults. A steer that joins
- * a running turn uses the overrides of that turn.
+ * They are not part of the input: the `inputId` duplicate check does not
+ * read them. The log keeps the JSON ones (`model`, `modelOptions`,
+ * `reasoning`, and `promptCache`), so a turn that recovery runs again after
+ * a restart uses them too. `adapter` and `tools` are objects, so they live
+ * only in memory: a turn that recovery runs again goes on without them, with
+ * a warning. Name the model with `model` to keep it. A steer that joins a
+ * running turn uses the overrides of that turn.
  *
  * @example
  * ```ts
@@ -38,6 +41,14 @@ export type UserInput = string | Array<ContentPart>
 export interface TurnOverrides {
   /** Replaces the harness adapter and every plugin pick for this turn. */
   adapter?: AnyTextAdapter | KeyedAdapter<AnyTextAdapter>
+  /**
+   * A model by name, from `defineHarness({ models })`, for this turn. It
+   * replaces the stored model, the plugin picks, and the harness adapter.
+   * `adapter` wins over it. An unknown name fails the turn.
+   */
+  model?: string
+  /** Replaces `HarnessConfig.modelOptions` for this turn. JSON. */
+  modelOptions?: Record<string, unknown>
   /** Replaces `HarnessConfig.reasoning` for this turn. */
   reasoning?: ReasoningOption
   /** Replaces the session and harness values for this turn, field by field. */
@@ -282,8 +293,8 @@ export type ForkPoint = { before: string } | { through: string }
 
 /**
  * The stored settings of one thread. They apply from the next turn, stay
- * after a restart (with `stores.metadata`), and a fork copies them. A turn's
- * `overrides` win over them.
+ * after a restart (the session log keeps them), and a fork copies them. A
+ * turn's `overrides` win over them.
  */
 export interface ThreadSettings {
   /** A name from `defineHarness({ models })`. */

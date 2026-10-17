@@ -13,14 +13,7 @@ import type { HarnessPersistence } from '../src'
 const encoder = new TextEncoder()
 
 /** The metadata rows of a thread that a delete removes. */
-const ROWS = [
-  'harness:settings',
-  'harness:config',
-  'harness:interrupted',
-  'harness:usage',
-  'harness:revert',
-  'harness:log-checkpoint',
-]
+const ROWS = ['harness:usage', 'harness:revert', 'harness:log-checkpoint']
 
 const level = definePlugin({
   name: 'test/level',
@@ -120,19 +113,11 @@ describe('host.sessions.delete', () => {
     })
     await session.close()
     // Rows that a turn writes only in some cases: seed them.
-    const seeded = [
-      'harness:usage',
-      'harness:interrupted',
-      'harness:revert',
-      'harness:log-checkpoint',
-    ]
-    for (const namespace of seeded) {
+    for (const namespace of ROWS) {
       await metadata.set(namespace, key, { seeded: true })
     }
     expect(await storedTranscript(persistence, 't1')).not.toEqual([])
     expect(await storedTranscript(persistence, 'child-1')).not.toEqual([])
-    expect(await metadata.get('harness:settings', key)).not.toBeNull()
-    expect(await metadata.get('harness:config', key)).not.toBeNull()
 
     await host.sessions.delete({ threadId: 't1' })
 
@@ -146,6 +131,11 @@ describe('host.sessions.delete', () => {
     for (const namespace of ROWS) {
       expect(await metadata.get(namespace, key)).toBeNull()
     }
+    // The settings and config were in the log, so they went with it.
+    const reopened = await host.open(harness, { threadId: 't1' })
+    expect(reopened.settings()).toEqual({})
+    expect(reopened.config().level?.value).toBe('low')
+    await reopened.close()
     await host.close()
   })
 
@@ -162,7 +152,7 @@ describe('host.sessions.delete', () => {
   })
 
   it('leaves the thread with the same id in another tenant', async () => {
-    const { host, harness, persistence, metadata } = setup()
+    const { host, harness, persistence } = setup()
     const other = { id: 'u2', tenantId: 'acme' }
     const kept = await host.open(harness, { threadId: 't1', principal: other })
     await kept.send('keep me')
@@ -174,9 +164,13 @@ describe('host.sessions.delete', () => {
 
     await host.sessions.delete({ threadId: 't1' })
 
-    const otherKey = logIdOf({ tenantId: 'acme', logId: 't1' })
     expect(await storedTranscript(persistence, 't1', 'acme')).not.toEqual([])
-    expect(await metadata.get('harness:settings', otherKey)).not.toBeNull()
+    const reopened = await host.open(harness, {
+      threadId: 't1',
+      principal: other,
+    })
+    expect(reopened.settings()).toEqual({ instructions: 'Stay.' })
+    await reopened.close()
     expect(
       await host.sessions.get({ threadId: 't1', principal: other }),
     ).toMatchObject({ threadId: 't1', tenantId: 'acme' })

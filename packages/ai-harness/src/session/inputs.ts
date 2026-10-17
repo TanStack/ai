@@ -434,15 +434,20 @@ export abstract class SessionInputs<
    * `await` is synchronous, so a second call with the same id in the same
    * tick is a duplicate too. `principal` is who sent it. The access check of
    * a `checked` call runs first: a refused input is not stored, and the
-   * error rejects this call.
+   * error rejects this call. `records` go in the append of the input, so a
+   * crash keeps both or neither.
    */
   protected async accept(
     inputId: string,
     input: HarnessInput,
     principal = this.principal,
-    /** The AG-UI run id of a turn, so a forwarded turn runs as it. */
-    runId?: string,
+    options: {
+      /** The AG-UI run id of a turn, so a forwarded turn runs as it. */
+      runId?: string
+      records?: ReadonlyArray<LogRecord>
+    } = {},
   ): Promise<Admission> {
+    const { runId, records = [] } = options
     const check = this.pendingCheck
     this.pendingCheck = undefined
     if (check) await check({ input, run: this.runOf(input) })
@@ -477,6 +482,7 @@ export abstract class SessionInputs<
       const at = Date.now()
       await this.writer.append([
         { type: 'harness.input', inputId, input, at, ...sender },
+        ...records,
       ])
     } catch (error) {
       // Not stored, so a retry with the same id is a new input.
@@ -540,10 +546,14 @@ export abstract class SessionInputs<
     )
   }
 
-  /** Record that `operationId` runs the input, and count the attempt. */
+  /**
+   * Record that `operationId` runs the input, and count the attempt.
+   * `records` go first in the same append, so a crash keeps both or neither.
+   */
   protected async markApplied(
     inputId: string,
     operationId: string,
+    records: ReadonlyArray<LogRecord> = [],
   ): Promise<void> {
     const logged = this.writer.state.inputs.get(inputId)
     const timeoutMs = this.harness.durability?.timeoutMs
@@ -552,6 +562,7 @@ export abstract class SessionInputs<
       logged?.timeoutAt ??
       (timeoutMs !== undefined ? Date.now() + timeoutMs : undefined)
     await this.writer.append([
+      ...records,
       {
         type: 'harness.input.applied',
         inputId,
@@ -562,8 +573,13 @@ export abstract class SessionInputs<
     ])
   }
 
-  protected async applied(inputId: string, operationId: string): Promise<void> {
-    await this.markApplied(inputId, operationId)
+  /** {@link markApplied}, then the `harness.input.applied` event. */
+  protected async applied(
+    inputId: string,
+    operationId: string,
+    records: ReadonlyArray<LogRecord> = [],
+  ): Promise<void> {
+    await this.markApplied(inputId, operationId, records)
     this.feed.publish(
       operationId,
       customEvent(HARNESS_EVENTS.inputApplied, { inputId, operationId }),
@@ -588,15 +604,22 @@ export abstract class SessionInputs<
    * Record how inputs ended, all in one append: a turn and the inputs that
    * joined it settle together. Clients get a `harness.input.settled` event.
    */
-  protected async settle(
-    ...settlements: Array<InputSettlement>
+  protected settle(...settlements: Array<InputSettlement>): Promise<void> {
+    return this.settleWith(settlements, [])
+  }
+
+  /** {@link settle}, with `records` first in the same append. */
+  protected async settleWith(
+    settlements: ReadonlyArray<InputSettlement>,
+    records: ReadonlyArray<LogRecord>,
   ): Promise<void> {
-    await this.writer.append(
-      settlements.map((settlement) => ({
+    await this.writer.append([
+      ...records,
+      ...settlements.map((settlement) => ({
         type: 'harness.input.settled',
         ...settlement,
       })),
-    )
+    ])
     for (const settlement of settlements) {
       this.inputRecords.settle(settlement)
       this.feed.publish(

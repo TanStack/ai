@@ -3,6 +3,7 @@ import {
   THREAD_RECORD_TYPES,
   emptyThreadState,
   foldThreadRecord,
+  pluginStateDeltas,
 } from '../src/log-records'
 import type { LogRecord } from '@tanstack/ai-persistence'
 import type { ThreadRecord } from '../src/log-records'
@@ -142,7 +143,7 @@ describe('foldThreadRecord', () => {
         overrides: {
           model: 'cheap',
           modelOptions: { temperature: 0 },
-          systemPreamble: 'You review code.',
+          systemPreamble: ['You review code.'],
           ephemeral: [{ role: 'user', content: 'Today is Friday.' }],
         },
       },
@@ -150,7 +151,7 @@ describe('foldThreadRecord', () => {
     expect(state.turnOverrides.get('in-1')).toEqual({
       model: 'cheap',
       modelOptions: { temperature: 0 },
-      systemPreamble: 'You review code.',
+      systemPreamble: ['You review code.'],
       ephemeral: [{ role: 'user', content: 'Today is Friday.' }],
     })
   })
@@ -213,5 +214,54 @@ describe('foldThreadRecord', () => {
       'harness.schedule',
       'harness.schedule.done',
     ])
+  })
+})
+
+describe('pluginStateDeltas', () => {
+  /** The state that `deltas` fold to on top of `current`. */
+  function applied(current: unknown, next: unknown) {
+    const records: Array<ThreadRecord> = [
+      {
+        type: 'harness.plugin.state',
+        plugin: 'p',
+        delta: { path: [], value: current },
+      },
+      ...pluginStateDeltas(current, next).map(
+        (delta): ThreadRecord => ({
+          type: 'harness.plugin.state',
+          plugin: 'p',
+          delta,
+        }),
+      ),
+    ]
+    return fold(records).plugins.get('p')
+  }
+
+  it('writes one delta for each changed field', () => {
+    const current = { count: 1, label: 'a', meta: { seen: true } }
+    const next = { count: 2, label: 'a', meta: { seen: true }, extra: 'x' }
+    expect(pluginStateDeltas(current, next)).toEqual([
+      { path: ['count'], value: 2 },
+      { path: ['extra'], value: 'x' },
+    ])
+    expect(applied(current, next)).toEqual(next)
+  })
+
+  it('sets the whole value when a field is gone, or for a value that is not an object', () => {
+    const removed = { count: 1 }
+    expect(pluginStateDeltas({ count: 1, label: 'a' }, removed)).toEqual([
+      { path: [], value: removed },
+    ])
+    expect(applied({ count: 1, label: 'a' }, removed)).toEqual(removed)
+    expect(pluginStateDeltas(['a'], ['a', 'b'])).toEqual([
+      { path: [], value: ['a', 'b'] },
+    ])
+    expect(pluginStateDeltas(undefined, { count: 0 })).toEqual([
+      { path: [], value: { count: 0 } },
+    ])
+  })
+
+  it('writes nothing for the same value', () => {
+    expect(pluginStateDeltas({ count: 1 }, { count: 1 })).toEqual([])
   })
 })

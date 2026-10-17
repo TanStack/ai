@@ -10,6 +10,7 @@ import {
   inputKey,
   SHUTDOWN_REASON,
   isElsewhere,
+  turnRecords,
 } from './helpers'
 import { SessionState } from './state'
 import type { ModelMessage, SchemaInput } from '@tanstack/ai'
@@ -65,9 +66,11 @@ export abstract class SessionRequests<
    * The same id with another message is rejected with `'conflict'`.
    * `await operation.receipt` resolves when the input is stored.
    *
-   * `overrides` changes the adapter, reasoning, prompt cache, or tools of
-   * this turn only (see `TurnOverrides`). A steer that joins the running
-   * turn uses the overrides of that turn, and its own are ignored.
+   * `overrides` changes the adapter or model, model options, reasoning,
+   * prompt cache, or tools of this turn only (see `TurnOverrides`). The log
+   * keeps the JSON ones, so a turn that recovery runs again uses them. A
+   * steer that joins the running turn uses the overrides of that turn, and
+   * its own are ignored.
    *
    * `principal` is who sent the message. Default: the principal that opened
    * the session. The log keeps it, and the turn runs with its credentials
@@ -79,17 +82,17 @@ export abstract class SessionRequests<
    *
    * `ephemeral` are messages that each model call of this turn gets, after
    * the transcript and the new user message, before the messages that the
-   * turn adds (answers, tool results, steers). No store keeps them: not the
-   * transcript, and not the log. Like `overrides`, they are not part of the
+   * turn adds (answers, tool results, steers). The transcript does not
+   * keep them. The log keeps them with the input, so a turn that recovery
+   * runs again has them too. Like `overrides`, they are not part of the
    * input: the `inputId` duplicate check does not read them, so a retry with
    * other ephemeral messages gets the first input's operation and its own
-   * are dropped. A turn that recovery runs again has none. A steer that joins
-   * the running turn ignores them.
+   * are dropped. A steer that joins the running turn ignores them.
    *
    * `systemPreamble` are system prompts that this turn gets ahead of the
    * harness prompts, for example memory that the host adds. They are kept
-   * like `overrides`: in memory only, and only from server code. A client
-   * input cannot set them.
+   * like `overrides`, and only server code sets them. A client input cannot
+   * set them.
    */
   send(message: UserInput, options: AgentSendOptions): Operation<unknown>
   send(message: UserInput, options?: SendOptions): Operation<ChatTurnResult>
@@ -168,8 +171,16 @@ export abstract class SessionRequests<
     }
     const operation = passed ?? this.createTurnOperation(runId)
     this.bindTurn(inputId, operation)
+    const records = turnRecords(inputId, {
+      overrides,
+      systemPreamble,
+      ephemeral,
+    })
     void this.admitting(() =>
-      this.accept(inputId, stored, principal, runId).then(
+      this.accept(inputId, stored, principal, {
+        ...(runId !== undefined ? { runId } : {}),
+        records,
+      }).then(
         async (admission) => {
           if (admission !== 'new') {
             this.answerDuplicate(operation, inputId, admission)
@@ -374,8 +385,12 @@ export abstract class SessionRequests<
     if (known) return known
     const operation = this.createTurnOperation()
     this.bindTurn(inputId, operation)
+    const records = turnRecords(inputId, {
+      ...(options?.overrides ? { overrides: options.overrides } : {}),
+      ...(options?.ephemeral ? { ephemeral: options.ephemeral } : {}),
+    })
     void this.admitting(() =>
-      this.accept(inputId, input, principal).then(
+      this.accept(inputId, input, principal, { records }).then(
         (admission) => {
           if (admission !== 'new') {
             this.answerDuplicate(operation, inputId, admission)
@@ -490,7 +505,7 @@ export abstract class SessionRequests<
         inputId,
         { op: 'resolve', resume },
         principal,
-        runId,
+        runId !== undefined ? { runId } : {},
       )
       if (admission !== 'new') {
         const receipt = this.duplicateReceipt(inputId, admission)

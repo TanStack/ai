@@ -17,6 +17,7 @@ import {
 } from '../feed'
 import { createMediaStore } from '../media'
 import { logIdOf } from '../log'
+import { pluginStateDeltas } from '../log-records'
 import { tenantStores } from '../tenant-stores'
 import { SESSION_PLUGIN_CREDENTIALS, SESSION_PLUGIN_KEYS } from '../plugins'
 import { LEASE } from '../resume'
@@ -369,8 +370,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected turnPrincipal: Principal | undefined
   /**
    * The last turn stopped for these interrupts. `routed`: a routed turn
-   * stopped. The resolve continues its saved plan. `stores.metadata` keeps a
-   * copy, so a resolve after a restart continues the turn too.
+   * stopped. The resolve continues its saved plan. The log keeps a copy, so
+   * a resolve after a restart continues the turn too.
    */
   protected interrupted: InterruptedTurn | undefined
   protected activeResume = false
@@ -422,9 +423,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /** Plugin state by plugin name. No prototype, so any name is a plain key. */
   protected readonly stateDoc: Record<string, unknown> = Object.create(null)
   /** Reads each plugin's saved state, so the first snapshot has it. */
-  protected readonly stateLoaders = new Map<string, () => Promise<unknown>>()
-  protected readonly localState = new Map<string, unknown>()
-  /** The last plugin state update of each namespace, for a store without `setIf`. */
+  protected readonly stateLoaders = new Map<string, () => unknown>()
+  /** The last state update of each plugin. The updates of one plugin run in order. */
   protected readonly stateWrites = new Map<string, Promise<unknown>>()
   /** The revert that stands. See `revert`. */
   protected reverted: RevertState | undefined
@@ -714,10 +714,10 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   }
 
   /** Put each plugin's saved state in the snapshot before the first read. */
-  protected async loadPluginState() {
+  protected loadPluginState() {
     for (const [plugin, load] of this.stateLoaders) {
       if (!Object.hasOwn(this.stateDoc, plugin)) {
-        this.stateDoc[plugin] = await load()
+        this.stateDoc[plugin] = load()
       }
     }
   }
@@ -839,33 +839,19 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     }
   }
 
+  /**
+   * The thread state of `plugin`. The log keeps it: each update appends
+   * the deltas from the current value, and the fold of the log gives the
+   * value back, also after a restart.
+   */
   protected pluginState<T>(plugin: string, initial: T): PluginState<T> {
-    const metadata = this.persistence.stores.metadata
-    const namespace = `plugin:${plugin}`
-    const key = this.storeThreadId
-    const read = async (): Promise<{ value: T; revision: string | null }> => {
-      if (metadata?.getVersioned) {
-        const stored = await metadata.getVersioned(namespace, key)
-        // The store holds what this plugin wrote.
-        return stored
-          ? { value: stored.value as T, revision: stored.revision }
-          : { value: initial, revision: null }
-      }
-      if (metadata) {
-        const stored = await metadata.get(namespace, key)
-        return {
-          value: stored === null ? initial : (stored as T),
-          revision: null,
-        }
-      }
-      return {
-        value: this.localState.has(namespace)
-          ? (this.localState.get(namespace) as T)
-          : initial,
-        revision: null,
-      }
+    const read = () => {
+      const { plugins } = this.writer.state.thread
+      // The fold holds what this plugin wrote.
+      return plugins.has(plugin) ? (plugins.get(plugin) as T) : initial
     }
-    this.stateLoaders.set(plugin, async () => (await read()).value)
+    // A copy: the snapshot must not share objects with the fold.
+    this.stateLoaders.set(plugin, () => structuredClone(read()))
     const publish = (value: T) => {
       this.stateDoc[plugin] = value
       this.feed.publish('session', {
@@ -875,39 +861,33 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       })
     }
     const write = async (change: (current: T) => T) => {
-      for (let attempt = 0; attempt < 5; attempt += 1) {
-        const current = await read()
-        const next = change(structuredClone(current.value))
-        if (metadata?.setIf) {
-          const written = await metadata.setIf(
-            namespace,
-            key,
-            next,
-            current.revision,
-          )
-          if (!written.ok) continue
-        } else if (metadata) {
-          await metadata.set(namespace, key, next)
-        } else {
-          this.localState.set(namespace, next)
-        }
-        publish(next)
-        return next
-      }
-      throw new Error(`Plugin ${plugin}: state update conflicted 5 times.`)
+      const { plugins } = this.writer.state.thread
+      // The first write sets the whole value: the log has no value to change.
+      const stored = plugins.has(plugin) ? plugins.get(plugin) : undefined
+      const next = change(structuredClone(read()))
+      // The append is a compare-and-set: it goes at the next position of
+      // the log, so a write of another host makes it fail, and no update is
+      // lost.
+      await this.writer.append(
+        pluginStateDeltas(stored, next).map((delta) => ({
+          type: 'harness.plugin.state',
+          plugin,
+          delta,
+        })),
+      )
+      publish(next)
+      return next
     }
     return {
-      get: async () => (await read()).value,
+      get: async () => structuredClone(read()),
       update: (change) => {
-        if (metadata?.setIf) return write(change)
-        // ponytail: without `setIf`, the updates of this session run one at
-        // a time. Another host can still race them. Use a store with `setIf`
-        // for that.
-        const run = (this.stateWrites.get(namespace) ?? Promise.resolve()).then(
+        // One at a time, so each change starts from the value that the
+        // update before it wrote.
+        const run = (this.stateWrites.get(plugin) ?? Promise.resolve()).then(
           () => write(change),
         )
         this.stateWrites.set(
-          namespace,
+          plugin,
           run.catch(() => {}),
         )
         return run
