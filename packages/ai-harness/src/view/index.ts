@@ -331,6 +331,9 @@ interface ShownMessage {
   media: Array<MediaPart>
 }
 
+const isGap = ({ event }: SessionEvent) =>
+  event.type === EventType.CUSTOM && event.name === HARNESS_EVENTS.gap
+
 /**
  * Events after which the snapshot can differ. A config change is not in the
  * snapshot. A usage event changes only the usage, and the reducer adds it.
@@ -346,7 +349,7 @@ function changesSnapshot(entry: SessionEvent) {
   }
   return (
     event.type === EventType.CUSTOM &&
-    /^harness\.(operation|input|question)/.test(event.name)
+    /^harness\.(operation|input|question|gap)/.test(event.name)
   )
 }
 
@@ -893,7 +896,12 @@ export function createSessionView(source: SessionViewSource) {
         event.name === HARNESS_EVENTS.commandsChanged ||
         event.name === HARNESS_EVENTS.reloaded
       if (isDescriptionChange) refreshDescription()
-      if (event.name === HARNESS_EVENTS.revert) refreshTranscript()
+      // A gap: the events of a part of the log are gone, so the view loads
+      // the transcript (and the snapshot, see `changesSnapshot`) again.
+      const isReload =
+        event.name === HARNESS_EVENTS.revert ||
+        event.name === HARNESS_EVENTS.gap
+      if (isReload) refreshTranscript()
     }
     for (const signIn of after.signIns)
       if (!before.signIns.includes(signIn)) emit('signIn', signIn)
@@ -908,7 +916,9 @@ export function createSessionView(source: SessionViewSource) {
       })
       for await (const entry of entries) {
         if (disposed) return
-        for (const ready of replayed(entry)) apply(ready)
+        // A gap is not an event of an operation, so no replay drops it.
+        if (isGap(entry)) apply(entry)
+        else for (const ready of replayed(entry)) apply(ready)
       }
     } catch (error) {
       fail(error)

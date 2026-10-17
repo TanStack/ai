@@ -101,6 +101,7 @@ import { Route as ApiHarnessContinueRouteImport } from './routes/api.harness-con
 import { Route as ApiHarnessFirstPartyRouteImport } from './routes/api.harness-first-party'
 import { Route as ApiHarnessForwardingRouteImport } from './routes/api.harness-forwarding'
 import { Route as ApiHarnessRetryAfterRouteImport } from './routes/api.harness-retry-after'
+import { Route as ApiHarnessWorkerRouteImport } from './routes/api.harness-worker'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-test'
 import { Route as ApiJoinRunClientToolRouteImport } from './routes/api.join-run-client-tool'
@@ -673,6 +674,11 @@ const ApiHarnessRetryAfterRoute = ApiHarnessRetryAfterRouteImport.update({
   path: '/api/harness-retry-after',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHarnessWorkerRoute = ApiHarnessWorkerRouteImport.update({
+  id: '/api/harness-worker',
+  path: '/api/harness-worker',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiImageRoute = ApiImageRouteImport.update({
   id: '/api/image',
   path: '/api/image',
@@ -1232,6 +1238,7 @@ export interface FileRoutesByFullPath {
   '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
   '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
   '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
+  '/api/harness-worker': typeof ApiHarnessWorkerRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
@@ -1415,6 +1422,7 @@ export interface FileRoutesByTo {
   '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
   '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
   '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
+  '/api/harness-worker': typeof ApiHarnessWorkerRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
@@ -1599,6 +1607,7 @@ export interface FileRoutesById {
   '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
   '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
   '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
+  '/api/harness-worker': typeof ApiHarnessWorkerRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
@@ -1784,6 +1793,7 @@ export interface FileRouteTypes {
     | '/api/harness-first-party'
     | '/api/harness-forwarding'
     | '/api/harness-retry-after'
+    | '/api/harness-worker'
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
@@ -1967,6 +1977,7 @@ export interface FileRouteTypes {
     | '/api/harness-first-party'
     | '/api/harness-forwarding'
     | '/api/harness-retry-after'
+    | '/api/harness-worker'
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
@@ -2150,6 +2161,7 @@ export interface FileRouteTypes {
     | '/api/harness-first-party'
     | '/api/harness-forwarding'
     | '/api/harness-retry-after'
+    | '/api/harness-worker'
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
@@ -2334,6 +2346,7 @@ export interface RootRouteChildren {
   ApiHarnessFirstPartyRoute: typeof ApiHarnessFirstPartyRoute
   ApiHarnessForwardingRoute: typeof ApiHarnessForwardingRoute
   ApiHarnessRetryAfterRoute: typeof ApiHarnessRetryAfterRoute
+  ApiHarnessWorkerRoute: typeof ApiHarnessWorkerRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiInterruptsTestRoute: typeof ApiInterruptsTestRoute
   ApiJoinRunClientToolRoute: typeof ApiJoinRunClientToolRoute
@@ -3065,6 +3078,13 @@ declare module '@tanstack/react-router' {
       path: '/api/harness-retry-after'
       fullPath: '/api/harness-retry-after'
       preLoaderRoute: typeof ApiHarnessRetryAfterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/harness-worker': {
+      id: '/api/harness-worker'
+      path: '/api/harness-worker'
+      fullPath: '/api/harness-worker'
+      preLoaderRoute: typeof ApiHarnessWorkerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/image': {
@@ -3848,6 +3868,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHarnessFirstPartyRoute: ApiHarnessFirstPartyRoute,
   ApiHarnessForwardingRoute: ApiHarnessForwardingRoute,
   ApiHarnessRetryAfterRoute: ApiHarnessRetryAfterRoute,
+  ApiHarnessWorkerRoute: ApiHarnessWorkerRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiInterruptsTestRoute: ApiInterruptsTestRoute,
   ApiJoinRunClientToolRoute: ApiJoinRunClientToolRoute,

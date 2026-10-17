@@ -1,27 +1,31 @@
 import { describe, expect, it, vi } from 'vitest'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryLogStore } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, logIdOf } from '../src'
 import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { CUT_OFF_NOTE, INTERRUPTED_TOOL_RESULT } from '../src/resume'
 import {
-  after,
+  CRASHING_OWNERSHIP,
   gate,
   messageTexts,
   mockAdapter,
+  ownershipExpired,
+  storedRun,
   text,
   toolCall,
   untilAborted,
   wrapLogStore,
 } from './helpers'
 import type { AnyTool, StreamChunk } from '@tanstack/ai'
-import type {
-  LeaseStore,
-  TurnLease,
-  TurnLeaseKey,
-} from '@tanstack/ai-persistence'
-import type { AnyAgent, HarnessConfig } from '../src'
+import type { LogStore } from '@tanstack/ai-persistence'
+import type { AnyAgent, HarnessConfig, OwnershipOptions } from '../src'
 import type { Reply } from './helpers'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
@@ -37,47 +41,24 @@ const waiter = defineAgent({
     ),
 })
 
-/** A lease store in memory, like a job queue's leases. */
-function memoryLeases() {
-  const leases = new Map<string, TurnLease>()
-  const calls: Array<string> = []
-  const keyOf = (key: TurnLeaseKey) => `${key.inputId}:${key.attempt}`
-  const store: LeaseStore = {
-    acquire: async (lease) => {
-      calls.push(`acquire ${keyOf(lease)}`)
-      leases.set(keyOf(lease), lease)
-    },
-    renew: async (lease) => {
-      calls.push(`renew ${keyOf(lease)}`)
-      leases.set(keyOf(lease), lease)
-    },
-    release: async (lease) => {
-      calls.push(`release ${keyOf(lease)}`)
-      leases.delete(keyOf(lease))
-    },
-    isAlive: async (key) => {
-      const lease = leases.get(keyOf(key))
-      return lease !== undefined && lease.expiresAt >= Date.now()
-    },
-  }
-  const expire = () => {
-    for (const lease of leases.values()) lease.expiresAt = Date.now() - 1
-  }
-  return { store, calls, leases, expire }
+/** The stores of a durable host with no run store: only a log. */
+function logOnlyPersistence(log: LogStore = memoryLogStore()) {
+  return { stores: { log } }
 }
 
-function leasedPersistence(leases: LeaseStore) {
-  return { stores: { log: memoryLogStore(), leases } }
-}
+type LogOnly = ReturnType<typeof logOnlyPersistence>
 
-async function openLeased(
-  persistence: ReturnType<typeof leasedPersistence>,
+async function openHost(
+  persistence: LogOnly,
   replies: Array<Reply>,
   tools: Array<AnyTool> = [],
-  ownership?: { renewMs?: number; ttlMs?: number },
+  ownership?: OwnershipOptions,
 ) {
   const { adapter, calls } = mockAdapter(replies)
-  const host = createHarnessHost({ persistence, ownership })
+  const host = createHarnessHost({
+    persistence,
+    ...(ownership ? { ownership } : {}),
+  })
   const session = await host.open(
     defineHarness({ name: 'test/leases', adapter, tools }),
     {
@@ -122,12 +103,16 @@ const cutAfter =
     })()
 
 async function openCutOff(
-  persistence: ReturnType<typeof leasedPersistence>,
+  persistence: LogOnly,
   replies: Array<Reply>,
   options: Partial<HarnessConfig> = {},
+  ownership?: OwnershipOptions,
 ) {
   const { adapter, calls } = mockAdapter(replies)
-  const host = createHarnessHost({ persistence })
+  const host = createHarnessHost({
+    persistence,
+    ...(ownership ? { ownership } : {}),
+  })
   const session = await host.open(
     defineHarness({ name: 'test/leases', adapter, ...options }),
     {
@@ -141,61 +126,24 @@ async function openCutOff(
 const roles = (messages: ReadonlyArray<{ role: string; content: unknown }>) =>
   messages.map((message) => [message.role, message.content])
 
-describe('a durable host with a lease store and no run store', () => {
-  it('takes, renews, and releases the lease of a turn', async () => {
-    const leases = memoryLeases()
-    const { host, session } = await openLeased(
-      leasedPersistence(leases.store),
-      [() => text('done')],
-    )
-
-    await session.send('go', { inputId: 'in-1' })
-
-    expect(leases.calls).toEqual(['acquire in-1:1', 'release in-1:1'])
-    await host.close()
-  })
-
-  it('renews the lease while a turn runs, and stops at the release', async () => {
-    const leases = memoryLeases()
-    const hold = gate()
-    const { host, session } = await openLeased(
-      leasedPersistence(leases.store),
-      [after(hold.opened, 'done')],
-      [],
-      { renewMs: 5, ttlMs: 50 },
-    )
-
-    const turn = session.send('go', { inputId: 'in-1' })
-    await vi.waitFor(() => expect(leases.calls).toContain('renew in-1:1'))
-    hold.open()
-    await turn
-    // A timer that the release did not stop would renew again in this time.
-    await new Promise((resolve) => setTimeout(resolve, 30))
-
-    const release = leases.calls.indexOf('release in-1:1')
-    expect(release).toBeGreaterThan(-1)
-    expect(leases.calls.slice(release)).not.toContain('renew in-1:1')
-    await host.close()
-  })
-
+describe('a durable host with no run store', () => {
   it('lets the caller answer an interrupted turn as soon as it ends', async () => {
-    const leases = memoryLeases()
+    const log = memoryLogStore()
     // A store that releases after a timer, like one over the network.
-    const slow: LeaseStore = {
-      ...leases.store,
-      release: async (lease) => {
+    const slow = wrapLogStore(log, {
+      release: async (claim) => {
         await new Promise((resolve) => setTimeout(resolve, 5))
-        await leases.store.release(lease)
+        await log.release(claim)
       },
-    }
+    })
     const remove = toolDefinition({
       name: 'remove',
       description: 'Remove a file',
       needsApproval: true,
       inputSchema: z.object({ path: z.string() }),
     }).server(async () => ({ ok: true }))
-    const { host, session } = await openLeased(
-      leasedPersistence(slow),
+    const { host, session } = await openHost(
+      logOnlyPersistence(slow),
       [
         () => toolCall('remove', { path: 'a.txt' }, 'call_1'),
         () => text('removed'),
@@ -216,21 +164,22 @@ describe('a durable host with a lease store and no run store', () => {
     await host.close()
   })
 
-  it('keeps a turn with a live lease, and runs one with an expired lease again', async () => {
-    const leases = memoryLeases()
-    const persistence = leasedPersistence(leases.store)
-    const first = await openLeased(persistence, [hangs])
-    first.session.send('go', { inputId: 'in-1' })
-    await vi.waitFor(() => expect(leases.leases.size).toBe(1))
+  it('keeps a turn whose host is alive, and runs it again after that host stops', async () => {
+    const persistence = logOnlyPersistence()
+    const first = await openHost(persistence, [hangs], [], CRASHING_OWNERSHIP)
+    void Promise.resolve(first.session.send('go', { inputId: 'in-1' })).catch(
+      () => {},
+    )
+    await waitFor(() => expect(first.calls).toHaveLength(1))
 
-    // A second host while the lease is alive: it leaves the turn alone.
-    const watcher = await openLeased(persistence, [() => text('never')])
+    // A second host while the first owns the log: it leaves the turn alone.
+    const watcher = await openHost(persistence, [() => text('never')])
     expect(watcher.calls).toHaveLength(0)
     expect(watcher.session.snapshot().status).toBe('idle')
     await watcher.host.close()
 
-    leases.expire()
-    const next = await openLeased(persistence, [() => text('recovered')])
+    await ownershipExpired()
+    const next = await openHost(persistence, [() => text('recovered')])
     expect(await next.session.settled('in-1')).toMatchObject({
       outcome: 'completed',
     })
@@ -239,15 +188,17 @@ describe('a durable host with a lease store and no run store', () => {
     await next.host.close()
   })
 
-  it('fails a background agent with an expired lease, and keeps a finished one', async () => {
-    const leases = memoryLeases()
-    const persistence = leasedPersistence(leases.store)
+  it('fails a background agent whose host stopped, and keeps a finished one', async () => {
+    const persistence = logOnlyPersistence()
     const pricer = defineAgent({
       name: 'pricer',
       description: 'Prices',
       run: async () => 'priced',
     })
-    const first = createHarnessHost({ persistence })
+    const first = createHarnessHost({
+      persistence,
+      ownership: CRASHING_OWNERSHIP,
+    })
     const session = await first.open(
       defineHarness({
         name: 'test/leases',
@@ -260,12 +211,19 @@ describe('a durable host with a lease store and no run store', () => {
     )
     await session.agents.pricer.run()
     session.agents.waiter.start(undefined, { wake: true })
-    await vi.waitFor(() => expect(leases.leases.size).toBe(1))
+    // Both runs are applied: the pricer ended, the waiter runs.
+    await waitFor(async () =>
+      expect(
+        (await persistence.stores.log.read({ logId: LOG })).filter(
+          (entry) => entry.record.type === 'harness.input.applied',
+        ),
+      ).toHaveLength(2),
+    )
 
-    leases.expire()
-    const next = await openLeased(persistence, [() => text('noted')])
-    await vi.waitFor(() => expect(next.calls).toHaveLength(1))
-    await vi.waitFor(() => expect(next.session.snapshot().status).toBe('idle'))
+    await ownershipExpired()
+    const next = await openHost(persistence, [() => text('noted')])
+    await waitFor(() => expect(next.calls).toHaveLength(1))
+    await waitFor(() => expect(next.session.snapshot().status).toBe('idle'))
 
     // One wake, for the agent that stopped. The finished agent stays settled.
     expect(next.calls).toHaveLength(1)
@@ -277,8 +235,7 @@ describe('a durable host with a lease store and no run store', () => {
   })
 
   it('repairs a cut batch from the log', async () => {
-    const leases = memoryLeases()
-    const persistence = leasedPersistence(leases.store)
+    const persistence = logOnlyPersistence()
     const mailStarted = gate()
     const charge = vi.fn(async () => 'charged')
     const tools = [
@@ -336,19 +293,26 @@ describe('a durable host with a lease store and no run store', () => {
         },
       ]
     }
-    const first = await openLeased(persistence, [twoCalls], tools)
-    first.session.send('charge and mail', { inputId: 'batch-1' })
+    const first = await openHost(
+      persistence,
+      [twoCalls],
+      tools,
+      CRASHING_OWNERSHIP,
+    )
+    void Promise.resolve(
+      first.session.send('charge and mail', { inputId: 'batch-1' }),
+    ).catch(() => {})
     await mailStarted.opened
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(
         (await persistence.stores.log.read({ logId: LOG })).filter(
           (entry) => entry.record.type === 'harness.tool.result',
         ),
       ).toHaveLength(1),
     )
-    leases.expire()
+    await ownershipExpired()
 
-    const next = await openLeased(persistence, [() => text('done')], tools)
+    const next = await openHost(persistence, [() => text('done')], tools)
     await next.session.settled('batch-1')
 
     const results = (await next.session.transcript()).filter(
@@ -367,77 +331,51 @@ describe('a durable host with a lease store and no run store', () => {
     await first.host.close().catch(() => {})
     await next.host.close()
   })
-
-  it('throws a clear error for a durable host with neither runs nor leases', () => {
-    expect(() =>
-      createHarnessHost({
-        persistence: { stores: { log: memoryLogStore() } } as never,
-      }),
-    ).toThrow('stores.runs or stores.leases')
-  })
 })
 
-describe('a durable host with runs and leases', () => {
-  it('asks the lease store, and still writes run records', async () => {
-    const leases = memoryLeases()
-    const { runs } = memoryPersistence().stores
-    const persistence = {
-      stores: { log: memoryLogStore(), runs, leases: leases.store },
-    }
-    const { adapter } = mockAdapter([() => text('done')])
-    const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({ name: 'test/leases', adapter }),
-      {
-        threadId: THREAD,
-      },
-    )
-
-    const turn = session.send('go', { inputId: 'in-1' })
-    await turn
-
-    expect(leases.calls).toEqual(['acquire in-1:1', 'release in-1:1'])
-    expect((await runs.get(turn.id))?.status).toBe('completed')
-    await host.close()
-  })
-
+describe('the runs in the log of a durable host', () => {
   it('keeps the failed run when the stopped host ends its agent later', async () => {
-    const leases = memoryLeases()
-    const { runs } = memoryPersistence().stores
-    const persistence = {
-      stores: { log: memoryLogStore(), runs, leases: leases.store },
-    }
+    const log = memoryLogStore()
+    const persistence = { stores: { log } }
     const harness = defineHarness({
       name: 'test/leases',
       adapter: mockAdapter([]).adapter,
       agents: [waiter],
     })
-    const first = createHarnessHost({ persistence })
+    const first = createHarnessHost({
+      persistence,
+      ownership: CRASHING_OWNERSHIP,
+    })
     const run = (
       await first.open(harness, { threadId: THREAD })
     ).agents.waiter.start()
-    await vi.waitFor(() => expect(leases.leases.size).toBe(1))
+    await waitFor(async () =>
+      expect((await storedRun(log, { threadId: THREAD }, run.id))?.status).toBe(
+        'running',
+      ),
+    )
 
-    leases.expire()
+    await ownershipExpired()
     const next = createHarnessHost({ persistence })
     await next.open(harness, { threadId: THREAD })
-    // The first host sees the writes of the second host, so it stops and
-    // cancels its agent.
-    await expect(Promise.resolve(run)).rejects.toThrow('Cancelled.')
+    // The first host sees the writes of the second host: it lost the log,
+    // so it stops its agent.
+    await expect(Promise.resolve(run)).rejects.toThrow(
+      'Another host took this thread over',
+    )
 
-    expect((await runs.get(run.id))?.status).toBe('failed')
+    expect((await storedRun(log, { threadId: THREAD }, run.id))?.status).toBe(
+      'failed',
+    )
     await first.close().catch(() => {})
     await next.close()
   })
 })
 
 describe('close({ recoverable: true })', () => {
-  /** A durable store set with a run store, and a lease store when asked. */
-  function durableStores(withLeases = true) {
-    const { runs } = memoryPersistence().stores
-    const log = memoryLogStore()
-    const leases = memoryLeases().store
-    return { stores: { log, runs, ...(withLeases ? { leases } : {}) } }
+  /** A durable store set. */
+  function durableStores() {
+    return { stores: { log: memoryLogStore() } }
   }
 
   async function openOn(
@@ -461,35 +399,33 @@ describe('close({ recoverable: true })', () => {
       (entry) => entry.record,
     )
 
-  it.each([true, false])(
-    'runs a turn stopped in a model call again on the next host, with no settlement (lease store: %s)',
-    async (withLeases) => {
-      const persistence = durableStores(withLeases)
-      const first = await openOn(persistence, [untilAborted()])
-      const turn = first.session.send('go', { inputId: 'in-1' })
-      await vi.waitFor(() => expect(first.calls).toHaveLength(1))
+  it('runs a turn stopped in a model call again on the next host, with no settlement', async () => {
+    const persistence = durableStores()
+    const first = await openOn(persistence, [untilAborted()])
+    const turn = first.session.send('go', { inputId: 'in-1' })
+    await waitFor(() => expect(first.calls).toHaveLength(1))
 
-      await first.host.close({ recoverable: true })
+    await first.host.close({ recoverable: true })
 
-      await expect(turn).rejects.toThrow('Session closed.')
-      expect(
-        (await logRecords(persistence)).map((record) => record.type),
-      ).not.toContain('harness.input.settled')
-      expect((await persistence.stores.runs.get(turn.id))?.status).toBe(
-        'running',
-      )
-      const next = await openOn(persistence, [() => text('recovered')])
-      expect(await next.session.settled('in-1')).toMatchObject({
-        outcome: 'completed',
-      })
-      const applied = (await logRecords(persistence)).filter(
-        (record) => record.type === 'harness.input.applied',
-      )
-      expect(applied.map((record) => record.attempt)).toEqual([1, 2])
-      expect(messageTexts(next.calls[0])).toEqual(['go'])
-      await next.host.close()
-    },
-  )
+    await expect(turn).rejects.toThrow('Session closed.')
+    expect(
+      (await logRecords(persistence)).map((record) => record.type),
+    ).not.toContain('harness.input.settled')
+    expect(
+      (await storedRun(persistence.stores.log, { threadId: THREAD }, turn.id))
+        ?.status,
+    ).toBe('running')
+    const next = await openOn(persistence, [() => text('recovered')])
+    expect(await next.session.settled('in-1')).toMatchObject({
+      outcome: 'completed',
+    })
+    const applied = (await logRecords(persistence)).filter(
+      (record) => record.type === 'harness.input.applied',
+    )
+    expect(applied.map((record) => record.attempt)).toEqual([1, 2])
+    expect(messageTexts(next.calls[0])).toEqual(['go'])
+    await next.host.close()
+  })
 
   it('gives a cut call of a tool that must not run twice the interrupted result', async () => {
     const persistence = durableStores()
@@ -538,12 +474,15 @@ describe('close({ recoverable: true })', () => {
     const persistence = durableStores()
     const first = await openOn(persistence, [untilAborted()])
     const turn = first.session.send('go', { inputId: 'in-1' })
-    await vi.waitFor(() => expect(first.calls).toHaveLength(1))
+    await waitFor(() => expect(first.calls).toHaveLength(1))
 
     await first.host.close()
 
     await expect(turn).rejects.toThrow('Cancelled.')
-    expect((await persistence.stores.runs.get(turn.id))?.status).toBe('aborted')
+    expect(
+      (await storedRun(persistence.stores.log, { threadId: THREAD }, turn.id))
+        ?.status,
+    ).toBe('aborted')
     const next = await openOn(persistence, [() => text('never')])
     expect(await next.session.settled('in-1')).toMatchObject({
       outcome: 'aborted',
@@ -561,7 +500,7 @@ describe('close({ recoverable: true })', () => {
         return log.append(batch)
       },
     })
-    const persistence = { stores: { log: slow, leases: memoryLeases().store } }
+    const persistence = logOnlyPersistence(slow)
     const streamed = gate()
     const first = await openCutOff(persistence, [
       cutAfter('The answer is ', streamed.open),
@@ -602,12 +541,12 @@ describe('close({ recoverable: true })', () => {
     })
     const first = await openOn(persistence, [], { agents: [worker] })
     first.session.agent('worker')?.start(undefined, { resume: true })
-    await vi.waitFor(() => expect(started).toBe(1))
+    await waitFor(() => expect(started).toBe(1))
 
     await first.host.close({ recoverable: true })
     const next = await openOn(persistence, [], { agents: [worker] })
 
-    await vi.waitFor(() => expect(started).toBe(2))
+    await waitFor(() => expect(started).toBe(2))
     const input = (await logRecords(persistence)).find(
       (record) => record.type === 'harness.input',
     )
@@ -630,19 +569,23 @@ describe('durability.continueCutOff', () => {
     options: Partial<HarnessConfig> = { tools: [lookup] },
     streamed = 'The answer is ',
   ) {
-    const leases = memoryLeases()
-    const persistence = leasedPersistence(leases.store)
-    const first = await openCutOff(persistence, replies, options)
+    const persistence = logOnlyPersistence()
+    const first = await openCutOff(
+      persistence,
+      replies,
+      options,
+      CRASHING_OWNERSHIP,
+    )
     void first.session.send('go', { inputId: 'in-1' }).then(
       () => {},
       () => {},
     )
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(
         JSON.stringify(await persistence.stores.log.read({ logId: LOG })),
       ).toContain(streamed),
     )
-    leases.expire()
+    await ownershipExpired()
     return { persistence, first }
   }
 
@@ -858,15 +801,14 @@ describe('durability.continueCutOff', () => {
   })
 
   it('runs a call cut before any text again with no note', async () => {
-    const leases = memoryLeases()
-    const persistence = leasedPersistence(leases.store)
-    const first = await openCutOff(persistence, [hangs])
+    const persistence = logOnlyPersistence()
+    const first = await openCutOff(persistence, [hangs], {}, CRASHING_OWNERSHIP)
     void first.session.send('go', { inputId: 'in-1' }).then(
       () => {},
       () => {},
     )
-    await vi.waitFor(() => expect(first.calls).toHaveLength(1))
-    leases.expire()
+    await waitFor(() => expect(first.calls).toHaveLength(1))
+    await ownershipExpired()
 
     const next = await openCutOff(persistence, [() => text('42.')], {
       durability: { continueCutOff: true },

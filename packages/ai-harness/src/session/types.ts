@@ -15,16 +15,19 @@ import type {
   ArtifactStore,
   BlobStore,
   GenerationRunStore,
-  InboxStore,
   LogStore,
 } from '@tanstack/ai-persistence'
-import type { InputState, LogWriter, ProjectOptions } from '../log'
-import type { LeaseOptions } from '../resume'
+import type { InputState, LogViewHooks, LogWriter } from '../log'
 import type { ConfigOption } from '../config'
 import type { SessionUsage } from '../usage'
 import type { AgentInputOf, AgentResultOf, AnyAgent } from '../agents'
 import type { AnyHarness, HarnessAgentsOf } from '../define'
-import type { HarnessPersistence, Retention, SessionIndexWriter } from '../host'
+import type {
+  HarnessPersistence,
+  Retention,
+  SessionIndexWriter,
+  SubmitInput,
+} from '../host'
 import type { PluginLifetime } from '../plugins'
 import type { HostPlugins } from '../host-plugins'
 import type {
@@ -42,6 +45,21 @@ import type {
   WaitingInput,
 } from '../types'
 
+/** Options for `session.schedule`. */
+export interface ScheduleOptions {
+  /** When the input runs, in epoch milliseconds. A time that passed runs at once. */
+  at: number
+  /** The input to run then. Any input that `host.submit` takes. */
+  input: SubmitInput
+  /**
+   * The id of the schedule, for `cancelSchedule`. A second call with the
+   * id of a schedule that waits writes nothing. Default: a new id.
+   */
+  scheduleId?: string
+  /** Who sends the input when it runs. Default: the principal of the open. */
+  principal?: Principal
+}
+
 /** Options for running an agent from code. */
 export interface AgentRunOptions {
   /**
@@ -56,13 +74,11 @@ export interface AgentRunOptions {
 export interface AgentStartOptions extends AgentRunOptions {
   /**
    * When the agent finishes or fails, start a new chat turn with its result
-   * or its error. On a durable host, this also occurs when the host stopped
-   * during the run.
+   * or its error. This also occurs when the host stopped during the run.
    */
   wake?: boolean
   /**
-   * On a durable host, when the host stops during the run, the host that
-   * takes over runs the agent again with the same input, instead of failing
+   * When the host stops during the run, the host that takes over runs the agent again with the same input, instead of failing
    * it. The agent code runs again from its start: put each side effect in
    * `ctx.harness.step.do(name, fn)`, so a finished step returns its
    * stored value.
@@ -77,6 +93,16 @@ export interface AgentStartOptions extends AgentRunOptions {
    * the user of the tool call: `ctx.context.run.principal`.
    */
   principal?: Principal
+}
+
+/**
+ * The options of an agent run inside the session. `offered`: the run starts
+ * from an input that another host offered. It keeps the input id, and the
+ * run id that the host which offered it follows in the log. A submitted
+ * input has no run id.
+ */
+export type AgentRunStartOptions = AgentStartOptions & {
+  offered?: { inputId: string; runId?: string }
 }
 
 /** One agent run as a child of the session thread. */
@@ -207,7 +233,6 @@ export interface SessionDependencies {
   harness: AnyHarness
   threadId: string
   persistence: HarnessPersistence
-  inbox: InboxStore
   credentials: CredentialStore
   /** Where media lives: file records, bytes, and generation runs. */
   media: AIPersistence<{
@@ -218,33 +243,24 @@ export interface SessionDependencies {
   principal?: Principal
   /** The tenant of the session. Without it, the default tenant. */
   tenantId?: string
-  /** Identifies this host on run leases. */
-  hostId: string
   /** Writes the session index entry of the thread. */
   index: SessionIndexWriter
   /** How much the session keeps in memory. */
   retention: Retention
   /** The plugins with `lifetime: 'host'` that the host shares. */
   hostPlugins: HostPlugins
-  /** The session log of a durable host. */
-  log?: {
+  /** The session log. */
+  log: {
     store: LogStore
-    project?: ProjectOptions
     /** The view of this session in its shared log. */
-    open: (
-      threadId: string,
-      onFailure: (error: unknown) => void,
-    ) => Promise<LogWriter>
+    open: (threadId: string, hooks: LogViewHooks) => Promise<LogWriter>
   }
   /**
-   * The log of the session: the `logId` of `host.open`, else the thread id.
-   * The records of that log with no `thread` field belong to the thread
-   * with this id.
+   * The id of the log of the session in the store: its tenant and its
+   * thread id (see `logIdOf`). The records of the log with no `thread`
+   * field belong to this thread. Its child threads write to it too.
    */
-  logId: string
-  /** The id of that log in the store, with the tenant. See `logIdOf`. */
   storeLogId: string
-  lease?: LeaseOptions
   /** The `promptCache` of `host.open()`. It overrides the harness value. */
   promptCache?: PromptCacheOptions
   /** Gets each event the session publishes, after the feed has it. */
@@ -276,9 +292,9 @@ export interface QueuedTurn {
   systemPreamble?: Array<string>
   /** A `tool()`: its only model call asks for this tool. */
   tool?: ToolTurn
-  /** The settings of this one turn. Kept in memory only, not in the log. */
+  /** The settings of this one turn. The log keeps the JSON ones. */
   overrides?: TurnOverrides
-  /** The `ephemeral` messages of the input. Kept in memory only, as `overrides`. */
+  /** The `ephemeral` messages of the input. The log keeps them, as `overrides`. */
   ephemeral?: ReadonlyArray<ModelMessage>
   /** Who sent the input. Its credentials and keys run the turn. */
   principal?: Principal
@@ -309,6 +325,8 @@ export interface WaitingSteer {
   overrides?: TurnOverrides
   /** Used only when the steer runs as its own turn, as `overrides`. */
   ephemeral?: ReadonlyArray<ModelMessage>
+  /** Used only when the steer runs as its own turn, as `overrides`. */
+  systemPreamble?: Array<string>
   principal?: Principal
   /** Used only when the steer runs as its own turn, as `overrides`. */
   context?: unknown

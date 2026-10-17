@@ -10,9 +10,9 @@ import {
 } from '@tanstack/ai'
 import { parseRangeHeader, resolveBlobRange } from '@tanstack/ai-persistence'
 import { AccessDeniedError } from './access'
-import { accessOf, durableStoresOf, sessionOfTurn } from './host'
+import { accessOf, sessionOfTurn } from './host'
+import { activeRunIn } from './log-stores'
 import { MediaError } from './media'
-import { tenantStores } from './tenant-stores'
 import {
   HARNESS_PROTOCOL_VERSION,
   applyInput,
@@ -25,13 +25,12 @@ import {
 import { base64url, isRecord } from './utils'
 import { SessionMetadataError } from './session-entry'
 import { SessionImpl } from './session/harness-session'
-import { liveSessionOf, mediaStoreOf } from './session/observed-session'
-import type {
-  ModelMessage,
-  RunStore,
-  UIMessage,
-  WebSocketLike,
-} from '@tanstack/ai'
+import {
+  liveSessionOf,
+  mediaStoreOf,
+  storedRunsOf,
+} from './session/observed-session'
+import type { ModelMessage, UIMessage, WebSocketLike } from '@tanstack/ai'
 import type { SessionIndexEntry, SessionMember } from '@tanstack/ai-persistence'
 import type { AnyHarness } from './define'
 import type { HarnessHost, HostEvent } from './host'
@@ -64,10 +63,10 @@ export interface HarnessHandlerOptions<P extends Principal = Principal> {
    */
   openAccess?: OpenAccess<P>
   /**
-   * How the handler signs media URLs. Required on a durable host
-   * (`stores.log`), where another instance can serve the next request.
-   * Without a log store, leave it out to sign with a random key per handler,
-   * so signed URLs stop working after a restart.
+   * How the handler signs media URLs. Without it, the handler signs with a
+   * random key of its own, so a signed URL works only on this server, and
+   * only until it restarts. Set it when more than one server answers the
+   * same URL, so each server verifies the URLs of the others.
    */
   media?: {
     /**
@@ -149,14 +148,13 @@ function sseResponse(
 }
 
 /**
- * Session events as an AG-UI SSE response. With `withIds`, each event has its
- * cursor as `id`, so a client that loses the connection resumes with
- * `Last-Event-ID`. `watch` gets the reader, as in `sseResponse`. When the
- * client leaves, the read stops.
+ * Session events as an AG-UI SSE response. Each event has its cursor as
+ * `id`, so a client that loses the connection resumes with `Last-Event-ID`.
+ * `watch` gets the reader, as in `sseResponse`. When the client leaves, the
+ * read stops.
  */
 function cursorResponse(
   read: (signal: AbortSignal) => AsyncIterable<SessionEvent>,
-  withIds: boolean,
   watch?: (reader: AbortController) => void,
 ) {
   // Not `request.signal`: some servers abort it once the body is read.
@@ -175,10 +173,8 @@ function cursorResponse(
     }
   }
   return new Response(
-    toServerSentEventsStream(
-      chunks(),
-      reader,
-      withIds ? (_chunk, index) => cursors.at(index) : undefined,
+    toServerSentEventsStream(chunks(), reader, (_chunk, index) =>
+      cursors.at(index),
     ),
     { headers: SSE_HEADERS },
   )
@@ -426,18 +422,18 @@ function watchRevoke<P extends Principal>(
  * - `GET  .../capabilities`: the AG-UI capabilities document.
  * - `POST .../run`: standard AG-UI. One request is one prompt (or one
  *   `resume`), streamed as SSE. The turn runs as the request's `runId`, and a
- *   retry with the same `runId` runs once. On a durable host, each event id
- *   is its log cursor, and a retry with `Last-Event-ID` streams from there. The prompt keeps every content
+ *   retry with the same `runId` runs once. Each event id is its log
+ *   cursor, and a retry with `Last-Event-ID` streams from there. The prompt keeps every content
  *   part of the last user message, and its `forwardedProps` are the input's
  *   `context`.
  * - `GET  .../run?threadId=`: the transcript, the running turn, and the
  *   waiting interrupts, as the `ChatHydrationResult` that a `ChatClient` with
  *   `persistence` reads.
- * - `GET  .../run?runId=` (or `X-Run-Id`): the chat turn with that run id, as
- *   SSE from its start, so a reloaded `ChatClient` joins it. Each event id is
- *   a cursor, so `Last-Event-ID` resumes it. On a durable host (`stores.log`
- *   and `stores.runs`), any instance finds the turn in the shared log.
- *   Without a log, 404 for a turn this host does not run.
+ * - `GET  .../run?runId=&threadId=` (or `X-Run-Id`): the chat turn with
+ *   that run id, as SSE from its start, so a reloaded `ChatClient` joins it.
+ *   Each event id is a cursor, so `Last-Event-ID` resumes it. Any instance
+ *   finds the turn in the log of `threadId`. Without `threadId`, only the
+ *   instance that runs the turn finds it, and another instance answers 400.
  * - `GET  .../events?threadId=&from=`: the session stream as SSE. Each event id
  *   is a cursor, so `Last-Event-ID` resumes it.
  * - `POST .../control`: `{ threadId, input }`. Returns the receipt.
@@ -480,9 +476,7 @@ function watchRevoke<P extends Principal>(
  *   this principal. First the current status of each open session.
  *
  * The `GET` routes of a thread, except `describe`, read with `host.observe`:
- * they open no session, mount no plugins, and write nothing. On a host with
- * no log, `GET events` of a thread whose session is not open on this
- * instance ends at once, and the client connects again.
+ * they open no session, mount no plugins, and write nothing.
  *
  * With host `access`, `access.identify` reads the user of each request
  * (`null` is 401), and the host checks each action: a refused action is 403.
@@ -491,6 +485,9 @@ function watchRevoke<P extends Principal>(
  * a `ChatClient` reads it before the first message.
  * The streams of a user close when `host.revoke` or `unshare` takes their
  * access. Each chat input runs as the principal of its request.
+ *
+ * Signed media URLs use `media.secret`. Without it, they work only on this
+ * server (see `HarnessHandlerOptions.media`).
  *
  * Throws at the start for a host without `access` and without
  * `openAccess`, and for a host with both.
@@ -506,20 +503,9 @@ export function createHarnessHandler<P extends Principal = Principal>(
   const { host, harness, media } = options
   const usersOf = requestUsers('createHarnessHandler', host, options.openAccess)
   const hasAccess = accessOf(host) !== undefined
-  const durable = durableStoresOf(host)
-  if (media === undefined && durable) {
-    throw new Error(
-      'createHarnessHandler needs media.secret on a durable host (stores.log): another instance must verify the media URLs this one signs. Set the same secret on every instance.',
-    )
-  }
 
   const openFor = (principal: P | undefined, threadId: string) =>
     host.open(harness, { threadId, ...(principal ? { principal } : {}) })
-
-  /** The run store of a durable host, in the tenant of `principal`. */
-  const runsOf = (principal: P | undefined) =>
-    durable?.runs &&
-    tenantStores({ runs: durable.runs }, principal?.tenantId).runs
 
   /** The view of a thread for a read route. See `observeToRead`. */
   const viewFor = (principal: P | undefined, threadId: string) =>
@@ -578,8 +564,8 @@ export function createHarnessHandler<P extends Principal = Principal>(
     }
   }
 
-  // ponytail: without `media.secret` (only allowed without a log store), a
-  // random key per handler, so signed URLs stop working after a restart.
+  // ponytail: without `media.secret`, a random key per handler, so a signed
+  // URL works only on this server, until it restarts.
   const secret =
     media === undefined
       ? crypto.getRandomValues(new Uint8Array(32))
@@ -659,24 +645,27 @@ export function createHarnessHandler<P extends Principal = Principal>(
    * Stream the chat turn `runId` from its start: the `joinRun` of a
    * ChatClient after a reload. Each event has its cursor as `id`, so
    * `Last-Event-ID` resumes after it. A turn that ended gives the events the
-   * feed still has.
+   * feed still has. `threadId` (from the query) names the log of the turn.
    */
   const joinTurn = async (
     request: Request,
     principal: P | undefined,
     runId: string,
   ) => {
+    const { searchParams } = new URL(request.url)
     // `offset=-1` is the start. A reconnect sends the last cursor it saw.
-    const offset = new URL(request.url).searchParams.get('offset')
+    const offset = searchParams.get('offset')
     const resumeFrom =
       request.headers.get('Last-Event-ID') ?? (offset === '-1' ? null : offset)
+    const named = searchParams.get('threadId')
     const running = await sessionOfTurn(host, {
       harness,
       tenantId: principal?.tenantId,
       operationId: runId,
     })
     const turn = running?.operation(runId)
-    if (running && turn) {
+    const isNamedThread = named === null || running?.threadId === named
+    if (running && turn && isNamedThread) {
       const { threadId } = running
       // The view checks the read. The turn keeps its session busy, so the
       // session does not close on idle while the turn streams.
@@ -688,22 +677,28 @@ export function createHarnessHandler<P extends Principal = Principal>(
       const from = resumeFrom ?? startedCursor ?? '0'
       return cursorResponse(
         (signal) => turn.events({ from, signal }),
-        true,
         closeOnRevoke(principal, threadId),
       )
     }
-    // Another instance runs the turn. A durable host finds its thread in the
-    // run store, and its events in the shared log. Not a child run or an
-    // agent run: only a chat turn of a thread.
-    const record = await runsOf(principal)?.get(runId)
-    const isChatTurn =
-      record != null &&
-      record.kind !== 'agent' &&
-      record.parentRunId === undefined
-    if (!record || !isChatTurn) return json({ error: 'unknown run' }, 404)
-    const { threadId } = record
+    // Another instance runs the turn: the log of the thread has its run
+    // and its events. Not a child run or an agent run: only a chat turn of
+    // the thread.
+    if (!named) {
+      return json(
+        { error: 'threadId is required to join a run of another instance' },
+        400,
+      )
+    }
+    const threadId = named
     const view = await viewFor(principal, threadId)
     if (!view) return json({ error: 'unknown run' }, 404)
+    const record = (await storedRunsOf(view)).get(runId)
+    const isChatTurn =
+      record !== undefined &&
+      record.threadId === threadId &&
+      record.kind !== 'agent' &&
+      record.parentRunId === undefined
+    if (!isChatTurn) return json({ error: 'unknown run' }, 404)
     const entry = await view.entry()
     if (entry?.harness !== undefined && entry.harness !== harness.name) {
       return json({ error: 'unknown run' }, 404)
@@ -716,7 +711,6 @@ export function createHarnessHandler<P extends Principal = Principal>(
           view.events({ from: resumeFrom ?? '0', signal }),
           runId,
         ),
-      true,
       closeOnRevoke(principal, threadId),
     )
   }
@@ -803,12 +797,11 @@ export function createHarnessHandler<P extends Principal = Principal>(
             (signal) =>
               followOperation(
                 session.events({
-                  ...(durable && lastEventId ? { from: lastEventId } : {}),
+                  ...(lastEventId ? { from: lastEventId } : {}),
                   signal,
                 }),
                 operationId,
               ),
-            durable !== undefined,
             keep(watch),
           )
         }
@@ -828,15 +821,13 @@ export function createHarnessHandler<P extends Principal = Principal>(
         if (receipt.status === 'rejected') {
           return json({ error: receipt.reason ?? 'rejected' }, 409)
         }
-        // A durable host sends each log cursor as the event id. A client cut
-        // off sends the same request with `Last-Event-ID`, maybe to another
+        // The host sends each log cursor as the event id. A client cut off
+        // sends the same request with `Last-Event-ID`, maybe to another
         // instance: the run id finds the same turn, and it streams from
-        // there. Without a log a cursor means nothing on another instance,
-        // so no id.
-        const from = (durable && lastEventId) || '0'
+        // there.
+        const from = lastEventId || '0'
         return cursorResponse(
           (signal) => operation.events({ from, signal }),
-          durable !== undefined,
           keep(watch),
         )
       })
@@ -854,7 +845,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
       if (!view) {
         return json({ messages: [], activeRun: null, interrupts: null })
       }
-      return json(await hydration(view, runsOf(principal)))
+      return json(await hydration(view))
     }
 
     if (request.method === 'GET' && route === 'events') {
@@ -866,8 +857,6 @@ export function createHarnessHandler<P extends Principal = Principal>(
         request.headers.get('Last-Event-ID') ??
         url.searchParams.get('from') ??
         undefined
-      // On a host with no log, a thread whose session is not open here has
-      // nothing to stream: the stream ends, and the client connects again.
       return sseResponse(
         async function* (signal) {
           const events = view.events({ ...(from ? { from } : {}), signal })
@@ -1108,10 +1097,9 @@ export function createHarnessHandler<P extends Principal = Principal>(
  * What a `ChatClient` with `persistence` reads when it loads a thread (a
  * `ChatHydrationResult`): the transcript, the running chat turn (the client
  * joins it with `GET run?runId=`), and the interrupts that the last turn
- * waits for. On a durable host, `runs` finds a turn that another instance
- * runs.
+ * waits for. The log has the turns that other instances run.
  */
-async function hydration(view: ObservedSession, runs?: RunStore) {
+async function hydration(view: ObservedSession) {
   const { pendingInterrupts, activeOperations } = await view.snapshot()
   const [first] = pendingInterrupts
   const runId = first
@@ -1124,7 +1112,9 @@ async function hydration(view: ObservedSession, runs?: RunStore) {
       item.kind === 'chat' &&
       session?.operation(item.id)?.status() === 'running',
   )
-  const remote = running ? undefined : await runs?.findActiveRun(view.threadId)
+  const remote = running
+    ? undefined
+    : activeRunIn(await storedRunsOf(view), view.threadId)
   const runningId =
     running?.id ?? (remote?.kind !== 'agent' ? remote?.runId : undefined)
   return {
@@ -1182,8 +1172,7 @@ const errorMessage = (error: unknown) =>
  *
  * The subscribe and the snapshots read with `host.observe`, so they open no
  * session. The first input opens the session, and the socket holds it until
- * it closes. On a host with no log, a thread whose session is not open has
- * no events: the stream starts when the first input opens the session.
+ * it closes.
  *
  * Throws at the start for a host without `access` and without `openAccess`,
  * and for a host with both.
@@ -1198,7 +1187,6 @@ export function handleHarnessSocket<P extends Principal = Principal>(
 ) {
   const { host, harness, socket, request } = options
   const usersOf = requestUsers('handleHarnessSocket', host, options.openAccess)
-  const isDurable = durableStoresOf(host) !== undefined
   const reader = new AbortController()
   const who = usersOf(request).catch(() => null)
   // Set by the first subscribe, before its awaits, so a second subscribe is
@@ -1244,12 +1232,9 @@ export function handleHarnessSocket<P extends Principal = Principal>(
     return opening
   }
   /**
-   * Send the events of the thread: the view first. A durable view follows
-   * the log while the socket is open. On a host with no log, the view reads
-   * the open session, and it ends when no session is open. Then the events
-   * of the session that the first input opens come next. That session has a
-   * new feed: its cursors start again. A view of the held session ends with
-   * that session.
+   * Send the events of the thread. The view follows the log while the socket
+   * is open. A thread with no index entry has no view yet: then the events
+   * of the session that the first input opens come.
    */
   const stream = async (
     view: ObservedSession | undefined,
@@ -1266,15 +1251,13 @@ export function handleHarnessSocket<P extends Principal = Principal>(
       ...(cursor ? { from: cursor } : {}),
       signal: reader.signal,
     })
-    if (view) await forward(view.events(readOptions()))
-    const isDone =
-      reader.signal.aborted ||
-      holding !== undefined ||
-      (view !== undefined && isDurable)
-    if (isDone) return
+    if (view) {
+      await forward(view.events(readOptions()))
+      return
+    }
+    if (reader.signal.aborted || holding !== undefined) return
     const session = await firstHeld
     if (!session) return
-    if (!isDurable) cursor = undefined
     await forward(session.events(readOptions()))
   }
   const send = (frame: HostFrame) => {

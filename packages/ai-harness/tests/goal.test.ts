@@ -2,10 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, definePlugin, logIdOf } from '../src'
+import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import { GoalMet, goal, selectGoal } from '../src/first-party'
 import {
   after,
+  appendToLog,
   gate,
   messageTexts,
   mockAdapter,
@@ -14,8 +15,14 @@ import {
   untilAborted,
 } from './helpers'
 import type { AnyTextAdapter, AnyTool } from '@tanstack/ai'
-import type { HarnessSession } from '../src'
+import type { HarnessPersistence, HarnessSession } from '../src'
 import type { Goal } from '../src/first-party'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 interface Verdict {
   met: boolean
@@ -46,7 +53,7 @@ async function start(options: {
   judge?: AnyTextAdapter
   maxRounds?: number
   tools?: Array<AnyTool>
-  persistence?: ReturnType<typeof memoryPersistence>
+  persistence?: HarnessPersistence
   busy?: 'queue' | 'reject'
 }) {
   const main = mockAdapter(options.replies)
@@ -95,7 +102,7 @@ async function status(session: HarnessSession) {
 
 /** Wait until `/goal` shows `expected`. */
 async function waitForStatus(session: HarnessSession, expected: string) {
-  await vi.waitFor(async () => expect(await status(session)).toBe(expected))
+  await waitFor(async () => expect(await status(session)).toBe(expected))
 }
 
 /** The last message the main model got on `call`. */
@@ -138,7 +145,7 @@ describe('goal', () => {
     expect(read[0]).toContain('Goal: all tests pass')
     expect(read[0]).toContain('assistant: wrote the test')
     expect(met).toEqual([{ goal: 'all tests pass', reason: 'All tests pass.' }])
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(session.snapshot().queuedTurns).toBe(0)
     await host.close()
   })
@@ -177,7 +184,7 @@ describe('goal', () => {
       session,
       'Goal: all tests pass\nStatus: stopped, round 2 of 2.\nThe round limit (2) is reached. Run /goal resume for more rounds.\nLast check: One test fails.',
     )
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(calls).toHaveLength(2)
     await host.close()
   })
@@ -197,12 +204,12 @@ describe('goal', () => {
     )
 
     await session.command({ name: 'goal', input: 'create hello.txt' })
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     expect(await session.command({ name: 'goal', input: 'stop' })).toBe(
       'Goal: create hello.txt\nStatus: stopped, round 1 of 20.\nYou stopped the goal.',
     )
     hold.open()
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(read).toHaveLength(0)
 
     expect(await session.command({ name: 'goal', input: 'resume' })).toBe(
@@ -227,14 +234,14 @@ describe('goal', () => {
     })
 
     const question = session.send('what time is it?')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     await session.command({ name: 'goal', input: 'finish' })
-    await vi.waitFor(() => expect(session.inputs()).toHaveLength(1))
+    await waitFor(() => expect(session.inputs()).toHaveLength(1))
     const [waiting] = session.inputs()
     if (waiting) await session.cancelInput(waiting.inputId)
     hold.open()
     await question
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(await status(session)).toBe(
       'Goal: finish\nStatus: active, round 0 of 20.',
     )
@@ -263,7 +270,7 @@ describe('goal', () => {
     })
 
     await session.command({ name: 'goal', input: 'all tests pass' })
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     const question = session.send('what time is it?')
     hold.open()
     await question
@@ -299,7 +306,7 @@ describe('goal', () => {
     })
 
     await session.command({ name: 'goal', input: 'all tests pass' })
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     // The last model call of the turn is in flight, so the steer comes too late.
     await session.send('what time is it?', { mode: 'steer' }).receipt
     hold.open()
@@ -308,7 +315,7 @@ describe('goal', () => {
       session,
       'Goal: all tests pass\nStatus: paused, round 1 of 20.\nYou sent a message, so the goal paused. Run /goal resume to continue.\nLast check: Not yet.',
     )
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(session.snapshot().status).toBe('idle')
       expect(session.snapshot().queuedTurns).toBe(0)
     })
@@ -328,11 +335,13 @@ describe('goal', () => {
       note: '',
       queued: '',
     }
-    await persistence.stores.metadata.set(
-      'plugin:tanstack/goal',
-      logIdOf({ logId: 't' }),
-      active,
-    )
+    await appendToLog(persistence.stores.log, { threadId: 't' }, [
+      {
+        type: 'harness.plugin.state',
+        plugin: 'tanstack/goal',
+        delta: { path: [], value: active },
+      },
+    ])
     const { host, session, calls, read } = await start({
       persistence,
       replies: [() => text('Hello.')],
@@ -360,7 +369,7 @@ describe('goal', () => {
     })
 
     await session.command({ name: 'goal', input: 'clean the folder' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(session.snapshot().status).toBe('requires_action'),
     )
     expect(await status(session)).toBe(
@@ -389,14 +398,17 @@ describe('goal', () => {
   })
 
   it('keeps the goal and its state across a restart', async () => {
-    const persistence = memoryPersistence()
+    // The first host closed, so the second host takes the log at once, as
+    // after a restart.
+    const { log, metadata } = memoryPersistence().stores
+    const persistence = { stores: { log, metadata } }
     const first = await start({
       persistence,
       replies: [() => text('step one'), untilAborted()],
       verdicts: [{ met: false, reason: 'Half done.' }],
     })
     await first.session.command({ name: 'goal', input: 'all tests pass' })
-    await vi.waitFor(() => expect(first.calls).toHaveLength(2))
+    await waitFor(() => expect(first.calls).toHaveLength(2))
     await first.host.close()
 
     const second = await start({
@@ -427,7 +439,7 @@ describe('goal', () => {
 
     await session.command({ name: 'goal', input: 'finish' })
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(selectGoal(session.snapshot())).toMatchObject({
         text: 'finish',
         status: 'met',

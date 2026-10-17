@@ -67,6 +67,12 @@ describe('subpath entry points', () => {
     expect(exportedFrom(root, ['oauthConnector'])).toEqual(['oauthConnector'])
   })
 
+  it('the root has createHarnessWorker, because it needs no Node module', () => {
+    expect(exportedFrom(root, ['createHarnessWorker'])).toEqual([
+      'createHarnessWorker',
+    ])
+  })
+
   it('./plugins does not export the Node plugins', () => {
     expect(exportedFrom(plugins, PLUGINS_NODE)).toEqual([])
   })

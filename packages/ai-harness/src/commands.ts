@@ -19,7 +19,7 @@ export interface Question<TSchema extends SchemaInput | undefined = undefined> {
   schema?: TSchema
   /**
    * The answer is a secret, for example an API key or a password. Hosts hide
-   * it while the user types, and the session does not keep it in the inbox.
+   * it while the user types, and the session does not keep it in the log.
    */
   secret?: boolean
   /**

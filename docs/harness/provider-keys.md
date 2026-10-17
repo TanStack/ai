@@ -192,7 +192,7 @@ Outside a harness, `ctx.keys` reads the env var. See [Keys inside agents](../adv
 
 - A key shows masked only: `...` and the last 4 characters.
 - The plugin never puts a key in an event, the transcript, or a command result.
-- The answer to the key question does not go into the inbox of the session.
+- The session log does not keep the answer to the key question.
 - Do not log a key. For error messages, use `maskKey` from `@tanstack/ai/byok`.
 
 ## What you have now

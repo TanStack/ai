@@ -2,11 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import {
-  UNOWNED_EPOCH,
+  LogConflictError,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, logIdOf } from '../src'
+import { isRecord } from '../src/utils'
 import {
   after,
   gate,
@@ -18,17 +19,27 @@ import {
   wrapLogStore,
 } from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
-import type { AnyHarness, HarnessSession, Operation } from '../src'
+import type { LogRecord } from '@tanstack/ai-persistence'
+import type {
+  AnyHarness,
+  HarnessPersistence,
+  HarnessSession,
+  Operation,
+} from '../src'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 const THREAD = 't1'
-/** The id of the log of `THREAD` in the store. */
-const LOG = logIdOf({ logId: THREAD })
 const alice = { id: 'alice' }
 
-/** Open `harness` for alice on a host without a log. */
+/** Open `harness` for alice. */
 async function open<THarness extends AnyHarness>(
   harness: THarness,
-  persistence = memoryPersistence(),
+  persistence: HarnessPersistence = memoryPersistence(),
 ) {
   const host = createHarnessHost({ persistence })
   const session = await host.open(harness, {
@@ -83,8 +94,23 @@ function researching(replies: Parameters<typeof mockAdapter>[0]) {
 }
 
 describe('the thread of an agent run', () => {
-  it('keeps the messages of each background run in a thread of its own', async () => {
+  it('keeps the messages of each background run in a thread of its own, in the log of the root thread', async () => {
     const persistence = memoryPersistence()
+    const log = persistence.stores.log
+    // Every log that the host writes to.
+    const written = new Set<string>()
+    const tracked = {
+      ...persistence,
+      stores: {
+        ...persistence.stores,
+        log: wrapLogStore(log, {
+          append: (write) => {
+            written.add(write.logId)
+            return log.append(write)
+          },
+        }),
+      },
+    }
     const model = mockAdapter([() => text('Drafted.')])
     let thread = ''
     const drafter = defineAgent({
@@ -104,18 +130,27 @@ describe('the thread of an agent run', () => {
         adapter: mockAdapter([]).adapter,
         agents: [drafter],
       }),
-      persistence,
+      tracked,
     )
 
     await session.agents.drafter.start()
 
     expect(thread).toMatch(/^t1:drafter:in-/)
-    // The chain thread is in the tenant of the session: the default one.
-    const saved = JSON.stringify(
-      await persistence.stores.messages.loadThread(logIdOf({ logId: thread })),
-    )
+    // One log for the whole tree: the chain thread writes to the log of t1.
+    const root = logIdOf({ logId: THREAD })
+    expect([...written]).toEqual([root])
+    const chain = (await log.read({ logId: root }))
+      .map((entry) => entry.record)
+      .filter((record) => record.thread === thread)
+    const saved = JSON.stringify(chain)
     expect(saved).toContain('Draft it.')
     expect(saved).toContain('Drafted.')
+    expect(await log.read({ logId: logIdOf({ logId: thread }) })).toEqual([])
+    // The transcript of the root thread does not have the chain messages,
+    // only the note of the result.
+    expect(JSON.stringify(await session.transcript())).not.toContain(
+      'Draft it.',
+    )
     await host.close()
   })
 })
@@ -151,7 +186,7 @@ describe('follow-ups to an agent run', () => {
     ])
     const { host, session } = await open(writing(model.adapter))
     const run = session.agents.writer.start()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await waitFor(() => expect(model.calls).toHaveLength(1))
 
     const receipt = await run.send('Add a title.', {
       mode: 'followUp',
@@ -181,7 +216,7 @@ describe('follow-ups to an agent run', () => {
     const model = mockAdapter([untilAborted(), () => text('Draft two.')])
     const { host, session } = await open(writing(model.adapter))
     const run = session.agents.writer.start()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await waitFor(() => expect(model.calls).toHaveLength(1))
     const receipt = await run.send('Add a title.', { mode: 'followUp' })
     const followUp = session.operation(receipt.operationId ?? '')
 
@@ -193,28 +228,28 @@ describe('follow-ups to an agent run', () => {
 
   it('cancels a queued follow-up when a log failure stops the session', async () => {
     const inner = memoryLogStore()
-    // This host does not see the other writer, like one in another process.
-    const log = wrapLogStore(inner, { subscribe: () => () => {} })
-    const { runs, metadata } = memoryPersistence().stores
+    // After `isBroken`, the store refuses each position.
+    let isBroken = false
+    const log = wrapLogStore(inner, {
+      append: (batch) =>
+        isBroken
+          ? Promise.reject(new LogConflictError(batch.logId, batch.seq))
+          : inner.append(batch),
+    })
+    const { metadata } = memoryPersistence().stores
     const model = mockAdapter([untilAborted(), () => text('Draft two.')])
     const host = createHarnessHost({
-      persistence: { stores: { log, runs, metadata } },
+      persistence: { stores: { log, metadata } },
     })
     const session = await host.open(writing(model.adapter), {
       threadId: THREAD,
       principal: alice,
     })
     const run = session.agents.writer.start()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await waitFor(() => expect(model.calls).toHaveLength(1))
     const receipt = await run.send('Add a title.', { mode: 'followUp' })
     const followUp = session.operation(receipt.operationId ?? '')
-    const [last] = (await inner.read({ logId: LOG })).slice(-1)
-    await inner.append({
-      logId: LOG,
-      seq: (last?.seq ?? 0) + 1,
-      epoch: UNOWNED_EPOCH,
-      records: [{ type: 'app.from-another-host' }],
-    })
+    isBroken = true
 
     await Promise.resolve(session.send('Next.')).catch(() => {})
 
@@ -231,14 +266,14 @@ describe('follow-ups to an agent run', () => {
     ])
     const { host, session } = await open(writing(model.adapter))
     const run = session.agents.writer.start()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await waitFor(() => expect(model.calls).toHaveLength(1))
 
     const receipt = await run.send('Use a warmer tone.')
 
     expect(receipt).toMatchObject({ status: 'accepted', operationId: run.id })
     release.open()
     await run
-    await vi.waitFor(() => expect(model.calls).toHaveLength(2))
+    await waitFor(() => expect(model.calls).toHaveLength(2))
     expect(messageTexts(model.calls[1]).at(-1)).toBe('Use a warmer tone.')
     expect(await session.settled(receipt.inputId)).toMatchObject({
       outcome: 'completed',
@@ -267,7 +302,7 @@ describe('steers to an agent run', () => {
     ])
     const { host, session } = await open(harness)
     const run = session.agents.researcher.start()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await waitFor(() => expect(model.calls).toHaveLength(1))
 
     const receipt = await run.send('Only primary sources.')
     release.open()
@@ -291,7 +326,7 @@ describe('steers to an agent run', () => {
     ])
     const { host, session } = await open(harness)
     const run = session.agents.researcher.start()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await waitFor(() => expect(model.calls).toHaveLength(1))
 
     const receipt = await session.send('Ignore the brief.', {
       to: run.id,
@@ -299,7 +334,7 @@ describe('steers to an agent run', () => {
     }).receipt
     release.open()
     await run
-    await vi.waitFor(() => expect(model.calls).toHaveLength(3))
+    await waitFor(() => expect(model.calls).toHaveLength(3))
 
     expect(receipt.status).toBe('queued')
     expect(receipt.operationId).not.toBe(run.id)
@@ -318,7 +353,7 @@ describe('agentRuns() and agentRun(id)', () => {
     ])
     const { host, session } = await open(writing(model.adapter))
     const run = session.agents.writer.start()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await waitFor(() => expect(model.calls).toHaveLength(1))
     const queued = await run.send('Add a title.', { mode: 'followUp' })
 
     expect(session.agentRuns()).toEqual([
@@ -338,7 +373,7 @@ describe('agentRuns() and agentRun(id)', () => {
     expect(session.agentRun(run.id)).toBe(run)
     expect(session.agentRun('op-agent-none')).toBeUndefined()
     release.open()
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(session.agentRuns().map((item) => item.status)).toEqual([
         'completed',
         'completed',
@@ -352,7 +387,6 @@ describe('agentRuns() and agentRun(id)', () => {
     const persistence = {
       stores: {
         log: memoryLogStore(),
-        runs: stores.runs,
         metadata: stores.metadata,
       },
     }
@@ -401,7 +435,7 @@ describe('agentRuns() and agentRun(id)', () => {
     ])
     const { host, session } = await open(harness)
     const run = session.agents.researcher.start()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await waitFor(() => expect(model.calls).toHaveLength(1))
 
     const receipt = await session.send('Ignore the brief.', {
       to: run.id,
@@ -409,7 +443,7 @@ describe('agentRuns() and agentRun(id)', () => {
     }).receipt
     release.open()
     await run
-    await vi.waitFor(() => expect(model.calls).toHaveLength(3))
+    await waitFor(() => expect(model.calls).toHaveLength(3))
 
     expect(session.agentRuns()).toMatchObject([
       { operationId: run.id, agent: 'researcher', principal: alice },
@@ -531,12 +565,12 @@ describe('agents that agent code starts', () => {
       }),
     )
     const run = session.agents.lead.start()
-    await vi.waitFor(() => expect(listening).toEqual(['lead', 'waiter']))
+    await waitFor(() => expect(listening).toEqual(['lead', 'waiter']))
 
     await run.cancel()
 
-    await vi.waitFor(() => expect(stopped).toEqual(['waiter', 'lead']))
-    await vi.waitFor(() =>
+    await waitFor(() => expect(stopped).toEqual(['waiter', 'lead']))
+    await waitFor(() =>
       expect(session.agentRuns().map((item) => item.status)).toEqual([
         'cancelled',
         'cancelled',
@@ -550,7 +584,7 @@ describe('agents that agent code starts', () => {
     const model = mockAdapter([after(release.opened, 'Draft one.')])
     const { host, session } = await open(writing(model.adapter))
     const run = session.agents.writer.start()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await waitFor(() => expect(model.calls).toHaveLength(1))
     const queued = await run.send('Add a title.', { mode: 'followUp' })
 
     const cancelled = await session.cancel({ operationId: queued.operationId })
@@ -574,13 +608,13 @@ describe('agents that agent code starts', () => {
 
 /**
  * Two hosts on one durable store. `stop` makes host A stop during `run`:
- * its log refuses writes, and the run's lease expires.
+ * its log refuses writes, so it gives the log up.
  */
 function durable() {
   const stores = memoryPersistence().stores
   const log = memoryLogStore()
   const persistence = {
-    stores: { log, runs: stores.runs, metadata: stores.metadata },
+    stores: { log, metadata: stores.metadata },
   }
   const stop = async (
     session: Pick<HarnessSession, 'append'>,
@@ -592,7 +626,6 @@ function durable() {
     await expect(session.append([{ type: 'app.ping' }])).rejects.toThrow()
     await expect(run).rejects.toThrow()
     refuse.mockRestore()
-    await stores.runs.update(run.id, { leaseExpiresAt: Date.now() - 1000 })
   }
   return { persistence, stop }
 }
@@ -607,7 +640,7 @@ describe('messages to an agent run after its host stopped', () => {
       principal: alice,
     })
     const run = sessionA.agents.writer.start(undefined, { resume: true })
-    await vi.waitFor(() => expect(first.calls).toHaveLength(1))
+    await waitFor(() => expect(first.calls).toHaveLength(1))
     await run.send('Cite the source.', { inputId: 'steer-1' })
     await stop(sessionA, run)
 
@@ -634,7 +667,7 @@ describe('messages to an agent run after its host stopped', () => {
       principal: alice,
     })
     const run = sessionA.agents.writer.start()
-    await vi.waitFor(() => expect(first.calls).toHaveLength(1))
+    await waitFor(() => expect(first.calls).toHaveLength(1))
     await run.send('Cite the source.', { inputId: 'steer-1' })
     await stop(sessionA, run)
 
@@ -664,10 +697,10 @@ describe('messages to an agent run after its host stopped', () => {
       principal: alice,
     })
     const run = sessionA.agents.researcher.start()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(1))
+    await waitFor(() => expect(model.calls).toHaveLength(1))
     await run.send('Only primary sources.', { inputId: 'steer-2' })
     release.open()
-    await vi.waitFor(() => expect(model.calls).toHaveLength(2))
+    await waitFor(() => expect(model.calls).toHaveLength(2))
     await stop(sessionA, run)
 
     const hostB = createHarnessHost({ persistence })
@@ -696,7 +729,7 @@ describe('messages to an agent run after its host stopped', () => {
       mode: 'followUp',
       inputId: 'follow-1',
     })
-    await vi.waitFor(() => expect(first.calls).toHaveLength(2))
+    await waitFor(() => expect(first.calls).toHaveLength(2))
     const followUp = sessionA.agentRun(receipt.operationId ?? '')
     if (!followUp) throw new Error('No follow-up run.')
     await stop(sessionA, followUp)
@@ -718,27 +751,30 @@ describe('messages to an agent run after its host stopped', () => {
   })
 })
 
-describe('an agent run whose store fails', () => {
-  it('fails the run when the run store cannot record its end', async () => {
-    const persistence = memoryPersistence()
-    const { runs } = persistence.stores
-    const update = runs.update.bind(runs)
+describe('an agent run whose log write fails', () => {
+  it('fails the run when the log cannot record its end', async () => {
+    const inner = memoryLogStore()
     let agentRunId = ''
     // Only the end record of the agent run itself fails.
-    vi.spyOn(runs, 'update').mockImplementation(async (runId, patch) => {
-      if (runId === agentRunId && patch.status === 'completed') {
-        throw new Error('runs down')
-      }
-      return update(runId, patch)
+    const isAgentEnd = (record: LogRecord) =>
+      record.type === 'harness.run.update' &&
+      record.runId === agentRunId &&
+      isRecord(record.patch) &&
+      record.patch.status === 'completed'
+    const log = wrapLogStore(inner, {
+      append: (batch) =>
+        batch.records.some(isAgentEnd)
+          ? Promise.reject(new Error('log down'))
+          : inner.append(batch),
     })
     const { session, host } = await open(
       writing(mockAdapter([() => text('Done.')]).adapter),
-      persistence,
+      { stores: { log } },
     )
 
     const run = session.agents.writer.start(undefined)
     agentRunId = run.id
-    await expect(run).rejects.toThrow('runs down')
+    await expect(run).rejects.toThrow('log down')
     expect(run.status()).toBe('failed')
     await host.close()
   })

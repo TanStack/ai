@@ -21,14 +21,20 @@ import type { LogStore } from '@tanstack/ai-persistence'
 import type { HarnessSession, ProjectOptions, SessionEvent } from '../src'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
 const LOG = logIdOf({ logId: THREAD })
 
-/** The stores of a durable host: a log, runs, and metadata. */
+/** The stores of a durable host: a log and metadata. */
 function durablePersistence(log: LogStore = memoryLogStore()) {
-  const { runs, metadata } = memoryPersistence().stores
-  return { stores: { log, runs, metadata } }
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log, metadata } }
 }
 
 /** Signals become user messages. A compaction keeps a summary and a tail. */
@@ -199,36 +205,34 @@ function thinkCallThinkCall(): Array<StreamChunk> {
 // The types refuse these store sets. The runtime check is for JavaScript
 // callers and dynamic store bags, so these tests pass them with `as never`.
 describe('durable host stores', () => {
-  it('needs runs next to the log', () => {
-    const { metadata } = memoryPersistence().stores
-    expect(() =>
-      createHarnessHost({
-        persistence: { stores: { log: memoryLogStore(), metadata } } as never,
-      }),
-    ).toThrow('needs stores.runs')
+  it('runs a session with only a log store', async () => {
+    const { adapter } = mockAdapter([() => text('from the log only')])
+    const host = createHarnessHost({
+      persistence: { stores: { log: memoryLogStore() } },
+    })
+    const session = await host.open(
+      defineHarness({ name: 'test/log-only', adapter }),
+      { threadId: THREAD },
+    )
+
+    expect((await session.send('hi')).text).toBe('from the log only')
+    await host.close()
   })
 
-  it('refuses a message store next to the log', () => {
+  it('needs a log store, and names the memory default', () => {
     const { messages, runs } = memoryPersistence().stores
     expect(() =>
       createHarnessHost({
-        persistence: {
-          stores: { log: memoryLogStore(), runs, messages },
-        } as never,
+        persistence: { stores: { messages, runs } } as never,
       }),
-    ).toThrow('Remove stores.messages.')
+    ).toThrow(
+      'The harness needs stores.log: each session keeps its events, transcript, and inputs there. In development, use memoryPersistence() from @tanstack/ai-persistence.',
+    )
   })
 
-  it('refuses host records without a log, and harness record types', async () => {
+  it('refuses harness record types', async () => {
     const { adapter } = mockAdapter([])
     const harness = defineHarness({ name: 'test/append', adapter })
-    const today = await createHarnessHost({
-      persistence: memoryPersistence(),
-    }).open(harness, { threadId: THREAD })
-    await expect(today.append([{ type: 'app.x' }])).rejects.toThrow(
-      'session.append needs a durable host',
-    )
-
     const durable = await createHarnessHost({
       persistence: durablePersistence(),
     }).open(harness, { threadId: THREAD })
@@ -276,7 +280,7 @@ describe('durable session log', () => {
     const turn = session.send('say hello')
 
     // The deltas reach the log after the coalescing window.
-    await vi.waitFor(async () => {
+    await waitFor(async () => {
       const entries = await persistence.stores.log.read({ logId: LOG })
       const events = entries.map((entry) => entry.record.event)
       expect(JSON.stringify(events)).toContain('wor')
@@ -332,7 +336,7 @@ describe('durable session log', () => {
       },
     )
     const turn = session.send('go')
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(JSON.stringify(batches)).toContain('TEXT_MESSAGE_START'),
     )
 
@@ -512,11 +516,11 @@ describe('durable session log', () => {
     await host.close()
   })
 
-  it('stops the session when another host wrote to the thread', async () => {
+  it('folds what another host wrote before its first write, and stays open', async () => {
     const inner = memoryLogStore()
     // This host does not see the other writer, like one in another process.
     const log = wrapLogStore(inner, { subscribe: () => () => {} })
-    const { adapter } = mockAdapter([() => text('never saved')])
+    const { adapter } = mockAdapter([() => text('saved after the other host')])
     const host = createHarnessHost({ persistence: durablePersistence(log) })
     const harness = defineHarness({ name: 'test/conflict', adapter })
     const session = await host.open(harness, { threadId: THREAD })
@@ -527,13 +531,13 @@ describe('durable session log', () => {
       records: [{ type: 'app.from-another-host' }],
     })
 
-    await expect(session.send('hi')).rejects.toThrow('Another host wrote')
+    const result = await session.send('hi')
 
-    // The host drops the stopped session, so the next open folds the log
-    // again in a new one.
-    await vi.waitFor(() =>
-      expect(host.isOpen(harness, { threadId: THREAD })).toBe(false),
-    )
+    expect(result.text).toBe('saved after the other host')
+    expect(host.isOpen(harness, { threadId: THREAD })).toBe(true)
+    const entries = await inner.read({ logId: LOG })
+    expect(entries[0]?.record.type).toBe('app.from-another-host')
+    expect(entries.length).toBeGreaterThan(1)
     await host.close()
   })
 
@@ -791,33 +795,6 @@ describe('LogRecordsCapability', () => {
 
     expect(failure).toBeInstanceOf(Error)
     expect(String(failure)).toContain('reserved for the harness')
-    await host.close()
-  })
-
-  it('gives nothing on a host without a log', async () => {
-    let seen: unknown = 'not called'
-    const probe: ChatMiddleware = {
-      name: 'test:probe',
-      onConfig: (ctx) => {
-        seen = getLogRecords(ctx, { optional: true })
-      },
-    }
-    const { adapter } = mockAdapter([() => text('a1')])
-    const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
-        name: 'test/log-records-none',
-        adapter,
-        middleware: [probe],
-      }),
-      {
-        threadId: THREAD,
-      },
-    )
-
-    await session.send('q1')
-
-    expect(seen).toBeUndefined()
     await host.close()
   })
 })

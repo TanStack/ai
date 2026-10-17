@@ -13,7 +13,15 @@ import {
   oauthConnector,
 } from '../src'
 import { createHarnessHandler } from '../src/server'
-import { after, gate, mockAdapter, text, toolCall } from './helpers'
+import {
+  after,
+  appendToLog,
+  gate,
+  mockAdapter,
+  storedThreadState,
+  text,
+  toolCall,
+} from './helpers'
 import type { HarnessRunContext, HarnessSession } from '../src'
 import type { OAuthConfig } from '../src/oauth'
 import type { Reply } from './helpers'
@@ -95,8 +103,8 @@ function nextEnd(session: HarnessSession) {
 
 /** The stores of a durable host, so a second host reads the same thread. */
 function durableStores() {
-  const { runs, metadata } = memoryPersistence().stores
-  return { log: memoryLogStore(), runs, metadata }
+  const { metadata } = memoryPersistence().stores
+  return { log: memoryLogStore(), metadata }
 }
 
 describe('require with wait', () => {
@@ -538,12 +546,14 @@ describe('sign-ins in a shared thread', () => {
     await (await a.open()).send('List my issues.')
     await a.host.close()
     // A copy without `principal`, as an older version wrote it.
-    const key = logIdOf({ logId: 't' })
-    const stored = await stores.metadata.get('harness:interrupted', key)
-    if (typeof stored !== 'object' || stored === null)
-      throw new Error('No stored interrupted turn.')
-    const { principal: _principal, ...old } = stored as Record<string, unknown>
-    await stores.metadata.set('harness:interrupted', key, old)
+    const { interrupted } = await storedThreadState(stores.log, {
+      threadId: 't',
+    })
+    if (!interrupted) throw new Error('No stored interrupted turn.')
+    const { principal: _principal, ...old } = interrupted
+    await appendToLog(stores.log, { threadId: 't' }, [
+      { type: 'harness.interrupted', turn: old },
+    ])
 
     const b = start([() => text('One issue.')])
     const session = await b.open()

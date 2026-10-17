@@ -197,17 +197,13 @@ If two plugins add a tool with the same name, `host.open` fails and names both p
 
 ## Keep sessions across restarts
 
-The host takes the same stores as `withPersistence`. Add an `inbox` store and the session also keeps the messages it accepted but did not start yet. When the session opens again, it runs them.
+Each host keeps every thread in a session log: the transcript, the inputs, the runs, the approvals that wait, the settings, and the plugin state. The host needs one store for it, `log`:
 
-- `messages`: the transcript. Required.
-- `runs`: the record of every turn and agent run. When the host stops during a background agent run, the next session ends that run `failed` and notes it in the transcript.
-- `interrupts`: approvals that wait for a user.
-- `inbox`: accepted messages that did not run yet.
-- `metadata`: the session config, plugin state, and the interrupts that the last turn waits on. With it, `session.resolve` continues that turn after a restart, also a turn that a router sent to agents.
+- `log`: the session log. Required.
+- `sessions`: one index entry per thread, for a list of sessions. See [List, rename, and fork sessions](./sessions).
+- `metadata`: data wider than one thread, for example the saved rules of `permissions()`, and a fold checkpoint so a long thread opens faster.
 
-`memoryPersistence()` has every store, but it keeps them in memory only. Write your own stores to keep data in your database. See [Build your own adapter](../persistence/build-your-own-adapter).
-
-To continue a turn after a crash or a deploy, give the host a session log. See [Durable sessions](./durable-sessions).
+`memoryPersistence()` has every store, but it keeps them in memory only. To keep the log in your database, implement the [`LogStore` contract](../persistence/store-reference#logstore). Then a turn continues after a crash or a deploy. See [Durable sessions](./durable-sessions).
 
 ## Prompt caching
 

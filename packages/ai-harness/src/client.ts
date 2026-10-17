@@ -212,7 +212,9 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * The session events from `from` (exclusive). Reconnects after a network
    * error and resumes from the last cursor. Ends when `signal` aborts.
    * `onConnection` reports `'open'` for each connection and `'reconnecting'`
-   * before each new try.
+   * before each new try. When the log dropped the events after `from`, the
+   * first event is a `harness.gap` (`HARNESS_EVENTS.gap`): load the snapshot
+   * and the transcript again. A session view does this itself.
    */
   events: (options?: {
     from?: Cursor
