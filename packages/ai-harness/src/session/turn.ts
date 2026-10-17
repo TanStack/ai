@@ -160,14 +160,25 @@ export abstract class SessionTurn<
       signal: operation.abortController.signal,
     })
     try {
-      const result: unknown = await entry.command.run(checked, {
-        signal: operation.abortController.signal,
-        // The command acts for its sender, also while another user's turn runs.
-        session: this.pluginApi(principal, undefined, operation.id),
-        ...(principal ? { principal } : {}),
-        credentials: run.credentials,
-        run,
-      })
+      const { signal } = operation.abortController
+      // A cancel or a session close ends the command at once. A handler that
+      // does not stop on its signal runs on alone, and its result is dropped.
+      const result: unknown = await Promise.race([
+        entry.command.run(checked, {
+          signal,
+          // The command acts for its sender, also while another user's turn runs.
+          session: this.pluginApi(principal, undefined, operation.id),
+          ...(principal ? { principal } : {}),
+          credentials: run.credentials,
+          run,
+        }),
+        new Promise<never>((_, reject) => {
+          if (signal.aborted) reject(signal.reason)
+          signal.addEventListener('abort', () => reject(signal.reason), {
+            once: true,
+          })
+        }),
+      ])
       operation.publish(
         customEvent('harness.command.result', {
           name,

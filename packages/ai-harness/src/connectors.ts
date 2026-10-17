@@ -77,7 +77,10 @@ export function oauthConnector(options: OAuthConnectorOptions) {
         let credential = await credentials.require(id, { wait })
         if (credential.type === 'api_key') return credential.value
         if (isExpired(credential) && credential.refreshToken) {
-          credential = await refreshCredential(oauth, credential, options.fetch)
+          credential = await refreshCredential(oauth, credential, {
+            fetch: options.fetch,
+            signal: run.signal,
+          })
           await credentials.set({ id, credential })
         }
         if (credential.type === 'api_key') return credential.value
@@ -88,8 +91,9 @@ export function oauthConnector(options: OAuthConnectorOptions) {
         commands: {
           [`connect:${id}`]: defineCommand({
             description: `Sign in to ${label}`,
-            // The sign-in belongs to the user who runs the command.
-            run: async (_input, { credentials }) => {
+            // The sign-in belongs to the user who runs the command. A cancel
+            // or a session close stops it at once.
+            run: async (_input, { credentials, signal }) => {
               const credential =
                 options.login === 'device'
                   ? await deviceLogin(oauth, {
@@ -99,12 +103,14 @@ export function oauthConnector(options: OAuthConnectorOptions) {
                           url: verificationUri,
                           userCode,
                         }),
-                      ...(options.fetch ? { fetch: options.fetch } : {}),
+                      fetch: options.fetch,
+                      signal,
                     })
                   : await loopbackLogin(oauth, {
                       onUrl: (url) =>
                         ctx.session.authRequired({ connector: id, url }),
-                      ...(options.fetch ? { fetch: options.fetch } : {}),
+                      fetch: options.fetch,
+                      signal,
                     })
               await credentials.set({ id, credential })
               return `Connected to ${label}.`

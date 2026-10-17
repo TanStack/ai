@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto'
-import { auth } from '@modelcontextprotocol/client'
+import { auth, createFetchWithInit } from '@modelcontextprotocol/client'
 import {
   AuthRequiredError,
   defineCommand,
@@ -333,9 +333,12 @@ export function mcpConnector(options: McpConnectorOptions) {
         commands: {
           [`connect:${id}`]: defineCommand({
             description: `Sign in to ${label}`,
-            // The sign-in belongs to the user who runs the command.
+            // The sign-in belongs to the user who runs the command. A cancel
+            // or a session close stops it at once: the loopback stops
+            // listening, and the OAuth requests abort.
             run: async (_input, { run }) => {
-              const receiver = await startLoopbackReceiver()
+              const { signal } = run
+              const receiver = await startLoopbackReceiver({ signal })
               const state = randomBytes(16).toString('base64url')
               try {
                 const provider = credentialProvider(id, run.credentials, {
@@ -349,10 +352,10 @@ export function mcpConnector(options: McpConnectorOptions) {
                       url: authorizationUrl.href,
                     }),
                 })
-                const fetchFn = options.fetch ? { fetchFn: options.fetch } : {}
+                const fetchFn = createFetchWithInit(options.fetch, { signal })
                 // A new sign-in has no tokens, so this always ends in a
                 // redirect to the browser.
-                await auth(provider, { serverUrl: url, ...fetchFn })
+                await auth(provider, { serverUrl: url, fetchFn })
                 // The error names the service: a sign-in can end minutes later.
                 const { code, iss } = await receiver
                   .waitForCode(state)
@@ -367,7 +370,7 @@ export function mcpConnector(options: McpConnectorOptions) {
                   serverUrl: url,
                   authorizationCode: code,
                   ...(iss ? { iss } : {}),
-                  ...fetchFn,
+                  fetchFn,
                 })
               } finally {
                 receiver.close()
