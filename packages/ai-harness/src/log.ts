@@ -531,6 +531,10 @@ export function sessionOf(state: SharedLogState<unknown>, thread: string) {
  * default tenant. So one log id in two tenants is two logs. `logId` is the
  * `logId` of `host.open`, and its default is the thread id.
  *
+ * The other stores that the harness keys by thread (messages, runs,
+ * interrupts, metadata, inbox, work claims, leases, and media) use the same
+ * key, with the thread id as `logId`.
+ *
  * @example
  * ```ts
  * const entries = await log.read({ logId: logIdOf({ tenantId: 'org-1', logId: threadId }) })
@@ -544,6 +548,17 @@ export function logIdOf({
   logId: string
 }) {
   return `${encodeURIComponent(tenantId ?? '')}:${encodeURIComponent(logId)}`
+}
+
+/**
+ * The tenant and the log id of a store id from {@link logIdOf}. The first
+ * `:` splits them. An empty tenant is the default tenant: no `tenantId`.
+ */
+export function parseLogId(id: string) {
+  const at = id.indexOf(':')
+  const tenantId = decodeURIComponent(id.slice(0, Math.max(at, 0)))
+  const logId = decodeURIComponent(id.slice(at + 1))
+  return tenantId === '' ? { logId } : { tenantId, logId }
 }
 
 /**

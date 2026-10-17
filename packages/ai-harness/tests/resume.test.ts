@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, chat, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { HARNESS_EVENTS, createHarnessHost, defineHarness } from '../src'
+import {
+  HARNESS_EVENTS,
+  createHarnessHost,
+  defineHarness,
+  logIdOf,
+} from '../src'
 import {
   INTERRUPTED_TOOL_RESULT,
   LEASE,
@@ -15,6 +20,9 @@ import {
 import { gate, mockAdapter, text, toolCall } from './helpers'
 import type { AnyChatMiddleware, AnyTool, ModelMessage } from '@tanstack/ai'
 import type { SessionEvent } from '../src'
+
+/** The key of the thread `t1` in the stores of a session, in the default tenant. */
+const T1_KEY = logIdOf({ logId: 't1' })
 
 /** Run one chat() turn with the checkpoint middleware and a fresh run record. */
 async function runWithCheckpoint(options: {
@@ -109,7 +117,7 @@ describe('checkpoints and leases', () => {
       { toolCallId: 'call-1', name: 'lookup', replay: 'safe' },
     ])
     // The assistant message with the tool call is saved before the tool runs.
-    const saved = await persistence.stores.messages.loadThread('t1')
+    const saved = await persistence.stores.messages.loadThread(T1_KEY)
     expect(saved.at(-1)?.toolCalls?.[0]?.function.name).toBe('lookup')
 
     release.open()
@@ -150,7 +158,7 @@ describe('checkpoints and leases', () => {
 describe('crash resume', () => {
   it('continues a crashed turn, runs safe tools again, and notes the others', async () => {
     const persistence = memoryPersistence()
-    await persistence.stores.messages.saveThread('t1', [
+    await persistence.stores.messages.saveThread(T1_KEY, [
       { id: 'u1', role: 'user', content: 'refund and look up' },
       {
         id: 'a1',
@@ -172,7 +180,7 @@ describe('crash resume', () => {
     ])
     await persistence.stores.runs.createOrResume({
       runId: 'crashed-run',
-      threadId: 't1',
+      threadId: T1_KEY,
       startedAt: Date.now() - 60_000,
     })
     await persistence.stores.runs.update('crashed-run', {
@@ -228,7 +236,7 @@ describe('crash resume', () => {
 
     expect(lookup).toHaveBeenCalledTimes(1)
     expect(charge).not.toHaveBeenCalled()
-    const transcript = await persistence.stores.messages.loadThread('t1')
+    const transcript = await persistence.stores.messages.loadThread(T1_KEY)
     const chargeResult = transcript.find(
       (message) =>
         message.role === 'tool' && message.toolCallId === 'call-charge',
@@ -480,7 +488,7 @@ describe('crash resume', () => {
     const persistence = memoryPersistence()
     await persistence.stores.runs.createOrResume({
       runId: 'crashed-agent',
-      threadId: 't1',
+      threadId: T1_KEY,
       startedAt: Date.now() - 60_000,
       kind: 'agent',
       agent: 'waiter',
@@ -509,7 +517,7 @@ describe('crash resume', () => {
       status: 'failed',
       error: { message: 'The host stopped during this agent run.' },
     })
-    const transcript = await persistence.stores.messages.loadThread('t1')
+    const transcript = await persistence.stores.messages.loadThread(T1_KEY)
     expect(transcript.at(-1)?.content).toBe(
       '[waiter failed] The host stopped during this agent run.',
     )
@@ -522,12 +530,12 @@ describe('crash resume', () => {
     const persistence = memoryPersistence()
     await persistence.stores.runs.createOrResume({
       runId: 'live-run',
-      threadId: 't1',
+      threadId: T1_KEY,
       startedAt: Date.now(),
     })
     await persistence.stores.runs.createOrResume({
       runId: 'live-agent',
-      threadId: 't1',
+      threadId: T1_KEY,
       startedAt: Date.now(),
       kind: 'agent',
       agent: 'waiter',

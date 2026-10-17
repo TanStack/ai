@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness, logIdOf } from '../src'
 import { createHarnessHandler } from '../src/server'
 import { createHarnessClient } from '../src/client'
 import { gate, messageTexts, mockAdapter, text } from './helpers'
@@ -101,9 +101,10 @@ describe('createHarnessClient', () => {
     const { adapter, calls } = mockAdapter([() => text('went')])
     const studio = defineHarness({ name: 'test/client-continue', adapter })
     const persistence = memoryPersistence()
-    await persistence.stores.messages.saveThread('thread-go', [
-      { id: 'u1', role: 'user', content: 'go' },
-    ])
+    await persistence.stores.messages.saveThread(
+      logIdOf({ logId: 'thread-go' }),
+      [{ id: 'u1', role: 'user', content: 'go' }],
+    )
     const host = createHarnessHost({ persistence })
     const handler = createHarnessHandler({
       host,
@@ -167,7 +168,9 @@ describe('createHarnessClient', () => {
     await vi.waitFor(async () =>
       expect(
         JSON.stringify(
-          await persistence.stores.messages.loadThread('thread-tool'),
+          await persistence.stores.messages.loadThread(
+            logIdOf({ logId: 'thread-tool' }),
+          ),
         ),
       ).toContain('billing'),
     )
@@ -187,9 +190,9 @@ describe('createHarnessClient', () => {
     const studio = defineHarness({ name: 'test/client-ephemeral', adapter })
     const persistence = memoryPersistence()
     const { messages } = persistence.stores
-    await messages.saveThread('thread-eph', [
-      { id: 'u1', role: 'user', content: 'go' },
-    ])
+    // The key of the thread in the store, in the default tenant.
+    const key = logIdOf({ logId: 'thread-eph' })
+    await messages.saveThread(key, [{ id: 'u1', role: 'user', content: 'go' }])
     const host = createHarnessHost({ persistence })
     const handler = createHarnessHandler({
       host,
@@ -207,14 +210,12 @@ describe('createHarnessClient', () => {
       ephemeral: [{ role: 'user', content: 'note 2' }],
     })
     await vi.waitFor(async () =>
-      expect(await messages.loadThread('thread-eph')).toHaveLength(4),
+      expect(await messages.loadThread(key)).toHaveLength(4),
     )
 
     expect(messageTexts(calls[0])).toEqual(['go', 'note 1'])
     expect(messageTexts(calls[1])).toEqual(['go', 'one', 'again', 'note 2'])
-    expect(
-      JSON.stringify(await messages.loadThread('thread-eph')),
-    ).not.toContain('note')
+    expect(JSON.stringify(await messages.loadThread(key))).not.toContain('note')
     await host.close()
   })
 

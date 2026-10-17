@@ -16,6 +16,8 @@ import {
   onUsageOf,
 } from '../feed'
 import { createMediaStore } from '../media'
+import { logIdOf } from '../log'
+import { tenantStores } from '../tenant-stores'
 import { SESSION_PLUGIN_CREDENTIALS, SESSION_PLUGIN_KEYS } from '../plugins'
 import { LEASE } from '../resume'
 import { HARNESS_EVENTS } from '../types'
@@ -46,6 +48,7 @@ import type {
   InboxEntry,
   InboxStore,
   MessageStore,
+  RunStore,
   SessionIndexKey,
   SessionIndexStore,
 } from '@tanstack/ai-persistence'
@@ -59,7 +62,7 @@ import type { PluginSessionApi } from '../commands'
 import type { SessionUsage } from '../usage'
 import type { AgentRegistryView, AnyAgent } from '../agents'
 import type { AnyHarness } from '../define'
-import type { HarnessPersistence, SessionIndexWriter } from '../host'
+import type { SessionIndexWriter } from '../host'
 import type {
   AgentGroup,
   HarnessPlugin,
@@ -132,9 +135,26 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected readonly tenantId: string | undefined
   /** The id of the log of this session in the store, with the tenant. */
   protected readonly storeLogId: string
+  /**
+   * The key of this thread in the stores that the session keys by thread
+   * id: the tenant and the thread id, from `logIdOf`. The metadata rows, the
+   * inbox, the work claims, and the leases use it. `persistence` gives the
+   * messages, runs, and interrupts in the tenant already.
+   */
+  protected readonly storeThreadId: string
   /** The key of the session index entry of this thread. */
   protected readonly indexKey: SessionIndexKey
-  protected readonly persistence: HarnessPersistence
+  /**
+   * The stores of the host. Its messages, runs, and interrupts are in the
+   * tenant of this session (see `tenantStores`): they take the thread id of
+   * the app.
+   */
+  protected readonly persistence: AIPersistence
+  /**
+   * The run store of the host, in all tenants. A run id is one key for all
+   * tenants, so the check of a client run id reads this one.
+   */
+  protected readonly hostRuns: RunStore | undefined
   protected readonly inbox: InboxStore
   protected readonly principal: Principal | undefined
   /** The session log writer of a durable host. It is also the feed. */
@@ -320,6 +340,10 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     this.logId = deps.logId
     this.tenantId = deps.tenantId
     this.storeLogId = deps.storeLogId
+    this.storeThreadId = logIdOf({
+      tenantId: deps.tenantId,
+      logId: deps.threadId,
+    })
     this.indexKey = { tenantId: deps.tenantId, threadId: deps.threadId }
     // The session value wins over the harness value, field by field.
     const own = cacheObject(deps.promptCache)
@@ -328,7 +352,11 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       retention: own?.retention ?? shared?.retention ?? 'short',
       key: own?.key ?? shared?.key ?? deps.threadId,
     }
-    this.persistence = deps.persistence
+    const { stores } = deps.persistence
+    this.persistence = {
+      stores: { ...stores, ...tenantStores(stores, deps.tenantId) },
+    }
+    this.hostRuns = stores.runs
     this.inbox = deps.inbox
     this.media = deps.media
     this.mediaStore = createMediaStore({
@@ -346,7 +374,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     this.lease = deps.lease
     this.log = deps.log
     // A durable host gets its log view in `open()`.
-    this.messages = deps.persistence.stores.messages ?? notOpenMessages
+    this.messages = this.persistence.stores.messages ?? notOpenMessages
     const onMissing = (error: AuthRequiredError) =>
       this.feed.publish(
         'session',
@@ -675,7 +703,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected pluginState<T>(plugin: string, initial: T): PluginState<T> {
     const metadata = this.persistence.stores.metadata
     const namespace = `plugin:${plugin}`
-    const key = this.threadId
+    const key = this.storeThreadId
     const read = async (): Promise<{ value: T; revision: string | null }> => {
       if (metadata?.getVersioned) {
         const stored = await metadata.getVersioned(namespace, key)
@@ -764,7 +792,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
         // returns false. The timer tries again while this thread has work,
         // so the work gets a claim once that one expires.
         const isHeld = await claims.claim({
-          threadId: this.threadId,
+          threadId: this.storeThreadId,
           harness: this.harness.name,
           ownerId: this.hostId,
           until: Date.now() + ttlMs,
@@ -806,7 +834,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected async isOwnedElsewhere(): Promise<boolean> {
     const claims = this.persistence.stores.workClaims
     if (!this.writer || !claims) return false
-    const held = await claims.get(this.threadId)
+    const held = await claims.get(this.storeThreadId)
     return (
       held !== null && held.ownerId !== this.hostId && held.until > Date.now()
     )
@@ -826,7 +854,9 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     }
     const check = async () => {
       if (this.closing) return stop()
-      const pending = await inbox.listPending(this.threadId).catch(() => null)
+      const pending = await inbox
+        .listPending(this.storeThreadId)
+        .catch(() => null)
       if (pending?.length === 0) return stop()
       void this.drainInbox()
     }
@@ -853,10 +883,10 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     const claims = this.persistence.stores.workClaims
     if (!this.writer || !inbox || !claims || this.closing) return
     try {
-      const pending = await inbox.listPending(this.threadId)
+      const pending = await inbox.listPending(this.storeThreadId)
       if (pending.length === 0) return
       const isHeld = await claims.claim({
-        threadId: this.threadId,
+        threadId: this.storeThreadId,
         harness: this.harness.name,
         ownerId: this.hostId,
         until: Date.now() + (this.lease?.ttlMs ?? LEASE.ttlMs),
@@ -876,11 +906,11 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
         // The host that stored an answer did not know if it is a secret.
         // This host does, and logs it hidden. The entry goes.
         if ((entry.input as HarnessInput).op === 'answer') {
-          await inbox.delete({ threadId: this.threadId, inputId })
+          await inbox.delete({ threadId: this.storeThreadId, inputId })
           continue
         }
         await inbox.markApplied({
-          threadId: this.threadId,
+          threadId: this.storeThreadId,
           inputId,
           operationId: 'forwarded',
         })
@@ -1021,7 +1051,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     try {
       await this.claimWrite
       await this.persistence.stores.workClaims?.release({
-        threadId: this.threadId,
+        threadId: this.storeThreadId,
         ownerId: this.hostId,
       })
     } catch (error) {

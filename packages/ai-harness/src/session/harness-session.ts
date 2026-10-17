@@ -73,7 +73,7 @@ export class SessionImpl<
         : revertOf(
             await this.persistence.stores.metadata?.get(
               'harness:revert',
-              this.threadId,
+              this.storeThreadId,
             ),
           )
       await this.loadInterrupted()
@@ -351,7 +351,7 @@ export class SessionImpl<
   /** Re-run turns that were accepted but never applied before a restart. */
   protected async recoverInbox(): Promise<void> {
     const pending: Array<InboxEntry> = await this.inbox.listPending(
-      this.threadId,
+      this.storeThreadId,
     )
     for (const entry of pending) {
       const input = entry.input as HarnessInput
@@ -687,7 +687,7 @@ export class SessionImpl<
       const isAlive =
         leases && input.operationId
           ? await leases.isAlive({
-              threadId: this.threadId,
+              threadId: this.storeThreadId,
               inputId: input.inputId,
               operationId: input.operationId,
               attempt: input.attempt,

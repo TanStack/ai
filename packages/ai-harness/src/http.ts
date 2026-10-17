@@ -12,6 +12,7 @@ import { parseRangeHeader, resolveBlobRange } from '@tanstack/ai-persistence'
 import { AccessDeniedError } from './access'
 import { accessOf, durableStoresOf, sessionOfTurn } from './host'
 import { MediaError } from './media'
+import { tenantStores } from './tenant-stores'
 import {
   HARNESS_PROTOCOL_VERSION,
   applyInput,
@@ -465,6 +466,11 @@ export function createHarnessHandler<P extends Principal = Principal>(
   const openFor = (principal: P | undefined, threadId: string) =>
     host.open(harness, { threadId, ...(principal ? { principal } : {}) })
 
+  /** The run store of a durable host, in the tenant of `principal`. */
+  const runsOf = (principal: P | undefined) =>
+    durable?.runs &&
+    tenantStores({ runs: durable.runs }, principal?.tenantId).runs
+
   /**
    * Open a thread for a read. With access, a thread with no entry is not
    * found, so a read never starts a session: `undefined`.
@@ -601,7 +607,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
     // Another instance runs the turn. A durable host finds its thread in the
     // run store, and its events in the shared log. Not a child run or an
     // agent run: only a chat turn of a thread.
-    const record = await durable?.runs?.get(runId)
+    const record = await runsOf(principal)?.get(runId)
     const isChatTurn =
       record != null &&
       record.kind !== 'agent' &&
@@ -756,7 +762,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
       if (!session) {
         return json({ messages: [], activeRun: null, interrupts: null })
       }
-      return json(await hydration(session, durable?.runs))
+      return json(await hydration(session, runsOf(principal)))
     }
 
     if (request.method === 'GET' && route === 'events') {

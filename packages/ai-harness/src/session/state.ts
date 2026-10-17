@@ -270,7 +270,7 @@ export abstract class SessionState<
     const { metadata } = this.persistence.stores
     this.threadSettings = source.settings()
     if (Object.keys(this.threadSettings).length > 0) {
-      await metadata?.set(SETTINGS, this.threadId, this.threadSettings)
+      await metadata?.set(SETTINGS, this.storeThreadId, this.threadSettings)
     }
     for (const [key, value] of source.configValues) {
       if (this.sessionPlugins?.config.has(key))
@@ -279,7 +279,7 @@ export abstract class SessionState<
     if (this.configValues.size > 0) {
       await metadata?.set(
         'harness:config',
-        this.threadId,
+        this.storeThreadId,
         Object.fromEntries(this.configValues),
       )
     }
@@ -343,7 +343,7 @@ export abstract class SessionState<
     this.configValues.set(key, checked)
     await this.persistence.stores.metadata?.set(
       'harness:config',
-      this.threadId,
+      this.storeThreadId,
       Object.fromEntries(this.configValues),
     )
     await this.applied(inputId, 'session')
@@ -396,7 +396,11 @@ export abstract class SessionState<
       this.reject(inputId, reason)
       return this.keep({ inputId, status: 'rejected', reason })
     }
-    await this.persistence.stores.metadata?.set(SETTINGS, this.threadId, next)
+    await this.persistence.stores.metadata?.set(
+      SETTINGS,
+      this.storeThreadId,
+      next,
+    )
     const movedFrom = this.threadSettings.cwd
     this.threadSettings = next
     // Tell the model about a new folder, so it stops using the old paths.
@@ -605,7 +609,7 @@ export abstract class SessionState<
     } else {
       await this.persistence.stores.metadata?.set(
         'harness:revert',
-        this.threadId,
+        this.storeThreadId,
         revert ?? null,
       )
     }
@@ -724,7 +728,7 @@ export abstract class SessionState<
   protected async loadConfig(): Promise<void> {
     const stored = await this.persistence.stores.metadata?.get(
       'harness:config',
-      this.threadId,
+      this.storeThreadId,
     )
     if (typeof stored !== 'object' || stored === null) return
     for (const [key, value] of Object.entries(stored)) {
@@ -742,7 +746,7 @@ export abstract class SessionState<
   protected async loadSettings(): Promise<void> {
     const stored = await this.persistence.stores.metadata?.get(
       SETTINGS,
-      this.threadId,
+      this.storeThreadId,
     )
     if (!isRecord(stored)) return
     const names = this.settingNames()
@@ -764,7 +768,7 @@ export abstract class SessionState<
   protected async loadUsage(): Promise<void> {
     const stored = await this.persistence.stores.metadata?.get(
       USAGE,
-      this.threadId,
+      this.storeThreadId,
     )
     if (isSessionUsage(stored)) this.usageTotals = stored
   }
@@ -773,7 +777,7 @@ export abstract class SessionState<
   protected async loadInterrupted(): Promise<void> {
     const stored = await this.persistence.stores.metadata?.get(
       INTERRUPTED,
-      this.threadId,
+      this.storeThreadId,
     )
     if (isInterruptedTurn(stored)) this.interrupted = stored
     await this.refreshInterrupted()
@@ -961,20 +965,20 @@ export abstract class SessionState<
     if (next)
       await this.persistence.stores.metadata?.set(
         INTERRUPTED,
-        this.threadId,
+        this.storeThreadId,
         next,
       )
     else if (previous !== undefined) {
       try {
         await this.persistence.stores.metadata?.delete(
           INTERRUPTED,
-          this.threadId,
+          this.storeThreadId,
         )
       } catch (error) {
         if (!consumed || observed !== undefined) throw error
         await this.persistence.stores.metadata?.set(
           INTERRUPTED,
-          this.threadId,
+          this.storeThreadId,
           null,
         )
       }
@@ -1039,7 +1043,7 @@ export abstract class SessionState<
     stopped: InterruptedTurn,
   ): Promise<void> {
     await this.persistence.stores.metadata
-      ?.set(INTERRUPTED, this.threadId, stopped)
+      ?.set(INTERRUPTED, this.storeThreadId, stopped)
       .catch((error: unknown) =>
         this.warn(operation, 'harness:interrupts', error),
       )

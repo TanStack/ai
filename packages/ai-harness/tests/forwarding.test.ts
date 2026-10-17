@@ -23,7 +23,7 @@ import type { AnyTextAdapter } from '@tanstack/ai'
 import type { ChatTurnResult, Operation } from '../src'
 
 const THREAD = 't1'
-/** The id of the log of `THREAD` in the store. */
+/** The id of the log of `THREAD` in the store, and its key in the other stores. */
 const LOG = logIdOf({ logId: THREAD })
 const NAME = 'test/forwarding'
 
@@ -146,7 +146,7 @@ describe('an input that reaches a host that does not own the thread', () => {
     const harness = harnessWith(adapter)
     // A host that stopped holds a claim that is about to expire.
     await persistence.stores.workClaims.claim({
-      threadId: THREAD,
+      threadId: LOG,
       harness: NAME,
       ownerId: 'stopped-host',
       until: Date.now() + 50,
@@ -297,7 +297,7 @@ describe('an input that reaches a host that does not own the thread', () => {
     await vi.waitFor(async () =>
       expect(
         await persistence.stores.inbox!.get({
-          threadId: THREAD,
+          threadId: LOG,
           inputId: receipt.inputId,
         }),
       ).toBeNull(),
@@ -353,7 +353,7 @@ describe('an input that reaches a host that does not own the thread', () => {
     await turn.receipt
     await other.command({ name: 'count' })
     await vi.waitFor(
-      async () => expect(await inbox.listPending(THREAD)).toEqual([]),
+      async () => expect(await inbox.listPending(LOG)).toEqual([]),
       { timeout: 4_000 },
     )
     expect(runs).toBe(1)
@@ -398,7 +398,7 @@ describe('an input that reaches a host that does not own the thread', () => {
   it('keeps a bounded number of forwarded ids', async () => {
     const persistence = sharedStores()
     await persistence.stores.workClaims.claim({
-      threadId: THREAD,
+      threadId: LOG,
       harness: NAME,
       ownerId: 'busy-host',
       until: Date.now() + 60_000,
@@ -459,7 +459,7 @@ describe('an input that reaches a host that does not own the thread', () => {
     const { adapter, calls } = mockAdapter([() => text('Picked up.')])
     // A host that stopped holds a claim that is about to expire.
     await persistence.stores.workClaims.claim({
-      threadId: THREAD,
+      threadId: LOG,
       harness: NAME,
       ownerId: 'stopped-host',
       until: Date.now() + 50,
@@ -514,7 +514,7 @@ describe('an input that reaches a host that does not own the thread', () => {
     await new Promise((resolve) => setTimeout(resolve, 1_500))
     // The input waits for the next host.
     expect(
-      (await persistence.stores.inbox!.listPending(THREAD)).map(
+      (await persistence.stores.inbox!.listPending(LOG)).map(
         (entry) => entry.inputId,
       ),
     ).toEqual([receipt.inputId])
@@ -579,7 +579,7 @@ describe('an input that reaches a host that does not own the thread', () => {
     // comes (a turn that still ends, for example), then stops too.
     await owner.close()
     await persistence.stores.workClaims.claim({
-      threadId: THREAD,
+      threadId: LOG,
       harness: NAME,
       ownerId: 'busy-host',
       until: Date.now() + 100,

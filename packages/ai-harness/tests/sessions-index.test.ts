@@ -17,6 +17,7 @@ import {
 import { mockAdapter, text, toolCall } from './helpers'
 import type { ModelMessage, StreamChunk, TokenUsage } from '@tanstack/ai'
 import type {
+  MessageStore,
   SessionIndexEntry,
   SessionIndexKey,
   SessionIndexListOptions,
@@ -46,6 +47,10 @@ function idOf(message: ModelMessage | undefined) {
 /** Role and content of each message, to compare transcripts. */
 const turnsOf = (messages: ReadonlyArray<ModelMessage>) =>
   messages.map((message) => [message.role, message.content])
+
+/** The stored transcript of `threadId` in the default tenant. */
+const transcriptOf = (messages: MessageStore, threadId: string) =>
+  messages.loadThread(logIdOf({ logId: threadId }))
 
 const threadIds = (page: SessionIndexPage) =>
   page.entries.map((entry) => entry.threadId)
@@ -395,14 +400,14 @@ describe('host.sessions', () => {
     await session.send('still here')
 
     expect(await host.sessions.get({ threadId: 't1' })).toBeUndefined()
-    expect(turnsOf(await persistence.stores.messages.loadThread('t1'))).toEqual(
-      [
-        ['user', 'hi'],
-        ['assistant', 'answer'],
-        ['user', 'still here'],
-        ['assistant', 'answer'],
-      ],
-    )
+    expect(
+      turnsOf(await transcriptOf(persistence.stores.messages, 't1')),
+    ).toEqual([
+      ['user', 'hi'],
+      ['assistant', 'answer'],
+      ['user', 'still here'],
+      ['assistant', 'answer'],
+    ])
     await host.close()
   })
 
@@ -506,12 +511,17 @@ describe('host.sessions', () => {
     expect(await host.sessions.get({ threadId: before.threadId })).toEqual(
       before,
     )
-    const { messages } = persistence.stores
-    expect(turnsOf(await messages.loadThread(before.threadId))).toEqual([
+    expect(
+      turnsOf(await transcriptOf(persistence.stores.messages, before.threadId)),
+    ).toEqual([
       ['user', 'first'],
       ['assistant', 'answer'],
     ])
-    expect(turnsOf(await messages.loadThread(through.threadId))).toEqual([
+    expect(
+      turnsOf(
+        await transcriptOf(persistence.stores.messages, through.threadId),
+      ),
+    ).toEqual([
       ['user', 'first'],
       ['assistant', 'answer'],
       ['user', 'second'],
@@ -538,9 +548,9 @@ describe('host.sessions', () => {
       },
     })
 
-    expect(await persistence.stores.messages.loadThread(fork.threadId)).toEqual(
-      [],
-    )
+    expect(
+      await transcriptOf(persistence.stores.messages, fork.threadId),
+    ).toEqual([])
     const forked = await host.open(harness, { threadId: fork.threadId })
     expect(forked.settings()).toEqual({ instructions: 'Be brief.' })
     await host.close()
@@ -643,7 +653,7 @@ describe('host.sessions', () => {
     })
 
     expect(fork.harness).toBe('test/other')
-    expect(turnsOf(await messages.loadThread(fork.threadId))).toEqual([
+    expect(turnsOf(await transcriptOf(messages, fork.threadId))).toEqual([
       ['user', 'hi'],
       ['assistant', 'answer'],
     ])

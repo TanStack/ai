@@ -3,7 +3,7 @@ import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import type { CredentialStore } from '@tanstack/ai/byok'
 import { AccessDeniedError, membersOnlyPolicyOf } from './access'
-import { SharedLog, loadLogState, logIdOf } from './log'
+import { SharedLog, loadLogState, logIdOf, parseLogId } from './log'
 import { LEASE } from './resume'
 import { SessionImpl } from './session/harness-session'
 import { sessionHandle } from './session/handle'
@@ -486,8 +486,7 @@ export interface HarnessHost<P extends Principal = Principal> {
    *
    * Known limits: a thread that this host has open already is claimed, but
    * its session does not recover again. Call `host.recover(threadId)` for it.
-   * A claim has no tenant, so the sweep opens each thread in the default
-   * tenant.
+   * Each thread opens in its own tenant, with no principal.
    *
    * @example
    * ```ts
@@ -1312,7 +1311,8 @@ export function createHarnessHost<P extends Principal = Principal>(
           `Thread ${JSON.stringify(threadId)} has no message ${JSON.stringify(at)}.`,
         )
       }
-      // The new thread opens with no `logId`, so its log is its own.
+      // The new thread opens with no `logId`, so its log is its own. Its
+      // transcript key in `stores.messages` is the same id.
       const newLogId = logIdOf({ tenantId, logId: newThreadId })
       // With access, a thread with an entry belongs to someone already.
       const isTaken =
@@ -1322,7 +1322,7 @@ export function createHarnessHost<P extends Principal = Principal>(
         isTaken ||
         (logStore
           ? (await logStore.read({ logId: newLogId, limit: 1 })).length > 0
-          : ((await persistence.stores.messages?.loadThread(newThreadId))
+          : ((await persistence.stores.messages?.loadThread(newLogId))
               ?.length ?? 0) > 0)
       if (isUsed) {
         throw new Error(
@@ -1433,32 +1433,34 @@ export function createHarnessHost<P extends Principal = Principal>(
       expired = expired.slice(0, limit)
       const opened: Array<{ threadId: string; harness: string }> = []
       const failures: Array<unknown> = []
-      for (const { threadId, harness: name } of expired) {
+      for (const { threadId: claimed, harness: name } of expired) {
         const harness = byName.get(name)
         if (!harness) continue
         // Compare-and-set: of two hosts that sweep at once, one gets it.
         const isMine = await claims.claim({
-          threadId,
+          threadId: claimed,
           harness: name,
           ownerId: hostId,
           until: Date.now() + ttlMs,
         })
         if (!isMine) continue
-        // ponytail: a work claim has a thread id and no tenant, so the sweep
-        // opens the thread in the default tenant. PR 5 replaces work claims.
-        const key = sessionKey(name, undefined, threadId)
+        // A claim is on the store key of the thread: its tenant and its id.
+        const { tenantId, logId: threadId } = parseLogId(claimed)
+        const key = sessionKey(name, tenantId, threadId)
         // Only a session that this sweep opens closes when idle. A session
         // that the app has open stays open.
         const isOwn = close === 'whenIdle' && !sessions.has(key)
         if (isOwn) sweptOnly.add(key)
         let session: SessionImpl
         try {
-          session = await openSession(harness, { threadId }, undefined)
+          session = await openSession(harness, { threadId }, tenantId)
         } catch (error) {
           // One thread that cannot open must not stop the sweep. The claim
           // goes back, so the next sweep tries again.
           sweptOnly.delete(key)
-          await claims.release({ threadId, ownerId: hostId }).catch(() => {})
+          await claims
+            .release({ threadId: claimed, ownerId: hostId })
+            .catch(() => {})
           failures.push(error)
           continue
         }

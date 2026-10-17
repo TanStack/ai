@@ -21,7 +21,7 @@ import type { HarnessTurnOptions } from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
-/** The id of the log of `THREAD` in the store. */
+/** The id of the log of `THREAD` in the store, and its key in the other stores. */
 const LOG = logIdOf({ logId: THREAD })
 
 /**
@@ -126,7 +126,7 @@ async function seedStoppedTurn(
   })
   await persistence.stores.runs.createOrResume({
     runId: 'op-stopped',
-    threadId: THREAD,
+    threadId: LOG,
     startedAt: Date.now() - 60_000,
   })
   await persistence.stores.runs.update('op-stopped', {

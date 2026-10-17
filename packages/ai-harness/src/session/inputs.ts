@@ -335,7 +335,7 @@ export abstract class SessionInputs<
     if (!this.writer) {
       this.inbox
         .markApplied({
-          threadId: this.threadId,
+          threadId: this.storeThreadId,
           inputId: steer.inputId,
           operationId,
         })
@@ -428,7 +428,7 @@ export abstract class SessionInputs<
   protected async applyControl(inputId: string, change: HarnessRecord) {
     if (!this.writer) {
       await this.inbox.markApplied({
-        threadId: this.threadId,
+        threadId: this.storeThreadId,
         inputId,
         operationId: 'session',
       })
@@ -502,7 +502,7 @@ export abstract class SessionInputs<
       } else {
         const stored = await this.inbox.append({
           inputId,
-          threadId: this.threadId,
+          threadId: this.storeThreadId,
           input,
           createdAt: at,
           ...sender,
@@ -551,7 +551,7 @@ export abstract class SessionInputs<
     }
     await inbox.append({
       inputId,
-      threadId: this.threadId,
+      threadId: this.storeThreadId,
       // The owner runs the turn as `runId`, so this host streams it from the log.
       input: runId === undefined ? input : { ...input, runId },
       createdAt: Date.now(),
@@ -565,11 +565,12 @@ export abstract class SessionInputs<
   }
 
   /**
-   * Does `stores.runs` have a run with this id, on any thread? A client run
-   * id must not reuse it. A store that fails counts as yes, so nothing runs.
+   * Does `stores.runs` have a run with this id, on any thread of any tenant?
+   * A client run id must not reuse it. A store that fails counts as yes, so
+   * nothing runs.
    */
   protected async isRunTaken(runId: string): Promise<boolean> {
-    const runs = this.persistence.stores.runs
+    const runs = this.hostRuns
     if (!runs) return false
     return runs.get(runId).then(
       (run) => run !== null,
@@ -584,7 +585,7 @@ export abstract class SessionInputs<
   ): Promise<void> {
     if (!this.writer) {
       await this.inbox.markApplied({
-        threadId: this.threadId,
+        threadId: this.storeThreadId,
         inputId,
         operationId,
       })
@@ -623,7 +624,7 @@ export abstract class SessionInputs<
         .catch(() => {})
     } else {
       this.inbox
-        .markRejected({ threadId: this.threadId, inputId, reason })
+        .markRejected({ threadId: this.storeThreadId, inputId, reason })
         .catch((error: unknown) => this.warnSession('harness:inbox', error))
     }
     const receipt: Receipt = { inputId, status: 'rejected', reason }

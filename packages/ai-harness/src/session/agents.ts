@@ -357,6 +357,7 @@ export abstract class SessionAgents<
         ...mediaCapture({
           persistence: this.media,
           threadId: this.threadId,
+          tenantId: this.tenantId,
           options,
           publish: (record) => {
             captured.push(record)

@@ -13,6 +13,7 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
+  logIdOf,
 } from '../src'
 import {
   after,
@@ -28,6 +29,9 @@ import {
 import type { AnyChatMiddleware, ContentPart, StreamChunk } from '@tanstack/ai'
 import type { HarnessTurnOptions, Receipt, SessionEvent } from '../src'
 import type { Reply } from './helpers'
+
+/** The key of the thread `t1` in the stores, in the default tenant. */
+const T1_KEY = logIdOf({ logId: 't1' })
 
 function setup() {
   const persistence = memoryPersistence()
@@ -64,7 +68,7 @@ describe('chat turns', () => {
     await expect(turn).resolves.toEqual({ text: 'Hello there', media: [] })
     expect(turn.status()).toBe('completed')
 
-    const saved = await persistence.stores.messages.loadThread('t1')
+    const saved = await persistence.stores.messages.loadThread(T1_KEY)
     expect(saved.map((message) => message.role)).toEqual(['user', 'assistant'])
     const names = customNames(await collect(turn.events({ from: '0' })))
     expect(names).toContain(HARNESS_EVENTS.inputApplied)
@@ -460,7 +464,7 @@ describe('inbox', () => {
     const persistence = memoryPersistence()
     await persistence.stores.inbox.append({
       inputId: 'in-1',
-      threadId: 't1',
+      threadId: T1_KEY,
       input: { op: 'prompt', message: 'left over' },
       createdAt: Date.now(),
     })
@@ -475,8 +479,12 @@ describe('inbox', () => {
 
     await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(
-      (await persistence.stores.inbox.get({ threadId: 't1', inputId: 'in-1' }))
-        ?.status,
+      (
+        await persistence.stores.inbox.get({
+          threadId: T1_KEY,
+          inputId: 'in-1',
+        })
+      )?.status,
     ).toBe('applied')
     expect(messageTexts(calls[0])).toEqual(['left over'])
     await host.close()
@@ -486,7 +494,7 @@ describe('inbox', () => {
     const persistence = memoryPersistence()
     await persistence.stores.inbox.append({
       inputId: 'in-wake',
-      threadId: 't1',
+      threadId: T1_KEY,
       input: { op: 'followUp', message: 'Background job done.', wake: true },
       createdAt: Date.now(),
     })

@@ -3,7 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EventType, defineAgent } from '@tanstack/ai'
 import { defineByokProvider, keyedAdapter } from '@tanstack/ai/byok'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { HARNESS_EVENTS, createHarnessHost, defineHarness } from '../src'
+import {
+  HARNESS_EVENTS,
+  createHarnessHost,
+  defineHarness,
+  logIdOf,
+} from '../src'
 import { compact, modelPicker, providerKeys } from '../src/first-party'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
@@ -446,11 +451,13 @@ describe('providerKeys', () => {
       await session.send('hi'),
     ]
     expect(keyed.keys).toEqual([PASTED_KEY])
+    // The key of the thread `t` in the stores, in the default tenant.
+    const key = logIdOf({ logId: 't' })
     const inbox = await persistence.stores.inbox.get({
-      threadId: 't',
+      threadId: key,
       inputId: receipt.inputId,
     })
-    const transcript = await persistence.stores.messages.loadThread('t')
+    const transcript = await persistence.stores.messages.loadThread(key)
     const everything = JSON.stringify({ events, results, inbox, transcript })
     expect(everything).not.toContain(PASTED_KEY)
     expect(everything).toContain('...5678')

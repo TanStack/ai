@@ -13,11 +13,15 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
+  logIdOf,
 } from '../src'
 import { compact, modelPicker, todos, usage } from '../src/first-party'
 import { fileCommands, projectInstructions } from '../src/first-party/node'
 import { gate, mockAdapter, text, toolCall } from './helpers'
 import type { PluginState, SessionEvent } from '../src'
+
+/** The key of the thread `t` in the stores, in the default tenant. */
+const THREAD_KEY = logIdOf({ logId: 't' })
 
 const settings = definePlugin({
   name: 'test/settings',
@@ -54,7 +58,7 @@ describe('config values', () => {
 
   it('rejects unknown keys and bad values, and loads saved values in a new session', async () => {
     const persistence = memoryPersistence()
-    await persistence.stores.metadata.set('harness:config', 't', {
+    await persistence.stores.metadata.set('harness:config', THREAD_KEY, {
       verbose: 'not a boolean',
       gone: 'old key',
     })
@@ -600,7 +604,7 @@ describe('plugin state and events', () => {
 
   it('loads the saved state of a plugin whose name is an Object key', async () => {
     const persistence = memoryPersistence()
-    await persistence.stores.metadata.set('plugin:constructor', 't', {
+    await persistence.stores.metadata.set('plugin:constructor', THREAD_KEY, {
       saved: true,
     })
     const host = createHarnessHost({ persistence })

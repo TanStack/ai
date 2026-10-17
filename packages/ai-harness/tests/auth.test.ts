@@ -8,6 +8,7 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
+  logIdOf,
   oauthConnector,
   scrubSecrets,
 } from '../src'
@@ -257,8 +258,9 @@ describe('oauthConnector', () => {
     expect(seenTokens).toEqual(['gh-token'])
     // The model never sees the token.
     const transcript = JSON.stringify(
-      await persistence.stores.messages.loadThread('t'),
+      await persistence.stores.messages.loadThread(logIdOf({ logId: 't' })),
     )
+    expect(transcript).toContain('list my issues again')
     expect(transcript).not.toContain('gh-token')
 
     await session.command({ name: 'disconnect:github' })

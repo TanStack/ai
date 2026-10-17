@@ -538,11 +538,12 @@ describe('sign-ins in a shared thread', () => {
     await (await a.open()).send('List my issues.')
     await a.host.close()
     // A copy without `principal`, as an older version wrote it.
-    const stored = await stores.metadata.get('harness:interrupted', 't')
+    const key = logIdOf({ logId: 't' })
+    const stored = await stores.metadata.get('harness:interrupted', key)
     if (typeof stored !== 'object' || stored === null)
       throw new Error('No stored interrupted turn.')
     const { principal: _principal, ...old } = stored as Record<string, unknown>
-    await stores.metadata.set('harness:interrupted', 't', old)
+    await stores.metadata.set('harness:interrupted', key, old)
 
     const b = start([() => text('One issue.')])
     const session = await b.open()

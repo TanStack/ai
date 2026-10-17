@@ -718,7 +718,7 @@ export abstract class SessionRequests<
     // pending entries.
     if (!this.writer)
       await this.inbox.markRejected({
-        threadId: this.threadId,
+        threadId: this.storeThreadId,
         inputId: target,
         reason: 'cancelled',
       })

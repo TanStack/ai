@@ -266,7 +266,7 @@ export abstract class SessionTurnParts<
         if (metadata) {
           const totals = structuredClone(this.usageTotals)
           this.usageSaved = this.usageSaved.then(() =>
-            metadata.set(USAGE, this.threadId, totals),
+            metadata.set(USAGE, this.storeThreadId, totals),
           )
           await this.usageSaved
         }
@@ -598,7 +598,7 @@ export abstract class SessionTurnParts<
     const ttlMs = this.lease?.ttlMs ?? LEASE.ttlMs
     const renewMs = this.lease?.renewMs ?? LEASE.renewMs
     const lease = () => ({
-      threadId: this.threadId,
+      threadId: this.storeThreadId,
       inputId,
       operationId: operation.id,
       attempt,

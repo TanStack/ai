@@ -11,6 +11,7 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
+  logIdOf,
 } from '../src'
 import { mockAdapter, text } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
@@ -182,7 +183,10 @@ describe('events and state', () => {
     ).rejects.toThrow('Input validation failed')
     expect(heard).toEqual(['milk', 'eggs'])
     expect(
-      await persistence.stores.metadata.get('plugin:test/todos', 't'),
+      await persistence.stores.metadata.get(
+        'plugin:test/todos',
+        logIdOf({ logId: 't' }),
+      ),
     ).toEqual({
       items: ['milk', 'eggs'],
     })

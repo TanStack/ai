@@ -110,8 +110,9 @@ describe('the thread of an agent run', () => {
     await session.agents.drafter.start()
 
     expect(thread).toMatch(/^t1:drafter:in-/)
+    // The chain thread is in the tenant of the session: the default one.
     const saved = JSON.stringify(
-      await persistence.stores.messages.loadThread(thread),
+      await persistence.stores.messages.loadThread(logIdOf({ logId: thread })),
     )
     expect(saved).toContain('Draft it.')
     expect(saved).toContain('Drafted.')

@@ -29,7 +29,7 @@ import type { HarnessDurability, HarnessInput, RecoverDecision } from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
-/** The id of the log of `THREAD` in the store. */
+/** The id of the log of `THREAD` in the store, and its key in the other stores. */
 const LOG = logIdOf({ logId: THREAD })
 
 function durablePersistence() {
@@ -107,7 +107,7 @@ async function seedStoppedTurn(
   })
   await persistence.stores.runs.createOrResume({
     runId: 'op-stopped',
-    threadId: THREAD,
+    threadId: LOG,
     startedAt: Date.now() - 60_000,
   })
   await persistence.stores.runs.update('op-stopped', {
@@ -559,7 +559,7 @@ describe('recovery of a durable input', () => {
     })
     await persistence.stores.runs.createOrResume({
       runId: 'op-agent',
-      threadId: THREAD,
+      threadId: LOG,
       startedAt: Date.now() - 60_000,
       kind: 'agent',
       agent: 'waiter',
@@ -1791,7 +1791,7 @@ describe('durable approval recovery', () => {
       })
       await stores.runs.createOrResume({
         runId: 'resume-stopped',
-        threadId: THREAD,
+        threadId: LOG,
         startedAt: Date.now() - 60000,
       })
       await stores.runs.update('resume-stopped', {
@@ -1856,7 +1856,7 @@ describe('durable approval recovery', () => {
       const result = await session.send('remove')
       const approval = result.interrupts?.[0]
       if (!approval) throw new Error('The turn did not stop for approval.')
-      const cached = await stores.metadata.get('harness:interrupted', THREAD)
+      const cached = await stores.metadata.get('harness:interrupted', LOG)
       const deletion = vi
         .spyOn(stores.metadata, 'delete')
         .mockRejectedValueOnce(new Error('metadata delete failed'))
@@ -1869,7 +1869,7 @@ describe('durable approval recovery', () => {
       deletion.mockRestore()
       expect(session.snapshot().pendingInterrupts).toEqual([])
       await host.close()
-      await stores.metadata.set('harness:interrupted', THREAD, cached)
+      await stores.metadata.set('harness:interrupted', LOG, cached)
       const next = createHarnessHost({ persistence })
       const reopened = await next.open(config, { threadId: THREAD })
       expect(reopened.snapshot().pendingInterrupts).toEqual([])

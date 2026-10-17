@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, chat, defineAgent } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, harnessText } from '../src'
+import { createHarnessHost, defineHarness, harnessText, logIdOf } from '../src'
 import {
   INTERRUPTED_TOOL_RESULT,
   findCrashedRuns,
@@ -10,6 +10,9 @@ import {
 } from '../src/resume'
 import { mockAdapter, text, untilAborted } from './helpers'
 import type { RunRecord, RunStore, StreamChunk } from '@tanstack/ai'
+
+/** The key of the thread `t1` in the stores of a session, in the default tenant. */
+const T1_KEY = logIdOf({ logId: 't1' })
 
 async function crash(
   persistence: ReturnType<typeof memoryPersistence>,
@@ -19,7 +22,7 @@ async function crash(
 ) {
   await persistence.stores.runs.createOrResume({
     runId,
-    threadId: 't1',
+    threadId: T1_KEY,
     startedAt,
   })
   await persistence.stores.runs.update(runId, {
@@ -45,7 +48,7 @@ describe('crash recovery edges', () => {
 
   it('continues only the newest crashed turn and fails the older ones', async () => {
     const persistence = memoryPersistence()
-    await persistence.stores.messages.saveThread('t1', [
+    await persistence.stores.messages.saveThread(T1_KEY, [
       { id: 'u1', role: 'user', content: 'hello' },
     ])
     await crash(persistence, 'old-run', Date.now() - 120_000)
