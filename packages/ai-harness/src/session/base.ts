@@ -5,7 +5,12 @@ import {
   maxIterations,
   untilFinishReason,
 } from '@tanstack/ai'
-import { Redactor, credentialsFor, providerKeysFor } from '../auth'
+import {
+  Redactor,
+  credentialsFor,
+  providerKeysFor,
+  refreshFlights,
+} from '../auth'
 import { AgentRegistry } from '../agents'
 import {
   SessionFeed,
@@ -503,6 +508,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
           ...(error.url ? { url: error.url } : {}),
         }),
       )
+    const refreshes = deps.refreshes ?? refreshFlights()
     this.credentialsOf = (principal, canWait) =>
       credentialsFor(
         deps.credentials,
@@ -512,6 +518,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
           ...(canWait ? { canWait } : {}),
           onSet: () => this.resumeSignIns(),
           secrets: this.redactor,
+          refreshes,
         },
       )
     this.hasAccess = deps.access !== undefined

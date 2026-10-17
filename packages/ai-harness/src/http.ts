@@ -481,6 +481,11 @@ export function createHarnessHandler<P extends Principal = Principal>(
   const { host, harness, media } = options
   const usersOf = requestUsers('createHarnessHandler', host, options.openAccess)
   const hasAccess = accessOf(host) !== undefined
+  if (media !== undefined && media.secret.length === 0) {
+    throw new Error(
+      'createHarnessHandler needs a media.secret that is not empty.',
+    )
+  }
 
   const openFor = (principal: P | undefined, threadId: string) =>
     host.open(harness, { threadId, ...(principal ? { principal } : {}) })

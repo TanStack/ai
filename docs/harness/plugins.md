@@ -188,6 +188,7 @@ export const counter = definePlugin({
 ```
 
 - The state is JSON.
+- A key or a token of the session in the state goes into the log as `[redacted]`. `update` resolves with that same value. See [Keep tokens out of the log and the model](./auth#keep-tokens-out-of-the-log-and-the-model).
 - The updates of one plugin run one at a time. Each `update` function gets the value that the update before it wrote.
 - [`host.sessions.delete`](./lifecycle#delete-a-thread-for-good) deletes the state with the log. A fork does not copy it.
 
@@ -226,6 +227,7 @@ export const usageByAgent = definePlugin({
 - `ctx.subagentName` is the name of the agent. In the lead turn, it is `undefined`.
 - `ctx.subagentRunId` is different for each run of an agent. For a nested child, `ctx.parentSubagentRunId` is the id of the child that started it.
 - Each model call goes to `onUsage` one time, in the run that made the call. The lead turn does not count the usage of a child again.
+- A tool result that your `onAfterToolCall` replaces is the result that the session log keeps. After a crash, the model gets that result again. See [The other tools of a cut batch](./durable-tools#the-other-tools-of-a-cut-batch).
 
 ## Act as the user of a run
 
@@ -273,7 +275,7 @@ The run has these fields:
 | `epoch` | The ownership epoch of the log when the run started. See [Fence your own side effects](./durable-sessions#fence-your-own-side-effects). |
 | `idempotencyKey(step, scope?)` | A key for one side effect of the run. A run again on any host gets the same key. |
 | `signal` | Aborts when the run stops. |
-| `credentials`, `keys` | The credentials and the model provider keys of the user of the run. |
+| `credentials`, `keys` | The credentials and the model provider keys of the user of the run. The session replaces their values with `[redacted]` in what it keeps and sends. To refresh an OAuth token, use `credentials.refresh`. See [Auth and connectors](./auth#refresh-a-token). |
 
 ## Pick the model of a turn
 

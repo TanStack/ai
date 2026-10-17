@@ -3,6 +3,7 @@ import { scrubSecrets } from '@tanstack/ai/byok'
 import {
   envKeyEntry,
   readCredential,
+  readCredentialEntry,
   tenantScopeOf,
 } from '@tanstack/ai/byok/server'
 import type { ChatMiddleware, ProviderKeys, Scope } from '@tanstack/ai'
@@ -63,6 +64,28 @@ export interface CredentialsAccess {
    */
   require: (id: string, options?: { wait?: boolean }) => Promise<Credential>
   set: (entry: { id: string; credential: Credential }) => Promise<void>
+  /**
+   * Swap the saved credential `id` for a new one, for example an OAuth
+   * refresh. `update` gets the saved credential and returns the new one, or
+   * the same object to keep it. Resolves with the credential to use, or
+   * `null` when none is saved.
+   *
+   * - The new credential goes back to the scope where it was found. A
+   *   tenant credential stays the tenant's, and is not copied to the user.
+   * - One host runs one `update` at a time per saved credential. A call
+   *   that comes while one runs waits for it and gets its result.
+   * - When the store has `getVersioned` and `setIf`, the save is a
+   *   compare-and-set. If another host saved first, the call uses that
+   *   credential, and does not run `update` again.
+   * - `update` gets the signal of the host, not of a caller: an abort of
+   *   `options.signal` rejects this call only, and the refresh goes on for
+   *   the calls that wait for it.
+   */
+  refresh: (
+    id: string,
+    update: (current: Credential, signal: AbortSignal) => Promise<Credential>,
+    options?: { signal?: AbortSignal },
+  ) => Promise<Credential | null>
   delete: (id: string) => Promise<void>
   list: () => Promise<
     Array<{ id: string; type: Credential['type']; expiresAt?: number }>
@@ -79,7 +102,51 @@ export interface CredentialHooks {
   canWait?: (id: string) => boolean
   onSet?: (id: string) => Promise<void>
   secrets?: Redactor
+  /**
+   * The refreshes that run now, shared by every access of one host. See
+   * {@link RefreshFlights}. Without it, only the calls of this access share
+   * a refresh.
+   */
+  refreshes?: RefreshFlights
 }
+
+/**
+ * @internal The refreshes of one host. A host keeps one for all its
+ * sessions.
+ */
+export interface RefreshFlights {
+  /** The refresh that runs now for each saved credential, by {@link refreshKey}. */
+  running: Map<string, Promise<Credential | null>>
+  /** The signal of each refresh. The host aborts it when it closes. */
+  signal: AbortSignal
+}
+
+/** A {@link RefreshFlights} whose signal aborts with `controller`. */
+export function refreshFlights(
+  controller = new AbortController(),
+): RefreshFlights {
+  return { running: new Map(), signal: controller.signal }
+}
+
+/**
+ * `promise`, or a rejection with the reason of `signal` when it aborts
+ * first. The work of `promise` goes on.
+ */
+function untilAborted<T>(promise: Promise<T>, signal?: AbortSignal) {
+  if (!signal) return promise
+  if (signal.aborted) return Promise.reject<T>(signal.reason)
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason)
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise
+      .then(resolve, reject)
+      .finally(() => signal.removeEventListener('abort', onAbort))
+  })
+}
+
+/** The key of one saved credential: its tenant, its user, and its id. */
+const refreshKey = (scope: CredentialScope, id: string) =>
+  JSON.stringify([scope.tenantId ?? null, scope.userId ?? null, id])
 
 /**
  * The error that chat() reads as "stop the turn for input" (the shape of
@@ -109,7 +176,8 @@ function secretValues(credential: Credential) {
  * Scope credentials to one principal and thread.
  *
  * A read finds the user's own credential first, then the tenant's (saved
- * without a `userId`). A save or a delete changes the user's own only.
+ * without a `userId`). A save or a delete changes the user's own only. A
+ * `refresh` writes back to the scope where it found the credential.
  */
 export function credentialsFor(
   store: CredentialStore,
@@ -124,10 +192,49 @@ export function credentialsFor(
     }
     return credential
   }
-  // ponytail: a refreshed tenant OAuth token is saved for the user, so each
-  // user keeps a copy. A provider that rotates refresh tokens would need a
-  // save for the whole tenant to share one token.
   const get = async (id: string) => keep(await readCredential(store, scope, id))
+  const flights = hooks?.refreshes ?? refreshFlights()
+  type Entry = NonNullable<Awaited<ReturnType<typeof readCredentialEntry>>>
+  /** True when the saved credential is not the one in `seen` any more. */
+  const isChanged = (seen: Entry, now: Entry) =>
+    seen.revision !== undefined && now.revision !== undefined
+      ? seen.revision !== now.revision
+      : JSON.stringify(seen.credential) !== JSON.stringify(now.credential)
+  const runRefresh = async (
+    id: string,
+    seen: Entry,
+    update: (current: Credential, signal: AbortSignal) => Promise<Credential>,
+  ): Promise<Credential | null> => {
+    let next: Credential
+    try {
+      next = await update(seen.credential, flights.signal)
+    } catch (error) {
+      // Another host can refresh first and use up the refresh token, so
+      // this refresh fails. Then the token that host saved wins.
+      const now = await readCredentialEntry(store, scope, id)
+      if (now && isChanged(seen, now)) return now.credential
+      throw error
+    }
+    if (next === seen.credential) return next
+    if (store.setIf && seen.revision !== undefined) {
+      const saved = await store.setIf({
+        scope: seen.scope,
+        id,
+        credential: next,
+        expectedRevision: seen.revision,
+      })
+      if (saved.ok) return next
+      // Another host saved first. Use its credential, and do not refresh
+      // again: with refresh token rotation, a second refresh can revoke
+      // both tokens.
+      return (await readCredentialEntry(store, scope, id))?.credential ?? null
+    }
+    // A store without `getVersioned` and `setIf` has no compare-and-set.
+    // Then the refresh is single-flight on this host only: two hosts can
+    // refresh at the same time, and the last save wins.
+    await store.set({ scope: seen.scope, id, credential: next })
+    return next
+  }
   const access: CredentialsAccess = {
     get,
     require: async (id, options) => {
@@ -142,6 +249,24 @@ export function credentialsFor(
       keep(credential)
       await store.set({ scope, id, credential })
       await hooks?.onSet?.(id)
+    },
+    refresh: async (id, update, options) => {
+      options?.signal?.throwIfAborted()
+      const seen = await readCredentialEntry(store, scope, id)
+      if (!seen) return null
+      // Keyed by the scope where the credential is, so the users of one
+      // tenant credential share one refresh too.
+      const key = refreshKey(seen.scope, id)
+      let flight = flights.running.get(key)
+      if (!flight) {
+        // The calls that join use the first call's `update`. It runs with
+        // the host signal, so an abort of one caller stops no other caller.
+        flight = runRefresh(id, seen, update).finally(() => {
+          flights.running.delete(key)
+        })
+        flights.running.set(key, flight)
+      }
+      return keep(await untilAborted(flight, options?.signal))
     },
     delete: (id) => store.delete({ scope, id }),
     list: async () => {

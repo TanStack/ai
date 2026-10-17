@@ -1366,7 +1366,8 @@
         {
           "label": "Keep Keys on the Server",
           "to": "advanced/server-keys",
-          "addedAt": "2026-10-16"
+          "addedAt": "2026-10-16",
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Debug Logging",
@@ -1716,7 +1717,7 @@
           "label": "@tanstack/ai",
           "to": "api/ai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-13"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "@tanstack/ai-client",
