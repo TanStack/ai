@@ -417,30 +417,28 @@ if (process.env[childEnv] === '1') {
         lifecycle: { idleCloseMs: 0 },
       })
       cleanups.push(() => host.close())
-      // One harness name, so one shared setup. Each model calls the tool once.
-      const models = [recorder('local_pid'), recorder('local_pid')]
-      const [first, second] = await Promise.all(
-        models.map((model, at) =>
-          host.open(
-            defineHarness({
-              name: 'test/mcp-plugin',
-              adapter: model.adapter,
-              plugins: () => [mcp({ servers: { local: stdioServer() } })],
-            }),
-            { threadId: `t-${at}` },
-          ),
-        ),
-      )
+      // One harness definition, so one shared setup. The model calls the
+      // tool on the first call of each turn: calls 1 and 3.
+      const model = recorder('local_pid', (call) => call % 2 === 1)
+      const harness = defineHarness({
+        name: 'test/mcp-plugin',
+        adapter: model.adapter,
+        plugins: () => [mcp({ servers: { local: stdioServer() } })],
+      })
+      const [first, second] = await Promise.all([
+        host.open(harness, { threadId: 't-0' }),
+        host.open(harness, { threadId: 't-1' }),
+      ])
 
-      await first?.send('which process runs the server?')
-      await second?.send('which process runs the server?')
-      const pid = pidOf(models[0], 1)
+      await first.send('which process runs the server?')
+      await second.send('which process runs the server?')
+      const pid = pidOf(model, 1)
       expect(pid).toBeGreaterThan(0)
-      expect(pidOf(models[1], 1)).toBe(pid)
+      expect(pidOf(model, 3)).toBe(pid)
 
-      await first?.close()
+      await first.close()
       expect(isRunning(pid)).toBe(true)
-      await second?.close()
+      await second.close()
       await vi.waitFor(() => expect(isRunning(pid)).toBe(false), {
         timeout: 10_000,
       })
