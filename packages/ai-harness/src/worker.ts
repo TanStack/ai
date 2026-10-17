@@ -1,13 +1,15 @@
+import { randomUUID } from 'node:crypto'
 import { createInterface } from 'node:readline'
 import { createHarnessHost } from './host'
 import {
-  HARNESS_PROTOCOL_VERSION,
   applyInput,
+  negotiateVersion,
   parseControlFrame,
+  requestIdOf,
 } from './protocol'
 import type { AnyHarness } from './define'
 import type { HarnessPersistence } from './host'
-import type { HostFrame } from './protocol'
+import type { ControlFrame, HarnessErrorCode, HostFrame } from './protocol'
 
 export interface HarnessWorkerOptions {
   input?: NodeJS.ReadableStream
@@ -18,7 +20,8 @@ export interface HarnessWorkerOptions {
 /**
  * Run a harness as a worker: session-tier frames as NDJSON on stdin and
  * stdout. The first frame must be `harness.subscribe`. The worker exits when
- * stdin closes. `artifactText` starts workers like this.
+ * stdin closes, or after a `subscribe` with a `v` that it does not speak.
+ * `artifactText` starts workers like this.
  *
  * @example
  * ```ts
@@ -41,19 +44,47 @@ export async function runHarnessWorker(
     crlfDelay: Infinity,
   })
 
+  // The error frame names the request that failed, so the client can match
+  // it. A frame with no `requestId` gets one from the worker.
+  const fail = (
+    error: unknown,
+    requestId: string,
+    code: HarnessErrorCode = 'internal',
+  ) =>
+    send({
+      type: 'harness.error',
+      message: error instanceof Error ? error.message : String(error),
+      code,
+      requestId,
+    })
+
   try {
     for await (const line of lines) {
       if (line.trim() === '') continue
+      // Read the id before the full parse: a frame with a bad `input` still
+      // names its request.
+      const requestId = requestIdOf(line) ?? randomUUID()
+      let frame: ControlFrame
       try {
-        const frame = parseControlFrame(line)
+        frame = parseControlFrame(line)
+      } catch (error) {
+        fail(error, requestId, 'invalid_frame')
+        continue
+      }
+      try {
         if (frame.type === 'harness.subscribe') {
-          if (session) throw new Error('Already subscribed.')
+          if (session) {
+            fail(new Error('Already subscribed.'), requestId, 'invalid_frame')
+            continue
+          }
+          const picked = negotiateVersion({ requested: frame.v })
+          if ('error' in picked) {
+            // The worker speaks no other version, so it stops.
+            send({ type: 'harness.error', requestId, ...picked.error })
+            break
+          }
           session = await host.open(harness, { threadId: frame.threadId })
-          send({
-            type: 'harness.hello',
-            v: HARNESS_PROTOCOL_VERSION,
-            threadId: frame.threadId,
-          })
+          send({ type: 'harness.hello', v: picked.v, threadId: frame.threadId })
           const events = session.events({
             ...(frame.from ? { from: frame.from } : {}),
             signal: reader.signal,
@@ -61,15 +92,17 @@ export async function runHarnessWorker(
           void (async () => {
             for await (const entry of events)
               send({ type: 'harness.event', ...entry })
-          })().catch((error: unknown) =>
-            send({
-              type: 'harness.error',
-              message: error instanceof Error ? error.message : String(error),
-            }),
+          })().catch((error: unknown) => fail(error, requestId))
+          continue
+        }
+        if (!session) {
+          fail(
+            new Error('Send harness.subscribe first.'),
+            requestId,
+            'invalid_frame',
           )
           continue
         }
-        if (!session) throw new Error('Send harness.subscribe first.')
         if (frame.type === 'harness.snapshot') {
           send({ type: 'harness.snapshot', snapshot: session.snapshot() })
           continue
@@ -85,10 +118,7 @@ export async function runHarnessWorker(
           ...receipt,
         })
       } catch (error) {
-        send({
-          type: 'harness.error',
-          message: error instanceof Error ? error.message : String(error),
-        })
+        fail(error, requestId)
       }
     }
   } finally {

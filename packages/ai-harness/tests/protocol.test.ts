@@ -18,6 +18,11 @@ import {
   text,
   wakeMessages,
 } from './helpers'
+import {
+  HARNESS_PROTOCOL_VERSION,
+  negotiateVersion,
+  requestIdOf,
+} from '../src/protocol'
 import type { HostFrame } from '../src/server'
 import type { Reply } from './helpers'
 
@@ -442,5 +447,62 @@ describe('parseControlFrame', () => {
     expect(() =>
       parseControlFrame('{"type":"harness.input","requestId":"1","input":{}}'),
     ).toThrow('Invalid input')
+  })
+
+  it('keeps the v of a subscribe, and refuses a v that is not a number', () => {
+    expect(
+      parseControlFrame('{"type":"harness.subscribe","threadId":"t","v":2}'),
+    ).toEqual({ type: 'harness.subscribe', threadId: 't', v: 2 })
+    expect(() =>
+      parseControlFrame('{"type":"harness.subscribe","threadId":"t","v":"2"}'),
+    ).toThrow('v must be a number')
+  })
+
+  it('keeps a valid traceparent of an input, and drops an invalid one', () => {
+    const traceparent =
+      '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
+    const frame = (value: string) =>
+      parseControlFrame(
+        JSON.stringify({
+          type: 'harness.input',
+          requestId: 'r1',
+          input: { op: 'prompt', message: 'hi' },
+          traceparent: value,
+        }),
+      )
+    expect(frame(traceparent)).toMatchObject({ traceparent })
+    expect(frame('not-a-traceparent')).not.toHaveProperty('traceparent')
+  })
+})
+
+describe('negotiateVersion', () => {
+  it('uses the current version when the client names none', () => {
+    expect(HARNESS_PROTOCOL_VERSION).toBe(2)
+    expect(negotiateVersion({})).toEqual({ v: 2 })
+    expect(negotiateVersion({ requested: 2 })).toEqual({ v: 2 })
+  })
+
+  it('refuses a version that the host does not speak, and lists the ones it does', () => {
+    expect(negotiateVersion({ requested: 1 })).toEqual({
+      error: {
+        message: 'Protocol version 1 is not supported.',
+        code: 'unsupported_version',
+        supported: [2],
+      },
+    })
+  })
+})
+
+describe('requestIdOf', () => {
+  it('reads the requestId of a frame that fails the full parse', () => {
+    const badInput = '{"type":"harness.input","requestId":"r9","input":{}}'
+    expect(() => parseControlFrame(badInput)).toThrow('Invalid input')
+    expect(requestIdOf(badInput)).toBe('r9')
+  })
+
+  it('never throws', () => {
+    expect(requestIdOf('{not json')).toBeUndefined()
+    expect(requestIdOf('null')).toBeUndefined()
+    expect(requestIdOf('{"requestId":7}')).toBeUndefined()
   })
 })

@@ -69,6 +69,11 @@ export type SendOptions = {
   systemPreamble?: Array<string>
   /** @internal The AG-UI `runId` of a `POST run` request. The turn runs as it. */
   runId?: string
+  /**
+   * A W3C `traceparent` header value of the caller. The span of the turn gets
+   * a link to it. A value that is not a valid `traceparent` is ignored.
+   */
+  traceparent?: string
 } & (
   | { mode?: 'prompt'; busy?: BusyPolicy }
   | { mode: 'steer' | 'followUp'; busy?: never }
@@ -669,4 +674,127 @@ export const HARNESS_EVENTS = {
    * known), the `usage` of the call, and the new thread `total`.
    */
   usage: 'harness.usage',
+  /** The owner stored an input that waits behind a running turn. */
+  inputQueued: 'harness.input.queued',
+  /** A host became the owner of the log, at its first append. */
+  ownershipChanged: 'harness.ownership.changed',
+  /** The host that holds the workspace of the session is gone. It waits. */
+  stranded: 'harness.stranded',
+  /** The turn moved to another agent. */
+  handoff: 'harness.handoff',
+  /** The conversation moved to another thread, or came from one. */
+  transferred: 'harness.transferred',
+  /** The session waits for a person: an approval, an answer, or a sign-in. */
+  waitOpened: 'harness.wait.opened',
+  /** A wait ended. */
+  waitSettled: 'harness.wait.settled',
+  /**
+   * The events after the reader's cursor are gone (a truncate dropped them),
+   * so the stream skips to the first event it has. The value is an
+   * `EventGap`. The cursor of this event is `resumeAt`. Load the snapshot and
+   * the transcript again.
+   */
+  gap: 'harness.gap',
 } as const
+
+/** The value of a `harness.gap` event. */
+export interface EventGap {
+  /** The cursor that the reader asked for. */
+  from: Cursor
+  /**
+   * The cursor that the stream goes on from: the events after it are
+   * stored. It is also the cursor of the gap event.
+   */
+  resumeAt: Cursor
+  /** `'truncated'`: a truncate of the log dropped the events. */
+  reason: 'truncated' | 'evicted'
+}
+
+/**
+ * The `value` of each `harness.*` `CUSTOM` event, by event name. A client in
+ * another language can use it as the event catalog.
+ *
+ * @example
+ * ```ts
+ * function onGap(gap: HarnessEventValues['harness.gap']) {
+ *   console.log(`Events lost. The stream goes on from ${gap.resumeAt}.`)
+ * }
+ * ```
+ */
+export interface HarnessEventValues {
+  'harness.operation.started': {
+    operationId: string
+    kind: OperationKind
+    agent?: string
+  }
+  'harness.operation.finished': {
+    operationId: string
+    status: OperationStatus
+  }
+  'harness.operation.resumed': { operationId: string; resumedFrom?: string }
+  'harness.config.changed': { key: string; value: unknown }
+  'harness.settings.changed': { settings: ThreadSettings }
+  'harness.commands.changed': Record<string, never>
+  'harness.reloaded': { error?: string }
+  'harness.question': PendingQuestion
+  'harness.question.answered': { questionId: string }
+  'harness.plugin.event': { plugin: string; name: string; value: unknown }
+  'harness.auth_required': AuthRequest
+  'harness.input.accepted': { inputId: string; op: HarnessInput['op'] }
+  'harness.input.applied': { inputId: string; operationId: string }
+  'harness.input.rejected': { inputId: string; reason: string }
+  'harness.input.settled': InputSettlement
+  'harness.input.delivery': {
+    inputId: string
+    delivery: WaitingInput['delivery']
+  }
+  'harness.media': MediaRecord
+  'harness.turn.retry': {
+    operationId: string
+    retries: number
+    error: { message: string; code?: string; retryAfterMs?: number }
+    continued: boolean
+  }
+  'harness.reset': { inputId: string; note?: string }
+  'harness.revert': { messageId: string | null }
+  'harness.usage': UsageUpdate
+  'harness.input.queued': {
+    inputId: string
+    delivery: WaitingInput['delivery']
+  }
+  'harness.ownership.changed': {
+    /** The ownership epoch of the new owner. */
+    epoch: number
+    /** `taken_over`: the old owner stopped, and this host took the log. */
+    reason: 'acquired' | 'taken_over'
+  }
+  'harness.stranded': { operationId?: string; hostId?: string }
+  'harness.handoff': {
+    /** The agent that had the turn, or `null` for the main model. */
+    from: string | null
+    to: string | { human: true }
+    note?: string
+    runId: string
+    by: 'tool' | 'code' | 'router'
+  }
+  'harness.transferred': {
+    transferId: string
+    /** On the target thread: the thread it came from. */
+    from?: { threadId: string }
+    /** On the source thread: the thread it went to. */
+    to?: { threadId: string }
+  }
+  'harness.wait.opened': {
+    waitId: string
+    kind: 'approval' | 'question' | 'sign-in' | 'client-tool' | 'human'
+    runId: string
+    message?: string
+    /** Epoch milliseconds. */
+    expiresAt?: number
+  }
+  'harness.wait.settled': {
+    waitId: string
+    outcome: 'answered' | 'cancelled' | 'expired'
+  }
+  'harness.gap': EventGap
+}
