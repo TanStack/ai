@@ -12,6 +12,7 @@ import {
   emptySharedLogState,
   engineMessageStore,
   loadLogState,
+  logIdOf,
   logMessageStore,
   sessionMessageStore,
   sessionOf,
@@ -27,6 +28,8 @@ import type { ProjectOptions, ReduceOptions } from '../src/log'
 import type { SessionEvent } from '../src/types'
 
 const THREAD = 't1'
+/** The id of the log of `THREAD` in the store. */
+const LOG = logIdOf({ logId: THREAD })
 
 function newWriter(
   store: LogStore,
@@ -40,7 +43,8 @@ function newWriter(
 ) {
   const log = new SharedLog({
     store,
-    logId: THREAD,
+    logId: LOG,
+    rootThread: THREAD,
     state: options.state ?? emptySharedLogState(),
     coalesceMs: options.coalesceMs ?? 0,
     ...(options.project ? { project: options.project } : {}),
@@ -51,8 +55,12 @@ function newWriter(
 
 /** The fold of the session `THREAD`. */
 const loadSession = async (
-  options: Omit<Parameters<typeof loadLogState>[0], 'logId'>,
-) => sessionOf(await loadLogState({ ...options, logId: THREAD }), THREAD)
+  options: Omit<Parameters<typeof loadLogState>[0], 'logId' | 'rootThread'>,
+) =>
+  sessionOf(
+    await loadLogState({ ...options, logId: LOG, rootThread: THREAD }),
+    THREAD,
+  )
 
 /** A store that records the record types of each append batch. */
 function recordingStore(inner: LogStore = memoryLogStore()) {
@@ -71,7 +79,7 @@ function silentStore(inner: LogStore) {
   return wrapLogStore(inner, { subscribe: () => () => {} })
 }
 
-const records = async (store: LogStore, logId = THREAD) =>
+const records = async (store: LogStore, logId = LOG) =>
   (await store.read({ logId })).map((entry) => entry.record)
 
 const user = (id: string, content: string): ModelMessage => ({
@@ -248,7 +256,7 @@ describe('fold robustness', () => {
     })
     for (let seq = 1; seq <= 5; seq += 1) {
       await inner.append({
-        logId: THREAD,
+        logId: LOG,
         seq,
         epoch: UNOWNED_EPOCH,
         records: [{ type: 'app.signal', text: `s${seq}` }],
@@ -338,7 +346,7 @@ describe('input fold', () => {
       retries,
     })
     await store.append({
-      logId: THREAD,
+      logId: LOG,
       seq: 1,
       epoch: UNOWNED_EPOCH,
       records: [
@@ -355,14 +363,14 @@ describe('input fold', () => {
     )
 
     await store.append({
-      logId: THREAD,
+      logId: LOG,
       seq: 2,
       epoch: UNOWNED_EPOCH,
       records: [retry(1), retry(2)],
     })
     expect((await loadSession({ store })).inputs.get('in-1')?.retries).toBe(2)
     await store.append({
-      logId: THREAD,
+      logId: LOG,
       seq: 4,
       epoch: UNOWNED_EPOCH,
       records: [retry(0)],
@@ -376,7 +384,8 @@ describe('a closed view', () => {
     const store = memoryLogStore()
     const log = new SharedLog({
       store,
-      logId: THREAD,
+      logId: LOG,
+      rootThread: THREAD,
       state: emptySharedLogState(),
       coalesceMs: 0,
     })
@@ -448,7 +457,7 @@ describe('events and batches', () => {
       writer.flush(),
     ])
 
-    const entries = await store.read({ logId: THREAD })
+    const entries = await store.read({ logId: LOG })
     expect(entries.map((entry) => [entry.seq, entry.record.type])).toEqual([
       [1, 'harness.event'],
       [2, 'app.a'],
@@ -469,7 +478,7 @@ describe('events and batches', () => {
     first.close()
 
     // A new session: the first events are only in the store.
-    const state = await loadLogState({ store, logId: THREAD })
+    const state = await loadLogState({ store, logId: LOG, rootThread: THREAD })
     const writer = newWriter(store, { state })
     let done = false
     const seen: Array<SessionEvent> = []
@@ -516,7 +525,7 @@ describe('write failures', () => {
     const failures: Array<unknown> = []
     const first = newWriter(store, { onFailure: (e) => failures.push(e) })
     await first.append([{ type: 'app.mine' }])
-    const state = await loadLogState({ store, logId: THREAD })
+    const state = await loadLogState({ store, logId: LOG, rootThread: THREAD })
     const next = newWriter(store, { state })
 
     // The newer host writes. The first host is notified and stops.
@@ -539,12 +548,12 @@ describe('write failures', () => {
     await old.commit({ messages: [user('u1', 'one')] })
     // A newer host appends a harness record type that this version does not know.
     await store.append({
-      logId: THREAD,
+      logId: LOG,
       seq: 2,
       epoch: UNOWNED_EPOCH,
       records: [{ type: 'harness.later', value: 1 }],
     })
-    const state = await loadLogState({ store, logId: THREAD })
+    const state = await loadLogState({ store, logId: LOG, rootThread: THREAD })
     expect(state.newerRecord).toBe('harness.later')
     expect(sessionOf(state, THREAD).messages).toEqual([user('u1', 'one')])
 
@@ -573,7 +582,7 @@ describe('write failures', () => {
       onFailure: (error) => failures.push(error),
     })
     await store.append({
-      logId: THREAD,
+      logId: LOG,
       seq: 1,
       epoch: UNOWNED_EPOCH,
       records: [{ type: 'app.from-another-host' }],
@@ -627,7 +636,7 @@ describe('write failures', () => {
     isDown = true
 
     await inner.append({
-      logId: THREAD,
+      logId: LOG,
       seq: 1,
       epoch: UNOWNED_EPOCH,
       records: [{ type: 'app.other' }],
@@ -718,7 +727,7 @@ describe('fold checkpoints', () => {
     const store = memoryLogStore()
     await seedLog(store)
     const { metadata } = memoryPersistence().stores
-    await metadata.set(NAMESPACE, THREAD, checkpoint({}))
+    await metadata.set(NAMESPACE, LOG, checkpoint({}))
 
     const state = await loadSession({ store, metadata, project })
 
@@ -743,7 +752,7 @@ describe('fold checkpoints', () => {
     const store = memoryLogStore()
     await seedLog(store)
     const { metadata } = memoryPersistence().stores
-    await metadata.set(NAMESPACE, THREAD, value)
+    await metadata.set(NAMESPACE, LOG, value)
 
     const state = await loadSession({ store, metadata, project })
 
@@ -767,7 +776,7 @@ describe('fold checkpoints', () => {
     }
     for (let index = 0; index < 51; index += 1) await writer.append([usage])
     await expect
-      .poll(() => metadata.get(NAMESPACE, THREAD))
+      .poll(() => metadata.get(NAMESPACE, LOG))
       .toMatchObject({ seq: 50 })
 
     await loadSession({ store, metadata })
@@ -786,7 +795,7 @@ describe('fold checkpoints', () => {
     }
 
     await expect
-      .poll(() => metadata.get(NAMESPACE, THREAD))
+      .poll(() => metadata.get(NAMESPACE, LOG))
       .toMatchObject({ v: 2, seq: 50, version: 'v1' })
   })
 
@@ -799,14 +808,14 @@ describe('fold checkpoints', () => {
       await writer.append([{ type: 'app.tick', index }])
     }
     await expect
-      .poll(() => metadata.get(NAMESPACE, THREAD))
+      .poll(() => metadata.get(NAMESPACE, LOG))
       .toMatchObject({ seq: 50 })
 
     expect(
       (await loadSession({ store, metadata, project })).transcriptSeq,
     ).toBe(1)
     // A checkpoint from before the field does not know it.
-    await metadata.set(NAMESPACE, THREAD, checkpoint({ seq: 2 }))
+    await metadata.set(NAMESPACE, LOG, checkpoint({ seq: 2 }))
     expect(
       (await loadSession({ store, metadata, project })).transcriptSeq,
     ).toBeUndefined()
@@ -830,23 +839,24 @@ describe('fold checkpoints', () => {
     async (_name, value, reduce) => {
       const store = memoryLogStore()
       await store.append({
-        logId: THREAD,
+        logId: LOG,
         seq: 1,
         epoch: UNOWNED_EPOCH,
         records: [{ type: 'app.tick' }],
       })
       await store.append({
-        logId: THREAD,
+        logId: LOG,
         seq: 2,
         epoch: UNOWNED_EPOCH,
         records: [{ type: 'app.tick' }],
       })
       const { metadata } = memoryPersistence().stores
-      await metadata.set(NAMESPACE, THREAD, value)
+      await metadata.set(NAMESPACE, LOG, value)
 
       const state = await loadLogState({
         store,
-        logId: THREAD,
+        logId: LOG,
+        rootThread: THREAD,
         metadata,
         project,
         reduce,
@@ -870,7 +880,8 @@ describe('fold checkpoints', () => {
     }
     const log = new SharedLog({
       store,
-      logId: THREAD,
+      logId: LOG,
+      rootThread: THREAD,
       state: emptySharedLogState(reduce),
       coalesceMs: 0,
       reduce,
@@ -881,11 +892,17 @@ describe('fold checkpoints', () => {
       await writer.append([{ type: 'app.tick', index }])
     }
     await expect
-      .poll(() => metadata.get(NAMESPACE, THREAD))
+      .poll(() => metadata.get(NAMESPACE, LOG))
       .toMatchObject({ seq: 50, reduceVersion: '' })
     calls = 0
 
-    const state = await loadLogState({ store, logId: THREAD, metadata, reduce })
+    const state = await loadLogState({
+      store,
+      logId: LOG,
+      rootThread: THREAD,
+      metadata,
+      reduce,
+    })
 
     expect(state.reduced).toBe(50)
     expect(state.reduced).toEqual(log.state.reduced)
@@ -1008,6 +1025,15 @@ describe('engine message store', () => {
   })
 })
 
+describe('logIdOf', () => {
+  it('encodes the tenant and the log id, so no two pairs give one id', () => {
+    expect(logIdOf({ logId: 't1' })).toBe(':t1')
+    expect(logIdOf({ tenantId: 'org/1', logId: 'a:b' })).toBe('org%2F1:a%3Ab')
+    expect(logIdOf({ tenantId: 'a:b', logId: 'c' })).toBe('a%3Ab:c')
+    expect(logIdOf({ tenantId: 'a', logId: 'b:c' })).toBe('a:b%3Ac')
+  })
+})
+
 describe('message stores', () => {
   it('logMessageStore writes a change as one record and reads the fold', async () => {
     const store = memoryLogStore()
@@ -1019,7 +1045,7 @@ describe('message stores', () => {
     await messages.saveThread('t9', [u1, a1])
 
     expect(await messages.loadThread('t9')).toEqual([u1, a1])
-    expect(await records(store, 't9')).toEqual([
+    expect(await records(store, logIdOf({ logId: 't9' }))).toEqual([
       { type: 'harness.transcript', keep: 0, add: [u1] },
       { type: 'harness.transcript', keep: 1, add: [a1] },
     ])
@@ -1043,10 +1069,11 @@ describe('message stores', () => {
       user('u1', 'hi'),
     ])
 
-    expect((await records(inner, 't9')).map((record) => record.type)).toEqual([
-      'app.other',
-      'harness.transcript',
-    ])
+    expect(
+      (await records(inner, logIdOf({ logId: 't9' }))).map(
+        (record) => record.type,
+      ),
+    ).toEqual(['app.other', 'harness.transcript'])
   })
 
   it('sessionMessageStore uses the writer for its thread and the log for others', async () => {
@@ -1062,16 +1089,22 @@ describe('message stores', () => {
     expect(await messages.loadThread('subagent:1')).toEqual([
       user('c1', 'child'),
     ])
-    const child: Array<LogRecord> = await records(store, 'subagent:1')
+    const child: Array<LogRecord> = await records(
+      store,
+      logIdOf({ logId: 'subagent:1' }),
+    )
     expect(child).toHaveLength(1)
   })
 })
 
 describe('a log shared by sessions', () => {
+  /** The id in the store of the log whose root thread is `log-1`. */
+  const SHARED = logIdOf({ logId: 'log-1' })
   const sharedWriter = (store: LogStore) => {
     const log = new SharedLog({
       store,
-      logId: 'log-1',
+      logId: SHARED,
+      rootThread: 'log-1',
       state: emptySharedLogState(),
       coalesceMs: 0,
     })
@@ -1088,7 +1121,7 @@ describe('a log shared by sessions', () => {
 
     await root.append([{ type: 'app.note', text: 'one' }])
 
-    expect(await records(store, 'log-1')).toEqual([
+    expect(await records(store, SHARED)).toEqual([
       { type: 'app.note', text: 'one' },
     ])
   })
@@ -1103,7 +1136,7 @@ describe('a log shared by sessions', () => {
       { type: 'app.child_linked', child: 'child' },
     ])
 
-    expect(await records(store, 'log-1')).toEqual([
+    expect(await records(store, SHARED)).toEqual([
       { type: 'app.note', text: 'from the child', thread: 'child' },
       { type: 'app.child_created', thread: 'child' },
       { type: 'app.child_linked', child: 'child' },
@@ -1119,7 +1152,11 @@ describe('a log shared by sessions', () => {
 
     expect(root.state.messages).toEqual([user('r1', 'root message')])
     expect(child.state.messages).toEqual([user('c1', 'child message')])
-    const state = await loadLogState({ store, logId: 'log-1' })
+    const state = await loadLogState({
+      store,
+      logId: SHARED,
+      rootThread: 'log-1',
+    })
     expect(sessionOf(state, 'child').messages).toEqual([
       user('c1', 'child message'),
     ])
@@ -1142,7 +1179,8 @@ describe('a log shared by sessions', () => {
     }
     const log = new SharedLog({
       store,
-      logId: 'log-1',
+      logId: SHARED,
+      rootThread: 'log-1',
       state: emptySharedLogState(reduce),
       coalesceMs: 0,
       reduce,
@@ -1155,7 +1193,14 @@ describe('a log shared by sessions', () => {
 
     expect(log.state.reduced).toEqual({ x: 2 })
     expect(
-      (await loadLogState({ store, logId: 'log-1', reduce })).reduced,
+      (
+        await loadLogState({
+          store,
+          logId: SHARED,
+          rootThread: 'log-1',
+          reduce,
+        })
+      ).reduced,
     ).toEqual({
       x: 2,
     })
@@ -1190,7 +1235,7 @@ describe('a log shared by sessions', () => {
 
     await vi.waitFor(() => expect(log.isOpen).toBe(false))
     expect(() => log.view('log-1', () => {})).toThrow(
-      'The log "log-1" is closed.',
+      `The log ${JSON.stringify(SHARED)} is closed.`,
     )
   })
 
@@ -1199,7 +1244,8 @@ describe('a log shared by sessions', () => {
     const onIdle = vi.fn()
     const log = new SharedLog({
       store,
-      logId: 'log-1',
+      logId: SHARED,
+      rootThread: 'log-1',
       state: emptySharedLogState(),
       coalesceMs: 0,
       onIdle,
@@ -1212,7 +1258,7 @@ describe('a log shared by sessions', () => {
 
     // Another writer takes the next position.
     await store.append({
-      logId: 'log-1',
+      logId: SHARED,
       seq: 2,
       epoch: UNOWNED_EPOCH,
       records: [{ type: 'app.other' }],
@@ -1245,7 +1291,7 @@ describe('a log shared by sessions', () => {
     // The child view keeps the log open, so the thread opens again.
     const again = log.view('log-1', () => {})
     await again.append([{ type: 'app.note' }])
-    expect(await records(store, 'log-1')).toEqual([{ type: 'app.note' }])
+    expect(await records(store, SHARED)).toEqual([{ type: 'app.note' }])
   })
 
   it('stays open until the last append of a closed view lands', async () => {
@@ -1262,7 +1308,8 @@ describe('a log shared by sessions', () => {
     })
     const log = new SharedLog({
       store,
-      logId: THREAD,
+      logId: LOG,
+      rootThread: THREAD,
       state: emptySharedLogState(),
       coalesceMs: 0,
     })
@@ -1290,8 +1337,8 @@ describe('a log shared by sessions', () => {
     const next = log.view('child', () => {})
     await next.commit({ messages: [user('c1', 'hi')] })
 
-    expect(
-      (await records(store, 'log-1')).map((record) => record.type),
-    ).toEqual(['harness.transcript'])
+    expect((await records(store, SHARED)).map((record) => record.type)).toEqual(
+      ['harness.transcript'],
+    )
   })
 })

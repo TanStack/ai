@@ -2,13 +2,15 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness, logIdOf } from '../src'
 import { gate, mockAdapter, text, toolCall } from './helpers'
 import type { AnyTool } from '@tanstack/ai'
 import type { AnyAgent, HarnessRouting, HarnessSubagents } from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
+/** The key of `THREAD` in the stores, in the default tenant. */
+const THREAD_KEY = logIdOf({ logId: THREAD })
 
 /** A tool that asks approval before it removes a file. */
 function removeTool() {
@@ -290,7 +292,7 @@ describe.each([false, true])(
         const initial = await session.send('remove')
         const approval = initial.interrupts?.[0]
         if (!approval) throw new Error('The turn did not stop for approval.')
-        const records = await stores.interrupts.listPending(THREAD)
+        const records = await stores.interrupts.listPending(THREAD_KEY)
         const record = records[0]
         if (!record) throw new Error('The pending record is missing.')
         const read = vi
@@ -630,7 +632,7 @@ describe.each([false, true])(
             'pending',
           )
           expect(
-            await stores.metadata.get('harness:interrupted', THREAD),
+            await stores.metadata.get('harness:interrupted', THREAD_KEY),
           ).toMatchObject({
             interrupts: [expect.objectContaining({ id: approval.id })],
           })
@@ -797,7 +799,7 @@ describe.each([false, true])(
       await stores.interrupts.create({
         interruptId: 'external',
         runId: 'external-run',
-        threadId: THREAD,
+        threadId: THREAD_KEY,
         requestedAt: Date.now(),
         payload: {
           id: 'external',

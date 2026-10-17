@@ -40,7 +40,13 @@ export interface HarnessSession<
 > extends Omit<
   SessionImpl<THarness>,
   // The public members that only the host and the handler call.
-  'open' | 'adoptFork' | 'onIdle' | 'resolveForRun'
+  | 'open'
+  | 'adoptFork'
+  | 'onIdle'
+  | 'resolveForRun'
+  | 'checked'
+  | 'cancelWorkOf'
+  | 'agentHandle'
 > {}
 
 /**
@@ -67,7 +73,7 @@ export class SessionImpl<
         : revertOf(
             await this.persistence.stores.metadata?.get(
               'harness:revert',
-              this.threadId,
+              this.storeThreadId,
             ),
           )
       await this.loadInterrupted()
@@ -225,10 +231,12 @@ export class SessionImpl<
         this.stopOnLogFailure(error),
       )
       this.feed = tapFeed(this.writer, this.notifyHost, this.eventListeners)
+      // The logs of the subagent children are in the tenant of this session.
       const view = {
         writer: this.writer,
         store,
         ...(project ? { project } : {}),
+        ...(this.tenantId !== undefined ? { tenantId: this.tenantId } : {}),
       }
       this.messages = sessionMessageStore(view)
       this.engine = engineMessageStore(view)
@@ -343,7 +351,7 @@ export class SessionImpl<
   /** Re-run turns that were accepted but never applied before a restart. */
   protected async recoverInbox(): Promise<void> {
     const pending: Array<InboxEntry> = await this.inbox.listPending(
-      this.threadId,
+      this.storeThreadId,
     )
     for (const entry of pending) {
       const input = entry.input as HarnessInput
@@ -679,7 +687,7 @@ export class SessionImpl<
       const isAlive =
         leases && input.operationId
           ? await leases.isAlive({
-              threadId: this.threadId,
+              threadId: this.storeThreadId,
               inputId: input.inputId,
               operationId: input.operationId,
               attempt: input.attempt,

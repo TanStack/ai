@@ -123,7 +123,7 @@ describe('host.events', () => {
     const feed = watch((signal) => host.events({ signal }))
 
     await host.sessions.rename({ threadId: 'b', title: 'Greetings' })
-    await host.sessions.delete('b')
+    await host.sessions.delete({ threadId: 'b' })
 
     await vi.waitFor(() => expect(feed.seen).toHaveLength(3))
     expect(feed.seen).toMatchObject([

@@ -6,6 +6,7 @@ import {
   retrieveBlob,
   withGenerationPersistence,
 } from '@tanstack/ai-persistence'
+import { logIdOf } from './log'
 import { kindOf, mediaIdOf } from './media-ref'
 import type {
   AnyTranscriptionAdapter,
@@ -71,17 +72,25 @@ const ALL_KINDS: ReadonlyArray<MediaKind> = [
   'document',
 ]
 
-// Uploads are artifact records with the run id `upload:<threadId>`. Their
-// bytes use the key `artifacts/upload:<encoded threadId>/<id>`: the thread id
-// comes from the client, and a raw `../` would leave the folder of a
-// filesystem blob store. Generated media keeps what
+// The artifact records of a thread have the store key of the thread as their
+// `threadId`: `logIdOf` of the tenant and the thread id. So one thread id in
+// two tenants has two sets of media. Uploads have the run id
+// `upload:<store key>`, and their bytes use the key
+// `artifacts/upload:<store key>/<id>`. The store key is URL-encoded: the
+// thread id comes from the client, and a raw `../` would leave the folder of
+// a filesystem blob store. Generated media keeps what
 // `withGenerationPersistence` gives it: a generation run id
 // `<operation>[:<subagentRunId>...]:<activity>-<n>`.
-function uploadRunId(threadId: string) {
-  return `upload:${threadId}`
+function uploadRunId(storeThreadId: string) {
+  return `upload:${storeThreadId}`
 }
 
-function toMediaRecord(record: ArtifactRecord, kind: MediaKind) {
+/** The media record of `record`, an artifact of the thread `threadId`. */
+function toMediaRecord(
+  record: ArtifactRecord,
+  kind: MediaKind,
+  threadId: string,
+) {
   const isUpload = record.runId === uploadRunId(record.threadId)
   const segments = isUpload ? [] : record.runId.split(':')
   const [runId] = segments
@@ -90,7 +99,7 @@ function toMediaRecord(record: ArtifactRecord, kind: MediaKind) {
   )
   const base = {
     id: record.artifactId,
-    threadId: record.threadId,
+    threadId,
     kind,
     mimeType: record.mimeType,
     name: record.name,
@@ -145,8 +154,8 @@ export function toBase64(bytes: Uint8Array) {
 
 /**
  * The media store of one thread, on the persistence `artifacts` and `blobs`
- * stores. It sees only the media of `threadId`: an id of another thread reads
- * as not found.
+ * stores. It sees only the media of `threadId` in the tenant `tenantId`: an
+ * id of another thread or another tenant reads as not found.
  *
  * `put` throws a `MediaError` with 413 (over `maxBytes`) or 415 (a MIME type
  * with no media kind, or a kind not in `kinds`). `load` throws a `MediaError`
@@ -160,13 +169,17 @@ export function toBase64(bytes: Uint8Array) {
 export function createMediaStore({
   persistence,
   threadId,
+  tenantId,
   options = {},
 }: {
   persistence: MediaPersistence
   threadId: string
+  /** The tenant of the thread. Without it, the default tenant. */
+  tenantId?: string
   options?: MediaOptions
 }) {
   const { artifacts, blobs } = persistence.stores
+  const storeThreadId = logIdOf({ tenantId, logId: threadId })
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES
   const kinds = options.kinds ?? ALL_KINDS
   const tooBig = () =>
@@ -177,13 +190,13 @@ export function createMediaStore({
 
   async function artifact(id: string) {
     const record = await artifacts.get(id)
-    return record?.threadId === threadId ? record : null
+    return record?.threadId === storeThreadId ? record : null
   }
 
   async function get(id: string) {
     const record = await artifact(id)
     const kind = record ? kindOf(record.mimeType) : undefined
-    return record && kind ? toMediaRecord(record, kind) : null
+    return record && kind ? toMediaRecord(record, kind, threadId) : null
   }
 
   async function load(id: string, range?: BlobRange) {
@@ -216,8 +229,8 @@ export function createMediaStore({
       if (size !== undefined && size > maxBytes) throw tooBig()
 
       const id = crypto.randomUUID()
-      const runId = uploadRunId(threadId)
-      const blobKey = `artifacts/upload:${encodeURIComponent(threadId)}/${id}`
+      const runId = uploadRunId(storeThreadId)
+      const blobKey = `artifacts/${runId}/${id}`
       // A stream has no length up front, so count it as the store reads it.
       let seen = 0
       const counted =
@@ -242,7 +255,7 @@ export function createMediaStore({
       const record: ArtifactRecord = {
         artifactId: id,
         runId,
-        threadId,
+        threadId: storeThreadId,
         blobKey,
         name: info.name,
         mimeType: info.mimeType,
@@ -250,7 +263,7 @@ export function createMediaStore({
         createdAt: Date.now(),
       }
       await artifacts.save(record)
-      return toMediaRecord(record, kind)
+      return toMediaRecord(record, kind, threadId)
     },
     /** The record of `id`, or `null` when it is missing or another thread's. */
     get,
@@ -294,6 +307,7 @@ export function createMediaStore({
 export function mediaCapture({
   persistence,
   threadId,
+  tenantId,
   options = {},
   publish,
   onError,
@@ -304,13 +318,17 @@ export function mediaCapture({
     generationRuns: GenerationRunStore
   }>
   threadId: string
+  /** The tenant of the thread. Without it, the default tenant. */
+  tenantId?: string
   options?: MediaOptions
   publish: (record: MediaRecord) => void | Promise<void>
   onError?: (error: unknown) => void
 }) {
-  const store = createMediaStore({ persistence, threadId, options })
+  const store = createMediaStore({ persistence, threadId, tenantId, options })
+  // The runs and the artifacts are under the store key of the thread, as in
+  // `createMediaStore`.
   const persist = withGenerationPersistence(persistence, {
-    threadId,
+    threadId: logIdOf({ tenantId, logId: threadId }),
     maxArtifactBytes: options.maxBytes ?? DEFAULT_MAX_BYTES,
   })
   const keep: GenerationMiddleware = {

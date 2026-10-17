@@ -11,10 +11,16 @@ import {
   createHarnessHost,
   defineHarness,
   definePlugin,
+  logIdOf,
+  logMessageStore,
 } from '../src'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { ModelMessage, StreamChunk, TokenUsage } from '@tanstack/ai'
 import type {
+  MessageStore,
+  SessionIndexEntry,
+  SessionIndexKey,
+  SessionIndexListOptions,
   SessionIndexPage,
   SessionIndexStore,
 } from '@tanstack/ai-persistence'
@@ -42,6 +48,10 @@ function idOf(message: ModelMessage | undefined) {
 const turnsOf = (messages: ReadonlyArray<ModelMessage>) =>
   messages.map((message) => [message.role, message.content])
 
+/** The stored transcript of `threadId` in the default tenant. */
+const transcriptOf = (messages: MessageStore, threadId: string) =>
+  messages.loadThread(logIdOf({ logId: threadId }))
+
 const threadIds = (page: SessionIndexPage) =>
   page.entries.map((entry) => entry.threadId)
 
@@ -53,6 +63,16 @@ function hostWith(replies: Array<Reply> | Reply = () => text('answer')) {
     adapter: mockAdapter(replies).adapter,
   })
   return { persistence, host, harness }
+}
+
+/** A durable host (a log, runs, metadata, and a session index), and its log. */
+function durableHost() {
+  const log = memoryLogStore()
+  const { runs, metadata, sessions } = memoryPersistence().stores
+  const host = createHarnessHost({
+    persistence: { stores: { log, runs, metadata, sessions } },
+  })
+  return { log, host }
 }
 
 /** The context items a user pinned to a thread. */
@@ -72,18 +92,17 @@ const chipsHarness = (name = 'test/chips') =>
  */
 function storeWith(
   persistence: HarnessPersistence,
-  overrides: (store: Required<SessionIndexStore>) => Partial<SessionIndexStore>,
+  overrides: (store: SessionIndexStore) => Partial<SessionIndexStore>,
 ) {
   const store = persistence.stores.sessions
-  if (!store?.getVersioned || !store.upsertIf)
-    throw new Error('The persistence has no compare-and-set sessions store.')
-  const forwarding: Required<SessionIndexStore> = {
+  if (!store) throw new Error('The persistence has no sessions store.')
+  const forwarding: SessionIndexStore = {
     upsert: (entry) => store.upsert(entry),
-    get: (threadId) => store.get(threadId),
+    get: (key) => store.get(key),
     list: (options) => store.list(options),
-    delete: (threadId) => store.delete(threadId),
-    getVersioned: store.getVersioned.bind(store),
-    upsertIf: store.upsertIf.bind(store),
+    delete: (key) => store.delete(key),
+    getVersioned: (key) => store.getVersioned(key),
+    upsertIf: (input) => store.upsertIf(input),
   }
   return defineSessionIndexStore({ ...forwarding, ...overrides(forwarding) })
 }
@@ -135,18 +154,23 @@ describe('host.sessions', () => {
       principal: { id: 'u1', name: 'Ada', tenantId: 'org-1' },
     })
 
-    expect(await host.sessions.get('t1')).toEqual({
+    const read = { threadId: 't1', principal: { id: 'u1', tenantId: 'org-1' } }
+    expect(await host.sessions.get(read)).toEqual({
+      tenantId: 'org-1',
       threadId: 't1',
+      ownerId: 'u1',
+      members: [{ userId: 'u1', role: 'owner' }],
       harness: 'test/sessions',
       createdAt: expect.any(Number),
       updatedAt: expect.any(Number),
-      principal: { id: 'u1', tenantId: 'org-1' },
     })
+    // The entry is in the tenant of the principal only.
+    expect(await host.sessions.get({ threadId: 't1' })).toBeUndefined()
 
     await session.send('first')
     await session.send('second')
 
-    expect((await host.sessions.get('t1'))?.usage).toEqual({
+    expect((await host.sessions.get(read))?.usage).toEqual({
       turns: 2,
       promptTokens: 30,
       completionTokens: 12,
@@ -164,7 +188,10 @@ describe('host.sessions', () => {
 
     await host.open(harness, { threadId: 't1', principal: { id: 'bob' } })
 
-    expect((await host.sessions.get('t1'))?.principal).toEqual({ id: 'alice' })
+    expect(await host.sessions.get({ threadId: 't1' })).toMatchObject({
+      ownerId: 'alice',
+      members: [{ userId: 'alice', role: 'owner' }],
+    })
     await host.close()
   })
 
@@ -179,6 +206,7 @@ describe('host.sessions', () => {
     await persistence.stores.sessions.upsert({
       threadId: 'subagent:run-1',
       parentThreadId: 'older',
+      members: [],
       createdAt: 3000,
       updatedAt: 3000,
     })
@@ -200,11 +228,13 @@ describe('host.sessions', () => {
     })
 
     expect(renamed?.title).toBe('Fix the build')
-    expect((await host.sessions.get('t1'))?.title).toBe('Fix the build')
+    expect((await host.sessions.get({ threadId: 't1' }))?.title).toBe(
+      'Fix the build',
+    )
     expect(
       await host.sessions.rename({ threadId: 'unknown', title: 'x' }),
     ).toBeUndefined()
-    expect(await host.sessions.get('unknown')).toBeUndefined()
+    expect(await host.sessions.get({ threadId: 'unknown' })).toBeUndefined()
     await host.close()
   })
 
@@ -235,8 +265,8 @@ describe('host.sessions', () => {
       title: 'Chips',
       metadata: { chips: ['a.ts', 'b.ts'] },
     })
-    expect(await host.sessions.get('t1')).toMatchObject({
-      principal: { id: 'u1' },
+    expect(await host.sessions.get({ threadId: 't1' })).toMatchObject({
+      ownerId: 'u1',
       metadata: { chips: ['a.ts', 'b.ts'] },
     })
     expect(
@@ -252,7 +282,7 @@ describe('host.sessions', () => {
   it('writes nothing when the change function returns undefined', async () => {
     const { host, harness } = hostWith()
     await host.open(harness, { threadId: 't1' })
-    const before = await host.sessions.get('t1')
+    const before = await host.sessions.get({ threadId: 't1' })
 
     expect(
       await host.sessions.update({
@@ -261,7 +291,7 @@ describe('host.sessions', () => {
         update: () => undefined,
       }),
     ).toBeUndefined()
-    expect(await host.sessions.get('t1')).toEqual(before)
+    expect(await host.sessions.get({ threadId: 't1' })).toEqual(before)
     await host.close()
   })
 
@@ -281,7 +311,7 @@ describe('host.sessions', () => {
     })
 
     await expect(write).rejects.toBeInstanceOf(SessionMetadataError)
-    expect((await host.sessions.get('t1'))?.title).toBeUndefined()
+    expect((await host.sessions.get({ threadId: 't1' }))?.title).toBeUndefined()
     await host.close()
   })
 
@@ -304,8 +334,8 @@ describe('host.sessions', () => {
     // A store that lets another host write right after the next read.
     let other: (() => Promise<unknown>) | undefined
     const racing = storeWith(persistence, (store) => ({
-      getVersioned: async (threadId) => {
-        const read = await store.getVersioned(threadId)
+      getVersioned: async (key) => {
+        const read = await store.getVersioned(key)
         const write = other
         other = undefined
         await write?.()
@@ -334,7 +364,7 @@ describe('host.sessions', () => {
     })
 
     expect(runs).toBe(2)
-    expect(await racing.get('t1')).toMatchObject({
+    expect(await racing.get({ threadId: 't1' })).toMatchObject({
       title: 'From the other host',
       metadata: { chips: ['a.ts'] },
     })
@@ -361,24 +391,79 @@ describe('host.sessions', () => {
     await opener.close()
   })
 
-  it('deletes the index entry only, and a later turn does not bring it back', async () => {
+  it('deletes the entry and the transcript, and closes the open session', async () => {
     const { persistence, host, harness } = hostWith()
     const session = await host.open(harness, { threadId: 't1' })
     await session.send('hi')
 
-    await host.sessions.delete('t1')
-    await session.send('still here')
+    await host.sessions.delete({ threadId: 't1' })
 
-    expect(await host.sessions.get('t1')).toBeUndefined()
-    expect(turnsOf(await persistence.stores.messages.loadThread('t1'))).toEqual(
-      [
-        ['user', 'hi'],
-        ['assistant', 'answer'],
-        ['user', 'still here'],
-        ['assistant', 'answer'],
-      ],
-    )
+    expect(await host.sessions.get({ threadId: 't1' })).toBeUndefined()
+    expect(
+      turnsOf(await transcriptOf(persistence.stores.messages, 't1')),
+    ).toEqual([])
+    expect(host.isOpen(harness, { threadId: 't1' })).toBe(false)
     await host.close()
+  })
+
+  it('deletes the entry for good, so the next open writes a new entry', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const { host, harness } = hostWith()
+    vi.setSystemTime(1000)
+    await host.open(harness, { threadId: 't1', principal: { id: 'u1' } })
+    await host.sessions.rename({ threadId: 't1', title: 'Old title' })
+
+    await host.sessions.delete({ threadId: 't1' })
+    expect(await host.sessions.get({ threadId: 't1' })).toBeUndefined()
+    await host.close()
+    vi.setSystemTime(2000)
+    await host.open(harness, { threadId: 't1' })
+
+    expect(await host.sessions.get({ threadId: 't1' })).toEqual({
+      threadId: 't1',
+      members: [],
+      harness: 'test/sessions',
+      createdAt: 2000,
+      updatedAt: 2000,
+    })
+    await host.close()
+  })
+
+  it('refuses to open a child thread: its root thread reads it', async () => {
+    const { persistence, host, harness } = hostWith()
+    await persistence.stores.sessions.upsert({
+      threadId: 'subagent:run-1',
+      parentThreadId: 't1',
+      members: [],
+      createdAt: 1,
+      updatedAt: 1,
+    })
+
+    await expect(
+      host.open(harness, { threadId: 'subagent:run-1' }),
+    ).rejects.toThrow(
+      '"subagent:run-1" is a child thread of "t1". Open the root thread and read the child through it.',
+    )
+    expect(host.isOpen(harness, { threadId: 'subagent:run-1' })).toBe(false)
+    await host.close()
+  })
+
+  it('refuses a sessions store without compare-and-set at the start', () => {
+    const { messages, sessions } = memoryPersistence().stores
+    // A store in plain JS, with no getVersioned and no upsertIf.
+    const plain = {
+      get: (key: SessionIndexKey) => sessions.get(key),
+      upsert: (entry: SessionIndexEntry) => sessions.upsert(entry),
+      list: (options?: SessionIndexListOptions) => sessions.list(options),
+      delete: (key: SessionIndexKey) => sessions.delete(key),
+    }
+
+    expect(() =>
+      createHarnessHost({
+        // @ts-expect-error The types need both methods. A JS caller can leave them out.
+        persistence: { stores: { messages, sessions: plain } },
+      }),
+    ).toThrow('stores.sessions needs getVersioned and upsertIf.')
   })
 
   it('forks the transcript before or through a message into a new thread, with the settings', async () => {
@@ -412,18 +497,26 @@ describe('host.sessions', () => {
       threadId: expect.any(String),
       harness: 'test/sessions',
       title: 'Chat (fork)',
-      principal: { id: 'u1' },
+      ownerId: 'u1',
+      members: [{ userId: 'u1', role: 'owner' }],
       createdAt: expect.any(Number),
       updatedAt: expect.any(Number),
     })
     expect(before.threadId).not.toBe(through.threadId)
-    expect(await host.sessions.get(before.threadId)).toEqual(before)
-    const { messages } = persistence.stores
-    expect(turnsOf(await messages.loadThread(before.threadId))).toEqual([
+    expect(await host.sessions.get({ threadId: before.threadId })).toEqual(
+      before,
+    )
+    expect(
+      turnsOf(await transcriptOf(persistence.stores.messages, before.threadId)),
+    ).toEqual([
       ['user', 'first'],
       ['assistant', 'answer'],
     ])
-    expect(turnsOf(await messages.loadThread(through.threadId))).toEqual([
+    expect(
+      turnsOf(
+        await transcriptOf(persistence.stores.messages, through.threadId),
+      ),
+    ).toEqual([
       ['user', 'first'],
       ['assistant', 'answer'],
       ['user', 'second'],
@@ -450,20 +543,16 @@ describe('host.sessions', () => {
       },
     })
 
-    expect(await persistence.stores.messages.loadThread(fork.threadId)).toEqual(
-      [],
-    )
+    expect(
+      await transcriptOf(persistence.stores.messages, fork.threadId),
+    ).toEqual([])
     const forked = await host.open(harness, { threadId: fork.threadId })
     expect(forked.settings()).toEqual({ instructions: 'Be brief.' })
     await host.close()
   })
 
   it('forks a durable thread into one transcript record in a new log', async () => {
-    const log = memoryLogStore()
-    const { runs, metadata, sessions } = memoryPersistence().stores
-    const host = createHarnessHost({
-      persistence: { stores: { log, runs, metadata, sessions } },
-    })
+    const { log, host } = durableHost()
     const harness = defineHarness({
       name: 'test/sessions-durable',
       adapter: mockAdapter(() => text('durable answer')).adapter,
@@ -480,7 +569,9 @@ describe('host.sessions', () => {
       },
     })
 
-    const records = await log.read({ logId: fork.threadId })
+    const records = await log.read({
+      logId: logIdOf({ logId: fork.threadId }),
+    })
     expect(records.map(({ record }) => [record.type, record.keep])).toEqual([
       ['harness.transcript', 0],
     ])
@@ -528,7 +619,9 @@ describe('host.sessions', () => {
       'Thread "t1" belongs to harness "test/sessions", not "test/other".',
     )
     expect(threadIds(await host.sessions.list())).toEqual(['t1'])
-    expect((await host.sessions.get('t1'))?.harness).toBe('test/sessions')
+    expect((await host.sessions.get({ threadId: 't1' }))?.harness).toBe(
+      'test/sessions',
+    )
     await host.close()
   })
 
@@ -555,10 +648,58 @@ describe('host.sessions', () => {
     })
 
     expect(fork.harness).toBe('test/other')
-    expect(turnsOf(await messages.loadThread(fork.threadId))).toEqual([
+    expect(turnsOf(await transcriptOf(messages, fork.threadId))).toEqual([
       ['user', 'hi'],
       ['assistant', 'answer'],
     ])
+    await host.close()
+  })
+})
+
+describe('tenants', () => {
+  const ada = { id: 'ada', tenantId: 'org-a' }
+  const bo = { id: 'bo', tenantId: 'org-b' }
+
+  it('keeps one thread id of two tenants apart: two sessions, two entries, and two logs', async () => {
+    const { log, host } = durableHost()
+    const harness = defineHarness({
+      name: 'test/tenants',
+      adapter: mockAdapter(() => text('answer')).adapter,
+    })
+    const a = await host.open(harness, { threadId: 't1', principal: ada })
+    const b = await host.open(harness, { threadId: 't1', principal: bo })
+
+    await a.send('from a')
+    await b.send('from b')
+
+    expect(a).not.toBe(b)
+    expect(turnsOf(await a.transcript())).toEqual([
+      ['user', 'from a'],
+      ['assistant', 'answer'],
+    ])
+    expect(turnsOf(await b.transcript())).toEqual([
+      ['user', 'from b'],
+      ['assistant', 'answer'],
+    ])
+    expect(
+      await host.sessions.get({ threadId: 't1', principal: ada }),
+    ).toMatchObject({ tenantId: 'org-a', ownerId: 'ada' })
+    expect(
+      await host.sessions.get({ threadId: 't1', principal: bo }),
+    ).toMatchObject({ tenantId: 'org-b', ownerId: 'bo' })
+    const listed = await host.sessions.list({ principal: ada })
+    expect(listed.entries.map((entry) => entry.tenantId)).toEqual(['org-a'])
+    const logOf = (tenantId: string) =>
+      logMessageStore({ store: log, tenantId }).loadThread('t1')
+    expect(turnsOf(await logOf('org-a'))).toEqual([
+      ['user', 'from a'],
+      ['assistant', 'answer'],
+    ])
+    expect(turnsOf(await logOf('org-b'))).toEqual([
+      ['user', 'from b'],
+      ['assistant', 'answer'],
+    ])
+    expect(await log.read({ logId: logIdOf({ logId: 't1' }) })).toEqual([])
     await host.close()
   })
 })
@@ -621,7 +762,8 @@ describe('child sessions', () => {
         threadId: expect.stringMatching(/^subagent:/),
         parentThreadId: 'lead',
         parentToolCallId: 'call-1',
-        principal: { id: 'alice' },
+        ownerId: 'alice',
+        members: [],
         harness: 'test/subagent-child',
         createdAt: expect.any(Number),
         updatedAt: expect.any(Number),
@@ -648,11 +790,11 @@ describe('ctx.session.entry and updateEntry', () => {
       title: 'From a plugin',
       metadata: { model: 'm-1' },
     })
-    expect(await host.sessions.get('p1')).toMatchObject({
+    expect(await host.sessions.get({ threadId: 'p1' })).toMatchObject({
       threadId: 'p1',
       title: 'From a plugin',
       metadata: { model: 'm-1' },
-      principal: { id: 'u1' },
+      ownerId: 'u1',
     })
     await host.close()
   })
@@ -690,7 +832,7 @@ describe('ctx.session.entry and updateEntry', () => {
         metadata: { chips: [...(entry.metadata?.chips ?? []), 'c.ts'] },
       })),
     ).rejects.toBeInstanceOf(SessionMetadataError)
-    expect((await host.sessions.get('p1'))?.metadata).toEqual({
+    expect((await host.sessions.get({ threadId: 'p1' }))?.metadata).toEqual({
       chips: ['a.ts', 'b.ts'],
     })
     await host.close()
@@ -727,7 +869,7 @@ describe('ctx.session.entry and updateEntry', () => {
       metadata: { ...entry.metadata, chips: ['a.ts'] },
     }))
 
-    expect((await host.sessions.get('p1'))?.metadata).toEqual({
+    expect((await host.sessions.get({ threadId: 'p1' }))?.metadata).toEqual({
       chips: ['a.ts'],
       theme: 'dark',
     })
@@ -752,7 +894,7 @@ describe('ctx.session.entry and updateEntry', () => {
     await session.send('hi')
 
     expect(await host.sessions.list()).toEqual({ entries: [] })
-    expect(await host.sessions.get('p1')).toBeUndefined()
+    expect(await host.sessions.get({ threadId: 'p1' })).toBeUndefined()
     expect(
       await host.sessions.rename({ threadId: 'p1', title: 'x' }),
     ).toBeUndefined()

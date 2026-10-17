@@ -6,21 +6,21 @@ import { isMediaRecord, mediaPart } from '../src/media-entry'
 import { mockAdapter, text } from './helpers'
 import type { ContentPart } from '@tanstack/ai'
 import type { MediaRecord } from '../src'
-import type { Authorize } from '../src/server'
 import type { MediaOptions } from '../src/media-entry'
 
 const BASE = 'http://x/api/harness'
 const HOUR = 60 * 60 * 1000
 const NOW = 1_000_000
 
-const allowUser: Authorize = (request) =>
-  request.headers.get('authorization') === 'Bearer good'
-    ? { id: 'user-1' }
-    : null
+const user = { id: 'user-1' }
+
+const allowUser = (request: Request) =>
+  request.headers.get('authorization') === 'Bearer good' ? user : null
 
 /**
  * A handler for user-1, who can open only threads that start with `user-1`.
- * `handlerWith` makes another handler on the same host.
+ * `handlerWith` makes another handler, on the same host or on `hostWith`: a
+ * second host on the same stores, as another server instance.
  */
 function setup(options: { media?: MediaOptions; secret?: string } = {}) {
   const { adapter, calls } = mockAdapter(() => text('ok'))
@@ -29,16 +29,25 @@ function setup(options: { media?: MediaOptions; secret?: string } = {}) {
     adapter,
     media: options.media,
   })
-  const host = createHarnessHost({ persistence: memoryPersistence() })
+  const persistence = memoryPersistence()
+  /** A host on the shared stores. `identify` reads the user of a request. */
+  const hostWith = (identify: (request: Request) => typeof user | null) =>
+    createHarnessHost({
+      persistence,
+      access: {
+        identify: ({ request }) => identify(request),
+        authorize: ({ principal, session }) =>
+          session.threadId.startsWith(principal.id),
+      },
+    })
+  const host = hostWith(allowUser)
   /** `secret` signs the media URLs. Without it, a random key per handler. */
   const handlerWith = (
-    handlerOptions: { authorize?: Authorize; secret?: string } = {},
+    handlerOptions: { host?: typeof host; secret?: string } = {},
   ) =>
     createHarnessHandler({
-      host,
+      host: handlerOptions.host ?? host,
       harness,
-      authorize: handlerOptions.authorize ?? allowUser,
-      canAccess: (principal, threadId) => threadId.startsWith(principal.id),
       ...(handlerOptions.secret
         ? { media: { secret: handlerOptions.secret } }
         : {}),
@@ -90,7 +99,9 @@ function setup(options: { media?: MediaOptions; secret?: string } = {}) {
 
   return {
     host,
+    harness,
     calls,
+    hostWith,
     handlerWith,
     call,
     post,
@@ -139,12 +150,7 @@ describe('media upload and signed URLs', () => {
         },
       },
     })
-    const options = {
-      host,
-      harness,
-      authorize: allowUser,
-      canAccess: () => true,
-    }
+    const options = { host, harness, openAccess: true as const }
     expect(() => createHarnessHandler(options)).toThrow(/media\.secret/)
     expect(() =>
       createHarnessHandler({ ...options, media: { secret: 'shared' } }),
@@ -175,7 +181,7 @@ describe('media upload and signed URLs', () => {
     expect(expiresAt).toBe(NOW + HOUR)
     expect(path).toMatch(
       new RegExp(
-        `^media\\?threadId=user-1-a&id=${record.id}&exp=${NOW + HOUR}&sig=[\\w-]+$`,
+        `^media\\?threadId=user-1-a&id=${record.id}&userId=user-1&exp=${NOW + HOUR}&sig=[\\w-]+$`,
       ),
     )
     expect(response.status).toBe(200)
@@ -183,16 +189,13 @@ describe('media upload and signed URLs', () => {
     await host.close()
   })
 
-  it('serves a signed URL through a handler whose authorize refuses everything', async () => {
-    const { host, upload, signedPath, fetchSigned, handlerWith } = setup({
-      secret: 'shared',
-    })
+  it('serves a signed URL on another instance whose identify refuses everyone', async () => {
+    const { host, upload, signedPath, fetchSigned, hostWith, handlerWith } =
+      setup({ secret: 'shared' })
     const record = await upload('user-1-a')
     const { path } = await signedPath(record)
-    const refuseAll = handlerWith({
-      authorize: () => null,
-      secret: 'shared',
-    })
+    const other = hostWith(() => null)
+    const refuseAll = handlerWith({ host: other, secret: 'shared' })
 
     const signed = await fetchSigned(path, refuseAll)
     const unsigned = await fetchSigned(
@@ -203,6 +206,7 @@ describe('media upload and signed URLs', () => {
     expect(signed.status).toBe(200)
     expect(await signed.text()).toBe('hello')
     expect(unsigned.status).toBe(401)
+    await other.close()
     await host.close()
   })
 
@@ -221,6 +225,14 @@ describe('media upload and signed URLs', () => {
     {
       label: 'a later expiry',
       change: (query) => query.set('exp', String(Date.now() + 2 * HOUR)),
+    },
+    {
+      label: 'another user',
+      change: (query) => query.set('userId', 'user-1-admin'),
+    },
+    {
+      label: 'another tenant',
+      change: (query) => query.set('tenantId', 'other-tenant'),
     },
   ]
 
@@ -270,7 +282,11 @@ describe('media upload and signed URLs', () => {
   })
 
   it('serves an unsigned GET only to a principal that can open the thread', async () => {
-    const { host, call, upload, fetchSigned } = setup()
+    const { host, harness, call, upload, fetchSigned } = setup()
+    await host.open(harness, {
+      threadId: 'someone-else',
+      principal: { id: 'someone' },
+    })
     const record = await upload('user-1-a')
     const path = `media?threadId=user-1-a&id=${record.id}`
 

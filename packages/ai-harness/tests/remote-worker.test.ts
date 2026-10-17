@@ -24,15 +24,19 @@ const textOf = (chunks: Array<StreamChunk>) =>
 describe('harnessText for a remote harness', () => {
   it('sends the token and the last user message, and streams the answer', async () => {
     const { adapter, calls } = mockAdapter([() => text('remote answer')])
-    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      access: {
+        identify: ({ request }) =>
+          request.headers.get('authorization') === 'Bearer secret'
+            ? { id: 'u' }
+            : null,
+        authorize: () => true,
+      },
+    })
     const handler = createHarnessHandler({
       host,
       harness: defineHarness({ name: 'test/remote', adapter }),
-      canAccess: () => true,
-      authorize: (request) =>
-        request.headers.get('authorization') === 'Bearer secret'
-          ? { id: 'u' }
-          : null,
     })
     const remote = harnessText({
       url: 'http://remote.test/api/harness/',

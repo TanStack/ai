@@ -50,10 +50,14 @@ const host = createHarnessHost({ persistence: memoryPersistence() })
 export const server = await createHarnessMcpServer({
   host,
   harness: assistant,
+  // One user on this machine, so no login.
+  openAccess: true,
 })
 
 serveMCPStdio(server)
 ```
+
+The host has no `access`, so the server needs `openAccess`. `true` opens each session with no user. `{ principal }` opens each session as that one user.
 
 For Claude Code, run this command one time:
 
@@ -211,19 +215,41 @@ When the work makes media, the results of `chat`, `approve`, `reject`, `resolve`
 
 ## Serve it over HTTP
 
-The server also has a `fetch` handler. Mount it on a route of your app, for example `/mcp`, and check a token first:
+Several people use the server over HTTP, so each request needs its user. Give the host [`access`](./access), and leave out `openAccess`. The server then reads the user of each HTTP request with `identify`:
 
-```ts group=harness-mcp-server
-export async function handleMcp(request: Request) {
-  const token = request.headers.get('authorization')
-  if (token !== `Bearer ${process.env.MCP_TOKEN}`) {
-    return new Response('Unauthorized', { status: 401 })
-  }
-  return server.fetch(request)
-}
+```ts group=harness-mcp-server-http
+import { createHarnessHost, defineHarness, membersOnly } from '@tanstack/ai-harness'
+import { createHarnessMcpServer } from '@tanstack/ai-mcp/harness'
+import { memoryPersistence } from '@tanstack/ai-persistence'
+import { openaiText } from '@tanstack/ai-openai'
+
+const assistant = defineHarness({
+  name: 'acme/assistant',
+  adapter: openaiText('gpt-6.1-sol'),
+})
+
+// Your own token check: a bearer token to a user.
+const users = new Map([['Bearer token-ada', { id: 'ada', tenantId: 'acme' }]])
+
+const host = createHarnessHost({
+  persistence: memoryPersistence(),
+  access: {
+    identify: ({ request }) => users.get(request.headers.get('authorization') ?? '') ?? null,
+    authorize: membersOnly(),
+  },
+})
+
+const server = await createHarnessMcpServer({ host, harness: assistant })
+
+// Mount it on a route of your app, for example `/mcp`.
+export const handleMcp = (request: Request) => server.fetch(request)
 ```
 
-The server opens sessions with no principal. Every caller that passes your check can use every thread and its media, so give each person their own server and token.
+Each request runs as its user, and the host checks each tool call. A user reaches only the threads and the media that `authorize` allows.
+
+- A request that `identify` refuses gets `401`. A refused action comes back as a tool error.
+- A server on a host with `access` works over HTTP only. Over stdio, it throws.
+- It opens no session at the start, so it lists only the agents of the harness definition. The commands and the agents that plugins add get no tool on this server.
 
 Then add it to Claude Code:
 
@@ -236,6 +262,7 @@ claude mcp add --transport http assistant https://your-app.example.com/mcp --hea
 - `threadId`: the conversation of a tool call without a `threadId`. Default `main`.
 - `approvals`: `'ask'` (default) asks in the client, or returns the approvals when the client cannot ask. `'auto'` approves every tool call. Both answer approvals only.
 - `filePaths`: the folders that a `path` attachment can read from. The real path of the file, after every symlink, must be inside one of them. Default: none, so the server refuses every `path` attachment.
+- `openAccess`: for a host with no `access` only. `true` opens each session with no user, and `{ principal }` opens each session as that user.
 - `name` and `version`: the MCP server name and version. Default: the harness name and `1.0.0`.
 
 ## What you have now

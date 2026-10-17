@@ -33,8 +33,8 @@ export class AuthRequiredError extends Error {
 }
 
 /**
- * Credentials of the running turn's sender (outside a turn, of the session's
- * principal), as plugins see them.
+ * The credentials of one user: the user of a run (`ctx.context.run`), or of
+ * a command. Reads and saves go to that user only.
  */
 export interface CredentialsAccess {
   get: (id: string) => Promise<Credential | null>
@@ -94,19 +94,17 @@ function secretValues(credential: Credential) {
 }
 
 /**
- * Scope credentials to one principal and thread. A function `scope` is read
- * at each call, so the scope can follow the sender of the running turn.
+ * Scope credentials to one principal and thread.
  *
  * A read finds the user's own credential first, then the tenant's (saved
  * without a `userId`). A save or a delete changes the user's own only.
  */
 export function credentialsFor(
   store: CredentialStore,
-  scope: Scope | (() => Scope),
+  scope: Scope,
   onMissing: (error: AuthRequiredError) => void,
   hooks?: CredentialHooks,
 ): CredentialsAccess {
-  const scopeNow = typeof scope === 'function' ? scope : () => scope
   const secrets = hooks?.secrets
   const keep = (credential: Credential | null) => {
     for (const value of credential ? secretValues(credential) : []) {
@@ -117,8 +115,7 @@ export function credentialsFor(
   // ponytail: a refreshed tenant OAuth token is saved for the user, so each
   // user keeps a copy. A provider that rotates refresh tokens would need a
   // save for the whole tenant to share one token.
-  const get = async (id: string) =>
-    keep(await readCredential(store, scopeNow(), id))
+  const get = async (id: string) => keep(await readCredential(store, scope, id))
   const access: CredentialsAccess = {
     get,
     require: async (id, options) => {
@@ -131,14 +128,13 @@ export function credentialsFor(
     },
     set: async ({ id, credential }) => {
       keep(credential)
-      await store.set({ scope: scopeNow(), id, credential })
+      await store.set({ scope, id, credential })
       await hooks?.onSet?.(id)
     },
-    delete: (id) => store.delete({ scope: scopeNow(), id }),
+    delete: (id) => store.delete({ scope, id }),
     list: async () => {
-      const user = scopeNow()
-      const tenant = tenantScopeOf(user)
-      const own = await store.list(user)
+      const tenant = tenantScopeOf(scope)
+      const own = await store.list(scope)
       if (!tenant) return own
       const shared = await store.list(tenant)
       return [
@@ -151,22 +147,24 @@ export function credentialsFor(
 }
 
 /**
- * The provider keys of the session's principal. A key is the `api_key`
+ * The provider keys of the user of `credentials`. A key is the `api_key`
  * credential saved under the provider id (`/connect <id>` saves it), else
- * the first `provider.env` name that is set. A missing key calls `onMissing`
- * and throws {@link AuthRequiredError}, so the user sees `/connect <id>`.
- * A key read from env goes in `secrets`, like a saved credential.
+ * the first `provider.env` name that is set. With `envFallback: false`, env
+ * vars are not read. A missing key calls `onMissing` and throws
+ * {@link AuthRequiredError}, so the user sees `/connect <id>`. A key read
+ * from env goes in `secrets`, like a saved credential.
  */
 export function providerKeysFor(
   credentials: CredentialsAccess,
   onMissing: (error: AuthRequiredError) => void,
-  secrets?: Set<string>,
+  { secrets, envFallback }: { secrets?: Set<string>; envFallback: boolean },
 ) {
   const providerIdOf = (provider: ByokProvider | ProviderId) =>
     typeof provider === 'string' ? provider : provider.id
   const get = async (provider: ByokProvider | ProviderId) => {
     const saved = await credentials.get(providerIdOf(provider))
     if (saved?.type === 'api_key') return saved.value
+    if (!envFallback) return null
     const fromEnv = envKeyEntry(provider)?.value
     if (fromEnv) secrets?.add(fromEnv)
     return fromEnv ?? null

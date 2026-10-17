@@ -104,6 +104,8 @@ const session = await host.open(assistant, { threadId: 'thread-1' })
 
 Opening the same `threadId` again returns the live session.
 
+Does the host serve many users? Give it `access`, so each user reaches only their own sessions. See [Access and tenants](./access).
+
 ## 3. Send a message
 
 `send` returns an operation. Await it for the text of the turn.

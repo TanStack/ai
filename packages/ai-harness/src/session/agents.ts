@@ -29,6 +29,7 @@ import {
   isSameSender,
   resetCut,
   referenceNote,
+  runMiddleware,
   AGENT_STOPPED,
   SHUTDOWN_REASON,
 } from './helpers'
@@ -55,6 +56,7 @@ import type {
   Operation,
   Principal,
   Receipt,
+  RunContext,
   UserInput,
 } from '../types'
 import type {
@@ -82,11 +84,7 @@ export abstract class SessionAgents<
    */
   agent(name: string): DynamicAgentHandle | undefined {
     if (!this.agentRegistry.get(name)) return undefined
-    return {
-      run: (input, options) =>
-        this.runAgent(name, input, { ...options, wake: false }),
-      start: (input, options) => this.runAgent(name, input, options ?? {}),
-    }
+    return this.agentHandle(name)
   }
 
   protected override sendToRun(
@@ -310,18 +308,21 @@ export abstract class SessionAgents<
   }
 
   /**
-   * What every agent run of `operation` gets: the middleware of session
-   * plugins, then of run plugins, then the session's media middleware. It
-   * keeps the media the agents make, publishes a `harness.media` event for
-   * each file, and pushes its record to `captured`. The agents read the
-   * session's provider keys as `ctx.keys`. Their model calls count in the
-   * usage of `principal`. With `agents` (the subagents of a turn), the
-   * agent tools can start them in the background.
+   * What every agent run of `operation` gets: the run context `run`, the
+   * middleware of session plugins, then of run plugins, then the session's
+   * media middleware. It keeps the media the agents make, publishes a
+   * `harness.media` event for each file, and pushes its record to
+   * `captured`. The agents read the provider keys of `run` as `ctx.keys`, and
+   * their tools read `run` as `ctx.context.run`. Their model calls count in
+   * the usage of `principal`, the user of `run`. With `agents` (the
+   * subagents of a turn), the agent tools can start them in the background,
+   * for `principal`.
    */
   protected binding(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
     captured: Array<MediaRecord>,
     principal: Principal | undefined,
+    run: RunContext,
     runPlugins?: MountedPlugins,
     agents?: ReadonlyArray<AnyAgent>,
   ) {
@@ -337,7 +338,7 @@ export abstract class SessionAgents<
         const operation = this.runAgent(
           agent,
           call.input,
-          startOptions,
+          { ...startOptions, ...(principal ? { principal } : {}) },
           undefined,
           {
             subagentRunId,
@@ -356,6 +357,7 @@ export abstract class SessionAgents<
         ...mediaCapture({
           persistence: this.media,
           threadId: this.threadId,
+          tenantId: this.tenantId,
           options,
           publish: (record) => {
             captured.push(record)
@@ -370,6 +372,8 @@ export abstract class SessionAgents<
         }),
       ],
       chatMiddleware: [
+        // First, so the plugin middleware after it reads the run too.
+        runMiddleware(run),
         ...(this.sessionPlugins?.agentMiddleware ?? []),
         ...(runPlugins?.agentMiddleware ?? []),
         // A routed root agent gets the thread too, so a reset cuts it as well.
@@ -384,7 +388,7 @@ export abstract class SessionAgents<
           transcribe: options?.transcribe,
         }),
       ],
-      keys: this.keys,
+      keys: run.keys,
       // No `promptCache`: a tool-mode child then uses the retention of the
       // turn's chat() call, so a turn override reaches it.
       ...(start && { start }),
@@ -408,10 +412,11 @@ export abstract class SessionAgents<
     }
     const operation = this.agentOperation(name)
     this.markBusy()
-    // The agent runs for the sender of the turn that starts it, also after
-    // that turn ends. A child of agent code runs for its parent run's sender.
+    // The agent runs for the user who starts it, also after the turn that
+    // starts it ends. A child of agent code runs for its parent run's user.
+    // Without either, it runs for the principal that opened the session.
     const principal =
-      options.principal ?? (parent ? parent.current.principal : this.sender())
+      options.principal ?? (parent ? parent.current.principal : this.principal)
     const sender = principal ? { principal } : {}
     const fromParent = parent
       ? {
@@ -621,11 +626,16 @@ export abstract class SessionAgents<
     return store.loadThread(agentThread)
   }
 
-  /** Run a group of agents. Every child settles before the group returns. */
+  /**
+   * Run a group of agents, for `principal` (else the principal that opened
+   * the session). Every child settles before the group returns.
+   */
   protected override async agentGroup<T>(
     options: { onFailure?: 'cancel-siblings' | 'collect' },
     body: (group: AgentGroup) => Promise<T>,
+    principal?: Principal,
   ): Promise<T> {
+    const runOptions = { wake: false, ...(principal ? { principal } : {}) }
     const started: Array<OperationImpl<unknown>> = []
     const cancelOthers = (failed: OperationImpl<unknown>) => {
       if (options.onFailure === 'collect') return
@@ -641,7 +651,7 @@ export abstract class SessionAgents<
     }
     const group: AgentGroup = {
       run: (target: string | AnyAgent, input?: unknown) => {
-        const operation = this.runAgent(target, input, { wake: false })
+        const operation = this.runAgent(target, input, runOptions)
         started.push(operation)
         return Promise.resolve(operation).catch((error: unknown) => {
           cancelOthers(operation)
@@ -649,7 +659,7 @@ export abstract class SessionAgents<
         })
       },
       runSettled: (target: string | AnyAgent, input?: unknown) => {
-        const operation = this.runAgent(target, input, { wake: false })
+        const operation = this.runAgent(target, input, runOptions)
         started.push(operation)
         return Promise.resolve(operation).then(
           (value) => ({ ok: true as const, value }),
@@ -872,7 +882,15 @@ export abstract class SessionAgents<
         message && !saved.some((item) => item.id === message.inputId)
           ? [...saved, asUserMessage(message)]
           : saved
-      const binding = this.binding(operation, [], principal)
+      // The run of this agent: its user's credentials and keys, for its own
+      // chat calls and its tools, also while another user's turn runs.
+      const run = this.runContext({
+        principal,
+        runId: operation.id,
+        ...(chain.parentRunId ? { parentRunId: chain.parentRunId } : {}),
+        signal: operation.abortController.signal,
+      })
+      const binding = this.binding(operation, [], principal, run)
       const durable = options.resume ? this.resumable(inputId) : undefined
       const harnessContext: HarnessAgentContext = {
         step: durable?.step ?? NO_SESSION_CONTEXT.step,
@@ -907,13 +925,16 @@ export abstract class SessionAgents<
           chatMiddleware: [
             // Every run keeps its transcript in the chain's thread.
             ...(this.chatPersistence
-              ? [withPersistence(this.chatPersistence)]
+              ? [
+                  withPersistence(this.chatPersistence, {
+                    tenantId: this.tenantId,
+                  }),
+                ]
               : []),
             ...(durable?.middleware ?? []),
             this.agentSteering(chain, inputId, operation),
             ...binding.chatMiddleware,
           ],
-          keys: this.keysOf(principal),
           budget: chain.budget,
           // No parent chat() call to take it from, so the session's retention.
           promptCache: this.promptCache.retention,
@@ -1035,38 +1056,45 @@ export abstract class SessionAgents<
   }
 
   /**
-   * The index entry of an agent run: thread `subagent:<subagentRunId>`, with
-   * this thread as its parent and the harness of this thread. `upsert`
-   * replaces the whole entry, so the fields of other writers stay. A failed
-   * write does not fail the run.
+   * The index entry of an agent run: thread `subagent:<subagentRunId>`, in
+   * the tenant of this thread, with this thread as its parent and the
+   * harness of this thread. Its owner is the owner of this thread, else the
+   * user of the run. It has no members: access to a child goes through its
+   * parent. A write replaces the whole entry, so the fields of other writers
+   * stay. A failed write does not fail the run.
    */
   protected async indexAgent(
     operation: OperationImpl<unknown>,
     child: AgentChild,
     principal: Principal | undefined,
   ) {
+    const { tenantId } = this
     const threadId = `subagent:${child.subagentRunId}`
     const now = Date.now()
-    await this.index
-      .update(threadId, (entry) => ({
+    try {
+      const parent = await this.index.get(this.indexKey)
+      const ownerId = parent?.ownerId ?? principal?.id
+      await this.index.update({ tenantId, threadId }, (entry) => ({
         ...entry,
+        ...(tenantId !== undefined ? { tenantId } : {}),
         threadId,
         parentThreadId: this.threadId,
         ...(child.parentToolCallId !== undefined && {
           parentToolCallId: child.parentToolCallId,
         }),
         harness: this.harness.name,
+        ...(ownerId !== undefined ? { ownerId } : {}),
+        members: [],
         createdAt: entry?.createdAt ?? now,
         updatedAt: now,
-        ...storedPrincipal(entry?.principal ?? principal),
       }))
-      .catch((error: unknown) =>
-        this.warn(
-          operation,
-          'harness:sessions',
-          `The session index was not updated. ${String(error)}`,
-        ),
+    } catch (error) {
+      this.warn(
+        operation,
+        'harness:sessions',
+        `The session index was not updated. ${String(error)}`,
       )
+    }
   }
 
   /**

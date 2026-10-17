@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { CONTEXT_OVERFLOW_CODE, EventType, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, retryTransientErrors } from '../src'
+import {
+  createHarnessHost,
+  defineHarness,
+  logIdOf,
+  retryTransientErrors,
+} from '../src'
 import { TRUNCATED_TOOL_RESULT } from '../src/resume'
 import {
   gate,
@@ -17,6 +22,8 @@ import type { HarnessTurnOptions, ProjectOptions } from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
+/** The id of the log of `THREAD` in the store. */
+const LOG = logIdOf({ logId: THREAD })
 
 /** The start of an assistant message that streamed `delta`. */
 const partialText = (delta: string): Array<StreamChunk> => [
@@ -903,7 +910,7 @@ describe('turn.beforeFinish', () => {
     expect(await session.send('go')).toEqual({ text: 'done', media: [] })
     expect(calls).toHaveLength(1)
     expect(
-      (await log.read({ logId: THREAD })).map((entry) => entry.record.type),
+      (await log.read({ logId: LOG })).map((entry) => entry.record.type),
     ).toContain('app.state_write')
     await host.close()
   })
@@ -982,7 +989,7 @@ describe('turn.beforeFinish', () => {
       REMINDER,
     ])
     expect(JSON.stringify(await session.transcript())).not.toContain(REMINDER)
-    expect(JSON.stringify(await log.read({ logId: THREAD }))).not.toContain(
+    expect(JSON.stringify(await log.read({ logId: LOG }))).not.toContain(
       REMINDER,
     )
     await host.close()

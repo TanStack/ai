@@ -10,8 +10,10 @@ import type { Reply } from './helpers'
  * that starts on host A must be joinable and resumable from host B.
  */
 function twoHosts() {
-  const { runs, metadata } = memoryPersistence().stores
-  const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
+  const { runs, metadata, sessions } = memoryPersistence().stores
+  const persistence = {
+    stores: { log: memoryLogStore(), runs, metadata, sessions },
+  }
   const release = gate()
   // RUN_STARTED, then the rest after `release`. By RUN_STARTED, host A holds
   // the run lease, so host B only reads.
@@ -25,14 +27,21 @@ function twoHosts() {
   const { adapter, calls } = mockAdapter([reply])
   const harness = defineHarness({ name: 'test/run-hosts', adapter })
   const handlerOf = () => {
-    const host = createHarnessHost({ persistence, log: { coalesceMs: 0 } })
+    const host = createHarnessHost({
+      persistence,
+      log: { coalesceMs: 0 },
+      access: {
+        identify: ({ request }) => ({
+          id: request.headers.get('x-user') ?? 'user-1',
+        }),
+        // A user may use the threads whose id starts with the user id.
+        authorize: ({ principal, session }) =>
+          session.threadId.startsWith(principal.id),
+      },
+    })
     const handler = createHarnessHandler({
       host,
       harness,
-      authorize: (request) => ({
-        id: request.headers.get('x-user') ?? 'user-1',
-      }),
-      canAccess: (principal, threadId) => threadId.startsWith(principal.id),
       media: { secret: 'shared' },
     })
     const call = (path: string, init: RequestInit = {}) =>

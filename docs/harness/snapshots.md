@@ -73,9 +73,11 @@ Each model step that changed files leaves a step: `{ from, to, files, toolCallId
 On a [durable host](./durable-sessions), like the host above, the steps are `tanstack/snapshots:step` records in the session log:
 
 ```ts group=harness-snapshots
+import { logIdOf } from '@tanstack/ai-harness'
+
 await session.send('Fix the login form.')
 
-for (const { record } of await log.read({ logId: 'fix-login' })) {
+for (const { record } of await log.read({ logId: logIdOf({ logId: 'fix-login' }) })) {
   if (record.type !== 'tanstack/snapshots:step') continue
   if (typeof record.from !== 'string' || typeof record.to !== 'string') continue
   const { files, patch } = await history.diff(record.from, record.to)

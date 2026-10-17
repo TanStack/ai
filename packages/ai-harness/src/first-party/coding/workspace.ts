@@ -390,6 +390,8 @@ export function workspaceTools(options: WorkspaceToolsOptions) {
       const cwd = () => ctx.session.settings().cwd
       const { tools, prompt, resources } = createWorkspaceTools(options, {
         access: {
+          // ponytail: D9, PR 7 rebuilds ask. The question goes to the
+          // running turn, not to the run of the tool call that asks.
           ask: (message) => ctx.session.ask({ message }),
           mode: () => ctx.config.get('mode'),
           cwd,
@@ -404,6 +406,8 @@ export function workspaceTools(options: WorkspaceToolsOptions) {
           },
         },
         hooks: () => hooks,
+        // ponytail: D9, PR 7 rebuilds ask and note. The wake turn runs as the
+        // sender of the running turn, not as the user of the job's turn.
         note: (text) => ctx.session.note(text, { wake: true }),
         // Kills the background `bash` jobs when the session closes. A reload
         // keeps them. Without a session, the plugin cleanup kills them.

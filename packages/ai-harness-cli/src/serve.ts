@@ -9,34 +9,67 @@ import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
 import type { AnyHarness, HarnessHost, Principal } from '@tanstack/ai-harness'
 import type { McpHarnessModule } from './optional'
 
-export interface ServeOptions {
-  host: HarnessHost
+export interface ServeOptions<P extends Principal = Principal> {
+  /**
+   * The host. With `access`, `access.identify` reads the user of each
+   * request that has the token.
+   */
+  host: HarnessHost<P>
   harness: AnyHarness
   port: number
   hostname: string
-  /** Every request must send `Authorization: Bearer <token>`. */
+  /**
+   * Every request must send `Authorization: Bearer <token>`. Only a signed
+   * media URL needs no token: its signature is its login.
+   */
   token: string
   /** The conversation of an MCP tool call that names none. Default `'main'`. */
   threadId?: string
   /** How `/mcp` handles tool calls that need approval. Default `'ask'`. */
   approvals?: 'ask' | 'auto'
-  /** Who a request with the token is. Default `{ id: 'cli' }`. */
-  principal?: Principal
+  /**
+   * On a host without access: who a request with the token is. Without it,
+   * each request runs with no principal (one user).
+   */
+  principal?: P
 }
 
-/** The MCP server for `/mcp`, or `undefined` without `@tanstack/ai-mcp`. */
-async function mcpServer(options: ServeOptions) {
+/**
+ * The MCP server for `/mcp`, or `undefined` without `@tanstack/ai-mcp`. It
+ * runs each call as the same user as the session protocol routes.
+ */
+async function mcpServer<P extends Principal>(
+  options: ServeOptions<P>,
+  withAccess: boolean,
+) {
   const mcp = await loadOptional<McpHarnessModule>(
     '@tanstack/ai-mcp/harness',
     'createHarnessMcpServer',
   )
   if (mcp === undefined) return undefined
-  return mcp.createHarnessMcpServer({
-    host: options.host,
-    harness: options.harness,
+  const { host, harness, principal } = options
+  const shared = {
+    host,
+    harness,
     threadId: options.threadId,
     approvals: options.approvals,
+  }
+  // On a host with access, `identify` reads the user of each request.
+  if (withAccess) return mcp.createHarnessMcpServer(shared)
+  return mcp.createHarnessMcpServer({
+    ...shared,
+    openAccess: principal ? { principal } : true,
   })
+}
+
+/** A signed media URL is its own login: the handler checks its signature. */
+function isSignedMedia(request: Request) {
+  const url = new URL(request.url)
+  return (
+    request.method === 'GET' &&
+    url.pathname.split('/').at(-1) === 'media' &&
+    url.searchParams.has('sig')
+  )
 }
 
 /** A random token for `--serve` when none is given. */
@@ -89,31 +122,36 @@ async function send(res: ServerResponse, response: Response): Promise<void> {
 /**
  * Serve the harness session protocol over HTTP (capabilities, run, events,
  * control, snapshot). With `@tanstack/ai-mcp` installed, `/mcp` serves the
- * harness as an MCP server. Every request needs the bearer token.
+ * harness as an MCP server. Every request needs the bearer token, except a
+ * signed media URL. Then on a host with access, `identify` reads the user of
+ * the request, and the host checks each action. Without access, each
+ * request runs as `principal`.
  */
-export async function serve(
-  options: ServeOptions,
+export async function serve<P extends Principal = Principal>(
+  options: ServeOptions<P>,
 ): Promise<{ url: string; close: () => Promise<void> }> {
+  const { host, harness, principal } = options
   const isAllowed = (request: Request) =>
     sameToken(request.headers.get('authorization'), options.token)
-  const principal = options.principal ?? { id: 'cli' }
-  const handler = createHarnessHandler({
-    host: options.host,
-    harness: options.harness,
-    authorize: (request) => (isAllowed(request) ? principal : null),
-    // One principal holds the token, so it can use every thread.
-    canAccess: () => true,
-    // ponytail: the token signs media URLs, so they work as long as it does.
-    media: { secret: options.token },
-  })
-  const mcp = await mcpServer(options)
+  const withAccess = host.hasAccess
+  // ponytail: the token signs media URLs, so they work as long as it does.
+  const media = { secret: options.token }
+  const handler = withAccess
+    ? createHarnessHandler({ host, harness, media })
+    : createHarnessHandler({
+        host,
+        harness,
+        // One principal holds the token, so it can use every thread.
+        openAccess: principal ? { principal } : true,
+        media,
+      })
+  const mcp = await mcpServer(options, withAccess)
   const route = (request: Request) => {
-    const isMcp = mcp !== undefined && new URL(request.url).pathname === '/mcp'
-    if (!isMcp) return handler(request)
-    if (!isAllowed(request)) {
+    if (!isAllowed(request) && !isSignedMedia(request)) {
       return Response.json({ error: 'unauthorized' }, { status: 401 })
     }
-    return mcp.fetch(request)
+    const isMcp = mcp !== undefined && new URL(request.url).pathname === '/mcp'
+    return isMcp ? mcp.fetch(request) : handler(request)
   }
   const server = createServer((req, res) => {
     const aborter = new AbortController()

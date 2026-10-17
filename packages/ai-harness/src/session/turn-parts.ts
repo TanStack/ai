@@ -35,6 +35,7 @@ import type {
   ChatTurnResult,
   MediaRecord,
   Principal,
+  TurnInfo,
   UserInput,
 } from '../types'
 import type { QueuedTurn, AgentRunImpl, AgentChain } from './types'
@@ -70,19 +71,21 @@ export abstract class SessionTurnParts<
   }
 
   /**
-   * Ask each plugin for the tools it found since the last turn. A plugin
-   * that fails (for example an MCP server that is down) is skipped, and
-   * clients get a `harness.plugin.warning` event.
+   * Ask each plugin for the tools it found since the last turn, for `turn`.
+   * A plugin that fails (for example an MCP server that is down) is skipped,
+   * and clients get a `harness.plugin.warning` event.
    */
   protected async discoverTools(
     discoverers: MountedPlugins['discoverers'],
     taken: Set<string>,
     operation: OperationImpl<ChatTurnResult>,
+    turn: TurnInfo,
   ): Promise<Array<AnyTool>> {
     const found: Array<AnyTool> = []
     for (const { discover, owner } of discoverers) {
       try {
-        for (const tool of await discover()) {
+        const tools = await discover(turn)
+        for (const tool of tools) {
           if (taken.has(tool.name)) continue
           taken.add(tool.name)
           found.push(tool)
@@ -138,9 +141,13 @@ export abstract class SessionTurnParts<
   /**
    * Middleware that gives each tool call of a turn `threadId`, `runId`, and
    * `detach` in its context. `detach` lets `background()` move the call to
-   * the background. A tool that calls `detach` supports it.
+   * the background. A tool that calls `detach` supports it. The wake turn of
+   * a detached job runs as `principal`, the sender of the turn.
    */
-  protected detachTools(runId: string): AnyChatMiddleware {
+  protected detachTools(
+    runId: string,
+    principal: Principal | undefined,
+  ): AnyChatMiddleware {
     // Each model call gets the tools of the last one. Wrap each tool once.
     const wrapped = new WeakSet<AnyTool>()
     const wrap = (tool: AnyTool): AnyTool => {
@@ -153,8 +160,6 @@ export abstract class SessionTurnParts<
           if (!context || id === undefined) return execute(args, context)
           context.threadId = this.threadId
           context.runId = runId
-          // The wake turn runs as the sender of the turn that detached the job.
-          const principal = this.sender()
           context.detach = (work) =>
             new Promise((moved) => {
               this.detachable.set(id, () => {
@@ -261,7 +266,7 @@ export abstract class SessionTurnParts<
         if (metadata) {
           const totals = structuredClone(this.usageTotals)
           this.usageSaved = this.usageSaved.then(() =>
-            metadata.set(USAGE, this.threadId, totals),
+            metadata.set(USAGE, this.storeThreadId, totals),
           )
           await this.usageSaved
         }
@@ -593,7 +598,7 @@ export abstract class SessionTurnParts<
     const ttlMs = this.lease?.ttlMs ?? LEASE.ttlMs
     const renewMs = this.lease?.renewMs ?? LEASE.renewMs
     const lease = () => ({
-      threadId: this.threadId,
+      threadId: this.storeThreadId,
       inputId,
       operationId: operation.id,
       attempt,

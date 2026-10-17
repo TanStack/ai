@@ -49,6 +49,7 @@ serveAcp({ host, harness: assistant, version: '1.0.0' })
 ```
 
 - Each ACP session is one harness session. The ACP session id is the thread id.
+- `principal` is the user of the editor, for example `serveAcp({ host, harness: assistant, principal: { id: 'ada' } })`. Every session opens as that user, so `/connect` saves keys for them. On a host with [`access`](./access), `principal` is required.
 - The prompts of a session run one after another. The harness `busy` setting does not apply.
 - `version` is the version that `initialize` reports. Default: `'0.0.0'`.
 - `cwd` is the working directory that the session list shows for each session. Default: `process.cwd()`.
@@ -70,9 +71,9 @@ Give the editor the command that runs the script, for example `node agent.js`. T
 
 The editor lists the sessions of the harness, newest first. The user picks one, and the next prompt continues that thread.
 
-- The list shows the top-level sessions of the harness. Sessions of child agents stay out.
+- The list shows the top-level sessions of the harness that `principal` can list. Sessions of child agents stay out.
 - The list comes from the session index of the host. Use a persistent store, so that the list keeps the sessions after the process stops.
-- A session id that the session index does not know fails with a not found error.
+- A session id that the session index does not know, or that `principal` cannot read, fails with a not found error.
 
 ## Known limits
 

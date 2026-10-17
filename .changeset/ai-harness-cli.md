@@ -8,4 +8,4 @@ Add `@tanstack/ai-harness-cli`: `runCli(harness)` runs a harness from the termin
 - `-p "prompt"` runs one prompt for scripts and CI, and `--output ndjson` prints every AG-UI event.
 - `--serve` serves the session protocol over HTTP behind a bearer token.
 - `--acp`, `--mcp`, and `--dashboard` load `@tanstack/ai-acp`, `@tanstack/ai-mcp`, and `@tanstack/ai-dashboard` only when you use the flag. A missing package, or one without harness support, fails that flag with a clear message.
-- `host` and `principal` options let the CLI use your durable host and run as your user.
+- `host` and `principal` options let the CLI use your durable host and run as your user. Every mode except `--dashboard` opens its sessions as that principal. On a host with `access`, `--serve` reads the user of each request with `identify`, and `--mcp` does not start, because stdio has no login.

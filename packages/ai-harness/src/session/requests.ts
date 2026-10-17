@@ -559,7 +559,9 @@ export abstract class SessionRequests<
    * Stop the operation `operationId`, or the running turn without it. A turn
    * that waits in the queue never runs. Refused with `'not_running'` when
    * nothing runs or the operation ended. `inputId` means the same as in
-   * `send`: a second cancel with the same id is a duplicate.
+   * `send`: a second cancel with the same id is a duplicate. `principal` is
+   * who cancels. Default: the principal that opened the session. The log
+   * keeps it.
    *
    * @example
    * ```ts
@@ -567,11 +569,15 @@ export abstract class SessionRequests<
    * ```
    */
   async cancel(
-    options?: CancelOptions & { inputId?: string },
+    options?: CancelOptions & { inputId?: string; principal?: Principal },
   ): Promise<Receipt> {
     const operationId = options?.operationId
     const inputId = options?.inputId ?? createInputId()
-    const admission = await this.accept(inputId, { op: 'cancel', operationId })
+    const admission = await this.accept(
+      inputId,
+      { op: 'cancel', operationId },
+      options?.principal,
+    )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const target = operationId
       ? this.operations.get(operationId)
@@ -657,10 +663,33 @@ export abstract class SessionRequests<
   }
 
   /**
+   * @internal Cancel the queued and running work that the user `userId`
+   * started: `host.sessions.unshare` stops it. `principal` is who cancels,
+   * and the log keeps it.
+   */
+  async cancelWorkOf({
+    userId,
+    principal,
+  }: {
+    userId: string
+    principal: Principal
+  }): Promise<void> {
+    const theirs = [...this.operations.values()].filter(
+      (operation) =>
+        !operation.isSettled() &&
+        this.startedBy(operation.id).principalId === userId,
+    )
+    for (const operation of theirs) {
+      await this.cancel({ operationId: operation.id, principal })
+    }
+  }
+
+  /**
    * Cancel an input that waits, so it never runs, also after a restart. It
    * settles `aborted`. An input that started, or that joins the running
    * turn now, is refused with `not_waiting`: stop it with
-   * `cancel({ operationId })`.
+   * `cancel({ operationId })`. `principal` is who cancels. Default: the
+   * principal that opened the session. The log keeps it.
    *
    * @example
    * ```ts
@@ -668,12 +697,16 @@ export abstract class SessionRequests<
    * await session.cancelInput('tests')
    * ```
    */
-  async cancelInput(target: string): Promise<Receipt> {
+  async cancelInput(
+    target: string,
+    options?: { principal?: Principal },
+  ): Promise<Receipt> {
     const inputId = createInputId()
-    const admission = await this.accept(inputId, {
-      op: 'cancelInput',
-      inputId: target,
-    })
+    const admission = await this.accept(
+      inputId,
+      { op: 'cancelInput', inputId: target },
+      options?.principal,
+    )
     if (isElsewhere(admission)) return this.duplicateReceipt(inputId, admission)
     const taken = this.takeWaiting(target) ?? this.takeQueuedContinue(target)
     if (!taken) return this.reject(inputId, 'not_waiting')
@@ -685,7 +718,7 @@ export abstract class SessionRequests<
     // pending entries.
     if (!this.writer)
       await this.inbox.markRejected({
-        threadId: this.threadId,
+        threadId: this.storeThreadId,
         inputId: target,
         reason: 'cancelled',
       })
@@ -708,6 +741,8 @@ export abstract class SessionRequests<
    * turns. An input that started, or that joins the running turn now, is
    * refused with `not_waiting`. On a durable host the log keeps the
    * delivery, and a restart honors it. Without a log, it is kept in memory.
+   * `principal` is who moves it. Default: the principal that opened the
+   * session. The log keeps it.
    *
    * @example
    * ```ts
@@ -718,16 +753,18 @@ export abstract class SessionRequests<
   async setDelivery({
     inputId: target,
     delivery,
+    principal,
   }: {
     inputId: string
     delivery: WaitingInput['delivery']
+    principal?: Principal
   }): Promise<Receipt> {
     const inputId = createInputId()
-    const admission = await this.accept(inputId, {
-      op: 'setDelivery',
-      inputId: target,
-      delivery,
-    })
+    const admission = await this.accept(
+      inputId,
+      { op: 'setDelivery', inputId: target, delivery },
+      principal,
+    )
     if (isElsewhere(admission)) return this.duplicateReceipt(inputId, admission)
     const current = this.inputs().find((input) => input.inputId === target)
     if (current?.delivery !== delivery) {
@@ -779,20 +816,28 @@ export abstract class SessionRequests<
   }
 
   /**
-   * The session API of plugins. With `principal` (a command), it acts for
-   * that user. Without it, it follows the sender of the running turn. With
-   * `operationId` (a command), its questions belong to that operation.
+   * The session API of plugins. With `principal` (a command, a turn plugin),
+   * it acts for that user. Without it (a session plugin), its `principal` is
+   * the principal that opened the session. With `operationId` (a command, a
+   * turn plugin), its questions belong to that operation.
    */
   protected override pluginApi(
     principal?: Principal,
     metadataSchema?: SchemaInput,
     operationId?: string,
   ): PluginSessionApi {
+    // ponytail: D9. Without `principal`, `send`, `note`, and `ask` follow the
+    // running turn: its sender, and its operation for a question. PR 7
+    // rebuilds them on the run that calls.
     const sender = () => principal ?? this.sender()
+    // A session plugin acts for the owner of the entry, not for whoever
+    // opened the session first on this host. The owner is known only after
+    // the session read its entry, so it is read at each call.
+    const owner = () => principal ?? this.owner ?? this.principal
     return {
       threadId: this.threadId,
       get principal() {
-        return sender()
+        return owner()
       },
       snapshot: () => this.snapshot(),
       // A plugin turn always waits its turn. It cannot see a busy rejection.
@@ -815,7 +860,7 @@ export abstract class SessionRequests<
       transcript: () => this.transcript(),
       replaceTranscript: (messages) =>
         this.messages.saveThread(this.threadId, messages),
-      entry: () => this.index.get(this.threadId),
+      entry: () => this.index.get(this.indexKey),
       updateEntry: (update) => {
         // Only these fields: a plugin cannot change the owner, the parent,
         // or the pin.
@@ -829,7 +874,7 @@ export abstract class SessionRequests<
             metadata: change.metadata,
             usage: change.usage,
           }
-        return this.index.update(this.threadId, (entry) =>
+        return this.index.update(this.indexKey, (entry) =>
           changedEntry(
             entry,
             typeof update === 'function'
@@ -848,7 +893,7 @@ export abstract class SessionRequests<
           'session',
           customEvent(HARNESS_EVENTS.authRequired, { ...info }),
         ),
-      setConfig: (change) => this.setConfig(change),
+      setConfig: (change) => this.setConfig({ ...change, principal: owner() }),
       settings: () => this.settings(),
     }
   }

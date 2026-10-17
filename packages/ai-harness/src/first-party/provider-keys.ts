@@ -50,14 +50,17 @@ function untilAborted<T>(promise: Promise<T>, signal: AbortSignal) {
   ])
 }
 
-/** The state of one provider, and its `/keys` line. The key shows masked only. */
+/**
+ * The state of one provider, and its `/keys` line. The key shows masked only.
+ * Without `credentials` (no user), only the env var counts.
+ */
 async function describeKey(
-  credentials: CredentialsAccess,
+  credentials: CredentialsAccess | undefined,
   provider: ByokProvider,
 ) {
   const { id, label } = provider
   const status = (state: ProviderKeyStatus['state']) => ({ id, label, state })
-  const saved = await credentials.get(id)
+  const saved = await credentials?.get(id)
   if (saved?.type === 'api_key') {
     return {
       status: status('connected'),
@@ -83,7 +86,7 @@ async function describeKey(
  * `/connect <id>` and `/disconnect <id>`, and `/keys` lists where each key
  * comes from. `/connect` runs the provider's `signIn` when it has one (the
  * host opens the browser), else it asks the user to paste the key. The key
- * is saved in the credential store of the session's principal. A
+ * is saved in the credential store of the user who runs `/connect`. A
  * `keyedAdapter(...)` for that provider then uses it. The env var still works
  * when no key is saved. Keys show masked only (the last 4 characters).
  *
@@ -116,9 +119,10 @@ export function providerKeys(options: {
       const state = ctx.state<ProviderKeysState>({ providers: [] })
       /**
        * Check every provider, keep the result for UIs, and return the `/keys`
-       * lines. A command passes the credentials of the user who runs it.
+       * lines. A command passes the credentials of the user who runs it. At
+       * setup there is no user, so the state shows the env vars only.
        */
-      const refresh = async (credentials = ctx.credentials) => {
+      const refresh = async (credentials?: CredentialsAccess) => {
         const described = await Promise.all(
           providers.map((provider) => describeKey(credentials, provider)),
         )

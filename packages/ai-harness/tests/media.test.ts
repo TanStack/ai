@@ -9,6 +9,7 @@ import {
   toBase64,
 } from '../src/media'
 import { mediaPart } from '../src/media-ref'
+import { logIdOf } from '../src/log'
 import { mockAdapter, text } from './helpers'
 import type {
   ContentPart,
@@ -138,7 +139,11 @@ describe('createMediaStore', () => {
     await store
       .put(new Blob(['hello']).stream(), { mimeType: 'image/png', name: 'a' })
       .catch(() => undefined)
-    expect(await persistence.stores.artifacts.listForThread('t1')).toEqual([])
+    expect(
+      await persistence.stores.artifacts.listForThread(
+        logIdOf({ logId: 't1' }),
+      ),
+    ).toEqual([])
     expect((await persistence.stores.blobs.list()).objects).toEqual([])
   })
 
@@ -153,10 +158,13 @@ describe('createMediaStore', () => {
     ).rejects.toMatchObject({ status: 415 })
   })
 
-  it('does not show media of another thread', async () => {
+  it.each([
+    ['another thread', { threadId: 'b' }],
+    ['the same thread id in another tenant', { threadId: 'a', tenantId: 'x' }],
+  ])('does not show media of %s', async (_label, other) => {
     const persistence = memoryPersistence()
     const a = createMediaStore({ persistence, threadId: 'a' })
-    const b = createMediaStore({ persistence, threadId: 'b' })
+    const b = createMediaStore({ persistence, ...other })
     const record = await a.put(encoder.encode('secret'), {
       mimeType: 'image/png',
       name: 'a.png',
@@ -173,7 +181,22 @@ describe('createMediaStore', () => {
       name: 'cat.png',
     })
     const blobKey = (await persistence.stores.artifacts.get(record.id))?.blobKey
-    expect(blobKey).toBe(`artifacts/upload:..%2Fx/${record.id}`)
+    expect(blobKey).toBe(`artifacts/upload::..%2Fx/${record.id}`)
+  })
+
+  it('puts the tenant in the upload folder of the blob key', async () => {
+    const persistence = memoryPersistence()
+    const store = createMediaStore({
+      persistence,
+      threadId: 't1',
+      tenantId: 'org/1',
+    })
+    const record = await store.put(encoder.encode('hello'), {
+      mimeType: 'image/png',
+      name: 'cat.png',
+    })
+    const blobKey = (await persistence.stores.artifacts.get(record.id))?.blobKey
+    expect(blobKey).toBe(`artifacts/upload:org%2F1:t1/${record.id}`)
   })
 
   it('throws 404 for an id that does not exist', async () => {

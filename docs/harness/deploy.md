@@ -61,7 +61,7 @@ The worker keeps the conversation of its thread between calls. Workers get the e
 
 ## Use a harness on another machine
 
-On the other machine, serve the harness with `createHarnessHandler`, and check a bearer token in `authorize`. See [Serve the session over HTTP](./connect#serve-the-session-over-http).
+On the other machine, serve the harness with `createHarnessHandler`. Check the bearer token in `identify` of the host `access`. See [Serve the session over HTTP](./connect#serve-the-session-over-http).
 
 Here, use it as a model:
 

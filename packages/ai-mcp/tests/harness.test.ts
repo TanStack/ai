@@ -15,6 +15,8 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
+  logIdOf,
+  membersOnly,
 } from '@tanstack/ai-harness'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -379,8 +381,32 @@ type ServerOptions = Omit<HarnessMcpServerOptions, 'host' | 'harness'>
 async function serve(harness: AnyHarness, options: ServerOptions = {}) {
   const host = createHarnessHost({ persistence: memoryPersistence() })
   cleanups.push(() => host.close())
-  const server = await createHarnessMcpServer({ host, harness, ...options })
+  const server = await createHarnessMcpServer({
+    host,
+    harness,
+    openAccess: true,
+    ...options,
+  })
   return { server, host }
+}
+
+const olga = { id: 'olga', tenantId: 'acme' }
+const bea = { id: 'bea', tenantId: 'acme' }
+const cid = { id: 'cid', tenantId: 'acme' }
+const users = new Map([olga, bea, cid].map((user) => [user.id, user]))
+
+/** A membersOnly() host whose users come from the `x-user` header. */
+function accessHost() {
+  const host = createHarnessHost({
+    persistence: memoryPersistence(),
+    access: {
+      identify: ({ request }) =>
+        users.get(request.headers.get('x-user') ?? '') ?? null,
+      authorize: membersOnly(),
+    },
+  })
+  cleanups.push(() => host.close())
+  return host
 }
 
 /**
@@ -464,12 +490,13 @@ function accepted(value: string): ElicitReply {
  * A real MCP client on `server.fetch`. With `reply`, the client supports
  * elicitation and gives that reply to every question (spec 2025 sessions
  * only). Without it, the client speaks spec 2026 and has no elicitation.
+ * `user` goes in the `x-user` header of each request.
  */
 async function connect(
   server: { fetch: (request: Request) => Promise<Response> },
-  options: { reply?: ElicitReply } = {},
+  options: { reply?: ElicitReply; user?: string } = {},
 ) {
-  const reply = options.reply
+  const { reply, user } = options
   const client = new Client(
     { name: 'tester', version: '1.0.0' },
     reply === undefined
@@ -485,6 +512,9 @@ async function connect(
   }
   const transport = new StreamableHTTPClientTransport(serverUrl, {
     fetch: async (input, init) => server.fetch(new Request(input, init)),
+    ...(user === undefined
+      ? {}
+      : { requestInit: { headers: { 'x-user': user } } }),
   })
   await client.connect(transport)
   cleanups.push(() => client.close())
@@ -589,7 +619,11 @@ describe('createHarnessMcpServer', () => {
       persistence: { stores: { log, runs, metadata } },
     })
     cleanups.push(() => host.close())
-    const server = await createHarnessMcpServer({ host, harness })
+    const server = await createHarnessMcpServer({
+      host,
+      harness,
+      openAccess: true,
+    })
     const { client } = await connect(server)
 
     const ok = await client.callTool({
@@ -597,7 +631,7 @@ describe('createHarnessMcpServer', () => {
       arguments: { threadId: 't-sig', records: [{ type: 'app.signal', n: 1 }] },
     })
     expect(ok.isError).toBeFalsy()
-    const stored = await log.read({ logId: 't-sig' })
+    const stored = await log.read({ logId: logIdOf({ logId: 't-sig' }) })
     expect(JSON.stringify(stored)).toContain('"type":"app.signal"')
     const refused = await client.callTool({
       name: 'append',
@@ -1458,4 +1492,137 @@ describe('createHarnessMcpServer', () => {
       expect(userTexts(calls[1])).toEqual(['first', 'second'])
     },
   )
+})
+
+describe('createHarnessMcpServer access', () => {
+  /** A harness whose model answers the first call with "Hello.". */
+  const greeter = () =>
+    defineHarness({
+      name: 'test/access',
+      adapter: scripted([textTurn('Hello.')]).adapter,
+    })
+
+  it('throws at the start for a host without access and without openAccess', async () => {
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    cleanups.push(() => host.close())
+
+    await expect(
+      createHarnessMcpServer({ host, harness: greeter() }),
+    ).rejects.toThrow(
+      'createHarnessMcpServer needs host access ({ identify, authorize }) or openAccess: true or { principal }.',
+    )
+  })
+
+  it('throws at the start for openAccess on a host with access', async () => {
+    const server = createHarnessMcpServer({
+      host: accessHost(),
+      harness: greeter(),
+      openAccess: { principal: olga },
+    })
+
+    await expect(server).rejects.toThrow(
+      'createHarnessMcpServer: the host has access, so access.identify reads the user of each request. Remove openAccess.',
+    )
+  })
+
+  it('runs every call as the openAccess principal', async () => {
+    const ana = { id: 'ana', tenantId: 'globex' }
+    const { server, host } = await serve(greeter(), {
+      openAccess: { principal: ana },
+    })
+    const { client } = await connect(server)
+
+    await client.callTool({
+      name: 'chat',
+      arguments: { threadId: 't-ana', message: 'Hi' },
+    })
+    expect(
+      await host.sessions.get({ threadId: 't-ana', principal: ana }),
+    ).toMatchObject({ tenantId: 'globex', ownerId: 'ana' })
+    expect(await host.sessions.get({ threadId: 't-ana' })).toBeUndefined()
+  })
+
+  it('answers a request that identify refuses with a 401 bearer challenge', async () => {
+    const server = await createHarnessMcpServer({
+      host: accessHost(),
+      harness: greeter(),
+    })
+
+    const response = await server.fetch(
+      new Request(serverUrl, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+          'x-user': 'nobody',
+        },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+      }),
+    )
+    expect(response.status).toBe(401)
+    expect(response.headers.get('www-authenticate')).toMatch(/^Bearer /)
+  })
+
+  it('runs each request as its user, and returns a refused action as a tool error', async () => {
+    const host = accessHost()
+    const server = await createHarnessMcpServer({ host, harness: greeter() })
+    const { client: asOlga } = await connect(server, { user: 'olga' })
+    const { client: asBea } = await connect(server, { user: 'bea' })
+    const { client: asCid } = await connect(server, { user: 'cid' })
+
+    const reply = await asOlga.callTool({
+      name: 'chat',
+      arguments: { threadId: 't1', message: 'Hi' },
+    })
+    expect(reply.structuredContent).toMatchObject({
+      status: 'completed',
+      text: 'Hello.',
+    })
+    expect(
+      await host.sessions.get({ threadId: 't1', principal: olga }),
+    ).toMatchObject({ ownerId: 'olga' })
+    await host.sessions.share({
+      threadId: 't1',
+      userId: 'bea',
+      role: 'viewer',
+      principal: olga,
+    })
+
+    const stranger = await asCid.callTool({
+      name: 'status',
+      arguments: { threadId: 't1' },
+    })
+    expect(stranger).toMatchObject(
+      toolError(
+        'Access denied: the user of this call may not read on thread "t1".',
+      ),
+    )
+    const viewer = await asBea.callTool({
+      name: 'chat',
+      arguments: { threadId: 't1', message: 'Hi' },
+    })
+    expect(viewer).toMatchObject(
+      toolError(
+        'Access denied: the user of this call may not send on thread "t1".',
+      ),
+    )
+  })
+
+  it('lists the agents of the harness definition on a host with access, and no plugin commands', async () => {
+    const harness = defineHarness({
+      name: 'test/access-tools',
+      adapter: scripted([]).adapter,
+      agents: [pricer],
+      expose: { agents: ['pricer'], commands: ['greet'] },
+      plugins: () => [commands],
+    })
+    const server = await createHarnessMcpServer({ host: accessHost(), harness })
+    const { client } = await connect(server, { user: 'olga' })
+
+    const listed = await client.listTools()
+    expect(listed.tools.map((tool) => tool.name).sort()).toEqual([
+      'agent_pricer',
+      ...controlTools,
+    ])
+  })
 })

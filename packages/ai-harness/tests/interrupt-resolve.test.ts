@@ -129,7 +129,10 @@ describe.each([
     expect(await session.settled('approve')).toMatchObject({
       outcome: 'completed',
     })
-    expect(seen).toEqual([{ screen: 'settings' }])
+    // The harness adds the run of the turn to the context.
+    expect(seen).toEqual([
+      { screen: 'settings', run: expect.objectContaining({ threadId: 't1' }) },
+    ])
     await second.host.close()
   })
 

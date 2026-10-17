@@ -12,6 +12,7 @@ import {
   defineHarness,
   definePlugin,
   durableTool,
+  logIdOf,
 } from '../src'
 import {
   after,
@@ -33,6 +34,8 @@ import type { HarnessConfig, PluginContributions } from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
+/** The id of the log of `THREAD` in the store. */
+const LOG = logIdOf({ logId: THREAD })
 const HIGH: ReasoningRequest = { level: 'high', summary: true }
 const LOW: ReasoningRequest = { level: 'low', summary: false }
 
@@ -108,7 +111,7 @@ const toolResult = (
 
 /** The records of the log, of one type. */
 async function recordsOf(persistence: Durable, type: string) {
-  return (await persistence.stores.log.read({ logId: THREAD }))
+  return (await persistence.stores.log.read({ logId: LOG }))
     .map((entry) => entry.record)
     .filter((record) => record.type === type)
 }
@@ -509,7 +512,13 @@ describe('turn overrides: plugin adapter picker', () => {
 
     expect(await turn).toEqual({ text: 'turn', media: [] })
     expect(seen).toEqual([
-      { operationId: turn.id, inputId: 'in-7', message: 'go', overrides },
+      {
+        operationId: turn.id,
+        inputId: 'in-7',
+        message: 'go',
+        overrides,
+        run: expect.objectContaining({ runId: turn.id }),
+      },
     ])
     expect(picked.calls).toHaveLength(0)
     expect(calls).toHaveLength(0)
@@ -537,7 +546,7 @@ describe('ephemeral input', () => {
     expect(messageTexts(calls[0])).toEqual(['go', NOTE])
     expect(JSON.stringify(await session.transcript())).not.toContain(NOTE)
     expect(
-      JSON.stringify(await persistence.stores.log.read({ logId: THREAD })),
+      JSON.stringify(await persistence.stores.log.read({ logId: LOG })),
     ).not.toContain(NOTE)
     await host.close()
   })
@@ -545,7 +554,7 @@ describe('ephemeral input', () => {
   it('gives the ephemeral messages of continue to the model, and no store keeps them', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
-      logId: THREAD,
+      logId: LOG,
       seq: 1,
       epoch: UNOWNED_EPOCH,
       records: [
@@ -570,7 +579,7 @@ describe('ephemeral input', () => {
     expect(messageTexts(calls[0])).toEqual(['go', NOTE])
     expect(JSON.stringify(await session.transcript())).not.toContain(NOTE)
     expect(
-      JSON.stringify(await persistence.stores.log.read({ logId: THREAD })),
+      JSON.stringify(await persistence.stores.log.read({ logId: LOG })),
     ).not.toContain(NOTE)
     await host.close()
   })

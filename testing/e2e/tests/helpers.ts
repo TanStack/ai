@@ -1,4 +1,5 @@
-import { expect, type Page } from '@playwright/test'
+import { expect } from '@playwright/test'
+import type { APIRequestContext, Page } from '@playwright/test'
 
 declare global {
   interface Window {
@@ -289,4 +290,21 @@ export async function waitForGenerationComplete(page: Page, timeout = 30_000) {
   await expect(page.getByTestId('generation-status')).toHaveText('complete', {
     timeout,
   })
+}
+
+/**
+ * Open a thread of the `/api/harness-protocol` route and start no turn. The
+ * host has access, so a read of a thread with no index entry is 404 and
+ * opens nothing. A setting change opens the thread.
+ */
+export async function openHarnessThread(
+  request: APIRequestContext,
+  headers: Record<string, string>,
+  threadId: string,
+) {
+  const response = await request.post('/api/harness-protocol/control', {
+    headers: { ...headers, 'content-type': 'application/json' },
+    data: { threadId, input: { op: 'config', key: 'tone', value: 'plain' } },
+  })
+  expect(await response.json()).toMatchObject({ status: 'accepted' })
 }

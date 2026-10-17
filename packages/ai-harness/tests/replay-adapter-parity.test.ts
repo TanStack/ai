@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { EventType, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
-import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness, logIdOf } from '../src'
 import { gate, mockAdapter, text, toolCall } from './helpers'
 import type { MessageSource, StreamChunk } from '@tanstack/ai'
 
@@ -107,7 +107,9 @@ describe('saved harness replay across turn adapters', () => {
           JSON.stringify((await session.transcript()).slice(0, before.length)),
         ),
       ).toEqual(before)
-      const saved = await persistence.stores.messages.loadThread('replay')
+      const saved = await persistence.stores.messages.loadThread(
+        logIdOf({ logId: 'replay' }),
+      )
       expect(saved.at(-1)?.metadata?.tanstack).toMatchObject({
         source: secondSource,
         responseId: 'generation-second',

@@ -2,10 +2,9 @@
 // and the protocol helpers that a custom transport uses.
 export { createHarnessHandler, handleHarnessSocket } from './http'
 export type {
-  Authorize,
-  CanAccess,
   HarnessHandlerOptions,
   HarnessSocketOptions,
+  OpenAccess,
 } from './http'
 
 export {

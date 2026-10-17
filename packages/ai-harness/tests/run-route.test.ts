@@ -31,18 +31,19 @@ const deploy = toolDefinition({
   return { ok: true }
 })
 
+const user = { id: 'user-1' }
+
+/** A handler for `user`. `authorize` decides each action. */
 function setup(
   harness: AnyHarness,
-  canAccess: () => boolean = () => true,
+  authorize: () => boolean = () => true,
   persistence = memoryPersistence(),
 ) {
-  const host = createHarnessHost({ persistence })
-  const handler = createHarnessHandler({
-    host,
-    harness,
-    authorize: () => ({ id: 'user-1' }),
-    canAccess,
+  const host = createHarnessHost({
+    persistence,
+    access: { identify: () => user, authorize },
   })
+  const handler = createHarnessHandler({ host, harness })
   const call = (path: string, body?: object) =>
     handler(
       new Request(`http://h.test/api/${path}`, {
@@ -222,6 +223,7 @@ describe('POST run', () => {
     expect(deployed).toEqual([])
     const session = await host.open(approvalHarness([]), {
       threadId: 't-1',
+      principal: user,
     })
     expect(session.snapshot().pendingInterrupts).toHaveLength(1)
     await host.close()
@@ -229,12 +231,18 @@ describe('POST run', () => {
 
   it("refuses another person's request with the same runId, and gives them no stream", async () => {
     const { adapter, calls } = mockAdapter([() => text('hello')])
-    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      access: {
+        identify: ({ request }) => ({
+          id: request.headers.get('x-user') ?? '',
+        }),
+        authorize: () => true,
+      },
+    })
     const handler = createHarnessHandler({
       host,
       harness: defineHarness({ name: 'test/run-route', adapter }),
-      canAccess: () => true,
-      authorize: (request) => ({ id: request.headers.get('x-user') ?? '' }),
     })
     const post = (user: string) =>
       handler(
@@ -311,12 +319,20 @@ describe('GET run', () => {
     await host.close()
   })
 
-  it('checks canAccess', async () => {
+  it('refuses a thread that authorize refuses, and hydrates a new thread with nothing and no entry', async () => {
     const { adapter } = mockAdapter([])
-    const { host, call } = setup(
-      defineHarness({ name: 'test/run-route', adapter }),
-      () => false,
-    )
+    const harness = defineHarness({ name: 'test/run-route', adapter })
+    const { host, call } = setup(harness, () => false)
+    expect(await (await call('run?threadId=t-1')).json()).toEqual({
+      messages: [],
+      activeRun: null,
+      interrupts: null,
+    })
+    expect(
+      await host.sessions.get({ threadId: 't-1', principal: user }),
+    ).toBeUndefined()
+    // The user who creates a thread needs no check.
+    await host.open(harness, { threadId: 't-1', principal: user })
     expect((await call('run?threadId=t-1')).status).toBe(403)
     await host.close()
   })
@@ -394,6 +410,7 @@ describe('questions', () => {
       defineHarness({ name: 'test/run-route', adapter }),
       {
         threadId: 't-1',
+        principal: user,
       },
     )
     let questions = 0
@@ -477,8 +494,8 @@ describe('join a running turn', () => {
   }
 
   /** Start a turn as `run-a` and wait until its tool asks. */
-  async function startAsking(canAccess?: () => boolean) {
-    const route = setup(askingHarness(), canAccess)
+  async function startAsking(authorize?: () => boolean) {
+    const route = setup(askingHarness(), authorize)
     const posted = await readUntil(
       await route.run({
         runId: 'run-a',

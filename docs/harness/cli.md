@@ -79,7 +79,7 @@ Line mode reads one message or command per line and waits for each turn. It work
 - It binds to `127.0.0.1:8787`, reachable only from the same machine. Change the bind with `--host` and `--port`. `--host 0.0.0.0` puts it on the network, so do that only behind TLS and a proxy you trust.
 - The CLI signs media links with the token, so rotating the token stops any link a turn already handed out.
 
-Need per-user access, your own sign-in check, or a rule for which threads each user can open? Use [`createHarnessHandler`](./connect) instead. It requires `authorize` and `canAccess`, so no thread is open by accident.
+Need per-user access, your own sign-in check, or a rule for which threads each user can open? Use [`createHarnessHandler`](./connect) on a host with [`access`](./access) instead. The host reads the user of each request and checks each action, so no thread is open by accident.
 
 ## Use your own host and user
 
@@ -109,9 +109,9 @@ await host.close()
 
 - You own the host, so the CLI does not close it. Close it yourself when `runCli` returns. Without `host`, the CLI builds a host and closes it.
 - Give `host` or `persistence`, not both. With both, `runCli` writes `Give runCli a host or persistence, not both.` and returns code 1.
-- Line mode, `-p`, and your own `ui` open the session as `principal`, so `/connect` saves keys for that user.
-- `--serve` gives the same principal to each request with the token.
-- `--acp`, `--mcp`, and `--dashboard` open their sessions without the principal.
+- Line mode, `-p`, your own `ui`, `--acp`, and `--mcp` open their sessions as `principal`, so `/connect` saves keys for that user.
+- `--serve` checks the token first. On a host without `access`, each request then runs as `principal`. On a host with [`access`](./access), `identify` reads the user of each request.
+- On a host with `access`, give `principal` too. `--mcp` does not start on such a host, because stdio has no login. `--dashboard` opens its sessions without the principal.
 
 ## Commands in line mode
 

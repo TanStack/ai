@@ -5,6 +5,7 @@ import {
   createHarnessHost,
   defineHarness,
   definePlugin,
+  membersOnly,
   oauthConnector,
 } from '../src'
 import { createHarnessHandler } from '../src/server'
@@ -14,10 +15,12 @@ import type { SessionIndexEntry } from '@tanstack/ai-persistence'
 import type {
   AgentRun,
   HarnessConfig,
+  HarnessHost,
   HarnessInput,
   HarnessSession,
   Operation,
   PluginLifetime,
+  Principal,
   ProjectOptions,
   Receipt,
   RecoverHook,
@@ -182,15 +185,54 @@ it('refuses a plugin whose metadata the harness does not have', () => {
   })
 })
 
-it('needs an explicit canAccess and an explicit login mode', () => {
+it('types the principal of the host from what access.identify returns', () => {
+  type User = { id: string; tenantId: string; role: 'admin' | 'user' }
+  // The app's own login check, as `verifySession(request)` in an app.
+  const userOf = async (request: Request): Promise<User | null> =>
+    request.headers.has('cookie')
+      ? { id: 'u1', tenantId: 'acme', role: 'user' }
+      : null
+  const host = createHarnessHost({
+    access: {
+      identify: ({ request }) => userOf(request),
+      authorize: ({ principal }) => {
+        expectTypeOf(principal).toEqualTypeOf<User>()
+        return principal.role === 'admin'
+      },
+    },
+  })
+  expectTypeOf(host).toEqualTypeOf<HarnessHost<User>>()
+  expectTypeOf<Parameters<typeof host.open>[1]['principal']>().toEqualTypeOf<
+    User | undefined
+  >()
+  const user: User = { id: 'u2', tenantId: 'acme', role: 'user' }
+  void host.open(harness, { threadId: 't1', principal: user })
+  // @ts-expect-error The principal of this host has a role.
+  void host.open(harness, { threadId: 't1', principal: { id: 'u3' } })
+  // membersOnly() fits any principal type.
+  expectTypeOf(
+    createHarnessHost({
+      access: { identify: () => user, authorize: membersOnly() },
+    }),
+  ).toEqualTypeOf<HarnessHost<User>>()
+  // Without access, the principal is the plain one.
+  expectTypeOf(createHarnessHost()).toEqualTypeOf<HarnessHost<Principal>>()
+})
+
+it('types the openAccess principal by the host, and needs an explicit login mode', () => {
   const host = createHarnessHost()
-  // @ts-expect-error `canAccess` is required: allow-all must be explicit.
-  createHarnessHandler({ host, harness, authorize: () => ({ id: 'u' }) })
+  createHarnessHandler({ host, harness, openAccess: true })
   createHarnessHandler({
     host,
     harness,
+    openAccess: { principal: { id: 'u' } },
+  })
+  createHarnessHandler({
+    host,
+    harness,
+    openAccess: true,
+    // @ts-expect-error The host access decides who calls: no authorize here.
     authorize: () => ({ id: 'u' }),
-    canAccess: () => true,
   })
   const oauth = { authorizationUrl: 'a', tokenUrl: 't', clientId: 'c' }
   // @ts-expect-error `login` is required: no implicit loopback listener.

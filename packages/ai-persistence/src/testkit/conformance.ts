@@ -3060,31 +3060,51 @@ export function runPersistenceConformance(
       })
     })
 
-    // Each case uses its own ids, because the suite shares one persistence.
+    // The suite shares one persistence. Most cases write in a tenant of their
+    // own, so a list has only the entries of the case. The cases about the
+    // default tenant use new thread ids.
     describe('sessions', () => {
       const newId = () => `sessions-${crypto.randomUUID()}`
       const sessionEntry = (
         threadId: string,
         updatedAt: number,
         extra: Partial<SessionIndexEntry> = {},
-      ) => ({ threadId, createdAt: 1, updatedAt, ...extra })
+      ) => ({ threadId, members: [], createdAt: 1, updatedAt, ...extra })
+      /** A new tenant, with an entry and a key factory for it. */
+      const newTenant = () => {
+        const tenantId = newId()
+        return {
+          tenantId,
+          entry: (
+            threadId: string,
+            updatedAt: number,
+            extra: Partial<SessionIndexEntry> = {},
+          ) => sessionEntry(threadId, updatedAt, { tenantId, ...extra }),
+          key: (threadId: string) => ({ tenantId, threadId }),
+        }
+      }
       const threadIds = (page: SessionIndexPage) =>
         page.entries.map((entry) => entry.threadId)
 
       it('gets every field of an upserted entry, and undefined for an unknown thread', async (ctx) => {
         const store = persistence.stores.sessions
         if (!store) return ctx.skip('sessions store not provided')
-        const threadId = newId()
+        const { tenantId, key } = newTenant()
         const written: SessionIndexEntry = {
-          threadId,
+          tenantId,
+          threadId: 'thread',
+          ownerId: 'user-1',
+          members: [
+            { userId: 'user-1', role: 'owner' },
+            { userId: 'user-2', role: 'viewer' },
+          ],
           harness: 'coder',
           title: 'Fix the build',
-          parentThreadId: `${threadId}-parent`,
+          parentThreadId: 'parent',
           parentToolCallId: 'call-1',
           createdAt: 1,
           updatedAt: 2,
           pinned: true,
-          principal: { id: 'user-1', tenantId: 'org-1' },
           usage: {
             turns: 2,
             promptTokens: 10,
@@ -3099,23 +3119,80 @@ export function runPersistenceConformance(
 
         await store.upsert(written)
 
-        expect(await store.get(threadId)).toEqual(written)
-        expect(await store.get(newId())).toBeUndefined()
+        expect(await store.get(key('thread'))).toEqual(written)
+        expect(await store.get(key('unknown'))).toBeUndefined()
+      })
+
+      it('keeps the owner and the members in getVersioned and list', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const { tenantId, entry, key } = newTenant()
+        const shared = entry('shared', 1, {
+          ownerId: 'alice',
+          members: [
+            { userId: 'alice', role: 'owner' },
+            { userId: 'bob', role: 'member' },
+            { userId: 'carol', role: 'viewer' },
+          ],
+        })
+
+        await store.upsert(shared)
+
+        expect((await store.getVersioned(key('shared')))?.entry).toEqual(shared)
+        expect((await store.list({ tenantId })).entries).toEqual([shared])
+      })
+
+      it('keeps one thread id in two tenants as two entries', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const threadId = newId()
+        const tenantId = newId()
+        const inTenant = sessionEntry(threadId, 10, { tenantId, title: 'a' })
+        const inDefault = sessionEntry(threadId, 20, { title: 'b' })
+
+        await store.upsert(inTenant)
+        await store.upsert(inDefault)
+
+        expect(await store.get({ tenantId, threadId })).toEqual(inTenant)
+        expect(await store.get({ threadId })).toEqual(inDefault)
+        expect((await store.list({ tenantId })).entries).toEqual([inTenant])
+
+        await store.delete({ tenantId, threadId })
+
+        expect(await store.get({ tenantId, threadId })).toBeUndefined()
+        expect(await store.get({ threadId })).toEqual(inDefault)
+      })
+
+      it('lists only the default tenant without tenantId', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const id = newId()
+        await store.upsert(sessionEntry(`${id}-tenant`, 10, { tenantId: id }))
+        await store.upsert(sessionEntry(`${id}-default`, 10))
+
+        const page = await store.list()
+
+        expect(threadIds(page)).toContain(`${id}-default`)
+        // `''` is the default tenant too.
+        const otherTenants = page.entries.filter(
+          (entry) => (entry.tenantId ?? '') !== '',
+        )
+        expect(otherTenants).toEqual([])
       })
 
       it('replaces the whole entry on a second upsert', async (ctx) => {
         const store = persistence.stores.sessions
         if (!store) return ctx.skip('sessions store not provided')
-        const threadId = newId()
-        await store.upsert(
-          sessionEntry(threadId, 2, { title: 'old', pinned: true }),
-        )
+        const { tenantId, entry, key } = newTenant()
+        await store.upsert(entry('thread', 2, { title: 'old', pinned: true }))
 
-        await store.upsert(sessionEntry(threadId, 3, { title: 'new' }))
+        await store.upsert(entry('thread', 3, { title: 'new' }))
 
         // `pinned` is gone: upsert does not merge.
-        expect(await store.get(threadId)).toEqual({
-          threadId,
+        expect(await store.get(key('thread'))).toEqual({
+          tenantId,
+          threadId: 'thread',
+          members: [],
           createdAt: 1,
           updatedAt: 3,
           title: 'new',
@@ -3125,215 +3202,178 @@ export function runPersistenceConformance(
       it('lists newest first and pages with a cursor', async (ctx) => {
         const store = persistence.stores.sessions
         if (!store) return ctx.skip('sessions store not provided')
-        const owner = { id: newId() }
-        const a = `${owner.id}-a`
-        const b = `${owner.id}-b`
-        const c = `${owner.id}-c`
-        await store.upsert(sessionEntry(c, 20, { principal: owner }))
-        await store.upsert(sessionEntry(a, 30, { principal: owner }))
-        await store.upsert(sessionEntry(b, 20, { principal: owner }))
+        const { tenantId, entry } = newTenant()
+        await store.upsert(entry('c', 20))
+        await store.upsert(entry('a', 30))
+        await store.upsert(entry('b', 20))
 
         // Newest first. The same `updatedAt` goes in `threadId` order.
-        expect(threadIds(await store.list({ principal: owner }))).toEqual([
-          a,
-          b,
-          c,
+        expect(threadIds(await store.list({ tenantId }))).toEqual([
+          'a',
+          'b',
+          'c',
         ])
 
-        const first = await store.list({ principal: owner, limit: 2 })
-        expect(threadIds(first)).toEqual([a, b])
+        const first = await store.list({ tenantId, limit: 2 })
+        expect(threadIds(first)).toEqual(['a', 'b'])
         expect(first.truncated).toBe(true)
 
         const second = await store.list({
-          principal: owner,
+          tenantId,
           limit: 2,
           cursor: required(first.cursor, 'the cursor of a truncated page'),
         })
-        expect(threadIds(second)).toEqual([c])
+        expect(threadIds(second)).toEqual(['c'])
         expect(second.truncated).toBeFalsy()
         expect(second.cursor).toBeUndefined()
       })
 
-      it('filters by parent thread and by owner', async (ctx) => {
+      it('filters by parent thread', async (ctx) => {
         const store = persistence.stores.sessions
         if (!store) return ctx.skip('sessions store not provided')
-        const prefix = newId()
-        const owner = { id: `${prefix}-user`, tenantId: 'org-1' }
-        const parent = `${prefix}-parent`
-        const child = `${prefix}-child`
-        const unowned = `${prefix}-unowned`
-        const otherTenant = `${prefix}-other-tenant`
-        await store.upsert(sessionEntry(parent, 10, { principal: owner }))
+        const { tenantId, entry } = newTenant()
+        await store.upsert(entry('parent', 10))
         await store.upsert(
-          sessionEntry(child, 20, {
-            principal: owner,
-            parentThreadId: parent,
+          entry('child', 20, {
+            parentThreadId: 'parent',
             parentToolCallId: 'call-1',
           }),
         )
-        await store.upsert(
-          sessionEntry(unowned, 30, { parentThreadId: parent }),
-        )
-        await store.upsert(
-          sessionEntry(otherTenant, 40, {
-            principal: { id: owner.id, tenantId: 'org-2' },
-          }),
-        )
+        await store.upsert(entry('sibling', 30, { parentThreadId: 'parent' }))
+        await store.upsert(entry('other', 40, { parentThreadId: 'other' }))
 
-        expect(threadIds(await store.list({ parentThreadId: parent }))).toEqual(
-          [unowned, child],
-        )
-        // With a tenant, the tenant must match. An entry without an owner
-        // never matches.
-        expect(threadIds(await store.list({ principal: owner }))).toEqual([
-          child,
-          parent,
-        ])
-        // Without a tenant, the id alone decides.
         expect(
-          threadIds(await store.list({ principal: { id: owner.id } })),
-        ).toEqual([otherTenant, child, parent])
-        expect(
-          threadIds(
-            await store.list({
-              principal: { id: `${prefix}-nobody` },
-              parentThreadId: parent,
-            }),
-          ),
-        ).toEqual([])
+          threadIds(await store.list({ tenantId, parentThreadId: 'parent' })),
+        ).toEqual(['sibling', 'child'])
       })
 
       it('lists only the entries with no parent for parentThreadId null', async (ctx) => {
         const store = persistence.stores.sessions
         if (!store) return ctx.skip('sessions store not provided')
-        const owner = { id: newId() }
-        const parent = `${owner.id}-parent`
-        const child = `${owner.id}-child`
-        await store.upsert(sessionEntry(parent, 10, { principal: owner }))
+        const { tenantId, entry } = newTenant()
+        await store.upsert(entry('parent', 10))
+        await store.upsert(entry('child', 20, { parentThreadId: 'parent' }))
+
+        expect(
+          threadIds(await store.list({ tenantId, parentThreadId: null })),
+        ).toEqual(['parent'])
+      })
+
+      it('filters by member id, with any role', async (ctx) => {
+        const store = persistence.stores.sessions
+        if (!store) return ctx.skip('sessions store not provided')
+        const { tenantId, entry } = newTenant()
+        const bob = { userId: 'bob', role: 'owner' } as const
         await store.upsert(
-          sessionEntry(child, 20, { principal: owner, parentThreadId: parent }),
+          entry('owned', 10, {
+            ownerId: 'alice',
+            members: [{ userId: 'alice', role: 'owner' }],
+          }),
+        )
+        await store.upsert(
+          entry('member', 20, {
+            ownerId: 'bob',
+            members: [bob, { userId: 'alice', role: 'member' }],
+          }),
+        )
+        await store.upsert(
+          entry('viewer', 30, {
+            ownerId: 'bob',
+            members: [bob, { userId: 'alice', role: 'viewer' }],
+          }),
+        )
+        await store.upsert(
+          entry('other', 40, { ownerId: 'bob', members: [bob] }),
+        )
+        // A subagent child has the owner of its parent and no members.
+        await store.upsert(
+          entry('child', 50, { ownerId: 'alice', parentThreadId: 'owned' }),
         )
 
         expect(
-          threadIds(
-            await store.list({ principal: owner, parentThreadId: null }),
-          ),
-        ).toEqual([parent])
+          threadIds(await store.list({ tenantId, memberId: 'alice' })),
+        ).toEqual(['viewer', 'member', 'owned'])
       })
 
       it('filters by title search, without case', async (ctx) => {
         const store = persistence.stores.sessions
         if (!store) return ctx.skip('sessions store not provided')
-        const owner = { id: newId() }
-        const build = `${owner.id}-build`
-        const docs = `${owner.id}-docs`
-        const untitled = `${owner.id}-untitled`
-        await store.upsert(
-          sessionEntry(build, 10, { principal: owner, title: 'Fix the Build' }),
-        )
-        await store.upsert(
-          sessionEntry(docs, 20, { principal: owner, title: 'Write docs' }),
-        )
-        await store.upsert(sessionEntry(untitled, 30, { principal: owner }))
+        const { tenantId, entry } = newTenant()
+        await store.upsert(entry('build', 10, { title: 'Fix the Build' }))
+        await store.upsert(entry('docs', 20, { title: 'Write docs' }))
+        await store.upsert(entry('untitled', 30))
 
         expect(
-          threadIds(await store.list({ principal: owner, search: 'BUILD' })),
-        ).toEqual([build])
+          threadIds(await store.list({ tenantId, search: 'BUILD' })),
+        ).toEqual(['build'])
         // An entry with no title never matches.
-        expect(
-          threadIds(await store.list({ principal: owner, search: '' })),
-        ).toEqual([docs, build])
+        expect(threadIds(await store.list({ tenantId, search: '' }))).toEqual([
+          'docs',
+          'build',
+        ])
       })
 
       it('filters by harness name', async (ctx) => {
         const store = persistence.stores.sessions
         if (!store) return ctx.skip('sessions store not provided')
-        const owner = { id: newId() }
-        const coder = `${owner.id}-coder`
-        const writer = `${owner.id}-writer`
-        const none = `${owner.id}-none`
-        await store.upsert(
-          sessionEntry(coder, 10, { principal: owner, harness: 'coder' }),
-        )
-        await store.upsert(
-          sessionEntry(writer, 20, { principal: owner, harness: 'writer' }),
-        )
-        await store.upsert(sessionEntry(none, 30, { principal: owner }))
+        const { tenantId, entry } = newTenant()
+        await store.upsert(entry('coder', 10, { harness: 'coder' }))
+        await store.upsert(entry('writer', 20, { harness: 'writer' }))
+        await store.upsert(entry('none', 30))
 
         expect(
-          threadIds(await store.list({ principal: owner, harness: 'coder' })),
-        ).toEqual([coder])
+          threadIds(await store.list({ tenantId, harness: 'coder' })),
+        ).toEqual(['coder'])
       })
 
       it('filters by exact metadata values', async (ctx) => {
         const store = persistence.stores.sessions
         if (!store) return ctx.skip('sessions store not provided')
-        const owner = { id: newId() }
-        const both = `${owner.id}-both`
-        const projectOnly = `${owner.id}-project-only`
-        const other = `${owner.id}-other`
-        const none = `${owner.id}-none`
+        const { tenantId, entry } = newTenant()
         await store.upsert(
-          sessionEntry(both, 10, {
-            principal: owner,
-            metadata: { project: 'p-1', branch: 'main' },
-          }),
+          entry('both', 10, { metadata: { project: 'p-1', branch: 'main' } }),
         )
         await store.upsert(
-          sessionEntry(projectOnly, 20, {
-            principal: owner,
-            metadata: { project: 'p-1' },
-          }),
+          entry('project-only', 20, { metadata: { project: 'p-1' } }),
         )
         await store.upsert(
-          sessionEntry(other, 30, {
-            principal: owner,
-            metadata: { project: 'p-2', branch: 'main' },
-          }),
+          entry('other', 30, { metadata: { project: 'p-2', branch: 'main' } }),
         )
-        await store.upsert(sessionEntry(none, 40, { principal: owner }))
+        await store.upsert(entry('none', 40))
 
         expect(
           threadIds(
-            await store.list({
-              principal: owner,
-              metadata: { project: 'p-1' },
-            }),
+            await store.list({ tenantId, metadata: { project: 'p-1' } }),
           ),
-        ).toEqual([projectOnly, both])
+        ).toEqual(['project-only', 'both'])
         expect(
           threadIds(
             await store.list({
-              principal: owner,
+              tenantId,
               metadata: { project: 'p-1', branch: 'main' },
             }),
           ),
-        ).toEqual([both])
+        ).toEqual(['both'])
       })
 
       it('combines search, harness, and metadata with AND', async (ctx) => {
         const store = persistence.stores.sessions
         if (!store) return ctx.skip('sessions store not provided')
-        const owner = { id: newId() }
-        const match = `${owner.id}-match`
-        const wrongTitle = `${owner.id}-wrong-title`
-        const wrongHarness = `${owner.id}-wrong-harness`
-        const wrongProject = `${owner.id}-wrong-project`
+        const { tenantId, entry } = newTenant()
         const base = {
-          principal: owner,
           title: 'Fix the build',
           harness: 'coder',
           metadata: { project: 'p-1' },
         }
-        await store.upsert(sessionEntry(match, 10, base))
+        await store.upsert(entry('match', 10, base))
         await store.upsert(
-          sessionEntry(wrongTitle, 20, { ...base, title: 'Write docs' }),
+          entry('wrong-title', 20, { ...base, title: 'Write docs' }),
         )
         await store.upsert(
-          sessionEntry(wrongHarness, 30, { ...base, harness: 'writer' }),
+          entry('wrong-harness', 30, { ...base, harness: 'writer' }),
         )
         await store.upsert(
-          sessionEntry(wrongProject, 40, {
+          entry('wrong-project', 40, {
             ...base,
             metadata: { project: 'p-2' },
           }),
@@ -3342,105 +3382,83 @@ export function runPersistenceConformance(
         expect(
           threadIds(
             await store.list({
-              principal: owner,
+              tenantId,
               search: 'build',
               harness: 'coder',
               metadata: { project: 'p-1' },
             }),
           ),
-        ).toEqual([match])
+        ).toEqual(['match'])
       })
 
       it('pages the filtered list with a cursor', async (ctx) => {
         const store = persistence.stores.sessions
         if (!store) return ctx.skip('sessions store not provided')
-        const owner = { id: newId() }
-        const a = `${owner.id}-a`
-        const b = `${owner.id}-b`
-        const c = `${owner.id}-c`
-        await store.upsert(
-          sessionEntry(a, 50, { principal: owner, title: 'build a' }),
-        )
-        await store.upsert(
-          sessionEntry(`${owner.id}-skip`, 40, {
-            principal: owner,
-            title: 'docs',
-          }),
-        )
-        await store.upsert(
-          sessionEntry(b, 30, { principal: owner, title: 'build b' }),
-        )
-        await store.upsert(
-          sessionEntry(c, 20, { principal: owner, title: 'build c' }),
-        )
+        const { tenantId, entry } = newTenant()
+        await store.upsert(entry('a', 50, { title: 'build a' }))
+        await store.upsert(entry('skip', 40, { title: 'docs' }))
+        await store.upsert(entry('b', 30, { title: 'build b' }))
+        await store.upsert(entry('c', 20, { title: 'build c' }))
 
-        const first = await store.list({
-          principal: owner,
-          search: 'build',
-          limit: 2,
-        })
-        expect(threadIds(first)).toEqual([a, b])
+        const first = await store.list({ tenantId, search: 'build', limit: 2 })
+        expect(threadIds(first)).toEqual(['a', 'b'])
         expect(first.truncated).toBe(true)
 
         const second = await store.list({
-          principal: owner,
+          tenantId,
           search: 'build',
           limit: 2,
           cursor: required(first.cursor, 'the cursor of a truncated page'),
         })
-        expect(threadIds(second)).toEqual([c])
+        expect(threadIds(second)).toEqual(['c'])
         expect(second.truncated).toBeFalsy()
       })
 
-      it('deletes an entry, and ignores an unknown thread', async (ctx) => {
+      it('deletes an entry for good, and ignores an unknown thread', async (ctx) => {
         const store = persistence.stores.sessions
         if (!store) return ctx.skip('sessions store not provided')
-        const owner = { id: newId() }
-        const kept = `${owner.id}-kept`
-        const removed = `${owner.id}-removed`
-        await store.upsert(sessionEntry(kept, 1, { principal: owner }))
-        await store.upsert(sessionEntry(removed, 2, { principal: owner }))
+        const { tenantId, entry, key } = newTenant()
+        await store.upsert(entry('kept', 1))
+        await store.upsert(entry('removed', 2, { title: 'old' }))
 
-        await store.delete(removed)
-        await store.delete(newId())
+        await store.delete(key('removed'))
+        await store.delete(key('unknown'))
 
-        expect(await store.get(removed)).toBeUndefined()
-        expect(threadIds(await store.list({ principal: owner }))).toEqual([
-          kept,
-        ])
+        expect(await store.get(key('removed'))).toBeUndefined()
+        expect(await store.getVersioned(key('removed'))).toBeUndefined()
+        expect(threadIds(await store.list({ tenantId }))).toEqual(['kept'])
+        // Nothing of the old entry is left, so "only when absent" writes.
+        const recreated = await store.upsertIf({
+          entry: entry('removed', 3),
+          revision: null,
+        })
+        expect(recreated.ok).toBe(true)
+        expect(await store.get(key('removed'))).toEqual(entry('removed', 3))
       })
 
-      // Compare-and-set is optional. A store without it skips these cases.
       it('writes with upsertIf only at the expected revision', async (ctx) => {
         const store = persistence.stores.sessions
-        if (!store?.getVersioned || !store.upsertIf)
-          return ctx.skip('sessions store has no compare-and-set')
-        const threadId = newId()
-        expect(await store.getVersioned(threadId)).toBeUndefined()
+        if (!store) return ctx.skip('sessions store not provided')
+        const { entry, key } = newTenant()
+        expect(await store.getVersioned(key('thread'))).toBeUndefined()
 
         // `null`: only when absent.
         const created = await store.upsertIf({
-          entry: sessionEntry(threadId, 1),
-          expectedRevision: null,
+          entry: entry('thread', 1),
+          revision: null,
         })
         if (!created.ok) throw new Error('the first upsertIf conflicted')
         expect(
-          await store.upsertIf({
-            entry: sessionEntry(threadId, 9),
-            expectedRevision: null,
-          }),
-        ).toEqual({
-          ok: false,
-          reason: 'conflict',
-        })
-        expect(await store.getVersioned(threadId)).toEqual({
-          entry: sessionEntry(threadId, 1),
+          await store.upsertIf({ entry: entry('thread', 9), revision: null }),
+        ).toEqual({ ok: false, reason: 'conflict' })
+        expect(await store.getVersioned(key('thread'))).toEqual({
+          entry: entry('thread', 1),
           revision: created.revision,
         })
 
         const changed = await store.upsertIf({
-          entry: sessionEntry(threadId, 2, { title: 'new' }),
-          expectedRevision: created.revision,
+          entry: entry('thread', 2, { title: 'new' }),
+          revision: created.revision,
         })
         if (!changed.ok)
           throw new Error('upsertIf at the read revision conflicted')
@@ -3449,51 +3467,51 @@ export function runPersistenceConformance(
         // A stale revision conflicts and leaves the entry as it was.
         expect(
           await store.upsertIf({
-            entry: sessionEntry(threadId, 3),
-            expectedRevision: created.revision,
+            entry: entry('thread', 3),
+            revision: created.revision,
           }),
         ).toEqual({ ok: false, reason: 'conflict' })
-        expect(await store.get(threadId)).toEqual(
-          sessionEntry(threadId, 2, { title: 'new' }),
+        expect(await store.get(key('thread'))).toEqual(
+          entry('thread', 2, { title: 'new' }),
         )
       })
 
       it('changes the revision on a plain upsert, and never reuses one after delete', async (ctx) => {
         const store = persistence.stores.sessions
-        if (!store?.getVersioned || !store.upsertIf)
-          return ctx.skip('sessions store has no compare-and-set')
-        const threadId = newId()
-        await store.upsert(sessionEntry(threadId, 1))
-        const read = await store.getVersioned(threadId)
-        if (!read) throw new Error('getVersioned found no entry')
+        if (!store) return ctx.skip('sessions store not provided')
+        const { entry, key } = newTenant()
+        await store.upsert(entry('thread', 1))
+        const read = required(
+          await store.getVersioned(key('thread')),
+          'the versioned entry',
+        )
 
-        await store.upsert(sessionEntry(threadId, 2))
+        await store.upsert(entry('thread', 2))
 
         expect(
           await store.upsertIf({
-            entry: sessionEntry(threadId, 3),
-            expectedRevision: read.revision,
+            entry: entry('thread', 3),
+            revision: read.revision,
           }),
         ).toEqual({ ok: false, reason: 'conflict' })
-        expect((await store.get(threadId))?.updatedAt).toBe(2)
+        expect((await store.get(key('thread')))?.updatedAt).toBe(2)
 
         // A deleted revision does not match the entry written after it.
         const last = required(
-          await store.getVersioned(threadId),
+          await store.getVersioned(key('thread')),
           'the versioned entry',
         )
-        await store.delete(threadId)
-        expect(await store.getVersioned(threadId)).toBeUndefined()
+        await store.delete(key('thread'))
         expect(
           await store.upsertIf({
-            entry: sessionEntry(threadId, 4),
-            expectedRevision: last.revision,
+            entry: entry('thread', 4),
+            revision: last.revision,
           }),
         ).toEqual({ ok: false, reason: 'conflict' })
-        expect(await store.get(threadId)).toBeUndefined()
+        expect(await store.get(key('thread'))).toBeUndefined()
         const recreated = await store.upsertIf({
-          entry: sessionEntry(threadId, 5),
-          expectedRevision: null,
+          entry: entry('thread', 5),
+          revision: null,
         })
         if (!recreated.ok) throw new Error('upsertIf after delete conflicted')
         expect(recreated.revision).not.toBe(last.revision)

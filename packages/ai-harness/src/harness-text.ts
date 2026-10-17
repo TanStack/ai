@@ -292,11 +292,9 @@ export function harnessText(
         const signal = signalOf(chatOptions.request)
         // A session this call opens closes with it. One the caller holds open
         // stays, as in host.fork.
-        const wasOpen = host.isOpen(harness, { threadId })
-        const session = await host.open(harness, {
-          threadId,
-          ...(principal ? { principal } : {}),
-        })
+        const user = principal ? { principal } : {}
+        const wasOpen = host.isOpen(harness, { threadId, ...user })
+        const session = await host.open(harness, { threadId, ...user })
         // The outer call's tools join the inner turn. Its system prompts do
         // not: the harness owns its prompt stack.
         const tools = chatOptions.tools?.length

@@ -9,11 +9,12 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
+  logIdOf,
   oauthConnector,
 } from '../src'
 import { createHarnessHandler } from '../src/server'
 import { after, gate, mockAdapter, text, toolCall } from './helpers'
-import type { HarnessSession } from '../src'
+import type { HarnessRunContext, HarnessSession } from '../src'
 import type { OAuthConfig } from '../src/oauth'
 import type { Reply } from './helpers'
 
@@ -32,13 +33,13 @@ const oauth: OAuthConfig = {
 function github(seen: Array<string>, wait: boolean) {
   return definePlugin({
     name: 'test/github',
-    setup: (ctx) => ({
+    setup: () => ({
       tools: [
         toolDefinition({
           name: 'list_issues',
           description: 'List issues',
-        }).server(async () => {
-          const credential = await ctx.credentials.require(
+        }).server<HarnessRunContext>(async (_args, ctx) => {
+          const credential = await ctx.context.run.credentials.require(
             'github',
             wait ? { wait: true } : undefined,
           )
@@ -61,11 +62,11 @@ function github(seen: Array<string>, wait: boolean) {
             return 'Connected.'
           },
         }),
-        // A save of another credential, by the session's own access.
+        // A save of another credential, for the user who runs the command.
         note: defineCommand({
           description: 'Save a note credential',
-          run: () =>
-            ctx.credentials.set({
+          run: (_input, command) =>
+            command.credentials.set({
               id: 'note',
               credential: { type: 'api_key', value: 'n' },
             }),
@@ -124,8 +125,8 @@ describe('require with wait', () => {
         toolDefinition({
           name: 'list_issues',
           description: 'List issues',
-        }).server(async () => {
-          seenTokens.push(await token({ wait: true }))
+        }).server<HarnessRunContext>(async (_args, ctx) => {
+          seenTokens.push(await token({ run: ctx.context.run, wait: true }))
           return ['#1']
         }),
       ],
@@ -396,19 +397,23 @@ describe('sign-ins in a shared thread', () => {
     ])
     const persistence = memoryPersistence()
     const credentials = memoryCredentialStore()
-    const host = createHarnessHost({ persistence, credentials })
+    const host = createHarnessHost({
+      persistence,
+      credentials,
+      access: {
+        identify: ({ request }) => ({
+          id: request.headers.get('x-user') ?? '',
+        }),
+        authorize: () => true,
+      },
+    })
     const harness = defineHarness({
       name: 'test/auth-wait-shared-http',
       adapter,
       plugins: () => [github(seen, true)],
       expose: { commands: ['connect:github'] },
     })
-    const handler = createHarnessHandler({
-      host,
-      harness,
-      canAccess: () => true,
-      authorize: (request) => ({ id: request.headers.get('x-user') ?? '' }),
-    })
+    const handler = createHarnessHandler({ host, harness })
     const control = async (user: string, input: object) =>
       (
         await handler(
@@ -480,8 +485,7 @@ describe('sign-ins in a shared thread', () => {
     const handler = createHarnessHandler({
       host,
       harness,
-      canAccess: () => true,
-      authorize: () => bob,
+      openAccess: { principal: bob },
       media: { secret: 'test-secret' },
     })
     const session = await host.open(harness, {
@@ -501,7 +505,7 @@ describe('sign-ins in a shared thread', () => {
     ).json()
     await expect(session.operation(receipt.operationId)).resolves.toBe('bob')
     expect(ran).toEqual(['bob'])
-    const commands = (await stores.log.read({ logId: 't' }))
+    const commands = (await stores.log.read({ logId: logIdOf({ logId: 't' }) }))
       .map((entry) => entry.record)
       .filter(
         (record) =>
@@ -534,11 +538,12 @@ describe('sign-ins in a shared thread', () => {
     await (await a.open()).send('List my issues.')
     await a.host.close()
     // A copy without `principal`, as an older version wrote it.
-    const stored = await stores.metadata.get('harness:interrupted', 't')
+    const key = logIdOf({ logId: 't' })
+    const stored = await stores.metadata.get('harness:interrupted', key)
     if (typeof stored !== 'object' || stored === null)
       throw new Error('No stored interrupted turn.')
     const { principal: _principal, ...old } = stored as Record<string, unknown>
-    await stores.metadata.set('harness:interrupted', 't', old)
+    await stores.metadata.set('harness:interrupted', key, old)
 
     const b = start([() => text('One issue.')])
     const session = await b.open()

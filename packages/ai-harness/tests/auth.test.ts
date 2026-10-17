@@ -8,6 +8,7 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
+  logIdOf,
   oauthConnector,
   scrubSecrets,
 } from '../src'
@@ -20,7 +21,7 @@ import {
   refreshCredential,
 } from '../src/oauth'
 import { mockAdapter, text, toolCall } from './helpers'
-import type { SessionEvent } from '../src'
+import type { HarnessRunContext, SessionEvent } from '../src'
 import type { OAuthConfig } from '../src/oauth'
 
 const oauth: OAuthConfig = {
@@ -199,8 +200,8 @@ describe('oauthConnector', () => {
         toolDefinition({
           name: 'list_issues',
           description: 'List issues',
-        }).server(async () => {
-          seenTokens.push(await token())
+        }).server<HarnessRunContext>(async (_args, ctx) => {
+          seenTokens.push(await token({ run: ctx.context.run }))
           return ['#1']
         }),
       ],
@@ -257,8 +258,9 @@ describe('oauthConnector', () => {
     expect(seenTokens).toEqual(['gh-token'])
     // The model never sees the token.
     const transcript = JSON.stringify(
-      await persistence.stores.messages.loadThread('t'),
+      await persistence.stores.messages.loadThread(logIdOf({ logId: 't' })),
     )
+    expect(transcript).toContain('list my issues again')
     expect(transcript).not.toContain('gh-token')
 
     await session.command({ name: 'disconnect:github' })

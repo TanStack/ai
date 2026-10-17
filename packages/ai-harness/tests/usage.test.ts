@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness, logIdOf } from '../src'
 import { addUsage, emptyUsage } from '../src/usage'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
@@ -10,6 +10,8 @@ import type { SessionEvent } from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
+/** The id of the log of `THREAD` in the store. */
+const LOG = logIdOf({ logId: THREAD })
 const alice = { id: 'alice' }
 const bob = { id: 'bob' }
 
@@ -233,7 +235,7 @@ describe('usage totals after a restart', () => {
     const before = session.usage()
     await host.close()
 
-    const records = (await log.read({ logId: THREAD })).filter(
+    const records = (await log.read({ logId: LOG })).filter(
       (entry) => entry.record.type === 'harness.usage',
     )
     expect(records).toHaveLength(2)

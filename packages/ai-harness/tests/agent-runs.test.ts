@@ -6,7 +6,7 @@ import {
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness, logIdOf } from '../src'
 import {
   after,
   gate,
@@ -21,6 +21,8 @@ import type { AnyTextAdapter } from '@tanstack/ai'
 import type { AnyHarness, HarnessSession, Operation } from '../src'
 
 const THREAD = 't1'
+/** The id of the log of `THREAD` in the store. */
+const LOG = logIdOf({ logId: THREAD })
 const alice = { id: 'alice' }
 
 /** Open `harness` for alice on a host without a log. */
@@ -108,8 +110,9 @@ describe('the thread of an agent run', () => {
     await session.agents.drafter.start()
 
     expect(thread).toMatch(/^t1:drafter:in-/)
+    // The chain thread is in the tenant of the session: the default one.
     const saved = JSON.stringify(
-      await persistence.stores.messages.loadThread(thread),
+      await persistence.stores.messages.loadThread(logIdOf({ logId: thread })),
     )
     expect(saved).toContain('Draft it.')
     expect(saved).toContain('Drafted.')
@@ -206,9 +209,9 @@ describe('follow-ups to an agent run', () => {
     await vi.waitFor(() => expect(model.calls).toHaveLength(1))
     const receipt = await run.send('Add a title.', { mode: 'followUp' })
     const followUp = session.operation(receipt.operationId ?? '')
-    const [last] = (await inner.read({ logId: THREAD })).slice(-1)
+    const [last] = (await inner.read({ logId: LOG })).slice(-1)
     await inner.append({
-      logId: THREAD,
+      logId: LOG,
       seq: (last?.seq ?? 0) + 1,
       epoch: UNOWNED_EPOCH,
       records: [{ type: 'app.from-another-host' }],

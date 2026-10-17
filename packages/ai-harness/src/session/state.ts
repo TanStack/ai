@@ -8,6 +8,7 @@ import { loadChildTranscript } from '@tanstack/ai-persistence'
 import { checkConfigValue } from '../config'
 import { isRecord } from '../utils'
 import { changedEntry } from '../session-entry'
+import { threadOf } from '../log'
 import { mediaIdOf, mediaOfMessage, mediaPart } from '../media-ref'
 import {
   BackgroundJobs,
@@ -89,19 +90,46 @@ export abstract class SessionState<
 
   /**
    * Write the index entry of this thread on open: a new entry the first
-   * time, else a new `updatedAt`. The owner is who opened the thread first,
-   * so an open by another user does not change it.
+   * time, in the tenant of this session, else a new `updatedAt`. The owner
+   * is who opened the thread first, so an open by another user does not
+   * change it. The owner is the first member, with the role `owner`.
    */
   protected async openEntry() {
     const now = Date.now()
-    await this.index.update(this.threadId, (entry) => ({
-      threadId: this.threadId,
-      createdAt: now,
-      ...entry,
-      harness: entry?.harness ?? this.harness.name,
-      updatedAt: now,
-      ...storedPrincipal(entry?.principal ?? this.principal),
-    }))
+    const { principal, tenantId, threadId } = this
+    const opened = await this.index.update(this.indexKey, (entry) => {
+      const current: SessionIndexEntry = entry ?? {
+        ...(tenantId !== undefined ? { tenantId } : {}),
+        threadId,
+        members: [],
+        createdAt: now,
+        updatedAt: now,
+      }
+      // A new entry belongs to its opener. Without access, an entry with no
+      // owner goes to the next opener with a principal too. With access, it
+      // stays without an owner: `authorize` decides who may open it.
+      const isClaim =
+        principal !== undefined &&
+        (entry === undefined ||
+          (current.ownerId === undefined && !this.hasAccess))
+      return {
+        ...current,
+        harness: current.harness ?? this.harness.name,
+        updatedAt: now,
+        ...(isClaim
+          ? {
+              ownerId: principal.id,
+              members: [{ userId: principal.id, role: 'owner' as const }],
+            }
+          : {}),
+      }
+    })
+    if (opened?.ownerId !== undefined) {
+      this.owner = {
+        id: opened.ownerId,
+        ...(tenantId !== undefined ? { tenantId } : {}),
+      }
+    }
   }
 
   snapshot(): SessionSnapshot {
@@ -248,7 +276,7 @@ export abstract class SessionState<
     const { metadata } = this.persistence.stores
     this.threadSettings = source.settings()
     if (Object.keys(this.threadSettings).length > 0) {
-      await metadata?.set(SETTINGS, this.threadId, this.threadSettings)
+      await metadata?.set(SETTINGS, this.storeThreadId, this.threadSettings)
     }
     for (const [key, value] of source.configValues) {
       if (this.sessionPlugins?.config.has(key))
@@ -257,7 +285,7 @@ export abstract class SessionState<
     if (this.configValues.size > 0) {
       await metadata?.set(
         'harness:config',
-        this.threadId,
+        this.storeThreadId,
         Object.fromEntries(this.configValues),
       )
     }
@@ -286,18 +314,28 @@ export abstract class SessionState<
     return result
   }
 
-  /** Change a session setting. It applies at the next turn. */
+  /**
+   * Change a session setting. It applies at the next turn. `principal` is
+   * who changes it. Default: the principal that opened the session. The log
+   * keeps it.
+   */
   async setConfig({
     key,
     value,
     inputId = createInputId(),
+    principal,
   }: {
     key: string
     value: unknown
     /** @internal The id of a forwarded input, so a replay is a duplicate. */
     inputId?: string
+    principal?: Principal
   }): Promise<Receipt> {
-    const admission = await this.accept(inputId, { op: 'config', key, value })
+    const admission = await this.accept(
+      inputId,
+      { op: 'config', key, value },
+      principal,
+    )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const entry = this.sessionPlugins?.config.get(key)
     if (!entry) return this.reject(inputId, 'unknown_config')
@@ -311,7 +349,7 @@ export abstract class SessionState<
     this.configValues.set(key, checked)
     await this.persistence.stores.metadata?.set(
       'harness:config',
-      this.threadId,
+      this.storeThreadId,
       Object.fromEntries(this.configValues),
     )
     await this.applied(inputId, 'session')
@@ -364,7 +402,11 @@ export abstract class SessionState<
       this.reject(inputId, reason)
       return this.keep({ inputId, status: 'rejected', reason })
     }
-    await this.persistence.stores.metadata?.set(SETTINGS, this.threadId, next)
+    await this.persistence.stores.metadata?.set(
+      SETTINGS,
+      this.storeThreadId,
+      next,
+    )
     const movedFrom = this.threadSettings.cwd
     this.threadSettings = next
     // Tell the model about a new folder, so it stops using the old paths.
@@ -420,7 +462,7 @@ export abstract class SessionState<
     SessionIndexEntry<SessionMetadataOf<THarness>> | undefined
   > {
     // The schema checked the metadata on each write.
-    return (await this.index.get(this.threadId)) as
+    return (await this.index.get(this.indexKey)) as
       | SessionIndexEntry<SessionMetadataOf<THarness>>
       | undefined
   }
@@ -435,7 +477,7 @@ export abstract class SessionState<
   async updateEntry(
     update: SessionEntryUpdate<SessionMetadataOf<THarness>>,
   ): Promise<SessionIndexEntry<SessionMetadataOf<THarness>> | undefined> {
-    return (await this.index.update(this.threadId, (entry) =>
+    return (await this.index.update(this.indexKey, (entry) =>
       changedEntry(
         entry,
         update as SessionEntryUpdate<any, SessionEntryChange<any>>,
@@ -573,7 +615,7 @@ export abstract class SessionState<
     } else {
       await this.persistence.stores.metadata?.set(
         'harness:revert',
-        this.threadId,
+        this.storeThreadId,
         revert ?? null,
       )
     }
@@ -592,13 +634,13 @@ export abstract class SessionState<
     let after = 0
     for (;;) {
       const entries = await this.log.store.read({
-        logId: this.logId,
+        logId: this.storeLogId,
         after,
         limit: 256,
       })
       for (const { seq, record } of entries) {
         after = seq
-        const isOwn = (record.thread ?? this.logId) === this.threadId
+        const isOwn = threadOf(record, this.logId) === this.threadId
         if (isOwn && record.type === type) found.push(record)
       }
       // A store can return fewer than `limit` before the end: stop only at
@@ -621,16 +663,21 @@ export abstract class SessionState<
     } satisfies SessionDescription
   }
 
-  /** Answer a question from `ctx.session.ask`. */
+  /**
+   * Answer a question from `ctx.session.ask`. `principal` is who answers.
+   * Default: the principal that opened the session. The log keeps it.
+   */
   async answer({
     questionId,
     value,
     inputId = createInputId(),
+    principal,
   }: {
     questionId: string
     value: unknown
     /** @internal The id of a forwarded input, so a replay is a duplicate. */
     inputId?: string
+    principal?: Principal
   }): Promise<Receipt> {
     // A secret (a key or a password) stays out of the inbox and the log. A
     // restart does not replay an answer, so they never need it. A host that
@@ -638,11 +685,15 @@ export abstract class SessionState<
     // entry of the answer after it applies it.
     const isSecret = this.questions.get(questionId)?.secret === true
     // A host that does not have the question passes the value on to its owner.
-    const admission = await this.accept(inputId, {
-      op: 'answer',
-      questionId,
-      value: isSecret ? '[secret]' : value,
-    })
+    const admission = await this.accept(
+      inputId,
+      {
+        op: 'answer',
+        questionId,
+        value: isSecret ? '[secret]' : value,
+      },
+      principal,
+    )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const question = this.questions.get(questionId)
     if (!question) return this.reject(inputId, 'unknown_question')
@@ -683,7 +734,7 @@ export abstract class SessionState<
   protected async loadConfig(): Promise<void> {
     const stored = await this.persistence.stores.metadata?.get(
       'harness:config',
-      this.threadId,
+      this.storeThreadId,
     )
     if (typeof stored !== 'object' || stored === null) return
     for (const [key, value] of Object.entries(stored)) {
@@ -701,7 +752,7 @@ export abstract class SessionState<
   protected async loadSettings(): Promise<void> {
     const stored = await this.persistence.stores.metadata?.get(
       SETTINGS,
-      this.threadId,
+      this.storeThreadId,
     )
     if (!isRecord(stored)) return
     const names = this.settingNames()
@@ -723,7 +774,7 @@ export abstract class SessionState<
   protected async loadUsage(): Promise<void> {
     const stored = await this.persistence.stores.metadata?.get(
       USAGE,
-      this.threadId,
+      this.storeThreadId,
     )
     if (isSessionUsage(stored)) this.usageTotals = stored
   }
@@ -732,7 +783,7 @@ export abstract class SessionState<
   protected async loadInterrupted(): Promise<void> {
     const stored = await this.persistence.stores.metadata?.get(
       INTERRUPTED,
-      this.threadId,
+      this.storeThreadId,
     )
     if (isInterruptedTurn(stored)) this.interrupted = stored
     await this.refreshInterrupted()
@@ -822,14 +873,14 @@ export abstract class SessionState<
       let after = 0
       for (;;) {
         const entries = await this.log.store.read({
-          logId: this.logId,
+          logId: this.storeLogId,
           after,
           limit: 256,
         })
         for (const { seq, record } of entries) {
           after = seq
           if (
-            (record.thread ?? this.logId) !== this.threadId ||
+            threadOf(record, this.logId) !== this.threadId ||
             record.type !== 'harness.event' ||
             !isRecord(record.event)
           )
@@ -920,20 +971,20 @@ export abstract class SessionState<
     if (next)
       await this.persistence.stores.metadata?.set(
         INTERRUPTED,
-        this.threadId,
+        this.storeThreadId,
         next,
       )
     else if (previous !== undefined) {
       try {
         await this.persistence.stores.metadata?.delete(
           INTERRUPTED,
-          this.threadId,
+          this.storeThreadId,
         )
       } catch (error) {
         if (!consumed || observed !== undefined) throw error
         await this.persistence.stores.metadata?.set(
           INTERRUPTED,
-          this.threadId,
+          this.storeThreadId,
           null,
         )
       }
@@ -998,7 +1049,7 @@ export abstract class SessionState<
     stopped: InterruptedTurn,
   ): Promise<void> {
     await this.persistence.stores.metadata
-      ?.set(INTERRUPTED, this.threadId, stopped)
+      ?.set(INTERRUPTED, this.storeThreadId, stopped)
       .catch((error: unknown) =>
         this.warn(operation, 'harness:interrupts', error),
       )

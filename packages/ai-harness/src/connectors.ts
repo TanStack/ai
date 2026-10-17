@@ -8,6 +8,7 @@ import {
 } from './oauth'
 import type { AnyTool } from '@tanstack/ai'
 import type { OAuthConfig } from './oauth'
+import type { RunContext } from './types'
 
 export interface OAuthConnectorOptions {
   /** A short id, for example `'github'`. Commands are `connect:<id>` and `disconnect:<id>`. */
@@ -26,13 +27,14 @@ export interface OAuthConnectorOptions {
    */
   login: 'loopback' | 'device'
   /**
-   * The tools of this service. Call `token()` inside a tool: it returns a
-   * fresh access token, or fails with `auth_required` before sign-in. With
-   * `token({ wait: true })`, the turn waits for the sign-in and the tool
-   * runs again after it (see `CredentialsAccess.require`).
+   * The tools of this service. Call `token({ run: ctx.context.run })` inside
+   * a tool (typed `.server<HarnessRunContext>`): it returns a fresh access
+   * token of the user of that call, or fails with `auth_required` before
+   * that user signs in. With `wait: true`, the turn waits for the sign-in and
+   * the tool runs again after it (see `CredentialsAccess.require`).
    */
   tools?: (
-    token: (options?: { wait?: boolean }) => Promise<string>,
+    token: (options: { run: RunContext; wait?: boolean }) => Promise<string>,
   ) => ReadonlyArray<AnyTool>
   /** Test hook for the token endpoint. */
   fetch?: typeof fetch
@@ -50,7 +52,11 @@ export interface OAuthConnectorOptions {
  *   label: 'GitHub',
  *   login: 'device',
  *   oauth: { authorizationUrl, tokenUrl, deviceUrl, clientId, scopes: ['repo'] },
- *   tools: (token) => [listIssues(token)],
+ *   tools: (token) => [
+ *     listIssues.server<HarnessRunContext>(async (_args, ctx) =>
+ *       fetchIssues(await token({ run: ctx.context.run })),
+ *     ),
+ *   ],
  * })
  * ```
  */
@@ -59,14 +65,20 @@ export function oauthConnector(options: OAuthConnectorOptions) {
   return definePlugin({
     name: `connector/${id}`,
     setup: (ctx) => {
-      const token = async (tokenOptions?: {
+      // The token of the user of the run that calls, never of another run.
+      const token = async ({
+        run,
+        wait,
+      }: {
+        run: RunContext
         wait?: boolean
-      }): Promise<string> => {
-        let credential = await ctx.credentials.require(id, tokenOptions)
+      }) => {
+        const { credentials } = run
+        let credential = await credentials.require(id, { wait })
         if (credential.type === 'api_key') return credential.value
         if (isExpired(credential) && credential.refreshToken) {
           credential = await refreshCredential(oauth, credential, options.fetch)
-          await ctx.credentials.set({ id, credential })
+          await credentials.set({ id, credential })
         }
         if (credential.type === 'api_key') return credential.value
         return credential.accessToken

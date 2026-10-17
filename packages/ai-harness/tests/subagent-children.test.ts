@@ -83,11 +83,12 @@ describe('subagent children of a harness session', () => {
     await session.send('Notes, please')
 
     const threadId = `subagent:${childIdIn(lead.calls[1], 'call-1')}`
-    expect(await host.sessions.get(threadId)).toEqual({
+    expect(await host.sessions.get({ threadId })).toEqual({
       threadId,
       parentThreadId: 't',
       parentToolCallId: 'call-1',
       harness: 'test/subagent-children',
+      members: [],
       createdAt: expect.any(Number),
       updatedAt: expect.any(Number),
     })
@@ -143,11 +144,12 @@ describe('subagent children of a harness session', () => {
     expect(messageTexts(child.calls[0]).at(-1)).toBe('Look around')
     expect(messageTexts(lead.calls[2]).at(-1)).toBe(WAKE)
     const threadId = `subagent:${childIdIn(lead.calls[1], 'call-1')}`
-    expect(await host.sessions.get(threadId)).toEqual({
+    expect(await host.sessions.get({ threadId })).toEqual({
       threadId,
       parentThreadId: 't',
       parentToolCallId: 'call-1',
       harness: 'test/subagent-children',
+      members: [],
       createdAt: expect.any(Number),
       updatedAt: expect.any(Number),
     })

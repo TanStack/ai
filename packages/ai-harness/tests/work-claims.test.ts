@@ -6,7 +6,7 @@ import {
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, definePlugin } from '../src'
+import { createHarnessHost, defineHarness, definePlugin, logIdOf } from '../src'
 import {
   after,
   gate,
@@ -20,6 +20,8 @@ import type { WorkClaimStore } from '@tanstack/ai-persistence'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
+/** The id of the log of `THREAD` in the store, and its key in the other stores. */
+const LOG = logIdOf({ logId: THREAD })
 const NAME = 'test/work-claims'
 const later = () => Date.now() + 60 * 60_000
 
@@ -43,7 +45,7 @@ function toolCallAfter(
 }
 
 /** Can another host claim the thread now? It takes the thread when it can. */
-const otherHostCanClaim = (claims: WorkClaimStore, threadId = THREAD) =>
+const otherHostCanClaim = (claims: WorkClaimStore, threadId = LOG) =>
   claims.claim({
     threadId,
     harness: NAME,
@@ -145,7 +147,7 @@ describe('work claims while a session runs', () => {
   it('refuses an input while another host claim is live, without an inbox', async () => {
     const persistence = durablePersistence()
     await persistence.stores.workClaims.claim({
-      threadId: THREAD,
+      threadId: LOG,
       harness: NAME,
       ownerId: 'other-host',
       until: Date.now() + 60_000,
@@ -169,7 +171,7 @@ describe('work claims while a session runs', () => {
     const { inbox } = memoryPersistence().stores
     const claims = persistence.stores.workClaims
     await claims.claim({
-      threadId: THREAD,
+      threadId: LOG,
       harness: NAME,
       ownerId: 'other-host',
       until: Date.now() + 300,
@@ -234,11 +236,7 @@ describe('work claims while a session runs', () => {
 })
 
 /** An expired claim: the host that held the thread stopped. */
-const expireClaim = (
-  claims: WorkClaimStore,
-  threadId = THREAD,
-  harness = NAME,
-) =>
+const expireClaim = (claims: WorkClaimStore, threadId = LOG, harness = NAME) =>
   claims.claim({
     threadId,
     harness,
@@ -251,7 +249,7 @@ async function seedStoppedTurn(
   persistence: ReturnType<typeof durablePersistence>,
 ) {
   await persistence.stores.log.append({
-    logId: THREAD,
+    logId: LOG,
     seq: 1,
     epoch: UNOWNED_EPOCH,
     records: [
@@ -276,7 +274,7 @@ async function seedStoppedTurn(
   })
   await persistence.stores.runs.createOrResume({
     runId: 'op-stopped',
-    threadId: THREAD,
+    threadId: LOG,
     startedAt: Date.now() - 60_000,
   })
   await persistence.stores.runs.update('op-stopped', {
@@ -292,7 +290,7 @@ const settledRecord = async (
   persistence: ReturnType<typeof durablePersistence>,
   inputId: string,
 ) =>
-  (await persistence.stores.log.read({ logId: THREAD }))
+  (await persistence.stores.log.read({ logId: LOG }))
     .map((entry) => entry.record)
     .find(
       (record) =>
@@ -304,7 +302,7 @@ async function seedStoppedAgent(
   persistence: ReturnType<typeof durablePersistence>,
 ) {
   await persistence.stores.log.append({
-    logId: THREAD,
+    logId: LOG,
     seq: 1,
     epoch: UNOWNED_EPOCH,
     records: [
@@ -324,7 +322,7 @@ async function seedStoppedAgent(
   })
   await persistence.stores.runs.createOrResume({
     runId: 'op-agent',
-    threadId: THREAD,
+    threadId: LOG,
     startedAt: Date.now() - 60_000,
     kind: 'agent',
     agent: 'waiter',
@@ -375,7 +373,7 @@ describe('host.resumePending', () => {
   it('runs an input that was stored just before the host stopped', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
-      logId: THREAD,
+      logId: LOG,
       seq: 1,
       epoch: UNOWNED_EPOCH,
       records: [
@@ -407,7 +405,7 @@ describe('host.resumePending', () => {
     const persistence = memoryPersistence()
     await persistence.stores.inbox.append({
       inputId: 'in-1',
-      threadId: THREAD,
+      threadId: LOG,
       input: { op: 'prompt', message: 'go', busy: 'queue' },
       createdAt: Date.now() - 1_000,
     })
@@ -423,7 +421,7 @@ describe('host.resumePending', () => {
       expect(
         (
           await persistence.stores.inbox.get({
-            threadId: THREAD,
+            threadId: LOG,
             inputId: 'in-1',
           })
         )?.status,
@@ -473,7 +471,7 @@ describe('host.resumePending', () => {
   it('continues a resumable background agent whose host stopped', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
-      logId: THREAD,
+      logId: LOG,
       seq: 1,
       epoch: UNOWNED_EPOCH,
       records: [
@@ -493,7 +491,7 @@ describe('host.resumePending', () => {
     })
     await persistence.stores.runs.createOrResume({
       runId: 'op-agent',
-      threadId: THREAD,
+      threadId: LOG,
       startedAt: Date.now() - 60_000,
       kind: 'agent',
       agent: 'worker',
@@ -601,11 +599,8 @@ describe('host.resumePending', () => {
 
   it('skips a thread of a harness it was not given, and leaves it listed', async () => {
     const persistence = durablePersistence()
-    await expireClaim(
-      persistence.stores.workClaims,
-      'other-thread',
-      'test/other',
-    )
+    const other = logIdOf({ logId: 'other-thread' })
+    await expireClaim(persistence.stores.workClaims, other, 'test/other')
     const { adapter } = mockAdapter([])
     const host = createHarnessHost({ persistence })
 
@@ -616,7 +611,7 @@ describe('host.resumePending', () => {
     ).toEqual([])
     expect(
       await persistence.stores.workClaims.listExpired({ now: Date.now() }),
-    ).toEqual([{ threadId: 'other-thread', harness: 'test/other' }])
+    ).toEqual([{ threadId: other, harness: 'test/other' }])
     await host.close()
   })
 
@@ -626,7 +621,7 @@ describe('host.resumePending', () => {
     // Older than this thread's claim, so the store lists them first.
     for (let index = 0; index < 3; index += 1) {
       await persistence.stores.workClaims.claim({
-        threadId: `other-${index}`,
+        threadId: logIdOf({ logId: `other-${index}` }),
         harness: 'test/other',
         ownerId: 'host-gone',
         until: Date.now() - 60_000,
@@ -692,7 +687,7 @@ describe('host.resumePending', () => {
     const persistence = durablePersistence()
     // The failing thread has the older claim, so it comes first.
     await persistence.stores.workClaims.claim({
-      threadId: 't-bad',
+      threadId: logIdOf({ logId: 't-bad' }),
       harness: NAME,
       ownerId: 'host-gone',
       until: Date.now() - 3_000,
@@ -739,7 +734,7 @@ describe('host.resumePending', () => {
     // Three threads whose host stopped, the oldest claim first.
     for (const [index, threadId] of ['t-a', 't-b', 't-c'].entries()) {
       await claims.claim({
-        threadId,
+        threadId: logIdOf({ logId: threadId }),
         harness: NAME,
         ownerId: 'host-gone',
         until: now - 3_000 + index,

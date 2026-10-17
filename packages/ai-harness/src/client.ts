@@ -522,7 +522,9 @@ export function createHarnessClient<THarness extends AnyHarness>(
         }
       } catch (error) {
         if (signal?.aborted) return
-        if (error instanceof Error && /\((401|403|404)\)/.test(error.message))
+        // A 404 means that the thread has no entry yet: a new chat, before
+        // its first message. Try again, the same as after a network error.
+        if (error instanceof Error && /\((401|403)\)/.test(error.message))
           throw error
       }
       if (signal?.aborted) return

@@ -27,7 +27,7 @@ export type {
   ToolStep,
 } from './durable-tool'
 
-export { LogVersionError, logMessageStore } from './log'
+export { LogVersionError, logIdOf, logMessageStore } from './log'
 export type { ProjectOptions, ProjectRecord, ReduceOptions } from './log'
 export type { LeaseOptions } from './resume'
 export type {
@@ -100,6 +100,7 @@ export type {
   HarnessHostOptions,
   HarnessPersistence,
   HostEvent,
+  HostRevokedEvent,
   HostSessionDeletedEvent,
   HostSessionEvent,
   HostSessions,
@@ -107,11 +108,23 @@ export type {
   OpenSessionOptions,
   ResumePendingOptions,
 } from './host'
+export { AccessDeniedError, membersOnly, membersOnlyPolicyOf } from './access'
+export type {
+  AccessAction,
+  AccessRun,
+  AccessSession,
+  Authorize,
+  AuthorizeInput,
+  HarnessAccess,
+  MembersOnlyOptions,
+  MembersOnlyPolicy,
+} from './access'
 export type {
   SessionIndexEntry,
   SessionIndexListOptions,
   SessionIndexPage,
   SessionIndexStore,
+  SessionMember,
 } from '@tanstack/ai-persistence'
 
 export type {
@@ -152,6 +165,7 @@ export type {
   Cursor,
   ForkPoint,
   HarnessInput,
+  HarnessRunContext,
   InputSettlement,
   LiveEvent,
   MediaKind,
@@ -163,6 +177,7 @@ export type {
   PendingQuestion,
   Principal,
   Receipt,
+  RunContext,
   SendOptions,
   SessionEvent,
   StreamChunkOf,

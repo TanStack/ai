@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
-import { defineAgent, toolDefinition } from '@tanstack/ai'
+import { createHarnessHost, defineHarness, logIdOf } from '../src'
+import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import { CUT_OFF_NOTE, INTERRUPTED_TOOL_RESULT } from '../src/resume'
 import {
@@ -15,7 +15,6 @@ import {
   wrapLogStore,
 } from './helpers'
 import type { AnyTool, StreamChunk } from '@tanstack/ai'
-import { EventType } from '@tanstack/ai'
 import type {
   LeaseStore,
   TurnLease,
@@ -25,6 +24,8 @@ import type { AnyAgent, HarnessConfig } from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
+/** The id of the log of `THREAD` in the store. */
+const LOG = logIdOf({ logId: THREAD })
 
 /** A background agent that runs until it is cancelled. */
 const waiter = defineAgent({
@@ -340,7 +341,7 @@ describe('a durable host with a lease store and no run store', () => {
     await mailStarted.opened
     await vi.waitFor(async () =>
       expect(
-        (await persistence.stores.log.read({ logId: THREAD })).filter(
+        (await persistence.stores.log.read({ logId: LOG })).filter(
           (entry) => entry.record.type === 'harness.tool.result',
         ),
       ).toHaveLength(1),
@@ -456,7 +457,7 @@ describe('close({ recoverable: true })', () => {
   }
 
   const logRecords = async (persistence: ReturnType<typeof durableStores>) =>
-    (await persistence.stores.log.read({ logId: THREAD })).map(
+    (await persistence.stores.log.read({ logId: LOG })).map(
       (entry) => entry.record,
     )
 
@@ -638,7 +639,7 @@ describe('durability.continueCutOff', () => {
     )
     await vi.waitFor(async () =>
       expect(
-        JSON.stringify(await persistence.stores.log.read({ logId: THREAD })),
+        JSON.stringify(await persistence.stores.log.read({ logId: LOG })),
       ).toContain(streamed),
     )
     leases.expire()
@@ -681,7 +682,7 @@ describe('durability.continueCutOff', () => {
         ['assistant', '42.'],
       ])
       // One append, so the transcript never ends with the cut answer.
-      const added = (await persistence.stores.log.read({ logId: THREAD })).find(
+      const added = (await persistence.stores.log.read({ logId: LOG })).find(
         (entry) =>
           entry.record.type === 'harness.transcript' &&
           JSON.stringify(entry.record).includes(note),
@@ -715,7 +716,7 @@ describe('durability.continueCutOff', () => {
       ['user', two],
     ]
     expect(roles(next.calls[0].messages)).toEqual([['user', 'go'], ...added])
-    const record = (await persistence.stores.log.read({ logId: THREAD })).find(
+    const record = (await persistence.stores.log.read({ logId: LOG })).find(
       (entry) =>
         entry.record.type === 'harness.transcript' &&
         JSON.stringify(entry.record).includes(one),

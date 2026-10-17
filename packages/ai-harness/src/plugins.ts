@@ -22,7 +22,7 @@ import type {
   AgentResultOf,
   AnyAgent,
 } from './agents'
-import type { AgentRun, Operation, TurnInfo } from './types'
+import type { AgentRun, Operation, Principal, TurnInfo } from './types'
 import type { CredentialsAccess } from './auth'
 import type { AnyCommand, PluginSessionApi } from './commands'
 import type { ConfigOption } from './config'
@@ -39,19 +39,23 @@ export type PluginLifetime = 'session' | 'turn'
 
 /**
  * A prompt a plugin contributes. `id` must be unique in the session. A
- * function `text` is called for each turn, so it can show current state.
+ * function `text` is called for each turn with that turn, so it can show
+ * current state, for example the state of the turn's user (`turn.run`).
  */
 export interface PluginPrompt {
   id: string
-  text: string | (() => string)
+  text: string | ((turn: TurnInfo) => string)
 }
 
 /** What a plugin's `setup` returns. Every field is optional. */
 export interface PluginContributions {
   /** Tools for the main model. */
   tools?: ReadonlyArray<AnyTool>
-  /** System prompt text for every chat turn. A function runs for each turn. */
-  prompts?: ReadonlyArray<string | (() => string) | PluginPrompt>
+  /**
+   * System prompt text for every chat turn. A function runs for each turn,
+   * with that turn.
+   */
+  prompts?: ReadonlyArray<string | ((turn: TurnInfo) => string) | PluginPrompt>
   /** Chat middleware, the same type as `chat({ middleware })`. */
   middleware?: ReadonlyArray<AnyChatMiddleware>
   /**
@@ -88,10 +92,13 @@ export interface PluginContributions {
   ) => AnyTextAdapter | KeyedAdapter<AnyTextAdapter> | undefined
   /**
    * Tools found at run time, for example the tools of an MCP server the user
-   * signed in to after the session opened. Called before each chat turn. A
-   * name that another tool already uses is skipped.
+   * signed in to after the session opened. Called before each chat turn,
+   * with that turn: `turn.run` has the turn's user and that user's
+   * credentials. A name that another tool already uses is skipped.
    */
-  discoverTools?: () => ReadonlyArray<AnyTool> | Promise<ReadonlyArray<AnyTool>>
+  discoverTools?: (
+    turn: TurnInfo,
+  ) => ReadonlyArray<AnyTool> | Promise<ReadonlyArray<AnyTool>>
   /**
    * Change the tool list of a turn: every tool the model gets, after
    * `discoverTools`. Return the new list. Runs before prompts resolve, so a
@@ -112,7 +119,13 @@ export interface PluginState<T> {
   update: (change: (current: T) => T) => Promise<T>
 }
 
-/** Run agents from a plugin: in the foreground, in the background, or as a group. */
+/**
+ * Run agents from a plugin: in the foreground, in the background, or as a
+ * group. The runs are for the user of a turn plugin's turn. In a session
+ * plugin, they are for the principal that opened the session: to start an
+ * agent for the user of a tool call, pass `principal: ctx.context.run.principal`
+ * to `start`.
+ */
 export interface PluginAgentActions {
   run: {
     <TAgent extends AnyAgent>(
@@ -126,13 +139,13 @@ export interface PluginAgentActions {
       agent: TAgent,
       input?: AgentInputOf<TAgent>,
       /** See `AgentStartOptions`. */
-      options?: { wake?: boolean; resume?: boolean },
+      options?: { wake?: boolean; resume?: boolean; principal?: Principal },
     ): AgentRun<AgentResultOf<TAgent>>
     (
       name: string,
       input?: unknown,
       /** See `AgentStartOptions`. */
-      options?: { wake?: boolean; resume?: boolean },
+      options?: { wake?: boolean; resume?: boolean; principal?: Principal },
     ): AgentRun<unknown>
   }
   /**
@@ -269,28 +282,33 @@ export interface PluginSetupContext<TMetadata = Record<string, unknown>> {
   /** Session settings. A change applies at the next turn. */
   config: { get: (key: string) => unknown }
   /**
-   * Credentials of the running turn's sender. Outside a turn: of the
-   * principal that opened the session. They are read at each call, so code
-   * that runs after its turn ends (a tool of a background agent) gets the
-   * sender of the turn that runs at that time. There, use the keys of the
-   * agent run (`ctx.keys` in the agent) and, in a command, the `credentials`
-   * of its `run` context.
+   * The credentials of the user of this plugin's turn, for a plugin with
+   * `lifetime: 'turn'`.
+   *
+   * A session plugin has no user: each call throws. Read the credentials of
+   * the run that calls instead: `ctx.context.run.credentials` in a tool or a
+   * middleware hook, and `run.credentials` (or `credentials`) of the command
+   * context in a command.
    */
   credentials: CredentialsAccess
   /**
-   * Model provider keys of the same principal as `credentials`: the key saved with
-   * `/connect <provider>`, else the provider's env var. Build a
-   * `keyedAdapter(...)` with `await ctx.keys.adapter(adapter)` just before
-   * the call. A missing key throws `AuthRequiredError`.
+   * The model provider keys of the same user as `credentials`: the key saved
+   * with `/connect <provider>`, else the provider's env var. Build a
+   * `keyedAdapter(...)` with `await keys.adapter(adapter)` just before the
+   * call. A missing key throws `AuthRequiredError`.
+   *
+   * A session plugin has no user: each call throws. Read
+   * `ctx.context.run.keys` in a tool or a middleware hook, and `run.keys` of
+   * the command context in a command.
    */
   keys: ProviderKeys
   session: PluginSessionApi<TMetadata>
   /** Add and remove this plugin's commands while the session runs. */
   commands: PluginCommands
   /**
-   * The turn this plugin is set up for: its input, context, and sender. Set
-   * only for a plugin with `lifetime: 'turn'`. A session plugin has no turn
-   * at setup.
+   * The turn this plugin is set up for: its input, context, sender, and run.
+   * Set only for a plugin with `lifetime: 'turn'`. A session plugin has no
+   * turn at setup.
    */
   turn?: TurnInfo
 }
@@ -421,14 +439,14 @@ interface Owned<T> {
 export interface MountedPlugins {
   tools: Array<AnyTool>
   /** Strings, or functions to call for each turn. */
-  prompts: Array<string | (() => string)>
+  prompts: Array<string | ((turn: TurnInfo) => string)>
   commands: Map<string, { command: AnyCommand; owner: string }>
   config: Map<string, { option: ConfigOption; owner: string }>
   /** Contributions to extension points, by point name. */
   extensions: Map<string, Array<{ value: unknown; owner: string }>>
   adapters: Array<NonNullable<PluginContributions['adapter']>>
   discoverers: Array<{
-    discover: () => ReadonlyArray<AnyTool> | Promise<ReadonlyArray<AnyTool>>
+    discover: NonNullable<PluginContributions['discoverTools']>
     owner: string
   }>
   preparers: Array<{
@@ -495,6 +513,29 @@ export interface MountEnvironment {
 
 const unavailable = (what: string) => () => {
   throw new Error(`${what} is only available inside a harness session.`)
+}
+
+/** Each call of a service of a session plugin, which has no user, fails. */
+const noUser = (what: 'credentials' | 'keys') => async () => {
+  throw new Error(
+    `ctx.${what} of a session plugin has no user. In a tool or a middleware hook, read ctx.context.run.${what}. In a command, use the ${what} of its run context.`,
+  )
+}
+
+/** @internal `ctx.credentials` of a session plugin. Each call fails. */
+export const SESSION_PLUGIN_CREDENTIALS: CredentialsAccess = {
+  get: noUser('credentials'),
+  require: noUser('credentials'),
+  set: noUser('credentials'),
+  delete: noUser('credentials'),
+  list: noUser('credentials'),
+}
+
+/** @internal `ctx.keys` of a session plugin. Each call fails. */
+export const SESSION_PLUGIN_KEYS: ProviderKeys = {
+  get: noUser('keys'),
+  require: noUser('keys'),
+  adapter: noUser('keys'),
 }
 
 const NO_SESSION: PluginSessionApi = {
@@ -658,7 +699,7 @@ function checkCapabilityOrder(
 }
 
 function promptOf(
-  prompt: string | (() => string) | PluginPrompt,
+  prompt: string | ((turn: TurnInfo) => string) | PluginPrompt,
   owner: string,
   index: number,
 ): PluginPrompt {

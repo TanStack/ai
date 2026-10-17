@@ -199,10 +199,10 @@ async function sessionTitle(
   )
   const turn = await session.send('[first-party-title] plan a trip to Rome')
   const deadline = Date.now() + 5_000
-  let entry = await host.sessions.get('e2e-title')
+  let entry = await host.sessions.get({ threadId: 'e2e-title' })
   while (!entry?.title && failures.length === 0 && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 50))
-    entry = await host.sessions.get('e2e-title')
+    entry = await host.sessions.get({ threadId: 'e2e-title' })
   }
   return { text: turn.text, title: entry?.title, failures }
 }

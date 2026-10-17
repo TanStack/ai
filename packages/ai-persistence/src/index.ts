@@ -53,9 +53,11 @@ export type {
   TurnLeaseKey,
   WorkClaimStore,
   SessionIndexEntry,
+  SessionIndexKey,
   SessionIndexListOptions,
   SessionIndexPage,
   SessionIndexStore,
+  SessionMember,
   // Named product shapes (prefer these over a sparse bag)
   ChatTranscriptStores,
   ChatPersistenceStores,

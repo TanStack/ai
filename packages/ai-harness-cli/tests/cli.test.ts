@@ -9,7 +9,9 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
+  membersOnly,
 } from '@tanstack/ai-harness'
+import { createMCPClient } from '@tanstack/ai-mcp'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { EXIT, parseCliArgs, runCli } from '../src'
 import { serve } from '../src/serve'
@@ -130,6 +132,22 @@ function capture() {
       return text
     },
   }
+}
+
+const olga = { id: 'olga' }
+const cid = { id: 'cid' }
+const users = new Map([olga, cid].map((user) => [user.id, user]))
+
+/** A membersOnly() host whose users come from the `x-user` header. */
+function accessHost() {
+  return createHarnessHost({
+    persistence: memoryPersistence(),
+    access: {
+      identify: ({ request }) =>
+        users.get(request.headers.get('x-user') ?? '') ?? null,
+      authorize: membersOnly(),
+    },
+  })
 }
 
 /** A stdin that reads `lines`, as a terminal or as a pipe. */
@@ -521,6 +539,82 @@ describe('a host and a principal', () => {
       await host.close()
     }
   })
+
+  it('serves /mcp as the principal', async () => {
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const server = await serve({
+      host,
+      harness: defineHarness({
+        name: 'test/serve-mcp',
+        adapter: scripted([textTurn('ok')]).adapter,
+      }),
+      port: 0,
+      hostname: '127.0.0.1',
+      token: 'secret',
+      principal: { id: 'ada' },
+    })
+    const client = await createMCPClient({
+      transport: {
+        type: 'http',
+        url: `${server.url}/mcp`,
+        headers: { authorization: 'Bearer secret' },
+      },
+    })
+    try {
+      await client.callTool('chat', { threadId: 't-mcp', message: 'hi' })
+
+      expect(await host.sessions.get({ threadId: 't-mcp' })).toMatchObject({
+        ownerId: 'ada',
+      })
+    } finally {
+      await client.close()
+      await server.close()
+      await host.close()
+    }
+  })
+
+  it('passes the principal to --acp, so a host with access starts', async () => {
+    const host = accessHost()
+    // The agent reads process.stdin. Ending it ends the agent.
+    const ends: Array<() => void> = []
+    const on = vi
+      .spyOn(process.stdin, 'on')
+      .mockImplementation((event: string | symbol, listener: () => void) => {
+        if (event === 'end') ends.push(listener)
+        return process.stdin
+      })
+    const stderr = capture()
+    try {
+      const running = runCli(
+        defineHarness({ name: 'test/acp', adapter: scripted([]).adapter }),
+        { argv: ['--acp'], stdout: capture(), stderr, host, principal: olga },
+      )
+      await vi.waitFor(() => expect(ends).toHaveLength(1))
+      for (const end of ends) end()
+
+      expect(await running).toBe(EXIT.ok)
+      expect(stderr.text).toBe('')
+    } finally {
+      on.mockRestore()
+      await host.close()
+    }
+  })
+
+  it('refuses --mcp on a host with access, as stdio has no login', async () => {
+    const host = accessHost()
+    const stderr = capture()
+
+    const code = await runCli(
+      defineHarness({ name: 'test/mcp', adapter: scripted([]).adapter }),
+      { argv: ['--mcp'], stdout: capture(), stderr, host, principal: olga },
+    )
+
+    expect(code).toBe(EXIT.failed)
+    expect(stderr.text).toBe(
+      '--mcp serves over stdio, which has no login, so it cannot use a host with access. Give runCli a host without access, and the local user as principal.\n',
+    )
+    await host.close()
+  })
 })
 
 describe('serve mode', () => {
@@ -558,6 +652,51 @@ describe('serve mode', () => {
         }),
       })
       expect((await receipt.json()).status).toBe('accepted')
+    } finally {
+      await server.close()
+      await host.close()
+    }
+  })
+
+  it('reads the user of each request with identify on a host with access, behind the token', async () => {
+    const host = accessHost()
+    const server = await serve({
+      host,
+      harness: defineHarness({
+        name: 'test/serve-access',
+        adapter: scripted([textTurn('ok')]).adapter,
+      }),
+      port: 0,
+      hostname: '127.0.0.1',
+      token: 'secret',
+    })
+    const call = (path: string, headers: Record<string, string>) =>
+      fetch(`${server.url}/${path}`, { headers })
+    const prompt = (headers: Record<string, string>) =>
+      fetch(`${server.url}/control`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...headers },
+        body: JSON.stringify({
+          threadId: 't1',
+          input: { op: 'prompt', message: 'hi' },
+        }),
+      })
+    const token = { authorization: 'Bearer secret' }
+    try {
+      expect((await prompt({ ...token, 'x-user': 'olga' })).status).toBe(200)
+
+      const noToken = await call('transcript?threadId=t1', { 'x-user': 'olga' })
+      expect(noToken.status).toBe(401)
+      const noUser = await call('transcript?threadId=t1', token)
+      expect(noUser.status).toBe(401)
+      const stranger = await call('transcript?threadId=t1', {
+        ...token,
+        'x-user': 'cid',
+      })
+      expect(stranger.status).toBe(403)
+      expect(
+        await host.sessions.get({ threadId: 't1', principal: olga }),
+      ).toMatchObject({ ownerId: 'olga' })
     } finally {
       await server.close()
       await host.close()

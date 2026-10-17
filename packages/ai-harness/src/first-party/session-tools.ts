@@ -46,7 +46,8 @@ export function compact(options: {
       commands: {
         compact: defineCommand({
           description: 'Summarize the conversation to save tokens',
-          run: async () => {
+          // The summary call uses the key of the user who runs `/compact`.
+          run: async (_input, { run }) => {
             const messages = await ctx.session.transcript()
             const keep = options.keepLast ?? 0
             if (messages.length <= keep + 2)
@@ -59,7 +60,7 @@ export function compact(options: {
             const older = messages.slice(0, cut)
             const transcript = transcriptText(older)
             const { text: summary } = await chat({
-              adapter: await ctx.keys.adapter(options.adapter),
+              adapter: await run.keys.adapter(options.adapter),
               messages: [
                 { role: 'user', content: `${SUMMARY_PROMPT}\n\n${transcript}` },
               ],

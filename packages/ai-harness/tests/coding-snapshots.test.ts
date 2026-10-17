@@ -11,7 +11,7 @@ import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness, logIdOf } from '../src'
 import { hostBackend } from '../src/first-party/coding/backend'
 import { quoteArg } from '../src/first-party/coding/search'
 import { snapshots } from '../src/first-party/coding/snapshots'
@@ -28,6 +28,8 @@ import type { WorkspaceBackend } from '../src/first-party/coding/backend'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
+/** The id of the log of `THREAD` in the store. */
+const LOG = logIdOf({ logId: THREAD })
 const hasGit = (await hostBackend.exec('git --version')).exitCode === 0
 
 let base = ''
@@ -202,7 +204,7 @@ describe.skipIf(!hasGit)('snapshots', () => {
 
     await session.send('Edit a.txt')
 
-    const entries = await log.read({ logId: THREAD, after: 0 })
+    const entries = await log.read({ logId: LOG, after: 0 })
     const records = entries
       .map((entry) => entry.record)
       .filter((record) => record.type === 'tanstack/snapshots:step')

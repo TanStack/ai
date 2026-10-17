@@ -15,7 +15,11 @@ import type {
   StoredOAuthClientInformation,
 } from '@modelcontextprotocol/client'
 import type { AnyTool } from '@tanstack/ai'
-import type { CredentialsAccess, Principal } from '@tanstack/ai-harness'
+import type {
+  CredentialsAccess,
+  RunContext,
+  TurnInfo,
+} from '@tanstack/ai-harness'
 import type { MCPClient } from './client'
 import type { MCPClientOptions } from './types'
 
@@ -216,10 +220,11 @@ export function mcpConnector(options: McpConnectorOptions) {
   return definePlugin({
     name: `connector/${id}`,
     setup: async (ctx) => {
-      // One sign-in per sender: in a shared thread, one person's sign-in,
-      // client, and tools never serve another person's turn.
+      // One sign-in per user of a run, by tenant and id: in a shared thread,
+      // one person's sign-in, client, and tools never serve another
+      // person's turn.
       const connections = new Map<string, Connection>()
-      const keyOf = (principal: Principal | undefined) =>
+      const keyOf = (principal: RunContext['principal']) =>
         principal
           ? JSON.stringify([principal.tenantId ?? null, principal.id])
           : ''
@@ -228,7 +233,7 @@ export function mcpConnector(options: McpConnectorOptions) {
       }
       /** Set the sign-in of `principal`, and drop its old client and tools. */
       const signedIn = async (
-        principal: Principal | undefined,
+        principal: RunContext['principal'],
         connected: boolean,
       ) => {
         const key = keyOf(principal)
@@ -245,20 +250,22 @@ export function mcpConnector(options: McpConnectorOptions) {
         prompts: [
           {
             id: `connector/${id}:status`,
-            // Read after `discoverTools`, which finds the sender's state.
-            text: () =>
-              connections.get(keyOf(ctx.session.principal))?.connected
+            // Read after `discoverTools`, which finds the state of the
+            // turn's user.
+            text: (turn: TurnInfo) =>
+              connections.get(keyOf(turn.run.principal))?.connected
                 ? ''
                 : `${label} is not connected. If the user asks for ${label}, tell them to run /connect ${id}.`,
           },
         ],
-        // Runs in a turn, so `ctx.session.principal` and `ctx.credentials`
-        // are the turn's sender.
-        discoverTools: async () => {
-          const key = keyOf(ctx.session.principal)
+        // Runs for each turn, with the run of that turn: its user and that
+        // user's credentials.
+        discoverTools: async (turn: TurnInfo) => {
+          const { principal, credentials } = turn.run
+          const key = keyOf(principal)
           let connection = connections.get(key)
           if (!connection) {
-            connection = { connected: (await ctx.credentials.get(id)) !== null }
+            connection = { connected: (await credentials.get(id)) !== null }
             connections.set(key, connection)
           }
           if (!connection.connected) return []
@@ -266,7 +273,7 @@ export function mcpConnector(options: McpConnectorOptions) {
             // The SDK only refreshes tokens for a client with a redirect URL.
             // Without one it treats the client as machine-to-machine. A new
             // browser sign-in still happens only through /connect.
-            const saved = await ctx.credentials.get(id)
+            const saved = await credentials.get(id)
             const redirectUri =
               (saved?.type === 'oauth'
                 ? saved.client?.redirectUri
@@ -277,7 +284,7 @@ export function mcpConnector(options: McpConnectorOptions) {
                   transport: {
                     type: 'http',
                     url,
-                    authProvider: credentialProvider(id, ctx.credentials, {
+                    authProvider: credentialProvider(id, credentials, {
                       redirectUri,
                       clientName,
                       scopes: options.scopes,
@@ -327,11 +334,11 @@ export function mcpConnector(options: McpConnectorOptions) {
           [`connect:${id}`]: defineCommand({
             description: `Sign in to ${label}`,
             // The sign-in belongs to the user who runs the command.
-            run: async (_input, { credentials, principal }) => {
+            run: async (_input, { run }) => {
               const receiver = await startLoopbackReceiver()
               const state = randomBytes(16).toString('base64url')
               try {
-                const provider = credentialProvider(id, credentials, {
+                const provider = credentialProvider(id, run.credentials, {
                   redirectUri: receiver.redirectUri,
                   clientName,
                   scopes: options.scopes,
@@ -365,15 +372,15 @@ export function mcpConnector(options: McpConnectorOptions) {
               } finally {
                 receiver.close()
               }
-              await signedIn(principal, true)
+              await signedIn(run.principal, true)
               return `Connected to ${label}.`
             },
           }),
           [`disconnect:${id}`]: defineCommand({
             description: `Sign out of ${label}`,
-            run: async (_input, { credentials, principal }) => {
-              await credentials.delete(id)
-              await signedIn(principal, false)
+            run: async (_input, { run }) => {
+              await run.credentials.delete(id)
+              await signedIn(run.principal, false)
               return `Disconnected from ${label}.`
             },
           }),

@@ -90,12 +90,12 @@ Read the totals of the sender before you send a prompt. This route refuses a pro
 const BUDGET_USD = 5
 
 export async function send(threadId: string, userId: string, text: string) {
-  const thread = await host.open(assistant, { threadId })
+  const thread = await host.open(assistant, { threadId, principal: { id: userId } })
   const spent = thread.usage().bySender[userId]?.cost ?? 0
   if (spent >= BUDGET_USD) {
     return { error: 'You used your budget for this thread.' }
   }
-  return thread.send(text, { principal: { id: userId } }).receipt
+  return thread.send(text).receipt
 }
 ```
 
@@ -106,7 +106,7 @@ Many providers report no cost, so `cost` can stay empty. For those, compare the 
 With `stores.sessions`, each [session index](./sessions) entry has a `usage` field. The host writes the token counts of `session.usage()` at the end of each turn. `turns` is the number of model calls.
 
 ```ts group=harness-usage
-const page = await host.sessions.list({ principal: { id: 'ada' }, limit: 20 })
+const page = await host.sessions.list({ limit: 20 })
 for (const entry of page.entries) {
   console.log(entry.title ?? 'New chat', entry.usage?.totalTokens ?? 0)
 }

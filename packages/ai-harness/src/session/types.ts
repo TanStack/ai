@@ -72,8 +72,8 @@ export interface AgentStartOptions extends AgentRunOptions {
   resume?: boolean
   /**
    * Who starts the agent. The run, its credentials, and its wake turn are
-   * theirs. Default: the sender of the running turn, else the principal that
-   * opened the session.
+   * theirs. Default: the principal that opened the session. In a tool, pass
+   * the user of the tool call: `ctx.context.run.principal`.
    */
   principal?: Principal
 }
@@ -215,6 +215,8 @@ export interface SessionDependencies {
     generationRuns: GenerationRunStore
   }>
   principal?: Principal
+  /** The tenant of the session. Without it, the default tenant. */
+  tenantId?: string
   /** Identifies this host on run leases. */
   hostId: string
   /** Writes the session index entry of the thread. */
@@ -229,14 +231,26 @@ export interface SessionDependencies {
       onFailure: (error: unknown) => void,
     ) => Promise<LogWriter>
   }
-  /** The log of the session. Default: the thread id. */
+  /**
+   * The log of the session: the `logId` of `host.open`, else the thread id.
+   * The records of that log with no `thread` field belong to the thread
+   * with this id.
+   */
   logId: string
+  /** The id of that log in the store, with the tenant. See `logIdOf`. */
+  storeLogId: string
   lease?: LeaseOptions
   /** The `promptCache` of `host.open()`. It overrides the harness value. */
   promptCache?: PromptCacheOptions
   /** Gets each event the session publishes, after the feed has it. */
   onEvent: (event: StreamChunk) => void
   onClose: () => void
+  /**
+   * The host checks access (`access` on the host). Then an entry with no
+   * owner stays without one, and provider keys read env vars only with
+   * `envKeys`.
+   */
+  access?: { envKeys: boolean }
 }
 
 export interface QueuedTurn {

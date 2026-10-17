@@ -61,7 +61,8 @@ export const review = definePlugin({
 
 - `ctx.agents.run(agent, input)` runs one agent and resolves with its result.
 - `ctx.agents.start(agent, input, { wake: true })` runs it in the background and starts a turn when it finishes or fails.
-- `ctx.agents.start(agent, input, { principal })` runs it as that user. Without `principal`, it runs as the user of the current turn. The wake turn runs as the same user.
+- `ctx.agents.start(agent, input, { principal })` runs it as that user. The wake turn runs as the same user.
+- Without `principal`, a plugin with `lifetime: 'turn'` starts it as the user of its turn. A session plugin starts it as the user who opened the session. To start it for the user of a tool call, pass `principal: ctx.context.run.principal`.
 - `ctx.agents.group(options, body)` runs several. With `onFailure: 'cancel-siblings'`, one failure cancels the others. With `'collect'`, use `group.runSettled` to get every result or error. Every child settles before `group` returns.
 
 The turn that `wake: true` starts sends the model a user message from the harness, for example `Background agent pricer finished: ...`. The user did not write it. So the transcript marks it with `metadata.harness.wake: true`, and a view from `createSessionView` does not show it. In your own chat UI, skip the user messages with this mark.
