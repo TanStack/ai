@@ -23,7 +23,7 @@ import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
 import { permissions } from '@tanstack/ai-harness/plugins'
 import { snapshots, workspaceTools } from '@tanstack/ai-harness/plugins/coding'
 import { openaiText } from '@tanstack/ai-openai'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryPersistence } from '@tanstack/ai-persistence'
 
 const root = process.cwd()
 const history = snapshots({
@@ -37,10 +37,9 @@ const coder = defineHarness({
   plugins: () => [permissions({ root }), workspaceTools({ root }), history],
 })
 
-const log = memoryLogStore()
-const host = createHarnessHost({
-  persistence: { stores: { log, runs: memoryPersistence().stores.runs } },
-})
+const persistence = memoryPersistence()
+const { log } = persistence.stores
+const host = createHarnessHost({ persistence })
 const session = await host.open(coder, { threadId: 'fix-login' })
 ```
 
@@ -70,7 +69,7 @@ In your own UI, add `expose: { commands: ['undo', 'redo'] }` to `defineHarness`.
 
 Each model step that changed files leaves a step: `{ from, to, files, toolCallIds }`. `from` and `to` are the ids of two snapshots. `files` lists the changed paths, and `toolCallIds` lists the tool calls of the step. `history.diff(from, to)` gives the changed files and a unified diff.
 
-On a [durable host](./durable-sessions), like the host above, the steps are `tanstack/snapshots:step` records in the session log:
+The steps are `tanstack/snapshots:step` records in the [session log](./session-log):
 
 ```ts group=harness-snapshots
 import { logIdOf } from '@tanstack/ai-harness'
@@ -87,7 +86,6 @@ for (const { record } of await log.read({ logId: logIdOf({ logId: 'fix-login' })
 ```
 
 - Without `to`, `diff` compares with the files now. `history.diff(record.to)` shows what changed after that step.
-- On a host without a log, the steps are a list in the plugin state, `snapshot().plugins['tanstack/snapshots']`.
 - A step that changed no file is not saved.
 
 ## Go back to an earlier message

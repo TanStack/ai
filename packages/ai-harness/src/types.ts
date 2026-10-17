@@ -193,8 +193,10 @@ export interface OnEvent {
  * In `cancelInput` and `setDelivery`, `inputId` is the input that waits.
  *
  * `ephemeral` of `prompt` and `continue` are messages for the model calls of
- * that turn only, as in `session.prompt`. The log does not keep them, and
- * the duplicate check does not read them. Client data: do not trust it.
+ * that turn only, as in `session.prompt`. The transcript does not keep them.
+ * The log keeps them with the turn, so a turn that runs again after a
+ * restart sees them. The duplicate check does not read them. Client data: do
+ * not trust it.
  */
 export type HarnessInput = (
   | {
@@ -454,7 +456,7 @@ export interface RunContext {
   principal: { id: string; tenantId?: string } | undefined
   /**
    * The id of the log of the session in the `LogStore`: the tenant and the
-   * `logId` of `host.open`, from `logIdOf`.
+   * root thread of the session tree, from `logIdOf`.
    */
   logId: string
   threadId: string
@@ -702,4 +704,24 @@ export const HARNESS_EVENTS = {
    * known), the `usage` of the call, and the new thread `total`.
    */
   usage: 'harness.usage',
+  /**
+   * The events after the reader's cursor are gone (a truncate dropped them),
+   * so the stream skips to the first event it has. The value is an
+   * `EventGap`. The cursor of this event is `resumeAt`. Load the snapshot and
+   * the transcript again.
+   */
+  gap: 'harness.gap',
 } as const
+
+/** The value of a `harness.gap` event. */
+export interface EventGap {
+  /** The cursor that the reader asked for. */
+  from: Cursor
+  /**
+   * The cursor that the stream goes on from: the events after it are
+   * stored. It is also the cursor of the gap event.
+   */
+  resumeAt: Cursor
+  /** `'truncated'`: a truncate of the log dropped the events. */
+  reason: 'truncated' | 'evicted'
+}

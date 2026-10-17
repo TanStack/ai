@@ -2,7 +2,7 @@
 title: Deploy a harness
 id: harness-deploy
 order: 6
-description: "Run a harness in your server, as a worker process, on another machine, or as a single executable."
+description: "Run a harness in your server, on background workers, as a worker process, on another machine, or as a single executable."
 keywords:
   - tanstack ai
   - harness
@@ -16,9 +16,19 @@ Your harness works on your laptop. Now it needs to run next to your API, in its 
 | Place | How |
 |---|---|
 | Your server | `createHarnessHost` and `createHarnessHandler` in your routes. No build step. |
+| Background workers | `createHarnessWorker` on a host that shares the log store. See [Run background work on workers](./workers). |
 | A worker process | `buildHarness`, then `artifactText(dir)` as the model of a `chat()` call. |
 | Another machine | `createHarnessHandler` there, then `harnessText({ url, token })` here. |
 | A single executable | `buildHarness({ compile })` with Bun. |
+
+## Run more than one server
+
+Give every server the same log store. Then any server can take a request for any thread:
+
+- One server owns a thread at a time. An input that reaches another server waits in the log for the owner. See [One host drives a thread](./durable-sessions#one-host-drives-a-thread).
+- A [worker](./workers) runs the threads that no server has open: submitted inputs, schedules, and the work that a deploy cut.
+- Set the same `media: { secret }` on the handler of each server, so each server checks the media URLs of the others. See [Serve the session over HTTP](./connect#serve-the-session-over-http).
+- Stop each server with `host.close({ recoverable: true })`. A worker takes its cut work at once. See [Stop a host for a deploy](./durable-sessions#stop-a-host-for-a-deploy).
 
 ## Build a worker artifact
 
@@ -90,4 +100,4 @@ Bun can build for another platform with `target`, for example `bun-darwin-arm64`
 
 ## What you have now
 
-- The same harness in your server, in a worker process, on another machine, or as a binary.
+- The same harness in your server, on background workers, in a worker process, on another machine, or as a binary.

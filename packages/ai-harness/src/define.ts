@@ -153,10 +153,10 @@ export interface HarnessDurability<
    */
   project?: ProjectOptions
   /**
-   * A fold of every host record of a log, across all its sessions, in log
-   * order. Read it with `host.logState({ harness, logId })`. When sessions of
-   * several harnesses share one log, the harness of the first session that
-   * opens the log folds it (`project` too).
+   * A fold of every host record of the log of a session tree: the root
+   * thread and its child threads (agent chains and subagent runs), in log
+   * order. Read it with `session.logState()`, or with `view.logState()` of
+   * `host.observe`, on any machine.
    */
   reduce?: ReduceOptions<TLogState>
 }
@@ -400,7 +400,7 @@ export type HarnessToolsOf<THarness> =
 
 /**
  * The state of the `durability.reduce` fold of a harness, as
- * `host.logState` returns it. `undefined` for a harness without `reduce`.
+ * `session.logState()` returns it. `undefined` for a harness without `reduce`.
  */
 export type HarnessLogStateOf<THarness> = THarness extends {
   durability?: { reduce?: ReduceOptions<infer TLogState> }

@@ -72,13 +72,13 @@ await busyHost.close()
 ```
 
 - Without options, the running work is cancelled.
-- With `recoverable: true`, the running work stops, and the next host that opens the thread runs it again. Use it on a durable host that stops for a deploy. See [Stop a host for a deploy](./durable-sessions#stop-a-host-for-a-deploy).
+- With `recoverable: true`, the running work stops, and another host runs it again. Use it when a host stops for a deploy. See [Stop a host for a deploy](./durable-sessions#stop-a-host-for-a-deploy).
 - After the close, a call on a handle throws. `snapshot()` still gives the last state.
 - The close also ends the event reads of each [view](#read-a-thread-without-a-session), and `host.observe` throws from then on.
 
 ## Read a thread without a session
 
-A preview route or a status page only reads a thread. An open sets up every plugin, can start MCP processes, and claims the thread for work. `host.observe` reads the thread and opens no session.
+A preview route or a status page only reads a thread. An open sets up every plugin, and can start MCP processes. `host.observe` reads the thread and opens no session.
 
 On the server, read the transcript in your route:
 
@@ -114,7 +114,7 @@ What the view reads for the chat:
 
 - `transcript()`: the saved messages.
 - `snapshot()`: the status and the waiting approvals. When the session is open on this host, it also has the running operations.
-- `events({ from, signal })`: the events of the thread after a cursor. On a host with no log, only an open session on this host has events.
+- `events({ from, signal })`: the events of the thread after a cursor.
 - `agentTranscript(id)`: the messages of one child agent run.
 
 What the view reads for the rest:
@@ -122,9 +122,9 @@ What the view reads for the rest:
 - `getMedia(id)` and `loadMedia({ id, range })`: a media file and its bytes.
 - `usage()`: the token totals of the thread.
 - `entry()`: the index entry of the thread.
-- `logState()`: the fold of the log, on a durable host.
+- `logState()`: the `durability.reduce` fold of the log. See [One log for a session tree](./shared-logs#keep-state-for-the-whole-tree).
 
-The view sets up no plugins, writes nothing, and claims nothing. When the session is open on this host, the view reads through it, but it never holds the session open. The read paths of [`createHarnessHandler`](./connect) use the view, so a client that only reads starts no plugins. `GET describe` opens the session, because the plugins give the commands and the settings.
+The view sets up no plugins, writes nothing, and never takes the log, so a read never fails because another host owns the thread. When the session is open on this host, the view reads through it, but it never holds the session open. The read paths of [`createHarnessHandler`](./connect) use the view, so a client that only reads starts no plugins. `GET describe` opens the session, because the plugins give the commands and the settings.
 
 ## Bound what a session keeps in memory
 
@@ -145,14 +145,29 @@ const leanHost = createHarnessHost({
 | `settledAgentRuns` | 500 | `session.agentRun(id)` and `session.agentRuns()` leave out the oldest settled agent runs. |
 | `eventBytes` | 8 000 000 | `session.events()` keeps the newest events, by the JSON length of each event. A reader with an older cursor starts at the oldest event kept. |
 
-On a durable host (`stores.log`), the log keeps what memory drops:
+The log keeps what memory drops:
 
 - `session.settled(inputId)` of an old input reads the log.
 - `agentRun(id)` and `agentRuns()` also find the runs in the log.
 - `events({ from })` reads the older events from the log.
 - `eventBytes` also bounds the log tail that the host keeps in memory.
 
-On a host without a log, a message to an agent run that left the window gets `not_running`.
+### Drop the records before a snapshot
+
+The log store keeps every record by default. To keep it small, let the owner drop the records that a [snapshot](./durable-sessions#keep-a-long-log-fast-to-open) already holds:
+
+```ts group=harness-lifecycle
+const trimmedHost = createHarnessHost({
+  persistence: memoryPersistence(),
+  lifecycle: { retention: { logRecords: 'since-snapshot' } },
+})
+```
+
+- `'all'` (default): the store keeps every record.
+- `'since-snapshot'`: after each snapshot, the owner truncates the records before it. The type is `LogRecordRetention`.
+- A reader whose cursor is in the dropped part gets one `harness.gap` event, then the stream goes on. See [Cursors](./connect#cursors).
+
+CAUTION: With `'since-snapshot'`, do not change `durability.reduce` or `durability.project` often. When the host cannot use the snapshot (its `reduce` version or its `project` changed, or the snapshot has a newer version), a thread with dropped records cannot open. The open rejects with `LogTruncatedError`. Keep `'all'` if you change `reduce` often.
 
 ## Delete a thread for good
 
@@ -162,15 +177,12 @@ A user deletes a chat, and its data must go with it:
 await leanHost.sessions.delete({ threadId: 'chat-1' })
 ```
 
-First, `delete` closes the sessions of the thread and of its child threads, for every handle. The host finds the children through the `parentThreadId` of their index entries. Then it deletes this data of each thread:
+First, `delete` closes the sessions of the thread and of its child threads, for every handle. The host finds the children through the `parentThreadId` of their index entries. Then it deletes this data:
 
-- The log. On a host without a log, the messages.
-- The index entry.
+- The log, with everything in it: the transcripts, the settings, the plugin config and state, the runs, the interrupts, the usage, and the inputs that wait for an owner.
+- The index entry of each thread.
 - The uploaded media and the generated artifacts.
-- The thread settings, the plugin config, and the interrupted turn.
-- The usage totals, the revert data, and the log checkpoint.
-
-These stay in their stores: plugin state, run records, interrupts, the inbox, and work claims. To remove them, delete them in your own stores.
+- The log checkpoint in `stores.metadata`.
 
 - On a host with `access`, `delete` needs the `delete` action. A child thread is checked through its root thread.
 - A handle that calls again after the delete opens a new, empty thread.
@@ -181,6 +193,6 @@ These stay in their stores: plugin state, run records, interrupts, the inbox, an
 
 - Handles that release at the end of a block, so idle sessions close by themselves.
 - A cap on the open sessions of a host.
-- Read routes that start no plugins and claim no thread.
+- Read routes that start no plugins and never take a thread.
 - Sessions that keep a bounded window in memory, also after weeks of turns.
 - A delete that removes the data of a thread and its children.

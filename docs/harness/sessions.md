@@ -53,14 +53,14 @@ What an entry holds:
 - `tenantId`: the tenant of the thread. Without it, the thread is in the default tenant. See [Access and tenants](./access).
 - `usage` and `parentThreadId`: the token totals of the thread, and the parent thread of a child session, for example a subagent run.
 
-A durable host takes `sessions` next to `log`:
+The host takes `sessions` next to `log`:
 
 ```ts group=harness-sessions
 import { memoryLogStore } from '@tanstack/ai-persistence'
 
-const { runs, sessions } = memoryPersistence().stores
+const { sessions } = memoryPersistence().stores
 const durableHost = createHarnessHost({
-  persistence: { stores: { log: memoryLogStore(), runs, sessions } },
+  persistence: { stores: { log: memoryLogStore(), sessions } },
 })
 ```
 
@@ -150,7 +150,7 @@ await session.unrevert()
 
 - While a revert stands, `transcript()` hides the messages after that message. The session keeps them.
 - The next turn drops the hidden messages for good. A steer, a follow-up, and `continue` are turns too.
-- The session saves the revert in the log, or in `stores.metadata` on a host without a log. A restart keeps it.
+- The session saves the revert in the log. A restart keeps it.
 - Each change sends a `harness.revert` event. Read the transcript again when it arrives.
 - `revert` and `unrevert` refuse with `busy` when the session is not idle, or when another host runs the thread. `revert` refuses with `unknown_message` for an id that is not in the transcript.
 

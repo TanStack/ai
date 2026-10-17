@@ -22,7 +22,7 @@ Run a harness tool with no model turn, add host records from a client, and add a
 - `expose.records` lists the host record types a client may add with an
   `{ op: 'append', records }` input, or with the new `client.append(records)`.
   A record of another type, or with a `thread` field, is refused with
-  `not_exposed`. The host must be durable (with `stores.log`).
+  `not_exposed`. The session log keeps the records.
 - `createHarnessMcpServer` adds a `tool_<name>` tool for each tool in
   `expose.tools`, and an `append` tool when `expose.records` has types. A tool
   input with its own `threadId` field now throws when the server is created,

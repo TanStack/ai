@@ -222,8 +222,6 @@ export class InputRecords {
  */
 export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   readonly threadId: string
-  /** The log of this session. Sessions with the same log id share one log. */
-  readonly logId: string
   readonly agents: AgentHandles<THarness>
   /** The agents this session can run, for discovery. */
   readonly registry: AgentRegistryView
@@ -447,7 +445,6 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   constructor(deps: SessionDependencies) {
     this.harness = deps.harness as THarness
     this.threadId = deps.threadId
-    this.logId = deps.logId
     this.tenantId = deps.tenantId
     this.storeLogId = deps.storeLogId
     this.indexKey = { tenantId: deps.tenantId, threadId: deps.threadId }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { defineAgent } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness, logIdOf } from '../src'
 import {
   after,
   gate,
@@ -9,6 +9,7 @@ import {
   mockAdapter,
   text,
   toolCall,
+  wrapLogStore,
 } from './helpers'
 import type { AnyTextAdapter, ModelMessage } from '@tanstack/ai'
 import type { HarnessPersistence } from '../src'
@@ -209,5 +210,87 @@ describe('subagent children of a harness session', () => {
     expect(await other.agentTranscript(id)).toEqual([])
     expect(await fork.agentTranscript(id)).toEqual([])
     await host.close()
+  })
+
+  it('writes the transcript of a child to the log of the root thread', async () => {
+    const persistence = memoryPersistence()
+    const { log } = persistence.stores
+    // Every log that the host writes to.
+    const written = new Set<string>()
+    const tracked = {
+      ...persistence,
+      stores: {
+        ...persistence.stores,
+        log: wrapLogStore(log, {
+          append: (write) => {
+            written.add(write.logId)
+            return log.append(write)
+          },
+        }),
+      },
+    }
+    const lead = mockAdapter([
+      () => callWriter({ prompt: 'Take notes' }, 'call-1'),
+      () => text('Done.'),
+    ])
+    const child = mockAdapter(() => text('Note 1'))
+    const { host, session } = await openLead(
+      lead.adapter,
+      child.adapter,
+      tracked,
+    )
+
+    await session.send('Notes, please')
+
+    const threadId = `subagent:${childIdIn(lead.calls[1], 'call-1')}`
+    const root = logIdOf({ logId: 't' })
+    expect([...written]).toEqual([root])
+    const records = (await log.read({ logId: root })).map(
+      (entry) => entry.record,
+    )
+    expect(
+      JSON.stringify(records.filter((record) => record.thread === threadId)),
+    ).toContain('Note 1')
+    expect(await log.read({ logId: logIdOf({ logId: threadId }) })).toEqual([])
+    await host.close()
+  })
+
+  it('gives a view of a child thread only the records of that thread, from the log of its root', async () => {
+    const persistence = memoryPersistence()
+    const lead = mockAdapter([
+      () => callWriter({ prompt: 'Take notes' }, 'call-1'),
+      () => text('Done.'),
+    ])
+    const child = mockAdapter(() => text('Note 1'))
+    const { host, session, harness } = await openLead(
+      lead.adapter,
+      child.adapter,
+      persistence,
+    )
+    await session.send('Notes, please')
+    const id = childIdIn(lead.calls[1], 'call-1')
+    await host.close()
+
+    // A new host, with no open session: the views read the store.
+    const next = createHarnessHost({ persistence })
+    const childView = await next.observe(harness, {
+      threadId: `subagent:${id}`,
+    })
+    const rootView = await next.observe(harness, { threadId: 't' })
+    const contents = (messages: Array<ModelMessage>) =>
+      messages.map((message) => message.content)
+
+    const childTranscript = contents(await childView.transcript())
+    expect(childTranscript).toContain('Note 1')
+    expect(childTranscript).not.toContain('Notes, please')
+    expect(childTranscript).not.toContain('Done.')
+    const rootTranscript = contents(await rootView.transcript())
+    expect(rootTranscript).toContain('Notes, please')
+    expect(rootTranscript).not.toContain('Note 1')
+    expect(contents(await rootView.agentTranscript(id))).toEqual([
+      'Take notes',
+      'Note 1',
+    ])
+    await next.close()
   })
 })

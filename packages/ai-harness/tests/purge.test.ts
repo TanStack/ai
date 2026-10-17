@@ -13,7 +13,7 @@ import type { HarnessPersistence } from '../src'
 const encoder = new TextEncoder()
 
 /** The metadata rows of a thread that a delete removes. */
-const ROWS = ['harness:usage', 'harness:revert', 'harness:log-checkpoint']
+const ROWS = ['harness:usage', 'harness:revert']
 
 const level = definePlugin({
   name: 'test/level',

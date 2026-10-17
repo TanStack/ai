@@ -25,7 +25,7 @@ Set `durable: true`. Compaction then writes a `tanstack.compaction` record into 
 
 ```ts group=harness-compaction
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryPersistence } from '@tanstack/ai-persistence'
 import { openaiText } from '@tanstack/ai-openai'
 import {
   conversationSummarizer,
@@ -53,15 +53,11 @@ const assistant = defineHarness({
   durability: { project: { version: 'v1', record: projectCompaction } },
 })
 
-const { runs, metadata } = memoryPersistence().stores
-const host = createHarnessHost({
-  persistence: { stores: { log: memoryLogStore(), runs, metadata } },
-})
+const host = createHarnessHost({ persistence: memoryPersistence() })
 ```
 
 - Compaction runs before a model call when the count passes `maxTokens`. If the usage of the last model call of a turn passed `maxTokens` or `contextWindow`, compaction also runs right after that call. This check needs `countTokens: 'usage'`.
 - The log only grows, so the original messages stay in the store. The fold that the model gets starts with the summary.
-- A host without a log has no place for the record. Compaction then keeps its result in the `metadata` store, the same as in a plain `chat()` call. It also skips the check after the turn.
 
 ## Prepare the summary in the background
 
@@ -84,7 +80,7 @@ const earlyCompaction = withCompaction({
 
 - `atTokens` must be below `maxTokens`. If it is not, `withCompaction` throws.
 - When the count at a model call passes `atTokens`, the summary starts beside the turn. The turn does not wait for it.
-- The summary applies at the first model call of the next run, never in the middle of a run. On a durable host, it goes into the log as a `tanstack.compaction` record with `reason: 'background'`.
+- The summary applies at the first model call of the next run, never in the middle of a run. It goes into the log as a `tanstack.compaction` record with `reason: 'background'`.
 - A model call over `maxTokens` while the summary runs waits for it and applies it. It compacts inline only when the messages are still over `maxTokens`.
 - If you cancel the run during that wait, the wait stops. The summary continues and applies at the next run.
 
@@ -118,7 +114,7 @@ Change `version` when you change the function. A fold checkpoint with another ve
 
 ## Retry after a context overflow
 
-A model call can still fail because the context is too long. `withCompaction` handles it for you. When a call fails with `CONTEXT_OVERFLOW_CODE` (`'context_overflow'`), the middleware compacts and calls the model again, inside the `chat()` call of the turn. On a durable host, that compaction also writes its record to the log.
+A model call can still fail because the context is too long. `withCompaction` handles it for you. When a call fails with `CONTEXT_OVERFLOW_CODE` (`'context_overflow'`), the middleware compacts and calls the model again, inside the `chat()` call of the turn. That compaction also writes its record to the log.
 
 - It retries once per model call. This also works with `auto: false`.
 - `turn.onModelError` sees the overflow only when the compacted call is still too long. Then `error.code` is `'context_overflow'`, and the turn fails unless your hook returns `'retry'`.

@@ -428,6 +428,7 @@ describe('host access with your own access tables', () => {
     host.revoke({ threadId: THREAD, principal: bea })
 
     expect(() => member.snapshot()).toThrow(AccessDeniedError)
+    expect(() => member.logState()).toThrow(AccessDeniedError)
     await vi.waitFor(() =>
       expect(reader.events.filter((event) => event.type === 'revoked')).toEqual(
         [

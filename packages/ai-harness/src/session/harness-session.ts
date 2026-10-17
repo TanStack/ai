@@ -453,24 +453,22 @@ export class SessionImpl<
    */
   protected async openLog(): Promise<void> {
     const { stores } = this.persistence
-    const { store, project } = this.log
     const writer = await this.log.open(this.threadId, {
       onFailure: (error) => this.stopOnLogFailure(error),
       onLost: () => this.stopOnOwnershipLoss(),
       // A background job of this host keeps the log too: a host that takes
       // the log over would note the job as stopped.
       isBusy: () => !this.isIdle() || this.jobs.size > 0 || this.recovering > 0,
+      // A sleep has a schedule, so its wake comes at its time.
+      hasWorkNow: () =>
+        (!this.isIdle() || this.jobs.size > 0 || this.recovering > 0) &&
+        this.sleeping === 0,
       onOffers: () => void this.drainOffers(),
     })
     this.logWriter = writer
     this.feed = tapFeed(writer, this.notifyHost, this.eventListeners)
-    // The logs of the subagent children are in the tenant of this session.
-    const view = {
-      writer,
-      store,
-      ...(project ? { project } : {}),
-      ...(this.tenantId !== undefined ? { tenantId: this.tenantId } : {}),
-    }
+    // The child threads (agent chains and subagent runs) are in this log.
+    const view = { writer }
     this.messages = sessionMessageStore(view)
     const engineMessages = engineMessageStore(view)
     this.openEngine = engineMessages

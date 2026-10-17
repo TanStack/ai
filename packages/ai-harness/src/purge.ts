@@ -1,5 +1,4 @@
 import { resolveArtifactBlobKey } from '@tanstack/ai-persistence'
-import { CHECKPOINT_NAMESPACE } from './log'
 import { uploadBlobPrefix } from './media'
 import { USAGE } from './session/helpers'
 import type { ArtifactStore, BlobStore } from '@tanstack/ai-persistence'
@@ -50,5 +49,4 @@ export async function purgeThreadData({
   for (const namespace of THREAD_METADATA) {
     await metadata.delete(namespace, storeId)
   }
-  await metadata.delete(CHECKPOINT_NAMESPACE, storeId)
 }

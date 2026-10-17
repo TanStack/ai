@@ -2,13 +2,14 @@ import { describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import {
   LogConflictError,
+  LogTruncatedError,
   OwnershipLostError,
   UNOWNED_EPOCH,
   memoryLogStore,
-  memoryPersistence,
 } from '@tanstack/ai-persistence'
 import {
   LogVersionError,
+  SNAPSHOT_VERSION,
   SharedLog,
   emptySharedLogState,
   engineMessageStore,
@@ -20,13 +21,16 @@ import {
 } from '../src/log'
 import { HostOwnership, LogOwnedElsewhereError } from '../src/ownership'
 import { wrapLogStore, writeAsOtherHost } from './helpers'
+import { HARNESS_EVENTS } from '../src/types'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
+import type { LogRecord, LogSnapshot, LogStore } from '@tanstack/ai-persistence'
 import type {
-  LogRecord,
-  LogStore,
-  MetadataStore,
-} from '@tanstack/ai-persistence'
-import type { LogViewHooks, ProjectOptions, ReduceOptions } from '../src/log'
+  LogRecordRetention,
+  LogViewHooks,
+  ProjectOptions,
+  ReduceOptions,
+  SnapshotTiming,
+} from '../src/log'
 import type { OwnershipOptions } from '../src/ownership'
 import type { SessionEvent } from '../src/types'
 
@@ -76,7 +80,9 @@ function newWriter(
     coalesceMs?: number
     eventBytes?: number
     project?: ProjectOptions
-    metadata?: MetadataStore
+    snapshot?: SnapshotTiming
+    logRecords?: LogRecordRetention
+    isBusy?: () => boolean
     onFailure?: (error: unknown) => void
     state?: ReturnType<typeof emptySharedLogState>
   } = {},
@@ -91,9 +97,13 @@ function newWriter(
     coalesceMs: options.coalesceMs ?? 0,
     eventBytes: options.eventBytes ?? EVENT_BYTES,
     ...(options.project ? { project: options.project } : {}),
-    ...(options.metadata ? { metadata: options.metadata } : {}),
+    ...(options.snapshot ? { snapshot: options.snapshot } : {}),
+    ...(options.logRecords ? { logRecords: options.logRecords } : {}),
   })
-  return log.view(THREAD, hooksOf({ onFailure: options.onFailure }))
+  return log.view(
+    THREAD,
+    hooksOf({ onFailure: options.onFailure, isBusy: options.isBusy }),
+  )
 }
 
 /** The fold of the session `THREAD`. */
@@ -909,19 +919,10 @@ describe('write failures', () => {
   })
 })
 
-describe('fold checkpoints', () => {
-  const NAMESPACE = 'harness:log-checkpoint'
-
-  async function seedLog(store: LogStore) {
-    const writer = newWriter(store)
-    await writer.commit({ messages: [user('u1', 'one')] })
-    await writer.commit({ messages: [user('u1', 'one'), user('u2', 'two')] })
-    writer.close()
-  }
-
-  /** The thread state of a checkpoint session, as `serialize` writes it. */
+describe('snapshots', () => {
+  /** The thread state of a snapshot session, as `serialize` writes it. */
   const threadOf = (overrides: Record<string, unknown> = {}) => ({
-    settings: { instructions: 'from the checkpoint' },
+    settings: { instructions: 'from the snapshot' },
     config: [['level', 'high']],
     plugins: [],
     interrupted: null,
@@ -933,79 +934,216 @@ describe('fold checkpoints', () => {
     ...overrides,
   })
 
-  const checkpoint = (
+  /** A snapshot at position 1, with `overrides` on its state. */
+  const snapshotOf = (
     overrides: Record<string, unknown>,
     thread: unknown = threadOf(),
-  ) => ({
-    v: 4,
+    version = SNAPSHOT_VERSION,
+  ): LogSnapshot => ({
     seq: 1,
-    version: 'v1',
-    sessions: [
-      [
-        THREAD,
-        {
-          messages: [user('marker', 'from the checkpoint')],
-          inputs: [],
-          toolResults: [],
-          steps: [],
-          thread,
-        },
+    version,
+    state: {
+      version: 'v1',
+      sessions: [
+        [
+          THREAD,
+          {
+            messages: [user('marker', 'from the snapshot')],
+            inputs: [],
+            toolResults: [],
+            steps: [],
+            thread,
+          },
+        ],
       ],
-    ],
-    reduced: null,
-    ...overrides,
+      reduced: null,
+      ...overrides,
+    },
   })
 
-  it('starts the fold from a valid checkpoint', async () => {
-    const store = memoryLogStore()
-    await seedLog(store)
-    const { metadata } = memoryPersistence().stores
-    await metadata.set(NAMESPACE, LOG, checkpoint({}))
+  /** A log of `records` (default: two transcript records), and a store that hands out `snapshot`. */
+  async function seededStore(
+    snapshot: unknown,
+    records: Array<LogRecord> = [
+      { type: 'harness.transcript', add: [user('u1', 'one')] },
+      { type: 'harness.transcript', add: [user('u2', 'two')] },
+    ],
+  ) {
+    const inner = memoryLogStore()
+    await inner.append({ logId: LOG, seq: 1, epoch: UNOWNED_EPOCH, records })
+    // The store does not read the state, so a test can give any value.
+    return wrapLogStore(inner, {
+      getSnapshot: async () => snapshot as LogSnapshot,
+    })
+  }
 
-    const state = await loadSession({ store, metadata, project })
+  /** A store that records the `after` of each read. */
+  function countingStore(inner: LogStore) {
+    const reads: Array<number> = []
+    const store = wrapLogStore(inner, {
+      read: (query) => {
+        reads.push(query.after ?? 0)
+        return inner.read(query)
+      },
+    })
+    return { store, reads }
+  }
 
-    // Record 2 folds on top of the checkpoint (keep 1, add u2).
+  const tick = (index: number): LogRecord => ({ type: 'app.tick', index })
+
+  it('starts the fold from a valid snapshot', async () => {
+    const store = await seededStore(snapshotOf({}))
+
+    const state = await loadSession({ store, project })
+
+    // Record 2 folds on top of the snapshot (keep 1, add u2).
     expect(state.messages).toEqual([
-      user('marker', 'from the checkpoint'),
+      user('marker', 'from the snapshot'),
       user('u2', 'two'),
     ])
-    expect(state.thread.settings).toEqual({
-      instructions: 'from the checkpoint',
-    })
+    expect(state.thread.settings).toEqual({ instructions: 'from the snapshot' })
     expect([...state.thread.config]).toEqual([['level', 'high']])
   })
 
   it.each([
-    ['not an object', 'garbage'],
-    ['another format', checkpoint({ v: 1 })],
-    ['the format before thread state', checkpoint({ v: 2 })],
-    ['a session with no thread state', checkpoint({}, null)],
+    ['a state that is not an object', { seq: 1, version: '5', state: 'x' }],
+    ['another snapshot version', snapshotOf({}, threadOf(), '4')],
+    ['a session with no thread state', snapshotOf({}, null)],
     [
       'a thread state that is not shaped',
-      checkpoint({}, threadOf({ config: 'x' })),
+      snapshotOf({}, threadOf({ config: 'x' })),
     ],
-    ['another projection version', checkpoint({ version: 'v0' })],
-    ['a position past the end of the log', checkpoint({ seq: 99 })],
-    ['a state that is not shaped', checkpoint({ sessions: 'x' })],
+    ['another projection version', snapshotOf({ version: 'v0' })],
+    ['sessions that are not shaped', snapshotOf({ sessions: 'x' })],
     [
       'a record type from a newer harness',
-      checkpoint({ recordTypes: ['harness.transcript', 'harness.later'] }),
+      snapshotOf({ recordTypes: ['harness.transcript', 'harness.later'] }),
     ],
-  ])('ignores a checkpoint with %s', async (_name, value) => {
-    const store = memoryLogStore()
-    await seedLog(store)
-    const { metadata } = memoryPersistence().stores
-    await metadata.set(NAMESPACE, LOG, value)
+  ])('ignores a snapshot with %s', async (_name, snapshot) => {
+    const store = await seededStore(snapshot)
 
-    const state = await loadSession({ store, metadata, project })
+    const state = await loadSession({ store, project })
 
     expect(state.messages).toEqual([user('u1', 'one'), user('u2', 'two')])
   })
 
-  it('counts usage once after two loads from one checkpoint', async () => {
+  it('writes a snapshot of the whole fold after afterBytes of new records', async () => {
     const store = memoryLogStore()
-    const { metadata } = memoryPersistence().stores
-    const writer = newWriter(store, { metadata })
+    const writer = newWriter(store, {
+      project,
+      snapshot: { afterBytes: 300, afterMs: 60_000 },
+    })
+
+    await writer.append([tick(1)])
+    await writer.rest()
+    expect(await store.getSnapshot({ logId: LOG })).toBeNull()
+
+    await writer.append([{ type: 'app.big', pad: 'x'.repeat(300) }])
+    await writer.rest()
+
+    expect(await store.getSnapshot({ logId: LOG })).toMatchObject({
+      seq: 2,
+      version: SNAPSHOT_VERSION,
+      state: { version: 'v1' },
+    })
+  })
+
+  it('writes a snapshot afterMs after the first new record', async () => {
+    vi.useFakeTimers()
+    try {
+      const store = memoryLogStore()
+      // A busy session keeps the log, so the timer finds the epoch.
+      const writer = newWriter(store, {
+        snapshot: { afterBytes: 1_000_000, afterMs: 1_000 },
+        isBusy: () => true,
+      })
+
+      await writer.append([tick(1)])
+      await vi.advanceTimersByTimeAsync(999)
+      expect(await store.getSnapshot({ logId: LOG })).toBeNull()
+      await vi.advanceTimersByTimeAsync(1)
+      await writer.rest()
+
+      expect(await store.getSnapshot({ logId: LOG })).toMatchObject({ seq: 1 })
+      writer.close()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('writes a due snapshot at the next write after the host gave the log back', async () => {
+    vi.useFakeTimers()
+    try {
+      const store = memoryLogStore()
+      const writer = newWriter(store, {
+        snapshot: { afterBytes: 1_000_000, afterMs: 1_000 },
+      })
+
+      await writer.append([tick(1)])
+      await writer.rest()
+      // No owner when the timer fires: no snapshot.
+      await vi.advanceTimersByTimeAsync(1_000)
+      expect(await store.getSnapshot({ logId: LOG })).toBeNull()
+      await writer.append([tick(2)])
+      await writer.rest()
+
+      expect(await store.getSnapshot({ logId: LOG })).toMatchObject({ seq: 2 })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('never writes a snapshot on a host that only reads the log', async () => {
+    const inner = memoryLogStore()
+    const snapshots: Array<number> = []
+    const watched = wrapLogStore(inner, {
+      putSnapshot: async (snapshot) => {
+        snapshots.push(snapshot.seq)
+        await inner.putSnapshot(snapshot)
+      },
+    })
+    const reader = newWriter(watched, { snapshot: { afterBytes: 1 } })
+    const other = newWriter(silentStore(inner), {
+      snapshot: { afterBytes: 1_000_000 },
+    })
+
+    await other.commit({ messages: [user('u1', 'from the other host')] })
+    await other.append([{ type: 'app.big', pad: 'x'.repeat(100) }])
+    await expect.poll(() => reader.state.seq).toBe(2)
+    await reader.rest()
+
+    expect(snapshots).toEqual([])
+    expect(await inner.getSnapshot({ logId: LOG })).toBeNull()
+  })
+
+  it('opens from the snapshot and reads only the records after it', async () => {
+    const inner = memoryLogStore()
+    const writer = newWriter(inner, { snapshot: { afterBytes: 1 } })
+    await writer.commit({ messages: [user('u1', 'one')] })
+    await writer.commit({ messages: [user('u1', 'one'), user('u2', 'two')] })
+    await writer.rest()
+    writer.close()
+    expect(await inner.getSnapshot({ logId: LOG })).toMatchObject({ seq: 2 })
+    // A record that another host wrote after the snapshot.
+    await writeAsOtherHost(inner, LOG, (epoch) =>
+      inner.append({ logId: LOG, seq: 3, epoch, records: [tick(3)] }),
+    )
+    const { store, reads } = countingStore(inner)
+
+    const state = await loadLogState({ store, logId: LOG, rootThread: THREAD })
+
+    // One page after the snapshot, then the empty page at the end.
+    expect(reads).toEqual([2, 3])
+    expect(state.seq).toBe(3)
+    expect(sessionOf(state, THREAD).messages).toEqual([
+      user('u1', 'one'),
+      user('u2', 'two'),
+    ])
+  })
+
+  it('counts usage once after two loads from one snapshot', async () => {
+    const store = memoryLogStore()
+    const writer = newWriter(store, { snapshot: { afterBytes: 1 } })
     const usage: LogRecord = {
       type: 'harness.usage',
       model: 'm',
@@ -1017,51 +1155,114 @@ describe('fold checkpoints', () => {
         cacheWriteTokens: 0,
       },
     }
-    for (let index = 0; index < 51; index += 1) await writer.append([usage])
-    await expect
-      .poll(() => metadata.get(NAMESPACE, LOG))
-      .toMatchObject({ seq: 50 })
+    for (let index = 0; index < 3; index += 1) await writer.append([usage])
+    await writer.rest()
+    expect(await store.getSnapshot({ logId: LOG })).toMatchObject({ seq: 3 })
 
-    await loadSession({ store, metadata })
-    const state = await loadSession({ store, metadata })
+    await loadSession({ store })
+    const state = await loadSession({ store })
 
-    expect(state.usage.total.calls).toBe(51)
+    expect(state.usage.total.calls).toBe(3)
   })
 
-  it('writes a checkpoint every 50 appends', async () => {
+  it("truncates the records before each snapshot with logRecords 'since-snapshot'", async () => {
     const store = memoryLogStore()
-    const { metadata } = memoryPersistence().stores
-    const writer = newWriter(store, { metadata, project })
+    const writer = newWriter(store, {
+      snapshot: { afterBytes: 1 },
+      logRecords: 'since-snapshot',
+    })
 
-    for (let index = 0; index < 50; index += 1) {
-      await writer.append([{ type: 'app.tick', index }])
-    }
-
-    await expect
-      .poll(() => metadata.get(NAMESPACE, LOG))
-      .toMatchObject({ v: 4, seq: 50, version: 'v1' })
-  })
-
-  it('keeps the position of the last transcript record', async () => {
-    const store = memoryLogStore()
-    const { metadata } = memoryPersistence().stores
-    const writer = newWriter(store, { metadata, project })
     await writer.commit({ messages: [user('u1', 'one')] })
-    for (let index = 1; index < 50; index += 1) {
-      await writer.append([{ type: 'app.tick', index }])
-    }
-    await expect
-      .poll(() => metadata.get(NAMESPACE, LOG))
-      .toMatchObject({ seq: 50 })
+    await writer.commit({ messages: [user('u1', 'one'), user('u2', 'two')] })
+    await writer.rest()
 
-    expect(
-      (await loadSession({ store, metadata, project })).transcriptSeq,
-    ).toBe(1)
-    // A checkpoint from before the field does not know it.
-    await metadata.set(NAMESPACE, LOG, checkpoint({ seq: 2 }))
-    expect(
-      (await loadSession({ store, metadata, project })).transcriptSeq,
-    ).toBeUndefined()
+    await expect(store.read({ logId: LOG })).rejects.toBeInstanceOf(
+      LogTruncatedError,
+    )
+    expect(await store.read({ logId: LOG, after: 2 })).toEqual([])
+    // A new host still has the whole fold, from the snapshot.
+    expect((await loadSession({ store })).messages).toEqual([
+      user('u1', 'one'),
+      user('u2', 'two'),
+    ])
+  })
+
+  it("keeps every record with logRecords 'all'", async () => {
+    const store = memoryLogStore()
+    const writer = newWriter(store, { snapshot: { afterBytes: 1 } })
+
+    await writer.append([tick(1)])
+    await writer.append([tick(2)])
+    await writer.rest()
+
+    expect(await store.getSnapshot({ logId: LOG })).toMatchObject({ seq: 2 })
+    expect(await records(store)).toEqual([tick(1), tick(2)])
+  })
+
+  it('sends one gap event to a reader whose cursor is before the cut, then the stored events', async () => {
+    const store = memoryLogStore()
+    const first = newWriter(store, {
+      snapshot: { afterBytes: 1 },
+      logRecords: 'since-snapshot',
+    })
+    first.publish('op-a', textStart('m1'))
+    await first.flush()
+    first.publish('op-a', textEnd('m1'))
+    await first.flush()
+    await first.rest()
+    first.close()
+    // A new host opens from the snapshot at 2: events 1 and 2 are gone.
+    const state = await loadLogState({ store, logId: LOG, rootThread: THREAD })
+    const writer = newWriter(store, { state })
+    let done = false
+    const seen: Array<SessionEvent> = []
+    const reading = (async () => {
+      for await (const entry of writer.read({ from: '0', until: () => done })) {
+        seen.push(entry)
+      }
+    })()
+    writer.publish('op-a', textStart('m2'))
+    await writer.flush()
+    done = true
+    // A write wakes the reader, so it sees `done`.
+    writer.publish('op-a', textEnd('m2'))
+    await writer.flush()
+    await reading
+
+    expect(seen.map((entry) => [entry.cursor, entry.event])).toEqual([
+      [
+        '2',
+        expect.objectContaining({
+          type: EventType.CUSTOM,
+          name: HARNESS_EVENTS.gap,
+          value: { from: '0', resumeAt: '2', reason: 'truncated' },
+        }),
+      ],
+      ['3', textStart('m2')],
+      ['4', textEnd('m2')],
+    ])
+  })
+
+  it('folds from the snapshot when the owner truncated records this host did not read', async () => {
+    const inner = memoryLogStore()
+    // This host never hears of the writes, so its fold stays at 0.
+    const reader = newWriter(silentStore(inner))
+    const owner = newWriter(inner, {
+      snapshot: { afterBytes: 1 },
+      logRecords: 'since-snapshot',
+    })
+    await owner.commit({ messages: [user('u1', 'one')] })
+    await owner.commit({ messages: [user('u1', 'one'), user('u2', 'two')] })
+    await owner.rest()
+    owner.close()
+
+    await reader.catchUp()
+
+    expect(reader.state.seq).toBe(2)
+    expect(reader.state.messages).toEqual([
+      user('u1', 'one'),
+      user('u2', 'two'),
+    ])
   })
 
   /** Counts the host records of the log. */
@@ -1071,48 +1272,32 @@ describe('fold checkpoints', () => {
   }
 
   it.each([
-    ['no reduce fold', checkpoint({}), countRecords],
+    ['no reduce fold', snapshotOf({}), countRecords],
     [
       'another reduce version',
-      checkpoint({ reduceVersion: 'r0' }),
+      snapshotOf({ reduceVersion: 'r0' }),
       { ...countRecords, version: 'r1' },
     ],
   ])(
-    'ignores a checkpoint with %s for a load with reduce',
-    async (_name, value, reduce) => {
-      const store = memoryLogStore()
-      await store.append({
-        logId: LOG,
-        seq: 1,
-        epoch: UNOWNED_EPOCH,
-        records: [{ type: 'app.tick' }],
-      })
-      await store.append({
-        logId: LOG,
-        seq: 2,
-        epoch: UNOWNED_EPOCH,
-        records: [{ type: 'app.tick' }],
-      })
-      const { metadata } = memoryPersistence().stores
-      await metadata.set(NAMESPACE, LOG, value)
+    'ignores a snapshot with %s for a load with reduce',
+    async (_name, snapshot, reduce) => {
+      const store = await seededStore(snapshot, [tick(1), tick(2)])
 
       const state = await loadLogState({
         store,
         logId: LOG,
         rootThread: THREAD,
-        metadata,
         project,
         reduce,
       })
 
-      // The count includes record 1: the fold did not start at the checkpoint.
+      // The count includes record 1: the fold did not start at the snapshot.
       expect(state.reduced).toBe(2)
     },
   )
 
-  it('starts a reduce fold from the checkpoint that a shared log wrote', async () => {
+  it('starts a reduce fold from the snapshot that a shared log wrote', async () => {
     const store = memoryLogStore()
-    const { metadata } = memoryPersistence().stores
     let calls = 0
     const reduce: ReduceOptions<number> = {
       initial: 0,
@@ -1131,28 +1316,28 @@ describe('fold checkpoints', () => {
       coalesceMs: 0,
       eventBytes: EVENT_BYTES,
       reduce,
-      metadata,
+      snapshot: { afterBytes: 1 },
     })
     const writer = log.view(THREAD, hooksOf())
-    for (let index = 0; index < 50; index += 1) {
-      await writer.append([{ type: 'app.tick', index }])
-    }
-    await expect
-      .poll(() => metadata.get(NAMESPACE, LOG))
-      .toMatchObject({ seq: 50, reduceVersion: '' })
+    for (let index = 0; index < 5; index += 1)
+      await writer.append([tick(index)])
+    await writer.rest()
+    expect(await store.getSnapshot({ logId: LOG })).toMatchObject({
+      seq: 5,
+      state: { reduceVersion: '' },
+    })
     calls = 0
 
     const state = await loadLogState({
       store,
       logId: LOG,
       rootThread: THREAD,
-      metadata,
       reduce,
     })
 
-    expect(state.reduced).toBe(50)
+    expect(state.reduced).toBe(5)
     expect(state.reduced).toEqual(log.state.reduced)
-    // The fold started at the checkpoint: no record folded again.
+    // The fold started at the snapshot: no record folded again.
     expect(calls).toBe(0)
   })
 })
@@ -1183,7 +1368,7 @@ describe('engine message store', () => {
   async function engineOnLog() {
     const store = memoryLogStore()
     const writer = newWriter(store, { project })
-    const engine = engineMessageStore({ writer, store, project })
+    const engine = engineMessageStore({ writer })
     return { writer, engine }
   }
 
@@ -1322,10 +1507,10 @@ describe('message stores', () => {
     ).toEqual(['app.other', 'harness.transcript'])
   })
 
-  it('sessionMessageStore uses the writer for its thread and the log for others', async () => {
+  it('sessionMessageStore writes its thread and each child thread to the one log of the writer', async () => {
     const store = memoryLogStore()
     const writer = newWriter(store)
-    const messages = sessionMessageStore({ writer, store })
+    const messages = sessionMessageStore({ writer })
 
     await messages.saveThread(THREAD, [user('u1', 'main')])
     await messages.saveThread('subagent:1', [user('c1', 'child')])
@@ -1335,11 +1520,12 @@ describe('message stores', () => {
     expect(await messages.loadThread('subagent:1')).toEqual([
       user('c1', 'child'),
     ])
-    const child: Array<LogRecord> = await records(
-      store,
-      logIdOf({ logId: 'subagent:1' }),
-    )
-    expect(child).toHaveLength(1)
+    const written: Array<LogRecord> = await records(store, writer.logId)
+    expect(written.map((record) => record.thread)).toEqual([
+      undefined,
+      'subagent:1',
+    ])
+    expect(await records(store, logIdOf({ logId: 'subagent:1' }))).toEqual([])
   })
 })
 

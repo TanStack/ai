@@ -29,7 +29,14 @@ export type {
 } from './durable-tool'
 
 export { LogVersionError, logIdOf, logMessageStore } from './log'
-export type { ProjectOptions, ProjectRecord, ReduceOptions } from './log'
+export { LogOwnedElsewhereError } from './ownership'
+export type {
+  LogRecordRetention,
+  ProjectOptions,
+  ProjectRecord,
+  ReduceOptions,
+  SnapshotTiming,
+} from './log'
 export type { OwnershipOptions } from './ownership'
 
 export { definePlugin } from './plugins'
@@ -173,6 +180,7 @@ export type {
   BusyPolicy,
   ChatTurnResult,
   Cursor,
+  EventGap,
   ForkPoint,
   HarnessInput,
   HarnessRunContext,

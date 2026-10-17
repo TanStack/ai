@@ -126,7 +126,7 @@ describe('host.observe of an idle thread', () => {
 describe('host.observe', () => {
   it('streams what open sessions write, shares one fold, and does not hold the session', async () => {
     const { host, harness, persistence, seed, isOpen } = setup()
-    const reads = vi.spyOn(persistence.stores.metadata, 'get')
+    const reads = vi.spyOn(persistence.stores.log, 'getSnapshot')
     const first = await host.observe(harness, { threadId: THREAD })
     const second = await host.observe(harness, { threadId: THREAD })
     const reading = new AbortController()
@@ -155,12 +155,9 @@ describe('host.observe', () => {
       'Hello.',
       'Hello back.',
     ])
-    // Each fold of the log reads its checkpoint once: one fold for the two
+    // Each fold of the log reads its snapshot once: one fold for the two
     // views and the two sessions.
-    const folds = reads.mock.calls.filter(
-      ([namespace]) => namespace === 'harness:log-checkpoint',
-    )
-    expect(folds).toHaveLength(1)
+    expect(reads).toHaveBeenCalledTimes(1)
     reading.abort()
     await streamed
     await host.close()
