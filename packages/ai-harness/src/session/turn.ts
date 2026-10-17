@@ -14,7 +14,7 @@ import { bindDurable } from '../durable-tool'
 import { mediaMiddleware } from '../media'
 import { OperationImpl } from '../operation'
 import { mountPlugins } from '../plugins'
-import { truncationMiddleware } from '../resume'
+import { scrubToolResults, truncationMiddleware } from '../resume'
 import { HARNESS_EVENTS, InputRejectedError } from '../types'
 import {
   createInputId,
@@ -559,8 +559,8 @@ export abstract class SessionTurn<
           : undefined
       let resume = turn.resume
       let parentRunId = runParent
-      const { chatPersistence, checkpoint } = this
-      if (!chatPersistence || !checkpoint) {
+      const { chatPersistence, checkpoint, toolRecorder } = this
+      if (!chatPersistence || !checkpoint || !toolRecorder) {
         throw new Error('The session is not open yet.')
       }
       const durableTools = this.durableTools(bindTool)
@@ -733,6 +733,10 @@ export abstract class SessionTurn<
               }),
               // After the media, so the model gets no secret of the session.
               redactMiddleware(this.redactor),
+              // Last: the log keeps the result that the model really got,
+              // after every plugin, without the secrets of the session.
+              scrubToolResults(this.redactor),
+              toolRecorder,
               // The registry types of the harness interrupts do not line up
               // with the middleware tuple chat() infers. Only this field.
             ] as never,

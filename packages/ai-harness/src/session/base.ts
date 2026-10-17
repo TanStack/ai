@@ -378,6 +378,11 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /** Tells the host each time the thread goes idle. See `SessionDependencies`. */
   protected readonly notifyIdle: (() => void) | undefined
   protected checkpoint: AnyChatMiddleware | undefined
+  /**
+   * Writes the final result of each tool call to the log. It goes at the
+   * very end of the middleware list. See `toolResultRecorder`.
+   */
+  protected toolRecorder: AnyChatMiddleware | undefined
   protected readonly index: SessionIndexWriter
   /**
    * Why the work of this session stopped: another host took the log. Set

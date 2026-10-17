@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness, logIdOf } from '../src'
 import { boundText, boundToolOutput } from '../src/first-party/bound-output'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { AnyTool, ModelMessage } from '@tanstack/ai'
@@ -226,6 +226,53 @@ describe('boundToolOutput', () => {
       error: FIRST_THREE,
     })
   })
+
+  it.each([
+    { what: 'result', fails: false },
+    { what: 'error', fails: true },
+  ])(
+    'stores the cut $what in the log, the one the model saw',
+    async ({ fails }) => {
+      const tool = toolDefinition({
+        name: 'lookup',
+        description: 'Look something up',
+      }).server(async () => {
+        if (fails) throw new Error(FIVE_LINES)
+        return FIVE_LINES
+      })
+      const model = callsOnce('lookup')
+      const persistence = memoryPersistence()
+      const host = createHarnessHost({ persistence })
+      const session = await host.open(
+        defineHarness({
+          name: 'test/bound-output-log',
+          adapter: model.adapter,
+          tools: [tool],
+          plugins: () => [boundToolOutput({ maxLines: 3 })],
+        }),
+        { threadId: 't' },
+      )
+
+      await session.send('go')
+
+      const stored = (
+        await persistence.stores.log.read({ logId: logIdOf({ logId: 't' }) })
+      )
+        .map((entry) => entry.record)
+        .filter((record) => record.type === 'harness.tool.result')
+      const seen = toolMessageIn(model.calls[1])
+      expect(stored).toEqual([
+        expect.objectContaining({
+          message: expect.objectContaining({
+            content: seen?.content,
+            ...(fails ? { error: seen?.error } : {}),
+          }),
+        }),
+      ])
+      expect(JSON.stringify(stored)).not.toContain('line 5')
+      await host.close()
+    },
+  )
 
   it('saves the full output in dir and gives its path in the note', async () => {
     const seen = await leadSees(FIVE_LINES, { maxLines: 3, dir })

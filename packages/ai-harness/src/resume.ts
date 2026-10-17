@@ -7,6 +7,7 @@ import type {
   RunStore,
 } from '@tanstack/ai'
 import type { MessageStore } from '@tanstack/ai-persistence'
+import type { Redactor } from './auth'
 import type { HarnessDurability } from './define'
 import type { RecoverContext } from './turn'
 
@@ -73,8 +74,10 @@ export function truncationMiddleware(
  * Chat middleware that makes a turn resumable after a crash:
  *
  * - saves the transcript before and after each tool phase;
- * - records each tool call that started but has no result yet;
- * - gives `onToolResult` the tool message of each call that ends.
+ * - records each tool call that started but has no result yet.
+ *
+ * It does not record the results: a later `onAfterToolCall` can still
+ * replace them. {@link toolResultRecorder}, at the end of the list, does.
  */
 export function checkpointMiddleware(options: {
   runs?: RunStore
@@ -85,13 +88,8 @@ export function checkpointMiddleware(options: {
     name: string
     replay: 'safe' | 'never'
   }) => void | Promise<void>
-  /** Called after each tool call ends, with the tool message the model gets. */
-  onToolResult?: (info: {
-    toolCallId: string
-    message: ModelMessage
-  }) => void | Promise<void>
 }): AnyChatMiddleware {
-  const { runs, messages, onToolResult } = options
+  const { runs, messages } = options
   const state = new WeakMap<object, { pending: Array<PendingTool> }>()
 
   const saveCheckpoint = async (runId: string, pending: Array<PendingTool>) => {
@@ -128,29 +126,12 @@ export function checkpointMiddleware(options: {
         replay: hook.tool?.replay ?? 'never',
       })
     },
-    async onAfterToolCall(ctx, info) {
+    onAfterToolCall(ctx, info) {
       const entry = state.get(ctx)
       if (!entry) return
       entry.pending = entry.pending.filter(
         (tool) => tool.toolCallId !== info.toolCallId,
       )
-      // A call cut at the output limit never ran: `truncationMiddleware`
-      // owns its text, and recovery writes the same one.
-      if (!onToolResult || isCutCall(info)) return
-      // The same content the engine puts in its tool message.
-      const message: ModelMessage = info.ok
-        ? {
-            role: 'tool',
-            toolCallId: info.toolCallId,
-            content: normalizeToolResult(info.result),
-          }
-        : {
-            role: 'tool',
-            toolCallId: info.toolCallId,
-            content: JSON.stringify({ error: errorText(info.error) }),
-            error: errorText(info.error),
-          }
-      await onToolResult({ toolCallId: info.toolCallId, message })
     },
     async onToolPhaseComplete(ctx) {
       const entry = state.get(ctx)
@@ -162,6 +143,83 @@ export function checkpointMiddleware(options: {
     onFinish: (ctx) => stop(ctx),
     onAbort: (ctx) => stop(ctx),
     onError: (ctx) => stop(ctx),
+  }
+}
+
+/** The error text the engine gives a tool message with an error result. */
+function toolErrorText(content: ModelMessage['content']): string {
+  const wire = typeof content === 'string' ? content : JSON.stringify(content)
+  let output: unknown = wire
+  try {
+    output = JSON.parse(wire)
+  } catch {
+    // Plain text stays a string.
+  }
+  if (isRecord(output) && typeof output.error === 'string') return output.error
+  return typeof output === 'string' ? output : 'Tool execution failed'
+}
+
+/**
+ * Chat middleware that scrubs the secrets of `redactor` from each tool
+ * result, so the model, the stream, and the log get the same scrubbed
+ * value. An error stays an error. Put it right before
+ * {@link toolResultRecorder}.
+ */
+export function scrubToolResults(redactor: Redactor): AnyChatMiddleware {
+  return {
+    name: 'harness:scrub-tool-results',
+    onAfterToolCall(_ctx, info) {
+      if (redactor.isEmpty) return undefined
+      if (info.ok || info.result !== undefined) {
+        const result = redactor.redact(info.result)
+        return result === info.result
+          ? undefined
+          : { type: 'replaceResult', result }
+      }
+      // An error with no replacement: the engine gives the model its text.
+      const text = errorText(info.error)
+      const scrubbed = redactor.scrub(text)
+      return scrubbed === text
+        ? undefined
+        : { type: 'replaceResult', result: { error: scrubbed } }
+    },
+  }
+}
+
+/**
+ * Chat middleware that gives `onToolResult` the tool message of each call
+ * that ends: the final result, after every other `onAfterToolCall` hook.
+ * Put it at the very end of the middleware list. Recovery after a crash
+ * puts this message back, so the model gets the result it saw before.
+ */
+export function toolResultRecorder(
+  onToolResult: (info: {
+    toolCallId: string
+    message: ModelMessage
+  }) => void | Promise<void>,
+): AnyChatMiddleware {
+  return {
+    name: 'harness:tool-result-recorder',
+    async onAfterToolCall(_ctx, info) {
+      // A call cut at the output limit never ran: `truncationMiddleware`
+      // owns its text, and recovery writes the same one.
+      if (isCutCall(info)) return
+      // A replacement made on an error wins over the error text.
+      const result = info.ok
+        ? info.result
+        : (info.result ?? { error: errorText(info.error) })
+      // The same content the engine puts in its tool message.
+      const content = normalizeToolResult(result)
+      const message: ModelMessage = info.ok
+        ? { role: 'tool', toolCallId: info.toolCallId, content }
+        : {
+            role: 'tool',
+            toolCallId: info.toolCallId,
+            content,
+            error: toolErrorText(content),
+          }
+      await onToolResult({ toolCallId: info.toolCallId, message })
+    },
   }
 }
 

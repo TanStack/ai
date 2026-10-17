@@ -8,12 +8,16 @@ import {
   createPluginEvent,
   defineHarness,
   definePlugin,
+  durableTool,
   logIdOf,
   scrubSecrets,
 } from '../src'
 import { Redactor, redactMiddleware } from '../src/auth'
+import { createHarnessHandler } from '../src/server'
+import { scrubbedBy } from '../src/session/harness-session'
 import { mockAdapter, text, toolCall } from './helpers'
-import type { ChatMiddlewareConfig } from '@tanstack/ai'
+import type { AnyTool, ChatMiddlewareConfig } from '@tanstack/ai'
+import type { Reply } from './helpers'
 import type { HarnessRunContext } from '../src'
 
 const THREAD = 't1'
@@ -31,7 +35,15 @@ const leaked = createPluginEvent<{ key: string }>('test/leaked')
  * opens. The tool `leak` reads the key and puts it in plugin state, in a
  * plugin event, and in its result, or throws it with `fail`.
  */
-async function open({ fail }: { fail: boolean }) {
+async function open({
+  fail,
+  tools = [],
+  replies = [() => toolCall('leak', {}), () => text('done')],
+}: {
+  fail: boolean
+  tools?: Array<AnyTool>
+  replies?: Array<Reply>
+}) {
   const credentials = memoryCredentialStore()
   await credentials.set({
     scope: { threadId: THREAD, userId: ada.id },
@@ -61,12 +73,13 @@ async function open({ fail }: { fail: boolean }) {
       return { tools: [tool] }
     },
   })
-  const model = mockAdapter([() => toolCall('leak', {}), () => text('done')])
+  const model = mockAdapter(replies)
   const persistence = memoryPersistence()
   const host = createHarnessHost({ persistence, credentials })
   const harness = defineHarness({
     name: 'test/redaction',
     adapter: model.adapter,
+    tools,
     plugins: () => [leaky],
   })
   const session = await host.open(harness, {
@@ -77,6 +90,7 @@ async function open({ fail }: { fail: boolean }) {
   session.onEvent((entry) => events.push(entry))
   return {
     host,
+    harness,
     session,
     events,
     calls: model.calls,
@@ -114,6 +128,107 @@ describe('the redaction sink of a session', () => {
       await host.close()
     },
   )
+})
+
+describe('the edges of a session', () => {
+  it.each([
+    { fail: false, what: 'result' },
+    { fail: true, what: 'error' },
+  ])(
+    'stores the tool $what that the model got, without the key',
+    async ({ fail }) => {
+      const { host, session, log } = await open({ fail })
+
+      await session.send('Leak it.')
+
+      const results = (await log.read({ logId: LOG }))
+        .map((entry) => entry.record)
+        .filter((record) => record.type === 'harness.tool.result')
+      expect(results).toHaveLength(1)
+      const stored = JSON.stringify(results)
+      expect(stored).toContain('[redacted]')
+      expect(stored).not.toContain(KEY_PART)
+      // The transcript has the same scrubbed tool message.
+      const message = (await session.transcript()).find(
+        (entry) => entry.role === 'tool',
+      )
+      expect(JSON.stringify(message)).toContain('[redacted]')
+      expect(JSON.stringify(message)).not.toContain(KEY_PART)
+      await host.close()
+    },
+  )
+
+  it('returns a durable step value as the log keeps it, on the first run too', async () => {
+    let returned: unknown
+    const stash = durableTool(
+      toolDefinition({
+        name: 'stash',
+        description: 'Keep a value in a step',
+        inputSchema: z.object({}),
+      }),
+      async (_input, { step }) => {
+        returned = await step.do('keep', () => ({ value: KEY }))
+        return 'kept'
+      },
+    )
+    const { host, session } = await open({
+      fail: false,
+      tools: [stash],
+      // The key is a secret of the session after `leak` read it.
+      replies: [
+        () => toolCall('leak', {}, 'call-leak'),
+        () => toolCall('stash', {}, 'call-stash'),
+        () => text('done'),
+      ],
+    })
+
+    await session.send('Leak it, then stash it.')
+
+    expect(returned).toEqual({ value: '[redacted]' })
+    await host.close()
+  })
+
+  it('scrubs the error that the HTTP handler sends, when it has the session', async () => {
+    const { host, harness, session } = await open({ fail: false })
+    await session.send('Leak it.')
+    const handler = createHarnessHandler({
+      host,
+      harness,
+      openAccess: { principal: ada },
+    })
+
+    // The media type is in the error text of the upload.
+    const response = await handler(
+      new Request(`http://h.test/media?threadId=${THREAD}&name=x`, {
+        method: 'POST',
+        headers: { 'Content-Type': `x/${KEY}` },
+        body: 'x',
+      }),
+    )
+
+    expect(response.status).toBe(415)
+    const body = JSON.stringify(await response.json())
+    expect(body).toContain('[redacted]')
+    expect(body).not.toContain(KEY_PART)
+    await host.close()
+  })
+
+  it('scrubs an error with the secrets of a session, and keeps its class', async () => {
+    const { host, session } = await open({ fail: false })
+    await session.send('Leak it.')
+    class AppError extends Error {}
+
+    const scrubbed = scrubbedBy(session, new AppError(`Refused ${KEY}.`))
+
+    expect(scrubbed).toBeInstanceOf(AppError)
+    expect(String(scrubbed)).toContain('Refused [redacted].')
+    expect(String(scrubbed)).not.toContain(KEY_PART)
+    // With no session, the error stays as it is.
+    const raw = new Error(`Refused ${KEY}.`)
+    expect(scrubbedBy(undefined, raw)).toBe(raw)
+    expect(raw.message).toContain(KEY_PART)
+    await host.close()
+  })
 })
 
 describe('Redactor', () => {

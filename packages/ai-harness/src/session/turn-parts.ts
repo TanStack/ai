@@ -26,7 +26,7 @@ import type {
   ToolExecutionContext,
 } from '@tanstack/ai'
 import type { LogRecord } from '@tanstack/ai-persistence'
-import type { DurableBind } from '../durable-tool'
+import type { DurableBind, ToolStep } from '../durable-tool'
 import type { LogWriter } from '../log'
 import type { UsageCall } from '../usage'
 import type { AnyHarness } from '../define'
@@ -61,7 +61,7 @@ export abstract class SessionTurnParts<
     toolCallId: string,
     run: RunContext,
   ) {
-    const step = createToolStep({
+    const stored = createToolStep({
       recorded: (name) => {
         const key = stepKey(toolCallId, name)
         return writer.state.steps.has(key)
@@ -85,6 +85,13 @@ export abstract class SessionTurnParts<
           signal: run.signal,
         }),
     })
+    // The log keeps a step value without the secrets of the session, and a
+    // replay returns that value. So the first run returns it too: a caller
+    // never gets a value that the log scrubbed.
+    const step: ToolStep = {
+      ...stored,
+      do: async (name, fn) => this.redactor.redact(await stored.do(name, fn)),
+    }
     const append = (records: ReadonlyArray<LogRecord>) => {
       checkHostRecords(records)
       writer.stage(records, toolCallId)

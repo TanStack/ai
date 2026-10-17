@@ -230,6 +230,91 @@ describe('durable tools across a crash', () => {
   })
 })
 
+describe('the final tool result across a crash', () => {
+  it('gives the model the result that a middleware replaced, not the raw one', async () => {
+    const persistence = durablePersistence()
+    const mailStarted = gate()
+    const tools = [
+      toolDefinition({ name: 'charge', description: 'Charge a card' }).server(
+        async () => 'charged card 4242-4242-4242-4242',
+      ),
+      toolDefinition({ name: 'mail', description: 'Send a mail' }).server(
+        (_args, context) => {
+          mailStarted.open()
+          // The first host stops while the mail runs.
+          return untilAborted(context?.abortSignal)
+        },
+      ),
+    ]
+    // A plugin-like middleware that hides the card number from the model.
+    const hideCard: AnyChatMiddleware = {
+      name: 'test:hide-card',
+      onAfterToolCall: (_ctx, info) =>
+        typeof info.result === 'string'
+          ? {
+              type: 'replaceResult',
+              result: info.result.replace(/\d{4}(-\d{4}){3}/, '[card]'),
+            }
+          : undefined,
+    }
+    const openWith = (replies: Array<Reply>, ownership?: OwnershipOptions) => {
+      const { adapter, calls } = mockAdapter(replies)
+      const host = createHarnessHost({
+        persistence,
+        ...(ownership ? { ownership } : {}),
+      })
+      const harness = defineHarness({
+        name: 'test/durable-final-result',
+        adapter,
+        tools,
+        middleware: [hideCard],
+      })
+      return { host, calls, opened: host.open(harness, { threadId: THREAD }) }
+    }
+    const first = openWith(
+      [
+        () =>
+          toolCalls([
+            { id: 'call-charge', name: 'charge' },
+            { id: 'call-mail', name: 'mail' },
+          ]),
+      ],
+      CRASHING_OWNERSHIP,
+    )
+    void (await first.opened)
+      .send('charge and mail', { inputId: 'final-1' })
+      .then(
+        () => {},
+        () => {},
+      )
+    await mailStarted.opened
+    await vi.waitFor(
+      async () =>
+        expect(
+          await recordsOf(persistence, 'harness.tool.result'),
+        ).toHaveLength(1),
+      { timeout: 5_000 },
+    )
+    // The first host stops: its ownership of the log expires.
+    await ownershipExpired()
+
+    const next = openWith([() => text('done')])
+    await (await next.opened).settled('final-1')
+
+    const charged = next.calls[0].messages.find(
+      (message: { toolCallId?: string }) =>
+        message.toolCallId === 'call-charge',
+    )
+    expect(charged?.content).toBe('charged card [card]')
+    const stored = JSON.stringify(
+      await recordsOf(persistence, 'harness.tool.result'),
+    )
+    expect(stored).not.toContain('4242')
+    await first.host.close().catch(() => {})
+    await next.host.close()
+  })
+})
+
 describe('host records of a tool batch', () => {
   const noteDefinition = toolDefinition({
     name: 'note',

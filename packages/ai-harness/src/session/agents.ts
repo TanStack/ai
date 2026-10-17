@@ -11,6 +11,8 @@ import { OperationImpl } from '../operation'
 import {
   checkpointMiddleware,
   repairTranscript,
+  scrubToolResults,
+  toolResultRecorder,
   truncationMiddleware,
 } from '../resume'
 import { HARNESS_EVENTS, InputRejectedError } from '../types'
@@ -622,22 +624,27 @@ export abstract class SessionAgents<
     const checkpoint = checkpointMiddleware({
       runs: this.runStore,
       messages: this.engine,
-      // As in a turn, each finished tool result goes to the session log at
-      // once, under a key of this run. A run again puts it back.
-      onToolResult: ({ toolCallId, message }) =>
-        writer.append([
-          {
-            type: 'harness.tool.result',
-            toolCallId: `${key}:${toolCallId}`,
-            message,
-          },
-        ]),
     })
     return {
       middleware: [
         checkpoint,
         truncationMiddleware(this.harness.durability?.truncatedToolResult),
         this.durableTools(this.durableBinder(run)),
+      ],
+      // As in a turn, each final tool result goes to the session log at
+      // once, under a key of this run. A run again puts it back. These go
+      // at the very end of the list, after every plugin.
+      last: [
+        scrubToolResults(this.redactor),
+        toolResultRecorder(({ toolCallId, message }) =>
+          writer.append([
+            {
+              type: 'harness.tool.result',
+              toolCallId: `${key}:${toolCallId}`,
+              message,
+            },
+          ]),
+        ),
       ],
       // The steps of the run are under the key of its input: the same on
       // each run again.
@@ -997,6 +1004,7 @@ export abstract class SessionAgents<
             ...(durable?.middleware ?? []),
             this.agentSteering(chain, inputId, operation),
             ...binding.chatMiddleware,
+            ...(durable?.last ?? []),
           ],
           budget: chain.budget,
           // No parent chat() call to take it from, so the session's retention.
