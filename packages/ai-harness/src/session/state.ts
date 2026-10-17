@@ -1,10 +1,14 @@
 import {
   INTERRUPT_BINDING_METADATA_KEY,
+  chat,
   convertSchemaToJsonSchema,
   validateWithStandardSchema,
 } from '@tanstack/ai'
 import { loadChildTranscript } from '@tanstack/ai-persistence'
 import { checkConfigValue } from '../config'
+import { transcriptText } from '../first-party/session-tools'
+import { LogOwnedElsewhereError } from '../ownership'
+import { callUsage } from '../usage'
 import { isRecord } from '../utils'
 import { changedEntry } from '../session-entry'
 import { stableJson, threadOf, visibleMessages } from '../log'
@@ -39,6 +43,7 @@ import type {
 import type {
   BlobBody,
   BlobRange,
+  LogRecord,
   SessionIndexEntry,
 } from '@tanstack/ai-persistence'
 import type { RevertState } from '../log'
@@ -70,6 +75,10 @@ import type {
 } from './types'
 import type { SettingNames } from './helpers'
 import type { HarnessSession, SessionImpl } from './harness-session'
+
+/** What the model of the source gets for a `'summary'` transfer. */
+const TRANSFER_SUMMARY_PROMPT =
+  'Summarize this conversation for the agent that takes it over. Keep the request, decisions, open tasks, and facts it needs. Leave out small talk.'
 
 /** What the log keeps in place of a secret answer. */
 const SECRET_ANSWER = '[secret]'
@@ -238,6 +247,21 @@ export abstract class SessionState<
     source: SessionImpl,
     messages: ReadonlyArray<ModelMessage>,
   ): Promise<void> {
+    await this.adoptMessages(source, messages)
+    await this.adoptSettings(source)
+  }
+
+  /**
+   * @internal Add `messages` after the transcript of this thread, with their
+   * media copied from `source` to this thread. `records` go in the same
+   * append, so a crash keeps both or neither. A fork and `host.transfer`
+   * call it.
+   */
+  async adoptMessages(
+    source: Pick<SessionImpl, 'getMedia' | 'loadMedia'>,
+    messages: ReadonlyArray<ModelMessage>,
+    records: ReadonlyArray<LogRecord> = [],
+  ): Promise<void> {
     // A media id belongs to one thread, so each file gets a copy here.
     const copies = new Map<string, MediaRecord | null>()
     const copy = async (id: string) => {
@@ -283,7 +307,17 @@ export abstract class SessionState<
         metadata: { ...message.metadata, harness },
       })
     }
-    await this.messages.saveThread(this.threadId, forked)
+    await this.writer.commit({
+      messages: [...this.writer.state.messages, ...forked],
+      records,
+    })
+  }
+
+  /**
+   * @internal Copy the stored settings and plugin config of `source` to
+   * this thread. Only a fork calls it: a transfer never moves them.
+   */
+  private async adoptSettings(source: SessionImpl): Promise<void> {
     this.threadSettings = source.settings()
     const records: Array<ThreadRecord> = []
     if (Object.keys(this.threadSettings).length > 0) {
@@ -295,6 +329,92 @@ export abstract class SessionState<
       records.push({ type: 'harness.config', key, value })
     }
     if (records.length > 0) await this.writer.append(records)
+  }
+
+  /** @internal The end of the transfer `transferId` in the log of this thread. */
+  transferOf(transferId: string) {
+    return this.writer.state.thread.transfers.get(transferId)
+  }
+
+  /**
+   * @internal Write the source end of the transfer `transferId`: `records`,
+   * with the `harness.transferred` record last. When another host owns the
+   * log, each record goes to that host through the input lane, with an id
+   * from the transfer, so a retry offers the same ids again. A log that has
+   * the transfer already gets nothing.
+   */
+  async recordTransfer(
+    transferId: string,
+    records: ReadonlyArray<LogRecord>,
+  ): Promise<void> {
+    if (this.transferOf(transferId)) return
+    try {
+      await this.writer.append(records)
+      return
+    } catch (error) {
+      if (!(error instanceof LogOwnedElsewhereError)) throw error
+    }
+    let usage = 0
+    for (const record of records) {
+      const inputId =
+        record.type === 'harness.transferred'
+          ? `transfer:${transferId}`
+          : `transfer:${transferId}:${record.type}:${usage++}`
+      if ((await this.writer.offer(inputId, record)) === 'conflict') {
+        throw new Error(
+          `The input lane has another record with id ${JSON.stringify(inputId)}.`,
+        )
+      }
+    }
+  }
+
+  /**
+   * @internal A summary of `messages` for `host.transfer`, by the model of
+   * this harness, with the keys of `principal`. Resolves to the summary
+   * message and the `harness.usage` records of its model calls, for the log
+   * of this thread.
+   */
+  async transferSummary(
+    principal: Principal | undefined,
+    messages: ReadonlyArray<ModelMessage>,
+  ) {
+    const named = this.threadSettings.model
+    const model =
+      (named === undefined ? undefined : this.harness.models?.[named]) ??
+      this.harness.adapter
+    if (!model) {
+      throw new Error(
+        `A transfer with messages: 'summary' needs a model: harness ${JSON.stringify(this.harness.name)} has no adapter.`,
+      )
+    }
+    const usage: Array<LogRecord> = []
+    const { text } = await chat({
+      adapter: await this.keysOf(principal).adapter(model),
+      messages: [
+        {
+          role: 'user',
+          content: `${TRANSFER_SUMMARY_PROMPT}\n\n${transcriptText(messages)}`,
+        },
+      ],
+      stream: false,
+      middleware: [
+        {
+          name: 'harness:transfer-usage',
+          onUsage: (ctx, counts) => {
+            usage.push({
+              type: 'harness.usage',
+              model: `${ctx.provider}/${ctx.model}`,
+              ...storedPrincipal(principal),
+              usage: callUsage(counts),
+            })
+          },
+        },
+      ],
+    })
+    if (!text.trim()) {
+      throw new Error('The summary model returned no text. Nothing moved.')
+    }
+    return { summary: text, usage }
   }
 
   // ===========================

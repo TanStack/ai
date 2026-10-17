@@ -123,6 +123,29 @@ export type WaitState = WaitRecord & {
   value?: unknown
 }
 
+/** The other end of a transfer: a thread of a harness, in the same tenant. */
+export type TransferLink = {
+  /** The name of the harness that runs the thread. */
+  harness: string
+  threadId: string
+}
+
+/**
+ * One end of a transfer, as the log of each thread keeps it. The log of the
+ * target has `from`, the log of the source has `to`. Both have the same
+ * `transferId`.
+ */
+export type TransferRecord = {
+  /** The thread that the conversation came from. Only in the target log. */
+  from?: TransferLink
+  /** The thread that the conversation went to. Only in the source log. */
+  to?: TransferLink
+  /** Who made the transfer. */
+  principal?: RecordPrincipal
+  /** When the transfer was made (epoch ms). */
+  at: number
+}
+
 /**
  * The thread-state records of a session log. Each change to what a record
  * means takes a new record type, never a new shape of one of these.
@@ -194,6 +217,8 @@ export type ThreadRecord =
       at: number
       value?: unknown
     }
+  /** A transfer moved the conversation to or from this thread. */
+  | ({ type: 'harness.transferred'; transferId: string } & TransferRecord)
 
 /** The record types that {@link foldThreadRecord} folds. */
 export const THREAD_RECORD_TYPES = [
@@ -211,6 +236,7 @@ export const THREAD_RECORD_TYPES = [
   'harness.interrupt.end',
   'harness.wait',
   'harness.wait.settled',
+  'harness.transferred',
 ] as const satisfies ReadonlyArray<ThreadRecord['type']>
 
 const THREAD_TYPES = new Set<string>(THREAD_RECORD_TYPES)
@@ -245,6 +271,8 @@ export interface ThreadStateFold {
    * interrupts are in `interrupts`.
    */
   waits: Map<string, WaitState>
+  /** The transfers to or from this thread, by transfer id, oldest first. */
+  transfers: Map<string, TransferRecord>
 }
 
 /** The thread state of a log with no thread-state records. */
@@ -260,6 +288,7 @@ export function emptyThreadState() {
     runs: new Map(),
     interrupts: new Map(),
     waits: new Map(),
+    transfers: new Map(),
   }
   return state
 }
@@ -444,6 +473,14 @@ export function foldThreadRecord(state: ThreadStateFold, record: LogRecord) {
         ...(record.value !== undefined ? { value: record.value } : {}),
       }
       return { ...state, waits: withEntry(state.waits, record.waitId, ended) }
+    }
+    case 'harness.transferred': {
+      const { type: _type, transferId, ...transfer } = record
+      if (state.transfers.has(transferId)) return state
+      return {
+        ...state,
+        transfers: withEntry(state.transfers, transferId, transfer),
+      }
     }
     default: {
       const unhandled: never = record

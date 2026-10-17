@@ -16,7 +16,8 @@ import type { WaitKind } from './waits'
  * - `share`: add or remove members.
  * - `delete`: delete the session.
  * - `fork`: copy the session into a new session.
- * - `transfer`: give the session to a new owner.
+ * - `transfer`: move the conversation to a new thread, maybe of another
+ *   harness, with `host.transfer`.
  */
 export type AccessAction =
   | 'read'

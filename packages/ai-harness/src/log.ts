@@ -36,6 +36,7 @@ import type {
   ScheduleRecord,
   ThreadRecord,
   ThreadStateFold,
+  TransferRecord,
   WaitState,
 } from './log-records'
 import type {
@@ -716,6 +717,7 @@ function serializeThread(thread: ThreadStateFold) {
     runs: [...thread.runs],
     interrupts: [...thread.interrupts],
     waits: [...thread.waits],
+    transfers: [...thread.transfers],
   }
 }
 
@@ -750,6 +752,12 @@ function parseThread(value: unknown) {
     waits: new Map(
       Array.isArray(value.waits)
         ? (value.waits as Array<[string, WaitState]>)
+        : [],
+    ),
+    // A state with no transfers gets an empty value.
+    transfers: new Map(
+      Array.isArray(value.transfers)
+        ? (value.transfers as Array<[string, TransferRecord]>)
         : [],
     ),
   }

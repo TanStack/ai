@@ -51,6 +51,10 @@ export interface HarnessSession<
   // The public members that only the host and the handler call.
   | 'open'
   | 'adoptFork'
+  | 'adoptMessages'
+  | 'transferOf'
+  | 'recordTransfer'
+  | 'transferSummary'
   | 'onIdle'
   | 'resolveForRun'
   | 'checked'
