@@ -17,8 +17,8 @@ const SOURCE = 'source'
 const FORK = 'fork'
 
 function durablePersistence() {
-  const { runs, metadata } = memoryPersistence().stores
-  return { stores: { log: memoryLogStore(), runs, metadata } }
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log: memoryLogStore(), metadata } }
 }
 
 /** A plugin with a config option and a counter in its saved state. */

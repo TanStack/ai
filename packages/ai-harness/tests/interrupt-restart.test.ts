@@ -64,8 +64,8 @@ function cleanerAgent(tool: AnyTool) {
 }
 
 /**
- * A log and metadata, with no work claims: a host that opens the thread
- * after another one closed takes it at once, as a server that started again.
+ * A log and metadata: a host that opens the thread after another one
+ * closed takes it at once, as a server that started again.
  */
 function approvalStores() {
   const { stores } = memoryPersistence()

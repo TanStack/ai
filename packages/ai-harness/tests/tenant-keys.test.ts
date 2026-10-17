@@ -68,10 +68,10 @@ const contents = (messages: ReadonlyArray<ModelMessage>) =>
 
 /** A host with `stores.log`. */
 function durableHost() {
-  const { metadata, workClaims } = memoryPersistence().stores
+  const { metadata } = memoryPersistence().stores
   const log = memoryLogStore()
   const persistence = {
-    stores: { log, metadata, workClaims },
+    stores: { log, metadata },
   }
   return {
     persistence,
@@ -164,20 +164,22 @@ describe('one thread id in two tenants', () => {
     await again.close()
   })
 
-  it('resumes a claimed thread in the tenant of its claim', async () => {
+  it('resumes a thread in the tenant of its log', async () => {
     const { persistence, seedInput } = durableHost()
     await seedInput(ACME_THREAD)
-    await persistence.stores.workClaims.claim({
-      threadId: ACME_THREAD,
+    // The host that logged the input stopped while it owned the log.
+    await persistence.stores.log.acquire({
+      logId: ACME_THREAD,
       harness: NAME,
       ownerId: 'host-gone',
-      until: Date.now() - 1_000,
+      ttlMs: 1,
     })
+    await new Promise((resolve) => setTimeout(resolve, 5))
     const { harness, calls } = harnessWith([() => text('Ran.')])
     const host = createHarnessHost({ persistence })
 
     expect(await host.resumePending({ harnesses: [harness] })).toEqual([
-      { threadId: THREAD, harness: NAME },
+      { threadId: THREAD, harness: NAME, tenantId: acme.tenantId },
     ])
     await vi.waitFor(() => expect(calls).toHaveLength(1))
     await vi.waitFor(async () => {

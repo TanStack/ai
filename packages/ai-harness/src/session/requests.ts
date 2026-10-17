@@ -9,8 +9,6 @@ import {
   errorText,
   inputKey,
   SHUTDOWN_REASON,
-  isElsewhere,
-  turnRecords,
 } from './helpers'
 import { SessionState } from './state'
 import type { ModelMessage, SchemaInput } from '@tanstack/ai'
@@ -154,9 +152,9 @@ export abstract class SessionRequests<
     const known = this.knownTurn(inputId, stored, principal)
     if (known) return known
     const runId = options?.runId
-    // A prompt that this host passed on comes back from the inbox when its
-    // owner stopped. It runs on the operation that its caller holds.
-    const passed = this.forwarded.has(inputId)
+    // A prompt that this host offered comes back from the lane when no live
+    // host owns the log. It runs on the operation that its caller holds.
+    const passed = this.offeredInputs.has(inputId)
       ? this.turnOperations.get(inputId)
       : undefined
     // A run id must not take the id of another operation.
@@ -171,15 +169,11 @@ export abstract class SessionRequests<
     }
     const operation = passed ?? this.createTurnOperation(runId)
     this.bindTurn(inputId, operation)
-    const records = turnRecords(inputId, {
-      overrides,
-      systemPreamble,
-      ephemeral,
-    })
     void this.admitting(() =>
       this.accept(inputId, stored, principal, {
-        ...(runId !== undefined ? { runId } : {}),
-        records,
+        // An offered turn runs as the operation of this host.
+        runId: operation.id,
+        turn: { overrides, systemPreamble, ephemeral },
       }).then(
         async (admission) => {
           if (admission !== 'new') {
@@ -385,12 +379,12 @@ export abstract class SessionRequests<
     if (known) return known
     const operation = this.createTurnOperation()
     this.bindTurn(inputId, operation)
-    const records = turnRecords(inputId, {
+    const turn = {
       ...(options?.overrides ? { overrides: options.overrides } : {}),
       ...(options?.ephemeral ? { ephemeral: options.ephemeral } : {}),
-    })
+    }
     void this.admitting(() =>
-      this.accept(inputId, input, principal, { records }).then(
+      this.accept(inputId, input, principal, { turn }).then(
         (admission) => {
           if (admission !== 'new') {
             this.answerDuplicate(operation, inputId, admission)
@@ -491,7 +485,7 @@ export abstract class SessionRequests<
 
   /**
    * @internal `resolve`, with the AG-UI `runId` of a `POST run` request: the
-   * turn runs as it. The HTTP handler and a forwarded resolve call it.
+   * turn runs as it. The HTTP handler and an offered resolve call it.
    */
   override async resolveForRun(
     options: ResolveForRunOptions,
@@ -509,8 +503,8 @@ export abstract class SessionRequests<
       )
       if (admission !== 'new') {
         const receipt = this.duplicateReceipt(inputId, admission)
-        // The owner runs a forwarded resume as `runId`.
-        return admission === 'forwarded' &&
+        // The owner runs an offered resume as `runId`.
+        return admission === 'offered' &&
           runId !== undefined &&
           receipt.status !== 'rejected'
           ? { ...receipt, operationId: runId }
@@ -714,15 +708,19 @@ export abstract class SessionRequests<
    */
   async cancelInput(
     target: string,
-    options?: { principal?: Principal },
+    options?: {
+      principal?: Principal
+      /** @internal The id of an offered input, so a replay is a duplicate. */
+      inputId?: string
+    },
   ): Promise<Receipt> {
-    const inputId = createInputId()
+    const inputId = options?.inputId ?? createInputId()
     const admission = await this.accept(
       inputId,
       { op: 'cancelInput', inputId: target },
       options?.principal,
     )
-    if (isElsewhere(admission)) return this.duplicateReceipt(inputId, admission)
+    if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const taken = this.takeWaiting(target) ?? this.takeQueuedContinue(target)
     if (!taken) return this.reject(inputId, 'not_waiting')
     await this.applyControl(inputId, {
@@ -761,18 +759,21 @@ export abstract class SessionRequests<
     inputId: target,
     delivery,
     principal,
+    controlId,
   }: {
     inputId: string
     delivery: WaitingInput['delivery']
     principal?: Principal
+    /** @internal The id of an offered input, so a replay is a duplicate. */
+    controlId?: string
   }): Promise<Receipt> {
-    const inputId = createInputId()
+    const inputId = controlId ?? createInputId()
     const admission = await this.accept(
       inputId,
       { op: 'setDelivery', inputId: target, delivery },
       principal,
     )
-    if (isElsewhere(admission)) return this.duplicateReceipt(inputId, admission)
+    if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const current = this.inputs().find((input) => input.inputId === target)
     if (current?.delivery !== delivery) {
       const taken = this.takeWaiting(target)
@@ -923,11 +924,6 @@ export abstract class SessionRequests<
    */
   close(options?: { recoverable?: boolean }): Promise<void> {
     this.closing ??= (async () => {
-      // A thread with work keeps its claim, so a sweep finds that work after
-      // the claim expires. An idle thread gives it back.
-      const wasIdle = this.isIdle()
-      this.stopClaimTimer()
-      if (wasIdle) await this.releaseClaim()
       // Before the stop, so no write of the stopped work lands.
       // A session whose open failed before the log opened has no writer.
       if (options?.recoverable) this.logWriter?.close()

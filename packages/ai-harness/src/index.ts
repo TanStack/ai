@@ -31,11 +31,6 @@ export type {
 export { LogVersionError, logIdOf, logMessageStore } from './log'
 export type { ProjectOptions, ProjectRecord, ReduceOptions } from './log'
 export type { OwnershipOptions } from './ownership'
-export type {
-  LeaseStore,
-  TurnLease,
-  TurnLeaseKey,
-} from '@tanstack/ai-persistence'
 
 export { definePlugin } from './plugins'
 export type {
@@ -113,8 +108,11 @@ export type {
   HostSessions,
   HostStatusEvent,
   OpenSessionOptions,
+  ResumedThread,
   ResumePendingOptions,
   RetentionLimits,
+  SubmitInput,
+  SubmitOptions,
 } from './host'
 export { AccessDeniedError, membersOnly, membersOnlyPolicyOf } from './access'
 export type {

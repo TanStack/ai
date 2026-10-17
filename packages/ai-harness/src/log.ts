@@ -20,6 +20,8 @@ import type {
   LogStore,
   MessageStore,
   MetadataStore,
+  OfferResult,
+  OfferedInput,
   RunRecord,
 } from '@tanstack/ai-persistence'
 import type { EventFeed } from './feed'
@@ -588,8 +590,8 @@ export function sessionOf(state: SharedLogState<unknown>, thread: string) {
  * default tenant. So one log id in two tenants is two logs. `logId` is the
  * `logId` of `host.open`, and its default is the thread id.
  *
- * The other stores that the harness keys by thread (metadata, inbox, work
- * claims, and media) use the same key, with the thread id as `logId`.
+ * The other stores that the harness keys by thread (metadata and media) use
+ * the same key, with the thread id as `logId`.
  *
  * @example
  * ```ts
@@ -934,8 +936,21 @@ export interface LogWriter extends EventFeed {
    * folded record. `head()` is the log position.
    */
   readonly state: LogState
-  /** Append `records` after the pending events, in one batch. */
-  append: (records: ReadonlyArray<LogRecord>) => Promise<void>
+  /**
+   * Append `records` after the pending events, in one batch. `consumes`: the
+   * offers that the batch applies. The store removes them in the same write.
+   */
+  append: (
+    records: ReadonlyArray<LogRecord>,
+    options?: { consumes?: ReadonlyArray<string> },
+  ) => Promise<void>
+  /**
+   * Offer `record` to the owner of the log, for a host that cannot write to
+   * it. The owner applies it, and consumes it with `append`.
+   */
+  offer: (inputId: string, record: LogRecord) => Promise<OfferResult>
+  /** The pending offers of this session, in offer order. */
+  offered: () => Promise<Array<OfferedInput>>
   /**
    * Hold `records` until the next transcript commit of this session. With
    * `toolCallId`, hold them until the `harness.tool.result` of that call
@@ -992,6 +1007,12 @@ export interface LogViewHooks {
   onLost: (error: OwnershipLostError) => void
   /** The session has work, so the host keeps the log. */
   isBusy: () => boolean
+  /**
+   * The log can have offers for the session to apply: another host offered
+   * an input to this owner, this host got the log, or an input that this
+   * host offered still waits.
+   */
+  onOffers: () => void
 }
 
 /**
@@ -1029,6 +1050,9 @@ export interface LogReader<TState = unknown> {
  *   records of another owner), every session of the log gets `onLost`, and
  *   the sessions read on. A later write acquires the log again.
  * - When no session of the log has work, the host releases the log.
+ * - A host that cannot write offers its inputs instead (the input lane). The
+ *   owner applies them: each session of the log gets `onOffers` when another
+ *   host offered, and when this host gets the log.
  * - When a write fails for another reason (another writer took the
  *   position, or the store failed twice), every session of the log gets
  *   `onFailure`, and every later write rejects.
@@ -1060,6 +1084,10 @@ export class SharedLog<TState = unknown> {
   >()
   /** Events and host records that wait for the next append. */
   private readonly pending: Array<LogRecord> = []
+  /** The offers that the next append consumes. */
+  private readonly consumes: Array<string> = []
+  /** The offers of this host that may still wait for an owner. */
+  private readonly offeredHere = new Set<string>()
   /** The merge key of the last pending record, when it is a delta event. */
   private pendingKey: string | undefined
   /**
@@ -1146,6 +1174,11 @@ export class SharedLog<TState = unknown> {
       listener: () => {
         if (this.writing) return
         this.catchUpLater()
+        // The call can be a new offer. The owner applies it. A host that
+        // offered applies its own offers when no live host owns the log.
+        if (this.epoch !== undefined || this.offeredHere.size > 0) {
+          this.notifyOffers()
+        }
       },
     })
     this.stopLost = options.ownership.onLost(options.logId, (error) =>
@@ -1247,8 +1280,12 @@ export class SharedLog<TState = unknown> {
       publish: (operationId, event) => {
         if (!isDropped()) this.publish(threadId, operationId, event)
       },
-      append: (records) =>
-        isDropped() ? refused() : this.append(threadId, records),
+      append: (records, appendOptions) =>
+        isDropped()
+          ? refused()
+          : this.append(threadId, records, appendOptions?.consumes ?? []),
+      offer: (inputId, record) => this.offer(threadId, inputId, record),
+      offered: () => this.offered(threadId),
       stage: (records, toolCallId) => {
         if (!isDropped()) this.stage(threadId, records, toolCallId)
       },
@@ -1397,7 +1434,12 @@ export class SharedLog<TState = unknown> {
     this.schedule()
   }
 
-  private append(thread: string, records: ReadonlyArray<LogRecord>) {
+  private append(
+    thread: string,
+    records: ReadonlyArray<LogRecord>,
+    consumes: ReadonlyArray<string>,
+  ) {
+    this.consumes.push(...consumes)
     for (const record of records) {
       // The records of a tool call land in the same append as its result.
       const toolCallId = resultCallOf(record)
@@ -1445,36 +1487,79 @@ export class SharedLog<TState = unknown> {
       records?: ReadonlyArray<LogRecord>
     },
   ) {
-    const events = this.takePending()
+    const { batch: events, consumes } = this.takePending()
     const staged = this.staged.get(thread)?.splice(0) ?? []
     const records = (options.records ?? []).map((record) =>
       normalize(this.stamp(record, thread)),
     )
     return this.enqueue(() =>
-      this.write([
-        ...events,
-        ...transcriptRecord(
-          sessionOf(this.state, thread).messages,
-          options.messages,
-        ).map((record) => this.stamp(record, thread)),
-        ...staged,
-        ...records,
-      ]),
+      this.write(
+        [
+          ...events,
+          ...transcriptRecord(
+            sessionOf(this.state, thread).messages,
+            options.messages,
+          ).map((record) => this.stamp(record, thread)),
+          ...staged,
+          ...records,
+        ],
+        consumes,
+      ),
     )
   }
 
   /** Append the pending events now. */
   flush(): Promise<void> {
-    const batch = this.takePending()
-    return this.enqueue(() => this.write(batch))
+    const { batch, consumes } = this.takePending()
+    return this.enqueue(() => this.write(batch, consumes))
   }
 
+  /** The records and the consumed offers that wait for the next append. */
   private takePending() {
     if (this.timer !== undefined) clearTimeout(this.timer)
     this.timer = undefined
     this.scheduled = false
     this.pendingKey = undefined
-    return this.pending.splice(0)
+    return { batch: this.pending.splice(0), consumes: this.consumes.splice(0) }
+  }
+
+  /** Call `onOffers` of each session of the log that can write. */
+  private notifyOffers() {
+    const views = [...this.views.values()]
+    for (const view of views) {
+      if (!view.fenced) view.hooks.onOffers()
+    }
+  }
+
+  private async offer(thread: string, inputId: string, record: LogRecord) {
+    // Before the call: the store calls the listeners in it.
+    this.offeredHere.add(inputId)
+    const offered = await this.store
+      .offer({
+        logId: this.logId,
+        harness: this.harness,
+        inputId,
+        record: normalize(this.stamp(record, thread)),
+      })
+      .catch((error: unknown) => {
+        this.offeredHere.delete(inputId)
+        throw error
+      })
+    if (offered === 'conflict') this.offeredHere.delete(inputId)
+    return offered
+  }
+
+  /** The pending offers of session `thread`. */
+  private async offered(thread: string) {
+    const offers = await this.store.offered({ logId: this.logId })
+    // The offers of this host that the owner consumed wait no more.
+    const pending = new Set(offers.map((offer) => offer.inputId))
+    for (const inputId of [...this.offeredHere]) {
+      if (!pending.has(inputId)) this.offeredHere.delete(inputId)
+    }
+    return offers.filter(
+      (offer) => threadOf(offer.record, this.rootThread) === thread,
+    )
   }
 
   private schedule() {
@@ -1520,6 +1605,9 @@ export class SharedLog<TState = unknown> {
       throw error
     }
     this.epoch = epoch
+    // The new owner applies the inputs that wait for an owner. Later, so the
+    // write that acquired the log goes first.
+    queueMicrotask(() => this.notifyOffers())
     return epoch
   }
 
@@ -1535,9 +1623,12 @@ export class SharedLog<TState = unknown> {
     }
   }
 
-  private async write(batch: ReadonlyArray<LogRecord>) {
+  private async write(
+    batch: ReadonlyArray<LogRecord>,
+    consumes: ReadonlyArray<string> = [],
+  ) {
     if (this.failure !== undefined) throw this.failure
-    if (batch.length === 0) return
+    if (batch.length === 0 && consumes.length === 0) return
     if (this.state.newerRecord !== undefined) {
       const error = new LogVersionError(this.logId, this.state.newerRecord)
       this.fail(error)
@@ -1547,7 +1638,7 @@ export class SharedLog<TState = unknown> {
     const seq = this.state.seq + 1
     this.writing = true
     try {
-      await this.appendOnce(seq, epoch, batch)
+      await this.appendOnce({ seq, epoch, batch, consumes })
     } catch (error) {
       // Another host took the log: this host reads on.
       if (error instanceof OwnershipLostError) this.lose(error)
@@ -1598,31 +1689,56 @@ export class SharedLog<TState = unknown> {
    * the error. When it did not land, a conflict or a refused epoch fails at
    * once, and another error gets one more try.
    */
-  private async appendOnce(
-    seq: number,
-    epoch: number,
-    batch: ReadonlyArray<LogRecord>,
-  ) {
-    const write = { logId: this.logId, seq, epoch, records: batch }
+  private async appendOnce(write: {
+    seq: number
+    epoch: number
+    batch: ReadonlyArray<LogRecord>
+    consumes: ReadonlyArray<string>
+  }) {
+    const { seq, epoch, batch, consumes } = write
+    const append = {
+      logId: this.logId,
+      seq,
+      epoch,
+      records: batch,
+      ...(consumes.length > 0 ? { consumes } : {}),
+    }
     try {
-      await this.store.append(write)
+      await this.store.append(append)
       return
     } catch (error) {
-      if (await this.landed(seq, batch)) return
+      if (await this.landed(write)) return
       const isFinal =
         error instanceof LogConflictError || error instanceof OwnershipLostError
       if (isFinal) throw error
     }
     try {
-      await this.store.append(write)
+      await this.store.append(append)
     } catch (error) {
-      if (await this.landed(seq, batch)) return
+      if (await this.landed(write)) return
       throw error
     }
   }
 
-  private async landed(seq: number, batch: ReadonlyArray<LogRecord>) {
+  /**
+   * Did the batch land before an error? The batch and its consumes land
+   * together, so a batch with records reads the records back. A batch of
+   * consumes only landed when none of them waits any more.
+   */
+  private async landed({
+    seq,
+    batch,
+    consumes,
+  }: {
+    seq: number
+    batch: ReadonlyArray<LogRecord>
+    consumes: ReadonlyArray<string>
+  }) {
     try {
+      if (batch.length === 0) {
+        const offers = await this.store.offered({ logId: this.logId })
+        return !offers.some((offer) => consumes.includes(offer.inputId))
+      }
       const entries = await this.store.read({
         logId: this.logId,
         after: seq - 1,

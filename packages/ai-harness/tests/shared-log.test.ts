@@ -26,8 +26,8 @@ const LOG = 'agent-1'
 const STORE_LOG = logIdOf({ logId: LOG })
 
 function durablePersistence(log: LogStore = memoryLogStore()) {
-  const { runs, metadata } = memoryPersistence().stores
-  return { stores: { log, runs, metadata } }
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log, metadata } }
 }
 
 type Durable = ReturnType<typeof durablePersistence>

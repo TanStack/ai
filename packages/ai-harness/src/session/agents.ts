@@ -60,6 +60,7 @@ import type {
   UserInput,
 } from '../types'
 import type {
+  AgentRunStartOptions,
   AgentStartOptions,
   AgentChild,
   DynamicAgentHandle,
@@ -111,6 +112,12 @@ export abstract class SessionAgents<
     }).then(
       (receipt) => {
         follower.resolveReceipt(receipt)
+        // An offered message: the owner gives it to the run, and the log
+        // says how that run ends.
+        if (receipt.status === 'queued' && receipt.operationId === undefined) {
+          this.followLoggedRun(follower, inputId)
+          return
+        }
         const run =
           receipt.status === 'rejected'
             ? undefined
@@ -173,7 +180,12 @@ export abstract class SessionAgents<
     const { operationId, message } = options
     const inputId = options.inputId ?? createInputId()
     const chain = this.chainOf.get(operationId) ?? this.loggedChain(operationId)
-    if (!chain) return { inputId, status: 'rejected', reason: 'not_running' }
+    // A run that another host runs: the message goes to it through the lane.
+    const runInputId =
+      chain?.runInputId ?? this.loggedChainInput(operationId)?.inputId
+    if (runInputId === undefined) {
+      return { inputId, status: 'rejected', reason: 'not_running' }
+    }
     const principal = options.principal ?? this.principal
     const mode = options.mode ?? 'steer'
     return this.admitting(async () => {
@@ -184,11 +196,13 @@ export abstract class SessionAgents<
           operationId,
           message,
           mode,
-          run: chain.runInputId,
+          run: runInputId,
         },
         principal,
       )
       if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+      // This host owns the log, and no run of this host has the chain.
+      if (!chain) return this.reject(inputId, 'not_running')
       const sent = { inputId, message, ...(principal ? { principal } : {}) }
       return this.keep({ inputId, ...this.deliver(chain, sent, mode) })
     })
@@ -266,16 +280,63 @@ export abstract class SessionAgents<
   }
 
   /**
+   * End `operation` as `settlement` says. A completed run resolves to the
+   * raw result in the log, of the run that the settlement names.
+   */
+  protected endAgentRun(
+    operation: OperationImpl<unknown>,
+    settlement: InputSettlement | undefined,
+  ) {
+    if (settlement?.outcome === 'completed') {
+      const { agentResults } = this.writer.state.thread
+      const runId = settlement.operationId ?? operation.id
+      operation.finish('completed', agentResults.get(runId)?.result)
+      return
+    }
+    operation.fail(
+      settlement?.outcome === 'aborted' ? 'cancelled' : 'failed',
+      new Error(settlement?.error?.message ?? 'The run did not complete.'),
+    )
+  }
+
+  /**
+   * End `operation` as the log says that the run of `inputId` ended: another
+   * host runs it (this host offered it), or it ran before. It does not keep
+   * the thread busy here.
+   */
+  protected followLoggedRun(
+    operation: OperationImpl<unknown>,
+    inputId: string,
+  ) {
+    this.remoteRuns.add(operation.id)
+    void this.settled(inputId)
+      .then(
+        (settlement) => this.endAgentRun(operation, settlement),
+        (error: unknown) => operation.fail('failed', error),
+      )
+      .finally(() => {
+        this.remoteRuns.delete(operation.id)
+        this.checkIdle()
+      })
+  }
+
+  /** The `agent` input in the log of the chain that runs `operationId`. */
+  protected loggedChainInput(operationId: string) {
+    const { inputs } = this.writer.state
+    const own = [...inputs.values()].find(
+      (input) => input.operationId === operationId,
+    )
+    return own && chainInputOf(inputs, own)
+  }
+
+  /**
    * The chain of a run in the log, with every run it had, so a follow-up
    * continues its thread after a restart. `undefined` for an unknown run,
    * and while a run of the chain has not ended: another host runs it.
    */
   protected loggedChain(operationId: string): AgentChain | undefined {
     const { inputs } = this.writer.state
-    const own = [...inputs.values()].find(
-      (input) => input.operationId === operationId,
-    )
-    const first = own && chainInputOf(inputs, own)
+    const first = this.loggedChainInput(operationId)
     if (!first) return undefined
     const known = this.agentChains.get(first.inputId)
     if (known) return known
@@ -287,22 +348,12 @@ export abstract class SessionAgents<
     if (logged.some((input) => input.settlement === undefined)) {
       return undefined
     }
-    // A run rebuilt from the log resolves to the raw result in the log.
-    const { agentResults } = this.writer.state.thread
     const entries = logged.map((input) => {
       const operation = this.agentOperation(
         first.input.agent,
         input.operationId,
       )
-      const settlement = input.settlement
-      if (settlement?.outcome === 'completed') {
-        operation.finish('completed', agentResults.get(operation.id)?.result)
-      } else {
-        operation.fail(
-          settlement?.outcome === 'aborted' ? 'cancelled' : 'failed',
-          new Error(settlement?.error?.message ?? 'The run did not complete.'),
-        )
-      }
+      this.endAgentRun(operation, input.settlement)
       return {
         operation,
         ...(input.principal ? { principal: input.principal } : {}),
@@ -412,13 +463,13 @@ export abstract class SessionAgents<
   protected override runAgent(
     target: string | AnyAgent,
     input: unknown,
-    options: AgentStartOptions,
+    options: AgentRunStartOptions,
     parent?: AgentChain,
     child?: AgentChild,
   ): AgentRunImpl {
     const name = typeof target === 'string' ? target : target.name
-    const operation = this.agentOperation(name)
-    this.markBusy()
+    const { offered } = options
+    const operation = this.agentOperation(name, offered?.runId)
     // The agent runs for the user who starts it, also after the turn that
     // starts it ends. A child of agent code runs for its parent run's user.
     // Without either, it runs for the principal that opened the session.
@@ -433,7 +484,7 @@ export abstract class SessionAgents<
       : {}
     const chain = this.createChain(
       {
-        runInputId: createInputId(),
+        runInputId: offered?.inputId ?? createInputId(),
         target,
         input,
         options,
@@ -533,7 +584,6 @@ export abstract class SessionAgents<
    */
   protected resumeAgent(input: InputState, first: AgentInputState) {
     const operation = this.agentOperation(first.input.agent)
-    this.markBusy()
     const sender = input.principal ? { principal: input.principal } : {}
     const chain = this.createChain(chainFields(first), { operation, ...sender })
     this.feed.publish(
@@ -769,7 +819,6 @@ export abstract class SessionAgents<
       ...(next.principal ? { principal: next.principal } : {}),
     }
     chain.runs.push(chain.current)
-    this.markBusy()
     void this.executeAgent(next.operation, chain, {
       inputId: next.inputId,
       message: next,
@@ -803,10 +852,30 @@ export abstract class SessionAgents<
           ...(chain.parentRunId ? { parentRunId: chain.parentRunId } : {}),
         },
         principal,
+        // An offered run runs as this operation on the owner.
+        { runId: operation.id },
       )
-      if (admission === 'closed') {
-        operation.fail('cancelled', new Error('Session closed.'))
-        return
+      switch (admission) {
+        case 'new':
+          break
+        case 'closed':
+          operation.fail('cancelled', new Error('Session closed.'))
+          return
+        case 'conflict':
+          operation.fail(
+            'failed',
+            new InputRejectedError({
+              inputId,
+              status: 'rejected',
+              reason: 'conflict',
+            }),
+          )
+          return
+        case 'offered':
+        case 'duplicate':
+          // Another host runs it, or it ran before: the log says how it ends.
+          this.followLoggedRun(operation, inputId)
+          return
       }
     }
     const agent: AnyAgent | undefined =

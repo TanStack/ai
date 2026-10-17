@@ -2,11 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import { defineByokProvider, keyedAdapter } from '@tanstack/ai/byok'
-import {
-  memoryLeaseStore,
-  memoryLogStore,
-  memoryPersistence,
-} from '@tanstack/ai-persistence'
+import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import {
   AccessDeniedError,
   createHarnessHost,
@@ -561,7 +557,7 @@ it('needs stores.sessions for host access', () => {
   expect(() =>
     createHarnessHost({
       persistence: {
-        stores: { log: memoryLogStore(), leases: memoryLeaseStore() },
+        stores: { log: memoryLogStore() },
       },
       access: { identify: () => null, authorize: membersOnly() },
     }),

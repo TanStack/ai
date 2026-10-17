@@ -120,13 +120,14 @@ export class SessionImpl<
       // Before recovery: a turn that recovery runs updates this entry.
       await this.openEntry()
       await this.recoverFromLog(this.writer)
-      // Inputs that waited for an owner that stopped.
-      void this.drainInbox()
+      // Inputs that other hosts offered while no host owned the log.
+      this.acceptsOffers = true
+      void this.drainOffers()
     } catch (error) {
-      // A session that fails to open stops what it started: the plugins, the
-      // claim timer, and the turns that recovery queued or runs. It stops
-      // them as on a crash, so the next open runs them again. It gives its
-      // log view back, so the thread can open again.
+      // A session that fails to open stops what it started: the plugins and
+      // the turns that recovery queued or runs. It stops them as on a crash,
+      // so the next open runs them again. It gives its log view back, so the
+      // thread can open again.
       await this.close({ recoverable: true }).catch(() => {})
       throw error
     }
@@ -174,8 +175,8 @@ export class SessionImpl<
   /**
    * Tear the plugins down and set them up again, with the list that
    * `harness.plugins()` gives now. It waits for the running turn, and no new
-   * turn starts until it ends. The transcript, the log, the thread settings,
-   * and the inbox stay. Clients get a `harness.reloaded` event.
+   * turn starts until it ends. The transcript, the log, and the thread
+   * settings stay. Clients get a `harness.reloaded` event.
    *
    * When the new setup throws, the session keeps working with no plugins,
    * and the promise rejects with the error. Call `reload()` again after a
@@ -227,18 +228,19 @@ export class SessionImpl<
   }
 
   /**
-   * Recover the work in the log again, as `open()` does. `open()` skips the
-   * work while another host owns the log. Call this after that host stops
-   * or gives the log up, and the work runs here. The work that this session
-   * runs or queues stays as it is.
+   * Recover the work in the log again, as `open()` does, then apply the
+   * inputs that other hosts offered. `open()` skips the work while another
+   * host owns the log. Call this after that host stops or gives the log up,
+   * and the work runs here. The work that this session runs or queues stays
+   * as it is.
    *
    * @example
    * ```ts
    * await session.recover()
    * ```
    */
-  recover(): Promise<void> {
-    if (this.closing) return Promise.resolve()
+  async recover(): Promise<void> {
+    if (this.closing) return
     const { writer } = this
     const run = this.recovery.then(async () => {
       // First the records that other hosts wrote since this session read.
@@ -249,7 +251,21 @@ export class SessionImpl<
       await this.recoverFromLog(writer)
     })
     this.recovery = run.catch(() => {})
-    return run
+    await run
+    await this.drainOffers()
+  }
+
+  /**
+   * @internal For a sweep that acquired the log of this session: recover
+   * the work, apply the offers, then give the log back when the thread has
+   * no work. Resolves `false` when another live host owns the log.
+   */
+  async takeOver(): Promise<boolean> {
+    await this.recover()
+    const isOwner = await this.writer.own()
+    // A recovery with no work did not write, so the log goes back here.
+    await this.writer.rest()
+    return isOwner
   }
 
   /**
@@ -267,6 +283,7 @@ export class SessionImpl<
       // A background job of this host keeps the log too: a host that takes
       // the log over would note the job as stopped.
       isBusy: () => !this.isIdle() || this.jobs.size > 0 || this.recovering > 0,
+      onOffers: () => void this.drainOffers(),
     })
     this.logWriter = writer
     this.feed = tapFeed(writer, this.notifyHost, this.eventListeners)
@@ -498,12 +515,6 @@ export class SessionImpl<
    * again.
    */
   protected async recoverFromLog(writer: LogWriter): Promise<void> {
-    // A live owner runs its own inputs, also one that has no run lease yet.
-    // A sweep recovers them after its claim expires.
-    if (await this.isOwnedElsewhere()) {
-      this.recoveryDeferred = true
-      return
-    }
     // The owner of the log decides. A host that gets it knows that no other
     // host runs these inputs: the last owner stopped or gave the log up.
     // While another host owns it, its work is alive, and recovery waits.

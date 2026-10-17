@@ -75,31 +75,36 @@ describe('ownership of a log by two hosts', () => {
     const { logA, logB } = twoHosts()
     const release = gate()
     // A renews well before its ownership would expire.
-    const a = await openOn(logA, [after(release.opened, 'from A')], {
-      ownership: { ttlMs: 100, renewMs: 20 },
-    })
+    const a = await openOn(
+      logA,
+      [after(release.opened, 'from A'), () => text('for B')],
+      { ownership: { ttlMs: 100, renewMs: 20 } },
+    )
     const b = await openOn(logB, [() => text('from B')])
     const turn = a.session.send('go', { inputId: 'in-a' })
     await vi.waitFor(() => expect(a.calls).toHaveLength(1))
     // Longer than the ownership lasts without a renewal.
     await new Promise((resolve) => setTimeout(resolve, 150))
 
+    // The prompt of B waits for A in the log. A runs it after its turn.
     expect(await b.session.send('hi', { inputId: 'in-b' }).receipt).toEqual({
       inputId: 'in-b',
-      status: 'rejected',
-      reason: 'owned_elsewhere',
+      status: 'queued',
     })
     await expect(b.session.append([{ type: 'app.from-b' }])).rejects.toThrow(
       'Another host owns the log',
     )
-    expect(b.calls).toHaveLength(0)
 
-    // B still reads: it gets the answer of A.
+    // B still reads: it gets the answers of A.
     release.open()
     expect(await turn).toEqual({ text: 'from A', media: [] })
     await vi.waitFor(async () =>
-      expect(assistantTexts(await b.session.transcript())).toEqual(['from A']),
+      expect(assistantTexts(await b.session.transcript())).toEqual([
+        'from A',
+        'for B',
+      ]),
     )
+    expect(b.calls).toHaveLength(0)
     const types = (await logA.read({ logId: LOG })).map(
       (entry) => entry.record.type,
     )

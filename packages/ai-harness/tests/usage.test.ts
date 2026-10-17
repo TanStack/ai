@@ -220,9 +220,9 @@ describe('session usage totals', () => {
 
 describe('usage totals after a restart', () => {
   it('keeps the totals in the log', async () => {
-    const { runs, metadata } = memoryPersistence().stores
+    const { metadata } = memoryPersistence().stores
     const log = memoryLogStore()
-    const persistence = { stores: { log, runs, metadata } }
+    const persistence = { stores: { log, metadata } }
     const first = model('main-model', lookupThenAnswer([0.01, 0.02]))
     const harness = (adapter: typeof first.adapter) =>
       defineHarness({ name: 'test/usage-durable', adapter, tools: [lookup] })

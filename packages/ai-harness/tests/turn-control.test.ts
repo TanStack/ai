@@ -707,8 +707,8 @@ describe('turn.onModelError', () => {
      * has the `retries` that each host's hook got.
      */
     function durableHosts() {
-      const { runs, metadata } = memoryPersistence().stores
-      const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
+      const { metadata } = memoryPersistence().stores
+      const persistence = { stores: { log: memoryLogStore(), metadata } }
       const openOn = async (
         replies: Array<Reply>,
         ownership?: OwnershipOptions,
@@ -790,8 +790,8 @@ describe('turn.onModelError', () => {
     })
 
     it('keeps the count of a failed call when the host stops in the backoff', async () => {
-      const { runs, metadata } = memoryPersistence().stores
-      const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
+      const { metadata } = memoryPersistence().stores
+      const persistence = { stores: { log: memoryLogStore(), metadata } }
       const openOn = async (replies: Array<Reply>, baseDelayMs: number) => {
         const seen: Array<number> = []
         const backoff = retryTransientErrors({ baseDelayMs })
@@ -873,9 +873,8 @@ describe('turn.beforeFinish', () => {
       () => text('one'),
       () => text('two'),
     ])
-    const { runs } = memoryPersistence().stores
     const host = createHarnessHost({
-      persistence: { stores: { log: memoryLogStore(), runs } },
+      persistence: { stores: { log: memoryLogStore() } },
     })
     let cycles = 0
     const session = await host.open(
@@ -1094,8 +1093,8 @@ describe('turn.beforeFinish', () => {
   })
 
   it('answers the added message after a crash before the next model call', async () => {
-    const { runs, metadata } = memoryPersistence().stores
-    const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
+    const { metadata } = memoryPersistence().stores
+    const persistence = { stores: { log: memoryLogStore(), metadata } }
     const beforeFinish: HarnessTurnOptions['beforeFinish'] = ({ messages }) =>
       messages.some((message) => message.content === REMINDER)
         ? undefined

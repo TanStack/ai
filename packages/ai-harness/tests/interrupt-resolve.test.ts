@@ -35,12 +35,12 @@ const fails: Reply = () =>
   })()
 
 /**
- * A log, runs, and metadata, with no work claims: a host that opens the
- * thread after another one closed takes it at once, as after a restart.
+ * A log and metadata: a host that opens the thread after another one
+ * closed takes it at once, as after a restart.
  */
 function persistenceFor() {
-  const { runs, metadata } = memoryPersistence().stores
-  return { stores: { log: memoryLogStore(), runs, metadata } }
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log: memoryLogStore(), metadata } }
 }
 
 describe('resolve', () => {

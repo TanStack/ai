@@ -93,7 +93,7 @@ export abstract class SessionTurn<
     )
     this.track(operation)
     const principal = options.principal ?? this.principal
-    // A store write that throws (the inbox, the log) still ends the command.
+    // A store write that throws (the log) still ends the command.
     const inputId = options.inputId ?? createInputId()
     this.executeCommand(operation, name, input, principal, inputId).catch(
       (error: unknown) => this.failOperation(operation, error),

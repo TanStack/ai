@@ -66,6 +66,7 @@ function hooksOf(options: Partial<LogViewHooks> = {}): LogViewHooks {
     onFailure: options.onFailure ?? (() => {}),
     onLost: options.onLost ?? (() => {}),
     isBusy: options.isBusy ?? (() => false),
+    onOffers: options.onOffers ?? (() => {}),
   }
 }
 

@@ -392,10 +392,10 @@ describe('goal', () => {
   })
 
   it('keeps the goal and its state across a restart', async () => {
-    // No work claims: the second host takes the thread at once, as after a
-    // crash whose claim expired.
-    const { log, runs, metadata } = memoryPersistence().stores
-    const persistence = { stores: { log, runs, metadata } }
+    // The first host closed, so the second host takes the log at once, as
+    // after a restart.
+    const { log, metadata } = memoryPersistence().stores
+    const persistence = { stores: { log, metadata } }
     const first = await start({
       persistence,
       replies: [() => text('step one'), untilAborted()],

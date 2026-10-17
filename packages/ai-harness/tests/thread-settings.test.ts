@@ -17,8 +17,8 @@ import type { Reply } from './helpers'
 const THREAD = 't1'
 
 function durablePersistence() {
-  const { runs, metadata } = memoryPersistence().stores
-  return { stores: { log: memoryLogStore(), runs, metadata } }
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log: memoryLogStore(), metadata } }
 }
 
 const toolNames = (call: { tools?: ReadonlyArray<AnyTool> }) =>

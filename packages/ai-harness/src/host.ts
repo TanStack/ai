@@ -6,25 +6,22 @@ import { AccessDeniedError, membersOnlyPolicyOf } from './access'
 import { SharedLog, loadLogState, logIdOf, parseLogId } from './log'
 import { HostPlugins } from './host-plugins'
 import { purgeThreadData } from './purge'
-import { HostOwnership, OWNERSHIP } from './ownership'
+import { HostOwnership } from './ownership'
 import { SessionImpl } from './session/harness-session'
-import { sessionHandle } from './session/handle'
+import { actionOf, sessionHandle } from './session/handle'
+import { createInputId, offeredInputRecord } from './session/helpers'
 import { observedSession } from './session/observed-session'
 import { HARNESS_EVENTS } from './types'
 import { isRecord } from './utils'
 import { changedEntry } from './session-entry'
-import type { PromptCacheOptions, RunStore, StreamChunk } from '@tanstack/ai'
+import type { PromptCacheOptions, StreamChunk } from '@tanstack/ai'
 import type {
   AIPersistence,
   ArtifactStore,
   BlobStore,
   GenerationRunStore,
-  InboxStore,
-  InterruptStore,
-  LeaseStore,
   LogStore,
   MetadataStore,
-  WorkClaimStore,
   SessionIndexEntry,
   SessionIndexKey,
   SessionIndexListOptions,
@@ -45,28 +42,26 @@ import type { ReduceOptions } from './log'
 import type { OwnershipOptions } from './ownership'
 import type { HarnessSession } from './session/index'
 import type { ObservedSession } from './session/observed-session'
-import type { ForkPoint, Principal } from './types'
+import type { ForkPoint, HarnessInput, Principal, Receipt } from './types'
 
 type SharedStores = {
   artifacts?: ArtifactStore
   blobs?: BlobStore
   generationRuns?: GenerationRunStore
-  /** Claims on busy threads, for `resumePending`. */
-  workClaims?: WorkClaimStore
   /** The session index that `host.sessions` reads. */
   sessions?: SessionIndexStore
 }
 
 /**
  * The stores a host needs: a `log`. It holds the events, transcript, inputs,
- * and tool steps of each thread, and which host owns each thread. In development,
- * use `memoryPersistence()` from `@tanstack/ai-persistence`: it has a memory
- * log. The host does not use `messages`.
+ * runs, interrupts, and tool steps of each thread, and which host owns each
+ * thread. In development, use `memoryPersistence()` from
+ * `@tanstack/ai-persistence`: it has a memory log. The host does not use the
+ * other chat stores of that object (`messages`, `runs`, `interrupts`).
  *
- * With several hosts, add `workClaims`: an input that reaches a host while
- * another host owns the thread is refused (`owned_elsewhere`), so it never
- * stops the owner's turn. Add `inbox` too, and that input waits in the inbox
- * for the owner instead (receipt `queued`).
+ * With several hosts on one log store, an input that reaches a host while
+ * another host owns the thread waits in the log for the owner (receipt
+ * `queued`), and the owner runs it.
  *
  * Without `artifacts`, `blobs`, and `generationRuns`, media is kept in memory.
  * With `sessions`, the host keeps one index entry per tenant and thread (see
@@ -80,15 +75,7 @@ type SharedStores = {
 export type HarnessPersistence = AIPersistence<
   {
     log: LogStore
-    /** Not used: the log keeps the interrupts of each thread. */
-    interrupts?: InterruptStore
     metadata?: MetadataStore
-    /** Inputs for the host that owns a thread. Needs `workClaims`. */
-    inbox?: InboxStore
-    /** Not used: the log keeps the runs of each thread. */
-    runs?: RunStore
-    /** Not used: the log keeps which host owns each thread. */
-    leases?: LeaseStore
   } & SharedStores
 >
 
@@ -308,15 +295,16 @@ export interface HostSessions<P extends Principal = Principal> {
    * - closes its open sessions on this host, of every harness, for every
    *   handle. A handle that calls again opens an empty thread.
    * - deletes its log, with its thread settings, plugin config, plugin
-   *   state, interrupted turn, runs, and interrupts.
+   *   state, interrupted turn, runs, interrupts, and the inputs that wait
+   *   for an owner.
    * - deletes its media: the uploads and the generated files, records and
    *   bytes.
    * - deletes its log checkpoint from `stores.metadata`.
    * - removes its index entry. Then `get` is `undefined`, and the next open
    *   of the thread writes a new entry.
    *
-   * A store the host does not have is skipped. The inbox and the work
-   * claims stay. Only the tenant of `principal` is touched.
+   * A store the host does not have is skipped. Only the tenant of
+   * `principal` is touched.
    *
    * @example
    * ```ts
@@ -479,10 +467,41 @@ export interface ResumePendingOptions {
    */
   close?: 'whenIdle' | 'never'
   /**
-   * At most how many expired claims of `harnesses` one call takes. Default
-   * 100.
+   * At most how many logs of `harnesses` one call takes. Default 100.
    */
   limit?: number
+}
+
+/** A thread that `host.resumePending` took over. */
+export interface ResumedThread {
+  threadId: string
+  /** The name of the harness that runs the thread. */
+  harness: string
+  /** The tenant of the thread. Without it, the default tenant. */
+  tenantId?: string
+}
+
+/** An input for `host.submit`: every input that runs on the owner of a log. */
+export type SubmitInput = Exclude<
+  HarnessInput,
+  { op: 'revert' | 'unrevert' | 'background' | 'append' }
+>
+
+export interface SubmitOptions<P extends Principal = Principal> {
+  /** The harness that runs the thread. */
+  harness: AnyHarness
+  threadId: string
+  input: SubmitInput
+  /**
+   * Who sends the input. Its `tenantId` is the tenant of the thread.
+   * Required when the host has `access`.
+   */
+  principal?: P
+  /**
+   * The id of the input, so a retry is safe: a second submit with the same
+   * id and input is a duplicate. Default: a new id.
+   */
+  inputId?: string
 }
 
 /**
@@ -571,14 +590,35 @@ export interface HarnessHost<P extends Principal = Principal> {
     options: ForkSessionOptions<P>,
   ) => Promise<HarnessSession<THarness>>
   /**
-   * Continue the work of hosts that stopped. Needs `stores.workClaims`. It
-   * opens each thread whose claim expired, for a harness in `harnesses`, and
-   * the session recovers its pending work. Two hosts can call it at once:
-   * each thread goes to one of them. Call it at boot, and from a cron job or
-   * a Durable Object alarm. Resolves with the threads it opened.
+   * Store an input for a thread, and run nothing. The input waits in the log
+   * of the thread until a host owns the log and runs it: the host that runs
+   * the thread now, or a later `resumePending`. Resolves with the receipt:
+   * `queued`, or `rejected` with `conflict` for an id that another input
+   * has.
    *
-   * Known limits: a thread that this host has open already is claimed, but
-   * its session does not recover again. Call `host.recover(threadId)` for it.
+   * With access, `principal` is required, and the input needs the same
+   * action as on a handle (`send` for a prompt, `answer` for an answer). A
+   * refused input throws `AccessDeniedError`, and nothing is stored.
+   *
+   * @example
+   * ```ts
+   * const receipt = await host.submit({
+   *   harness: assistant,
+   *   threadId: 't-1',
+   *   input: { op: 'prompt', message: 'Write the weekly report.' },
+   *   principal,
+   * })
+   * ```
+   */
+  submit: (options: SubmitOptions<P>) => Promise<Receipt>
+  /**
+   * Continue the work that no live host runs. It lists the logs with work
+   * and no live owner (an owner that stopped, or inputs that wait), for a
+   * harness in `harnesses`. It gets each log, opens its thread, recovers the
+   * work, and runs the inputs that wait. Two hosts can call it at once: each
+   * log goes to one of them. Call it at boot, and from a cron job or a
+   * Durable Object alarm. Resolves with the threads it took over.
+   *
    * Each thread opens in its own tenant, with no principal.
    *
    * @example
@@ -588,11 +628,11 @@ export interface HarnessHost<P extends Principal = Principal> {
    */
   resumePending: (
     options: ResumePendingOptions,
-  ) => Promise<Array<{ threadId: string; harness: string }>>
+  ) => Promise<Array<ResumedThread>>
   /**
    * Run `session.recover()` on the open sessions of `threadId`, or on every
-   * open session without it. A turn that another host ran when its session
-   * opened runs here once that host's lease expires.
+   * open session without it. Work that another host ran when its session
+   * opened runs here once that host's ownership of the log expires.
    *
    * @example
    * ```ts
@@ -974,11 +1014,6 @@ function checkDurableStores(persistence: HarnessPersistence) {
   if (stores.log === undefined) {
     throw new Error(
       'The harness needs stores.log: each session keeps its events, transcript, and inputs there. In development, use memoryPersistence() from @tanstack/ai-persistence.',
-    )
-  }
-  if (stores.inbox !== undefined && stores.workClaims === undefined) {
-    throw new Error(
-      'The harness uses stores.inbox to pass inputs to the host that owns a thread. That needs stores.workClaims.',
     )
   }
 }
@@ -1375,7 +1410,6 @@ export function createHarnessHost<P extends Principal = Principal>(
         persistence,
         credentials,
         media,
-        hostId,
         index,
         retention,
         hostPlugins,
@@ -1395,7 +1429,6 @@ export function createHarnessHost<P extends Principal = Principal>(
             return log.view(sessionThread, hooks)
           },
         },
-        ...(options.ownership ? { ownership: options.ownership } : {}),
         ...(principal ? { principal } : {}),
         ...(promptCache ? { promptCache } : {}),
         ...(access ? { access: { envKeys: access.envKeys === true } } : {}),
@@ -1923,40 +1956,53 @@ export function createHarnessHost<P extends Principal = Principal>(
       }
       return await access.identify({ request })
     },
+    async submit({ harness, threadId, input, principal, inputId }) {
+      if (isClosed) throw hostClosed()
+      const tenantId = principal?.tenantId
+      const of = { tenantId, threadId }
+      if (access) {
+        const user = need(principal, 'host.submit')
+        const entry = await index.get(of)
+        await allow({
+          principal: user,
+          action: actionOf(input),
+          threadId,
+          entry,
+        })
+      }
+      await refuseChild(of)
+      const id = inputId ?? createInputId()
+      const record = offeredInputRecord({ inputId: id, input, principal })
+      const offered = await logStore.offer({
+        logId: logIdOf({ tenantId, logId: threadId }),
+        harness: harness.name,
+        inputId: id,
+        record,
+      })
+      const receipt: Receipt =
+        offered === 'conflict'
+          ? { inputId: id, status: 'rejected', reason: 'conflict' }
+          : { inputId: id, status: 'queued' }
+      return receipt
+    },
     async resumePending({ harnesses, close = 'whenIdle', limit = 100 }) {
-      const claims = persistence.stores.workClaims
-      if (!claims) throw new Error('resumePending needs stores.workClaims.')
-      const ttlMs = options.ownership?.ttlMs ?? OWNERSHIP.ttlMs
       const byName = new Map(
         harnesses.map((harness) => [harness.name, harness]),
       )
-      // `listExpired` has no cursor, and claims of other harnesses come back
-      // too. Read more until `limit` are ours or the store has no more.
-      // ponytail: re-reads the first claims each round. Add a harness filter
-      // to the store if many claims of other harnesses pile up.
-      const now = Date.now()
-      let expired: Array<{ threadId: string; harness: string }> = []
-      for (let size = limit; ; size *= 2) {
-        const page = await claims.listExpired({ now, limit: size })
-        expired = page.filter((claim) => byName.has(claim.harness))
-        if (expired.length >= limit || page.length < size) break
-      }
-      expired = expired.slice(0, limit)
-      const opened: Array<{ threadId: string; harness: string }> = []
+      const orphaned = await logStore.listOrphaned({
+        limit,
+        harnesses: [...byName.keys()],
+      })
+      const opened: Array<ResumedThread> = []
       const failures: Array<unknown> = []
-      for (const { threadId: claimed, harness: name } of expired) {
+      for (const { logId: storeLogId, harness: name } of orphaned) {
         const harness = byName.get(name)
         if (!harness) continue
-        // Compare-and-set: of two hosts that sweep at once, one gets it.
-        const isMine = await claims.claim({
-          threadId: claimed,
-          harness: name,
-          ownerId: hostId,
-          until: Date.now() + ttlMs,
-        })
-        if (!isMine) continue
-        // A claim is on the store key of the thread: its tenant and its id.
-        const { tenantId, logId: threadId } = parseLogId(claimed)
+        // Of two hosts that sweep at once, one gets the log.
+        const epoch = await ownership.acquire(storeLogId, name)
+        if (epoch === null) continue
+        // The store id of a log is its tenant and its root thread.
+        const { tenantId, logId: threadId } = parseLogId(storeLogId)
         const key = sessionKey(name, tenantId, threadId)
         // Only a session that this sweep opens closes at once when idle. A
         // session that the app has open stays open. No handle holds the
@@ -1964,18 +2010,27 @@ export function createHarnessHost<P extends Principal = Principal>(
         const isOwn = close === 'whenIdle' && !sessions.has(key)
         if (isOwn) sweptOnly.add(key)
         try {
-          await openSession(harness, { threadId }, tenantId)
+          const session = await openSession(harness, { threadId }, tenantId)
+          // Also a session that was open already: it recovers again. The
+          // log goes back when the thread has no work.
+          if (!(await session.takeOver())) {
+            // Another host got the log in between.
+            await ownership.release(storeLogId, epoch)
+            continue
+          }
         } catch (error) {
-          // One thread that cannot open must not stop the sweep. The claim
+          // One thread that cannot open must not stop the sweep. The log
           // goes back, so the next sweep tries again.
           sweptOnly.delete(key)
-          await claims
-            .release({ threadId: claimed, ownerId: hostId })
-            .catch(() => {})
+          await ownership.release(storeLogId, epoch).catch(() => {})
           failures.push(error)
           continue
         }
-        opened.push({ threadId, harness: name })
+        opened.push({
+          threadId,
+          harness: name,
+          ...(tenantId !== undefined ? { tenantId } : {}),
+        })
       }
       if (failures.length > 0) {
         // `opened` says which threads did start.

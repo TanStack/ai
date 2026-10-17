@@ -41,8 +41,8 @@ function durablePersistence(
       batches.push(batch.records.map((record) => record.type))
     },
   })
-  const { runs, metadata } = memoryPersistence().stores
-  return { persistence: { stores: { log, runs, metadata } }, batches, inner }
+  const { metadata } = memoryPersistence().stores
+  return { persistence: { stores: { log, metadata } }, batches, inner }
 }
 
 type Durable = ReturnType<typeof durablePersistence>['persistence']

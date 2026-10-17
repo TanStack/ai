@@ -26,12 +26,11 @@ const level = definePlugin({
 
 /** The stores of a host, with or without a session index. */
 function persistenceOf(withIndex: boolean) {
-  const { log, runs, metadata, sessions, artifacts, blobs } =
+  const { log, metadata, sessions, artifacts, blobs } =
     memoryPersistence().stores
   const persistence: HarnessPersistence = {
     stores: {
       log,
-      runs,
       metadata,
       artifacts,
       blobs,

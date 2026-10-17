@@ -1,6 +1,5 @@
 import { runPersistenceConformance } from '../src/testkit/conformance'
 import {
-  memoryLeaseStore,
   memoryLogBackend,
   memoryLogStore,
   memoryPersistence,
@@ -19,7 +18,6 @@ runPersistenceConformance(
       stores: {
         ...memoryPersistence().stores,
         log: memoryLogStore({ backend }),
-        leases: memoryLeaseStore(),
       },
     }),
   {

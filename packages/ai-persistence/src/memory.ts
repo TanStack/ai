@@ -21,8 +21,6 @@ import type {
   BlobStore,
   GenerationRunRecord,
   GenerationRunStore,
-  InboxEntry,
-  InboxStore,
   InterruptCommitEntry,
   InterruptRecord,
   InterruptStore,
@@ -38,10 +36,6 @@ import type {
   SessionIndexKey,
   SessionIndexListOptions,
   SessionIndexStore,
-  WorkClaimStore,
-  LeaseStore,
-  TurnLease,
-  TurnLeaseKey,
 } from './types'
 
 const compareUtf8Bytes = (left: string, right: string): number => {
@@ -611,82 +605,6 @@ class MemoryBlobStore implements BlobStore {
   }
 }
 
-class MemoryInboxStore implements InboxStore {
-  private readonly entries = new Map<string, InboxEntry>()
-  append(entry: Omit<InboxEntry, 'status'>): Promise<InboxEntry> {
-    // Copies in and out, so a caller never changes a stored entry.
-    const existing = this.entries.get(entry.inputId)
-    if (existing) return Promise.resolve(structuredClone(existing))
-    const stored: InboxEntry = { ...entry, status: 'pending' }
-    this.entries.set(entry.inputId, structuredClone(stored))
-    return Promise.resolve(stored)
-  }
-  listPending(threadId: string): Promise<Array<InboxEntry>> {
-    // Map iteration keeps insertion order. The stable sort keeps it for ties.
-    const pending = [...this.entries.values()]
-      .filter(
-        (entry) => entry.threadId === threadId && entry.status === 'pending',
-      )
-      .sort((a, b) => a.createdAt - b.createdAt)
-      .map((entry) => structuredClone(entry))
-    return Promise.resolve(pending)
-  }
-  markApplied({
-    threadId,
-    inputId,
-    operationId,
-  }: {
-    threadId: string
-    inputId: string
-    operationId: string
-  }): Promise<void> {
-    const existing = this.of(threadId, inputId)
-    if (existing) {
-      this.entries.set(inputId, { ...existing, status: 'applied', operationId })
-    }
-    return Promise.resolve()
-  }
-  markRejected({
-    threadId,
-    inputId,
-    reason,
-  }: {
-    threadId: string
-    inputId: string
-    reason: string
-  }): Promise<void> {
-    const existing = this.of(threadId, inputId)
-    if (existing) {
-      this.entries.set(inputId, { ...existing, status: 'rejected', reason })
-    }
-    return Promise.resolve()
-  }
-  get({
-    threadId,
-    inputId,
-  }: {
-    threadId: string
-    inputId: string
-  }): Promise<InboxEntry | null> {
-    const existing = this.of(threadId, inputId)
-    return Promise.resolve(existing ? structuredClone(existing) : null)
-  }
-  delete({
-    threadId,
-    inputId,
-  }: {
-    threadId: string
-    inputId: string
-  }): Promise<void> {
-    if (this.of(threadId, inputId)) this.entries.delete(inputId)
-    return Promise.resolve()
-  }
-  private of(threadId: string, inputId: string) {
-    const existing = this.entries.get(inputId)
-    return existing?.threadId === threadId ? existing : undefined
-  }
-}
-
 /**
  * A JSON copy, so a store never shares an object with a caller. Throws when
  * the value cannot become JSON (a `BigInt`, a cycle).
@@ -1227,52 +1145,6 @@ export function memoryLogBackend() {
   return handle
 }
 
-type WorkClaim = Parameters<WorkClaimStore['claim']>[0]
-
-class MemoryWorkClaimStore implements WorkClaimStore {
-  private readonly claims = new Map<string, WorkClaim>()
-  claim(entry: WorkClaim): Promise<boolean> {
-    // Synchronous, so two claims in one process never both win.
-    const held = this.claims.get(entry.threadId)
-    const isTaken =
-      held !== undefined &&
-      held.ownerId !== entry.ownerId &&
-      held.until > Date.now()
-    if (isTaken) return Promise.resolve(false)
-    this.claims.set(entry.threadId, { ...entry })
-    return Promise.resolve(true)
-  }
-  release({
-    threadId,
-    ownerId,
-  }: {
-    threadId: string
-    ownerId: string
-  }): Promise<void> {
-    if (this.claims.get(threadId)?.ownerId === ownerId) {
-      this.claims.delete(threadId)
-    }
-    return Promise.resolve()
-  }
-  get(threadId: string) {
-    const held = this.claims.get(threadId)
-    return Promise.resolve(
-      held ? { ownerId: held.ownerId, until: held.until } : null,
-    )
-  }
-  listExpired(options: {
-    now: number
-    limit?: number
-  }): Promise<Array<{ threadId: string; harness: string }>> {
-    const expired = [...this.claims.values()]
-      .filter((claim) => claim.until <= options.now)
-      .sort((a, b) => a.until - b.until)
-      .slice(0, options.limit)
-      .map(({ threadId, harness }) => ({ threadId, harness }))
-    return Promise.resolve(expired)
-  }
-}
-
 // Newest `updatedAt` first, then `threadId` order. The cursor uses it too.
 const bySessionOrder = (
   a: Pick<SessionIndexEntry, 'updatedAt' | 'threadId'>,
@@ -1406,8 +1278,6 @@ interface MemoryPersistenceStores {
   metadata: MetadataStore
   artifacts: ArtifactStore
   blobs: BlobStore
-  inbox: InboxStore
-  workClaims: WorkClaimStore
   sessions: SessionIndexStore
   log: LogStore
 }
@@ -1416,7 +1286,7 @@ interface MemoryPersistenceStores {
  * In-process reference backend for the full state + generation store set.
  *
  * Returns messages + activities + runs + generationRuns + interrupts +
- * metadata + artifacts + blobs + inbox + workClaims + sessions + log.
+ * metadata + artifacts + blobs + sessions + log.
  * Plain `chat()` does not use `log`. A harness host keeps each session in
  * `log` and does not use `messages`. Locks are not included. Use
  * `InMemoryLockStore` + `withLocks` from `@tanstack/ai` when a test or
@@ -1437,55 +1307,8 @@ export function memoryPersistence() {
     metadata: new MemoryMetadataStore(),
     artifacts: new MemoryArtifactStore(),
     blobs: new MemoryBlobStore(),
-    inbox: new MemoryInboxStore(),
-    workClaims: new MemoryWorkClaimStore(),
     sessions: new MemorySessionIndexStore(),
     log: memoryLogStore(),
   }
   return defineAIPersistence({ stores })
-}
-
-/**
- * In-process {@link LeaseStore}, for tests and single-process hosts. A real
- * backend puts the lease in the system that already has one (a job queue).
- *
- * @example
- * ```ts
- * const persistence = defineAIPersistence({
- *   stores: { ...memoryPersistence().stores, leases: memoryLeaseStore() },
- * })
- * ```
- */
-export function memoryLeaseStore(): LeaseStore {
-  const leases = new Map<string, TurnLease>()
-  const keyOf = (key: TurnLeaseKey) =>
-    `${key.threadId}\u0000${key.inputId}\u0000${key.operationId}\u0000${key.attempt}`
-  return {
-    acquire: (lease) => {
-      leases.set(keyOf(lease), { ...lease })
-      return Promise.resolve()
-    },
-    renew: (lease) => {
-      const held = leases.get(keyOf(lease))
-      // Only the owner renews. Another host's expired lease is taken over.
-      if (
-        !held ||
-        held.ownerId === lease.ownerId ||
-        held.expiresAt <= Date.now()
-      ) {
-        leases.set(keyOf(lease), { ...lease })
-      }
-      return Promise.resolve()
-    },
-    release: (lease) => {
-      if (leases.get(keyOf(lease))?.ownerId === lease.ownerId) {
-        leases.delete(keyOf(lease))
-      }
-      return Promise.resolve()
-    },
-    isAlive: (key) => {
-      const held = leases.get(keyOf(key))
-      return Promise.resolve(held !== undefined && held.expiresAt > Date.now())
-    },
-  }
 }

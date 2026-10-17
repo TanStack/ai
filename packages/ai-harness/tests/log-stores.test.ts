@@ -29,6 +29,7 @@ function storesOn(log: LogStore = memoryLogStore()) {
     onFailure: () => {},
     onLost: () => {},
     isBusy: () => false,
+    onOffers: () => {},
   })
   return logChatStores(writer)
 }
@@ -42,10 +43,7 @@ runPersistenceConformance('log chat stores', () => ({ stores: storesOn() }), {
     'generationRuns',
     'artifacts',
     'blobs',
-    'inbox',
-    'workClaims',
     'log',
-    'leases',
     'sessions',
   ],
   // Only a sandbox reaper reads it, and the harness has none.

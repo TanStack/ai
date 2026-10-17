@@ -36,8 +36,8 @@ const CHECKPOINTS = 'harness:log-checkpoint'
  * empty. A server that stopped owns its logs until the ownership expires.
  */
 function sharedStores() {
-  const { log, runs, metadata, interrupts } = memoryPersistence().stores
-  const persistence = { stores: { log, runs, metadata, interrupts } }
+  const { log, metadata } = memoryPersistence().stores
+  const persistence = { stores: { log, metadata } }
   const written: Array<string> = []
   const record = (namespace: string) => {
     if (namespace !== CHECKPOINTS) written.push(namespace)

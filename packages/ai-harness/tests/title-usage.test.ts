@@ -108,10 +108,10 @@ describe('title()', () => {
   })
 
   it('does nothing without a sessions store', async () => {
-    const { log, runs, metadata } = memoryPersistence().stores
+    const { log, metadata } = memoryPersistence().stores
     const titler = mockAdapter(() => text('Trip to Rome'))
     const { host, session } = await open([title({ adapter: titler.adapter })], {
-      persistence: { stores: { log, runs, metadata } },
+      persistence: { stores: { log, metadata } },
     })
 
     await session.send('Plan a trip to Rome for me')

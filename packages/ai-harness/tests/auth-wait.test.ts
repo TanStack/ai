@@ -103,8 +103,8 @@ function nextEnd(session: HarnessSession) {
 
 /** The stores of a durable host, so a second host reads the same thread. */
 function durableStores() {
-  const { runs, metadata } = memoryPersistence().stores
-  return { log: memoryLogStore(), runs, metadata }
+  const { metadata } = memoryPersistence().stores
+  return { log: memoryLogStore(), metadata }
 }
 
 describe('require with wait', () => {

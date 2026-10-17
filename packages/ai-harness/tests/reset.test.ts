@@ -19,12 +19,12 @@ import type { AnyChatMiddleware } from '@tanstack/ai'
 import type { Reply } from './helpers'
 
 /**
- * A log, runs, and metadata, with no work claims: a host that opens the
- * thread after another one closed takes it at once, as after a restart.
+ * A log and metadata: a host that opens the thread after another one
+ * closed takes it at once, as after a restart.
  */
 function persistenceFor() {
-  const { runs, metadata } = memoryPersistence().stores
-  return { stores: { log: memoryLogStore(), runs, metadata } }
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log: memoryLogStore(), metadata } }
 }
 
 const contents = (messages: ReadonlyArray<{ content: unknown }>) =>
@@ -289,8 +289,8 @@ describe('reset after a restart', () => {
 
   it('applies a reset that a crash left in the log', async () => {
     const log = memoryLogStore()
-    const { runs, metadata } = memoryPersistence().stores
-    const persistence = { stores: { log, runs, metadata } }
+    const { metadata } = memoryPersistence().stores
+    const persistence = { stores: { log, metadata } }
     await log.append({
       logId: logIdOf({ logId: 't1' }),
       seq: 1,

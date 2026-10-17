@@ -15,7 +15,6 @@ const THREAD_METADATA = [USAGE, 'harness:revert']
  * the store id of the thread's own log. A store the persistence does not
  * have is skipped.
  */
-// ponytail: the inbox and the work claims stay. PR 5 removes them.
 export async function purgeThreadData({
   storeId,
   stores,

@@ -23,7 +23,6 @@ import type {
   LogWriter,
   ProjectOptions,
 } from '../log'
-import type { OwnershipOptions } from '../ownership'
 import type { ConfigOption } from '../config'
 import type { SessionUsage } from '../usage'
 import type { AgentInputOf, AgentResultOf, AnyAgent } from '../agents'
@@ -79,6 +78,16 @@ export interface AgentStartOptions extends AgentRunOptions {
    * the user of the tool call: `ctx.context.run.principal`.
    */
   principal?: Principal
+}
+
+/**
+ * The options of an agent run inside the session. `offered`: the run starts
+ * from an input that another host offered. It keeps the input id, and the
+ * run id that the host which offered it follows in the log. A submitted
+ * input has no run id.
+ */
+export type AgentRunStartOptions = AgentStartOptions & {
+  offered?: { inputId: string; runId?: string }
 }
 
 /** One agent run as a child of the session thread. */
@@ -219,8 +228,6 @@ export interface SessionDependencies {
   principal?: Principal
   /** The tenant of the session. Without it, the default tenant. */
   tenantId?: string
-  /** Identifies this host on the ownership records and the work claims. */
-  hostId: string
   /** Writes the session index entry of the thread. */
   index: SessionIndexWriter
   /** How much the session keeps in memory. */
@@ -242,8 +249,6 @@ export interface SessionDependencies {
   logId: string
   /** The id of that log in the store, with the tenant. See `logIdOf`. */
   storeLogId: string
-  /** The ownership timing of the host. The work claims use it too. */
-  ownership?: OwnershipOptions
   /** The `promptCache` of `host.open()`. It overrides the harness value. */
   promptCache?: PromptCacheOptions
   /** Gets each event the session publishes, after the feed has it. */

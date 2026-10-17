@@ -316,7 +316,7 @@ export abstract class SessionState<
   }: {
     key: string
     value: unknown
-    /** @internal The id of a forwarded input, so a replay is a duplicate. */
+    /** @internal The id of an offered input, so a replay is a duplicate. */
     inputId?: string
     principal?: Principal
   }): Promise<Receipt> {
@@ -529,8 +529,7 @@ export abstract class SessionState<
    */
   async revert(messageId: string): Promise<Receipt> {
     const inputId = createInputId()
-    // Another host runs the thread: its log write would stop that host.
-    if (this.snapshot().status !== 'idle' || (await this.isOwnedElsewhere())) {
+    if (!(await this.ownsIdleThread())) {
       return { inputId, status: 'rejected', reason: 'busy' }
     }
     return this.holding(async () => {
@@ -555,8 +554,7 @@ export abstract class SessionState<
   /** End the revert that stands: its files and messages come back. */
   async unrevert(): Promise<Receipt> {
     const inputId = createInputId()
-    // Another host runs the thread: its log write would stop that host.
-    if (this.snapshot().status !== 'idle' || (await this.isOwnedElsewhere())) {
+    if (!(await this.ownsIdleThread())) {
       return { inputId, status: 'rejected', reason: 'busy' }
     }
     return this.holding(async () => {
@@ -588,7 +586,18 @@ export abstract class SessionState<
     } finally {
       this.holdTurns--
       this.drain()
+      // `fn` can end with no write. An idle thread gives the log back.
+      void this.writer.rest()
     }
+  }
+
+  /**
+   * The thread is idle, and this host owns its log. A revert changes files
+   * here, so it must not run while another host runs the thread.
+   */
+  protected async ownsIdleThread() {
+    if (this.snapshot().status !== 'idle') return false
+    return await this.writer.own()
   }
 
   /** Drop the messages that a standing revert hides, and end the revert. */
@@ -663,16 +672,15 @@ export abstract class SessionState<
   }: {
     questionId: string
     value: unknown
-    /** @internal The id of a forwarded input, so a replay is a duplicate. */
+    /** @internal The id of an offered input, so a replay is a duplicate. */
     inputId?: string
     principal?: Principal
   }): Promise<Receipt> {
-    // A secret (a key or a password) stays out of the inbox and the log. A
-    // restart does not replay an answer, so they never need it. A host that
-    // does not have the question cannot tell: the owner deletes the inbox
-    // entry of the answer after it applies it.
+    // A secret (a key or a password) stays out of the log. A restart does
+    // not replay an answer, so it never needs it. A host that does not have
+    // the question cannot tell, and offers the value to the owner. The
+    // owner logs it hidden, and that append removes the offer.
     const isSecret = this.questions.get(questionId)?.secret === true
-    // A host that does not have the question passes the value on to its owner.
     const admission = await this.accept(
       inputId,
       {
@@ -911,8 +919,8 @@ export abstract class SessionState<
     // so a client that streams that operation sees it, and a cancel of it
     // rejects the question. The session stream has every operation's events.
     const operationId = owner ?? this.activeTurn?.id ?? 'session'
-    // The claim sends an answer that reaches another host here.
-    this.markBusy()
+    // The question keeps the thread busy, so this host keeps the log, and an
+    // answer that reaches another host comes here through the input lane.
     return new Promise((resolve, reject) => {
       this.questions.set(questionId, {
         message: question.message,

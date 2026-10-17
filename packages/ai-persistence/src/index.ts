@@ -10,10 +10,7 @@ export {
   defineGenerationRunStore,
   defineArtifactStore,
   defineBlobStore,
-  defineInboxStore,
   defineLogStore,
-  defineWorkClaimStore,
-  defineLeaseStore,
   defineSessionIndexStore,
   LogConflictError,
   LogTruncatedError,
@@ -38,9 +35,6 @@ export type {
   InterruptStore,
   MetadataStore,
   // Session store contracts
-  InboxEntry,
-  InboxStatus,
-  InboxStore,
   LogEntry,
   LogRecord,
   LogSnapshot,
@@ -48,10 +42,6 @@ export type {
   OfferedInput,
   OfferResult,
   OrphanedLog,
-  LeaseStore,
-  TurnLease,
-  TurnLeaseKey,
-  WorkClaimStore,
   SessionIndexEntry,
   SessionIndexKey,
   SessionIndexListOptions,
@@ -141,7 +131,6 @@ export { parseRangeHeader, resolveBlobRange } from './blob-range'
 
 // Reference in-memory implementation
 export {
-  memoryLeaseStore,
   memoryLogBackend,
   memoryLogStore,
   memoryPersistence,

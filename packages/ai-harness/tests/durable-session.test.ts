@@ -25,10 +25,10 @@ const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
 const LOG = logIdOf({ logId: THREAD })
 
-/** The stores of a durable host: a log, runs, and metadata. */
+/** The stores of a durable host: a log and metadata. */
 function durablePersistence(log: LogStore = memoryLogStore()) {
-  const { runs, metadata } = memoryPersistence().stores
-  return { stores: { log, runs, metadata } }
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log, metadata } }
 }
 
 /** Signals become user messages. A compaction keeps a summary and a tail. */

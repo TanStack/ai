@@ -177,8 +177,8 @@ describe('saved harness replay across turn adapters', () => {
 
 describe('approval replay after a host restart', () => {
   it('runs approved raw edits through middleware and one authored transform', async () => {
-    const { log, runs, metadata, interrupts } = memoryPersistence().stores
-    const persistence = { stores: { log, runs, metadata, interrupts } }
+    const { log, metadata } = memoryPersistence().stores
+    const persistence = { stores: { log, metadata } }
     const seen: Array<unknown> = []
     let transforms = 0
     const execute = vi.fn(async (input: { count: number }) => input)
@@ -272,8 +272,8 @@ describe('approval replay after a host restart', () => {
   })
 
   it('runs no middleware or execution for a denied approval', async () => {
-    const { log, runs, metadata, interrupts } = memoryPersistence().stores
-    const persistence = { stores: { log, runs, metadata, interrupts } }
+    const { log, metadata } = memoryPersistence().stores
+    const persistence = { stores: { log, metadata } }
     const execute = vi.fn(async () => 'Should not run')
     const hook = vi.fn()
     const tool = toolDefinition({
@@ -320,7 +320,6 @@ it('detaches a local event reader without aborting the model turn', async () => 
   const persistence = {
     stores: {
       log: memoryLogStore(),
-      runs: stores.runs,
       metadata: stores.metadata,
     },
   }

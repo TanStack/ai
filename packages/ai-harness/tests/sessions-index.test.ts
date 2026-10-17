@@ -65,12 +65,12 @@ function hostWith(replies: Array<Reply> | Reply = () => text('answer')) {
   return { persistence, host, harness }
 }
 
-/** A durable host (a log, runs, metadata, and a session index), and its log. */
+/** A durable host (a log, metadata, and a session index), and its log. */
 function durableHost() {
   const log = memoryLogStore()
-  const { runs, metadata, sessions } = memoryPersistence().stores
+  const { metadata, sessions } = memoryPersistence().stores
   const host = createHarnessHost({
-    persistence: { stores: { log, runs, metadata, sessions } },
+    persistence: { stores: { log, metadata, sessions } },
   })
   return { log, host }
 }
@@ -451,7 +451,7 @@ describe('host.sessions', () => {
   })
 
   it('refuses a sessions store without compare-and-set at the start', () => {
-    const { log, runs, sessions } = memoryPersistence().stores
+    const { log, sessions } = memoryPersistence().stores
     // A store in plain JS, with no getVersioned and no upsertIf.
     const plain = {
       get: (key: SessionIndexKey) => sessions.get(key),
@@ -463,7 +463,7 @@ describe('host.sessions', () => {
     expect(() =>
       createHarnessHost({
         // @ts-expect-error The types need both methods. A JS caller can leave them out.
-        persistence: { stores: { log, runs, sessions: plain } },
+        persistence: { stores: { log, sessions: plain } },
       }),
     ).toThrow('stores.sessions needs getVersioned and upsertIf.')
   })
@@ -626,9 +626,9 @@ describe('host.sessions', () => {
   })
 
   it('forks with any harness without a sessions store, as there is no entry to check', async () => {
-    const { log, runs, metadata } = memoryPersistence().stores
+    const { log, metadata } = memoryPersistence().stores
     const host = createHarnessHost({
-      persistence: { stores: { log, runs, metadata } },
+      persistence: { stores: { log, metadata } },
       lifecycle: { idleCloseMs: 0 },
     })
     const { harness } = hostWith()
@@ -890,9 +890,9 @@ describe('ctx.session.entry and updateEntry', () => {
   })
 
   it('reads nothing and writes nothing without a sessions store', async () => {
-    const { log, runs, metadata } = memoryPersistence().stores
+    const { log, metadata } = memoryPersistence().stores
     const { host, session, api } = await openWithApi({
-      stores: { log, runs, metadata },
+      stores: { log, metadata },
     })
     await session.send('hi')
 

@@ -178,8 +178,8 @@ export interface OnEvent {
 }
 
 /**
- * An input a client sends to a session. Stored in the session log, or in
- * the inbox while another host owns the thread.
+ * An input a client sends to a session. Stored in the session log. While
+ * another host owns the thread, it waits in the input lane of the log.
  *
  * `inputId` is an optional id that the caller chooses. A second input with the
  * same id and the same payload gets the first input's receipt and does not run
@@ -193,9 +193,8 @@ export interface OnEvent {
  * In `cancelInput` and `setDelivery`, `inputId` is the input that waits.
  *
  * `ephemeral` of `prompt` and `continue` are messages for the model calls of
- * that turn only, as in `session.prompt`. The inbox and the log do not keep
- * them, and the duplicate check does not read them. Client data: do not
- * trust it.
+ * that turn only, as in `session.prompt`. The log does not keep them, and
+ * the duplicate check does not read them. Client data: do not trust it.
  */
 export type HarnessInput = (
   | {

@@ -67,8 +67,8 @@ export function finalizeHandle(handle: object) {
   releaseDropped(token)
 }
 
-/** The action that `authorize` gets for an input. */
-function actionOf(input: HarnessInput): AccessAction {
+/** @internal The action that `authorize` gets for an input. */
+export function actionOf(input: HarnessInput): AccessAction {
   switch (input.op) {
     case 'resolve':
     case 'answer':

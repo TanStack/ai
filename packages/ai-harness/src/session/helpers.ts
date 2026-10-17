@@ -27,6 +27,7 @@ import type {
 } from '../log-records'
 import type { MountedPlugins } from '../plugins'
 import type {
+  HarnessInput,
   MediaKind,
   OperationStatus,
   Principal,
@@ -68,6 +69,19 @@ export interface TurnExtras {
  * a turn with no extras.
  */
 export function turnRecords(inputId: string, extras: TurnExtras) {
+  const named = namedOverrides(extras)
+  const records: Array<ThreadRecord> =
+    Object.keys(named).length === 0
+      ? []
+      : [{ type: 'harness.input.turn', inputId, overrides: named }]
+  return records
+}
+
+/**
+ * The JSON parts of `extras`, and the names of the overrides that are not
+ * JSON.
+ */
+function namedOverrides(extras: TurnExtras) {
   const { overrides, systemPreamble, ephemeral } = extras
   const liveOnly = [
     ...(overrides?.adapter !== undefined ? ['adapter' as const] : []),
@@ -88,12 +102,60 @@ export function turnRecords(inputId: string, extras: TurnExtras) {
     ...(ephemeral?.length ? { ephemeral: [...ephemeral] } : {}),
     ...(liveOnly.length > 0 ? { liveOnly } : {}),
   }
-  const records: Array<ThreadRecord> =
-    Object.keys(named).length === 0
-      ? []
-      : [{ type: 'harness.input.turn', inputId, overrides: named }]
-  return records
+  return named
 }
+
+/**
+ * An input that a host offers to the owner of a log: the input lane. The
+ * owner applies it as if the input came to it, and appends its own
+ * `harness.input` record in the same write that consumes the offer.
+ */
+export interface OfferedInputRecord extends LogRecord {
+  type: 'harness.input'
+  inputId: string
+  input: HarnessInput
+  principal?: { id: string; tenantId?: string }
+  /**
+   * The id that the owner runs the input with: the AG-UI run id of a turn,
+   * or the operation id of an agent run. The host that offered it follows
+   * that id in the log.
+   */
+  runId?: string
+  /** The overrides of a turn, as its `harness.input.turn` record keeps them. */
+  overrides?: NamedTurnOverrides
+}
+
+/** The offer record of `input`. See {@link OfferedInputRecord}. */
+export function offeredInputRecord(offer: {
+  inputId: string
+  input: HarnessInput
+  principal: Principal | undefined
+  runId?: string
+  turn?: TurnExtras
+}) {
+  const named = offer.turn ? namedOverrides(offer.turn) : {}
+  const record: OfferedInputRecord = {
+    type: 'harness.input',
+    inputId: offer.inputId,
+    input: offer.input,
+    ...storedPrincipal(offer.principal),
+    ...(offer.runId !== undefined ? { runId: offer.runId } : {}),
+    ...(Object.keys(named).length > 0 ? { overrides: named } : {}),
+  }
+  return record
+}
+
+/**
+ * True for a record from {@link offeredInputRecord}. The host that offered
+ * the input checked it against `HarnessInput`.
+ */
+export const isOfferedInputRecord = (
+  record: LogRecord,
+): record is OfferedInputRecord =>
+  record.type === 'harness.input' &&
+  typeof record.inputId === 'string' &&
+  isRecord(record.input) &&
+  typeof record.input.op === 'string'
 
 /** The extras of a turn from its `harness.input.turn` record. */
 export function loggedExtras(named: NamedTurnOverrides) {
@@ -783,9 +845,3 @@ export function tapFeed(
     wake: () => feed.wake(),
   }
 }
-
-/** `accept` passed the input to the host that owns the thread, or refused it for that. */
-export const isElsewhere = (
-  admission: string,
-): admission is 'forwarded' | 'owned_elsewhere' =>
-  admission === 'forwarded' || admission === 'owned_elsewhere'
