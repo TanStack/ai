@@ -67,7 +67,7 @@ export type RecoverHook<TMetadataSchema = any> = (
 export interface TurnAdditions {
   /** Messages after the transcript, for the next model call. */
   messages?: Array<ModelMessage>
-  /** Host records in the same append. A durable host only. */
+  /** Host records in the same append. */
   records?: ReadonlyArray<LogRecord>
   /**
    * Messages at the end of the context of the next model call only. No store
@@ -87,8 +87,8 @@ export interface ModelErrorContext<TMetadataSchema = any> {
    */
   error: { message: string; code?: string; retryAfterMs?: number }
   /**
-   * Retries since the last finished tool phase of this turn. A durable host
-   * keeps the count, so an attempt that recovery runs goes on from it. The
+   * Retries since the last finished tool phase of this turn. The log keeps
+   * the count, so an attempt that recovery runs goes on from it. The
    * log has the count with this failed call before the hook runs, so a host
    * that stops during a backoff loses no retry.
    */

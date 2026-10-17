@@ -13,15 +13,17 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
-  logIdOf,
 } from '../src'
 import { compact, modelPicker, todos, usage } from '../src/first-party'
 import { fileCommands, projectInstructions } from '../src/first-party/node'
-import { gate, mockAdapter, text, toolCall } from './helpers'
+import { appendToLog, gate, mockAdapter, text, toolCall } from './helpers'
 import type { PluginState, SessionEvent } from '../src'
 
-/** The key of the thread `t` in the stores, in the default tenant. */
-const THREAD_KEY = logIdOf({ logId: 't' })
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 const settings = definePlugin({
   name: 'test/settings',
@@ -58,10 +60,11 @@ describe('config values', () => {
 
   it('rejects unknown keys and bad values, and loads saved values in a new session', async () => {
     const persistence = memoryPersistence()
-    await persistence.stores.metadata.set('harness:config', THREAD_KEY, {
-      verbose: 'not a boolean',
-      gone: 'old key',
-    })
+    await appendToLog(persistence.stores.log, { threadId: 't' }, [
+      { type: 'harness.config', key: 'verbose', value: 'not a boolean' },
+      { type: 'harness.config', key: 'gone', value: 'old key' },
+      { type: 'harness.config', key: 'retries', value: 3 },
+    ])
     const { adapter } = mockAdapter([])
     const host = createHarnessHost({ persistence })
     const harness = defineHarness({
@@ -70,8 +73,10 @@ describe('config values', () => {
       plugins: () => [settings],
     })
     const session = await host.open(harness, { threadId: 't' })
-    // The saved values were invalid or unknown, so the defaults apply.
+    // An invalid or unknown saved value falls back to the default.
     expect(session.config().verbose?.value).toBe(false)
+    expect(session.config().retries?.value).toBe(3)
+    expect(session.config()).not.toHaveProperty('gone')
     expect(await session.setConfig({ key: 'missing', value: 1 })).toMatchObject(
       {
         status: 'rejected',
@@ -97,7 +102,7 @@ describe('config values', () => {
     expect(reopened.config()).toMatchObject({
       level: { value: 'high', owner: 'test/settings' },
       label: { value: 'mine' },
-      retries: { value: 1 },
+      retries: { value: 3 },
     })
     await again.close()
   })
@@ -252,7 +257,7 @@ describe('questions', () => {
       },
     )
     const picking = session.command({ name: 'pick' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
     const [question] = session.snapshot().pendingQuestions
@@ -286,7 +291,7 @@ describe('questions', () => {
     expect(await picking).toBe(4)
 
     const open = session.command({ name: 'open' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
     await host.close()
@@ -323,7 +328,7 @@ describe('questions', () => {
       },
     )
     const turn = session.send('Go.')
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
 
@@ -362,7 +367,7 @@ describe('questions', () => {
       },
     )
     const command = session.command({ name: 'confirm' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
 
@@ -370,53 +375,6 @@ describe('questions', () => {
 
     await expect(asked).rejects.toThrow('Cancelled.')
     expect(session.snapshot().pendingQuestions).toEqual([])
-    await host.close()
-  })
-
-  it('keeps a question when the answer cannot be stored', async () => {
-    let asked: Promise<unknown> | undefined
-    const asker = definePlugin({
-      name: 'test/answer-asker',
-      setup: () => ({
-        commands: {
-          confirm: defineCommand({
-            description: 'Ask',
-            run: (_input, { session }) => {
-              asked = session.ask({ message: 'Sure?' })
-              return asked
-            },
-          }),
-        },
-      }),
-    })
-    const persistence = memoryPersistence()
-    const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({
-        name: 'test/answer-store',
-        adapter: mockAdapter([]).adapter,
-        plugins: () => [asker],
-      }),
-      {
-        threadId: 't',
-      },
-    )
-    void session.command({ name: 'confirm' })
-    await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
-    const [question] = session.snapshot().pendingQuestions
-    vi.spyOn(persistence.stores.inbox, 'markApplied').mockRejectedValueOnce(
-      new Error('store down'),
-    )
-
-    await expect(
-      session.answer({ questionId: question!.questionId, value: 'yes' }),
-    ).rejects.toThrow('store down')
-    expect(session.snapshot().pendingQuestions).toHaveLength(1)
-
-    await session.answer({ questionId: question!.questionId, value: 'yes' })
-    await expect(asked).resolves.toBe('yes')
     await host.close()
   })
 })
@@ -452,88 +410,47 @@ describe('plugin state and events', () => {
     })
   }
 
-  it('keeps state with a plain metadata store and with none', async () => {
+  it('keeps state in the log, with no metadata store', async () => {
     const base = memoryPersistence()
-    const plain = {
-      ...base,
-      stores: {
-        ...base.stores,
-        metadata: {
-          get: (namespace: string, key: string) =>
-            base.stores.metadata.get(namespace, key),
-          set: (namespace: string, key: string, value: unknown) =>
-            base.stores.metadata.set(namespace, key, value),
-        },
-      },
-    }
-    const none = { ...base, stores: { ...base.stores, metadata: undefined } }
-    for (const persistence of [plain, none]) {
-      const seen: Array<number> = []
-      const host = createHarnessHost({ persistence: persistence as never })
-      const session = await host.open(
-        defineHarness({
-          name: 'test/state-store',
-          adapter: mockAdapter([]).adapter,
-          plugins: () => [statePlugin((value) => seen.push(value))],
-        }),
-        {
-          threadId: 't',
-        },
-      )
-      expect(await session.command({ name: 'bump' })).toBe(1)
-      expect(await session.command({ name: 'bump' })).toBe(2)
-      expect(seen).toEqual([1, 2])
-      await host.close()
-    }
-  })
-
-  it('gives up after five conflicting updates', async () => {
-    const base = memoryPersistence()
-    const conflicting = {
-      ...base,
-      stores: {
-        ...base.stores,
-        metadata: {
-          get: async () => null,
-          set: async () => {},
-          getVersioned: async () => ({ value: { count: 0 }, revision: 'r1' }),
-          setIf: async () => ({ ok: false }),
-        },
-      },
-    }
-    const host = createHarnessHost({ persistence: conflicting as never })
-    const session = await host.open(
-      defineHarness({
-        name: 'test/state-conflict',
-        adapter: mockAdapter([]).adapter,
-        plugins: () => [statePlugin(() => {})],
-      }),
-      {
-        threadId: 't',
-      },
-    )
-    await expect(session.command({ name: 'bump' })).rejects.toThrow(
-      'state update conflicted 5 times',
-    )
+    const { metadata: _metadata, ...stores } = base.stores
+    const harness = defineHarness({
+      name: 'test/state-store',
+      adapter: mockAdapter([]).adapter,
+      plugins: () => [statePlugin(() => {})],
+    })
+    const host = createHarnessHost({ persistence: { stores } })
+    const session = await host.open(harness, { threadId: 't' })
+    expect(await session.command({ name: 'bump' })).toBe(1)
+    expect(await session.command({ name: 'bump' })).toBe(2)
     await host.close()
+
+    const again = createHarnessHost({ persistence: { stores } })
+    const reopened = await again.open(harness, { threadId: 't' })
+    expect(reopened.snapshot().plugins).toEqual({ 'test/state': { count: 2 } })
+    expect(await reopened.command({ name: 'bump' })).toBe(3)
+    await again.close()
   })
 
-  it('keeps both of two concurrent updates with a store without setIf', async () => {
+  it('refuses a metadata store with no compare-and-set at the start', () => {
     const base = memoryPersistence()
     const plain = {
-      ...base,
-      stores: {
-        ...base.stores,
-        metadata: {
-          get: (namespace: string, key: string) =>
-            base.stores.metadata.get(namespace, key),
-          set: (namespace: string, key: string, value: unknown) =>
-            base.stores.metadata.set(namespace, key, value),
-        },
-      },
+      get: (namespace: string, key: string) =>
+        base.stores.metadata.get(namespace, key),
+      set: (namespace: string, key: string, value: unknown) =>
+        base.stores.metadata.set(namespace, key, value),
+      delete: (namespace: string, key: string) =>
+        base.stores.metadata.delete(namespace, key),
     }
+    expect(() =>
+      createHarnessHost({
+        persistence: { stores: { ...base.stores, metadata: plain } },
+      }),
+    ).toThrow('stores.metadata needs getVersioned and setIf')
+  })
+
+  it('keeps both of two concurrent updates', async () => {
     let state: PluginState<{ count: number }> | undefined
-    const host = createHarnessHost({ persistence: plain as never })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
     await host.open(
       defineHarness({
         name: 'test/state-race',
@@ -596,7 +513,7 @@ describe('plugin state and events', () => {
 
     await session.command({ name: 'ping' })
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(warnings).toEqual([
         { plugin: 'harness:events', message: 'listener broke' },
       ]),
@@ -606,9 +523,13 @@ describe('plugin state and events', () => {
 
   it('loads the saved state of a plugin whose name is an Object key', async () => {
     const persistence = memoryPersistence()
-    await persistence.stores.metadata.set('plugin:constructor', THREAD_KEY, {
-      saved: true,
-    })
+    await appendToLog(persistence.stores.log, { threadId: 't' }, [
+      {
+        type: 'harness.plugin.state',
+        plugin: 'constructor',
+        delta: { path: [], value: { saved: true } },
+      },
+    ])
     const host = createHarnessHost({ persistence })
     const session = await host.open(
       defineHarness({
@@ -679,8 +600,8 @@ describe('the plugin session API and inspect', () => {
       { role: 'user', content: 'replaced' },
     ])
     api.send('queued by a plugin')
-    await vi.waitFor(() => expect(calls).toHaveLength(2))
-    await vi.waitFor(() => expect(api.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(calls).toHaveLength(2))
+    await waitFor(() => expect(api.snapshot().status).toBe('idle'))
     expect(JSON.stringify(calls[1].messages)).toContain('replaced')
 
     const inspected = session.inspect()
@@ -747,13 +668,13 @@ describe('first-party plugin edges', () => {
     expect(await session.command({ name: 'review', input: 'src/a.ts' })).toBe(
       'Sent /review.',
     )
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     await session.command({ name: 'plain', input: { who: 'Ada' } })
-    await vi.waitFor(() => expect(calls).toHaveLength(2))
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(calls).toHaveLength(2))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     await session.command({ name: 'plain' })
-    await vi.waitFor(() => expect(calls).toHaveLength(3))
+    await waitFor(() => expect(calls).toHaveLength(3))
 
     // A missing folder gives no commands.
     const empty = await host.open(
@@ -936,7 +857,7 @@ describe('session events', () => {
         seen.push(entry)
     })()
     await session.setConfig({ key: 'verbose', value: true })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         seen.some(
           (entry) =>

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import { createHarnessHandler } from '../src/server'
 import { isMediaRecord, mediaPart } from '../src/media-entry'
@@ -139,24 +139,17 @@ afterEach(() => {
 })
 
 describe('media upload and signed URLs', () => {
-  it('needs media.secret on a durable host, where another instance verifies the URL', () => {
+  it('refuses an empty media.secret at the start', () => {
     const { adapter } = mockAdapter(() => text('ok'))
-    const harness = defineHarness({ name: 'test/http-media-durable', adapter })
-    const host = createHarnessHost({
-      persistence: {
-        stores: {
-          log: memoryLogStore(),
-          runs: memoryPersistence().stores.runs,
-        },
-      },
-    })
-    const options = { host, harness, openAccess: true as const }
-    expect(() => createHarnessHandler(options)).toThrow(/media\.secret/)
+    const harness = defineHarness({ name: 'test/http-media-empty', adapter })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
     expect(() =>
-      createHarnessHandler({ ...options, media: { secret: 'shared' } }),
-    ).not.toThrow()
-    expect(() =>
-      createHarnessHandler({ ...options, media: { secret: '' } }),
+      createHarnessHandler({
+        host,
+        harness,
+        openAccess: true,
+        media: { secret: '' },
+      }),
     ).toThrow(/not empty/)
   })
 

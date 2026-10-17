@@ -46,7 +46,7 @@ export interface RunCliOptions<P extends Principal = Principal> {
    */
   credentials?: CredentialStore
   /**
-   * Your own host, so the CLI keeps its hooks: leases, recovery, and stores.
+   * Your own host, so the CLI keeps its hooks: ownership, recovery, and stores.
    * You own it: the CLI does not close it. Do not set it with `persistence`
    * or `credentials`. With host `access`, give `principal` too. `--serve`
    * then reads the user of each request with `access.identify`, and `--mcp`

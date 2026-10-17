@@ -1,72 +1,66 @@
 ---
-title: Share one log between sessions
+title: One log for a session tree
 id: harness-shared-logs
 order: 4
-description: 'Put a parent session and its child sessions in one durable log, append to several sessions at once, and keep state for the whole log.'
+description: 'A root thread and its child threads (agent runs and subagents) write to one durable log. Append to several threads at once, and keep one state for the whole tree.'
 keywords:
   - tanstack ai
   - harness
   - shared log
-  - logId
+  - session tree
   - reduce
   - logState
-  - child sessions
+  - child threads
 ---
 
-Your framework runs one agent instance with a parent conversation and child tasks. Each conversation in its own log means two problems. A record for the child and a record for the parent can land one without the other after a crash. And no one place holds the state of the whole instance. Open all the sessions on one log. They share the order of the log, its atomic appends, and one state fold.
+Your framework runs one agent with a main conversation and child tasks. If each conversation has its own log, two things go wrong. A record for the child and a record for the parent can land one without the other after a crash. And no one place holds the state of the whole agent. A harness keeps the whole tree in one log, so the threads share its order, its atomic appends, and one state fold.
 
-## Open two sessions on one log
+## One log per session tree
 
-Pass the same `logId` to `host.open`. Each `threadId` is one session:
+Open the root thread. Each child thread that the harness starts writes to the log of that root:
+
+- An agent run and its follow-ups (`<threadId>:<name>:<input id>`).
+- A subagent run (`subagent:<runId>`).
 
 ```ts group=harness-shared-logs
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryPersistence } from '@tanstack/ai-persistence'
 import { openaiText } from '@tanstack/ai-openai'
 
-const log = memoryLogStore()
-const { runs, metadata } = memoryPersistence().stores
+const persistence = memoryPersistence()
 const assistant = defineHarness({
   name: 'acme/assistant',
   adapter: openaiText('gpt-6.1-sol'),
 })
-const host = createHarnessHost({
-  persistence: { stores: { log, runs, metadata } },
-})
+const host = createHarnessHost({ persistence })
 
-const parent = await host.open(assistant, { threadId: 'agent-1' })
-const child = await host.open(assistant, {
-  threadId: 'task-1',
-  logId: 'agent-1',
-})
-
-console.log(parent.logId, child.logId)
+const root = await host.open(assistant, { threadId: 'agent-1' })
 ```
 
-- `logId` defaults to `threadId`. The parent above has the log id `agent-1`, the same as its thread id.
-- Each session folds only its own transcript, inputs, and events from the log. The child never sees the messages of the parent.
-- The sessions run turns at the same time. A slow parent turn does not block a child turn.
-- `session.logId` tells you which log a session writes to.
+- The log has the id of the root thread, in its tenant: `logIdOf({ tenantId, logId: 'agent-1' })`.
+- Each thread folds only its own transcript, inputs, and events from the log. A child never sees the messages of the root.
+- A child thread does not open. Open its root, and read the child with `session.agentTranscript(subagentRunId)`.
+- `host.observe` also reads a child thread by its own thread id. It finds the root through the session index, so it needs `stores.sessions`. `memoryPersistence()` has it.
 
-## Write to several sessions in one append
+## Write to several threads in one append
 
-`session.append` stamps the records with this session. A record with `thread: '<other threadId>'` belongs to that session of the same log. The whole append is all or nothing:
+`session.append` adds records to the root thread. A record with `thread: '<other threadId>'` belongs to that thread of the same log. The whole append is all or nothing:
 
 ```ts group=harness-shared-logs
-await parent.append([
+await root.append([
   { type: 'app.child_created', thread: 'task-1', task: 'research' },
   { type: 'app.child_linked', child: 'task-1' },
 ])
 ```
 
-Here the child record and the link in the parent land together, or not at all.
+Here the child record and the link in the root land together, or not at all.
 
 - `thread` must be a string. Any other value makes `append` throw.
-- The session whose thread id equals the log id (the parent above) writes no `thread` field. A record without `thread` belongs to it.
+- A record without `thread` belongs to the root thread.
 
-## Keep state for the whole log
+## Keep state for the whole tree
 
-Give the harness a `durability.reduce` option. It folds every host record of the log, from all sessions, in log order. Then `host.logState` reads the result:
+Give the harness a `durability.reduce` option. It folds every host record of the log, from the root and from each child thread, in log order. Then `session.logState()` reads the result:
 
 ```ts group=harness-shared-logs
 import type { ReduceOptions } from '@tanstack/ai-harness'
@@ -94,37 +88,41 @@ await tracked.append([
   { type: 'app.child_created', thread: 'task-2', task: 'research' },
 ])
 
-console.log(host.logState({ harness: tracker, logId: 'agent-2' })?.tasks)
+console.log((await tracked.logState())?.tasks)
 ```
 
 - `record` must be pure. It returns the next state, or the same state for no change.
-- `host.logState({ harness, logId })` works for a log that has an open session in this host. Otherwise it returns `undefined`.
-- The type of the state flows from `initial` and `record`. Here `logState` returns `Children | undefined`.
-- If sessions of several harnesses share one log, the harness of the first session that opens the log folds it. For the other harnesses, `logState` returns `undefined`.
+- The type of the state flows from `initial` and `record`. Here `logState()` resolves to `Children | undefined`. A harness without `reduce` gets `undefined`.
+- The fold comes from the log, so a session on another machine gets the same state.
 - Change `version` when you change `record`. A fold checkpoint with another version is ignored.
-- `durability.project` also works with `reduce`. It folds a host record into the messages of its own session only.
+- `durability.project` also works with `reduce`. It folds a host record into the messages of its own thread only.
+
+A read route that opens no session gets the same state from a view:
+
+```ts group=harness-shared-logs
+const view = await host.observe(tracker, { threadId: 'agent-2' })
+console.log((await view.logState())?.tasks)
+```
 
 ## One writer per log
 
-Only one host writes a log at a time. When another host writes to it:
+Only one host writes a log at a time. When another host takes the log, the sessions of that log on this host stay open and read on. Their next write takes the log back, when no other host owns it. See [One host drives a thread](./durable-sessions#one-host-drives-a-thread).
 
-1. Every session of that log in this host stops. Their next `append` throws a log conflict.
-2. The next `host.open` for that log folds the log again and gives you a new session.
+One root thread has one open session per host. A second harness on the same thread throws.
 
-One thread can have one open session per log. A second harness on the same thread and log throws.
-
-To read one thread of a shared log outside a session, pass `logId` to `logMessageStore`:
+To read a root thread outside a session, for example for `reconstructChat`, use `logMessageStore`:
 
 ```ts group=harness-shared-logs
 import { logMessageStore } from '@tanstack/ai-harness'
 
-const messages = logMessageStore({ store: log, logId: 'agent-1' })
-console.log(await messages.loadThread('task-1'))
+const messages = logMessageStore({ store: persistence.stores.log })
+console.log(await messages.loadThread('agent-1'))
 ```
+
+Each thread id that you pass is the root of a tree. To read a child thread, use `host.observe`.
 
 ## What you have now
 
-- Many sessions in one durable log, each with its own transcript.
-- Appends that reach several sessions and land all together or not at all.
-- One state for the whole log, from `durability.reduce`, that you read with `host.logState`.
-- A clear rule for conflicts: one writer, and a fresh fold on the next open.
+- One durable log for a root thread and all of its child threads, each with its own transcript.
+- Appends that reach several threads and land all together or not at all.
+- One state for the whole tree, from `durability.reduce`, that you read with `session.logState()` on any machine.

@@ -16,11 +16,12 @@ type Chunk = {
   }
 }
 
+// Each event has an `id:` line (its log cursor) before its `data:` line.
 const sse = (text: string): Array<Chunk> =>
   text
-    .split('\n\n')
-    .filter((block) => block.startsWith('data: '))
-    .map((block) => JSON.parse(block.slice('data: '.length)))
+    .split('\n')
+    .filter((line) => line.startsWith('data: '))
+    .map((line) => JSON.parse(line.slice('data: '.length)))
 
 const textOf = (chunks: Array<Chunk>) =>
   chunks
@@ -253,8 +254,9 @@ test.describe('harness protocol inputs', () => {
         const block = buffer.slice(0, end)
         buffer = buffer.slice(end + 2)
         end = buffer.indexOf('\n\n')
-        if (!block.startsWith('data: ')) continue
-        const chunk: Chunk = JSON.parse(block.slice('data: '.length))
+        const data = block.split('\n').find((line) => line.startsWith('data: '))
+        if (!data) continue
+        const chunk: Chunk = JSON.parse(data.slice('data: '.length))
         if (chunk.type !== 'RUN_FINISHED') continue
         receipt = await user.control(threadId, {
           op: 'resolve',

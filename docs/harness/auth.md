@@ -129,7 +129,7 @@ When the credential is missing, the turn stops with an interrupt:
 - The sign-in belongs to the sender of the stopped turn. When that person saves the credential, the same turn continues as that person, and the tool runs again. The save can be `/connect github`, the `connect:github` command, or `run.credentials.set` in a command of your own.
 - A credential that another person saves never continues the turn.
 - To stop the wait, resolve the interrupt with `status: 'cancelled'`. Then the tool fails, the same as without `wait`.
-- On a durable host, the wait continues after a restart.
+- On a [durable host](./durable-sessions), the wait continues after a restart.
 - `wait` is for a tool of the running chat turn. Do not pass it in a command, a background agent, or a hook. The credentials of a command never wait.
 - Provider keys (`run.keys.require`) do not wait.
 

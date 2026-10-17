@@ -2,8 +2,16 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, definePlugin } from '../src'
-import { gate, messageTexts, mockAdapter, text, toolCall } from './helpers'
+import { createHarnessHost, defineHarness, definePlugin, logIdOf } from '../src'
+import {
+  canOtherHostTake,
+  gate,
+  messageTexts,
+  mockAdapter,
+  storedRun,
+  text,
+  toolCall,
+} from './helpers'
 import type { AnyTool, SubagentRouterPick } from '@tanstack/ai'
 import type {
   AnyAgent,
@@ -16,6 +24,12 @@ import type {
   Operation,
 } from '../src'
 import type { Reply } from './helpers'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 const THREAD = 't1'
 
@@ -89,9 +103,8 @@ function scriptedRouter(...picks: Array<SubagentRouterPick>) {
   return { router, seen }
 }
 
-/** A session whose harness has `routing`. `durable` gives the host a log. */
+/** A session whose harness has `routing`. */
 async function openRouting(options: {
-  durable?: boolean
   router: HarnessRouting['router']
   strategy?: HarnessRouting['strategy']
   agents?: ReadonlyArray<AnyAgent>
@@ -101,11 +114,9 @@ async function openRouting(options: {
   turn?: HarnessTurnOptions
   replies?: Array<Reply>
 }) {
-  const { stores } = memoryPersistence()
-  const { runs, metadata } = stores
-  const persistence = options.durable
-    ? { stores: { log: memoryLogStore(), runs, metadata } }
-    : { stores }
+  const { metadata } = memoryPersistence().stores
+  const log = memoryLogStore()
+  const persistence = { stores: { log, metadata } }
   const main = mockAdapter(options.replies ?? [])
   const host = createHarnessHost({ persistence })
   const session = await host.open(
@@ -126,7 +137,7 @@ async function openRouting(options: {
       threadId: THREAD,
     },
   )
-  return { host, session, runs, main }
+  return { host, session, log, main }
 }
 
 async function transcriptTexts(session: HarnessSession) {
@@ -498,8 +509,8 @@ describe('routing.router', () => {
     const handle = session.agent('indexer')
     if (!handle) throw new Error('No indexer agent.')
     await handle.start(undefined, { wake: true })
-    await vi.waitFor(() => expect(main.calls).toHaveLength(1))
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(main.calls).toHaveLength(1))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
 
     expect(seen.map((ctx) => ctx.input)).toEqual([
       'Background agent indexer finished: [indexer finished] Indexed',
@@ -536,11 +547,8 @@ describe('routing.router', () => {
   })
 })
 
-describe.each([
-  { host: 'a host without a log', durable: false },
-  { host: 'a durable host', durable: true },
-])('routing on $host', ({ durable }) => {
-  it('holds a run lease while a routed agent runs', async () => {
+describe('routing and ownership', () => {
+  it('keeps the thread from other hosts while a routed agent runs', async () => {
     const started = gate()
     const release = gate()
     const writer = defineAgent({
@@ -552,17 +560,17 @@ describe.each([
         return 'Done.'
       },
     })
-    const { host, session, runs } = await openRouting({
-      durable,
+    const { host, session, log } = await openRouting({
       router: () => 'writer',
       agents: [writer],
     })
 
     const turn = session.send('go')
     await started.opened
-    expect((await runs.get(turn.id))?.leaseExpiresAt).toBeGreaterThan(
-      Date.now(),
+    expect((await storedRun(log, { threadId: THREAD }, turn.id))?.status).toBe(
+      'running',
     )
+    expect(await canOtherHostTake(log, logIdOf({ logId: THREAD }))).toBe(false)
     release.open()
     expect((await turn).text).toBe('writer:\nDone.')
     await host.close()
@@ -576,7 +584,6 @@ describe.each([
       const releaseRouter = gate()
       let signal: AbortSignal | undefined
       const { host, session, main } = await openRouting({
-        durable,
         router: async ({ abortSignal }) => {
           signal = abortSignal
           routerStarted.open()
@@ -607,7 +614,6 @@ describe.each([
     const { make, execute } = cleaner()
     const { router, seen } = scriptedRouter('cleaner')
     const { host, session, main } = await openRouting({
-      durable,
       router,
       agents: [make()],
     })
@@ -670,7 +676,6 @@ describe.each([
   }>)('fails the turn when $name', async ({ router, error }) => {
     const writer = textAgent('writer', 'Draft')
     const { host, session } = await openRouting({
-      durable,
       router,
       agents: [writer.agent, pricer],
     })

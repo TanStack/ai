@@ -1,5 +1,4 @@
 import {
-  EventType,
   INTERRUPT_BINDING_METADATA_KEY,
   convertSchemaToJsonSchema,
   validateWithStandardSchema,
@@ -8,7 +7,7 @@ import { loadChildTranscript } from '@tanstack/ai-persistence'
 import { checkConfigValue } from '../config'
 import { isRecord } from '../utils'
 import { changedEntry } from '../session-entry'
-import { threadOf, visibleMessages } from '../log'
+import { stableJson, threadOf, visibleMessages } from '../log'
 import { mediaIdOf, mediaOfMessage, mediaPart } from '../media-ref'
 import {
   BackgroundJobs,
@@ -19,17 +18,10 @@ import {
   SessionSignal,
 } from '../plugins'
 import { HARNESS_EVENTS } from '../types'
-import { isSessionUsage } from '../usage'
 import {
-  INTERRUPTED,
-  USAGE,
-  isInterruptedTurn,
   createInputId,
   customEvent,
-  tanstackOf,
-  toolCallOf,
   storedPrincipal,
-  SETTINGS,
   changeSettings,
 } from './helpers'
 import { SessionInputs } from './inputs'
@@ -46,9 +38,14 @@ import type {
   SessionIndexEntry,
 } from '@tanstack/ai-persistence'
 import type { RevertState } from '../log'
+import type { ThreadRecord } from '../log-records'
 import type { Question } from '../commands'
 import type { ConfigOption } from '../config'
-import type { AnyHarness, SessionMetadataOf } from '../define'
+import type {
+  AnyHarness,
+  HarnessLogStateOf,
+  SessionMetadataOf,
+} from '../define'
 import type { SessionEntryChange, SessionEntryUpdate } from '../session-entry'
 import type {
   ChatTurnResult,
@@ -221,7 +218,8 @@ export abstract class SessionState<
   /**
    * @internal Start this new thread as a fork of `source`, before its first
    * turn: `messages` with their media copied to this thread, and the stored
-   * settings and plugin config of `source`. `host.fork` calls it.
+   * settings and plugin config of `source`. The log of this thread keeps
+   * them. `host.fork` calls it.
    */
   async adoptFork(
     source: SessionImpl,
@@ -273,22 +271,17 @@ export abstract class SessionState<
       })
     }
     await this.messages.saveThread(this.threadId, forked)
-    const { metadata } = this.persistence.stores
     this.threadSettings = source.settings()
+    const records: Array<ThreadRecord> = []
     if (Object.keys(this.threadSettings).length > 0) {
-      await metadata?.set(SETTINGS, this.storeThreadId, this.threadSettings)
+      records.push({ type: 'harness.settings', settings: this.threadSettings })
     }
     for (const [key, value] of source.configValues) {
-      if (this.sessionPlugins?.config.has(key))
-        this.configValues.set(key, value)
+      if (!this.sessionPlugins?.config.has(key)) continue
+      this.configValues.set(key, value)
+      records.push({ type: 'harness.config', key, value })
     }
-    if (this.configValues.size > 0) {
-      await metadata?.set(
-        'harness:config',
-        this.storeThreadId,
-        Object.fromEntries(this.configValues),
-      )
-    }
+    if (records.length > 0) await this.writer.append(records)
   }
 
   // ===========================
@@ -327,7 +320,7 @@ export abstract class SessionState<
   }: {
     key: string
     value: unknown
-    /** @internal The id of a forwarded input, so a replay is a duplicate. */
+    /** @internal The id of an offered input, so a replay is a duplicate. */
     inputId?: string
     principal?: Principal
   }): Promise<Receipt> {
@@ -347,12 +340,16 @@ export abstract class SessionState<
       return this.reject(inputId, reason)
     }
     this.configValues.set(key, checked)
-    await this.persistence.stores.metadata?.set(
-      'harness:config',
-      this.storeThreadId,
-      Object.fromEntries(this.configValues),
-    )
-    await this.applied(inputId, 'session')
+    // In the append of the applied record: a crash keeps both or neither.
+    await this.applied(inputId, 'session', [
+      {
+        type: 'harness.config',
+        key,
+        value: checked,
+        inputId,
+        ...storedPrincipal(principal ?? this.principal),
+      },
+    ])
     this.feed.publish(
       'session',
       customEvent(HARNESS_EVENTS.configChanged, { key, value: checked }),
@@ -370,7 +367,7 @@ export abstract class SessionState<
    * `defineHarness({ models })`), `reasoning`, `instructions`, `tools`,
    * `plugins`, and the working folder `cwd`. A field set to `null` is
    * cleared, and a missing field stays. They apply from the next turn, and
-   * the turn's `overrides` win over them. `stores.metadata` keeps them.
+   * the turn's `overrides` win over them. The log keeps them.
    *
    * It is an input, so the log keeps who changed what (`principal`). An
    * unknown field, model, or plugin, or a bad value, is rejected.
@@ -402,11 +399,6 @@ export abstract class SessionState<
       this.reject(inputId, reason)
       return this.keep({ inputId, status: 'rejected', reason })
     }
-    await this.persistence.stores.metadata?.set(
-      SETTINGS,
-      this.storeThreadId,
-      next,
-    )
     const movedFrom = this.threadSettings.cwd
     this.threadSettings = next
     // Tell the model about a new folder, so it stops using the old paths.
@@ -420,7 +412,16 @@ export abstract class SessionState<
           : `The working folder is now ${next.cwd}. Paths are relative to it.`,
       )
     }
-    await this.applied(inputId, 'session')
+    // The checked settings go in the append of the applied record: a crash
+    // keeps both or neither.
+    await this.applied(inputId, 'session', [
+      {
+        type: 'harness.settings',
+        settings: next,
+        inputId,
+        ...storedPrincipal(principal),
+      },
+    ])
     this.feed.publish(
       'session',
       customEvent(HARNESS_EVENTS.settingsChanged, { settings: next }),
@@ -503,15 +504,33 @@ export abstract class SessionState<
    * call. Each message has the child's card (its name and how it ended) in
    * `metadata.tanstack.subagent`. A child with no messages has one assistant
    * message with no content that holds only its card. A nested child is a
-   * child of this thread too. Empty for an unknown id, for a child of another
-   * thread, and with no message store.
+   * child of this thread too. Empty for an unknown id, and for a child of
+   * another thread.
    */
   async agentTranscript(subagentRunId: string): Promise<Array<ModelMessage>> {
-    const store = this.chatPersistence?.stores.messages
-    if (!store) return []
     return (
-      (await loadChildTranscript(store, subagentRunId, this.threadId)) ?? []
+      (await loadChildTranscript(this.engine, subagentRunId, this.threadId)) ??
+      []
     )
+  }
+
+  /**
+   * The `durability.reduce` fold of the harness for the log of this session:
+   * every host record of the root thread and of its child threads, in log
+   * order. `undefined` for a harness without `reduce`. A session of another
+   * machine folds the same log, so it gets the same state.
+   *
+   * @example
+   * ```ts
+   * const state = await session.logState()
+   * ```
+   */
+  async logState(): Promise<HarnessLogStateOf<THarness> | undefined> {
+    // The reduce of `harness` folded the state, so it has that type. A log
+    // cannot carry a state type.
+    return this.writer.reducedBy(this.harness.durability?.reduce) as
+      | HarnessLogStateOf<THarness>
+      | undefined
   }
 
   /** The index of the revert message in `messages`, or -1. */
@@ -533,8 +552,7 @@ export abstract class SessionState<
    */
   async revert(messageId: string): Promise<Receipt> {
     const inputId = createInputId()
-    // Another host runs the thread: its log write would stop that host.
-    if (this.snapshot().status !== 'idle' || (await this.isOwnedElsewhere())) {
+    if (!(await this.ownsIdleThread())) {
       return { inputId, status: 'rejected', reason: 'busy' }
     }
     return this.holding(async () => {
@@ -559,8 +577,7 @@ export abstract class SessionState<
   /** End the revert that stands: its files and messages come back. */
   async unrevert(): Promise<Receipt> {
     const inputId = createInputId()
-    // Another host runs the thread: its log write would stop that host.
-    if (this.snapshot().status !== 'idle' || (await this.isOwnedElsewhere())) {
+    if (!(await this.ownsIdleThread())) {
       return { inputId, status: 'rejected', reason: 'busy' }
     }
     return this.holding(async () => {
@@ -592,7 +609,18 @@ export abstract class SessionState<
     } finally {
       this.holdTurns--
       this.drain()
+      // `fn` can end with no write. An idle thread gives the log back.
+      void this.writer.rest()
     }
+  }
+
+  /**
+   * The thread is idle, and this host owns its log. A revert changes files
+   * here, so it must not run while another host runs the thread.
+   */
+  protected async ownsIdleThread() {
+    if (this.snapshot().status !== 'idle') return false
+    return await this.writer.own()
   }
 
   /** Drop the messages that a standing revert hides, and end the revert. */
@@ -606,20 +634,12 @@ export abstract class SessionState<
     await this.saveRevert(undefined)
   }
 
-  /** Keep the revert state in the log, else in the metadata store. */
+  /** Keep the revert state in the log. */
   protected async saveRevert(revert: RevertState | undefined) {
     this.reverted = revert
-    if (this.writer) {
-      await this.writer.append([
-        { type: 'harness.revert', revert: revert ?? null },
-      ])
-    } else {
-      await this.persistence.stores.metadata?.set(
-        'harness:revert',
-        this.storeThreadId,
-        revert ?? null,
-      )
-    }
+    await this.writer.append([
+      { type: 'harness.revert', revert: revert ?? null },
+    ])
     this.feed.publish(
       'session',
       customEvent(HARNESS_EVENTS.revert, {
@@ -631,7 +651,6 @@ export abstract class SessionState<
   /** The host records of `type` of this thread, from the log, oldest first. */
   protected async hostRecords(type: string) {
     const found: Array<Record<string, unknown>> = []
-    if (!this.writer || !this.log) return found
     let after = 0
     for (;;) {
       const entries = await this.log.store.read({
@@ -641,7 +660,7 @@ export abstract class SessionState<
       })
       for (const { seq, record } of entries) {
         after = seq
-        const isOwn = threadOf(record, this.logId) === this.threadId
+        const isOwn = threadOf(record, this.threadId) === this.threadId
         if (isOwn && record.type === type) found.push(record)
       }
       // A store can return fewer than `limit` before the end: stop only at
@@ -676,16 +695,15 @@ export abstract class SessionState<
   }: {
     questionId: string
     value: unknown
-    /** @internal The id of a forwarded input, so a replay is a duplicate. */
+    /** @internal The id of an offered input, so a replay is a duplicate. */
     inputId?: string
     principal?: Principal
   }): Promise<Receipt> {
-    // A secret (a key or a password) stays out of the inbox and the log. A
-    // restart does not replay an answer, so they never need it. A host that
-    // does not have the question cannot tell: the owner deletes the inbox
-    // entry of the answer after it applies it.
+    // A secret (a key or a password) stays out of the log. A restart does
+    // not replay an answer, so it never needs it. A host that does not have
+    // the question cannot tell, and offers the value to the owner. The
+    // owner logs it hidden, and that append removes the offer.
     const isSecret = this.questions.get(questionId)?.secret === true
-    // A host that does not have the question passes the value on to its owner.
     const admission = await this.accept(
       inputId,
       {
@@ -732,13 +750,10 @@ export abstract class SessionState<
     return { inputId, status: 'accepted' }
   }
 
-  protected async loadConfig(): Promise<void> {
-    const stored = await this.persistence.stores.metadata?.get(
-      'harness:config',
-      this.storeThreadId,
-    )
-    if (typeof stored !== 'object' || stored === null) return
-    for (const [key, value] of Object.entries(stored)) {
+  /** Read the config values of this thread from the log. */
+  protected loadConfig() {
+    const stored = this.writer.state.thread.config
+    for (const [key, value] of stored) {
       const entry = this.sessionPlugins?.config.get(key)
       if (!entry) continue
       try {
@@ -749,13 +764,9 @@ export abstract class SessionState<
     }
   }
 
-  /** Read the stored settings of this thread. */
-  protected async loadSettings(): Promise<void> {
-    const stored = await this.persistence.stores.metadata?.get(
-      SETTINGS,
-      this.storeThreadId,
-    )
-    if (!isRecord(stored)) return
+  /** Read the stored settings of this thread from the log. */
+  protected loadSettings() {
+    const stored = this.writer.state.thread.settings
     const names = this.settingNames()
     for (const [key, value] of Object.entries(stored)) {
       try {
@@ -771,251 +782,107 @@ export abstract class SessionState<
     }
   }
 
-  /** Restore the usage totals that `stores.metadata` keeps for this thread. */
-  protected async loadUsage(): Promise<void> {
-    const stored = await this.persistence.stores.metadata?.get(
-      USAGE,
-      this.storeThreadId,
-    )
-    if (isSessionUsage(stored)) this.usageTotals = stored
-  }
-
-  /** Restore the interrupted turn that `stores.metadata` keeps for this thread. */
+  /** Restore the interrupted turn that the log keeps for this thread. */
   protected async loadInterrupted(): Promise<void> {
-    const stored = await this.persistence.stores.metadata?.get(
-      INTERRUPTED,
-      this.storeThreadId,
-    )
-    if (isInterruptedTurn(stored)) this.interrupted = stored
+    this.interrupted = this.writer.state.thread.interrupted ?? undefined
     await this.refreshInterrupted()
   }
 
-  /** Keep the snapshot in line with the committed interrupt records. */
+  /** Keep `turn` as the interrupted turn in the log, when it changed. */
+  protected async saveInterrupted(turn: InterruptedTurn | undefined) {
+    const logged = this.writer.state.thread.interrupted
+    if (stableJson(logged) === stableJson(turn ?? null)) return
+    await this.writer.append([
+      { type: 'harness.interrupted', turn: turn ?? null },
+    ])
+  }
+
+  /**
+   * Keep the snapshot in line with the pending interrupt records in the
+   * fold of the log.
+   */
   protected async refreshInterrupted(
     observed?: InterruptedTurn,
-    consumed = false,
     persist = true,
   ): Promise<void> {
     const previous = observed ?? this.interrupted
-    const store = this.persistence.stores.interrupts
-    let next = previous
-    if (store) {
-      const pending = await store.listPending(this.threadId)
-      const owned = pending.filter((record) => {
-        const payload = record.payload
-        const metadata = isRecord(payload.metadata)
-          ? payload.metadata
-          : undefined
-        return (
-          previous?.interrupts.some((item) => item.id === record.interruptId) ||
-          typeof payload.toolCallId === 'string' ||
-          metadata?.kind === 'approval' ||
-          metadata?.kind === 'client_tool' ||
-          (metadata !== undefined &&
-            INTERRUPT_BINDING_METADATA_KEY in metadata) ||
-          typeof payload.id !== 'string' ||
-          typeof payload.reason !== 'string' ||
-          typeof payload.message !== 'string'
-        )
+    const pending = await this.interruptStore.listPending(this.threadId)
+    const owned = pending.filter((record) => {
+      const payload = record.payload
+      const metadata = isRecord(payload.metadata) ? payload.metadata : undefined
+      return (
+        previous?.interrupts.some((item) => item.id === record.interruptId) ||
+        typeof payload.toolCallId === 'string' ||
+        metadata?.kind === 'approval' ||
+        metadata?.kind === 'client_tool' ||
+        (metadata !== undefined &&
+          INTERRUPT_BINDING_METADATA_KEY in metadata) ||
+        typeof payload.id !== 'string' ||
+        typeof payload.reason !== 'string' ||
+        typeof payload.message !== 'string'
+      )
+    })
+    if (new Set(owned.map((record) => record.runId)).size > 1) {
+      throw new Error('Pending interrupts belong to more than one run.')
+    }
+    const runId = owned.at(-1)?.runId
+    const records = owned.filter((record) => record.runId === runId)
+    const interrupts: Array<Interrupt> = []
+    for (const record of records) {
+      const payload = record.payload
+      if (
+        payload.id !== record.interruptId ||
+        record.threadId !== this.threadId ||
+        typeof payload.reason !== 'string' ||
+        typeof payload.message !== 'string'
+      ) {
+        throw new Error('The stored interrupt descriptor is invalid.')
+      }
+      interrupts.push({
+        ...payload,
+        id: payload.id,
+        reason: payload.reason,
+        message: payload.message,
       })
-      if (new Set(owned.map((record) => record.runId)).size > 1) {
-        throw new Error('Pending interrupts belong to more than one run.')
-      }
-      const runId = owned.at(-1)?.runId
-      const records = owned.filter((record) => record.runId === runId)
-      const interrupts: Array<Interrupt> = []
-      for (const record of records) {
-        const payload = record.payload
-        if (
-          payload.id !== record.interruptId ||
-          record.threadId !== this.threadId ||
-          typeof payload.reason !== 'string' ||
-          typeof payload.message !== 'string'
-        ) {
-          throw new Error('The stored interrupt descriptor is invalid.')
-        }
-        interrupts.push({
-          ...payload,
-          id: payload.id,
-          reason: payload.reason,
-          message: payload.message,
-        })
-      }
-      const savedInput = [...(this.writer?.state.inputs.values() ?? [])].find(
-        (input) => input.operationId === runId,
-      )
-      const context =
-        previous !== undefined && previous.runId === runId
-          ? previous.context
-          : savedInput && 'context' in savedInput.input
-            ? savedInput.input.context
-            : undefined
-      next =
-        runId && interrupts.length > 0
-          ? {
-              runId,
-              interrupts,
-              ...(previous !== undefined &&
-              previous.runId === runId &&
-              previous.routed
-                ? { routed: previous.routed }
-                : {}),
-              ...storedPrincipal(
-                previous !== undefined && previous.runId === runId
-                  ? previous.principal
-                  : savedInput?.principal,
-              ),
-              ...(context !== undefined ? { context } : {}),
-            }
+    }
+    const savedInput = [...this.writer.state.inputs.values()].find(
+      (input) => input.operationId === runId,
+    )
+    const context =
+      previous !== undefined && previous.runId === runId
+        ? previous.context
+        : savedInput && 'context' in savedInput.input
+          ? savedInput.input.context
           : undefined
-    } else if (consumed && observed === undefined) {
-      next = undefined
-    } else if (observed === undefined && this.writer && this.log) {
-      let after = 0
-      for (;;) {
-        const entries = await this.log.store.read({
-          logId: this.storeLogId,
-          after,
-          limit: 256,
-        })
-        for (const { seq, record } of entries) {
-          after = seq
-          if (
-            threadOf(record, this.logId) !== this.threadId ||
-            record.type !== 'harness.event' ||
-            !isRecord(record.event)
-          )
-            continue
-          const event = record.event
-          // A later result of an interrupt's tool call: its resume ran, so it
-          // is used up, also when that turn failed after the tool.
-          if (
-            event.type === EventType.TOOL_CALL_RESULT &&
-            typeof event.toolCallId === 'string' &&
-            next !== undefined
-          ) {
-            if (!(await this.isRunResult(event, record.operationId))) continue
-            const remaining = next.interrupts.filter(
-              (interrupt) => toolCallOf(interrupt) !== event.toolCallId,
-            )
-            if (remaining.length !== next.interrupts.length) {
-              next =
-                remaining.length > 0
-                  ? { ...next, interrupts: remaining }
-                  : undefined
-            }
-            continue
+    const next =
+      runId && interrupts.length > 0
+        ? {
+            runId,
+            interrupts,
+            ...(previous !== undefined &&
+            previous.runId === runId &&
+            previous.routed
+              ? { routed: previous.routed }
+              : {}),
+            ...storedPrincipal(
+              previous !== undefined && previous.runId === runId
+                ? previous.principal
+                : savedInput?.principal,
+            ),
+            ...(context !== undefined ? { context } : {}),
           }
-          if (
-            event.type !== EventType.RUN_FINISHED ||
-            event.subagentRunId ||
-            typeof record.operationId !== 'string'
-          )
-            continue
-          if (
-            isRecord(event.outcome) &&
-            event.outcome.type === 'interrupt' &&
-            Array.isArray(event.outcome.interrupts)
-          ) {
-            const interrupts: Array<Interrupt> = []
-            for (const item of event.outcome.interrupts) {
-              if (
-                !isRecord(item) ||
-                typeof item.id !== 'string' ||
-                typeof item.reason !== 'string' ||
-                typeof item.message !== 'string'
-              ) {
-                throw new Error('The logged interrupt descriptor is invalid.')
-              }
-              interrupts.push({
-                ...item,
-                id: item.id,
-                reason: item.reason,
-                message: item.message,
-              })
-            }
-            const savedInput = [
-              ...(this.writer?.state.inputs.values() ?? []),
-            ].find((input) => input.operationId === record.operationId)
-            const context =
-              previous !== undefined && previous.runId === record.operationId
-                ? previous.context
-                : savedInput && 'context' in savedInput.input
-                  ? savedInput.input.context
-                  : undefined
-            next = {
-              runId: record.operationId,
-              interrupts,
-              ...(previous !== undefined &&
-              previous.runId === record.operationId &&
-              previous.routed
-                ? { routed: previous.routed }
-                : {}),
-              ...storedPrincipal(
-                previous !== undefined && previous.runId === record.operationId
-                  ? previous.principal
-                  : savedInput?.principal,
-              ),
-              ...(context !== undefined ? { context } : {}),
-            }
-          } else if (
-            (await this.persistence.stores.runs?.get(record.operationId))
-              ?.status === 'completed'
-          )
-            next = undefined
-        }
-        if (entries.length < 256) break
-      }
-    }
+        : undefined
     this.interrupted = next
-    if (!persist) return
-    if (next)
-      await this.persistence.stores.metadata?.set(
-        INTERRUPTED,
-        this.storeThreadId,
-        next,
-      )
-    else if (previous !== undefined) {
-      try {
-        await this.persistence.stores.metadata?.delete(
-          INTERRUPTED,
-          this.storeThreadId,
-        )
-      } catch (error) {
-        if (!consumed || observed !== undefined) throw error
-        await this.persistence.stores.metadata?.set(
-          INTERRUPTED,
-          this.storeThreadId,
-          null,
-        )
-      }
-    }
+    if (persist) await this.saveInterrupted(next)
   }
 
   /**
-   * True when a logged tool result means its tool ran: it is not cancelled,
-   * and an error result does not come from a stopped run.
-   */
-  protected async isRunResult(
-    event: Record<string, unknown>,
-    operationId: unknown,
-  ) {
-    const tanstack = tanstackOf(event)
-    if (tanstack?.toolResultOutcome === 'cancelled') return false
-    if (tanstack?.state !== 'output-error') return true
-    if (typeof operationId !== 'string') return false
-    const run = await this.persistence.stores.runs?.get(operationId)
-    return run !== null && run !== undefined && run.status !== 'aborted'
-  }
-
-  /**
-   * Mark the interrupts of `resume` answered in the interrupt store, the same
-   * way `withPersistence` commits them at a success boundary. Records that are
-   * no longer pending are left as they are.
+   * Mark the interrupts of `resume` answered in the log, the same way
+   * `withPersistence` commits them at a success boundary. Records that are no
+   * longer pending are left as they are.
    */
   protected async consumeResume(resume: ReadonlyArray<RunAgentResumeItem>) {
-    const store = this.persistence.stores.interrupts
-    if (!store) return
+    const store = this.interruptStore
     for (const item of resume) {
       const record = await store.get(item.interruptId)
       if (record?.status !== 'pending' || record.threadId !== this.threadId) {
@@ -1029,31 +896,39 @@ export abstract class SessionState<
     }
   }
 
+  /** Take the interrupts of `resume` out of the interrupted turn, in memory. */
+  protected dropInterrupts(resume: ReadonlyArray<RunAgentResumeItem>) {
+    if (!this.interrupted) return
+    const used = new Set(resume.map((item) => item.interruptId))
+    const left = this.interrupted.interrupts.filter(
+      (interrupt) => !used.has(interrupt.id),
+    )
+    this.interrupted =
+      left.length > 0 ? { ...this.interrupted, interrupts: left } : undefined
+  }
+
   /** Refresh even when a turn failed before its main try block. */
   protected async refreshTurnInterrupts(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
     observed?: InterruptedTurn,
-    consumed = false,
   ): Promise<void> {
-    await this.refreshInterrupted(observed, consumed).catch((error: unknown) =>
+    await this.refreshInterrupted(observed).catch((error: unknown) =>
       this.warn(operation, 'harness:interrupts', error),
     )
   }
 
   /**
-   * Make `stopped` the interrupted turn. `stores.metadata` gets it first, so a
-   * restart can resolve it too, and a resolve cannot delete the copy before
-   * it is written. A failed write is a warning.
+   * Make `stopped` the interrupted turn. The log gets it first, so a restart
+   * can resolve it too, and a resolve cannot end it before it is written. A
+   * failed write is a warning.
    */
   protected async keepInterrupted(
     operation: OperationImpl<ChatTurnResult>,
     stopped: InterruptedTurn,
   ): Promise<void> {
-    await this.persistence.stores.metadata
-      ?.set(INTERRUPTED, this.storeThreadId, stopped)
-      .catch((error: unknown) =>
-        this.warn(operation, 'harness:interrupts', error),
-      )
+    await this.saveInterrupted(stopped).catch((error: unknown) =>
+      this.warn(operation, 'harness:interrupts', error),
+    )
     this.interrupted = stopped
   }
 
@@ -1067,8 +942,8 @@ export abstract class SessionState<
     // so a client that streams that operation sees it, and a cancel of it
     // rejects the question. The session stream has every operation's events.
     const operationId = owner ?? this.activeTurn?.id ?? 'session'
-    // The claim sends an answer that reaches another host here.
-    this.markBusy()
+    // The question keeps the thread busy, so this host keeps the log, and an
+    // answer that reaches another host comes here through the input lane.
     return new Promise((resolve, reject) => {
       this.questions.set(questionId, {
         message: question.message,

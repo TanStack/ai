@@ -13,6 +13,12 @@ import {
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type { HarnessDurability } from '../src'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
 const LOG = logIdOf({ logId: THREAD })
@@ -33,7 +39,7 @@ async function stopDuringAgent(options: {
   const stores = memoryPersistence().stores
   const log = memoryLogStore()
   const persistence = {
-    stores: { log, runs: stores.runs, metadata: stores.metadata },
+    stores: { log, metadata: stores.metadata },
   }
   const effects: Array<string> = []
   const lookup = toolDefinition({
@@ -81,7 +87,7 @@ async function stopDuringAgent(options: {
     ...(options.resume ? { resume: true } : {}),
   })
   if (!operation) throw new Error('No worker agent.')
-  await vi.waitFor(() => expect(first.calls).toHaveLength(2))
+  await waitFor(() => expect(first.calls).toHaveLength(2))
   expect(effects).toEqual(['reserve', 'lookup'])
 
   // Host A stops: its log refuses writes, so the session stops writing.
@@ -91,7 +97,6 @@ async function stopDuringAgent(options: {
   await expect(sessionA.append([{ type: 'app.ping' }])).rejects.toThrow()
   await expect(operation).rejects.toThrow()
   refuse.mockRestore()
-  await stores.runs.update(operation.id, { leaseExpiresAt: Date.now() - 1000 })
 
   const record = (await log.read({ logId: LOG }))
     .map((entry) => entry.record)
@@ -109,7 +114,7 @@ async function stopDuringAgent(options: {
     threadId: THREAD,
     principal: alice,
   })
-  return { sessionB, hostB, inputId, effects, agentModel, main, stores }
+  return { sessionB, hostB, inputId, effects, agentModel, main, stores, log }
 }
 
 describe('a background agent with resume: true', () => {
@@ -122,6 +127,16 @@ describe('a background agent with resume: true', () => {
     expect(await run.sessionB.settled(run.inputId)).toMatchObject({
       outcome: 'completed',
     })
+    // The chain thread of the run is in the log of the root thread, on both
+    // hosts: one thread stamp, and no log of its own.
+    const threads = new Set(
+      (await run.log.read({ logId: LOG })).flatMap((entry) =>
+        typeof entry.record.thread === 'string' ? [entry.record.thread] : [],
+      ),
+    )
+    expect([...threads]).toEqual([expect.stringMatching(/^t1:worker:in-/)])
+    const [chain = ''] = threads
+    expect(await run.log.read({ logId: logIdOf({ logId: chain }) })).toEqual([])
     // The step and the finished tool call did not run again.
     expect(run.effects).toEqual(['reserve', 'lookup'])
     // The model continues from the saved transcript, with the tool result.
@@ -136,7 +151,7 @@ describe('a background agent with resume: true', () => {
       ),
     ).toBe(true)
     // `wake`: the main model gets the result in a new turn.
-    await vi.waitFor(() => expect(run.main.calls).toHaveLength(1))
+    await waitFor(() => expect(run.main.calls).toHaveLength(1))
     expect(messageTexts(run.main.calls[0]).at(-1)).toContain(
       'Background agent worker finished',
     )
@@ -171,29 +186,5 @@ describe('a background agent with resume: true', () => {
     })
     expect(run.agentModel.calls).toHaveLength(0)
     await run.hostB.close()
-  })
-
-  it('throws at start on a host without a log', async () => {
-    const host = createHarnessHost({ persistence: memoryPersistence() })
-    const worker = defineAgent({
-      name: 'worker',
-      description: 'Works',
-      run: async () => 'done',
-    })
-    const session = await host.open(
-      defineHarness({
-        name: 'test/agent-resume-memory',
-        adapter: mockAdapter([]).adapter,
-        agents: [worker],
-      }),
-      {
-        threadId: THREAD,
-      },
-    )
-
-    expect(() =>
-      session.agent('worker')?.start(undefined, { resume: true }),
-    ).toThrow('stores.log')
-    await host.close()
   })
 })

@@ -11,10 +11,15 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
-  logIdOf,
 } from '../src'
-import { mockAdapter, text } from './helpers'
+import { mockAdapter, storedThreadState, text } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 describe('extension points', () => {
   it('lets one plugin read what others contribute, in any order', async () => {
@@ -182,16 +187,14 @@ describe('events and state', () => {
       session.command({ name: 'add', input: { text: 3 } }),
     ).rejects.toThrow('Input validation failed')
     expect(heard).toEqual(['milk', 'eggs'])
-    expect(
-      await persistence.stores.metadata.get(
-        'plugin:test/todos',
-        logIdOf({ logId: 't' }),
-      ),
-    ).toEqual({
+    const stored = await storedThreadState(persistence.stores.log, {
+      threadId: 't',
+    })
+    expect(stored.plugins.get('test/todos')).toEqual({
       items: ['milk', 'eggs'],
     })
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         seen.some((event) => event.type === EventType.STATE_SNAPSHOT),
       ).toBe(true),
@@ -309,7 +312,7 @@ describe('commands and questions', () => {
     )
 
     const running = session.command({ name: 'deploy' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
     const [question] = session.snapshot().pendingQuestions

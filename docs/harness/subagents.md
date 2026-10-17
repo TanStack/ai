@@ -119,7 +119,7 @@ export const migrations = definePlugin({
 })
 ```
 
-1. Give the host a session log (`stores.log`). See [Durable sessions](./durable-sessions). Without a log, `start` with `resume: true` throws.
+1. Keep the session log in a store that survives a restart. See [Durable sessions](./durable-sessions).
 2. Put each side effect in `ctx.harness.step.do(name, fn)`. The agent code runs again from its start, and a finished step returns its stored value.
 3. Give each step a name that is the same on every run, and return a JSON value from `fn`.
 
@@ -210,7 +210,7 @@ Each item of `agentRuns()` has these fields:
 - `parentRunId`: the run whose agent code started this run, if there is one.
 - `principal`: the user that the run runs for.
 
-On a durable host (a host with `stores.log`), these three methods also read the log. After a restart, they still find each run, and a follow-up continues a run that ended before the restart. See [Durable sessions](./durable-sessions).
+These three methods also read the log. After a restart, they still find each run, and a follow-up continues a run that ended before the restart. See [Durable sessions](./durable-sessions).
 
 A run and all of its follow-ups keep their messages in one thread: `<threadId>:<name>:<input id of the first run>`. So each follow-up reads the full history of the runs before it.
 
@@ -240,7 +240,7 @@ const editor = defineAgent({
 
 ### Messages after a host stop
 
-This applies only to a durable host. When the host stops during a run, the messages that wait for the run are in the log:
+When the host stops during a run, the messages that wait for the run are in the log:
 
 - If the run started with `resume: true`, the next host runs it again. The resumed run gets the messages that waited for it.
 - If the run started without `resume`, the waiting messages settle `aborted`. A steer that already joined the run settles `failed`, with the run.

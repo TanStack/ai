@@ -10,16 +10,29 @@ import {
 } from '../src'
 import { TRUNCATED_TOOL_RESULT } from '../src/resume'
 import {
+  CRASHING_OWNERSHIP,
   gate,
   messageTexts,
   mockAdapter,
+  ownershipExpired,
+  storedRun,
   text,
   toolCall,
   untilAborted,
 } from './helpers'
 import type { AnyTool, StreamChunk } from '@tanstack/ai'
-import type { HarnessTurnOptions, ProjectOptions } from '../src'
+import type {
+  HarnessTurnOptions,
+  OwnershipOptions,
+  ProjectOptions,
+} from '../src'
 import type { Reply } from './helpers'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
@@ -103,33 +116,26 @@ async function open(options: {
   replies: Array<Reply> | Reply
   turn: HarnessTurnOptions
   tools?: Array<AnyTool>
-  durable?: boolean
 }) {
   const { adapter, calls } = mockAdapter(options.replies)
-  const persistence = memoryPersistence()
-  const { runs, metadata, interrupts } = persistence.stores
+  const { metadata } = memoryPersistence().stores
   const log = memoryLogStore()
-  const host = options.durable
-    ? createHarnessHost({
-        persistence: {
-          stores: { log, runs, metadata, interrupts },
-        },
-      })
-    : createHarnessHost({ persistence })
+  const host = createHarnessHost({
+    persistence: { stores: { log, metadata } },
+  })
   const session = await host.open(
     defineHarness({
       name: 'test/turn-control',
       adapter,
       tools: options.tools,
       turn: options.turn,
-      // Only the durable host reads it.
       durability: { project },
     }),
     {
       threadId: THREAD,
     },
   )
-  return { host, session, calls, runs, log }
+  return { host, session, calls, log }
 }
 
 /** The events of one operation, as `type` or `type:name`. */
@@ -154,7 +160,6 @@ async function eventsOf(
 describe('turn.onModelError', () => {
   it('compacts after an overflow, retries once, and succeeds', async () => {
     const { host, session, calls } = await open({
-      durable: true,
       replies: [
         failsWith(
           'prompt is too long: 250000 tokens > 200000 maximum',
@@ -267,48 +272,44 @@ describe('turn.onModelError', () => {
     await host.close()
   })
 
-  it.each([false, true])(
-    'retries a resumed turn and runs the approved tool once (durable: %s)',
-    async (durable) => {
-      const execute = vi.fn(async () => ({ ok: true }))
-      const remove = toolDefinition({
-        name: 'remove',
-        description: 'Remove a file',
-        needsApproval: true,
-        inputSchema: z.object({ path: z.string() }),
-      }).server(execute)
-      const { host, session } = await open({
-        durable,
-        tools: [remove],
-        replies: [
-          () => toolCall('remove', { path: 'a.txt' }, 'call_1'),
-          failsWith('503 Service Unavailable'),
-          () => text('removed'),
-        ],
-        turn: { onModelError: retryTransientErrors({ baseDelayMs: 1 }) },
-      })
+  it('retries a resumed turn and runs the approved tool once', async () => {
+    const execute = vi.fn(async () => ({ ok: true }))
+    const remove = toolDefinition({
+      name: 'remove',
+      description: 'Remove a file',
+      needsApproval: true,
+      inputSchema: z.object({ path: z.string() }),
+    }).server(execute)
+    const { host, session } = await open({
+      tools: [remove],
+      replies: [
+        () => toolCall('remove', { path: 'a.txt' }, 'call_1'),
+        failsWith('503 Service Unavailable'),
+        () => text('removed'),
+      ],
+      turn: { onModelError: retryTransientErrors({ baseDelayMs: 1 }) },
+    })
 
-      const first = await session.send('remove a.txt')
-      const receipt = await session.resolve({
-        resume: [
-          {
-            interruptId: first.interrupts![0]!.id,
-            status: 'resolved',
-            payload: true,
-          },
-        ],
-      })
+    const first = await session.send('remove a.txt')
+    const receipt = await session.resolve({
+      resume: [
+        {
+          interruptId: first.interrupts![0]!.id,
+          status: 'resolved',
+          payload: true,
+        },
+      ],
+    })
 
-      expect(await session.operation(receipt.operationId!)).toEqual({
-        text: 'removed',
-        media: [],
-      })
-      expect(execute).toHaveBeenCalledTimes(1)
-      await host.close()
-    },
-  )
+    expect(await session.operation(receipt.operationId!)).toEqual({
+      text: 'removed',
+      media: [],
+    })
+    expect(execute).toHaveBeenCalledTimes(1)
+    await host.close()
+  })
 
-  it('gives the retry a steer that joined the failed call, on a host without a log', async () => {
+  it('gives the retry a steer that joined the failed call', async () => {
     const started = gate()
     const release = gate()
     const { host, session, calls } = await open({
@@ -362,7 +363,7 @@ describe('turn.onModelError', () => {
   })
 
   it('clears the error of the run record after a successful retry', async () => {
-    const { host, session, runs } = await open({
+    const { host, session, log } = await open({
       replies: [failsWith('503 Service Unavailable'), () => text('ok')],
       turn: { onModelError: retryTransientErrors({ baseDelayMs: 1 }) },
     })
@@ -370,7 +371,7 @@ describe('turn.onModelError', () => {
     const turn = session.send('go')
     await turn
 
-    const record = await runs.get(turn.id)
+    const record = await storedRun(log, { threadId: THREAD }, turn.id)
     expect(record?.status).toBe('completed')
     expect(record?.error).toBeUndefined()
     await host.close()
@@ -712,12 +713,18 @@ describe('turn.onModelError', () => {
      * has the `retries` that each host's hook got.
      */
     function durableHosts() {
-      const { runs, metadata } = memoryPersistence().stores
-      const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
-      const openOn = async (replies: Array<Reply>) => {
+      const { metadata } = memoryPersistence().stores
+      const persistence = { stores: { log: memoryLogStore(), metadata } }
+      const openOn = async (
+        replies: Array<Reply>,
+        ownership?: OwnershipOptions,
+      ) => {
         const seen: Array<number> = []
         const { adapter, calls } = mockAdapter(replies)
-        const host = createHarnessHost({ persistence })
+        const host = createHarnessHost({
+          persistence,
+          ...(ownership ? { ownership } : {}),
+        })
         const session = await host.open(
           defineHarness({
             name: 'test/turn-control',
@@ -738,12 +745,19 @@ describe('turn.onModelError', () => {
       }
       /** Run `replies`, then a call that hangs, and stop that host there. */
       const crashAfter = async (replies: Array<Reply>) => {
-        const first = await openOn([...replies, untilAborted()])
-        const turn = first.session.send('go', { inputId: 'in-1' })
-        await vi.waitFor(() =>
+        const first = await openOn(
+          [...replies, untilAborted()],
+          CRASHING_OWNERSHIP,
+        )
+        void first.session.send('go', { inputId: 'in-1' }).then(
+          () => {},
+          () => {},
+        )
+        await waitFor(() =>
           expect(first.calls).toHaveLength(replies.length + 1),
         )
-        await runs.update(turn.id, { leaseExpiresAt: Date.now() - 1 })
+        // The host stops: its ownership of the log expires.
+        await ownershipExpired()
         return first
       }
       return { openOn, crashAfter }
@@ -782,8 +796,8 @@ describe('turn.onModelError', () => {
     })
 
     it('keeps the count of a failed call when the host stops in the backoff', async () => {
-      const { runs, metadata } = memoryPersistence().stores
-      const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
+      const { metadata } = memoryPersistence().stores
+      const persistence = { stores: { log: memoryLogStore(), metadata } }
       const openOn = async (replies: Array<Reply>, baseDelayMs: number) => {
         const seen: Array<number> = []
         const backoff = retryTransientErrors({ baseDelayMs })
@@ -810,7 +824,7 @@ describe('turn.onModelError', () => {
         () => {},
         () => {},
       )
-      await vi.waitFor(() => expect(first.seen).toEqual([0]))
+      await waitFor(() => expect(first.seen).toEqual([0]))
       // The host stops while the hook waits for the backoff.
       await first.host.close({ recoverable: true })
 
@@ -865,9 +879,8 @@ describe('turn.beforeFinish', () => {
       () => text('one'),
       () => text('two'),
     ])
-    const { runs } = memoryPersistence().stores
     const host = createHarnessHost({
-      persistence: { stores: { log: memoryLogStore(), runs } },
+      persistence: { stores: { log: memoryLogStore() } },
     })
     let cycles = 0
     const session = await host.open(
@@ -897,7 +910,6 @@ describe('turn.beforeFinish', () => {
 
   it('completes for a record that changes no message', async () => {
     const { host, session, calls, log } = await open({
-      durable: true,
       replies: [() => text('done'), () => text('never')],
       turn: {
         beforeFinish: ({ cycle }) =>
@@ -915,39 +927,35 @@ describe('turn.beforeFinish', () => {
     await host.close()
   })
 
-  it.each([false, true])(
-    'adds nothing when the turn is cancelled during the hook (durable: %s)',
-    async (durable) => {
-      const waiting = gate()
-      const { host, session, calls } = await open({
-        durable,
-        replies: [() => text('done'), () => text('never')],
-        turn: {
-          beforeFinish: async ({ signal }) => {
-            waiting.open()
-            await new Promise((resolve) =>
-              signal.addEventListener('abort', resolve, { once: true }),
-            )
-            return { messages: [{ role: 'user', content: REMINDER }] }
-          },
+  it('adds nothing when the turn is cancelled during the hook', async () => {
+    const waiting = gate()
+    const { host, session, calls } = await open({
+      replies: [() => text('done'), () => text('never')],
+      turn: {
+        beforeFinish: async ({ signal }) => {
+          waiting.open()
+          await new Promise((resolve) =>
+            signal.addEventListener('abort', resolve, { once: true }),
+          )
+          return { messages: [{ role: 'user', content: REMINDER }] }
         },
-      })
+      },
+    })
 
-      const turn = session.send('go')
-      await waiting.opened
-      await turn.cancel()
+    const turn = session.send('go')
+    await waiting.opened
+    await turn.cancel()
 
-      await expect(turn).rejects.toThrow('Cancelled.')
-      expect(turn.status()).toBe('cancelled')
-      expect(calls).toHaveLength(1)
-      expect(
-        (await session.transcript()).some(
-          (message) => message.content === REMINDER,
-        ),
-      ).toBe(false)
-      await host.close()
-    },
-  )
+    await expect(turn).rejects.toThrow('Cancelled.')
+    expect(turn.status()).toBe('cancelled')
+    expect(calls).toHaveLength(1)
+    expect(
+      (await session.transcript()).some(
+        (message) => message.content === REMINDER,
+      ),
+    ).toBe(false)
+    await host.close()
+  })
 
   it('fails the turn at the cycle limit', async () => {
     const { host, session, calls } = await open({
@@ -967,7 +975,6 @@ describe('turn.beforeFinish', () => {
 
   it('gives the next model call ephemeral messages that no store keeps', async () => {
     const { host, session, calls, log } = await open({
-      durable: true,
       replies: [() => text('draft'), () => text('posted'), () => text('never')],
       turn: {
         beforeFinish: ({ cycle }) =>
@@ -1091,26 +1098,22 @@ describe('turn.beforeFinish', () => {
     await host.close()
   })
 
-  it('refuses records without a log', async () => {
-    const { host, session } = await open({
-      replies: [() => text('done')],
-      turn: { beforeFinish: () => ({ records: [{ type: 'app.note' }] }) },
-    })
-
-    await expect(session.send('go')).rejects.toThrow('durable host')
-    await host.close()
-  })
-
   it('answers the added message after a crash before the next model call', async () => {
-    const { runs, metadata } = memoryPersistence().stores
-    const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
+    const { metadata } = memoryPersistence().stores
+    const persistence = { stores: { log: memoryLogStore(), metadata } }
     const beforeFinish: HarnessTurnOptions['beforeFinish'] = ({ messages }) =>
       messages.some((message) => message.content === REMINDER)
         ? undefined
         : { messages: [{ role: 'user', content: REMINDER }] }
-    const openOn = async (replies: Array<Reply>) => {
+    const openOn = async (
+      replies: Array<Reply>,
+      ownership?: OwnershipOptions,
+    ) => {
       const { adapter, calls } = mockAdapter(replies)
-      const host = createHarnessHost({ persistence })
+      const host = createHarnessHost({
+        persistence,
+        ...(ownership ? { ownership } : {}),
+      })
       const session = await host.open(
         defineHarness({
           name: 'test/turn-control',
@@ -1123,10 +1126,17 @@ describe('turn.beforeFinish', () => {
       )
       return { host, session, calls }
     }
-    const first = await openOn([() => text('draft'), untilAborted()])
-    const turn = first.session.send('answer the user', { inputId: 'in-1' })
-    await vi.waitFor(() => expect(first.calls).toHaveLength(2))
-    await runs.update(turn.id, { leaseExpiresAt: Date.now() - 1 })
+    const first = await openOn(
+      [() => text('draft'), untilAborted()],
+      CRASHING_OWNERSHIP,
+    )
+    void first.session.send('answer the user', { inputId: 'in-1' }).then(
+      () => {},
+      () => {},
+    )
+    await waitFor(() => expect(first.calls).toHaveLength(2))
+    // The host stops: its ownership of the log expires.
+    await ownershipExpired()
 
     const next = await openOn([() => text('posted')])
 

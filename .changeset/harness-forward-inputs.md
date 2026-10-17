@@ -2,4 +2,4 @@
 '@tanstack/ai-harness': patch
 ---
 
-On a durable host with `stores.workClaims`, an input that reaches a host while another host owns the thread no longer takes the log from the running turn. With `stores.inbox`, the input waits in the inbox and the owner applies it (receipt `queued`). Without an inbox, it is refused with `owned_elsewhere`. A question from `ctx.session.ask` keeps its thread claimed, so an answer that reaches another host goes to the host that asked.
+An input that reaches a host while another host owns the thread waits in the input lane of the log, and the owner runs it (receipt `queued`). The running turn on the owner goes on. The input keeps its JSON overrides (`model`, `modelOptions`, `reasoning`, and `promptCache`). An answer to a question from `ctx.session.ask` goes to the host that asked, and the log keeps a secret answer as `[secret]`.

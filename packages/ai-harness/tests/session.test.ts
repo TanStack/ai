@@ -13,25 +13,37 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
-  logIdOf,
 } from '../src'
 import {
   after,
+  appendToLog,
   gate,
   hideSecret,
   messageTexts,
   mockAdapter,
   text,
   toolCall,
+  storedThreadState,
   untilAborted,
   wakeMessages,
+  wrapLogStore,
 } from './helpers'
+import { isRecord } from '../src/utils'
 import type { AnyChatMiddleware, ContentPart, StreamChunk } from '@tanstack/ai'
-import type { HarnessTurnOptions, Receipt, SessionEvent } from '../src'
+import type { LogRecord } from '@tanstack/ai-persistence'
+import type {
+  HarnessPersistence,
+  HarnessTurnOptions,
+  Receipt,
+  SessionEvent,
+} from '../src'
 import type { Reply } from './helpers'
 
-/** The key of the thread `t1` in the stores, in the default tenant. */
-const T1_KEY = logIdOf({ logId: 't1' })
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 /** A memory host. A session closes as soon as its last handle closes and it is idle. */
 function setup() {
@@ -60,7 +72,7 @@ async function collect(
 
 describe('chat turns', () => {
   it('runs a prompt, returns its text, and saves the transcript', async () => {
-    const { host, persistence } = setup()
+    const { host } = setup()
     const { adapter } = mockAdapter([() => text('Hello there')])
     const harness = defineHarness({ name: 'test/chat', adapter })
     const session = await host.open(harness, { threadId: 't1' })
@@ -69,7 +81,7 @@ describe('chat turns', () => {
     await expect(turn).resolves.toEqual({ text: 'Hello there', media: [] })
     expect(turn.status()).toBe('completed')
 
-    const saved = await persistence.stores.messages.loadThread(T1_KEY)
+    const saved = await session.transcript()
     expect(saved.map((message) => message.role)).toEqual(['user', 'assistant'])
     const names = customNames(await collect(turn.events({ from: '0' })))
     expect(names).toContain(HARNESS_EVENTS.inputApplied)
@@ -94,7 +106,7 @@ describe('chat turns', () => {
 
     const a = session.send('first')
     const b = session.send('second')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     expect(session.snapshot().queuedTurns).toBe(1)
     first.open()
 
@@ -116,7 +128,7 @@ describe('chat turns', () => {
     )
 
     const a = session.send('first')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     await expect(session.send('second', { busy: 'reject' })).rejects.toThrow(
       'already running',
     )
@@ -177,7 +189,7 @@ describe('chat turns', () => {
     )
 
     const a = session.send('first')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     const joined = session.send('and this', { busy: 'steer' })
     first.open()
 
@@ -204,7 +216,7 @@ describe('chat turns', () => {
     )
 
     const turn = session.send('go')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     const receipt = await turn.cancel()
     expect(receipt.status).toBe('accepted')
     await expect(turn).rejects.toThrow('Cancelled')
@@ -251,7 +263,7 @@ describe('chat turns', () => {
       ],
     })
     expect(receipt.status).toBe('accepted')
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(execute).toHaveBeenCalledWith({ path: 'a.txt' }, expect.anything())
     await host.close()
   })
@@ -297,9 +309,7 @@ describe('settled operations', () => {
         () => undefined,
       )
     }
-    await vi.waitFor(() =>
-      expect(session.operation(ids[0] ?? '')).toBe(undefined),
-    )
+    await waitFor(() => expect(session.operation(ids[0] ?? '')).toBe(undefined))
     expect(session.operation(ids[1] ?? '')).toBeDefined()
     expect(session.operation(ids[500] ?? '')).toBeDefined()
     await host.close()
@@ -328,12 +338,12 @@ describe('events', () => {
       signal: controller.signal,
     })) {
       seen.push(entry)
-      if (
+      // The finished event of the first turn can land after its cursor.
+      const isSecondDone =
+        entry.operationId === second.id &&
         entry.event.type === EventType.CUSTOM &&
         entry.event.name === HARNESS_EVENTS.operationFinished
-      ) {
-        controller.abort()
-      }
+      if (isSecondDone) controller.abort()
     }
     expect(seen.every((entry) => Number(entry.cursor) > Number(cursor))).toBe(
       true,
@@ -370,8 +380,10 @@ describe('agents', () => {
     expect(result).toEqual({ vendor: 'acme', cents: 1200 })
     expect(run.kind).toBe('agent')
 
-    const record = await persistence.stores.runs.get(run.id)
-    expect(record).toMatchObject({
+    const { runs } = await storedThreadState(persistence.stores.log, {
+      threadId: 't1',
+    })
+    expect(runs.get(run.id)).toMatchObject({
       kind: 'agent',
       agent: 'pricer',
       status: 'completed',
@@ -414,11 +426,11 @@ describe('agents', () => {
     )
 
     await session.agents.pricer.start({ vendor: 'acme' }, { wake: true })
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     expect(messageTexts(calls[0]).at(-1)).toContain(
       'Background agent pricer finished',
     )
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     const transcript = await session.transcript()
     expect(wakeMessages(transcript)).toEqual([
       expect.stringContaining('Background agent pricer finished'),
@@ -450,117 +462,17 @@ describe('agents', () => {
     await expect(
       session.agents.failing.start(undefined, { wake: true }),
     ).rejects.toThrow('no vendor')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     expect(messageTexts(calls[0]).slice(-2)).toEqual([
       '[failing failed] no vendor',
       'Background agent failing failed: [failing failed] no vendor',
     ])
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     await host.close()
   })
 })
 
-describe('inbox', () => {
-  it('runs a prompt that was accepted but never applied before a restart', async () => {
-    const persistence = memoryPersistence()
-    await persistence.stores.inbox.append({
-      inputId: 'in-1',
-      threadId: T1_KEY,
-      input: { op: 'prompt', message: 'left over' },
-      createdAt: Date.now(),
-    })
-    const { adapter, calls } = mockAdapter([() => text('recovered')])
-    const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({ name: 'test/recover', adapter }),
-      {
-        threadId: 't1',
-      },
-    )
-
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
-    expect(
-      (
-        await persistence.stores.inbox.get({
-          threadId: T1_KEY,
-          inputId: 'in-1',
-        })
-      )?.status,
-    ).toBe('applied')
-    expect(messageTexts(calls[0])).toEqual(['left over'])
-    await host.close()
-  })
-
-  it('keeps the wake mark of a follow-up that a restart left', async () => {
-    const persistence = memoryPersistence()
-    await persistence.stores.inbox.append({
-      inputId: 'in-wake',
-      threadId: T1_KEY,
-      input: { op: 'followUp', message: 'Background job done.', wake: true },
-      createdAt: Date.now(),
-    })
-    const { adapter } = mockAdapter([() => text('noted')])
-    const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({ name: 'test/recover-wake', adapter }),
-      {
-        threadId: 't1',
-      },
-    )
-
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
-    expect(wakeMessages(await session.transcript())).toEqual([
-      'Background job done.',
-    ])
-    await host.close()
-  })
-
-  it('fails a command whose input the inbox cannot store', async () => {
-    const { persistence, host } = setup()
-    const session = await host.open(
-      defineHarness({
-        name: 'test/inbox-down',
-        adapter: mockAdapter([]).adapter,
-      }),
-      {
-        threadId: 't1',
-      },
-    )
-    vi.spyOn(persistence.stores.inbox, 'append').mockRejectedValue(
-      new Error('inbox down'),
-    )
-
-    await expect(session.command({ name: 'anything' })).rejects.toThrow(
-      'inbox down',
-    )
-    await host.close()
-  })
-
-  it('runs a retry of a prompt whose first store failed', async () => {
-    const { persistence, host } = setup()
-    const session = await host.open(
-      defineHarness({
-        name: 'test/inbox-retry',
-        adapter: mockAdapter([() => text('ran')]).adapter,
-      }),
-      {
-        threadId: 't1',
-      },
-    )
-    vi.spyOn(persistence.stores.inbox, 'append').mockRejectedValueOnce(
-      new Error('inbox down'),
-    )
-
-    await expect(session.send('Go.', { inputId: 'in-1' })).rejects.toThrow(
-      'inbox down',
-    )
-    expect(await session.send('Go.', { inputId: 'in-1' })).toEqual({
-      text: 'ran',
-      media: [],
-    })
-    await host.close()
-  })
-
+describe('inputs', () => {
   it('refuses inputs that come while the host closes, and stops the running turn', async () => {
     const { host } = setup()
     const { adapter } = mockAdapter([untilAborted()])
@@ -582,37 +494,6 @@ describe('inbox', () => {
     await closed
   })
 
-  it('warns when the inbox cannot mark an input rejected', async () => {
-    const { persistence, host } = setup()
-    const session = await host.open(
-      defineHarness({
-        name: 'test/inbox-reject',
-        adapter: mockAdapter([]).adapter,
-      }),
-      {
-        threadId: 't1',
-      },
-    )
-    vi.spyOn(persistence.stores.inbox, 'markRejected').mockRejectedValue(
-      new Error('inbox down'),
-    )
-    const warnings: Array<unknown> = []
-    session.onEvent(EventType.CUSTOM, ({ event }) => {
-      if (event.name === 'harness.plugin.warning') warnings.push(event.value)
-    })
-
-    expect(await session.cancel({ operationId: 'op-unknown' })).toMatchObject({
-      status: 'rejected',
-      reason: 'not_running',
-    })
-    await vi.waitFor(() =>
-      expect(warnings).toEqual([
-        { plugin: 'harness:inbox', message: 'inbox down' },
-      ]),
-    )
-    await host.close()
-  })
-
   it('settles a turn as failed when it fails before it runs', async () => {
     const { persistence, host } = setup()
     const session = await host.open(
@@ -624,15 +505,26 @@ describe('inbox', () => {
         threadId: 't1',
       },
     )
-    vi.spyOn(persistence.stores.interrupts, 'listPending').mockRejectedValue(
-      new Error('interrupts down'),
-    )
+    // Another host wrote an interrupt whose descriptor does not match it.
+    await appendToLog(persistence.stores.log, { threadId: 't1' }, [
+      {
+        type: 'harness.interrupt',
+        interrupt: {
+          interruptId: 'i-1',
+          runId: 'r-1',
+          threadId: 't1',
+          requestedAt: 1,
+          payload: { id: 'i-2', toolCallId: 'c-1', reason: 'r', message: 'm' },
+        },
+      },
+    ])
 
     const turn = session.send('Go.', { inputId: 'in-early' })
-    await expect(turn).rejects.toThrow('interrupts down')
+    const invalid = 'The stored interrupt descriptor is invalid.'
+    await expect(turn).rejects.toThrow(invalid)
     expect(await session.settled('in-early')).toMatchObject({
       outcome: 'failed',
-      error: { message: 'interrupts down' },
+      error: { message: invalid },
     })
     const events: Array<StreamChunk> = []
     for await (const chunk of turn.stream()) events.push(chunk)
@@ -844,7 +736,7 @@ describe('plugins', () => {
   })
 })
 
-describe('a waiting steer with an abort request, without a log', () => {
+describe('a waiting steer with an abort request', () => {
   it('does not join, and settles aborted', async () => {
     const started = gate()
     const done = gate()
@@ -891,12 +783,12 @@ describe('a waiting steer with an abort request, without a log', () => {
   })
 })
 
-describe('joins without a log', () => {
+describe('joins', () => {
   /** A session whose `wait` tool runs until `wait.done` opens. */
   async function openJoins(
     replies: Array<Reply>,
     turn: HarnessTurnOptions,
-    persistence = memoryPersistence(),
+    persistence: HarnessPersistence = memoryPersistence(),
   ) {
     const started = gate()
     const done = gate()
@@ -934,7 +826,7 @@ describe('joins without a log', () => {
     const steer = session.send('join me', { busy: 'steer' })
     await steer.receipt
     wait.done.open()
-    await vi.waitFor(() => expect(calls).toHaveLength(2))
+    await waitFor(() => expect(calls).toHaveLength(2))
 
     expect(session.operation(steer.id)).toBe(steer)
     expect(await session.cancel({ operationId: steer.id })).toMatchObject({
@@ -981,61 +873,51 @@ describe('joins without a log', () => {
   })
 
   it('refuses a cancel that lands after the late-join check', async () => {
-    const persistence = memoryPersistence()
-    const { runs } = persistence.stores
+    const inner = memoryLogStore()
     const inUpdate = gate()
     const releaseUpdate = gate()
     let isArmed = false
-    const update = runs.update.bind(runs)
-    runs.update = async (...args: Parameters<typeof runs.update>) => {
-      if (isArmed && args[1].status === 'running') {
-        isArmed = false
-        inUpdate.open()
-        await releaseUpdate.opened
-      }
-      return update(...args)
-    }
+    /** The run of the turn starts again, for the late steer. */
+    const isRunAgain = (record: LogRecord) =>
+      record.type === 'harness.run.update' &&
+      isRecord(record.patch) &&
+      record.patch.status === 'running'
+    const log = wrapLogStore(inner, {
+      append: async (batch) => {
+        if (isArmed && batch.records.some(isRunAgain)) {
+          isArmed = false
+          inUpdate.open()
+          await releaseUpdate.opened
+        }
+        return inner.append(batch)
+      },
+    })
     const release = gate()
     const { host, session, calls } = await openJoins(
       [after(release.opened, 'first answer'), () => text('late answer')],
       {},
-      persistence,
+      { stores: { log } },
     )
 
     const turn = session.send('first')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     const late = session.send('late', { busy: 'steer', inputId: 'late' })
     await late.receipt
     isArmed = true
     release.open()
     // The turn decided to run the model again for the late steer.
     await inUpdate.opened
-    const receipt = await session.cancel({ operationId: late.id })
+    // Its input record waits for the log write of the run.
+    const receipt = session.cancel({ operationId: late.id })
     releaseUpdate.open()
 
-    expect(receipt).toMatchObject({ status: 'rejected', reason: 'not_running' })
+    expect(await receipt).toMatchObject({
+      status: 'rejected',
+      reason: 'not_running',
+    })
     expect(await turn).toEqual({ text: 'first answerlate answer', media: [] })
     expect(calls).toHaveLength(2)
     expect(messageTexts(calls[1]).at(-1)).toBe('late')
-    await host.close()
-  })
-
-  it('adds the onJoin messages after the joined ones, also when it saves before each call', async () => {
-    const { host, session, calls, wait } = await openJoins(
-      [() => toolCall('wait', {}), () => text('done')],
-      {
-        onModelError: () => undefined,
-        onJoin: () => ({ messages: [{ role: 'user', content: 'hook' }] }),
-      },
-    )
-
-    const turn = session.send('start')
-    await wait.started.opened
-    await session.send('more', { busy: 'steer' }).receipt
-    wait.done.open()
-
-    await turn
-    expect(messageTexts(calls[1]).slice(-2)).toEqual(['more', 'hook'])
     await host.close()
   })
 
@@ -1058,7 +940,7 @@ describe('joins without a log', () => {
     )
 
     const turn = session.send('secret')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     await session.send('more', { busy: 'steer' }).receipt
     release.open()
     await turn
@@ -1067,81 +949,69 @@ describe('joins without a log', () => {
     await host.close()
   })
 
-  it.each([false, true])(
-    'sends a steer that joins a call through the per-call change of a middleware (log: %s)',
-    async (withLog) => {
-      const image: ContentPart = {
-        type: 'image',
-        source: { type: 'url', value: 'https://example.com/cat.png' },
-      }
-      // Like a model that cannot read images: each image becomes a text.
-      const noImages: AnyChatMiddleware = {
-        name: 'test/no-images',
-        onConfig: (ctx, config) => {
-          if (ctx.phase !== 'beforeModel') return undefined
-          return {
-            providerMessages: (config.providerMessages ?? config.messages).map(
-              (message) =>
-                Array.isArray(message.content)
-                  ? {
-                      ...message,
-                      content: message.content.map((part) =>
-                        part.type === 'image'
-                          ? { type: 'text' as const, content: '[image]' }
-                          : part,
-                      ),
-                    }
-                  : message,
-            ),
-          }
-        },
-      }
-      const release = gate()
-      const { adapter, calls } = mockAdapter([
-        after(release.opened, 'first'),
-        () => text('second'),
-      ])
-      const { runs } = memoryPersistence().stores
-      const host = createHarnessHost({
-        persistence: withLog
-          ? { stores: { log: memoryLogStore(), runs } }
-          : memoryPersistence(),
-      })
-      const session = await host.open(
-        defineHarness({
-          name: 'test/steer-convert',
-          adapter,
-          middleware: [noImages],
-        }),
-        {
-          threadId: 't-convert',
-        },
-      )
-      const steer: Array<ContentPart> = [
-        { type: 'text', content: 'this' },
-        image,
-      ]
+  it('sends a steer that joins a call through the per-call change of a middleware', async () => {
+    const image: ContentPart = {
+      type: 'image',
+      source: { type: 'url', value: 'https://example.com/cat.png' },
+    }
+    // Like a model that cannot read images: each image becomes a text.
+    const noImages: AnyChatMiddleware = {
+      name: 'test/no-images',
+      onConfig: (ctx, config) => {
+        if (ctx.phase !== 'beforeModel') return undefined
+        return {
+          providerMessages: (config.providerMessages ?? config.messages).map(
+            (message) =>
+              Array.isArray(message.content)
+                ? {
+                    ...message,
+                    content: message.content.map((part) =>
+                      part.type === 'image'
+                        ? { type: 'text' as const, content: '[image]' }
+                        : part,
+                    ),
+                  }
+                : message,
+          ),
+        }
+      },
+    }
+    const release = gate()
+    const { adapter, calls } = mockAdapter([
+      after(release.opened, 'first'),
+      () => text('second'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/steer-convert',
+        adapter,
+        middleware: [noImages],
+      }),
+      {
+        threadId: 't-convert',
+      },
+    )
+    const steer: Array<ContentPart> = [{ type: 'text', content: 'this' }, image]
 
-      const turn = session.send('look')
-      await vi.waitFor(() => expect(calls).toHaveLength(1))
-      await session.send(steer, { busy: 'steer' }).receipt
-      release.open()
-      await turn
+    const turn = session.send('look')
+    await waitFor(() => expect(calls).toHaveLength(1))
+    await session.send(steer, { busy: 'steer' }).receipt
+    release.open()
+    await turn
 
-      expect(calls[1].messages.at(-1).content).toEqual([
-        { type: 'text', content: 'this' },
-        { type: 'text', content: '[image]' },
-      ])
-      const transcript = await session.transcript()
-      expect(
-        transcript.find(
-          (message) =>
-            message.role === 'user' && Array.isArray(message.content),
-        )?.content,
-      ).toEqual(steer)
-      await host.close()
-    },
-  )
+    expect(calls[1].messages.at(-1).content).toEqual([
+      { type: 'text', content: 'this' },
+      { type: 'text', content: '[image]' },
+    ])
+    const transcript = await session.transcript()
+    expect(
+      transcript.find(
+        (message) => message.role === 'user' && Array.isArray(message.content),
+      )?.content,
+    ).toEqual(steer)
+    await host.close()
+  })
 
   it('fails the turn when onJoin throws, and runs the steer as its own turn', async () => {
     const { host, session, calls, wait } = await openJoins(

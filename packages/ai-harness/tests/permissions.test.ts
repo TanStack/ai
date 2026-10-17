@@ -13,7 +13,13 @@ import {
   permissions,
 } from '../src/first-party/permissions'
 import { mockAdapter, text, toolCall } from './helpers'
-import type { HarnessPersistence, HarnessPlugin, HarnessSession } from '../src'
+import type { MetadataStore } from '@tanstack/ai-persistence'
+import type {
+  HarnessPersistence,
+  HarnessPlugin,
+  HarnessSession,
+  Principal,
+} from '../src'
 import type {
   CallResources,
   PermissionDecision,
@@ -21,6 +27,12 @@ import type {
   PermissionRule,
 } from '../src/first-party/permissions'
 import type { Reply } from './helpers'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 const ROOT = '/work/repo'
 const WINDOWS_ROOT = 'C:\\work\\repo'
@@ -279,6 +291,7 @@ async function open(
   plugins: Array<HarnessPlugin>,
   replies: Array<Reply>,
   threadId = 't',
+  principal?: Principal,
 ) {
   const { adapter, calls } = mockAdapter([...replies, () => text('done')])
   const host = createHarnessHost({ persistence })
@@ -290,6 +303,7 @@ async function open(
     }),
     {
       threadId,
+      ...(principal ? { principal } : {}),
     },
   )
   return { host, session, calls }
@@ -297,7 +311,7 @@ async function open(
 
 /** Wait for the one open question, then answer it. Returns its message. */
 async function answer(session: HarnessSession, value: unknown) {
-  await vi.waitFor(() =>
+  await waitFor(() =>
     expect(session.snapshot().pendingQuestions).toHaveLength(1),
   )
   const [question] = session.snapshot().pendingQuestions
@@ -324,7 +338,7 @@ describe('permissions()', () => {
     expect(
       await persistence.stores.metadata.get(
         'tanstack/permissions',
-        'permissions:saved:/work/repo',
+        'permissions:saved::/work/repo',
       ),
     ).toEqual([{ tool: 'read_file', resource: '.env', decision: 'allow' }])
     await first.host.close()
@@ -353,7 +367,7 @@ describe('permissions()', () => {
     const { stores } = memoryPersistence()
     const tools = fakeTools()
     const { host, session } = await open(
-      { stores: { messages: stores.messages, runs: stores.runs } },
+      { stores: { log: stores.log } },
       [permissions({ root: ROOT }), tools.plugin],
       [
         () => toolCall('read_file', { path: '../shared.txt' }, 'c1'),
@@ -610,7 +624,7 @@ describe('permissions()', () => {
     const persistence = memoryPersistence()
     await persistence.stores.metadata.set(
       'tanstack/permissions',
-      'permissions:saved:/work/repo',
+      'permissions:saved::/work/repo',
       [{ tool: 'read_file', resource: 'secret.txt', decision: 'allow' }],
     )
     const tools = fakeTools()
@@ -632,6 +646,91 @@ describe('permissions()', () => {
 
     expect(tools.ran).toEqual([])
     await host.close()
+  })
+
+  it('keeps the saved rules of each tenant apart', async () => {
+    const persistence = memoryPersistence()
+    const tools = fakeTools()
+    const first = await open(
+      persistence,
+      [permissions({ root: ROOT }), tools.plugin],
+      [() => toolCall('read_file', { path: '.env' }, 'c1')],
+      't',
+      { id: 'u-1', tenantId: 'org-a' },
+    )
+    const turn = first.session.send('read it')
+    await answer(first.session, { answer: 'always' })
+    await turn
+    await first.host.close()
+
+    const saved = [{ tool: 'read_file', resource: '.env', decision: 'allow' }]
+    expect(
+      await listSavedPermissions(persistence.stores, ROOT, {
+        tenantId: 'org-a',
+      }),
+    ).toEqual(saved)
+    expect(await listSavedPermissions(persistence.stores, ROOT)).toEqual([])
+
+    // The same project in another tenant asks again.
+    const other = await open(
+      persistence,
+      [permissions({ root: ROOT }), tools.plugin],
+      [() => toolCall('read_file', { path: '.env' }, 'c2')],
+      't',
+      { id: 'u-2', tenantId: 'org-b' },
+    )
+    const otherTurn = other.session.send('read it')
+    expect(await answer(other.session, { answer: 'once' })).toContain('.env')
+    await otherTurn
+    await other.host.close()
+    expect(
+      await listSavedPermissions(persistence.stores, ROOT, {
+        tenantId: 'org-b',
+      }),
+    ).toEqual([])
+  })
+
+  it('keeps a rule that another host saves while a delete runs', async () => {
+    const base = memoryPersistence().stores.metadata
+    const { getVersioned, setIf } = base
+    if (!getVersioned || !setIf) throw new Error('No compare-and-set.')
+    const kept: PermissionRule = {
+      tool: 'bash',
+      resource: 'git status',
+      decision: 'allow',
+    }
+    const gone: PermissionRule = {
+      tool: 'read_file',
+      resource: '.env',
+      decision: 'allow',
+    }
+    const added: PermissionRule = { tool: 'deploy', decision: 'allow' }
+    let raced = false
+    // After the delete reads, another host saves `added`.
+    const racing: MetadataStore = {
+      get: (namespace, key) => base.get(namespace, key),
+      set: (namespace, key, value) => base.set(namespace, key, value),
+      delete: (namespace, key) => base.delete(namespace, key),
+      getVersioned: async (namespace, key) => {
+        const read = await getVersioned.call(base, namespace, key)
+        if (!raced) {
+          raced = true
+          await base.set(namespace, key, [kept, gone, added])
+        }
+        return read
+      },
+      setIf: (namespace, key, value, revision) =>
+        setIf.call(base, namespace, key, value, revision),
+    }
+    const stores = { metadata: racing }
+    await base.set('tanstack/permissions', 'permissions:saved::/work/repo', [
+      kept,
+      gone,
+    ])
+
+    await deleteSavedPermission(stores, ROOT, gone)
+
+    expect(await listSavedPermissions(stores, ROOT)).toEqual([kept, added])
   })
 
   it('lists the saved rules of a project, and deletes one by its fields', async () => {
@@ -677,7 +776,7 @@ describe('permissions()', () => {
     const persistence = memoryPersistence()
     await persistence.stores.metadata.set(
       'tanstack/permissions',
-      'permissions:saved:/work/repo',
+      'permissions:saved::/work/repo',
       [
         { tool: 'bash', resource: 'git status', decision: 'allow' },
         { tool: 'deploy', decision: 'allow' },
@@ -787,7 +886,7 @@ describe('permissions()', () => {
     expect(
       await persistence.stores.metadata.get(
         'tanstack/permissions',
-        'permissions:saved:/work/repo',
+        'permissions:saved::/work/repo',
       ),
     ).toEqual([{ tool: 'formatter:prettier', decision: 'allow' }])
 

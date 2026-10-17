@@ -1,0 +1,271 @@
+import { describe, expect, it } from 'vitest'
+import {
+  THREAD_RECORD_TYPES,
+  emptyThreadState,
+  foldThreadRecord,
+  pluginStateDeltas,
+} from '../src/log-records'
+import type { LogRecord } from '@tanstack/ai-persistence'
+import type { ThreadRecord } from '../src/log-records'
+
+function fold(records: ReadonlyArray<ThreadRecord | LogRecord>) {
+  let state = emptyThreadState()
+  for (const record of records) state = foldThreadRecord(state, record)
+  return state
+}
+
+const prompt = { op: 'prompt', message: 'Check the build.' } as const
+
+describe('foldThreadRecord', () => {
+  it('keeps the newest full settings', () => {
+    const state = fold([
+      { type: 'harness.settings', settings: { model: 'cheap', cwd: 'src' } },
+      {
+        type: 'harness.settings',
+        settings: { instructions: 'Be short.' },
+        inputId: 'in-1',
+        principal: { id: 'u-1' },
+      },
+    ])
+    expect(state.settings).toEqual({ instructions: 'Be short.' })
+  })
+
+  it('sets a config value and unsets it with null', () => {
+    const state = fold([
+      { type: 'harness.config', key: 'tone', value: 'formal' },
+      { type: 'harness.config', key: 'depth', value: { level: 2 } },
+      { type: 'harness.config', key: 'tone', value: null },
+    ])
+    expect([...state.config]).toEqual([['depth', { level: 2 }]])
+  })
+
+  it('merges plugin state deltas at their path', () => {
+    const state = fold([
+      {
+        type: 'harness.plugin.state',
+        plugin: 'todos',
+        delta: { path: [], value: { items: ['a'], meta: { count: 1 } } },
+      },
+      {
+        type: 'harness.plugin.state',
+        plugin: 'todos',
+        delta: { path: ['meta', 'count'], value: 2 },
+      },
+      {
+        type: 'harness.plugin.state',
+        plugin: 'todos',
+        delta: { path: ['filter', 'done'], value: true },
+      },
+      {
+        type: 'harness.plugin.state',
+        plugin: 'goal',
+        delta: { path: [], value: 'ship it' },
+      },
+    ])
+    expect(state.plugins.get('todos')).toEqual({
+      items: ['a'],
+      meta: { count: 2 },
+      filter: { done: true },
+    })
+    expect(state.plugins.get('goal')).toBe('ship it')
+  })
+
+  it('replaces a value that is not an object when a delta sets a field in it', () => {
+    const state = fold([
+      {
+        type: 'harness.plugin.state',
+        plugin: 'todos',
+        delta: { path: [], value: ['a', 'b'] },
+      },
+      {
+        type: 'harness.plugin.state',
+        plugin: 'todos',
+        delta: { path: ['count'], value: 1 },
+      },
+    ])
+    expect(state.plugins.get('todos')).toEqual({ count: 1 })
+  })
+
+  it('sets the interrupted turn and clears it with null', () => {
+    const turn = {
+      runId: 'run-1',
+      interrupts: [],
+      principal: { id: 'u-1', tenantId: 'org-1' },
+      context: { page: 'home' },
+    }
+    const stopped = fold([{ type: 'harness.interrupted', turn }])
+    expect(stopped.interrupted).toEqual(turn)
+    const cleared = fold([
+      { type: 'harness.interrupted', turn },
+      { type: 'harness.interrupted', turn: null },
+    ])
+    expect(cleared.interrupted).toBeNull()
+  })
+
+  it('keeps each agent result by run id', () => {
+    const state = fold([
+      {
+        type: 'harness.agent.result',
+        runId: 'run-1',
+        inputId: 'in-1',
+        status: 'completed',
+        result: { summary: 'done' },
+      },
+      {
+        type: 'harness.agent.result',
+        runId: 'run-2',
+        inputId: 'in-2',
+        status: 'failed',
+        error: { message: 'The host stopped.', code: 'timeout' },
+      },
+    ])
+    expect([...state.agentResults]).toEqual([
+      [
+        'run-1',
+        { inputId: 'in-1', status: 'completed', result: { summary: 'done' } },
+      ],
+      [
+        'run-2',
+        {
+          inputId: 'in-2',
+          status: 'failed',
+          error: { message: 'The host stopped.', code: 'timeout' },
+        },
+      ],
+    ])
+  })
+
+  it('keeps the turn overrides by input id', () => {
+    const state = fold([
+      {
+        type: 'harness.input.turn',
+        inputId: 'in-1',
+        overrides: {
+          model: 'cheap',
+          modelOptions: { temperature: 0 },
+          systemPreamble: ['You review code.'],
+          ephemeral: [{ role: 'user', content: 'Today is Friday.' }],
+        },
+      },
+    ])
+    expect(state.turnOverrides.get('in-1')).toEqual({
+      model: 'cheap',
+      modelOptions: { temperature: 0 },
+      systemPreamble: ['You review code.'],
+      ephemeral: [{ role: 'user', content: 'Today is Friday.' }],
+    })
+  })
+
+  it('keeps a schedule until its done record', () => {
+    const state = fold([
+      { type: 'harness.schedule', scheduleId: 's-1', at: 1000, input: prompt },
+      { type: 'harness.schedule', scheduleId: 's-2', at: 2000, input: prompt },
+      { type: 'harness.schedule.done', scheduleId: 's-1' },
+    ])
+    expect([...state.schedules]).toEqual([['s-2', { at: 2000, input: prompt }]])
+  })
+
+  it('returns the same state for a record type it does not fold', () => {
+    const state = emptyThreadState()
+    const unknownRecords: Array<LogRecord> = [
+      { type: 'harness.note', noteId: 'n-1', note: 'Hi.' },
+      { type: 'harness.from-the-future', value: 1 },
+      { type: 'app.custom', value: 2 },
+    ]
+    for (const record of unknownRecords) {
+      expect(foldThreadRecord(state, record)).toBe(state)
+    }
+  })
+
+  it('never changes the state it gets', () => {
+    const before = fold([
+      { type: 'harness.config', key: 'tone', value: 'formal' },
+    ])
+    foldThreadRecord(before, {
+      type: 'harness.config',
+      key: 'tone',
+      value: null,
+    })
+    expect([...before.config]).toEqual([['tone', 'formal']])
+  })
+
+  it('folds the same records to equal states', () => {
+    const records: Array<ThreadRecord> = [
+      { type: 'harness.settings', settings: { model: 'cheap' } },
+      { type: 'harness.config', key: 'tone', value: 'formal' },
+      {
+        type: 'harness.plugin.state',
+        plugin: 'todos',
+        delta: { path: ['count'], value: 3 },
+      },
+      { type: 'harness.schedule', scheduleId: 's-1', at: 1000, input: prompt },
+    ]
+    expect(fold(records)).toEqual(fold(records))
+  })
+
+  it('lists every record type it folds', () => {
+    expect(THREAD_RECORD_TYPES).toEqual([
+      'harness.settings',
+      'harness.config',
+      'harness.plugin.state',
+      'harness.interrupted',
+      'harness.agent.result',
+      'harness.input.turn',
+      'harness.schedule',
+      'harness.schedule.done',
+      'harness.run',
+      'harness.run.update',
+      'harness.interrupt',
+      'harness.interrupt.end',
+    ])
+  })
+})
+
+describe('pluginStateDeltas', () => {
+  /** The state that `deltas` fold to on top of `current`. */
+  function applied(current: unknown, next: unknown) {
+    const records: Array<ThreadRecord> = [
+      {
+        type: 'harness.plugin.state',
+        plugin: 'p',
+        delta: { path: [], value: current },
+      },
+      ...pluginStateDeltas(current, next).map(
+        (delta): ThreadRecord => ({
+          type: 'harness.plugin.state',
+          plugin: 'p',
+          delta,
+        }),
+      ),
+    ]
+    return fold(records).plugins.get('p')
+  }
+
+  it('writes one delta for each changed field', () => {
+    const current = { count: 1, label: 'a', meta: { seen: true } }
+    const next = { count: 2, label: 'a', meta: { seen: true }, extra: 'x' }
+    expect(pluginStateDeltas(current, next)).toEqual([
+      { path: ['count'], value: 2 },
+      { path: ['extra'], value: 'x' },
+    ])
+    expect(applied(current, next)).toEqual(next)
+  })
+
+  it('sets the whole value when a field is gone, or for a value that is not an object', () => {
+    const removed = { count: 1 }
+    expect(pluginStateDeltas({ count: 1, label: 'a' }, removed)).toEqual([
+      { path: [], value: removed },
+    ])
+    expect(applied({ count: 1, label: 'a' }, removed)).toEqual(removed)
+    expect(pluginStateDeltas(['a'], ['a', 'b'])).toEqual([
+      { path: [], value: ['a', 'b'] },
+    ])
+    expect(pluginStateDeltas(undefined, { count: 0 })).toEqual([
+      { path: [], value: { count: 0 } },
+    ])
+  })
+
+  it('writes nothing for the same value', () => {
+    expect(pluginStateDeltas({ count: 1 }, { count: 1 })).toEqual([])
+  })
+})

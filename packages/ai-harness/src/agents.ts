@@ -5,6 +5,8 @@ import type {
   SchemaInput,
 } from '@tanstack/ai'
 import { registerSubagentContextDefaults } from '@tanstack/ai/adapter-internals'
+import { stepRunWithoutSession } from './durable-tool'
+import { waitUntil } from './utils'
 import type { ToolStep } from './durable-tool'
 import type { AgentStartOptions } from './session/index'
 import type { AgentRun } from './types'
@@ -137,9 +139,10 @@ export interface AgentStarter {
 /** What a harness session adds to an agent run that it starts from code. */
 export interface HarnessAgentContext {
   /**
-   * The steps of the run. On a durable host, in a run started with
-   * `resume: true`, a finished step returns its stored value when the run
-   * runs again, and `fn` does not run again. Else `fn` runs each time.
+   * The steps of the run. In a run started with `resume: true`, a
+   * finished step returns its stored value when the run
+   * runs again, and `fn` does not run again. Else `fn` runs each time,
+   * and `sleep` waits its full time.
    */
   step: ToolStep
   /** Start agents in the background, as children of this run. */
@@ -149,10 +152,15 @@ export interface HarnessAgentContext {
 /**
  * `ctx.harness` outside a run that a session started from code (a tool-mode
  * child of a chat turn, or a run that a plain `chat()` starts): `step.do`
- * runs `fn` each time, `agents.start` throws.
+ * runs `fn` each time, `step.sleep` waits its full time, `agents.start`
+ * throws.
  */
 export const NO_SESSION_CONTEXT: HarnessAgentContext = {
-  step: { do: async (_name, fn) => fn() },
+  // `fn` runs each time, so it needs no JSON copy.
+  step: {
+    do: async (name, fn) => fn(stepRunWithoutSession(name)),
+    sleep: ({ ms }) => waitUntil(Date.now() + ms),
+  },
   agents: {
     start: () => {
       throw new Error(

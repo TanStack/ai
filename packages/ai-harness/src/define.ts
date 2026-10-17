@@ -88,9 +88,7 @@ export interface HarnessRouting<TMetadataSchema = any> extends Pick<
 }
 
 /**
- * Limits for one input on a durable host (a host with `stores.log`), and how
- * that host folds your own log records. A host without a log reads only
- * `interruptedToolResult` and `truncatedToolResult`.
+ * Limits for one input, and how the host folds your own log records.
  */
 export interface HarnessDurability<
   TMetadataSchema = any,
@@ -155,10 +153,10 @@ export interface HarnessDurability<
    */
   project?: ProjectOptions
   /**
-   * A fold of every host record of a log, across all its sessions, in log
-   * order. Read it with `host.logState({ harness, logId })`. When sessions of
-   * several harnesses share one log, the harness of the first session that
-   * opens the log folds it (`project` too).
+   * A fold of every host record of the log of a session tree: the root
+   * thread and its child threads (agent chains and subagent runs), in log
+   * order. Read it with `session.logState()`, or with `view.logState()` of
+   * `host.observe`, on any machine.
    */
   reduce?: ReduceOptions<TLogState>
 }
@@ -319,8 +317,8 @@ export interface HarnessConfig<
      * example a webhook that adds `{ type: 'app.signal', text }`. An input
      * with any other type, or with a `thread` field, is refused with
      * `not_exposed`. Server code that calls `session.append()` can add every
-     * type. Only a durable host (with `stores.log`) keeps records, and
-     * `durability.project` decides what the model sees of them.
+     * type. The log keeps the records, and `durability.project` decides
+     * what the model sees of them.
      */
     records?: ReadonlyArray<string>
   }
@@ -402,7 +400,7 @@ export type HarnessToolsOf<THarness> =
 
 /**
  * The state of the `durability.reduce` fold of a harness, as
- * `host.logState` returns it. `undefined` for a harness without `reduce`.
+ * `session.logState()` returns it. `undefined` for a harness without `reduce`.
  */
 export type HarnessLogStateOf<THarness> = THarness extends {
   durability?: { reduce?: ReduceOptions<infer TLogState> }
