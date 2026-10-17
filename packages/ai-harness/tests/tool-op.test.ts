@@ -2,12 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import {
-  applyInput,
-  capabilitiesOf,
-  createHarnessHost,
-  defineHarness,
-} from '../src'
+import { createHarnessHost, defineHarness } from '../src'
+import { applyInput, capabilitiesOf } from '../src/server'
 import { permissions } from '../src/first-party/permissions'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { HarnessPlugin } from '../src'
@@ -46,11 +42,15 @@ describe('{ op: "tool" }', () => {
     const { harness, host, calls } = setup()
     const session = await host.open(harness, { threadId: 't-run' })
 
-    const receipt = await applyInput(harness, session, {
-      op: 'tool',
-      name: 'fetch_stats',
-      args: { ticketId: 'T-1042' },
-      meta: { trigger: 'manual' },
+    const receipt = await applyInput({
+      harness,
+      session,
+      input: {
+        op: 'tool',
+        name: 'fetch_stats',
+        args: { ticketId: 'T-1042' },
+        meta: { trigger: 'manual' },
+      },
     })
     expect(receipt.status).toBe('accepted')
     const operation = session.operation(receipt.operationId ?? '')
@@ -85,10 +85,18 @@ describe('{ op: "tool" }', () => {
     const session = await host.open(harness, { threadId: 't-deny' })
 
     expect(
-      await applyInput(harness, session, { op: 'tool', name: 'secret_tool' }),
+      await applyInput({
+        harness,
+        session,
+        input: { op: 'tool', name: 'secret_tool' },
+      }),
     ).toMatchObject({ status: 'rejected', reason: 'not_exposed' })
     expect(
-      await applyInput(harness, session, { op: 'tool', name: 'nope' }),
+      await applyInput({
+        harness,
+        session,
+        input: { op: 'tool', name: 'nope' },
+      }),
     ).toMatchObject({ status: 'rejected', reason: 'not_exposed' })
 
     await host.close()
@@ -99,10 +107,14 @@ describe('{ op: "tool" }', () => {
     const session = await host.open(harness, { threadId: 't-bad-args' })
 
     // Wire args are not typed, so a client can send the wrong shape.
-    const receipt = await applyInput(harness, session, {
-      op: 'tool',
-      name: 'fetch_stats',
-      args: { wrong: true },
+    const receipt = await applyInput({
+      harness,
+      session,
+      input: {
+        op: 'tool',
+        name: 'fetch_stats',
+        args: { wrong: true },
+      },
     })
     await session.operation(receipt.operationId ?? '')
     const transcript = await session.transcript()
@@ -118,7 +130,7 @@ describe('{ op: "tool" }', () => {
     ])
     const session = await host.open(harness, { threadId: 't-rules' })
 
-    await session.tool('fetch_stats', { ticketId: 'T-1' }).then(
+    await session.tool({ name: 'fetch_stats', args: { ticketId: 'T-1' } }).then(
       () => {},
       () => {},
     )
@@ -135,7 +147,10 @@ describe('{ op: "tool" }', () => {
     ])
     const session = await host.open(harness, { threadId: 't-ask' })
 
-    const operation = session.tool('fetch_stats', { ticketId: 'T-2' })
+    const operation = session.tool({
+      name: 'fetch_stats',
+      args: { ticketId: 'T-2' },
+    })
     await vi.waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
@@ -173,11 +188,15 @@ describe('{ op: "tool" }', () => {
       args: { ticketId: 'T-7' },
       inputId: 'cron-1',
     }
-    const first = await applyInput(harness, session, input)
+    const first = await applyInput({ harness, session, input })
     expect(first).toMatchObject({ inputId: 'cron-1', status: 'accepted' })
     // A retry with other args under the same id is a conflict.
     expect(
-      await applyInput(harness, session, { ...input, args: { ticketId: 'X' } }),
+      await applyInput({
+        harness,
+        session,
+        input: { ...input, args: { ticketId: 'X' } },
+      }),
     ).toMatchObject({
       inputId: 'cron-1',
       status: 'rejected',
@@ -204,7 +223,10 @@ describe('{ op: "tool" }', () => {
     const session = await host.open(harness, { threadId: 't-waiting' })
     await session.send('go')
 
-    const operation = session.tool('fetch_stats', { ticketId: 'T-3' })
+    const operation = session.tool({
+      name: 'fetch_stats',
+      args: { ticketId: 'T-3' },
+    })
     expect(await operation.receipt).toMatchObject({
       status: 'rejected',
       reason: 'pending_interrupts',
@@ -234,9 +256,9 @@ describe('{ op: "tool" }', () => {
     const check = async () => {
       const session = await host.open(harness, { threadId: 't-types' })
       // @ts-expect-error `ticketId` must be a string.
-      void session.tool('fetch_stats', { ticketId: 1 })
+      void session.tool({ name: 'fetch_stats', args: { ticketId: 1 } })
       // A plugin tool takes any args.
-      void session.tool('plugin_tool', { anything: true })
+      void session.tool({ name: 'plugin_tool', args: { anything: true } })
     }
     expect(check).toBeTypeOf('function')
   })

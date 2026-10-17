@@ -211,13 +211,23 @@ export function parseControlFrame(data: string): ControlFrame {
  * Resolves to the receipt. `principal` is who
  * sent the input, from your `authorize`, never from the input itself. A chat
  * input runs with its credentials.
+ *
+ * @example
+ * ```ts
+ * const receipt = await applyInput({ harness, session, input, principal })
+ * ```
  */
-export async function applyInput(
-  harness: AnyHarness,
-  session: HarnessSession,
-  input: HarnessInput,
-  principal?: Principal,
-): Promise<Receipt> {
+export async function applyInput({
+  harness,
+  session,
+  input,
+  principal,
+}: {
+  harness: AnyHarness
+  session: HarnessSession
+  input: HarnessInput
+  principal?: Principal
+}): Promise<Receipt> {
   const id = {
     ...(input.inputId === undefined ? {} : { inputId: input.inputId }),
     ...(principal ? { principal } : {}),
@@ -268,9 +278,9 @@ export async function applyInput(
       return operation.receipt
     }
     case 'resolve':
-      return session.resolve(input.resume, id)
+      return session.resolve({ resume: input.resume, ...id })
     case 'cancel':
-      return session.cancel(input.operationId)
+      return session.cancel({ operationId: input.operationId })
     // It runs no new code, so it needs no `expose` entry, like `cancel`.
     case 'background':
       return session.background(input.toolCallId)
@@ -286,11 +296,11 @@ export async function applyInput(
       if (!(harness.expose?.commands ?? []).includes(input.name)) {
         return notExposed
       }
-      const operation = session.command(
-        input.name,
-        input.input,
-        principal ? { principal } : undefined,
-      )
+      const operation = session.command({
+        name: input.name,
+        input: input.input,
+        ...(principal ? { principal } : {}),
+      })
       operation.then(
         () => {},
         () => {},
@@ -315,7 +325,9 @@ export async function applyInput(
       if (!(harness.expose?.tools ?? []).includes(input.name)) {
         return notExposed
       }
-      const operation = session.tool(input.name, input.args, {
+      const operation = session.tool({
+        name: input.name,
+        args: input.args,
         ...(input.meta ? { meta: input.meta } : {}),
         ...id,
       })
@@ -348,10 +360,10 @@ export async function applyInput(
         exposed.includes(key),
       )
       if (!isExposed) return notExposed
-      return session.configure(input.settings, id)
+      return session.configure({ settings: input.settings, ...id })
     }
     case 'reset':
-      return session.reset(input.note, id)
+      return session.reset({ note: input.note, ...id })
     // A revert puts files back, as `/undo` does.
     case 'revert':
     case 'unrevert':

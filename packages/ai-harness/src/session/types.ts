@@ -25,7 +25,7 @@ import type { SessionUsage } from '../usage'
 import type { AgentInputOf, AgentResultOf, AnyAgent } from '../agents'
 import type { AnyHarness, HarnessAgentsOf } from '../define'
 import type { HarnessPersistence, SessionIndexWriter } from '../host'
-import type { MountedPlugins } from '../plugins'
+import type { PluginLifetime } from '../plugins'
 import type {
   AgentRun,
   ChatTurnResult,
@@ -34,6 +34,7 @@ import type {
   Operation,
   PendingQuestion,
   Principal,
+  ResolveOptions,
   ThreadSettings,
   TurnOverrides,
   UserInput,
@@ -163,9 +164,15 @@ export interface SessionSnapshot {
 
 /** The resolved plugin plan of a session, for debugging and tooling. */
 export interface SessionInspection {
-  plugins: MountedPlugins['owners']['plugins']
-  tools: MountedPlugins['owners']['tools']
-  prompts: MountedPlugins['owners']['prompts']
+  /** Each plugin, in mount order, with the capability names it uses. */
+  plugins: Array<{
+    name: string
+    lifetime: PluginLifetime
+    requires: Array<string>
+    provides: Array<string>
+  }>
+  tools: Array<{ name: string; owner: string }>
+  prompts: Array<{ id: string; owner: string }>
   commands: Array<{ name: string; owner: string }>
   config: Array<{ key: string; owner: string }>
   extensionPoints: Record<string, Array<string>>
@@ -302,6 +309,13 @@ export interface InterruptedTurn {
   principal?: { id: string; tenantId?: string }
   /** The `context` of the stopped turn's input, so the resume sees it too. */
   context?: unknown
+}
+
+/** What `resolveForRun` takes: the `resolve` options, plus the run id. */
+export interface ResolveForRunOptions extends ResolveOptions {
+  principal?: Principal
+  /** The AG-UI `runId` of a `POST run` request. The turn runs as it. */
+  runId?: string
 }
 
 /** An agent run operation. `send` adds a message to its chain. */

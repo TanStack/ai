@@ -54,6 +54,7 @@ import type { AnyHarness } from '../define'
 import type { ModelErrorContext } from '../turn'
 import type { MountedPlugins } from '../plugins'
 import type {
+  CommandOptions,
   SettlementOutcome,
   MediaRecord,
   Operation,
@@ -69,28 +70,30 @@ export abstract class SessionTurn<
   THarness extends AnyHarness = AnyHarness,
 > extends SessionAgents<THarness> {
   /**
-   * Run a plugin command. Its input is checked against the command's schema.
-   * `principal` is who runs it. Default: the principal that opened the
-   * session. The log keeps it, and the command gets that user's credentials.
+   * Run the plugin command `name`. Its `input` is checked against the
+   * command's schema. `principal` is who runs it. Default: the principal that
+   * opened the session. The log keeps it, and the command gets that user's
+   * credentials. `inputId` means the same as in `send`: a second command
+   * with the same id is a duplicate.
+   *
+   * @example
+   * ```ts
+   * await session.command({ name: 'mode', input: 'plan' })
+   * ```
    */
   command(
-    name: string,
-    input?: unknown,
-    options?: {
-      principal?: Principal
-      /** @internal The id of a forwarded input, so a replay is a duplicate. */
-      inputId?: string
-    },
+    options: CommandOptions & { principal?: Principal; inputId?: string },
   ): Operation<unknown> {
+    const { name, input } = options
     const operation = new OperationImpl<unknown>(
       'command',
       this.feed,
-      (target) => this.cancel(target.id),
+      (target) => this.cancel({ operationId: target.id }),
     )
     this.track(operation)
-    const principal = options?.principal ?? this.principal
+    const principal = options.principal ?? this.principal
     // A store write that throws (the inbox, the log) still ends the command.
-    const inputId = options?.inputId ?? createInputId()
+    const inputId = options.inputId ?? createInputId()
     this.executeCommand(operation, name, input, principal, inputId).catch(
       (error: unknown) => this.failOperation(operation, error),
     )
@@ -375,7 +378,7 @@ export abstract class SessionTurn<
       // The stored settings of the thread, as they are when the turn starts.
       const stored = this.threadSettings
       const removed = new Set(stored.plugins?.remove ?? [])
-      // 'turn' and the old 'run'. A removed turn plugin is not set up.
+      // The 'turn' plugins. A removed turn plugin is not set up.
       const perRun = this.plugins.filter(
         (plugin) =>
           (plugin.lifetime ?? 'session') !== 'session' &&

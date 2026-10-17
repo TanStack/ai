@@ -2,12 +2,12 @@ import { expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { defineAgent } from '@tanstack/ai'
 import {
-  createHarnessHandler,
   createHarnessHost,
   defineHarness,
   definePlugin,
   oauthConnector,
 } from '../src'
+import { createHarnessHandler } from '../src/server'
 import { mockAdapter } from './helpers'
 import type { AnyTextAdapter, KeyedAdapter } from '@tanstack/ai'
 import type { SessionIndexEntry } from '@tanstack/ai-persistence'
@@ -18,8 +18,10 @@ import type {
   HarnessSession,
   Operation,
   PluginLifetime,
+  ProjectOptions,
   Receipt,
   RecoverHook,
+  ReduceOptions,
   SessionMetadataOf,
 } from '../src'
 import type { InputSettlement } from '../src/types'
@@ -94,10 +96,10 @@ it('takes a harness without an adapter, and turn plugins', () => {
   expectTypeOf(picked.adapter).toEqualTypeOf<
     AnyTextAdapter | KeyedAdapter<AnyTextAdapter> | undefined
   >()
-  expectTypeOf<PluginLifetime>().toEqualTypeOf<'session' | 'turn' | 'run'>()
+  expectTypeOf<PluginLifetime>().toEqualTypeOf<'session' | 'turn'>()
 })
 
-it('takes attempt and time limits on the harness', () => {
+it('takes attempt and time limits, and the log folds, on the harness', () => {
   expectTypeOf<HarnessConfig['durability']>().toEqualTypeOf<
     | {
         maxAttempts?: number
@@ -108,9 +110,24 @@ it('takes attempt and time limits on the harness', () => {
           | string
           | ((call: { toolCallId: string; toolName: string }) => string)
         continueCutOff?: boolean | { note?: string | ReadonlyArray<string> }
+        project?: ProjectOptions
+        reduce?: ReduceOptions<undefined>
       }
     | undefined
   >()
+  // The state type of `host.logState` comes from `initial` and `record`.
+  const counted = defineHarness({
+    name: 'test/reduce',
+    durability: {
+      reduce: {
+        initial: { count: 0 },
+        record: ({ state }) => ({ count: state.count + 1 }),
+      },
+    },
+  })
+  expectTypeOf(
+    createHarnessHost().logState({ harness: counted, logId: 'log-1' }),
+  ).toEqualTypeOf<{ count: number } | undefined>()
 })
 
 it('gives a started agent run send()', () => {

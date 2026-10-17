@@ -11,7 +11,6 @@ import {
 import { parseRangeHeader, resolveBlobRange } from '@tanstack/ai-persistence'
 import { durableStoresOf, sessionOfTurn } from './host'
 import { MediaError } from './media'
-import { base64url } from './oauth'
 import {
   HARNESS_PROTOCOL_VERSION,
   applyInput,
@@ -20,8 +19,9 @@ import {
   parseControlFrame,
   parseHarnessInput,
 } from './protocol'
-import { isRecord } from './utils'
+import { base64url, isRecord } from './utils'
 import { SessionMetadataError } from './session-entry'
+import { SessionImpl } from './session/harness-session'
 import type {
   ModelMessage,
   RunStore,
@@ -61,13 +61,18 @@ export interface HarnessHandlerOptions {
    */
   canAccess: CanAccess
   /**
-   * The secret that signs media URLs (HMAC SHA-256). Use the same value on
-   * every server behind one URL. Required on a durable host (`stores.log`),
-   * where another instance can serve the next request. Without a log store,
-   * the default is a random key per handler, so signed URLs stop working
-   * after a restart.
+   * How the handler signs media URLs. Required on a durable host
+   * (`stores.log`), where another instance can serve the next request.
+   * Without a log store, leave it out to sign with a random key per handler,
+   * so signed URLs stop working after a restart.
    */
-  mediaSecret?: string
+  media?: {
+    /**
+     * The secret that signs media URLs (HMAC SHA-256). Use the same value on
+     * every server behind one URL.
+     */
+    secret: string
+  }
 }
 
 /** How long a signed media URL works. */
@@ -263,7 +268,7 @@ async function mediaResponse(
       headers: { ...MEDIA_HEADERS, 'Content-Range': `bytes */${record.size}` },
     })
   }
-  const bytes = await session.loadMedia(id, range)
+  const bytes = await session.loadMedia({ id, range })
   const headers = {
     ...MEDIA_HEADERS,
     'Content-Type': record.mimeType,
@@ -344,11 +349,16 @@ async function mediaResponse(
 export function createHarnessHandler(
   options: HarnessHandlerOptions,
 ): (request: Request) => Promise<Response> {
-  const { host, harness, authorize, canAccess } = options
+  const { host, harness, authorize, canAccess, media } = options
   const durable = durableStoresOf(host)
-  if (options.mediaSecret === undefined && durable) {
+  if (media !== undefined && media.secret.length === 0) {
     throw new Error(
-      'createHarnessHandler needs mediaSecret on a durable host (stores.log): another instance must verify the media URLs this one signs. Set the same secret on every instance.',
+      'createHarnessHandler needs a media.secret that is not empty.',
+    )
+  }
+  if (media === undefined && durable) {
+    throw new Error(
+      'createHarnessHandler needs media.secret on a durable host (stores.log): another instance must verify the media URLs this one signs. Set the same secret on every instance.',
     )
   }
 
@@ -357,12 +367,12 @@ export function createHarnessHandler(
     return host.open(harness, { threadId, principal })
   }
 
-  // ponytail: without `mediaSecret` (only allowed without a log store), a
+  // ponytail: without `media.secret` (only allowed without a log store), a
   // random key per handler, so signed URLs stop working after a restart.
   const secret =
-    options.mediaSecret === undefined
+    media === undefined
       ? crypto.getRandomValues(new Uint8Array(32))
-      : encoder.encode(options.mediaSecret)
+      : encoder.encode(media.secret)
   let key: Promise<CryptoKey> | undefined
   const mediaKey = () =>
     (key ??= crypto.subtle.importKey('raw', secret, HMAC, false, [
@@ -486,7 +496,11 @@ export function createHarnessHandler(
         const ids = { inputId: params.runId, runId: params.runId, principal }
         const lastEventId = request.headers.get('Last-Event-ID')
         if (params.resume && params.resume.length > 0) {
-          const receipt = await session.resolve(params.resume, ids)
+          const answers = { resume: params.resume, ...ids }
+          // Only the session class takes the run id. `host.open` gives one.
+          const receipt = await (session instanceof SessionImpl
+            ? session.resolveForRun(answers)
+            : session.resolve(answers))
           if (receipt.status === 'rejected') {
             return json({ error: receipt.reason }, 409)
           }
@@ -593,7 +607,7 @@ export function createHarnessHandler(
         )
         const session = await openFor(principal, threadId)
         if (!session) return json({ error: 'forbidden' }, 403)
-        return json(await applyInput(harness, session, input, principal))
+        return json(await applyInput({ harness, session, input, principal }))
       }
 
       if (
@@ -734,10 +748,11 @@ export function createHarnessHandler(
           return json({ error: 'threadId and name are required' }, 400)
         const session = await openFor(principal, threadId)
         if (!session) return json({ error: 'forbidden' }, 403)
-        const record = await session.putMedia(
-          request.body ?? new Uint8Array(),
-          { mimeType: request.headers.get('Content-Type') ?? '', name },
-        )
+        const record = await session.putMedia({
+          body: request.body ?? new Uint8Array(),
+          mimeType: request.headers.get('Content-Type') ?? '',
+          name,
+        })
         return json(record)
       }
 
@@ -899,12 +914,12 @@ export function handleHarnessSocket(options: HarnessSocketOptions): void {
           send({ type: 'harness.snapshot', snapshot: session.snapshot() })
           return
         }
-        const receipt = await applyInput(
+        const receipt = await applyInput({
           harness,
           session,
-          frame.input,
+          input: frame.input,
           principal,
-        )
+        })
         send({
           type: 'harness.receipt',
           requestId: frame.requestId,

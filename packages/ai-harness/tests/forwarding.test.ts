@@ -8,6 +8,7 @@ import {
   defineHarness,
   definePlugin,
 } from '../src'
+import { SessionImpl } from '../src/session/harness-session'
 import {
   after,
   gate,
@@ -37,7 +38,7 @@ function sharedStores(options: { inbox?: boolean } = {}) {
   }
 }
 
-const harnessOf = (adapter: AnyTextAdapter) =>
+const harnessWith = (adapter: AnyTextAdapter) =>
   defineHarness({ name: NAME, adapter })
 
 describe('an input that reaches a host that does not own the thread', () => {
@@ -48,7 +49,7 @@ describe('an input that reaches a host that does not own the thread', () => {
       after(release.opened, 'One.'),
       () => text('Two.'),
     ])
-    const harness = harnessOf(adapter)
+    const harness = harnessWith(adapter)
     const owner = await createHarnessHost({ persistence }).open(harness, {
       threadId: THREAD,
     })
@@ -86,7 +87,7 @@ describe('an input that reaches a host that does not own the thread', () => {
       after(release.opened, 'One.'),
       () => text('Two.'),
     ])
-    const harness = harnessOf(adapter)
+    const harness = harnessWith(adapter)
     const owner = await createHarnessHost({ persistence }).open(harness, {
       threadId: THREAD,
     })
@@ -112,7 +113,7 @@ describe('an input that reaches a host that does not own the thread', () => {
     const persistence = sharedStores({ inbox: false })
     const release = gate()
     const { adapter } = mockAdapter([after(release.opened, 'One.')])
-    const harness = harnessOf(adapter)
+    const harness = harnessWith(adapter)
     const owner = await createHarnessHost({ persistence }).open(harness, {
       threadId: THREAD,
     })
@@ -139,7 +140,7 @@ describe('an input that reaches a host that does not own the thread', () => {
   it('runs on the next host that opens the thread after the owner stopped', async () => {
     const persistence = sharedStores()
     const { adapter, calls } = mockAdapter([() => text('Picked up.')])
-    const harness = harnessOf(adapter)
+    const harness = harnessWith(adapter)
     // A host that stopped holds a claim that is about to expire.
     await persistence.stores.workClaims.claim({
       threadId: THREAD,
@@ -169,7 +170,7 @@ describe('an input that reaches a host that does not own the thread', () => {
   it('leaves the input of a live owner alone when another host opens the thread', async () => {
     const persistence = sharedStores()
     const { adapter, calls } = mockAdapter([() => text('One.')])
-    const harness = harnessOf(adapter)
+    const harness = harnessWith(adapter)
     // The owner stores the input, then waits before it writes its run lease.
     const leaseWrite = gate()
     const shared = persistence.stores.runs
@@ -233,7 +234,7 @@ describe('an input that reaches a host that does not own the thread', () => {
       threadId: THREAD,
     })
 
-    const running = owner.command('deploy')
+    const running = owner.command({ name: 'deploy' })
     await vi.waitFor(() =>
       expect(owner.snapshot().pendingQuestions).toHaveLength(1),
     )
@@ -278,7 +279,7 @@ describe('an input that reaches a host that does not own the thread', () => {
       threadId: THREAD,
     })
 
-    const running = owner.command('login')
+    const running = owner.command({ name: 'login' })
     await vi.waitFor(() =>
       expect(owner.snapshot().pendingQuestions).toHaveLength(1),
     )
@@ -347,7 +348,7 @@ describe('an input that reaches a host that does not own the thread', () => {
 
     const turn = owner.send('Go.')
     await turn.receipt
-    await other.command('count')
+    await other.command({ name: 'count' })
     await vi.waitFor(
       async () => expect(await inbox.listPending(THREAD)).toEqual([]),
       { timeout: 4_000 },
@@ -364,7 +365,7 @@ describe('an input that reaches a host that does not own the thread', () => {
       after(release.opened, 'One.'),
       () => text('Two.'),
     ])
-    const harness = harnessOf(adapter)
+    const harness = harnessWith(adapter)
     const owner = await createHarnessHost({ persistence }).open(harness, {
       threadId: THREAD,
     })
@@ -400,8 +401,10 @@ describe('an input that reaches a host that does not own the thread', () => {
       until: Date.now() + 60_000,
     })
     const other = await createHarnessHost({ persistence }).open(
-      harnessOf(mockAdapter([]).adapter),
-      { threadId: THREAD },
+      harnessWith(mockAdapter([]).adapter),
+      {
+        threadId: THREAD,
+      },
     )
     let last = ''
     let operation: Operation<ChatTurnResult> | undefined
@@ -424,7 +427,7 @@ describe('an input that reaches a host that does not own the thread', () => {
       () => text('One.'),
       after(release.opened, 'Two.'),
     ])
-    const harness = harnessOf(adapter)
+    const harness = harnessWith(adapter)
     const owner = await createHarnessHost({ persistence }).open(harness, {
       threadId: THREAD,
     })
@@ -459,8 +462,10 @@ describe('an input that reaches a host that does not own the thread', () => {
       until: Date.now() + 50,
     })
     const host = await createHarnessHost({ persistence }).open(
-      harnessOf(adapter),
-      { threadId: THREAD },
+      harnessWith(adapter),
+      {
+        threadId: THREAD,
+      },
     )
     const turn = host.send('Still there?', { runId: 'run-9' })
     expect((await turn.receipt).status).toBe('queued')
@@ -474,7 +479,7 @@ describe('an input that reaches a host that does not own the thread', () => {
     const persistence = sharedStores()
     const release = gate()
     const { adapter } = mockAdapter([after(release.opened, 'One.')])
-    const harness = harnessOf(adapter)
+    const harness = harnessWith(adapter)
     const log = persistence.stores.log
     let failing: string | undefined
     const owner = await createHarnessHost({
@@ -520,11 +525,11 @@ describe('an input that reaches a host that does not own the thread', () => {
       () => text('One.'),
       () => text('Two.'),
     ])
-    const harness = harnessOf(adapter)
+    const harness = harnessWith(adapter)
     // The owner stores its input, then stops before it writes its run lease.
     const runs = persistence.stores.runs
     const owner = await createHarnessHost({
-      lease: { ttlMs: 200, renewMs: 50 },
+      ownership: { ttlMs: 200, renewMs: 50 },
       persistence: {
         stores: {
           ...persistence.stores,
@@ -579,11 +584,14 @@ describe('an input that reaches a host that does not own the thread', () => {
     const other = await createHarnessHost({ persistence }).open(harness, {
       threadId: THREAD,
     })
-    // A `POST run` with a resume: the run id is the input id too.
-    const receipt = await other.resolve(
-      [{ interruptId, status: 'resolved', payload: { opened: true } }],
-      { inputId: 'run-r', runId: 'run-r' },
-    )
+    // A `POST run` with a resume: the run id is the input id too. The
+    // handler calls `resolveForRun`, which only the session class has.
+    if (!(other instanceof SessionImpl)) throw new Error('Not a SessionImpl.')
+    const receipt = await other.resolveForRun({
+      resume: [{ interruptId, status: 'resolved', payload: { opened: true } }],
+      inputId: 'run-r',
+      runId: 'run-r',
+    })
     expect(receipt).toMatchObject({ status: 'queued', operationId: 'run-r' })
     await vi.waitFor(() => expect(calls).toHaveLength(2), { timeout: 3_000 })
     expect((await other.settled('run-r')).outcome).toBe('completed')

@@ -101,8 +101,9 @@ describe('harnessText media', () => {
     ).toEqual(['text', 'image'])
     // The option wins over the adapter list, and media.accepts narrows it.
     expect(
-      harnessText(studio, { inputModalities: ['text', 'image', 'video'] })
-        .inputModalities,
+      harnessText(studio, {
+        inputModalities: ['text', 'image', 'video'],
+      }).inputModalities,
     ).toEqual(['text', 'image'])
   })
 

@@ -246,7 +246,7 @@ A formatter runs code from the project, like `prettier.config.js`. The model can
 One tool result with a full log or a big JSON file fills the context of the model. `boundToolOutput()` cuts every tool result that is too long:
 
 ```ts group=harness-coding-tools-backends
-import { boundToolOutput } from '@tanstack/ai-harness/plugins'
+import { boundToolOutput } from '@tanstack/ai-harness/plugins/node'
 
 export const bounded = defineHarness({
   name: 'acme/bounded-coder',

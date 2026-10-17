@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHandler, createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHandler } from '../src/server'
 import { createHarnessClient } from '../src/client'
 import { gate, messageTexts, mockAdapter, text } from './helpers'
 import type { SessionEvent } from '../src'
@@ -152,14 +153,19 @@ describe('createHarnessClient', () => {
     })
 
     expect(
-      await client.tool(
-        'fetch_stats',
-        { queue: 'billing' },
-        { inputId: 't-1' },
-      ),
+      await client.tool({
+        name: 'fetch_stats',
+        args: { queue: 'billing' },
+        inputId: 't-1',
+      }),
     ).toMatchObject({ inputId: 't-1', status: 'accepted' })
-    // @ts-expect-error `queue` must be a string.
-    void client.tool('fetch_stats', { queue: 1 }).catch(() => {})
+    void client
+      .tool({
+        name: 'fetch_stats',
+        // @ts-expect-error `queue` must be a string.
+        args: { queue: 1 },
+      })
+      .catch(() => {})
     await vi.waitFor(async () =>
       expect(
         JSON.stringify(

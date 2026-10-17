@@ -92,7 +92,9 @@ describe('checkpoints and leases', () => {
     ])
     const session = await host.open(
       defineHarness({ name: 'test/lease', adapter, tools: [lookup] }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
 
     const turn = session.send('go')
@@ -122,8 +124,14 @@ describe('checkpoints and leases', () => {
     const host = createHarnessHost({ persistence })
     const { adapter } = mockAdapter([])
     const session = await host.open(
-      defineHarness({ name: 'test/agent-lease', adapter, agents: [waiter] }),
-      { threadId: 't1' },
+      defineHarness({
+        name: 'test/agent-lease',
+        adapter,
+        agents: [waiter],
+      }),
+      {
+        threadId: 't1',
+      },
     )
 
     const run = session.agents.waiter.start()
@@ -198,7 +206,9 @@ describe('crash resume', () => {
     const host = createHarnessHost({ persistence })
     const session = await host.open(
       defineHarness({ name: 'test/resume', adapter, tools }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
 
     const seen: Array<SessionEvent> = []
@@ -482,8 +492,14 @@ describe('crash resume', () => {
     const { adapter, calls } = mockAdapter([])
     const host = createHarnessHost({ persistence })
     const session = await host.open(
-      defineHarness({ name: 'test/agent-crash', adapter, agents: [waiter] }),
-      { threadId: 't1' },
+      defineHarness({
+        name: 'test/agent-crash',
+        adapter,
+        agents: [waiter],
+      }),
+      {
+        threadId: 't1',
+      },
     )
 
     expect(

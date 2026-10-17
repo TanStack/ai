@@ -71,7 +71,10 @@ describe('harnessText', () => {
       plugins: () => [watch],
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
-    const adapter = harnessText(studio, { host, principal: { id: 'u-1' } })
+    const adapter = harnessText(studio, {
+      host,
+      principal: { id: 'u-1' },
+    })
 
     for (const content of ['hello', 'again']) {
       for await (const _chunk of chat({

@@ -2,11 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import { client } from '@agentclientprotocol/sdk/experimental/v2'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import {
-  createHarnessHost,
-  defineHarness,
-  mediaOfMessage,
-} from '@tanstack/ai-harness'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { mediaOfMessage } from '@tanstack/ai-harness/media'
 import { createAcpAgent } from '../src/agent'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 import type {
@@ -14,7 +11,8 @@ import type {
   ContentBlock,
   InitializeResponse,
 } from '@agentclientprotocol/sdk/experimental/v2'
-import type { MediaOptions, MediaRecord } from '@tanstack/ai-harness'
+import type { MediaRecord } from '@tanstack/ai-harness'
+import type { MediaOptions } from '@tanstack/ai-harness/media'
 
 const now = () => Date.now()
 
@@ -207,7 +205,7 @@ describe('ACP agent media', () => {
           },
         },
       ])
-      expect(await session.loadMedia(record.id)).toEqual(
+      expect(await session.loadMedia({ id: record.id })).toEqual(
         new Uint8Array([1, 2, 3, 4]),
       )
     },

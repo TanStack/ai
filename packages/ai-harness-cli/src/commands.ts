@@ -56,7 +56,7 @@ async function runCommand(
       ? show(outcome.value)
       : `/${name} failed: ${outcome.error instanceof Error ? outcome.error.message : String(outcome.error)}`
   const settled = Promise.resolve(
-    session.command(name, input).then(
+    session.command({ name, input }).then(
       (value) => ({ ok: true as const, value }),
       (error: unknown) => ({ ok: false as const, error }),
     ),

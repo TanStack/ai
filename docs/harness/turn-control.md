@@ -186,7 +186,7 @@ A message with `busy: 'steer'` waits while a turn runs. Before each model call, 
 
 The join stops at the first message that:
 
-- has an abort request (`session.cancel(operationId)` on it), or
+- has an abort request (`session.cancel({ operationId })` on it), or
 - `turn.canJoin` refuses.
 
 That message and the ones after it wait. `canJoin` runs again before each model call and at each final answer, so it can run more than once for one message. Keep it a quick check with no side effects. What still waits when the turn ends runs as its own turn, before other queued turns. A cancelled one settles `aborted` and does not run.

@@ -18,7 +18,10 @@ async function cacheOfTurn(
       adapter,
       ...(harnessCache ? { promptCache: harnessCache } : {}),
     }),
-    { threadId: 't', ...(sessionCache ? { promptCache: sessionCache } : {}) },
+    {
+      threadId: 't',
+      ...(sessionCache ? { promptCache: sessionCache } : {}),
+    },
   )
   await session.send('hi')
   await host.close()
@@ -62,7 +65,10 @@ describe('prompt cache', () => {
         adapter: mockAdapter([]).adapter,
         agents: [writer],
       }),
-      { threadId: 't', promptCache: 'none' },
+      {
+        threadId: 't',
+        promptCache: 'none',
+      },
     )
     await session.agents.writer.run()
     // The agent keeps its own thread as the key.
@@ -91,7 +97,9 @@ describe('prompt cache', () => {
         adapter: lead.adapter,
         subagents: { agents: [writer] },
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     await session.send('write', { overrides: { promptCache: 'long' } })
     expect(lead.calls[0].promptCache).toEqual({ retention: 'long', key: 't' })

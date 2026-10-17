@@ -137,12 +137,14 @@ async function open(
       adapter: fake,
       plugins: () => [skills(options), ...others],
     }),
-    { threadId: 't' },
+    {
+      threadId: 't',
+    },
   )
   const names = () => session.commands().map((command) => command.name)
   // `/skills` syncs the commands with the folders first, so a test needs
   // no watch event.
-  const list = async () => String(await session.command('skills'))
+  const list = async () => String(await session.command({ name: 'skills' }))
   return { session, names, list, requests }
 }
 
@@ -206,7 +208,7 @@ describe('skills()', () => {
       expect.arrayContaining(['skill:model', 'skill:help', 'alpha']),
     )
     expect(names()).not.toContain('help')
-    expect(await session.command('model')).toBe('picked')
+    expect(await session.command({ name: 'model' })).toBe('picked')
     expect(listed).toContain(`/skill:model  ${dir} (/model is taken)`)
   })
 
@@ -216,7 +218,7 @@ describe('skills()', () => {
     const { session, list, requests } = await open({ dirs: [dir] })
     await list()
 
-    await session.command('alpha', 'make a banner')
+    await session.command({ name: 'alpha', input: 'make a banner' })
     await vi.waitFor(() => expect(requests).toHaveLength(1))
     expect(JSON.stringify(requests[0]?.messages)).toContain(
       'Use the alpha skill: make a banner',
@@ -224,7 +226,7 @@ describe('skills()', () => {
     expect(promptOf(requests[0])).toContain('Helps with alpha.')
     expect(promptOf(requests[0])).not.toContain('Second sentence here.')
 
-    await session.command('alpha')
+    await session.command({ name: 'alpha' })
     await vi.waitFor(() => expect(requests).toHaveLength(2))
     expect(JSON.stringify(requests[1]?.messages)).toContain(
       'Use the alpha skill.',
@@ -298,7 +300,7 @@ describe('skills()', () => {
     expect(promptOf(requests[0])).toContain('alpha')
     expect(promptOf(requests[0])).not.toContain('zeta')
 
-    await session.command('zeta')
+    await session.command({ name: 'zeta' })
     await vi.waitFor(() => expect(requests).toHaveLength(2))
     expect(promptOf(requests[1])).toContain('zeta')
   })

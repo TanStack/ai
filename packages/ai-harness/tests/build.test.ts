@@ -6,12 +6,8 @@ import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { EventType, chat } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import {
-  createHarnessHandler,
-  createHarnessHost,
-  defineHarness,
-  harnessText,
-} from '../src'
+import { createHarnessHost, defineHarness, harnessText } from '../src'
+import { createHarnessHandler } from '../src/server'
 import { artifactText, buildHarness, readManifest } from '../src/build'
 import { runHarnessWorker } from '../src/worker'
 import { mockAdapter, text } from './helpers'

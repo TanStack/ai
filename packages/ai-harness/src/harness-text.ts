@@ -261,6 +261,7 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
  * @example
  * ```ts
  * const stream = chat({ adapter: harnessText(studio), messages, threadId })
+ * const remote = harnessText({ url: 'http://127.0.0.1:8787', token })
  * ```
  */
 export function harnessText(
@@ -274,12 +275,13 @@ export function harnessText(
 ): AnyTextAdapter {
   if (!isHarnessDefinition(target)) return remoteHarnessText(target)
   const harness = target
-  let host = options.host
+  const { inputModalities, principal } = options
+  let { host } = options
   return {
     kind: 'text',
     name: 'harness',
     model: harness.name,
-    inputModalities: inputsOf(harness, options.inputModalities),
+    inputModalities: inputsOf(harness, inputModalities),
     '~types': TYPES,
     chatStream: (chatOptions) =>
       (async function* (): AsyncGenerator<StreamChunk> {
@@ -293,7 +295,7 @@ export function harnessText(
         const wasOpen = host.isOpen(harness, { threadId })
         const session = await host.open(harness, {
           threadId,
-          ...(options.principal ? { principal: options.principal } : {}),
+          ...(principal ? { principal } : {}),
         })
         // The outer call's tools join the inner turn. Its system prompts do
         // not: the harness owns its prompt stack.

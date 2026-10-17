@@ -107,7 +107,6 @@ async function open(options: {
         persistence: {
           stores: { log, runs, metadata, interrupts },
         },
-        project,
       })
     : createHarnessHost({ persistence })
   const session = await host.open(
@@ -116,8 +115,12 @@ async function open(options: {
       adapter,
       tools: options.tools,
       turn: options.turn,
+      // Only the durable host reads it.
+      durability: { project },
     }),
-    { threadId: THREAD },
+    {
+      threadId: THREAD,
+    },
   )
   return { host, session, calls, runs, log }
 }
@@ -279,13 +282,15 @@ describe('turn.onModelError', () => {
       })
 
       const first = await session.send('remove a.txt')
-      const receipt = await session.resolve([
-        {
-          interruptId: first.interrupts![0]!.id,
-          status: 'resolved',
-          payload: true,
-        },
-      ])
+      const receipt = await session.resolve({
+        resume: [
+          {
+            interruptId: first.interrupts![0]!.id,
+            status: 'resolved',
+            payload: true,
+          },
+        ],
+      })
 
       expect(await session.operation(receipt.operationId!)).toEqual({
         text: 'removed',
@@ -718,7 +723,9 @@ describe('turn.onModelError', () => {
               },
             },
           }),
-          { threadId: THREAD },
+          {
+            threadId: THREAD,
+          },
         )
         return { host, session, calls, seen }
       }
@@ -785,7 +792,9 @@ describe('turn.onModelError', () => {
               },
             },
           }),
-          { threadId: THREAD },
+          {
+            threadId: THREAD,
+          },
         )
         return { host, session, seen }
       }
@@ -852,7 +861,6 @@ describe('turn.beforeFinish', () => {
     const { runs } = memoryPersistence().stores
     const host = createHarnessHost({
       persistence: { stores: { log: memoryLogStore(), runs } },
-      project: signalProject,
     })
     let cycles = 0
     const session = await host.open(
@@ -867,8 +875,11 @@ describe('turn.beforeFinish', () => {
               : undefined
           },
         },
+        durability: { project: signalProject },
       }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
 
     expect(await session.send('go')).toEqual({ text: 'onetwo', media: [] })
@@ -1099,7 +1110,9 @@ describe('turn.beforeFinish', () => {
           adapter,
           turn: { beforeFinish },
         }),
-        { threadId: THREAD },
+        {
+          threadId: THREAD,
+        },
       )
       return { host, session, calls }
     }

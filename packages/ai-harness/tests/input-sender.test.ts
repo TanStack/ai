@@ -116,7 +116,10 @@ describe('the sender of each input', () => {
     const host = createHarnessHost({ persistence, credentials })
     const session = await host.open(
       defineHarness({ name: 'test/sender-keys', adapter }),
-      { threadId: THREAD, principal: alice },
+      {
+        threadId: THREAD,
+        principal: alice,
+      },
     )
 
     expect((await session.send('Hi.', { principal: bob })).text).toBe(
@@ -149,7 +152,10 @@ describe('the sender of each input', () => {
           },
         },
       }),
-      { threadId: THREAD, principal: alice },
+      {
+        threadId: THREAD,
+        principal: alice,
+      },
     )
 
     const turn = session.send('Start.')
@@ -198,7 +204,10 @@ describe('the sender of each input', () => {
           },
         },
       }),
-      { threadId: THREAD, principal: alice },
+      {
+        threadId: THREAD,
+        principal: alice,
+      },
     )
 
     const turn = session.send('Start.')
@@ -245,7 +254,10 @@ describe('the sender of each input', () => {
         adapter,
         plugins: () => [plugin],
       }),
-      { threadId: THREAD, principal: alice },
+      {
+        threadId: THREAD,
+        principal: alice,
+      },
     )
 
     const turn = session.send('Start.')
@@ -303,13 +315,16 @@ describe('the sender of each input', () => {
         adapter,
         plugins: () => [plugin, commands],
       }),
-      { threadId: THREAD, principal: alice },
+      {
+        threadId: THREAD,
+        principal: alice,
+      },
     )
 
     const turn = session.send('Start.')
     await started.opened
     // Bob runs a command while alice's turn runs.
-    await session.command('again', undefined, { principal: bob })
+    await session.command({ name: 'again', principal: bob })
     release.open()
 
     expect(await turn).toEqual({ text: 'First.', media: [] })
@@ -356,7 +371,10 @@ describe('the sender of each input', () => {
         adapter,
         plugins: () => [plugin, starter],
       }),
-      { threadId: THREAD, principal: alice },
+      {
+        threadId: THREAD,
+        principal: alice,
+      },
     )
 
     await session.send('Start the writer.', { principal: bob })
@@ -420,7 +438,10 @@ describe('the sender of each input', () => {
         adapter,
         plugins: () => [starter],
       }),
-      { threadId: THREAD, principal: alice },
+      {
+        threadId: THREAD,
+        principal: alice,
+      },
     )
 
     await session.send('Start the writer.', { principal: bob })
@@ -433,18 +454,22 @@ describe('the sender of each input', () => {
 })
 
 describe('recovery keeps the sender and the context', () => {
-  /** A run plugin that keeps the turn it is set up for, and a tool that reports. */
+  /** A turn plugin that keeps the turn it is set up for, and a tool that reports. */
   function recorder() {
     const turns: Array<TurnInfo | undefined> = []
     const { plugin, seen } = whoami()
-    const run = definePlugin({
+    const perTurn = definePlugin({
       name: 'test/turns',
-      lifetime: 'run',
+      lifetime: 'turn',
       setup: (ctx) => {
         turns.push(ctx.turn)
       },
     })
-    return { plugins: (): Array<HarnessPlugin> => [plugin, run], turns, seen }
+    return {
+      plugins: (): Array<HarnessPlugin> => [plugin, perTurn],
+      turns,
+      seen,
+    }
   }
 
   const sent = {
@@ -477,8 +502,15 @@ describe('recovery keeps the sender and the context', () => {
     ])
     const host = createHarnessHost({ persistence })
     const session = await host.open(
-      defineHarness({ name: 'test/recover-pending', adapter, plugins }),
-      { threadId: THREAD, principal: alice },
+      defineHarness({
+        name: 'test/recover-pending',
+        adapter,
+        plugins,
+      }),
+      {
+        threadId: THREAD,
+        principal: alice,
+      },
     )
 
     expect(await session.settled('in-1')).toMatchObject({
@@ -540,8 +572,15 @@ describe('recovery keeps the sender and the context', () => {
     ])
     const host = createHarnessHost({ persistence })
     const session = await host.open(
-      defineHarness({ name: 'test/recover-stopped', adapter, plugins }),
-      { threadId: THREAD, principal: alice },
+      defineHarness({
+        name: 'test/recover-stopped',
+        adapter,
+        plugins,
+      }),
+      {
+        threadId: THREAD,
+        principal: alice,
+      },
     )
 
     expect(await session.settled('in-1')).toMatchObject({
@@ -561,12 +600,12 @@ describe('recovery keeps the sender and the context', () => {
 })
 
 describe('the turn where the model is picked', () => {
-  it('gives run plugins and adapter() the message, the context, and the sender', async () => {
+  it('gives turn plugins and adapter() the message, the context, and the sender', async () => {
     const setups: Array<TurnInfo | undefined> = []
     const picks: Array<TurnInfo> = []
-    const runPicker = definePlugin({
-      name: 'test/run-picker',
-      lifetime: 'run',
+    const turnPicker = definePlugin({
+      name: 'test/turn-picker',
+      lifetime: 'turn',
       setup: (ctx) => {
         setups.push(ctx.turn)
         return {
@@ -590,9 +629,12 @@ describe('the turn where the model is picked', () => {
       defineHarness({
         name: 'test/picker-turn',
         adapter,
-        plugins: () => [sessionPlugin, runPicker],
+        plugins: () => [sessionPlugin, turnPicker],
       }),
-      { threadId: THREAD, principal: alice },
+      {
+        threadId: THREAD,
+        principal: alice,
+      },
     )
 
     const turn = session.send('Pick for me.', {
@@ -636,7 +678,10 @@ describe('the turn where the model is picked', () => {
           },
         },
       }),
-      { threadId: THREAD, principal: alice },
+      {
+        threadId: THREAD,
+        principal: alice,
+      },
     )
 
     await session.send('Route me.', {
@@ -692,8 +737,15 @@ describe('the tenant of a principal', () => {
     ])
     const host = createHarnessHost({ persistence, credentials })
     const session = await host.open(
-      defineHarness({ name: 'test/tenant', adapter, plugins: () => [plugin] }),
-      { threadId: THREAD, principal: { id: 'u1', tenantId: 'org-a' } },
+      defineHarness({
+        name: 'test/tenant',
+        adapter,
+        plugins: () => [plugin],
+      }),
+      {
+        threadId: THREAD,
+        principal: { id: 'u1', tenantId: 'org-a' },
+      },
     )
 
     await session.send('Read it.')

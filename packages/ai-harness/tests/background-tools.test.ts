@@ -23,7 +23,9 @@ async function open(
   const host = createHarnessHost({ persistence: memoryPersistence() })
   const session = await host.open(
     defineHarness({ name: 'test/background', adapter, ...options }),
-    { threadId: 't' },
+    {
+      threadId: 't',
+    },
   )
   return { host, session }
 }

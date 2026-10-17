@@ -90,11 +90,11 @@ function createFake(overrides: Partial<SessionViewSource>) {
   const source: SessionViewSource = {
     send: (message, options) =>
       accept({ op: options?.mode ?? 'prompt', message }),
-    resolve: (resume) => accept({ op: 'resolve', resume }),
+    resolve: ({ resume }) => accept({ op: 'resolve', resume }),
     cancel: () => accept({ op: 'cancel' }),
     answer: ({ questionId, value }) =>
       accept({ op: 'answer', questionId, value }),
-    command: (name, input) => accept({ op: 'command', name, input }),
+    command: ({ name, input }) => accept({ op: 'command', name, input }),
     setConfig: ({ key, value }) => accept({ op: 'config', key, value }),
     events: (options) => stream.open(options),
     snapshot: () => sessionSnapshot(),
@@ -841,11 +841,11 @@ describe('session view inputs', () => {
 
     await view.followUp('then the tests')
     await view.continue()
-    await view.cancel('op-2')
+    await view.cancel({ operationId: 'op-2' })
     await view.cancelInput('in-1')
     await view.setDelivery({ inputId: 'in-2', delivery: 'steer' })
-    await view.configure({ model: 'strong' })
-    await view.reset('Start over.')
+    await view.configure({ settings: { model: 'strong' } })
+    await view.reset({ note: 'Start over.' })
     await view.revert('m1')
     await view.unrevert()
     await drain()
@@ -853,11 +853,11 @@ describe('session view inputs', () => {
     expect(calls).toEqual([
       ['followUp', 'then the tests', { mode: 'followUp' }],
       ['continue'],
-      ['cancel', 'op-2'],
+      ['cancel', { operationId: 'op-2' }],
       ['cancelInput', 'in-1'],
       ['setDelivery', { inputId: 'in-2', delivery: 'steer' }],
-      ['configure', { model: 'strong' }],
-      ['reset', 'Start over.'],
+      ['configure', { settings: { model: 'strong' } }],
+      ['reset', { note: 'Start over.' }],
       ['revert', 'm1'],
       ['unrevert'],
     ])
@@ -896,11 +896,15 @@ describe('session view inputs', () => {
     const { view } = await openView({ putMedia })
     const bare = await openView()
 
-    expect(await view.upload(new Uint8Array([1]), info)).toBe(file)
-    expect(putMedia).toHaveBeenCalledWith(new Uint8Array([1]), info)
-    await expect(bare.view.upload(new Uint8Array([1]), info)).rejects.toThrow(
-      'This view source cannot store media.',
-    )
+    expect(await view.upload({ body: new Uint8Array([1]), ...info })).toBe(file)
+    expect(putMedia).toHaveBeenCalledWith({
+      body: new Uint8Array([1]),
+      name: 'a.png',
+      mimeType: 'image/png',
+    })
+    await expect(
+      bare.view.upload({ body: new Uint8Array([1]), ...info }),
+    ).rejects.toThrow('This view source cannot store media.')
   })
 })
 
@@ -1403,7 +1407,7 @@ describe('session view dispose', () => {
     act: (view: SessionView) => unknown
   }> = [
     { action: 'notice', act: (view) => view.notice('hi') },
-    { action: 'command', act: (view) => view.command('ping') },
+    { action: 'command', act: (view) => view.command({ name: 'ping' }) },
     {
       action: 'setConfig',
       act: (view) => view.setConfig({ key: 'mode', value: 'plan' }),

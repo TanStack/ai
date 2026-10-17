@@ -117,7 +117,9 @@ describe('line mode with a child agent', () => {
         adapter: lead,
         subagents: { agents: [helper] },
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     const input = new PassThrough()
     let out = ''

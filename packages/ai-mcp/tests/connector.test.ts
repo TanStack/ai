@@ -113,7 +113,7 @@ describe('mcpConnector', () => {
     const browser = approveSignIns(session, 'code-1')
     cleanups.push(browser.stop)
 
-    await expect(session.command('connect:demo')).resolves.toBe(
+    await expect(session.command({ name: 'connect:demo' })).resolves.toBe(
       'Connected to Demo.',
     )
     const authorizationUrl = browser.authorizationUrls.at(-1)
@@ -155,7 +155,7 @@ describe('mcpConnector', () => {
       JSON.stringify(await persistence.stores.messages.loadThread('t')),
     ).not.toContain('access-1')
 
-    await session.command('disconnect:demo')
+    await session.command({ name: 'disconnect:demo' })
     expect(
       await credentials.get({
         scope: { threadId: 't', userId: 'user-1' },
@@ -182,7 +182,10 @@ describe('mcpConnector', () => {
           mcpConnector({ id: 'demo', label: 'Demo', url: protectedServer.url }),
         ],
       }),
-      { threadId: 't', principal: alice },
+      {
+        threadId: 't',
+        principal: alice,
+      },
     )
     const browser = approveSignIns(session, 'code-1')
     cleanups.push(browser.stop)
@@ -192,7 +195,7 @@ describe('mcpConnector', () => {
         id: 'demo',
       })
 
-    await session.command('connect:demo', undefined, { principal: bob })
+    await session.command({ name: 'connect:demo', principal: bob })
     expect(await savedFor('bob')).not.toBeNull()
     expect(await savedFor('alice')).toBeNull()
 
@@ -208,7 +211,7 @@ describe('mcpConnector', () => {
     expect(model.toolNames(2)).toEqual(['demo_echo'])
 
     // Alice signs in for her own turns.
-    await session.command('connect:demo', undefined, { principal: alice })
+    await session.command({ name: 'connect:demo', principal: alice })
     await session.send('hi', { principal: alice })
     expect(await savedFor('alice')).not.toBeNull()
     expect(model.toolNames(3)).toEqual(['demo_echo'])
@@ -300,7 +303,10 @@ describe('mcpConnector', () => {
           }),
         ],
       }),
-      { threadId: 't', principal: first },
+      {
+        threadId: 't',
+        principal: first,
+      },
     )
     await session.send('first', { principal: first })
     await session.send('second', { principal: second })
@@ -336,7 +342,9 @@ describe('mcpConnector', () => {
           }),
         ],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     await session.send('hi')
     expect(JSON.stringify(model.calls[0]?.systemPrompts)).toContain(
@@ -385,7 +393,10 @@ describe('mcpConnector', () => {
             }),
           ],
         }),
-        { threadId: 't', principal: { id: 'user-1' } },
+        {
+          threadId: 't',
+          principal: { id: 'user-1' },
+        },
       )
       const turn = session.send('book a trip')
       await vi.waitFor(() =>

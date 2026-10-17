@@ -122,7 +122,10 @@ export const migrations = definePlugin({
 2. Put each side effect in `ctx.harness.step.do(name, fn)`. The agent code runs again from its start, and a finished step returns its stored value.
 3. Give each step a name that is the same on every run, and return a JSON value from `fn`.
 
-`ctx.harness` is on the context of every agent run that a session starts. Outside such a run, `step.do` runs `fn` each time.
+`ctx.harness` gives the agent `step` and `agents`. When your app loads `@tanstack/ai-harness`, every agent run has it. A run that a session starts from code gets the full context. In other runs, for example an agent that the model calls as a tool, or an agent in a plain `chat()`:
+
+- `step.do` runs `fn` each time.
+- `agents.start` throws an error.
 
 What the next host does:
 

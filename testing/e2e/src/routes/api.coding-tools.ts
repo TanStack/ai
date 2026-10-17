@@ -47,9 +47,11 @@ async function* codingTurn(
           ...(formatAsk ? [permissions({ root }), formatter({ root })] : []),
         ],
       }),
-      { threadId: scenario },
+      {
+        threadId: scenario,
+      },
     )
-    if (formatAsk) await session.command('mode', 'acceptEdits')
+    if (formatAsk) await session.command({ name: 'mode', input: 'acceptEdits' })
     for await (const chunk of session.send(`[${scenario}] run test`).stream()) {
       yield chunk
       const asks =
@@ -90,7 +92,9 @@ async function* revertTurns(
           snapshots({ root, dataDir }),
         ],
       }),
-      { threadId: 'coding-revert' },
+      {
+        threadId: 'coding-revert',
+      },
     )
     yield* session.send('[coding-revert] run test').stream()
     await writeFile(join(root, 'other.txt'), 'mine\n')
@@ -127,7 +131,9 @@ async function* sandboxTurn(
           }),
         ],
       }),
-      { threadId: 'coding-sandbox' },
+      {
+        threadId: 'coding-sandbox',
+      },
     )
     yield* session.send('[coding-sandbox] run test').stream()
   } finally {

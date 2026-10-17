@@ -119,14 +119,16 @@ describe('ctx.agents in plugins', () => {
         agents: [echo, failing, slow],
         plugins: () => [orchestrator],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
 
-    expect(await session.command('one')).toBe('HI')
-    expect(await session.command('both')).toEqual(['A', 'B'])
-    await expect(session.command('failFast')).rejects.toThrow('boom')
+    expect(await session.command({ name: 'one' })).toBe('HI')
+    expect(await session.command({ name: 'both' })).toEqual(['A', 'B'])
+    await expect(session.command({ name: 'failFast' })).rejects.toThrow('boom')
     expect(slowStopped).toBe(true)
-    const collected = await session.command('collect')
+    const collected = await session.command({ name: 'collect' })
     expect(collected).toMatchObject([{ ok: true, value: 'OK' }, { ok: false }])
     await host.close()
   })
@@ -153,7 +155,9 @@ describe('default limits', () => {
         adapter: outer.adapter,
         subagents: { agents: [worker], limits: { maxCalls: 1 } },
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     await session.send('work twice')
     expect(run).toHaveBeenCalledTimes(1)

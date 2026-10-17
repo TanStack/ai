@@ -387,7 +387,7 @@ describe('host.sessions', () => {
       threadId: 't1',
       principal: { id: 'u1' },
     })
-    await session.configure({ instructions: 'Be brief.' })
+    await session.configure({ settings: { instructions: 'Be brief.' } })
     await session.send('first')
     await session.send('second')
     await host.sessions.rename({ threadId: 't1', title: 'Chat' })
@@ -438,7 +438,7 @@ describe('host.sessions', () => {
   it('forks before the first message into a thread with no messages, but with the settings', async () => {
     const { persistence, host, harness } = hostWith()
     const session = await host.open(harness, { threadId: 't1' })
-    await session.configure({ instructions: 'Be brief.' })
+    await session.configure({ settings: { instructions: 'Be brief.' } })
     await session.send('first')
     const [first] = await session.transcript()
 
@@ -578,7 +578,9 @@ describe('child sessions', () => {
         adapter: mockAdapter([]).adapter,
         agents: [writer],
       }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
 
     await session.agents.writer.start()
@@ -673,7 +675,9 @@ describe('ctx.session.entry and updateEntry', () => {
         metadataSchema: chipsSchema,
         plugins: () => [chipsPlugin],
       }),
-      { threadId: 'p1' },
+      {
+        threadId: 'p1',
+      },
     )
     const [api] = apis
     if (!api) throw new Error('The chips plugin was not set up.')

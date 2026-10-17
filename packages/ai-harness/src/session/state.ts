@@ -1,5 +1,6 @@
 import {
   EventType,
+  INTERRUPT_BINDING_METADATA_KEY,
   convertSchemaToJsonSchema,
   validateWithStandardSchema,
 } from '@tanstack/ai'
@@ -50,11 +51,12 @@ import type { AnyHarness, SessionMetadataOf } from '../define'
 import type { SessionEntryChange, SessionEntryUpdate } from '../session-entry'
 import type {
   ChatTurnResult,
+  ConfigureOptions,
   MediaRecord,
+  MediaUpload,
   Principal,
   Receipt,
   ThreadSettings,
-  ThreadSettingsChange,
 } from '../types'
 import type {
   SessionSnapshot,
@@ -62,7 +64,7 @@ import type {
   InterruptedTurn,
 } from './types'
 import type { SettingNames } from './helpers'
-import type { HarnessSession } from './harness-session'
+import type { HarnessSession, SessionImpl } from './harness-session'
 
 /**
  * A layer of {@link HarnessSession}: config, thread settings, revert,
@@ -153,11 +155,11 @@ export abstract class SessionState<
    * than `media.maxBytes`, 415 for a type or kind the harness does not take.
    *
    * @example
-   * const record = await session.putMedia(bytes, { mimeType: 'image/png', name: 'cat.png' })
+   * const record = await session.putMedia({ body: bytes, mimeType: 'image/png', name: 'cat.png' })
    * session.send([{ type: 'text', content: 'What is this?' }, mediaPart(record)])
    */
-  putMedia(body: BlobBody, info: { mimeType: string; name: string }) {
-    return this.mediaStore.put(body, info)
+  putMedia({ body, mimeType, name }: MediaUpload<BlobBody>) {
+    return this.mediaStore.put(body, { mimeType, name })
   }
 
   /** The record of a media file of this thread, or `null` when it is not found. */
@@ -166,10 +168,13 @@ export abstract class SessionState<
   }
 
   /**
-   * The bytes of a media file, or of one `range` of them. Throws a
+   * The bytes of the media file `id`, or of one `range` of them. Throws a
    * `MediaError` with 404 when it is not found.
+   *
+   * @example
+   * const bytes = await session.loadMedia({ id: record.id })
    */
-  loadMedia(id: string, range?: BlobRange) {
+  loadMedia({ id, range }: { id: string; range?: BlobRange }) {
     return this.mediaStore.load(id, range)
   }
 
@@ -191,7 +196,7 @@ export abstract class SessionState<
    * settings and plugin config of `source`. `host.fork` calls it.
    */
   async adoptFork(
-    source: HarnessSession,
+    source: SessionImpl,
     messages: ReadonlyArray<ModelMessage>,
   ): Promise<void> {
     // A media id belongs to one thread, so each file gets a copy here.
@@ -202,7 +207,8 @@ export abstract class SessionState<
         copies.set(
           id,
           record &&
-            (await this.putMedia(await source.loadMedia(id), {
+            (await this.putMedia({
+              body: await source.loadMedia({ id }),
               mimeType: record.mimeType,
               name: record.name,
             })),
@@ -333,15 +339,17 @@ export abstract class SessionState<
    *
    * @example
    * ```ts
-   * await session.configure({ model: 'strong', instructions: 'Answer in French.' })
+   * await session.configure({
+   *   settings: { model: 'strong', instructions: 'Answer in French.' },
+   * })
    * ```
    */
   async configure(
-    settings: ThreadSettingsChange,
-    options?: { principal?: Principal; inputId?: string },
+    options: ConfigureOptions & { principal?: Principal },
   ): Promise<Receipt> {
-    const inputId = options?.inputId ?? createInputId()
-    const principal = options?.principal ?? this.principal
+    const { settings } = options
+    const inputId = options.inputId ?? createInputId()
+    const principal = options.principal ?? this.principal
     const admission = await this.accept(
       inputId,
       { op: 'configure', settings },
@@ -751,7 +759,8 @@ export abstract class SessionState<
           typeof payload.toolCallId === 'string' ||
           metadata?.kind === 'approval' ||
           metadata?.kind === 'client_tool' ||
-          (metadata !== undefined && 'tanstack:interruptBinding' in metadata) ||
+          (metadata !== undefined &&
+            INTERRUPT_BINDING_METADATA_KEY in metadata) ||
           typeof payload.id !== 'string' ||
           typeof payload.reason !== 'string' ||
           typeof payload.message !== 'string'

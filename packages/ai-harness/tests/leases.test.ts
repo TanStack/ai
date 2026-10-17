@@ -73,13 +73,15 @@ async function openLeased(
   persistence: ReturnType<typeof leasedPersistence>,
   replies: Array<Reply>,
   tools: Array<AnyTool> = [],
-  lease?: { renewMs?: number; ttlMs?: number },
+  ownership?: { renewMs?: number; ttlMs?: number },
 ) {
   const { adapter, calls } = mockAdapter(replies)
-  const host = createHarnessHost({ persistence, lease })
+  const host = createHarnessHost({ persistence, ownership })
   const session = await host.open(
     defineHarness({ name: 'test/leases', adapter, tools }),
-    { threadId: THREAD },
+    {
+      threadId: THREAD,
+    },
   )
   return { host, session, calls }
 }
@@ -127,7 +129,9 @@ async function openCutOff(
   const host = createHarnessHost({ persistence })
   const session = await host.open(
     defineHarness({ name: 'test/leases', adapter, ...options }),
-    { threadId: THREAD },
+    {
+      threadId: THREAD,
+    },
   )
   return { host, session, calls }
 }
@@ -202,9 +206,11 @@ describe('a durable host with a lease store and no run store', () => {
     const interrupt = turn.interrupts?.[0]
     if (!interrupt) throw new Error('The turn did not stop for approval.')
     expect(session.snapshot().status).toBe('requires_action')
-    const receipt = await session.resolve([
-      { interruptId: interrupt.id, status: 'resolved', payload: true },
-    ])
+    const receipt = await session.resolve({
+      resume: [
+        { interruptId: interrupt.id, status: 'resolved', payload: true },
+      ],
+    })
     expect(receipt.status).toBe('accepted')
     await host.close()
   })
@@ -247,7 +253,9 @@ describe('a durable host with a lease store and no run store', () => {
         adapter: mockAdapter([]).adapter,
         agents: [pricer, waiter],
       }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
     await session.agents.pricer.run()
     session.agents.waiter.start(undefined, { wake: true })
@@ -440,7 +448,9 @@ describe('close({ recoverable: true })', () => {
     const host = createHarnessHost({ persistence })
     const session = await host.open(
       defineHarness({ name: 'test/leases', adapter, ...options }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
     return { host, session, calls }
   }

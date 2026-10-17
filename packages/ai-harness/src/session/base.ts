@@ -86,6 +86,7 @@ import type {
   SessionInspection,
   SessionDependencies,
   QueuedTurn,
+  ResolveForRunOptions,
   WaitingSteer,
   InterruptedTurn,
   AgentRunImpl,
@@ -873,11 +874,11 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
           }),
         )
       case 'resolve':
-        return session.resolve(input.resume, { ...sent, ...run })
+        return this.resolveForRun({ resume: input.resume, ...sent, ...run })
       case 'reset':
-        return session.reset(input.note, sent)
+        return session.reset({ note: input.note, ...sent })
       case 'configure':
-        return session.configure(input.settings, sent)
+        return session.configure({ settings: input.settings, ...sent })
       case 'agentMessage':
         return stored(
           session.send(input.message, {
@@ -887,7 +888,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
           }),
         )
       case 'cancel':
-        return session.cancel(input.operationId, { inputId })
+        return session.cancel({ operationId: input.operationId, inputId })
       case 'cancelInput':
         return session.cancelInput(input.inputId)
       case 'setDelivery':
@@ -897,7 +898,9 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
         })
       case 'command':
         return settle(
-          session.command(input.name, input.input, {
+          session.command({
+            name: input.name,
+            input: input.input,
             inputId,
             ...(principal ? { principal } : {}),
           }),
@@ -917,7 +920,9 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       case 'tool':
         return stored(
           // Wire args are unknown here. The tool's input schema checks them.
-          session.tool(input.name, input.args as never, {
+          session.tool({
+            name: input.name,
+            args: input.args as never,
             inputId,
             ...(principal ? { principal } : {}),
             ...(input.meta ? { meta: input.meta } : {}),
@@ -1040,6 +1045,36 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     }
   }
 
+  /**
+   * Resolves when the thread is idle: no input is being stored, and no turn,
+   * steer, agent run, or command runs or waits. A thread that waits for a
+   * human (an approval, a sign-in) is idle. When the thread is idle now, it
+   * resolves at once. When `signal` aborts first, it rejects with the reason
+   * of `signal`.
+   *
+   * @example
+   * ```ts
+   * session.send('Write a haiku about the sea.')
+   * await session.whenIdle({ signal: AbortSignal.timeout(60_000) })
+   * ```
+   */
+  whenIdle({ signal }: { signal?: AbortSignal } = {}) {
+    return new Promise<void>((resolve, reject) => {
+      if (signal?.aborted) return reject(signal.reason)
+      if (this.isIdle()) return resolve()
+      const onAbort = () => {
+        stop()
+        reject(signal?.reason)
+      }
+      const stop = this.onIdle(() => {
+        stop()
+        signal?.removeEventListener('abort', onAbort)
+        resolve()
+      })
+      signal?.addEventListener('abort', onAbort, { once: true })
+    })
+  }
+
   protected warn(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
     plugin: string,
@@ -1144,6 +1179,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     operationId?: string,
   ): PluginSessionApi
   protected abstract resumeSignIns(): Promise<void>
+  /** @internal See `SessionRequests.resolveForRun`. */
+  abstract resolveForRun(options: ResolveForRunOptions): Promise<Receipt>
   protected abstract recoverFromLog(writer: LogWriter): Promise<void>
   protected abstract startTurn(
     input: HarnessInput & { op: 'prompt' | 'steer' | 'followUp' },

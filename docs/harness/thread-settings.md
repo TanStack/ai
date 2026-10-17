@@ -41,9 +41,11 @@ const host = createHarnessHost({ persistence: memoryPersistence() })
 const session = await host.open(assistant, { threadId: 'review-thread' })
 
 const receipt = await session.configure({
-  model: 'strong',
-  reasoning: 'high',
-  instructions: 'Answer in French.',
+  settings: {
+    model: 'strong',
+    reasoning: 'high',
+    instructions: 'Answer in French.',
+  },
 })
 console.log(receipt.status) // 'accepted'
 console.log(session.settings()) // { model: 'strong', reasoning: 'high', instructions: 'Answer in French.' }
@@ -52,7 +54,7 @@ console.log(session.settings()) // { model: 'strong', reasoning: 'high', instruc
 The settings apply from the next turn. A field that you leave out stays as it is. Set a field to `null` to clear it:
 
 ```ts group=harness-thread-settings
-await session.configure({ instructions: null })
+await session.configure({ settings: { instructions: null } })
 ```
 
 The six fields:
@@ -81,7 +83,7 @@ const { models, settings } = session.describe()
 console.log(models) // ['fast', 'strong']
 console.log(settings.model) // 'strong'
 
-await session.configure({ model: 'fast' })
+await session.configure({ settings: { model: 'fast' } })
 ```
 
 ## What wins
@@ -108,7 +110,7 @@ For `reasoning`, the `overrides` of the prompt win, then the stored setting, the
 
 ```ts group=harness-thread-settings
 const task = await host.open(assistant, { threadId: 'fix-login' })
-await task.configure({ cwd: 'web-app' })
+await task.configure({ settings: { cwd: 'web-app' } })
 console.log(task.settings().cwd) // 'web-app'
 ```
 

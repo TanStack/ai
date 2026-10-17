@@ -7,9 +7,8 @@ import {
   createHarnessHost,
   defineHarness,
   definePlugin,
-  mediaIdOf,
-  mediaPart,
 } from '../src'
+import { mediaIdOf, mediaPart } from '../src/media-entry'
 import { messageTexts, mockAdapter, text, toolCall } from './helpers'
 import type { ModelMessage } from '@tanstack/ai'
 import type { HarnessPersistence } from '../src'
@@ -175,7 +174,9 @@ describe('host.fork', () => {
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const source = await host.open(harness, { threadId: SOURCE })
-    await source.configure({ model: 'main', instructions: 'Be brief.' })
+    await source.configure({
+      settings: { model: 'main', instructions: 'Be brief.' },
+    })
     await source.setConfig({ key: 'tone', value: 'warm' })
     await source.send('Count.')
     await source.send('Deploy.')
@@ -202,7 +203,8 @@ describe('host.fork', () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const source = await host.open(harness, { threadId: SOURCE })
     const bytes = new Uint8Array([1, 2, 3, 4])
-    const record = await source.putMedia(bytes, {
+    const record = await source.putMedia({
+      body: bytes,
       mimeType: 'image/png',
       name: 'cat.png',
     })
@@ -225,7 +227,7 @@ describe('host.fork', () => {
       threadId: FORK,
       name: 'cat.png',
     })
-    expect(await fork.loadMedia(id)).toEqual(bytes)
+    expect(await fork.loadMedia({ id })).toEqual(bytes)
     // Each thread sees only its own media.
     expect(await fork.getMedia(record.id)).toBeNull()
     expect(await source.getMedia(id)).toBeNull()

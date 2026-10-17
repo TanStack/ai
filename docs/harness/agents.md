@@ -21,7 +21,8 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { toolDefinition } from '@tanstack/ai'
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
-import { agents, permissions } from '@tanstack/ai-harness/plugins'
+import { permissions } from '@tanstack/ai-harness/plugins'
+import { agents } from '@tanstack/ai-harness/plugins/node'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
@@ -63,18 +64,18 @@ const coder = defineHarness({
 const host = createHarnessHost({ persistence: memoryPersistence() })
 const session = await host.open(coder, { threadId: 'dark-mode' })
 
-await session.command('agent', 'plan')
+await session.command({ name: 'agent', input: 'plan' })
 const plan = await session.send('How do I add a dark mode?')
 console.log(plan.text)
 
-await session.command('agent', 'build')
+await session.command({ name: 'agent', input: 'build' })
 await session.send('Do step 1.')
 ```
 
 1. The `plan` agent reads the code and gives numbered steps. It has no tool that changes a file.
 2. The `build` agent changes the files, after your answer to each [permission question](./permissions).
 
-- `session.command('agent')` with no input shows the current agent and the list: `Agent: build. Agents: build, plan.`
+- `session.command({ name: 'agent' })` with no input shows the current agent and the list: `Agent: build. Agents: build, plan.`
 - A switch applies at the next turn.
 
 The same switch is the `agent` setting. `session.describe().config` lists its options for a menu:
@@ -115,7 +116,7 @@ Give `agents()` a profile. This one reviews the changes with a stronger model:
 
 ```ts group=harness-agents
 import type { AnyTextAdapter } from '@tanstack/ai'
-import type { AgentProfile } from '@tanstack/ai-harness/plugins'
+import type { AgentProfile } from '@tanstack/ai-harness/plugins/node'
 
 const review: AgentProfile = {
   name: 'review',

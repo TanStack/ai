@@ -53,30 +53,34 @@ describe.each([
     ])
     const host = createHarnessHost({ persistence: persistenceFor(durable) })
     const session = await host.open(
-      defineHarness({ name: 'test/bad-resume', adapter, tools: [openScreen] }),
-      { threadId: 't1' },
+      defineHarness({
+        name: 'test/bad-resume',
+        adapter,
+        tools: [openScreen],
+      }),
+      {
+        threadId: 't1',
+      },
     )
     const turn = await session.send('Open settings.')
     const interruptId = turn.interrupts?.[0]?.id
     if (!interruptId) throw new Error('The turn did not stop for the tool.')
 
     // A client tool needs a result, not `true`.
-    await session.resolve(
-      [{ interruptId, status: 'resolved', payload: true }],
-      {
-        inputId: 'wrong',
-      },
-    )
+    await session.resolve({
+      resume: [{ interruptId, status: 'resolved', payload: true }],
+      inputId: 'wrong',
+    })
     expect(await session.settled('wrong')).toMatchObject({ outcome: 'failed' })
     expect(session.snapshot()).toMatchObject({
       status: 'requires_action',
       pendingInterrupts: [{ id: interruptId }],
     })
 
-    const right = await session.resolve(
-      [{ interruptId, status: 'resolved', payload: { opened: true } }],
-      { inputId: 'right' },
-    )
+    const right = await session.resolve({
+      resume: [{ interruptId, status: 'resolved', payload: { opened: true } }],
+      inputId: 'right',
+    })
     expect(right.status).toBe('accepted')
     expect(await session.settled('right')).toMatchObject({
       outcome: 'completed',
@@ -118,10 +122,10 @@ describe.each([
 
     const second = open([() => text('Done.')])
     const session = await second.session
-    await session.resolve(
-      [{ interruptId, status: 'resolved', payload: true }],
-      { inputId: 'approve' },
-    )
+    await session.resolve({
+      resume: [{ interruptId, status: 'resolved', payload: true }],
+      inputId: 'approve',
+    })
     expect(await session.settled('approve')).toMatchObject({
       outcome: 'completed',
     })
@@ -140,7 +144,9 @@ describe.each([
     const host = createHarnessHost({ persistence: persistenceFor(durable) })
     const session = await host.open(
       defineHarness({ name: 'test/waits', adapter, tools: [deploy] }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
     const turn = await session.send('Deploy.')
     expect(turn.interrupts).toHaveLength(1)
@@ -169,28 +175,32 @@ describe.each([
     ])
     const host = createHarnessHost({ persistence: persistenceFor(durable) })
     const session = await host.open(
-      defineHarness({ name: 'test/late-failure', adapter, tools: [deploy] }),
-      { threadId: 't1' },
+      defineHarness({
+        name: 'test/late-failure',
+        adapter,
+        tools: [deploy],
+      }),
+      {
+        threadId: 't1',
+      },
     )
     const turn = await session.send('Deploy.')
     const interruptId = turn.interrupts?.[0]?.id
     if (!interruptId) throw new Error('The turn did not stop for approval.')
 
-    await session.resolve(
-      [{ interruptId, status: 'resolved', payload: true }],
-      {
-        inputId: 'approve',
-      },
-    )
+    await session.resolve({
+      resume: [{ interruptId, status: 'resolved', payload: true }],
+      inputId: 'approve',
+    })
     expect(await session.settled('approve')).toMatchObject({
       outcome: 'failed',
     })
     expect(execute).toHaveBeenCalledTimes(1)
     expect(session.snapshot().pendingInterrupts).toEqual([])
     expect(
-      await session.resolve([
-        { interruptId, status: 'resolved', payload: true },
-      ]),
+      await session.resolve({
+        resume: [{ interruptId, status: 'resolved', payload: true }],
+      }),
     ).toMatchObject({ status: 'rejected', reason: 'no_pending_interrupts' })
     await host.close()
   })
@@ -218,10 +228,10 @@ describe.each([
     const turn = await session.send('Deploy.')
     const interruptId = turn.interrupts?.[0]?.id
     if (!interruptId) throw new Error('The turn did not stop for approval.')
-    await session.resolve(
-      [{ interruptId, status: 'resolved', payload: true }],
-      { inputId: 'approve' },
-    )
+    await session.resolve({
+      resume: [{ interruptId, status: 'resolved', payload: true }],
+      inputId: 'approve',
+    })
     expect(await session.settled('approve')).toMatchObject({
       outcome: 'failed',
     })
@@ -232,9 +242,9 @@ describe.each([
     const reopened = await second.open(harness, { threadId: 't1' })
     expect(reopened.snapshot().pendingInterrupts).toEqual([])
     expect(
-      await reopened.resolve([
-        { interruptId, status: 'resolved', payload: true },
-      ]),
+      await reopened.resolve({
+        resume: [{ interruptId, status: 'resolved', payload: true }],
+      }),
     ).toMatchObject({ status: 'rejected', reason: 'no_pending_interrupts' })
     expect(execute).toHaveBeenCalledTimes(1)
     await second.close()
@@ -276,7 +286,9 @@ describe.each([
         tools: [deploy],
         plugins: () => [slowCleanup],
       }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
 
     const turn = session.send('Deploy.')
@@ -295,10 +307,10 @@ describe.each([
     expect(session.snapshot().pendingInterrupts).toMatchObject([
       { id: interruptId },
     ])
-    const receipt = await session.resolve(
-      [{ interruptId, status: 'resolved', payload: true }],
-      { inputId: 'approve' },
-    )
+    const receipt = await session.resolve({
+      resume: [{ interruptId, status: 'resolved', payload: true }],
+      inputId: 'approve',
+    })
     expect(receipt.status).toBe('accepted')
     release.open()
 
@@ -359,7 +371,9 @@ describe('a resolve and a waiting steer', () => {
         tools: [deploy],
         plugins: () => [slowCleanup],
       }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
 
     const turn = session.send('Deploy.')
@@ -372,10 +386,10 @@ describe('a resolve and a waiting steer', () => {
     held.open()
     await cleanup.opened
     const interruptId = session.snapshot().pendingInterrupts[0]?.id ?? ''
-    await session.resolve(
-      [{ interruptId, status: 'resolved', payload: true }],
-      { inputId: 'approve' },
-    )
+    await session.resolve({
+      resume: [{ interruptId, status: 'resolved', payload: true }],
+      inputId: 'approve',
+    })
     release.open()
 
     await turn
@@ -399,7 +413,9 @@ describe("prompt({ busy: 'steer' })", () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const session = await host.open(
       defineHarness({ name: 'test/steer-receipt', adapter }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
 
     const turn = session.send('Start.')

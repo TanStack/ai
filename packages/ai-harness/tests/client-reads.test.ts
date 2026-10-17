@@ -3,12 +3,12 @@ import { defineAgent } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   configOption,
-  createHarnessHandler,
   createHarnessHost,
   defineCommand,
   defineHarness,
   definePlugin,
 } from '../src'
+import { createHarnessHandler } from '../src/server'
 import { createHarnessClient } from '../src/client'
 import { mockAdapter, text, toolCall } from './helpers'
 
@@ -78,7 +78,7 @@ describe('client reads and actions', () => {
   it('runs a command, answers its question, and changes a setting', async () => {
     const { host, client } = setup()
 
-    expect((await client.command('confirm')).status).toBe('accepted')
+    expect((await client.command({ name: 'confirm' })).status).toBe('accepted')
     await vi.waitFor(async () =>
       expect((await client.snapshot()).pendingQuestions).toHaveLength(1),
     )

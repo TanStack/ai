@@ -26,7 +26,9 @@ async function openDurable(
   const host = createHarnessHost({ persistence })
   const session = await host.open(
     defineHarness({ name: 'test/durable-tools', adapter, tools }),
-    { threadId: THREAD },
+    {
+      threadId: THREAD,
+    },
   )
   return { host, session, calls }
 }
@@ -291,7 +293,9 @@ describe('host records of a tool batch', () => {
         adapter,
         tools: [note, wait],
       }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
     const turn = session.send('note and wait', { inputId: 'result-1' })
 
@@ -353,7 +357,9 @@ describe('host records of a tool batch', () => {
         tools: [note, quick],
         middleware: [audit],
       }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
     const turn = session.send('note and check', { inputId: 'audit-1' })
     await audited.opened
@@ -483,7 +489,9 @@ describe('durable tools that middleware returns', () => {
           tools: [look],
           middleware: [swap],
         }),
-        { threadId: THREAD },
+        {
+          threadId: THREAD,
+        },
       )
       return { host, session, calls }
     }
@@ -547,7 +555,9 @@ describe('durable tools that middleware returns', () => {
         tools: [note],
         middleware: [wrap],
       }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
 
     await session.send('note it')

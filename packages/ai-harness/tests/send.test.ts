@@ -11,7 +11,9 @@ async function open(replies: Array<Reply>, tools: Array<AnyTool> = []) {
   const host = createHarnessHost({ persistence: memoryPersistence() })
   const session = await host.open(
     defineHarness({ name: 'test/send', adapter, tools }),
-    { threadId: 't1' },
+    {
+      threadId: 't1',
+    },
   )
   return { host, session, calls }
 }

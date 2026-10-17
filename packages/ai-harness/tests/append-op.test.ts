@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import {
-  applyInput,
-  createHarnessHost,
-  defineHarness,
-  parseHarnessInput,
-} from '../src'
+import { createHarnessHost, defineHarness } from '../src'
+import { applyInput, parseHarnessInput } from '../src/server'
 import { messageTexts, mockAdapter, text } from './helpers'
 import type { ProjectOptions } from '../src'
 
@@ -24,11 +20,11 @@ function setup() {
     name: 'test/append',
     adapter,
     expose: { records: ['app.signal'] },
+    durability: { project },
   })
   const { runs, metadata } = memoryPersistence().stores
   const host = createHarnessHost({
     persistence: { stores: { log: memoryLogStore(), runs, metadata } },
-    project,
   })
   return { harness, host, calls }
 }
@@ -43,7 +39,7 @@ describe('{ op: "append" }', () => {
       inputId: 'hook-1',
       records: [{ type: 'app.signal', text: '[webhook] build failed' }],
     })
-    expect(await applyInput(harness, session, input)).toEqual({
+    expect(await applyInput({ harness, session, input })).toEqual({
       inputId: 'hook-1',
       status: 'accepted',
     })
@@ -62,7 +58,11 @@ describe('{ op: "append" }', () => {
       { type: 'app.signal', text: 'x', thread: 't-else' },
     ]) {
       expect(
-        await applyInput(harness, session, { op: 'append', records: [record] }),
+        await applyInput({
+          harness,
+          session,
+          input: { op: 'append', records: [record] },
+        }),
       ).toMatchObject({ status: 'rejected', reason: 'not_exposed' })
     }
     await host.close()
@@ -74,9 +74,13 @@ describe('{ op: "append" }', () => {
     const session = await host.open(harness, { threadId: 't-no-log' })
 
     expect(
-      await applyInput(harness, session, {
-        op: 'append',
-        records: [{ type: 'app.signal', text: 'x' }],
+      await applyInput({
+        harness,
+        session,
+        input: {
+          op: 'append',
+          records: [{ type: 'app.signal', text: 'x' }],
+        },
       }),
     ).toMatchObject({ status: 'rejected', reason: /durable host/ })
     await host.close()

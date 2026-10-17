@@ -1,5 +1,6 @@
 import { EventType } from '@tanstack/ai'
-import { HARNESS_EVENTS, isMediaRecord } from '@tanstack/ai-harness'
+import { HARNESS_EVENTS } from '@tanstack/ai-harness'
+import { isMediaRecord } from '@tanstack/ai-harness/media'
 import { attach, saveMediaLine } from './attach'
 import type { HarnessSession } from '@tanstack/ai-harness'
 

@@ -145,7 +145,9 @@ async function open(plugins = true) {
       adapter: model(),
       ...(plugins ? { agents: [counter], plugins: () => [tools] } : {}),
     }),
-    { threadId: 't' },
+    {
+      threadId: 't',
+    },
   )
   const say = async (line: string) => {
     const result = await handleLine(session, line)

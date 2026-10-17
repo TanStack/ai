@@ -4,19 +4,21 @@ import { toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   AuthRequiredError,
-  buildAuthorizationUrl,
   createHarnessHost,
   defineHarness,
+  oauthConnector,
+  scrubSecrets,
+} from '../src'
+import {
+  buildAuthorizationUrl,
   deviceLogin,
   exchangeCode,
   isExpired,
   loopbackLogin,
-  oauthConnector,
   refreshCredential,
-  scrubSecrets,
-} from '../src'
+} from '../src/oauth'
 import { mockAdapter, text, toolCall } from './helpers'
-import type { OAuthConfig } from '../src'
+import type { OAuthConfig } from '../src/oauth'
 
 const oauth: OAuthConfig = {
   authorizationUrl: 'https://auth.example/authorize',
@@ -285,7 +287,9 @@ describe('oauthConnector edges', () => {
         adapter: mockAdapter([]).adapter,
         plugins: () => [connector(fake, [])],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     const controller = new AbortController()
     const signIn = (async () => {
@@ -306,7 +310,9 @@ describe('oauthConnector edges', () => {
         }
       }
     })()
-    expect(await session.command('connect:svc')).toBe('Connected to Service.')
+    expect(await session.command({ name: 'connect:svc' })).toBe(
+      'Connected to Service.',
+    )
     controller.abort()
     await signIn
     expect(
@@ -315,7 +321,7 @@ describe('oauthConnector edges', () => {
         id: 'svc',
       }),
     ).toMatchObject({ accessToken: 'loop-token' })
-    expect(await session.command('disconnect:svc')).toBe(
+    expect(await session.command({ name: 'disconnect:svc' })).toBe(
       'Disconnected from Service.',
     )
     expect(

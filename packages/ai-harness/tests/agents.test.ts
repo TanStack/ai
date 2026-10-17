@@ -44,7 +44,9 @@ async function open(adapter: AnyTextAdapter, plugins: Array<HarnessPlugin>) {
       tools: [tool('read_file'), tool('write_file')],
       plugins: () => plugins,
     }),
-    { threadId: 't' },
+    {
+      threadId: 't',
+    },
   )
   return { host, session }
 }
@@ -96,7 +98,7 @@ describe('agents', () => {
       agents({ adapter: () => adapter }),
     ])
 
-    expect(await session.command('agent')).toBe(
+    expect(await session.command({ name: 'agent' })).toBe(
       'Agent: build. Agents: build, plan.',
     )
     await session.send('hi')
@@ -121,7 +123,7 @@ describe('agents', () => {
     ])
 
     await session.send('build it')
-    expect(await session.command('agent', 'plan')).toBe(
+    expect(await session.command({ name: 'agent', input: 'plan' })).toBe(
       'Agent: plan. It applies at the next turn.',
     )
     await session.send('plan it')
@@ -135,7 +137,7 @@ describe('agents', () => {
     expect(toolNames(calls[1])).toEqual(['read_file'])
     expect(promptsOf(calls[1])).toContain('You are the plan agent.')
     expect(promptsOf(calls[1])).not.toContain('You are the build agent.')
-    expect(await session.command('agent', 'nope')).toBe(
+    expect(await session.command({ name: 'agent', input: 'nope' })).toBe(
       'Unknown agent "nope". Agents: build, plan.',
     )
     await host.close()
@@ -181,7 +183,7 @@ describe('agents', () => {
       text: 'from main',
       media: [],
     })
-    await session.command('agent', 'quick')
+    await session.command({ name: 'agent', input: 'quick' })
     expect(await session.send('two')).toEqual({
       text: 'from fast',
       media: [],
@@ -299,9 +301,9 @@ describe('agents', () => {
       agents({ adapter: () => adapter, agents: [careful] }),
     ])
 
-    await session.command('agent', 'careful')
+    await session.command({ name: 'agent', input: 'careful' })
     await session.send('one')
-    await session.command('agent', 'build')
+    await session.command({ name: 'agent', input: 'build' })
     await session.send('two')
 
     expect(toolNames(calls[0])).toEqual(['read_file', 'general', 'explore'])
@@ -326,10 +328,10 @@ describe('agents', () => {
       agents({ adapter: () => adapter, agents: [plan] }),
     ])
 
-    expect(await session.command('agent')).toBe(
+    expect(await session.command({ name: 'agent' })).toBe(
       'Agent: build. Agents: build, plan.',
     )
-    await session.command('agent', 'plan')
+    await session.command({ name: 'agent', input: 'plan' })
     await session.send('plan it')
 
     expect(toolNames(calls[0])).toEqual([
@@ -360,7 +362,9 @@ describe('agents', () => {
       }),
     ])
 
-    expect(await session.command('agent')).toBe('Agent: solo. Agents: solo.')
+    expect(await session.command({ name: 'agent' })).toBe(
+      'Agent: solo. Agents: solo.',
+    )
     await session.send('hi')
 
     expect(toolNames(calls[0])).toEqual(['read_file', 'write_file'])
@@ -404,7 +408,7 @@ describe('agents from Markdown files', () => {
       }),
     ])
 
-    expect(await session.command('agent')).toBe(
+    expect(await session.command({ name: 'agent' })).toBe(
       'Agent: build. Agents: build, plan, reviewer.',
     )
     await session.send('build it')
@@ -413,7 +417,7 @@ describe('agents from Markdown files', () => {
         (entry: { name: string }) => entry.name === 'reviewer',
       )?.description,
     ).toBe('Reviews code')
-    await session.command('agent', 'reviewer')
+    await session.command({ name: 'agent', input: 'reviewer' })
     await session.send('review it')
 
     expect(toolNames(smart.calls[0])).toEqual(['read_file'])
@@ -430,14 +434,14 @@ describe('agents from Markdown files', () => {
     const { host, session } = await open(adapter, [
       agents({ adapter: () => adapter, dirs: [root] }),
     ])
-    expect(await session.command('agent')).toBe(
+    expect(await session.command({ name: 'agent' })).toBe(
       'Agent: build. Agents: build, plan.',
     )
 
     await writeFile(join(root, 'writer.md'), 'You write docs.')
     await session.reload()
 
-    expect(await session.command('agent')).toBe(
+    expect(await session.command({ name: 'agent' })).toBe(
       'Agent: build. Agents: build, plan, writer.',
     )
     await host.close()

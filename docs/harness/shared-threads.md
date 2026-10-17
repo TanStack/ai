@@ -19,11 +19,8 @@ Several people write in one thread: a team in one chat, or a customer and a supp
 `authorize` decides who sends each request. Each message runs as the principal that it returns. If your users belong to organizations, add `tenantId`:
 
 ```ts group=harness-shared-threads
-import {
-  createHarnessHandler,
-  createHarnessHost,
-  defineHarness,
-} from '@tanstack/ai-harness'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { createHarnessHandler } from '@tanstack/ai-harness/server'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { openaiText } from '@tanstack/ai-openai'
 
@@ -92,7 +89,7 @@ const session = await host.open(assistant, { threadId: 'team-thread' })
 const ada = { id: 'ada', tenantId: 'acme' }
 
 session.send('Summarize the open issues.', { principal: ada })
-session.command('connect:github', undefined, { principal: ada })
+session.command({ name: 'connect:github', principal: ada })
 ```
 
 A command acts for the person who runs it. In its `run` context, `session.principal` is that person, and `session.send` runs as that person.

@@ -102,7 +102,7 @@ export abstract class SessionAgents<
     const follower = new OperationImpl<unknown>(
       'agent',
       this.feed,
-      () => this.cancel(target),
+      () => this.cancel({ operationId: target }),
       chain?.agent,
     )
     void this.sendToAgent({
@@ -388,7 +388,8 @@ export abstract class SessionAgents<
       // No `promptCache`: a tool-mode child then uses the retention of the
       // turn's chat() call, so a turn override reaches it.
       ...(start && { start }),
-      extend: () => ({ harness: NO_SESSION_CONTEXT }),
+      // No `extend`: a tool-mode child gets the registered default
+      // `NO_SESSION_CONTEXT` as `ctx.harness`.
     } satisfies SubagentBinding
   }
 
@@ -462,7 +463,7 @@ export abstract class SessionAgents<
     const operation = new OperationImpl<unknown>(
       'agent',
       this.feed,
-      (running) => this.cancel(running.id),
+      (running) => this.cancel({ operationId: running.id }),
       agent,
       id,
     )

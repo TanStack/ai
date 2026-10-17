@@ -54,7 +54,9 @@ describe('crash recovery edges', () => {
     const host = createHarnessHost({ persistence })
     const session = await host.open(
       defineHarness({ name: 'test/two-crashes', adapter }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
     await vi.waitFor(() => expect(calls).toHaveLength(1))
     await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
@@ -140,7 +142,9 @@ describe('crash recovery edges', () => {
     const host = createHarnessHost({ persistence })
     const session = await host.open(
       defineHarness({ name: 'test/fails', adapter }),
-      { threadId: 't-fail' },
+      {
+        threadId: 't-fail',
+      },
     )
     const turn = session.send('hi')
     await expect(turn).rejects.toThrow('model down')
@@ -247,7 +251,9 @@ describe('session agent and operation lookups', () => {
         adapter: mockAdapter([]).adapter,
         agents: [echo],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     expect(session.agent('missing')).toBeUndefined()
     const handle = session.agent('echo')

@@ -1,6 +1,6 @@
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { basename, join, resolve } from 'node:path'
-import { mediaPart, mimeTypeOf } from '@tanstack/ai-harness'
+import { mediaPart, mimeTypeOf } from '@tanstack/ai-harness/media'
 import type { ContentPart } from '@tanstack/ai'
 import type {
   HarnessSession,
@@ -73,7 +73,8 @@ export async function attach(
     if (file === undefined) continue
     rest += text.slice(end, token.index)
     end = token.index + token[0].length
-    const record = await session.putMedia(file.bytes, {
+    const record = await session.putMedia({
+      body: file.bytes,
       mimeType: file.mimeType,
       name: file.name,
     })
@@ -109,7 +110,7 @@ export async function saveMedia(
       `Cannot save ${JSON.stringify(name)}: it is not a plain file name.`,
     )
   }
-  const bytes = await session.loadMedia(record.id)
+  const bytes = await session.loadMedia({ id: record.id })
   await mkdir(dir, { recursive: true })
   const dot = name.lastIndexOf('.')
   const stem = dot > 0 ? name.slice(0, dot) : name

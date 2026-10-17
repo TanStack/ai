@@ -196,8 +196,13 @@ describe('subagent children of a harness session', () => {
     ])
     expect(await session.agentTranscript('unknown')).toEqual([])
     const other = await host.open(
-      defineHarness({ name: 'test/subagent-children', adapter: lead.adapter }),
-      { threadId: 'u' },
+      defineHarness({
+        name: 'test/subagent-children',
+        adapter: lead.adapter,
+      }),
+      {
+        threadId: 'u',
+      },
     )
     expect(await other.agentTranscript(id)).toEqual([])
     expect(await fork.agentTranscript(id)).toEqual([])

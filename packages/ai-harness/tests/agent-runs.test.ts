@@ -551,7 +551,7 @@ describe('agents that agent code starts', () => {
     await vi.waitFor(() => expect(model.calls).toHaveLength(1))
     const queued = await run.send('Add a title.', { mode: 'followUp' })
 
-    const cancelled = await session.cancel(queued.operationId)
+    const cancelled = await session.cancel({ operationId: queued.operationId })
     release.open()
     await run
 

@@ -36,7 +36,9 @@ function openOn(
       adapter,
       plugins: () => plugins,
     }),
-    { threadId: THREAD },
+    {
+      threadId: THREAD,
+    },
   )
 }
 
@@ -64,7 +66,9 @@ describe('background work after a crash', () => {
         adapter: first.adapter,
         tools: [wait],
       }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
     const turn = crashed.send('Wait')
     await started.opened
@@ -115,7 +119,9 @@ describe('background work after a crash', () => {
         tools: [remind],
         plugins: () => [noter],
       }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
     void Promise.resolve(crashed.send('Remind me')).catch(() => {})
     await noted.opened
@@ -129,7 +135,9 @@ describe('background work after a crash', () => {
         tools: [remind],
         plugins: () => [noter],
       }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
     await vi.waitFor(async () =>
       expect(await assistantTexts(recovered)).toContain('Remember the milk.'),

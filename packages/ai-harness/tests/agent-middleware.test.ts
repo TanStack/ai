@@ -197,7 +197,7 @@ describe('plugin agentMiddleware', () => {
     await session.send('research')
 
     // The lead (1 + 2), the researcher (10 + 20), and the fetcher (100).
-    expect(await session.command('usage')).toBe(
+    expect(await session.command({ name: 'usage' })).toBe(
       '5 model calls, 133 input tokens, 0 output tokens, 133 total.',
     )
     // The context size is the input of the lead's latest call, not an agent's.
@@ -238,7 +238,7 @@ describe('plugin agentMiddleware', () => {
         ],
       }),
     )
-    await session.command('mode', 'plan')
+    await session.command({ name: 'mode', input: 'plan' })
 
     await session.send('write it')
 

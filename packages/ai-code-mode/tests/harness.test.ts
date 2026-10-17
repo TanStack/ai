@@ -209,7 +209,9 @@ async function firstToolNames(options: {
       tools: options.tools,
       plugins: () => options.plugins,
     }),
-    { threadId: 't' },
+    {
+      threadId: 't',
+    },
   )
   await session.send('hi')
   await host.close()
@@ -231,7 +233,9 @@ describe('codeMode', () => {
         tools: [tools.lookup, tools.remove, tools.askUser],
         plugins: () => [writes, notion, codeMode({ driver })],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     const turn = await session.send('look it up')
     expect(turn.text).toBe('done')
@@ -268,7 +272,9 @@ describe('codeMode', () => {
           codeMode({ driver, include: (tool) => tool.name === 'remove' }),
         ],
       }),
-      { threadId: 'picked' },
+      {
+        threadId: 'picked',
+      },
     )
     await picked.send('hi')
     expect(calls[0].tools.map((tool: { name: string }) => tool.name)).toEqual([
@@ -283,7 +289,9 @@ describe('codeMode', () => {
         tools: [tools.remove],
         plugins: () => [codeMode({ driver })],
       }),
-      { threadId: 'none' },
+      {
+        threadId: 'none',
+      },
     )
     await none.send('hi')
     expect(calls[1].tools.map((tool: { name: string }) => tool.name)).toEqual([
@@ -309,7 +317,9 @@ describe('codeMode', () => {
         tools: [tools.lookup, tools.remove],
         plugins: () => [codeMode({ driver, lazy: true })],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     expect((await session.send('what can you call?')).text).toBe('found it')
 
@@ -362,7 +372,9 @@ describe('codeMode', () => {
         ],
         plugins: () => [codeMode({ driver })],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     await session.send('search')
     // web_search clashes with web-search after the rename, so it stays direct.
@@ -503,9 +515,12 @@ describe('codeMode', () => {
             codeMode({ driver }),
           ],
         }),
-        { threadId: 't' },
+        {
+          threadId: 't',
+        },
       )
-      if (mode === 'plan') await session.command('mode', 'plan')
+      if (mode === 'plan')
+        await session.command({ name: 'mode', input: 'plan' })
       expect((await session.send('look it up')).text).toBe('done')
       // The program ran: a question would wait, and plan mode would deny it.
       expect(seen).toHaveLength(1)
@@ -530,7 +545,9 @@ describe('codeMode', () => {
           codeMode({ driver }),
         ],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     const turn = session.send('look it up')
     await vi.waitFor(() =>
@@ -568,7 +585,9 @@ describe('codeMode', () => {
           }),
         ],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     await session.send('first')
     expect(JSON.stringify(calls[0].systemPrompts)).toContain('external_lookup')

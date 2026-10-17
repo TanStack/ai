@@ -312,7 +312,9 @@ describe('formatter', () => {
           listener,
         ],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
 
     await session.send('work')
@@ -363,9 +365,11 @@ describe('formatter with permissions()', () => {
           formatter({ root, backend }),
         ],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
-    await session.command('mode', mode)
+    await session.command({ name: 'mode', input: mode })
     return { host, session, runs, calls }
   }
 
@@ -453,7 +457,9 @@ describe('formatter with permissions()', () => {
           formatter({ root, backend }),
         ],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     await session.send('change the config')
     expect(runs.map((run) => run.command)).toEqual([

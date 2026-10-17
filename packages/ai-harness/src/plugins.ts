@@ -34,9 +34,8 @@ import type { MetadataOf } from './session-entry'
  * - `session` (default): from session open to session close. Resources such
  *   as an index, a watcher, or an LSP server stay up across turns.
  * - `turn`: set up for each chat turn, disposed when that turn ends.
- * - `run`: deprecated, the old name of `turn`. It works the same.
  */
-export type PluginLifetime = 'session' | 'turn' | 'run'
+export type PluginLifetime = 'session' | 'turn'
 
 /**
  * A prompt a plugin contributes. `id` must be unique in the session. A
@@ -71,7 +70,7 @@ export interface PluginContributions {
    * also added to `session.agents`.
    */
   subagents?: ReadonlyArray<AnyAgent>
-  /** User actions, keyed by name. Run with `session.command(name, input)`. */
+  /** User actions, keyed by name. Run with `session.command({ name, input })`. */
   commands?: Record<string, AnyCommand>
   /** Session settings, keyed by name. Read with `ctx.config.get(name)`. */
   config?: Record<string, ConfigOption>

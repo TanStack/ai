@@ -143,7 +143,7 @@ The session claims its thread for its host when the thread gets work:
 - A queued turn that the session recovers.
 - A background agent run.
 
-The session renews the claim on the lease timer: every `lease.renewMs`, for `lease.ttlMs`. See [One host drives a thread](#one-host-drives-a-thread) to set them.
+The session renews the claim on the lease timer: every `ownership.renewMs`, for `ownership.ttlMs`. See [One host drives a thread](#one-host-drives-a-thread) to set them.
 
 The session gives the claim back when the thread is idle: no queued or running turn, no waiting steer, and no running agent. A thread that waits for a human (an approval or a sign-in) is idle, so a sweep never takes it.
 
@@ -341,12 +341,12 @@ When the owner stops, its claim expires. Then the next host that opens the threa
 
 Without `workClaims`, a host cannot see the owner. When a second host writes to the thread, the first host's session stops, and its running turn fails with a clear error.
 
-The lease decides when a stopped host counts as gone. Change its timing on the host:
+The lease decides when a stopped host counts as gone. Change its timing with the `ownership` option of the host:
 
 ```ts group=harness-durable
 const leasedHost = createHarnessHost({
   persistence: { stores: { log: memoryLogStore(), runs } },
-  lease: { ttlMs: 60_000, renewMs: 20_000 },
+  ownership: { ttlMs: 60_000, renewMs: 20_000 },
 })
 ```
 
@@ -374,7 +374,7 @@ Your job queue or submission table can already have leases. Give the host a `Lea
 - `release`: the host gives the lease back when the attempt ends. It also gets `ownerId` and `expiresAt`.
 - `isAlive`: after a crash, the host asks if another host still runs the attempt.
 
-A host with `leases` does not need `runs`. If you give both, `leases` decides. The `lease` option sets the timing, as in the section above.
+A host with `leases` does not need `runs`. If you give both, `leases` decides. The `ownership` option sets the timing, as in the section above.
 
 ```ts group=harness-durable
 import type { LeaseStore, TurnLease, TurnLeaseKey } from '@tanstack/ai-persistence'

@@ -134,7 +134,9 @@ async function openSession(
       adapter,
       plugins: () => plugins,
     }),
-    { threadId: 't' },
+    {
+      threadId: 't',
+    },
   )
   return { host, session }
 }
@@ -625,7 +627,8 @@ describe('permission rules, links, and grep', () => {
       permissions({ root: '/workspace', rules: options.rules }),
       workspaceTools({ root: '/workspace', backend, web: false }),
     ])
-    if (options.mode) await session.command('mode', options.mode)
+    if (options.mode)
+      await session.command({ name: 'mode', input: options.mode })
     /** Everything the model saw in its last call. */
     const seen = () => JSON.stringify(calls.at(-1)?.messages)
     /** The result of the tool call with id `id`, as the model saw it. */

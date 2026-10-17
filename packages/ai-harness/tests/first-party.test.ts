@@ -7,14 +7,13 @@ import { createHarnessHost, defineHarness } from '../src'
 import {
   compact,
   decidePermission,
-  fileCommands,
   globToRegExp,
   modelPicker,
   permissions,
-  projectInstructions,
   todos,
   usage,
 } from '../src/first-party'
+import { fileCommands, projectInstructions } from '../src/first-party/node'
 import { workspaceTools } from '../src/first-party/coding'
 import { messageTexts, mockAdapter, text, toolCall } from './helpers'
 import type { HarnessPlugin } from '../src'
@@ -103,7 +102,9 @@ describe('workspace tools with permissions', () => {
       permissions(),
       workspaceTools({ root }),
     ])
-    expect(await session.command('mode', 'plan')).toBe('Mode: plan.')
+    expect(await session.command({ name: 'mode', input: 'plan' })).toBe(
+      'Mode: plan.',
+    )
     await session.send('write')
     await expect(readFile(join(root, 'x.txt'), 'utf8')).rejects.toThrow()
     expect(session.snapshot().pendingQuestions).toHaveLength(0)
@@ -139,12 +140,16 @@ describe('modelPicker', () => {
         default: 'smart',
       }),
     ])
-    expect(await session.command('model', 'fast')).toContain('Model: fast')
+    expect(await session.command({ name: 'model', input: 'fast' })).toContain(
+      'Model: fast',
+    )
     expect(await session.send('hi')).toEqual({
       text: 'fast answer',
       media: [],
     })
-    expect(await session.command('model', 'nope')).toContain('Unknown model')
+    expect(await session.command({ name: 'model', input: 'nope' })).toContain(
+      'Unknown model',
+    )
     await host.close()
   })
 })
@@ -161,7 +166,7 @@ describe('todos', () => {
     ])
     const { host, session, persistence } = await open(adapter, [todos()])
     await session.send('plan it')
-    expect(await session.command('todos')).toBe('[~] write tests')
+    expect(await session.command({ name: 'todos' })).toBe('[~] write tests')
     await session.send('continue')
     expect(JSON.stringify(calls[2].systemPrompts)).toContain('[~] write tests')
     expect(
@@ -193,7 +198,7 @@ describe('project files', () => {
         owner: 'tanstack/file-commands',
       },
     ])
-    await session.command('review', 'src/app.ts')
+    await session.command({ name: 'review', input: 'src/app.ts' })
     await vi.waitFor(() => expect(calls).toHaveLength(1))
     expect(messageTexts(calls[0])).toEqual(['Review src/app.ts carefully.'])
     expect(JSON.stringify(calls[0].systemPrompts)).toContain('Use tabs.')
@@ -230,13 +235,13 @@ describe('compact and usage', () => {
     ])
     await session.send('first')
     await session.send('second')
-    expect(await session.command('compact')).toBe(
+    expect(await session.command({ name: 'compact' })).toBe(
       'Compacted 4 messages into a summary.',
     )
     const transcript = await persistence.stores.messages.loadThread('t')
     expect(transcript).toHaveLength(2)
     expect(transcript[0]?.content).toContain('We planned a trip.')
-    expect(await session.command('usage')).toBe(
+    expect(await session.command({ name: 'usage' })).toBe(
       '2 model calls, 20 input tokens (12 cache read, 4 cache write), 10 output tokens, 30 total.',
     )
     await host.close()

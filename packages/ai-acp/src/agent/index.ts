@@ -6,12 +6,8 @@ import {
   agent,
   ndJsonStream,
 } from '@agentclientprotocol/sdk/experimental/v2'
-import {
-  InputRejectedError,
-  MediaError,
-  kindOf,
-  mediaPart,
-} from '@tanstack/ai-harness'
+import { InputRejectedError } from '@tanstack/ai-harness'
+import { MediaError, kindOf, mediaPart } from '@tanstack/ai-harness/media'
 import type {
   AgentApp,
   AgentContext,
@@ -79,7 +75,9 @@ async function storedPart(
       `The data of ${info.name} is not base64.`,
     )
   }
-  return mediaPart(await session.putMedia(Buffer.from(data, 'base64'), info))
+  return mediaPart(
+    await session.putMedia({ body: Buffer.from(data, 'base64'), ...info }),
+  )
 }
 
 /** One ACP prompt block as a content part, or `undefined` to skip it. */
@@ -312,7 +310,7 @@ export function createAcpAgent(options: AcpAgentOptions): AgentApp {
         payload: 'optionId' in outcome && outcome.optionId === 'allow',
       })
     }
-    const receipt = await session.resolve(resume)
+    const receipt = await session.resolve({ resume })
     // For example `busy`: a later prompt runs already.
     if (receipt.status === 'rejected') throw new InputRejectedError(receipt)
     return {
@@ -331,12 +329,12 @@ export function createAcpAgent(options: AcpAgentOptions): AgentApp {
   const closeInterrupts = async (session: HarnessSession) => {
     const open = session.snapshot().pendingInterrupts
     if (open.length === 0) return true
-    const receipt = await session.resolve(
-      open.map((interrupt) => ({
+    const receipt = await session.resolve({
+      resume: open.map((interrupt) => ({
         interruptId: interrupt.id,
         status: 'cancelled' as const,
       })),
-    )
+    })
     if (receipt.status === 'rejected') throw new InputRejectedError(receipt)
     // ponytail: the reply of the model to the cancel stays out of the client.
     const turn = receipt.operationId

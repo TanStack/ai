@@ -19,6 +19,11 @@ export interface HarnessWorkerOptions {
  * Run a harness as a worker: session-tier frames as NDJSON on stdin and
  * stdout. The first frame must be `harness.subscribe`. The worker exits when
  * stdin closes. `artifactText` starts workers like this.
+ *
+ * @example
+ * ```ts
+ * await runHarnessWorker(assistant)
+ * ```
  */
 export async function runHarnessWorker(
   harness: AnyHarness,
@@ -69,7 +74,11 @@ export async function runHarnessWorker(
           send({ type: 'harness.snapshot', snapshot: session.snapshot() })
           continue
         }
-        const receipt = await applyInput(harness, session, frame.input)
+        const receipt = await applyInput({
+          harness,
+          session,
+          input: frame.input,
+        })
         send({
           type: 'harness.receipt',
           requestId: frame.requestId,

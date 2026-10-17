@@ -49,7 +49,9 @@ describe('prepareTools', () => {
         tools: [tool('a'), tool('b')],
         plugins: () => [bundle, broken, extra],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     const seen: Array<SessionEvent> = []
     const controller = new AbortController()

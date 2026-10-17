@@ -49,7 +49,9 @@ describe('discoverTools', () => {
         tools: [echoTool('lookup', 'local result')],
         plugins: () => [connector, broken],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     const names = (call: number) =>
       (calls[call].tools ?? []).map((tool: { name: string }) => tool.name)
@@ -99,7 +101,9 @@ describe('the default agent loop', () => {
         adapter,
         tools: [echoTool('lookup', 'fact')],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     const turn = await session.send('dig deep')
     expect(calls).toHaveLength(8)

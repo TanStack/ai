@@ -122,7 +122,9 @@ async function openRouting(options: {
         ...(options.strategy ? { strategy: options.strategy } : {}),
       },
     }),
-    { threadId: THREAD },
+    {
+      threadId: THREAD,
+    },
   )
   return { host, session, runs, main }
 }
@@ -145,9 +147,9 @@ async function approve(
 ) {
   const interrupt = turn.interrupts?.[0]
   if (!interrupt) throw new Error('The turn has no interrupt.')
-  const receipt = await session.resolve([
-    { interruptId: interrupt.id, status: 'resolved', payload: true },
-  ])
+  const receipt = await session.resolve({
+    resume: [{ interruptId: interrupt.id, status: 'resolved', payload: true }],
+  })
   return turnOf(session, receipt.operationId)
 }
 

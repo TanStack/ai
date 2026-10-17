@@ -70,7 +70,9 @@ describe('mid-conversation changes in a harness', () => {
       message: string,
     ) => {
       const host = createHarnessHost({ persistence })
-      const session = await host.open(harness(tools), { threadId: THREAD })
+      const session = await host.open(harness(tools), {
+        threadId: THREAD,
+      })
       await session.send(message)
       const transcript = await session.transcript()
       await host.close()
@@ -145,7 +147,9 @@ describe('mid-conversation changes in a harness', () => {
         tools: [installs],
         middleware: [addsExtra],
       }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
 
     const turn = session.send('find x')

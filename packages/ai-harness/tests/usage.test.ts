@@ -96,7 +96,10 @@ describe('session usage totals', () => {
         adapter: main.adapter,
         tools: [lookup],
       }),
-      { threadId: THREAD, principal: alice },
+      {
+        threadId: THREAD,
+        principal: alice,
+      },
     )
     const events = await readEvents(session)
 
@@ -138,8 +141,14 @@ describe('session usage totals', () => {
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const session = await host.open(
-      defineHarness({ name: 'test/usage-senders', adapter: main.adapter }),
-      { threadId: THREAD, principal: alice },
+      defineHarness({
+        name: 'test/usage-senders',
+        adapter: main.adapter,
+      }),
+      {
+        threadId: THREAD,
+        principal: alice,
+      },
     )
 
     await session.send('Hi.')
@@ -188,7 +197,10 @@ describe('session usage totals', () => {
         subagents: { agents: [helper] },
         agents: [worker],
       }),
-      { threadId: THREAD, principal: alice },
+      {
+        threadId: THREAD,
+        principal: alice,
+      },
     )
 
     expect((await session.send('Get help.')).text).toBe('lead done')

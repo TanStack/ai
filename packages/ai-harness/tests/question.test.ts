@@ -40,7 +40,9 @@ async function open(questions: Array<object>) {
       adapter,
       plugins: () => [question()],
     }),
-    { threadId: 't' },
+    {
+      threadId: 't',
+    },
   )
   const turn = session.send('ask me')
   return { host, session, calls, turn }
@@ -153,9 +155,11 @@ describe('ask with a url', () => {
         adapter: mockAdapter([]).adapter,
         plugins: () => [asker],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
-    const running = session.command('verify')
+    const running = session.command({ name: 'verify' })
 
     await vi.waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),

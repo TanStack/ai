@@ -13,14 +13,13 @@ import {
 } from '@tanstack/ai-harness'
 import {
   TitleFailed,
-  agents,
   goal,
   permissions,
-  projectInstructions,
   providerKeys,
   selectGoal,
   title,
 } from '@tanstack/ai-harness/plugins'
+import { agents, projectInstructions } from '@tanstack/ai-harness/plugins/node'
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import { openaiByok } from '@tanstack/ai-openai/byok'
 import { memoryPersistence } from '@tanstack/ai-persistence'
@@ -63,10 +62,12 @@ async function agentProfiles(host: HarnessHost, model: () => AnyTextAdapter) {
         }),
       ],
     }),
-    { threadId: 'e2e-agents' },
+    {
+      threadId: 'e2e-agents',
+    },
   )
   const first = (await session.send('[first-party-agents] first')).text
-  const switched = await session.command('agent', 'brief')
+  const switched = await session.command({ name: 'agent', input: 'brief' })
   const second = (await session.send('[first-party-agents] second')).text
   return { first, switched, second }
 }
@@ -119,9 +120,11 @@ async function planSubagent(host: HarnessHost, model: () => AnyTextAdapter) {
         }),
       ],
     }),
-    { threadId: 'e2e-plan' },
+    {
+      threadId: 'e2e-plan',
+    },
   )
-  await session.command('mode', 'plan')
+  await session.command({ name: 'mode', input: 'plan' })
   const turn = await session.send('[first-party-plan] write x.txt')
   return { writes, results, text: turn.text }
 }
@@ -160,7 +163,9 @@ async function environmentPrompt(
         adapter: model(),
         plugins: () => [projectInstructions({ root })],
       }),
-      { threadId: 'e2e-env' },
+      {
+        threadId: 'e2e-env',
+      },
     )
     const turn = await session.send('[first-party-env] where am i')
     return { root, platform: process.platform, text: turn.text }
@@ -188,7 +193,9 @@ async function sessionTitle(
       adapter: model(),
       plugins: () => [listener, title({ adapter: titleModel })],
     }),
-    { threadId: 'e2e-title' },
+    {
+      threadId: 'e2e-title',
+    },
   )
   const turn = await session.send('[first-party-title] plan a trip to Rome')
   const deadline = Date.now() + 5_000
@@ -224,9 +231,12 @@ async function connectedKey(host: HarnessHost, testId: string | undefined) {
       adapter: gpt,
       plugins: () => [providerKeys({ providers: [openaiByok] })],
     }),
-    { threadId: 'e2e-keys', principal: { id: 'ada' } },
+    {
+      threadId: 'e2e-keys',
+      principal: { id: 'ada' },
+    },
   )
-  const connecting = session.command('connect:openai')
+  const connecting = session.command({ name: 'connect:openai' })
   const deadline = Date.now() + 5_000
   while (
     session.snapshot().pendingQuestions.length === 0 &&
@@ -264,9 +274,14 @@ async function goalLoop(
       adapter: model(),
       plugins: () => [goal({ judge: judgeModel })],
     }),
-    { threadId: 'e2e-goal' },
+    {
+      threadId: 'e2e-goal',
+    },
   )
-  await session.command('goal', '[first-party-goal] finish the report')
+  await session.command({
+    name: 'goal',
+    input: '[first-party-goal] finish the report',
+  })
   const deadline = Date.now() + 10_000
   while (
     selectGoal(session.snapshot())?.status !== 'met' &&
@@ -276,7 +291,7 @@ async function goalLoop(
   }
   return {
     goal: selectGoal(session.snapshot()),
-    shown: await session.command('goal'),
+    shown: await session.command({ name: 'goal' }),
   }
 }
 
@@ -306,7 +321,9 @@ async function codeModeTools(host: HarnessHost, model: () => AnyTextAdapter) {
         }),
       ],
     }),
-    { threadId: 'e2e-code-mode' },
+    {
+      threadId: 'e2e-code-mode',
+    },
   )
   const turn = await session.send('[first-party-code-mode] which tools')
   return { text: turn.text }

@@ -87,10 +87,10 @@ Switch the mode from server code:
 ```ts group=harness-permissions
 await session.setConfig({ key: 'mode', value: 'plan' })
 // Or run the command. It returns 'Mode: plan.'
-await session.command('mode', 'plan')
+await session.command({ name: 'mode', input: 'plan' })
 ```
 
-`session.command('mode')` with no input shows the current mode. In `acceptEdits` mode, an edit outside `root` or of a `.env` file still asks.
+`session.command({ name: 'mode' })` with no input shows the current mode. In `acceptEdits` mode, an edit outside `root` or of a `.env` file still asks.
 
 ### Keep the mode on the server
 
@@ -251,7 +251,7 @@ A call that asks waits for one of three answers:
 
 ### See and forget saved answers
 
-1. Run `session.command('permissions')`. The command lists the saved rules of the project:
+1. Run `session.command({ name: 'permissions' })`. The command lists the saved rules of the project:
 
 ```text
 Saved rules:
@@ -259,7 +259,7 @@ Saved rules:
 2. read_file .env
 ```
 
-2. Run `session.command('permissions', 'forget 2')` to delete rule 2. The open session asks again at the next `read_file` call for `.env`.
+2. Run `session.command({ name: 'permissions', input: 'forget 2' })` to delete rule 2. The open session asks again at the next `read_file` call for `.env`.
 
 A client can run the command only when `expose.commands` has `permissions`.
 

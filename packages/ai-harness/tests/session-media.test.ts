@@ -1,13 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { EventType, defineAgent } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import {
-  HARNESS_EVENTS,
-  MediaError,
-  createHarnessHost,
-  defineHarness,
-  mediaPart,
-} from '../src'
+import { HARNESS_EVENTS, createHarnessHost, defineHarness } from '../src'
+import { MediaError, mediaPart } from '../src/media-entry'
 import { mockAdapter, text, toolCall } from './helpers'
 import type {
   AnyTextAdapter,
@@ -19,11 +14,11 @@ import type {
   AnyHarness,
   HarnessPersistence,
   MediaKind,
-  MediaOptions,
   MediaRecord,
   SessionEvent,
   UserInput,
 } from '../src'
+import type { MediaOptions } from '../src/media-entry'
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -147,14 +142,17 @@ describe('session media store', () => {
   it('stores a file and reads it back', async () => {
     const { host, session } = await open(harnessWith(mockAdapter([]).adapter))
 
-    const record = await session.putMedia(encoder.encode('hello'), {
+    const record = await session.putMedia({
+      body: encoder.encode('hello'),
       mimeType: 'image/png',
       name: 'cat.png',
     })
 
     expect(record).toEqual(storedImage())
     expect(await session.getMedia(record.id)).toEqual(record)
-    expect(decoder.decode(await session.loadMedia(record.id))).toBe('hello')
+    expect(decoder.decode(await session.loadMedia({ id: record.id }))).toBe(
+      'hello',
+    )
     await host.close()
   })
 
@@ -164,12 +162,15 @@ describe('session media store', () => {
       stores: { messages },
     })
 
-    const record = await session.putMedia(encoder.encode('hello'), {
+    const record = await session.putMedia({
+      body: encoder.encode('hello'),
       mimeType: 'image/png',
       name: 'cat.png',
     })
 
-    expect(decoder.decode(await session.loadMedia(record.id))).toBe('hello')
+    expect(decoder.decode(await session.loadMedia({ id: record.id }))).toBe(
+      'hello',
+    )
     await host.close()
   })
 
@@ -178,7 +179,8 @@ describe('session media store', () => {
       harnessWith(mockAdapter([]).adapter, { maxBytes: 4 }),
     )
 
-    const put = session.putMedia(encoder.encode('hello'), {
+    const put = session.putMedia({
+      body: encoder.encode('hello'),
       mimeType: 'image/png',
       name: 'cat.png',
     })
@@ -193,7 +195,8 @@ describe('session media store', () => {
     const { host, session } = await open(harness)
     const other = await host.open(harness, { threadId: 't2' })
 
-    const record = await session.putMedia(encoder.encode('secret'), {
+    const record = await session.putMedia({
+      body: encoder.encode('secret'),
       mimeType: 'image/png',
       name: 'a.png',
     })
@@ -204,7 +207,8 @@ describe('session media store', () => {
 
   it('gives a data URL for a small file, and none for an unknown id', async () => {
     const { host, session } = await open(harnessWith(mockAdapter([]).adapter))
-    const record = await session.putMedia(encoder.encode('hello'), {
+    const record = await session.putMedia({
+      body: encoder.encode('hello'),
       mimeType: 'image/png',
       name: 'cat.png',
     })
@@ -222,7 +226,8 @@ describe('media sent to a turn', () => {
   async function sendImage() {
     const { adapter, calls } = reader()
     const { host, session } = await open(harnessWith(adapter))
-    const record = await session.putMedia(encoder.encode('hello'), {
+    const record = await session.putMedia({
+      body: encoder.encode('hello'),
       mimeType: 'image/png',
       name: 'cat.png',
     })
@@ -303,7 +308,8 @@ describe('media sent to a turn', () => {
     async ({ inputs, accepts, mimeType, message }) => {
       const { adapter, calls } = reader(inputs)
       const { host, session } = await open(harnessWith(adapter, { accepts }))
-      const record = await session.putMedia(encoder.encode('hello'), {
+      const record = await session.putMedia({
+        body: encoder.encode('hello'),
         mimeType,
         name: 'file',
       })
@@ -319,7 +325,8 @@ describe('media sent to a turn', () => {
     const { host, session } = await open(
       harnessWith(adapter, { transcribe: transcriptionAdapter() }),
     )
-    const record = await session.putMedia(encoder.encode('meow meow'), {
+    const record = await session.putMedia({
+      body: encoder.encode('meow meow'),
       mimeType: 'audio/mpeg',
       name: 'voice.mp3',
     })

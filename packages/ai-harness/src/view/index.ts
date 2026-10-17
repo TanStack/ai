@@ -2,6 +2,7 @@
 // ../types, ../media-ref, and ./reduce. Everything else is a type.
 import {
   EventType,
+  INTERRUPT_PAYLOAD_METADATA_KEY,
   readUnopenedInterruptBinding,
   wireSubagentInfo,
 } from '@tanstack/ai'
@@ -33,11 +34,16 @@ import type { ReadonlyStore } from '@tanstack/store'
 import type { PluginEvent } from '../extensions'
 import type { SessionDescription, SessionSnapshot } from '../session/index'
 import type {
+  CancelOptions,
+  CommandOptions,
+  ConfigureOptions,
   Cursor,
   MediaRecord,
+  MediaUpload,
   Receipt,
+  ResetOptions,
+  ResolveOptions,
   SessionEvent,
-  ThreadSettingsChange,
   UserInput,
   WaitingInput,
   Operation,
@@ -150,8 +156,8 @@ export interface SessionViewSource {
     (message: UserInput, options: ViewAgentSendOptions): unknown
     (message: UserInput, options?: ViewSendOptions): unknown
   }
-  resolve: (resume: Array<RunAgentResumeItem>) => Promise<Receipt>
-  cancel: (operationId?: string) => Promise<Receipt>
+  resolve: (options: ResolveOptions) => Promise<Receipt>
+  cancel: (options?: CancelOptions) => Promise<Receipt>
   // Both sources have these. Without one, its view action shows an error.
   continue?: () => unknown
   cancelInput?: (inputId: string) => Promise<Receipt>
@@ -159,12 +165,12 @@ export interface SessionViewSource {
     inputId: string
     delivery: WaitingInput['delivery']
   }) => Promise<Receipt>
-  configure?: (settings: ThreadSettingsChange) => Promise<Receipt>
-  reset?: (note?: string) => Promise<Receipt>
+  configure?: (options: ConfigureOptions) => Promise<Receipt>
+  reset?: (options?: ResetOptions) => Promise<Receipt>
   revert?: (messageId: string) => Promise<Receipt>
   unrevert?: () => Promise<Receipt>
   answer: (answer: { questionId: string; value: unknown }) => Promise<Receipt>
-  command: (name: string, input?: unknown) => unknown
+  command: (options: CommandOptions) => unknown
   setConfig: (change: { key: string; value: unknown }) => Promise<Receipt>
   events: (options: {
     from?: Cursor
@@ -177,17 +183,16 @@ export interface SessionViewSource {
   /** A URL for a media file. Without it, media parts have no `url`. */
   mediaUrl?: (id: string) => Promise<{ url?: string; expiresAt?: number }>
   /** The bytes of a media file. Without it, `load()` rejects. */
-  loadMedia?: (id: string) => Promise<Uint8Array>
+  loadMedia?: (options: { id: string }) => Promise<Uint8Array>
   /** Store a file: `upload` on a client, `putMedia` on a session. */
-  upload?: (body: MediaBody, info: MediaInfo) => Promise<MediaRecord>
-  putMedia?: (body: MediaBody, info: MediaInfo) => Promise<MediaRecord>
+  upload?: (file: MediaUpload<MediaBody>) => Promise<MediaRecord>
+  putMedia?: (file: MediaUpload<MediaBody>) => Promise<MediaRecord>
   /** The saved messages of a child agent run. Without it, a reload shows no child parts. */
   agentTranscript?: (subagentRunId: string) => Promise<Array<ModelMessage>>
 }
 
 /** The bytes of a file to store. */
 type MediaBody = ArrayBuffer | Uint8Array
-type MediaInfo = { name: string; mimeType: string }
 
 /**
  * What `view.on(name, handler)` sends.
@@ -238,14 +243,36 @@ export interface SessionView {
   ) => Promise<void>
   /** Start a turn from the saved messages, with no new message. */
   continue: () => Promise<void>
-  /** Store a file. Send its record with `send(text, [record])`. */
-  upload: (body: MediaBody, info: MediaInfo) => Promise<MediaRecord>
-  command: (name: string, input?: unknown) => Promise<void>
+  /**
+   * Store a file. Send its record with `send(text, [record])`.
+   *
+   * @example
+   * ```ts
+   * const record = await view.upload({ body: bytes, mimeType: 'image/png', name: 'cat.png' })
+   * ```
+   */
+  upload: (file: MediaUpload<MediaBody>) => Promise<MediaRecord>
+  /**
+   * Run the plugin command `name` with its `input`.
+   *
+   * @example
+   * ```ts
+   * await view.command({ name: 'mode', input: 'plan' })
+   * ```
+   */
+  command: (options: CommandOptions) => Promise<void>
   setConfig: (change: { key: string; value: unknown }) => Promise<void>
-  /** Change the stored settings of the thread, for example the model. */
-  configure: (settings: ThreadSettingsChange) => Promise<void>
+  /**
+   * Change the stored settings of the thread, for example the model.
+   *
+   * @example
+   * ```ts
+   * await view.configure({ settings: { model: 'strong' } })
+   * ```
+   */
+  configure: (options: ConfigureOptions) => Promise<void>
   /** Stop the running turn, or the operation `operationId`. */
-  cancel: (operationId?: string) => Promise<void>
+  cancel: (options?: CancelOptions) => Promise<void>
   /** Drop an input from `waitingInputs` before it runs. */
   cancelInput: (inputId: string) => Promise<void>
   /** Move a waiting input: `'steer'` joins the running turn, `'queue'` waits for its own turn. */
@@ -254,7 +281,7 @@ export interface SessionView {
     delivery: WaitingInput['delivery']
   }) => Promise<void>
   /** Start a fresh model context. The model sees `note` first. */
-  reset: (note?: string) => Promise<void>
+  reset: (options?: ResetOptions) => Promise<void>
   /** Go back to the message `messageId`. `unrevert` undoes it. */
   revert: (messageId: string) => Promise<void>
   unrevert: () => Promise<void>
@@ -478,7 +505,7 @@ export function createSessionView(source: SessionViewSource) {
       ...part,
       load: () =>
         source.loadMedia
-          ? source.loadMedia(id)
+          ? source.loadMedia({ id })
           : Promise.reject(new Error('This session source cannot load media.')),
     }
     mediaParts.set(id, shown)
@@ -536,7 +563,7 @@ export function createSessionView(source: SessionViewSource) {
     resolving = true
     commit({ ...get(), approvals: [], clientTools: [], interrupts: [] })
     void source
-      .resolve(resume)
+      .resolve({ resume })
       .then(undefined, fail)
       .finally(() => {
         resolving = false
@@ -574,7 +601,7 @@ export function createSessionView(source: SessionViewSource) {
     },
     interrupt: (interrupt) => {
       const open = () => get().interrupts
-      const payload = interrupt.metadata?.['tanstack:interruptPayload']
+      const payload = interrupt.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY]
       const { message, toolCallId, subagentRunId, responseSchema } = interrupt
       const item: ViewInterrupt = {
         id: interrupt.id,
@@ -647,7 +674,7 @@ export function createSessionView(source: SessionViewSource) {
       },
       cancel: () => {
         alive()
-        return source.cancel(operation.id)
+        return source.cancel({ operationId: operation.id })
       },
     }),
   }
@@ -959,7 +986,9 @@ export function createSessionView(source: SessionViewSource) {
       if (line.startsWith('/')) {
         const [name = '', ...rest] = line.slice(1).split(' ')
         const input = rest.join(' ').trim()
-        settle(source.command(name, input === '' ? undefined : input))
+        settle(
+          source.command({ name, input: input === '' ? undefined : input }),
+        )
         return
       }
       commit(withUserMessage(get(), line, attachments))
@@ -985,22 +1014,22 @@ export function createSessionView(source: SessionViewSource) {
       alive()
       settle(source.continue ? source.continue() : missing('continue'))
     },
-    upload: (body, info) => {
+    upload: (file) => {
       alive()
-      if (source.upload) return source.upload(body, info)
-      if (source.putMedia) return source.putMedia(body, info)
+      if (source.upload) return source.upload(file)
+      if (source.putMedia) return source.putMedia(file)
       return Promise.reject(new Error('This view source cannot store media.'))
     },
-    command: async (name, input) => {
+    command: async (options) => {
       alive()
-      settle(source.command(name, input))
+      settle(source.command(options))
     },
     setConfig: (change) => act(() => source.setConfig(change)),
-    configure: (settings) =>
+    configure: (options) =>
       act(() =>
-        source.configure ? source.configure(settings) : missing('configure'),
+        source.configure ? source.configure(options) : missing('configure'),
       ),
-    cancel: (operationId) => act(() => source.cancel(operationId)),
+    cancel: (options) => act(() => source.cancel(options)),
     cancelInput: (inputId) =>
       act(() =>
         source.cancelInput
@@ -1013,8 +1042,8 @@ export function createSessionView(source: SessionViewSource) {
           ? source.setDelivery(change)
           : missing('move inputs'),
       ),
-    reset: (note) =>
-      act(() => (source.reset ? source.reset(note) : missing('reset'))),
+    reset: (options) =>
+      act(() => (source.reset ? source.reset(options) : missing('reset'))),
     revert: (messageId) =>
       act(() => (source.revert ? source.revert(messageId) : missing('revert'))),
     unrevert: () =>

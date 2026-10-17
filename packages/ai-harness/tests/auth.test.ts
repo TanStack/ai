@@ -4,21 +4,24 @@ import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   HARNESS_EVENTS,
-  buildAuthorizationUrl,
   createHarnessHost,
-  createPkce,
   defineCommand,
   defineHarness,
   definePlugin,
+  oauthConnector,
+  scrubSecrets,
+} from '../src'
+import {
+  buildAuthorizationUrl,
+  createPkce,
   deviceLogin,
   exchangeCode,
   loopbackLogin,
-  oauthConnector,
   refreshCredential,
-  scrubSecrets,
-} from '../src'
+} from '../src/oauth'
 import { mockAdapter, text, toolCall } from './helpers'
-import type { OAuthConfig, SessionEvent } from '../src'
+import type { SessionEvent } from '../src'
+import type { OAuthConfig } from '../src/oauth'
 
 const oauth: OAuthConfig = {
   authorizationUrl: 'https://auth.example/authorize',
@@ -217,7 +220,10 @@ describe('oauthConnector', () => {
         adapter,
         plugins: () => [github],
       }),
-      { threadId: 't', principal: { id: 'user-1' } },
+      {
+        threadId: 't',
+        principal: { id: 'user-1' },
+      },
     )
     const events: Array<SessionEvent> = []
     const reader = new AbortController()
@@ -238,7 +244,7 @@ describe('oauthConnector', () => {
       ),
     ).toBe(true)
 
-    await expect(session.command('connect:github')).resolves.toBe(
+    await expect(session.command({ name: 'connect:github' })).resolves.toBe(
       'Connected to GitHub.',
     )
     const saved = await credentials.get({
@@ -255,7 +261,7 @@ describe('oauthConnector', () => {
     )
     expect(transcript).not.toContain('gh-token')
 
-    await session.command('disconnect:github')
+    await session.command({ name: 'disconnect:github' })
     expect(
       await credentials.list({
         threadId: 't',
@@ -307,15 +313,21 @@ describe('errors a session publishes', () => {
     const { adapter } = mockAdapter(() => text('ok'))
     const host = createHarnessHost({ persistence, credentials })
     const session = await host.open(
-      defineHarness({ name: 'test/scrub', adapter, plugins: () => [plugin] }),
-      { threadId: 't1' },
+      defineHarness({
+        name: 'test/scrub',
+        adapter,
+        plugins: () => [plugin],
+      }),
+      {
+        threadId: 't1',
+      },
     )
     const errors: Array<string> = []
     session.onEvent(EventType.RUN_ERROR, ({ event }) => {
       errors.push(event.message)
     })
 
-    await expect(session.command('leak')).rejects.toThrow()
+    await expect(session.command({ name: 'leak' })).rejects.toThrow()
 
     expect(errors).toEqual([
       'fetch failed: Bearer [redacted] {"value":"[redacted]"}',
@@ -344,7 +356,9 @@ describe('errors a session publishes', () => {
     const host = createHarnessHost({ persistence, credentials })
     const session = await host.open(
       defineHarness({ name: 'test/scrub', adapter, agents: [leaky] }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
     const errors: Array<string> = []
     session.onEvent(EventType.RUN_ERROR, ({ event }) => {

@@ -90,7 +90,9 @@ describe('work claims while a session runs', () => {
     const host = createHarnessHost({ persistence })
     const session = await host.open(
       defineHarness({ name: NAME, adapter, tools: [deploy] }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
 
     const turn = session.send('Deploy.')
@@ -122,7 +124,9 @@ describe('work claims while a session runs', () => {
     const host = createHarnessHost({ persistence })
     const session = await host.open(
       defineHarness({ name: NAME, adapter, agents: [waiter] }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
 
     const run = session.agents.waiter.start(undefined)

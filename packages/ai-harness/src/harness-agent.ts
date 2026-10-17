@@ -18,19 +18,18 @@ import type { HarnessHost } from './host'
  */
 export function harnessAgent(
   harness: AnyHarness,
-  options: { host?: HarnessHost; name?: string; description?: string } = {},
+  {
+    host,
+    name,
+    description,
+  }: { host?: HarnessHost; name?: string; description?: string } = {},
 ) {
-  const adapter = harnessText(
-    harness,
-    options.host ? { host: options.host } : {},
-  )
+  const adapter = harnessText(harness, host ? { host } : {})
   return defineAgent({
     // Tool names allow letters, digits, `_`, and `-`.
-    name: options.name ?? harness.name.replace(/[^a-zA-Z0-9_-]/g, '_'),
+    name: name ?? harness.name.replace(/[^a-zA-Z0-9_-]/g, '_'),
     description:
-      options.description ??
-      harness.description ??
-      `The ${harness.name} harness`,
+      description ?? harness.description ?? `The ${harness.name} harness`,
     run: (ctx) => ctx.chat({ adapter }),
   })
 }

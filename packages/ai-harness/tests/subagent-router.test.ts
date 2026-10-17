@@ -43,9 +43,9 @@ async function approveFirst(
 ) {
   const interrupt = turn.interrupts?.[0]
   if (!interrupt) throw new Error('The turn has no interrupt.')
-  const receipt = await session.resolve([
-    { interruptId: interrupt.id, status: 'resolved', payload: true },
-  ])
+  const receipt = await session.resolve({
+    resume: [{ interruptId: interrupt.id, status: 'resolved', payload: true }],
+  })
   const resumed = session.operation(receipt.operationId ?? '')
   if (!resumed) throw new Error('The resolve started no turn.')
   return resumed
@@ -60,7 +60,7 @@ async function openRouted(options: {
   agent: AnyAgent
   pick: SubagentRouterPick
   replies?: Array<Reply>
-  lease?: { renewMs?: number; ttlMs?: number }
+  ownership?: { renewMs?: number; ttlMs?: number }
   tools?: ReadonlyArray<AnyTool>
 }) {
   const { stores } = memoryPersistence()
@@ -72,7 +72,7 @@ async function openRouted(options: {
   const routerSaw: Array<Array<string>> = []
   const host = createHarnessHost({
     persistence,
-    ...(options.lease ? { lease: options.lease } : {}),
+    ...(options.ownership ? { ownership: options.ownership } : {}),
   })
   const session = await host.open(
     defineHarness({
@@ -87,7 +87,9 @@ async function openRouted(options: {
         },
       },
     }),
-    { threadId: THREAD },
+    {
+      threadId: THREAD,
+    },
   )
   return { host, session, runs, routerSaw, calls: main.calls }
 }
@@ -193,7 +195,7 @@ describe.each([
       durable,
       agent,
       pick: 'writer',
-      lease: { renewMs: 5 },
+      ownership: { renewMs: 5 },
     })
     const turn = session.send('go')
     await turn

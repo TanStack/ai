@@ -69,7 +69,10 @@ async function stopDuringAgent(options: {
   const hostA = createHarnessHost({ persistence })
   const sessionA = await hostA.open(
     harness(mockAdapter([]).adapter, first.adapter),
-    { threadId: THREAD, principal: alice },
+    {
+      threadId: THREAD,
+      principal: alice,
+    },
   )
   const operation = sessionA.agent('worker')?.start(undefined, {
     wake: true,
@@ -181,7 +184,9 @@ describe('a background agent with resume: true', () => {
         adapter: mockAdapter([]).adapter,
         agents: [worker],
       }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
 
     expect(() =>

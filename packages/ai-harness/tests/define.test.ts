@@ -94,7 +94,9 @@ describe('toolExecution', () => {
         tools: [tool('first'), tool('second')],
         toolExecution: 'sequential',
       }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
 
     await expect(session.send('go')).resolves.toEqual({

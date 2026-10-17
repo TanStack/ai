@@ -306,6 +306,48 @@ export type ThreadSettingsChange = {
   [Key in keyof ThreadSettings]?: ThreadSettings[Key] | null
 }
 
+// The options that a session, a client, and a view source share. A session
+// takes more: `principal` (who acts), and an `inputId` on every input.
+
+/** What `resolve` takes: the answers to the interrupts of the last turn. */
+export interface ResolveOptions {
+  resume: Array<RunAgentResumeItem>
+  /** An id you choose: a second call with the same id is a duplicate. */
+  inputId?: string
+}
+
+/** What `cancel` takes. Without `operationId`, it stops the running turn. */
+export interface CancelOptions {
+  operationId?: string
+}
+
+/** What `command` takes: the plugin command `name`, and its `input`. */
+export interface CommandOptions {
+  name: string
+  input?: unknown
+}
+
+/** What `configure` takes: the change to the stored settings of the thread. */
+export interface ConfigureOptions {
+  settings: ThreadSettingsChange
+  /** An id you choose: a second call with the same id is a duplicate. */
+  inputId?: string
+}
+
+/** What `reset` takes: the `note` that the model sees first, if any. */
+export interface ResetOptions {
+  note?: string
+  /** An id you choose: a second call with the same id is a duplicate. */
+  inputId?: string
+}
+
+/** A file to store in the media store of a thread. */
+export interface MediaUpload<TBody> {
+  body: TBody
+  mimeType: string
+  name: string
+}
+
 /** How an input ended. `session.settled(inputId)` resolves to it. */
 export type InputSettlement = {
   inputId: string

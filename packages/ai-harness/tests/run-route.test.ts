@@ -3,12 +3,8 @@ import { z } from 'zod'
 import { readInterruptBinding, toolDefinition } from '@tanstack/ai'
 import { fakeText } from '@tanstack/ai/testing'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import {
-  createHarnessHandler,
-  createHarnessHost,
-  defineHarness,
-  definePlugin,
-} from '../src'
+import { createHarnessHost, defineHarness, definePlugin } from '../src'
+import { createHarnessHandler } from '../src/server'
 import { after, gate, mockAdapter, text, toolCall } from './helpers'
 import type { Interrupt } from '@tanstack/ai'
 import type { FakeResponse } from '@tanstack/ai/testing'
@@ -224,7 +220,9 @@ describe('POST run', () => {
     expect(refused.status).toBe(409)
     expect(await runs.get('run-x')).toEqual(stored)
     expect(deployed).toEqual([])
-    const session = await host.open(approvalHarness([]), { threadId: 't-1' })
+    const session = await host.open(approvalHarness([]), {
+      threadId: 't-1',
+    })
     expect(session.snapshot().pendingInterrupts).toHaveLength(1)
     await host.close()
   })
@@ -394,7 +392,9 @@ describe('questions', () => {
     // The session stream has the question once.
     const session = await host.open(
       defineHarness({ name: 'test/run-route', adapter }),
-      { threadId: 't-1' },
+      {
+        threadId: 't-1',
+      },
     )
     let questions = 0
     for await (const entry of session.events({
@@ -583,7 +583,9 @@ describe('snapshot', () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const session = await host.open(
       defineHarness({ name: 'test/run-route', adapter }),
-      { threadId: 't-1' },
+      {
+        threadId: 't-1',
+      },
     )
     // Events of another turn come before this one.
     await session.send('Warm up.')

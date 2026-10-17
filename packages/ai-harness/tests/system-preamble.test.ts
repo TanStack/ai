@@ -2,12 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import {
-  applyInput,
-  createHarnessHost,
-  defineHarness,
-  parseHarnessInput,
-} from '../src'
+import { createHarnessHost, defineHarness } from '../src'
+import { applyInput, parseHarnessInput } from '../src/server'
 import { mockAdapter, text, toolCall } from './helpers'
 
 /** A tool that records the execution context it was called with. */
@@ -64,7 +60,7 @@ describe('systemPreamble on the prompt op', () => {
       message: 'again',
       systemPreamble: ['INJECTED'],
     })
-    const receipt = await applyInput(harness, session, input)
+    const receipt = await applyInput({ harness, session, input })
     await session.operation(receipt.operationId ?? '')
     expect(calls.at(-1).systemPrompts).toEqual(['BASE'])
 
@@ -107,7 +103,7 @@ describe('tool execution context carries the calling thread', () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const session = await host.open(harness, { threadId: 't-oob' })
 
-    await session.tool('capture_ctx')
+    await session.tool({ name: 'capture_ctx' })
 
     expect(seen).toHaveLength(1)
     expect(seen[0].threadId).toBe('t-oob')

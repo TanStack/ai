@@ -139,7 +139,9 @@ describe('chat turns', () => {
     ])
     const session = await host.open(
       defineHarness({ name: 'test/steer', adapter, tools: [lookup] }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
 
     const turn = session.send('find x')
@@ -220,21 +222,29 @@ describe('chat turns', () => {
       () => text('removed'),
     ])
     const session = await host.open(
-      defineHarness({ name: 'test/approve', adapter, tools: [remove] }),
-      { threadId: 't1' },
+      defineHarness({
+        name: 'test/approve',
+        adapter,
+        tools: [remove],
+      }),
+      {
+        threadId: 't1',
+      },
     )
 
     const turn = await session.send('remove a.txt')
     expect(turn.interrupts).toHaveLength(1)
     expect(session.snapshot().status).toBe('requires_action')
 
-    const receipt = await session.resolve([
-      {
-        interruptId: turn.interrupts![0]!.id,
-        status: 'resolved',
-        payload: true,
-      },
-    ])
+    const receipt = await session.resolve({
+      resume: [
+        {
+          interruptId: turn.interrupts![0]!.id,
+          status: 'resolved',
+          payload: true,
+        },
+      ],
+    })
     expect(receipt.status).toBe('accepted')
     await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(execute).toHaveBeenCalledWith({ path: 'a.txt' }, expect.anything())
@@ -250,9 +260,9 @@ describe('chat turns', () => {
         threadId: 't1',
       },
     )
-    const receipt = await session.resolve([
-      { interruptId: 'x', status: 'resolved', payload: true },
-    ])
+    const receipt = await session.resolve({
+      resume: [{ interruptId: 'x', status: 'resolved', payload: true }],
+    })
     expect(receipt).toMatchObject({
       status: 'rejected',
       reason: 'no_pending_interrupts',
@@ -265,12 +275,17 @@ describe('settled operations', () => {
   it('keeps the last 500 settled operations, and drops older ones', async () => {
     const { host } = setup()
     const session = await host.open(
-      defineHarness({ name: 'test/window', adapter: mockAdapter([]).adapter }),
-      { threadId: 't1' },
+      defineHarness({
+        name: 'test/window',
+        adapter: mockAdapter([]).adapter,
+      }),
+      {
+        threadId: 't1',
+      },
     )
     const ids: Array<string> = []
     for (let index = 0; index < 501; index += 1) {
-      const command = session.command('unknown')
+      const command = session.command({ name: 'unknown' })
       ids.push(command.id)
       await command.then(
         () => undefined,
@@ -335,8 +350,14 @@ describe('agents', () => {
     const { host, persistence } = setup()
     const { adapter, calls } = mockAdapter([() => text('noted')])
     const session = await host.open(
-      defineHarness({ name: 'test/agents', adapter, agents: [pricer] }),
-      { threadId: 't1' },
+      defineHarness({
+        name: 'test/agents',
+        adapter,
+        agents: [pricer],
+      }),
+      {
+        threadId: 't1',
+      },
     )
 
     const run = session.agents.pricer.run({ vendor: 'acme' })
@@ -362,8 +383,14 @@ describe('agents', () => {
     const { host } = setup()
     const { adapter } = mockAdapter([])
     const session = await host.open(
-      defineHarness({ name: 'test/agents-bad', adapter, agents: [pricer] }),
-      { threadId: 't1' },
+      defineHarness({
+        name: 'test/agents-bad',
+        adapter,
+        agents: [pricer],
+      }),
+      {
+        threadId: 't1',
+      },
     )
     await expect(
       session.agents.pricer.run({ vendor: 1 } as never),
@@ -376,7 +403,9 @@ describe('agents', () => {
     const { adapter, calls } = mockAdapter([() => text('thanks')])
     const session = await host.open(
       defineHarness({ name: 'test/wake', adapter, agents: [pricer] }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
 
     await session.agents.pricer.start({ vendor: 'acme' }, { wake: true })
@@ -403,8 +432,14 @@ describe('agents', () => {
     const { host } = setup()
     const { adapter, calls } = mockAdapter([() => text('sorry')])
     const session = await host.open(
-      defineHarness({ name: 'test/wake-failed', adapter, agents: [failing] }),
-      { threadId: 't1' },
+      defineHarness({
+        name: 'test/wake-failed',
+        adapter,
+        agents: [failing],
+      }),
+      {
+        threadId: 't1',
+      },
     )
 
     await expect(
@@ -459,7 +494,9 @@ describe('inbox', () => {
     const host = createHarnessHost({ persistence })
     const session = await host.open(
       defineHarness({ name: 'test/recover-wake', adapter }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
 
     await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
@@ -476,13 +513,17 @@ describe('inbox', () => {
         name: 'test/inbox-down',
         adapter: mockAdapter([]).adapter,
       }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
     vi.spyOn(persistence.stores.inbox, 'append').mockRejectedValue(
       new Error('inbox down'),
     )
 
-    await expect(session.command('anything')).rejects.toThrow('inbox down')
+    await expect(session.command({ name: 'anything' })).rejects.toThrow(
+      'inbox down',
+    )
     await host.close()
   })
 
@@ -493,7 +534,9 @@ describe('inbox', () => {
         name: 'test/inbox-retry',
         adapter: mockAdapter([() => text('ran')]).adapter,
       }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
     vi.spyOn(persistence.stores.inbox, 'append').mockRejectedValueOnce(
       new Error('inbox down'),
@@ -515,7 +558,9 @@ describe('inbox', () => {
     const { adapter } = mockAdapter([untilAborted(), after(release.opened, '')])
     const session = await host.open(
       defineHarness({ name: 'test/closing', adapter }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
     const running = session.send('First.')
     await running.receipt
@@ -545,7 +590,9 @@ describe('inbox', () => {
         name: 'test/inbox-reject',
         adapter: mockAdapter([]).adapter,
       }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
     vi.spyOn(persistence.stores.inbox, 'markRejected').mockRejectedValue(
       new Error('inbox down'),
@@ -555,7 +602,7 @@ describe('inbox', () => {
       if (event.name === 'harness.plugin.warning') warnings.push(event.value)
     })
 
-    expect(await session.cancel('op-unknown')).toMatchObject({
+    expect(await session.cancel({ operationId: 'op-unknown' })).toMatchObject({
       status: 'rejected',
       reason: 'not_running',
     })
@@ -574,7 +621,9 @@ describe('inbox', () => {
         name: 'test/early-fail',
         adapter: mockAdapter([]).adapter,
       }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
     vi.spyOn(persistence.stores.interrupts, 'listPending').mockRejectedValue(
       new Error('interrupts down'),
@@ -614,7 +663,9 @@ describe('plugins', () => {
           }),
         ],
       }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
 
     await expect(session.send('Go.')).rejects.toThrow(
@@ -623,59 +674,55 @@ describe('plugins', () => {
     await host.close()
   })
 
-  // 'run' is the old name of 'turn', and still works.
-  it.each(['turn', 'run'] as const)(
-    'keeps session plugins across turns and sets up %s plugins per turn',
-    async (lifetime) => {
-      const { host } = setup()
-      const log: Array<string> = []
-      const sessionPlugin = definePlugin({
-        name: 'test/session',
-        setup: async ({ resources }) => {
-          await resources.acquire(
-            () => log.push('session:open'),
-            () => log.push('session:close'),
-          )
-          return { prompts: ['Session prompt.'] }
-        },
-      })
-      const runPlugin = definePlugin({
-        name: 'test/run',
-        lifetime,
-        setup: async ({ resources }) => {
-          await resources.acquire(
-            () => log.push('run:open'),
-            () => log.push('run:close'),
-          )
-        },
-      })
-      const { adapter, calls } = mockAdapter([() => text('a'), () => text('b')])
-      const session = await host.open(
-        defineHarness({
-          name: 'test/plugins',
-          adapter,
-          plugins: () => [sessionPlugin, runPlugin],
-        }),
-        { threadId: 't1' },
-      )
+  it('keeps session plugins across turns and sets up turn plugins per turn', async () => {
+    const { host } = setup()
+    const log: Array<string> = []
+    const sessionPlugin = definePlugin({
+      name: 'test/session',
+      setup: async ({ resources }) => {
+        await resources.acquire(
+          () => log.push('session:open'),
+          () => log.push('session:close'),
+        )
+        return { prompts: ['Session prompt.'] }
+      },
+    })
+    const runPlugin = definePlugin({
+      name: 'test/run',
+      lifetime: 'turn',
+      setup: async ({ resources }) => {
+        await resources.acquire(
+          () => log.push('run:open'),
+          () => log.push('run:close'),
+        )
+      },
+    })
+    const { adapter, calls } = mockAdapter([() => text('a'), () => text('b')])
+    const session = await host.open(
+      defineHarness({
+        name: 'test/plugins',
+        adapter,
+        plugins: () => [sessionPlugin, runPlugin],
+      }),
+      {
+        threadId: 't1',
+      },
+    )
 
-      await session.send('one')
-      await session.send('two')
-      await session.close()
+    await session.send('one')
+    await session.send('two')
+    await session.close()
 
-      expect(log).toEqual([
-        'session:open',
-        'run:open',
-        'run:close',
-        'run:open',
-        'run:close',
-        'session:close',
-      ])
-      expect(JSON.stringify(calls[0].systemPrompts)).toContain(
-        'Session prompt.',
-      )
-    },
-  )
+    expect(log).toEqual([
+      'session:open',
+      'run:open',
+      'run:close',
+      'run:open',
+      'run:close',
+      'session:close',
+    ])
+    expect(JSON.stringify(calls[0].systemPrompts)).toContain('Session prompt.')
+  })
 
   it('runs a harness without an adapter on the model a plugin picks', async () => {
     const { host } = setup()
@@ -685,8 +732,13 @@ describe('plugins', () => {
       setup: () => ({ adapter: () => adapter }),
     })
     const session = await host.open(
-      defineHarness({ name: 'test/no-adapter', plugins: () => [picker] }),
-      { threadId: 't1' },
+      defineHarness({
+        name: 'test/no-adapter',
+        plugins: () => [picker],
+      }),
+      {
+        threadId: 't1',
+      },
     )
 
     expect((await session.send('hi')).text).toBe('picked')
@@ -755,7 +807,9 @@ describe('plugins', () => {
         adapter,
         plugins: () => [clockPlugin],
       }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
 
     await session.send('time?')
@@ -776,7 +830,11 @@ describe('plugins', () => {
     const { adapter } = mockAdapter([])
     await expect(
       host.open(
-        defineHarness({ name: 'test/dup', adapter, plugins: () => [a, b] }),
+        defineHarness({
+          name: 'test/dup',
+          adapter,
+          plugins: () => [a, b],
+        }),
         {
           threadId: 't1',
         },
@@ -804,8 +862,14 @@ describe('a waiting steer with an abort request, without a log', () => {
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const session = await host.open(
-      defineHarness({ name: 'test/steer-abort', adapter, tools: [wait] }),
-      { threadId: 't-abort' },
+      defineHarness({
+        name: 'test/steer-abort',
+        adapter,
+        tools: [wait],
+      }),
+      {
+        threadId: 't-abort',
+      },
     )
 
     const turn = session.send('start')
@@ -815,7 +879,7 @@ describe('a waiting steer with an abort request, without a log', () => {
       inputId: 'steer-1',
     })
     await steer.receipt
-    await session.cancel(steer.id)
+    await session.cancel({ operationId: steer.id })
     done.open()
 
     expect(await turn).toEqual({ text: 'host answer', media: [] })
@@ -847,8 +911,15 @@ describe('joins without a log', () => {
     const { adapter, calls } = mockAdapter(replies)
     const host = createHarnessHost({ persistence })
     const session = await host.open(
-      defineHarness({ name: 'test/joins', adapter, tools: [tool], turn }),
-      { threadId: 't-joins' },
+      defineHarness({
+        name: 'test/joins',
+        adapter,
+        tools: [tool],
+        turn,
+      }),
+      {
+        threadId: 't-joins',
+      },
     )
     return { host, session, calls, wait: { started, done } }
   }
@@ -867,11 +938,11 @@ describe('joins without a log', () => {
     await vi.waitFor(() => expect(calls).toHaveLength(2))
 
     expect(session.operation(steer.id)).toBe(steer)
-    expect(await session.cancel(steer.id)).toMatchObject({
+    expect(await session.cancel({ operationId: steer.id })).toMatchObject({
       status: 'rejected',
       reason: 'not_running',
     })
-    await session.cancel(turn.id)
+    await session.cancel({ operationId: turn.id })
     await expect(steer).rejects.toThrow()
     expect(steer.status()).toBe('cancelled')
     await host.close()
@@ -897,7 +968,7 @@ describe('joins without a log', () => {
     await steer.receipt
     wait.done.open()
     await inJoin.opened
-    const receipt = await session.cancel(steer.id)
+    const receipt = await session.cancel({ operationId: steer.id })
     releaseJoin.open()
 
     expect(receipt).toMatchObject({ status: 'rejected', reason: 'not_running' })
@@ -940,7 +1011,7 @@ describe('joins without a log', () => {
     release.open()
     // The turn decided to run the model again for the late steer.
     await inUpdate.opened
-    const receipt = await session.cancel(late.id)
+    const receipt = await session.cancel({ operationId: late.id })
     releaseUpdate.open()
 
     expect(receipt).toMatchObject({ status: 'rejected', reason: 'not_running' })
@@ -982,7 +1053,9 @@ describe('joins without a log', () => {
         adapter,
         middleware: [hideSecret],
       }),
-      { threadId: 't-context' },
+      {
+        threadId: 't-context',
+      },
     )
 
     const turn = session.send('secret')
@@ -1041,7 +1114,9 @@ describe('joins without a log', () => {
           adapter,
           middleware: [noImages],
         }),
-        { threadId: 't-convert' },
+        {
+          threadId: 't-convert',
+        },
       )
       const steer: Array<ContentPart> = [
         { type: 'text', content: 'this' },
@@ -1141,7 +1216,7 @@ describe('joins without a log', () => {
         canJoin: async ({ inputId }) => {
           // The cancel of the earlier steer lands while canJoin runs for `b`.
           if (inputId === 'b' && !cancelled) {
-            cancelled = await session?.cancel(aId)
+            cancelled = await session?.cancel({ operationId: aId })
           }
           return true
         },

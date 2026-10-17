@@ -79,14 +79,14 @@ export async function editAndResend(threadId: string, messageId: string, text: s
 
 ## Reset with a handoff note
 
-`session.reset(note)` starts a fresh model context. From the next turn, the model sees only the note and what comes after the reset:
+`session.reset({ note })` starts a fresh model context. From the next turn, the model sees only the note and what comes after the reset:
 
 ```ts group=harness-fork-and-reset
 export async function startFresh(threadId: string) {
   const session = await host.open(assistant, { threadId })
-  return session.reset(
-    'Summary: the user moves the billing service to the new region. The DNS change is done. The database move is next.',
-  )
+  return session.reset({
+    note: 'Summary: the user moves the billing service to the new region. The DNS change is done. The database move is next.',
+  })
 }
 ```
 

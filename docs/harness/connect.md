@@ -18,7 +18,8 @@ Your harness runs on a server, but the people who use it are in a browser or ano
 Mount one fetch handler on a route. `authorize` is required, so no endpoint is open by accident.
 
 ```ts group=harness-connect
-import { defineHarness, createHarnessHandler, createHarnessHost } from '@tanstack/ai-harness'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { createHarnessHandler } from '@tanstack/ai-harness/server'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { openaiText } from '@tanstack/ai-openai'
 
@@ -42,7 +43,7 @@ export const handler = createHarnessHandler({
 
 `canAccess` is required. It decides which threads each principal can use. To let every principal use every thread, pass `canAccess: () => true`.
 
-On a durable host (`stores.log`), also set `mediaSecret`. It signs media URLs, so every instance must use the same value. Without a log store, the default is a random key, and signed URLs stop working after a restart.
+On a durable host (`stores.log`), also set `media: { secret }`. The secret signs media URLs, so every instance must use the same value. Without a log store, the default is a random key, and signed URLs stop working after a restart.
 
 The handler answers these paths under your route:
 
@@ -81,10 +82,10 @@ export const team = defineHarness({
 | Field | What a client can do |
 | --- | --- |
 | `agents` | Run these agents, for example with `client.agents.<name>.start(input)`. |
-| `settings` | Change these [thread settings](./thread-settings) with `client.configure(settings)`. |
+| `settings` | Change these [thread settings](./thread-settings) with `client.configure({ settings })`. |
 | `config` | Set these plugin config keys with `client.setConfig({ key, value })`. |
-| `commands` | Run these commands with `client.command(name)`, or with `/name` in a [session view](./custom-ui) on a client. |
-| `tools` | Run these harness tools with no model turn, with `client.tool(name, args)`. See [Run a tool without a model](./tool-runs). |
+| `commands` | Run these commands with `client.command({ name })`, or with `/name` in a [session view](./custom-ui) on a client. |
+| `tools` | Run these harness tools with no model turn, with `client.tool({ name, args })`. See [Run a tool without a model](./tool-runs). |
 | `records` | Add records of these types to the thread with `client.append(records)`. See [Let a client add records](./session-log#let-a-client-add-records). |
 
 - Any other input of these kinds gets `{ status: 'rejected', reason: 'not_exposed' }`.
@@ -127,7 +128,8 @@ A background agent runs for minutes, and the user wants to correct it from the p
 
 ```ts group=harness-connect-agents
 import { defineAgent } from '@tanstack/ai'
-import { createHarnessHandler, createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { createHarnessHandler } from '@tanstack/ai-harness/server'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { openaiText } from '@tanstack/ai-openai'
 
@@ -309,7 +311,7 @@ The join has these rules:
 For one connection that carries events and inputs, authorize the upgrade, then hand the socket to `handleHarnessSocket`:
 
 ```ts group=harness-connect
-import { handleHarnessSocket } from '@tanstack/ai-harness'
+import { handleHarnessSocket } from '@tanstack/ai-harness/server'
 import type { WebSocketLike } from '@tanstack/ai'
 
 export function onUpgrade(socket: WebSocketLike) {

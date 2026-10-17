@@ -1,15 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import {
-  createHarnessHandler,
-  createHarnessHost,
-  defineHarness,
-  isMediaRecord,
-  mediaPart,
-} from '../src'
+import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHandler } from '../src/server'
+import { isMediaRecord, mediaPart } from '../src/media-entry'
 import { mockAdapter, text } from './helpers'
 import type { ContentPart } from '@tanstack/ai'
-import type { Authorize, MediaOptions, MediaRecord } from '../src'
+import type { MediaRecord } from '../src'
+import type { Authorize } from '../src/server'
+import type { MediaOptions } from '../src/media-entry'
 
 const BASE = 'http://x/api/harness'
 const HOUR = 60 * 60 * 1000
@@ -24,7 +22,7 @@ const allowUser: Authorize = (request) =>
  * A handler for user-1, who can open only threads that start with `user-1`.
  * `handlerWith` makes another handler on the same host.
  */
-function setup(options: { media?: MediaOptions; mediaSecret?: string } = {}) {
+function setup(options: { media?: MediaOptions; secret?: string } = {}) {
   const { adapter, calls } = mockAdapter(() => text('ok'))
   const harness = defineHarness({
     name: 'test/http-media',
@@ -32,17 +30,20 @@ function setup(options: { media?: MediaOptions; mediaSecret?: string } = {}) {
     media: options.media,
   })
   const host = createHarnessHost({ persistence: memoryPersistence() })
+  /** `secret` signs the media URLs. Without it, a random key per handler. */
   const handlerWith = (
-    handlerOptions: { authorize?: Authorize; mediaSecret?: string } = {},
+    handlerOptions: { authorize?: Authorize; secret?: string } = {},
   ) =>
     createHarnessHandler({
       host,
       harness,
       authorize: handlerOptions.authorize ?? allowUser,
       canAccess: (principal, threadId) => threadId.startsWith(principal.id),
-      mediaSecret: handlerOptions.mediaSecret,
+      ...(handlerOptions.secret
+        ? { media: { secret: handlerOptions.secret } }
+        : {}),
     })
-  const handler = handlerWith({ mediaSecret: options.mediaSecret })
+  const handler = handlerWith({ secret: options.secret })
   const call = (path: string, init: RequestInit = {}) =>
     handler(
       new Request(`${BASE}/${path}`, {
@@ -127,7 +128,7 @@ afterEach(() => {
 })
 
 describe('media upload and signed URLs', () => {
-  it('needs mediaSecret on a durable host, where another instance verifies the URL', () => {
+  it('needs media.secret on a durable host, where another instance verifies the URL', () => {
     const { adapter } = mockAdapter(() => text('ok'))
     const harness = defineHarness({ name: 'test/http-media-durable', adapter })
     const host = createHarnessHost({
@@ -144,10 +145,13 @@ describe('media upload and signed URLs', () => {
       authorize: allowUser,
       canAccess: () => true,
     }
-    expect(() => createHarnessHandler(options)).toThrow(/mediaSecret/)
+    expect(() => createHarnessHandler(options)).toThrow(/media\.secret/)
     expect(() =>
-      createHarnessHandler({ ...options, mediaSecret: 'shared' }),
+      createHarnessHandler({ ...options, media: { secret: 'shared' } }),
     ).not.toThrow()
+    expect(() =>
+      createHarnessHandler({ ...options, media: { secret: '' } }),
+    ).toThrow(/not empty/)
   })
 
   it('stores an upload, signs its URL for 1 hour, and serves the signed URL without auth', async () => {
@@ -181,13 +185,13 @@ describe('media upload and signed URLs', () => {
 
   it('serves a signed URL through a handler whose authorize refuses everything', async () => {
     const { host, upload, signedPath, fetchSigned, handlerWith } = setup({
-      mediaSecret: 'shared',
+      secret: 'shared',
     })
     const record = await upload('user-1-a')
     const { path } = await signedPath(record)
     const refuseAll = handlerWith({
       authorize: () => null,
-      mediaSecret: 'shared',
+      secret: 'shared',
     })
 
     const signed = await fetchSigned(path, refuseAll)

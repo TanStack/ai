@@ -437,7 +437,9 @@ describe('sandboxWorkspaceBackend with workspaceTools', () => {
           }),
         ],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     await session.send('work')
     await host.close()

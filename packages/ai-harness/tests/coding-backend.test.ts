@@ -211,7 +211,9 @@ describe('workspace hooks', () => {
         // when they run.
         plugins: () => [workspaceTools({ root: dir }), hooks],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
 
     await session.send('work')

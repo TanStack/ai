@@ -17,7 +17,7 @@ A cron job or a webhook needs to run one tool, not hold a conversation. You want
 
 ## Run a tool from server code
 
-Call `session.tool(name, args?)`. A schedule or a webhook handler calls it.
+Call `session.tool({ name, args })`. A schedule or a webhook handler calls it.
 
 ```ts group=harness-tool-runs
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
@@ -43,7 +43,7 @@ const host = createHarnessHost({ persistence: memoryPersistence() })
 const session = await host.open(dashboard, { threadId: 'ops-thread' })
 
 // From a cron job, every hour:
-const run = session.tool('fetchStats', { window: '1h' })
+const run = session.tool({ name: 'fetchStats', args: { window: '1h' } })
 const { text } = await run
 ```
 
@@ -53,18 +53,18 @@ const { text } = await run
 - While an approval waits, `session.tool` is refused with `pending_interrupts`. Answer the approval first.
 - Pass `inputId` to make the run idempotent, as [`send`](./inputs) does.
 
-TypeScript types `args` from the input schema of a harness tool. `session.tool('fetchStats', { window: 1 })` does not compile. A plugin tool takes any `args`, and its input schema checks them when the tool runs.
+TypeScript types `args` from the input schema of a harness tool. `session.tool({ name: 'fetchStats', args: { window: 1 } })` does not compile. A plugin tool takes any `args`, and its input schema checks them when the tool runs.
 
 ## Tag a run with its trigger
 
 Pass `meta` to record why the tool ran, for example the schedule or the webhook event. The harness sends it as a `tanstack.injection` custom event with the tool call id.
 
 ```ts group=harness-tool-runs
-const fromWebhook = session.tool(
-  'fetchStats',
-  { window: '24h' },
-  { meta: { trigger: 'webhook', deliveryId: 'whk-99' } },
-)
+const fromWebhook = session.tool({
+  name: 'fetchStats',
+  args: { window: '24h' },
+  meta: { trigger: 'webhook', deliveryId: 'whk-99' },
+})
 await fromWebhook
 ```
 
@@ -91,7 +91,7 @@ This works for a model call and for `session.tool`. Your own `context` data stay
 ## Let a client run a tool
 
 1. Add the tool to `expose.tools`. TypeScript suggests the names in `tools`, and `defineHarness` throws for any other name.
-2. Run it from the client with `client.tool(name, args?, options?)`. `args` is typed from the tool's input schema.
+2. Run it from the client with `client.tool({ name, args, meta, inputId })`. `args` is typed from the tool's input schema.
 
 ```ts group=harness-tool-runs-client
 import { createHarnessClient } from '@tanstack/ai-harness/client'
@@ -103,11 +103,11 @@ const client = createHarnessClient<typeof dashboard>({
   headers: { authorization: 'Bearer my-token' },
 })
 
-const receipt = await client.tool(
-  'fetchStats',
-  { window: '1h' },
-  { inputId: 'hourly-stats-09' },
-)
+const receipt = await client.tool({
+  name: 'fetchStats',
+  args: { window: '1h' },
+  inputId: 'hourly-stats-09',
+})
 ```
 
 - The receipt has your `inputId`. It is `queued` while another turn runs.

@@ -58,15 +58,17 @@ describe('ctx.agents inside a session', () => {
         agents: [painter],
         plugins: () => [director],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
-    expect(await session.command('survey')).toEqual({
+    expect(await session.command({ name: 'survey' })).toEqual({
       names: ['painter'],
       byName: 'Paints',
       byOutput: 'painter',
       none: undefined,
     })
-    expect(await session.command('paint')).toEqual([
+    expect(await session.command({ name: 'paint' })).toEqual([
       'a painting of rain',
       'a painting of sun',
     ])

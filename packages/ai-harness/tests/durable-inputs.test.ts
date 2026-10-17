@@ -125,7 +125,9 @@ async function openDurable(options: {
       ...(options.durability ? { durability: options.durability } : {}),
       ...(options.tools ? { tools: options.tools } : {}),
     }),
-    { threadId: THREAD },
+    {
+      threadId: THREAD,
+    },
   )
   return { host, session, calls }
 }
@@ -982,7 +984,7 @@ describe('durable input limits while a turn runs', () => {
     const turn = session.send('wait', { inputId: 'wait-1' })
     await vi.waitFor(() => expect(calls).toHaveLength(1))
 
-    await session.cancel(turn.id)
+    await session.cancel({ operationId: turn.id })
 
     await expect(turn).rejects.toThrow('Cancelled.')
     expect(await session.settled('wait-1')).toMatchObject({
@@ -1350,7 +1352,7 @@ describe('input ids', () => {
       expect(await recordTypes(persistence)).toContain('harness.transcript'),
     )
     // An input applied during the turn does not cut the turn's text.
-    await first.session.configure({ instructions: 'Be brief.' })
+    await first.session.configure({ settings: { instructions: 'Be brief.' } })
     release.open()
     await one
     await first.session.send('two', { inputId: 'new-1' })
@@ -1546,7 +1548,9 @@ describe('settled() without a log', () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const session = await host.open(
       defineHarness({ name: 'test/settled', adapter }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
 
     const turn = session.send('hi', { inputId: 'live-1' })
@@ -1596,9 +1600,9 @@ describe('durable approval recovery', () => {
     const initial = await session.send('remove')
     const approval = initial.interrupts?.[0]
     if (!approval) throw new Error('The turn did not stop for approval.')
-    const receipt = await session.resolve([
-      { interruptId: approval.id, status: 'resolved', payload: true },
-    ])
+    const receipt = await session.resolve({
+      resume: [{ interruptId: approval.id, status: 'resolved', payload: true }],
+    })
     await expect(session.operation(receipt.operationId ?? '')).rejects.toThrow(
       'time limit',
     )
@@ -1616,9 +1620,11 @@ describe('durable approval recovery', () => {
     const reopened = await next.open(config, { threadId: THREAD })
     expect(reopened.snapshot().pendingInterrupts).toEqual([])
     expect(
-      await reopened.resolve([
-        { interruptId: approval.id, status: 'resolved', payload: true },
-      ]),
+      await reopened.resolve({
+        resume: [
+          { interruptId: approval.id, status: 'resolved', payload: true },
+        ],
+      }),
     ).toMatchObject({ status: 'rejected', reason: 'no_pending_interrupts' })
     expect(execute).toHaveBeenCalledTimes(1)
     await next.close()
@@ -1680,9 +1686,11 @@ describe('durable approval recovery', () => {
       const lease = vi.spyOn(leases, 'acquire')
       if (kind === 'lease')
         lease.mockRejectedValueOnce(new Error('lease acquire failed'))
-      const receipt = await session.resolve([
-        { interruptId: approval.id, status: 'resolved', payload: true },
-      ])
+      const receipt = await session.resolve({
+        resume: [
+          { interruptId: approval.id, status: 'resolved', payload: true },
+        ],
+      })
       await expect(
         session.operation(receipt.operationId ?? ''),
       ).rejects.toThrow()
@@ -1698,9 +1706,11 @@ describe('durable approval recovery', () => {
       if (kind === 'lease') await reopened.settled(receipt.inputId)
       // An applied lease failure can be retried by durable recovery itself.
       if (reopened.snapshot().pendingInterrupts.length > 0) {
-        const retry = await reopened.resolve([
-          { interruptId: approval.id, status: 'resolved', payload: true },
-        ])
+        const retry = await reopened.resolve({
+          resume: [
+            { interruptId: approval.id, status: 'resolved', payload: true },
+          ],
+        })
         await reopened.operation(retry.operationId ?? '')
       }
       expect(execute).toHaveBeenCalledTimes(1)
@@ -1739,7 +1749,9 @@ describe('durable approval recovery', () => {
           adapter: firstAdapter.adapter,
           tools: [tool],
         }),
-        { threadId: THREAD },
+        {
+          threadId: THREAD,
+        },
       )
       const result = await firstSession.send('remove')
       const approval = result.interrupts?.[0]
@@ -1787,7 +1799,9 @@ describe('durable approval recovery', () => {
           adapter: nextAdapter.adapter,
           tools: [tool],
         }),
-        { threadId: THREAD },
+        {
+          threadId: THREAD,
+        },
       )
       expect(await session.settled('resume-crash')).toMatchObject({
         outcome: 'completed',
@@ -1839,9 +1853,11 @@ describe('durable approval recovery', () => {
       const deletion = vi
         .spyOn(stores.metadata, 'delete')
         .mockRejectedValueOnce(new Error('metadata delete failed'))
-      const receipt = await session.resolve([
-        { interruptId: approval.id, status: 'resolved', payload: true },
-      ])
+      const receipt = await session.resolve({
+        resume: [
+          { interruptId: approval.id, status: 'resolved', payload: true },
+        ],
+      })
       await session.operation(receipt.operationId ?? '')
       deletion.mockRestore()
       expect(session.snapshot().pendingInterrupts).toEqual([])
@@ -1851,9 +1867,11 @@ describe('durable approval recovery', () => {
       const reopened = await next.open(config, { threadId: THREAD })
       expect(reopened.snapshot().pendingInterrupts).toEqual([])
       expect(
-        await reopened.resolve([
-          { interruptId: approval.id, status: 'resolved', payload: true },
-        ]),
+        await reopened.resolve({
+          resume: [
+            { interruptId: approval.id, status: 'resolved', payload: true },
+          ],
+        }),
       ).toMatchObject({ status: 'rejected', reason: 'no_pending_interrupts' })
       expect(execute).toHaveBeenCalledTimes(1)
       await next.close()
@@ -1894,9 +1912,9 @@ describe('metadata-only approval consumption', () => {
     const deletion = vi
       .spyOn(stores.metadata, 'delete')
       .mockRejectedValueOnce(new Error('delete unavailable'))
-    const receipt = await session.resolve([
-      { interruptId: approval.id, status: 'resolved', payload: true },
-    ])
+    const receipt = await session.resolve({
+      resume: [{ interruptId: approval.id, status: 'resolved', payload: true }],
+    })
     await session.operation(receipt.operationId ?? '')
     deletion.mockRestore()
     expect(session.snapshot().pendingInterrupts).toEqual([])

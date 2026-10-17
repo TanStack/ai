@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
-import { projectInstructions } from '../src/first-party'
+import { projectInstructions } from '../src/first-party/node'
 import { workspaceTools } from '../src/first-party/coding'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { AnyTextAdapter, ModelMessage } from '@tanstack/ai'
@@ -93,7 +93,9 @@ async function open(adapter: AnyTextAdapter, plugins: Array<HarnessPlugin>) {
       adapter,
       plugins: () => plugins,
     }),
-    { threadId: 't' },
+    {
+      threadId: 't',
+    },
   )
   return { host, session }
 }
