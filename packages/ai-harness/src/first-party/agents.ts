@@ -46,7 +46,10 @@ export interface AgentProfile {
   tools?: ReadonlyArray<string>
   /**
    * Permission rules that count while this agent is the primary agent.
-   * `permissions()` reads them. They do not apply in a subagent run.
+   * `permissions()` reads them at each tool call, in every run of the
+   * session: the turns of the primary agent and the subagent runs too. A
+   * subagent run checks the rules of the primary agent at that time, not
+   * the rules of its own profile.
    */
   permissions?: ReadonlyArray<PermissionRule>
   /**
@@ -322,8 +325,10 @@ export function agents(options: {
         })
 
       // A profile's rules count only while it is the primary agent. At other
-      // times the getter gives a tool name that matches no tool.
-      // ponytail: subagent runs get no profile rules, that needs the run in PermissionRules
+      // times the getter gives a tool name that matches no tool. The check
+      // runs in the lead turn and in each agent run, so a subagent run gets
+      // the rules of the primary agent.
+      // ponytail: a subagent run does not get the rules of its own profile, that needs the run in PermissionRules
       const rules = profiles.flatMap((profile) =>
         (profile.permissions ?? []).map((rule) =>
           PermissionRules.item({

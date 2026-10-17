@@ -287,7 +287,7 @@ The same check runs in every agent run of the session:
 - Each call in a child run gets the same rules and the same mode. This includes the agents that the model calls, the agents that plugins start, and their children.
 - A question from a child waits in the same session. Answer it the same way.
 - In `plan` mode, a child cannot change a file. Its call gets the tool error `This tool is not allowed in plan mode.`
-- The `permissions` of an [agent profile](./agents) count only while that profile is the primary agent. They do not apply when the profile runs as a subagent.
+- The `permissions` of an [agent profile](./agents) count while that profile is the primary agent, in its turns and in each child run. A child run does not use the rules of its own profile.
 - [Coding agents](./coding-agents#plan-mode) such as Claude Code start read-only in `plan` mode.
 
 ## Rules for your own tool

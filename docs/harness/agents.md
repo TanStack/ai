@@ -146,7 +146,7 @@ export const withReview = agents({
 | `model` | A model id. `adapter` turns it into an adapter. Without it, a primary agent keeps the harness model, and a subagent uses the model of the main turn. |
 | `system` | Text for the system prompt of each turn of this agent. |
 | `tools` | The tools that this agent can call, by name. A `*` matches any text, for example `todo_*`. Without it, the agent gets every tool. |
-| `permissions` | [Permission rules](./permissions#write-rules) that count while this agent is the primary agent. |
+| `permissions` | [Permission rules](./permissions#write-rules) that count while this agent is the primary agent. At that time, they also apply in each subagent run. |
 | `steps` | The step limit. See [Limit the steps](#limit-the-steps). |
 | `hidden` | `true` leaves the agent out of the `agent` command and setting. The model can still start it as a subagent. |
 
@@ -217,7 +217,7 @@ A subagent run stops after 50 model calls, or when an answer is cut at the outpu
 
 ## Known limits
 
-- The `permissions` of a profile count only while it is the primary agent. When the profile runs as a subagent, its own rules do not apply. Put rules that must hold in every run in `permissions({ rules })`. See [Rules in subagents](./permissions#rules-in-subagents).
+- A subagent run uses the `permissions` of the primary agent, not the rules of its own profile. For example, when `build` is the primary agent and starts `review`, the `build` rules apply and the `review` rules do not. Put rules that must hold in every run in `permissions({ rules })`. See [Rules in subagents](./permissions#rules-in-subagents).
 - A Markdown agent cannot set `permissions`. Put those rules in a profile in code.
 - On Amazon Bedrock, the model can still call a tool on the last call. The tool does not run, but the turn can end with no text answer.
 - A subagent that starts before the first turn of the session has no tools. It also needs its own `model`.
