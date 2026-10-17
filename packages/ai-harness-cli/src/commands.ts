@@ -8,7 +8,7 @@ export const HELP_TEXT = [
   '  /agent <name> [json]     run an agent in the background',
   '  /config [key value]      show or change a setting',
   '  /connect <id>            sign in to a connector (and /disconnect <id>)',
-  '  /cancel                  cancel the running turn (or press Esc)',
+  '  /cancel                  cancel the running turn',
   '  /status                  show the session status',
   '  /exit                    quit',
 ].join('\n')
