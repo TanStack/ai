@@ -139,10 +139,14 @@ describe('signals in print mode', () => {
     expect(calls[0]?.aborted).toBe(true)
   })
 
-  it('closes only its session of your host on a second signal while the cancelled turn runs on', async () => {
+  it('releases only its handle of your host on a second signal while the cancelled turn runs on', async () => {
     const { model, calls, release } = waitingModel([], { stuck: true })
     const harness = defineHarness({ name: 'test/signal-stuck', adapter: model })
-    const host = createHarnessHost({ persistence: memoryPersistence() })
+    // A session that no handle holds closes at once when it is idle.
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      lifecycle: { idleCloseMs: 0 },
+    })
     const close = vi.spyOn(host, 'close')
     const cli = startCli(harness, { argv: ['-p', 'hi'], host })
     await vi.waitFor(() => expect(calls).toHaveLength(1))
@@ -154,18 +158,24 @@ describe('signals in print mode', () => {
 
     expect(await cli.running).toBe(EXIT.cancelled)
     expect(close).not.toHaveBeenCalled()
-    expect(host.isOpen(harness, { threadId: 'main' })).toBe(false)
+    await vi.waitFor(() =>
+      expect(host.isOpen(harness, { threadId: 'main' })).toBe(false),
+    )
     await host.close()
   })
 })
 
 describe('signals in a custom ui', () => {
-  it('stops a ui that is still open, and closes its session of your host', async () => {
+  it('stops a ui that is still open, and releases its handle of your host', async () => {
     const harness = defineHarness({
       name: 'test/signal-ui',
       adapter: fakeText(),
     })
-    const host = createHarnessHost({ persistence: memoryPersistence() })
+    // A session that no handle holds closes at once when it is idle.
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      lifecycle: { idleCloseMs: 0 },
+    })
     let shown = false
     const cli = startCli(harness, {
       argv: [],

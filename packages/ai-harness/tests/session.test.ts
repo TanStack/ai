@@ -33,9 +33,10 @@ import type { Reply } from './helpers'
 /** The key of the thread `t1` in the stores, in the default tenant. */
 const T1_KEY = logIdOf({ logId: 't1' })
 
+/** A memory host. A session closes as soon as its last handle closes and it is idle. */
 function setup() {
   const persistence = memoryPersistence()
-  const host = createHarnessHost({ persistence })
+  const host = createHarnessHost({ persistence, lifecycle: { idleCloseMs: 0 } })
   return { persistence, host }
 }
 
@@ -560,10 +561,9 @@ describe('inbox', () => {
     await host.close()
   })
 
-  it('rejects inputs that come while the session closes', async () => {
+  it('refuses inputs that come while the host closes, and stops the running turn', async () => {
     const { host } = setup()
-    const release = gate()
-    const { adapter } = mockAdapter([untilAborted(), after(release.opened, '')])
+    const { adapter } = mockAdapter([untilAborted()])
     const session = await host.open(
       defineHarness({ name: 'test/closing', adapter }),
       {
@@ -573,22 +573,13 @@ describe('inbox', () => {
     const running = session.send('First.')
     await running.receipt
 
-    const closed = session.close()
-    const late = session.send('Late.')
-    expect(await late.receipt).toMatchObject({
-      status: 'rejected',
-      reason: 'closed',
-    })
-    await expect(late).rejects.toThrow()
-    expect(
-      await session.send('Later.', { mode: 'followUp' }).receipt,
-    ).toMatchObject({
-      status: 'rejected',
-      reason: 'closed',
-    })
+    const closed = host.close()
+    expect(() => session.send('Late.')).toThrow('The host is closed.')
+    expect(() => session.send('Later.', { mode: 'followUp' })).toThrow(
+      'The host is closed.',
+    )
     await expect(running).rejects.toThrow()
     await closed
-    release.open()
   })
 
   it('warns when the inbox cannot mark an input rejected', async () => {

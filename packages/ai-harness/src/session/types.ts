@@ -248,6 +248,11 @@ export interface SessionDependencies {
   onEvent: (event: StreamChunk) => void
   onClose: () => void
   /**
+   * Called each time the thread goes idle. The host starts the idle close of
+   * a session that no handle holds.
+   */
+  onIdle?: () => void
+  /**
    * The host checks access (`access` on the host). Then an entry with no
    * owner stays without one, and provider keys read env vars only with
    * `envKeys`.

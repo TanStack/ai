@@ -492,6 +492,37 @@ export function createHarnessHandler<P extends Principal = Principal>(
         reader.abort(),
       )
 
+  /**
+   * The answer of a route that opened `session`, and the release of that
+   * handle when the answer is done. A stream answer calls `keep` for its
+   * watch: the handle is released when the stream ends or the client leaves.
+   */
+  const withSession = async (
+    session: HarnessSession,
+    answer: (
+      keep: (
+        watch: (reader: AbortController) => void,
+      ) => (reader: AbortController) => void,
+    ) => Promise<Response> | Response,
+  ) => {
+    let isKept = false
+    const keep =
+      (watch: (reader: AbortController) => void) =>
+      (reader: AbortController) => {
+        isKept = true
+        // Both stream helpers abort the reader when the stream ends.
+        reader.signal.addEventListener('abort', () => void session.close(), {
+          once: true,
+        })
+        watch(reader)
+      }
+    try {
+      return await answer(keep)
+    } finally {
+      if (!isKept) void session.close()
+    }
+  }
+
   // ponytail: without `media.secret` (only allowed without a log store), a
   // random key per handler, so signed URLs stop working after a restart.
   const secret =
@@ -566,7 +597,9 @@ export function createHarnessHandler<P extends Principal = Principal>(
       : undefined
     const session = await openToRead(user, payload.threadId)
     if (!session) return json({ error: 'not found' }, 404)
-    return mediaResponse(request, session, payload.id)
+    return withSession(session, () =>
+      mediaResponse(request, session, payload.id),
+    )
   }
 
   /**
@@ -592,17 +625,20 @@ export function createHarnessHandler<P extends Principal = Principal>(
     if (running?.operation(runId)) {
       const { threadId } = running
       const session = await openToRead(principal, threadId)
-      const turn = session?.operation(runId)
-      if (!session || !turn) return json({ error: 'unknown run' }, 404)
-      const startedCursor = session
-        .snapshot()
-        .activeOperations.find((item) => item.id === runId)?.startedCursor
-      const from = resumeFrom ?? startedCursor ?? '0'
-      return cursorResponse(
-        (signal) => turn.events({ from, signal }),
-        true,
-        closeOnRevoke(principal, threadId),
-      )
+      if (!session) return json({ error: 'unknown run' }, 404)
+      return withSession(session, (keep) => {
+        const turn = session.operation(runId)
+        if (!turn) return json({ error: 'unknown run' }, 404)
+        const startedCursor = session
+          .snapshot()
+          .activeOperations.find((item) => item.id === runId)?.startedCursor
+        const from = resumeFrom ?? startedCursor ?? '0'
+        return cursorResponse(
+          (signal) => turn.events({ from, signal }),
+          true,
+          keep(closeOnRevoke(principal, threadId)),
+        )
+      })
     }
     // Another instance runs the turn. A durable host finds its thread in the
     // run store, and its events in the shared log. Not a child run or an
@@ -623,14 +659,16 @@ export function createHarnessHandler<P extends Principal = Principal>(
     if (!shared) return json({ error: 'unknown run' }, 404)
     // ponytail: from the start of the log without a cursor. Store the
     // started position on the run record if long threads make this slow.
-    return cursorResponse(
-      (signal) =>
-        followOperation(
-          shared.events({ from: resumeFrom ?? '0', signal }),
-          runId,
-        ),
-      true,
-      closeOnRevoke(principal, threadId),
+    return withSession(shared, (keep) =>
+      cursorResponse(
+        (signal) =>
+          followOperation(
+            shared.events({ from: resumeFrom ?? '0', signal }),
+            runId,
+          ),
+        true,
+        keep(closeOnRevoke(principal, threadId)),
+      ),
     )
   }
 
@@ -700,54 +738,59 @@ export function createHarnessHandler<P extends Principal = Principal>(
       const ids = { inputId: params.runId, runId: params.runId, ...user }
       const lastEventId = request.headers.get('Last-Event-ID')
       const watch = closeOnRevoke(principal, params.threadId)
-      if (params.resume && params.resume.length > 0) {
-        const answers = { resume: params.resume, ...ids }
-        // Only the session class takes the run id. `host.open` gives one.
-        const receipt = await (session instanceof SessionImpl
-          ? session.resolveForRun(answers)
-          : session.resolve(answers))
-        if (receipt.status === 'rejected') {
-          return json({ error: receipt.reason }, 409)
+      return withSession(session, async (keep) => {
+        if (params.resume && params.resume.length > 0) {
+          const answers = { resume: params.resume, ...ids }
+          // Only the session class takes the run id. `host.open` gives one.
+          const receipt = await (session instanceof SessionImpl
+            ? session.resolveForRun(answers)
+            : session.resolve(answers))
+          if (receipt.status === 'rejected') {
+            return json({ error: receipt.reason }, 409)
+          }
+          if (!receipt.operationId) return json({ error: 'rejected' }, 409)
+          const { operationId } = receipt
+          return cursorResponse(
+            (signal) =>
+              followOperation(
+                session.events({
+                  ...(durable && lastEventId ? { from: lastEventId } : {}),
+                  signal,
+                }),
+                operationId,
+              ),
+            durable !== undefined,
+            keep(watch),
+          )
         }
-        if (!receipt.operationId) return json({ error: 'rejected' }, 409)
-        const { operationId } = receipt
+        if (message === undefined) {
+          return json({ error: 'no user message' }, 400)
+        }
+        // AG-UI `forwardedProps` are the input's context.
+        const { forwardedProps } = params
+        const operation = session.send(message, {
+          ...ids,
+          ...(Object.keys(forwardedProps).length > 0
+            ? { context: forwardedProps }
+            : {}),
+        })
+        // A turn that the host refused throws, and the answer is 403.
+        const receipt = await turnReceipt(operation)
+        if (receipt.status === 'rejected') {
+          return json({ error: receipt.reason ?? 'rejected' }, 409)
+        }
+        // A durable host sends each log cursor as the event id. A client cut
+        // off sends the same request with `Last-Event-ID`, maybe to another
+        // instance: the run id finds the same turn, and it streams from
+        // there. Without a log a cursor means nothing on another instance,
+        // so no id.
+        const from = (durable && lastEventId) || '0'
         return cursorResponse(
-          (signal) =>
-            followOperation(
-              session.events({
-                ...(durable && lastEventId ? { from: lastEventId } : {}),
-                signal,
-              }),
-              operationId,
-            ),
+          (signal) => operation.events({ from, signal }),
           durable !== undefined,
-          watch,
+          keep(watch),
         )
-      }
-      if (message === undefined) return json({ error: 'no user message' }, 400)
-      // AG-UI `forwardedProps` are the input's context.
-      const { forwardedProps } = params
-      const operation = session.send(message, {
-        ...ids,
-        ...(Object.keys(forwardedProps).length > 0
-          ? { context: forwardedProps }
-          : {}),
       })
-      // A turn that the host refused throws, and the answer is 403.
-      const receipt = await turnReceipt(operation)
-      if (receipt.status === 'rejected') {
-        return json({ error: receipt.reason ?? 'rejected' }, 409)
-      }
-      // A durable host sends each log cursor as the event id. A client cut
-      // off sends the same request with `Last-Event-ID`, maybe to another
-      // instance: the run id finds the same turn, and it streams from there.
-      // Without a log a cursor means nothing on another instance, so no id.
-      const from = (durable && lastEventId) || '0'
-      return cursorResponse(
-        (signal) => operation.events({ from, signal }),
-        durable !== undefined,
-        watch,
-      )
     }
 
     if (request.method === 'GET' && route === 'run') {
@@ -762,7 +805,9 @@ export function createHarnessHandler<P extends Principal = Principal>(
       if (!session) {
         return json({ messages: [], activeRun: null, interrupts: null })
       }
-      return json(await hydration(session, runsOf(principal)))
+      return withSession(session, async () =>
+        json(await hydration(session, runsOf(principal))),
+      )
     }
 
     if (request.method === 'GET' && route === 'events') {
@@ -774,15 +819,20 @@ export function createHarnessHandler<P extends Principal = Principal>(
         request.headers.get('Last-Event-ID') ??
         url.searchParams.get('from') ??
         undefined
-      return sseResponse(
-        async function* (signal) {
-          const events = session.events({ ...(from ? { from } : {}), signal })
-          for await (const entry of events) {
-            const frame: HostFrame = { type: 'harness.event', ...entry }
-            yield { id: entry.cursor, data: frame }
-          }
-        },
-        closeOnRevoke(principal, threadId),
+      return withSession(session, (keep) =>
+        sseResponse(
+          async function* (signal) {
+            const events = session.events({
+              ...(from ? { from } : {}),
+              signal,
+            })
+            for await (const entry of events) {
+              const frame: HostFrame = { type: 'harness.event', ...entry }
+              yield { id: entry.cursor, data: frame }
+            }
+          },
+          keep(closeOnRevoke(principal, threadId)),
+        ),
       )
     }
 
@@ -805,7 +855,9 @@ export function createHarnessHandler<P extends Principal = Principal>(
         return json({ error: 'threadId is required' }, 400)
       const input = parseHarnessInput('input' in body ? body.input : undefined)
       const session = await openFor(principal, threadId)
-      return json(await applyInput({ harness, session, input, ...user }))
+      return withSession(session, async () =>
+        json(await applyInput({ harness, session, input, ...user })),
+      )
     }
 
     if (
@@ -816,10 +868,12 @@ export function createHarnessHandler<P extends Principal = Principal>(
       if (!threadId) return json({ error: 'threadId is required' }, 400)
       const session = await openToRead(principal, threadId)
       if (!session) return json({ error: 'not found' }, 404)
-      return json(
-        route === 'transcript'
-          ? await session.transcript()
-          : describeForClient(harness, session),
+      return withSession(session, async () =>
+        json(
+          route === 'transcript'
+            ? await session.transcript()
+            : describeForClient(harness, session),
+        ),
       )
     }
 
@@ -831,7 +885,9 @@ export function createHarnessHandler<P extends Principal = Principal>(
         return json({ error: 'subagentRunId is required' }, 400)
       const session = await openToRead(principal, threadId)
       if (!session) return json({ error: 'not found' }, 404)
-      return json(await session.agentTranscript(subagentRunId))
+      return withSession(session, async () =>
+        json(await session.agentTranscript(subagentRunId)),
+      )
     }
 
     if (request.method === 'GET' && route === 'snapshot') {
@@ -839,7 +895,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
       if (!threadId) return json({ error: 'threadId is required' }, 400)
       const session = await openToRead(principal, threadId)
       if (!session) return json({ error: 'not found' }, 404)
-      return json(session.snapshot())
+      return withSession(session, () => json(session.snapshot()))
     }
 
     if (request.method === 'GET' && route === 'sessions') {
@@ -942,12 +998,15 @@ export function createHarnessHandler<P extends Principal = Principal>(
       if (!threadId || !name)
         return json({ error: 'threadId and name are required' }, 400)
       const session = await openFor(principal, threadId)
-      const record = await session.putMedia({
-        body: request.body ?? new Uint8Array(),
-        mimeType: request.headers.get('Content-Type') ?? '',
-        name,
-      })
-      return json(record)
+      return withSession(session, async () =>
+        json(
+          await session.putMedia({
+            body: request.body ?? new Uint8Array(),
+            mimeType: request.headers.get('Content-Type') ?? '',
+            name,
+          }),
+        ),
+      )
     }
 
     if (
@@ -960,24 +1019,29 @@ export function createHarnessHandler<P extends Principal = Principal>(
         return json({ error: 'threadId and id are required' }, 400)
       const session = await openToRead(principal, threadId)
       if (!session) return json({ error: 'not found' }, 404)
-      if (route === 'media') return await mediaResponse(request, session, id)
-      if (!(await session.getMedia(id)))
-        return json({ error: 'not found' }, 404)
-      const expiresAt = Date.now() + SIGNED_URL_TTL_MS
-      const payload: SignedMedia = {
-        tenantId: principal?.tenantId ?? '',
-        threadId,
-        id,
-        userId: principal?.id ?? '',
-        exp: String(expiresAt),
-      }
-      // An empty field stays out of the URL. The served URL reads it as ''.
-      const fields = Object.entries(payload).filter(([, value]) => value !== '')
-      const query = new URLSearchParams([
-        ...fields,
-        ['sig', await sign(payload)],
-      ])
-      return json({ path: `media?${query}`, expiresAt })
+      return withSession(session, async () => {
+        if (route === 'media') return mediaResponse(request, session, id)
+        if (!(await session.getMedia(id))) {
+          return json({ error: 'not found' }, 404)
+        }
+        const expiresAt = Date.now() + SIGNED_URL_TTL_MS
+        const payload: SignedMedia = {
+          tenantId: principal?.tenantId ?? '',
+          threadId,
+          id,
+          userId: principal?.id ?? '',
+          exp: String(expiresAt),
+        }
+        // An empty field stays out of the URL. The served URL reads it as ''.
+        const fields = Object.entries(payload).filter(
+          ([, value]) => value !== '',
+        )
+        const query = new URLSearchParams([
+          ...fields,
+          ['sig', await sign(payload)],
+        ])
+        return json({ path: `media?${query}`, expiresAt })
+      })
     }
     return json({ error: 'not found' }, 404)
   }
@@ -1127,6 +1191,10 @@ export function handleHarnessSocket<P extends Principal = Principal>(
             })
           const session = await opened
           if (!session) return refuse('forbidden')
+          // The socket holds the handle until it closes.
+          const release = () => void session.close()
+          if (reader.signal.aborted) release()
+          else reader.signal.addEventListener('abort', release, { once: true })
           watchRevoke(
             host,
             { principal, threadId, signal: reader.signal },

@@ -93,6 +93,8 @@ export async function runHarnessWorker(
     }
   } finally {
     reader.abort()
+    // The worker holds one handle for its life.
+    await session?.close()
     await host.close()
   }
 }

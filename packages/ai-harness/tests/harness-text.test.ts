@@ -70,7 +70,11 @@ describe('harnessText', () => {
       adapter: inner.adapter,
       plugins: () => [watch],
     })
-    const host = createHarnessHost({ persistence: memoryPersistence() })
+    // A session that no handle holds closes at once when it is idle.
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      lifecycle: { idleCloseMs: 0 },
+    })
     const adapter = harnessText(studio, {
       host,
       principal: { id: 'u-1' },
@@ -99,9 +103,13 @@ describe('harnessText', () => {
   it('leaves a thread open that the caller opened', async () => {
     const inner = mockAdapter([() => text('kept')])
     const studio = defineHarness({ name: 'test/inner', adapter: inner.adapter })
-    const host = createHarnessHost({ persistence: memoryPersistence() })
+    // Only a handle keeps an idle session open.
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      lifecycle: { idleCloseMs: 0 },
+    })
     const threadId = 'outer-kept:test/inner'
-    await host.open(studio, { threadId })
+    const held = await host.open(studio, { threadId })
 
     for await (const _chunk of chat({
       adapter: harnessText(studio, { host }),
@@ -111,6 +119,8 @@ describe('harnessText', () => {
       // drain
     }
     expect(host.isOpen(studio, { threadId })).toBe(true)
+    await held.close()
+    expect(host.isOpen(studio, { threadId })).toBe(false)
     await host.close()
   })
 

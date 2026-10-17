@@ -172,7 +172,7 @@ describe('session.reload', () => {
     const reload = session.reload()
     // The reload waits for the running turn now.
     await new Promise((resolve) => setTimeout(resolve, 10))
-    await session.close()
+    await host.close()
     await reload
     await running.then(
       () => undefined,

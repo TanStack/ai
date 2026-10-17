@@ -290,10 +290,9 @@ export function harnessText(
         // No thread id: a new inner session per call, as codexText does.
         const threadId = `${chatOptions.threadId ?? runId}:${harness.name}`
         const signal = signalOf(chatOptions.request)
-        // A session this call opens closes with it. One the caller holds open
-        // stays, as in host.fork.
+        // The call releases its handle at the end. The session then closes
+        // on idle, unless the caller holds it too.
         const user = principal ? { principal } : {}
-        const wasOpen = host.isOpen(harness, { threadId, ...user })
         const session = await host.open(harness, { threadId, ...user })
         // The outer call's tools join the inner turn. Its system prompts do
         // not: the harness owns its prompt stack.
@@ -351,15 +350,7 @@ export function harnessText(
         } finally {
           // A long-lived signal must not keep one listener per call.
           signal?.removeEventListener('abort', cancel)
-          if (!wasOpen)
-            await session
-              .close()
-              .catch((error: unknown) =>
-                console.error(
-                  '[@tanstack/ai-harness] The session did not close.',
-                  error,
-                ),
-              )
+          await session.close()
         }
       })(),
     structuredOutput: () =>

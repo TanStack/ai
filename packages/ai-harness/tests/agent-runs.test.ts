@@ -185,11 +185,10 @@ describe('follow-ups to an agent run', () => {
     const receipt = await run.send('Add a title.', { mode: 'followUp' })
     const followUp = session.operation(receipt.operationId ?? '')
 
-    await session.close()
+    await host.close()
 
     await expect(followUp).rejects.toThrow('Session closed.')
     expect(model.calls).toHaveLength(1)
-    await host.close()
   })
 
   it('cancels a queued follow-up when a log failure stops the session', async () => {

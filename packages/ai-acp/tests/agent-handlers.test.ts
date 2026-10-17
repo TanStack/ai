@@ -9,7 +9,7 @@ import {
 } from '@tanstack/ai-harness'
 import { createAcpAgent, serveAcp, toSessionUpdate } from '../src/agent'
 import type { AnyTextAdapter, ModelMessage, StreamChunk } from '@tanstack/ai'
-import type { HarnessAccess } from '@tanstack/ai-harness'
+import type { HarnessAccess, HostLifecycleOptions } from '@tanstack/ai-harness'
 import type {
   ClientApp,
   RequestPermissionOutcome,
@@ -136,7 +136,10 @@ function model(): AnyTextAdapter {
 }
 
 /** With `access`, the host checks each action of each principal. */
-function setup({ access }: { access?: HarnessAccess } = {}) {
+function setup({
+  access,
+  lifecycle,
+}: { access?: HarnessAccess; lifecycle?: HostLifecycleOptions } = {}) {
   const remove = vi.fn(async () => ({ removed: true }))
   const harness = defineHarness({
     name: 'test/acp-handlers',
@@ -161,7 +164,7 @@ function setup({ access }: { access?: HarnessAccess } = {}) {
     ],
   })
   const persistence = memoryPersistence()
-  const host = createHarnessHost({ persistence, access })
+  const host = createHarnessHost({ persistence, access, lifecycle })
   const updates: Array<{ sessionId: string; update: SessionUpdate }> = []
   const permissions: Array<{ title: string; toolCallId: string }> = []
   // The answer of the editor to each permission request. Default: Reject.
@@ -333,6 +336,34 @@ describe('ACP agent handlers', () => {
   afterEach(async () => {
     await close?.()
     close = undefined
+  })
+
+  it('releases its handle at session/close, and every handle when the connection closes', async () => {
+    // A session that no handle holds closes at once when it is idle.
+    const { harness, host, editor } = setup({ lifecycle: { idleCloseMs: 0 } })
+    close = () => host.close()
+    const isOpen = (threadId: string) => host.isOpen(harness, { threadId })
+    let kept = ''
+    await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
+      await ctx.request('initialize', {
+        protocolVersion: 2,
+        info: { name: 'editor', version: '1.0.0' },
+      })
+      const closed = await ctx.request('session/new', {
+        cwd: '/tmp',
+        mcpServers: [],
+      })
+      kept = (await ctx.request('session/new', { cwd: '/tmp', mcpServers: [] }))
+        .sessionId
+      expect(isOpen(closed.sessionId)).toBe(true)
+
+      await ctx.request('session/close', { sessionId: closed.sessionId })
+
+      expect(isOpen(closed.sessionId)).toBe(false)
+      expect(isOpen(kept)).toBe(true)
+    })
+    // The connection closed when the callback ended.
+    await vi.waitFor(() => expect(isOpen(kept)).toBe(false))
   })
 
   it('keeps the tool from running when the editor rejects it', async () => {

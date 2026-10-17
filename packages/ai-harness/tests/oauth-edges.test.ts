@@ -419,11 +419,10 @@ describe('oauthConnector edges', () => {
     const asked = nextSignInUrl(session)
     const connecting = session.command({ name: 'connect:svc' })
     const redirect = (await asked).searchParams.get('redirect_uri') ?? ''
-    await session.close()
+    await host.close()
     expect(connecting.status()).toBe('cancelled')
     // The sign-in stopped too: nothing listens for the redirect now.
     await expect(fetch(redirect)).rejects.toThrow()
-    await host.close()
   })
 })
 

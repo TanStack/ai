@@ -80,7 +80,8 @@ export interface RunCliOptions<P extends Principal = Principal> {
    * signal while no turn runs, closes what the CLI opened, and `runCli`
    * resolves to 130 (SIGINT) or 143 (SIGTERM). A host that the CLI made
    * closes with `recoverable: true`, so a durable host runs the cut work
-   * again. Your own `host` stays open: the CLI closes only its session.
+   * again. Your own `host` stays open: the CLI releases only its handle of
+   * the session.
    */
   signals?: SignalSource
 }
@@ -194,6 +195,8 @@ export async function runCli<P extends Principal = Principal>(
   // have no turn of their own, so a signal stops them at once.
   let cancel = () => false
   const stop = stopOnSignals(options.signals ?? process, () => cancel())
+  /** The handle of the session modes. The CLI releases it at the end. */
+  let session: HarnessSession | undefined
   try {
     if (args.acp) {
       const acp = await loadOptional<AcpAgentModule>(
@@ -301,7 +304,7 @@ export async function runCli<P extends Principal = Principal>(
       return code
     }
 
-    const session = await host.open(harness, {
+    session = await host.open(harness, {
       threadId: args.thread,
       ...(principal ? { principal } : {}),
     })
@@ -329,9 +332,13 @@ export async function runCli<P extends Principal = Principal>(
       // A signal that cancelled the turn of --print gives its exit code.
       return code === EXIT.cancelled ? (stop.exitCode() ?? code) : code
     }
-    // The mode ends when its session closes. Work that the close cuts can
-    // fail, and the signal gives the exit code.
-    await session.close({ recoverable: true })
+    // A host that the CLI made closes now, so the mode ends with its
+    // session, and its running work stops as on a crash: a durable host runs
+    // it again. On your own host, the CLI releases its handle, and the mode
+    // ends with the cancelled turn. Work that the close cuts can fail, and
+    // the signal gives the exit code.
+    if (options.host) await session.close()
+    else await host.close({ recoverable: true })
     await running.catch(() => {})
     return await stop.stopped
   } catch (error) {
@@ -339,6 +346,7 @@ export async function runCli<P extends Principal = Principal>(
     return EXIT.failed
   } finally {
     stop.dispose()
+    await session?.close()
     // A host the caller gave stays open: the caller owns it. After a
     // signal, its running work stops as on a crash, so a durable host runs
     // it again.

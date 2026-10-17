@@ -109,9 +109,12 @@ describe('retention', () => {
     // Every event is longer than 1 byte, so only the newest one stays.
     const { host, session } = await openWith({ eventBytes: 1 })
     await session.send('Hi')
-    await session.close()
+    // The read gets the kept events at once, then ends at the abort.
+    const reading = new AbortController()
+    setTimeout(() => reading.abort(), 0)
 
-    expect(await collect(session.events({ from: '0' }))).toHaveLength(1)
+    const events = session.events({ from: '0', signal: reading.signal })
+    expect(await collect(events)).toHaveLength(1)
     await host.close()
   })
 

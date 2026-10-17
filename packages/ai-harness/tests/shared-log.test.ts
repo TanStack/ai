@@ -255,24 +255,22 @@ describe('sessions that share one log', () => {
     await expect(root.append([{ type: 'app.signal' }])).rejects.toThrow(
       'Log conflict',
     )
-    await expect(child.append([{ type: 'app.signal' }])).rejects.toThrow(
-      'Log conflict',
-    )
+    const isOpen = (threadId: string) =>
+      host.isOpen(harnessWith([]).harness, { threadId })
+    await vi.waitFor(() => {
+      expect(isOpen(LOG)).toBe(false)
+      expect(isOpen('task-1')).toBe(false)
+    })
 
-    // The host replaces a stopped session on the next open.
-    await vi.waitFor(async () =>
-      expect(
-        await host.open(harnessWith([]).harness, { threadId: LOG }),
-      ).not.toBe(root),
-    )
-    await vi.waitFor(async () =>
-      expect(
-        await host.open(harnessWith([]).harness, {
-          threadId: 'task-1',
-          logId: LOG,
-        }),
-      ).not.toBe(child),
-    )
+    // Each handle opens a new session on its next call. It folds the log
+    // again, so it appends after the record of the other writer.
+    await child.append([{ type: 'app.child' }])
+    await root.append([{ type: 'app.root' }])
+    const records = await persistence.stores.log.read({ logId: STORE_LOG })
+    const types = records
+      .map((entry) => entry.record.type)
+      .filter((type) => type.startsWith('app.'))
+    expect(types).toEqual(['app.signal', 'app.other', 'app.child', 'app.root'])
     await host.close().catch(() => {})
   })
 

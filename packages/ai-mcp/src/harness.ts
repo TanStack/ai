@@ -277,7 +277,8 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
   /**
    * The execute of a tool that works on the session of its thread. The
    * session opens for the user of the call, so the host checks each action.
-   * A refused action becomes a tool error that says so.
+   * A refused action becomes a tool error that says so. The call releases
+   * its handle at the end, and the session closes on idle.
    */
   const onSession =
     <T>(
@@ -290,7 +291,11 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
     async (args: unknown, ctx: ToolExecutionContext<CallContext>) => {
       try {
         const session = await open(threadOf(args, defaultThread), ctx.context)
-        return await work(session, args, ctx.context)
+        try {
+          return await work(session, args, ctx.context)
+        } finally {
+          await session.close()
+        }
       } catch (error) {
         if (error instanceof AccessDeniedError) throw deniedError(error)
         throw error
@@ -597,6 +602,8 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
   const commands = (session?.describe().commands ?? []).filter(({ name }) =>
     exposedCommands.includes(name),
   )
+  // The server read the agents and the commands, so it holds no session.
+  await session?.close()
   const commandTools = toolNames('command', commands).map(
     ({ item: command, toolName, description }) =>
       toolDefinition({
@@ -695,12 +702,16 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
   }).read(async (_uri, { threadId, id }, ctx) => {
     try {
       const target = await open(threadId, ctx.context)
-      const record = await target.getMedia(id)
-      if (record === null) {
-        throw new Error(`Media ${id} was not found in thread ${threadId}.`)
+      try {
+        const record = await target.getMedia(id)
+        if (record === null) {
+          throw new Error(`Media ${id} was not found in thread ${threadId}.`)
+        }
+        const blob = toBase64(await target.loadMedia({ id }))
+        return { blob, mimeType: record.mimeType }
+      } finally {
+        await target.close()
       }
-      const blob = toBase64(await target.loadMedia({ id }))
-      return { blob, mimeType: record.mimeType }
     } catch (error) {
       if (error instanceof AccessDeniedError) throw deniedError(error)
       throw error

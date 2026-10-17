@@ -902,19 +902,17 @@ export abstract class SessionRequests<
   private readonly followers = new Set<OperationImpl<ChatTurnResult>>()
 
   /**
-   * Stop every running operation, wait for them, then dispose session plugins.
-   * Safe to call twice.
+   * @internal Close the session for every handle: stop every running
+   * operation, wait for them, then dispose session plugins. Safe to call
+   * twice. The host calls it (`host.close`, the idle close, and
+   * `host.sessions.delete`). The `close()` of a handle releases only that
+   * handle.
    *
    * With `recoverable`, the running turns and agent runs stop as on a host
    * crash: the log gets none of their later writes, they do not settle, and
    * the run store gets no aborted state. They give their leases back, so the
-   * next host that opens the thread runs them again at once. Use it when a
-   * durable host shuts down, for example for a deploy.
-   *
-   * @example
-   * ```ts
-   * await session.close({ recoverable: true })
-   * ```
+   * next host that opens the thread runs them again at once. `host.close`
+   * passes it when a durable host shuts down, for example for a deploy.
    */
   close(options?: { recoverable?: boolean }): Promise<void> {
     this.closing ??= (async () => {

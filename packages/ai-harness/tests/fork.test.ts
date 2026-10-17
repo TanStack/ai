@@ -11,7 +11,7 @@ import {
 import { mediaIdOf, mediaPart } from '../src/media-entry'
 import { messageTexts, mockAdapter, text, toolCall } from './helpers'
 import type { ModelMessage } from '@tanstack/ai'
-import type { HarnessPersistence } from '../src'
+import type { HarnessPersistence, HostLifecycleOptions } from '../src'
 
 const SOURCE = 'source'
 const FORK = 'fork'
@@ -56,14 +56,17 @@ describe.each([
   { name: 'a host with a message store', durable: false },
   { name: 'a durable host', durable: true },
 ])('host.fork on $name', ({ durable }) => {
-  const setup = (persistence: HarnessPersistence) => {
+  const setup = (
+    persistence: HarnessPersistence,
+    lifecycle: HostLifecycleOptions = {},
+  ) => {
     const { adapter, calls } = mockAdapter([
       () => text('A1'),
       () => text('A2'),
       () => text('A3'),
     ])
     const harness = defineHarness({ name: 'test/fork', adapter })
-    const host = createHarnessHost({ persistence })
+    const host = createHarnessHost({ persistence, lifecycle })
     return { harness, host, calls }
   }
 
@@ -108,15 +111,17 @@ describe.each([
 
   it('closes a source that only the fork opened, and keeps one the app has open', async () => {
     const persistence = durable ? durablePersistence() : memoryPersistence()
-    const { harness, host } = setup(persistence)
+    // A session that no handle holds closes at once when it is idle.
+    const { harness, host } = setup(persistence, { idleCloseMs: 0 })
     const source = await host.open(harness, { threadId: SOURCE })
     await source.send('one')
     await host.fork(harness, { threadId: SOURCE, newThreadId: FORK })
     // The app opened the source: the fork left it open.
     expect(host.isOpen(harness, { threadId: SOURCE })).toBe(true)
     await source.close()
+    expect(host.isOpen(harness, { threadId: SOURCE })).toBe(false)
     await host.fork(harness, { threadId: SOURCE, newThreadId: 'other' })
-    // The fork opened the source itself, so it closed it again.
+    // The fork opened the source itself, and released it at the end.
     expect(host.isOpen(harness, { threadId: SOURCE })).toBe(false)
     await host.close()
   })

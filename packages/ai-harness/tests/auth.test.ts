@@ -310,9 +310,8 @@ describe('commands on close', () => {
     )
     const command = session.command({ name: 'stuck' })
     await running
-    await session.close()
-    expect(command.status()).toBe('cancelled')
     await host.close()
+    expect(command.status()).toBe('cancelled')
   })
 })
 

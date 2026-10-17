@@ -522,6 +522,33 @@ async function connect(
 }
 
 describe('createHarnessMcpServer', () => {
+  it('holds no session after the start or after a tool call', async () => {
+    // A session that no handle holds closes at once when it is idle.
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      lifecycle: { idleCloseMs: 0 },
+    })
+    cleanups.push(() => host.close())
+    const harness = defineHarness({
+      name: 'test/mcp-handles',
+      adapter: scripted([]).adapter,
+    })
+    const isOpen = () => host.isOpen(harness, { threadId: 'main' })
+    const server = await createHarnessMcpServer({
+      host,
+      harness,
+      openAccess: true,
+    })
+    // The server read the agents and the commands of the session.
+    expect(isOpen()).toBe(false)
+    const { client } = await connect(server)
+
+    const status = await client.callTool({ name: 'status', arguments: {} })
+
+    expect(status.isError).not.toBe(true)
+    expect(isOpen()).toBe(false)
+  })
+
   it('lists the control tools, one tool per exposed agent, and one per exposed command', async () => {
     const { server } = await harnessServer([])
     const { client } = await connect(server)

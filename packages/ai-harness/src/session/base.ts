@@ -387,6 +387,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /** The last `recover()`. The calls run one at a time. */
   protected recovery: Promise<void> = Promise.resolve()
   protected readonly onClose: () => void
+  /** Tells the host each time the thread goes idle. See `SessionDependencies`. */
+  protected readonly notifyIdle: (() => void) | undefined
   protected checkpoint: AnyChatMiddleware | undefined
   /** Gives each durable tool call its steps in the log. One per session. */
   protected bindTool: DurableBind | undefined
@@ -493,6 +495,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       this.eventListeners,
     )
     this.onClose = deps.onClose
+    this.notifyIdle = deps.onIdle
     this.hostId = deps.hostId
     this.index = deps.index
     this.lease = deps.lease
@@ -1214,10 +1217,11 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
-   * No input being stored, no queued or running turn, no waiting steer, and
-   * no running agent.
+   * @internal No input being stored, no queued or running turn, no waiting
+   * steer, and no running agent. The host closes an idle session that no
+   * handle holds.
    */
-  protected isIdle(): boolean {
+  isIdle(): boolean {
     // A follow-up that waits for its run keeps the thread busy.
     const hasFollowUps = [...this.agentChains.values()].some(
       (chain) => chain.followUps.length > 0,
@@ -1269,6 +1273,12 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       this.draining ? undefined : this.drainInbox(),
     )
     for (const listener of [...this.idleListeners]) listener()
+    this.notifyIdle?.()
+  }
+
+  /** @internal `close()` ran: the session takes no new work. */
+  isClosing(): boolean {
+    return this.closing !== undefined
   }
 
   /**

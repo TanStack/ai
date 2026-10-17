@@ -182,17 +182,18 @@ describe('host.sessions', () => {
   })
 
   it('keeps the first owner when another user opens the thread again', async () => {
-    const { host, harness } = hostWith()
+    const { persistence, host, harness } = hostWith()
     await host.open(harness, { threadId: 't1', principal: { id: 'alice' } })
     await host.close()
+    const next = createHarnessHost({ persistence })
 
-    await host.open(harness, { threadId: 't1', principal: { id: 'bob' } })
+    await next.open(harness, { threadId: 't1', principal: { id: 'bob' } })
 
-    expect(await host.sessions.get({ threadId: 't1' })).toMatchObject({
+    expect(await next.sessions.get({ threadId: 't1' })).toMatchObject({
       ownerId: 'alice',
       members: [{ userId: 'alice', role: 'owner' }],
     })
-    await host.close()
+    await next.close()
   })
 
   it('lists newest first, and only top-level sessions by default', async () => {
@@ -408,7 +409,7 @@ describe('host.sessions', () => {
 
   it('deletes the entry for good, so the next open writes a new entry', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
-    const { host, harness } = hostWith()
+    const { persistence, host, harness } = hostWith()
     vi.setSystemTime(1000)
     await host.open(harness, { threadId: 't1', principal: { id: 'u1' } })
     await host.sessions.rename({ threadId: 't1', title: 'Old title' })
@@ -417,16 +418,17 @@ describe('host.sessions', () => {
     expect(await host.sessions.get({ threadId: 't1' })).toBeUndefined()
     await host.close()
     vi.setSystemTime(2000)
-    await host.open(harness, { threadId: 't1' })
+    const next = createHarnessHost({ persistence })
+    await next.open(harness, { threadId: 't1' })
 
-    expect(await host.sessions.get({ threadId: 't1' })).toEqual({
+    expect(await next.sessions.get({ threadId: 't1' })).toEqual({
       threadId: 't1',
       members: [],
       harness: 'test/sessions',
       createdAt: 2000,
       updatedAt: 2000,
     })
-    await host.close()
+    await next.close()
   })
 
   it('refuses to open a child thread: its root thread reads it', async () => {
