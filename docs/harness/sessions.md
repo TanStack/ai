@@ -40,16 +40,16 @@ const session = await host.open(assistant, {
   principal: { id: 'ada' },
 })
 await session.send('Plan a trip to Lisbon.')
-console.log((await host.sessions.get('chat-1'))?.principal) // { id: 'ada' }
+console.log((await host.sessions.get({ threadId: 'chat-1' }))?.ownerId) // 'ada'
 ```
 
 What an entry holds:
 
 - `title`: the name of the chat. Set it with `host.sessions.rename`, or from a plugin with `ctx.session.updateEntry({ title })`.
 - `updatedAt`: the time of the last change. The list sorts by it.
-- `principal`: the owner. This is the user who opened the thread first.
-- `usage`: the token totals of the thread.
-- `parentThreadId`: the parent thread of a child session, for example a subagent run.
+- `ownerId` and `members`: the user who opened the thread first, and the users who can open it, each with a role. The owner is a member with the role `owner`.
+- `tenantId`: the tenant of the thread. Without it, the thread is in the default tenant. See [Access and tenants](./access).
+- `usage` and `parentThreadId`: the token totals of the thread, and the parent thread of a child session, for example a subagent run.
 
 A durable host takes `sessions` next to `log`:
 
@@ -62,7 +62,11 @@ const durableHost = createHarnessHost({
 })
 ```
 
-Without `stores.sessions`, `list` is empty, `get` returns `undefined`, and `rename`, `update`, and `delete` write nothing. To write your own store, read the [`SessionIndexStore` contract](../persistence/store-reference#sessionindexstore).
+- Without `stores.sessions`, `list` is empty, `get` returns `undefined`, and `rename`, `update`, and `delete` write nothing.
+- The store needs `getVersioned` and `upsertIf`, else `createHarnessHost` throws. The host changes an entry with compare-and-set, so two hosts never lose each other's changes.
+- To write your own store, read the [`SessionIndexStore` contract](../persistence/store-reference#sessionindexstore).
+
+Each method of `host.sessions` takes one object with a `threadId` or filters, and a `principal`. The tenant of `principal` picks the entries. On a host with `access`, the `principal` is required, and the host checks each call. See [Access and tenants](./access).
 
 ## List the sessions of a user
 
@@ -85,7 +89,8 @@ if (page.truncated) {
 - The newest `updatedAt` comes first.
 - By default, the list has only top-level sessions. Pass `parentThreadId: 'chat-1'` to get the child sessions of `chat-1`.
 - With `limit`, a page that has more entries after it has `truncated: true` and a `cursor`. Pass the `cursor` to get the next page.
-- If `principal` has a `tenantId`, the tenant of the entry must match too.
+- A list reads one tenant: the tenant of `principal`. Without a `tenantId`, the default tenant.
+- Without host `access`, the list has every session of that tenant. With `membersOnly()`, it has only the sessions where `principal` is a member. With your own `authorize`, it has the sessions that `authorize` lets `principal` list.
 
 To find sessions, add filters. All filters must match, and `limit` and `cursor` page the filtered list:
 
@@ -121,7 +126,8 @@ await fork.send('Plan a trip to Porto.')
 
 - `at: { through: id }` copies the messages up to and including `id`.
 - `at: { before: id }` copies the messages before `id`. A fork before the first message has no messages, but it keeps the settings.
-- The host picks the new thread id. The new entry has the title of the old one plus ` (fork)`, and the same owner. A thread without a title gives a fork without a title.
+- The host picks the new thread id. The new entry has the title of the old one plus ` (fork)`. A thread without a title gives a fork without a title.
+- With a `principal` and host `access`, the user who forks owns the fork. `members` picks who else is in it. See [Fork a shared thread](./shared-threads#6-fork-a-shared-thread). Without access and without `members`, the fork keeps the owner and the members of the old thread.
 - If the transcript has no message with that id, `fork` throws.
 - If the index entry of the thread names another harness, `fork` throws. One host can run more than one harness.
 
@@ -150,12 +156,14 @@ await session.unrevert()
 
 ```ts group=harness-sessions
 await host.sessions.rename({ threadId: forked.threadId, title: 'Porto trip' })
-await host.sessions.delete('chat-1')
+await host.sessions.delete({ threadId: 'chat-1' })
 ```
 
 - `rename` resolves to the changed entry. For a thread with no entry, it resolves to `undefined`.
-- `delete` removes the index entry only. The transcript, the log, the media, and the settings of the thread stay in their stores.
-- After `delete`, the turns of the open session do not write the entry again. If the thread opens again after a restart, the host writes a new entry for it.
+- `delete` removes the index entry for good. The transcript, the log, the media, and the settings of the thread stay in their stores.
+- After `delete`, the turns of the open session do not write the entry again. If the thread opens again after a restart, the host writes a new entry for it, with the user who opens it as the owner.
+
+CAUTION: After `delete`, the next user who opens the same `threadId` owns it and can read the old transcript. Remove the thread data from its stores too, or do not use the thread id again.
 
 ## Keep app data on a session
 
@@ -192,7 +200,7 @@ await host.sessions.update({
 
 ### Writes from several servers
 
-A turn on one server writes the usage of the thread. At the same time, the app on another server can write the pins. Your store keeps both writes when it has `getVersioned` and `upsertIf`. Then the host runs your change function again on the new entry. `memoryPersistence()` has both. To add them to your own store, read [Keep the writes of several hosts](../persistence/store-reference#keep-the-writes-of-several-hosts).
+A turn on one server writes the usage of the thread. At the same time, the app on another server can write the pins. The store keeps both writes with `getVersioned` and `upsertIf`: when another server wrote first, the host runs your change function again on the new entry. For the rules of your own store, read [Keep the writes of several hosts](../persistence/store-reference#keep-the-writes-of-several-hosts).
 
 ### Read and write the metadata in a plugin
 
@@ -245,6 +253,7 @@ void watch()
 - `status`: `running` (an operation runs), `waiting` (a question or an approval waits for an answer), or `idle`. `at` is the time of the change.
 - `session`: the host wrote an entry, for a new session, the end of a turn, a rename, an update, or a fork. `entry` is the new entry.
 - `session-deleted`: the host removed an entry. `entry` is the removed entry.
+- `revoked`: `host.revoke` or `unshare` took the access of the user `principalId` to `threadId`. See [Use your own access tables](./access#use-your-own-access-tables).
 
 Each host reports only the sessions that are open in it. A session with no status event is not open, so show it as idle.
 

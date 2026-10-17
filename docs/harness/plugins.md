@@ -225,6 +225,51 @@ export const usageByAgent = definePlugin({
 - `ctx.subagentRunId` is different for each run of an agent. For a nested child, `ctx.parentSubagentRunId` is the id of the child that started it.
 - Each model call goes to `onUsage` one time, in the run that made the call. The lead turn does not count the usage of a child again.
 
+## Act as the user of a run
+
+Several people can write in one thread, and a background agent can run after its turn ended. A tool must use the GitHub token of the user who started its own run, not of the user who sent the latest message. Each run carries its user, and that user's credentials and keys, as the run context:
+
+```ts group=harness-plugins
+import { toolDefinition } from '@tanstack/ai'
+import type { HarnessRunContext } from '@tanstack/ai-harness'
+
+export const github = definePlugin({
+  name: 'acme/github',
+  setup: () => ({
+    tools: [
+      toolDefinition({ name: 'my_repos', description: 'List my GitHub repos' }).server<HarnessRunContext>(
+        async (_args, ctx) => {
+          const credential = await ctx.context.run.credentials.require('github')
+          const token = credential.type === 'api_key' ? credential.value : credential.accessToken
+          const response = await fetch('https://api.github.com/user/repos', {
+            headers: { authorization: `Bearer ${token}` },
+          })
+          return response.json()
+        },
+      ),
+    ],
+  }),
+})
+```
+
+Where each part of a plugin reads the run:
+
+- A tool or a middleware hook: `ctx.context.run`. Type it with `HarnessRunContext`, for example `.server<HarnessRunContext>(...)` or `ChatMiddleware<HarnessRunContext>`.
+- A command: `run` of the command context. Its `credentials` is the same as `run.credentials`.
+- A plugin with `lifetime: 'turn'`: `ctx.turn.run`. Its `ctx.credentials` and `ctx.keys` belong to the same user.
+- A session plugin (the default lifetime): `ctx.credentials` and `ctx.keys` have no user, so each call throws. `ctx.session.principal` is the user who opened the session.
+
+The run has these fields:
+
+| Field | What it is |
+| --- | --- |
+| `principal` | The user who started the run: `{ id, tenantId }`. `undefined` in a session with no user. |
+| `tenantId` | The tenant of the session. `undefined` in the default tenant. |
+| `threadId`, `runId`, `parentRunId` | The thread, this run, and the run that started this one. |
+| `logId` | The id of the log of the session in the store, with its tenant. |
+| `signal` | Aborts when the run stops. |
+| `credentials`, `keys` | The credentials and the model provider keys of the user of the run. |
+
 ## Pick the model of a turn
 
 Some turns need another model: a short question does not need your strongest model, and an organization can allow only some models. Return an `adapter` picker from `setup`. When each turn starts, the session calls it with the message, context, and sender of that turn:
@@ -255,6 +300,7 @@ The `turn` has these fields:
 | `context` | The [context of the input](./inputs#send-context-with-a-message). It is client data, so do not trust it. |
 | `principal` | Who sent the input. Default: the principal that opened the session. See [Share a thread](./shared-threads). |
 | `overrides` | The [overrides of the prompt](./turn-control#give-one-prompt-its-own-settings), when it has some. |
+| `run` | The run of the turn: its user, and that user's credentials and keys. See [Act as the user of a run](#act-as-the-user-of-a-run). |
 
 The session uses the picks like this:
 
@@ -398,6 +444,7 @@ If a `setup` throws, the session keeps working with no plugins. The promise reje
 
 - A plugin that adds tools, prompts, commands, settings, and state to any harness.
 - Middleware that sees every model call, in the lead turn and in every agent.
+- Tools and commands that act as the user of their own run.
 - A picker that chooses the model of each turn from its message, context, and sender.
 - Plugins that share services, lists, and events without knowing each other.
 - Commands, agents, and whole plugins that change while the session runs.

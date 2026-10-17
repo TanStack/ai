@@ -459,7 +459,7 @@ Your harness runs on a server, and your UI is a web page. Give `createSessionVie
 Serve the session with `createHarnessHandler`, and mount the handler on `/api/harness`:
 
 ```ts group=harness-custom-ui-server
-import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { createHarnessHost, defineHarness, membersOnly } from '@tanstack/ai-harness'
 import { createHarnessHandler } from '@tanstack/ai-harness/server'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { openaiText } from '@tanstack/ai-openai'
@@ -469,18 +469,21 @@ export const assistant = defineHarness({
   adapter: openaiText('gpt-6.1-sol'),
 })
 
-const host = createHarnessHost({ persistence: memoryPersistence() })
-
-export const handler = createHarnessHandler({
-  host,
-  harness: assistant,
-  authorize: (request) =>
-    request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
-      ? { id: 'user-1' }
-      : null,
-  canAccess: (principal, threadId) => threadId.startsWith(principal.id),
+const host = createHarnessHost({
+  persistence: memoryPersistence(),
+  access: {
+    identify: ({ request }) =>
+      request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
+        ? { id: 'user-1' }
+        : null,
+    authorize: membersOnly(),
+  },
 })
+
+export const handler = createHarnessHandler({ host, harness: assistant })
 ```
+
+`membersOnly()` lets each user use the threads that they opened, and the threads shared with them. See [Access and tenants](./access).
 
 The handler also serves `GET transcript` and `GET describe`. The view reads them when it starts. For the other routes, see [Connect clients](./connect).
 

@@ -112,7 +112,7 @@ const continuedReceipt = await client.continue({ inputId: 'req-43' })
 ```
 
 - `inputId` works as for `send`: a retry with the same id runs once.
-- `continue` takes `overrides`, `principal`, and `context` too, as `send` does.
+- `continue` takes `overrides`, `principal`, and `context` too, as `send` does. On a host with [`access`](./access), a session acts only as the user that opened it, so leave out `principal`.
 - When the turn starts, the last message of the transcript must be a user message or a tool result. Else the input is rejected with the reason `nothing_to_continue`, and `await continued` rejects with `InputRejectedError`.
 - A `continue` that a host left after a crash runs on the next host, as a prompt does.
 
@@ -336,8 +336,9 @@ On `POST run`, the AG-UI `forwardedProps` of the request are the `context`, for 
 
 - The `context` is part of the input for the `inputId` check. An input with the same id and another `context` gets `'conflict'`.
 - When `HarnessConfig.context` and the input `context` are both plain objects, tools get them merged, and the harness value wins for a key in both. In all other cases, tools get the harness value. If the harness has no value, tools get the input value.
+- The harness adds the run of the turn to a plain-object context as `run`, and it replaces a `run` key that a client sent. A context that is not a plain object gets no `run`, so tools that read `ctx.context.run` fail. See [Act as the user of a run](./plugins#act-as-the-user-of-a-run).
 - Plugins and the router get it as `turn.context`. See [Pick the model of a turn](./plugins#pick-the-model-of-a-turn).
-- The `context` is client data, so do not trust it. Who sent the input is the principal from `authorize`. See [Share a thread](./shared-threads).
+- The `context` is client data, so do not trust it. Who sent the input comes from the server: the user of the request, or of the session handle. See [Access and tenants](./access).
 
 ## What you have now
 

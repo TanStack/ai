@@ -37,7 +37,7 @@ const claude = keyedAdapter(anthropicByok, (key) =>
 - Each provider package exports one from its `/byok` subpath, for example `anthropicByok`, `grokByok`, `falByok`, and `openrouterByok`.
 - `keyedAdapter` works for every adapter kind: text, image, speech, audio, and video.
 
-Before each turn, the session calls your function with the key of the user of that session.
+Before each turn, the session calls your function with the key of the user who sent that turn.
 
 ## 2. Add the providerKeys plugin
 
@@ -137,7 +137,7 @@ After `/connect:openai`, send the message again.
 
 ## Where the keys are stored
 
-`/connect:<id>` saves the key in the credential store of the host, as an `api_key` credential with the provider id. The store keeps it for the principal of the session:
+`/connect:<id>` saves the key in the credential store of the host, as an `api_key` credential with the provider id. The store keeps it for the user who runs the command:
 
 - CLI: pass the store to `runCli(harness, { credentials })`.
 - Hosted app: your database or your secrets manager. Each signed-in user is a principal, so each user has their own keys. Pass the store to `createHarnessHost({ credentials })`.
@@ -153,9 +153,11 @@ The key that a user pastes can be a Claude OAuth token (`sk-ant-oat...`). `creat
 
 If the user has no saved key, the session reads the env var of the provider, for example `OPENAI_API_KEY`. A saved key wins over the env var. So you can develop with a `.env` file, and your users connect in the app.
 
+On a host with [`access`](./access), the session does not read the env vars. Each user must connect their own key, so no user spends the key of your server. To let users fall back to the env var, set `envKeys: true` in `access`.
+
 ## Use the key of the user in an agent
 
-Your agent makes images with fal, so it needs the fal key of the user. Every agent gets `ctx.keys`. In a harness, `ctx.keys` reads the same keys as the turn:
+Your agent makes images with fal, so it needs the fal key of the user. Every agent gets `ctx.keys`. In a harness, `ctx.keys` reads the keys of the user who started the agent:
 
 ```ts group=harness-provider-keys
 import { defineAgent } from '@tanstack/ai'
@@ -182,7 +184,7 @@ Put the agent in `subagents.agents` of the harness, and the model calls it as a 
 - `ctx.keys.get(provider)`: the key, or `null`.
 - `ctx.keys.require(provider)`: the key. If it is missing, the run stops with `harness.auth_required`, the same as a turn.
 - The children of the agent get the same keys.
-- Plugins get the same keys as `ctx.keys` in `setup`.
+- In a plugin, a tool reads the keys of its run as `ctx.context.run.keys`, and a command reads `run.keys`. See [Act as the user of a run](./plugins#act-as-the-user-of-a-run).
 
 Outside a harness, `ctx.keys` reads the env var. See [Keys inside agents](../advanced/byok#keys-inside-agents).
 
@@ -197,5 +199,5 @@ Outside a harness, `ctx.keys` reads the env var. See [Keys inside agents](../adv
 
 - `/connect:<id>` for OpenAI, Anthropic, xAI, fal, and OpenRouter in the harness that you ship, with no `.env` file.
 - One key for each user, in your credential store.
-- The env var as a fallback while you develop.
-- Agents and plugins that use the key of the user through `ctx.keys`.
+- The env var as a fallback while you develop, and no fallback on a host with access unless you set `envKeys`.
+- Agents and plugins that use the key of the user of each run.

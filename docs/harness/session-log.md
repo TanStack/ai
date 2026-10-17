@@ -87,18 +87,26 @@ export const watcher = defineHarness({
   durability: { project },
 })
 
+const { runs, sessions } = memoryPersistence().stores
+const watcherHost = createHarnessHost({
+  persistence: { stores: { log: memoryLogStore(), runs, sessions } },
+  access: {
+    identify: ({ request }) =>
+      request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
+        ? { id: 'ci-bot' }
+        : null,
+    // The CI bot is the only user, so it can use every thread.
+    authorize: ({ principal }) => principal.id === 'ci-bot',
+  },
+})
+
 // A durable host signs media URLs with the same secret on every instance.
 const mediaSecret = process.env.HARNESS_MEDIA_SECRET
 if (!mediaSecret) throw new Error('Set HARNESS_MEDIA_SECRET.')
 
 export const handler = createHarnessHandler({
-  host,
+  host: watcherHost,
   harness: watcher,
-  authorize: (request) =>
-    request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
-      ? { id: 'ci-bot' }
-      : null,
-  canAccess: () => true,
   media: { secret: mediaSecret },
 })
 ```
@@ -126,15 +134,20 @@ await client.continue()
 
 ## Read the log
 
-The store is yours, so read your records back from it, for example to rebuild your state when a session opens:
+The store is yours, so read your records back from it, for example to rebuild your state when a session opens. The store keeps each log under an id with its tenant, so build the id with `logIdOf`:
 
 ```ts group=harness-session-log
-const entries = await log.read({ logId: 'thread-1' })
+import { logIdOf } from '@tanstack/ai-harness'
+
+// The default tenant. For a tenant, pass `tenantId` too: 'acme:thread-1'.
+const entries = await log.read({ logId: logIdOf({ logId: 'thread-1' }) })
 const signals = entries.filter((entry) => entry.record.type === 'app.signal')
 console.log(signals.map((entry) => entry.seq))
 ```
 
-A reader outside a session that needs a `MessageStore`, for example `reconstructChat`, uses `logMessageStore`. It folds the log with the same `project`:
+Each `harness.input` record has the `principal` of its sender: its `id` and `tenantId`. Every kind of input has it when the sender is known, also a cancel, an answer, a delivery change, and a change of settings.
+
+A reader outside a session that needs a `MessageStore`, for example `reconstructChat`, uses `logMessageStore`. It folds the log with the same `project`. Pass `tenantId` to read the threads of a tenant:
 
 ```ts group=harness-session-log
 import { logMessageStore } from '@tanstack/ai-harness'

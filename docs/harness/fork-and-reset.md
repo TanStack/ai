@@ -53,6 +53,8 @@ The fork copies:
 
 The fork does not copy plugin state, pending interrupts, queued inputs, running work, or [usage totals](./usage). If `newThreadId` already has messages, `host.fork` throws. It also throws for an `at` that the thread does not have.
 
+On a host with [`access`](./access), pass `principal` too. The user needs the `fork` action on the old thread, and owns the new thread.
+
 If a thread waits for an approval, fork it at a message before the tool call. A fork of the whole transcript copies the tool call, but the fork has no interrupt to answer it.
 
 ## Fork before or through a message
@@ -74,7 +76,9 @@ export async function editAndResend(threadId: string, messageId: string, text: s
 
 - `{ before: id }` copies the messages before `id`. Before the first message, the fork has no messages, but it keeps the settings.
 - `{ through: id }` copies the messages up to and including `id`, as `at` does.
-- The host picks the new thread id. The new index entry has the title of the old one plus ` (fork)`, and the same owner.
+- The host picks the new thread id. The new index entry has the title of the old one plus ` (fork)`.
+- `members` picks who can use the fork. `'self'`: only the user who forks, as the owner. `'all'`: the user who forks is the owner, and the other members keep their roles. See [Fork a shared thread](./shared-threads#6-fork-a-shared-thread).
+- Without host `access` and without `members`, the fork keeps the owner and the members of the old thread.
 - `host.sessions.fork` calls `host.fork`, so it copies the same things as `host.fork`.
 
 ## Reset with a handoff note

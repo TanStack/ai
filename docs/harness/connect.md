@@ -15,10 +15,10 @@ Your harness runs on a server, but the people who use it are in a browser or ano
 
 ## Serve the session over HTTP
 
-Mount one fetch handler on a route. `authorize` is required, so no endpoint is open by accident.
+Mount one fetch handler on a route. The host reads the user of each request with its `access`, so no endpoint is open by accident.
 
 ```ts group=harness-connect
-import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { createHarnessHost, defineHarness, membersOnly } from '@tanstack/ai-harness'
 import { createHarnessHandler } from '@tanstack/ai-harness/server'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { openaiText } from '@tanstack/ai-openai'
@@ -28,33 +28,51 @@ export const assistant = defineHarness({
   adapter: openaiText('gpt-6.1-sol'),
 })
 
-const host = createHarnessHost({ persistence: memoryPersistence() })
-
-export const handler = createHarnessHandler({
-  host,
-  harness: assistant,
-  authorize: (request) =>
-    request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
-      ? { id: 'user-1' }
-      : null,
-  canAccess: (principal, threadId) => threadId.startsWith(`${principal.id}-`),
+const host = createHarnessHost({
+  persistence: memoryPersistence(),
+  access: {
+    identify: ({ request }) =>
+      request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
+        ? { id: 'user-1' }
+        : null,
+    authorize: membersOnly(),
+  },
 })
+
+export const handler = createHarnessHandler({ host, harness: assistant })
 ```
 
-`canAccess` is required. It decides which threads each principal can use. To let every principal use every thread, pass `canAccess: () => true`.
+- `identify` reads the user of each request. `null` answers `401`.
+- `authorize` decides each action. A refused action answers `403`. `membersOnly()` lets a user use the threads they opened and the threads shared with them.
+- A host with no `access` needs `openAccess` on the handler, else `createHarnessHandler` throws at the start. See [Serve with no login](./access#serve-with-no-login).
+
+[Access and tenants](./access) has the full rules.
 
 On a durable host (`stores.log`), also set `media: { secret }`. The secret signs media URLs, so every instance must use the same value. Without a log store, the default is a random key, and signed URLs stop working after a restart.
 
-The handler answers these paths under your route:
+The handler answers these paths under your route. For chat and events:
 
 - `GET capabilities`: the AG-UI capabilities, with the agents in `expose.agents`.
 - `POST run`: standard AG-UI. One request runs one prompt and streams it as SSE. The prompt keeps every content part of the last user message, for example an image. `useChat` works with it. See [Use it from useChat](#use-it-from-usechat).
 - `GET run?threadId=`: the saved messages, the running turn, and the waiting approvals, for a `useChat` that loads the thread after a reload.
 - `GET run?runId=`: the turn with that run id as SSE, from its first event. A reloaded `useChat` joins a running turn with it.
 - `GET events?threadId=`: every event of the session as SSE. Each event id is a cursor, so a reconnect with `Last-Event-ID` continues where it stopped.
+
+For one session:
+
 - `POST control`: send `{ threadId, input }`, for example `{ op: 'prompt', message }`. You get a receipt back. Agents, settings, config keys, and commands need `expose`. See [Choose what clients can change](#choose-what-clients-can-change).
 - `GET snapshot?threadId=`: the status, running operations, and waiting approvals.
+- `GET transcript?threadId=` and `GET describe?threadId=`: the saved messages, and the commands and settings that a client can use.
 - `GET agent-transcript?threadId=&subagentRunId=`: the saved messages of one child agent of the thread. See [Show what a child wrote after a reload](./subagents#show-what-a-child-wrote-after-a-reload).
+- `POST media`, `GET media-url`, and `GET media`: upload a file, get a signed URL, and read the bytes. A signed URL works for 1 hour, and only for the user it was signed for. See [Send and show media](./media).
+
+For a list of sessions:
+
+- `GET sessions`: one page of the sessions that this user can list, newest first.
+- `POST sessions`: change a session with `{ op, threadId }`. The ops are `rename`, `update`, `delete`, `fork`, `share`, and `unshare`. See [List, rename, and fork sessions](./sessions) and [Share the thread](./shared-threads#2-share-the-thread).
+- `GET host-events`: the status changes and index changes of the sessions that this user can read, as SSE.
+
+A read of a thread that has no session answers `404`, and it starts no session. Only `GET run?threadId=` answers an empty thread, because `useChat` reads it before the first message.
 
 ## Cursors
 
@@ -128,7 +146,7 @@ A background agent runs for minutes, and the user wants to correct it from the p
 
 ```ts group=harness-connect-agents
 import { defineAgent } from '@tanstack/ai'
-import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { createHarnessHost, defineHarness, membersOnly } from '@tanstack/ai-harness'
 import { createHarnessHandler } from '@tanstack/ai-harness/server'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { openaiText } from '@tanstack/ai-openai'
@@ -146,15 +164,18 @@ export const studio = defineHarness({
   expose: { agents: ['drafter'] },
 })
 
-export const handler = createHarnessHandler({
-  host: createHarnessHost({ persistence: memoryPersistence() }),
-  harness: studio,
-  authorize: (request) =>
-    request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
-      ? { id: 'user-1' }
-      : null,
-  canAccess: (principal, threadId) => threadId.startsWith(`${principal.id}-`),
+const host = createHarnessHost({
+  persistence: memoryPersistence(),
+  access: {
+    identify: ({ request }) =>
+      request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
+        ? { id: 'user-1' }
+        : null,
+    authorize: membersOnly(),
+  },
 })
+
+export const handler = createHarnessHandler({ host, harness: studio })
 ```
 
 2. In the browser, send the message to the id of the run:
@@ -188,7 +209,7 @@ The id of the run is the `operationId` in the receipt of `client.agents.drafter.
 - `mode: 'steer'` (the default): the message joins the next model call of the run.
 - `mode: 'followUp'`: the agent runs again after the run ends. `receipt.operationId` is the id of the new run.
 
-`send` with `to` posts an `agentMessage` input to `POST control`. It runs as the user that `authorize` returned. The input looks like this:
+`send` with `to` posts an `agentMessage` input to `POST control`. It runs as the user that `identify` returned. The input looks like this:
 
 ```json
 { "op": "agentMessage", "operationId": "op-agent-m1x2-3", "message": "Add a title.", "mode": "followUp" }
@@ -301,31 +322,30 @@ export function ReloadableChat() {
 
 The join has these rules:
 
-- `canAccess` decides who can join, the same as for every other path.
+- The host checks that the user can read the thread, the same as for every other path.
 - On a durable host, any server can answer the join. It reads the turn from the shared log.
 - Without a log store, the turn must run on the host that answers the request. On another host, the join gets `404`.
 - A turn that ended gives the events that the session still keeps, and then the stream ends.
 
 ## Use a WebSocket
 
-For one connection that carries events and inputs, authorize the upgrade, then hand the socket to `handleHarnessSocket`:
+For one connection that carries events and inputs, hand the socket and its upgrade request to `handleHarnessSocket`:
 
 ```ts group=harness-connect
 import { handleHarnessSocket } from '@tanstack/ai-harness/server'
 import type { WebSocketLike } from '@tanstack/ai'
 
-export function onUpgrade(socket: WebSocketLike) {
-  handleHarnessSocket({
-    host,
-    harness: assistant,
-    socket,
-    principal: { id: 'user-1' },
-    canAccess: (principal, threadId) => threadId.startsWith(`${principal.id}-`),
-  })
+export function onUpgrade(socket: WebSocketLike, request: Request) {
+  handleHarnessSocket({ host, harness: assistant, socket, request })
 }
 ```
 
 The client sends `{ type: 'harness.subscribe', threadId }` first. After that, each `harness.input` frame gets a `harness.receipt`, and every event arrives as a `harness.event` frame with its cursor.
+
+- The host reads the user from the upgrade request with `identify`, the same as for HTTP. Every input on the socket runs as that user.
+- A user that `identify` refuses gets an `unauthorized` error frame, and the socket closes.
+- A user who cannot read the thread, or who loses access later, gets a `forbidden` error frame, and the socket closes.
+- On a host with no `access`, pass `openAccess`, the same as for `createHarnessHandler`.
 
 ## Use it as the model of another chat
 
@@ -348,7 +368,7 @@ If a plugin picks the model of the harness, the harness has no adapter to read i
 
 ## What you have now
 
-- One handler that serves standard AG-UI and the session stream.
+- One handler that serves standard AG-UI and the session stream, as the user of each request.
 - Clients that can change only what you expose.
 - A `useChat` screen on the harness, with approvals, tools that run in the browser, and a reload that joins the running turn.
 - A typed web client that reconnects and resumes from a cursor.
