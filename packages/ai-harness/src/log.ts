@@ -26,6 +26,7 @@ import type {
   OfferedInput,
   RunRecord,
 } from '@tanstack/ai-persistence'
+import type { AccessRun } from './access'
 import type { EventFeed } from './feed'
 import type { HostOwnership } from './ownership'
 import type {
@@ -908,6 +909,93 @@ export async function loadLogState<TState = unknown>(options: {
 }
 
 /**
+ * The run that `input` targets (an answer, a cancel, a `cancelInput`, a
+ * resolve), and who started it, from the log `logId`: what the owner of the
+ * log checks for a handle. The host that sends an input checks it with this
+ * before the input goes to the owner. Who started a run does not change
+ * once the run starts. `undefined`: the input targets no run. `null`: the
+ * log does not have the run, or a cancel names no operation.
+ */
+// ponytail: this reads the whole log for each such input. Fold only the
+// tail after a snapshot if a host sends many of them.
+export async function loggedRunOf({
+  store,
+  logId,
+  rootThread,
+  input,
+}: {
+  store: LogStore
+  logId: string
+  rootThread: string
+  input: HarnessInput
+}): Promise<AccessRun | null | undefined> {
+  if (
+    input.op !== 'answer' &&
+    input.op !== 'cancel' &&
+    input.op !== 'cancelInput' &&
+    input.op !== 'resolve'
+  ) {
+    return undefined
+  }
+  const state = emptySharedLogState()
+  /** The operation of each question that the log asked, by question id. */
+  const questions = new Map<string, string>()
+  const fold = { rootThread }
+  try {
+    await readAll(store, logId, state, (entry) => {
+      foldLogEntry(state, entry, fold)
+      const { record } = entry
+      if (!isHarnessRecord(record) || record.type !== 'harness.event') return
+      const { event } = record
+      const isQuestion =
+        event.type === EventType.CUSTOM &&
+        event.name === HARNESS_EVENTS.question &&
+        isRecord(event.value) &&
+        typeof event.value.questionId === 'string'
+      if (isQuestion) questions.set(event.value.questionId, record.operationId)
+    })
+  } catch (error) {
+    // A truncated log: the snapshot has the inputs, but no question.
+    if (!(error instanceof LogTruncatedError)) throw error
+    Object.assign(state, await loadLogState({ store, logId, rootThread }))
+  }
+  const root = sessionOf(state, rootThread)
+  const inputs = [...state.sessions.values()].flatMap((session) => [
+    ...session.inputs.values(),
+  ])
+  const by = (principal: { id: string } | undefined) =>
+    principal ? { principalId: principal.id } : {}
+  /** The operation `operationId`, and who sent the input that started it. */
+  const startedBy = (operationId: string): AccessRun | null => {
+    const first = inputs.find((logged) => logged.operationId === operationId)
+    if (!first && !root.thread.runs.has(operationId)) return null
+    return { runId: operationId, ...by(first?.principal) }
+  }
+  switch (input.op) {
+    case 'answer': {
+      const operationId = questions.get(input.questionId)
+      if (operationId === undefined) return null
+      // A question of the session belongs to no run.
+      return operationId === 'session'
+        ? { runId: operationId }
+        : startedBy(operationId)
+    }
+    case 'cancel':
+      return input.operationId === undefined
+        ? null
+        : startedBy(input.operationId)
+    case 'cancelInput': {
+      const logged = inputs.find((item) => item.inputId === input.inputId)
+      return logged ? { runId: input.inputId, ...by(logged.principal) } : null
+    }
+    case 'resolve': {
+      const stopped = root.thread.interrupted
+      return stopped ? { runId: stopped.runId, ...by(stopped.principal) } : null
+    }
+  }
+}
+
+/**
  * Read the entries of `logId` after `from.seq`, page by page, until a page
  * is empty. A store can return fewer than `limit` before the end.
  */
@@ -1492,9 +1580,13 @@ export class SharedLog<TState = unknown> {
    * then takes the records of the new owner.
    */
   private lose(error: OwnershipLostError) {
-    if (this.epoch === undefined) return
+    const { epoch } = this
+    if (epoch === undefined) return
     this.epoch = undefined
-    this.ownership.forget(this.logId)
+    // A newer ownership of this host (a new acquire) stays.
+    if (this.ownership.epochOf(this.logId) === epoch) {
+      this.ownership.forget(this.logId)
+    }
     this.takePending()
     this.staged.clear()
     this.resulted.clear()

@@ -23,6 +23,12 @@ import type { ModelMessage, ReasoningRequest } from '@tanstack/ai'
 import type { HarnessConfig, OwnershipOptions } from '../src'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 const alice = { id: 'alice' }
 const HIGH: ReasoningRequest = { level: 'high', summary: true }
@@ -240,7 +246,7 @@ describe('thread state in the log', () => {
         () => {},
         () => {},
       )
-    await vi.waitFor(() => expect(stalled.calls).toHaveLength(1))
+    await waitFor(() => expect(stalled.calls).toHaveLength(1))
     // The first host stops: its ownership of the log expires.
     await ownershipExpired()
 

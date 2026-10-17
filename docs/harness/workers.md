@@ -72,6 +72,7 @@ console.log(receipt.status) // 'queued'
 - Pass `inputId` so that a retry is safe. The same id with the same input is a duplicate. The same id with another input gets `rejected` with `conflict`.
 - `input` is any input that runs on the owner: a prompt, a steer, a follow-up, an answer, a cancel, a command, and more.
 - On a host with [`access`](./access), pass `principal`. The input needs the same action as on a handle, else `submit` throws `AccessDeniedError` and stores nothing.
+- An answer or a cancel is checked with the run that it targets, from the log. A cancel must name its `operationId`. A run that the log does not have gets `rejected` with `unknown_run`. To drop an input that waits, use `cancelInput`.
 
 ## 3. Run an input later
 

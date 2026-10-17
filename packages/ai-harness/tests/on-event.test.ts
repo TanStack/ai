@@ -5,6 +5,12 @@ import { createHarnessHost, defineHarness } from '../src'
 import { mockAdapter, text } from './helpers'
 import type { HarnessPersistence, LiveEvent, SessionEvent } from '../src'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 async function open(persistence: HarnessPersistence = memoryPersistence()) {
   const { adapter } = mockAdapter(() => text('Hello world'))
   const host = createHarnessHost({ persistence })
@@ -104,7 +110,7 @@ describe('session.onEvent', () => {
     await expect(session.send('Hi')).resolves.toMatchObject({
       text: 'Hello world',
     })
-    await vi.waitFor(() => expect(error).toHaveBeenCalled())
+    await waitFor(() => expect(error).toHaveBeenCalled())
     await host.close()
   })
 
@@ -156,7 +162,7 @@ describe('operation.onEvent', () => {
 
     await turn
 
-    await vi.waitFor(() => expect(listeners.size).toBe(0))
+    await waitFor(() => expect(listeners.size).toBe(0))
     // A listener for a settled operation is not added.
     turn.onEvent(() => {})
     expect(listeners.size).toBe(0)

@@ -21,6 +21,12 @@ import type { LogStore } from '@tanstack/ai-persistence'
 import type { HarnessSession, ProjectOptions, SessionEvent } from '../src'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
 const LOG = logIdOf({ logId: THREAD })
@@ -274,7 +280,7 @@ describe('durable session log', () => {
     const turn = session.send('say hello')
 
     // The deltas reach the log after the coalescing window.
-    await vi.waitFor(async () => {
+    await waitFor(async () => {
       const entries = await persistence.stores.log.read({ logId: LOG })
       const events = entries.map((entry) => entry.record.event)
       expect(JSON.stringify(events)).toContain('wor')
@@ -330,7 +336,7 @@ describe('durable session log', () => {
       },
     )
     const turn = session.send('go')
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(JSON.stringify(batches)).toContain('TEXT_MESSAGE_START'),
     )
 

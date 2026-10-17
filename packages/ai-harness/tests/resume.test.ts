@@ -22,6 +22,12 @@ import {
 } from './helpers'
 import type { AnyChatMiddleware, AnyTool, ModelMessage } from '@tanstack/ai'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 /** Run one chat() turn with the checkpoint middleware and a fresh run record. */
 async function runWithCheckpoint(options: {
   replies: Parameters<typeof mockAdapter>[0]
@@ -134,7 +140,7 @@ describe('checkpoints and ownership', () => {
     )
 
     const run = session.agents.waiter.start()
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect((await runIn(persistence, run.id))?.status).toBe('running'),
     )
     expect(await isTakeable(persistence)).toBe(false)
@@ -144,9 +150,7 @@ describe('checkpoints and ownership', () => {
       () => {},
       () => {},
     )
-    await vi.waitFor(async () =>
-      expect(await isTakeable(persistence)).toBe(true),
-    )
+    await waitFor(async () => expect(await isTakeable(persistence)).toBe(true))
     await host.close()
   })
 })

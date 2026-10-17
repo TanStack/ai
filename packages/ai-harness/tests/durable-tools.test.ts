@@ -16,6 +16,12 @@ import type { AnyChatMiddleware, AnyTool, StreamChunk } from '@tanstack/ai'
 import type { OwnershipOptions } from '../src'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
 const LOG = logIdOf({ logId: THREAD })
@@ -138,7 +144,7 @@ describe('durable tools across a crash', () => {
     )
     const turn = first.session.send('pay order o1', { inputId: 'pay-1' })
     await twoDone.opened
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(
         (await recordsOf(persistence, 'harness.tool.step')).map(
           (record) => record.name,
@@ -200,7 +206,7 @@ describe('durable tools across a crash', () => {
       () => {},
     )
     await mailStarted.opened
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await recordsOf(persistence, 'harness.tool.result')).toHaveLength(
         1,
       ),
@@ -368,7 +374,7 @@ describe('host records of a tool batch', () => {
 
     // The durable tool runs again on the next host, and stops again there.
     const next = await openDurable(persistence, [], [note])
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(
         await recordsOf(persistence, 'harness.input.applied'),
       ).toHaveLength(2),
@@ -410,7 +416,7 @@ describe('host records of a tool batch', () => {
     )
     const turn = session.send('note and wait', { inputId: 'result-1' })
 
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await recordsOf(persistence, 'harness.tool.result')).toHaveLength(
         1,
       ),
@@ -625,7 +631,7 @@ describe('durable tools that middleware returns', () => {
     )
     const turn = first.session.send('pay', { inputId: 'pay-1' })
     await charged.opened
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await recordsOf(persistence, 'harness.tool.step')).toHaveLength(1),
     )
     // The first host stops: its ownership of the log expires.

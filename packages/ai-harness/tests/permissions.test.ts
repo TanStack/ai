@@ -28,6 +28,12 @@ import type {
 } from '../src/first-party/permissions'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const ROOT = '/work/repo'
 const WINDOWS_ROOT = 'C:\\work\\repo'
 const readAllowed: Array<PermissionRule> = [
@@ -305,7 +311,7 @@ async function open(
 
 /** Wait for the one open question, then answer it. Returns its message. */
 async function answer(session: HarnessSession, value: unknown) {
-  await vi.waitFor(() =>
+  await waitFor(() =>
     expect(session.snapshot().pendingQuestions).toHaveLength(1),
   )
   const [question] = session.snapshot().pendingQuestions

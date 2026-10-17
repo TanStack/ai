@@ -15,6 +15,12 @@ import type { InterruptRecord, LogStore } from '@tanstack/ai-persistence'
 import type { AnyAgent, HarnessRouting, HarnessSubagents } from '../src'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 
 /** The interrupt `interruptId` in the log of `THREAD`, as a new host reads it. */
@@ -30,7 +36,7 @@ const storedInterrupt = async (log: LogStore, interruptId: string) =>
 const writeAsOther = (
   log: LogStore,
   records: Parameters<typeof appendToLog>[2],
-) => vi.waitFor(() => appendToLog(log, { threadId: THREAD }, records))
+) => waitFor(() => appendToLog(log, { threadId: THREAD }, records))
 
 /** Another host writes `interrupt` to the log of `THREAD`. */
 const writeInterrupt = (

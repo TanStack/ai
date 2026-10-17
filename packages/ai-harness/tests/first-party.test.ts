@@ -25,6 +25,12 @@ import {
 import type { HarnessPlugin } from '../src'
 import type { AnyTextAdapter } from '@tanstack/ai'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 /** The key of the thread `t` in the stores, in the default tenant. */
 
 let root = ''
@@ -83,7 +89,7 @@ describe('workspace tools with permissions', () => {
     ])
 
     const turn = session.send('work')
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(session.snapshot().pendingQuestions).toHaveLength(1),
     )
     const [question] = session.snapshot().pendingQuestions
@@ -208,10 +214,10 @@ describe('project files', () => {
       },
     ])
     await session.command({ name: 'review', input: 'src/app.ts' })
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     expect(messageTexts(calls[0])).toEqual(['Review src/app.ts carefully.'])
     expect(JSON.stringify(calls[0].systemPrompts)).toContain('Use tabs.')
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     await host.close()
   })
 })

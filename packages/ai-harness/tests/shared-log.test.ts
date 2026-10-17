@@ -5,6 +5,12 @@ import { appendToLog, mockAdapter, wrapLogStore } from './helpers'
 import type { LogRecord, LogStore } from '@tanstack/ai-persistence'
 import type { ReduceOptions } from '../src'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const ROOT = 'agent-1'
 /** The id of the log of `ROOT` in the store. */
 const STORE_LOG = logIdOf({ logId: ROOT })
@@ -139,7 +145,7 @@ describe('the log of a session tree', () => {
 
     // The session has no work, so the host gave the log up. Another host
     // takes it and writes.
-    await vi.waitFor(() =>
+    await waitFor(() =>
       appendToLog(persistence.stores.log, { threadId: ROOT }, [
         { type: 'app.other', thread: 'task-1' },
       ]),

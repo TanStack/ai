@@ -14,6 +14,12 @@ import {
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type { HarnessPlugin, HarnessSession, PluginSessionApi } from '../src'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't'
 
 function durablePersistence() {
@@ -141,7 +147,7 @@ describe('background work after a crash', () => {
     )
     void Promise.resolve(crashed.send('Remind me')).catch(() => {})
     await noted.opened
-    await vi.waitFor(() => expect(first.calls).toHaveLength(2))
+    await waitFor(() => expect(first.calls).toHaveLength(2))
     await ownershipExpired()
 
     const next = mockAdapter([() => text('Done.')])
@@ -156,7 +162,7 @@ describe('background work after a crash', () => {
         threadId: THREAD,
       },
     )
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await assistantTexts(recovered)).toContain('Remember the milk.'),
     )
     await recovered.recover()

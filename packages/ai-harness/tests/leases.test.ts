@@ -21,6 +21,12 @@ import type { LogStore } from '@tanstack/ai-persistence'
 import type { AnyAgent, HarnessConfig, OwnershipOptions } from '../src'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
 const LOG = logIdOf({ logId: THREAD })
@@ -164,7 +170,7 @@ describe('a durable host with no run store', () => {
     void Promise.resolve(first.session.send('go', { inputId: 'in-1' })).catch(
       () => {},
     )
-    await vi.waitFor(() => expect(first.calls).toHaveLength(1))
+    await waitFor(() => expect(first.calls).toHaveLength(1))
 
     // A second host while the first owns the log: it leaves the turn alone.
     const watcher = await openHost(persistence, [() => text('never')])
@@ -206,7 +212,7 @@ describe('a durable host with no run store', () => {
     await session.agents.pricer.run()
     session.agents.waiter.start(undefined, { wake: true })
     // Both runs are applied: the pricer ended, the waiter runs.
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(
         (await persistence.stores.log.read({ logId: LOG })).filter(
           (entry) => entry.record.type === 'harness.input.applied',
@@ -216,8 +222,8 @@ describe('a durable host with no run store', () => {
 
     await ownershipExpired()
     const next = await openHost(persistence, [() => text('noted')])
-    await vi.waitFor(() => expect(next.calls).toHaveLength(1))
-    await vi.waitFor(() => expect(next.session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(next.calls).toHaveLength(1))
+    await waitFor(() => expect(next.session.snapshot().status).toBe('idle'))
 
     // One wake, for the agent that stopped. The finished agent stays settled.
     expect(next.calls).toHaveLength(1)
@@ -297,7 +303,7 @@ describe('a durable host with no run store', () => {
       first.session.send('charge and mail', { inputId: 'batch-1' }),
     ).catch(() => {})
     await mailStarted.opened
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(
         (await persistence.stores.log.read({ logId: LOG })).filter(
           (entry) => entry.record.type === 'harness.tool.result',
@@ -343,7 +349,7 @@ describe('the runs in the log of a durable host', () => {
     const run = (
       await first.open(harness, { threadId: THREAD })
     ).agents.waiter.start()
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect((await storedRun(log, { threadId: THREAD }, run.id))?.status).toBe(
         'running',
       ),
@@ -397,7 +403,7 @@ describe('close({ recoverable: true })', () => {
     const persistence = durableStores()
     const first = await openOn(persistence, [untilAborted()])
     const turn = first.session.send('go', { inputId: 'in-1' })
-    await vi.waitFor(() => expect(first.calls).toHaveLength(1))
+    await waitFor(() => expect(first.calls).toHaveLength(1))
 
     await first.host.close({ recoverable: true })
 
@@ -468,7 +474,7 @@ describe('close({ recoverable: true })', () => {
     const persistence = durableStores()
     const first = await openOn(persistence, [untilAborted()])
     const turn = first.session.send('go', { inputId: 'in-1' })
-    await vi.waitFor(() => expect(first.calls).toHaveLength(1))
+    await waitFor(() => expect(first.calls).toHaveLength(1))
 
     await first.host.close()
 
@@ -535,12 +541,12 @@ describe('close({ recoverable: true })', () => {
     })
     const first = await openOn(persistence, [], { agents: [worker] })
     first.session.agent('worker')?.start(undefined, { resume: true })
-    await vi.waitFor(() => expect(started).toBe(1))
+    await waitFor(() => expect(started).toBe(1))
 
     await first.host.close({ recoverable: true })
     const next = await openOn(persistence, [], { agents: [worker] })
 
-    await vi.waitFor(() => expect(started).toBe(2))
+    await waitFor(() => expect(started).toBe(2))
     const input = (await logRecords(persistence)).find(
       (record) => record.type === 'harness.input',
     )
@@ -574,7 +580,7 @@ describe('durability.continueCutOff', () => {
       () => {},
       () => {},
     )
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(
         JSON.stringify(await persistence.stores.log.read({ logId: LOG })),
       ).toContain(streamed),
@@ -801,7 +807,7 @@ describe('durability.continueCutOff', () => {
       () => {},
       () => {},
     )
-    await vi.waitFor(() => expect(first.calls).toHaveLength(1))
+    await waitFor(() => expect(first.calls).toHaveLength(1))
     await ownershipExpired()
 
     const next = await openCutOff(persistence, [() => text('42.')], {

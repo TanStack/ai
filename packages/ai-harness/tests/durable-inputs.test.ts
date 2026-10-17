@@ -39,6 +39,12 @@ import type {
 } from '../src'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store, and its key in the other stores. */
 const LOG = logIdOf({ logId: THREAD })
@@ -575,13 +581,13 @@ describe('recovery of a durable input', () => {
       replies: [() => text('noted')],
     })
 
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     expect(messageTexts(calls[0]).slice(-2)).toEqual([
       '[waiter failed] The host stopped during this agent run.',
       'Background agent waiter failed: [waiter failed] The host stopped during this agent run.',
     ])
     expect((await runIn(persistence, 'op-agent'))?.status).toBe('failed')
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(wakeMessages(await session.transcript())).toEqual([
         'Background agent waiter failed: [waiter failed] The host stopped during this agent run.',
       ]),
@@ -624,8 +630,8 @@ describe('recovery of a durable input', () => {
       replies: [() => text('noted')],
     })
 
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
-    await vi.waitFor(async () =>
+    await waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(async () =>
       expect(wakeMessages(await session.transcript())).toEqual([
         'Background job done.',
       ]),
@@ -952,7 +958,7 @@ describe('session.recover()', () => {
     const one = session.send('one', { inputId: 'in-1' })
     const two = session.send('two', { inputId: 'in-2' })
     await two.receipt
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
 
     await session.recover()
     release.open()
@@ -995,7 +1001,7 @@ describe('durable input limits while a turn runs', () => {
       replies: [untilAborted()],
     })
     const turn = session.send('wait', { inputId: 'wait-1' })
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
 
     await session.cancel({ operationId: turn.id })
 
@@ -1041,7 +1047,7 @@ describe('waiting inputs', () => {
       replies: [after(release.opened, 'first done'), () => text('steer done')],
     })
     const first = session.send('first', { inputId: 'first' })
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     await session.send('second', { inputId: 'second', mode: 'followUp' })
       .receipt
     await session.send('third', { inputId: 'third', mode: 'steer' }).receipt
@@ -1081,7 +1087,7 @@ describe('waiting inputs', () => {
       replies: [after(release.opened, 'done')],
     })
     const turn = session.send('first', { inputId: 'first' })
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
 
     expect(await session.cancelInput('first')).toMatchObject({
       status: 'rejected',
@@ -1097,7 +1103,7 @@ describe('waiting inputs', () => {
       () => text('done'),
     ])
     const first = session.send('first', { inputId: 'first' })
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     await session.send('later', { inputId: 'later', mode: 'followUp' }).receipt
 
     expect(
@@ -1148,9 +1154,9 @@ describe('waiting inputs', () => {
       () => text('done'),
     ])
     const first = session.send('first', { inputId: 'first' })
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('running'))
+    await waitFor(() => expect(session.snapshot().status).toBe('running'))
     const queued = session.continue({ inputId: 'c-1' })
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await recordTypesOf(persistence, 'c-1')).toContain(
         'harness.input',
       ),
@@ -1173,7 +1179,7 @@ describe('waiting inputs', () => {
       () => text('own turn'),
     ])
     const first = session.send('first', { inputId: 'first' })
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     await session.send('now', { inputId: 'now', mode: 'steer' }).receipt
 
     expect(
@@ -1361,7 +1367,7 @@ describe('input ids', () => {
       ],
     })
     const one = first.session.send('one', { inputId: 'old-1' })
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await recordTypes(persistence)).toContain('harness.transcript'),
     )
     // An input applied during the turn does not cut the turn's text.
