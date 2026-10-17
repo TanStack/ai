@@ -168,7 +168,7 @@ export const helpers = definePlugin({
 
 ## Keep state
 
-`ctx.state(initial)` gives a plugin its own state, saved in the metadata store. Without a metadata store, the state stays in memory, and a restart loses it. Clients see each change as an AG-UI `STATE_SNAPSHOT` event.
+`ctx.state(initial)` gives a plugin its own state for the thread. The session log keeps each change as a record, so any host that opens the thread reads the state back, also after a restart. Clients see each change as an AG-UI `STATE_SNAPSHOT` event.
 
 ```ts group=harness-plugins
 export const counter = definePlugin({
@@ -187,7 +187,9 @@ export const counter = definePlugin({
 })
 ```
 
-When two writers race, `update` runs your function again with fresh state.
+- The state is JSON.
+- The updates of one plugin run one at a time. Each `update` function gets the value that the update before it wrote.
+- [`host.sessions.delete`](./lifecycle#delete-a-thread-for-good) deletes the state with the log. A fork does not copy it.
 
 ## Middleware in every agent
 
@@ -267,7 +269,9 @@ The run has these fields:
 | `principal` | The user who started the run: `{ id, tenantId }`. `undefined` in a session with no user. |
 | `tenantId` | The tenant of the session. `undefined` in the default tenant. |
 | `threadId`, `runId`, `parentRunId` | The thread, this run, and the run that started this one. |
-| `logId` | The id of the log of the session in the store, with its tenant. |
+| `logId` | The id of the log of the session tree in the store, with its tenant. |
+| `epoch` | The ownership epoch of the log when the run started. See [Fence your own side effects](./durable-sessions#fence-your-own-side-effects). |
+| `idempotencyKey(step, scope?)` | A key for one side effect of the run. A run again on any host gets the same key. |
 | `signal` | Aborts when the run stops. |
 | `credentials`, `keys` | The credentials and the model provider keys of the user of the run. |
 
@@ -493,7 +497,7 @@ A reload works like this:
 3. It calls `plugins()` again and runs `setup` of each session plugin.
 4. Clients get a `harness.reloaded` event. Read the commands, the settings, and the agents again.
 
-The transcript, the log, the thread settings, and the inbox stay. The next turn gets the new tools, prompts, and middleware. The `ctx.on` listeners of the old plugins stop.
+The transcript, the log, the thread settings, and the inputs that wait stay. The next turn gets the new tools, prompts, and middleware. The `ctx.on` listeners of the old plugins stop.
 
 The harness does not watch files. Your host decides when to reload, as the `watch` call above does.
 

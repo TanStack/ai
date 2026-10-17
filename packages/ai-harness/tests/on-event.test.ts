@@ -122,9 +122,9 @@ describe('session.onEvent', () => {
   })
 
   it('gets the events of a durable session', async () => {
-    const { runs, metadata } = memoryPersistence().stores
+    const { metadata } = memoryPersistence().stores
     const { host, session } = await open({
-      stores: { log: memoryLogStore(), runs, metadata },
+      stores: { log: memoryLogStore(), metadata },
     })
     const deltas: Array<string> = []
     session.onEvent('TEXT_MESSAGE_CONTENT', ({ event }) => {

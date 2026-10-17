@@ -438,27 +438,25 @@ describe('providerKeys', () => {
     await close()
   })
 
-  it('keeps the key out of events, results, the inbox, and the transcript', async () => {
+  it('keeps the key out of events, results, the log, and the transcript', async () => {
     const keyed = keyedMock([() => text('hello')])
     const { session, persistence, events, close } = await open({
       adapter: keyed.adapter,
       plugins: [plugin()],
     })
-    const { receipt, result } = await connectWith(session, PASTED_KEY)
+    const { result } = await connectWith(session, PASTED_KEY)
     const results = [
       result,
       await session.command({ name: 'keys' }),
       await session.send('hi'),
     ]
     expect(keyed.keys).toEqual([PASTED_KEY])
-    // The key of the thread `t` in the stores, in the default tenant.
-    const key = logIdOf({ logId: 't' })
-    const inbox = await persistence.stores.inbox.get({
-      threadId: key,
-      inputId: receipt.inputId,
+    // The log of the thread `t`, in the default tenant: inputs and events.
+    const logged = await persistence.stores.log.read({
+      logId: logIdOf({ logId: 't' }),
     })
-    const transcript = await persistence.stores.messages.loadThread(key)
-    const everything = JSON.stringify({ events, results, inbox, transcript })
+    const transcript = await session.transcript()
+    const everything = JSON.stringify({ events, results, logged, transcript })
     expect(everything).not.toContain(PASTED_KEY)
     expect(everything).toContain('...5678')
     await close()

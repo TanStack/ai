@@ -164,10 +164,16 @@ export interface HostPluginContext {
   resources: PluginResources
 }
 
-/** Plugin state that survives restarts, stored in the metadata store. */
+/**
+ * Plugin state of one thread that survives restarts. The session log keeps
+ * it, so any host that opens the thread reads it back. The value is JSON.
+ */
 export interface PluginState<T> {
   get: () => Promise<T>
-  /** Change the state. On a write conflict, `change` runs again with fresh state. */
+  /**
+   * Change the state. The updates of one plugin run one at a time, and each
+   * `change` gets the value that the update before it wrote.
+   */
   update: (change: (current: T) => T) => Promise<T>
 }
 

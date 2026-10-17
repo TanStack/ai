@@ -16,9 +16,9 @@ import type {
 } from './types'
 
 /**
- * The ordered event stream of one session. Every operation publishes here. A
- * host without a log uses {@link SessionFeed}. A durable host uses a feed
- * that keeps the events in the session log.
+ * The ordered event stream of one session. Every operation publishes here.
+ * A session uses a feed that keeps the events in the session log. Before its
+ * log opens, it has a {@link SessionFeed} in memory.
  */
 export interface EventFeed {
   publish: (operationId: string, event: StreamChunk) => void

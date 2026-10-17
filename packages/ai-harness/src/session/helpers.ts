@@ -5,7 +5,7 @@ import {
   provideDetachableRun,
   readInterruptBinding,
 } from '@tanstack/ai'
-import { isRecord } from '../utils'
+import { isRecord, jsonCopy } from '../utils'
 import type {
   AnyChatMiddleware,
   AnyTool,
@@ -20,26 +20,159 @@ import type {
 import type { LogRecord, MessageStore } from '@tanstack/ai-persistence'
 import type { EventFeed, EventListener, ListenedFeed } from '../feed'
 import type { InputState } from '../log'
+import type {
+  AgentResultRecord,
+  NamedTurnOverrides,
+  ThreadRecord,
+} from '../log-records'
 import type { MountedPlugins } from '../plugins'
 import type {
+  HarnessInput,
   MediaKind,
   OperationStatus,
   Principal,
   RunContext,
   ThreadSettings,
+  TurnOverrides,
 } from '../types'
-import type {
-  AgentRunInfo,
-  InterruptedTurn,
-  AgentMessage,
-  AgentInputState,
-} from './types'
+import type { AgentRunInfo, AgentMessage, AgentInputState } from './types'
 
-/** Where `stores.metadata` keeps the interrupted turn of each thread. */
-export const INTERRUPTED = 'harness:interrupted'
-
-/** Where `stores.metadata` keeps the usage totals of a host without a log. */
+/** A metadata row of usage totals that `host.sessions.delete` still deletes. */
 export const USAGE = 'harness:usage'
+
+/**
+ * The log record of how the agent run `runId` ended. Its result is a JSON
+ * copy. A result that is not JSON (a cycle) is left out.
+ */
+export function agentResultRecord(runId: string, ended: AgentResultRecord) {
+  const { result, ...rest } = ended
+  const raw = jsonCopy(result)
+  const record: ThreadRecord = {
+    type: 'harness.agent.result',
+    runId,
+    ...rest,
+    ...(raw !== undefined ? { result: raw } : {}),
+  }
+  return record
+}
+
+/** What a turn gets besides its message: its overrides, preamble, and ephemeral messages. */
+export interface TurnExtras {
+  overrides?: TurnOverrides
+  systemPreamble?: Array<string>
+  ephemeral?: ReadonlyArray<ModelMessage>
+}
+
+/**
+ * The `harness.input.turn` record of input `inputId`: the JSON parts of
+ * `extras`, and the names of the overrides that are not JSON. No record for
+ * a turn with no extras.
+ */
+export function turnRecords(inputId: string, extras: TurnExtras) {
+  const named = namedOverrides(extras)
+  const records: Array<ThreadRecord> =
+    Object.keys(named).length === 0
+      ? []
+      : [{ type: 'harness.input.turn', inputId, overrides: named }]
+  return records
+}
+
+/**
+ * The JSON parts of `extras`, and the names of the overrides that are not
+ * JSON.
+ */
+function namedOverrides(extras: TurnExtras) {
+  const { overrides, systemPreamble, ephemeral } = extras
+  const liveOnly = [
+    ...(overrides?.adapter !== undefined ? ['adapter' as const] : []),
+    ...(overrides?.tools?.length ? ['tools' as const] : []),
+  ]
+  const named: NamedTurnOverrides = {
+    ...(overrides?.model !== undefined ? { model: overrides.model } : {}),
+    ...(overrides?.modelOptions !== undefined
+      ? { modelOptions: overrides.modelOptions }
+      : {}),
+    ...(overrides?.reasoning !== undefined
+      ? { reasoning: overrides.reasoning }
+      : {}),
+    ...(overrides?.promptCache !== undefined
+      ? { promptCache: overrides.promptCache }
+      : {}),
+    ...(systemPreamble?.length ? { systemPreamble } : {}),
+    ...(ephemeral?.length ? { ephemeral: [...ephemeral] } : {}),
+    ...(liveOnly.length > 0 ? { liveOnly } : {}),
+  }
+  return named
+}
+
+/**
+ * An input that a host offers to the owner of a log: the input lane. The
+ * owner applies it as if the input came to it, and appends its own
+ * `harness.input` record in the same write that consumes the offer.
+ */
+export interface OfferedInputRecord extends LogRecord {
+  type: 'harness.input'
+  inputId: string
+  input: HarnessInput
+  principal?: { id: string; tenantId?: string }
+  /**
+   * The id that the owner runs the input with: the AG-UI run id of a turn,
+   * or the operation id of an agent run. The host that offered it follows
+   * that id in the log.
+   */
+  runId?: string
+  /** The overrides of a turn, as its `harness.input.turn` record keeps them. */
+  overrides?: NamedTurnOverrides
+}
+
+/** The offer record of `input`. See {@link OfferedInputRecord}. */
+export function offeredInputRecord(offer: {
+  inputId: string
+  input: HarnessInput
+  principal: Principal | undefined
+  runId?: string
+  turn?: TurnExtras
+}) {
+  const named = offer.turn ? namedOverrides(offer.turn) : {}
+  const record: OfferedInputRecord = {
+    type: 'harness.input',
+    inputId: offer.inputId,
+    input: offer.input,
+    ...storedPrincipal(offer.principal),
+    ...(offer.runId !== undefined ? { runId: offer.runId } : {}),
+    ...(Object.keys(named).length > 0 ? { overrides: named } : {}),
+  }
+  return record
+}
+
+/**
+ * True for a record from {@link offeredInputRecord}. The host that offered
+ * the input checked it against `HarnessInput`.
+ */
+export const isOfferedInputRecord = (
+  record: LogRecord,
+): record is OfferedInputRecord =>
+  record.type === 'harness.input' &&
+  typeof record.inputId === 'string' &&
+  isRecord(record.input) &&
+  typeof record.input.op === 'string'
+
+/** The extras of a turn from its `harness.input.turn` record. */
+export function loggedExtras(named: NamedTurnOverrides) {
+  const { model, modelOptions, reasoning, promptCache } = named
+  const overrides: TurnOverrides = {
+    ...(model !== undefined ? { model } : {}),
+    ...(modelOptions !== undefined ? { modelOptions } : {}),
+    ...(reasoning !== undefined ? { reasoning } : {}),
+    ...(promptCache !== undefined ? { promptCache } : {}),
+  }
+  const extras: TurnExtras = {
+    ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
+    ...(named.systemPreamble ? { systemPreamble: named.systemPreamble } : {}),
+    ...(named.ephemeral ? { ephemeral: named.ephemeral } : {}),
+  }
+  return extras
+}
 
 /**
  * The key of a resumable agent run in the session log: its steps, and the
@@ -121,24 +254,6 @@ export const loggedStatus = (input: InputState): AgentRunInfo['status'] => {
   }
 }
 
-/** True for an interrupted turn as `stores.metadata` gives it back. */
-export function isInterruptedTurn(value: unknown): value is InterruptedTurn {
-  if (!isRecord(value) || typeof value.runId !== 'string') return false
-  if (!Array.isArray(value.interrupts)) return false
-  if (!value.interrupts.every((item) => isRecord(item))) return false
-  const { routed, principal } = value
-  const isPrincipal =
-    principal === undefined ||
-    (isRecord(principal) && typeof principal.id === 'string')
-  return (
-    isPrincipal &&
-    (routed === undefined ||
-      (isRecord(routed) &&
-        Array.isArray(routed.messages) &&
-        typeof routed.root === 'boolean'))
-  )
-}
-
 /** The connector a sign-in interrupt (`require` with `wait`) waits for. */
 export function signInConnector(interrupt: Interrupt | undefined) {
   if (interrupt?.reason !== 'auth_required') return undefined
@@ -187,13 +302,6 @@ export const scopeOf = (
   ...(principal ? { userId: principal.id } : {}),
   ...(principal?.tenantId ? { tenantId: principal.tenantId } : {}),
 })
-
-/** What the log and the inbox keep of a principal: its id and tenant. */
-/** The `metadata.tanstack` of a logged event, if it has one. */
-export const tanstackOf = (event: Record<string, unknown>) =>
-  isRecord(event.metadata) && isRecord(event.metadata.tanstack)
-    ? event.metadata.tanstack
-    : undefined
 
 /** The tool call an interrupt waits on: an approval or a client tool. */
 export const toolCallOf = (interrupt: Interrupt) => {
@@ -268,9 +376,6 @@ export const runMiddleware = (run: RunContext): AnyChatMiddleware => ({
     ctx.context = withRun(ctx.context, run)
   },
 })
-
-/** Where `stores.metadata` keeps the stored settings of each thread. */
-export const SETTINGS = 'harness:settings'
 
 export const SETTING_KEYS = new Set<string>([
   'model',
@@ -686,7 +791,7 @@ export function checkHostRecords(records: ReadonlyArray<LogRecord>) {
 export const notOpen = () =>
   Promise.reject(new Error('The session is not open yet.'))
 
-/** The message store of a durable session before `open()` reads its log. */
+/** The message store of a session before `open()` reads its log. */
 export const notOpenMessages: MessageStore = {
   loadThread: notOpen,
   saveThread: notOpen,
@@ -740,9 +845,3 @@ export function tapFeed(
     wake: () => feed.wake(),
   }
 }
-
-/** `accept` passed the input to the host that owns the thread, or refused it for that. */
-export const isElsewhere = (
-  admission: string,
-): admission is 'forwarded' | 'owned_elsewhere' =>
-  admission === 'forwarded' || admission === 'owned_elsewhere'

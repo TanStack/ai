@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, logIdOf } from '../src'
+import { createHarnessHost, defineHarness } from '../src'
 import {
   compact,
   decidePermission,
@@ -15,12 +15,17 @@ import {
 } from '../src/first-party'
 import { fileCommands, projectInstructions } from '../src/first-party/node'
 import { workspaceTools } from '../src/first-party/coding'
-import { messageTexts, mockAdapter, text, toolCall } from './helpers'
+import {
+  messageTexts,
+  mockAdapter,
+  storedThreadState,
+  text,
+  toolCall,
+} from './helpers'
 import type { HarnessPlugin } from '../src'
 import type { AnyTextAdapter } from '@tanstack/ai'
 
 /** The key of the thread `t` in the stores, in the default tenant. */
-const T_KEY = logIdOf({ logId: 't' })
 
 let root = ''
 beforeEach(async () => {
@@ -172,9 +177,10 @@ describe('todos', () => {
     expect(await session.command({ name: 'todos' })).toBe('[~] write tests')
     await session.send('continue')
     expect(JSON.stringify(calls[2].systemPrompts)).toContain('[~] write tests')
-    expect(
-      await persistence.stores.metadata.get('plugin:tanstack/todos', T_KEY),
-    ).toEqual({
+    const stored = await storedThreadState(persistence.stores.log, {
+      threadId: 't',
+    })
+    expect(stored.plugins.get('tanstack/todos')).toEqual({
       items: [{ text: 'write tests', status: 'in_progress' }],
     })
     await host.close()
@@ -232,7 +238,7 @@ describe('compact and usage', () => {
           : chunk,
       )
     const main = mockAdapter([withUsage('one'), withUsage('two')])
-    const { host, session, persistence } = await open(main.adapter, [
+    const { host, session } = await open(main.adapter, [
       compact({ adapter: summarizer.adapter }),
       usage(),
     ])
@@ -241,7 +247,7 @@ describe('compact and usage', () => {
     expect(await session.command({ name: 'compact' })).toBe(
       'Compacted 4 messages into a summary.',
     )
-    const transcript = await persistence.stores.messages.loadThread(T_KEY)
+    const transcript = await session.transcript()
     expect(transcript).toHaveLength(2)
     expect(transcript[0]?.content).toContain('We planned a trip.')
     expect(await session.command({ name: 'usage' })).toBe(

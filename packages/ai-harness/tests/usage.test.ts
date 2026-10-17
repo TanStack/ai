@@ -219,10 +219,10 @@ describe('session usage totals', () => {
 })
 
 describe('usage totals after a restart', () => {
-  it('keeps the totals in the log of a durable host', async () => {
-    const { runs, metadata } = memoryPersistence().stores
+  it('keeps the totals in the log', async () => {
+    const { metadata } = memoryPersistence().stores
     const log = memoryLogStore()
-    const persistence = { stores: { log, runs, metadata } }
+    const persistence = { stores: { log, metadata } }
     const first = model('main-model', lookupThenAnswer([0.01, 0.02]))
     const harness = (adapter: typeof first.adapter) =>
       defineHarness({ name: 'test/usage-durable', adapter, tools: [lookup] })
@@ -247,26 +247,6 @@ describe('usage totals after a restart', () => {
     })
     expect(reopened.usage()).toEqual(before)
     expect(reopened.usage().total.totalTokens).toBe(45)
-    await next.close()
-  })
-
-  it('keeps the totals in the metadata store of a host without a log', async () => {
-    const persistence = memoryPersistence()
-    const first = model('main-model', lookupThenAnswer())
-    const harness = (adapter: typeof first.adapter) =>
-      defineHarness({ name: 'test/usage-metadata', adapter, tools: [lookup] })
-    const host = createHarnessHost({ persistence })
-    const session = await host.open(harness(first.adapter), {
-      threadId: THREAD,
-    })
-    await session.send('Find it.')
-    await host.close()
-
-    const next = createHarnessHost({ persistence })
-    const reopened = await next.open(harness(model('main-model', []).adapter), {
-      threadId: THREAD,
-    })
-    expect(reopened.usage().total).toMatchObject({ calls: 2, totalTokens: 45 })
     await next.close()
   })
 })

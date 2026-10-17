@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { toolDefinition } from '@tanstack/ai'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, logIdOf } from '../src'
 import { hostBackend } from '../src/first-party/coding/backend'
 import { quoteArg } from '../src/first-party/coding/search'
@@ -23,6 +23,7 @@ import {
   text,
   toolCall,
 } from './helpers'
+import type { LogStore } from '@tanstack/ai-persistence'
 import type { HarnessPersistence, HarnessSession } from '../src'
 import type { WorkspaceBackend } from '../src/first-party/coding/backend'
 import type { Reply } from './helpers'
@@ -84,9 +85,8 @@ async function open(options: {
   })
   const plugin = snapshots({ root, dataDir, backend: options.backend })
   const { adapter, calls } = mockAdapter(options.replies)
-  const host = createHarnessHost({
-    persistence: options.persistence ?? memoryPersistence(),
-  })
+  const persistence = options.persistence ?? memoryPersistence()
+  const host = createHarnessHost({ persistence })
   const session = await host.open(
     defineHarness({
       name: 'test/snapshots',
@@ -98,14 +98,19 @@ async function open(options: {
       threadId: THREAD,
     },
   )
-  return { host, session, plugin, calls }
+  return { host, session, plugin, calls, log: persistence.stores.log }
 }
 
-/** The steps that the plugin state keeps. */
-function savedSteps(session: HarnessSession) {
-  const steps = session.snapshot().plugins['tanstack/snapshots']
-  if (!Array.isArray(steps)) throw new Error('No steps in the plugin state.')
-  return steps
+/** The `tanstack/snapshots:step` records of the thread in `log`. */
+async function savedSteps(log: LogStore) {
+  const entries = await log.read({ logId: LOG, after: 0 })
+  return entries.flatMap(({ record }) =>
+    record.type === 'tanstack/snapshots:step' &&
+    typeof record.from === 'string' &&
+    typeof record.to === 'string'
+      ? [{ ...record, from: record.from, to: record.to }]
+      : [],
+  )
 }
 
 /** Every file under `folder`, by path, with its bytes. */
@@ -170,9 +175,9 @@ describe.skipIf(!hasGit)('snapshots', () => {
     await host.close()
   })
 
-  it('keeps the changed files of each step in the plugin state', async () => {
+  it('writes the changed files of each step as a log record', async () => {
     await put('a.txt', 'one')
-    const { host, session } = await open({
+    const { host, session, log } = await open({
       replies: editTurn('Done.'),
       changes: [
         async () => {
@@ -184,42 +189,24 @@ describe.skipIf(!hasGit)('snapshots', () => {
 
     await session.send('Edit the files')
 
-    const steps = savedSteps(session)
-    expect(steps).toMatchObject([{ files: ['a.txt', 'src/b.txt'] }])
-    expect(steps[0].from).toMatch(TREE)
-    expect(steps[0].to).toMatch(TREE)
-    expect(steps[0].to).not.toBe(steps[0].from)
-    await host.close()
-  })
-
-  it('writes each step as a log record on a durable host', async () => {
-    await put('a.txt', 'one')
-    const { runs, metadata } = memoryPersistence().stores
-    const log = memoryLogStore()
-    const { host, session } = await open({
-      replies: editTurn('Done.'),
-      changes: [() => put('a.txt', 'two')],
-      persistence: { stores: { log, runs, metadata } },
-    })
-
-    await session.send('Edit a.txt')
-
-    const entries = await log.read({ logId: LOG, after: 0 })
-    const records = entries
-      .map((entry) => entry.record)
-      .filter((record) => record.type === 'tanstack/snapshots:step')
-    expect(records).toMatchObject([{ files: ['a.txt'] }])
+    const [step, ...more] = await savedSteps(log)
+    expect(more).toEqual([])
+    expect(step).toMatchObject({ files: ['a.txt', 'src/b.txt'] })
+    expect(step?.from).toMatch(TREE)
+    expect(step?.to).toMatch(TREE)
+    expect(step?.to).not.toBe(step?.from)
     await host.close()
   })
 
   it('gives the changed files and a unified diff between two trees', async () => {
     await put('a.txt', 'one\n')
-    const { host, session, plugin } = await open({
+    const { host, session, plugin, log } = await open({
       replies: editTurn('Done.'),
       changes: [() => put('a.txt', 'two\n')],
     })
     await session.send('Edit a.txt')
-    const [step] = savedSteps(session)
+    const [step] = await savedSteps(log)
+    if (!step) throw new Error('No step in the log.')
 
     const between = await plugin.diff(step.from, step.to)
     expect(between.files).toEqual(['a.txt'])
@@ -385,7 +372,7 @@ describe.skipIf(!hasGit)('snapshots', () => {
     expect(init.exitCode).toBe(0)
     await put('a.txt', 'one')
     const before = await filesUnder(projectGit)
-    const { host, session } = await open({
+    const { host, session, log } = await open({
       replies: editTurn('Done.'),
       changes: [() => put('b.txt', 'new')],
     })
@@ -393,7 +380,7 @@ describe.skipIf(!hasGit)('snapshots', () => {
     await session.send('Add b.txt')
     await session.command({ name: 'undo' })
 
-    expect(savedSteps(session)).toMatchObject([{ files: ['b.txt'] }])
+    expect(await savedSteps(log)).toMatchObject([{ files: ['b.txt'] }])
     expect(await filesUnder(projectGit)).toEqual(before)
     await host.close()
   })
@@ -509,25 +496,7 @@ describe.skipIf(!hasGit)('session.revert', () => {
     await host.close()
   })
 
-  it('keeps the revert after a restart on a durable host', async () => {
-    await put('a.txt', 'one')
-    const { runs, metadata } = memoryPersistence().stores
-    const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
-    const first = await open({ ...threeTurns(), persistence })
-    const { transcript, firstId } = await runThreeTurns(first.session)
-    await first.session.revert(firstId)
-    await first.host.close()
-
-    const second = await open({ replies: [], persistence })
-
-    expect(await second.session.transcript()).toEqual(transcript.slice(0, 4))
-    await second.session.unrevert()
-    expect(await read('a.txt')).toBe('three')
-    expect(await second.session.transcript()).toEqual(transcript)
-    await second.host.close()
-  })
-
-  it('keeps the revert after a restart on a host without a log', async () => {
+  it('keeps the revert after a restart', async () => {
     await put('a.txt', 'one')
     const persistence = memoryPersistence()
     const first = await open({ ...threeTurns(), persistence })
@@ -539,7 +508,9 @@ describe.skipIf(!hasGit)('session.revert', () => {
 
     expect(await second.session.transcript()).toEqual(transcript.slice(0, 4))
     await second.session.unrevert()
+    expect(await read('a.txt')).toBe('three')
     expect(await read('b.txt')).toBe('new')
+    expect(await second.session.transcript()).toEqual(transcript)
     await second.host.close()
   })
 })

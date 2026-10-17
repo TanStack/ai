@@ -712,7 +712,7 @@
           "label": "Build Your Own Adapter",
           "to": "persistence/build-your-own-adapter",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-16"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Migrations",
@@ -976,6 +976,11 @@
           "updatedAt": "2026-10-17"
         },
         {
+          "label": "Run background work on workers",
+          "to": "harness/workers",
+          "addedAt": "2026-10-17"
+        },
+        {
           "label": "List, rename, and fork sessions",
           "to": "harness/sessions",
           "addedAt": "2026-10-13",
@@ -989,7 +994,8 @@
         {
           "label": "Run side effects once",
           "to": "harness/durable-tools",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Build on the session log",
@@ -1001,17 +1007,19 @@
           "label": "Control how a turn ends",
           "to": "harness/turn-control",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-16"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Store settings per thread",
           "to": "harness/thread-settings",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Compact a long session",
           "to": "harness/compaction",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Fork and reset a thread",
@@ -1020,10 +1028,10 @@
           "updatedAt": "2026-10-17"
         },
         {
-          "label": "Share one log between sessions",
+          "label": "One log for a session tree",
           "to": "harness/shared-logs",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-16"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Write a plugin",
@@ -1047,7 +1055,7 @@
           "label": "Give your agent coding tools",
           "to": "harness/coding-tools",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Sandbox and extend the coding tools",
@@ -1059,7 +1067,7 @@
           "label": "Undo a turn",
           "to": "harness/snapshots",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-13"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Build a coding agent",
