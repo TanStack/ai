@@ -2,6 +2,7 @@ import { toolDefinition } from '@tanstack/ai'
 import { afterWrite, readText, stringArg } from './backend'
 import { findMatches, toEndingsOf } from './edit'
 import type { ToolEnv } from './backend'
+import type { FileVersions } from './edit'
 
 const BOM = '﻿'
 
@@ -306,9 +307,14 @@ interface Step {
 /**
  * Apply each step. Every file is read and checked first. The files are
  * written and removed only when every operation fits. Then the `afterWrite`
- * hooks run for the written files.
+ * hooks run for the written files, and `versions` remembers the files as the
+ * patch left them.
  */
-async function applyAll(env: ToolEnv, steps: ReadonlyArray<Step>) {
+async function applyAll(
+  env: ToolEnv,
+  versions: FileVersions,
+  steps: ReadonlyArray<Step>,
+) {
   const { backend } = env
   // The new state of each file: its text, or `null` to remove it. A later
   // operation on a file sees it. A removed file is always a file that was
@@ -394,6 +400,9 @@ async function applyAll(env: ToolEnv, steps: ReadonlyArray<Step>) {
   for (const full of removed) await backend.remove?.(full)
   const notes: Array<string> = []
   for (const { full } of written) notes.push(...(await afterWrite(env, full)))
+  // After the hooks: a formatter can write a file again.
+  for (const { full } of written) await versions.saw(full)
+  for (const full of removed) versions.forget(full)
   return ['Applied the patch:', ...changes, ...notes].join('\n')
 }
 
@@ -412,8 +421,10 @@ async function applyAll(env: ToolEnv, steps: ReadonlyArray<Step>) {
  *   refuses them, before it writes anything.
  * - A file that the patch removed or moved away cannot change again in the
  *   same patch. A file cannot be removed or moved after the patch changed it.
+ * - A file that changed since a tool read it fails the patch, before it
+ *   writes anything (see `versions`).
  */
-export function patchTools(env: ToolEnv) {
+export function patchTools(env: ToolEnv, versions: FileVersions) {
   return [
     toolDefinition({
       name: 'patch',
@@ -443,7 +454,18 @@ export function patchTools(env: ToolEnv) {
       const paths = [
         ...new Set(steps.flatMap((step) => [step.full, step.to])),
       ].sort()
-      let run = () => applyAll(env, steps)
+      // The paths with no file before the locks. A file there under the
+      // locks is new, and the patch did not see it.
+      const missing = new Set<string>()
+      for (const path of paths) {
+        if (!(await versions.exists(path))) missing.add(path)
+      }
+      let run = async () => {
+        for (const path of paths) {
+          await versions.check(path, { missing: missing.has(path) })
+        }
+        return applyAll(env, versions, steps)
+      }
       for (const path of paths) {
         const inner = run
         run = () => env.lock(path, inner)

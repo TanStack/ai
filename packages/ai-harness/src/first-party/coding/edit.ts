@@ -118,12 +118,73 @@ export function findMatches(content: string, find: string) {
 }
 
 /**
- * `write_file` and `edit_file`. After each write, the `afterWrite` hooks run
- * for the file. `edit_file` finds the old text with {@link findMatches}. It
- * writes the new text with the line endings of the file, and keeps a byte
- * order mark.
+ * What one workspace binding saw of each file: its size and change time
+ * when a tool read it or wrote it. A write checks that the file is still as
+ * the binding saw it, so an edit of another session or agent is never lost.
+ * Call each function under the lock of the path. The paths come from
+ * `env.reach`.
+ *
+ * ponytail: a change that keeps the size and the `mtimeMs` is not seen.
  */
-export function editTools(env: ToolEnv) {
+export function fileVersions(env: ToolEnv) {
+  const seen = new Map<string, { size: number; mtimeMs: number }>()
+  return {
+    /** Remember the file at `path` as it is now: a tool read or wrote it. */
+    saw: async (path: string) => {
+      const info = await env.backend.stat(path)
+      if (info?.type === 'file') {
+        seen.set(path, { size: info.size, mtimeMs: info.mtimeMs })
+      } else {
+        seen.delete(path)
+      }
+    },
+    /** Forget `path`: a tool removed it. */
+    forget: (path: string) => {
+      seen.delete(path)
+    },
+    /** Is something at `path`? Call it before the lock. */
+    exists: async (path: string) => (await env.backend.stat(path)) !== undefined,
+    /**
+     * Throws when the file at `path` changed since a tool read or wrote it.
+     * For a file that no tool read, it throws only when the tool saw no file
+     * there before the lock (`missing`), and a file is there now.
+     */
+    check: async (path: string, { missing }: { missing: boolean }) => {
+      const known = seen.get(path)
+      const now = await env.backend.stat(path)
+      const shown = env.shown(path)
+      if (known) {
+        const isSame =
+          now?.type === 'file' &&
+          now.size === known.size &&
+          now.mtimeMs === known.mtimeMs
+        if (!isSame) {
+          throw new Error(
+            `${shown} changed since it was read. Read it again before you edit it.`,
+          )
+        }
+        return
+      }
+      if (missing && now !== undefined) {
+        throw new Error(
+          `${shown} was created while the tool waited. Read it before you edit it.`,
+        )
+      }
+    },
+  }
+}
+
+/** The file record of a binding, from {@link fileVersions}. */
+export type FileVersions = ReturnType<typeof fileVersions>
+
+/**
+ * `write_file` and `edit_file`. Each write first checks with `versions` that
+ * the file did not change since a tool read it. After each write, the
+ * `afterWrite` hooks run for the file. `edit_file` finds the old text with
+ * {@link findMatches}. It writes the new text with the line endings of the
+ * file, and keeps a byte order mark.
+ */
+export function editTools(env: ToolEnv, versions: FileVersions) {
   return [
     toolDefinition({
       name: 'write_file',
@@ -140,9 +201,13 @@ export function editTools(env: ToolEnv) {
         'file',
       )
       const content = stringArg(args, 'content')
+      const missing = !(await versions.exists(full))
       return env.lock(full, async () => {
+        await versions.check(full, { missing })
         await env.backend.writeFile(full, content)
         const notes = await afterWrite(env, full)
+        // After the hooks: a formatter can write the file again.
+        await versions.saw(full)
         return [`Wrote ${env.shown(full)}.`, ...notes].join('\n')
       })
     }),
@@ -166,6 +231,9 @@ export function editTools(env: ToolEnv) {
       const newText = stringArg(args, 'new')
       const replaceAll = isRecord(args) && args.replaceAll === true
       return env.lock(full, async () => {
+        // The edit reads the file itself, so a file that no tool read can
+        // change. One that a tool read must be as that read saw it.
+        await versions.check(full, { missing: false })
         const before = await readText(env.backend, full)
         const matches = findMatches(before, oldText)
         const count = matches.length
@@ -187,6 +255,7 @@ export function editTools(env: ToolEnv) {
         const keepBom = before.startsWith(BOM) && !after.startsWith(BOM)
         await env.backend.writeFile(full, keepBom ? BOM + after : after)
         const notes = await afterWrite(env, full)
+        await versions.saw(full)
         return [
           `Edited ${env.shown(full)} (${count} change${count > 1 ? 's' : ''}).`,
           ...notes,

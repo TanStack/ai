@@ -9,7 +9,7 @@ import {
 import { WorkspaceHooks } from '../workspace-hooks'
 import { hostBackend, optionalString, pathsOf, stringArg } from './backend'
 import { bashResources, bashTools } from './bash'
-import { editTools } from './edit'
+import { editTools, fileVersions } from './edit'
 import { patchPaths, patchTools } from './patch'
 import { readTools } from './read'
 import { searchTools } from './search'
@@ -122,8 +122,8 @@ function within(dir: string, full: string, sep: string) {
   return full === dir || full.startsWith(dir.endsWith(sep) ? dir : dir + sep)
 }
 
-/** A lock per path: work on one path runs one at a time, in order. */
-function createLock() {
+/** A lock per key: work on one key runs one at a time, in order. */
+export function createLock() {
   const queues = new Map<string, Promise<unknown>>()
   return <T>(path: string, fn: () => Promise<T>) => {
     const result = (queues.get(path) ?? Promise.resolve()).then(fn)
@@ -138,6 +138,17 @@ function createLock() {
     return result
   }
 }
+
+/**
+ * The file locks of this process, by the workspace root and the path. Every
+ * session and agent on one workspace shares them, so two edits of one file
+ * run one after the other.
+ *
+ * ponytail: a lock is for this process only. Two processes or machines on
+ * one shared sandbox do not wait for each other. The unchanged check of the
+ * edit tools then fails the second write, so no edit is lost.
+ */
+const fileLocks = createLock()
 
 /**
  * Does `editStyle: 'auto'` give `model` the `patch` tool? GPT models do:
@@ -352,15 +363,14 @@ function bindTools(
     return inRoot
   }
 
-  const lockPath = createLock()
   const env: ToolEnv = {
     backend,
     root,
     hooks: session.hooks ?? (() => []),
-    // ponytail: one lock per workspace binding. Sessions on one folder do
-    // not wait for each other.
+    // The key has the root, so the fixed lock order of `patch` (by path) is
+    // the same for every session on this root.
     lock: (path, fn) =>
-      lockPath(path, async () => {
+      fileLocks(`${root}\0${path}`, async () => {
         // `reach` checked `path` before the lock. A link made since then
         // would move the work to another file, so check it again here.
         const now = await resolved(path)
@@ -386,10 +396,23 @@ function bindTools(
         ]) !== 'allow'
     },
   }
+  // What this binding read and wrote, so a write fails when the file changed
+  // since then.
+  const versions = fileVersions(env)
+  // `read_file` reads under the lock. Its lock also remembers the file, as
+  // the read sees it.
+  const readEnv: ToolEnv = {
+    ...env,
+    lock: (path, fn) =>
+      env.lock(path, async () => {
+        await versions.saw(path)
+        return fn()
+      }),
+  }
   const tools = [
-    ...readTools(env),
-    ...editTools(env),
-    ...patchTools(env),
+    ...readTools(readEnv),
+    ...editTools(env, versions),
+    ...patchTools(env, versions),
     ...searchTools(env),
     ...bashTools(env, {
       timeoutMs: options.bashTimeoutMs,

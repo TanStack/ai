@@ -14,7 +14,11 @@ import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, logIdOf } from '../src'
 import { hostBackend } from '../src/first-party/coding/backend'
 import { quoteArg } from '../src/first-party/coding/search'
-import { snapshots } from '../src/first-party/coding/snapshots'
+import {
+  purgeSnapshots,
+  snapshots,
+} from '../src/first-party/coding/snapshots'
+import { workspaceTools } from '../src/first-party/coding/workspace'
 import {
   after,
   gate,
@@ -23,7 +27,7 @@ import {
   text,
   toolCall,
 } from './helpers'
-import type { HarnessPersistence, HarnessSession } from '../src'
+import type { HarnessPersistence, HarnessSession, Principal } from '../src'
 import type { WorkspaceBackend } from '../src/first-party/coding/backend'
 import type { Reply } from './helpers'
 
@@ -66,13 +70,18 @@ const editTurn = (answer: string): Array<Reply> => [
 
 /**
  * Open a session with `snapshots()` and a `change` tool. Each call of the
- * tool runs the next function of `changes`.
+ * tool runs the next function of `changes`. With `workspace`, the session
+ * also has `workspaceTools()` on `root`. The thread is `THREAD`, unless
+ * `threadId` names another.
  */
 async function open(options: {
   replies: Array<Reply>
   changes?: Array<() => Promise<unknown>>
   persistence?: HarnessPersistence
   backend?: WorkspaceBackend
+  workspace?: boolean
+  threadId?: string
+  principal?: Principal
 }) {
   const changes = options.changes ?? []
   const change = toolDefinition({
@@ -92,10 +101,14 @@ async function open(options: {
       name: 'test/snapshots',
       adapter,
       tools: [change],
-      plugins: () => [plugin],
+      plugins: () =>
+        options.workspace
+          ? [workspaceTools({ root, web: false }), plugin]
+          : [plugin],
     }),
     {
-      threadId: THREAD,
+      threadId: options.threadId ?? THREAD,
+      principal: options.principal,
     },
   )
   return { host, session, plugin, calls }

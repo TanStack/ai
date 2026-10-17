@@ -1,6 +1,7 @@
 import { tmpdir } from 'node:os'
 import { join, relative, resolve, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { fileVersions } from '../src/first-party/coding/edit'
 import {
   parsePatch,
   patchPaths,
@@ -79,7 +80,7 @@ function workspace(
     reach: async (path) => resolve(root, path),
     shown,
   }
-  const tools: Array<AnyTool> = patchTools(env)
+  const tools: Array<AnyTool> = patchTools(env, fileVersions(env))
   const [tool] = tools
   return {
     written,
