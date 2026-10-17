@@ -45,12 +45,10 @@ export const review = definePlugin({
         description: 'Review a topic',
         input: z.object({ topic: z.string() }),
         run: async ({ topic }) => {
-          const [auth, sessions] = await ctx.agents.group({ onFailure: 'cancel-siblings' }, (group) =>
-            Promise.all([
-              group.run(explorer, { task: `${topic}: auth checks` }),
-              group.run(explorer, { task: `${topic}: session expiry` }),
-            ]),
-          )
+          const [auth, sessions] = await ctx.agents.group({ onFailure: 'cancel-siblings' }, (g) => [
+            g.start(explorer, { task: `${topic}: auth checks` }),
+            g.start(explorer, { task: `${topic}: session expiry` }),
+          ])
           return `${auth}\n\n${sessions}`
         },
       }),
@@ -63,7 +61,7 @@ export const review = definePlugin({
 - `ctx.agents.start(agent, input, { wake: true })` runs it in the background and starts a turn when it finishes or fails.
 - `ctx.agents.start(agent, input, { principal })` runs it as that user. The wake turn runs as the same user.
 - Without `principal`, a plugin with `lifetime: 'turn'` starts it as the user of its turn. A session plugin starts it as the user who opened the session. To start it for the user of a tool call, pass `principal: ctx.context.run.principal`.
-- `ctx.agents.group(options, body)` runs several. With `onFailure: 'cancel-siblings'`, one failure cancels the others. With `'collect'`, use `group.runSettled` to get every result or error. Every child settles before `group` returns.
+- `ctx.agents.group(options, (g) => runs)` runs several. Start each child with `g.start` and return the runs. `group` resolves to their results, in the same order. With `onFailure: 'cancel-siblings'`, one failure cancels the others. With `'collect'`, each result is `{ ok: true, value }` or `{ ok: false, error }`. Every child settles before `group` returns.
 
 The turn that `wake: true` starts sends the model a user message from the harness, for example `Background agent pricer finished: ...`. The user did not write it. So the transcript marks it with `metadata.harness.wake: true`, and a view from `createSessionView` does not show it. In your own chat UI, skip the user messages with this mark.
 

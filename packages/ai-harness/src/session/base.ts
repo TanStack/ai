@@ -60,14 +60,18 @@ import type { logChatStores } from '../log-stores'
 import type { MediaStore } from '../media'
 import type { PluginSessionApi } from '../commands'
 import type { SessionUsage } from '../usage'
-import type { AgentRegistryView, AnyAgent } from '../agents'
+import type {
+  AgentActions,
+  AgentGroup,
+  AgentGroupOptions,
+  AgentRegistryView,
+  AnyAgent,
+} from '../agents'
 import type { AnyHarness } from '../define'
 import type { HarnessPersistence, SessionIndexWriter } from '../host'
 import type {
-  AgentGroup,
   HarnessPlugin,
   MountedPlugins,
-  PluginAgentActions,
   PluginServices,
   PluginState,
 } from '../plugins'
@@ -89,10 +93,12 @@ import type {
 import type {
   AgentRunOptions,
   AgentRunStartOptions,
+  AgentStartFn,
   AgentStartOptions,
   AgentChild,
   AgentHandles,
   DynamicAgentHandle,
+  GroupRuns,
   SessionInspection,
   SessionDependencies,
   QueuedTurn,
@@ -799,24 +805,41 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * `ctx.agents` of a plugin. The runs are for `principal`, else for the
    * principal that opened the session. A `principal` option of `start` wins.
    */
-  protected pluginAgents(principal?: Principal): PluginAgentActions {
+  protected pluginAgents(principal?: Principal): AgentActions {
     const user = principal ? { principal } : {}
+    return this.agentActions((target, input, options) =>
+      this.runAgent(target, input, { ...user, ...options }),
+    )
+  }
+
+  /**
+   * `start`, `run`, and `group` over one `start` function. `run` and the
+   * children of a group start with `wake: false`, unless the options say
+   * else.
+   */
+  protected agentActions(start: AgentStartFn): AgentActions {
     return {
-      run: ((target: string | AnyAgent, input?: unknown) =>
-        this.runAgent(target, input, {
-          ...user,
-          wake: false,
-        })) as PluginAgentActions['run'],
       start: ((
         target: string | AnyAgent,
         input?: unknown,
         options?: AgentStartOptions,
+      ) => start(target, input, options ?? {})) as AgentActions['start'],
+      run: ((
+        target: string | AnyAgent,
+        input?: unknown,
+        options?: AgentRunOptions,
       ) =>
-        this.runAgent(target, input, {
-          ...user,
+        start(target, input, {
           ...options,
-        })) as PluginAgentActions['start'],
-      group: (options, body) => this.agentGroup(options, body, principal),
+          wake: false,
+        })) as AgentActions['run'],
+      group: ((
+        options: AgentGroupOptions,
+        body: (g: AgentGroup) => GroupRuns | Promise<GroupRuns>,
+      ) =>
+        this.agentGroup(options, body, (target, input, childOptions) =>
+          start(target, input, { wake: false, ...childOptions }),
+        )) as AgentActions['group'],
     }
   }
 
@@ -1115,11 +1138,11 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   // Implemented by a later layer of the class.
   protected abstract self(): HarnessSession<THarness>
   protected abstract drain(): void
-  protected abstract agentGroup<T>(
-    options: { onFailure?: 'cancel-siblings' | 'collect' },
-    body: (group: AgentGroup) => Promise<T>,
-    principal?: Principal,
-  ): Promise<T>
+  protected abstract agentGroup(
+    options: AgentGroupOptions,
+    body: (group: AgentGroup) => GroupRuns | Promise<GroupRuns>,
+    start: AgentStartFn,
+  ): Promise<Array<unknown>>
   protected abstract pluginApi(
     principal?: Principal,
     metadataSchema?: SchemaInput,

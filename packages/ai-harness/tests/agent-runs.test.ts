@@ -504,6 +504,38 @@ describe('agents that agent code starts', () => {
     await host.close()
   })
 
+  it('runs a child and a group of children with run and group', async () => {
+    const lead = defineAgent({
+      name: 'lead',
+      description: 'Runs helpers',
+      run: async (ctx) => {
+        const one = await ctx.harness.agents.run(helper)
+        const [two, three] = await ctx.harness.agents.group({}, (g) => [
+          g.start(helper),
+          g.start('helper'),
+        ])
+        return [one, two, three].join(' ')
+      },
+    })
+    const { host, session } = await open(
+      defineHarness({
+        name: 'test/agent-runs',
+        adapter: mockAdapter([]).adapter,
+        agents: [lead, helper],
+      }),
+    )
+
+    const run = session.agents.lead.start()
+
+    await expect(run).resolves.toBe('helped helped helped')
+    const children = session
+      .agentRuns()
+      .filter((item) => item.agent === 'helper')
+    expect(children).toHaveLength(3)
+    for (const child of children) expect(child.parentRunId).toBe(run.id)
+    await host.close()
+  })
+
   it('refuses a child over the tree budget, so nothing starts', async () => {
     const lead = defineAgent({
       name: 'lead',

@@ -46,9 +46,15 @@ import type {
 import type { InputState, LogWriter } from '../log'
 import type { AgentResultRecord } from '../log-records'
 import { NO_SESSION_CONTEXT } from '../agents'
-import type { AgentStarter, AnyAgent, HarnessAgentContext } from '../agents'
+import type {
+  AgentActions,
+  AgentGroup,
+  AgentGroupOptions,
+  AnyAgent,
+  HarnessAgentContext,
+} from '../agents'
 import type { AnyHarness } from '../define'
-import type { AgentGroup, MountedPlugins } from '../plugins'
+import type { MountedPlugins } from '../plugins'
 import type {
   AgentRun,
   AgentSendOptions,
@@ -64,6 +70,7 @@ import type {
 } from '../types'
 import type {
   AgentRunStartOptions,
+  AgentStartFn,
   AgentStartOptions,
   AgentChild,
   DynamicAgentHandle,
@@ -74,6 +81,7 @@ import type {
   AgentChain,
   AgentRunStart,
   AgentInputState,
+  GroupRuns,
 } from './types'
 
 /**
@@ -507,23 +515,20 @@ export abstract class SessionAgents<
   }
 
   /**
-   * `ctx.harness.agents` in the runs of `chain`: start a child in the
-   * background.
-   * The child counts against the chain's tree budget, and over it `start`
-   * throws. The child records the run that started it, and runs for that
-   * run's sender.
+   * `ctx.harness.agents` in the runs of `chain`: start, run, and group
+   * children. Each child counts against the chain's tree budget, and over
+   * it the start throws. The child records the run that started it, and
+   * runs for that run's sender.
    */
-  protected agentStarter(chain: AgentChain): AgentStarter {
-    return {
-      start: (target, input, options) => {
-        const active = [...chain.children].filter(
-          (child) => !child.current.operation.isSettled(),
-        ).length
-        const refusal = chain.budget.reserve(active)
-        if (refusal !== undefined) throw new Error(refusal)
-        return this.runAgent(target, input, options ?? {}, chain)
-      },
-    }
+  protected agentStarter(chain: AgentChain): AgentActions {
+    return this.agentActions((target, input, options) => {
+      const active = [...chain.children].filter(
+        (child) => !child.current.operation.isSettled(),
+      ).length
+      const refusal = chain.budget.reserve(active)
+      if (refusal !== undefined) throw new Error(refusal)
+      return this.runAgent(target, input, options, chain)
+    })
   }
 
   /** A new agent run operation. `id`: a stored one, after a restart. */
@@ -690,15 +695,16 @@ export abstract class SessionAgents<
   }
 
   /**
-   * Run a group of agents, for `principal` (else the principal that opened
-   * the session). Every child settles before the group returns.
+   * Run a group of agents that `start` starts. Every child settles before
+   * the group returns.
    */
-  protected override async agentGroup<T>(
-    options: { onFailure?: 'cancel-siblings' | 'collect' },
-    body: (group: AgentGroup) => Promise<T>,
-    principal?: Principal,
-  ): Promise<T> {
-    const runOptions = { wake: false, ...(principal ? { principal } : {}) }
+  protected override async agentGroup(
+    options: AgentGroupOptions,
+    body: (group: AgentGroup) => GroupRuns | Promise<GroupRuns>,
+    start: AgentStartFn,
+  ): Promise<Array<unknown>> {
+    // `concurrency` and `key` have no runtime yet: every child starts at
+    // once, and a group that runs again starts new children.
     const started: Array<OperationImpl<unknown>> = []
     const cancelOthers = (failed: OperationImpl<unknown>) => {
       if (options.onFailure === 'collect') return
@@ -713,25 +719,28 @@ export abstract class SessionAgents<
       }
     }
     const group: AgentGroup = {
-      run: (target: string | AnyAgent, input?: unknown) => {
-        const operation = this.runAgent(target, input, runOptions)
+      start: ((
+        target: string | AnyAgent,
+        input?: unknown,
+        childOptions?: AgentStartOptions,
+      ) => {
+        const operation = start(target, input, childOptions ?? {})
         started.push(operation)
-        return Promise.resolve(operation).catch((error: unknown) => {
-          cancelOthers(operation)
-          throw error
-        })
-      },
-      runSettled: (target: string | AnyAgent, input?: unknown) => {
-        const operation = this.runAgent(target, input, runOptions)
-        started.push(operation)
-        return Promise.resolve(operation).then(
-          (value) => ({ ok: true as const, value }),
-          (error: unknown) => ({ ok: false as const, error }),
-        )
-      },
-    } as AgentGroup
+        Promise.resolve(operation).catch(() => cancelOthers(operation))
+        return operation
+      }) as AgentGroup['start'],
+    }
     try {
-      return await body(group)
+      const runs = await body(group)
+      if (options.onFailure !== 'collect') return await Promise.all(runs)
+      return await Promise.all(
+        runs.map((run) =>
+          Promise.resolve(run).then(
+            (value) => ({ ok: true as const, value }),
+            (error: unknown) => ({ ok: false as const, error }),
+          ),
+        ),
+      )
     } finally {
       await Promise.allSettled(
         started.map((operation) => Promise.resolve(operation)),

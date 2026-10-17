@@ -37,7 +37,6 @@ import type {
   ChatTurnResult,
   Cursor,
   HarnessInput,
-  Operation,
   PendingQuestion,
   Principal,
   ResolveOptions,
@@ -62,18 +61,30 @@ export interface ScheduleOptions {
   principal?: Principal
 }
 
-/** Options for running an agent from code. */
-export interface AgentRunOptions {
+/** Options for running an agent from code: the options of `start` without `wake`. */
+export type AgentRunOptions = Omit<AgentStartOptions, 'wake'>
+
+/** What the `onModelError` option of an agent run gets. */
+export interface AgentModelErrorContext {
+  /** The id of the agent run. */
+  runId: string
+  /** The name of the agent. */
+  agent: string
+  error: { message: string; code?: string; retryAfterMs?: number }
+  /** The attempts of this run that failed before this one. */
+  retries: number
+  /** Aborted when the run is cancelled. */
+  signal: AbortSignal
+}
+
+/** Options for starting an agent in the background. */
+export interface AgentStartOptions {
   /**
    * How the main model learns about the result or the error on its next
    * turn: `'reference'` (default) adds a short note to the transcript,
    * `'none'` adds nothing.
    */
   attach?: 'reference' | 'none'
-}
-
-/** Options for starting an agent in the background. */
-export interface AgentStartOptions extends AgentRunOptions {
   /**
    * When the agent finishes or fails, start a new chat turn with its result
    * or its error. This also occurs when the host stopped during the run.
@@ -95,6 +106,31 @@ export interface AgentStartOptions extends AgentRunOptions {
    * the user of the tool call: `ctx.context.run.principal`.
    */
   principal?: Principal
+  /**
+   * The durable name of the run in a group or in a run started with
+   * `resume: true`. When the parent runs again, a start with the same key
+   * gets the run it started before.
+   */
+  key?: string
+  /**
+   * Limits of this run. `timeoutMs`: the run fails with code `timeout` after
+   * this time. It is never later than the deadline of the parent run.
+   * `maxAttempts`: replaces `durability.maxAttempts` for this run.
+   */
+  limits?: { timeoutMs?: number; maxAttempts?: number }
+  /**
+   * The model use of this run and its children. The run fails with code
+   * `budget` after the first model call over it.
+   */
+  budget?: { maxTokens?: number; maxCost?: number }
+  /**
+   * Called when a model call of this run fails. Return `'retry'` to run the
+   * call again, or `'fail'` to fail the run. A function is not stored in the
+   * log: a run that another host takes over runs without it.
+   */
+  onModelError?: (
+    ctx: AgentModelErrorContext,
+  ) => 'retry' | 'fail' | Promise<'retry' | 'fail'>
 }
 
 /**
@@ -106,6 +142,16 @@ export interface AgentStartOptions extends AgentRunOptions {
 export type AgentRunStartOptions = AgentStartOptions & {
   offered?: { inputId: string; runId?: string }
 }
+
+/** Start one agent run. `start`, `run`, and `group` of `AgentActions` use it. */
+export type AgentStartFn = (
+  target: string | AnyAgent,
+  input: unknown,
+  options: AgentStartOptions,
+) => AgentRunImpl
+
+/** The runs that the body of a `group` returns. */
+export type GroupRuns = ReadonlyArray<AgentRun<unknown>>
 
 /** One agent run as a child of the session thread. */
 export interface AgentChild {
@@ -122,11 +168,14 @@ export type RunArgs<TAgent, TOptions> =
     ? [input?: undefined, options?: TOptions]
     : [input: AgentInputOf<TAgent>, options?: TOptions]
 
-/** Run one agent of a session, typed from its definition. */
+/**
+ * Run one agent of a session, typed from its definition. `run` and `start`
+ * are the calls of `AgentActions` with the agent already given.
+ */
 export interface AgentHandle<TAgent> {
   run: (
     ...args: RunArgs<TAgent, AgentRunOptions>
-  ) => Operation<AgentResultOf<TAgent>>
+  ) => AgentRun<AgentResultOf<TAgent>>
   start: (
     ...args: RunArgs<TAgent, AgentStartOptions>
   ) => AgentRun<AgentResultOf<TAgent>>
@@ -134,7 +183,7 @@ export interface AgentHandle<TAgent> {
 
 /** A handle for an agent picked by name at runtime. */
 export interface DynamicAgentHandle {
-  run: (input?: unknown, options?: AgentRunOptions) => Operation<unknown>
+  run: (input?: unknown, options?: AgentRunOptions) => AgentRun<unknown>
   start: (input?: unknown, options?: AgentStartOptions) => AgentRun<unknown>
 }
 

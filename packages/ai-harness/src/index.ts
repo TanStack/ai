@@ -50,8 +50,6 @@ export type {
   PluginResources,
   PluginLifetime,
   PluginPrompt,
-  AgentGroup,
-  PluginAgentActions,
   PluginCommands,
   PluginSetupContext,
   PluginState,
@@ -93,10 +91,14 @@ export { AuthRequiredError, scrubSecrets } from './auth'
 export type { CredentialsAccess } from './auth'
 
 export type {
+  AgentActions,
+  AgentCall,
+  AgentGroup,
+  AgentGroupOptions,
   AgentInputOf,
   AgentRegistryView,
   AgentResultOf,
-  AgentStarter,
+  AgentSettled,
   AnyAgent,
   HarnessAgentContext,
 } from './agents'
@@ -147,6 +149,7 @@ export type {
   HarnessSession,
   AgentHandle,
   AgentHandles,
+  AgentModelErrorContext,
   AgentRunInfo,
   AgentRunOptions,
   AgentStartOptions,
