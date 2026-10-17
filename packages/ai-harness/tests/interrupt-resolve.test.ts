@@ -14,6 +14,12 @@ import {
 import type { StreamChunk } from '@tanstack/ai'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 /** A client tool: the harness has no implementation, the client sends the result. */
 const openScreen = toolDefinition({
   name: 'openScreen',
@@ -378,7 +384,7 @@ describe('a resolve and a waiting steer', () => {
     )
 
     const turn = session.send('Deploy.')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     const steer = session.send('And tell me.', {
       busy: 'steer',
       inputId: 'steer',
@@ -420,7 +426,7 @@ describe("prompt({ busy: 'steer' })", () => {
     )
 
     const turn = session.send('Start.')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     const joined = session.send('Steer by prompt.', {
       busy: 'steer',
       inputId: 'by-prompt',

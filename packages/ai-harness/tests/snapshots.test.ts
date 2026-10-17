@@ -9,6 +9,12 @@ import { logIdOf } from '../src/log'
 import { mockAdapter, text, wrapLogStore } from './helpers'
 import type { HarnessHost, HarnessHostOptions, SessionEvent } from '../src'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
 const LOG = logIdOf({ logId: THREAD })
@@ -118,8 +124,8 @@ describe('log snapshots on a host', () => {
       events: (eventOptions) => client.events({ ...eventOptions, from: '0' }),
     })
     await view.ready
-    await vi.waitFor(() => expect(transcript).toHaveBeenCalledTimes(2))
-    await vi.waitFor(() =>
+    await waitFor(() => expect(transcript).toHaveBeenCalledTimes(2))
+    await waitFor(() =>
       expect(view.store.get().messages.map((item) => item.role)).toEqual([
         'user',
         'assistant',

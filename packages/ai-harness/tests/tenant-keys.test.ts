@@ -18,6 +18,12 @@ import { mockAdapter, text, toolCall } from './helpers'
 import type { ModelMessage } from '@tanstack/ai'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 const NAME = 'test/tenant-keys'
 const acme = { id: 'a', tenantId: 'acme' }
@@ -181,8 +187,8 @@ describe('one thread id in two tenants', () => {
     expect(await host.resumePending({ harnesses: [harness] })).toEqual([
       { threadId: THREAD, harness: NAME, tenantId: acme.tenantId },
     ])
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
-    await vi.waitFor(async () => {
+    await waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(async () => {
       const a = await host.open(harness, { threadId: THREAD, principal: acme })
       expect(contents(await a.transcript())).toEqual([
         { role: 'user', content: 'go' },

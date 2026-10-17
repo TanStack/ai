@@ -7,6 +7,12 @@ import { INTERRUPTED_TOOL_RESULT, repairTranscript } from '../src/resume'
 import { mockAdapter, text, untilAborted } from './helpers'
 import type { RunRecord, StreamChunk } from '@tanstack/ai'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 describe('crash recovery edges', () => {
   it('leaves the transcript alone when no tool needs a note', async () => {
     const persistence = memoryPersistence()
@@ -160,7 +166,7 @@ describe('harnessText edges', () => {
     } as never)
     const first = await stream[Symbol.asyncIterator]().next()
     expect(first.value).toMatchObject({ type: EventType.RUN_STARTED })
-    await vi.waitFor(() => expect(inner.calls).toHaveLength(1))
+    await waitFor(() => expect(inner.calls).toHaveLength(1))
     controller.abort()
     for await (const _chunk of stream) {
       // Drains until the cancelled inner turn ends.

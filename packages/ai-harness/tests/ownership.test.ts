@@ -25,6 +25,12 @@ import type { HarnessRunContext, OwnershipOptions } from '../src'
 import type { StepRun } from '../src/durable-tool'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
 const LOG = logIdOf({ logId: THREAD })
@@ -84,7 +90,7 @@ describe('ownership of a log by two hosts', () => {
     )
     const b = await openOn(logB, [() => text('from B')])
     const turn = a.session.send('go', { inputId: 'in-a' })
-    await vi.waitFor(() => expect(a.calls).toHaveLength(1))
+    await waitFor(() => expect(a.calls).toHaveLength(1))
     // Longer than the ownership lasts without a renewal.
     await new Promise((resolve) => setTimeout(resolve, 150))
 
@@ -100,7 +106,7 @@ describe('ownership of a log by two hosts', () => {
     // B still reads: it gets the answers of A.
     release.open()
     expect(await turn).toEqual({ text: 'from A', media: [] })
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(assistantTexts(await b.session.transcript())).toEqual([
         'from A',
         'for B',
@@ -184,7 +190,7 @@ describe('a host that lost the log and takes it back', () => {
       ownership: CRASHING_OWNERSHIP,
     })
     const turn = a.session.send('go', { inputId: 'in-1' })
-    await vi.waitFor(() => expect(a.calls).toHaveLength(1))
+    await waitFor(() => expect(a.calls).toHaveLength(1))
     await ownershipExpired()
 
     // B takes the log, writes once, and crashes before the turn settles.
@@ -209,7 +215,7 @@ describe('a host that lost the log and takes it back', () => {
 
     // The worker of A takes the log, with the session of A still open.
     await a.host.resumePending({ harnesses: [a.harness] })
-    await vi.waitFor(() => expect(a.calls).toHaveLength(2))
+    await waitFor(() => expect(a.calls).toHaveLength(2))
     expect(await a.session.settled('in-1')).toMatchObject({
       outcome: 'completed',
     })
@@ -232,7 +238,7 @@ describe('a host that lost the log and takes it back', () => {
       ownership: { ttlMs: 200, renewMs: 50 },
     })
     const turn = a.session.send('go', { inputId: 'in-1' })
-    await vi.waitFor(() => expect(a.calls).toHaveLength(1))
+    await waitFor(() => expect(a.calls).toHaveLength(1))
 
     // No renewal lands for longer than the ownership lasts.
     isDown = true
@@ -241,12 +247,12 @@ describe('a host that lost the log and takes it back', () => {
     await a.host.resumePending({ harnesses: [a.harness] })
     isDown = false
     renewals = 0
-    await vi.waitFor(() => expect(renewals).toBeGreaterThan(0))
+    await waitFor(() => expect(renewals).toBeGreaterThan(0))
 
     release.open()
     expect(await turn).toEqual({ text: 'done', media: [] })
     // The idle session gives the log back.
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await canOtherHostTake(log, LOG)).toBe(true),
     )
     await a.host.close()
@@ -287,7 +293,7 @@ describe('renewals', () => {
 
     // The next rounds renew each owned log.
     const before = renew.mock.calls.length
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(renew.mock.calls.length).toBeGreaterThanOrEqual(before + 6),
     )
     const renewed = renew.mock.calls.slice(before).map(([claim]) => claim.logId)
@@ -297,7 +303,7 @@ describe('renewals', () => {
 
     release.open()
     await Promise.all(running.map(({ turn }) => turn))
-    await vi.waitFor(async () => {
+    await waitFor(async () => {
       for (const logId of logIds) {
         expect(await canOtherHostTake(log, logId)).toBe(true)
       }
@@ -317,11 +323,11 @@ describe('renewals', () => {
     )
 
     const turn = session.send('go')
-    await vi.waitFor(() => expect(renew).toHaveBeenCalled())
+    await waitFor(() => expect(renew).toHaveBeenCalled())
     release.open()
     await turn
 
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await canOtherHostTake(log, LOG)).toBe(true),
     )
     const calls = renew.mock.calls.length
@@ -344,7 +350,7 @@ describe('renewals', () => {
       .spyOn(log, 'renew')
       .mockRejectedValueOnce(new Error('store down'))
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(renew.mock.calls.length).toBeGreaterThanOrEqual(2),
     )
 
@@ -370,7 +376,7 @@ describe('renewals', () => {
     await new Promise((resolve) => setTimeout(resolve, 25))
     expect(await canOtherHostTake(log, LOG)).toBe(true)
 
-    await vi.waitFor(() => expect(lost).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(lost).toHaveBeenCalledTimes(1))
     expect(ownership.epochOf(LOG)).toBeUndefined()
     await ownership.close()
   })

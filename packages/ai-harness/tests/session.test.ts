@@ -39,6 +39,12 @@ import type {
 } from '../src'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 /** A memory host. A session closes as soon as its last handle closes and it is idle. */
 function setup() {
   const persistence = memoryPersistence()
@@ -100,7 +106,7 @@ describe('chat turns', () => {
 
     const a = session.send('first')
     const b = session.send('second')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     expect(session.snapshot().queuedTurns).toBe(1)
     first.open()
 
@@ -122,7 +128,7 @@ describe('chat turns', () => {
     )
 
     const a = session.send('first')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     await expect(session.send('second', { busy: 'reject' })).rejects.toThrow(
       'already running',
     )
@@ -183,7 +189,7 @@ describe('chat turns', () => {
     )
 
     const a = session.send('first')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     const joined = session.send('and this', { busy: 'steer' })
     first.open()
 
@@ -210,7 +216,7 @@ describe('chat turns', () => {
     )
 
     const turn = session.send('go')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     const receipt = await turn.cancel()
     expect(receipt.status).toBe('accepted')
     await expect(turn).rejects.toThrow('Cancelled')
@@ -257,7 +263,7 @@ describe('chat turns', () => {
       ],
     })
     expect(receipt.status).toBe('accepted')
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(execute).toHaveBeenCalledWith({ path: 'a.txt' }, expect.anything())
     await host.close()
   })
@@ -303,9 +309,7 @@ describe('settled operations', () => {
         () => undefined,
       )
     }
-    await vi.waitFor(() =>
-      expect(session.operation(ids[0] ?? '')).toBe(undefined),
-    )
+    await waitFor(() => expect(session.operation(ids[0] ?? '')).toBe(undefined))
     expect(session.operation(ids[1] ?? '')).toBeDefined()
     expect(session.operation(ids[500] ?? '')).toBeDefined()
     await host.close()
@@ -422,11 +426,11 @@ describe('agents', () => {
     )
 
     await session.agents.pricer.start({ vendor: 'acme' }, { wake: true })
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     expect(messageTexts(calls[0]).at(-1)).toContain(
       'Background agent pricer finished',
     )
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     const transcript = await session.transcript()
     expect(wakeMessages(transcript)).toEqual([
       expect.stringContaining('Background agent pricer finished'),
@@ -458,12 +462,12 @@ describe('agents', () => {
     await expect(
       session.agents.failing.start(undefined, { wake: true }),
     ).rejects.toThrow('no vendor')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     expect(messageTexts(calls[0]).slice(-2)).toEqual([
       '[failing failed] no vendor',
       'Background agent failing failed: [failing failed] no vendor',
     ])
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     await host.close()
   })
 })
@@ -822,7 +826,7 @@ describe('joins', () => {
     const steer = session.send('join me', { busy: 'steer' })
     await steer.receipt
     wait.done.open()
-    await vi.waitFor(() => expect(calls).toHaveLength(2))
+    await waitFor(() => expect(calls).toHaveLength(2))
 
     expect(session.operation(steer.id)).toBe(steer)
     expect(await session.cancel({ operationId: steer.id })).toMatchObject({
@@ -896,7 +900,7 @@ describe('joins', () => {
     )
 
     const turn = session.send('first')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     const late = session.send('late', { busy: 'steer', inputId: 'late' })
     await late.receipt
     isArmed = true
@@ -936,7 +940,7 @@ describe('joins', () => {
     )
 
     const turn = session.send('secret')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     await session.send('more', { busy: 'steer' }).receipt
     release.open()
     await turn
@@ -991,7 +995,7 @@ describe('joins', () => {
     const steer: Array<ContentPart> = [{ type: 'text', content: 'this' }, image]
 
     const turn = session.send('look')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     await session.send(steer, { busy: 'steer' }).receipt
     release.open()
     await turn

@@ -34,6 +34,12 @@ import type {
 import type { OwnershipOptions } from '../src/ownership'
 import type { SessionEvent } from '../src/types'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
 const LOG = logIdOf({ logId: THREAD })
@@ -1671,7 +1677,7 @@ describe('a log shared by sessions', () => {
     expect(log.isOpen).toBe(true)
     child.close()
 
-    await vi.waitFor(() => expect(log.isOpen).toBe(false))
+    await waitFor(() => expect(log.isOpen).toBe(false))
     expect(() => log.view('log-1', hooksOf())).toThrow(
       `The log ${JSON.stringify(SHARED)} is closed.`,
     )
@@ -1775,7 +1781,7 @@ describe('a log shared by sessions', () => {
     await next.flush()
     expect(next.state.seq).toBe(1)
     next.close()
-    await vi.waitFor(() => expect(log.isOpen).toBe(false))
+    await waitFor(() => expect(log.isOpen).toBe(false))
   })
 
   it('drops the staged records of a closed view', async () => {

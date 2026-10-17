@@ -28,6 +28,12 @@ import type {
 } from '../src'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
 const LOG = logIdOf({ logId: THREAD })
@@ -747,7 +753,7 @@ describe('turn.onModelError', () => {
           () => {},
           () => {},
         )
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(first.calls).toHaveLength(replies.length + 1),
         )
         // The host stops: its ownership of the log expires.
@@ -818,7 +824,7 @@ describe('turn.onModelError', () => {
         () => {},
         () => {},
       )
-      await vi.waitFor(() => expect(first.seen).toEqual([0]))
+      await waitFor(() => expect(first.seen).toEqual([0]))
       // The host stops while the hook waits for the backoff.
       await first.host.close({ recoverable: true })
 
@@ -1128,7 +1134,7 @@ describe('turn.beforeFinish', () => {
       () => {},
       () => {},
     )
-    await vi.waitFor(() => expect(first.calls).toHaveLength(2))
+    await waitFor(() => expect(first.calls).toHaveLength(2))
     // The host stops: its ownership of the log expires.
     await ownershipExpired()
 

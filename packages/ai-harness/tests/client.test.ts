@@ -8,6 +8,12 @@ import { createHarnessClient } from '../src/client'
 import { gate, messageTexts, mockAdapter, text } from './helpers'
 import type { SessionEvent } from '../src'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 describe('createHarnessClient', () => {
   it('sends inputs, reads events, and gets a snapshot through the handler', async () => {
     const pricer = defineAgent({
@@ -120,7 +126,7 @@ describe('createHarnessClient', () => {
     const receipt = await client.continue({ inputId: 'c-1' })
 
     expect(receipt).toMatchObject({ inputId: 'c-1', status: 'accepted' })
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     expect(messageTexts(calls[0])).toEqual(['go'])
     await host.close()
   })
@@ -165,7 +171,7 @@ describe('createHarnessClient', () => {
         args: { queue: 1 },
       })
       .catch(() => {})
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(
         JSON.stringify(
           await logMessageStore({ store: persistence.stores.log }).loadThread(
@@ -209,7 +215,7 @@ describe('createHarnessClient', () => {
     await client.send('again', {
       ephemeral: [{ role: 'user', content: 'note 2' }],
     })
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await messages.loadThread(key)).toHaveLength(4),
     )
 

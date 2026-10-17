@@ -13,6 +13,12 @@ import {
 } from './helpers'
 import type { LogRecord, LogStore } from '@tanstack/ai-persistence'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
 const LOG = logIdOf({ logId: THREAD })
@@ -119,13 +125,13 @@ describe('host.resumePending', () => {
         harnesses: [defineHarness({ name: NAME, adapter })],
       }),
     ).toEqual([{ threadId: THREAD, harness: NAME }])
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await settledRecord(log, 'in-1')).toMatchObject({
         outcome: 'completed',
       }),
     )
     expect(calls).toHaveLength(1)
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await canOtherHostTake(log, LOG)).toBe(true),
     )
     await host.close()
@@ -149,7 +155,7 @@ describe('host.resumePending', () => {
     await host.resumePending({
       harnesses: [defineHarness({ name: NAME, adapter })],
     })
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await settledRecord(log, 'in-early')).toMatchObject({
         outcome: 'completed',
       }),
@@ -168,7 +174,7 @@ describe('host.resumePending', () => {
     await host.resumePending({
       harnesses: [defineHarness({ name: NAME, adapter })],
     })
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     expect(await settledRecord(log, 'in-agent')).toMatchObject({
       outcome: 'failed',
     })
@@ -186,7 +192,7 @@ describe('host.resumePending', () => {
       harnesses: [defineHarness({ name: NAME, adapter })],
       close: 'whenIdle',
     })
-    await vi.waitFor(() => expect(calls).toHaveLength(1), { timeout: 2_000 })
+    await waitFor(() => expect(calls).toHaveLength(1), { timeout: 2_000 })
     expect(await settledRecord(log, 'in-agent')).toMatchObject({
       outcome: 'failed',
     })
@@ -211,7 +217,7 @@ describe('host.resumePending', () => {
         defineHarness({ name: NAME, adapter: main.adapter, agents: [worker] }),
       ],
     })
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await settledRecord(log, 'in-agent')).toMatchObject({
         outcome: 'completed',
       }),
@@ -237,7 +243,7 @@ describe('host.resumePending', () => {
       b.resumePending({ harnesses: [harness] }),
     ])
     expect([...fromA, ...fromB]).toEqual([{ threadId: THREAD, harness: NAME }])
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     await new Promise((resolve) => setTimeout(resolve, 50))
     expect(calls).toHaveLength(1)
     await a.close()
@@ -283,11 +289,11 @@ describe('host.resumePending', () => {
       const host = hostOn(log)
 
       await host.resumePending({ harnesses: [harness], close })
-      await vi.waitFor(() => expect(calls).toHaveLength(1))
+      await waitFor(() => expect(calls).toHaveLength(1))
       // Give a 'whenIdle' close time to happen, so 'never' is a real check.
       await new Promise((resolve) => setTimeout(resolve, 50))
       // A session that closed sets its plugins up again on the next open.
-      await vi.waitFor(async () => {
+      await waitFor(async () => {
         await host.open(harness, { threadId: THREAD })
         expect(setup).toHaveBeenCalledTimes(setups)
       })
@@ -344,7 +350,7 @@ describe('host.resumePending', () => {
     await host.resumePending({ harnesses: [harness] })
 
     recovered.open()
-    await vi.waitFor(() => expect(arriving).toBeDefined())
+    await waitFor(() => expect(arriving).toBeDefined())
     await expect(arriving).resolves.toBe('Answered.')
     expect(calls).toHaveLength(2)
     await host.close()
@@ -381,7 +387,7 @@ describe('host.resumePending', () => {
       errors: [expect.any(Error)],
       opened: [{ threadId: THREAD, harness: NAME }],
     })
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await settledRecord(log, 'in-1')).toMatchObject({
         outcome: 'completed',
       }),

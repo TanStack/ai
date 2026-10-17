@@ -26,6 +26,12 @@ import type {
   TurnInfo,
 } from '../src'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store, and its key in the other stores. */
 const LOG = logIdOf({ logId: THREAD })
@@ -386,7 +392,7 @@ describe('the sender of each input', () => {
     )
 
     await session.send('Start the writer.', { principal: bob })
-    await vi.waitFor(() => expect(seen).toHaveLength(1))
+    await waitFor(() => expect(seen).toHaveLength(1))
     expect(seen.map((entry) => entry.principal)).toEqual(['bob'])
     await host.close()
   })

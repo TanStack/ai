@@ -23,6 +23,12 @@ import type {
 } from '../src'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 afterEach(() => {
   vi.unstubAllEnvs()
 })
@@ -432,7 +438,7 @@ describe('host access with your own access tables', () => {
 
     expect(() => member.snapshot()).toThrow(AccessDeniedError)
     expect(() => member.logState()).toThrow(AccessDeniedError)
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(reader.events.filter((event) => event.type === 'revoked')).toEqual(
         [
           {
@@ -536,7 +542,7 @@ describe('access to the inputs of the input lane', () => {
     })
     const turn = member.send('A long task.')
     // The run starts: the log has it.
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await hasRecord(log, 'harness.input.applied')).toBe(true),
     )
     const submit = (principal: User, operationId: string) =>
@@ -571,7 +577,7 @@ describe('access to the inputs of the input lane', () => {
       principal: bea,
     })
     const running = member.command({ name: 'ask' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(member.snapshot().pendingQuestions).toHaveLength(1),
     )
     const [question] = member.snapshot().pendingQuestions
@@ -600,7 +606,7 @@ describe('access to the inputs of the input lane', () => {
     const other = await open(olga)
     const turn = member.send('A long task.')
     // The run starts: the log has it.
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await hasRecord(log, 'harness.input.applied')).toBe(true),
     )
     const schedule = (operationId: string) =>
