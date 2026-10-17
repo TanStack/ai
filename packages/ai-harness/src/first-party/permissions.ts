@@ -766,6 +766,8 @@ export function permissions(
         prompts: [
           {
             id: 'tanstack/permissions:plan',
+            // It changes often: after the history, so the prompt cache holds.
+            placement: 'context',
             text: () => (mode() === 'plan' ? PLAN_PROMPT : ''),
           },
         ],

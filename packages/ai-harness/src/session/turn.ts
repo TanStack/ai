@@ -29,6 +29,7 @@ import {
   resetMarker,
   resetContext,
   resetCut,
+  contextPromptCall,
   ephemeralCall,
   turnEphemeral,
   acceptedKinds,
@@ -720,6 +721,14 @@ export abstract class SessionTurn<
                 ? [turnEphemeral(turn.ephemeral, start)]
                 : []),
               ephemeralCall(ephemeral),
+              // After the history and the ephemeral messages: text that
+              // changes at each call, so the cached prefix stays the same.
+              contextPromptCall(() =>
+                [
+                  ...(session?.contextPrompts ?? []),
+                  ...(runPlugins?.contextPrompts ?? []),
+                ].map((prompt) => resolvePrompt(prompt.text)),
+              ),
               // Last, because a later middleware that returns `messages` (as
               // steering does) resets what the model gets.
               mediaMiddleware({

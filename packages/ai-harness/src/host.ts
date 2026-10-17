@@ -192,9 +192,8 @@ export interface RetentionLimits {
   settledAgentRuns?: number
   /**
    * How many bytes of events a session keeps in memory for `events()`, as
-   * the JSON length of each event. A reader whose cursor is older starts
-   * at the oldest event kept. Older events come from the log. Default
-   * 8 000 000.
+   * the JSON length of each event. A reader whose cursor is older reads
+   * the older events from the log. Default 8 000 000.
    */
   eventBytes?: number
   /**

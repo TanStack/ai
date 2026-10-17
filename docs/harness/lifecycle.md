@@ -143,7 +143,7 @@ const leanHost = createHarnessHost({
 | --- | --- | --- |
 | `settledOperations` | 500 | `session.operation(id)` is `undefined` for the oldest settled turns, commands, and resets. |
 | `settledAgentRuns` | 500 | `session.agentRun(id)` and `session.agentRuns()` leave out the oldest settled agent runs. |
-| `eventBytes` | 8 000 000 | `session.events()` keeps the newest events, by the JSON length of each event. A reader with an older cursor starts at the oldest event kept. |
+| `eventBytes` | 8 000 000 | `session.events()` keeps the newest events, by the JSON length of each event. A reader with an older cursor reads the older events from the log. |
 
 The log keeps what memory drops:
 

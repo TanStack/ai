@@ -481,6 +481,7 @@ export function withoutPlugins(
     prompts: mounted.prompts.filter((_prompt, index) =>
       isKept(owners.prompts[index]?.owner),
     ),
+    contextPrompts: mounted.contextPrompts.filter((item) => isKept(item.owner)),
     middleware: mounted.middleware.filter((_item, index) =>
       isKept(owners.middleware[index]),
     ),
@@ -581,6 +582,31 @@ export function ephemeralCall(pending: Array<ModelMessage>): AnyChatMiddleware {
       if (ctx.phase !== 'beforeModel' || pending.length === 0) return undefined
       const messages = config.providerMessages ?? config.messages
       return { providerMessages: [...messages, ...pending.splice(0)] }
+    },
+  }
+}
+
+/**
+ * Gives each model call the `'context'` plugin prompts after the history,
+ * as one user message. It changes only what the adapter gets
+ * (`providerMessages`), so no save keeps them. A change of them leaves the
+ * system prompts and the history as they were, so the provider prompt
+ * cache keeps its prefix.
+ */
+export function contextPromptCall(
+  texts: () => ReadonlyArray<string>,
+): AnyChatMiddleware {
+  return {
+    name: 'harness:context-prompts',
+    onConfig: (ctx, config) => {
+      if (ctx.phase !== 'beforeModel') return undefined
+      const text = texts()
+        .filter((item) => item !== '')
+        .join('\n\n')
+      if (text === '') return undefined
+      const messages = config.providerMessages ?? config.messages
+      const note: ModelMessage = { role: 'user', content: text }
+      return { providerMessages: [...messages, note] }
     },
   }
 }

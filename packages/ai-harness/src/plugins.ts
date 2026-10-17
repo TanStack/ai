@@ -50,6 +50,16 @@ export type PluginLifetime = 'session' | 'turn' | 'host'
 export interface PluginPrompt {
   id: string
   text: string | ((turn: TurnInfo) => string)
+  /**
+   * Where the model gets the text. `'system'` (default): in the system
+   * prompts, before the history. `'context'`: in one user message after the
+   * history, at each model call. Use `'context'` for text that changes
+   * often, such as a todo list or a mode. A change of system prompts makes
+   * the provider prompt cache miss for the whole conversation. A change
+   * after the history keeps the cached prefix. The log does not keep the
+   * `'context'` text.
+   */
+  placement?: 'system' | 'context'
 }
 
 /** What a plugin's `setup` returns. Every field is optional. */
@@ -528,8 +538,13 @@ interface Owned<T> {
 /** Everything a set of mounted plugins contributes, plus its cleanup. */
 export interface MountedPlugins {
   tools: Array<AnyTool>
-  /** Strings, or functions to call for each turn. */
+  /** The `'system'` prompts: strings, or functions to call for each turn. */
   prompts: Array<string | ((turn: TurnInfo) => string)>
+  /** The `'context'` prompts, with their owners. They go after the history. */
+  contextPrompts: Array<{
+    text: string | ((turn: TurnInfo) => string)
+    owner: string
+  }>
   commands: Map<string, { command: AnyCommand; owner: string }>
   config: Map<string, { option: ConfigOption; owner: string }>
   /** Contributions to extension points, by point name. */
@@ -556,7 +571,10 @@ export interface MountedPlugins {
       provides: Array<string>
     }>
     tools: Array<{ name: string; owner: string }>
-    /** The owner of each item of `prompts`, at the same index. */
+    /**
+     * The owner of each prompt. The items of `prompts` come first, at the
+     * same index, then the items of `contextPrompts`.
+     */
     prompts: Array<{ id: string; owner: string }>
     /** The owner of each item of `middleware`, at the same index. */
     middleware: Array<string>
@@ -1160,11 +1178,21 @@ export async function mountPlugins(
   settled = true
   markReady()
   let disposed: Promise<void> | undefined
+  const systemPrompts = prompts.filter(
+    (entry) => entry.value.placement !== 'context',
+  )
+  const contextPrompts = prompts.filter(
+    (entry) => entry.value.placement === 'context',
+  )
   return {
     tools: tools
       .filter((entry) => entry.owner !== 'the harness')
       .map((entry) => entry.value),
-    prompts: prompts.map((entry) => entry.value.text),
+    prompts: systemPrompts.map((entry) => entry.value.text),
+    contextPrompts: contextPrompts.map((entry) => ({
+      text: entry.value.text,
+      owner: entry.owner,
+    })),
     middleware,
     agentMiddleware,
     generationMiddleware,
@@ -1191,7 +1219,7 @@ export async function mountPlugins(
         name: entry.value.name,
         owner: entry.owner,
       })),
-      prompts: prompts.map((entry) => ({
+      prompts: [...systemPrompts, ...contextPrompts].map((entry) => ({
         id: entry.value.id,
         owner: entry.owner,
       })),

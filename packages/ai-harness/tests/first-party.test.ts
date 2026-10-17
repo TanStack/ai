@@ -182,7 +182,9 @@ describe('todos', () => {
     await session.send('plan it')
     expect(await session.command({ name: 'todos' })).toBe('[~] write tests')
     await session.send('continue')
-    expect(JSON.stringify(calls[2].systemPrompts)).toContain('[~] write tests')
+    // A `'context'` prompt: after the history, not in the system prompts.
+    expect(messageTexts(calls[2]).at(-1)).toContain('[~] write tests')
+    expect(JSON.stringify(calls[2].systemPrompts)).not.toContain('write tests')
     const stored = await storedThreadState(persistence.stores.log, {
       threadId: 't',
     })
