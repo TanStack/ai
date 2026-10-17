@@ -16,6 +16,13 @@ import type { FakeResponse } from '@tanstack/ai/testing'
 import type { AnyHarness } from '@tanstack/ai-harness'
 import type { RunCliOptions } from '../src'
 
+/**
+ * `vi.waitFor` with more time: CI runs these tests slower, for example under
+ * coverage, and a poll costs nothing when the check passes early.
+ */
+const waitFor = <T>(check: () => T | Promise<T>) =>
+  vi.waitFor(check, { timeout: 5_000 })
+
 /** Resolves when `signal` aborts. */
 function untilAborted(signal: AbortSignal | undefined) {
   return new Promise<void>((resolve) => {
@@ -88,12 +95,12 @@ describe('signals in line mode', () => {
       { argv: [], stdin: asStdin(input, { isTTY: false }) },
     )
     input.write('hello\n')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
 
     cli.signals.emit('SIGINT')
-    await vi.waitFor(() => expect(calls[0]?.aborted).toBe(true))
+    await waitFor(() => expect(calls[0]?.aborted).toBe(true))
     input.write('again\n')
-    await vi.waitFor(() => expect(cli.stdout.text).toContain('Second answer.'))
+    await waitFor(() => expect(cli.stdout.text).toContain('Second answer.'))
     cli.signals.emit('SIGINT')
 
     expect(await cli.running).toBe(EXIT.cancelled)
@@ -114,7 +121,7 @@ describe('signals in line mode', () => {
       { argv: [], stdin },
     )
     input.write('/connect acme\n')
-    await vi.waitFor(() => expect(rawModes).toEqual([true]))
+    await waitFor(() => expect(rawModes).toEqual([true]))
 
     // Raw mode makes Ctrl+C a typed character.
     input.write('\u0003')
@@ -131,7 +138,7 @@ describe('signals in print mode', () => {
       defineHarness({ name: 'test/signal-print', adapter: model }),
       { argv: ['-p', 'hi'] },
     )
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
 
     cli.signals.emit('SIGTERM')
 
@@ -149,16 +156,16 @@ describe('signals in print mode', () => {
     })
     const close = vi.spyOn(host, 'close')
     const cli = startCli(harness, { argv: ['-p', 'hi'], host })
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     cli.signals.emit('SIGINT')
-    await vi.waitFor(() => expect(calls[0]?.aborted).toBe(true))
+    await waitFor(() => expect(calls[0]?.aborted).toBe(true))
 
     cli.signals.emit('SIGINT')
     release()
 
     expect(await cli.running).toBe(EXIT.cancelled)
     expect(close).not.toHaveBeenCalled()
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(host.isOpen(harness, { threadId: 'main' })).toBe(false),
     )
     await host.close()
@@ -187,7 +194,7 @@ describe('signals in a custom ui', () => {
         return new Promise<void>(() => {})
       },
     })
-    await vi.waitFor(() => expect(shown).toBe(true))
+    await waitFor(() => expect(shown).toBe(true))
 
     cli.signals.emit('SIGTERM')
 
@@ -207,7 +214,7 @@ describe('signals in --serve', () => {
       defineHarness({ name: 'test/signal-serve', adapter: model }),
       { argv: ['--serve', '--port', '0', '--token', 'secret'], persistence },
     )
-    const url = await vi.waitFor(() => {
+    const url = await waitFor(() => {
       const [, served] = /at (\S+)\n/.exec(cli.stderr.text) ?? []
       expect(served).toBeDefined()
       return served
@@ -224,7 +231,7 @@ describe('signals in --serve', () => {
       }),
     })
     const { inputId } = await receipt.json()
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
 
     cli.signals.emit('SIGTERM')
 
@@ -271,7 +278,7 @@ describe('signals in the stdio modes', () => {
       adapter: fakeText(),
     })
     const cli = startCli(harness, { argv, ...options })
-    await vi.waitFor(() => expect(listened).toContain('end'))
+    await waitFor(() => expect(listened).toContain('end'))
     return cli
   }
 

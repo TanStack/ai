@@ -7,6 +7,13 @@ import { finalizeHandle } from '../src/session/handle'
 import { mockAdapter, text } from './helpers'
 import type { HostLifecycleOptions } from '../src'
 
+/**
+ * `vi.waitFor` with more time: CI runs these tests slower, for example under
+ * coverage, and a poll costs nothing when the check passes early.
+ */
+const waitFor = <T>(check: () => T | Promise<T>) =>
+  vi.waitFor(check, { timeout: 5_000 })
+
 const BASE = 'http://x/api/harness'
 
 /** A memory host with `lifecycle`, and a harness that answers each turn. */
@@ -161,7 +168,7 @@ describe('a call after the session closed', () => {
       'Hello back.',
     ])
     // The released handle held the session only for its calls.
-    await vi.waitFor(() => expect(isOpen('t1')).toBe(false))
+    await waitFor(() => expect(isOpen('t1')).toBe(false))
     await host.close()
   })
 })
@@ -226,7 +233,7 @@ describe('the HTTP handler', () => {
     }
 
     expect([...statuses]).toEqual([200])
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(hostCountsOf(host)).toEqual({
         sessions: 0,
         handles: 0,
@@ -274,7 +281,7 @@ describe('the HTTP handler', () => {
     )
 
     expect(await response.text()).toContain('Hello back.')
-    await vi.waitFor(() => expect(isOpen('t1')).toBe(false))
+    await waitFor(() => expect(isOpen('t1')).toBe(false))
     await host.close()
   })
 })
