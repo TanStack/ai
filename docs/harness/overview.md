@@ -33,7 +33,7 @@ octane: @tanstack/ai @tanstack/ai-harness @tanstack/ai-persistence @tanstack/ai-
 
 ## Which import to use
 
-Import each name from the entry that holds it. Only four entries load Node modules: `plugins/node`, `plugins/coding`, `build`, and `worker`. All other entries also run on an edge runtime.
+Import each name from the entry that holds it. Only four entries load Node modules: `plugins/node`, `plugins/coding`, `build`, and `worker`. All other entries also load on an edge runtime. One exception at run time: the loopback helpers of `oauth` (`startLoopbackReceiver` and `loopbackLogin`) start a local Node server, so call them only on Node.
 
 For your app and its routes:
 

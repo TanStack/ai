@@ -986,13 +986,18 @@ COMMIT;
 
 For the other methods:
 
-- `acquire` is one conditional `UPDATE` of the `log_owner` row. It changes the row
+- `acquire` runs in one transaction. It first adds the `log_owner` row when it is
+  missing (`INSERT ... ON CONFLICT DO NOTHING`, as in `append`), so a host can take a
+  new log before its first record. Then one conditional `UPDATE` changes the row
   only when the rules for `acquire` allow it.
 - Use the database clock (`now()`) for each expiry, wake time, and `offeredAt`. The
   clocks of the hosts can disagree.
 - Keep the snapshot in one more table, with one row per log.
-- `deleteLog` deletes the rows of the log in the other tables. It keeps `epoch` in
-  `log_owner`, so a write with an old epoch still fails.
+- `deleteLog` deletes the rows of the log in the other tables, and resets its
+  `log_owner` row: `head = 0`, `first_seq = 1`, `released = TRUE`, and no `wake_at`
+  or `affinity`. It keeps `epoch`, so a write with an old epoch still fails, and the
+  old owner cannot write, because the log is released. The next `acquire` and
+  `append` start a new log at position 1.
 - Each record is JSON. Store it as text or as a JSON column. The store does not read
   the records.
 

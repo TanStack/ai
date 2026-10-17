@@ -457,6 +457,11 @@ export function createHarnessHandler<P extends Principal = Principal>(
   const usersOf = requestUsers('createHarnessHandler', host, options.openAccess)
   const hasAccess = accessOf(host) !== undefined
   const durable = durableStoresOf(host)
+  if (media !== undefined && media.secret.length === 0) {
+    throw new Error(
+      'createHarnessHandler needs a media.secret that is not empty.',
+    )
+  }
   if (media === undefined && durable) {
     throw new Error(
       'createHarnessHandler needs media.secret on a durable host (stores.log): another instance must verify the media URLs this one signs. Set the same secret on every instance.',
