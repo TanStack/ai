@@ -1,4 +1,5 @@
 import {
+  EventType,
   INTERRUPT_BINDING_METADATA_KEY,
   convertSchemaToJsonSchema,
   validateWithStandardSchema,
@@ -18,9 +19,11 @@ import {
   SessionSignal,
 } from '../plugins'
 import { HARNESS_EVENTS } from '../types'
+import { SECRET_ANSWER_PREFIX } from '../auth'
 import {
   createInputId,
   customEvent,
+  scopeOf,
   storedPrincipal,
   changeSettings,
 } from './helpers'
@@ -50,6 +53,7 @@ import type { SessionEntryChange, SessionEntryUpdate } from '../session-entry'
 import type {
   ChatTurnResult,
   ConfigureOptions,
+  HarnessInput,
   MediaRecord,
   MediaUpload,
   Principal,
@@ -63,6 +67,16 @@ import type {
 } from './types'
 import type { SettingNames } from './helpers'
 import type { HarnessSession, SessionImpl } from './harness-session'
+
+/** What the log keeps in place of a secret answer. */
+const SECRET_ANSWER = '[secret]'
+
+/** A secret answer that cannot go to the owner of the log. */
+class AnswerRefused extends Error {
+  constructor(readonly reason: string) {
+    super(reason)
+  }
+}
 
 /**
  * A layer of {@link HarnessSession}: config, thread settings, revert,
@@ -692,33 +706,56 @@ export abstract class SessionState<
     value,
     inputId = createInputId(),
     principal,
+    ref,
   }: {
     questionId: string
     value: unknown
     /** @internal The id of an offered input, so a replay is a duplicate. */
     inputId?: string
     principal?: Principal
+    /** @internal A secret answer that another host saved. See `answerOffer`. */
+    ref?: string
   }): Promise<Receipt> {
     // A secret (a key or a password) stays out of the log. A restart does
     // not replay an answer, so it never needs it. A host that does not have
-    // the question cannot tell, and offers the value to the owner. The
-    // owner logs it hidden, and that append removes the offer.
-    const isSecret = this.questions.get(questionId)?.secret === true
-    const admission = await this.accept(
-      inputId,
-      {
-        op: 'answer',
-        questionId,
-        value: isSecret ? '[secret]' : value,
-      },
-      principal,
-    )
+    // the question logs no value either: the question can ask for a secret.
+    // When another host owns the log, `answerOffer` decides what goes to it.
+    const asked = this.questions.get(questionId)
+    const isHidden = ref !== undefined || asked === undefined || asked.secret
+    if (asked?.secret && typeof value === 'string') this.redactor.add(value)
+    const sender = principal ?? this.principal
+    let admission
+    try {
+      admission = await this.accept(
+        inputId,
+        { op: 'answer', questionId, value: isHidden ? SECRET_ANSWER : value },
+        principal,
+        isHidden && ref === undefined
+          ? {
+              offer: () =>
+                this.answerOffer({ questionId, value, inputId, sender }),
+            }
+          : {},
+      )
+    } catch (error) {
+      if (!(error instanceof AnswerRefused)) throw error
+      return this.reject(inputId, error.reason)
+    }
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+    let answered = value
+    if (ref !== undefined) {
+      // The value leaves the store first, so a ref works only once.
+      const secret = await this.takeSecretAnswer({ ref, questionId, sender })
+      if (secret === undefined) {
+        return this.reject(inputId, 'unknown_secret_answer')
+      }
+      answered = secret.value
+    }
     const question = this.questions.get(questionId)
     if (!question) return this.reject(inputId, 'unknown_question')
-    let checked: unknown = value
+    let checked: unknown = answered
     if (question.schema !== undefined) {
-      const result = await validateWithStandardSchema(question.schema, value)
+      const result = await validateWithStandardSchema(question.schema, answered)
       if (!result.success) {
         const reason = `Invalid answer: ${result.issues.map((issue) => issue.message).join(', ')}`
         return this.reject(inputId, reason)
@@ -748,6 +785,108 @@ export abstract class SessionState<
     // marks it busy again first.
     queueMicrotask(() => this.checkIdle())
     return { inputId, status: 'accepted' }
+  }
+
+  /**
+   * What goes to the owner of the log for an answer that this host logs
+   * hidden. A plain answer goes as it is. A secret goes to the credential
+   * store of the app, and the owner gets only its id, so the input lane
+   * never keeps the secret. Without that store, the answer is refused.
+   */
+  private async answerOffer({
+    questionId,
+    value,
+    inputId,
+    sender,
+  }: {
+    questionId: string
+    value: unknown
+    inputId: string
+    sender: Principal | undefined
+  }): Promise<HarnessInput> {
+    const isSecret =
+      this.questions.get(questionId)?.secret ??
+      (await this.loggedQuestionIsSecret(questionId))
+    if (!isSecret) return { op: 'answer', questionId, value }
+    const store = this.sharedCredentials
+    if (!store) throw new AnswerRefused('secret_answer_needs_credentials')
+    // The input id makes the ref unique. A retry with the same input id
+    // offers the same record again, so it is a duplicate.
+    // ponytail: a ref that the owner never reads stays in the store. PR 7
+    // adds wait expiry, which can delete it.
+    const ref = `${SECRET_ANSWER_PREFIX}${questionId}:${inputId}`
+    await store.set({
+      scope: scopeOf(this.threadId, sender),
+      id: ref,
+      credential: { type: 'api_key', value: JSON.stringify(value) },
+    })
+    return { op: 'answer', questionId, value: SECRET_ANSWER, ref }
+  }
+
+  /**
+   * The secret answer `ref` to `questionId`, saved for `sender`. It is
+   * deleted from the store, and the session scrubs it from now on.
+   * `undefined`: the store does not have it (it was used, or it belongs to
+   * another user).
+   */
+  private async takeSecretAnswer({
+    ref,
+    questionId,
+    sender,
+  }: {
+    ref: string
+    questionId: string
+    sender: Principal | undefined
+  }): Promise<{ value: unknown } | undefined> {
+    const store = this.sharedCredentials
+    if (!store || !ref.startsWith(`${SECRET_ANSWER_PREFIX}${questionId}:`)) {
+      return undefined
+    }
+    const key = { scope: scopeOf(this.threadId, sender), id: ref }
+    const saved = await store.get(key)
+    if (saved?.type !== 'api_key') return undefined
+    await store.delete(key)
+    let value: unknown
+    try {
+      value = JSON.parse(saved.value)
+    } catch {
+      return undefined
+    }
+    if (typeof value === 'string') this.redactor.add(value)
+    return { value }
+  }
+
+  /**
+   * Whether the question `questionId` of this thread asks for a secret, from
+   * its event in the log. A question that the log does not have (not written
+   * yet, or only in a snapshot) counts as a secret, so its answer never goes
+   * in clear text.
+   */
+  // ponytail: this reads the whole log, only for an answer to a question
+  // that another host asked.
+  private async loggedQuestionIsSecret(questionId: string) {
+    let after = 0
+    for (;;) {
+      const entries = await this.log.store.read({
+        logId: this.storeLogId,
+        after,
+        limit: 256,
+      })
+      // A store can return fewer than `limit` before the end: stop only at
+      // an empty page.
+      if (entries.length === 0) return true
+      for (const { seq, record } of entries) {
+        after = seq
+        if (threadOf(record, this.threadId) !== this.threadId) continue
+        const event = record.type === 'harness.event' ? record.event : null
+        const isQuestion =
+          isRecord(event) &&
+          event.type === EventType.CUSTOM &&
+          event.name === HARNESS_EVENTS.question
+        const asked = isQuestion && isRecord(event.value) ? event.value : null
+        if (asked?.questionId === questionId) return asked.secret === true
+      }
+    }
   }
 
   /** Read the config values of this thread from the log. */

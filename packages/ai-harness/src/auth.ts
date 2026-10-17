@@ -9,12 +9,20 @@ import type { ChatMiddleware, ProviderKeys, Scope } from '@tanstack/ai'
 import type {
   ByokProvider,
   Credential,
+  CredentialScope,
   CredentialStore,
   ProviderId,
 } from '@tanstack/ai/byok'
 
 // The harness API had its own copy. The core one is the only body now.
 export { scrubSecrets }
+
+/**
+ * @internal The id prefix of a secret answer in the credential store. A host
+ * that does not own the log saves the answer there, and the owner reads it
+ * once. `list` hides these ids.
+ */
+export const SECRET_ANSWER_PREFIX = 'harness:answer:'
 
 /**
  * Thrown when a tool or command needs a credential the user has not saved.
@@ -137,10 +145,15 @@ export function credentialsFor(
     },
     delete: (id) => store.delete({ scope, id }),
     list: async () => {
+      // A secret answer on its way to another host is not the user's own.
+      const saved = async (at: CredentialScope) =>
+        (await store.list(at)).filter(
+          (item) => !item.id.startsWith(SECRET_ANSWER_PREFIX),
+        )
       const tenant = tenantScopeOf(scope)
-      const own = await store.list(scope)
+      const own = await saved(scope)
       if (!tenant) return own
-      const shared = await store.list(tenant)
+      const shared = await saved(tenant)
       return [
         ...own,
         ...shared.filter((item) => !own.some((o) => o.id === item.id)),

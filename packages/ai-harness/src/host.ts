@@ -1463,6 +1463,9 @@ export function createHarnessHost<P extends Principal = Principal>(
         ...(tenantId !== undefined ? { tenantId } : {}),
         persistence,
         credentials,
+        ...(options.credentials
+          ? { sharedCredentials: options.credentials }
+          : {}),
         media,
         index,
         retention,

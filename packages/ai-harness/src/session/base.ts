@@ -47,6 +47,7 @@ import type {
   SessionIndexKey,
   SessionIndexStore,
 } from '@tanstack/ai-persistence'
+import type { CredentialStore } from '@tanstack/ai/byok'
 import type { AuthRequiredError, CredentialsAccess } from '../auth'
 import type { EventListener, ListenedFeed } from '../feed'
 import type { LogWriter, RevertState, engineMessageStore } from '../log'
@@ -423,6 +424,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * goes through it. Call `redactor.add` for a new secret value.
    */
   protected readonly redactor = new Redactor()
+  /** The credential store of the app, for secret answers. See `SessionDependencies`. */
+  protected readonly sharedCredentials: CredentialStore | undefined
   /**
    * The connectors whose sign-in the user cancelled. Their `require` with
    * `wait` fails the tool, as without `wait`, until the next new turn.
@@ -465,6 +468,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       key: own?.key ?? shared?.key ?? deps.threadId,
     }
     this.persistence = deps.persistence
+    this.sharedCredentials = deps.sharedCredentials
     this.media = deps.media
     this.mediaStore = createMediaStore({
       persistence: deps.media,

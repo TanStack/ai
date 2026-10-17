@@ -234,6 +234,12 @@ export interface SessionDependencies {
   threadId: string
   persistence: HarnessPersistence
   credentials: CredentialStore
+  /**
+   * The credential store that the app gave the host, shared by every host.
+   * A secret answer goes through it to the host that owns the log. Without
+   * it, a secret answer that reaches another host is refused.
+   */
+  sharedCredentials?: CredentialStore
   /** Where media lives: file records, bytes, and generation runs. */
   media: AIPersistence<{
     artifacts: ArtifactStore
