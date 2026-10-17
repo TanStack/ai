@@ -46,14 +46,15 @@ export const checkout = durableTool(
 )
 ```
 
-Add it to `tools` in `defineHarness`, as any other tool. On a [durable host](./durable-sessions), each finished step is in the session log before `step.do` resolves.
+Add it to `tools` in `defineHarness`, as any other tool. Each finished step is in the [session log](./durable-sessions) before `step.do` resolves.
 
 ## Rules for steps
 
 - Give each step a name that is the same on every run, for example `charge:${orderId}`.
 - The same name twice in one tool call throws.
 - A step value must be JSON. Keep it small: store big data somewhere else and return its id.
-- A step is stored once, but it can run more than once: a crash after `fn` ends and before the value is stored runs `fn` again. Make that case safe, for example with an idempotency key.
+- A step is stored once, but it can run more than once: a crash after `fn` ends and before the value is stored runs `fn` again. `fn` gets `{ idempotencyKey }`. Pass it to the system that does the side effect, so that system refuses the second call.
+- To wait inside a tool, for minutes or for days, use `step.sleep`. See [Wait inside a tool](./workers#4-wait-inside-a-tool).
 
 `durableTool` sets `replay: 'safe'`, so the harness runs the tool again after a crash.
 
@@ -117,7 +118,7 @@ After a crash, the harness looks at each call of the batch:
 
 ## Outside a durable session
 
-The same tool works in plain `chat()` and on a host without a log. There, `step.do` runs `fn` each time, and `append` throws, because there is no log to hold the records.
+The same tool works in plain `chat()`. There, `step.do` runs `fn` each time, `step.sleep` waits its full time, and `append` throws, because there is no log to hold the records.
 
 ## What you have now
 

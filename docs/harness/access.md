@@ -124,7 +124,7 @@ Give each user a `tenantId` in `identify`. The tenant keeps each organization ap
 
 - One `threadId` in two tenants is two sessions, with two index entries and two logs.
 - `host.sessions.list` reads one tenant: the tenant of `principal`. A user with no `tenantId` is in the default tenant.
-- The stores keep each thread under `logIdOf({ tenantId, logId })`, for example `acme:thread-1`. The default tenant gives `:thread-1`. Use `logIdOf` when you read a log yourself.
+- The log store keeps each session tree under `logIdOf({ tenantId, logId })`, for example `acme:thread-1`. The default tenant gives `:thread-1`. Use `logIdOf` when you read a log yourself.
 - The credentials of a user are kept per tenant. See [Keep organizations apart](./shared-threads#7-keep-organizations-apart).
 
 ## Call the host from code with no request

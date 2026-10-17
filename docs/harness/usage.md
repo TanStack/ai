@@ -61,7 +61,7 @@ A call that fails before it ends does not count. Each message runs as its sender
 
 The totals stay with the thread:
 
-- A durable host (with `stores.log`) keeps one `harness.usage` record per call in the log. The log keeps the totals after a restart.
+- The host keeps one `harness.usage` record per call in the log. The log keeps the totals after a restart.
 - Another host with `stores.metadata` keeps the totals there.
 - A host with neither keeps them in memory.
 
