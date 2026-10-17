@@ -45,6 +45,8 @@ function workspace(
         files.set(path, data)
       },
       stat: async () => undefined,
+      // No links: each path is its own real path.
+      realpath: async (path) => path,
       readdir: async () => [],
       exec: async (command, options) => {
         execs.push({ command, options })

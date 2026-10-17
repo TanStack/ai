@@ -22,6 +22,22 @@ afterEach(async () => {
 
 const decoder = new TextDecoder()
 
+/** Run `fn` with `vars` set in the env of this process, then put it back. */
+async function withEnv(vars: Record<string, string>, fn: () => Promise<void>) {
+  const before = Object.keys(vars).map(
+    (name) => [name, process.env[name]] as const,
+  )
+  Object.assign(process.env, vars)
+  try {
+    await fn()
+  } finally {
+    for (const [name, value] of before) {
+      if (value === undefined) delete process.env[name]
+      else process.env[name] = value
+    }
+  }
+}
+
 describe('hostBackend', () => {
   it('writes into new folders, then reads, stats, and lists them', async () => {
     const file = join(dir, 'a', 'b.txt')
@@ -118,21 +134,40 @@ describe('hostBackend', () => {
     },
   )
 
-  it('sets NoDefaultCurrentDirectoryInExePath in the env of commands on Windows only', () => {
-    expect(commandEnv(undefined, 'win32')).toMatchObject({
-      NoDefaultCurrentDirectoryInExePath: '1',
+  it('does not give a variable of the server to a command', async () => {
+    const print = `node -e "console.log(process.env.SECRET_TOKEN || 'unset')"`
+    await withEnv({ SECRET_TOKEN: 'hunter2' }, async () => {
+      const run = await hostBackend.exec(print, { cwd: dir })
+      expect(run.stdout).toBe('unset\n')
+      const job = hostBackend.spawn(print, { cwd: dir })
+      await job.wait()
+      expect(job.output()).toBe('unset\n')
     })
-    expect(
-      commandEnv(
+  })
+
+  it('gives a command only the listed variables of this process, plus env', async () => {
+    const server = {
+      SECRET_TOKEN: 'hunter2',
+      LANG: 'C.UTF-8',
+      SystemRoot: 'C:\\Windows',
+    }
+    await withEnv(server, async () => {
+      const linux = commandEnv({ AGENT: '1' }, 'linux')
+      expect(linux).toMatchObject({ LANG: 'C.UTF-8', AGENT: '1' })
+      expect(linux).not.toHaveProperty('SECRET_TOKEN')
+      // The Windows variables and setting are for Windows only.
+      expect(linux).not.toHaveProperty('SystemRoot')
+      expect(linux).not.toHaveProperty('NoDefaultCurrentDirectoryInExePath')
+      const windows = commandEnv(
         { AGENT: '1', NoDefaultCurrentDirectoryInExePath: '' },
         'win32',
-      ),
-    ).toMatchObject({ AGENT: '1', NoDefaultCurrentDirectoryInExePath: '1' })
-    // Off Windows, only `env` is added to the environment of this process.
-    expect(commandEnv(undefined, 'linux')).toBeUndefined()
-    expect(commandEnv({ AGENT: '1' }, 'linux')).toEqual({
-      ...process.env,
-      AGENT: '1',
+      )
+      expect(windows).toMatchObject({
+        SystemRoot: 'C:\\Windows',
+        AGENT: '1',
+        NoDefaultCurrentDirectoryInExePath: '1',
+      })
+      expect(windows).not.toHaveProperty('SECRET_TOKEN')
     })
   })
 })

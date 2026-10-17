@@ -136,6 +136,7 @@ function fakeBackend(
     readFile: fail,
     writeFile: async () => undefined,
     stat: fail,
+    realpath: fail,
     readdir: fail,
     exec,
   }
@@ -704,7 +705,36 @@ describe('snapshots on a cmd.exe backend', () => {
     await session.send('Hello')
 
     // `git --version`, then the init of the shadow repository.
-    expect(commands[1]).toMatch(/^git init --bare -q \^".+\^"$/)
+    expect(commands[1]).toMatch(
+      /^git -c core\.fsmonitor= -c core\.hooksPath= init --bare -q \^".+\^"$/,
+    )
+    await host.close()
+  })
+})
+
+describe('snapshots git safety', () => {
+  // The model can write the workspace files, so git must not run a program
+  // that a config names.
+  it('runs every git command with no fsmonitor, no hooks, and no system config', async () => {
+    const runs: Array<{ command: string; env?: Record<string, string> }> = []
+    const backend = fakeBackend(async (command, options) => {
+      runs.push({ command, env: options?.env })
+      return { exitCode: 0, stdout: '', stderr: '' }
+    })
+    const { host, session } = await open({
+      replies: [() => text('Hi.')],
+      backend,
+    })
+
+    await session.send('Hello')
+
+    expect(runs.length).toBeGreaterThan(1)
+    for (const run of runs) {
+      expect(run.command).toMatch(
+        /^git -c core\.fsmonitor= -c core\.hooksPath= /,
+      )
+      expect(run.env).toMatchObject({ GIT_CONFIG_NOSYSTEM: '1' })
+    }
     await host.close()
   })
 })

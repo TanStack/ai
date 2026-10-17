@@ -1,4 +1,5 @@
 import { BackgroundJobs, SessionSignal, definePlugin } from '../../plugins'
+import { isRecord } from '../../utils'
 import {
   PERMISSION_MODES,
   PermissionDecisionCapability,
@@ -13,9 +14,10 @@ import { patchPaths, patchTools } from './patch'
 import { readTools } from './read'
 import { searchTools } from './search'
 import { webTools } from './web'
-import type { AnyTool } from '@tanstack/ai'
+import type { AnyTool, ToolExecutionContext } from '@tanstack/ai'
+import type { RunContext } from '../../types'
 import type { PermissionDecision, ToolResources } from '../permissions'
-import type { ToolEnv, WorkspaceBackend } from './backend'
+import type { BoundWorkspace, ToolEnv, WorkspaceBackend } from './backend'
 import type { WebToolsOptions } from './web'
 
 /** True for `true`, `y`, or `yes` (any case). */
@@ -23,8 +25,34 @@ function isYes(answer: unknown) {
   return answer === true || /^y(es)?$/i.test(String(answer).trim())
 }
 
-export interface WorkspaceToolsOptions {
-  root: string
+/** Gives the workspace of each thread. */
+export interface WorkspaceBinder {
+  /**
+   * The workspace of the thread of `run`: a backend and its `root`. The
+   * tools call it once for each thread, before the first turn or at the
+   * first tool call, and keep the result. When it throws, the next turn or
+   * tool call calls it again.
+   */
+  bind: (input: { run: RunContext }) => Promise<BoundWorkspace>
+}
+
+/** Where the workspace is: one folder for every thread, or one per thread. */
+type WorkspaceSource =
+  | {
+      /** The workspace folder of every thread. */
+      root: string
+      /** Where the files are and commands run. Default: {@link hostBackend}. */
+      backend?: WorkspaceBackend
+      workspace?: undefined
+    }
+  | {
+      /** Gives the workspace of each thread. Its `root` is the boundary. */
+      workspace: WorkspaceBinder
+      root?: undefined
+      backend?: undefined
+    }
+
+export type WorkspaceToolsOptions = WorkspaceSource & {
   bashTimeoutMs?: number
   /**
    * A path outside `root`. `'deny'` (default) refuses it. `'ask'` asks the
@@ -33,8 +61,6 @@ export interface WorkspaceToolsOptions {
    * without a question.
    */
   outside?: 'deny' | 'ask'
-  /** Where the files are and commands run. Default: {@link hostBackend}. */
-  backend?: WorkspaceBackend
   /**
    * The tools that change files. `'auto'` (default): GPT models (an id that
    * starts with `gpt-`, or `o` and a digit, like `o3`) get `patch` and no
@@ -62,7 +88,8 @@ export interface OutsideAccess {
   mode: () => unknown
   /**
    * The working folder of the thread, from `root` (the `cwd` setting of
-   * `session.configure`). Relative paths start there. Read at each call.
+   * `session.configure`). Relative paths start there. Read at each call. A
+   * folder outside the workspace is refused.
    */
   cwd?: () => string | undefined
   /**
@@ -75,8 +102,20 @@ export interface OutsideAccess {
     | undefined
 }
 
+/** What the tools get from the session. */
+interface SessionAccess {
+  access?: OutsideAccess
+  hooks?: () => ReadonlyArray<WorkspaceHooks>
+  note?: (text: string) => Promise<void>
+  signal?: AbortSignal
+  jobs?: { started: (jobId: string) => void; ended: (jobId: string) => void }
+}
+
 /** A Windows network path (`\\server\share`). Not `\\?\` or `\\.\`. */
 const isUnc = (path: string) => /^[\\/]{2}[^\\/?.]/.test(path)
+
+/** An absolute path in any style: `/a`, `\a`, or `C:/a`. */
+const isAbsolutePath = (path: string) => /^([a-z]:)?[\\/]/i.test(path)
 
 /** Is `full` the folder `dir`, or a path in it? `sep` is the separator. */
 function within(dir: string, full: string, sep: string) {
@@ -111,25 +150,37 @@ function prefersPatch(model: string) {
 }
 
 /**
- * The tools of {@link workspaceTools} for one session, and what each call
- * touches for `PermissionResources`. `access` asks the user about a path
- * outside the workspace when `options.outside` is `'ask'`. `hooks` are the
- * hooks that plugins added. `note` tells the model that a background `bash`
- * job ended, and `signal` kills the jobs that still run.
+ * True for the run context that the harness gives a tool call. It checks the
+ * fields that the tools read. The harness sets the others.
  */
-export function createWorkspaceTools(
+function isRun(value: unknown): value is RunContext {
+  return (
+    isRecord(value) &&
+    typeof value.logId === 'string' &&
+    typeof value.threadId === 'string'
+  )
+}
+
+/** The run of a tool call: `ctx.context.run`, or `undefined` without one. */
+function runOf(context: unknown) {
+  if (!isRecord(context) || !isRecord(context.context)) return undefined
+  const { run } = context.context
+  return isRun(run) ? run : undefined
+}
+
+/**
+ * The tools for one workspace: `backend`, with the boundary `root`. Each
+ * call gets the paths through `reach`, which resolves every link, and works
+ * on the resolved path under `lock`.
+ */
+function bindTools(
+  workspace: { backend: WorkspaceBackend; root: string },
   options: WorkspaceToolsOptions,
-  session: {
-    access?: OutsideAccess
-    hooks?: () => ReadonlyArray<WorkspaceHooks>
-    note?: (text: string) => Promise<void>
-    signal?: AbortSignal
-    jobs?: { started: (jobId: string) => void; ended: (jobId: string) => void }
-  } = {},
+  session: SessionAccess,
 ) {
-  const backend = options.backend ?? hostBackend
+  const { backend } = workspace
   const paths = pathsOf(backend)
-  const root = paths.resolve(options.root)
+  const root = paths.resolve(workspace.root)
   const { access } = session
   // The real outside folders the user allowed in this session, and the
   // questions that wait for an answer, by folder, so parallel calls ask once.
@@ -138,7 +189,12 @@ export function createWorkspaceTools(
   /** The working folder: `root`, or the thread's `cwd` in it. */
   const here = () => {
     const cwd = access?.cwd?.()
-    return cwd ? paths.resolve(root, cwd) : root
+    if (!cwd) return root
+    const folder = paths.resolve(root, cwd)
+    if (!within(root, folder, paths.sep)) {
+      throw new Error(`The working folder ${cwd} is outside the workspace.`)
+    }
+    return folder
   }
 
   /** Ask once about `folder`. A yes allows it for the session. */
@@ -156,6 +212,20 @@ export function createWorkspaceTools(
   }
 
   /**
+   * `backend.realpath`. A backend from JavaScript can lack it. Then no path
+   * can be checked for links, so every call fails.
+   */
+  const realpathOf = (path: string) => {
+    // ponytail: the type needs `realpath`. This check is for JavaScript.
+    if (typeof backend.realpath !== 'function') {
+      throw new Error(
+        'The workspace backend has no realpath, so the tools cannot check links.',
+      )
+    }
+    return backend.realpath(path)
+  }
+
+  /**
    * The real path of `full`, with every link resolved. For a path that is
    * not there yet: the real path of the nearest parent that is there, plus
    * the rest. A link to a missing target throws.
@@ -164,7 +234,7 @@ export function createWorkspaceTools(
     const rest: Array<string> = []
     let head = full
     for (;;) {
-      const real = backend.realpath ? await backend.realpath(head) : head
+      const real = await realpathOf(head)
       if (real !== undefined) return paths.join(real, ...rest)
       const parent = paths.dirname(head)
       // Not even the top folder is there.
@@ -180,7 +250,7 @@ export function createWorkspaceTools(
   /** The real path of `root`. */
   const realRoot = async () => {
     if (knownRoot !== undefined) return knownRoot
-    const real = backend.realpath ? await backend.realpath(root) : root
+    const real = await realpathOf(root)
     if (real === undefined) return realPath(root)
     knownRoot = real
     return real
@@ -198,33 +268,13 @@ export function createWorkspaceTools(
       : real
   }
 
+  /** `full` with every link resolved, as a path in `root` when it is in it. */
+  const resolved = async (full: string) => forRules(await realPath(full))
+
   const shown = (full: string) =>
     (within(root, full, paths.sep) ? paths.relative(root, full) || '.' : full)
       .split(paths.sep)
       .join('/')
-
-  // What each call touches, as the tool resolves it, for the permission
-  // rules with a `resource`.
-  const file = (input: unknown) => [
-    paths.resolve(here(), stringArg(input, 'path')),
-  ]
-  const folder = (input: unknown) => [
-    paths.resolve(here(), optionalString(input, 'path') ?? '.'),
-  ]
-  const resources: Record<string, ToolResources> = {
-    read_file: { paths: file },
-    write_file: { paths: file },
-    edit_file: { paths: file },
-    list_files: { paths: folder },
-    grep: { paths: folder },
-    patch: {
-      paths: (input) =>
-        patchPaths(stringArg(input, 'patch')).map((each) =>
-          paths.resolve(here(), each),
-        ),
-    },
-    bash: { commands: bashResources },
-  }
 
   /**
    * The rules see the path that the call names. A link can lead to a path
@@ -235,12 +285,11 @@ export function createWorkspaceTools(
     path: string,
     tool: string,
     full: string,
-    realFull: string,
+    real: string,
   ) => {
     const decide = access?.rules?.()
     // `bash` touches commands. Its rules do not match paths.
-    if (!access || !decide || !resources[tool]?.paths) return
-    const real = await forRules(realFull)
+    if (!access || !decide || !PATH_TOOLS.has(tool)) return
     if (paths.relative(full, real) === '') return
     // `permissions()` checked `full` before the call. Act only when the
     // real path makes the decision stricter.
@@ -286,7 +335,7 @@ export function createWorkspaceTools(
   }
 
   // The boundary check uses real paths, so a link inside the workspace that
-  // leads out of it counts as outside.
+  // leads out of it counts as outside. The tools work on the resolved path.
   const reach: ToolEnv['reach'] = async (path, tool, kind) => {
     const full = paths.resolve(here(), path)
     // `realpath` on a UNC path connects to its server, and Windows can send
@@ -298,17 +347,30 @@ export function createWorkspaceTools(
     const folders = [await realRoot(), ...allowed]
     const isAllowed = folders.some((dir) => within(dir, real, paths.sep))
     if (!isAllowed) await allowOutside(path, tool, kind, full, real)
-    await checkRealPath(path, tool, full, real)
-    return full
+    const inRoot = await forRules(real)
+    await checkRealPath(path, tool, full, inRoot)
+    return inRoot
   }
 
+  const lockPath = createLock()
   const env: ToolEnv = {
     backend,
     root,
     hooks: session.hooks ?? (() => []),
-    // ponytail: one lock per session. Sessions on one folder do not wait
-    // for each other.
-    lock: createLock(),
+    // ponytail: one lock per workspace binding. Sessions on one folder do
+    // not wait for each other.
+    lock: (path, fn) =>
+      lockPath(path, async () => {
+        // `reach` checked `path` before the lock. A link made since then
+        // would move the work to another file, so check it again here.
+        const now = await resolved(path)
+        if (now !== path) {
+          throw new Error(
+            `${shown(path)} changed while the tool ran: it now leads to ${shown(now)}. Try again.`,
+          )
+        }
+        return fn()
+      }),
     reach,
     shown,
     protectedIn: async (dir) => {
@@ -316,7 +378,7 @@ export function createWorkspaceTools(
       if (!decide) return undefined
       // rg and the other engines do not follow links in `dir`. So only `dir`
       // itself can be a link, and its real path covers the files in it.
-      const real = await forRules(await realPath(dir))
+      const real = await resolved(dir)
       return (path) =>
         decide('read_file', [
           paths.resolve(dir, path),
@@ -339,11 +401,181 @@ export function createWorkspaceTools(
     ...(options.web === false ? [] : webTools(options.web)),
   ]
 
-  const prompt =
+  const intro =
     options.outside === 'ask'
       ? `Your workspace is ${root}. Paths are relative to it. A path outside it asks the user first.`
       : `Your workspace is ${root}. Paths are relative to it.`
-  return { tools, prompt, resources }
+  /** The prompt, with the working folder of the thread when it has one. */
+  const prompt = () => {
+    const cwd = access?.cwd?.()
+    return cwd
+      ? `${intro} The working folder of this thread is ${paths.resolve(root, cwd)}. Relative paths start there.`
+      : intro
+  }
+  return {
+    tools,
+    prompt,
+    /** `path` as a full path, from the working folder. */
+    fromHere: (path: string) => paths.resolve(here(), path),
+  }
+}
+
+/** The tools whose rules match paths. `bash` rules match commands. */
+const PATH_TOOLS = new Set([
+  'read_file',
+  'write_file',
+  'edit_file',
+  'list_files',
+  'grep',
+  'patch',
+])
+
+/** The tools of one workspace, from {@link bindTools}. */
+type BoundTools = ReturnType<typeof bindTools>
+
+/**
+ * The tools for the workspace of each thread, from `binder`. A tool call
+ * reads its run from `ctx.context.run`, and works in the workspace of that
+ * thread. The first call of a thread binds it. The calls after it reuse
+ * that workspace.
+ */
+function threadTools(
+  binder: WorkspaceBinder,
+  options: WorkspaceToolsOptions,
+  session: SessionAccess,
+) {
+  // By the log and the thread of the run.
+  const bindings = new Map<string, Promise<BoundTools>>()
+  const bound = new Map<string, BoundTools>()
+  const keyOf = (run: RunContext) => `${run.logId}\0${run.threadId}`
+
+  /** The tools of the workspace of `run`. */
+  const bind = (run: RunContext | undefined) => {
+    if (!run) {
+      throw new Error(
+        'workspace.bind needs the run of the tool call. Call the tool in a harness session.',
+      )
+    }
+    const key = keyOf(run)
+    const known = bindings.get(key)
+    if (known) return known
+    const binding = binder.bind({ run }).then((workspace) => {
+      const tools = bindTools(
+        { backend: workspace, root: workspace.root },
+        options,
+        session,
+      )
+      bound.set(key, tools)
+      return tools
+    })
+    // A failed bind is not kept, so the next call tries again.
+    binding.catch(() => {
+      if (bindings.get(key) === binding) bindings.delete(key)
+    })
+    bindings.set(key, binding)
+    return binding
+  }
+
+  // These tools have the names and schemas of the tools of a workspace, and
+  // call the tools of the workspace of each call. Their own workspace is a
+  // placeholder: they never use it.
+  const templates = bindTools(
+    { backend: hostBackend, root: '/' },
+    options,
+    {},
+  ).tools
+  const tools = templates.map((template): AnyTool => {
+    const execute = async (args: unknown, context?: ToolExecutionContext) => {
+      const own = await bind(runOf(context))
+      const tool = own.tools.find((each) => each.name === template.name)
+      if (!tool?.execute) throw new Error(`No tool ${template.name}.`)
+      return tool.execute(args, context)
+    }
+    return { ...template, execute }
+  })
+
+  /** The prompt of the workspace of `run`, once it is bound. */
+  const prompt = (run: RunContext | undefined) => {
+    const own = run && bound.get(keyOf(run))
+    return own
+      ? own.prompt()
+      : 'Paths are relative to the workspace. It is not ready yet.'
+  }
+  /**
+   * The root is not known before the call, so a relative path stays
+   * relative, from the working folder. `permissions()` reads it from its own
+   * `root`.
+   */
+  const fromHere = (path: string) => {
+    const cwd = session.access?.cwd?.()
+    return cwd && !isAbsolutePath(path) ? `${cwd}/${path}` : path
+  }
+  return { tools, prompt, bind, fromHere }
+}
+
+/**
+ * The tools of {@link workspaceTools} for one session, and what each call
+ * touches for `PermissionResources`. `access` asks the user about a path
+ * outside the workspace when `options.outside` is `'ask'`. `hooks` are the
+ * hooks that plugins added. `note` tells the model that a background `bash`
+ * job ended, and `signal` kills the jobs that still run.
+ *
+ * With `options.workspace`, each tool call works in the workspace of its
+ * thread. `bind(run)` binds the thread of `run`, and `prompt(run)` gives the
+ * prompt of its workspace.
+ */
+export function createWorkspaceTools(
+  options: WorkspaceToolsOptions,
+  session: SessionAccess = {},
+) {
+  const source =
+    options.workspace === undefined
+      ? fixedTools(options.root, options, session)
+      : threadTools(options.workspace, options, session)
+  const { fromHere } = source
+  // What each call touches, as the tool resolves it, for the permission
+  // rules with a `resource`.
+  const file = (input: unknown) => [fromHere(stringArg(input, 'path'))]
+  const folder = (input: unknown) => [
+    fromHere(optionalString(input, 'path') ?? '.'),
+  ]
+  const resources: Record<string, ToolResources> = {
+    read_file: { paths: file },
+    write_file: { paths: file },
+    edit_file: { paths: file },
+    list_files: { paths: folder },
+    grep: { paths: folder },
+    patch: {
+      paths: (input) => patchPaths(stringArg(input, 'patch')).map(fromHere),
+    },
+    bash: { commands: bashResources },
+  }
+  return {
+    tools: source.tools,
+    resources,
+    prompt: source.prompt,
+    bind: source.bind,
+  }
+}
+
+/** The tools for one workspace folder `root`, for every thread. */
+function fixedTools(
+  root: string,
+  options: WorkspaceToolsOptions,
+  session: SessionAccess,
+) {
+  const own = bindTools(
+    { backend: options.backend ?? hostBackend, root },
+    options,
+    session,
+  )
+  return {
+    tools: own.tools,
+    prompt: () => own.prompt(),
+    bind: async () => own,
+    // A full path, from the working folder.
+    fromHere: own.fromHere,
+  }
 }
 
 /**
@@ -362,22 +594,36 @@ function withEditStyle(
 }
 
 /**
- * File, shell, and web tools for a coding agent, in `root`: `read_file`,
- * `write_file`, `edit_file` or `patch` (see `editStyle`), `list_files`,
- * `grep`, `bash`, `webfetch`, and `websearch` with a search provider. Edits,
- * `bash`, and `webfetch` ask for approval through `permissions()`, and each
- * call tells the permission rules which paths or commands it touches. A
- * path outside `root` is refused, or with `outside: 'ask'` the user is
- * asked first. A link that leads out of `root` counts as outside. Other
- * plugins add {@link WorkspaceHooks} to run code after a read or a write.
+ * File, shell, and web tools for a coding agent: `read_file`, `write_file`,
+ * `edit_file` or `patch` (see `editStyle`), `list_files`, `grep`, `bash`,
+ * `webfetch`, and `websearch` with a search provider. Edits, `bash`, and
+ * `webfetch` ask for approval through `permissions()`, and each call tells
+ * the permission rules which paths or commands it touches.
+ *
+ * The workspace is `root` for every thread, or with `workspace.bind`, a
+ * workspace for each thread. Its root is the boundary of every tool: a path
+ * outside it is refused, or with `outside: 'ask'` the user is asked first. A
+ * link that leads out of the root counts as outside, and the working folder
+ * must be in the root. Other plugins add {@link WorkspaceHooks} to run code
+ * after a read or a write.
  *
  * The tools use `backend` for files and commands. The default,
- * `hostBackend`, runs on this machine with the host's authority. Use a
- * sandbox backend for code you do not trust.
+ * `hostBackend`, runs on this machine with the host's authority. Its
+ * commands get only a few variables of this process. Use a sandbox backend
+ * for code you do not trust.
  *
  * @example
  * ```ts
  * workspaceTools({ root: process.cwd(), outside: 'ask' })
+ * // A folder for each thread:
+ * workspaceTools({
+ *   workspace: {
+ *     bind: async ({ run }) => ({
+ *       ...hostBackend,
+ *       root: `/srv/work/${run.threadId}`,
+ *     }),
+ *   },
+ * })
  * ```
  */
 export function workspaceTools(options: WorkspaceToolsOptions) {
@@ -386,15 +632,14 @@ export function workspaceTools(options: WorkspaceToolsOptions) {
     optionalRequires: [PermissionDecisionCapability],
     setup: (ctx) => {
       const hooks = ctx.collect(WorkspaceHooks)
-      // The working folder is the thread's `cwd` setting, read at each call.
-      const cwd = () => ctx.session.settings().cwd
-      const { tools, prompt, resources } = createWorkspaceTools(options, {
+      const { tools, prompt, resources, bind } = createWorkspaceTools(options, {
         access: {
           // ponytail: D9, PR 7 rebuilds ask. The question goes to the
           // running turn, not to the run of the tool call that asks.
           ask: (message) => ctx.session.ask({ message }),
           mode: () => ctx.config.get('mode'),
-          cwd,
+          // The working folder is the thread's `cwd` setting, read at each call.
+          cwd: () => ctx.session.settings().cwd,
           // Read at each call, so permissions() can come after this plugin.
           rules: () => {
             const decide = ctx.getOptional(PermissionDecisionCapability)
@@ -414,16 +659,19 @@ export function workspaceTools(options: WorkspaceToolsOptions) {
         signal: ctx.getOptional(SessionSignal) ?? ctx.resources.signal,
         jobs: ctx.getOptional(BackgroundJobs),
       })
-      const paths = pathsOf(options.backend ?? hostBackend)
-      const folder = () => {
-        const dir = cwd()
-        return dir
-          ? ` The working folder of this thread is ${paths.resolve(options.root, dir)}. Relative paths start there.`
-          : ''
-      }
       return {
         tools,
-        prompts: [() => prompt + folder()],
+        prompts: [(turn) => prompt(turn.run)],
+        // Bind the workspace of the thread before the turn, so the prompt
+        // names its root. It adds no tools.
+        ...(options.workspace
+          ? {
+              discoverTools: async (turn) => {
+                await bind(turn.run)
+                return []
+              },
+            }
+          : {}),
         prepareTools: (turn) =>
           withEditStyle(turn.tools, options.editStyle ?? 'auto', turn.model),
         contribute: [

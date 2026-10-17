@@ -31,8 +31,16 @@ const FILES_NOTE =
 const MATCHES_NOTE =
   '[Not all matches are shown. Use a narrower pattern, glob, or folder.]'
 
+/**
+ * `git` with the settings that run a program turned off: no fsmonitor and no
+ * hooks. The model can write the `.git/config` of the workspace, and git
+ * reads it. Run it with {@link GIT_ENV}.
+ */
+export const GIT = 'git -c core.fsmonitor= -c core.hooksPath='
+/** The env of every git command: git does not read the system config. */
+export const GIT_ENV = { GIT_CONFIG_NOSYSTEM: '1' }
 /** `git` applies the `.gitignore` files. `-z` ends each path with NUL. */
-const GIT_FILES = 'git ls-files -z --cached --others --exclude-standard'
+const GIT_FILES = `${GIT} ls-files -z --cached --others --exclude-standard`
 /** rg flags for grep. One match more than shown tells that there are more. */
 const RG_GREP = `--line-number --no-heading --color never --max-columns ${MAX_LINE} --max-columns-preview --max-filesize 1M --max-count ${MAX_MATCHES + 1}`
 
@@ -89,8 +97,9 @@ async function bundledRg() {
 
 /** The command that starts rg on `backend`, or `undefined` without rg. */
 async function findRg(backend: WorkspaceBackend) {
-  // The bundled binary is a host file. A sandbox cannot run it.
-  if (backend === hostBackend) {
+  // The bundled binary is a host file. A sandbox cannot run it. A bound
+  // workspace is a copy of `hostBackend` with a root, so compare `exec`.
+  if (backend.exec === hostBackend.exec) {
     const bundled = await bundledRg()
     if (bundled !== undefined) return quoteArg(bundled, process.platform)
   }
@@ -338,6 +347,7 @@ export function searchTools(env: ToolEnv) {
     }
     const git = await backend.exec(GIT_FILES, {
       cwd: base,
+      env: GIT_ENV,
       timeoutMs: TIMEOUT_MS,
     })
     if (git.exitCode === 0) {

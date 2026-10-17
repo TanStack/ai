@@ -1,3 +1,4 @@
+import { posix } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
@@ -98,7 +99,7 @@ function memoryFs(seed: FsSeed, withLstat = true) {
     exists: async (path) => files.has(target(path)) || dirs.has(target(path)),
     ...(withLstat ? { lstat } : {}),
   }
-  return { fs, files, dirs }
+  return { fs, files, dirs, links }
 }
 
 async function* fromChunks(chunks: Array<string>) {
@@ -112,12 +113,26 @@ async function* fromChunks(chunks: Array<string>) {
  *
  * `spawn` prints `<command> out` and `<command> err`. `serve` runs until it
  * is killed, then ends with 143. `nope` does not start.
+ *
+ * `readlink -- '<name>'` prints the target of the link `name` in the folder,
+ * from `links`, like `readlink` in a sandbox.
  */
-function fakeProcesses() {
+function fakeProcesses(links: ReadonlyMap<string, string> = new Map()) {
   const aborted: Array<string> = []
   const killed: Array<string> = []
   const process: SandboxHandle['process'] = {
     exec: (command, options = {}) => {
+      const readlink = /^readlink -- '(.+)'$/.exec(command)
+      if (readlink) {
+        const target = links.get(
+          posix.join(options.cwd ?? '/', readlink[1] ?? ''),
+        )
+        return Promise.resolve(
+          target === undefined
+            ? { exitCode: 1, stdout: '', stderr: 'not a link' }
+            : { exitCode: 0, stdout: `${target}\n`, stderr: '' },
+        )
+      }
       if (command.startsWith('sleep')) {
         options.signal?.addEventListener('abort', () => aborted.push(command))
         return new Promise<ExecResult>(() => {})
@@ -163,8 +178,8 @@ function fakeSandbox(
   seed: FsSeed = {},
   options: { withLstat?: boolean; caps?: SandboxCapabilities } = {},
 ) {
-  const { fs, files, dirs } = memoryFs(seed, options.withLstat)
-  const { process, aborted, killed } = fakeProcesses()
+  const { fs, files, dirs, links } = memoryFs(seed, options.withLstat)
+  const { process, aborted, killed } = fakeProcesses(links)
   const handle: SandboxHandle = {
     ...makeFakeHandle('sandbox-1', 'fake', options.caps),
     fs,
@@ -186,10 +201,9 @@ const SEED: FsSeed = {
 }
 
 describe('sandboxWorkspaceBackend files', () => {
-  it('uses POSIX paths and quoting, and checks no links', () => {
+  it('uses POSIX paths and quoting', () => {
     const { backend } = fakeSandbox()
     expect(backend.shell).toBe('sh')
-    expect(backend).not.toHaveProperty('realpath')
   })
 
   it('reads and writes the bytes of a file in the sandbox', async () => {
@@ -268,6 +282,53 @@ describe('sandboxWorkspaceBackend files', () => {
     )
     expect(dirs.has('/workspace/src')).toBe(true)
     expect(files.has('/workspace/src/b.ts')).toBe(true)
+  })
+})
+
+describe('sandboxWorkspaceBackend realpath', () => {
+  /** SEED, plus a link out of the workspace, a relative link, and a loop. */
+  const LINKS: FsSeed = {
+    files: { ...SEED.files, '/home/app/.ssh/id_rsa': 'KEY' },
+    dirs: [...(SEED.dirs ?? []), '/home', '/home/app', '/home/app/.ssh'],
+    links: {
+      ...SEED.links,
+      '/workspace/docs': '/home/app',
+      '/workspace/src/up': '../a.txt',
+      '/workspace/loop-a': 'loop-b',
+      '/workspace/loop-b': 'loop-a',
+    },
+  }
+
+  it.each([
+    ['/workspace/a.txt', '/workspace/a.txt'],
+    ['/workspace/to-file', '/workspace/a.txt'],
+    ['/workspace/to-src', '/workspace/src'],
+    ['/workspace/src/up', '/workspace/a.txt'],
+    ['/workspace/docs/.ssh/id_rsa', '/home/app/.ssh/id_rsa'],
+  ])('resolves %s to %s', async (path, real) => {
+    const { backend } = fakeSandbox(LINKS)
+    expect(await backend.realpath(path)).toBe(real)
+  })
+
+  it('gives undefined when nothing is at the path', async () => {
+    const { backend } = fakeSandbox(LINKS)
+    expect(await backend.realpath('/workspace/gone')).toBeUndefined()
+    expect(await backend.realpath('/workspace/to-src/gone.ts')).toBeUndefined()
+  })
+
+  it('throws for a link to a missing target, and for a loop of links', async () => {
+    const { backend } = fakeSandbox(LINKS)
+    await expect(backend.realpath('/workspace/broken')).rejects.toThrow(
+      'ENOENT',
+    )
+    await expect(backend.realpath('/workspace/loop-a')).rejects.toThrow('ELOOP')
+  })
+
+  it('throws when the sandbox has no lstat, so no link goes unchecked', async () => {
+    const { backend } = fakeSandbox(LINKS, { withLstat: false })
+    await expect(backend.realpath('/workspace/a.txt')).rejects.toThrow(
+      'This sandbox has no lstat',
+    )
   })
 })
 
@@ -454,5 +515,37 @@ describe('sandboxWorkspaceBackend with workspaceTools', () => {
     expect(calls[0]?.systemPrompts).toContainEqual(
       expect.stringContaining('Your workspace is /workspace.'),
     )
+  })
+
+  it('refuses a read through a link that leads out of /workspace', async () => {
+    const sandbox = fakeSandbox({
+      files: { '/home/app/.ssh/id_rsa': 'PRIVATE KEY' },
+      dirs: ['/workspace', '/home', '/home/app', '/home/app/.ssh'],
+      links: { '/workspace/docs': '/home/app' },
+    })
+    const { adapter, calls } = scriptedModel([
+      toolCall('c1', 'read_file', { path: 'docs/.ssh/id_rsa' }),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/sandbox-links',
+        adapter,
+        plugins: () => [
+          workspaceTools({
+            root: '/workspace',
+            backend: sandbox.backend,
+            web: false,
+          }),
+        ],
+      }),
+      { threadId: 't' },
+    )
+    await session.send('read the key')
+    await host.close()
+
+    const seen = JSON.stringify(calls[1]?.messages)
+    expect(seen).toContain('outside the workspace')
+    expect(seen).not.toContain('PRIVATE KEY')
   })
 })

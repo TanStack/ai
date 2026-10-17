@@ -30,6 +30,8 @@ function memoryBackend(shell?: 'sh') {
       if (!data) return undefined
       return { type: 'file', size: data.length, mtimeMs: 0 }
     },
+    // No links: each path is its own real path.
+    realpath: async (path) => path,
     readdir: async (path) => {
       const prefix = path + separator
       const paths = [...files.keys()].filter((file) => file.startsWith(prefix))

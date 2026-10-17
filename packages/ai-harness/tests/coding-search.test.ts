@@ -38,7 +38,9 @@ interface ExecResult {
 
 const ok = (stdout: string): ExecResult => ({ exitCode: 0, stdout, stderr: '' })
 const NOT_FOUND: ExecResult = { exitCode: 127, stdout: '', stderr: 'not found' }
-const GIT = 'git ls-files -z --cached --others --exclude-standard'
+// git runs with no fsmonitor and no hooks: the model can write .git/config.
+const GIT =
+  'git -c core.fsmonitor= -c core.hooksPath= ls-files -z --cached --others --exclude-standard'
 const NOT_GIT: ExecResult = {
   exitCode: 128,
   stdout: '',
@@ -70,6 +72,8 @@ function fakeBackend(
     ]),
   )
   const commands: Array<string> = []
+  /** The env of each command, in the order of `commands`. */
+  const envs: Array<Record<string, string> | undefined> = []
   const backend: WorkspaceBackend = {
     readFile: async (path) => {
       const data = byPath.get(path)
@@ -84,6 +88,8 @@ function fakeBackend(
       if (!data) return undefined
       return { type: 'file', size: data.length, mtimeMs: 0 }
     },
+    // No links: each path is its own real path.
+    realpath: async (path) => path,
     readdir: async (path) => {
       const prefix = path + sep
       const entries = new Map<string, 'file' | 'dir'>()
@@ -97,12 +103,13 @@ function fakeBackend(
         .sort(([a], [b]) => (a < b ? -1 : 1))
         .map(([name, type]) => ({ name, type }))
     },
-    exec: async (command) => {
+    exec: async (command, options) => {
       commands.push(command)
+      envs.push(options?.env)
       return script(command) ?? NOT_FOUND
     },
   }
-  return { backend, commands }
+  return { backend, commands, envs }
 }
 
 /**
@@ -215,6 +222,15 @@ describe('list_files and grep engines', () => {
       )
     },
   )
+
+  it('runs git without the system config', async () => {
+    const fake = fakeBackend(files, (command) =>
+      command === GIT ? ok(gitFiles) : undefined,
+    )
+    await searchOn(fake.backend).listFiles()
+    const gitEnv = fake.envs[fake.commands.indexOf(GIT)]
+    expect(gitEnv).toEqual({ GIT_CONFIG_NOSYSTEM: '1' })
+  })
 
   it('runs the bundled rg with the host backend, and does not look on the PATH', async () => {
     const exec = scriptHostExec(() => ok('./a.ts\0'))

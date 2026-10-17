@@ -59,6 +59,8 @@ function project(files: Record<string, string>, exec: Exec = ok, shell?: 'sh') {
       const data = store.get(path)
       return data && { type: 'file', size: data.length, mtimeMs: 0 }
     },
+    // No links: each path is its own real path.
+    realpath: async (path) => path,
     readdir: async (dir) =>
       [...store.keys()]
         .filter((path) => paths.dirname(path) === dir)

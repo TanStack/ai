@@ -21,6 +21,8 @@ function memoryBackend() {
       )
     },
     stat: async () => undefined,
+    // No links: each path is its own real path.
+    realpath: async (path) => path,
     readdir: async () => [],
     exec: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
   }

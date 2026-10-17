@@ -1,8 +1,12 @@
+import { posix } from 'node:path'
+import { shellQuote } from './journal'
 import type { WorkspaceBackend } from '@tanstack/ai-harness/plugins/coding'
 import type { ExecResult, SandboxHandle } from './contracts'
 
 /** The most output a background job keeps, in characters. */
 const MAX_OUTPUT = 10 * 1024 * 1024
+/** `realpath` follows at most this many links, like Linux. */
+const MAX_LINKS = 40
 
 /**
  * A `WorkspaceBackend` over a live sandbox. With it, `workspaceTools()`
@@ -17,7 +21,9 @@ const MAX_OUTPUT = 10 * 1024 * 1024
  *   `capabilities.backgroundProcesses`.
  * - `stat` gives `mtimeMs: 0`. The sandbox file system does not give the
  *   time of the last change.
- * - There is no `realpath`, so the tools do not check where links go.
+ * - `realpath` resolves links in the sandbox: `lstat` finds each link, and
+ *   `readlink` in the sandbox reads its target. A sandbox without `lstat`
+ *   cannot find links, so `realpath` throws, and the tools refuse each path.
  *
  * @param handle - The sandbox, from `provider.create()` or `provider.resume()`.
  *
@@ -59,6 +65,74 @@ export function sandboxWorkspaceBackend(handle: SandboxHandle) {
       case 'symlink':
         return follow(path)
     }
+  }
+
+  /** The target of the link `path`, as `readlink` in the sandbox gives it. */
+  const readlink = async (path: string) => {
+    // A relative name in its folder: the sandbox maps the folder, not the
+    // arguments, to its own files.
+    const name = shellQuote(posix.basename(path))
+    const { exitCode, stdout, stderr } = await handle.process.exec(
+      `readlink -- ${name}`,
+      { cwd: posix.dirname(path) },
+    )
+    if (exitCode !== 0) {
+      throw new Error(`Cannot read the link ${path}: ${stderr.trim()}`)
+    }
+    return stdout.replace(/\n$/, '')
+  }
+
+  /**
+   * `path` with every link resolved, part by part, or `undefined` when
+   * nothing is at `path`. Throws for a link to a missing target, and when
+   * there are more than 40 links, like a loop.
+   */
+  const realpath: WorkspaceBackend['realpath'] = async (path) => {
+    const { lstat } = fs
+    if (!lstat) {
+      throw new Error(
+        `This sandbox has no lstat, so links in ${path} cannot be checked.`,
+      )
+    }
+    let parts = posix.resolve('/', path).split('/').filter(Boolean)
+    // The first parts that came from a link target. A missing one means a
+    // link to a missing target. A missing part of `path` itself means
+    // nothing is at `path`.
+    let fromLink = 0
+    let real = '/'
+    let links = 0
+    while (parts.length > 0) {
+      const [name = '', ...rest] = parts
+      parts = rest
+      const isFromLink = fromLink > 0
+      fromLink = Math.max(0, fromLink - 1)
+      if (name === '.') continue
+      if (name === '..') {
+        real = posix.dirname(real)
+        continue
+      }
+      const next = posix.join(real, name)
+      const info = await lstat(next)
+      if (!info) {
+        if (!isFromLink) return undefined
+        throw new Error(`ENOENT: ${path} is a link to ${next}, not there.`)
+      }
+      if (info.type !== 'symlink') {
+        real = next
+        continue
+      }
+      links += 1
+      if (links > MAX_LINKS)
+        throw new Error(`ELOOP: too many links in ${path}.`)
+      const target = await readlink(next)
+      // An absolute target starts again at `/`. A relative one is in `real`.
+      if (target.startsWith('/')) real = '/'
+      const targetParts = target.split('/').filter(Boolean)
+      parts = [...targetParts, ...parts]
+      // The parts after it can come from an earlier link too.
+      fromLink += targetParts.length
+    }
+    return real
   }
 
   const spawn: WorkspaceBackend['spawn'] = (command, options) => {
@@ -107,6 +181,7 @@ export function sandboxWorkspaceBackend(handle: SandboxHandle) {
       await fs.remove(path)
     },
     stat,
+    realpath,
     readdir: async (path) => {
       const entries = await fs.list(path)
       const { lstat } = fs

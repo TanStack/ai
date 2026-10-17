@@ -55,10 +55,10 @@ export interface WorkspaceBackend {
   /**
    * The real path of `path`, with every link resolved, or `undefined` when
    * nothing is at `path`. Throws for a link to a target that is not there.
-   * The tools use it to refuse a link that leads out of the workspace.
-   * Optional: without it, the tools do not check links.
+   * The tools use it to refuse a link that leads out of the workspace. A
+   * backend that cannot resolve a path throws, and the tool call fails.
    */
-  realpath?: (path: string) => Promise<string | undefined>
+  realpath: (path: string) => Promise<string | undefined>
   /**
    * The entries of a folder. A symbolic link (or a Windows junction) has
    * the type `'link'`, whatever it points to. The tools do not follow it.
@@ -68,7 +68,9 @@ export interface WorkspaceBackend {
   ) => Promise<Array<{ name: string; type: 'file' | 'dir' | 'link' }>>
   /**
    * Run a shell command and wait for it to end. `env` is added to the
-   * environment. A command that fails resolves with its exit code.
+   * environment. A command that fails resolves with its exit code. On
+   * {@link hostBackend}, a command gets only a few variables of this
+   * process (see {@link commandEnv}), plus `env`.
    */
   exec: (
     command: string,
@@ -93,6 +95,13 @@ export interface WorkspaceBackend {
   }
 }
 
+/**
+ * A workspace that `workspace.bind` of `workspaceTools()` gives: a backend,
+ * and its workspace folder `root`, an absolute path. `root` is the boundary
+ * of every tool.
+ */
+export type BoundWorkspace = WorkspaceBackend & { root: string }
+
 /** What each workspace tool gets from `workspaceTools()`. */
 export interface ToolEnv {
   backend: WorkspaceBackend
@@ -100,12 +109,19 @@ export interface ToolEnv {
   root: string
   /** The hooks that plugins added. Read them when the tool runs. */
   hooks: () => ReadonlyArray<WorkspaceHooks>
-  /** Run `fn` when the work before it on `path` is done, one at a time. */
+  /**
+   * Run `fn` when the work before it on `path` is done, one at a time.
+   * `path` comes from `reach`. Before `fn`, it checks again that `path` has
+   * no links, so a link made after `reach` cannot move the work. Else it
+   * throws, and `fn` does not run.
+   */
   lock: <T>(path: string, fn: () => Promise<T>) => Promise<T>
   /**
-   * The absolute path of `path`, a file or a folder. A path outside the
-   * workspace is refused, or needs the user's yes for its folder. The check
-   * uses the real path, so a link that leads out counts as outside.
+   * The absolute path of `path`, a file or a folder, with every link in the
+   * workspace resolved. Use it for the work, so the work goes to the file
+   * that was checked. A path outside the workspace is refused, or needs the
+   * user's yes for its folder. The check uses the real path, so a link that
+   * leads out counts as outside.
    */
   reach: (
     path: string,
@@ -142,19 +158,42 @@ export function pathsOf(backend: WorkspaceBackend) {
 }
 
 /**
- * The environment of a command: the environment of this process, plus
- * `env`. Without `env` off Windows: `undefined`, so the command gets the
- * environment of this process. On Windows it sets
- * `NoDefaultCurrentDirectoryInExePath`. Then `cmd.exe` takes a program
- * name like `rg` from the PATH only, and not from the current folder, where
- * a cloned repo can put an `rg.cmd`.
+ * The variables of this process that a command gets. The others, like
+ * provider keys and `DATABASE_URL`, stay in the server.
+ */
+const KEPT_ENV = ['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'TEMP', 'TMP']
+/** On Windows, a command also gets these, so programs can start. */
+const KEPT_WINDOWS_ENV = [
+  'SystemRoot',
+  'ComSpec',
+  'PATHEXT',
+  'WINDIR',
+  'USERPROFILE',
+]
+
+/**
+ * The environment of a command: the variables of this process in a short
+ * list (`PATH`, `HOME`, `LANG`, `LC_ALL`, `TMPDIR`, `TEMP`, `TMP`, and on
+ * Windows `SystemRoot`, `ComSpec`, `PATHEXT`, `WINDIR`, `USERPROFILE`), plus
+ * `env`. No other variable of this process goes to the command. On Windows
+ * it sets `NoDefaultCurrentDirectoryInExePath`. Then `cmd.exe` takes a
+ * program name like `rg` from the PATH only, and not from the current
+ * folder, where a cloned repo can put an `rg.cmd`.
  */
 export function commandEnv(
   env: Record<string, string> | undefined,
   platform: NodeJS.Platform,
 ) {
-  if (platform !== 'win32') return env && { ...process.env, ...env }
-  return { ...process.env, ...env, NoDefaultCurrentDirectoryInExePath: '1' }
+  const isWindows = platform === 'win32'
+  const names = isWindows ? [...KEPT_ENV, ...KEPT_WINDOWS_ENV] : KEPT_ENV
+  const kept: Record<string, string> = {}
+  for (const name of names) {
+    // On Windows, `process.env` finds a name in any letter case.
+    const value = process.env[name]
+    if (value !== undefined) kept[name] = value
+  }
+  if (!isWindows) return { ...kept, ...env }
+  return { ...kept, ...env, NoDefaultCurrentDirectoryInExePath: '1' }
 }
 
 /** True for the error of a path that is not there. */

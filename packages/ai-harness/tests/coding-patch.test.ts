@@ -59,6 +59,8 @@ function workspace(
       const data = store.get(path)
       return data && { type: 'file', size: data.length, mtimeMs: 0 }
     },
+    // No links: each path is its own real path.
+    realpath: async (path) => path,
     readdir: async () => [],
     exec: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
   }

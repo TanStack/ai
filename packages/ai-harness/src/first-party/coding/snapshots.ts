@@ -4,7 +4,7 @@ import { defineCommand } from '../../commands'
 import { RevertFiles, RevertStanding, definePlugin } from '../../plugins'
 import { hostBackend } from './backend'
 import { isRecord } from '../../utils'
-import { quoteArg, shellPlatform } from './search'
+import { GIT, GIT_ENV, quoteArg, shellPlatform } from './search'
 import type { ModelMessage } from '@tanstack/ai'
 import type { WorkspaceBackend } from './backend'
 
@@ -71,9 +71,13 @@ function shadowRepo(options: SnapshotsOptions) {
   const gitDir = `${options.dataDir}/${hash}`
   // The env wins over a GIT_DIR or GIT_INDEX_FILE from a git hook, so git
   // never writes to the project's repository.
-  const env = { GIT_DIR: gitDir, GIT_INDEX_FILE: `${gitDir}/index` }
+  const env = {
+    ...GIT_ENV,
+    GIT_DIR: gitDir,
+    GIT_INDEX_FILE: `${gitDir}/index`,
+  }
   // `core.autocrlf=false` keeps the line endings of every file.
-  const git = `git -c core.autocrlf=false --git-dir ${quote(gitDir)} --work-tree ${quote(options.root)}`
+  const git = `${GIT} -c core.autocrlf=false --git-dir ${quote(gitDir)} --work-tree ${quote(options.root)}`
 
   /** Run a command in the workspace. Throws with git's message when it fails. */
   const exec = async (command: string) => {
@@ -116,12 +120,13 @@ function shadowRepo(options: SnapshotsOptions) {
     /** Create the repository. `false` when the backend has no git. */
     init: () =>
       serial(async () => {
-        const probe = await backend.exec('git --version', {
+        const probe = await backend.exec(`${GIT} --version`, {
+          env: GIT_ENV,
           timeoutMs: TIMEOUT_MS,
         })
         if (probe.exitCode !== 0) return false
         // A bare repository: it has no work tree of its own.
-        await exec(`git init --bare -q ${quote(gitDir)}`)
+        await exec(`${GIT} init --bare -q ${quote(gitDir)}`)
         // Keep the bytes of every file: no line ending change, no filter.
         await backend.writeFile(
           `${gitDir}/info/attributes`,
