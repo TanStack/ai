@@ -255,7 +255,7 @@ export function createAcpAgent<P extends Principal = Principal>(
   options: AcpAgentOptions<P>,
 ): AgentApp {
   const { host, harness, principal } = options
-  if (principal === undefined && hasAccess(host, harness)) {
+  if (principal === undefined && host.hasAccess) {
     throw new Error(
       'createAcpAgent needs a principal: the host has access. Pass the local user as principal.',
     )
@@ -568,22 +568,6 @@ export function serveAcp<P extends Principal = Principal>(
   options: AcpAgentOptions<P> & { stream?: Stream },
 ): AgentConnection {
   return createAcpAgent(options).connect(options.stream ?? stdioStream())
-}
-
-/**
- * True when `host` checks access. The host has no flag for it, but
- * `host.isOpen` throws without a principal on a host with access.
- */
-function hasAccess<P extends Principal>(
-  host: HarnessHost<P>,
-  harness: AnyHarness,
-) {
-  try {
-    host.isOpen(harness, { threadId: '' })
-    return false
-  } catch {
-    return true
-  }
 }
 
 function stdioStream(): Stream {

@@ -163,7 +163,7 @@ await host.sessions.delete({ threadId: 'chat-1' })
 - `delete` removes the index entry for good. The transcript, the log, the media, and the settings of the thread stay in their stores.
 - After `delete`, the turns of the open session do not write the entry again. If the thread opens again after a restart, the host writes a new entry for it, with the user who opens it as the owner.
 
-CAUTION: After `delete`, the next user who opens the same `threadId` owns it and can read the old transcript. Remove the thread data from its stores too, or do not use the thread id again.
+`delete` closes the open session and removes the entry and the transcript, so the next user who opens the same `threadId` starts empty. Uploaded media and plugin data of the thread stay in their stores.
 
 ## Keep app data on a session
 

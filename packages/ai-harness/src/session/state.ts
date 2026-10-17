@@ -97,7 +97,7 @@ export abstract class SessionState<
   protected async openEntry() {
     const now = Date.now()
     const { principal, tenantId, threadId } = this
-    await this.index.update(this.indexKey, (entry) => {
+    const opened = await this.index.update(this.indexKey, (entry) => {
       const current: SessionIndexEntry = entry ?? {
         ...(tenantId !== undefined ? { tenantId } : {}),
         threadId,
@@ -124,6 +124,12 @@ export abstract class SessionState<
           : {}),
       }
     })
+    if (opened?.ownerId !== undefined) {
+      this.owner = {
+        id: opened.ownerId,
+        ...(tenantId !== undefined ? { tenantId } : {}),
+      }
+    }
   }
 
   snapshot(): SessionSnapshot {

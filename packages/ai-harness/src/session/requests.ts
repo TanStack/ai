@@ -830,10 +830,15 @@ export abstract class SessionRequests<
     // running turn: its sender, and its operation for a question. PR 7
     // rebuilds them on the run that calls.
     const sender = () => principal ?? this.sender()
-    const user = { principal: principal ?? this.principal }
+    // A session plugin acts for the owner of the entry, not for whoever
+    // opened the session first on this host. The owner is known only after
+    // the session read its entry, so it is read at each call.
+    const owner = () => principal ?? this.owner ?? this.principal
     return {
       threadId: this.threadId,
-      principal: user.principal,
+      get principal() {
+        return owner()
+      },
       snapshot: () => this.snapshot(),
       // A plugin turn always waits its turn. It cannot see a busy rejection.
       send: (text) =>
@@ -888,7 +893,7 @@ export abstract class SessionRequests<
           'session',
           customEvent(HARNESS_EVENTS.authRequired, { ...info }),
         ),
-      setConfig: (change) => this.setConfig({ ...change, ...user }),
+      setConfig: (change) => this.setConfig({ ...change, principal: owner() }),
       settings: () => this.settings(),
     }
   }

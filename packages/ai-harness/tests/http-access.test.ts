@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, membersOnly } from '../src'
 import { createHarnessHandler, handleHarnessSocket } from '../src/server'
+import { createHarnessClient } from '../src/client'
 import { isMediaRecord } from '../src/media-entry'
 import { fakeSocket, mockAdapter, readSse, text } from './helpers'
 import type { HostEvent } from '../src'
@@ -206,6 +207,51 @@ describe('the handler on a host with access', () => {
     const seen = (await reading).map(threadOf)
     expect(seen).toContain('g1')
     expect(seen).not.toContain('t1')
+    await host.close()
+  })
+})
+
+describe('a new thread and a deleted thread', () => {
+  it('lets the client stream the events of a new thread before its first message', async () => {
+    const { handler, prompt } = setup()
+    const client = createHarnessClient({
+      url: BASE,
+      threadId: 't-new',
+      reconnectDelayMs: 5,
+      headers: { 'x-user': 'olga' },
+      fetch: (input, init) => handler(new Request(input, init)),
+    })
+    const reading = new AbortController()
+    const first = (async () => {
+      for await (const entry of client.events({ signal: reading.signal })) {
+        return entry
+      }
+      return undefined
+    })()
+    // The thread has no entry yet, so the first reads answer 404.
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect((await prompt('olga', 't-new')).status).toBe(200)
+
+    expect(await first).toBeDefined()
+    reading.abort()
+  })
+
+  it('deletes the transcript with the entry, so the next opener reads nothing', async () => {
+    const { host, harness } = setup()
+    const session = await host.open(harness, {
+      threadId: 't1',
+      principal: olga,
+    })
+    await session.send('A secret.')
+    expect(await session.transcript()).not.toEqual([])
+
+    await host.sessions.delete({ threadId: 't1', principal: olga })
+
+    const reopened = await host.open(harness, {
+      threadId: 't1',
+      principal: bea,
+    })
+    expect(await reopened.transcript()).toEqual([])
     await host.close()
   })
 })

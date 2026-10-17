@@ -570,6 +570,8 @@ export interface HarnessHost<P extends Principal = Principal> {
    * server, your own route) uses it. Throws on a host with no `access`.
    */
   identify: (options: { request: Request }) => Promise<P | null>
+  /** `true` when the host was made with `access`, so every call needs a principal. */
+  readonly hasAccess: boolean
   /**
    * The status changes and the session index changes of this host, for a
    * list of sessions that stays current. First the current status of each
@@ -1404,6 +1406,7 @@ export function createHarnessHost<P extends Principal = Principal>(
         threadId,
         principalId: principal.id,
       }),
+    hasAccess: access !== undefined,
     async identify({ request }) {
       if (!access) {
         throw new Error(
@@ -1612,11 +1615,25 @@ export function createHarnessHost<P extends Principal = Principal>(
         )) as SessionIndexEntry<SessionMetadataOf<typeof harness>> | undefined
       },
       async delete({ threadId, principal }) {
-        await checkEntry('host.sessions.delete', 'delete', {
+        const tenantId = principal?.tenantId
+        const entry = await checkEntry('host.sessions.delete', 'delete', {
           threadId,
           principal,
         })
-        await index.remove({ tenantId: principal?.tenantId, threadId })
+        // The transcript goes with the entry, so the next opener of this
+        // thread id cannot read it. ponytail: the log or the messages only;
+        // PR 4 adds a purge of blobs, metadata, and children.
+        if (entry?.harness !== undefined) {
+          const open = sessions.get(
+            sessionKey(entry.harness, tenantId, threadId),
+          )
+          if (open) await (await open).close()
+        }
+        const storeId = logIdOf({ tenantId, logId: threadId })
+        const { log, messages } = persistence.stores
+        if (log) await log.deleteLog({ logId: storeId })
+        else await messages?.saveThread(storeId, [])
+        await index.remove({ tenantId, threadId })
       },
       async fork({ harness, threadId, at, members, principal }) {
         const tenantId = principal?.tenantId

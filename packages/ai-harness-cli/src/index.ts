@@ -5,7 +5,7 @@ import { attach, defaultMediaDir } from './attach'
 import { runLines } from './lines'
 import { loadOptional } from './optional'
 import { EXIT, runPrint } from './print'
-import { createToken, hasAccess, serve } from './serve'
+import { createToken, serve } from './serve'
 import type {
   AnyHarness,
   HarnessHost,
@@ -171,7 +171,7 @@ export async function runCli<P extends Principal = Principal>(
 
     if (args.mcp) {
       // A host with access reads the user of each HTTP request.
-      if (hasAccess(host, harness)) {
+      if (host.hasAccess) {
         throw new Error(
           '--mcp serves over stdio, which has no login, so it cannot use a host with access. Give runCli a host without access, and the local user as principal.',
         )

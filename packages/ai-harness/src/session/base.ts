@@ -157,6 +157,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected readonly hostRuns: RunStore | undefined
   protected readonly inbox: InboxStore
   protected readonly principal: Principal | undefined
+  /** The owner of the index entry, once the session read it. */
+  protected owner: Principal | undefined
   /** The session log writer of a durable host. It is also the feed. */
   protected writer: LogWriter | undefined
   protected feed: ListenedFeed

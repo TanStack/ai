@@ -202,6 +202,46 @@ describe('the run context of each run', () => {
     await host.close()
   })
 
+  it('gives a session plugin the owner of the entry as its session principal, also when another user opens the session first', async () => {
+    const seen: Array<string | undefined> = []
+    const probe = definePlugin({
+      name: 'test/owner-probe',
+      setup: (ctx) => ({
+        tools: [
+          toolDefinition({
+            name: 'probe',
+            description: 'Read the session principal',
+            inputSchema: z.object({}),
+          }).server(() => {
+            seen.push(ctx.session.principal?.id)
+            return {}
+          }),
+        ],
+      }),
+    })
+    const { adapter } = mockAdapter([
+      () => text('ok'),
+      () => toolCall('probe', {}, 'c1'),
+      () => text('ok'),
+    ])
+    const { host, harness, session } = await open({
+      adapter,
+      plugins: () => [probe],
+    })
+    await session.send('Hi.')
+    await session.close()
+
+    // Bob opens the thread first on this host now. Olga still owns it.
+    const reopened = await host.open(harness, {
+      threadId: THREAD,
+      principal: bob,
+    })
+    await reopened.send('Probe.')
+
+    expect(seen).toEqual(['olga'])
+    await host.close()
+  })
+
   it("binds a turn plugin's credentials and session to the sender of its turn", async () => {
     const seen: Array<{ principal: string | undefined; token: string | null }> =
       []

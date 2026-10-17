@@ -257,7 +257,7 @@ Where each part of a plugin reads the run:
 - A tool or a middleware hook: `ctx.context.run`. Type it with `HarnessRunContext`, for example `.server<HarnessRunContext>(...)` or `ChatMiddleware<HarnessRunContext>`.
 - A command: `run` of the command context. Its `credentials` is the same as `run.credentials`.
 - A plugin with `lifetime: 'turn'`: `ctx.turn.run`. Its `ctx.credentials` and `ctx.keys` belong to the same user.
-- A session plugin (the default lifetime): `ctx.credentials` and `ctx.keys` have no user, so each call throws. `ctx.session.principal` is the user who opened the session.
+- A session plugin (the default lifetime): `ctx.credentials` and `ctx.keys` have no user, so each call throws. `ctx.session.principal` is the owner of the session.
 
 The run has these fields:
 

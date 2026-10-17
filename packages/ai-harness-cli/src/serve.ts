@@ -35,22 +35,6 @@ export interface ServeOptions<P extends Principal = Principal> {
 }
 
 /**
- * True when `host` checks access. The host has no flag for it, but
- * `host.isOpen` throws without a principal on a host with access.
- */
-export function hasAccess<P extends Principal>(
-  host: HarnessHost<P>,
-  harness: AnyHarness,
-) {
-  try {
-    host.isOpen(harness, { threadId: '' })
-    return false
-  } catch {
-    return true
-  }
-}
-
-/**
  * The MCP server for `/mcp`, or `undefined` without `@tanstack/ai-mcp`. It
  * runs each call as the same user as the session protocol routes.
  */
@@ -149,7 +133,7 @@ export async function serve<P extends Principal = Principal>(
   const { host, harness, principal } = options
   const isAllowed = (request: Request) =>
     sameToken(request.headers.get('authorization'), options.token)
-  const withAccess = hasAccess(host, harness)
+  const withAccess = host.hasAccess
   // ponytail: the token signs media URLs, so they work as long as it does.
   const media = { secret: options.token }
   const handler = withAccess

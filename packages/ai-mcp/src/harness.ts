@@ -234,7 +234,7 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
   options: HarnessMcpServerOptions<P>,
 ) {
   const { host, harness, openAccess } = options
-  const access = hasAccess(host, harness)
+  const access = host.hasAccess
   if (access && openAccess !== undefined) {
     throw new Error(
       'createHarnessMcpServer: the host has access, so access.identify reads the user of each request. Remove openAccess.',
@@ -764,22 +764,6 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
     handle,
   }
   return served
-}
-
-/**
- * True when `host` checks access. The host has no flag for it, but
- * `host.isOpen` throws without a principal on a host with access.
- */
-function hasAccess<P extends Principal>(
-  host: HarnessHost<P>,
-  harness: AnyHarness,
-) {
-  try {
-    host.isOpen(harness, { threadId: '' })
-    return false
-  } catch {
-    return true
-  }
 }
 
 /**
