@@ -348,6 +348,7 @@ The client sends `{ type: 'harness.subscribe', threadId }` first. After that, ea
 - A user that `identify` refuses gets an `unauthorized` error frame, and the socket closes.
 - A user who cannot read the thread, or who loses access later, gets a `forbidden` error frame, and the socket closes.
 - On a host with no `access`, pass `openAccess`, the same as for `createHarnessHandler`.
+- Pass `socket: true` to `createHarnessHandler` too. Then `GET capabilities` says `transport.websocket: true`, so clients know that they can use the socket. The default is `false`.
 
 ## Use it as the model of another chat
 
