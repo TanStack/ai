@@ -1549,7 +1549,7 @@ describe('session.continue()', () => {
   )
 })
 
-describe('settled() without a log', () => {
+describe('settled() of a live input', () => {
   it('gives the outcome of a live input, and refuses an unknown id', async () => {
     const { adapter } = mockAdapter([() => text('fine')])
     const host = createHarnessHost({ persistence: memoryPersistence() })
@@ -1891,7 +1891,7 @@ describe('metadata-only approval consumption', () => {
     const stores = memoryPersistence().stores
     const persistence = {
       stores: {
-        messages: stores.messages,
+        log: stores.log,
         runs: stores.runs,
         metadata: stores.metadata,
       },

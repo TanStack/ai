@@ -1475,6 +1475,9 @@ export class SharedLog<TState = unknown> {
       // filter rejected.
       if (next.length === 0) after = Math.max(after, this.state.seq)
       if (isClosed() || until?.()) {
+        // The events that the end published (an operation's finished
+        // event) are still in flight: they land first.
+        await this.chain
         yield* ownAfter(after)
         return
       }

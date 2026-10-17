@@ -103,26 +103,19 @@ async function open(options: {
   replies: Array<Reply> | Reply
   turn: HarnessTurnOptions
   tools?: Array<AnyTool>
-  durable?: boolean
 }) {
   const { adapter, calls } = mockAdapter(options.replies)
-  const persistence = memoryPersistence()
-  const { runs, metadata, interrupts } = persistence.stores
+  const { runs, metadata, interrupts } = memoryPersistence().stores
   const log = memoryLogStore()
-  const host = options.durable
-    ? createHarnessHost({
-        persistence: {
-          stores: { log, runs, metadata, interrupts },
-        },
-      })
-    : createHarnessHost({ persistence })
+  const host = createHarnessHost({
+    persistence: { stores: { log, runs, metadata, interrupts } },
+  })
   const session = await host.open(
     defineHarness({
       name: 'test/turn-control',
       adapter,
       tools: options.tools,
       turn: options.turn,
-      // Only the durable host reads it.
       durability: { project },
     }),
     {
@@ -154,7 +147,6 @@ async function eventsOf(
 describe('turn.onModelError', () => {
   it('compacts after an overflow, retries once, and succeeds', async () => {
     const { host, session, calls } = await open({
-      durable: true,
       replies: [
         failsWith(
           'prompt is too long: 250000 tokens > 200000 maximum',
@@ -267,48 +259,44 @@ describe('turn.onModelError', () => {
     await host.close()
   })
 
-  it.each([false, true])(
-    'retries a resumed turn and runs the approved tool once (durable: %s)',
-    async (durable) => {
-      const execute = vi.fn(async () => ({ ok: true }))
-      const remove = toolDefinition({
-        name: 'remove',
-        description: 'Remove a file',
-        needsApproval: true,
-        inputSchema: z.object({ path: z.string() }),
-      }).server(execute)
-      const { host, session } = await open({
-        durable,
-        tools: [remove],
-        replies: [
-          () => toolCall('remove', { path: 'a.txt' }, 'call_1'),
-          failsWith('503 Service Unavailable'),
-          () => text('removed'),
-        ],
-        turn: { onModelError: retryTransientErrors({ baseDelayMs: 1 }) },
-      })
+  it('retries a resumed turn and runs the approved tool once', async () => {
+    const execute = vi.fn(async () => ({ ok: true }))
+    const remove = toolDefinition({
+      name: 'remove',
+      description: 'Remove a file',
+      needsApproval: true,
+      inputSchema: z.object({ path: z.string() }),
+    }).server(execute)
+    const { host, session } = await open({
+      tools: [remove],
+      replies: [
+        () => toolCall('remove', { path: 'a.txt' }, 'call_1'),
+        failsWith('503 Service Unavailable'),
+        () => text('removed'),
+      ],
+      turn: { onModelError: retryTransientErrors({ baseDelayMs: 1 }) },
+    })
 
-      const first = await session.send('remove a.txt')
-      const receipt = await session.resolve({
-        resume: [
-          {
-            interruptId: first.interrupts![0]!.id,
-            status: 'resolved',
-            payload: true,
-          },
-        ],
-      })
+    const first = await session.send('remove a.txt')
+    const receipt = await session.resolve({
+      resume: [
+        {
+          interruptId: first.interrupts![0]!.id,
+          status: 'resolved',
+          payload: true,
+        },
+      ],
+    })
 
-      expect(await session.operation(receipt.operationId!)).toEqual({
-        text: 'removed',
-        media: [],
-      })
-      expect(execute).toHaveBeenCalledTimes(1)
-      await host.close()
-    },
-  )
+    expect(await session.operation(receipt.operationId!)).toEqual({
+      text: 'removed',
+      media: [],
+    })
+    expect(execute).toHaveBeenCalledTimes(1)
+    await host.close()
+  })
 
-  it('gives the retry a steer that joined the failed call, on a host without a log', async () => {
+  it('gives the retry a steer that joined the failed call', async () => {
     const started = gate()
     const release = gate()
     const { host, session, calls } = await open({
@@ -897,7 +885,6 @@ describe('turn.beforeFinish', () => {
 
   it('completes for a record that changes no message', async () => {
     const { host, session, calls, log } = await open({
-      durable: true,
       replies: [() => text('done'), () => text('never')],
       turn: {
         beforeFinish: ({ cycle }) =>
@@ -915,39 +902,35 @@ describe('turn.beforeFinish', () => {
     await host.close()
   })
 
-  it.each([false, true])(
-    'adds nothing when the turn is cancelled during the hook (durable: %s)',
-    async (durable) => {
-      const waiting = gate()
-      const { host, session, calls } = await open({
-        durable,
-        replies: [() => text('done'), () => text('never')],
-        turn: {
-          beforeFinish: async ({ signal }) => {
-            waiting.open()
-            await new Promise((resolve) =>
-              signal.addEventListener('abort', resolve, { once: true }),
-            )
-            return { messages: [{ role: 'user', content: REMINDER }] }
-          },
+  it('adds nothing when the turn is cancelled during the hook', async () => {
+    const waiting = gate()
+    const { host, session, calls } = await open({
+      replies: [() => text('done'), () => text('never')],
+      turn: {
+        beforeFinish: async ({ signal }) => {
+          waiting.open()
+          await new Promise((resolve) =>
+            signal.addEventListener('abort', resolve, { once: true }),
+          )
+          return { messages: [{ role: 'user', content: REMINDER }] }
         },
-      })
+      },
+    })
 
-      const turn = session.send('go')
-      await waiting.opened
-      await turn.cancel()
+    const turn = session.send('go')
+    await waiting.opened
+    await turn.cancel()
 
-      await expect(turn).rejects.toThrow('Cancelled.')
-      expect(turn.status()).toBe('cancelled')
-      expect(calls).toHaveLength(1)
-      expect(
-        (await session.transcript()).some(
-          (message) => message.content === REMINDER,
-        ),
-      ).toBe(false)
-      await host.close()
-    },
-  )
+    await expect(turn).rejects.toThrow('Cancelled.')
+    expect(turn.status()).toBe('cancelled')
+    expect(calls).toHaveLength(1)
+    expect(
+      (await session.transcript()).some(
+        (message) => message.content === REMINDER,
+      ),
+    ).toBe(false)
+    await host.close()
+  })
 
   it('fails the turn at the cycle limit', async () => {
     const { host, session, calls } = await open({
@@ -967,7 +950,6 @@ describe('turn.beforeFinish', () => {
 
   it('gives the next model call ephemeral messages that no store keeps', async () => {
     const { host, session, calls, log } = await open({
-      durable: true,
       replies: [() => text('draft'), () => text('posted'), () => text('never')],
       turn: {
         beforeFinish: ({ cycle }) =>
@@ -1088,16 +1070,6 @@ describe('turn.beforeFinish', () => {
         error: TRUNCATED_TOOL_RESULT,
       },
     ])
-    await host.close()
-  })
-
-  it('refuses records without a log', async () => {
-    const { host, session } = await open({
-      replies: [() => text('done')],
-      turn: { beforeFinish: () => ({ records: [{ type: 'app.note' }] }) },
-    })
-
-    await expect(session.send('go')).rejects.toThrow('durable host')
     await host.close()
   })
 

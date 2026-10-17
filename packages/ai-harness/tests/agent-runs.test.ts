@@ -6,7 +6,12 @@ import {
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, logIdOf } from '../src'
+import {
+  createHarnessHost,
+  defineHarness,
+  logIdOf,
+  logMessageStore,
+} from '../src'
 import {
   after,
   gate,
@@ -25,7 +30,7 @@ const THREAD = 't1'
 const LOG = logIdOf({ logId: THREAD })
 const alice = { id: 'alice' }
 
-/** Open `harness` for alice on a host without a log. */
+/** Open `harness` for alice. */
 async function open<THarness extends AnyHarness>(
   harness: THarness,
   persistence = memoryPersistence(),
@@ -110,9 +115,11 @@ describe('the thread of an agent run', () => {
     await session.agents.drafter.start()
 
     expect(thread).toMatch(/^t1:drafter:in-/)
-    // The chain thread is in the tenant of the session: the default one.
+    // The chain thread has a log of its own, in the default tenant.
     const saved = JSON.stringify(
-      await persistence.stores.messages.loadThread(logIdOf({ logId: thread })),
+      await logMessageStore({ store: persistence.stores.log }).loadThread(
+        thread,
+      ),
     )
     expect(saved).toContain('Draft it.')
     expect(saved).toContain('Drafted.')

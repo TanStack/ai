@@ -519,8 +519,8 @@ export abstract class SessionTurn<
         },
         operation,
       )
-      // A durable host gives each durableTool call its steps in the log. The
-      // tools are bound here, so a middleware wrapper wraps the bound tool,
+      // Each durableTool call gets its steps in the log. The tools are bound
+      // here, so a middleware wrapper wraps the bound tool,
       // and again at each model call, for tools that a middleware returns.
       const { bindTool } = this
       const tools = bindTool
@@ -621,7 +621,7 @@ export abstract class SessionTurn<
       let routedFrom = turn.answers?.routed?.messages
       /** Retries since the last finished tool phase. The log keeps them. */
       let retries =
-        this.writer?.state.inputs.get(turn.inputId ?? '')?.retries ?? 0
+        this.writer.state.inputs.get(turn.inputId ?? '')?.retries ?? 0
       /** The partial answer and the note that a `'continue'` adds. */
       let continued: Array<ModelMessage> = []
       /** How many times `turn.beforeFinish` continued this turn. */
@@ -869,7 +869,7 @@ export abstract class SessionTurn<
           // The count with this failed call is in the log before the hook
           // waits, so a host that stops in the backoff loses no retry.
           if (!isStopped && turn.inputId !== undefined) {
-            await this.writer?.append([
+            await this.writer.append([
               {
                 type: 'harness.turn.retry',
                 inputId: turn.inputId,

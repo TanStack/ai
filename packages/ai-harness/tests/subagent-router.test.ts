@@ -53,21 +53,17 @@ async function approveFirst(
 
 /**
  * A session whose `subagents.router` always returns `pick`. The router keeps
- * the messages of each call. `durable` gives the host a log.
+ * the messages of each call.
  */
 async function openRouted(options: {
-  durable: boolean
   agent: AnyAgent
   pick: SubagentRouterPick
   replies?: Array<Reply>
   ownership?: { renewMs?: number; ttlMs?: number }
   tools?: ReadonlyArray<AnyTool>
 }) {
-  const { stores } = memoryPersistence()
-  const { runs, metadata } = stores
-  const persistence = options.durable
-    ? { stores: { log: memoryLogStore(), runs, metadata } }
-    : { stores }
+  const { runs, metadata } = memoryPersistence().stores
+  const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
   const main = mockAdapter(options.replies ?? [])
   const routerSaw: Array<Array<string>> = []
   const host = createHarnessHost({
@@ -94,14 +90,10 @@ async function openRouted(options: {
   return { host, session, runs, routerSaw, calls: main.calls }
 }
 
-describe.each([
-  { host: 'a host without a log', durable: false },
-  { host: 'a durable host', durable: true },
-])('subagents.router on $host', ({ durable }) => {
+describe('subagents.router', () => {
   it('gives the router the earlier turns', async () => {
     const { agent } = writerAgent()
     const { host, session, routerSaw } = await openRouted({
-      durable,
       agent,
       pick: 'writer',
     })
@@ -117,7 +109,6 @@ describe.each([
   it('gives a routed agent the earlier turns, and saves each message once', async () => {
     const { agent, seen } = writerAgent()
     const { host, session } = await openRouted({
-      durable,
       agent,
       pick: 'writer',
     })
@@ -136,7 +127,6 @@ describe.each([
   it('returns the text of the routed agent', async () => {
     const { agent } = writerAgent()
     const { host, session, calls } = await openRouted({
-      durable,
       agent,
       pick: 'writer',
     })
@@ -149,7 +139,6 @@ describe.each([
   it("runs the main model when the router returns 'main'", async () => {
     const { agent, seen } = writerAgent()
     const { host, session, calls } = await openRouted({
-      durable,
       agent,
       pick: 'main',
       replies: [() => text('Main 1'), () => text('Main 2')],
@@ -175,7 +164,6 @@ describe.each([
       },
     })
     const { host, session, runs } = await openRouted({
-      durable,
       agent,
       pick: 'writer',
     })
@@ -192,7 +180,6 @@ describe.each([
   it('stops the run lease when the turn ends', async () => {
     const { agent } = writerAgent()
     const { host, session, runs } = await openRouted({
-      durable,
       agent,
       pick: 'writer',
       ownership: { renewMs: 5 },
@@ -219,7 +206,6 @@ describe.each([
       run: (ctx) => ctx.chat({ adapter: child.adapter, tools: [remove.tool] }),
     })
     const { host, session, routerSaw, calls } = await openRouted({
-      durable,
       agent,
       pick: 'cleaner',
     })
@@ -242,7 +228,6 @@ describe.each([
     const remove = removeTool()
     const { agent } = writerAgent()
     const { host, session, calls } = await openRouted({
-      durable,
       agent,
       pick: 'main',
       tools: [remove.tool],

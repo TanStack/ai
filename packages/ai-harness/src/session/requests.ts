@@ -602,7 +602,7 @@ export abstract class SessionRequests<
     if (hasJoined) return this.reject(inputId, 'not_running')
     // It never joins now, and settles when the running turn ends.
     if (waitingSteer) this.abortedSteers.add(waitingSteer.inputId)
-    if (this.writer && targetInput) {
+    if (targetInput) {
       await this.writer.append([
         { type: 'harness.input.abort', inputId: targetInput },
       ])
@@ -714,14 +714,6 @@ export abstract class SessionRequests<
       type: 'harness.input.abort',
       inputId: target,
     })
-    // Without a log, the inbox entry must not stay pending: a restart runs
-    // pending entries.
-    if (!this.writer)
-      await this.inbox.markRejected({
-        threadId: this.storeThreadId,
-        inputId: target,
-        reason: 'cancelled',
-      })
     const { operation } = taken
     await this.settle({
       inputId: target,
@@ -739,8 +731,8 @@ export abstract class SessionRequests<
    * Move an input that waits. `'steer'` joins it to the running turn at the
    * next model call. `'queue'` runs it as its own turn, after the queued
    * turns. An input that started, or that joins the running turn now, is
-   * refused with `not_waiting`. On a durable host the log keeps the
-   * delivery, and a restart honors it. Without a log, it is kept in memory.
+   * refused with `not_waiting`. The log keeps the delivery, and a restart
+   * honors it.
    * `principal` is who moves it. Default: the principal that opened the
    * session. The log keeps it.
    *
@@ -912,7 +904,7 @@ export abstract class SessionRequests<
    * crash: the log gets none of their later writes, they do not settle, and
    * the run store gets no aborted state. They give their leases back, so the
    * next host that opens the thread runs them again at once. `host.close`
-   * passes it when a durable host shuts down, for example for a deploy.
+   * passes it when a host shuts down, for example for a deploy.
    */
   close(options?: { recoverable?: boolean }): Promise<void> {
     this.closing ??= (async () => {
@@ -922,7 +914,8 @@ export abstract class SessionRequests<
       this.stopClaimTimer()
       if (wasIdle) await this.releaseClaim()
       // Before the stop, so no write of the stopped work lands.
-      if (options?.recoverable) this.writer?.close()
+      // A session whose open failed before the log opened has no writer.
+      if (options?.recoverable) this.logWriter?.close()
       for (const turn of this.queue.splice(0)) {
         await this.refreshTurnInterrupts(turn.operation)
         turn.operation.fail('cancelled', new Error('Session closed.'))
@@ -952,7 +945,7 @@ export abstract class SessionRequests<
       // The events from before the close land first, so the next host has
       // the text of a cut answer.
       if (options?.recoverable)
-        await this.writer
+        await this.logWriter
           ?.flush()
           .catch((error: unknown) => this.warnSession('harness:log', error))
       // A reload that mounts plugins now ends first, so its plugins are
@@ -1048,7 +1041,7 @@ export abstract class SessionRequests<
   ) {
     const payload = inputKey(input, principal)
     const local = this.admitted.get(inputId)
-    const logged = this.writer?.state.inputs.get(inputId)
+    const logged = this.writer.state.inputs.get(inputId)
     const stored =
       local ?? (logged ? inputKey(logged.input, logged.principal) : undefined)
     if (stored === undefined) return undefined
@@ -1076,17 +1069,6 @@ export abstract class SessionRequests<
       return
     }
     operation.resolveReceipt(receipt)
-    if (!this.writer) {
-      // Without a log, the result of an input from before a restart, or of
-      // one the session no longer keeps, is gone.
-      operation.fail(
-        'failed',
-        new Error(
-          'This input ran earlier, and its result is gone. Keep results with a durable host (stores.log).',
-        ),
-      )
-      return
-    }
     this.followers.add(operation)
     void this.settled(inputId)
       .then(

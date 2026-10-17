@@ -15,7 +15,6 @@ import type {
   ArtifactStore,
   BlobStore,
   GenerationRunStore,
-  InboxStore,
   LogStore,
 } from '@tanstack/ai-persistence'
 import type { InputState, LogWriter, ProjectOptions } from '../log'
@@ -56,13 +55,11 @@ export interface AgentRunOptions {
 export interface AgentStartOptions extends AgentRunOptions {
   /**
    * When the agent finishes or fails, start a new chat turn with its result
-   * or its error. On a durable host, this also occurs when the host stopped
-   * during the run.
+   * or its error. This also occurs when the host stopped during the run.
    */
   wake?: boolean
   /**
-   * On a durable host, when the host stops during the run, the host that
-   * takes over runs the agent again with the same input, instead of failing
+   * When the host stops during the run, the host that takes over runs the agent again with the same input, instead of failing
    * it. The agent code runs again from its start: put each side effect in
    * `ctx.harness.step.do(name, fn)`, so a finished step returns its
    * stored value.
@@ -207,7 +204,6 @@ export interface SessionDependencies {
   harness: AnyHarness
   threadId: string
   persistence: HarnessPersistence
-  inbox: InboxStore
   credentials: CredentialStore
   /** Where media lives: file records, bytes, and generation runs. */
   media: AIPersistence<{
@@ -226,8 +222,8 @@ export interface SessionDependencies {
   retention: Retention
   /** The plugins with `lifetime: 'host'` that the host shares. */
   hostPlugins: HostPlugins
-  /** The session log of a durable host. */
-  log?: {
+  /** The session log. */
+  log: {
     store: LogStore
     project?: ProjectOptions
     /** The view of this session in its shared log. */

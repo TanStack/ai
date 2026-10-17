@@ -15,10 +15,10 @@ const THREAD_METADATA = [
 ]
 
 /**
- * Delete the stored data of one thread: its log (or its messages on a host
- * with no log), its media, and the harness metadata rows. `storeId` is the
- * store key of the thread, from `logIdOf`. It is also the store id of the
- * thread's own log. A store the persistence does not have is skipped.
+ * Delete the stored data of one thread: its log, its media, and the harness
+ * metadata rows. `storeId` is the store key of the thread, from `logIdOf`.
+ * It is also the store id of the thread's own log. A store the persistence
+ * does not have is skipped.
  */
 // ponytail: plugin state, runs, interrupts, the inbox, and work claims stay.
 // PR 5 moves them into the log or removes them, so `deleteLog` covers them.
@@ -32,9 +32,8 @@ export async function purgeThreadData({
   /** The media stores of the host, which can be memory stores. */
   media: { artifacts: ArtifactStore; blobs: BlobStore }
 }) {
-  const { log, messages, metadata } = stores
-  if (log) await log.deleteLog({ logId: storeId })
-  else await messages?.saveThread(storeId, [])
+  const { log, metadata } = stores
+  await log.deleteLog({ logId: storeId })
 
   // Uploads and generated media are both artifacts of the thread.
   const records = await media.artifacts.listForThread(storeId)

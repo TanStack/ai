@@ -1,13 +1,11 @@
 import { logIdOf, parseLogId } from './log'
-import type {
-  InterruptStore,
-  MessageStore,
-  RunStore,
-} from '@tanstack/ai-persistence'
+import type { InterruptStore, RunStore } from '@tanstack/ai-persistence'
 
-/** The stores that `withPersistence` keys by the thread id of `chat()`. */
+/**
+ * The stores that `withPersistence` keys by the thread id of `chat()`, other
+ * than the transcript. The transcript of a session is its log.
+ */
 interface ChatThreadStores {
-  messages?: MessageStore
   runs?: RunStore
   interrupts?: InterruptStore
 }
@@ -26,7 +24,7 @@ export function tenantStores(
   stores: ChatThreadStores,
   tenantId: string | undefined,
 ) {
-  const { messages, runs, interrupts } = stores
+  const { runs, interrupts } = stores
   const keyOf = (threadId: string) => logIdOf({ tenantId, logId: threadId })
   /** `record` with the thread id of the app, or `null` in another tenant. */
   const own = <T extends { threadId: string }>(record: T | null) => {
@@ -38,10 +36,6 @@ export function tenantStores(
     records: ReadonlyArray<T> | undefined,
   ) => (records ?? []).flatMap((record) => own(record) ?? [])
 
-  const messageView: MessageStore | undefined = messages && {
-    loadThread: (threadId: string) => messages.loadThread(keyOf(threadId)),
-    saveThread: (threadId, list) => messages.saveThread(keyOf(threadId), list),
-  }
   const runView: RunStore | undefined = runs && {
     createOrResume: async (input) => {
       const record = own(
@@ -90,7 +84,6 @@ export function tenantStores(
       ownAll(await interrupts.listPendingByRun(runId)),
   }
   const view: ChatThreadStores = {
-    ...(messageView && { messages: messageView }),
     ...(runView && { runs: runView }),
     ...(interruptView && { interrupts: interruptView }),
   }

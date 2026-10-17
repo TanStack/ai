@@ -18,7 +18,6 @@ import type {
   AIPersistence,
   ArtifactStore,
   BlobStore,
-  ChatTranscriptStores,
   GenerationRunStore,
   InboxStore,
   InterruptStore,
@@ -64,42 +63,31 @@ type DurableLeases =
   | { runs?: RunStore; leases: LeaseStore }
 
 /**
- * The stores a host needs. Two shapes:
+ * The stores a host needs: a `log`, and `runs` or `leases`. The log holds the
+ * events, transcript, inputs, and tool steps of each thread. In development,
+ * use `memoryPersistence()` from `@tanstack/ai-persistence`: it has a memory
+ * log. The host does not use `messages`.
  *
- * - A message store, plus any of runs, interrupts, metadata, and inbox.
- *   Without an inbox, inputs are kept in memory and a restart loses the ones
- *   not yet applied.
- * - Durable mode: a `log`, and `runs` or `leases`. The log holds the events,
- *   transcript, inputs, and tool steps of each thread, so this shape has no
- *   `messages`. With several hosts, add `workClaims`: an input that reaches a
- *   host while another host owns the thread is refused (`owned_elsewhere`),
- *   so it never stops the owner's turn. Add `inbox` too, and that input waits
- *   in the inbox for the owner instead (receipt `queued`).
+ * With several hosts, add `workClaims`: an input that reaches a host while
+ * another host owns the thread is refused (`owned_elsewhere`), so it never
+ * stops the owner's turn. Add `inbox` too, and that input waits in the inbox
+ * for the owner instead (receipt `queued`).
  *
  * Without `artifacts`, `blobs`, and `generationRuns`, media is kept in memory.
  * With `sessions`, the host keeps one index entry per tenant and thread (see
  * `host.sessions`). The store needs `getVersioned` and `upsertIf`, or the host
  * throws at the start.
  */
-export type HarnessPersistence =
-  | AIPersistence<
-      ChatTranscriptStores & {
-        inbox?: InboxStore
-        log?: never
-        leases?: never
-      } & SharedStores
-    >
-  | AIPersistence<
-      {
-        log: LogStore
-        interrupts?: InterruptStore
-        metadata?: MetadataStore
-        messages?: never
-        /** Inputs for the host that owns a thread. Needs `workClaims`. */
-        inbox?: InboxStore
-      } & DurableLeases &
-        SharedStores
-    >
+export type HarnessPersistence = AIPersistence<
+  {
+    log: LogStore
+    interrupts?: InterruptStore
+    metadata?: MetadataStore
+    /** Inputs for the host that owns a thread. Needs `workClaims`. */
+    inbox?: InboxStore
+  } & DurableLeases &
+    SharedStores
+>
 
 export interface HarnessHostOptions<P extends Principal = Principal> {
   /** Where sessions keep their state. Default: in memory, lost on restart. */
@@ -132,8 +120,7 @@ export interface HarnessHostOptions<P extends Principal = Principal> {
    */
   credentials?: CredentialStore
   /**
-   * How a durable host (`stores.log`) appends to the log. Leave it out for
-   * the defaults.
+   * How the host appends to the log. Leave it out for the defaults.
    */
   log?: {
     /**
@@ -181,20 +168,20 @@ export interface RetentionLimits {
    * with their receipts and settlements. Inputs with no turn (agent runs,
    * messages to them, commands, cancels) have a window of the same size.
    * Past it, `session.operation(id)` is `undefined` for the oldest, and
-   * `settled()` of its input reads the log (a durable host). Default 500.
+   * `settled()` of its input reads the log. Default 500.
    */
   settledOperations?: number
   /**
    * How many settled agent runs a session keeps. Past it, `agentRun(id)`
-   * and `agentRuns()` leave out the oldest, except what the log has (a
-   * durable host). Default 500.
+   * and `agentRuns()` leave out the oldest, except what the log has.
+   * Default 500.
    */
   settledAgentRuns?: number
   /**
    * How many bytes of events a session keeps in memory for `events()`, as
    * the JSON length of each event. A reader whose cursor is older starts
-   * at the oldest event kept. A durable host reads older events from the
-   * log. Default 8 000 000.
+   * at the oldest event kept. Older events come from the log. Default
+   * 8 000 000.
    */
   eventBytes?: number
 }
@@ -214,7 +201,7 @@ export interface OpenSessionOptions<P extends Principal = Principal> {
    */
   principal?: P
   /**
-   * The log of the session, on a durable host. Sessions with the same log id
+   * The log of the session. Sessions with the same log id
    * share one log and one writer: one append can hold records for several of
    * them. Default: `threadId`.
    */
@@ -532,9 +519,9 @@ export interface HarnessHost<P extends Principal = Principal> {
    * `ObservedSession`). It mounts no plugins, writes nothing (no index entry, no
    * metadata), claims nothing, and runs no recovery, so a read of an idle
    * thread costs only store reads. When the session of the thread is open on
-   * this host, the view reads through it, and it never holds it open. On a
-   * durable host, the views of one log share its fold and its events. Use
-   * `open` for a write, or for what needs plugins (`describe`).
+   * this host, the view reads through it, and it never holds it open. The
+   * views of one log share its fold and its events. Use `open` for a write,
+   * or for what needs plugins (`describe`).
    *
    * With access, `principal` is required, and the thread needs the `read`
    * action, else the call throws `AccessDeniedError`. A child thread is
@@ -624,8 +611,8 @@ export interface HarnessHost<P extends Principal = Principal> {
    * on a view throws, and so does a call on a handle, except a read that
    * gives a value at once (`snapshot()`): it reads the last state. With
    * `recoverable`, the running work stops with no settlement, and the next
-   * host that opens a thread runs it again: use it when a durable host shuts
-   * down, for example for a deploy. Without it, the running work is
+   * host that opens a thread runs it again: use it when a host shuts down,
+   * for example for a deploy. Without it, the running work is
    * cancelled.
    *
    * @example
@@ -907,12 +894,12 @@ export function hostCountsOf<P extends Principal>(host: HarnessHost<P>) {
   return count()
 }
 
-/** The log and run stores of each durable host. Not public API. */
+/** The log and run stores of each host. Not public API. */
 const durableStores = new WeakMap<object, { log: LogStore; runs?: RunStore }>()
 
 /**
- * @internal The log and run stores of `host` when it is durable
- * (`stores.log`), else `undefined`.
+ * @internal The log and run stores of `host`. `undefined` only for an object
+ * that `createHarnessHost` did not make.
  */
 export function durableStoresOf<P extends Principal>(host: HarnessHost<P>) {
   return durableStores.get(host)
@@ -970,23 +957,23 @@ function forkedMembers(
   return { ownerId: forker.id, members: [owner, ...old, ...others] }
 }
 
-/** Throw a clear error for a durable store set that cannot work. */
+/** Throw a clear error for a store set that cannot work. */
 function checkDurableStores(persistence: HarnessPersistence) {
-  const { stores } = persistence
-  if (stores.log === undefined) return
-  if (stores.runs === undefined && stores.leases === undefined) {
+  // The type needs a log. A JavaScript caller can still leave it out.
+  const stores: Partial<HarnessPersistence['stores']> = persistence.stores
+  if (stores.log === undefined) {
     throw new Error(
-      'A durable host (stores.log) needs stores.runs or stores.leases: a lease finds a crashed host.',
+      'The harness needs stores.log: each session keeps its events, transcript, and inputs there. In development, use memoryPersistence() from @tanstack/ai-persistence.',
     )
   }
-  if (stores.messages !== undefined) {
+  if (stores.runs === undefined && stores.leases === undefined) {
     throw new Error(
-      'A durable host (stores.log) keeps the transcript and the inputs in the log. Remove stores.messages. A reader outside a session can use logMessageStore({ store }).',
+      'The harness needs stores.runs or stores.leases: a lease finds a crashed host.',
     )
   }
   if (stores.inbox !== undefined && stores.workClaims === undefined) {
     throw new Error(
-      'A durable host (stores.log) uses stores.inbox to pass inputs to the host that owns a thread. That needs stores.workClaims.',
+      'The harness uses stores.inbox to pass inputs to the host that owns a thread. That needs stores.workClaims.',
     )
   }
 }
@@ -1025,10 +1012,6 @@ export function createHarnessHost<P extends Principal = Principal>(
   }
   const policy = access && membersOnlyPolicyOf(access.authorize)
   const memory = memoryPersistence().stores
-  // ponytail: a memory inbox when the stores have none. Pass `stores.inbox`
-  // to keep accepted inputs across restarts. A durable host keeps them in
-  // the log instead.
-  const inbox = persistence.stores.inbox ?? memory.inbox
   // ponytail: memory credentials when none are given. Pass `credentials`
   // to keep sign-ins across restarts.
   const credentials = options.credentials ?? memoryCredentialStore()
@@ -1376,33 +1359,28 @@ export function createHarnessHost<P extends Principal = Principal>(
         storeLogId,
         ...(tenantId !== undefined ? { tenantId } : {}),
         persistence,
-        inbox,
         credentials,
         media,
         hostId,
         index,
         retention,
         hostPlugins,
-        ...(logStore
-          ? {
-              log: {
-                store: logStore,
-                ...(harness.durability?.project
-                  ? { project: harness.durability.project }
-                  : {}),
-                open: async (sessionThread, onFailure) => {
-                  const ids = { logId: storeLogId, rootThread: logId }
-                  let log = await sharedLog(logStore, ids, harness)
-                  // The log closed while this open waited, and the host
-                  // dropped it.
-                  while (!log.isOpen) {
-                    log = await sharedLog(logStore, ids, harness)
-                  }
-                  return log.view(sessionThread, onFailure)
-                },
-              },
+        log: {
+          store: logStore,
+          ...(harness.durability?.project
+            ? { project: harness.durability.project }
+            : {}),
+          open: async (sessionThread, onFailure) => {
+            const ids = { logId: storeLogId, rootThread: logId }
+            let log = await sharedLog(logStore, ids, harness)
+            // The log closed while this open waited, and the host dropped
+            // it.
+            while (!log.isOpen) {
+              log = await sharedLog(logStore, ids, harness)
             }
-          : {}),
+            return log.view(sessionThread, onFailure)
+          },
+        },
         ...(options.ownership ? { lease: options.ownership } : {}),
         ...(principal ? { principal } : {}),
         ...(promptCache ? { promptCache } : {}),
@@ -1794,8 +1772,7 @@ export function createHarnessHost<P extends Principal = Principal>(
           `Thread ${JSON.stringify(threadId)} has no message ${JSON.stringify(at)}.`,
         )
       }
-      // The new thread opens with no `logId`, so its log is its own. Its
-      // transcript key in `stores.messages` is the same id.
+      // The new thread opens with no `logId`, so its log is its own.
       const newLogId = logIdOf({ tenantId, logId: newThreadId })
       // With access, a thread with an entry belongs to someone already.
       const isTaken =
@@ -1803,10 +1780,7 @@ export function createHarnessHost<P extends Principal = Principal>(
         (await index.get({ tenantId, threadId: newThreadId })) !== undefined
       const isUsed =
         isTaken ||
-        (logStore
-          ? (await logStore.read({ logId: newLogId, limit: 1 })).length > 0
-          : ((await persistence.stores.messages?.loadThread(newLogId))
-              ?.length ?? 0) > 0)
+        (await logStore.read({ logId: newLogId, limit: 1 })).length > 0
       if (isUsed) {
         throw new Error(
           `Thread ${JSON.stringify(newThreadId)} is not empty. Fork into a new thread.`,
@@ -1833,8 +1807,8 @@ export function createHarnessHost<P extends Principal = Principal>(
   }
 
   /**
-   * A reader of the log `ids` for the thread `threadId`, on a durable host,
-   * and the reduce that folds the log. It shares the log of the open
+   * A reader of the log `ids` for the thread `threadId`, and the reduce
+   * that folds the log. It shares the log of the open
    * sessions and the other readers. Close it after the read.
    */
   const readLog = async (
@@ -1901,9 +1875,7 @@ export function createHarnessHost<P extends Principal = Principal>(
         index,
         persistence,
         media,
-        readLog: logStore
-          ? () => readLog(logStore, ids, harness, threadId)
-          : undefined,
+        readLog: () => readLog(logStore, ids, harness, threadId),
       })
     },
     isOpen(harness, { threadId, principal }) {
@@ -2291,10 +2263,8 @@ export function createHarnessHost<P extends Principal = Principal>(
       }
     },
   }
-  if (logStore) {
-    const { runs } = persistence.stores
-    durableStores.set(host, { log: logStore, ...(runs ? { runs } : {}) })
-  }
+  const { runs } = persistence.stores
+  durableStores.set(host, { log: logStore, ...(runs ? { runs } : {}) })
   if (access) accesses.set(host, access)
   counters.set(host, () => ({
     sessions: sessions.size,

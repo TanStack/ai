@@ -4,9 +4,8 @@ import { commonPrefix, stepKey } from '../log'
 import { mediaIdOf, mediaOfMessage } from '../media-ref'
 import { LEASE } from '../resume'
 import { HARNESS_EVENTS } from '../types'
-import { addUsage, callUsage } from '../usage'
+import { callUsage } from '../usage'
 import {
-  USAGE,
   asUserMessage,
   createMessageId,
   customEvent,
@@ -202,16 +201,14 @@ export abstract class SessionTurnParts<
   }
 
   /**
-   * On a durable host, each turn's chat run gets `LogRecordsCapability`. A
-   * middleware, for example a durable compaction, appends host records with
-   * it. They land in the log at once and fold, with the checks of
+   * Each turn's chat run gets `LogRecordsCapability`. A middleware, for
+   * example a durable compaction, appends host records with it. They land in the log at once and fold, with the checks of
    * `session.append`. The engine's new messages go in the same append, so a
    * record that counts the tool results of the last phase lands after them.
    * Agent runs do not get it: a child writes to its own thread.
    */
-  protected logRecords(): AnyChatMiddleware | undefined {
+  protected logRecords(): AnyChatMiddleware {
     const { engine } = this
-    if (!engine) return undefined
     return {
       name: 'harness:log-records',
       provides: [LogRecordsCapability],
@@ -250,31 +247,17 @@ export abstract class SessionTurnParts<
   }
 
   /**
-   * Add one model call to the totals, and send a `harness.usage` event. A
-   * durable host writes a `harness.usage` record, and the log fold adds it.
+   * Add one model call to the totals, and send a `harness.usage` event. The
+   * session writes a `harness.usage` record, and the log fold adds it.
    */
   protected async countUsage(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
     call: UsageCall,
   ): Promise<void> {
     try {
-      if (this.writer) {
-        await this.writer.append([{ type: 'harness.usage', ...call }])
-      } else {
-        addUsage(this.usageTotals, call)
-        const { metadata } = this.persistence.stores
-        if (metadata) {
-          const totals = structuredClone(this.usageTotals)
-          this.usageSaved = this.usageSaved.then(() =>
-            metadata.set(USAGE, this.storeThreadId, totals),
-          )
-          await this.usageSaved
-        }
-      }
+      await this.writer.append([{ type: 'harness.usage', ...call }])
     } catch (error) {
-      // A refused log append stops the session already. A failed metadata
-      // save keeps the totals in memory.
-      this.usageSaved = Promise.resolve()
+      // A refused log append stops the session already.
       this.warn(operation, 'harness:usage', error)
       return
     }
@@ -334,8 +317,8 @@ export abstract class SessionTurnParts<
   /**
    * Middleware that runs before each model call. Queued steers join the
    * running turn in admission order, as far as `claimJoins` lets them.
-   * `turn.onJoin` adds its messages after theirs. On a durable host, one
-   * append commits the engine's messages, the steer messages, the join
+   * `turn.onJoin` adds its messages after theirs. One append commits the
+   * engine's messages, the steer messages, the join
    * records, and the `onJoin` records, so a crash never splits a join. The
    * model gets the folded log when a host record changed the context. The
    * `onJoin` ephemeral messages go to `ephemeral`, for this model call. It
@@ -370,11 +353,6 @@ export abstract class SessionTurnParts<
           }
           const records = added?.records ?? []
           checkHostRecords(records)
-          if (records.length > 0 && !this.engine) {
-            throw new Error(
-              'Records from a turn hook need a durable host (a host with stores.log).',
-            )
-          }
           const hostInput = this.operationInputs.get(ctx.runId)
           const joins = hostInput
             ? steers.map((steer) => ({
@@ -398,17 +376,10 @@ export abstract class SessionTurnParts<
                 message.id ? message : { ...message, id: createMessageId() },
             ),
           ]
-          const synced = await this.engine?.beforeModel(list, [
+          const synced = await this.engine.beforeModel(list, [
             ...joins,
             ...records,
           ])
-          // A host without a log saves the transcript before each model call,
-          // as a durable host commits it. A tool result is then kept when the
-          // call fails, so a retried call, or a second resolve of a failed
-          // continuation, does not run the tool again.
-          if (!this.engine) {
-            await this.messages.saveThread(this.threadId, list)
-          }
           // Only now, so a hook or an append that fails leaves them waiting.
           this.steerQueue.splice(0, count)
           for (const steer of steers) this.join(ctx.runId, steer)
@@ -439,7 +410,7 @@ export abstract class SessionTurnParts<
       name: 'harness:sync-fold',
       onConfig: async (ctx, config) => {
         if (ctx.phase !== 'beforeModel') return undefined
-        const synced = await this.engine?.beforeModel(config.messages)
+        const synced = await this.engine.beforeModel(config.messages)
         if (!synced) return undefined
         const provider = config.providerMessages
         const isAppend =
@@ -461,7 +432,7 @@ export abstract class SessionTurnParts<
   /**
    * Middleware of one agent run. Before each model call of the run's own
    * chat, the steers that wait join as user messages, in order. The chain's
-   * thread keeps them before a durable host records the join, so a crash
+   * thread keeps them before the log records the join, so a crash
    * does not lose one, and each message id is its input id, so a run again
    * does not add a steer twice. Nested children share the binding: their
    * thread is not the chain's, so they skip it.
@@ -486,11 +457,8 @@ export abstract class SessionTurnParts<
             .filter((steer) => !known.has(steer.inputId))
             .map(asUserMessage),
         ]
-        await this.chatPersistence?.stores.messages.saveThread(
-          chain.thread,
-          messages,
-        )
-        await this.writer?.append(
+        await this.engine.saveThread(chain.thread, messages)
+        await this.writer.append(
           steers.map((steer) => ({
             type: 'harness.input.joined',
             inputId: steer.inputId,
@@ -558,7 +526,7 @@ export abstract class SessionTurnParts<
   }
 
   /**
-   * Abort `operation` when its input passes `timeoutAt` (a durable host with
+   * Abort `operation` when its input passes `timeoutAt` (a harness with
    * `durability.timeoutMs`). Returns the function that stops the timer.
    */
   protected startTimeout(
@@ -568,7 +536,7 @@ export abstract class SessionTurnParts<
     const timeoutAt =
       inputId === undefined
         ? undefined
-        : this.writer?.state.inputs.get(inputId)?.timeoutAt
+        : this.writer.state.inputs.get(inputId)?.timeoutAt
     if (timeoutAt === undefined) return () => {}
     const timer = setTimeout(
       () => operation.abortController.abort(TIMEOUT_REASON),
@@ -580,8 +548,8 @@ export abstract class SessionTurnParts<
 
   /**
    * Hold the lease of a turn or agent attempt in `stores.leases` while it
-   * runs. Returns the function that releases it. Without a lease store (or
-   * without a log), it returns nothing: the run lease decides.
+   * runs. Returns the function that releases it. Without a lease store, it
+   * returns nothing: the run lease decides.
    */
   protected async holdLease(
     inputId: string | undefined,
@@ -591,7 +559,7 @@ export abstract class SessionTurnParts<
     const attempt =
       inputId === undefined
         ? undefined
-        : this.writer?.state.inputs.get(inputId)?.attempt
+        : this.writer.state.inputs.get(inputId)?.attempt
     if (!leases || inputId === undefined || attempt === undefined) {
       return undefined
     }
@@ -657,7 +625,7 @@ export abstract class SessionTurnParts<
   ) {
     const { inputId } = turn
     if (inputId === undefined) return
-    this.writer?.stage([
+    this.writer.stage([
       {
         type: 'harness.turn.retry',
         inputId,
@@ -678,17 +646,6 @@ export abstract class SessionTurnParts<
         message.id ? message : { ...message, id: createMessageId() },
     )
     checkHostRecords(records)
-    if (!this.writer) {
-      if (records.length > 0) {
-        throw new Error(
-          'Records from a turn hook need a durable host (a host with stores.log).',
-        )
-      }
-      if (messages.length === 0) return false
-      const history = await this.messages.loadThread(this.threadId)
-      await this.messages.saveThread(this.threadId, [...history, ...messages])
-      return true
-    }
     const before = this.writer.state.messages
     await this.writer.commit({ messages: [...before, ...messages], records })
     const after = this.writer.state.messages

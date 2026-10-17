@@ -104,7 +104,8 @@ describe('lifetime host', () => {
     })
 
     await one.host.open(one.harness, { threadId: 'a' })
-    await one.host.open(other, { threadId: 'a' })
+    // One thread has one harness: the log of a thread is its own.
+    await one.host.open(other, { threadId: 'b' })
 
     expect(counts.setups).toBe(2)
     await one.host.close()

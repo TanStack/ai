@@ -10,6 +10,7 @@ describe('memoryPersistence', () => {
     expect(p.stores.runs).toBeDefined()
     expect(p.stores.interrupts).toBeDefined()
     expect(p.stores.metadata).toBeDefined()
+    expect(p.stores.log).toBeDefined()
   })
 
   it('exposes the complete state store set (no locks)', () => {
@@ -20,6 +21,7 @@ describe('memoryPersistence', () => {
       'generationRuns',
       'inbox',
       'interrupts',
+      'log',
       'messages',
       'metadata',
       'runs',

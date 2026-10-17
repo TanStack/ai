@@ -353,7 +353,7 @@ describe('permissions()', () => {
     const { stores } = memoryPersistence()
     const tools = fakeTools()
     const { host, session } = await open(
-      { stores: { messages: stores.messages, runs: stores.runs } },
+      { stores: { log: stores.log, runs: stores.runs } },
       [permissions({ root: ROOT }), tools.plugin],
       [
         () => toolCall('read_file', { path: '../shared.txt' }, 'c1'),

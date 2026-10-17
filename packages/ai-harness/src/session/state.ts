@@ -19,10 +19,8 @@ import {
   SessionSignal,
 } from '../plugins'
 import { HARNESS_EVENTS } from '../types'
-import { isSessionUsage } from '../usage'
 import {
   INTERRUPTED,
-  USAGE,
   isInterruptedTurn,
   createInputId,
   customEvent,
@@ -503,14 +501,13 @@ export abstract class SessionState<
    * call. Each message has the child's card (its name and how it ended) in
    * `metadata.tanstack.subagent`. A child with no messages has one assistant
    * message with no content that holds only its card. A nested child is a
-   * child of this thread too. Empty for an unknown id, for a child of another
-   * thread, and with no message store.
+   * child of this thread too. Empty for an unknown id, and for a child of
+   * another thread.
    */
   async agentTranscript(subagentRunId: string): Promise<Array<ModelMessage>> {
-    const store = this.chatPersistence?.stores.messages
-    if (!store) return []
     return (
-      (await loadChildTranscript(store, subagentRunId, this.threadId)) ?? []
+      (await loadChildTranscript(this.engine, subagentRunId, this.threadId)) ??
+      []
     )
   }
 
@@ -606,20 +603,12 @@ export abstract class SessionState<
     await this.saveRevert(undefined)
   }
 
-  /** Keep the revert state in the log, else in the metadata store. */
+  /** Keep the revert state in the log. */
   protected async saveRevert(revert: RevertState | undefined) {
     this.reverted = revert
-    if (this.writer) {
-      await this.writer.append([
-        { type: 'harness.revert', revert: revert ?? null },
-      ])
-    } else {
-      await this.persistence.stores.metadata?.set(
-        'harness:revert',
-        this.storeThreadId,
-        revert ?? null,
-      )
-    }
+    await this.writer.append([
+      { type: 'harness.revert', revert: revert ?? null },
+    ])
     this.feed.publish(
       'session',
       customEvent(HARNESS_EVENTS.revert, {
@@ -631,7 +620,6 @@ export abstract class SessionState<
   /** The host records of `type` of this thread, from the log, oldest first. */
   protected async hostRecords(type: string) {
     const found: Array<Record<string, unknown>> = []
-    if (!this.writer || !this.log) return found
     let after = 0
     for (;;) {
       const entries = await this.log.store.read({
@@ -771,15 +759,6 @@ export abstract class SessionState<
     }
   }
 
-  /** Restore the usage totals that `stores.metadata` keeps for this thread. */
-  protected async loadUsage(): Promise<void> {
-    const stored = await this.persistence.stores.metadata?.get(
-      USAGE,
-      this.storeThreadId,
-    )
-    if (isSessionUsage(stored)) this.usageTotals = stored
-  }
-
   /** Restore the interrupted turn that `stores.metadata` keeps for this thread. */
   protected async loadInterrupted(): Promise<void> {
     const stored = await this.persistence.stores.metadata?.get(
@@ -841,7 +820,7 @@ export abstract class SessionState<
           message: payload.message,
         })
       }
-      const savedInput = [...(this.writer?.state.inputs.values() ?? [])].find(
+      const savedInput = [...this.writer.state.inputs.values()].find(
         (input) => input.operationId === runId,
       )
       const context =
@@ -870,7 +849,7 @@ export abstract class SessionState<
           : undefined
     } else if (consumed && observed === undefined) {
       next = undefined
-    } else if (observed === undefined && this.writer && this.log) {
+    } else if (observed === undefined) {
       let after = 0
       for (;;) {
         const entries = await this.log.store.read({
@@ -934,9 +913,9 @@ export abstract class SessionState<
                 message: item.message,
               })
             }
-            const savedInput = [
-              ...(this.writer?.state.inputs.values() ?? []),
-            ].find((input) => input.operationId === record.operationId)
+            const savedInput = [...this.writer.state.inputs.values()].find(
+              (input) => input.operationId === record.operationId,
+            )
             const context =
               previous !== undefined && previous.runId === record.operationId
                 ? previous.context

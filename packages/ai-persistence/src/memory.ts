@@ -1170,9 +1170,8 @@ class MemoryLogStore implements LogStore {
  * In-process reference {@link LogStore}, for tests and one-process hosts. The
  * log is lost when the process stops. Records are JSON-copied in and out.
  *
- * Not part of `memoryPersistence()`: add it yourself. A durable harness host
- * keeps the transcript and the inputs in the log, so leave out `messages`
- * and `inbox`.
+ * `memoryPersistence()` has one. Make your own to share a
+ * {@link memoryLogBackend} between two stores.
  *
  * @param options.backend - The log state to use. Pass one
  *   {@link memoryLogBackend} to two stores, and they act as two machines on
@@ -1181,9 +1180,9 @@ class MemoryLogStore implements LogStore {
  *
  * @example
  * ```ts
- * const { runs, metadata, workClaims, sessions } = memoryPersistence().stores
- * const persistence = defineAIPersistence({
- *   stores: { log: memoryLogStore(), runs, metadata, workClaims, sessions },
+ * const backend = memoryLogBackend()
+ * const machineA = defineAIPersistence({
+ *   stores: { ...memoryPersistence().stores, log: memoryLogStore({ backend }) },
  * })
  * ```
  */
@@ -1410,18 +1409,23 @@ interface MemoryPersistenceStores {
   inbox: InboxStore
   workClaims: WorkClaimStore
   sessions: SessionIndexStore
+  log: LogStore
 }
 
 /**
  * In-process reference backend for the full state + generation store set.
  *
  * Returns messages + activities + runs + generationRuns + interrupts +
- * metadata + artifacts + blobs + inbox + workClaims + sessions.
- * The session log is not included: a host can turn on more behavior when
- * `stores.log` is present, so add `memoryLogStore()` yourself (see its
- * example: a durable harness host takes no `messages` or `inbox`). Locks are not
- * included either. Use `InMemoryLockStore` + `withLocks` from `@tanstack/ai`
- * when a test or single-process app needs coordination.
+ * metadata + artifacts + blobs + inbox + workClaims + sessions + log.
+ * Plain `chat()` does not use `log`. A harness host keeps each session in
+ * `log` and does not use `messages`. Locks are not included. Use
+ * `InMemoryLockStore` + `withLocks` from `@tanstack/ai` when a test or
+ * single-process app needs coordination.
+ *
+ * @example
+ * ```ts
+ * const persistence = memoryPersistence()
+ * ```
  */
 export function memoryPersistence() {
   const stores: MemoryPersistenceStores = {
@@ -1436,6 +1440,7 @@ export function memoryPersistence() {
     inbox: new MemoryInboxStore(),
     workClaims: new MemoryWorkClaimStore(),
     sessions: new MemorySessionIndexStore(),
+    log: memoryLogStore(),
   }
   return defineAIPersistence({ stores })
 }
@@ -1446,9 +1451,8 @@ export function memoryPersistence() {
  *
  * @example
  * ```ts
- * const { metadata, workClaims, sessions } = memoryPersistence().stores
  * const persistence = defineAIPersistence({
- *   stores: { log: memoryLogStore(), leases: memoryLeaseStore(), metadata, workClaims, sessions },
+ *   stores: { ...memoryPersistence().stores, leases: memoryLeaseStore() },
  * })
  * ```
  */

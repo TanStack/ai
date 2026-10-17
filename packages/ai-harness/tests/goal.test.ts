@@ -14,7 +14,7 @@ import {
   untilAborted,
 } from './helpers'
 import type { AnyTextAdapter, AnyTool } from '@tanstack/ai'
-import type { HarnessSession } from '../src'
+import type { HarnessPersistence, HarnessSession } from '../src'
 import type { Goal } from '../src/first-party'
 
 interface Verdict {
@@ -46,7 +46,7 @@ async function start(options: {
   judge?: AnyTextAdapter
   maxRounds?: number
   tools?: Array<AnyTool>
-  persistence?: ReturnType<typeof memoryPersistence>
+  persistence?: HarnessPersistence
   busy?: 'queue' | 'reject'
 }) {
   const main = mockAdapter(options.replies)
@@ -389,7 +389,10 @@ describe('goal', () => {
   })
 
   it('keeps the goal and its state across a restart', async () => {
-    const persistence = memoryPersistence()
+    // No work claims: the second host takes the thread at once, as after a
+    // crash whose claim expired.
+    const { log, runs, metadata } = memoryPersistence().stores
+    const persistence = { stores: { log, runs, metadata } }
     const first = await start({
       persistence,
       replies: [() => text('step one'), untilAborted()],

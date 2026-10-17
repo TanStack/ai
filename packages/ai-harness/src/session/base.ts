@@ -21,7 +21,6 @@ import { tenantStores } from '../tenant-stores'
 import { SESSION_PLUGIN_CREDENTIALS, SESSION_PLUGIN_KEYS } from '../plugins'
 import { LEASE } from '../resume'
 import { HARNESS_EVENTS } from '../types'
-import { emptyUsage } from '../usage'
 import {
   DEFAULT_SUBAGENT_LIMITS,
   createMessageId,
@@ -47,7 +46,6 @@ import type {
   AIPersistence,
   ChatTranscriptStores,
   InboxEntry,
-  InboxStore,
   MessageStore,
   RunStore,
   SessionIndexKey,
@@ -116,8 +114,8 @@ import type { HarnessSession } from './harness-session'
  *   inputs never push a turn out.
  */
 // ponytail: after its window, `settled()` and a duplicate input fall back to
-// the log (a durable host) or the inbox. An input whose work stops on a
-// failed store write, and never ends, stays until the session closes.
+// the log. An input whose work stops on a failed store write, and never ends,
+// stays until the session closes.
 export class InputRecords {
   /**
    * The input and its sender as JSON, by input id: the duplicate check.
@@ -246,15 +244,15 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * The key of this thread in the stores that the session keys by thread
    * id: the tenant and the thread id, from `logIdOf`. The metadata rows, the
    * inbox, the work claims, and the leases use it. `persistence` gives the
-   * messages, runs, and interrupts in the tenant already.
+   * runs and interrupts in the tenant already.
    */
   protected readonly storeThreadId: string
   /** The key of the session index entry of this thread. */
   protected readonly indexKey: SessionIndexKey
   /**
-   * The stores of the host. Its messages, runs, and interrupts are in the
-   * tenant of this session (see `tenantStores`): they take the thread id of
-   * the app.
+   * The stores of the host. Its runs and interrupts are in the tenant of
+   * this session (see `tenantStores`): they take the thread id of the app.
+   * The session does not use `messages`: its transcript is in the log.
    */
   protected readonly persistence: AIPersistence
   /**
@@ -262,18 +260,22 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * tenants, so the check of a client run id reads this one.
    */
   protected readonly hostRuns: RunStore | undefined
-  protected readonly inbox: InboxStore
   protected readonly principal: Principal | undefined
   /** The owner of the index entry, once the session read it. */
   protected owner: Principal | undefined
-  /** The session log writer of a durable host. It is also the feed. */
-  protected writer: LogWriter | undefined
+  /** The session log writer, once `open()` opened it. It is also the feed. */
+  protected logWriter: LogWriter | undefined
+  /** The session log writer. Throws before `open()` opened it. */
+  protected get writer() {
+    if (!this.logWriter) throw new Error('The session log is not open yet.')
+    return this.logWriter
+  }
   protected feed: ListenedFeed
   /** The host's view of each event: its status feed. */
   protected readonly notifyHost: (event: StreamChunk) => void
   /** The `onEvent` listeners. Each feed tap shares this set. */
   protected readonly eventListeners = new Set<EventListener>()
-  /** The transcript: `stores.messages`, or a view of the log. */
+  /** The transcript: a view of the log. */
   protected messages: MessageStore
   /**
    * What `withPersistence` gets: the chat stores, with `messages`. With
@@ -282,8 +284,13 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected chatPersistence:
     | AIPersistence<ChatTranscriptStores & { sessions?: SessionIndexStore }>
     | undefined
-  /** The message store the chat engine saves through, on a durable host. */
-  protected engine: ReturnType<typeof engineMessageStore> | undefined
+  /** The message store the chat engine saves through, once `open()` ran. */
+  protected openEngine: ReturnType<typeof engineMessageStore> | undefined
+  /** The message store the chat engine saves through. Throws before `open()`. */
+  protected get engine() {
+    if (!this.openEngine) throw new Error('The session log is not open yet.')
+    return this.openEngine
+  }
   /** Why the session log stopped taking writes. */
   protected logFailure: Error | undefined
   protected readonly log: SessionDependencies['log']
@@ -334,7 +341,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected readonly abortedSteers = new Set<string>()
   /** The ids of the waiting steers that a join took. A cancel of one is refused. */
   protected readonly joining = new Set<string>()
-  /** Notes that wait for the transcript. A durable host logged each one. */
+  /** Notes that wait for the transcript. The log has each one. */
   protected readonly pendingNotes: Array<ModelMessage> = []
   /** Background jobs that run on this host. Recovery skips them. */
   protected readonly jobs = new Set<string>()
@@ -366,10 +373,6 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * copy, so a resolve after a restart continues the turn too.
    */
   protected interrupted: InterruptedTurn | undefined
-  /** The usage totals of a host without a log. A durable host folds the log. */
-  protected usageTotals: SessionUsage = emptyUsage()
-  /** Saves of `usageTotals` to `stores.metadata`, one after the other. */
-  protected usageSaved: Promise<unknown> = Promise.resolve()
   protected activeResume = false
   protected plugins: ReadonlyArray<HarnessPlugin> = []
   protected sessionPlugins: MountedPlugins | undefined
@@ -478,7 +481,6 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       stores: { ...stores, ...tenantStores(stores, deps.tenantId) },
     }
     this.hostRuns = stores.runs
-    this.inbox = deps.inbox
     this.media = deps.media
     this.mediaStore = createMediaStore({
       persistence: deps.media,
@@ -502,8 +504,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     this.index = deps.index
     this.lease = deps.lease
     this.log = deps.log
-    // A durable host gets its log view in `open()`.
-    this.messages = this.persistence.stores.messages ?? notOpenMessages
+    // The session gets its log view in `open()`.
+    this.messages = notOpenMessages
     const onMissing = (error: AuthRequiredError) =>
       this.feed.publish(
         'session',
@@ -666,9 +668,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /**
    * The token usage of this thread: every model call of its turns, their
    * subagents, and its agent runs, in total, by `provider/model`, and by
-   * sender. `cost` is the sum of what the providers reported. A durable host
-   * keeps the totals in the log, a host with `stores.metadata` keeps them
-   * there, and other hosts keep them in memory.
+   * sender. `cost` is the sum of what the providers reported. The log keeps
+   * the totals.
    *
    * @example
    * ```ts
@@ -677,7 +678,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * ```
    */
   usage(): SessionUsage {
-    return structuredClone(this.writer?.state.usage ?? this.usageTotals)
+    return structuredClone(this.writer.state.usage)
   }
 
   /** The resolved plugin plan: order, owners, and extension contributors. */
@@ -949,7 +950,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     if (typeof timer === 'object' && 'unref' in timer) timer.unref()
     this.claimTimer = timer
     this.claimWrite = claim()
-    if (this.writer && this.persistence.stores.inbox) {
+    if (this.persistence.stores.inbox) {
       // ponytail: a 1s poll. A store that can push could wake the owner instead.
       const poll = setInterval(() => void this.drainInbox(), INBOX_POLL_MS)
       if (typeof poll === 'object' && 'unref' in poll) poll.unref()
@@ -965,13 +966,13 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
-   * Does another host hold a live claim on this thread? Only a durable host
-   * with `stores.workClaims` asks. Its inputs then go to that host, through
+   * Does another host hold a live claim on this thread? Only a host with
+   * `stores.workClaims` asks. Its inputs then go to that host, through
    * `stores.inbox`: a write here would take the log from the running owner.
    */
   protected async isOwnedElsewhere(): Promise<boolean> {
     const claims = this.persistence.stores.workClaims
-    if (!this.writer || !claims) return false
+    if (!claims) return false
     const held = await claims.get(this.storeThreadId)
     return (
       held !== null && held.ownerId !== this.hostId && held.until > Date.now()
@@ -1019,7 +1020,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   private async drainOnce(): Promise<void> {
     const inbox = this.persistence.stores.inbox
     const claims = this.persistence.stores.workClaims
-    if (!this.writer || !inbox || !claims || this.closing) return
+    if (!inbox || !claims || this.closing) return
     try {
       const pending = await inbox.listPending(this.storeThreadId)
       if (pending.length === 0) return
@@ -1381,8 +1382,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected async addNote(note: string) {
     const id = createMessageId()
     this.pendingNotes.push({ id, role: 'assistant', content: note })
-    // A durable host logs the note first, so a crash does not lose it.
-    await this.writer?.append([{ type: 'harness.note', noteId: id, note }])
+    // The log has the note first, so a crash does not lose it.
+    await this.writer.append([{ type: 'harness.note', noteId: id, note }])
     if (this.canFlushNotes()) await this.flushNotes()
   }
 
@@ -1405,15 +1406,15 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
-   * Track a background job of this host. A durable host also logs its start
-   * and end, so recovery can note a job that a crash stopped.
+   * Track a background job of this host. The log also has its start and
+   * end, so recovery can note a job that a crash stopped.
    */
   protected logJob(jobId: string, ended: boolean) {
     if (ended) this.jobs.delete(jobId)
     else this.jobs.add(jobId)
     // No one waits for a job record. A failed log write fails the session.
     this.writer
-      ?.append([{ type: 'harness.job', jobId, ended }])
+      .append([{ type: 'harness.job', jobId, ended }])
       .catch(() => undefined)
   }
 

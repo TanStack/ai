@@ -221,7 +221,7 @@ export function usage(
       // The host writes the token totals to the index entry at the end of
       // each turn. This plugin writes only `cost`, and keeps the tokens of
       // the entry.
-      // ponytail: a host with a log counts a call when its log write lands,
+      // ponytail: the host counts a call when its log write lands,
       // which can be after the run ends. Then the entry and the state get
       // that call at the end of the next run or call. Upgrade: the host
       // writes the cost at turn end.

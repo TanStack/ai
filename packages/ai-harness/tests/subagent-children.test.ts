@@ -157,12 +157,12 @@ describe('subagent children of a harness session', () => {
   })
 
   it('runs and wakes children without a sessions store', async () => {
-    const { messages, runs, metadata } = memoryPersistence().stores
+    const { log, runs, metadata } = memoryPersistence().stores
     const woke = gate()
     const lead = mockAdapter(backgroundLead(woke))
     const child = mockAdapter(() => text('Found it'))
     const { host, session } = await openLead(lead.adapter, child.adapter, {
-      stores: { messages, runs, metadata },
+      stores: { log, runs, metadata },
     })
 
     await session.send('Look around for me')

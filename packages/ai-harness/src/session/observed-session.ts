@@ -1,9 +1,7 @@
 import { loadChildTranscript } from '@tanstack/ai-persistence'
-import { logIdOf, logMessageStore, revertOf, visibleMessages } from '../log'
+import { logIdOf, logMessageStore, visibleMessages } from '../log'
 import { createMediaStore } from '../media'
-import { tenantStores } from '../tenant-stores'
-import { emptyUsage, isSessionUsage } from '../usage'
-import { INTERRUPTED, USAGE, isInterruptedTurn } from './helpers'
+import { INTERRUPTED, isInterruptedTurn } from './helpers'
 import type { ModelMessage } from '@tanstack/ai'
 import type { BlobRange, SessionIndexEntry } from '@tanstack/ai-persistence'
 import type { LogReader, ReduceOptions } from '../log'
@@ -37,16 +35,11 @@ export interface ObservedSession<THarness extends AnyHarness = AnyHarness> {
   readonly threadId: string
   /**
    * The events of the thread after `from` (exclusive), then each new event,
-   * until `signal` aborts.
+   * until `signal` aborts. The read follows what the sessions of every host
+   * append to the log, also when no session is open.
    *
-   * - A durable host (`stores.log`) reads the log. The read follows what the
-   *   sessions of every host append, also when no session is open.
-   * - A host with no log has the events of an open session only. When the
-   *   session is not open on this host, the read ends at once, as there is
-   *   nothing to stream. When the session closes, the read ends.
-   *
-   * Stop the read with `signal`, or by leaving the loop: on a durable host,
-   * a read keeps the log open until it stops.
+   * Stop the read with `signal`, or by leaving the loop: a read keeps the log
+   * open until it stops.
    */
   events: (options?: {
     from?: Cursor
@@ -65,13 +58,13 @@ export interface ObservedSession<THarness extends AnyHarness = AnyHarness> {
    *
    * - `status` is `requires_action` while interrupts wait, else `idle`.
    * - `pendingInterrupts` come from `stores.metadata`, and `usage` from the
-   *   log or `stores.metadata`.
+   *   log.
    * - `plugins` has only the plugin state that `stores.metadata` keeps. The
    *   state of a plugin that never saved one is left out, because its first
    *   value comes from the plugin setup.
    * - There are no active operations, queued turns, waiting inputs, or
    *   questions: those live in an open session.
-   * - `cursor` is the log position on a durable host, else `'0'`.
+   * - `cursor` is the log position.
    */
   snapshot: () => Promise<SessionSnapshot>
   /**
@@ -97,8 +90,8 @@ export interface ObservedSession<THarness extends AnyHarness = AnyHarness> {
   >
   /**
    * The `durability.reduce` fold of the harness for the log of the thread,
-   * as `host.logState` gives it. `undefined` on a host with no log, and when
-   * the reduce of another harness folds the log.
+   * as `host.logState` gives it. `undefined` when the harness has no
+   * `reduce`, and when the reduce of another harness folds the log.
    */
   logState: () => Promise<HarnessLogStateOf<THarness> | undefined>
 }
@@ -117,15 +110,13 @@ export interface ObservedSources<THarness extends AnyHarness> {
   persistence: HarnessPersistence
   media: MediaPersistence
   /**
-   * On a durable host: a reader of the log of the thread, and the `reduce`
-   * that folds the log. The caller closes the reader.
+   * A reader of the log of the thread, and the `reduce` that folds the log.
+   * The caller closes the reader.
    */
-  readLog:
-    | (() => Promise<{
-        reader: LogReader
-        reduce: ReduceOptions<unknown> | undefined
-      }>)
-    | undefined
+  readLog: () => Promise<{
+    reader: LogReader
+    reduce: ReduceOptions<unknown> | undefined
+  }>
 }
 
 /** The open session of each view, for the HTTP handler. Not public API. */
@@ -151,16 +142,13 @@ export function observedSession<THarness extends AnyHarness>(
   const { metadata } = stores
   const storeThreadId = logIdOf({ tenantId, logId: threadId })
   const tenant = tenantId !== undefined ? { tenantId } : {}
-  const messages = tenantStores(stores, tenantId).messages
   const project = harness.durability?.project
-  // The children of a durable session each have their own log.
-  const childMessages = stores.log
-    ? logMessageStore({
-        store: stores.log,
-        ...(project ? { project } : {}),
-        ...tenant,
-      })
-    : messages
+  // The children of a session each have their own log.
+  const childMessages = logMessageStore({
+    store: stores.log,
+    ...(project ? { project } : {}),
+    ...tenant,
+  })
   const mediaStore = createMediaStore({
     persistence: sources.media,
     threadId,
@@ -174,12 +162,11 @@ export function observedSession<THarness extends AnyHarness>(
     return live()
   }
 
-  /** `read` on a reader of the log from `logReader`, which closes after it. */
+  /** `read` on a reader of the log, which closes after it. */
   const fromLog = async <T>(
-    logReader: NonNullable<typeof readLog>,
     read: (reader: LogReader, reduce: ReduceOptions<unknown> | undefined) => T,
   ) => {
-    const { reader, reduce } = await logReader()
+    const { reader, reduce } = await readLog()
     try {
       return read(reader, reduce)
     } finally {
@@ -188,19 +175,11 @@ export function observedSession<THarness extends AnyHarness>(
   }
 
   /** The usage totals and the cursor of a session that is not open. */
-  const storedTotals = async () => {
-    if (readLog) {
-      return fromLog(readLog, (reader) => ({
-        usage: structuredClone(reader.state.usage),
-        cursor: reader.head(),
-      }))
-    }
-    const stored = await metadata?.get(USAGE, storeThreadId)
-    return {
-      usage: isSessionUsage(stored) ? stored : emptyUsage(),
-      cursor: '0',
-    }
-  }
+  const storedTotals = () =>
+    fromLog((reader) => ({
+      usage: structuredClone(reader.state.usage),
+      cursor: reader.head(),
+    }))
 
   /** The plugin state that `stores.metadata` keeps, by plugin name. */
   const storedPluginState = async () => {
@@ -223,18 +202,12 @@ export function observedSession<THarness extends AnyHarness>(
 
   async function* events(options: { from?: Cursor; signal?: AbortSignal }) {
     check()
-    if (readLog) {
-      const { reader } = await readLog()
-      try {
-        yield* reader.read(options)
-      } finally {
-        reader.close()
-      }
-      return
+    const { reader } = await readLog()
+    try {
+      yield* reader.read(options)
+    } finally {
+      reader.close()
     }
-    // A host with no log: only an open session has events.
-    const session = live()
-    if (session) yield* session.events(options)
   }
 
   const view: ObservedSession<THarness> = {
@@ -243,16 +216,9 @@ export function observedSession<THarness extends AnyHarness>(
     async transcript() {
       const session = open()
       if (session) return session.transcript()
-      if (readLog) {
-        return fromLog(readLog, ({ state }) =>
-          visibleMessages(state.messages, state.revert),
-        )
-      }
-      const [stored, revert] = await Promise.all([
-        messages?.loadThread(threadId),
-        metadata?.get('harness:revert', storeThreadId),
-      ])
-      return visibleMessages(stored ?? [], revertOf(revert))
+      return fromLog(({ state }) =>
+        visibleMessages(state.messages, state.revert),
+      )
     },
     async snapshot() {
       const session = open()
@@ -280,7 +246,6 @@ export function observedSession<THarness extends AnyHarness>(
     },
     async agentTranscript(subagentRunId) {
       check()
-      if (!childMessages) return []
       return (
         (await loadChildTranscript(childMessages, subagentRunId, threadId)) ??
         []
@@ -308,8 +273,7 @@ export function observedSession<THarness extends AnyHarness>(
     },
     async logState() {
       check()
-      if (!readLog) return undefined
-      return fromLog(readLog, (reader, reduce) =>
+      return fromLog((reader, reduce) =>
         // The reduce of another harness folded this log: its state has
         // another type. Else the reduce of `harness` folded it, so it has
         // that type. A map of logs cannot carry a state type per log.

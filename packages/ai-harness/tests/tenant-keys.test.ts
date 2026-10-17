@@ -89,28 +89,9 @@ function durableHost() {
   }
 }
 
-/** A host that keeps the transcript in `stores.messages`. */
-function messageStoreHost() {
-  const persistence = memoryPersistence()
-  return {
-    persistence,
-    /** A prompt that a host left in the inbox of `key` before it stopped. */
-    seedInput: (key: string) =>
-      persistence.stores.inbox.append({
-        inputId: 'in-1',
-        threadId: key,
-        input: PROMPT,
-        createdAt: Date.now() - 1_000,
-      }),
-  }
-}
-
-describe.each([
-  { shape: 'a durable host', setup: durableHost },
-  { shape: 'a message-store host', setup: messageStoreHost },
-])('one thread id in two tenants on $shape', ({ setup }) => {
+describe('one thread id in two tenants', () => {
   it('keeps the settings and the config of one tenant from the other', async () => {
-    const { persistence } = setup()
+    const { persistence } = durableHost()
     const { harness } = harnessWith()
     const host = createHarnessHost({ persistence })
     const a = await host.open(harness, { threadId: THREAD, principal: acme })
@@ -134,7 +115,7 @@ describe.each([
   })
 
   it('keeps the plugin state of one tenant from the other', async () => {
-    const { persistence } = setup()
+    const { persistence } = durableHost()
     const { harness } = harnessWith()
     const host = createHarnessHost({ persistence })
     const a = await host.open(harness, { threadId: THREAD, principal: acme })
@@ -148,7 +129,7 @@ describe.each([
   })
 
   it('keeps the transcript of one tenant from the other', async () => {
-    const { persistence } = setup()
+    const { persistence } = durableHost()
     const { harness } = harnessWith([() => text('Hello, acme.')])
     const host = createHarnessHost({ persistence })
     const a = await host.open(harness, { threadId: THREAD, principal: acme })
@@ -164,7 +145,7 @@ describe.each([
   })
 
   it('keeps a pending interrupt of one tenant from the other', async () => {
-    const { persistence } = setup()
+    const { persistence } = durableHost()
     const { harness } = harnessWith([() => toolCall('deploy', { env: 'prod' })])
     const host = createHarnessHost({ persistence })
     const a = await host.open(harness, { threadId: THREAD, principal: acme })
@@ -185,7 +166,7 @@ describe.each([
   })
 
   it('refuses a client run id that the other tenant used', async () => {
-    const { persistence } = setup()
+    const { persistence } = durableHost()
     const { harness } = harnessWith([() => text('Hello, acme.')])
     const host = createHarnessHost({ persistence })
     const a = await host.open(harness, { threadId: THREAD, principal: acme })
@@ -200,7 +181,7 @@ describe.each([
   })
 
   it('resumes a claimed thread in the tenant of its claim', async () => {
-    const { persistence, seedInput } = setup()
+    const { persistence, seedInput } = durableHost()
     await seedInput(ACME_THREAD)
     await persistence.stores.workClaims.claim({
       threadId: ACME_THREAD,

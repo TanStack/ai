@@ -52,10 +52,7 @@ const contents = (messages: ReadonlyArray<ModelMessage>) =>
     (message) => `${message.role}:${JSON.stringify(message.content)}`,
   )
 
-describe.each([
-  { name: 'a host with a message store', durable: false },
-  { name: 'a durable host', durable: true },
-])('host.fork on $name', ({ durable }) => {
+describe('host.fork of the transcript', () => {
   const setup = (
     persistence: HarnessPersistence,
     lifecycle: HostLifecycleOptions = {},
@@ -71,7 +68,7 @@ describe.each([
   }
 
   it('copies the transcript up to a message, and the fork goes on alone', async () => {
-    const persistence = durable ? durablePersistence() : memoryPersistence()
+    const persistence = durablePersistence()
     const { harness, host, calls } = setup(persistence)
     const source = await host.open(harness, { threadId: SOURCE })
     await source.send('one')
@@ -95,22 +92,20 @@ describe.each([
     expect(contents(await source.transcript())).toEqual(contents(before))
     await host.close()
 
-    if (durable) {
-      // A later host folds the fork from its log.
-      const later = createHarnessHost({ persistence })
-      const reopened = await later.open(harness, { threadId: FORK })
-      expect((await reopened.transcript()).map((m) => m.role)).toEqual([
-        'user',
-        'assistant',
-        'user',
-        'assistant',
-      ])
-      await later.close()
-    }
+    // A later host folds the fork from its log.
+    const later = createHarnessHost({ persistence })
+    const reopened = await later.open(harness, { threadId: FORK })
+    expect((await reopened.transcript()).map((m) => m.role)).toEqual([
+      'user',
+      'assistant',
+      'user',
+      'assistant',
+    ])
+    await later.close()
   })
 
   it('closes a source that only the fork opened, and keeps one the app has open', async () => {
-    const persistence = durable ? durablePersistence() : memoryPersistence()
+    const persistence = durablePersistence()
     // A session that no handle holds closes at once when it is idle.
     const { harness, host } = setup(persistence, { idleCloseMs: 0 })
     const source = await host.open(harness, { threadId: SOURCE })
@@ -127,7 +122,7 @@ describe.each([
   })
 
   it('copies the whole transcript by default, no messages for a null at, and refuses an unknown message or a used thread', async () => {
-    const persistence = durable ? durablePersistence() : memoryPersistence()
+    const persistence = durablePersistence()
     const { harness, host } = setup(persistence)
     const source = await host.open(harness, { threadId: SOURCE })
     await source.send('one')

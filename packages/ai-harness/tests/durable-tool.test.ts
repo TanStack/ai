@@ -62,7 +62,7 @@ describe('durableTool', () => {
 
     await expect(
       Promise.resolve(tool.execute?.({ orderId: 'o1' })),
-    ).rejects.toThrow('durableTool append needs a durable harness session')
+    ).rejects.toThrow('durableTool append needs a harness session')
   })
 })
 

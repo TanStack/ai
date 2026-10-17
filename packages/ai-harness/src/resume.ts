@@ -4,7 +4,6 @@ import type {
   AfterToolCallInfo,
   AnyChatMiddleware,
   ModelMessage,
-  RunRecord,
   RunStore,
 } from '@tanstack/ai'
 import type { MessageStore } from '@tanstack/ai-persistence'
@@ -228,26 +227,6 @@ export function checkpointMiddleware(options: {
     onAbort: (ctx) => stop(ctx),
     onError: (ctx) => stop(ctx),
   }
-}
-
-/** Chat and agent runs of this thread that a crashed host left `running`. */
-export async function findCrashedRuns(
-  runs: RunStore | undefined,
-  threadId: string,
-  now = Date.now(),
-): Promise<Array<RunRecord>> {
-  if (!runs?.listByThread) return []
-  const records = await runs.listByThread(threadId)
-  return records.filter(
-    (record) =>
-      record.status === 'running' &&
-      (record.kind === undefined ||
-        record.kind === 'chat' ||
-        record.kind === 'agent') &&
-      // A run that crashed before its first lease stamp has no
-      // leaseExpiresAt: it is dead once a TTL passed since it started.
-      (record.leaseExpiresAt ?? record.startedAt + LEASE.ttlMs) < now,
-  )
 }
 
 /** A tool call that a repair closes with an error result, and why. */

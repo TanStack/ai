@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { EventType, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
-import { createHarnessHost, defineHarness, logIdOf } from '../src'
+import { createHarnessHost, defineHarness, logMessageStore } from '../src'
 import { gate, mockAdapter, text, toolCall } from './helpers'
 import type { MessageSource, StreamChunk } from '@tanstack/ai'
 
@@ -107,9 +107,9 @@ describe('saved harness replay across turn adapters', () => {
           JSON.stringify((await session.transcript()).slice(0, before.length)),
         ),
       ).toEqual(before)
-      const saved = await persistence.stores.messages.loadThread(
-        logIdOf({ logId: 'replay' }),
-      )
+      const saved = await logMessageStore({
+        store: persistence.stores.log,
+      }).loadThread('replay')
       expect(saved.at(-1)?.metadata?.tanstack).toMatchObject({
         source: secondSource,
         responseId: 'generation-second',
@@ -175,153 +175,144 @@ describe('saved harness replay across turn adapters', () => {
   )
 })
 
-describe.each([false, true])(
-  'approval replay after a host restart (durable: %s)',
-  (durable) => {
-    it('runs approved raw edits through middleware and one authored transform', async () => {
-      const memory = memoryPersistence()
-      const { runs, metadata, interrupts } = memory.stores
-      const persistence = durable
-        ? { stores: { log: memoryLogStore(), runs, metadata, interrupts } }
-        : memory
-      const seen: Array<unknown> = []
-      let transforms = 0
-      const execute = vi.fn(async (input: { count: number }) => input)
-      const tool = toolDefinition({
-        name: 'approve_checked',
-        description: 'Approve a checked count',
-        needsApproval: true,
-        inputSchema: z.object({
-          count: z.number().transform((value) => {
-            transforms++
-            return value + 1
-          }),
+describe('approval replay after a host restart', () => {
+  it('runs approved raw edits through middleware and one authored transform', async () => {
+    const { log, runs, metadata, interrupts } = memoryPersistence().stores
+    const persistence = { stores: { log, runs, metadata, interrupts } }
+    const seen: Array<unknown> = []
+    let transforms = 0
+    const execute = vi.fn(async (input: { count: number }) => input)
+    const tool = toolDefinition({
+      name: 'approve_checked',
+      description: 'Approve a checked count',
+      needsApproval: true,
+      inputSchema: z.object({
+        count: z.number().transform((value) => {
+          transforms++
+          return value + 1
         }),
-      }).server(execute)
-      const model = mockAdapter([
-        () => toolCall('approve_checked', { count: 1 }, 'approved-call'),
-        () => text('Resumed'),
-      ])
-      const config = defineHarness({
-        name: 'test/approval-replay',
-        adapter: model.adapter,
-        tools: [tool],
-        middleware: [
+      }),
+    }).server(execute)
+    const model = mockAdapter([
+      () => toolCall('approve_checked', { count: 1 }, 'approved-call'),
+      () => text('Resumed'),
+    ])
+    const config = defineHarness({
+      name: 'test/approval-replay',
+      adapter: model.adapter,
+      tools: [tool],
+      middleware: [
+        {
+          name: 'raw-edit',
+          onBeforeToolCall(_ctx, hook) {
+            seen.push(hook.args)
+            return { type: 'transformArgs', args: { count: 4 } }
+          },
+        },
+      ],
+    })
+    const first = createHarnessHost({ persistence })
+    let approvalId = ''
+    try {
+      const session = await first.open(config, {
+        threadId: 'approved',
+      })
+      const stopped = await session.send('approve')
+      approvalId = stopped.interrupts?.[0]?.id ?? ''
+      expect(approvalId).not.toBe('')
+      expect(seen).toEqual([])
+      expect(execute).not.toHaveBeenCalled()
+    } finally {
+      await first.close()
+    }
+    const next = createHarnessHost({ persistence })
+    try {
+      const session = await next.open(config, {
+        threadId: 'approved',
+      })
+      const wrong = await session.resolve({
+        resume: [
           {
-            name: 'raw-edit',
-            onBeforeToolCall(_ctx, hook) {
-              seen.push(hook.args)
-              return { type: 'transformArgs', args: { count: 4 } }
-            },
+            interruptId: 'wrong-correlation',
+            status: 'resolved',
+            payload: true,
           },
         ],
       })
-      const first = createHarnessHost({ persistence })
-      let approvalId = ''
-      try {
-        const session = await first.open(config, {
-          threadId: 'approved',
-        })
-        const stopped = await session.send('approve')
-        approvalId = stopped.interrupts?.[0]?.id ?? ''
-        expect(approvalId).not.toBe('')
-        expect(seen).toEqual([])
-        expect(execute).not.toHaveBeenCalled()
-      } finally {
-        await first.close()
-      }
-      const next = createHarnessHost({ persistence })
-      try {
-        const session = await next.open(config, {
-          threadId: 'approved',
-        })
-        const wrong = await session.resolve({
-          resume: [
-            {
-              interruptId: 'wrong-correlation',
-              status: 'resolved',
-              payload: true,
-            },
-          ],
-        })
-        expect(wrong.status).toBe('accepted')
-        await expect(
-          session.operation(wrong.operationId ?? ''),
-        ).rejects.toThrow('Missing resume entry')
-        expect(seen).toEqual([])
-        expect(execute).not.toHaveBeenCalled()
-        const before = transforms
-        const receipt = await session.resolve({
-          resume: [
-            {
-              interruptId: approvalId,
-              status: 'resolved',
-              payload: { approved: true, editedArgs: { count: '2' } },
-            },
-          ],
-        })
-        expect(receipt.status).toBe('accepted')
-        await session.operation(receipt.operationId ?? '')
-        expect(seen).toEqual([{ count: '2' }])
-        expect(transforms - before).toBe(1)
-        expect(execute).toHaveBeenCalledTimes(1)
-        expect(execute.mock.calls[0]?.[0]).toEqual({ count: 5 })
-        expect(
-          (await session.transcript()).find(
-            (message) => message.toolCalls?.length,
-          )?.toolCalls?.[0]?.function.arguments,
-        ).toBe('{"count":"2"}')
-      } finally {
-        await next.close()
-      }
-    })
-
-    it('runs no middleware or execution for a denied approval', async () => {
-      const memory = memoryPersistence()
-      const { runs, metadata, interrupts } = memory.stores
-      const persistence = durable
-        ? { stores: { log: memoryLogStore(), runs, metadata, interrupts } }
-        : memory
-      const execute = vi.fn(async () => 'Should not run')
-      const hook = vi.fn()
-      const tool = toolDefinition({
-        name: 'deny_checked',
-        description: 'Check approval',
-        needsApproval: true,
-        inputSchema: z.object({}),
-      }).server(execute)
-      const model = mockAdapter([
-        () => toolCall('deny_checked', {}, 'denied-call'),
-        () => text('Denied'),
-      ])
-      const host = createHarnessHost({ persistence })
-      try {
-        const session = await host.open(
-          defineHarness({
-            name: 'test/denied-replay',
-            adapter: model.adapter,
-            tools: [tool],
-            middleware: [{ name: 'count-hooks', onBeforeToolCall: hook }],
-          }),
+      expect(wrong.status).toBe('accepted')
+      await expect(session.operation(wrong.operationId ?? '')).rejects.toThrow(
+        'Missing resume entry',
+      )
+      expect(seen).toEqual([])
+      expect(execute).not.toHaveBeenCalled()
+      const before = transforms
+      const receipt = await session.resolve({
+        resume: [
           {
-            threadId: 'denied',
+            interruptId: approvalId,
+            status: 'resolved',
+            payload: { approved: true, editedArgs: { count: '2' } },
           },
-        )
-        const stopped = await session.send('deny')
-        const id = stopped.interrupts?.[0]?.id
-        if (!id) throw new Error('Missing approval')
-        const receipt = await session.resolve({
-          resume: [{ interruptId: id, status: 'resolved', payload: false }],
-        })
-        await session.operation(receipt.operationId ?? '')
-        expect(hook).not.toHaveBeenCalled()
-        expect(execute).not.toHaveBeenCalled()
-      } finally {
-        await host.close()
-      }
-    })
-  },
-)
+        ],
+      })
+      expect(receipt.status).toBe('accepted')
+      await session.operation(receipt.operationId ?? '')
+      expect(seen).toEqual([{ count: '2' }])
+      expect(transforms - before).toBe(1)
+      expect(execute).toHaveBeenCalledTimes(1)
+      expect(execute.mock.calls[0]?.[0]).toEqual({ count: 5 })
+      expect(
+        (await session.transcript()).find(
+          (message) => message.toolCalls?.length,
+        )?.toolCalls?.[0]?.function.arguments,
+      ).toBe('{"count":"2"}')
+    } finally {
+      await next.close()
+    }
+  })
+
+  it('runs no middleware or execution for a denied approval', async () => {
+    const { log, runs, metadata, interrupts } = memoryPersistence().stores
+    const persistence = { stores: { log, runs, metadata, interrupts } }
+    const execute = vi.fn(async () => 'Should not run')
+    const hook = vi.fn()
+    const tool = toolDefinition({
+      name: 'deny_checked',
+      description: 'Check approval',
+      needsApproval: true,
+      inputSchema: z.object({}),
+    }).server(execute)
+    const model = mockAdapter([
+      () => toolCall('deny_checked', {}, 'denied-call'),
+      () => text('Denied'),
+    ])
+    const host = createHarnessHost({ persistence })
+    try {
+      const session = await host.open(
+        defineHarness({
+          name: 'test/denied-replay',
+          adapter: model.adapter,
+          tools: [tool],
+          middleware: [{ name: 'count-hooks', onBeforeToolCall: hook }],
+        }),
+        {
+          threadId: 'denied',
+        },
+      )
+      const stopped = await session.send('deny')
+      const id = stopped.interrupts?.[0]?.id
+      if (!id) throw new Error('Missing approval')
+      const receipt = await session.resolve({
+        resume: [{ interruptId: id, status: 'resolved', payload: false }],
+      })
+      await session.operation(receipt.operationId ?? '')
+      expect(hook).not.toHaveBeenCalled()
+      expect(execute).not.toHaveBeenCalled()
+    } finally {
+      await host.close()
+    }
+  })
+})
 
 it('detaches a local event reader without aborting the model turn', async () => {
   const hold = gate()

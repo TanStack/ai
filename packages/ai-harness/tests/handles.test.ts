@@ -4,7 +4,7 @@ import { createHarnessHost, defineHarness } from '../src'
 import { createHarnessHandler } from '../src/server'
 import { hostCountsOf } from '../src/host'
 import { finalizeHandle } from '../src/session/handle'
-import { mockAdapter, text } from './helpers'
+import { mockAdapter, readSse, text } from './helpers'
 import type { HostLifecycleOptions } from '../src'
 
 const BASE = 'http://x/api/harness'
@@ -249,10 +249,13 @@ describe('the HTTP handler', () => {
 
     await session.close()
 
-    // The stream read the open session, and it ends with it.
-    expect(await response.text()).toContain('Hello back.')
     expect(isOpen('t1')).toBe(false)
     expect(hostCountsOf(host).handles).toBe(0)
+    // The stream reads the log, so it still has the turn after the close.
+    const frames = await readSse<unknown>(response, (frame) =>
+      JSON.stringify(frame).includes('Hello back.'),
+    )
+    expect(JSON.stringify(frames)).toContain('Hello back.')
     await host.close()
   })
 

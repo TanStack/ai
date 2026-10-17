@@ -88,9 +88,7 @@ export interface HarnessRouting<TMetadataSchema = any> extends Pick<
 }
 
 /**
- * Limits for one input on a durable host (a host with `stores.log`), and how
- * that host folds your own log records. A host without a log reads only
- * `interruptedToolResult` and `truncatedToolResult`.
+ * Limits for one input, and how the host folds your own log records.
  */
 export interface HarnessDurability<
   TMetadataSchema = any,
@@ -319,8 +317,8 @@ export interface HarnessConfig<
      * example a webhook that adds `{ type: 'app.signal', text }`. An input
      * with any other type, or with a `thread` field, is refused with
      * `not_exposed`. Server code that calls `session.append()` can add every
-     * type. Only a durable host (with `stores.log`) keeps records, and
-     * `durability.project` decides what the model sees of them.
+     * type. The log keeps the records, and `durability.project` decides
+     * what the model sees of them.
      */
     records?: ReadonlyArray<string>
   }

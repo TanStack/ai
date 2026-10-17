@@ -401,7 +401,7 @@ describe('host.resumePending', () => {
     await host.close()
   })
 
-  it('runs a pending inbox input on a host without a log', async () => {
+  it('runs a pending inbox input when it resumes the thread', async () => {
     const persistence = memoryPersistence()
     await persistence.stores.inbox.append({
       inputId: 'in-1',

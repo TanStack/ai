@@ -17,7 +17,7 @@ import {
 import { mockAdapter, text, toolCall } from './helpers'
 import type { ModelMessage, StreamChunk, TokenUsage } from '@tanstack/ai'
 import type {
-  MessageStore,
+  LogStore,
   SessionIndexEntry,
   SessionIndexKey,
   SessionIndexListOptions,
@@ -49,8 +49,8 @@ const turnsOf = (messages: ReadonlyArray<ModelMessage>) =>
   messages.map((message) => [message.role, message.content])
 
 /** The stored transcript of `threadId` in the default tenant. */
-const transcriptOf = (messages: MessageStore, threadId: string) =>
-  messages.loadThread(logIdOf({ logId: threadId }))
+const transcriptOf = (log: LogStore, threadId: string) =>
+  logMessageStore({ store: log }).loadThread(threadId)
 
 const threadIds = (page: SessionIndexPage) =>
   page.entries.map((entry) => entry.threadId)
@@ -400,9 +400,9 @@ describe('host.sessions', () => {
     await host.sessions.delete({ threadId: 't1' })
 
     expect(await host.sessions.get({ threadId: 't1' })).toBeUndefined()
-    expect(
-      turnsOf(await transcriptOf(persistence.stores.messages, 't1')),
-    ).toEqual([])
+    expect(turnsOf(await transcriptOf(persistence.stores.log, 't1'))).toEqual(
+      [],
+    )
     expect(host.isOpen(harness, { threadId: 't1' })).toBe(false)
     await host.close()
   })
@@ -451,7 +451,7 @@ describe('host.sessions', () => {
   })
 
   it('refuses a sessions store without compare-and-set at the start', () => {
-    const { messages, sessions } = memoryPersistence().stores
+    const { log, runs, sessions } = memoryPersistence().stores
     // A store in plain JS, with no getVersioned and no upsertIf.
     const plain = {
       get: (key: SessionIndexKey) => sessions.get(key),
@@ -463,7 +463,7 @@ describe('host.sessions', () => {
     expect(() =>
       createHarnessHost({
         // @ts-expect-error The types need both methods. A JS caller can leave them out.
-        persistence: { stores: { messages, sessions: plain } },
+        persistence: { stores: { log, runs, sessions: plain } },
       }),
     ).toThrow('stores.sessions needs getVersioned and upsertIf.')
   })
@@ -509,15 +509,13 @@ describe('host.sessions', () => {
       before,
     )
     expect(
-      turnsOf(await transcriptOf(persistence.stores.messages, before.threadId)),
+      turnsOf(await transcriptOf(persistence.stores.log, before.threadId)),
     ).toEqual([
       ['user', 'first'],
       ['assistant', 'answer'],
     ])
     expect(
-      turnsOf(
-        await transcriptOf(persistence.stores.messages, through.threadId),
-      ),
+      turnsOf(await transcriptOf(persistence.stores.log, through.threadId)),
     ).toEqual([
       ['user', 'first'],
       ['assistant', 'answer'],
@@ -545,9 +543,9 @@ describe('host.sessions', () => {
       },
     })
 
-    expect(
-      await transcriptOf(persistence.stores.messages, fork.threadId),
-    ).toEqual([])
+    expect(await transcriptOf(persistence.stores.log, fork.threadId)).toEqual(
+      [],
+    )
     const forked = await host.open(harness, { threadId: fork.threadId })
     expect(forked.settings()).toEqual({ instructions: 'Be brief.' })
     await host.close()
@@ -628,14 +626,17 @@ describe('host.sessions', () => {
   })
 
   it('forks with any harness without a sessions store, as there is no entry to check', async () => {
-    const { messages, runs, metadata } = memoryPersistence().stores
+    const { log, runs, metadata } = memoryPersistence().stores
     const host = createHarnessHost({
-      persistence: { stores: { messages, runs, metadata } },
+      persistence: { stores: { log, runs, metadata } },
+      lifecycle: { idleCloseMs: 0 },
     })
     const { harness } = hostWith()
     const session = await host.open(harness, { threadId: 't1' })
     await session.send('hi')
     const [, answer] = await session.transcript()
+    // One harness at a time has a thread open: the fork opens it again.
+    await session.close()
     const other = defineHarness({
       name: 'test/other',
       adapter: mockAdapter(() => text('other')).adapter,
@@ -650,7 +651,7 @@ describe('host.sessions', () => {
     })
 
     expect(fork.harness).toBe('test/other')
-    expect(turnsOf(await transcriptOf(messages, fork.threadId))).toEqual([
+    expect(turnsOf(await transcriptOf(log, fork.threadId))).toEqual([
       ['user', 'hi'],
       ['assistant', 'answer'],
     ])
@@ -889,9 +890,9 @@ describe('ctx.session.entry and updateEntry', () => {
   })
 
   it('reads nothing and writes nothing without a sessions store', async () => {
-    const { messages, runs, metadata } = memoryPersistence().stores
+    const { log, runs, metadata } = memoryPersistence().stores
     const { host, session, api } = await openWithApi({
-      stores: { messages, runs, metadata },
+      stores: { log, runs, metadata },
     })
     await session.send('hi')
 

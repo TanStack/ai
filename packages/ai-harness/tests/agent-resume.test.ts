@@ -172,28 +172,4 @@ describe('a background agent with resume: true', () => {
     expect(run.agentModel.calls).toHaveLength(0)
     await run.hostB.close()
   })
-
-  it('throws at start on a host without a log', async () => {
-    const host = createHarnessHost({ persistence: memoryPersistence() })
-    const worker = defineAgent({
-      name: 'worker',
-      description: 'Works',
-      run: async () => 'done',
-    })
-    const session = await host.open(
-      defineHarness({
-        name: 'test/agent-resume-memory',
-        adapter: mockAdapter([]).adapter,
-        agents: [worker],
-      }),
-      {
-        threadId: THREAD,
-      },
-    )
-
-    expect(() =>
-      session.agent('worker')?.start(undefined, { resume: true }),
-    ).toThrow('stores.log')
-    await host.close()
-  })
 })

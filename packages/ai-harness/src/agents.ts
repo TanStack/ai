@@ -137,8 +137,8 @@ export interface AgentStarter {
 /** What a harness session adds to an agent run that it starts from code. */
 export interface HarnessAgentContext {
   /**
-   * The steps of the run. On a durable host, in a run started with
-   * `resume: true`, a finished step returns its stored value when the run
+   * The steps of the run. In a run started with `resume: true`, a
+   * finished step returns its stored value when the run
    * runs again, and `fn` does not run again. Else `fn` runs each time.
    */
   step: ToolStep

@@ -75,7 +75,7 @@ export function createToolStep(options: {
 
 const noLog = () => {
   throw new Error(
-    'durableTool append needs a durable harness session (a host with stores.log).',
+    'durableTool append needs a harness session: call the tool in a turn of host.open().',
   )
 }
 

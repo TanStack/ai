@@ -18,11 +18,12 @@ import {
 import type { AnyChatMiddleware } from '@tanstack/ai'
 import type { Reply } from './helpers'
 
-/** The stores of a host without a log, or of a durable host. */
-function persistenceFor(durable: boolean) {
-  const { stores } = memoryPersistence()
-  if (!durable) return { stores }
-  const { runs, metadata } = stores
+/**
+ * A log, runs, and metadata, with no work claims: a host that opens the
+ * thread after another one closed takes it at once, as after a restart.
+ */
+function persistenceFor() {
+  const { runs, metadata } = memoryPersistence().stores
   return { stores: { log: memoryLogStore(), runs, metadata } }
 }
 
@@ -33,13 +34,10 @@ const contents = (messages: ReadonlyArray<{ content: unknown }>) =>
       : JSON.stringify(message.content),
   )
 
-describe.each([
-  { host: 'a host without a log', durable: false },
-  { host: 'a durable host', durable: true },
-])('reset on $host', ({ durable }) => {
+describe('reset', () => {
   async function open(replies: Array<Reply>, extra = {}) {
     const { adapter, calls } = mockAdapter(replies)
-    const persistence = persistenceFor(durable)
+    const persistence = persistenceFor()
     const host = createHarnessHost({ persistence })
     const harness = defineHarness({ name: 'test/reset', adapter, ...extra })
     const session = await host.open(harness, { threadId: 't1' })
@@ -253,9 +251,9 @@ describe.each([
   })
 })
 
-describe('reset on a durable host', () => {
+describe('reset after a restart', () => {
   it('keeps the cut context after a restart', async () => {
-    const persistence = persistenceFor(true)
+    const persistence = persistenceFor()
     const first = mockAdapter([() => text('One.')])
     const hostA = createHarnessHost({ persistence })
     const sessionA = await hostA.open(

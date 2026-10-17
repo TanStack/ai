@@ -195,11 +195,9 @@ export abstract class SessionAgents<
   }
 
   /**
-   * The agent run `operationId`: a run of this session, or on a durable
-   * host a run in the log that ended, so a follow-up continues it after a
-   * restart. `undefined` for an unknown run, for one that another host
-   * runs, and on a host without a log for a run older than the window of
-   * settled agent runs (`lifecycle.retention.settledAgentRuns`).
+   * The agent run `operationId`: a run of this session, or a run in the log
+   * that ended, so a follow-up continues it after a restart. `undefined` for
+   * an unknown run, and for one that another host runs.
    */
   agentRun(operationId: string): AgentRun<unknown> | undefined {
     const chain = this.chainOf.get(operationId) ?? this.loggedChain(operationId)
@@ -210,9 +208,8 @@ export abstract class SessionAgents<
 
   /**
    * The agent runs of this session, oldest first: the running ones, and the
-   * settled ones in the window of `lifecycle.retention.settledAgentRuns`. On
-   * a durable host it also lists the runs in the log, so it works after a
-   * restart.
+   * settled ones in the window of `lifecycle.retention.settledAgentRuns`. It
+   * also lists the runs in the log, so it works after a restart.
    */
   agentRuns(): Array<AgentRunInfo> {
     const live = [...this.agentChains.values()].flatMap((chain) =>
@@ -235,8 +232,7 @@ export abstract class SessionAgents<
 
   /** The agent runs in the log: each input that a run applied. */
   protected loggedRuns(): Array<AgentRunInfo> {
-    const inputs = this.writer?.state.inputs
-    if (!inputs) return []
+    const { inputs } = this.writer.state
     return [...inputs.values()].flatMap((input): Array<AgentRunInfo> => {
       const first = chainInputOf(inputs, input)
       if (!first || input.operationId === undefined) return []
@@ -260,8 +256,7 @@ export abstract class SessionAgents<
    * and while a run of the chain has not ended: another host runs it.
    */
   protected loggedChain(operationId: string): AgentChain | undefined {
-    const inputs = this.writer?.state.inputs
-    if (!inputs) return undefined
+    const { inputs } = this.writer.state
     const own = [...inputs.values()].find(
       (input) => input.operationId === operationId,
     )
@@ -408,11 +403,6 @@ export abstract class SessionAgents<
     child?: AgentChild,
   ): AgentRunImpl {
     const name = typeof target === 'string' ? target : target.name
-    if (options.resume && !this.writer) {
-      throw new Error(
-        `Agent ${name}: resume: true needs a durable host (a host with stores.log).`,
-      )
-    }
     const operation = this.agentOperation(name)
     this.markBusy()
     // The agent runs for the user who starts it, also after the turn that
@@ -555,18 +545,17 @@ export abstract class SessionAgents<
   }
 
   /**
-   * What a resumable agent run adds on a durable host: checkpoints of its
-   * `ctx.chat` tool phases, and `ctx.harness.step` values in the
-   * session log, under the key of the input the run applies.
+   * What a resumable agent run adds: checkpoints of its `ctx.chat` tool
+   * phases, and `ctx.harness.step` values in the session log, under the key
+   * of the input the run applies.
    */
   protected resumable(inputId: string) {
-    const { chatPersistence, writer } = this
-    if (!chatPersistence || !writer) return undefined
+    const { writer } = this
     const { runs } = this.persistence.stores
     const key = agentKey(inputId)
     const checkpoint = checkpointMiddleware({
       ...(runs ? { runs } : {}),
-      messages: chatPersistence.stores.messages,
+      messages: this.engine,
       hostId: this.hostId,
       ...(this.lease ? { lease: this.lease } : {}),
       // As in a turn, each finished tool result goes to the session log at
@@ -598,8 +587,7 @@ export abstract class SessionAgents<
    * error for a cut call that must not run twice.
    */
   protected async continueAgentThread(agentThread: string, inputId: string) {
-    const store = this.chatPersistence?.stores.messages
-    if (!store) return []
+    const store = this.engine
     const runs = this.persistence.stores.runs
     const records = (await runs?.listByThread?.(agentThread)) ?? []
     for (const run of records.filter((item) => item.status === 'running')) {
@@ -612,7 +600,7 @@ export abstract class SessionAgents<
     const newest = [...records].sort((a, b) => b.startedAt - a.startedAt)[0]
     const prefix = `${agentKey(inputId)}:`
     const finished = new Map(
-      [...(this.writer?.state.toolResults ?? [])].flatMap(([id, message]) =>
+      [...this.writer.state.toolResults].flatMap(([id, message]) =>
         id.startsWith(prefix)
           ? [[id.slice(prefix.length), message] as const]
           : [],
@@ -877,10 +865,8 @@ export abstract class SessionAgents<
       const saved = start.resumed
         ? await this.continueAgentThread(chain.thread, inputId)
         : message
-          ? ((await this.chatPersistence?.stores.messages.loadThread(
-              chain.thread,
-            )) ?? [])
-          : ((await this.messages.loadThread(this.threadId)) ?? [])
+          ? await this.engine.loadThread(chain.thread)
+          : await this.messages.loadThread(this.threadId)
       const messages =
         message && !saved.some((item) => item.id === message.inputId)
           ? [...saved, asUserMessage(message)]
@@ -1138,8 +1124,6 @@ export abstract class SessionAgents<
    * Fail an agent run whose host stopped. Its events end the operation for
    * views, and the main model gets a note.
    */
-  // ponytail: `wake` comes from the log. Without a log there is no wake, only
-  // the note. Keep `wake` on the run record if a host without a log needs it.
   protected async failStoppedAgent(stopped: {
     operationId: string
     agent: string

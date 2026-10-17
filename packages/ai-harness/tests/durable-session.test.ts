@@ -208,27 +208,20 @@ describe('durable host stores', () => {
     ).toThrow('needs stores.runs')
   })
 
-  it('refuses a message store next to the log', () => {
+  it('needs a log store, and names the memory default', () => {
     const { messages, runs } = memoryPersistence().stores
     expect(() =>
       createHarnessHost({
-        persistence: {
-          stores: { log: memoryLogStore(), runs, messages },
-        } as never,
+        persistence: { stores: { messages, runs } } as never,
       }),
-    ).toThrow('Remove stores.messages.')
+    ).toThrow(
+      'The harness needs stores.log: each session keeps its events, transcript, and inputs there. In development, use memoryPersistence() from @tanstack/ai-persistence.',
+    )
   })
 
-  it('refuses host records without a log, and harness record types', async () => {
+  it('refuses harness record types', async () => {
     const { adapter } = mockAdapter([])
     const harness = defineHarness({ name: 'test/append', adapter })
-    const today = await createHarnessHost({
-      persistence: memoryPersistence(),
-    }).open(harness, { threadId: THREAD })
-    await expect(today.append([{ type: 'app.x' }])).rejects.toThrow(
-      'session.append needs a durable host',
-    )
-
     const durable = await createHarnessHost({
       persistence: durablePersistence(),
     }).open(harness, { threadId: THREAD })
@@ -791,33 +784,6 @@ describe('LogRecordsCapability', () => {
 
     expect(failure).toBeInstanceOf(Error)
     expect(String(failure)).toContain('reserved for the harness')
-    await host.close()
-  })
-
-  it('gives nothing on a host without a log', async () => {
-    let seen: unknown = 'not called'
-    const probe: ChatMiddleware = {
-      name: 'test:probe',
-      onConfig: (ctx) => {
-        seen = getLogRecords(ctx, { optional: true })
-      },
-    }
-    const { adapter } = mockAdapter([() => text('a1')])
-    const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
-        name: 'test/log-records-none',
-        adapter,
-        middleware: [probe],
-      }),
-      {
-        threadId: THREAD,
-      },
-    )
-
-    await session.send('q1')
-
-    expect(seen).toBeUndefined()
     await host.close()
   })
 })

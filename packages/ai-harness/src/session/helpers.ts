@@ -38,7 +38,7 @@ import type {
 /** Where `stores.metadata` keeps the interrupted turn of each thread. */
 export const INTERRUPTED = 'harness:interrupted'
 
-/** Where `stores.metadata` keeps the usage totals of a host without a log. */
+/** A metadata row of usage totals that `host.sessions.delete` still deletes. */
 export const USAGE = 'harness:usage'
 
 /**
@@ -686,7 +686,7 @@ export function checkHostRecords(records: ReadonlyArray<LogRecord>) {
 export const notOpen = () =>
   Promise.reject(new Error('The session is not open yet.'))
 
-/** The message store of a durable session before `open()` reads its log. */
+/** The message store of a session before `open()` reads its log. */
 export const notOpenMessages: MessageStore = {
   loadThread: notOpen,
   saveThread: notOpen,

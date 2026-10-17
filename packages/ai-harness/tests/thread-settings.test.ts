@@ -258,11 +258,8 @@ describe('thread settings', () => {
     await host.close()
   })
 
-  it.each([
-    { name: 'a host with a message store', durable: false },
-    { name: 'a durable host', durable: true },
-  ])('keeps the settings after a restart on $name', async ({ durable }) => {
-    const persistence = durable ? durablePersistence() : memoryPersistence()
+  it('keeps the settings after a restart', async () => {
+    const persistence = durablePersistence()
     const { base, strong } = models([() => text('strong')])
     const harness = defineHarness({
       name: 'test/settings',

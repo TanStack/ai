@@ -232,7 +232,7 @@ describe('compact and usage', () => {
           : chunk,
       )
     const main = mockAdapter([withUsage('one'), withUsage('two')])
-    const { host, session, persistence } = await open(main.adapter, [
+    const { host, session } = await open(main.adapter, [
       compact({ adapter: summarizer.adapter }),
       usage(),
     ])
@@ -241,7 +241,7 @@ describe('compact and usage', () => {
     expect(await session.command({ name: 'compact' })).toBe(
       'Compacted 4 messages into a summary.',
     )
-    const transcript = await persistence.stores.messages.loadThread(T_KEY)
+    const transcript = await session.transcript()
     expect(transcript).toHaveLength(2)
     expect(transcript[0]?.content).toContain('We planned a trip.')
     expect(await session.command({ name: 'usage' })).toBe(

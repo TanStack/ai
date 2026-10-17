@@ -25,6 +25,7 @@ import type {
   GenerationRunStore,
   InboxStore,
   InterruptStore,
+  LogStore,
   MessagePage,
   MessageStore,
   MetadataStore,
@@ -135,7 +136,7 @@ const uncertainInherited = composePersistence(base, {
 })
 expectTypeOf(uncertainInherited.stores.messages).toEqualTypeOf<MessageStore>()
 
-// Named shapes — memoryPersistence now includes generation stores too
+// Named shapes: memoryPersistence includes the generation stores and the log
 expectTypeOf(memoryPersistence()).toEqualTypeOf<
   AIPersistence<{
     messages: MessageStore
@@ -149,6 +150,7 @@ expectTypeOf(memoryPersistence()).toEqualTypeOf<
     inbox: InboxStore
     workClaims: WorkClaimStore
     sessions: SessionIndexStore
+    log: LogStore
   }>
 >()
 // The session index is keyed by tenant and thread, and compare-and-set is part

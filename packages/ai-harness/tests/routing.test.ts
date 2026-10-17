@@ -89,9 +89,8 @@ function scriptedRouter(...picks: Array<SubagentRouterPick>) {
   return { router, seen }
 }
 
-/** A session whose harness has `routing`. `durable` gives the host a log. */
+/** A session whose harness has `routing`. */
 async function openRouting(options: {
-  durable?: boolean
   router: HarnessRouting['router']
   strategy?: HarnessRouting['strategy']
   agents?: ReadonlyArray<AnyAgent>
@@ -101,11 +100,8 @@ async function openRouting(options: {
   turn?: HarnessTurnOptions
   replies?: Array<Reply>
 }) {
-  const { stores } = memoryPersistence()
-  const { runs, metadata } = stores
-  const persistence = options.durable
-    ? { stores: { log: memoryLogStore(), runs, metadata } }
-    : { stores }
+  const { runs, metadata } = memoryPersistence().stores
+  const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
   const main = mockAdapter(options.replies ?? [])
   const host = createHarnessHost({ persistence })
   const session = await host.open(
@@ -536,10 +532,7 @@ describe('routing.router', () => {
   })
 })
 
-describe.each([
-  { host: 'a host without a log', durable: false },
-  { host: 'a durable host', durable: true },
-])('routing on $host', ({ durable }) => {
+describe('routing with run leases', () => {
   it('holds a run lease while a routed agent runs', async () => {
     const started = gate()
     const release = gate()
@@ -553,7 +546,6 @@ describe.each([
       },
     })
     const { host, session, runs } = await openRouting({
-      durable,
       router: () => 'writer',
       agents: [writer],
     })
@@ -576,7 +568,6 @@ describe.each([
       const releaseRouter = gate()
       let signal: AbortSignal | undefined
       const { host, session, main } = await openRouting({
-        durable,
         router: async ({ abortSignal }) => {
           signal = abortSignal
           routerStarted.open()
@@ -607,7 +598,6 @@ describe.each([
     const { make, execute } = cleaner()
     const { router, seen } = scriptedRouter('cleaner')
     const { host, session, main } = await openRouting({
-      durable,
       router,
       agents: [make()],
     })
@@ -670,7 +660,6 @@ describe.each([
   }>)('fails the turn when $name', async ({ router, error }) => {
     const writer = textAgent('writer', 'Draft')
     const { host, session } = await openRouting({
-      durable,
       router,
       agents: [writer.agent, pricer],
     })

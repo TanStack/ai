@@ -1,12 +1,11 @@
 import { EventType } from '@tanstack/ai'
 import { REDACTED_THINKING_ID_PREFIX } from '@tanstack/ai/adapter-internals'
 import { LogConflictError } from '@tanstack/ai-persistence'
-import { engineMessageStore, revertOf, sessionMessageStore } from '../log'
+import { engineMessageStore, sessionMessageStore } from '../log'
 import { mountPlugins } from '../plugins'
 import {
   CUT_OFF_NOTE,
   checkpointMiddleware,
-  findCrashedRuns,
   repairSteps,
   repairTranscript,
 } from '../resume'
@@ -24,16 +23,15 @@ import {
 } from './helpers'
 import { SessionTurn } from './turn'
 import type { ModelMessage } from '@tanstack/ai'
-import type { InboxEntry } from '@tanstack/ai-persistence'
 import type { InputState, LogWriter } from '../log'
 import type { AnyHarness } from '../define'
 import type { RecoverContext, RecoverDecision } from '../turn'
-import type { HarnessInput, SettlementOutcome } from '../types'
+import type { SettlementOutcome } from '../types'
 import type { WaitingSteer } from './types'
 
 /**
  * A handle to a live harness session: one conversation (`threadId`) with its
- * plugins, operations, inbox, and event stream. Open one with `host.open()`.
+ * plugins, operations, inputs, and event stream. Open one with `host.open()`.
  * Each open gives its own handle. Release it with `close()`, or with
  * `await using`, when you are done.
  */
@@ -103,33 +101,20 @@ export class SessionImpl<
     return this.close()
   }
 
-  /** @internal Mount session plugins and replay inputs left in the inbox. */
+  /** @internal Mount session plugins and recover the work in the log. */
   async open(): Promise<void> {
     // First: plugins publish events while they mount.
     await this.openLog()
     try {
       await this.mountSessionPlugins()
       await this.loadSettings()
-      this.reverted = this.writer
-        ? this.writer.state.revert
-        : revertOf(
-            await this.persistence.stores.metadata?.get(
-              'harness:revert',
-              this.storeThreadId,
-            ),
-          )
+      this.reverted = this.writer.state.revert
       await this.loadInterrupted()
       // Before recovery: a turn that recovery runs updates this entry.
       await this.openEntry()
-      if (this.writer) {
-        await this.recoverFromLog(this.writer)
-        // Inputs that waited for an owner that stopped.
-        void this.drainInbox()
-        return
-      }
-      await this.loadUsage()
-      await this.recoverCrashedTurn()
-      await this.recoverInbox()
+      await this.recoverFromLog(this.writer)
+      // Inputs that waited for an owner that stopped.
+      void this.drainInbox()
     } catch (error) {
       // A session that fails to open stops what it started: the plugins, the
       // claim timer, and the turns that recovery queued or runs. It stops
@@ -149,7 +134,8 @@ export class SessionImpl<
     for (const turn of this.queue.splice(0)) {
       turn.operation.fail('cancelled', new Error('Session closed.'))
     }
-    await this.writer
+    // A session whose open failed before the log opened has no writer.
+    await this.logWriter
       ?.flush()
       .catch((error: unknown) =>
         console.error('[@tanstack/ai-harness] The log flush failed.', error),
@@ -238,7 +224,7 @@ export class SessionImpl<
    * Recover the work in the log again, as `open()` does. `open()` skips a
    * turn while another host holds its lease. Call this after that lease
    * expires, and the turn runs here. The work that this session runs or
-   * queues stays as it is. A session without `stores.log` does nothing.
+   * queues stays as it is.
    *
    * @example
    * ```ts
@@ -246,8 +232,8 @@ export class SessionImpl<
    * ```
    */
   recover(): Promise<void> {
+    if (this.closing) return Promise.resolve()
     const { writer } = this
-    if (!writer || this.closing) return Promise.resolve()
     const run = this.recovery.then(async () => {
       // First the records that other hosts wrote since this session read.
       await writer.catchUp()
@@ -261,30 +247,29 @@ export class SessionImpl<
   }
 
   /**
-   * A durable host gives the session its view of the log, and the session
-   * writes through it: the log is the event feed and the transcript. Then
-   * both modes build the stores that `withPersistence` and the checkpoints
+   * The host gives the session its view of the log, and the session writes
+   * through it: the log is the event feed and the transcript. Then the
+   * session builds the stores that `withPersistence` and the checkpoints
    * get.
    */
   protected async openLog(): Promise<void> {
     const { stores } = this.persistence
-    if (this.log) {
-      const { store, project } = this.log
-      this.writer = await this.log.open(this.threadId, (error) =>
-        this.stopOnLogFailure(error),
-      )
-      this.feed = tapFeed(this.writer, this.notifyHost, this.eventListeners)
-      // The logs of the subagent children are in the tenant of this session.
-      const view = {
-        writer: this.writer,
-        store,
-        ...(project ? { project } : {}),
-        ...(this.tenantId !== undefined ? { tenantId: this.tenantId } : {}),
-      }
-      this.messages = sessionMessageStore(view)
-      this.engine = engineMessageStore(view)
+    const { store, project } = this.log
+    const writer = await this.log.open(this.threadId, (error) =>
+      this.stopOnLogFailure(error),
+    )
+    this.logWriter = writer
+    this.feed = tapFeed(writer, this.notifyHost, this.eventListeners)
+    // The logs of the subagent children are in the tenant of this session.
+    const view = {
+      writer,
+      store,
+      ...(project ? { project } : {}),
+      ...(this.tenantId !== undefined ? { tenantId: this.tenantId } : {}),
     }
-    const engineMessages = this.engine ?? this.messages
+    this.messages = sessionMessageStore(view)
+    const engineMessages = engineMessageStore(view)
+    this.openEngine = engineMessages
     this.chatPersistence = {
       stores: {
         messages: engineMessages,
@@ -294,30 +279,21 @@ export class SessionImpl<
         ...(stores.sessions ? { sessions: stores.sessions } : {}),
       },
     }
-    const { writer } = this
     this.checkpoint = checkpointMiddleware({
       ...(stores.runs ? { runs: stores.runs } : {}),
       messages: engineMessages,
       hostId: this.hostId,
       ...(this.lease ? { lease: this.lease } : {}),
-      // A durable host keeps each finished tool result, so a crash later in
-      // the batch does not lose it.
-      ...(writer
-        ? {
-            onToolStart: ({ toolCallId, name, replay }) =>
-              writer.append([
-                { type: 'harness.tool.started', toolCallId, name, replay },
-              ]),
-            onToolResult: ({ toolCallId, message }) =>
-              writer.append([
-                { type: 'harness.tool.result', toolCallId, message },
-              ]),
-          }
-        : {}),
+      // The log keeps each finished tool result, so a crash later in the
+      // batch does not lose it.
+      onToolStart: ({ toolCallId, name, replay }) =>
+        writer.append([
+          { type: 'harness.tool.started', toolCallId, name, replay },
+        ]),
+      onToolResult: ({ toolCallId, message }) =>
+        writer.append([{ type: 'harness.tool.result', toolCallId, message }]),
     })
-    if (writer) {
-      this.bindTool = (toolCallId) => this.durableBinding(writer, toolCallId)
-    }
+    this.bindTool = (toolCallId) => this.durableBinding(writer, toolCallId)
   }
 
   /**
@@ -341,99 +317,6 @@ export class SessionImpl<
     // The feed closes with the session, so a failed plugin dispose has no one
     // to tell.
     this.close().catch(() => {})
-  }
-
-  /**
-   * Continue the newest chat turn that a crashed host left running. Older
-   * crashed turns are marked failed, and so are crashed agent runs.
-   */
-  protected async recoverCrashedTurn(): Promise<void> {
-    const runs = await findCrashedRuns(
-      this.persistence.stores.runs,
-      this.threadId,
-    )
-    for (const run of runs.filter((record) => record.kind === 'agent')) {
-      await this.failStoppedAgent({
-        operationId: run.runId,
-        agent: run.agent ?? 'agent',
-      })
-    }
-    const crashed = runs.filter((record) => record.kind !== 'agent')
-    const newest = crashed.sort((a, b) => b.startedAt - a.startedAt)[0]
-    for (const record of crashed) {
-      await this.persistence.stores.runs?.update(record.runId, {
-        status: 'failed',
-        finishedAt: Date.now(),
-        error: {
-          message:
-            record === newest
-              ? 'The host stopped. The session continued this turn in a new run.'
-              : 'The host stopped during this turn.',
-        },
-      })
-    }
-    if (!newest || this.interrupted) return
-    await repairTranscript({
-      messages: this.messages,
-      threadId: newest.threadId,
-      pending: newest.checkpoint?.pendingTools ?? [],
-      interrupted: this.harness.durability?.interruptedToolResult,
-      truncated: this.harness.durability?.truncatedToolResult,
-    })
-    const operation = this.createTurnOperation()
-    this.feed.publish(
-      operation.id,
-      customEvent(HARNESS_EVENTS.operationResumed, {
-        operationId: operation.id,
-        resumedFrom: newest.runId,
-      }),
-    )
-    this.enqueueTurn({ operation })
-  }
-
-  /** Re-run turns that were accepted but never applied before a restart. */
-  protected async recoverInbox(): Promise<void> {
-    const pending: Array<InboxEntry> = await this.inbox.listPending(
-      this.storeThreadId,
-    )
-    for (const entry of pending) {
-      const input = entry.input as HarnessInput
-      if (
-        input.op === 'prompt' ||
-        input.op === 'followUp' ||
-        input.op === 'steer'
-      ) {
-        const operation = this.createTurnOperation()
-        this.admitted.set(entry.inputId, inputKey(input, entry.principal))
-        this.bindTurn(entry.inputId, operation)
-        this.enqueueTurn({
-          operation,
-          message: input.message,
-          inputId: entry.inputId,
-          principal: entry.principal,
-          context: input.context,
-          ...(input.op === 'followUp' && input.wake ? { wake: true } : {}),
-        })
-      } else if (input.op === 'tool') {
-        const operation = this.createTurnOperation()
-        this.admitted.set(entry.inputId, inputKey(input, entry.principal))
-        this.bindTurn(entry.inputId, operation)
-        this.enqueueTurn({
-          operation,
-          inputId: entry.inputId,
-          principal: entry.principal,
-          tool: {
-            name: input.name,
-            args: input.args,
-            ...(input.meta ? { meta: input.meta } : {}),
-          },
-        })
-      } else if (input.op === 'reset') {
-        this.queueReset(entry.inputId, input.note, entry.principal, 'end')
-      } else {
-        this.reject(entry.inputId, 'expired_on_restart')
-      }
-    }
   }
 
   /** The recovery decision for `input`: the hook's, or `decision`. */

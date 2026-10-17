@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   AccessDeniedError,
   createHarnessHost,
@@ -10,7 +10,7 @@ import {
 } from '../src'
 import { createHarnessHandler, handleHarnessSocket } from '../src/server'
 import { hostCountsOf } from '../src/host'
-import { fakeSocket, mockAdapter, text } from './helpers'
+import { fakeSocket, mockAdapter, readSse, text } from './helpers'
 import type { HarnessHostOptions, Principal, SessionEvent } from '../src'
 
 const BASE = 'http://x/api/harness'
@@ -35,25 +35,13 @@ function stdioLikePlugin() {
   return { plugin, setups }
 }
 
-/** The stores of a host with no log, or of a durable host. */
-function persistenceOf(shape: 'no log' | 'durable') {
-  const { messages, runs, metadata, sessions } = memoryPersistence().stores
-  const shared = { runs, metadata, sessions }
-  return shape === 'durable'
-    ? { stores: { log: memoryLogStore(), ...shared } }
-    : { stores: { messages, ...shared } }
-}
-
 /**
  * A host whose sessions close at once when no handle holds them, and a
  * harness with the stdio-like plugin. `writes()` counts the index and
  * metadata writes since the last `reset()`.
  */
-function setup(
-  shape: 'no log' | 'durable',
-  options: Pick<HarnessHostOptions, 'access'> = {},
-) {
-  const persistence = persistenceOf(shape)
+function setup(options: Pick<HarnessHostOptions, 'access'> = {}) {
+  const persistence = memoryPersistence()
   const { plugin, setups } = stdioLikePlugin()
   const { adapter } = mockAdapter(() => text('Hello back.'))
   const harness = defineHarness({
@@ -93,63 +81,44 @@ function setup(
   return { host, harness, persistence, setups, writes, seed, reset, isOpen }
 }
 
-/** The text of the first text delta of `events`. */
-async function firstText(events: AsyncIterable<SessionEvent>) {
-  for await (const { event } of events) {
-    if (event.type === EventType.TEXT_MESSAGE_CONTENT) return event.delta
-  }
-  return undefined
-}
-
-/** Every event of `events`, for a read that ends by itself. */
-async function collect(events: AsyncIterable<SessionEvent>) {
-  const all: Array<SessionEvent> = []
-  for await (const entry of events) all.push(entry)
-  return all
-}
-
 afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe.each(['no log', 'durable'] as const)(
-  'host.observe on a host with %s',
-  (shape) => {
-    it('reads an idle thread with no plugin setup and no store write', async () => {
-      const { host, harness, setups, writes, seed, reset, isOpen } =
-        setup(shape)
-      await seed()
-      reset()
+describe('host.observe of an idle thread', () => {
+  it('reads an idle thread with no plugin setup and no store write', async () => {
+    const { host, harness, setups, writes, seed, reset, isOpen } = setup()
+    await seed()
+    reset()
 
-      const view = await host.observe(harness, { threadId: THREAD })
-      const transcript = await view.transcript()
-      const snapshot = await view.snapshot()
-      const entry = await view.entry()
+    const view = await host.observe(harness, { threadId: THREAD })
+    const transcript = await view.transcript()
+    const snapshot = await view.snapshot()
+    const entry = await view.entry()
 
-      expect(transcript.map((message) => message.content)).toEqual([
-        'Hello.',
-        'Hello back.',
-      ])
-      // The saved plugin state, read with no setup.
-      expect(snapshot).toMatchObject({
-        threadId: THREAD,
-        status: 'idle',
-        activeOperations: [],
-        pendingInterrupts: [],
-        plugins: { 'test/stdio-like': { mounts: 1 } },
-      })
-      expect(entry?.harness).toBe('test/observe')
-      expect(setups.count).toBe(0)
-      expect(writes()).toBe(0)
-      expect(isOpen()).toBe(false)
-      await host.close()
+    expect(transcript.map((message) => message.content)).toEqual([
+      'Hello.',
+      'Hello back.',
+    ])
+    // The saved plugin state, read with no setup.
+    expect(snapshot).toMatchObject({
+      threadId: THREAD,
+      status: 'idle',
+      activeOperations: [],
+      pendingInterrupts: [],
+      plugins: { 'test/stdio-like': { mounts: 1 } },
     })
-  },
-)
+    expect(entry?.harness).toBe('test/observe')
+    expect(setups.count).toBe(0)
+    expect(writes()).toBe(0)
+    expect(isOpen()).toBe(false)
+    await host.close()
+  })
+})
 
-describe('host.observe on a durable host', () => {
+describe('host.observe', () => {
   it('streams what open sessions write, shares one fold, and does not hold the session', async () => {
-    const { host, harness, persistence, seed, isOpen } = setup('durable')
+    const { host, harness, persistence, seed, isOpen } = setup()
     const reads = vi.spyOn(persistence.stores.metadata, 'get')
     const first = await host.observe(harness, { threadId: THREAD })
     const second = await host.observe(harness, { threadId: THREAD })
@@ -193,7 +162,7 @@ describe('host.observe on a durable host', () => {
   })
 
   it('ends the event reads of its views at host.close', async () => {
-    const { host, harness, seed } = setup('durable')
+    const { host, harness, seed } = setup()
     await seed()
     const view = await host.observe(harness, { threadId: THREAD })
     const seen: Array<SessionEvent> = []
@@ -210,28 +179,12 @@ describe('host.observe on a durable host', () => {
   })
 })
 
-describe('host.observe on a host with no log', () => {
-  it('ends the events at once when the session is not open, and reads the open session', async () => {
-    const { host, harness, seed } = setup('no log')
-    await seed()
-    const view = await host.observe(harness, { threadId: THREAD })
-
-    expect(await collect(view.events())).toEqual([])
-
-    const session = await host.open(harness, { threadId: THREAD })
-    await session.send('Again.')
-    expect(await firstText(view.events())).toBe('Hello back.')
-    await session.close()
-    await host.close()
-  })
-})
-
 describe('host.observe with access', () => {
   const olga = { id: 'olga', tenantId: 'acme' }
   const cid = { id: 'cid', tenantId: 'acme' }
 
   it('refuses a stranger and a thread with no entry, and checks a child through its root', async () => {
-    const { host, harness, persistence, seed } = setup('no log', {
+    const { host, harness, persistence, seed } = setup({
       access: { identify: () => null, authorize: membersOnly() },
     })
     await seed(olga)
@@ -266,8 +219,7 @@ describe('host.observe with access', () => {
 
 describe('the read routes', () => {
   it('mount nothing and write nothing for snapshot, transcript, and events', async () => {
-    const { host, harness, setups, writes, seed, reset, isOpen } =
-      setup('no log')
+    const { host, harness, setups, writes, seed, reset, isOpen } = setup()
     await seed()
     reset()
     const handler = createHarnessHandler({ host, harness, openAccess: true })
@@ -278,15 +230,17 @@ describe('the read routes', () => {
     const transcript: Array<{ content: string }> = await (
       await get('transcript')
     ).json()
-    const events = await (await get('events')).text()
+    // The events stream follows the log, so it reads until the answer.
+    const events = await readSse<unknown>(await get('events'), (frame) =>
+      JSON.stringify(frame).includes('Hello back.'),
+    )
 
     expect(snapshot.status).toBe('idle')
     expect(transcript.map((message) => message.content)).toEqual([
       'Hello.',
       'Hello back.',
     ])
-    // No session is open, so there is nothing to stream.
-    expect(events).toBe('')
+    expect(JSON.stringify(events)).toContain('Hello back.')
     expect(setups.count).toBe(0)
     expect(writes()).toBe(0)
     expect(isOpen()).toBe(false)
@@ -294,7 +248,7 @@ describe('the read routes', () => {
   })
 
   it('opens the session of a socket at its first input, not at subscribe or snapshot', async () => {
-    const { host, harness, setups, seed, reset } = setup('no log')
+    const { host, harness, setups, seed, reset } = setup()
     await seed()
     reset()
     const { socket, sent, closed, receive } = fakeSocket()
@@ -306,14 +260,24 @@ describe('the read routes', () => {
       openAccess: true,
     })
 
+    /** The answer deltas that the socket sent. */
+    const answers = () =>
+      sent.filter(
+        (frame) =>
+          frame.type === 'harness.event' &&
+          frame.event.type === EventType.TEXT_MESSAGE_CONTENT,
+      ).length
     receive({ type: 'harness.subscribe', threadId: THREAD })
     receive({ type: 'harness.snapshot' })
-    await vi.waitFor(() =>
-      expect(sent.map((frame) => frame.type)).toEqual([
-        'harness.hello',
-        'harness.snapshot',
-      ]),
-    )
+    // The subscribe streams the log: the answer of the seed turn.
+    await vi.waitFor(() => {
+      expect(
+        sent
+          .filter((frame) => frame.type !== 'harness.event')
+          .map((frame) => frame.type),
+      ).toEqual(['harness.hello', 'harness.snapshot'])
+      expect(answers()).toBe(1)
+    })
     expect(setups.count).toBe(0)
 
     receive({
@@ -322,16 +286,8 @@ describe('the read routes', () => {
       input: { op: 'prompt', message: 'Again.' },
     })
 
-    // The stream goes on with the session that the input opened.
-    await vi.waitFor(() =>
-      expect(
-        sent.some(
-          (frame) =>
-            frame.type === 'harness.event' &&
-            frame.event.type === EventType.TEXT_MESSAGE_CONTENT,
-        ),
-      ).toBe(true),
-    )
+    // The stream goes on with the turn of the session that the input opened.
+    await vi.waitFor(() => expect(answers()).toBe(2))
     expect(setups.count).toBe(1)
     expect(closed).toEqual([])
     socket.close()

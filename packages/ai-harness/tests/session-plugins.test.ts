@@ -372,53 +372,6 @@ describe('questions', () => {
     expect(session.snapshot().pendingQuestions).toEqual([])
     await host.close()
   })
-
-  it('keeps a question when the answer cannot be stored', async () => {
-    let asked: Promise<unknown> | undefined
-    const asker = definePlugin({
-      name: 'test/answer-asker',
-      setup: () => ({
-        commands: {
-          confirm: defineCommand({
-            description: 'Ask',
-            run: (_input, { session }) => {
-              asked = session.ask({ message: 'Sure?' })
-              return asked
-            },
-          }),
-        },
-      }),
-    })
-    const persistence = memoryPersistence()
-    const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({
-        name: 'test/answer-store',
-        adapter: mockAdapter([]).adapter,
-        plugins: () => [asker],
-      }),
-      {
-        threadId: 't',
-      },
-    )
-    void session.command({ name: 'confirm' })
-    await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
-    const [question] = session.snapshot().pendingQuestions
-    vi.spyOn(persistence.stores.inbox, 'markApplied').mockRejectedValueOnce(
-      new Error('store down'),
-    )
-
-    await expect(
-      session.answer({ questionId: question!.questionId, value: 'yes' }),
-    ).rejects.toThrow('store down')
-    expect(session.snapshot().pendingQuestions).toHaveLength(1)
-
-    await session.answer({ questionId: question!.questionId, value: 'yes' })
-    await expect(asked).resolves.toBe('yes')
-    await host.close()
-  })
 })
 
 describe('plugin state and events', () => {

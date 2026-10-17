@@ -167,8 +167,8 @@ export interface OnEvent {
 }
 
 /**
- * An input a client sends to a session. Stored in the inbox, or in the log of
- * a durable host.
+ * An input a client sends to a session. Stored in the session log, or in
+ * the inbox while another host owns the thread.
  *
  * `inputId` is an optional id that the caller chooses. A second input with the
  * same id and the same payload gets the first input's receipt and does not run
@@ -518,8 +518,7 @@ export interface Operation<TResult> extends PromiseLike<TResult> {
   /**
    * The answer to the input of this operation. It resolves after the session
    * stored the input (`accepted` or `queued`), or refused it (`rejected`).
-   * With a durable host, a resolved receipt means that the input survives a
-   * restart.
+   * A resolved receipt means that the input survives a restart.
    */
   readonly receipt: Promise<Receipt>
   /** This operation's events, from `from` (exclusive) onward. */

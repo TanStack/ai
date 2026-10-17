@@ -11,7 +11,7 @@ import { defineAIPersistence } from '../src/types'
 // machine does.
 const backend = memoryLogBackend()
 
-// memoryPersistence() has no log, so add one to run the log cases too.
+// The log goes on the shared backend, so the twin can read it.
 runPersistenceConformance(
   'memory',
   () =>

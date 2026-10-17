@@ -157,9 +157,9 @@ describe('session media store', () => {
   })
 
   it('keeps media in memory when the host has no media stores', async () => {
-    const { messages } = memoryPersistence().stores
+    const { log, runs } = memoryPersistence().stores
     const { host, session } = await open(harnessWith(mockAdapter([]).adapter), {
-      stores: { messages },
+      stores: { log, runs },
     })
 
     const record = await session.putMedia({

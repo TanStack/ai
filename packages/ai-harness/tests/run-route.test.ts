@@ -69,11 +69,12 @@ function setup(
   return { host, call, get, run }
 }
 
+/** The `data` of each SSE event of `body`. Each event also has its cursor as `id`. */
 const sse = (body: string): Array<Chunk> =>
-  body
-    .split('\n\n')
-    .filter((block) => block.startsWith('data: '))
-    .map((block) => JSON.parse(block.slice('data: '.length)))
+  body.split('\n\n').flatMap((block) => {
+    const data = block.split('\n').find((line) => line.startsWith('data: '))
+    return data ? [JSON.parse(data.slice('data: '.length))] : []
+  })
 
 function approvalHarness(responses: Array<FakeResponse>) {
   const fake = fakeText()

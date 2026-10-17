@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import { defineByokProvider, keyedAdapter } from '@tanstack/ai/byok'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import {
+  memoryLeaseStore,
+  memoryLogStore,
+  memoryPersistence,
+} from '@tanstack/ai-persistence'
 import {
   AccessDeniedError,
   createHarnessHost,
@@ -44,20 +48,14 @@ function accessHost({
   authorize = membersOnly(),
   envKeys,
   adapter,
-  durable = false,
 }: {
   replies?: Array<Reply> | Reply
   authorize?: Authorize<User>
   envKeys?: boolean
   adapter?: AnyTextAdapter | ReturnType<typeof acmeAdapter>['adapter']
-  /** A log store: the log id of each session has its tenant. */
-  durable?: boolean
 } = {}) {
-  const memory = memoryPersistence()
-  const { runs, metadata, sessions } = memory.stores
-  const persistence = durable
-    ? { stores: { log: memoryLogStore(), runs, metadata, sessions } }
-    : memory
+  const persistence = memoryPersistence()
+  const { sessions } = persistence.stores
   const host = createHarnessHost({
     persistence,
     access: {
@@ -163,7 +161,7 @@ describe('host access with membersOnly()', () => {
   })
 
   it('opens a thread id of another tenant as a new session of the own tenant', async () => {
-    const { host, open } = accessHost({ durable: true })
+    const { host, open } = accessHost()
     const owner = await open(olga)
     await owner.send('The plan of acme.')
 
@@ -563,7 +561,7 @@ it('needs stores.sessions for host access', () => {
   expect(() =>
     createHarnessHost({
       persistence: {
-        stores: { messages: memoryPersistence().stores.messages },
+        stores: { log: memoryLogStore(), leases: memoryLeaseStore() },
       },
       access: { identify: () => null, authorize: membersOnly() },
     }),

@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { defineAgent } from '@tanstack/ai'
-import { memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryLeaseStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import { mockAdapter, text } from './helpers'
-import type { HarnessPersistence, RetentionLimits, SessionEvent } from '../src'
+import type { HarnessPersistence, RetentionLimits } from '../src'
 
 /**
- * A session on a host without a log, with `retention`. The model answers
- * `done` to every call, and the agent `writer` runs one model call.
+ * A session with `retention`. The model answers `done` to every call, and
+ * the agent `writer` runs one model call.
  */
 async function openWith(
   retention: RetentionLimits,
@@ -38,19 +38,15 @@ function privateSetSize(owner: object, name: string) {
   return value instanceof Set ? value.size : undefined
 }
 
-async function collect(events: AsyncIterable<SessionEvent>) {
-  const kept: Array<SessionEvent> = []
-  for await (const entry of events) kept.push(entry)
-  return kept
-}
-
 describe('retention', () => {
-  it('keeps the settlement of a turn in the window while many agent runs settle', async () => {
+  it('keeps a turn in the window while many agent runs settle', async () => {
     const { host, session } = await openWith({
       settledOperations: 5,
       settledAgentRuns: 2,
     })
-    for (const inputId of ['t-0', 't-1', 't-2']) {
+    const first = session.send('Hi', { inputId: 't-0' })
+    await first
+    for (const inputId of ['t-1', 't-2']) {
       await session.send('Hi', { inputId })
     }
     for (let index = 0; index < 12; index += 1) {
@@ -60,13 +56,15 @@ describe('retention', () => {
       await session.send('Hi', { inputId })
     }
 
+    expect(session.operation(first.id)).toBe(first)
+    // A sixth turn pushes the oldest turn out of the window. The log still
+    // has how it ended.
+    await session.send('Hi', { inputId: 't-5' })
+    expect(session.operation(first.id)).toBe(undefined)
     await expect(session.settled('t-0')).resolves.toMatchObject({
       inputId: 't-0',
       outcome: 'completed',
     })
-    // A sixth turn pushes the oldest turn out of the window.
-    await session.send('Hi', { inputId: 't-5' })
-    await expect(session.settled('t-0')).rejects.toThrow('knows no chat input')
     await host.close()
   })
 
@@ -87,7 +85,7 @@ describe('retention', () => {
     await host.close()
   })
 
-  it('forgets agent runs past settledAgentRuns', async () => {
+  it('forgets agent runs past settledAgentRuns, and still lists them from the log', async () => {
     const { host, session } = await openWith({ settledAgentRuns: 3 })
     const ids: Array<string> = []
     for (let index = 0; index < 10; index += 1) {
@@ -100,32 +98,22 @@ describe('retention', () => {
     expect(ids.filter((id) => session.operation(id) !== undefined)).toEqual(
       kept,
     )
-    expect(session.agentRuns().map((run) => run.operationId)).toEqual(kept)
-    expect(session.agentRun(ids[0] ?? '')).toBe(undefined)
-    await host.close()
-  })
-
-  it('keeps at most eventBytes of events for events()', async () => {
-    // Every event is longer than 1 byte, so only the newest one stays.
-    const { host, session } = await openWith({ eventBytes: 1 })
-    await session.send('Hi')
-    // The read gets the kept events at once, then ends at the abort.
-    const reading = new AbortController()
-    setTimeout(() => reading.abort(), 0)
-
-    const events = session.events({ from: '0', signal: reading.signal })
-    expect(await collect(events)).toHaveLength(1)
+    // The log has every run, also the ones the window forgot.
+    expect(session.agentRuns().map((run) => run.operationId)).toEqual(ids)
+    expect(session.agentRun(ids[0] ?? '')?.id).toBe(ids[0])
     await host.close()
   })
 
   it('keeps the ids of forgotten operations only as long as both windows', async () => {
     // Without `stores.runs`, only the session refuses a reused run id. The
-    // interrupts store needs the runs store, so it goes too.
+    // interrupts store needs the runs store, so it goes too. A lease store
+    // finds a crashed host instead.
     const persistence = {
       stores: {
         ...memoryPersistence().stores,
         runs: undefined,
         interrupts: undefined,
+        leases: memoryLeaseStore(),
       },
     }
     const { host, session } = await openWith(
@@ -156,15 +144,16 @@ describe('retention', () => {
     await host.close()
   })
 
-  it('keeps no follower of a duplicate input on a host without a log', async () => {
+  it('settles a duplicate of an input past the window from the log, and keeps no follower', async () => {
     const { host, session } = await openWith({ settledOperations: 1 })
     await session.send('Hi', { inputId: 't-0' })
     // The next turn pushes the first one out of the window.
     await session.send('Hi', { inputId: 't-1' })
 
-    await expect(session.send('Hi', { inputId: 't-0' })).rejects.toThrow(
-      'its result is gone',
-    )
+    await expect(session.send('Hi', { inputId: 't-0' })).resolves.toEqual({
+      text: 'done',
+      media: [],
+    })
     expect(privateSetSize(session, 'followers')).toBe(0)
     await host.close()
   })
