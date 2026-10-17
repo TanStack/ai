@@ -192,9 +192,12 @@ export function frameApiPlugin(): Plugin {
             const instanceId = query.get('i') || `inst_${rec.artifactId}`
             const nonce = randomBytes(12).toString('base64url')
             const hash = assetHashOf(rec)
-            // react-tsx speaks the standard MCP Apps protocol: serve the ext-apps
-            // guest adapter (the host uses FrameArtifactRenderer protocol="mcp-app").
-            const guestScript = rec.kind === 'react-tsx' ? await getFragmentGuestScript() : undefined
+            // Static react-tsx speaks the standard MCP Apps protocol (ext-apps guest;
+            // host uses protocol="mcp-app"). A LIVE-bound artifact instead uses our
+            // own ogui/1 bridge client — the ext-apps direct transport can't reliably
+            // deliver host→frame messages into a sandboxed opaque-origin iframe
+            // ("Ignoring message from unknown source"), which live push depends on.
+            const guestScript = rec.kind === 'react-tsx' && !rec.dataSource ? await getFragmentGuestScript() : undefined
             const html = buildShellDocument({
               record: rec,
               instanceId,

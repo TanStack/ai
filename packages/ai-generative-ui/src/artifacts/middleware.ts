@@ -76,6 +76,9 @@ export function generativeUiArtifacts(options: GenerativeUiArtifactsOptions): Ch
         title: rec?.title,
         kind: rec?.kind,
         url: res.url,
+        // Present when the artifact is bound to a host live data source, so the
+        // client subscribes and streams values into the frame (real-time views).
+        dataSource: rec?.dataSource,
       })
     }
 

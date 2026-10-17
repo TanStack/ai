@@ -47,6 +47,16 @@ export function getArtifactToolDefinitions(registry: ModuleRegistry): Array<Arti
           source: { type: 'string', description: 'The artifact source (fragment HTML or one TSX module with a default-export component).' },
           fallbackText: { type: 'string', description: 'REQUIRED plain-text description for text-only surfaces, errors, and accessibility.' },
           data: { description: 'Optional JSON data passed to the artifact (props.data for react-tsx, host.init.data for fragments). Put authoritative numbers here.' },
+          dataSource: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['name'],
+            properties: {
+              name: { type: 'string', description: 'Name of a host live data source (see the list in the system prompt). The host streams values into this artifact in real time.' },
+              params: { type: 'object', description: 'Optional params for the source.' },
+            },
+            description: 'Optional: bind this artifact to a host live data source so it updates in real time. Read the streamed value with useHostData() (react-tsx) or window.__ogui.onData (html-fragment). IMPORTANT: useHostData() returns undefined until the first value arrives — ALWAYS default it before use, e.g. `const d = useHostData() || { total: 0, recent: [] }`, and never destructure or call methods on the raw result. Use ONLY source names listed in the system prompt.',
+          },
           scope: { type: 'string', enum: ['private', 'pod', 'public-link'], description: 'Sharing scope. Defaults to private.' },
           networkGrants: { type: 'array', items: { type: 'string' }, description: 'Optional connect-src domains to request; the host grants a subset.' },
         },
@@ -144,6 +154,8 @@ export function createArtifactTools(ctx: ArtifactToolContext) {
       source: string
       scope: ArtifactRecord['ownership']['scope']
       networkGrants?: Array<string>
+      data?: unknown
+      dataSource?: ArtifactRecord['dataSource']
     },
   ): Promise<ArtifactToolResult> {
     const build = await ctx.builder.build({ kind: partial.kind, source: partial.source, registry: ctx.registry })
@@ -171,6 +183,8 @@ export function createArtifactTools(ctx: ArtifactToolContext) {
       buildLog: build.buildLog,
       registryVersion,
       networkGrants: partial.networkGrants,
+      data: partial.data,
+      dataSource: partial.dataSource,
       provenance: { driver: 'live', ...ctx.provenance },
       ownership: { ownerId: ctx.ownerId ?? 'anon', scope: partial.scope, channelId: ctx.channelId },
       trustTier: 'untrusted',
@@ -192,6 +206,8 @@ export function createArtifactTools(ctx: ArtifactToolContext) {
         source: input.source,
         scope: input.scope ?? 'private',
         networkGrants: input.networkGrants,
+        data: input.data,
+        dataSource: input.dataSource,
       })
     },
 
@@ -208,6 +224,8 @@ export function createArtifactTools(ctx: ArtifactToolContext) {
         source: input.source,
         scope: prev.ownership.scope,
         networkGrants: prev.networkGrants,
+        data: prev.data,
+        dataSource: prev.dataSource,
       })
     },
 

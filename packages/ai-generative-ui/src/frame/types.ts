@@ -73,6 +73,14 @@ export interface ArtifactRecord {
    * from here, not from model arithmetic.
    */
   data?: unknown
+  /**
+   * Optional binding to a host live data source. When set, the host subscribes
+   * on mount and streams values into the frame over the bridge (`host.data` /
+   * MCP Apps `tool-result`) so the view updates in real time. The source is a
+   * named entry in the host's `DataSourceRegistry` (`../data-sources`); live
+   * values are host-authoritative, same as `data`.
+   */
+  dataSource?: { name: string; params?: Record<string, unknown> }
   provenance: ArtifactProvenance
   ownership: ArtifactOwnership
   trustTier: TrustTier
@@ -259,6 +267,8 @@ export interface CreateArtifactInput {
   source: string
   fallbackText: string
   data?: unknown
+  /** Bind to a host live data source so the view updates in real time (§6, §7.3.4). */
+  dataSource?: { name: string; params?: Record<string, unknown> }
   scope?: ArtifactScope
   /** Requested connect-src domains; host grants a subset (§9.3). */
   networkGrants?: Array<string>

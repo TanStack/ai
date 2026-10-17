@@ -109,7 +109,7 @@ export function seedFixtures(): Promise<Array<LibraryEntry>> {
           index.push({ fixtureId: fx.id, artifactId: found.artifactId, revision: found.revision, title: found.title, kind: found.kind })
           continue
         }
-        const res = await artifacts.create({ kind: fx.kind, title: fx.title, source: fx.source, fallbackText: fx.fallbackText, data: fx.data })
+        const res = await artifacts.create({ kind: fx.kind, title: fx.title, source: fx.source, fallbackText: fx.fallbackText, data: fx.data, dataSource: fx.dataSource })
         if ('artifactId' in res) {
           index.push({ fixtureId: fx.id, artifactId: res.artifactId, revision: res.revision, title: fx.title, kind: fx.kind })
         } else {

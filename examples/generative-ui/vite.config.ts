@@ -11,6 +11,7 @@ import {
 } from '@tanstack/ai-generative-ui'
 import { frameApiPlugin } from './server/frame-plugin'
 import { handleChat } from './server/chat-route'
+import { handleLive } from './server/live-route'
 
 // Load .env.local if present
 for (const envFile of ['.env.local', '.env']) {
@@ -254,6 +255,23 @@ function generativeUiApiPlugin(): Plugin {
             res.statusCode = 500
             res.setHeader('Content-Type', 'application/json')
             res.end(JSON.stringify({ error: err.message }))
+          }
+          return
+        }
+
+        // Live data-source stream: subscribes to a named host source and emits
+        // SSE values the client pushes into the mounted frame (real-time views).
+        if (req.method === 'GET' && (req.url || '').split('?')[0] === '/api/live') {
+          try {
+            handleLive(req, res)
+          } catch (err: any) {
+            if (!res.headersSent) {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json')
+              res.end(JSON.stringify({ error: err.message }))
+            } else {
+              res.end()
+            }
           }
           return
         }

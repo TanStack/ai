@@ -34,6 +34,8 @@ const STARTERS = [
 interface FramePin extends ArtifactPin {
   title?: string
   kind?: string
+  /** Live data-source binding; when present the view streams updates in real time. */
+  dataSource?: { name: string; params?: Record<string, unknown> }
 }
 
 /* ---- inline markdown (bold / code / paragraphs) -------------------------- */
@@ -126,7 +128,7 @@ export function ChatSurface() {
     connection: fetchServerSentEvents('/api/chat', async () => ({ body: { provider: providerRef.current } })),
     onCustomEvent: (eventType: string, data: any, context: { toolCallId?: string }) => {
       if (eventType === 'genui:artifact' && context.toolCallId && data?.pin) {
-        setFramePins((p) => ({ ...p, [context.toolCallId!]: { ...data.pin, title: data.title, kind: data.kind } }))
+        setFramePins((p) => ({ ...p, [context.toolCallId!]: { ...data.pin, title: data.title, kind: data.kind, dataSource: data.dataSource } }))
       }
     },
   })
@@ -406,25 +408,60 @@ function MessageRow({
             }
             if (pin.kind === 'html-fragment') return null
             if (latest.framePartByArtifact[pin.artifactId] !== part.id) return null
-            return (
-              <FrameArtifactRenderer
-                key={part.id}
-                pin={{ artifactId: pin.artifactId, revision: pin.revision }}
-                sandboxUrl={sandboxUrl}
-                title={pin.title ?? 'Generated artifact'}
-                minHeight={120}
-                protocol="mcp-app"
-                onIntent={async (d) => {
-                  onIntent({ graphId: pin.artifactId, nodeId: '', intent: d.intent, intentClass: d.intentClass, payload: d.payload, state: d.state } as IntentPayload)
-                  return { ok: true, result: { acknowledged: true } }
-                }}
-              />
-            )
+            return <FrameArtifactPart key={part.id} pin={pin} onIntent={onIntent} />
           }
           return null
         })}
       </div>
     </div>
+  )
+}
+
+/**
+ * One Tier F react-tsx artifact rendered over the MCP Apps bridge. When the pin
+ * carries a `dataSource` binding, it opens an SSE stream to `/api/live` and
+ * pushes each value into the frame via `subscribeData`, so the view updates in
+ * real time. `subscribeData` is memoized on the source identity so the frame
+ * subscribes once per binding, not on every chat re-render.
+ */
+function FrameArtifactPart({ pin, onIntent }: { pin: FramePin; onIntent: (i: IntentPayload) => void }) {
+  const ds = pin.dataSource
+  const dsKey = ds ? `${ds.name}:${JSON.stringify(ds.params ?? {})}` : ''
+  const subscribeData = useMemo(() => {
+    if (!ds) return undefined
+    const qs = new URLSearchParams({ source: ds.name })
+    if (ds.params) qs.set('params', JSON.stringify(ds.params))
+    const href = `/api/live?${qs.toString()}`
+    return (emit: (data: unknown) => void) => {
+      const es = new EventSource(href)
+      es.onmessage = (e) => {
+        try {
+          emit(JSON.parse(e.data))
+        } catch {
+          // ignore malformed frame
+        }
+      }
+      return () => es.close()
+    }
+    // dsKey captures name + params; ds itself is a fresh object each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dsKey])
+
+  return (
+    <FrameArtifactRenderer
+      pin={{ artifactId: pin.artifactId, revision: pin.revision }}
+      sandboxUrl={sandboxUrl}
+      title={pin.title ?? 'Generated artifact'}
+      minHeight={120}
+      // Live-bound artifacts render over ogui/1 (robust host→frame push into the
+      // sandboxed iframe); static ones use the standard MCP Apps path.
+      protocol={ds ? 'ogui/1' : 'mcp-app'}
+      subscribeData={subscribeData}
+      onIntent={async (d) => {
+        onIntent({ graphId: pin.artifactId, nodeId: '', intent: d.intent, intentClass: d.intentClass, payload: d.payload, state: d.state } as IntentPayload)
+        return { ok: true, result: { acknowledged: true } }
+      }}
+    />
   )
 }
 

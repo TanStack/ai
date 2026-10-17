@@ -249,6 +249,19 @@ describe('Bridge protocol — contract (§6, §10.2)', () => {
     await host.handleMessage({ ns: 'bad', type: 'frame.ready', ...ctx, payload: {} })
     expect(onDrop).toHaveBeenCalledWith(expect.stringContaining('bad ns'), expect.anything())
   })
+
+  it('pushData sends a host.data envelope the frame reads for live updates (§6.2)', () => {
+    const sent: BridgeEnvelope[] = []
+    const host = createFrameHost(ctx, { getTheme: () => THEME, getState: () => ({}), setState: () => {}, send: (e) => sent.push(e) })
+    host.pushData({ total: 42 })
+    host.pushData({ total: 99 })
+    const dataEvents = sent.filter((e) => e.type === 'host.data')
+    expect(dataEvents).toHaveLength(2)
+    expect(dataEvents[0]?.payload).toEqual({ data: { total: 42 } })
+    expect(dataEvents[1]?.payload).toEqual({ data: { total: 99 } })
+    // Same instance addressing as every other envelope.
+    expect(dataEvents[0]).toMatchObject({ ns: FRAME_PROTOCOL, artifactId: 'art_1', instanceId: 'inst_1' })
+  })
 })
 
 /* -------------------------------------------------------------------------- */
@@ -301,6 +314,25 @@ describe('Artifact tools (§8.1)', () => {
     await tools.create({ kind: 'html-fragment', title: 'Emaj7 chord', source: '<p/>', fallbackText: 'fb' })
     expect(tools.list({ query: 'chord' }).length).toBe(1)
   })
+
+  it('create_artifact exposes a dataSource param for live binding', () => {
+    const create = getArtifactToolDefinitions(REFERENCE_REGISTRY).find((d) => d.name === 'create_artifact')!
+    const props = (create.parameters as any).properties
+    expect(props.dataSource).toBeDefined()
+    expect(props.dataSource.properties.name).toBeDefined()
+  })
+
+  it('create persists a dataSource binding on the record, and revise carries it forward', async () => {
+    const store = new InMemoryArtifactStore()
+    const tools = createArtifactTools({ store, builder: fakeBuilder(), registry: REFERENCE_REGISTRY, genId: () => 'art_live' })
+    await tools.create({
+      kind: 'html-fragment', title: 'Monitor', source: '<p>v1</p>', fallbackText: 'fb',
+      dataSource: { name: 'spendFeed', params: { currency: 'USD' } },
+    })
+    expect(store.latest('art_live')?.dataSource).toEqual({ name: 'spendFeed', params: { currency: 'USD' } })
+    await tools.revise({ artifactId: 'art_live', source: '<p>v2</p>' })
+    expect(store.get('art_live', 2)?.dataSource).toEqual({ name: 'spendFeed', params: { currency: 'USD' } })
+  })
 })
 
 /* -------------------------------------------------------------------------- */
@@ -313,6 +345,14 @@ describe('Fixtures (§10.3)', () => {
     const check = checkImports(FRAME_FIXTURES['spend-monitor']!.source, REFERENCE_REGISTRY)
     expect(check.ok).toBe(true)
     expect(check.externals).toEqual(expect.arrayContaining(['@tanstack/react-table', '@tanstack/react-charts']))
+  })
+  it('live-spend-monitor declares a dataSource binding and only imports registry modules', () => {
+    const fx = FRAME_FIXTURES['live-spend-monitor']!
+    expect(fx.dataSource?.name).toBe('spendFeed')
+    const check = checkImports(fx.source, REFERENCE_REGISTRY)
+    expect(check.ok).toBe(true)
+    // Reads the live value via the bridge's useHostData hook.
+    expect(fx.source).toContain('useHostData')
   })
   it('every fixture declares fallbackText (§5.3)', () => {
     for (const f of Object.values(FRAME_FIXTURES)) expect(f.fallbackText.length).toBeGreaterThan(10)

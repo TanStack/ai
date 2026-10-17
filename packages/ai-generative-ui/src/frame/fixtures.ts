@@ -18,6 +18,8 @@ export interface FrameFixture {
   source: string
   /** Optional authoritative data (host-computed numbers, §7.3.4). */
   data?: unknown
+  /** Optional live data-source binding (host streams values in real time). */
+  dataSource?: { name: string; params?: Record<string, unknown> }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -267,6 +269,62 @@ export const SPEND_MONITOR_DATA = {
   ],
 }
 
+/* -------------------------------------------------------------------------- */
+/* live-spend-monitor — react-tsx bound to a live data source                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The flagship live case: a view bound to a host data source via `dataSource`.
+ * It reads the streamed value with `useHostData()` — the SAME value the host
+ * pushes over the bridge (`host.data` / MCP Apps `tool-result`) on every change
+ * — so the total and transaction feed update in place, in real time, without
+ * the artifact ever being regenerated. `props.data` seeds the first paint.
+ */
+export const LIVE_SPEND_MONITOR_TSX_SOURCE = /* tsx */ `
+import { useHostData } from '@ogui/bridge';
+import { Card } from '@host/ui';
+
+type Txn = { id: string; label: string; amount: number };
+type Feed = { total: number; recent: Txn[]; currency?: string };
+
+export default function LiveSpendMonitor({ data }: { data?: Feed }) {
+  const live = useHostData() as Feed | undefined;
+  const feed = live || data || { total: 0, recent: [] };
+  const total = feed.total || 0;
+  const recent = feed.recent || [];
+  return (
+    <Card title="Live spend monitor" subtitle="streaming · updates in real time">
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, margin: '2px 0 14px' }}>
+        <div style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.02em' }}>
+          {'$' + Math.round(total).toLocaleString()}
+        </div>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: 'var(--ui-positive,#16a34a)' }}>
+          <span style={{ width: 7, height: 7, borderRadius: 999, background: 'var(--ui-positive,#16a34a)', display: 'inline-block' }} />
+          live
+        </span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {recent.length === 0
+          ? <div style={{ fontSize: 13, color: 'var(--ui-muted,#6b7280)' }}>Waiting for transactions…</div>
+          : recent.map((t) => (
+            <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '7px 10px', borderRadius: 8, background: 'var(--ui-surface-2,#f8fafc)', border: '1px solid var(--ui-border,#eef2f7)' }}>
+              <span>{t.label}</span>
+              <span style={{ fontWeight: 600 }}>{'+$' + (t.amount || 0).toLocaleString()}</span>
+            </div>
+          ))}
+      </div>
+    </Card>
+  );
+}
+`.trim()
+
+/** First-paint seed for the live monitor; the feed takes over once connected. */
+export const LIVE_SPEND_MONITOR_DATA = {
+  currency: 'USD',
+  total: 0,
+  recent: [] as Array<{ id: string; label: string; amount: number }>,
+}
+
 /** All Tier F fixtures, keyed by id (parallel to Draft 0.1 CANONICAL_FIXTURES). */
 export const FRAME_FIXTURES: Record<string, FrameFixture> = {
   'chord-card-fragment': {
@@ -290,5 +348,14 @@ export const FRAME_FIXTURES: Record<string, FrameFixture> = {
     fallbackText: 'Spend this cycle totals $7,420. Compute $3,120/$3,000 (104%, over), Storage $980/$1,500, Bandwidth $1,460/$1,600, AI tokens $1,860/$2,000.',
     source: SPEND_MONITOR_TSX_SOURCE,
     data: SPEND_MONITOR_DATA,
+  },
+  'live-spend-monitor': {
+    id: 'live-spend-monitor',
+    kind: 'react-tsx',
+    title: 'Live spend monitor',
+    fallbackText: 'A live spend monitor: a running total and a feed of recent transactions that update in real time as the host streams new data.',
+    source: LIVE_SPEND_MONITOR_TSX_SOURCE,
+    data: LIVE_SPEND_MONITOR_DATA,
+    dataSource: { name: 'spendFeed' },
   },
 }

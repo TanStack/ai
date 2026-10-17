@@ -35,12 +35,26 @@ export function readHostTheme(from?: Element | null): FrameTheme {
 
 let instanceSeq = 0
 
+/** Normalize a value for MCP Apps `structuredContent` (must be an object). */
+function asStructured(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : { value }
+}
+
 export interface FrameArtifactRendererProps {
   pin: ArtifactPin
   /** Build the sandbox-origin URL for this pinned revision (§4.1). */
   sandboxUrl: (pin: ArtifactPin, instanceId: string) => string
   /** Host data passed on host.init (authoritative numbers, §7.3.4). */
   data?: unknown
+  /**
+   * Live data source for this instance. Called with an `emit` callback; each
+   * emission is pushed into the mounted frame over the active bridge (ogui/1
+   * `host.data` or MCP Apps `tool-result`) so the view updates in real time.
+   * Returns an unsubscribe run on unmount. Host-authoritative, like `data`.
+   */
+  subscribeData?: (emit: (data: unknown) => void) => () => void
   registryVersion?: string
   /** Theme source; defaults to reading `--ui-*` off the host document (§5.2). */
   getTheme?: () => FrameTheme
@@ -74,6 +88,7 @@ export function FrameArtifactRenderer(props: FrameArtifactRendererProps) {
     pin,
     sandboxUrl,
     data,
+    subscribeData,
     registryVersion,
     getTheme,
     initialState,
@@ -101,6 +116,14 @@ export function FrameArtifactRenderer(props: FrameArtifactRendererProps) {
   // One host endpoint per mounted instance; stored in a ref so the message
   // listener and theme-push effects share it.
   const hostRef = useRef<ReturnType<typeof createFrameHost> | null>(null)
+  // The mcp-app AppBridge (when protocol === 'mcp-app'), promoted to a ref so
+  // the live-data effect can push `sendToolResult` after the connect effect ran.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ext-apps is dynamically imported
+  const bridgeRef = useRef<any>(null)
+  // Latest live value, buffered until the mcp-app bridge is initialized
+  // (sendToolResult requires post-init); flushed from `oninitialized`.
+  const liveDataRef = useRef<{ has: boolean; value: unknown }>({ has: false, value: undefined })
+  const bridgeInitRef = useRef<boolean>(false)
 
   const send = useCallback((env: BridgeEnvelope) => {
     // Opaque frame origin can't be named → targetOrigin '*'. Safe: we control
@@ -176,6 +199,7 @@ export function FrameArtifactRenderer(props: FrameArtifactRendererProps) {
         { hostContext: { theme: theme.mode, styles: { variables: theme.tokens } } },
       )
       bridge = bridgeInstance
+      bridgeRef.current = bridgeInstance
       bridgeInstance.oncalltool = async (params: any) => {
         const outcome = await onIntent?.({ intentClass: 'action', intent: params.name, payload: params.arguments, state: stateRef.current })
         const result = outcome?.result ?? {}
@@ -201,9 +225,15 @@ export function FrameArtifactRenderer(props: FrameArtifactRendererProps) {
         if (typeof params?.height === 'number') setHeight(Math.max(minHeight, params.height))
       }
       bridgeInstance.oninitialized = () => {
+        bridgeInitRef.current = true
         if (data !== undefined) {
           const args = data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : { value: data }
           try { void bridgeInstance.sendToolInput({ arguments: args }) } catch {}
+        }
+        // Flush any live value that arrived before the bridge was ready
+        // (sendToolResult is only valid after initialized — ext-apps contract).
+        if (liveDataRef.current.has) {
+          try { void bridgeInstance.sendToolResult({ structuredContent: asStructured(liveDataRef.current.value) }) } catch {}
         }
       }
       const iframe = iframeRef.current
@@ -216,10 +246,56 @@ export function FrameArtifactRenderer(props: FrameArtifactRendererProps) {
     })()
     return () => {
       cancelled = true
+      bridgeRef.current = null
+      bridgeInitRef.current = false
       try { bridge?.close?.() } catch {}
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pin.artifactId, pin.revision, url, protocol])
+
+  // Push one value into the mounted frame over whichever bridge is active. For
+  // mcp-app the bridge must be initialized first (ext-apps contract), so buffer
+  // until `oninitialized` flushes it.
+  const pushLive = useCallback(
+    (value: unknown) => {
+      if (protocol === 'mcp-app') {
+        liveDataRef.current = { has: true, value }
+        if (bridgeInitRef.current && bridgeRef.current) {
+          try { void bridgeRef.current.sendToolResult({ structuredContent: asStructured(value) }) } catch {}
+        }
+      } else {
+        hostRef.current?.pushData(value)
+      }
+    },
+    [protocol],
+  )
+
+  // Live data source: subscribe on mount, push each emission into the frame,
+  // unsubscribe on unmount. This is what makes an iframe'd view update in real
+  // time — the guest's useHostData()/onData re-renders on every push.
+  useEffect(() => {
+    if (!subscribeData) return
+    const unsubscribe = subscribeData((value) => pushLive(value))
+    return () => {
+      try { unsubscribe?.() } catch {}
+    }
+    // Re-subscribe when the frame remounts (new revision) or the source changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pin.artifactId, pin.revision, url, subscribeData, pushLive])
+
+  // Re-push the static `data` prop when it changes after mount (the one-shot
+  // snapshot otherwise only delivered on host.init / first sendToolInput).
+  const dataPushedRef = useRef<boolean>(false)
+  useEffect(() => {
+    if (data === undefined) return
+    // Skip the very first run: host.init (ogui/1) / sendToolInput (mcp-app)
+    // already carry the initial value; only re-push on subsequent changes.
+    if (!dataPushedRef.current) {
+      dataPushedRef.current = true
+      return
+    }
+    pushLive(data)
+  }, [data, pushLive])
 
   return (
     <div

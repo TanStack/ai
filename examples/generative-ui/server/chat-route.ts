@@ -22,11 +22,13 @@ import { generativeUiArtifacts } from '@tanstack/ai-generative-ui/artifacts'
 import {
   LiveDriver,
   buildFragmentDocument,
+  describeDataSourcesForPrompt,
   describeRegistryForPrompt,
   renderUICompositionGuidance,
   type FrameTheme,
 } from '@tanstack/ai-generative-ui'
 import { getFragmentGuestScript, reactBuilder, registry, store } from './frame-host'
+import { dataSources } from './data-sources'
 
 // Light theme injected into html-fragment MCP-Apps documents (fragments also
 // carry var() fallbacks). A dedicated sandbox origin can't read the host's CSS.
@@ -69,6 +71,7 @@ You have two ways to render UI:
    - "html-fragment": markup + optional <style>/<script>, hand-tuned inline SVG. Great for domain figures.
    - "react-tsx": one TSX module whose default export is a component. You may import ONLY the registry modules listed below.
    Numbers presented as computed must come from host-provided data (the create_artifact "data" field), not from arithmetic you write. If a build fails, you will receive the errors as the tool result — fix the source and call create_artifact again.
+   For a view that should update in real time (a monitor, a ticker, a dashboard that changes on its own), bind it to a live data source with the create_artifact "dataSource" field ({ name, params }) and read the streamed value with useHostData() — the host pushes new values and the view re-renders in place. Use ONLY the source names listed below. CRITICAL: useHostData() returns undefined until the first value streams in, so ALWAYS default it on the first line and read fields off the default, never off the raw call — e.g. \`const d = useHostData() || { total: 0, recent: [] }; const total = d.total || 0; const recent = d.recent || [];\`. Do not destructure the raw useHostData() result and do not call .toFixed()/.map() on fields without a fallback.
 
 Prefer render_ui for standard comparisons/forms; prefer create_artifact for anything bespoke, hand-crafted, or library-rich. Before authoring something new, you may call list_artifacts to reuse an existing one. NEVER put a UI graph, JSON, or code in your text reply — it goes only in the tool call. The UI you create renders automatically inline; do NOT embed it, link it, or reference its id/url in your prose (no markdown images or links to the artifact). Keep your prose to one short sentence.
 
@@ -76,7 +79,10 @@ Prefer render_ui for standard comparisons/forms; prefer create_artifact for anyt
 ${renderUICompositionGuidance()}
 
 === Tier F react-tsx module registry ===
-${describeRegistryForPrompt(registry)}`
+${describeRegistryForPrompt(registry)}
+
+=== Live data sources (for create_artifact "dataSource") ===
+${describeDataSourcesForPrompt(dataSources)}`
 
 function renderUiTool() {
   const def = LiveDriver.getRenderToolDefinition()
