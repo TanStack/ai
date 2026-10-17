@@ -13,6 +13,13 @@ import { hostCountsOf } from '../src/host'
 import { fakeSocket, mockAdapter, readSse, text } from './helpers'
 import type { HarnessHostOptions, Principal, SessionEvent } from '../src'
 
+/**
+ * `vi.waitFor` with more time: CI runs these tests slower, for example under
+ * coverage, and a poll costs nothing when the check passes early.
+ */
+const waitFor = <T>(check: () => T | Promise<T>) =>
+  vi.waitFor(check, { timeout: 5_000 })
+
 const BASE = 'http://x/api/harness'
 const THREAD = 't1'
 
@@ -140,9 +147,7 @@ describe('host.observe', () => {
     // A new session of the thread writes to the same log.
     await seed()
 
-    await vi.waitFor(() =>
-      expect(replies).toEqual(['Hello back.', 'Hello back.']),
-    )
+    await waitFor(() => expect(replies).toEqual(['Hello back.', 'Hello back.']))
     const transcript = await second.transcript()
     expect(transcript.map((message) => message.content)).toEqual([
       'Hello.',
@@ -170,7 +175,7 @@ describe('host.observe', () => {
       for await (const entry of view.events()) seen.push(entry)
     })()
     // The read has the log open, and it waits for new events.
-    await vi.waitFor(() => expect(seen.length).toBeGreaterThan(0))
+    await waitFor(() => expect(seen.length).toBeGreaterThan(0))
 
     await host.close()
 
@@ -270,7 +275,7 @@ describe('the read routes', () => {
     receive({ type: 'harness.subscribe', threadId: THREAD })
     receive({ type: 'harness.snapshot' })
     // The subscribe streams the log: the answer of the seed turn.
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(
         sent
           .filter((frame) => frame.type !== 'harness.event')
@@ -287,7 +292,7 @@ describe('the read routes', () => {
     })
 
     // The stream goes on with the turn of the session that the input opened.
-    await vi.waitFor(() => expect(answers()).toBe(2))
+    await waitFor(() => expect(answers()).toBe(2))
     expect(setups.count).toBe(1)
     expect(closed).toEqual([])
     socket.close()
