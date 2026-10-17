@@ -83,6 +83,7 @@
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-harness": "workspace:*",
+    "@tanstack/ai-mcp": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
     "@vitest/coverage-v8": "4.1.10",
     "zod": "^4.2.0"
