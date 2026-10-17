@@ -120,9 +120,14 @@ export async function handleLine(
         text: error instanceof Error ? error.message : String(error),
       }
     }
-    if (session.snapshot().status === 'running')
-      await session.send(input, { mode: 'steer' }).receipt
-    else void session.send(input)
+    // While a turn runs, the message joins it. Else it starts a turn. The
+    // session decides this when it stores the message, so there is no race.
+    const operation = session.send(input, { busy: 'steer' })
+    // The view shows a failed turn from its events.
+    operation.then(undefined, () => {})
+    const receipt = await operation.receipt
+    if (receipt.status === 'rejected')
+      return { type: 'notice', text: `Not sent: ${receipt.reason}` }
     return { type: 'sent' }
   }
   const [name = '', ...rest] = text.slice(1).split(' ')
