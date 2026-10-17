@@ -973,13 +973,18 @@
           "label": "Durable sessions",
           "to": "harness/durable-sessions",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-15"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "List, rename, and fork sessions",
           "to": "harness/sessions",
           "addedAt": "2026-10-13",
           "updatedAt": "2026-10-17"
+        },
+        {
+          "label": "Lifecycle and retention",
+          "to": "harness/lifecycle",
+          "addedAt": "2026-10-17"
         },
         {
           "label": "Run side effects once",
@@ -1122,7 +1127,7 @@
           "label": "Use MCP servers",
           "to": "harness/mcp",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-16"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Use from any MCP client",

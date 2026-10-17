@@ -72,7 +72,9 @@ For a list of sessions:
 - `POST sessions`: change a session with `{ op, threadId }`. The ops are `rename`, `update`, `delete`, `fork`, `share`, and `unshare`. See [List, rename, and fork sessions](./sessions) and [Share the thread](./shared-threads#2-share-the-thread).
 - `GET host-events`: the status changes and index changes of the sessions that this user can read, as SSE.
 
-A read of a thread that has no session answers `404`, and it starts no session. Only `GET run?threadId=` answers an empty thread, because `useChat` reads it before the first message.
+A read of a thread that does not exist answers `404`. Only `GET run?threadId=` answers an empty thread, because `useChat` reads it before the first message.
+
+The read paths read the thread without a session, so they set up no plugins and claim nothing. `GET describe` opens the session, because the plugins give the commands and the settings. For a read route of your own, use `host.observe`. See [Read a thread without a session](./lifecycle#read-a-thread-without-a-session).
 
 ## Cursors
 

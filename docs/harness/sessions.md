@@ -43,6 +43,8 @@ await session.send('Plan a trip to Lisbon.')
 console.log((await host.sessions.get({ threadId: 'chat-1' }))?.ownerId) // 'ada'
 ```
 
+`host.open` gives you a handle. When you are done with it, release it with `await session.close()`. Or open it with `await using`, which releases it at the end of the block. Then the session can close when it goes idle. See [Lifecycle and retention](./lifecycle#open-and-release-a-session).
+
 What an entry holds:
 
 - `title`: the name of the chat. Set it with `host.sessions.rename`, or from a plugin with `ctx.session.updateEntry({ title })`.
@@ -62,7 +64,7 @@ const durableHost = createHarnessHost({
 })
 ```
 
-- Without `stores.sessions`, `list` is empty, `get` returns `undefined`, and `rename`, `update`, and `delete` write nothing.
+- Without `stores.sessions`, `list` is empty, `get` returns `undefined`, and `rename` and `update` write nothing.
 - The store needs `getVersioned` and `upsertIf`, else `createHarnessHost` throws. The host changes an entry with compare-and-set, so two hosts never lose each other's changes.
 - To write your own store, read the [`SessionIndexStore` contract](../persistence/store-reference#sessionindexstore).
 
@@ -160,10 +162,10 @@ await host.sessions.delete({ threadId: 'chat-1' })
 ```
 
 - `rename` resolves to the changed entry. For a thread with no entry, it resolves to `undefined`.
-- `delete` removes the index entry for good. The transcript, the log, the media, and the settings of the thread stay in their stores.
-- After `delete`, the turns of the open session do not write the entry again. If the thread opens again after a restart, the host writes a new entry for it, with the user who opens it as the owner.
+- `delete` closes the sessions of the thread and of its child threads, for every handle. Then it deletes their data: the log or the messages, the index entry, the media, the settings, and the usage.
+- The next user who opens the same `threadId` starts empty. The host writes a new entry for the thread, with that user as the owner.
 
-`delete` closes the open session and removes the entry and the transcript, so the next user who opens the same `threadId` starts empty. Uploaded media and plugin data of the thread stay in their stores.
+For the full list of what `delete` removes, and what stays, see [Delete a thread for good](./lifecycle#delete-a-thread-for-good).
 
 ## Keep app data on a session
 

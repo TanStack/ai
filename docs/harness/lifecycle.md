@@ -1,0 +1,185 @@
+---
+title: Lifecycle and retention
+id: harness-lifecycle
+order: 4
+description: "Release session handles with await using, let idle sessions close, cap the open sessions, read a thread without a session, bound what each session keeps in memory, and delete a thread for good."
+keywords:
+  - tanstack ai
+  - harness
+  - lifecycle
+  - retention
+  - await using
+  - idle close
+  - delete
+---
+
+Your server opens a session for each request. Each open session holds its plugins, its MCP processes, and its recent events in memory. A server that never lets them go grows until it runs out of memory. The host closes the sessions that nobody uses, caps how many stay open, and bounds what each session keeps.
+
+## Open and release a session
+
+Each `host.open` gives you a handle: your own reference to the live session of the thread. When you are done with the handle, release it. With `await using`, the release runs at the end of the block:
+
+```ts group=harness-lifecycle
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { memoryPersistence } from '@tanstack/ai-persistence'
+import { openaiText } from '@tanstack/ai-openai'
+
+export const assistant = defineHarness({
+  name: 'acme/assistant',
+  adapter: openaiText('gpt-6.1-sol'),
+})
+
+const host = createHarnessHost({ persistence: memoryPersistence() })
+
+export async function reply(threadId: string, message: string) {
+  await using session = await host.open(assistant, { threadId })
+  const turn = await session.send(message)
+  return turn.text
+}
+```
+
+- The handles of one thread share one live session. A release lets go of this handle only.
+- `await session.close()` also releases the handle. A second call does nothing.
+- A release does not stop work. A turn that runs goes on until it ends.
+- If you drop a handle with no release, the garbage collector releases it, and the host logs one warning.
+- A call on a handle after its session closed opens the session again. On a host with [`access`](./access), `authorize` checks that call again.
+
+## When a session closes
+
+The host closes a session when no handle holds it and it was idle for `lifecycle.idleCloseMs`. Set the limits on the host:
+
+```ts group=harness-lifecycle
+const busyHost = createHarnessHost({
+  persistence: memoryPersistence(),
+  lifecycle: { idleCloseMs: 30_000, maxOpen: 200 },
+})
+```
+
+- `idleCloseMs`: how long an idle session with no handle stays open, in milliseconds. The default is 60 000. `0` closes it at once.
+- `maxOpen`: how many sessions the host keeps open. The default is 500. An open past the limit first closes the least recently used sessions that are idle and that no handle holds.
+- If every open session is busy or held, the open goes on, and the host logs one warning.
+- A close cleans up the plugins of the session. The transcript and the other data stay in the stores, so the next open continues the thread.
+- The idle timer does not keep the Node process alive.
+
+A plugin with `lifetime: 'host'` stays set up while another session uses it. See [Share one setup between sessions](./plugins#share-one-setup-between-sessions).
+
+## Stop the host
+
+`host.close()` closes every session of the host, for every handle. Then `host.open` throws:
+
+```ts group=harness-lifecycle
+await busyHost.close()
+```
+
+- Without options, the running work is cancelled.
+- With `recoverable: true`, the running work stops, and the next host that opens the thread runs it again. Use it on a durable host that stops for a deploy. See [Stop a host for a deploy](./durable-sessions#stop-a-host-for-a-deploy).
+- After the close, a call on a handle throws. `snapshot()` still gives the last state.
+- The close also ends the event reads of each [view](#read-a-thread-without-a-session), and `host.observe` throws from then on.
+
+## Read a thread without a session
+
+A preview route or a status page only reads a thread. An open sets up every plugin, can start MCP processes, and claims the thread for work. `host.observe` reads the thread and opens no session.
+
+On the server, read the transcript in your route:
+
+```ts group=harness-lifecycle-observe
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { memoryPersistence } from '@tanstack/ai-persistence'
+import { openaiText } from '@tanstack/ai-openai'
+
+const assistant = defineHarness({
+  name: 'acme/assistant',
+  adapter: openaiText('gpt-6.1-sol'),
+})
+const host = createHarnessHost({ persistence: memoryPersistence() })
+
+export async function GET(request: Request) {
+  const threadId = new URL(request.url).searchParams.get('threadId')
+  if (!threadId) return new Response('Missing threadId', { status: 400 })
+  const view = await host.observe(assistant, { threadId })
+  return Response.json(await view.transcript())
+}
+```
+
+In the browser, fetch the route:
+
+```ts group=harness-lifecycle-observe-client
+const response = await fetch('/api/preview?threadId=chat-1')
+console.log(await response.json())
+```
+
+On a host with `access`, pass the `principal` of the request. The thread needs the `read` action, else `observe` throws `AccessDeniedError`. A thread with no index entry gets the same error, so a read creates no thread.
+
+What the view reads for the chat:
+
+- `transcript()`: the saved messages.
+- `snapshot()`: the status and the waiting approvals. When the session is open on this host, it also has the running operations.
+- `events({ from, signal })`: the events of the thread after a cursor. On a host with no log, only an open session on this host has events.
+- `agentTranscript(id)`: the messages of one child agent run.
+
+What the view reads for the rest:
+
+- `getMedia(id)` and `loadMedia({ id, range })`: a media file and its bytes.
+- `usage()`: the token totals of the thread.
+- `entry()`: the index entry of the thread.
+- `logState()`: the fold of the log, on a durable host.
+
+The view sets up no plugins, writes nothing, and claims nothing. When the session is open on this host, the view reads through it, but it never holds the session open. The read paths of [`createHarnessHandler`](./connect) use the view, so a client that only reads starts no plugins. `GET describe` opens the session, because the plugins give the commands and the settings.
+
+## Bound what a session keeps in memory
+
+A thread can run for weeks. Each turn and each agent run that settles leaves its receipt, its result, and its events in memory. `lifecycle.retention` keeps a window of each and drops the oldest:
+
+```ts group=harness-lifecycle
+const leanHost = createHarnessHost({
+  persistence: memoryPersistence(),
+  lifecycle: {
+    retention: { settledOperations: 200, settledAgentRuns: 100, eventBytes: 2_000_000 },
+  },
+})
+```
+
+| Limit | Default | Past the limit |
+| --- | --- | --- |
+| `settledOperations` | 500 | `session.operation(id)` is `undefined` for the oldest settled turns, commands, and resets. |
+| `settledAgentRuns` | 500 | `session.agentRun(id)` and `session.agentRuns()` leave out the oldest settled agent runs. |
+| `eventBytes` | 8 000 000 | `session.events()` keeps the newest events, by the JSON length of each event. A reader with an older cursor starts at the oldest event kept. |
+
+On a durable host (`stores.log`), the log keeps what memory drops:
+
+- `session.settled(inputId)` of an old input reads the log.
+- `agentRun(id)` and `agentRuns()` also find the runs in the log.
+- `events({ from })` reads the older events from the log.
+- `eventBytes` also bounds the log tail that the host keeps in memory.
+
+On a host without a log, a message to an agent run that left the window gets `not_running`.
+
+## Delete a thread for good
+
+A user deletes a chat, and its data must go with it:
+
+```ts group=harness-lifecycle
+await leanHost.sessions.delete({ threadId: 'chat-1' })
+```
+
+First, `delete` closes the sessions of the thread and of its child threads, for every handle. The host finds the children through the `parentThreadId` of their index entries. Then it deletes this data of each thread:
+
+- The log. On a host without a log, the messages.
+- The index entry.
+- The uploaded media and the generated artifacts.
+- The thread settings, the plugin config, and the interrupted turn.
+- The usage totals and the revert data.
+
+These stay in their stores: plugin state, run records, interrupts, the inbox, and work claims. To remove them, delete them in your own stores.
+
+- On a host with `access`, `delete` needs the `delete` action. A child thread is checked through its root thread.
+- A handle that calls again after the delete opens a new, empty thread.
+- `host.events()` yields a `session-deleted` event. See [Show a live status](./sessions#show-a-live-status).
+
+## What you have now
+
+- Handles that release at the end of a block, so idle sessions close by themselves.
+- A cap on the open sessions of a host.
+- Read routes that start no plugins and claim no thread.
+- Sessions that keep a bounded window in memory, also after weeks of turns.
+- A delete that removes the data of a thread and its children.

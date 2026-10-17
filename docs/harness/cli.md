@@ -70,7 +70,39 @@ Line mode reads one message or command per line and waits for each turn. It work
 | 0 | The turn finished. |
 | 1 | The turn failed. |
 | 2 | The turn waits for an approval. |
-| 130 | The turn was cancelled. |
+| 130 | The turn was cancelled, or SIGINT (Ctrl+C) stopped the CLI. |
+| 143 | SIGTERM cancelled the turn or stopped the CLI. |
+
+The codes 130 and 143 apply in every mode. See [Stop with Ctrl+C](#stop-with-ctrlc).
+
+## Stop with Ctrl+C
+
+Ctrl+C works the same in every mode:
+
+- The first Ctrl+C (SIGINT) or SIGTERM cancels the running turn.
+- A second one, or one while no turn runs, stops the CLI. `runCli` resolves to 130 for SIGINT, and to 143 for SIGTERM.
+- When the CLI made the host, it closes the host with `recoverable: true`. A durable host then runs the cut work again.
+- When you gave the CLI your own `host`, the CLI releases only its session handle. Your host stays open.
+
+The CLI hears the signals on `process`. To send them yourself, for example in a test, pass a `signals` source. An `EventEmitter` works:
+
+```ts group=harness-cli-signals
+import { EventEmitter } from 'node:events'
+import { defineHarness } from '@tanstack/ai-harness'
+import { runCli } from '@tanstack/ai-harness-cli'
+import { openaiText } from '@tanstack/ai-openai'
+
+const assistant = defineHarness({
+  name: 'acme/assistant',
+  adapter: openaiText('gpt-6.1-sol'),
+})
+
+const signals = new EventEmitter()
+const exit = runCli(assistant, { argv: ['-p', 'Write a long story.'], signals })
+// No turn runs yet, so this stops the CLI.
+signals.emit('SIGTERM')
+console.log(await exit) // 143
+```
 
 ## Serve over HTTP safely
 
@@ -108,7 +140,7 @@ await host.close()
 ```
 
 - You own the host, so the CLI does not close it. Close it yourself when `runCli` returns. Without `host`, the CLI builds a host and closes it.
-- Give `host` or `persistence`, not both. With both, `runCli` writes `Give runCli a host or persistence, not both.` and returns code 1.
+- Give `host`, or `persistence` and `credentials`, not both. With both, `runCli` writes `Give runCli a host, or persistence and credentials, not both.` and returns code 1.
 - Line mode, `-p`, your own `ui`, `--acp`, and `--mcp` open their sessions as `principal`, so `/connect` saves keys for that user.
 - `--serve` checks the token first. On a host without `access`, each request then runs as `principal`. On a host with [`access`](./access), `identify` reads the user of each request.
 - On a host with `access`, give `principal` too. `--mcp` does not start on such a host, because stdio has no login. `--dashboard` opens its sessions without the principal.
@@ -185,6 +217,7 @@ For an Ink screen with approvals, questions, sign-ins, and child agents, copy [`
 
 - One entry file that runs your harness as a terminal app, a script step, an editor agent, an MCP server, or an HTTP server.
 - A CLI that uses your durable host and runs as your user.
+- A Ctrl+C that cancels the turn first, then stops with exit code 130.
 - Your own terminal screen on the same session, with any TUI library.
 - Files that you send with `@path`, and a folder with the media that your agents make.
 
