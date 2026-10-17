@@ -376,8 +376,8 @@ describe('adapter override and credentials', () => {
         commands: {
           token: defineCommand({
             description: 'Read the GitHub token',
-            run: async () => {
-              const credential = await ctx.credentials.require('github')
+            run: async (_input, { credentials }) => {
+              const credential = await credentials.require('github')
               token =
                 credential.type === 'oauth'
                   ? credential.accessToken

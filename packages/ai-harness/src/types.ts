@@ -6,11 +6,13 @@ import type {
   KeyedAdapter,
   ModelMessage,
   PromptCacheOptions,
+  ProviderKeys,
   ReasoningOption,
   RunAgentResumeItem,
   StreamChunk,
 } from '@tanstack/ai'
 import type { LogRecord } from '@tanstack/ai-persistence'
+import type { CredentialsAccess } from './auth'
 import type { UsageCounts } from './usage'
 
 /** A user message: plain text, or content parts (text, images, files). */
@@ -415,6 +417,51 @@ export interface Principal {
 }
 
 /**
+ * One run of a session: a chat turn, an agent run, or a command. Each run has
+ * its own user, so a tool of one run never gets the credentials of another
+ * run that runs at the same time.
+ *
+ * Tools and middleware read it as `ctx.context.run`. Type them with
+ * {@link HarnessRunContext}. A turn plugin reads it as `ctx.turn.run`, and a
+ * command as `ctx.run`.
+ *
+ * @example
+ * ```ts
+ * const listIssues = toolDefinition({ name: 'list_issues', description: 'List issues' })
+ *   .server<HarnessRunContext>(async (_args, ctx) => {
+ *     const credential = await ctx.context.run.credentials.require('github')
+ *     return fetchIssues(credential)
+ *   })
+ * ```
+ */
+export interface RunContext {
+  /** The tenant of the session. */
+  tenantId?: string
+  /** The user who started this run. `undefined` in a session with no user. */
+  principal: { id: string; tenantId?: string } | undefined
+  /** The log of the session. */
+  logId: string
+  threadId: string
+  /** The operation id of this run. */
+  runId: string
+  /** The run that this run continues or that started it, when there is one. */
+  parentRunId?: string
+  /** Aborts when this run stops. */
+  signal: AbortSignal
+  /** The credentials of the user of this run. */
+  credentials: CredentialsAccess
+  /** The model provider keys of the user of this run. */
+  keys: ProviderKeys
+}
+
+/**
+ * The part of the runtime context that the harness adds to every chat call
+ * of a run. Use it as the context type of a tool or a middleware:
+ * `.server<HarnessRunContext>(...)`, `ChatMiddleware<HarnessRunContext>`.
+ */
+export type HarnessRunContext = { run: RunContext }
+
+/**
  * A chat turn as plugins and the router see it: the input that started it,
  * and who sent it.
  */
@@ -431,6 +478,8 @@ export interface TurnInfo {
   principal?: Principal
   /** The settings of this turn only. Not kept after a restart. */
   overrides?: TurnOverrides
+  /** The run of this turn: its user, and that user's credentials and keys. */
+  run: RunContext
 }
 
 /** What a chat turn operation resolves to. */

@@ -72,8 +72,8 @@ export interface AgentStartOptions extends AgentRunOptions {
   resume?: boolean
   /**
    * Who starts the agent. The run, its credentials, and its wake turn are
-   * theirs. Default: the sender of the running turn, else the principal that
-   * opened the session.
+   * theirs. Default: the principal that opened the session. In a tool, pass
+   * the user of the tool call: `ctx.context.run.principal`.
    */
   principal?: Principal
 }

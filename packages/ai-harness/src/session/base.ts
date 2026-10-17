@@ -16,6 +16,7 @@ import {
   onUsageOf,
 } from '../feed'
 import { createMediaStore } from '../media'
+import { SESSION_PLUGIN_CREDENTIALS, SESSION_PLUGIN_KEYS } from '../plugins'
 import { LEASE } from '../resume'
 import { HARNESS_EVENTS } from '../types'
 import { emptyUsage } from '../usage'
@@ -25,6 +26,7 @@ import {
   customEvent,
   cacheObject,
   scopeOf,
+  storedPrincipal,
   notOpenMessages,
   tapFeed,
 } from './helpers'
@@ -74,9 +76,11 @@ import type {
   Operation,
   Principal,
   Receipt,
+  RunContext,
   SessionEvent,
   ThreadSettings,
   SendOptions,
+  TurnInfo,
 } from '../types'
 import type {
   AgentRunOptions,
@@ -272,8 +276,6 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected readonly stateWrites = new Map<string, Promise<unknown>>()
   /** The revert that stands. See `revert`. */
   protected reverted: RevertState | undefined
-  /** The credentials of the running turn's sender, else of the session's principal. */
-  protected readonly credentialAccess: CredentialsAccess
   /** Each secret value a credentials access of this session handed out. */
   protected readonly secrets = new Set<string>()
   /**
@@ -282,19 +284,20 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    */
   protected readonly declinedSignIns = new Set<string>()
   /**
-   * Model provider keys of the same principal as `credentialAccess`: saved
-   * with `/connect <provider>`, else the env var.
-   */
-  protected readonly keys: ProviderKeys
-  /**
-   * The credentials of one principal: the user who runs a command, or an
-   * agent that outlives a turn. A save there can answer that user's sign-ins.
+   * The credentials of one principal: the user of a run. A save there can
+   * answer that user's sign-ins. With `canWait`, a `require` with `wait` can
+   * stop the run for the sign-in.
    */
   protected readonly credentialsOf: (
     principal: Principal | undefined,
+    canWait?: (id: string) => boolean,
   ) => CredentialsAccess
-  /** The provider keys of one principal, for an agent that outlives a turn. */
+  /**
+   * The model provider keys of one principal: saved with
+   * `/connect <provider>`, else the env var.
+   */
   protected readonly keysOf: (principal: Principal | undefined) => ProviderKeys
+  /** What session plugins get. A turn plugin gets `pluginServices(turn)`. */
   protected readonly services: PluginServices
   protected readonly media: SessionDependencies['media']
   protected readonly mediaStore: MediaStore
@@ -338,71 +341,20 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
           ...(error.url ? { url: error.url } : {}),
         }),
       )
-    // The scope is read at each call, so it follows the running turn.
-    this.credentialAccess = credentialsFor(
-      deps.credentials,
-      () => scopeOf(deps.threadId, this.sender()),
-      onMissing,
-      {
-        // A tool of a running turn can wait, unless the user cancelled the
-        // sign-in for this turn.
-        canWait: (id) =>
-          this.activeTurn !== undefined && !this.declinedSignIns.has(id),
-        onSet: () => this.resumeSignIns(),
-        secrets: this.secrets,
-      },
-    )
-    this.keys = providerKeysFor(this.credentialAccess, onMissing, this.secrets)
-    this.credentialsOf = (principal) =>
+    this.credentialsOf = (principal, canWait) =>
       credentialsFor(
         deps.credentials,
         scopeOf(deps.threadId, principal),
         onMissing,
-        { onSet: () => this.resumeSignIns(), secrets: this.secrets },
+        {
+          ...(canWait ? { canWait } : {}),
+          onSet: () => this.resumeSignIns(),
+          secrets: this.secrets,
+        },
       )
     this.keysOf = (principal) =>
       providerKeysFor(this.credentialsOf(principal), onMissing, this.secrets)
-    this.services = {
-      emit: (plugin, name, value) => this.emitPluginEvent(plugin, name, value),
-      on: (name, handler) => {
-        let set = this.listeners.get(name)
-        if (!set) {
-          set = new Set()
-          this.listeners.set(name, set)
-        }
-        set.add(handler)
-        return () => set.delete(handler)
-      },
-      config: { get: (key) => this.configValue(key) },
-      state: (plugin, initial) => this.pluginState(plugin, initial),
-      credentials: this.credentialAccess,
-      keys: this.keys,
-      session: this.pluginApi(),
-      sessionWith: (metadataSchema) =>
-        this.pluginApi(undefined, metadataSchema),
-      agents: {
-        run: ((target: string | AnyAgent, input?: unknown) =>
-          this.runAgent(target, input, {
-            wake: false,
-          })) as PluginAgentActions['run'],
-        start: ((
-          target: string | AnyAgent,
-          input?: unknown,
-          options?: AgentStartOptions,
-        ) =>
-          this.runAgent(
-            target,
-            input,
-            options ?? {},
-          )) as PluginAgentActions['start'],
-        group: (options, body) => this.agentGroup(options, body),
-      },
-      commandsChanged: () =>
-        this.feed.publish(
-          'session',
-          customEvent(HARNESS_EVENTS.commandsChanged, {}),
-        ),
-    }
+    this.services = this.pluginServices()
     this.registry = this.agentRegistry
     for (const agent of this.harness.agents ?? []) {
       this.agentRegistry.add(agent, 'the harness')
@@ -577,10 +529,98 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
 
   /**
    * Who sent the input of the running turn, else the principal that opened
-   * the session. Turns run one at a time, so one value is enough.
+   * the session. Turns run one at a time, so one value is enough. It never
+   * picks credentials or keys: those come from the run context of each run.
    */
   protected sender(): Principal | undefined {
     return this.turnPrincipal ?? this.principal
+  }
+
+  /**
+   * The run context of one run: the user who started it, and the
+   * credentials and provider keys of that user. `canWait` says if a sign-in
+   * wait of a tool can stop this run now.
+   */
+  protected runContext(options: {
+    principal: Principal | undefined
+    runId: string
+    parentRunId?: string
+    signal: AbortSignal
+    canWait?: (id: string) => boolean
+  }): RunContext {
+    const { principal } = storedPrincipal(options.principal)
+    return {
+      ...(principal?.tenantId ? { tenantId: principal.tenantId } : {}),
+      principal,
+      logId: this.logId,
+      threadId: this.threadId,
+      runId: options.runId,
+      ...(options.parentRunId ? { parentRunId: options.parentRunId } : {}),
+      signal: options.signal,
+      credentials: this.credentialsOf(options.principal, options.canWait),
+      keys: this.keysOf(options.principal),
+    }
+  }
+
+  /**
+   * What plugins get from the session. A session plugin has no user: its
+   * `credentials` and `keys` throw, its `session.principal` is the principal
+   * that opened the session, and its agents run for that principal. A turn
+   * plugin gets its `turn`: they are all of the run of that turn.
+   */
+  protected pluginServices(turn?: TurnInfo): PluginServices {
+    const principal = turn?.principal
+    const operationId = turn?.operationId
+    return {
+      emit: (plugin, name, value) => this.emitPluginEvent(plugin, name, value),
+      on: (name, handler) => {
+        let set = this.listeners.get(name)
+        if (!set) {
+          set = new Set()
+          this.listeners.set(name, set)
+        }
+        set.add(handler)
+        return () => set.delete(handler)
+      },
+      config: { get: (key) => this.configValue(key) },
+      state: (plugin, initial) => this.pluginState(plugin, initial),
+      credentials: turn?.run.credentials ?? SESSION_PLUGIN_CREDENTIALS,
+      keys: turn?.run.keys ?? SESSION_PLUGIN_KEYS,
+      session: this.pluginApi(principal, undefined, operationId),
+      sessionWith: (metadataSchema) =>
+        this.pluginApi(principal, metadataSchema, operationId),
+      agents: this.pluginAgents(principal),
+      commandsChanged: () =>
+        this.feed.publish(
+          'session',
+          customEvent(HARNESS_EVENTS.commandsChanged, {}),
+        ),
+    }
+  }
+
+  /**
+   * `ctx.agents` of a plugin. The runs are for `principal`, else for the
+   * principal that opened the session. A `principal` option of `start` wins.
+   */
+  protected pluginAgents(principal?: Principal): PluginAgentActions {
+    const user = principal ? { principal } : {}
+    return {
+      run: ((target: string | AnyAgent, input?: unknown) =>
+        this.runAgent(target, input, {
+          ...user,
+          wake: false,
+        })) as PluginAgentActions['run'],
+      start: ((
+        target: string | AnyAgent,
+        input?: unknown,
+        options?: AgentStartOptions,
+      ) =>
+        this.runAgent(target, input, {
+          ...user,
+          ...options,
+        })) as PluginAgentActions['start'],
+      group: (options, body) => this.agentGroup(options, body, principal),
+    }
   }
 
   protected emitPluginEvent(
@@ -831,9 +871,10 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     const input = entry.input as HarnessInput
     const { inputId } = entry
     const principal = entry.principal
+    const user = principal ? { principal } : {}
     const sent = {
       inputId,
-      ...(principal ? { principal } : {}),
+      ...user,
       ...('context' in input && input.context !== undefined
         ? { context: input.context }
         : {}),
@@ -888,13 +929,18 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
           }),
         )
       case 'cancel':
-        return session.cancel({ operationId: input.operationId, inputId })
+        return session.cancel({
+          operationId: input.operationId,
+          inputId,
+          ...user,
+        })
       case 'cancelInput':
-        return session.cancelInput(input.inputId)
+        return session.cancelInput(input.inputId, user)
       case 'setDelivery':
         return session.setDelivery({
           inputId: input.inputId,
           delivery: input.delivery,
+          ...user,
         })
       case 'command':
         return settle(
@@ -902,7 +948,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
             name: input.name,
             input: input.input,
             inputId,
-            ...(principal ? { principal } : {}),
+            ...user,
           }),
         )
       case 'answer':
@@ -910,12 +956,14 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
           questionId: input.questionId,
           value: input.value,
           inputId,
+          ...user,
         })
       case 'config':
         return session.setConfig({
           key: input.key,
           value: input.value,
           inputId,
+          ...user,
         })
       case 'tool':
         return stored(
@@ -924,7 +972,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
             name: input.name,
             args: input.args as never,
             inputId,
-            ...(principal ? { principal } : {}),
+            ...user,
             ...(input.meta ? { meta: input.meta } : {}),
           }),
         )
@@ -1172,6 +1220,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected abstract agentGroup<T>(
     options: { onFailure?: 'cancel-siblings' | 'collect' },
     body: (group: AgentGroup) => Promise<T>,
+    principal?: Principal,
   ): Promise<T>
   protected abstract pluginApi(
     principal?: Principal,

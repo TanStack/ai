@@ -20,7 +20,7 @@ import {
   refreshCredential,
 } from '../src/oauth'
 import { mockAdapter, text, toolCall } from './helpers'
-import type { SessionEvent } from '../src'
+import type { HarnessRunContext, SessionEvent } from '../src'
 import type { OAuthConfig } from '../src/oauth'
 
 const oauth: OAuthConfig = {
@@ -199,8 +199,8 @@ describe('oauthConnector', () => {
         toolDefinition({
           name: 'list_issues',
           description: 'List issues',
-        }).server(async () => {
-          seenTokens.push(await token())
+        }).server<HarnessRunContext>(async (_args, ctx) => {
+          seenTokens.push(await token({ run: ctx.context.run }))
           return ['#1']
         }),
       ],

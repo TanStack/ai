@@ -25,6 +25,7 @@ import type {
   MediaKind,
   OperationStatus,
   Principal,
+  RunContext,
   ThreadSettings,
 } from '../types'
 import type {
@@ -242,6 +243,31 @@ export function turnContext(harness: unknown, input: unknown) {
   }
   return harness !== undefined ? harness : input
 }
+
+/**
+ * The chat() context of a run: `context` with the server's `run`. A `run`
+ * key that a client sent is replaced.
+ */
+export function withRun(context: unknown, run: RunContext) {
+  if (context === undefined || context === null) return { run }
+  // ponytail: a context that is not a plain object (a class instance, an
+  // array, a string) stays as it is, with no `run`: a copy would lose its
+  // prototype. Tools that read `ctx.context.run` then fail. Wrap such a
+  // value in a plain object if a harness needs both.
+  return isPlainObject(context) ? { ...context, run } : context
+}
+
+/**
+ * Middleware that gives each chat() call of an agent run the run context,
+ * as `ctx.context.run`. A tool reads the context when it runs, so it gets it
+ * too. A nested child gets this middleware from the binding as well.
+ */
+export const runMiddleware = (run: RunContext): AnyChatMiddleware => ({
+  name: 'harness:run-context',
+  setup: (ctx) => {
+    ctx.context = withRun(ctx.context, run)
+  },
+})
 
 /** Where `stores.metadata` keeps the stored settings of each thread. */
 export const SETTINGS = 'harness:settings'

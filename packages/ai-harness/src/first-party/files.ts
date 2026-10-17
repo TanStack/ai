@@ -291,7 +291,7 @@ export async function readMarkdownFiles(dir: string) {
 export function fileCommands(options: { dir: string }) {
   return definePlugin({
     name: 'tanstack/file-commands',
-    setup: async (ctx) => {
+    setup: async () => {
       const files = await readMarkdownFiles(options.dir)
       const commands: Record<string, AnyCommand> = {}
       for (const { name, fields, body } of files) {
@@ -301,14 +301,15 @@ export function fileCommands(options: { dir: string }) {
             typeof description === 'string' && description !== ''
               ? description
               : `Run ${name}.md`,
-          run: (input: unknown) => {
+          // The prompt runs as the user who runs the command.
+          run: (input: unknown, { session }) => {
             const args =
               typeof input === 'string'
                 ? input
                 : input === undefined
                   ? ''
                   : JSON.stringify(input)
-            ctx.session.send(body.split('$ARGUMENTS').join(args).trim())
+            session.send(body.split('$ARGUMENTS').join(args).trim())
             return `Sent /${name}.`
           },
         })

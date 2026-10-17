@@ -6,6 +6,7 @@ import type {
   AnyCommand,
   PluginPrompt,
   PluginSessionApi,
+  TurnInfo,
 } from '@tanstack/ai-harness'
 import type { OnElicit } from './client'
 import type { AskInput } from './tools'
@@ -162,7 +163,7 @@ export function mcp(options: {
           const isOAuth = server.type === 'http' && server.oauth === true
           if (!isOAuth) {
             const connecting = connect(name, server)
-            return () => connecting
+            return (_turn: TurnInfo) => connecting
           }
           // Loaded here: the connector needs node:crypto and node:http.
           const { mcpConnector } = await import('./connector')
@@ -177,11 +178,12 @@ export function mcp(options: {
           prompts.push(...connector.prompts)
           // The sign-in belongs to the sender of the turn, so the status is
           // the one of the last turn.
-          return async () => {
+          return async (turn: TurnInfo) => {
             try {
-              const tools = await connector.discoverTools()
+              const tools = await connector.discoverTools(turn)
               const signedIn =
-                tools.length > 0 || (await ctx.credentials.get(name)) !== null
+                tools.length > 0 ||
+                (await turn.run.credentials.get(name)) !== null
               await setStatus(
                 signedIn
                   ? { name, status: 'connected', toolCount: tools.length }
@@ -210,8 +212,8 @@ export function mcp(options: {
       return {
         commands,
         prompts,
-        discoverTools: async () => {
-          const found = await Promise.all(lists.map((list) => list()))
+        discoverTools: async (turn) => {
+          const found = await Promise.all(lists.map((list) => list(turn)))
           return found.flat()
         },
       }

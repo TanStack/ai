@@ -3,8 +3,9 @@ import { defineCommand } from '../commands'
 import { createPluginEvent } from '../extensions'
 import { definePlugin } from '../plugins'
 import { textOf, transcriptText } from './session-tools'
-import type { AnyTextAdapter, KeyedAdapter } from '@tanstack/ai'
-import type { ChatTurnResult, Operation } from '../types'
+import type { AnyTextAdapter, ChatMiddleware, KeyedAdapter } from '@tanstack/ai'
+import type { PluginSessionApi } from '../commands'
+import type { ChatTurnResult, HarnessRunContext, Operation } from '../types'
 
 /** The goal of a session. It is plugin state, so it survives restarts. */
 export interface Goal {
@@ -120,8 +121,15 @@ export function goal(options: {
       // The turn the plugin queued, until it starts.
       let queuedTurn: Operation<ChatTurnResult> | undefined
 
-      const queue = (message: string) => {
-        queuedTurn = ctx.session.send(message)
+      /**
+       * Queue the next turn of the goal. `/goal` passes its own session, so
+       * the turn runs as the user who runs it.
+       */
+      // ponytail: D9. From `onFinish`, `ctx.session.send` runs as the sender
+      // of the running turn: the goal's own turn there. PR 7 rebuilds send
+      // on the run that calls.
+      const queue = (message: string, session = ctx.session) => {
+        queuedTurn = session.send(message)
       }
 
       /** Cancel the queued turn if it has not started. */
@@ -144,7 +152,11 @@ export function goal(options: {
       }
 
       /** Make `text` the active goal with a new round count, and start a turn. */
-      const begin = async (text: string, reason: string) => {
+      const begin = async (
+        text: string,
+        reason: string,
+        session: PluginSessionApi,
+      ) => {
         const message =
           reason === ''
             ? `Work toward this goal: ${text}`
@@ -160,7 +172,7 @@ export function goal(options: {
           note: '',
           queued: message,
         }))
-        queue(message)
+        queue(message, session)
       }
 
       /** Pause the goal when the plugin's own turn ends early. */
@@ -170,13 +182,14 @@ export function goal(options: {
         await change(current.text, { status: 'paused', note })
       }
 
-      const judge = async (text: string) => {
+      /** Check the goal with the keys of the user of the turn. */
+      const judge = async (text: string, { run }: HarnessRunContext) => {
         // ponytail: the last 10 messages, clipped. Summarize first if a judge needs more.
         const transcript = transcriptText(
           (await ctx.session.transcript()).slice(-10),
         ).slice(-8000)
         const verdict = await chat({
-          adapter: await ctx.keys.adapter(options.judge),
+          adapter: await run.keys.adapter(options.judge),
           messages: [
             {
               role: 'user',
@@ -211,7 +224,7 @@ export function goal(options: {
           goal: defineCommand({
             description:
               'Work until a goal is met: /goal <goal>. Also /goal, /goal stop, /goal resume',
-            run: async (input: unknown) => {
+            run: async (input: unknown, { session }) => {
               const arg = typeof input === 'string' ? input.trim() : ''
               switch (arg) {
                 case '':
@@ -245,11 +258,11 @@ export function goal(options: {
                     current?.status === 'stopped'
                   if (!current || !canResume)
                     return describe(current, maxRounds)
-                  await begin(current.text, current.reason)
+                  await begin(current.text, current.reason, session)
                   return describe(current, maxRounds)
                 }
                 default:
-                  await begin(arg, '')
+                  await begin(arg, '', session)
                   return describe(current, maxRounds)
               }
             },
@@ -301,8 +314,9 @@ export function goal(options: {
               if (run.runId !== ownRun || saved?.status !== 'active') return
               ownRun = undefined
               const { text, round } = saved
-              const verdict = await judge(text).catch((error: unknown) =>
-                error instanceof Error ? error.message : String(error),
+              const verdict = await judge(text, run.context).catch(
+                (error: unknown) =>
+                  error instanceof Error ? error.message : String(error),
               )
               if (typeof verdict === 'string') {
                 await change(text, {
@@ -338,7 +352,7 @@ export function goal(options: {
               if (await change(text, { reason, queued: message }))
                 queue(message)
             },
-          },
+          } satisfies ChatMiddleware<HarnessRunContext>,
         ],
       }
     },

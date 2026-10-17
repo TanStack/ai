@@ -286,18 +286,28 @@ export abstract class SessionState<
     return result
   }
 
-  /** Change a session setting. It applies at the next turn. */
+  /**
+   * Change a session setting. It applies at the next turn. `principal` is
+   * who changes it. Default: the principal that opened the session. The log
+   * keeps it.
+   */
   async setConfig({
     key,
     value,
     inputId = createInputId(),
+    principal,
   }: {
     key: string
     value: unknown
     /** @internal The id of a forwarded input, so a replay is a duplicate. */
     inputId?: string
+    principal?: Principal
   }): Promise<Receipt> {
-    const admission = await this.accept(inputId, { op: 'config', key, value })
+    const admission = await this.accept(
+      inputId,
+      { op: 'config', key, value },
+      principal,
+    )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const entry = this.sessionPlugins?.config.get(key)
     if (!entry) return this.reject(inputId, 'unknown_config')
@@ -621,16 +631,21 @@ export abstract class SessionState<
     } satisfies SessionDescription
   }
 
-  /** Answer a question from `ctx.session.ask`. */
+  /**
+   * Answer a question from `ctx.session.ask`. `principal` is who answers.
+   * Default: the principal that opened the session. The log keeps it.
+   */
   async answer({
     questionId,
     value,
     inputId = createInputId(),
+    principal,
   }: {
     questionId: string
     value: unknown
     /** @internal The id of a forwarded input, so a replay is a duplicate. */
     inputId?: string
+    principal?: Principal
   }): Promise<Receipt> {
     // A secret (a key or a password) stays out of the inbox and the log. A
     // restart does not replay an answer, so they never need it. A host that
@@ -638,11 +653,15 @@ export abstract class SessionState<
     // entry of the answer after it applies it.
     const isSecret = this.questions.get(questionId)?.secret === true
     // A host that does not have the question passes the value on to its owner.
-    const admission = await this.accept(inputId, {
-      op: 'answer',
-      questionId,
-      value: isSecret ? '[secret]' : value,
-    })
+    const admission = await this.accept(
+      inputId,
+      {
+        op: 'answer',
+        questionId,
+        value: isSecret ? '[secret]' : value,
+      },
+      principal,
+    )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const question = this.questions.get(questionId)
     if (!question) return this.reject(inputId, 'unknown_question')

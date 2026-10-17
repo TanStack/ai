@@ -228,9 +228,11 @@ export async function applyInput({
   input: HarnessInput
   principal?: Principal
 }): Promise<Receipt> {
+  // The log keeps who sent each input, for every input kind.
+  const user = principal ? { principal } : {}
   const id = {
     ...(input.inputId === undefined ? {} : { inputId: input.inputId }),
-    ...(principal ? { principal } : {}),
+    ...user,
   }
   const sent = {
     ...id,
@@ -280,16 +282,18 @@ export async function applyInput({
     case 'resolve':
       return session.resolve({ resume: input.resume, ...id })
     case 'cancel':
-      return session.cancel({ operationId: input.operationId })
-    // It runs no new code, so it needs no `expose` entry, like `cancel`.
+      return session.cancel({ operationId: input.operationId, ...user })
+    // It runs no new code, so it needs no `expose` entry, like `cancel`. It
+    // stores no input, so there is no sender to keep.
     case 'background':
       return session.background(input.toolCallId)
     case 'cancelInput':
-      return session.cancelInput(input.inputId)
+      return session.cancelInput(input.inputId, user)
     case 'setDelivery':
       return session.setDelivery({
         inputId: input.inputId,
         delivery: input.delivery,
+        ...user,
       })
     case 'command': {
       // A command can change the session, for example `/mode bypass`.
@@ -299,7 +303,7 @@ export async function applyInput({
       const operation = session.command({
         name: input.name,
         input: input.input,
-        ...(principal ? { principal } : {}),
+        ...user,
       })
       operation.then(
         () => {},
@@ -315,12 +319,13 @@ export async function applyInput({
       return session.answer({
         questionId: input.questionId,
         value: input.value,
+        ...user,
       })
     case 'config':
       if (!(harness.expose?.config ?? []).includes(input.key)) {
         return notExposed
       }
-      return session.setConfig({ key: input.key, value: input.value })
+      return session.setConfig({ key: input.key, value: input.value, ...user })
     case 'tool': {
       if (!(harness.expose?.tools ?? []).includes(input.name)) {
         return notExposed
@@ -380,8 +385,10 @@ export async function applyInput({
       if (!handle) {
         return { inputId: '', status: 'rejected', reason: 'unknown_agent' }
       }
+      // The run is the client's: its credentials and keys are theirs.
       const operation = handle.start(input.input, {
         wake: input.detached === true,
+        ...user,
       })
       return {
         inputId: operation.id,

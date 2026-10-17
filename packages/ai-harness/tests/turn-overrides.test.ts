@@ -509,7 +509,13 @@ describe('turn overrides: plugin adapter picker', () => {
 
     expect(await turn).toEqual({ text: 'turn', media: [] })
     expect(seen).toEqual([
-      { operationId: turn.id, inputId: 'in-7', message: 'go', overrides },
+      {
+        operationId: turn.id,
+        inputId: 'in-7',
+        message: 'go',
+        overrides,
+        run: expect.objectContaining({ runId: turn.id }),
+      },
     ])
     expect(picked.calls).toHaveLength(0)
     expect(calls).toHaveLength(0)

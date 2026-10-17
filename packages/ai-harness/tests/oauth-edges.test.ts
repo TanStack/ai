@@ -18,6 +18,7 @@ import {
   refreshCredential,
 } from '../src/oauth'
 import { mockAdapter, text, toolCall } from './helpers'
+import type { HarnessRunContext } from '../src'
 import type { OAuthConfig } from '../src/oauth'
 
 const oauth: OAuthConfig = {
@@ -215,12 +216,13 @@ describe('oauthConnector edges', () => {
       oauth,
       fetch: fetchFn,
       tools: (token) => [
-        toolDefinition({ name: 'whoami', description: 'Who am I' }).server(
-          async () => {
-            seen.push(await token())
-            return 'me'
-          },
-        ),
+        toolDefinition({
+          name: 'whoami',
+          description: 'Who am I',
+        }).server<HarnessRunContext>(async (_args, ctx) => {
+          seen.push(await token({ run: ctx.context.run }))
+          return 'me'
+        }),
       ],
     })
   }

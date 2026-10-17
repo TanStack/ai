@@ -19,6 +19,7 @@ import type { LogRecord } from '@tanstack/ai-persistence'
 import type {
   HarnessPlugin,
   HarnessRouterContext,
+  HarnessRunContext,
   JoinCandidate,
   Operation,
   TurnInfo,
@@ -28,7 +29,10 @@ const THREAD = 't1'
 const alice = { id: 'alice' }
 const bob = { id: 'bob' }
 
-/** A tool that keeps who runs it and the context it gets. */
+/**
+ * A tool that keeps the user of its run, and the context it gets without
+ * the run.
+ */
 function whoami() {
   const seen: Array<{ principal: string | undefined; context: unknown }> = []
   const tool = toolDefinition({
@@ -38,13 +42,11 @@ function whoami() {
   })
   const plugin = definePlugin({
     name: 'test/whoami',
-    setup: (ctx) => ({
+    setup: () => ({
       tools: [
-        tool.server((_input, toolContext) => {
-          seen.push({
-            principal: ctx.session.principal?.id,
-            context: toolContext?.context,
-          })
+        tool.server<HarnessRunContext>((_input, toolContext) => {
+          const { run, ...context } = toolContext.context
+          seen.push({ principal: run.principal?.id, context })
           return Promise.resolve({})
         }),
       ],
@@ -350,8 +352,11 @@ describe('the sender of each input', () => {
       name: 'test/starter',
       setup: (ctx) => ({
         tools: [
-          startWriter.server(() => {
-            ctx.agents.start(writer, undefined, { wake: true })
+          startWriter.server<HarnessRunContext>((_input, toolContext) => {
+            ctx.agents.start(writer, undefined, {
+              wake: true,
+              principal: toolContext.context.run.principal,
+            })
             return Promise.resolve({})
           }),
         ],
@@ -411,8 +416,10 @@ describe('the sender of each input', () => {
       name: 'test/starter',
       setup: (ctx) => ({
         tools: [
-          startWriter.server(() => {
-            started = ctx.agents.start(writer)
+          startWriter.server<HarnessRunContext>((_input, toolContext) => {
+            started = ctx.agents.start(writer, undefined, {
+              principal: toolContext.context.run.principal,
+            })
             return Promise.resolve({})
           }),
         ],
@@ -650,6 +657,11 @@ describe('the turn where the model is picked', () => {
       message: 'Pick for me.',
       context: { plan: 'pro' },
       principal: bob,
+      run: expect.objectContaining({
+        principal: { id: 'bob' },
+        runId: turn.id,
+        threadId: THREAD,
+      }),
     }
     expect(setups).toEqual([expected])
     expect(picks).toEqual([expected])
@@ -710,10 +722,11 @@ describe('the tenant of a principal', () => {
     })
     const plugin = definePlugin({
       name: 'test/token',
-      setup: (ctx) => ({
+      setup: () => ({
         tools: [
-          read.server(async () => {
-            const credential = await ctx.credentials.get('github')
+          read.server<HarnessRunContext>(async (_input, toolContext) => {
+            const credential =
+              await toolContext.context.run.credentials.get('github')
             seen.push(credential?.type === 'api_key' ? credential.value : null)
             return {}
           }),

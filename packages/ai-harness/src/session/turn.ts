@@ -23,6 +23,7 @@ import {
   toolCallOf,
   storedPrincipal,
   turnContext,
+  withRun,
   withoutPlugins,
   settingTools,
   resetMarker,
@@ -153,14 +154,19 @@ export abstract class SessionTurn<
     operation.setStatus('running')
     await this.applied(inputId, operation.id)
     this.publishStarted(operation)
-    const credentials = this.credentialsOf(principal)
+    const run = this.runContext({
+      principal,
+      runId: operation.id,
+      signal: operation.abortController.signal,
+    })
     try {
       const result: unknown = await entry.command.run(checked, {
         signal: operation.abortController.signal,
         // The command acts for its sender, also while another user's turn runs.
         session: this.pluginApi(principal, undefined, operation.id),
         ...(principal ? { principal } : {}),
-        credentials,
+        credentials: run.credentials,
+        run,
       })
       operation.publish(
         customEvent('harness.command.result', {
@@ -364,7 +370,19 @@ export abstract class SessionTurn<
     // What plugins and the router see of this turn. A turn that recovery
     // runs again gets the message its input sent.
     const sentMessage = turn.message ?? turn.sentMessage
-    const sender = this.sender()
+    const sender = turn.principal ?? this.principal
+    const runParent = turn.answers?.runId ?? turn.parentRunId
+    // The run of this turn: its tools, its middleware, its subagents, and
+    // its turn plugins get the credentials and keys of its sender. A sign-in
+    // wait of one of its tools stops this turn only.
+    const run = this.runContext({
+      principal: sender,
+      runId: operation.id,
+      ...(runParent ? { parentRunId: runParent } : {}),
+      signal: operation.abortController.signal,
+      canWait: (id) =>
+        this.activeTurn === operation && !this.declinedSignIns.has(id),
+    })
     const info: TurnInfo = {
       operationId: operation.id,
       ...(turn.inputId ? { inputId: turn.inputId } : {}),
@@ -372,6 +390,7 @@ export abstract class SessionTurn<
       ...(turn.context !== undefined ? { context: turn.context } : {}),
       ...(sender ? { principal: sender } : {}),
       ...(turn.overrides ? { overrides: turn.overrides } : {}),
+      run,
     }
     try {
       await this.flushNotes()
@@ -404,7 +423,8 @@ export abstract class SessionTurn<
                 inheritedExtensions: this.sessionPlugins.extensions,
               }
             : {}),
-          services: this.services,
+          // Bound to this turn's run, not read when a service is called.
+          services: this.pluginServices(info),
         })
       }
       // A removed session plugin stays mounted, but gives this turn nothing.
@@ -458,9 +478,9 @@ export abstract class SessionTurn<
         ? new ToolTurnAdapter(turn.tool, `tool-${turn.inputId ?? operation.id}`)
         : (overrides?.adapter ?? named ?? picked ?? this.harness.adapter)
       if (!model) throw new Error(NO_MODEL)
-      const adapter: AnyTextAdapter = await this.keys.adapter(model)
-      const resolvePrompt = (prompt: string | (() => string)) =>
-        typeof prompt === 'function' ? prompt() : prompt
+      const adapter: AnyTextAdapter = await run.keys.adapter(model)
+      const resolvePrompt = (prompt: string | ((turn: TurnInfo) => string)) =>
+        typeof prompt === 'function' ? prompt(info) : prompt
       const turnTools = overrides?.tools ?? []
       const turnToolNames = new Set(turnTools.map((tool) => tool.name))
       const staticTools = [
@@ -473,6 +493,7 @@ export abstract class SessionTurn<
         [...(session?.discoverers ?? []), ...(runPlugins?.discoverers ?? [])],
         new Set(staticTools.map((tool) => tool.name)),
         operation,
+        info,
       )
       // Before the chat() options below: prompts may describe these tools.
       // The `tools` setting picks from them first, so a preparer (code mode)
@@ -502,7 +523,11 @@ export abstract class SessionTurn<
         keptTools.length > 0 ? keepTurnTools(keptTools) : undefined
       const reasoning =
         overrides?.reasoning ?? stored.reasoning ?? this.harness.reasoning
-      const context = turnContext(this.harness.context, turn.context)
+      // The server's run wins over a `run` key of the client's context.
+      const context = withRun(
+        turnContext(this.harness.context, turn.context),
+        run,
+      )
       // The turn value wins over the session value, field by field.
       const turnCache = cacheObject(overrides?.promptCache)
       const promptCache = {
@@ -514,7 +539,7 @@ export abstract class SessionTurn<
           ? await this.userMessage(turn.message, turn.wake)
           : undefined
       let resume = turn.resume
-      let parentRunId = turn.answers?.runId ?? turn.parentRunId
+      let parentRunId = runParent
       const { chatPersistence, checkpoint } = this
       if (!chatPersistence || !checkpoint) {
         throw new Error('The session is not open yet.')
@@ -673,7 +698,7 @@ export abstract class SessionTurn<
               ...(runPlugins?.middleware ?? []),
               ...(keepTools ? [keepTools] : []),
               ...(durableTools ? [durableTools] : []),
-              this.detachTools(operation.id),
+              this.detachTools(operation.id, sender),
               ...(rootBag ? [] : [this.syncFold()]),
               // Again: a middleware that returns `messages` (as `syncFold`
               // does) resets what the model gets to the whole transcript.
@@ -705,6 +730,7 @@ export abstract class SessionTurn<
                       operation,
                       captured,
                       sender,
+                      run,
                       runPlugins,
                       bag.agents,
                     ),
@@ -722,7 +748,7 @@ export abstract class SessionTurn<
               ? { interrupts: this.harness.interrupts }
               : {}),
             // The context type narrows per harness; chat() wants it exact.
-            ...(context !== undefined ? { context: context as never } : {}),
+            context: context as never,
             ...(reasoning !== undefined ? { reasoning } : {}),
             promptCache,
             threadId: this.threadId,
@@ -760,7 +786,7 @@ export abstract class SessionTurn<
                 runId: operation.id,
                 interrupts,
                 ...(messages ? { routed: { messages, root: isRootPart } } : {}),
-                ...storedPrincipal(this.sender()),
+                ...storedPrincipal(sender),
                 ...(turn.context !== undefined
                   ? { context: turn.context }
                   : {}),

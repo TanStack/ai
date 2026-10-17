@@ -8,6 +8,7 @@ import type {
   Operation,
   Principal,
   Receipt,
+  RunContext,
   ThreadSettings,
 } from './types'
 
@@ -39,16 +40,18 @@ export type AnswerOf<TSchema> = TSchema extends SchemaInput
 export interface PluginSessionApi<TMetadata = Record<string, unknown>> {
   threadId: string
   /**
-   * Who sent the input of the running chat turn. Outside a turn: the
-   * principal that opened the session. In a command's `run` context: who
-   * runs the command. Code that runs after its turn ends (a background
-   * agent's tool) gets the sender of the turn that runs at that time.
+   * The user this API acts for. In a command: who runs the command. In a
+   * turn plugin: the sender of its turn. In a session plugin: the principal
+   * that opened the session, never the sender of a running turn. For the
+   * user of a tool call, read `ctx.context.run.principal`.
    */
   principal: Principal | undefined
   snapshot: () => SessionSnapshot
   /**
    * Start a chat turn, as if the user typed `text`. While a turn runs, the new
    * turn waits in the queue. Cancel the returned turn to drop it before it starts.
+   * In a command or a turn plugin, the turn runs as `principal`. In a session
+   * plugin, it runs as the sender of the running turn, else as `principal`.
    */
   send: (text: string) => Operation<ChatTurnResult>
   /**
@@ -124,9 +127,14 @@ export interface CommandContext {
   principal?: Principal
   /**
    * The credentials of the user who runs the command. Save a sign-in here,
-   * so it belongs to that user.
+   * so it belongs to that user. The same as `run.credentials`.
    */
   credentials: CredentialsAccess
+  /**
+   * The run of the command: the user who runs it, and that user's
+   * credentials and model provider keys (`run.keys`).
+   */
+  run: RunContext
 }
 
 /** A user action: a slash command, a button, a dashboard action. Not a model tool. */
