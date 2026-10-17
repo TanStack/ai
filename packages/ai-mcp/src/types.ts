@@ -195,6 +195,24 @@ export interface MCPClientOptions {
    * ```
    */
   needsApproval?: (tool: McpToolDef) => boolean
+  /**
+   * Runs when the connection closes and this client did not close it. For
+   * example, the process of a stdio server stops. `close()` does not call
+   * it. After it runs, the client cannot send requests: connect a new one.
+   *
+   * ```ts
+   * const mcp = await createMCPClient({
+   *   transport: { type: 'stdio', command: 'npx', args: ['my-server'] },
+   *   onClose: () => console.warn('The MCP server stopped.'),
+   * })
+   * ```
+   */
+  onClose?: () => void
+  /**
+   * Runs when the server sends `notifications/tools/list_changed`. Call
+   * `tools()` again to get the new list.
+   */
+  onToolListChanged?: () => void
 }
 
 export interface ToolsOptions {
