@@ -168,12 +168,13 @@ First, `delete` closes the sessions of the thread and of its child threads, for 
 - The index entry.
 - The uploaded media and the generated artifacts.
 - The thread settings, the plugin config, and the interrupted turn.
-- The usage totals and the revert data.
+- The usage totals, the revert data, and the log checkpoint.
 
 These stay in their stores: plugin state, run records, interrupts, the inbox, and work claims. To remove them, delete them in your own stores.
 
 - On a host with `access`, `delete` needs the `delete` action. A child thread is checked through its root thread.
 - A handle that calls again after the delete opens a new, empty thread.
+- A host without `stores.sessions` still closes the open sessions of the thread and deletes its data. It has no index entries, so it finds no child threads.
 - `host.events()` yields a `session-deleted` event. See [Show a live status](./sessions#show-a-live-status).
 
 ## What you have now

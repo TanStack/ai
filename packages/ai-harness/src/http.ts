@@ -448,7 +448,8 @@ function watchRevoke<P extends Principal>(
  *   pinned?, metadata? }` (each field replaces the stored one, and the
  *   harness `metadataSchema` checks `metadata`. Without a schema, a client
  *   cannot write `metadata`: 403 `not_exposed`), `{ op: 'delete', threadId }`
- *   (it removes the index entry only), `{ op: 'fork', threadId, before }`
+ *   (it deletes the thread and its child threads, as
+ *   `host.sessions.delete` does), `{ op: 'fork', threadId, before }`
  *   or `{ op: 'fork', threadId, through }` with a message id, and with
  *   `membersOnly()`, `{ op: 'share', threadId, userId, role }` and
  *   `{ op: 'unshare', threadId, userId }`. Rename, update, fork, share, and

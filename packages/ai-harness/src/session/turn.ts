@@ -410,9 +410,7 @@ export abstract class SessionTurn<
       const removed = new Set(stored.plugins?.remove ?? [])
       // The 'turn' plugins. A removed turn plugin is not set up.
       const perRun = this.plugins.filter(
-        (plugin) =>
-          (plugin.lifetime ?? 'session') !== 'session' &&
-          !removed.has(plugin.name),
+        (plugin) => plugin.lifetime === 'turn' && !removed.has(plugin.name),
       )
       if (perRun.length > 0) {
         runPlugins = await mountPlugins(perRun, {

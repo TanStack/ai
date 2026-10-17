@@ -617,7 +617,8 @@ export function foldLogEntry<TState>(
   )
 }
 
-const CHECKPOINT_NAMESPACE = 'harness:log-checkpoint'
+/** @internal The metadata namespace of log checkpoints, keyed by store log id. */
+export const CHECKPOINT_NAMESPACE = 'harness:log-checkpoint'
 // ponytail: a checkpoint every 50 appends. Tune it when a cold fold is slow.
 const CHECKPOINT_EVERY = 50
 const READ_PAGE = 500

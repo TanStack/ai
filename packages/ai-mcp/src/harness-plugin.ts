@@ -5,7 +5,9 @@ import type { AnyTool, JSONSchema } from '@tanstack/ai'
 import type {
   AnyCommand,
   PluginPrompt,
+  PluginResources,
   PluginSessionApi,
+  PluginSetupContext,
   TurnInfo,
 } from '@tanstack/ai-harness'
 import type { OnElicit } from './client'
@@ -62,8 +64,10 @@ export type McpServerStatus = {
  * - The servers connect in the background. The first turn waits for them.
  * - `/mcp` lists the servers and their status. UIs read the same list from
  *   the plugin state.
- * - A `stdio` server runs as a child process (Node only). It stops when the
- *   session closes.
+ * - A `stdio` server runs as one child process (Node only) for every
+ *   session of the harness on the host. It stops when the last of those
+ *   sessions closes, or at `host.close()`. The other servers connect for
+ *   each session.
  * - An `http` server with `oauth: true` signs in through `/connect <name>`.
  *
  * @param options.servers - The servers, keyed by name. The name is the tool
@@ -90,134 +94,206 @@ export function mcp(options: {
   const servers = Object.entries(options.servers)
   return definePlugin({
     name: 'tanstack/mcp',
-    setup: async (ctx) => {
-      const statuses = new Map<string, McpServerStatus>()
-      for (const [name] of servers) {
-        statuses.set(name, { name, status: 'connecting', toolCount: 0 })
+    // The stdio servers connect once for the host. The rest is per session.
+    lifetime: 'host',
+    setup: (host) => {
+      // The sessions whose tool call of a shared server runs now, newest last.
+      const calling: Array<PluginSessionApi> = []
+      // ponytail: a spec 2025 request of a shared server goes to the session
+      // of the newest running call. Two sessions that call one stdio server
+      // at the same time can get the question of the other one.
+      const askCaller: OnElicit = async (params) => {
+        const session = calling.at(-1)
+        if (!session) return { action: 'decline' }
+        return elicitFor(session)(params)
       }
-      const state = ctx.state({ servers: [...statuses.values()] })
-      const setStatus = async (status: McpServerStatus) => {
-        const old = JSON.stringify(statuses.get(status.name))
-        statuses.set(status.name, status)
-        if (old === JSON.stringify(status)) return
-        await state.update(() => ({ servers: [...statuses.values()] }))
+      const shared = new Map<string, SharedServer>()
+      for (const [name, server] of servers) {
+        if (server.type !== 'stdio') continue
+        shared.set(name, openServer(host.resources, name, server, askCaller))
       }
-      // State from an earlier run of this session is out of date.
-      await state.update(() => ({ servers: [...statuses.values()] }))
-
-      /** Connects one server, in the background. Never rejects. */
-      const connect = async (name: string, server: McpServerConfig) => {
-        const opened = await ctx.resources
-          .acquire(
-            async () => {
-              // Loaded here: the stdio transport needs node:child_process.
-              const transport =
-                server.type === 'stdio'
-                  ? (await import('./stdio')).stdioTransport(server)
-                  : server
-              const client = await connectTransport(
-                {
-                  transport,
-                  prefix: name,
-                  requestOptions: requestOptionsOf(server),
-                  clientOptions: harnessClientOptions,
-                },
-                elicitFor(ctx.session),
-              )
-              try {
-                const tools = askForInput(
-                  forCodeMode(server, await client.tools()),
-                  ctx.session,
-                )
-                return { client, tools }
-              } catch (error) {
-                // Connected, but no tool list: the server failed.
-                await client.close().catch(() => undefined)
-                throw error
-              }
-            },
-            ({ client }) => client.close(),
-          )
-          .catch((error: unknown) => new Error(errorText(error)))
-        const failed = opened instanceof Error
-        const status: McpServerStatus = failed
-          ? { name, status: 'failed', error: opened.message, toolCount: 0 }
-          : { name, status: 'connected', toolCount: opened.tools.length }
-        // After the session closed, the state store can be gone. `/mcp`
-        // reads `statuses`, which is set first.
-        await setStatus(status).catch(() => undefined)
-        return failed ? [] : opened.tools
-      }
-
-      const commands: Record<string, AnyCommand> = {
-        mcp: defineCommand({
-          description: 'Show the MCP servers and their status',
-          run: () => [...statuses.values()].map(statusLine).join('\n'),
-        }),
-      }
-      const prompts: Array<PluginPrompt> = []
-      // One tool list for each server, in the order of `servers`.
-      const lists = await Promise.all(
-        servers.map(async (entry) => {
-          const [name, server] = entry
-          const isOAuth = server.type === 'http' && server.oauth === true
-          if (!isOAuth) {
-            const connecting = connect(name, server)
-            return (_turn: TurnInfo) => connecting
-          }
-          // Loaded here: the connector needs node:crypto and node:http.
-          const { mcpConnector } = await import('./connector')
-          const connector = await mcpConnector({
-            id: name,
-            label: name,
-            url: server.url,
-            requestOptions: requestOptionsOf(server),
-            ...(server.fetch ? { fetch: server.fetch } : {}),
-          }).setup(ctx)
-          Object.assign(commands, connector.commands)
-          prompts.push(...connector.prompts)
-          // The sign-in belongs to the sender of the turn, so the status is
-          // the one of the last turn.
-          return async (turn: TurnInfo) => {
-            try {
-              const tools = await connector.discoverTools(turn)
-              const signedIn =
-                tools.length > 0 ||
-                (await turn.run.credentials.get(name)) !== null
-              await setStatus(
-                signedIn
-                  ? { name, status: 'connected', toolCount: tools.length }
-                  : {
-                      name,
-                      status: 'failed',
-                      error: `Not signed in. Run /connect ${name}.`,
-                      toolCount: 0,
-                    },
-              )
-              return forCodeMode(server, tools)
-            } catch (error) {
-              // One server that fails must not hide the tools of the others.
-              await setStatus({
-                name,
-                status: 'failed',
-                error: errorText(error),
-                toolCount: 0,
-              })
-              return []
-            }
-          }
-        }),
-      )
-
       return {
-        commands,
-        prompts,
-        discoverTools: async (turn) => {
-          const found = await Promise.all(lists.map((list) => list(turn)))
-          return found.flat()
-        },
+        session: (ctx) => sessionPart(ctx, servers, shared, calling),
       }
     },
+  })
+}
+
+/** The part of {@link mcp} that each session sets up. */
+async function sessionPart(
+  ctx: PluginSetupContext,
+  servers: ReadonlyArray<[string, McpServerConfig]>,
+  shared: ReadonlyMap<string, SharedServer>,
+  calling: Array<PluginSessionApi>,
+) {
+  const statuses = new Map<string, McpServerStatus>()
+  for (const [name] of servers) {
+    statuses.set(name, { name, status: 'connecting', toolCount: 0 })
+  }
+  const state = ctx.state({ servers: [...statuses.values()] })
+  const setStatus = async (status: McpServerStatus) => {
+    const old = JSON.stringify(statuses.get(status.name))
+    statuses.set(status.name, status)
+    if (old === JSON.stringify(status)) return
+    await state.update(() => ({ servers: [...statuses.values()] }))
+  }
+  // State from an earlier run of this session is out of date.
+  await state.update(() => ({ servers: [...statuses.values()] }))
+
+  /**
+   * The tools of one server for this session, in the background. A
+   * stdio server is the shared one of the host. Never rejects.
+   */
+  const connect = async (name: string, server: McpServerConfig) => {
+    const sharedServer = shared.get(name)
+    const opened = await (sharedServer ??
+      openServer(ctx.resources, name, server, elicitFor(ctx.session)))
+    const failed = opened instanceof Error
+    const status: McpServerStatus = failed
+      ? { name, status: 'failed', error: opened.message, toolCount: 0 }
+      : { name, status: 'connected', toolCount: opened.tools.length }
+    // After the session closed, the state store can be gone. `/mcp`
+    // reads `statuses`, which is set first.
+    await setStatus(status).catch(() => undefined)
+    if (failed) return []
+    const tools = sharedServer
+      ? trackCaller(opened.tools, ctx.session, calling)
+      : opened.tools
+    return askForInput(tools, ctx.session)
+  }
+
+  const commands: Record<string, AnyCommand> = {
+    mcp: defineCommand({
+      description: 'Show the MCP servers and their status',
+      run: () => [...statuses.values()].map(statusLine).join('\n'),
+    }),
+  }
+  const prompts: Array<PluginPrompt> = []
+  // One tool list for each server, in the order of `servers`.
+  const lists = await Promise.all(
+    servers.map(async (entry) => {
+      const [name, server] = entry
+      const isOAuth = server.type === 'http' && server.oauth === true
+      if (!isOAuth) {
+        const connecting = connect(name, server)
+        return (_turn: TurnInfo) => connecting
+      }
+      // Loaded here: the connector needs node:crypto and node:http.
+      const { mcpConnector } = await import('./connector')
+      const connector = await mcpConnector({
+        id: name,
+        label: name,
+        url: server.url,
+        requestOptions: requestOptionsOf(server),
+        ...(server.fetch ? { fetch: server.fetch } : {}),
+      }).setup(ctx)
+      Object.assign(commands, connector.commands)
+      prompts.push(...connector.prompts)
+      // The sign-in belongs to the sender of the turn, so the status is
+      // the one of the last turn.
+      return async (turn: TurnInfo) => {
+        try {
+          const tools = await connector.discoverTools(turn)
+          const signedIn =
+            tools.length > 0 || (await turn.run.credentials.get(name)) !== null
+          await setStatus(
+            signedIn
+              ? { name, status: 'connected', toolCount: tools.length }
+              : {
+                  name,
+                  status: 'failed',
+                  error: `Not signed in. Run /connect ${name}.`,
+                  toolCount: 0,
+                },
+          )
+          return forCodeMode(server, tools)
+        } catch (error) {
+          // One server that fails must not hide the tools of the others.
+          await setStatus({
+            name,
+            status: 'failed',
+            error: errorText(error),
+            toolCount: 0,
+          })
+          return []
+        }
+      }
+    }),
+  )
+
+  return {
+    commands,
+    prompts,
+    discoverTools: async (turn: TurnInfo) => {
+      const found = await Promise.all(lists.map((list) => list(turn)))
+      return found.flat()
+    },
+  }
+}
+
+/** A server that the sessions of a host share: its tools, or its error. */
+type SharedServer = ReturnType<typeof openServer>
+
+/**
+ * Connect one server in `resources`. Resolves to the error of a server that
+ * failed, so it never rejects.
+ */
+function openServer(
+  resources: PluginResources,
+  name: string,
+  server: McpServerConfig,
+  onElicit: OnElicit,
+) {
+  return resources
+    .acquire(
+      async () => {
+        // Loaded here: the stdio transport needs node:child_process.
+        const transport =
+          server.type === 'stdio'
+            ? (await import('./stdio')).stdioTransport(server)
+            : server
+        const client = await connectTransport(
+          {
+            transport,
+            prefix: name,
+            requestOptions: requestOptionsOf(server),
+            clientOptions: harnessClientOptions,
+          },
+          onElicit,
+        )
+        try {
+          return { client, tools: forCodeMode(server, await client.tools()) }
+        } catch (error) {
+          // Connected, but no tool list: the server failed.
+          await client.close().catch(() => undefined)
+          throw error
+        }
+      },
+      ({ client }) => client.close(),
+    )
+    .catch((error: unknown) => new Error(errorText(error)))
+}
+
+/** Marks `session` as the caller of a shared server while a tool call runs. */
+function trackCaller(
+  tools: ReadonlyArray<AnyTool>,
+  session: PluginSessionApi,
+  calling: Array<PluginSessionApi>,
+) {
+  return tools.map((tool): AnyTool => {
+    const execute = tool.execute
+    if (!execute) return tool
+    return {
+      ...tool,
+      execute: async (args, context) => {
+        calling.push(session)
+        try {
+          return await execute(args, context)
+        } finally {
+          calling.splice(calling.lastIndexOf(session), 1)
+        }
+      },
+    }
   })
 }
 

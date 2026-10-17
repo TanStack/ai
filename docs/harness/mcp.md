@@ -63,8 +63,8 @@ export const assistant = defineHarness({
 
 The name of a server is the prefix of its tools. A `search` tool of the `docs` server is `docs_search` for the model.
 
-- `stdio`: the server runs as a child process on this machine (Node only). The host starts it one time, and every session of the host shares it. It stops when the last session that uses it closes, or at `host.close()`.
-- `http`: a server that speaks Streamable HTTP. Send an API key in `headers`.
+- `stdio`: the server runs as a child process on this machine (Node only). The host starts it one time for each harness, and every session of that harness shares it. It stops when the last session that uses it closes, or at `host.close()`.
+- `http`: a server that speaks Streamable HTTP. Send an API key in `headers`. Each session connects on its own.
 - `oauth: true`: the user signs in with `/connect linear`. Each user connects with their own sign-in. See [Sign in to an OAuth server](#3-sign-in-to-an-oauth-server).
 
 ## 2. Check the servers

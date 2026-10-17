@@ -1,4 +1,5 @@
 import { CapabilityRegistry, createCapability } from '@tanstack/ai'
+import { hostPluginContext } from './host-plugins'
 import { ResourceScope, disposeAll } from './resources'
 import { assertMetadataSchema } from './session-entry'
 import type {
@@ -28,14 +29,18 @@ import type { AnyCommand, PluginSessionApi } from './commands'
 import type { ConfigOption } from './config'
 import type { ExtensionItem, ExtensionPoint, PluginEvent } from './extensions'
 import type { MetadataOf } from './session-entry'
+import type { SharedHostPlugin } from './host-plugins'
 
 /**
  * How long a plugin's `setup` result and resources live:
  * - `session` (default): from session open to session close. Resources such
  *   as an index, a watcher, or an LSP server stay up across turns.
  * - `turn`: set up for each chat turn, disposed when that turn ends.
+ * - `host`: set up once for each harness on a host, and shared by every
+ *   session of that harness. Disposed when the last session that uses it
+ *   closes, or at `host.close()`. See {@link HostPluginContext}.
  */
-export type PluginLifetime = 'session' | 'turn'
+export type PluginLifetime = 'session' | 'turn' | 'host'
 
 /**
  * A prompt a plugin contributes. `id` must be unique in the session. A
@@ -110,6 +115,53 @@ export interface PluginContributions {
     tools: ReadonlyArray<AnyTool>
     model: string
   }) => ReadonlyArray<AnyTool> | Promise<ReadonlyArray<AnyTool>>
+}
+
+/**
+ * What the `setup` of a plugin with `lifetime: 'host'` returns. The host
+ * mounts it into each session that uses the plugin. It cannot add commands
+ * or config: return them from `session`.
+ */
+export interface HostPluginContributions<
+  TMetadata = Record<string, unknown>,
+> extends Omit<PluginContributions, 'commands' | 'config'> {
+  /**
+   * Runs for each session, after the shared setup, with the context of a
+   * session plugin. Use it for the parts that need the session: commands,
+   * config, state, and questions to the user. Its resources close with the
+   * session. What it returns is added to the shared contributions.
+   */
+  session?: (
+    ctx: PluginSetupContext<TMetadata>,
+  ) => PluginContributions | void | Promise<PluginContributions | void>
+}
+
+/** Resources a plugin owns, with rollback and reverse-order cleanup. */
+export interface PluginResources {
+  /**
+   * Open a resource. `close` runs when the plugin is cleaned up, newest
+   * first. It is registered only after `open` resolves.
+   */
+  acquire: <T>(
+    open: () => T | Promise<T>,
+    close: (resource: T) => unknown,
+  ) => Promise<T>
+  /** Aborts when the plugin is cleaned up. */
+  signal: AbortSignal
+}
+
+/**
+ * What the `setup` of a plugin with `lifetime: 'host'` receives. The setup
+ * runs once for each harness on a host, so it has no session, no user, no
+ * credentials, no keys, and no commands. Open the shared resource here (a
+ * pool, a child process, a watcher). A tool reads the user of its call from
+ * `ctx.context.run`.
+ */
+export interface HostPluginContext {
+  /** The name of the harness that the plugin is set up for. */
+  harness: string
+  /** Resources that live as long as the shared setup. */
+  resources: PluginResources
 }
 
 /** Plugin state that survives restarts, stored in the metadata store. */
@@ -229,13 +281,7 @@ export interface PluginCommands {
  */
 export interface PluginSetupContext<TMetadata = Record<string, unknown>> {
   /** Resources this plugin owns, with rollback and reverse-order cleanup. */
-  resources: {
-    acquire: <T>(
-      open: () => T | Promise<T>,
-      close: (resource: T) => unknown,
-    ) => Promise<T>
-    signal: AbortSignal
-  }
+  resources: PluginResources
   /** Read a capability another plugin or middleware provided. Throws if absent. */
   get: <T>(capability: Capability<T>) => T
   /** Read a capability, or `undefined` when nobody provided it. */
@@ -313,11 +359,8 @@ export interface PluginSetupContext<TMetadata = Record<string, unknown>> {
   turn?: TurnInfo
 }
 
-/**
- * A plugin. `TMetadata` is the type of the session index `metadata` that the
- * plugin reads and writes, from its `metadataSchema`.
- */
-export interface PluginDefinition<TMetadata = Record<string, unknown>> {
+/** The fields of every plugin definition. */
+interface PluginDefinitionBase {
   /** A stable, unique name, for example `'acme/todos'`. */
   name: string
   /**
@@ -328,7 +371,6 @@ export interface PluginDefinition<TMetadata = Record<string, unknown>> {
    * metadata type does not fit is a type error.
    */
   metadataSchema?: SchemaInput
-  lifetime?: PluginLifetime
   /** Capabilities that an earlier plugin or harness middleware must provide. */
   requires?: ReadonlyArray<CapabilityHandle>
   /** Capabilities this plugin provides in `setup`. */
@@ -337,10 +379,41 @@ export interface PluginDefinition<TMetadata = Record<string, unknown>> {
   optionalRequires?: ReadonlyArray<CapabilityHandle>
   /** Agent outputs this plugin needs the session to have. */
   needs?: { produces?: ReadonlyArray<AgentProduces> }
+}
+
+/** A plugin that is set up for each session (default) or for each turn. */
+export interface SessionPluginDefinition<
+  TMetadata = Record<string, unknown>,
+> extends PluginDefinitionBase {
+  lifetime?: 'session' | 'turn'
   setup?: (
     ctx: PluginSetupContext<TMetadata>,
   ) => PluginContributions | void | Promise<PluginContributions | void>
 }
+
+/**
+ * A plugin that is set up once for each harness on a host, and shared by
+ * every session of that harness. See {@link HostPluginContext}.
+ */
+export interface HostPluginDefinition<
+  TMetadata = Record<string, unknown>,
+> extends PluginDefinitionBase {
+  lifetime: 'host'
+  setup: (
+    ctx: HostPluginContext,
+  ) =>
+    | HostPluginContributions<TMetadata>
+    | void
+    | Promise<HostPluginContributions<TMetadata> | void>
+}
+
+/**
+ * A plugin. `TMetadata` is the type of the session index `metadata` that the
+ * plugin reads and writes, from its `metadataSchema`.
+ */
+export type PluginDefinition<TMetadata = Record<string, unknown>> =
+  | SessionPluginDefinition<TMetadata>
+  | HostPluginDefinition<TMetadata>
 
 const PLUGIN_BRAND = Symbol.for('tanstack.ai.harnessPlugin')
 
@@ -349,7 +422,9 @@ const PLUGIN_BRAND = Symbol.for('tanstack.ai.harnessPlugin')
  * be ignored. Other extra keys are the plugin's own API, such as the `diff`
  * of `snapshots()`.
  */
-const SETUP_KEYS: ReadonlySet<string> = new Set<keyof PluginContributions>([
+const SETUP_KEYS: ReadonlySet<string> = new Set<
+  keyof PluginContributions | keyof HostPluginContributions
+>([
   'adapter',
   'tools',
   'prompts',
@@ -363,11 +438,15 @@ const SETUP_KEYS: ReadonlySet<string> = new Set<keyof PluginContributions>([
   'contribute',
   'discoverTools',
   'prepareTools',
+  'session',
 ])
 
 /** No `setup()` contribution at the top level of a definition. */
 type NoSetupKeys = {
-  [K in Exclude<keyof PluginContributions, keyof PluginDefinition>]?: never
+  [K in Exclude<
+    keyof HostPluginContributions | keyof PluginContributions,
+    keyof PluginDefinitionBase | 'lifetime' | 'setup'
+  >]?: never
 }
 
 /**
@@ -426,7 +505,10 @@ export function definePlugin<
     `definePlugin "${definition.name}"`,
     definition.metadataSchema,
   )
-  return Object.freeze({ ...definition, [PLUGIN_BRAND]: true as const })
+  // `assign`, not a spread: a spread of a union type parameter loses it.
+  return Object.freeze(
+    Object.assign({ [PLUGIN_BRAND]: true as const }, definition),
+  )
 }
 
 /** A tool, prompt, or middleware with the plugin that contributed it. */
@@ -509,6 +591,14 @@ export interface MountEnvironment {
   services?: PluginServices
   /** The turn of a run mount. Plugins read it as `ctx.turn`. */
   turn?: TurnInfo
+  /**
+   * The setup of a plugin with `lifetime: 'host'` that the host shares. The
+   * mount gives it back when it is disposed. Without it, a host plugin is
+   * set up for this mount only.
+   */
+  hostPlugin?: (plugin: HostPluginDefinition<any>) => Promise<SharedHostPlugin>
+  /** The harness name a host plugin gets without `hostPlugin`. */
+  harnessName?: string
 }
 
 const unavailable = (what: string) => () => {
@@ -708,6 +798,23 @@ function promptOf(
     : prompt
 }
 
+/**
+ * The shared setup of a host plugin. Without a host, the plugin is set up
+ * in `scope`, for this mount only.
+ */
+async function sharedSetup(
+  plugin: HostPluginDefinition<any>,
+  scope: ResourceScope,
+  env: MountEnvironment,
+): Promise<SharedHostPlugin> {
+  if (env.hostPlugin) return env.hostPlugin(plugin)
+  const context = hostPluginContext(env.harnessName ?? '', scope)
+  return {
+    contributions: await plugin.setup(context),
+    release: () => Promise.resolve(),
+  }
+}
+
 /** A turn plugin added a command or a config option. */
 const turnOnly = (plugin: string) =>
   new Error(
@@ -776,7 +883,7 @@ export async function mountPlugins(
         ...(plugin.requires ?? []),
         ...(plugin.optionalRequires ?? []),
       ])
-      const contributions = await plugin.setup?.({
+      const context: PluginSetupContext<any> = {
         resources: {
           acquire: (open, close) => scope.acquire(open, close),
           signal: scope.signal,
@@ -883,7 +990,19 @@ export async function mountPlugins(
           ready,
         },
         ...(env.turn ? { turn: env.turn } : {}),
-      })
+      }
+      let parts: Array<PluginContributions | void>
+      if (plugin.lifetime === 'host') {
+        // The shared setup goes back when this mount is disposed.
+        const shared = await scope.acquire(
+          () => sharedSetup(plugin, scope, env),
+          (setup) => setup.release(),
+        )
+        const own = await shared.contributions?.session?.(context)
+        parts = [shared.contributions, own]
+      } else {
+        parts = [await plugin.setup?.(context)]
+      }
       for (const handle of plugin.provides ?? []) {
         if (!provided.has(handle)) {
           throw new Error(
@@ -891,88 +1010,92 @@ export async function mountPlugins(
           )
         }
       }
-      if (!contributions) continue
-      for (const tool of contributions.tools ?? []) {
-        const clash = tools.find((entry) => entry.value.name === tool.name)
-        if (clash) {
-          throw new Error(
-            `Duplicate tool "${tool.name}": first owner ${clash.owner}, second owner ${plugin.name}. No run started.`,
-          )
+      for (const contributions of parts) {
+        if (!contributions) continue
+        for (const tool of contributions.tools ?? []) {
+          const clash = tools.find((entry) => entry.value.name === tool.name)
+          if (clash) {
+            throw new Error(
+              `Duplicate tool "${tool.name}": first owner ${clash.owner}, second owner ${plugin.name}. No run started.`,
+            )
+          }
+          tools.push({ value: tool, owner: plugin.name })
         }
-        tools.push({ value: tool, owner: plugin.name })
-      }
-      ;(contributions.prompts ?? []).forEach((prompt, index) => {
-        const section = promptOf(prompt, plugin.name, index)
-        const clash = prompts.find((entry) => entry.value.id === section.id)
-        if (clash) {
-          throw new Error(
-            `Duplicate prompt id "${section.id}": first owner ${clash.owner}, second owner ${plugin.name}.`,
-          )
-        }
-        prompts.push({ value: section, owner: plugin.name })
-      })
-      for (const item of contributions.middleware ?? []) {
-        middleware.push(item)
-        middlewareOwners.push(plugin.name)
-      }
-      agentMiddleware.push(...(contributions.agentMiddleware ?? []))
-      generationMiddleware.push(...(contributions.generationMiddleware ?? []))
-      // The session reads commands and config only from its session plugins.
-      const isSessionOnly =
-        Object.keys(contributions.commands ?? {}).length > 0 ||
-        Object.keys(contributions.config ?? {}).length > 0
-      if (env.turn && isSessionOnly) throw turnOnly(plugin.name)
-      for (const [name, command] of Object.entries(
-        contributions.commands ?? {},
-      )) {
-        const clash = commands.get(name) ?? env.takenCommands?.get(name)
-        if (clash) {
-          throw new Error(
-            `Duplicate command "${name}": first owner ${clash.owner}, second owner ${plugin.name}.`,
-          )
-        }
-        commands.set(name, { command, owner: plugin.name })
-      }
-      for (const [key, option] of Object.entries(contributions.config ?? {})) {
-        const clash = config.get(key) ?? env.takenConfig?.get(key)
-        if (clash) {
-          throw new Error(
-            `Duplicate config key "${key}": first owner ${clash.owner}, second owner ${plugin.name}.`,
-          )
-        }
-        config.set(key, { option, owner: plugin.name })
-      }
-      for (const item of contributions.contribute ?? []) {
-        let items = extensions.get(item.point)
-        if (!items) {
-          items = []
-          extensions.set(item.point, items)
-        }
-        items.push({ value: item.value, owner: plugin.name })
-      }
-      if (contributions.adapter) {
-        adapters.push(contributions.adapter)
-        adapterOwners.push(plugin.name)
-      }
-      if (contributions.discoverTools) {
-        discoverers.push({
-          discover: contributions.discoverTools,
-          owner: plugin.name,
+        ;(contributions.prompts ?? []).forEach((prompt, index) => {
+          const section = promptOf(prompt, plugin.name, index)
+          const clash = prompts.find((entry) => entry.value.id === section.id)
+          if (clash) {
+            throw new Error(
+              `Duplicate prompt id "${section.id}": first owner ${clash.owner}, second owner ${plugin.name}.`,
+            )
+          }
+          prompts.push({ value: section, owner: plugin.name })
         })
-      }
-      if (contributions.prepareTools) {
-        preparers.push({
-          prepare: contributions.prepareTools,
-          owner: plugin.name,
-        })
-      }
-      for (const agent of contributions.agents ?? []) {
-        env.registry.add(agent, plugin.name)
-        agents.push(agent)
-      }
-      for (const agent of contributions.subagents ?? []) {
-        env.registry.add(agent, plugin.name)
-        subagents.push(agent)
+        for (const item of contributions.middleware ?? []) {
+          middleware.push(item)
+          middlewareOwners.push(plugin.name)
+        }
+        agentMiddleware.push(...(contributions.agentMiddleware ?? []))
+        generationMiddleware.push(...(contributions.generationMiddleware ?? []))
+        // The session reads commands and config only from its session plugins.
+        const isSessionOnly =
+          Object.keys(contributions.commands ?? {}).length > 0 ||
+          Object.keys(contributions.config ?? {}).length > 0
+        if (env.turn && isSessionOnly) throw turnOnly(plugin.name)
+        for (const [name, command] of Object.entries(
+          contributions.commands ?? {},
+        )) {
+          const clash = commands.get(name) ?? env.takenCommands?.get(name)
+          if (clash) {
+            throw new Error(
+              `Duplicate command "${name}": first owner ${clash.owner}, second owner ${plugin.name}.`,
+            )
+          }
+          commands.set(name, { command, owner: plugin.name })
+        }
+        for (const [key, option] of Object.entries(
+          contributions.config ?? {},
+        )) {
+          const clash = config.get(key) ?? env.takenConfig?.get(key)
+          if (clash) {
+            throw new Error(
+              `Duplicate config key "${key}": first owner ${clash.owner}, second owner ${plugin.name}.`,
+            )
+          }
+          config.set(key, { option, owner: plugin.name })
+        }
+        for (const item of contributions.contribute ?? []) {
+          let items = extensions.get(item.point)
+          if (!items) {
+            items = []
+            extensions.set(item.point, items)
+          }
+          items.push({ value: item.value, owner: plugin.name })
+        }
+        if (contributions.adapter) {
+          adapters.push(contributions.adapter)
+          adapterOwners.push(plugin.name)
+        }
+        if (contributions.discoverTools) {
+          discoverers.push({
+            discover: contributions.discoverTools,
+            owner: plugin.name,
+          })
+        }
+        if (contributions.prepareTools) {
+          preparers.push({
+            prepare: contributions.prepareTools,
+            owner: plugin.name,
+          })
+        }
+        for (const agent of contributions.agents ?? []) {
+          env.registry.add(agent, plugin.name)
+          agents.push(agent)
+        }
+        for (const agent of contributions.subagents ?? []) {
+          env.registry.add(agent, plugin.name)
+          subagents.push(agent)
+        }
       }
     }
     for (const plugin of plugins) {

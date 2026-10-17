@@ -160,11 +160,12 @@ export class SessionImpl<
   protected async mountSessionPlugins(): Promise<void> {
     this.plugins = this.harness.plugins?.() ?? []
     this.sessionPlugins = await mountPlugins(
-      this.plugins.filter(
-        (plugin) => (plugin.lifetime ?? 'session') === 'session',
-      ),
+      // The session plugins and the host plugins. A turn mounts the rest.
+      this.plugins.filter((plugin) => plugin.lifetime !== 'turn'),
       {
         threadId: this.threadId,
+        hostPlugin: (plugin) =>
+          this.hostPlugins.acquire(this.harness.name, plugin),
         registry: this.agentRegistry,
         harnessTools: this.harness.tools ?? [],
         harnessProvides: (this.harness.middleware ?? []).flatMap(

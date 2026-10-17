@@ -4,6 +4,8 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 import type { CredentialStore } from '@tanstack/ai/byok'
 import { AccessDeniedError, membersOnlyPolicyOf } from './access'
 import { SharedLog, loadLogState, logIdOf, parseLogId } from './log'
+import { HostPlugins } from './host-plugins'
+import { purgeThreadData } from './purge'
 import { LEASE } from './resume'
 import { SessionImpl } from './session/harness-session'
 import { sessionHandle } from './session/handle'
@@ -229,7 +231,8 @@ export interface OpenSessionOptions<P extends Principal = Principal> {
  * The session index of a host: one entry per tenant and thread, for a list
  * of sessions. The host writes the entry when a session opens and after each
  * turn. Without `stores.sessions`, `list` is empty, `get` is `undefined`,
- * and `rename` and `delete` write nothing.
+ * and `rename` writes nothing. `delete` still deletes the data of the
+ * thread in the other stores.
  *
  * Each method takes a `principal`. Its `tenantId` picks the tenant (without
  * it, the default tenant), as in `host.open`. A method never reads or
@@ -306,10 +309,22 @@ export interface HostSessions<P extends Principal = Principal> {
     principal?: P
   }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>> | undefined>
   /**
-   * Remove the index entry of a thread. After it, `get` is `undefined`, and
-   * the next open of the thread writes a new entry. Only the entry goes: the
-   * transcript, the log, and the other data of the thread stay in their
-   * stores.
+   * Delete a thread and its child threads (the entries with this thread as
+   * `parentThreadId`, and their children). For each thread, it:
+   *
+   * - closes its open sessions on this host, of every harness, for every
+   *   handle. A handle that calls again opens an empty thread.
+   * - deletes its log, or its messages on a host with no `stores.log`.
+   * - deletes its media: the uploads and the generated files, records and
+   *   bytes.
+   * - deletes its thread settings, plugin config, usage, interrupted turn,
+   *   revert state, and log checkpoint from `stores.metadata`.
+   * - removes its index entry. Then `get` is `undefined`, and the next open
+   *   of the thread writes a new entry.
+   *
+   * A store the host does not have is skipped. Plugin state, runs,
+   * interrupts, the inbox, and work claims stay. Only the tenant of
+   * `principal` is touched.
    *
    * @example
    * ```ts
@@ -1124,6 +1139,8 @@ export function createHarnessHost<P extends Principal = Principal>(
     return loaded
   }
   const sessions = new Map<string, Promise<SessionImpl>>()
+  /** The plugins with `lifetime: 'host'`, shared by the sessions of a harness. */
+  const hostPlugins = new HostPlugins()
   /** The sessions of `sessions` that finished opening, by key. */
   const live = new Map<string, SessionImpl>()
   /**
@@ -1365,6 +1382,7 @@ export function createHarnessHost<P extends Principal = Principal>(
         hostId,
         index,
         retention,
+        hostPlugins,
         ...(logStore
           ? {
               log: {
@@ -1670,20 +1688,75 @@ export function createHarnessHost<P extends Principal = Principal>(
     })
   }
 
+  /** The session keys of a thread of a tenant on this host, of any harness. */
+  const keysOf = (tenantId: string | undefined, threadId: string) => {
+    const suffix = `\u0000${logIdOf({ tenantId, logId: threadId })}`
+    return [...sessions.keys()].filter((key) => key.endsWith(suffix))
+  }
+
   /** The open sessions of a thread of a tenant on this host, of any harness. */
   const openSessionsOf = async (
     tenantId: string | undefined,
     threadId: string,
   ) => {
-    const suffix = `\u0000${logIdOf({ tenantId, logId: threadId })}`
     const opened = await Promise.allSettled(
-      [...sessions].flatMap(([key, session]) =>
-        key.endsWith(suffix) ? [session] : [],
-      ),
+      keysOf(tenantId, threadId).flatMap((key) => sessions.get(key) ?? []),
     )
     return opened.flatMap((entry) =>
       entry.status === 'fulfilled' ? [entry.value] : [],
     )
+  }
+
+  /** The thread ids of the index entries with `threadId` as parent. */
+  const childrenOf = async (tenantId: string | undefined, threadId: string) => {
+    if (!sessionStore) return []
+    const children: Array<string> = []
+    let cursor: string | undefined
+    do {
+      const page = await sessionStore.list({
+        tenantId,
+        parentThreadId: threadId,
+        ...(cursor !== undefined ? { cursor } : {}),
+      })
+      children.push(...page.entries.map((entry) => entry.threadId))
+      cursor = page.truncated ? page.cursor : undefined
+    } while (cursor !== undefined)
+    return children
+  }
+
+  /**
+   * `host.sessions.delete` after its check: close the open sessions of the
+   * thread, purge its children depth first, then delete its data and its
+   * entry. `seen` stops a loop of parent ids.
+   */
+  const purge = async (
+    tenantId: string | undefined,
+    threadId: string,
+    seen: Set<string>,
+  ): Promise<void> => {
+    if (seen.has(threadId)) return
+    seen.add(threadId)
+    // First, so no session of the thread writes or starts a child while
+    // the purge runs. For every handle.
+    const keys = keysOf(tenantId, threadId)
+    for (const key of keys) {
+      const session = await sessions.get(key)?.catch(() => undefined)
+      if (session) await closeShared(key, session)
+    }
+    const children = await childrenOf(tenantId, threadId)
+    for (const child of children) await purge(tenantId, child, seen)
+    const storeId = logIdOf({ tenantId, logId: threadId })
+    // A `host.observe` view can still hold the shared log of the thread.
+    // Its reads end, and the next open folds the log from the store.
+    resolved.get(storeId)?.log.stopReaders()
+    logs.delete(storeId)
+    resolved.delete(storeId)
+    await purgeThreadData({
+      storeId,
+      stores: persistence.stores,
+      media: media.stores,
+    })
+    await index.remove({ tenantId, threadId })
   }
 
   /**
@@ -1970,6 +2043,8 @@ export function createHarnessHost<P extends Principal = Principal>(
           .filter((entry) => entry.status === 'fulfilled')
           .map((entry) => entry.value.close(closeOptions)),
       )
+      // After the sessions: each one gave its host plugins back.
+      await hostPlugins.close()
     },
     logState: ({ harness, logId, principal }) => {
       if (access) need(principal, 'host.logState')
@@ -2052,25 +2127,11 @@ export function createHarnessHost<P extends Principal = Principal>(
         )) as SessionIndexEntry<SessionMetadataOf<typeof harness>> | undefined
       },
       async delete({ threadId, principal }) {
-        const tenantId = principal?.tenantId
-        const entry = await checkEntry('host.sessions.delete', 'delete', {
+        await checkEntry('host.sessions.delete', 'delete', {
           threadId,
           principal,
         })
-        // The transcript goes with the entry, so the next opener of this
-        // thread id cannot read it. ponytail: the log or the messages only;
-        // PR 4 adds a purge of blobs, metadata, and children.
-        if (entry?.harness !== undefined) {
-          const key = sessionKey(entry.harness, tenantId, threadId)
-          const opening = sessions.get(key)
-          // For every handle. A handle that calls again opens a new thread.
-          if (opening) await closeShared(key, await opening)
-        }
-        const storeId = logIdOf({ tenantId, logId: threadId })
-        const { log, messages } = persistence.stores
-        if (log) await log.deleteLog({ logId: storeId })
-        else await messages?.saveThread(storeId, [])
-        await index.remove({ tenantId, threadId })
+        await purge(principal?.tenantId, threadId, new Set())
       },
       async fork({ harness, threadId, at, members, principal }) {
         const tenantId = principal?.tenantId

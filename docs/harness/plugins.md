@@ -437,8 +437,34 @@ export const orders = definePlugin({
 
 - The host sets the plugin up one time for each harness. Every session of that harness shares this setup.
 - The host cleans it up when the last session that uses it closes, or at `host.close()`.
-- Its setup context has no session, no credentials, no keys, and no commands.
+- Its setup context has no session, no credentials, no keys, and no commands. It has `harness`, the name of the harness, and `resources`.
 - A tool of the plugin reads the user of its call from `ctx.context.run`. See [Act as the user of a run](#act-as-the-user-of-a-run).
+
+Some parts need the session: a command, a setting, plugin state, or a question to the user. Return them from `session`. It runs for each session, with the same context as a session plugin:
+
+```ts group=harness-plugins-host
+import { defineCommand } from '@tanstack/ai-harness'
+
+export const pool = definePlugin({
+  name: 'acme/pool',
+  lifetime: 'host',
+  setup: async (ctx) => {
+    const db = await ctx.resources.acquire(connect, (shared) => shared.end())
+    return {
+      session: (session) => ({
+        commands: {
+          orders: defineCommand({
+            description: 'Count the orders',
+            run: async () => `${await db.countOrders()} orders in ${session.session.threadId}`,
+          }),
+        },
+      }),
+    }
+  },
+})
+```
+
+The session gets the shared contributions and the `session` contributions together. The resources of `session` close with the session.
 
 The [MCP plugin](./mcp) works this way for `stdio` servers: one process serves every session of the host.
 

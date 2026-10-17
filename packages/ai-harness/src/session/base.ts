@@ -289,6 +289,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected readonly log: SessionDependencies['log']
   /** How much this session keeps in memory. */
   protected readonly retention: SessionDependencies['retention']
+  protected readonly hostPlugins: SessionDependencies['hostPlugins']
   /** What this session keeps for its inputs. */
   protected readonly inputRecords: InputRecords
   protected readonly agentRegistry = new AgentRegistry()
@@ -487,6 +488,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     })
     this.principal = deps.principal
     this.retention = deps.retention
+    this.hostPlugins = deps.hostPlugins
     this.inputRecords = new InputRecords(deps.retention.settledOperations)
     this.notifyHost = deps.onEvent
     this.feed = tapFeed(

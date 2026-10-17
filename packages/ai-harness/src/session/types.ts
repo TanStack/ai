@@ -26,6 +26,7 @@ import type { AgentInputOf, AgentResultOf, AnyAgent } from '../agents'
 import type { AnyHarness, HarnessAgentsOf } from '../define'
 import type { HarnessPersistence, Retention, SessionIndexWriter } from '../host'
 import type { PluginLifetime } from '../plugins'
+import type { HostPlugins } from '../host-plugins'
 import type {
   AgentRun,
   ChatTurnResult,
@@ -223,6 +224,8 @@ export interface SessionDependencies {
   index: SessionIndexWriter
   /** How much the session keeps in memory. */
   retention: Retention
+  /** The plugins with `lifetime: 'host'` that the host shares. */
+  hostPlugins: HostPlugins
   /** The session log of a durable host. */
   log?: {
     store: LogStore

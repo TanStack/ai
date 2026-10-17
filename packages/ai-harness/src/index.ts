@@ -39,8 +39,12 @@ export type {
 export { definePlugin } from './plugins'
 export type {
   HarnessPlugin,
+  HostPluginContext,
+  HostPluginContributions,
+  HostPluginDefinition,
   PluginContributions,
   PluginDefinition,
+  PluginResources,
   PluginLifetime,
   PluginPrompt,
   AgentGroup,
@@ -48,6 +52,7 @@ export type {
   PluginCommands,
   PluginSetupContext,
   PluginState,
+  SessionPluginDefinition,
 } from './plugins'
 
 export { createExtensionPoint, createPluginEvent } from './extensions'
