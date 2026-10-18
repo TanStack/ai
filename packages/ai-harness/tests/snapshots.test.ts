@@ -109,7 +109,6 @@ describe('log snapshots on a host', () => {
         cursor: head,
         threadId: THREAD,
         operationId: 'session',
-        threadId: 't1',
         event: expect.objectContaining({
           type: EventType.CUSTOM,
           name: HARNESS_EVENTS.gap,
