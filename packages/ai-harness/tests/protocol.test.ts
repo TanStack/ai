@@ -27,6 +27,12 @@ import {
 import type { HostFrame } from '../src/server'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const pricer = defineAgent({
   name: 'pricer',
   description: 'Prices a vendor',
@@ -211,7 +217,7 @@ describe('HTTP handler', () => {
 
     expect(first).toMatchObject({ inputId: 'c-1', status: 'accepted' })
     expect(retry).toEqual(first)
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     expect(
       await control({ op: 'prompt', message: 'another', inputId: 'c-1' }),
     ).toMatchObject({ status: 'rejected', reason: 'conflict' })
@@ -306,7 +312,7 @@ describe('HTTP handler', () => {
       ).json()
     await control({ op: 'prompt', message: 'hi' })
     // The model call runs, so a steer can join only at a later call.
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     await control({ op: 'followUp', message: 'later', inputId: 'f-1' })
 
     expect(
@@ -333,12 +339,12 @@ describe('HTTP handler', () => {
 
     await control({ op: 'followUp', message: 'I am real', wake: true })
 
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     const session = await host.open(harness, {
       threadId: 'user-1-wake',
       principal: user,
     })
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(wakeMessages(await session.transcript())).toEqual([])
     await host.close()
   })
@@ -412,10 +418,10 @@ describe('WebSocket', () => {
       requestId: 'r0',
       input: { op: 'prompt', message: 'x' },
     })
-    await vi.waitFor(() => expect(sent.at(-1)?.type).toBe('harness.error'))
+    await waitFor(() => expect(sent.at(-1)?.type).toBe('harness.error'))
 
     receive({ type: 'harness.subscribe', threadId: 'user-1-ws' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(sent.some((frame) => frame.type === 'harness.hello')).toBe(true),
     )
     receive({
@@ -424,7 +430,7 @@ describe('WebSocket', () => {
       input: { op: 'prompt', message: 'hi' },
     })
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         sent.some(
           (frame) =>
@@ -441,7 +447,7 @@ describe('WebSocket', () => {
       status: 'accepted',
     })
     receive({ type: 'harness.snapshot' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(sent.at(-1)).toMatchObject({
         type: 'harness.snapshot',
         snapshot: { status: 'idle' },
