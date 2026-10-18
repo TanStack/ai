@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
-import { randomBytes, timingSafeEqual } from 'node:crypto'
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
 import { createHarnessHandler } from '@tanstack/ai-harness/server'
 import { loadOptional } from './optional'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -134,8 +134,14 @@ export async function serve<P extends Principal = Principal>(
   const isAllowed = (request: Request) =>
     sameToken(request.headers.get('authorization'), options.token)
   const withAccess = host.hasAccess
-  // ponytail: the token signs media URLs, so they work as long as it does.
-  const media = { secret: options.token }
+  // ponytail: a key from the token signs media URLs, so they work as long
+  // as the token does. The hash gives the 32 bytes that signing needs, also
+  // for a short token.
+  const media = {
+    secret: createHash('sha256')
+      .update(`tanstack-ai-harness-cli media:${options.token}`)
+      .digest('hex'),
+  }
   const handler = withAccess
     ? createHarnessHandler({ host, harness, media })
     : createHarnessHandler({
