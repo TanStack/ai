@@ -13,6 +13,7 @@ import type {
 } from '@tanstack/ai'
 import type { LogRecord } from '@tanstack/ai-persistence'
 import type { CredentialsAccess } from './auth'
+import type { AnyHarness } from './define'
 import type { UsageCounts } from './usage'
 
 /** A user message: plain text, or content parts (text, images, files). */
@@ -300,6 +301,56 @@ export interface WaitingInput {
  * messages before that message. `through` keeps that message too.
  */
 export type ForkPoint = { before: string } | { through: string }
+
+/**
+ * What `host.transfer` carries to the target thread. Nothing else moves:
+ * plugin state, shared state, credentials, waits, settings, and plugin
+ * config stay with the source.
+ */
+export interface HandoffEnvelope {
+  /** The first message of the target, for the agent that takes over. */
+  note: string
+  /**
+   * Which messages of the source go after the note. Only settled messages
+   * move: a tool call with no result yet stays behind.
+   *
+   * - `'none'` (default): no message.
+   * - `'summary'`: one summary message. The model of the source harness
+   *   writes it, with the keys of the principal. Its usage counts in the
+   *   source thread.
+   * - `'all'`: the transcript, with a copy of each media file it uses.
+   */
+  messages?: 'none' | 'summary' | 'all'
+}
+
+/** The options of `host.transfer`. */
+export interface TransferOptions<P extends Principal = Principal> {
+  /** The thread to move the conversation from, and its harness. */
+  from: { harness: AnyHarness; threadId: string }
+  /**
+   * The harness of the target, and the target thread. Without `threadId`, a
+   * new thread. A thread that exists must belong to `harness`.
+   */
+  to: { harness: AnyHarness; threadId?: string }
+  envelope: HandoffEnvelope
+  /**
+   * Who makes the transfer. Its `tenantId` is the tenant of both threads.
+   * Required when the host has `access`.
+   */
+  principal?: P
+  /**
+   * The id of the transfer, so a retry is safe: a second call with the same
+   * id makes no second thread and copies nothing again. Default: a new id.
+   */
+  transferId?: string
+}
+
+/** What `host.transfer` resolves to. */
+export interface TransferResult {
+  transferId: string
+  /** The target thread. Open it with `host.open` and the target harness. */
+  threadId: string
+}
 
 /**
  * The stored settings of one thread. They apply from the next turn, stay

@@ -731,6 +731,14 @@ export function createHarnessHandler<P extends Principal = Principal>(
         return event.principalId === principal?.id
       }
       if (!hasAccess) return true
+      // A transfer names two threads: the user must read both.
+      if (event.type === 'transferred') {
+        const reads = await Promise.all([
+          mayRead(event.from.threadId),
+          mayRead(event.to.threadId),
+        ])
+        return reads.every(Boolean)
+      }
       if (event.type === 'session') decisions.delete(event.threadId)
       if (event.type === 'session-deleted') {
         decisions.delete(event.threadId)

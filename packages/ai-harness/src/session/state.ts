@@ -337,47 +337,47 @@ export abstract class SessionState<
   }
 
   /**
-   * @internal Write the source end of the transfer `transferId`: `records`,
-   * with the `harness.transferred` record last. When another host owns the
-   * log, each record goes to that host through the input lane, with an id
-   * from the transfer, so a retry offers the same ids again. A log that has
-   * the transfer already gets nothing.
+   * @internal Write the source end of a transfer: its `harness.transferred`
+   * record. When another host owns the log, the record goes to that host
+   * through the input lane, with an id from the transfer, so a retry offers
+   * the same record again. A log that has the transfer already gets nothing.
    */
   async recordTransfer(
-    transferId: string,
-    records: ReadonlyArray<LogRecord>,
+    record: Extract<ThreadRecord, { type: 'harness.transferred' }>,
   ): Promise<void> {
-    if (this.transferOf(transferId)) return
+    if (this.transferOf(record.transferId)) return
+    await this.appendOrOffer(record, `transfer:${record.transferId}`)
+  }
+
+  /**
+   * Append `record` to the log of this thread. When another host owns the
+   * log, offer it to that host as `inputId`: the owner appends it as it is.
+   */
+  private async appendOrOffer(record: LogRecord, inputId: string) {
     try {
-      await this.writer.append(records)
+      await this.writer.append([record])
       return
     } catch (error) {
       if (!(error instanceof LogOwnedElsewhereError)) throw error
     }
-    let usage = 0
-    for (const record of records) {
-      const inputId =
-        record.type === 'harness.transferred'
-          ? `transfer:${transferId}`
-          : `transfer:${transferId}:${record.type}:${usage++}`
-      if ((await this.writer.offer(inputId, record)) === 'conflict') {
-        throw new Error(
-          `The input lane has another record with id ${JSON.stringify(inputId)}.`,
-        )
-      }
+    const offered = await this.writer.offer(inputId, record)
+    if (offered === 'conflict') {
+      throw new Error(
+        `The input lane has another record with id ${JSON.stringify(inputId)}.`,
+      )
     }
   }
 
   /**
    * @internal A summary of `messages` for `host.transfer`, by the model of
-   * this harness, with the keys of `principal`. Resolves to the summary
-   * message and the `harness.usage` records of its model calls, for the log
-   * of this thread.
+   * this harness, with the keys of `principal`. The usage of its model calls
+   * goes to the log of this thread at once, so it counts also when the
+   * transfer fails later.
    */
   async transferSummary(
     principal: Principal | undefined,
     messages: ReadonlyArray<ModelMessage>,
-  ) {
+  ): Promise<string> {
     const named = this.threadSettings.model
     const model =
       (named === undefined ? undefined : this.harness.models?.[named]) ??
@@ -388,33 +388,40 @@ export abstract class SessionState<
       )
     }
     const usage: Array<LogRecord> = []
-    const { text } = await chat({
-      adapter: await this.keysOf(principal).adapter(model),
-      messages: [
-        {
-          role: 'user',
-          content: `${TRANSFER_SUMMARY_PROMPT}\n\n${transcriptText(messages)}`,
-        },
-      ],
-      stream: false,
-      middleware: [
-        {
-          name: 'harness:transfer-usage',
-          onUsage: (ctx, counts) => {
-            usage.push({
-              type: 'harness.usage',
-              model: `${ctx.provider}/${ctx.model}`,
-              ...storedPrincipal(principal),
-              usage: callUsage(counts),
-            })
+    try {
+      const { text } = await chat({
+        adapter: await this.keysOf(principal).adapter(model),
+        messages: [
+          {
+            role: 'user',
+            content: `${TRANSFER_SUMMARY_PROMPT}\n\n${transcriptText(messages)}`,
           },
-        },
-      ],
-    })
-    if (!text.trim()) {
-      throw new Error('The summary model returned no text. Nothing moved.')
+        ],
+        stream: false,
+        middleware: [
+          {
+            name: 'harness:transfer-usage',
+            onUsage: (ctx, counts) => {
+              usage.push({
+                type: 'harness.usage',
+                model: `${ctx.provider}/${ctx.model}`,
+                ...storedPrincipal(principal),
+                usage: callUsage(counts),
+              })
+            },
+          },
+        ],
+      })
+      if (!text.trim()) {
+        throw new Error('The summary model returned no text. Nothing moved.')
+      }
+      return text
+    } finally {
+      // A new id for each call: a retry that calls the model again pays again.
+      for (const record of usage) {
+        await this.appendOrOffer(record, createInputId())
+      }
     }
-    return { summary: text, usage }
   }
 
   // ===========================

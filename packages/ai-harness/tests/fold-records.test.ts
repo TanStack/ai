@@ -219,6 +219,43 @@ describe('foldThreadRecord', () => {
       'harness.interrupt.end',
       'harness.wait',
       'harness.wait.settled',
+      'harness.transferred',
+    ])
+  })
+
+  it('keeps each transfer by id, and its first record', () => {
+    const state = fold([
+      {
+        type: 'harness.transferred',
+        transferId: 'tr-1',
+        to: { harness: 'billing', threadId: 't2' },
+        at: 1,
+      },
+      // A retry that wrote the same transfer again keeps the first record.
+      {
+        type: 'harness.transferred',
+        transferId: 'tr-1',
+        to: { harness: 'billing', threadId: 't2' },
+        at: 2,
+      },
+      {
+        type: 'harness.transferred',
+        transferId: 'tr-2',
+        from: { harness: 'support', threadId: 't0' },
+        principal: { id: 'olga' },
+        at: 3,
+      },
+    ])
+    expect([...state.transfers]).toEqual([
+      ['tr-1', { to: { harness: 'billing', threadId: 't2' }, at: 1 }],
+      [
+        'tr-2',
+        {
+          from: { harness: 'support', threadId: 't0' },
+          principal: { id: 'olga' },
+          at: 3,
+        },
+      ],
     ])
   })
 

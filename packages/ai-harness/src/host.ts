@@ -16,12 +16,21 @@ import { purgeThreadData } from './purge'
 import { HostOwnership } from './ownership'
 import { SessionImpl } from './session/harness-session'
 import { actionOf, sessionHandle } from './session/handle'
-import { createInputId, offeredInputRecord } from './session/helpers'
+import {
+  createInputId,
+  createMessageId,
+  offeredInputRecord,
+  storedPrincipal,
+} from './session/helpers'
 import { observedSession } from './session/observed-session'
 import { HARNESS_EVENTS } from './types'
 import { isRecord } from './utils'
 import { changedEntry } from './session-entry'
-import type { PromptCacheOptions, StreamChunk } from '@tanstack/ai'
+import type {
+  ModelMessage,
+  PromptCacheOptions,
+  StreamChunk,
+} from '@tanstack/ai'
 import type {
   AIPersistence,
   ArtifactStore,
@@ -51,7 +60,14 @@ import type { LogRecordRetention, ReduceOptions, SnapshotTiming } from './log'
 import type { OwnershipOptions } from './ownership'
 import type { HarnessSession } from './session/index'
 import type { ObservedSession } from './session/observed-session'
-import type { ForkPoint, HarnessInput, Principal, Receipt } from './types'
+import type {
+  ForkPoint,
+  HarnessInput,
+  Principal,
+  Receipt,
+  TransferOptions,
+  TransferResult,
+} from './types'
 
 type SharedStores = {
   artifacts?: ArtifactStore
@@ -450,12 +466,31 @@ export interface HostRevokedEvent {
   at: number
 }
 
+/**
+ * `host.transfer` moved a conversation from one thread to another. Your app
+ * can copy its own access rows for the target thread here. A retry of the
+ * same transfer yields it again, with the same `transferId`.
+ */
+export interface HostTransferredEvent {
+  type: 'transferred'
+  transferId: string
+  tenantId?: string
+  /** The source thread, and the name of its harness. */
+  from: { harness: string; threadId: string }
+  /** The target thread, and the name of its harness. */
+  to: { harness: string; threadId: string }
+  /** The id of the principal who made the transfer. */
+  principalId?: string
+  at: number
+}
+
 /** What `host.events()` yields. */
 export type HostEvent =
   | HostStatusEvent
   | HostSessionEvent
   | HostSessionDeletedEvent
   | HostRevokedEvent
+  | HostTransferredEvent
 
 export interface ForkSessionOptions<P extends Principal = Principal> {
   /** The thread to copy. */
@@ -598,7 +633,9 @@ export interface HarnessHost<P extends Principal = Principal> {
    * message `at`, the media that those messages use, the stored settings,
    * and the plugin config. It does not copy plugin state, pending
    * interrupts, queued inputs, or running work. A `newThreadId` with
-   * messages is refused.
+   * messages is refused. A fork stays in its harness: a thread whose index
+   * entry names another harness throws. To move a conversation to another
+   * harness, use `transfer`.
    *
    * @example
    * ```ts
@@ -609,6 +646,40 @@ export interface HarnessHost<P extends Principal = Principal> {
     harness: THarness,
     options: ForkSessionOptions<P>,
   ) => Promise<HarnessSession<THarness>>
+  /**
+   * Move a conversation to another thread, maybe of another harness: a new
+   * thread by default. Only the `envelope` moves: the note, then no
+   * message, a summary, or the settled transcript with its media. Plugin
+   * state, shared state, credentials, waits, settings, and plugin config
+   * stay with the source. The source keeps running.
+   *
+   * Both threads are in the tenant of `principal`: a transfer to another
+   * tenant cannot be named. A new target has the principal as its owner and
+   * only member. Both logs get a `harness.transferred` record with the same
+   * `transferId`, and the index entries link the threads in `metadata`
+   * (`harness:transferredFrom` on the target, `harness:transferredTo` on
+   * the source). `host.events()` yields a `transferred` event. A retry with
+   * the same `transferId` makes no second thread and copies nothing again.
+   * When another host owns the source log, the source record goes to it
+   * through the input lane.
+   *
+   * With access, `principal` is required. It needs the `transfer` action on
+   * the source, and `send` on a target that exists. A refusal throws
+   * `AccessDeniedError`. Throws when a thread belongs to another harness,
+   * or when a new target has messages that are not from this transfer.
+   *
+   * @example
+   * ```ts
+   * const { threadId } = await host.transfer({
+   *   from: { harness: support, threadId: 't-1' },
+   *   to: { harness: billing },
+   *   envelope: { note: 'Refund for order 42.', messages: 'summary' },
+   *   principal,
+   * })
+   * const session = await host.open(billing, { threadId, principal })
+   * ```
+   */
+  transfer: (options: TransferOptions<P>) => Promise<TransferResult>
   /**
    * Store an input for a thread, and run nothing. The input waits in the log
    * of the thread until a host owns the log and runs it: the host that runs
@@ -1050,6 +1121,54 @@ function forkedMembers(
     ? []
     : [{ userId: oldOwner, role: 'member' }]
   return { ownerId: forker.id, members: [owner, ...old, ...others] }
+}
+
+/**
+ * The messages of `messages` up to the last point where each tool call has
+ * its result. A running turn can have a call with no result yet: it does
+ * not move.
+ */
+function settledMessages(messages: ReadonlyArray<ModelMessage>) {
+  const open = new Set<string>()
+  let end = 0
+  messages.forEach((message, index) => {
+    for (const call of message.toolCalls ?? []) open.add(call.id)
+    if (message.role === 'tool' && message.toolCallId) {
+      open.delete(message.toolCallId)
+    }
+    if (open.size === 0) end = index + 1
+  })
+  return messages.slice(0, end)
+}
+
+/** One link of the index `metadata` of a transfer. */
+interface TransferMetadataLink {
+  transferId: string
+  harness: string
+  threadId: string
+}
+
+/**
+ * `entry` with `link` in the list `metadata[key]`, once per transfer id.
+ * `undefined` for no entry, so the index writes nothing.
+ */
+function withTransferLink(
+  entry: SessionIndexEntry | undefined,
+  key: 'harness:transferredFrom' | 'harness:transferredTo',
+  link: TransferMetadataLink,
+) {
+  if (!entry) return undefined
+  const current = entry.metadata?.[key]
+  const links = Array.isArray(current) ? current : []
+  const isKnown = links.some(
+    (known) => isRecord(known) && known.transferId === link.transferId,
+  )
+  if (isKnown) return entry
+  return {
+    ...entry,
+    metadata: { ...entry.metadata, [key]: [...links, link] },
+    updatedAt: Date.now(),
+  }
 }
 
 /** Throw a clear error for a store set that cannot work. */
@@ -1913,6 +2032,9 @@ export function createHarnessHost<P extends Principal = Principal>(
       throw new Error('A fork needs a new thread: newThreadId is threadId.')
     }
     const tenantId = principal?.tenantId
+    // Before the open, so no plugin of `harness` mounts on a thread of
+    // another harness. A move to another harness is `host.transfer`.
+    checkHarness(await index.get({ tenantId, threadId }), harness)
     // The fork holds the source while it reads it.
     const sourceKey = sessionKey(harness.name, tenantId, threadId)
     hold(sourceKey)
@@ -2057,6 +2179,153 @@ export function createHarnessHost<P extends Principal = Principal>(
         ...(principal ? { principal } : {}),
       }
       return handleOf({ harness, session: fork, openOptions, key })
+    },
+    async transfer({ from, to, envelope, principal, transferId: id }) {
+      if (isClosed) throw hostClosed()
+      const transferId = id ?? crypto.randomUUID()
+      // The tenant of the principal is the tenant of both threads.
+      const tenantId = principal?.tenantId
+      const threadId = to.threadId ?? `thread-${transferId}`
+      if (threadId === from.threadId) {
+        throw new Error('A transfer needs another thread: to is from.')
+      }
+      const user = access ? need(principal, 'host.transfer') : undefined
+      const sourceEntry = await index.get({ tenantId, threadId: from.threadId })
+      const targetEntry = await index.get({ tenantId, threadId })
+      if (user) {
+        // No entry is not found: the same answer as a refusal.
+        if (!sourceEntry) {
+          throw new AccessDeniedError({
+            action: 'transfer',
+            threadId: from.threadId,
+          })
+        }
+        await allow({
+          principal: user,
+          action: 'transfer',
+          threadId: from.threadId,
+          entry: sourceEntry,
+        })
+        // A target that exists has members already: the principal must
+        // be one who may send to it. A retry finds its own new target.
+        if (targetEntry) {
+          await allow({
+            principal: user,
+            action: 'send',
+            threadId,
+            entry: targetEntry,
+          })
+        }
+      }
+      checkHarness(sourceEntry, from.harness)
+      checkHarness(targetEntry, to.harness)
+      const source = { harness: from.harness.name, threadId: from.threadId }
+      const target = { harness: to.harness.name, threadId }
+      const sourceKey = sessionKey(from.harness.name, tenantId, from.threadId)
+      hold(sourceKey)
+      try {
+        // With no principal, as `host.fork` opens its source. The open does
+        // not take the log from a host that owns it.
+        const sourceSession = await openSession(
+          from.harness,
+          { threadId: from.threadId },
+          tenantId,
+        )
+        const targetKey = sessionKey(to.harness.name, tenantId, threadId)
+        hold(targetKey)
+        try {
+          // A new target gets the principal as its owner and only member.
+          const targetSession = await openSession(
+            to.harness,
+            { threadId, ...(principal ? { principal } : {}) },
+            tenantId,
+          )
+          // First the target, then the source: a retry after a crash in
+          // between finds the target end, and writes only the source end.
+          let end = targetSession.transferOf(transferId)
+          if (!end) {
+            const isUsed =
+              to.threadId === undefined &&
+              (await targetSession.transcript()).length > 0
+            if (isUsed) {
+              throw new Error(
+                `Thread ${JSON.stringify(threadId)} is not empty, and has no transfer ${JSON.stringify(transferId)}.`,
+              )
+            }
+            const settled = settledMessages(await sourceSession.transcript())
+            const mode = envelope.messages ?? 'none'
+            const moved: Array<ModelMessage> =
+              mode === 'all'
+                ? // New ids: the target may have these messages from an
+                  // earlier transfer.
+                  settled.map((message) => ({
+                    ...message,
+                    id: createMessageId(),
+                  }))
+                : mode === 'summary'
+                  ? [
+                      {
+                        id: createMessageId(),
+                        role: 'assistant',
+                        content: `Summary of the conversation so far:\n${await sourceSession.transferSummary(principal, settled)}`,
+                      },
+                    ]
+                  : []
+            const note: ModelMessage = {
+              id: createMessageId(),
+              role: 'user',
+              content: envelope.note,
+            }
+            end = {
+              from: source,
+              ...storedPrincipal(principal),
+              at: Date.now(),
+            }
+            // One append: the messages and the record, or neither.
+            await targetSession.adoptMessages(
+              sourceSession,
+              [note, ...moved],
+              [{ type: 'harness.transferred', transferId, ...end }],
+            )
+          }
+          // The same record on each retry, so the input lane takes it as a
+          // duplicate.
+          await sourceSession.recordTransfer({
+            type: 'harness.transferred',
+            transferId,
+            to: target,
+            ...(end.principal ? { principal: end.principal } : {}),
+            at: end.at,
+          })
+          await index.update({ tenantId, threadId }, (entry) =>
+            withTransferLink(entry, 'harness:transferredFrom', {
+              transferId,
+              ...source,
+            }),
+          )
+          await index.update({ tenantId, threadId: from.threadId }, (entry) =>
+            withTransferLink(entry, 'harness:transferredTo', {
+              transferId,
+              ...target,
+            }),
+          )
+          emit({
+            type: 'transferred',
+            transferId,
+            ...(tenantId !== undefined ? { tenantId } : {}),
+            from: source,
+            to: target,
+            ...(end.principal ? { principalId: end.principal.id } : {}),
+            at: end.at,
+          })
+          return { transferId, threadId }
+        } finally {
+          // A target that only this transfer opened closes on idle.
+          await release(targetKey)
+        }
+      } finally {
+        await release(sourceKey)
+      }
     },
     revoke: ({ threadId, principal }) =>
       revokeUser({

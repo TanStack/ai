@@ -696,7 +696,7 @@ export abstract class SessionInputs<
    * Apply one offer, and wait until `accept` stored or refused its input.
    * An offer that no `accept` takes (a record of another kind, or a call
    * that ends before `accept`, such as a duplicate prompt) goes, so the
-   * lane does not keep it. A transfer record is appended as it is.
+   * lane does not keep it. A record of `host.transfer` is appended as it is.
    */
   private async applyOffer(offer: OfferedInput) {
     const { inputId, record } = offer
@@ -719,16 +719,17 @@ export abstract class SessionInputs<
         return
       }
     }
-    // A host that does not own the log offers the source end of a
-    // `host.transfer` here, and its usage. A transfer that the log has
-    // already only drops the offer.
-    const isTransferRecord =
+    // `host.transfer` on a host that does not own the log offers records
+    // here: the source end of the transfer, and the usage of its summary.
+    // They go in the log as they are. A transfer that the log has already
+    // only drops its offer.
+    const isLaneRecord =
       record.type === 'harness.usage' || record.type === 'harness.transferred'
     const isKnown =
       record.type === 'harness.transferred' &&
       typeof record.transferId === 'string' &&
       this.writer.state.thread.transfers.has(record.transferId)
-    const records = isTransferRecord && !isKnown ? [record] : []
+    const records = isLaneRecord && !isKnown ? [record] : []
     await this.writer.append(records, { consumes: [inputId] })
   }
 

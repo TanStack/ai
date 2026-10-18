@@ -545,6 +545,7 @@ export function foldEntry(
     case 'harness.interrupt.end':
     case 'harness.wait':
     case 'harness.wait.settled':
+    case 'harness.transferred':
       state.thread = foldThreadRecord(state.thread, record)
       return
   }
