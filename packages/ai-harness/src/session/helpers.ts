@@ -131,6 +131,8 @@ export interface OfferedInputRecord extends LogRecord {
   runId?: string
   /** The overrides of a turn, as its `harness.input.turn` record keeps them. */
   overrides?: NamedTurnOverrides
+  /** The W3C `traceparent` of the caller. The owner keeps it on its record. */
+  traceparent?: string
 }
 
 /** The offer record of `input`. See {@link OfferedInputRecord}. */
@@ -140,6 +142,7 @@ export function offeredInputRecord(offer: {
   principal: Principal | undefined
   runId?: string
   turn?: TurnExtras
+  traceparent?: string
 }) {
   const named = offer.turn ? namedOverrides(offer.turn) : {}
   const record: OfferedInputRecord = {
@@ -149,6 +152,9 @@ export function offeredInputRecord(offer: {
     ...storedPrincipal(offer.principal),
     ...(offer.runId !== undefined ? { runId: offer.runId } : {}),
     ...(Object.keys(named).length > 0 ? { overrides: named } : {}),
+    ...(offer.traceparent !== undefined
+      ? { traceparent: offer.traceparent }
+      : {}),
   }
   return record
 }

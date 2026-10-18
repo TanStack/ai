@@ -54,6 +54,7 @@ import type {
 } from './log-records'
 import type {
   Cursor,
+  HarnessEventValues,
   HarnessInput,
   InputSettlement,
   SettlementOutcome,
@@ -79,6 +80,8 @@ export type HarnessRecord =
       input: HarnessInput
       principal?: { id: string; tenantId?: string }
       at: number
+      /** The W3C `traceparent` of the caller. */
+      traceparent?: string
     }
   | {
       type: 'harness.input.applied'
@@ -264,6 +267,8 @@ export interface InputState {
   appliedAt?: number
   settlement?: InputSettlement
   reason?: string
+  /** The W3C `traceparent` of the caller. The span of its turn links it. */
+  traceparent?: string
 }
 
 /** The fold of a session log. */
@@ -490,6 +495,7 @@ export function foldEntry(
         inputId: record.inputId,
         input: record.input,
         ...(record.principal ? { principal: record.principal } : {}),
+        ...(record.traceparent ? { traceparent: record.traceparent } : {}),
         at: record.at,
         status: 'pending',
         attempt: 0,
@@ -1255,6 +1261,9 @@ export interface LogWriter extends EventFeed {
   rest: () => Promise<void>
 }
 
+/** A new owner of a log. See `LogViewHooks.onOwned`. */
+export type OwnershipChange = HarnessEventValues['harness.ownership.changed']
+
 /** What a session gives its view of a shared log. */
 export interface LogViewHooks {
   /** A write failed, so the log stopped. */
@@ -1283,6 +1292,11 @@ export interface LogViewHooks {
    * it. Own events never come here: the session saw them at publish.
    */
   onRemoteEvent?: (entry: SessionEvent) => void
+  /**
+   * This host became the owner of the log, before its first append. Only
+   * one session of the log gets it: the root session when it is open.
+   */
+  onOwned?: (change: OwnershipChange) => void
   /**
    * Scrub the secrets of the session from a value. Each record that the
    * view appends, stages, commits, or offers goes through it first. It
@@ -1369,6 +1383,8 @@ export class SharedLog<TState = unknown> {
    * before its first append. `undefined` while it does not own the log.
    */
   private epoch: number | undefined
+  /** The last epoch that this host had, also after it gave the log up. */
+  private heldEpoch: number | undefined
   /** The open views, by thread. */
   private readonly views = new Map<
     string,
@@ -1974,7 +1990,35 @@ export class SharedLog<TState = unknown> {
     // The new owner applies the inputs that wait for an owner. Later, so the
     // write that acquired the log goes first.
     queueMicrotask(() => this.notifyOffers())
+    // The next epoch after the one that this host had: no other host owned
+    // the log in between, so the owner did not change.
+    const held = this.heldEpoch
+    this.heldEpoch = epoch
+    if (held === undefined || epoch > held + 1) {
+      // The old owner left inputs that did not end: it stopped, and this
+      // host takes over its work.
+      const isTakeover = [...this.state.sessions.values()].some((session) =>
+        [...session.inputs.values()].some(
+          (input) => input.status === 'pending' || input.status === 'applied',
+        ),
+      )
+      const reason = isTakeover ? 'taken_over' : 'acquired'
+      queueMicrotask(() => this.notifyOwned({ epoch, reason }))
+    }
     return epoch
+  }
+
+  /**
+   * Call `onOwned` of the root session of the log, or of another open
+   * session when the root is not open here. One call for each change.
+   */
+  private notifyOwned(change: OwnershipChange) {
+    const root = this.views.get(this.rootThread)
+    const view =
+      root && !root.fenced
+        ? root
+        : [...this.views.values()].find((each) => !each.fenced)
+    view?.hooks.onOwned?.(change)
   }
 
   /** Pin the log to `hostId`, with the epoch of this host. */

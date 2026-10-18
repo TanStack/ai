@@ -269,7 +269,7 @@ export async function moveToBilling(request: Request) {
 `envelope.note` is the first message of the target. `envelope.messages` picks what comes after it:
 
 - `'none'` (default): no message.
-- `'summary'`: one summary message. The model of the source harness writes it, with the keys of the principal.
+- `'summary'`: one summary message. The model of the source harness writes it, with the keys of the principal. Its usage counts in the source thread under the source `transfer`. See [Usage of the router and transfers](./usage#usage-of-the-router-and-transfers).
 - `'all'`: the settled transcript, with new message ids and a copy of each media file.
 
 Only settled messages move. A tool call with no result yet stays behind. Plugin state, shared state, credentials, waits, settings, and plugin config never move. The source thread keeps running.

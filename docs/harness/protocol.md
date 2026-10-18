@@ -14,10 +14,7 @@ keywords:
 
 <!--
 DRAFT (PR 11, node 11-F). Node 11-N checks this page against the final code and removes this comment.
-This page describes the behavior that PR 11 ships. These parts land in later nodes of the same PR:
-- 11-I (with PR 7, 9, 10): the publishers of harness.input.queued, harness.ownership.changed, harness.stranded, harness.handoff, harness.transferred, harness.wait.opened, and harness.wait.settled.
-- 11-L: the traceparent header on POST run and POST control, and the span link. (The traceparent field of the harness.input frame already reaches the session.)
-Already in the code: everything else on this page (11-A, 11-B, 11-D, 11-E, 11-H).
+This page describes the behavior that PR 11 ships. All of it is in the code (11-A, 11-B, 11-D, 11-E, 11-H, 11-I, 11-L).
 -->
 
 You want a client for a harness that is not `useChat` or `createHarnessClient`: a Python service, a mobile app, or a proxy of your own. This page lists every route, frame, and `harness.*` event, so you can write that client in any language.
@@ -379,7 +376,7 @@ Each value must be a finite number above 0. If a value is not, `createHarnessHan
 
 ## Traces
 
-To join a run to the trace of your app, send a W3C `traceparent`:
+To join a turn to the trace of your app, send a W3C `traceparent`:
 
 - On HTTP, send the `traceparent` header on `POST control` or `POST run`.
 - On the socket and the stdio worker, set `traceparent` on the `harness.input` frame.
@@ -399,7 +396,14 @@ const response = await fetch('/api/harness/control', {
 console.log(response.headers.get('X-Request-Id'))
 ```
 
-The harness stores the `traceparent` with the input. The span of the run has a link to it, on the server that runs the turn. The server drops a value that is not a valid `traceparent`. To give the host a tracer, see [Deploy a harness](./deploy).
+What the harness does with it:
+
+- It reads the `traceparent` of a message input only: `prompt`, `steer`, `followUp`, and the turn of `POST run`. Other inputs ignore it.
+- It drops a value that is not a valid W3C `traceparent`.
+- It stores the value on the `harness.input` record of the log. When another server owns the thread, the value goes to that server with the input.
+- When the input starts a turn, the server that runs the turn gives its `harness.operation` span a link to the value. A link is not a parent, so your trace UI shows the turn as a linked trace.
+
+To give the host a tracer, see [Trace runs and report operations](./deploy#trace-runs-and-report-operations).
 
 ## Event catalog
 
@@ -415,15 +419,15 @@ In TypeScript, `HarnessEventValues` from `@tanstack/ai-harness` maps each name t
 | `harness.operation.finished` | `{ operationId, status }`. `status` is `completed`, `failed`, `cancelled`, or `interrupted`. |
 | `harness.operation.resumed` | `{ operationId, resumedFrom? }`. A host continued a run after another host stopped. |
 | `harness.turn.retry` | `{ operationId, retries, error: { message, code?, retryAfterMs? }, continued }`. `continued` is true when the model continues a partial answer. |
-| `harness.handoff` | `{ from, to, note?, runId, by }`. `from` is an agent name or `null`. `to` is an agent name or `{ human: true }`. `by` is `tool`, `code`, or `router`. |
-| `harness.usage` | `{ model, sender?, usage, total }`. `usage` is this model call, and `total` is the new total of the thread. |
+| `harness.handoff` | `{ from, to, note?, runId, by, waitId? }`. `from` and `to` are an agent name, `null` for the main model, or `{ human: true }`. `by` is `tool`, `code`, `router`, or `operator`. A handoff to a person has the `waitId` of its wait. |
+| `harness.usage` | `{ model, sender?, source?, label?, usage, total }`. `usage` is this model call, and `total` is the new total of the thread. `source` is `plugin:<name>` or `router`. A turn or an agent run has no `source`. |
 
 ### Inputs
 
 | `name` | `value` |
 | --- | --- |
 | `harness.input.accepted` | `{ inputId, op }` |
-| `harness.input.queued` | `{ inputId, delivery }`. The input waits behind a running turn. `delivery` is `steer` or `queue`. |
+| `harness.input.queued` | `{ inputId, delivery }`. The owner of the log stored the input, and it waits behind the running turn or the turns before it. `delivery` is `steer` or `queue`. |
 | `harness.input.applied` | `{ inputId, operationId }` |
 | `harness.input.rejected` | `{ inputId, reason }` |
 | `harness.input.settled` | `{ inputId, operationId?, outcome, error? }`. `outcome` is `completed`, `aborted`, `interrupted`, or `failed`. Only `failed` has `error: { message, code? }`. |
@@ -433,7 +437,7 @@ In TypeScript, `HarnessEventValues` from `@tanstack/ai-harness` maps each name t
 
 | `name` | `value` |
 | --- | --- |
-| `harness.wait.opened` | `{ waitId, kind, runId, message?, expiresAt? }`. `kind` is `approval`, `question`, `sign-in`, `client-tool`, or `human`. `expiresAt` is in epoch milliseconds. |
+| `harness.wait.opened` | `{ waitId, kind, runId, message?, expiresAt? }`. A wait opened in the log: a question, a `step.ask`, a handoff to a person, or a wait of a background agent run. `kind` is `approval`, `question`, `sign-in`, `client-tool`, or `human`. `expiresAt` is in epoch milliseconds. The interrupts of a turn come in its `RUN_FINISHED`. |
 | `harness.wait.settled` | `{ waitId, outcome }`. `outcome` is `answered`, `cancelled`, or `expired`. |
 | `harness.question` | `{ questionId, message, schema?, secret?, url? }`. Answer it with the `answer` input. |
 | `harness.question.answered` | `{ questionId }` |
@@ -458,8 +462,8 @@ When you get one of these events, load the part of the session that it names aga
 | --- | --- |
 | `harness.media` | A media record: `{ id, threadId, kind, mimeType, name, size, createdAt, source }`. See [Send and show media](./media). |
 | `harness.plugin.event` | `{ plugin, name, value }`. An event that a plugin sent. |
-| `harness.ownership.changed` | `{ epoch, reason }`. A host became the owner of the log. `reason` is `acquired` or `taken_over`. |
-| `harness.stranded` | `{ operationId?, hostId? }`. The host that holds the workspace of the session is gone. The session waits. |
+| `harness.ownership.changed` | `{ epoch, reason }`. A new host owns the log, from its first write. `reason` is `taken_over` when the old owner stopped with inputs that did not end, else `acquired`. |
+| `harness.stranded` | `{ operationId?, hostId? }`. The workspace that the log binds the thread to is gone, so the workspace tools fail. `operationId` is the run that tried it. `hostId` is the host of a folder. |
 | `harness.transferred` | `{ transferId, from?, to? }`. `from` and `to` are `{ threadId }`. The conversation came from, or went to, another thread. |
 | `harness.gap` | `{ from, resumeAt, reason }`. See [When events are missing](#when-events-are-missing). |
 

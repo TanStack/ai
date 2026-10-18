@@ -579,6 +579,13 @@ async function openWorkspace(
           : `The workspace of this thread, ${placeOf(known)}, is gone, so the tools cannot work on it.`
       if (reattached === 'gone') {
         session.emit?.(WorkspaceStranded, { threadId, binding: known, message })
+        // The harness event of the same fact, for any client.
+        log.stranded({
+          operationId: run.runId,
+          ...(known.kind === 'host' && known.hostId
+            ? { hostId: known.hostId }
+            : {}),
+        })
       }
       throw new Error(message)
     }

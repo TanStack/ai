@@ -856,11 +856,14 @@ export function createHarnessHandler<P extends Principal = Principal>(
         }
         // AG-UI `forwardedProps` are the input's context.
         const { forwardedProps } = params
+        // The span of the turn links the `traceparent` of the caller.
+        const traceparent = request.headers.get('traceparent')
         const operation = session.send(message, {
           ...ids,
           ...(Object.keys(forwardedProps).length > 0
             ? { context: forwardedProps }
             : {}),
+          ...(traceparent ? { traceparent } : {}),
         })
         // A turn that the host refused throws, and the answer is 403.
         const receipt = await turnReceipt(operation)
@@ -950,8 +953,10 @@ export function createHarnessHandler<P extends Principal = Principal>(
         return json({ error: 'threadId is required' }, 400)
       const input = parseHarnessInput('input' in body ? body.input : undefined)
       const session = await openFor(principal, threadId)
+      const traceparent = request.headers.get('traceparent')
+      const traced = traceparent ? { traceparent } : {}
       return withSession(session, async () =>
-        json(await applyInput({ harness, session, input, ...user })),
+        json(await applyInput({ harness, session, input, ...user, ...traced })),
       )
     }
 

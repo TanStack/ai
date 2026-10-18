@@ -20,10 +20,10 @@ export interface UsageCounts {
 
 /**
  * The usage of a thread: every model call of its turns, their subagents, its
- * agent runs, and the model calls of plugins (`ctx.model.chat`). `bySender`
- * has the calls of a known sender only, keyed by the principal id, and
- * `bySource` has the calls of plugins only, so their sums can be less than
- * `total`.
+ * agent runs, the model calls of plugins (`ctx.model.chat`), of the router,
+ * and of a transfer summary. `bySender` has the calls of a known sender
+ * only, keyed by the principal id, and `bySource` has only the calls that
+ * have a source, so their sums can be less than `total`.
  */
 export interface SessionUsage {
   total: UsageCounts
@@ -32,8 +32,9 @@ export interface SessionUsage {
   /** By principal id. */
   bySender: Record<string, UsageCounts>
   /**
-   * By the source of a plugin call, for example `plugin:tanstack/title`.
-   * Turns and agent runs have no source, so they are not in it.
+   * By the source of a call: `plugin:<name>` (for example
+   * `plugin:tanstack/title`), `router`, or `transfer`. Turns and agent runs
+   * have no source, so they are not in it.
    */
   bySource: Record<string, UsageCounts>
 }
@@ -48,11 +49,12 @@ export type UsageCall = {
    */
   runId?: string
   /**
-   * Who made a call that is not a turn or an agent run:
-   * `plugin:<name>` for `ctx.model.chat`.
+   * Who made a call that is not a turn or an agent run: `plugin:<name>`
+   * for `ctx.model.chat`, `router` for `model.chat` of `routing.router`,
+   * and `transfer` for the summary of `host.transfer`.
    */
   source?: string
-  /** The `label` of a `ctx.model.chat` call, for example `judge`. */
+  /** The `label` of the call, for example `judge`, or `summary` for a transfer. */
   label?: string
   usage: Omit<UsageCounts, 'calls'>
 }
