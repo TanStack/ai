@@ -220,6 +220,7 @@ describe('foldThreadRecord', () => {
       'harness.interrupt.end',
       'harness.wait',
       'harness.wait.settled',
+      'harness.state',
     ])
   })
 

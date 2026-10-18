@@ -888,3 +888,83 @@ export function tapFeed(
     wake: () => feed.wake(),
   }
 }
+
+/**
+ * The plugins of one turn, with a count of the runs that still use them. The
+ * turn holds them first. Each run that the turn starts takes a hold until it
+ * settles. The plugins dispose once, when the last hold ends, or at
+ * `dispose()` (a session close).
+ */
+export interface HeldPlugins {
+  plugins: MountedPlugins
+  /**
+   * Keep the plugins for `run` until it settles. True when `run` holds them
+   * now. False when they are disposed already.
+   */
+  hold: (run: PromiseLike<unknown>) => boolean
+  /** End the hold of the turn. Resolves when a dispose that it starts ends. */
+  release: () => Promise<void>
+  /** Dispose the plugins now, once. */
+  dispose: () => Promise<void>
+}
+
+/** Hold `plugins` for the turn that mounted them. See {@link HeldPlugins}. */
+export function holdPlugins(
+  plugins: MountedPlugins,
+  onDisposed: (held: HeldPlugins) => void,
+): HeldPlugins {
+  let holds = 1
+  let disposing: Promise<void> | undefined
+  const runs = new WeakSet<PromiseLike<unknown>>()
+  const held: HeldPlugins = {
+    plugins,
+    hold: (run) => {
+      if (runs.has(run)) return true
+      if (disposing) return false
+      runs.add(run)
+      holds += 1
+      const end = () => void held.release()
+      run.then(end, end)
+      return true
+    },
+    release: () => {
+      holds -= 1
+      return holds <= 0 ? held.dispose() : Promise.resolve()
+    },
+    dispose: () => {
+      // A failed dispose does not fail the turn or the close.
+      disposing ??= plugins
+        .dispose()
+        .catch(() => {})
+        .finally(() => onDisposed(held))
+      return disposing
+    },
+  }
+  return held
+}
+
+/**
+ * Abort `child` with the reason of `parent` when `parent` aborts: a cancel,
+ * a time limit, a budget, or a shutdown, with the same reason, so a shutdown
+ * stays a shutdown. The link ends when either run settles. A parent that ends
+ * normally does not stop the child.
+ */
+export function linkSignal(parent: LinkedRun, child: LinkedRun) {
+  const parentSignal = parent.abortController.signal
+  if (parent.isSettled()) return
+  const stop = () => child.abortController.abort(parentSignal.reason)
+  if (parentSignal.aborted) {
+    stop()
+    return
+  }
+  parentSignal.addEventListener('abort', stop, { once: true })
+  const unlink = () => parentSignal.removeEventListener('abort', stop)
+  child.then(unlink, unlink)
+  parent.then(unlink, unlink)
+}
+
+/** A run that {@link linkSignal} links: an operation of the session. */
+type LinkedRun = PromiseLike<unknown> & {
+  abortController: AbortController
+  isSettled: () => boolean
+}

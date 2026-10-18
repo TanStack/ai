@@ -14,6 +14,7 @@ import type {
   RunArgs,
 } from './session/types'
 import type { AgentRun } from './types'
+import type { PluginState } from './plugins'
 
 /** Any agent made with `defineAgent`, with its types kept. */
 export type AnyAgent = DefinedAgent<any, any, any, any, any, any, any>
@@ -213,6 +214,24 @@ export interface HarnessAgentContext {
   step: ToolStep
   /** Start and run agents, as children of this run. */
   agents: AgentActions
+  /**
+   * State that the agents of one session share, by `key`. The session log
+   * keeps it, so it survives a restart, and a fork of the thread has it.
+   * Before the first update, `get` gives `initial`. The value is JSON.
+   *
+   * @example
+   * ```ts
+   * const seen = ctx.harness.state({ key: 'seen', initial: [] as Array<string> })
+   * await seen.update((list) => [...list, 'docs.md'])
+   * ```
+   */
+  state: <T>(options: { key: string; initial: T }) => PluginState<T>
+}
+
+const noSessionState = () => {
+  throw new Error(
+    'ctx.harness.state needs a run that a harness session started.',
+  )
 }
 
 const noSessionAgents = () => {
@@ -225,7 +244,7 @@ const noSessionAgents = () => {
  * `ctx.harness` outside a run that a session started from code (a tool-mode
  * child of a chat turn, or a run that a plain `chat()` starts): `step.do`
  * runs `fn` each time, `step.sleep` waits its full time, `step.ask`
- * throws, and each call of `agents` throws.
+ * throws, and each call of `agents` and `state` throws.
  */
 export const NO_SESSION_CONTEXT: HarnessAgentContext = {
   // `fn` runs each time, so it needs no JSON copy.
@@ -239,6 +258,7 @@ export const NO_SESSION_CONTEXT: HarnessAgentContext = {
     run: noSessionAgents,
     group: noSessionAgents,
   },
+  state: noSessionState,
 }
 
 // A run that a plain chat() starts gets NO_SESSION_CONTEXT, so ctx.harness is
@@ -247,13 +267,13 @@ registerSubagentContextDefaults(() => ({ harness: NO_SESSION_CONTEXT }))
 
 declare module '@tanstack/ai' {
   /**
-   * `ctx.harness` in the `run` of an agent: `step` and `agents`. A harness
+   * `ctx.harness` in the `run` of an agent: `step`, `agents`, and `state`. A harness
    * session gives them to each agent run it starts from code (a session
    * agent, `ctx.harness.agents.start`, a background child), and to the
    * children those runs start through `ctx.chat({ subagents })`. Any
    * other run, for example one that a plain `chat()` starts, gets
    * `NO_SESSION_CONTEXT`: `step.do` runs `fn` each time, and each call of
-   * `agents` throws.
+   * `agents` and `state` throws.
    */
   interface SubagentContextExtension {
     harness: HarnessAgentContext

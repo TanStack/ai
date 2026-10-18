@@ -9,6 +9,7 @@ import type {
   UIMessage,
 } from '@tanstack/ai'
 import type { OperationImpl } from '../operation'
+import type { HeldPlugins } from './helpers'
 import type { RefreshFlights } from '../auth'
 import type { ToolTurn } from '../tool-turn'
 import type {
@@ -164,6 +165,13 @@ export interface AgentChild {
   prompt?: string
   /** The turn whose tool started the run. */
   turnRunId?: string
+  /**
+   * The subagent tree budget of the turn, for a start from a tool-mode
+   * child. The start took a call of it already.
+   */
+  budget?: SubagentBudget
+  /** The plugins of the turn that started the run. */
+  plugins?: HeldPlugins
 }
 
 export type RunArgs<TAgent, TOptions> =
@@ -506,6 +514,11 @@ export interface AgentChain {
    */
   turnRunId?: string
   budget: SubagentBudget
+  /**
+   * The plugins of the turn that started this chain, or the chain above it.
+   * A run of the chain gets them while they are not disposed.
+   */
+  plugins?: HeldPlugins
   /** The newest run that started. */
   current: AgentRunEntry
   /**

@@ -177,6 +177,8 @@ export type ThreadRecord =
     }
   /** A change to the thread state of one plugin. */
   | { type: 'harness.plugin.state'; plugin: string; delta: PluginStateDelta }
+  /** A change to one key of the state that the agents of a session share. */
+  | { type: 'harness.state'; key: string; delta: PluginStateDelta }
   /** The turn that stopped for interrupts, or `null` when none stands. */
   | { type: 'harness.interrupted'; turn: InterruptedTurnRecord | null }
   /** An agent run ended. */
@@ -246,6 +248,7 @@ export const THREAD_RECORD_TYPES = [
   'harness.interrupt.end',
   'harness.wait',
   'harness.wait.settled',
+  'harness.state',
 ] as const satisfies ReadonlyArray<ThreadRecord['type']>
 
 const THREAD_TYPES = new Set<string>(THREAD_RECORD_TYPES)
@@ -262,6 +265,8 @@ export interface ThreadStateFold {
   config: Map<string, unknown>
   /** The thread state of each plugin, by plugin name. */
   plugins: Map<string, unknown>
+  /** The state that the agents of the session share (`ctx.harness.state`), by key. */
+  shared: Map<string, unknown>
   /** The turn that stopped for interrupts, or `null`. */
   interrupted: InterruptedTurnRecord | null
   /** By run id. */
@@ -294,6 +299,7 @@ export function emptyThreadState() {
     settings: {},
     config: new Map(),
     plugins: new Map(),
+    shared: new Map(),
     interrupted: null,
     agentResults: new Map(),
     turnOverrides: new Map(),
@@ -539,6 +545,11 @@ export function foldThreadRecord(state: ThreadStateFold, record: LogRecord) {
       const { plugin, delta } = record
       const value = setAt(state.plugins.get(plugin), delta.path, delta.value)
       return { ...state, plugins: withEntry(state.plugins, plugin, value) }
+    }
+    case 'harness.state': {
+      const { key, delta } = record
+      const value = setAt(state.shared.get(key), delta.path, delta.value)
+      return { ...state, shared: withEntry(state.shared, key, value) }
     }
     case 'harness.interrupted':
       return { ...state, interrupted: record.turn }

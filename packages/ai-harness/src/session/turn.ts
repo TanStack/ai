@@ -1,6 +1,7 @@
 import {
   EventType,
   StreamProcessor,
+  SubagentBudget,
   chat,
   compactForModel,
   modelMessagesToUIMessages,
@@ -43,6 +44,7 @@ import {
   isRoutedBag,
   keepTurnTools,
   runNodeRecord,
+  holdPlugins,
 } from './helpers'
 import { SessionAgents } from './agents'
 import { commandStepScope, stepWaitPrefix } from './turn-parts'
@@ -59,6 +61,7 @@ import type { AnyHarness } from '../define'
 import type { AnyCommand } from '../commands'
 import type { ModelErrorContext } from '../turn'
 import type { MountedPlugins } from '../plugins'
+import type { HeldPlugins } from './helpers'
 import type {
   CommandOptions,
   SettlementOutcome,
@@ -464,6 +467,8 @@ export abstract class SessionTurn<
     this.publishStarted(operation)
 
     let runPlugins: MountedPlugins | undefined
+    /** The turn plugins, held until the turn and the runs it started settle. */
+    let heldPlugins: HeldPlugins | undefined
     /** The next chat() call runs the root agents that `routing` picked. */
     let isRootPart = false
     /** chat() refused the resume of this turn, so it ran nothing. */
@@ -532,6 +537,10 @@ export abstract class SessionTurn<
           // Bound to this turn's run, not read when a service is called.
           services: this.pluginServices(info),
         })
+        heldPlugins = holdPlugins(runPlugins, (held) =>
+          this.turnPlugins.delete(held),
+        )
+        this.turnPlugins.add(heldPlugins)
       }
       // A removed session plugin stays mounted, but gives this turn nothing.
       const session =
@@ -851,7 +860,16 @@ export abstract class SessionTurn<
                       sender,
                       run,
                       runPlugins,
-                      bag.agents,
+                      {
+                        agents: bag.agents,
+                        // The tree budget of this chat() call, as core makes
+                        // it. The binding has it too, so the starts of a
+                        // tool-mode child count against it.
+                        budget: SubagentBudget.root(
+                          bag.limits ?? this.limits(),
+                        ),
+                        ...(heldPlugins ? { plugins: heldPlugins } : {}),
+                      },
                     ),
                   },
                 }
@@ -1110,7 +1128,8 @@ export abstract class SessionTurn<
       }
     } finally {
       stopTimer()
-      await runPlugins?.dispose().catch(() => {})
+      // The runs that the turn started keep the plugins until they settle.
+      await heldPlugins?.release()
     }
     const timedOut = operation.abortController.signal.reason === TIMEOUT_REASON
     // A recoverable close: the turn stops as on a crash, and the next host

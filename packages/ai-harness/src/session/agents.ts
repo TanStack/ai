@@ -41,7 +41,9 @@ import {
   BUDGET_REASON,
   SHUTDOWN_REASON,
   TIMEOUT_REASON,
+  linkSignal,
 } from './helpers'
+import type { HeldPlugins } from './helpers'
 import { SessionTurnParts, stepWaitPrefix } from './turn-parts'
 import type {
   SubagentBudget,
@@ -412,10 +414,12 @@ export abstract class SessionAgents<
    * `harness.media` event for each file, and pushes its record to
    * `captured`. The agents read the provider keys of `run` as `ctx.keys`, and
    * their tools read `run` as `ctx.context.run`. Their model calls count in
-   * the usage of `principal`, the user of `run`. With `agents` (the
-   * subagents of a turn), the agent tools can start them in the background,
-   * for `principal`, and a child does not stop for an approval or a
-   * question: the turn's resume does not reach it.
+   * the usage of `principal`, the user of `run`. With `turn` (the subagents
+   * of a turn), the agent tools can start them in the background, for
+   * `principal`, and a child does not stop for an approval or a question:
+   * the turn's resume does not reach it. A run that the turn starts keeps
+   * its plugins until it settles. A tool-mode child gets `ctx.harness`, and
+   * its starts count against the turn's tree budget `turn.budget`.
    */
   protected binding(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
@@ -423,13 +427,19 @@ export abstract class SessionAgents<
     principal: Principal | undefined,
     run: RunContext,
     runPlugins?: MountedPlugins,
-    agents?: ReadonlyArray<AnyAgent>,
+    turn?: {
+      agents: ReadonlyArray<AnyAgent>
+      budget: SubagentBudget
+      plugins?: HeldPlugins
+    },
   ) {
     const options = this.harness.media
     const agentMiddleware = [
       ...(this.sessionPlugins?.agentMiddleware ?? []),
       ...(runPlugins?.agentMiddleware ?? []),
     ]
+    const agents = turn?.agents
+    const plugins = turn?.plugins ? { plugins: turn.plugins } : {}
     // The child runs as a background agent of this session, and its end
     // starts a new turn. Core does not pass `start` to nested children.
     const start: SubagentBinding['start'] =
@@ -447,13 +457,33 @@ export abstract class SessionAgents<
             subagentRunId,
             // The run tree keeps the turn as the parent of the run.
             turnRunId: operation.id,
+            ...plugins,
             ...(call.prompt !== undefined && { prompt: call.prompt }),
             ...(call.parentToolCallId !== undefined && {
               parentToolCallId: call.parentToolCallId,
             }),
           },
         )
-        return { subagentRunId, done: Promise.resolve(started) }
+        // Core does not catch `done`, and a cancel of the turn now stops
+        // the run too. It only needs to know when the run ends.
+        const done = Promise.resolve(started).then(
+          () => undefined,
+          () => undefined,
+        )
+        return { subagentRunId, done }
+      })
+    // `ctx.harness` of a tool-mode child, one per child run.
+    const extend: SubagentBinding['extend'] =
+      turn &&
+      (() => {
+        const harness: HarnessAgentContext = {
+          // ponytail: not durable. A tool-mode child runs again from its
+          // start when the turn runs again.
+          step: NO_SESSION_CONTEXT.step,
+          agents: this.turnChildAgents(operation, principal, turn),
+          state: (stateOptions) => this.sharedState(stateOptions),
+        }
+        return { harness }
       })
     return {
       generationMiddleware: [
@@ -498,8 +528,8 @@ export abstract class SessionAgents<
       // No `promptCache`: a tool-mode child then uses the retention of the
       // turn's chat() call, so a turn override reaches it.
       ...(start && { start }),
-      // No `extend`: a tool-mode child gets the registered default
-      // `NO_SESSION_CONTEXT` as `ctx.harness`.
+      ...(turn && { budget: turn.budget }),
+      ...(extend && { extend }),
     } satisfies SubagentBinding
   }
 
@@ -526,9 +556,10 @@ export abstract class SessionAgents<
           budget: parent.budget.child(),
           // `agentStarter` took a call of the tree budget for this start.
           release: () => parent.budget.release(),
+          ...(parent.plugins ? { plugins: parent.plugins } : {}),
         }
       : child?.turnRunId !== undefined
-        ? { turnRunId: child.turnRunId }
+        ? { turnRunId: child.turnRunId, ...this.fromTurn(child) }
         : {}
     const chain = this.createChain(
       {
@@ -542,11 +573,79 @@ export abstract class SessionAgents<
       { operation, ...sender },
     )
     parent?.children.add(chain)
+    // The run keeps the turn plugins until it settles, and stops when the
+    // run that started it stops.
+    if (chain.plugins && !chain.plugins.hold(operation)) delete chain.plugins
+    const parentRun =
+      parent?.current.operation ??
+      (child?.turnRunId === undefined
+        ? undefined
+        : this.operations.get(child.turnRunId))
+    if (parentRun) linkSignal(parentRun, operation)
     void this.executeAgent(operation, chain, {
       inputId: chain.runInputId,
       ...(child ? { child } : {}),
     })
     return operation
+  }
+
+  /**
+   * `ctx.harness.agents` of a tool-mode child of the turn `operation`. Each
+   * start counts against the turn's tree budget, one level below the child,
+   * as core counts the child's own subagents. Over it, the start throws. The
+   * runs are children of the turn in the run tree, run for `principal`, and
+   * keep the turn plugins.
+   */
+  protected turnChildAgents(
+    operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
+    principal: Principal | undefined,
+    turn: { budget: SubagentBudget; plugins?: HeldPlugins },
+  ): AgentActions {
+    // ponytail: a nested tool-mode child counts at depth 1 too: core passes
+    // `extend` down unchanged, so its depth is not known here.
+    const budget = turn.budget.child()
+    const started: Array<AgentRunImpl> = []
+    const user = principal ? { principal } : {}
+    return this.agentActions((target, input, options) => {
+      const active = started.filter((run) => !run.isSettled()).length
+      const refusal = budget.reserve(active)
+      if (refusal !== undefined) throw new Error(refusal)
+      try {
+        const run = this.runAgent(
+          target,
+          input,
+          { ...user, ...options },
+          undefined,
+          {
+            subagentRunId: createSubagentId(),
+            turnRunId: operation.id,
+            budget,
+            ...(turn.plugins ? { plugins: turn.plugins } : {}),
+          },
+        )
+        started.push(run)
+        return run
+      } catch (error) {
+        budget.release()
+        throw error
+      }
+    })
+  }
+
+  /**
+   * What a chain that a turn started takes from the turn: its plugins, and,
+   * for a start from a tool-mode child, the turn's tree budget, one level
+   * below the child. The start took a call of it, and a start that fails
+   * before its run applies gives the call back.
+   */
+  protected fromTurn(child: AgentChild) {
+    const { budget, plugins } = child
+    return {
+      ...(budget
+        ? { budget: budget.child(), release: () => budget.release() }
+        : {}),
+      ...(plugins ? { plugins } : {}),
+    }
   }
 
   /**
@@ -792,6 +891,7 @@ export abstract class SessionAgents<
       | 'parentChainInputId'
       | 'release'
       | 'turnRunId'
+      | 'plugins'
     > & { budget?: SubagentBudget },
     first: AgentRunEntry,
   ): AgentChain {
@@ -1257,20 +1357,29 @@ export abstract class SessionAgents<
         // sign-in wait of one of its tools stops this run, until the user
         // cancels that sign-in.
         const declined = new Set(answers?.declined)
+        // The run that started this one: agent code, else a turn.
+        const parentRunId = chain.parentRunId ?? chain.turnRunId
         const run = this.runContext({
           principal,
           runId: operation.id,
-          ...(chain.parentRunId ? { parentRunId: chain.parentRunId } : {}),
+          ...(parentRunId ? { parentRunId } : {}),
           signal: operation.abortController.signal,
           canWait: (id) => !declined.has(id),
         })
-        const binding = this.binding(operation, [], principal, run)
+        // The plugins of the turn that started the chain, while they are
+        // not disposed. A follow-up after the turn and its runs gets none.
+        const { plugins } = chain
+        const runPlugins = plugins?.hold(operation)
+          ? plugins.plugins
+          : undefined
+        const binding = this.binding(operation, [], principal, run, runPlugins)
         const durable = options.resume
           ? this.resumable(inputId, run)
           : undefined
         const harnessContext: HarnessAgentContext = {
           step: durable?.step ?? NO_SESSION_CONTEXT.step,
           agents: this.agentStarter(chain),
+          state: (options) => this.sharedState(options),
         }
         const stream = runAgentStream(
           agent,

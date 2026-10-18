@@ -272,7 +272,7 @@ export abstract class SessionState<
   /**
    * @internal Start this new thread as a fork of `source`, before its first
    * turn: `messages` with their media copied to this thread, and the stored
-   * settings and plugin config of `source`. The log of this thread keeps
+   * settings, plugin config, and shared state of `source`. The log of this thread keeps
    * them. `host.fork` calls it.
    */
   async adoptFork(
@@ -334,6 +334,10 @@ export abstract class SessionState<
       if (!this.sessionPlugins?.config.has(key)) continue
       this.configValues.set(key, value)
       records.push({ type: 'harness.config', key, value })
+    }
+    // The state that the agents share goes with the fork. Plugin state does not.
+    for (const [key, value] of source.writer.state.thread.shared) {
+      records.push({ type: 'harness.state', key, delta: { path: [], value } })
     }
     if (records.length > 0) await this.writer.append(records)
   }

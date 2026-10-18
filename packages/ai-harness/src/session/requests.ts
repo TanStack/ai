@@ -33,6 +33,7 @@ import type {
 } from '../types'
 import type { QueuedTurn, ResolveForRunOptions, WaitingSteer } from './types'
 import type { Admission } from './inputs'
+import type { HeldPlugins } from './helpers'
 
 /**
  * A layer of {@link HarnessSession}: prompt, steer, follow-up, continue, reset,
@@ -41,6 +42,12 @@ import type { Admission } from './inputs'
 export abstract class SessionRequests<
   THarness extends AnyHarness = AnyHarness,
 > extends SessionState<THarness> {
+  /**
+   * The plugins of turns that are not disposed yet: a turn, or a run that it
+   * started, still runs. `close()` disposes them.
+   */
+  protected readonly turnPlugins = new Set<HeldPlugins>()
+
   // ===========================
   // Inputs
   // ===========================
@@ -1027,6 +1034,8 @@ export abstract class SessionRequests<
       await Promise.allSettled(
         running.map((operation) => Promise.resolve(operation)),
       )
+      // The turn plugins that a run still held, before the feed closes.
+      await Promise.all([...this.turnPlugins].map((held) => held.dispose()))
       // The events from before the close land first, so the next host has
       // the text of a cut answer.
       if (options?.recoverable)

@@ -602,6 +602,7 @@ export function foldEntry(
     case 'harness.interrupt.end':
     case 'harness.wait':
     case 'harness.wait.settled':
+    case 'harness.state':
       state.thread = foldThreadRecord(state.thread, record)
       if (state.runUsage.size > 0) dropEndedUsage(state)
       return
@@ -768,6 +769,7 @@ function serializeThread(thread: ThreadStateFold) {
     settings: thread.settings,
     config: [...thread.config],
     plugins: [...thread.plugins],
+    shared: [...thread.shared],
     interrupted: thread.interrupted,
     agentResults: [...thread.agentResults],
     turnOverrides: [...thread.turnOverrides],
@@ -800,6 +802,12 @@ function parseThread(value: unknown) {
     settings: value.settings as ThreadSettings,
     config: new Map(config as Array<[string, unknown]>),
     plugins: new Map(plugins as Array<[string, unknown]>),
+    // A state with no shared state gets an empty value.
+    shared: new Map(
+      Array.isArray(value.shared)
+        ? (value.shared as Array<[string, unknown]>)
+        : [],
+    ),
     interrupted: (value.interrupted ?? null) as InterruptedTurnRecord | null,
     agentResults: new Map(agentResults as Array<[string, AgentResultRecord]>),
     turnOverrides: new Map(

@@ -138,6 +138,30 @@ describe('plugin agentMiddleware', () => {
     await host.close()
   })
 
+  it('runs for a background agent that a turn of a turn-lifetime plugin starts', async () => {
+    const { runs, middleware } = recordRuns()
+    const lead = mockAdapter([
+      () => toolCall('helper', { prompt: 'Go', background: true }),
+      () => text('Started.'),
+      () => text('Got it.'),
+    ])
+    const { host, session } = await open(
+      defineHarness({
+        name: 'test/agent-middleware',
+        adapter: lead.adapter,
+        subagents: { agents: [textAgent('helper', 'helped')] },
+        plugins: () => [agentPlugin(middleware, 'turn')],
+      }),
+    )
+
+    await session.send('help')
+    const helper = session.agentRuns().find((run) => run.agent === 'helper')
+    expect(await session.agentRun(helper!.operationId)).toBe('helped')
+
+    expect(runs).toEqual(['helper'])
+    await host.close()
+  })
+
   it('counts each model call once per agent when one tracker is in middleware and agentMiddleware', async () => {
     const calls: Array<{ agent: string; totalTokens: number }> = []
     const tracker: AnyChatMiddleware = {

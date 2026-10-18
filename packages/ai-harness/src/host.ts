@@ -596,7 +596,8 @@ export interface HarnessHost<P extends Principal = Principal> {
    * Start a new thread as a copy of another one, and return its open
    * session of `harness`. It copies the transcript up to and including the
    * message `at`, the media that those messages use, the stored settings,
-   * and the plugin config. It does not copy plugin state, pending
+   * the plugin config, and the state that agents share
+   * (`ctx.harness.state`). It does not copy plugin state, pending
    * interrupts, queued inputs, or running work. A `newThreadId` with
    * messages is refused.
    *

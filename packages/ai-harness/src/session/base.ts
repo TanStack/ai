@@ -893,50 +893,86 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * value back, also after a restart.
    */
   protected pluginState<T>(plugin: string, initial: T): PluginState<T> {
+    return this.loggedState({ kind: 'plugins', key: plugin, initial })
+  }
+
+  /**
+   * `ctx.harness.state`: the value of `key` that the agents of this session
+   * share. The log keeps it, as it keeps plugin state.
+   */
+  protected sharedState<T>(options: {
+    key: string
+    initial: T
+  }): PluginState<T> {
+    return this.loggedState({ kind: 'shared', ...options })
+  }
+
+  /**
+   * One value of the thread state that the log keeps: the state of a plugin,
+   * or a shared key. Each update appends the deltas from the current value.
+   * The updates of one value run one at a time.
+   */
+  private loggedState<T>(options: {
+    kind: 'plugins' | 'shared'
+    key: string
+    initial: T
+  }): PluginState<T> {
+    const { kind, key, initial } = options
     const read = () => {
-      const { plugins } = this.writer.state.thread
-      // The fold holds what this plugin wrote.
-      return plugins.has(plugin) ? (plugins.get(plugin) as T) : initial
+      const values = this.writer.state.thread[kind]
+      // The fold holds what was written for this key.
+      return values.has(key) ? (values.get(key) as T) : initial
     }
     // A copy: the snapshot must not share objects with the fold.
-    this.stateLoaders.set(plugin, () => structuredClone(read()))
+    if (kind === 'plugins') {
+      this.stateLoaders.set(key, () => structuredClone(read()))
+    }
     const publish = (value: T) => {
-      this.stateDoc[plugin] = value
+      if (kind === 'plugins') this.stateDoc[key] = value
       this.feed.publish('session', {
         type: EventType.STATE_SNAPSHOT,
-        snapshot: { plugins: { ...this.stateDoc } },
+        snapshot: {
+          plugins: { ...this.stateDoc },
+          // fromEntries defines own keys, so a key named `__proto__` stays
+          // a key.
+          shared: structuredClone(
+            Object.fromEntries(this.writer.state.thread.shared),
+          ),
+        },
         timestamp: Date.now(),
       })
     }
     const write = async (change: (current: T) => T) => {
-      const { plugins } = this.writer.state.thread
+      const values = this.writer.state.thread[kind]
       // The first write sets the whole value: the log has no value to change.
-      const stored = plugins.has(plugin) ? plugins.get(plugin) : undefined
+      const stored = values.has(key) ? values.get(key) : undefined
       // Scrubbed here, so the log, the snapshot, and the caller get one value.
       const next = this.redactor.redact(change(structuredClone(read())))
       // The append is a compare-and-set: it goes at the next position of
       // the log, so a write of another host makes it fail, and no update is
       // lost.
       await this.writer.append(
-        pluginStateDeltas(stored, next).map((delta) => ({
-          type: 'harness.plugin.state',
-          plugin,
-          delta,
-        })),
+        pluginStateDeltas(stored, next).map((delta) =>
+          kind === 'plugins'
+            ? { type: 'harness.plugin.state' as const, plugin: key, delta }
+            : { type: 'harness.state' as const, key, delta },
+        ),
       )
       publish(next)
       return next
     }
+    // A plugin name and a shared key can be the same string.
+    const chain = JSON.stringify([kind, key])
     return {
       get: async () => structuredClone(read()),
       update: (change) => {
         // One at a time, so each change starts from the value that the
         // update before it wrote.
-        const run = (this.stateWrites.get(plugin) ?? Promise.resolve()).then(
+        const run = (this.stateWrites.get(chain) ?? Promise.resolve()).then(
           () => write(change),
         )
         this.stateWrites.set(
-          plugin,
+          chain,
           run.catch(() => {}),
         )
         return run
