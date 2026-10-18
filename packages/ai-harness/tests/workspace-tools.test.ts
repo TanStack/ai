@@ -31,6 +31,12 @@ import type {
   WorkspaceToolsOptions,
 } from '../src/first-party/coding/workspace'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const { posix } = nodePath
 
 /**
@@ -902,7 +908,7 @@ describe('background bash in a session', () => {
       workspaceTools({ root: '/workspace', backend }),
     ])
     await session.send('build')
-    await vi.waitFor(() => expect(calls).toHaveLength(3))
+    await waitFor(() => expect(calls).toHaveLength(3))
     expect(JSON.stringify(calls[2].messages)).toContain(
       'Background job bash-1 ended.\\nexit code: 0\\nbuilt',
     )
@@ -938,7 +944,7 @@ describe('background bash in a session', () => {
       listener,
     ])
     await session.send('build')
-    await vi.waitFor(() => expect(events).toHaveLength(3))
+    await waitFor(() => expect(events).toHaveLength(3))
     expect(events).toEqual([
       ['started', { jobId: 'bash-1', command: 'make' }],
       ['output', { jobId: 'bash-1', output: 'built\n' }],
@@ -1141,7 +1147,7 @@ describe('bash', () => {
         const pid = Number(
           await readFile(nodePath.join(cwd, 'child.pid'), 'utf8'),
         )
-        await vi.waitFor(() => expect(isRunning(pid)).toBe(false), {
+        await waitFor(() => expect(isRunning(pid)).toBe(false), {
           timeout: 5000,
         })
       } finally {
