@@ -5,7 +5,7 @@ import type {
   SchemaInput,
 } from '@tanstack/ai'
 import { registerSubagentContextDefaults } from '@tanstack/ai/adapter-internals'
-import { stepRunWithoutSession } from './durable-tool'
+import { askWithoutSession, stepRunWithoutSession } from './durable-tool'
 import { waitUntil } from './utils'
 import type { ToolStep } from './durable-tool'
 import type { AgentStartOptions } from './session/index'
@@ -152,14 +152,15 @@ export interface HarnessAgentContext {
 /**
  * `ctx.harness` outside a run that a session started from code (a tool-mode
  * child of a chat turn, or a run that a plain `chat()` starts): `step.do`
- * runs `fn` each time, `step.sleep` waits its full time, `agents.start`
- * throws.
+ * runs `fn` each time, `step.sleep` waits its full time, `step.ask` and
+ * `agents.start` throw.
  */
 export const NO_SESSION_CONTEXT: HarnessAgentContext = {
   // `fn` runs each time, so it needs no JSON copy.
   step: {
     do: async (name, fn) => fn(stepRunWithoutSession(name)),
     sleep: ({ ms }) => waitUntil(Date.now() + ms),
+    ask: askWithoutSession,
   },
   agents: {
     start: () => {

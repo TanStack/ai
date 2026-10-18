@@ -152,7 +152,13 @@ export interface AgentRunInfo {
    * run stopped for its waits (an approval, a sign-in), and an answer
    * resumes it. See `pendingWaits`.
    */
-  status: 'running' | 'queued' | 'waiting' | 'completed' | 'failed' | 'cancelled'
+  status:
+    | 'running'
+    | 'queued'
+    | 'waiting'
+    | 'completed'
+    | 'failed'
+    | 'cancelled'
   /** The run whose agent code started this run. */
   parentRunId?: string
   /** Who the run runs for. */

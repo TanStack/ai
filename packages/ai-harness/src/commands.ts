@@ -1,6 +1,7 @@
 import type { InferSchemaType, ModelMessage, SchemaInput } from '@tanstack/ai'
 import type { SessionIndexEntry } from '@tanstack/ai-persistence'
 import type { CredentialsAccess } from './auth'
+import type { ToolStep } from './durable-tool'
 import type { SessionSnapshot } from './session/index'
 import type { SessionEntryChange, SessionEntryUpdate } from './session-entry'
 import type {
@@ -111,11 +112,18 @@ export interface PluginSessionApi<TMetadata = Record<string, unknown>> {
     >,
   ) => Promise<SessionIndexEntry<TMetadata> | undefined>
   /**
-   * Ask the user and wait for the answer. Hosts show it (the CLI prompts,
-   * ACP shows an elicitation). The log keeps the question as a wait of the
-   * run that asks, so a user on any machine can answer it. Rejects when the
-   * session closes, when the run is cancelled, when `signal` aborts, and
-   * when the question expires.
+   * Ask the user in a live wait of a tool call, and wait for the answer:
+   * only an MCP elicitation asks this way (see `live`). Hosts show it (the
+   * CLI prompts, ACP shows an elicitation). The log keeps the question as a
+   * wait of that run, so every host shows it. Rejects when the session
+   * closes, when the run stops, when `signal` aborts, and when the question
+   * expires.
+   *
+   * Without `live`, it throws: no process waits for a user. In a command, a
+   * durable tool, or an agent run, use `step.ask`. To let the model ask, add
+   * the `question` tool. To ask before a tool call, give the tool its
+   * resources (`PermissionResources`), and `permissions()` asks before the
+   * call runs.
    */
   ask: <TSchema extends SchemaInput | undefined = undefined>(
     question: Question<TSchema>,
@@ -163,6 +171,22 @@ export interface CommandContext {
    * credentials and model provider keys (`run.keys`).
    */
   run: RunContext
+  /**
+   * The steps of the command. To ask the user, call `step.ask`: the log
+   * keeps the question, so a user on any machine can answer it. When the
+   * host stops while the command waits, the next host runs the command
+   * again from the top: put each side effect before the ask in `step.do`,
+   * and it does not run twice.
+   *
+   * @example
+   * ```ts
+   * run: async (_input, { step, credentials }) => {
+   *   const key = await step.ask({ name: 'key', message: 'Paste your key', secret: true })
+   *   await credentials.set({ id: 'acme', credential: { type: 'api_key', value: key } })
+   * }
+   * ```
+   */
+  step: ToolStep
 }
 
 /** A user action: a slash command, a button, a dashboard action. Not a model tool. */

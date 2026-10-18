@@ -44,8 +44,8 @@ let stopAsk = new AbortController()
 
 /**
  * Commands that ask: plainly, with a short expiry, and with a signal. Each
- * asks through its own `ctx.session`, so the question is a wait of the
- * command run.
+ * asks in a live wait of its own run, as an MCP elicitation does, so the
+ * question is a wait of the command run that a promise of this host holds.
  */
 const asker = definePlugin({
   name: 'test/asker',
@@ -54,7 +54,11 @@ const asker = definePlugin({
       ask: defineCommand({
         description: 'Ask for a name',
         run: (_input, ctx) =>
-          ctx.session.ask({ message: 'Name?', schema: z.string() }),
+          ctx.session.ask({
+            message: 'Name?',
+            schema: z.string(),
+            live: { name: 'mcp-elicitation', run: ctx.run },
+          }),
       }),
       soon: defineCommand({
         description: 'Ask for a password that expires soon',
@@ -63,12 +67,17 @@ const asker = definePlugin({
             message: 'Password?',
             secret: true,
             expiresAt: Date.now() + 150,
+            live: { name: 'mcp-elicitation', run: ctx.run },
           }),
       }),
       stoppable: defineCommand({
         description: 'Ask until the signal aborts',
         run: (_input, ctx) =>
-          ctx.session.ask({ message: 'Still there?', signal: stopAsk.signal }),
+          ctx.session.ask({
+            message: 'Still there?',
+            signal: stopAsk.signal,
+            live: { name: 'mcp-elicitation', run: ctx.run },
+          }),
       }),
     },
   }),

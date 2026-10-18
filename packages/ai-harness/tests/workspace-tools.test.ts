@@ -351,9 +351,9 @@ describe.each(fixtures)('workspace tools on the $name backend', (fixture) => {
       expect(await resources.read_file?.outside?.(input)).toEqual([
         paths.join(real, 'a.md'),
       ])
-      expect(await resources.read_file?.outside?.({ path: 'src/a.ts' })).toEqual(
-        [],
-      )
+      expect(
+        await resources.read_file?.outside?.({ path: 'src/a.ts' }),
+      ).toEqual([])
     })
 
     it('runs an approved outside call, and refuses one that a rule denies', async () => {
@@ -492,6 +492,48 @@ describe('editStyle', () => {
   )
 })
 
+describe('the afterWrite hooks', () => {
+  it.each([
+    ['write_file', { path: 'a.ts', content: 'one' }],
+    ['edit_file', { path: 'a.ts', old: 'zero', new: 'one' }],
+  ])(
+    'run after %s gives the file lock back, so a hook (a formatter) can write the file',
+    async (name, args) => {
+      const { backend, files } = memoryBackend()
+      files.set('/workspace/a.ts', new TextEncoder().encode('zero'))
+      let isFormatted = false
+      const { tools } = createWorkspaceTools(
+        { root: '/workspace', backend },
+        {
+          hooks: () => [
+            {
+              // Writes the file again, as a formatter does. Inside the lock
+              // of the call, this write would wait for ever.
+              afterWrite: async () => {
+                if (isFormatted) return undefined
+                isFormatted = true
+                await runIn(set, 'write_file', {
+                  path: 'a.ts',
+                  content: 'formatted',
+                })
+                return 'Formatted.'
+              },
+            },
+          ],
+        },
+      )
+      const set = new Map(
+        tools.map((tool): [string, AnyTool] => [tool.name, tool]),
+      )
+
+      expect(await runIn(set, name, args)).toContain('Formatted.')
+      expect(new TextDecoder().decode(files.get('/workspace/a.ts'))).toBe(
+        'formatted',
+      )
+    },
+  )
+})
+
 describe('permission resources', () => {
   const { resources } = createWorkspaceTools({
     root: '/workspace',
@@ -502,12 +544,12 @@ describe('permission resources', () => {
     expect(await resources.read_file?.paths?.({ path: 'src/a.ts' })).toEqual([
       '/workspace/src/a.ts',
     ])
-    expect(await resources.edit_file?.paths?.({ path: '/etc/hosts' })).toEqual(
-      ['/etc/hosts'],
-    )
-    expect(await resources.write_file?.paths?.({ path: '../x.txt' })).toEqual(
-      ['/x.txt'],
-    )
+    expect(await resources.edit_file?.paths?.({ path: '/etc/hosts' })).toEqual([
+      '/etc/hosts',
+    ])
+    expect(await resources.write_file?.paths?.({ path: '../x.txt' })).toEqual([
+      '/x.txt',
+    ])
     expect(await resources.list_files?.paths?.({})).toEqual(['/workspace'])
     expect(
       await resources.grep?.paths?.({ pattern: 'a', path: 'src' }),
@@ -569,7 +611,7 @@ describe('permission resources', () => {
       workspaceTools({ root: '/workspace', backend, editStyle: 'patch' }),
     ])
     await session.send('work')
-    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(session.snapshot().pendingWaits).toEqual([])
     expect([...files.keys()]).toEqual(['/workspace/src/a.ts'])
     await host.close()
   })
@@ -713,7 +755,7 @@ describe('permission rules, links, and grep', () => {
       { mode: 'plan' },
     )
     await session.send('read the notes')
-    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(session.snapshot().pendingWaits).toEqual([])
     expect(seen()).not.toContain('hunter2')
     await host.close()
   })
@@ -741,7 +783,7 @@ describe('permission rules, links, and grep', () => {
         },
       )
       await session.send('search')
-      expect(session.snapshot().pendingQuestions).toHaveLength(0)
+      expect(session.snapshot().pendingWaits).toEqual([])
       for (const id of ['c0', 'c1']) {
         expect(result(id)).toBe(`"src/a.ts:1: KEY=1\\n${SKIPPED_TWO}"`)
       }
@@ -826,7 +868,7 @@ describe('webfetch approval', () => {
       { tool: 'webfetch', decision: 'allow' },
     ])
     await session.send('read the page')
-    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(session.snapshot().pendingWaits).toEqual([])
     expect(JSON.stringify(calls[1].messages)).toContain('fetched body')
     await host.close()
   })

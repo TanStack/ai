@@ -146,7 +146,7 @@ async function sessionPart(
     // The tool calls of this server for this session that run now.
     const own: Array<Caller> = []
     const opened = await (sharedServer ??
-      openServer(ctx.resources, name, server, elicitFor(own, ctx.session)))
+      openServer(ctx.resources, name, server, elicitFor(own)))
     const failed = opened instanceof Error
     const status: McpServerStatus = failed
       ? { name, status: 'failed', error: opened.message, toolCount: 0 }
@@ -351,15 +351,12 @@ export function askForInput(
 
 /**
  * Answers the `elicitation/create` requests of a spec 2025 server: it asks
- * for the newest call of `calling`. With no call, it asks `fallback`, else
- * it declines.
+ * for the newest call of `calling`, as a live wait of its run. With no
+ * call, it declines: only a tool call can wait for the user.
  */
-export function elicitFor(
-  calling: ReadonlyArray<Caller>,
-  fallback?: PluginSessionApi,
-): OnElicit {
+export function elicitFor(calling: ReadonlyArray<Caller>): OnElicit {
   return async (params) => {
-    const caller = calling.at(-1) ?? (fallback && { session: fallback })
+    const caller = calling.at(-1)
     if (!caller) return { action: 'decline' }
     return elicitResult(await ask(caller.session, params, caller.run))
   }

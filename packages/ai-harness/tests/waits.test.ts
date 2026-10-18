@@ -180,3 +180,52 @@ describe('waitOfQuestion', () => {
     })
   })
 })
+
+describe('the waits of the turn boundary', () => {
+  /** An interrupt of `definitionId`, as `onInterruptBoundary` opens it. */
+  const boundary = (definitionId: string, payload: unknown): Interrupt => ({
+    id: `int-${definitionId}`,
+    reason: 'boundary',
+    message: 'Allow bash ls?',
+    responseSchema: { type: 'object' },
+    metadata: {
+      [BINDING]: {
+        v: 1,
+        kind: 'generic',
+        interruptId: `int-${definitionId}`,
+        definitionId,
+        key: 'c1',
+        batchIndex: 0,
+      },
+      'tanstack:interruptPayload': payload,
+    },
+  })
+
+  it('makes an approval of permissions() an approval, not a human wait', () => {
+    const approvalWait = boundary('tanstack/harness:approval', {
+      toolCallId: 'c1',
+      tool: 'bash',
+    })
+    expect(waitKind(approvalWait)).toBe('approval')
+    expect(isApproval(approvalWait)).toBe(true)
+  })
+
+  it('makes a question of the question tool a question, with the answer shape of that question', () => {
+    const schema = { type: 'string', enum: ['Postgres', 'SQLite'] }
+    const questionWait = boundary('tanstack/harness:question', {
+      toolCallId: 'c1',
+      index: 0,
+      schema,
+    })
+    expect(waitKind(questionWait)).toBe('question')
+    expect(
+      waitOfInterrupt({ interrupt: questionWait, runId: 'run-1' }),
+    ).toEqual({
+      waitId: 'int-tanstack/harness:question',
+      kind: 'question',
+      runId: 'run-1',
+      schema,
+      message: 'Allow bash ls?',
+    })
+  })
+})

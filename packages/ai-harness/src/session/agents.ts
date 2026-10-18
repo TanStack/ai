@@ -17,7 +17,7 @@ import {
   truncationMiddleware,
 } from '../resume'
 import { HARNESS_EVENTS, InputRejectedError } from '../types'
-import { expiryOf, signInOf, waitOfInterrupt } from '../waits'
+import { expiryOf, openWaits, signInOf, waitOfInterrupt } from '../waits'
 import {
   agentKey,
   agentResultRecord,
@@ -1207,13 +1207,7 @@ export abstract class SessionAgents<
   }) {
     const { principal } = chain.current
     // First, so an answer that comes at once finds the run here.
-    this.waitingRuns.set(operation.id, {
-      operation,
-      chain,
-      inputId,
-      subagentRunId,
-    })
-    operation.setStatus('interrupted')
+    this.holdWaitingRun({ operation, chain, inputId, subagentRunId })
     await this.runStore.update(operation.id, { status: 'interrupted' })
     const at = Date.now()
     await this.writeWait(
@@ -1237,6 +1231,23 @@ export abstract class SessionAgents<
       outcome: { type: 'interrupt', interrupts: [...interrupts] },
       timestamp: Date.now(),
     } as StreamChunk)
+    this.checkIdle()
+  }
+
+  /**
+   * Keep the agent run `operation` as a run of this host that waits: it is
+   * `interrupted`, a cancel ends it, and an answer resumes it here. It does
+   * not keep the thread busy.
+   */
+  protected holdWaitingRun(waiting: {
+    operation: AgentRunImpl
+    chain: AgentChain
+    inputId: string
+    subagentRunId: string
+  }) {
+    const { operation, inputId } = waiting
+    this.waitingRuns.set(operation.id, waiting)
+    operation.setStatus('interrupted')
     operation.abortController.signal.addEventListener(
       'abort',
       () =>
@@ -1256,7 +1267,29 @@ export abstract class SessionAgents<
       },
       () => {},
     )
-    this.checkIdle()
+  }
+
+  /**
+   * Take an agent run that waits in the log (its host stopped) as a run of
+   * this host that waits, so a cancel reaches it, and an answer resumes it
+   * here. Recovery calls it.
+   */
+  protected adoptWaitingRun(
+    input: InputState,
+    first: AgentInputState,
+    run: Pick<RunRecord, 'subagentRunId'>,
+  ) {
+    const runId = input.operationId
+    if (runId === undefined || run.subagentRunId === undefined) return
+    const operation = this.agentOperation(first.input.agent, runId)
+    const sender = input.principal ? { principal: input.principal } : {}
+    const chain = this.createChain(chainFields(first), { operation, ...sender })
+    this.holdWaitingRun({
+      operation,
+      chain,
+      inputId: input.inputId,
+      subagentRunId: run.subagentRunId,
+    })
   }
 
   /**
@@ -1270,7 +1303,10 @@ export abstract class SessionAgents<
     this.waitingRuns.delete(operation.id)
     // `close()` sets `closing` after it aborts the runs.
     await Promise.resolve()
-    if (this.closing || this.logFailure) {
+    // A host that stops or loses the log: the run waits on in the log.
+    const isShutdown =
+      operation.abortController.signal.reason === SHUTDOWN_REASON
+    if (this.closing || this.logFailure || isShutdown) {
       operation.fail('cancelled', new Error('Session closed.'))
       return
     }
@@ -1314,6 +1350,39 @@ export abstract class SessionAgents<
     this.publishFinished(operation)
     this.nextFollowUp(waiting.chain)
     this.checkIdle()
+  }
+
+  /**
+   * A saved credential also answers the sign-in waits of the agent runs
+   * that wait: each open wait whose connector has a credential of the
+   * run's user now ends `answered`, through the input lane, so the owner of
+   * the log takes it. The input id comes from the wait, so a second save
+   * does not answer it twice.
+   */
+  protected override async resumeSignIns(): Promise<void> {
+    await super.resumeSignIns()
+    if (this.closing || !this.logWriter) return
+    const { waits, interrupts } = this.writer.state.thread
+    for (const { wait, live } of openWaits(waits)) {
+      if (wait.kind !== 'sign-in' || live !== undefined) continue
+      const opened = interrupts.get(wait.waitId)
+      const connector = opened && signInOf(interruptOf(opened))?.connector
+      if (!connector) continue
+      // Another user's credential never answers this sign-in.
+      const principal = wait.principal ?? this.principal
+      if (!(await this.credentialsOf(principal).get(connector))) continue
+      await this.resolve({
+        resume: [
+          {
+            interruptId: wait.waitId,
+            status: 'resolved',
+            payload: { connector },
+          },
+        ],
+        inputId: `sign-in:${wait.waitId}`,
+        ...(principal ? { principal } : {}),
+      })
+    }
   }
 
   /**
@@ -1373,8 +1442,11 @@ export abstract class SessionAgents<
         continue
       }
       // It goes on here already.
-      if (this.operations.has(runId)) continue
+      const isRunning = () => this.operations.get(runId)?.isSettled() === false
+      if (isRunning()) continue
       if (!(await this.writer.own())) return
+      // Another call started it during the wait for the log.
+      if (isRunning()) continue
       // Recovery must not run it again.
       this.admitted.set(input.inputId, inputKey(input.input, input.principal))
       const operation = this.agentOperation(first.input.agent, runId)

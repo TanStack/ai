@@ -334,7 +334,7 @@ export function mcpConnector(options: McpConnectorOptions) {
                     ((tool) => tool.annotations?.readOnlyHint !== true),
                   clientOptions: harnessClientOptions,
                 },
-                elicitFor(calling, ctx.session),
+                elicitFor(calling),
               )
             } catch (error) {
               // The server wants a new sign-in: ask the user to run /connect.
@@ -359,7 +359,11 @@ export function mcpConnector(options: McpConnectorOptions) {
                 throw error
               })
             connection.tools = askForInput(
-              trackCaller(listed as ReadonlyArray<AnyTool>, ctx.session, calling),
+              trackCaller(
+                listed as ReadonlyArray<AnyTool>,
+                ctx.session,
+                calling,
+              ),
               ctx.session,
             )
           }

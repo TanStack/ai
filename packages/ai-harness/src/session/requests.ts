@@ -956,9 +956,10 @@ export abstract class SessionRequests<
           ),
         )
       },
-      // The public type narrows the answer from the schema.
+      // The public type narrows the answer from the schema. A live wait
+      // belongs to the run of its tool call, never to the run of this API.
       ask: ((question: Question<SchemaInput | undefined>) =>
-        this.ask(question, operationId)) as PluginSessionApi['ask'],
+        this.ask(question)) as PluginSessionApi['ask'],
       authRequired: (info) => {
         this.feed.publish(
           'session',

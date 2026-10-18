@@ -6,6 +6,7 @@ import {
 import { loadChildTranscript } from '@tanstack/ai-persistence'
 import { checkConfigValue } from '../config'
 import { isRecord } from '../utils'
+import { jsonSchemaIssues } from '../json-schema'
 import { changedEntry } from '../session-entry'
 import { stableJson, threadOf, visibleMessages } from '../log'
 import { mediaIdOf, mediaOfMessage, mediaPart } from '../media-ref'
@@ -95,6 +96,14 @@ class AnswerRefused extends Error {
 export abstract class SessionState<
   THarness extends AnyHarness = AnyHarness,
 > extends SessionInputs<THarness> {
+  /**
+   * The `step.ask` calls of this host that wait, by wait id: each one goes
+   * on when the log ends its wait (see `afterWaitEnd`).
+   */
+  protected readonly waitEnds = new Map<string, () => void>()
+  /** The secret answers to `step.ask` waits that this host kept, by wait id. */
+  protected readonly keptAnswers = new Map<string, unknown>()
+
   /** The stores that first-party plugins read as capabilities. */
   protected storeCapabilities() {
     const values = new CapabilityValues()
@@ -827,8 +836,13 @@ export abstract class SessionState<
       logged.outcome === undefined &&
       logged.live === undefined
     if (!isOpen) return this.reject(inputId, 'unknown_question')
-    // ponytail: the log has the JSON Schema of the wait, not a Standard
-    // Schema, so the answer goes as it is. The run that reads it checks it.
+    // The log has the JSON Schema of the wait: the answer must fit it.
+    const issues = jsonSchemaIssues(logged.wait.schema, value)
+    if (issues.length > 0) {
+      return this.reject(inputId, `Invalid answer: ${issues.join(', ')}`)
+    }
+    // A secret never goes in the log. The run reads it from the store.
+    if (logged.secret) await this.keepSecretAnswer(logged, value)
     await this.applied(
       inputId,
       'session',
@@ -838,9 +852,75 @@ export abstract class SessionState<
         logged.secret ? undefined : value,
       ),
     )
+    // A client that streams the run that waits sees the answer.
+    this.feed.publish(
+      logged.wait.runId,
+      customEvent(HARNESS_EVENTS.questionAnswered, { questionId: waitId }),
+    )
     await this.afterWaitEnd(waitId)
     queueMicrotask(() => this.checkIdle())
     return { inputId, status: 'accepted' }
+  }
+
+  /**
+   * Keep the secret answer to the wait `logged` until its run ends, so a run
+   * again (also on another host) can read it: in memory, and in the
+   * credential store of the app when it has one, as a credential reference
+   * of the user of the run. The session scrubs it from now on.
+   */
+  private async keepSecretAnswer(logged: WaitState, value: unknown) {
+    const { waitId, principal } = logged.wait
+    if (typeof value === 'string') this.redactor.add(value)
+    this.keptAnswers.set(waitId, value)
+    await this.sharedCredentials?.set({
+      scope: scopeOf(this.threadId, principal),
+      id: keptAnswerId(waitId),
+      credential: { type: 'api_key', value: JSON.stringify(value) },
+    })
+  }
+
+  /**
+   * The secret answer to the wait `logged` that `keepSecretAnswer` kept.
+   * `undefined`: no host kept it here, and the store does not have it.
+   */
+  protected async keptAnswer(
+    logged: WaitState,
+  ): Promise<{ value: unknown } | undefined> {
+    const { waitId, principal } = logged.wait
+    if (this.keptAnswers.has(waitId)) {
+      return { value: this.keptAnswers.get(waitId) }
+    }
+    const saved = await this.sharedCredentials?.get({
+      scope: scopeOf(this.threadId, principal),
+      id: keptAnswerId(waitId),
+    })
+    if (saved?.type !== 'api_key') return undefined
+    let value: unknown
+    try {
+      value = JSON.parse(saved.value)
+    } catch {
+      return undefined
+    }
+    if (typeof value === 'string') this.redactor.add(value)
+    this.keptAnswers.set(waitId, value)
+    return { value }
+  }
+
+  /**
+   * Delete the kept secret answers of the waits whose id starts with
+   * `prefix`: their run ended, so no run again reads them.
+   */
+  protected async dropKeptAnswers(prefix: string) {
+    const ended = [...this.writer.state.thread.waits.values()].filter(
+      ({ wait, secret }) => secret && wait.waitId.startsWith(prefix),
+    )
+    for (const { wait } of ended) {
+      this.keptAnswers.delete(wait.waitId)
+      await this.sharedCredentials?.delete({
+        scope: scopeOf(this.threadId, wait.principal),
+        id: keptAnswerId(wait.waitId),
+      })
+    }
   }
 
   /**
@@ -950,6 +1030,8 @@ export abstract class SessionState<
 
   /** After the log ended the wait `waitId`: drop its secrets, and move the timer. */
   protected async afterWaitEnd(waitId: string) {
+    // A `step.ask` of this host that waits for it goes on.
+    this.waitEnds.get(waitId)?.()
     this.armSchedules()
     await this.dropAnswerRefs(waitId).catch((error: unknown) =>
       this.warnSession('harness:waits', error),
@@ -1292,9 +1374,20 @@ export abstract class SessionState<
   protected async saveInterrupted(turn: InterruptedTurn | undefined) {
     const logged = this.writer.state.thread.interrupted
     if (stableJson(logged) === stableJson(turn ?? null)) return
+    // The expiry wakes of the interrupts that ended: no worker must wake.
+    const kept = new Set(turn?.interrupts.map((interrupt) => interrupt.id))
+    const { schedules } = this.writer.state.thread
+    const wakes = (logged?.interrupts ?? []).flatMap((interrupt) => {
+      const scheduleId = expiryWakeId(interrupt.id)
+      return kept.has(interrupt.id) || !schedules.has(scheduleId)
+        ? []
+        : [{ type: 'harness.schedule.done' as const, scheduleId }]
+    })
     await this.writer.append([
       { type: 'harness.interrupted', turn: turn ?? null },
+      ...wakes,
     ])
+    if (wakes.length > 0) this.armSchedules()
   }
 
   /**
@@ -1444,7 +1537,9 @@ export abstract class SessionState<
     const own = timeOf(interrupt.expiresAt)
     if (own !== undefined) return own
     const opened = this.logWriter?.state.thread.interrupts.get(interrupt.id)
-    return opened && expiryOf(waitKind(interrupt), undefined, opened.requestedAt)
+    return (
+      opened && expiryOf(waitKind(interrupt), undefined, opened.requestedAt)
+    )
   }
 
   /**
@@ -1453,35 +1548,36 @@ export abstract class SessionState<
    */
   protected async armInterruptExpiry(stopped: InterruptedTurn) {
     const { schedules } = this.writer.state.thread
-    const wakes = stopped.interrupts.flatMap((interrupt): Array<ThreadRecord> => {
-      const at = this.interruptExpiry(interrupt)
-      const scheduleId = expiryWakeId(interrupt.id)
-      return at === undefined || schedules.has(scheduleId)
-        ? []
-        : [{ type: 'harness.schedule', scheduleId, at }]
-    })
+    const wakes = stopped.interrupts.flatMap(
+      (interrupt): Array<ThreadRecord> => {
+        const at = this.interruptExpiry(interrupt)
+        const scheduleId = expiryWakeId(interrupt.id)
+        return at === undefined || schedules.has(scheduleId)
+          ? []
+          : [{ type: 'harness.schedule', scheduleId, at }]
+      },
+    )
     if (wakes.length === 0) return
     await this.writer.append(wakes)
     this.armSchedules()
   }
 
-  protected ask(
-    question: Question<SchemaInput | undefined>,
-    owner?: string,
-  ): Promise<unknown> {
+  protected ask(question: Question<SchemaInput | undefined>): Promise<unknown> {
+    // Only a live wait of a tool call asks in memory. Anywhere else, no
+    // process may wait for a user: the error names the way that is durable.
+    if (!question.live) return Promise.reject(new Error(ASK_OUTSIDE_WAITS))
     if (this.closing) return Promise.reject(new Error('Session closed.'))
     const { signal } = question
     if (signal?.aborted) return Promise.reject(signal.reason)
     // A live wait of a tool call (an MCP elicitation) belongs to the run of
     // that call, and it ends when that run stops.
-    const run = question.live?.run
-    if (run?.signal.aborted) return Promise.reject(run.signal.reason)
+    const { run } = question.live
+    if (run.signal.aborted) return Promise.reject(run.signal.reason)
     const questionId = `q-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
-    // On the run of the tool call, else on the operation that asks (a
-    // command), else on the running chat turn, so a client that streams that
-    // operation sees it, and a cancel of it rejects the question. The session
-    // stream has every operation's events.
-    const operationId = run?.runId ?? owner ?? this.activeTurn?.id ?? 'session'
+    // On the run of the tool call, never on another run, so a client that
+    // streams that run sees it, and only a stop of that run rejects it. The
+    // session stream has every operation's events.
+    const operationId = run.runId
     const pending: PendingQuestion = {
       questionId,
       message: question.message,
@@ -1491,11 +1587,7 @@ export abstract class SessionState<
       ...(question.secret ? { secret: true } : {}),
       ...(question.url ? { url: question.url } : {}),
     }
-    const principal = run
-      ? run.principal
-      : operationId === 'session'
-        ? undefined
-        : this.principalOfRun(operationId)
+    const { principal } = run
     const expiresAt = expiryOf('question', question.expiresAt)
     const wait = waitOfQuestion({
       question: pending,
@@ -1510,9 +1602,9 @@ export abstract class SessionState<
       const onAbort = () =>
         void this.endQuestion(questionId, 'cancelled', signal?.reason)
       const onRunStop = () =>
-        void this.endQuestion(questionId, 'cancelled', run?.signal.reason)
+        void this.endQuestion(questionId, 'cancelled', run.signal.reason)
       signal?.addEventListener('abort', onAbort, { once: true })
-      run?.signal.addEventListener('abort', onRunStop, { once: true })
+      run.signal.addEventListener('abort', onRunStop, { once: true })
       this.questions.set(questionId, {
         message: question.message,
         schema: question.schema,
@@ -1523,7 +1615,7 @@ export abstract class SessionState<
         reject,
         release: () => {
           signal?.removeEventListener('abort', onAbort)
-          run?.signal.removeEventListener('abort', onRunStop)
+          run.signal.removeEventListener('abort', onRunStop)
         },
       })
       const opened = this.writeWait({
@@ -1559,6 +1651,17 @@ export abstract class SessionState<
     })
   }
 }
+
+/**
+ * The id of the credential reference that keeps the secret answer to the
+ * wait `waitId` until its run ends. Not under the `${waitId}:` prefix of the
+ * refs that `dropAnswerRefs` deletes when the wait ends.
+ */
+const keptAnswerId = (waitId: string) => `${SECRET_ANSWER_PREFIX}${waitId}#kept`
+
+/** Why `ctx.session.ask` throws outside a live wait. */
+export const ASK_OUTSIDE_WAITS =
+  'ctx.session.ask cannot wait here: no process waits for a user. In a command, a durable tool, or an agent run, use step.ask({ name, message }). To let the model ask, add the question tool. To ask before a tool call, give the tool its resources (PermissionResources), and permissions() asks before the call runs.'
 
 /** The id of the wake that ends the wait `waitId` at its `expiresAt`. */
 const expiryWakeId = (waitId: string) => `wait:${waitId}`

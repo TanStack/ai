@@ -386,7 +386,7 @@ describe('permissions()', () => {
     await turn
 
     expect(tools.ran).toEqual(['read_file', 'read_file'])
-    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(session.snapshot().pendingWaits).toEqual([])
     await host.close()
   })
 
@@ -492,7 +492,7 @@ describe('permissions()', () => {
     await session.send('read nothing')
 
     expect(tools.ran).toEqual([])
-    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(session.snapshot().pendingWaits).toEqual([])
     expect(JSON.stringify(calls[1].messages)).toContain(
       'Cannot check the permissions of this call: No path.',
     )
@@ -968,6 +968,54 @@ describe('permissions()', () => {
     expect(decide?.('write_doc', 'acceptEdits', actions('oxfmt'))).toBe('ask')
     expect(decide?.('write_doc', 'plan', actions('oxfmt'))).toBe('deny')
     expect(decide?.('write_doc', 'bypass', actions('oxfmt'))).toBe('allow')
+    await host.close()
+  })
+})
+
+describe('permissions() at the turn boundary', () => {
+  it('stops the turn before the tools run, with one approval for each call that asks, and runs only the approved call', async () => {
+    const tools = fakeTools()
+    const first = toolCall('bash', { command: 'ls' }, 'c1')
+    const second = toolCall('bash', { command: 'rm x' }, 'c2')
+    const { host, session, calls } = await open(
+      memoryPersistence(),
+      [permissions({ root: ROOT }), tools.plugin],
+      // One model message with both calls.
+      [() => [...first.slice(0, -1), ...second.slice(1)]],
+    )
+
+    const turn = await session.send('clean up')
+    expect(turn.interrupts).toHaveLength(2)
+    // No tool ran, and no process waits: the turn ended for the waits.
+    expect(tools.ran).toEqual([])
+    const waits = session.snapshot().pendingWaits ?? []
+    expect(waits.map((wait) => wait.kind)).toEqual(['approval', 'approval'])
+    expect(waits.map((wait) => wait.message)).toEqual([
+      expect.stringContaining('ls'),
+      expect.stringContaining('rm x'),
+    ])
+
+    await session.resolve({
+      resume: [
+        {
+          interruptId: waits[0]!.waitId,
+          status: 'resolved',
+          payload: { answer: 'once' },
+        },
+        {
+          interruptId: waits[1]!.waitId,
+          status: 'resolved',
+          payload: { answer: 'reject' },
+        },
+      ],
+      inputId: 'answers',
+    })
+    await session.settled({ inputId: 'answers' })
+
+    expect(tools.ran).toEqual(['bash'])
+    const seen = JSON.stringify(calls[1]?.messages)
+    expect(seen).toContain('bash done')
+    expect(seen).toContain('The user denied this tool call.')
     await host.close()
   })
 })

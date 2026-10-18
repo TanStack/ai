@@ -71,7 +71,9 @@ export function jsonSchemaIssues(
       issues.push(`${at} has an item twice.`)
     if (isRecord(schema.items)) {
       value.forEach((item, index) =>
-        issues.push(...jsonSchemaIssues(schema.items, item, `${path}[${index}]`)),
+        issues.push(
+          ...jsonSchemaIssues(schema.items, item, `${path}[${index}]`),
+        ),
       )
     }
   }

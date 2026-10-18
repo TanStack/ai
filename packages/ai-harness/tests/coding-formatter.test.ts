@@ -388,7 +388,9 @@ describe('formatter with permissions()', () => {
     if (!wait) throw new Error('No approval.')
     const inputId = `answer:${wait.waitId}`
     await session.resolve({
-      resume: [{ interruptId: wait.waitId, status: 'resolved', payload: value }],
+      resume: [
+        { interruptId: wait.waitId, status: 'resolved', payload: value },
+      ],
       inputId,
     })
     await session.settled({ inputId })
@@ -407,9 +409,7 @@ describe('formatter with permissions()', () => {
     // The approval came before the call: a reject refuses the write too.
     expect(message).toContain('Allow write_file')
     expect(runs).toEqual([])
-    expect(await backend.stat(join(root, 'prettier.config.js'))).toBe(
-      undefined,
-    )
+    expect(await backend.stat(join(root, 'prettier.config.js'))).toBe(undefined)
     expect(JSON.stringify(calls[1].messages)).toContain(
       'The user denied this tool call.',
     )
