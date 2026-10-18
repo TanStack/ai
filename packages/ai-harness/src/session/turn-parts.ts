@@ -543,6 +543,15 @@ export abstract class SessionTurnParts<
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
     call: UsageCall,
   ): Promise<void> {
+    // A child of `harnessAgent` counts in the run that started it: the
+    // usage of the parent session has it, and the budget of that run
+    // holds.
+    if (this.childLink) {
+      await this.childLink
+        .countUsage(call)
+        .catch((error: unknown) => this.warn(operation, 'harness:usage', error))
+      return
+    }
     try {
       await this.writer.append([{ type: 'harness.usage', ...call }])
     } catch (error) {

@@ -1,5 +1,6 @@
 import {
   EventType,
+  convertMessagesToModelMessages,
   createSubagentId,
   createSubagentSink,
   runAgentStream,
@@ -53,11 +54,17 @@ import type {
   RunRecord,
   StreamChunk,
   SubagentBinding,
+  SubagentRunContext,
 } from '@tanstack/ai'
 import type { InterruptRecord } from '@tanstack/ai-persistence'
 import type { InputState, LogWriter } from '../log'
+import type { InnerTurnEnd } from '../harness-text'
 import type { AgentResultRecord, RunTreeNode } from '../log-records'
-import { NO_SESSION_CONTEXT } from '../agents'
+import { NO_SESSION_CONTEXT, withHarnessChild } from '../agents'
+import { forwardTurn, lastUserInput } from '../harness-text'
+import { addCounts, emptyCounts } from '../usage'
+import { isRecord } from '../utils'
+import { tanstackMetadata } from '@tanstack/ai/adapter-internals'
 import type {
   AgentActions,
   AgentGroup,
@@ -476,13 +483,17 @@ export abstract class SessionAgents<
     const extend: SubagentBinding['extend'] =
       turn &&
       (() => {
-        const harness: HarnessAgentContext = {
-          // ponytail: not durable. A tool-mode child runs again from its
-          // start when the turn runs again.
-          step: NO_SESSION_CONTEXT.step,
-          agents: this.turnChildAgents(operation, principal, turn),
-          state: (stateOptions) => this.sharedState(stateOptions),
-        }
+        const harness: HarnessAgentContext = withHarnessChild(
+          {
+            // ponytail: not durable. A tool-mode child runs again from its
+            // start when the turn runs again.
+            step: NO_SESSION_CONTEXT.step,
+            agents: this.turnChildAgents(operation, principal, turn),
+            state: (stateOptions) => this.sharedState(stateOptions),
+          },
+          (inner, ctx) =>
+            this.runHarnessChild(inner, ctx, { operation, principal }),
+        )
         return { harness }
       })
     return {
@@ -670,6 +681,129 @@ export abstract class SessionAgents<
         throw error
       }
     })
+  }
+
+  /**
+   * Run `harness` as a child session of the run `parent.operation`, for
+   * `harnessAgent`: a session of `harness` on the thread
+   * `${rootThreadId}/agent/${subagentRunId}`, in the log of the root thread.
+   * The child runs for `parent.principal`, with the keys of that user. Its
+   * model calls count in the usage and the budget of the parent run. While
+   * a turn of the child waits, the snapshot of this session lists its waits,
+   * and an answer here continues the child. It streams every event of the
+   * child turns with `parentRunId`, then a RUN_FINISHED with the usage of
+   * the child. A stop of the parent run cancels the child, and a recoverable
+   * close stops it as on a crash. The child closes when the run ends.
+   */
+  protected async *runHarnessChild(
+    harness: AnyHarness,
+    ctx: SubagentRunContext,
+    parent: {
+      operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>
+      principal: Principal | undefined
+    },
+  ): AsyncGenerator<StreamChunk> {
+    const open = this.openChild
+    if (!open) throw new Error('This session cannot open a child session.')
+    const parentRunId = parent.operation.id
+    const threadId = `${this.rootThreadId}/agent/${ctx.subagentRunId}`
+    const used = emptyCounts()
+    const session = await open(harness, {
+      threadId,
+      principal: parent.principal,
+      child: {
+        rootThreadId: this.rootThreadId,
+        parentThreadId: this.threadId,
+        countUsage: async (call) => {
+          addCounts(used, call.usage)
+          await this.countUsage(parent.operation, {
+            ...call,
+            runId: parentRunId,
+          })
+          this.checkBudget(parent.operation)
+        },
+      },
+    })
+    let operation: Operation<unknown> | undefined
+    /** Gets the next turn of the child after an answer, or `undefined` on a stop. */
+    let next: ((operationId: string | undefined) => void) | undefined
+    const signal = ctx.abortSignal ?? parent.operation.abortController.signal
+    const isShutdown = () =>
+      parent.operation.abortController.signal.reason === SHUTDOWN_REASON
+    const onAbort = () => {
+      next?.(undefined)
+      // A recoverable close: the child stops as on a crash too.
+      if (isShutdown()) void session.close({ recoverable: true })
+      else void operation?.cancel().catch(() => {})
+    }
+    this.harnessChildren.set(threadId, {
+      session,
+      answer: async (options) => {
+        const receipt = await session.resolveForRun(options)
+        if (receipt.status !== 'rejected' && receipt.operationId) {
+          next?.(receipt.operationId)
+        }
+        return receipt
+      },
+    })
+    signal.addEventListener('abort', onAbort, { once: true })
+    try {
+      operation = session.send(
+        lastUserInput(convertMessagesToModelMessages(ctx.messages)),
+      )
+      if (signal.aborted) onAbort()
+      let finished: InnerTurnEnd['finished'] = 'stop'
+      while (true) {
+        const end = yield* forwardTurn(operation, (chunk) =>
+          isChildOwnEvent(chunk)
+            ? undefined
+            : withParentRun(chunk, parentRunId),
+        )
+        if (end.failed !== undefined) {
+          yield {
+            type: EventType.RUN_ERROR,
+            message: end.failed,
+            timestamp: Date.now(),
+          }
+          return
+        }
+        finished = end.finished
+        if (!end.isInterrupted) break
+        // The turn waits for answers. An answer here starts the next turn.
+        const id = await new Promise<string | undefined>((resolve) => {
+          next = resolve
+          if (signal.aborted) resolve(undefined)
+        })
+        next = undefined
+        const resumed = id === undefined ? undefined : session.operation(id)
+        if (!resumed) {
+          yield {
+            type: EventType.RUN_ERROR,
+            message: 'The run stopped while its child harness waited.',
+            timestamp: Date.now(),
+          }
+          return
+        }
+        operation = resumed
+      }
+      yield {
+        type: EventType.RUN_FINISHED,
+        runId: ctx.runId,
+        threadId,
+        timestamp: Date.now(),
+        usage: {
+          promptTokens: used.promptTokens,
+          completionTokens: used.completionTokens,
+          totalTokens: used.totalTokens,
+          ...(used.cost !== undefined ? { cost: used.cost } : {}),
+        },
+        metadata: { tanstack: { finishReason: finished } },
+      }
+    } finally {
+      signal.removeEventListener('abort', onAbort)
+      this.harnessChildren.delete(threadId)
+      await session.close(isShutdown() ? { recoverable: true } : undefined)
+    }
   }
 
   /**
@@ -1575,11 +1709,15 @@ export abstract class SessionAgents<
         const durable = options.resume
           ? this.resumable(inputId, run)
           : undefined
-        const harnessContext: HarnessAgentContext = {
-          step: durable?.step ?? NO_SESSION_CONTEXT.step,
-          agents: this.agentStarter(chain, inputId),
-          state: (options) => this.sharedState(options),
-        }
+        const harnessContext: HarnessAgentContext = withHarnessChild(
+          {
+            step: durable?.step ?? NO_SESSION_CONTEXT.step,
+            agents: this.agentStarter(chain, inputId),
+            state: (options) => this.sharedState(options),
+          },
+          (inner, ctx) =>
+            this.runHarnessChild(inner, ctx, { operation, principal }),
+        )
         const stream = runAgentStream(
           agent,
           {
@@ -2301,4 +2439,33 @@ function interruptOf(record: InterruptRecord): Interrupt {
     reason: typeof payload.reason === 'string' ? payload.reason : '',
     message: typeof payload.message === 'string' ? payload.message : '',
   }
+}
+
+/**
+ * The events of a child turn that `harnessAgent` does not send on: the run
+ * events (it sends one RUN_FINISHED of its own at the end, with the usage of
+ * every turn), and the input and operation events of the child session,
+ * whose ids the parent session does not know.
+ */
+const isChildOwnEvent = (chunk: StreamChunk) =>
+  chunk.type === EventType.RUN_STARTED ||
+  chunk.type === EventType.RUN_FINISHED ||
+  chunk.type === EventType.RUN_ERROR ||
+  (chunk.type === EventType.CUSTOM &&
+    (chunk.name.startsWith('harness.input.') ||
+      chunk.name.startsWith('harness.operation.')))
+
+/**
+ * `chunk` with the run that started the child: `metadata.tanstack` gets
+ * `parentRunId`, where AG-UI events carry TanStack fields.
+ */
+function withParentRun(chunk: StreamChunk, parentRunId: string): StreamChunk {
+  const metadata =
+    'metadata' in chunk && isRecord(chunk.metadata) ? chunk.metadata : {}
+  return Object.assign({}, chunk, {
+    metadata: {
+      ...metadata,
+      tanstack: { ...tanstackMetadata(chunk), parentRunId },
+    },
+  })
 }

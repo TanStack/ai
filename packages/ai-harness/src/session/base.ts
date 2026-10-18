@@ -107,6 +107,9 @@ import type {
   InterruptedTurn,
   AgentRunImpl,
   AgentChain,
+  ChildSessionLink,
+  HarnessChild,
+  OpenChildSession,
 } from './types'
 import type { HarnessSession } from './harness-session'
 
@@ -489,6 +492,18 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected readonly promptCache: ResolvedPromptCache
   /** The host checks access. See `SessionDependencies.access`. */
   protected readonly hasAccess: boolean
+  /** The root thread of the session tree: this thread, unless it is a child. */
+  protected readonly rootThreadId: string
+  /** See `SessionDependencies.openChild`. */
+  protected readonly openChild: OpenChildSession | undefined
+  /** See `SessionDependencies.child`. Set on a child session only. */
+  protected readonly childLink: ChildSessionLink | undefined
+  /**
+   * The child sessions of `harnessAgent` that runs of this session have open
+   * now, by thread. The snapshot lists their waits, and `resolve` sends an
+   * answer to the child that waits for it.
+   */
+  protected readonly harnessChildren = new Map<string, HarnessChild>()
 
   constructor(deps: SessionDependencies) {
     this.harness = deps.harness as THarness
@@ -527,6 +542,9 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     this.notifyIdle = deps.onIdle
     this.index = deps.index
     this.log = deps.log
+    this.openChild = deps.openChild
+    this.childLink = deps.child
+    this.rootThreadId = deps.child?.rootThreadId ?? deps.threadId
     // The session gets its log view in `open()`.
     this.messages = notOpenMessages
     const onMissing = (error: AuthRequiredError) =>
@@ -538,10 +556,12 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
         }),
       )
     const refreshes = deps.refreshes ?? refreshFlights()
+    // A child of `harnessAgent` reads the credentials of its root thread, so
+    // it runs with the keys of the user of the run that started it.
     this.credentialsOf = (principal, canWait) =>
       credentialsFor(
         deps.credentials,
-        scopeOf(deps.threadId, principal),
+        scopeOf(this.rootThreadId, principal),
         onMissing,
         {
           ...(canWait ? { canWait } : {}),

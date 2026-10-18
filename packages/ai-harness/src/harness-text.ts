@@ -11,7 +11,7 @@ import type {
 import { isHarnessDefinition } from './define'
 import type { AnyHarness } from './define'
 import type { HarnessHost } from './host'
-import type { Principal, UserInput } from './types'
+import type { Operation, Principal, UserInput } from './types'
 
 export interface HarnessTextOptions {
   /** The host that runs the inner sessions. Default: a memory host. */
@@ -31,7 +31,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null
 
 /** The content of the last user message: its text, or its content parts. */
-function lastUserInput(messages: ReadonlyArray<ModelMessage>) {
+export function lastUserInput(messages: ReadonlyArray<ModelMessage>) {
   const message = messages.findLast((entry) => entry.role === 'user')
   const input: UserInput = message?.content ?? ''
   return input
@@ -134,7 +134,7 @@ async function* sseData(response: Response): AsyncGenerator<unknown> {
   }
 }
 
-type FinishReason = NonNullable<RunFinishedEvent['finishReason']>
+export type FinishReason = NonNullable<RunFinishedEvent['finishReason']>
 
 /**
  * The finish reason of an inner RUN_FINISHED. An interrupted inner turn
@@ -151,6 +151,51 @@ function signalOf(request: unknown) {
   return isRecord(request) && request.signal instanceof AbortSignal
     ? request.signal
     : undefined
+}
+
+/** How one inner turn ended. See {@link forwardTurn}. */
+export interface InnerTurnEnd {
+  /** The error text of a turn that failed or was cancelled. */
+  failed?: string
+  finished: FinishReason
+  /** The turn stopped for waits: approvals, client tools, or questions. */
+  isInterrupted: boolean
+}
+
+/**
+ * @internal Stream the events of the inner turn `operation` that `pass`
+ * keeps, and return how the turn ended. `pass` gets each event, and whether
+ * the turn itself sent it (not a child run of the turn). `harnessText` and
+ * `harnessAgent` share it.
+ */
+export async function* forwardTurn(
+  operation: Operation<unknown>,
+  pass: (chunk: StreamChunk, isOwn: boolean) => StreamChunk | undefined,
+): AsyncGenerator<StreamChunk, InnerTurnEnd> {
+  let failed: string | undefined
+  let finished: FinishReason = 'stop'
+  let isInterrupted = false
+  for await (const chunk of operation.stream()) {
+    const isOwn = !('subagentRunId' in chunk && chunk.subagentRunId)
+    const kept = pass(chunk, isOwn)
+    if (kept) yield kept
+    if (chunk.type === EventType.RUN_FINISHED && isOwn) {
+      finished = finishReasonOf(chunk)
+      isInterrupted = chunk.outcome?.type === 'interrupt'
+    }
+    if (chunk.type === EventType.RUN_ERROR) failed = chunk.message
+  }
+  // A cancel or a store failure ends the turn with no RUN_ERROR.
+  try {
+    await operation
+  } catch (error) {
+    failed ??= error instanceof Error ? error.message : String(error)
+  }
+  return {
+    ...(failed !== undefined ? { failed } : {}),
+    finished,
+    isInterrupted,
+  }
 }
 
 function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
@@ -316,22 +361,11 @@ export function harnessText(
             threadId,
             timestamp: Date.now(),
           }
-          let failed: string | undefined
-          let finished: FinishReason = 'stop'
-          for await (const chunk of operation.stream()) {
-            const isOwn = !('subagentRunId' in chunk && chunk.subagentRunId)
-            if (FORWARDED.has(chunk.type) && isOwn) yield chunk
-            if (chunk.type === EventType.RUN_FINISHED && isOwn) {
-              finished = finishReasonOf(chunk)
-            }
-            if (chunk.type === EventType.RUN_ERROR) failed = chunk.message
-          }
-          // A cancel or a store failure ends the turn with no RUN_ERROR.
-          try {
-            await operation
-          } catch (error) {
-            failed ??= error instanceof Error ? error.message : String(error)
-          }
+          const { failed, finished } = yield* forwardTurn(
+            operation,
+            (chunk, isOwn) =>
+              FORWARDED.has(chunk.type) && isOwn ? chunk : undefined,
+          )
           if (failed !== undefined) {
             yield {
               type: EventType.RUN_ERROR,

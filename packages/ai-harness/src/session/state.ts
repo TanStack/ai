@@ -127,10 +127,14 @@ export abstract class SessionState<
   protected async openEntry() {
     const now = Date.now()
     const { principal, tenantId, threadId } = this
+    // A child of `harnessAgent` names its parent thread and has no owner:
+    // access is checked on its root thread.
+    const parent = this.childLink?.parentThreadId
     const opened = await this.index.update(this.indexKey, (entry) => {
       const current: SessionIndexEntry = entry ?? {
         ...(tenantId !== undefined ? { tenantId } : {}),
         threadId,
+        ...(parent !== undefined ? { parentThreadId: parent } : {}),
         members: [],
         createdAt: now,
         updatedAt: now,
@@ -139,6 +143,7 @@ export abstract class SessionState<
       // owner goes to the next opener with a principal too. With access, it
       // stays without an owner: `authorize` decides who may open it.
       const isClaim =
+        parent === undefined &&
         principal !== undefined &&
         (entry === undefined ||
           (current.ownerId === undefined && !this.hasAccess))
@@ -190,6 +195,17 @@ export abstract class SessionState<
       this.activeResume && !this.activeTurn?.isSettled()
         ? []
         : (stopped?.interrupts ?? [])
+    const waits = snapshotWaits({
+      stopped,
+      // With the expiry of each wait, also the default one of its kind.
+      interrupts: pendingInterrupts.map((interrupt) => {
+        const expiresAt = this.interruptExpiry(interrupt)
+        return expiresAt === undefined || interrupt.expiresAt !== undefined
+          ? interrupt
+          : { ...interrupt, expiresAt: new Date(expiresAt).toISOString() }
+      }),
+      waits: this.logWriter?.state.thread.waits,
+    })
     return {
       threadId: this.threadId,
       status: this.activeTurn
@@ -207,17 +223,15 @@ export abstract class SessionState<
       queuedTurns: this.queue.length + this.steerQueue.length,
       waitingInputs: this.inputs(),
       pendingInterrupts,
-      ...snapshotWaits({
-        stopped,
-        // With the expiry of each wait, also the default one of its kind.
-        interrupts: pendingInterrupts.map((interrupt) => {
-          const expiresAt = this.interruptExpiry(interrupt)
-          return expiresAt === undefined || interrupt.expiresAt !== undefined
-            ? interrupt
-            : { ...interrupt, expiresAt: new Date(expiresAt).toISOString() }
-        }),
-        waits: this.logWriter?.state.thread.waits,
-      }),
+      pendingQuestions: waits.pendingQuestions,
+      // The waits of the `harnessAgent` children of the runs too: an answer
+      // here goes to the child (see `resolve`).
+      pendingWaits: [
+        ...waits.pendingWaits,
+        ...[...this.harnessChildren.values()].flatMap(
+          (child) => child.session.snapshot().pendingWaits ?? [],
+        ),
+      ],
       plugins: { ...this.stateDoc },
       usage: this.usage(),
       cursor: this.feed.head(),

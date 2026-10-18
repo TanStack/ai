@@ -3,6 +3,8 @@ import type {
   DefinedAgent,
   InferSchemaType,
   SchemaInput,
+  StreamChunk,
+  SubagentRunContext,
 } from '@tanstack/ai'
 import { registerSubagentContextDefaults } from '@tanstack/ai/adapter-internals'
 import { askWithoutSession, stepRunWithoutSession } from './durable-tool'
@@ -15,6 +17,7 @@ import type {
 } from './session/types'
 import type { AgentRun } from './types'
 import type { PluginState } from './plugins'
+import type { AnyHarness } from './define'
 
 /** Any agent made with `defineAgent`, with its types kept. */
 export type AnyAgent = DefinedAgent<any, any, any, any, any, any, any>
@@ -259,6 +262,38 @@ export const NO_SESSION_CONTEXT: HarnessAgentContext = {
     group: noSessionAgents,
   },
   state: noSessionState,
+}
+
+/**
+ * Run `harness` as a child session of the run that owns a `ctx.harness`, and
+ * stream its events. See `harnessAgent`.
+ */
+export type HarnessChildRun = (
+  harness: AnyHarness,
+  ctx: SubagentRunContext,
+) => AsyncIterable<StreamChunk>
+
+/**
+ * The child hook of each `ctx.harness` that a session made. Not a field of
+ * the context, so agent code cannot call it. `NO_SESSION_CONTEXT` has none.
+ */
+const childRuns = new WeakMap<HarnessAgentContext, HarnessChildRun>()
+
+/** @internal Give `context` the child hook `run`. Returns `context`. */
+export function withHarnessChild(
+  context: HarnessAgentContext,
+  run: HarnessChildRun,
+): HarnessAgentContext {
+  childRuns.set(context, run)
+  return context
+}
+
+/**
+ * @internal The child hook of `context`, or `undefined` outside a run that
+ * a harness session started.
+ */
+export function harnessChildOf(context: HarnessAgentContext | undefined) {
+  return context ? childRuns.get(context) : undefined
 }
 
 // A run that a plain chat() starts gets NO_SESSION_CONTEXT, so ctx.harness is

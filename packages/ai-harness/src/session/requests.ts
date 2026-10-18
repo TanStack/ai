@@ -31,7 +31,12 @@ import type {
   UserInput,
   WaitingInput,
 } from '../types'
-import type { QueuedTurn, ResolveForRunOptions, WaitingSteer } from './types'
+import type {
+  HarnessChild,
+  QueuedTurn,
+  ResolveForRunOptions,
+  WaitingSteer,
+} from './types'
 import type { Admission } from './inputs'
 import type { HeldPlugins } from './helpers'
 
@@ -492,6 +497,22 @@ export abstract class SessionRequests<
   }
 
   /**
+   * The `harnessAgent` child that waits for every id of `waitIds`, or
+   * `undefined`. A child lists the waits of its own children too.
+   */
+  protected childOfWaits(
+    waitIds: ReadonlyArray<string>,
+  ): HarnessChild | undefined {
+    if (waitIds.length === 0) return undefined
+    for (const child of this.harnessChildren.values()) {
+      const waits = child.session.snapshot().pendingWaits ?? []
+      const open = new Set(waits.map((wait) => wait.waitId))
+      if (waitIds.every((id) => open.has(id))) return child
+    }
+    return undefined
+  }
+
+  /**
    * @internal `resolve`, with the AG-UI `runId` of a `POST run` request: the
    * turn runs as it. The HTTP handler and an offered resolve call it.
    */
@@ -499,6 +520,17 @@ export abstract class SessionRequests<
     options: ResolveForRunOptions,
   ): Promise<Receipt> {
     const { resume } = options
+    // The waits of a `harnessAgent` child: the child takes the answers, and
+    // its run goes on, still for the user of the run that started it. The
+    // AG-UI run id names a run of this session only.
+    const child = this.childOfWaits(resume.map((item) => item.interruptId))
+    if (child) {
+      const { inputId } = options
+      return child.answer({
+        resume,
+        ...(inputId !== undefined ? { inputId } : {}),
+      })
+    }
     return this.admitting(async () => {
       const inputId = options.inputId ?? createInputId()
       const principal = options.principal ?? this.principal

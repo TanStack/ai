@@ -21,7 +21,8 @@ import type {
 } from '@tanstack/ai-persistence'
 import type { InputState, LogViewHooks, LogWriter } from '../log'
 import type { ConfigOption } from '../config'
-import type { SessionUsage } from '../usage'
+import type { SessionUsage, UsageCall } from '../usage'
+import type { SessionImpl } from './harness-session'
 import type { AgentInputOf, AgentResultOf, AnyAgent } from '../agents'
 import type { Wait } from '../waits'
 import type { AnyHarness, HarnessAgentsOf } from '../define'
@@ -40,6 +41,7 @@ import type {
   HarnessInput,
   PendingQuestion,
   Principal,
+  Receipt,
   ResolveOptions,
   RunNode,
   ThreadSettings,
@@ -388,7 +390,44 @@ export interface SessionDependencies {
    * `envKeys`.
    */
   access?: { envKeys: boolean }
+  /**
+   * Open a session of `harness` on a child thread of this log, for
+   * `harnessAgent`. The host sets it.
+   */
+  openChild?: OpenChildSession
+  /** Set on a child session only: what it takes from its parent. */
+  child?: ChildSessionLink
 }
+
+/** What a child session of `harnessAgent` takes from its parent. */
+export interface ChildSessionLink {
+  /** The root thread of the tree. The child reads the credentials of the root. */
+  rootThreadId: string
+  /** The thread of the session that started the child. Its index entry names it. */
+  parentThreadId: string
+  /**
+   * Count one model call of the child in the run that started it, and check
+   * the budget of that run. The child keeps no usage of its own.
+   */
+  countUsage: (call: UsageCall) => Promise<void>
+}
+
+/** A child session of `harnessAgent` that a run of a session has open. */
+export interface HarnessChild {
+  session: SessionImpl
+  /** Answer waits of the child. Its run goes on with the answers. */
+  answer: (options: ResolveForRunOptions) => Promise<Receipt>
+}
+
+/** See {@link SessionDependencies.openChild}. */
+export type OpenChildSession = (
+  harness: AnyHarness,
+  options: {
+    threadId: string
+    principal: Principal | undefined
+    child: ChildSessionLink
+  },
+) => Promise<SessionImpl>
 
 export interface QueuedTurn {
   operation: OperationImpl<ChatTurnResult>
