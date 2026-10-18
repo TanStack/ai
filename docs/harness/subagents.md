@@ -582,19 +582,19 @@ export const lead = defineHarness({
 
 The tool name comes from the harness name, with characters other than letters, digits, `_`, and `-` changed to `_`. Pass `name` to pick another.
 
-In a session, the child is a run of the session tree. It opens a session of the child harness on its own thread, `<root thread id>/agent/<run id>`, in the log of the root thread. <!-- harness-agent: check --> The child gets these from the run that calls it:
+In a session, the child is a run of the session tree. It opens a session of the child harness on its own thread, `<root thread id>/agent/<run id>`, in the log of the root thread. The child gets these from the run that calls it:
 
 - The user, with that user's credentials and provider keys.
-- The limits of the tree, and the budget that the parent has left. <!-- harness-agent: check -->
+- The budget of the parent run. The model calls of the child count against it.
 
 What you see in the parent session:
 
 - The model calls of the child count in `session.usage()` and in the budget of the parent.
-- A wait of the child, for example a sign-in or an approval, is in `snapshot().pendingWaits` of the root session. Answer it there, and the child goes on. <!-- harness-agent: check -->
-- The events of the child (text, reasoning, tool calls, and the end with its usage) reach the parent stream with a `parentRunId`. <!-- harness-agent: check -->
+- A wait of the child, for example a sign-in or an approval, is in `snapshot().pendingWaits` of the root session. Answer it there, and the child goes on. This works while the child session is open on this host: another host and `host.observe` do not see the wait. A child that waits keeps its parent run running.
+- The events of the child (text, reasoning, tool calls, and custom events) reach the parent stream with `parentRunId` in `metadata.tanstack`. A last `RUN_FINISHED` has the total usage of the child.
 - The child session closes, and its plugins are cleaned up, when the run settles.
 
-Outside a session, for example in a plain `chat()`, `harnessAgent` runs the child harness on the host that you pass as `host`. Without `host`, it makes a host with a memory log the first time it runs. <!-- harness-agent: check -->
+Outside a session, for example in a plain `chat()`, `harnessAgent` runs the child harness on the host that you pass as `host`. Without `host`, it makes a host with a memory log the first time it runs.
 
 ## Stay within limits
 

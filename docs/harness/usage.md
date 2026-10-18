@@ -54,7 +54,7 @@ At the end of each call, the provider reports its usage. These calls count:
 - The model calls of each turn, for the sender of that turn.
 - The subagents that a turn starts, for the same sender.
 - Background agents, for the person who started the agent.
-- A harness that runs as a child with [`harnessAgent`](./subagents#call-a-harness-as-a-child), for the same person. <!-- harness-agent: check -->
+- A harness that runs as a child with [`harnessAgent`](./subagents#call-a-harness-as-a-child), for the same person.
 
 A call that fails before it ends does not count. Each message runs as its sender, so in a [shared thread](./shared-threads), `bySender` shows what each person used.
 
