@@ -243,14 +243,17 @@ export const formatAlerts = definePlugin({
 
 Clients get the same events as a `harness.plugin.event` with the name `tanstack/formatter:failed` or `tanstack/formatter:rewrote`.
 
-### Each run asks first
+### One approval covers the write and its formatter
 
-A formatter runs code from the project, like `prettier.config.js`. The model can change that code with an edit. So with `permissions()`, the formatter asks before each run, also in `acceptEdits` mode. The question names the run `formatter:prettier`, `formatter:biome`, and so on.
+A formatter runs code from the project, like `prettier.config.js`. The model can change that code with an edit. So with `permissions()`, the rules decide the formatter as a part of the call that writes. The rule names the run `formatter:prettier`, `formatter:biome`, and so on.
 
+The rules decide before the call runs, and the formatter runs after the write. The call never stops in the middle to ask.
+
+- When the formatter asks, the call asks one time for the write and the formatter, also in `acceptEdits` mode. Answer that [approval](./permissions#answer-an-approval) with `resolve`.
+- A `reject` stops the call. Nothing is written, and the formatter does not run.
 - Answer `always` once, and the formatter runs without a question in this project.
-- A `reject` keeps the write. The tool result says that the formatter did not run.
-- A rule can allow a formatter: `{ tool: 'formatter:prettier', decision: 'allow' }`.
-- Without `permissions()`, the formatter runs without a question.
+- A rule that denies the formatter keeps the write. The tool result says that the formatter did not run.
+- A rule can allow a formatter: `{ tool: 'formatter:prettier', decision: 'allow' }`. Without `permissions()`, the formatter runs without a question.
 
 [Formatters](./permissions#formatters) shows what each mode does.
 

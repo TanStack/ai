@@ -179,6 +179,29 @@ export function fileVersions(env: ToolEnv) {
 export type FileVersions = ReturnType<typeof fileVersions>
 
 /**
+ * Run the `afterWrite` hooks for the `written` files, after their locks: a
+ * hook (a formatter) never runs while a lock is held. Then `versions`
+ * remembers each file as the hooks left it, under its lock again, so the
+ * next write does not take the formatter's change for a change of another
+ * session. Resolves to the notes of the hooks.
+ *
+ * ponytail: a write of another session between the hooks and that lock
+ * counts as seen too.
+ */
+export async function afterWriteSeen(
+  env: ToolEnv,
+  versions: FileVersions,
+  written: ReadonlyArray<string>,
+) {
+  // No hook, no change: the write remembered the files already.
+  if (!env.hooks().some((hook) => hook.afterWrite)) return []
+  const notes: Array<string> = []
+  for (const full of written) notes.push(...(await afterWrite(env, full)))
+  for (const full of written) await env.lock(full, () => versions.saw(full))
+  return notes
+}
+
+/**
  * `write_file` and `edit_file`. Each write first checks with `versions` that
  * the file did not change since a tool read it. After each write, the
  * `afterWrite` hooks run for the file. `edit_file` finds the old text with
@@ -203,14 +226,13 @@ export function editTools(env: ToolEnv, versions: FileVersions) {
       )
       const content = stringArg(args, 'content')
       const missing = !(await versions.exists(full))
-      return env.lock(full, async () => {
+      await env.lock(full, async () => {
         await versions.check(full, { missing })
         await env.backend.writeFile(full, content)
-        const notes = await afterWrite(env, full)
-        // After the hooks: a formatter can write the file again.
         await versions.saw(full)
-        return [`Wrote ${env.shown(full)}.`, ...notes].join('\n')
       })
+      const notes = await afterWriteSeen(env, versions, [full])
+      return [`Wrote ${env.shown(full)}.`, ...notes].join('\n')
     }),
     toolDefinition({
       name: 'edit_file',
@@ -231,7 +253,7 @@ export function editTools(env: ToolEnv, versions: FileVersions) {
       const oldText = stringArg(args, 'old')
       const newText = stringArg(args, 'new')
       const replaceAll = isRecord(args) && args.replaceAll === true
-      return env.lock(full, async () => {
+      const count = await env.lock(full, async () => {
         // The edit reads the file itself, so a file that no tool read can
         // change. One that a tool read must be as that read saw it.
         await versions.check(full, { missing: false })
@@ -255,13 +277,14 @@ export function editTools(env: ToolEnv, versions: FileVersions) {
         // Keep the byte order mark, also when the new text drops it.
         const keepBom = before.startsWith(BOM) && !after.startsWith(BOM)
         await env.backend.writeFile(full, keepBom ? BOM + after : after)
-        const notes = await afterWrite(env, full)
         await versions.saw(full)
-        return [
-          `Edited ${env.shown(full)} (${count} change${count > 1 ? 's' : ''}).`,
-          ...notes,
-        ].join('\n')
+        return matches.length
       })
+      const notes = await afterWriteSeen(env, versions, [full])
+      return [
+        `Edited ${env.shown(full)} (${count} change${count > 1 ? 's' : ''}).`,
+        ...notes,
+      ].join('\n')
     }),
   ]
 }

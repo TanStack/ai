@@ -250,14 +250,20 @@ describe('handoffs', () => {
 
     const turn = session.send('refund please')
 
-    expect((await turn).text).toBe(
-      'triage:\nPassing you to billing.\n\nbilling:\nRefunded',
-    )
+    // The turn text is the answer of the target.
+    expect((await turn).text).toBe('billing:\nRefunded')
     expect(main.calls).toHaveLength(0)
+    // Each routed pass keeps its answer as its own message.
     expect(await transcriptTexts(session)).toEqual([
       'refund please',
-      'triage:\nPassing you to billing.\n\nbilling:\nRefunded',
+      'triage:\nPassing you to billing.',
+      'billing:\nRefunded',
     ])
+    expect(
+      messagesFromTranscript(await session.transcript()).map((message) =>
+        message.role === 'assistant' ? message.agent : message.role,
+      ),
+    ).toEqual(['user', 'triage', 'billing'])
     expect(
       (await handoffRecords(log)).map(({ from, to, by }) => ({ from, to, by })),
     ).toEqual([

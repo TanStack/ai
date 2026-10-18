@@ -30,7 +30,11 @@ import type { AnyTool, ToolExecutionContext } from '@tanstack/ai'
 import type { PluginEvent } from '../../extensions'
 import type { BackgroundJobsApi, WorkspaceLogApi } from '../../plugins'
 import type { RunContext } from '../../types'
-import type { PermissionDecision, ToolResources } from '../permissions'
+import type {
+  CallResources,
+  PermissionDecision,
+  ToolResources,
+} from '../permissions'
 import type {
   BoundWorkspace,
   ToolEnv,
@@ -38,11 +42,6 @@ import type {
   WorkspaceBinding,
 } from './backend'
 import type { WebToolsOptions } from './web'
-
-/** True for `true`, `y`, or `yes` (any case). */
-function isYes(answer: unknown) {
-  return answer === true || /^y(es)?$/i.test(String(answer).trim())
-}
 
 /** Gives the workspace of each thread. */
 export interface WorkspaceBinder {
@@ -91,10 +90,15 @@ type WorkspaceSource =
 export type WorkspaceToolsOptions = WorkspaceSource & {
   bashTimeoutMs?: number
   /**
-   * A path outside `root`. `'deny'` (default) refuses it. `'ask'` asks the
-   * user first, and a yes allows that folder, and the folders in it, for the
-   * rest of the session. The `bypass` mode of `permissions()` allows it
-   * without a question.
+   * A path outside `root`. `'deny'` (default) refuses it. `'ask'` makes the
+   * call ask for approval through `permissions()`, before the call runs,
+   * like a path outside its `root`. An `always` answer saves an allow rule
+   * for the path. The `bypass` mode allows it without a question. Without
+   * `permissions()`, nobody can approve it, so it is refused.
+   *
+   * With `workspace.bind`, the root of a thread is not known before the
+   * call, so no approval can cover an outside path. Only a rule that allows
+   * the path, or the `bypass` mode, lets the call use it.
    */
   outside?: 'deny' | 'ask'
   /**
@@ -118,10 +122,8 @@ export type WorkspaceToolsOptions = WorkspaceSource & {
   maxJobs?: number
 }
 
-/** What the tools need from the session for a path outside the workspace. */
+/** What the tools need from the session for the permission rules. */
 export interface OutsideAccess {
-  /** Ask the user a question, and resolve with the answer. */
-  ask: (message: string) => Promise<unknown>
   /** The permission mode of the session, for example `'bypass'`. */
   mode: () => unknown
   /**
@@ -132,11 +134,11 @@ export interface OutsideAccess {
   cwd?: () => string | undefined
   /**
    * What `permissions()` decides in the current mode for a call of a tool
-   * that touches `paths`, or `undefined` without `permissions()`. Read at
-   * each call.
+   * that touches `resources`, or `undefined` without `permissions()`. Read
+   * at each call.
    */
   rules?: () =>
-    | ((tool: string, paths: ReadonlyArray<string>) => PermissionDecision)
+    | ((tool: string, resources: CallResources) => PermissionDecision)
     | undefined
 }
 
@@ -215,23 +217,24 @@ export function writingRun() {
 }
 
 /**
- * The tools for one workspace: `backend`, with the boundary `root`. Each
+ * The tools for one workspace: `backend`, with the boundary `root`, and what
+ * each call touches for `PermissionResources`: the paths a call names, their
+ * real paths, and the real paths outside the workspace. `permissions()`
+ * decides them before the call runs, so no tool asks while it runs. Each
  * call gets the paths through `reach`, which resolves every link, and works
- * on the resolved path under `lock`.
+ * on the resolved path under `lock`. `rulesSawRealPaths` is false when the
+ * rules get other resources (see `check`).
  */
 function bindTools(
   workspace: { backend: WorkspaceBackend; root: string },
   options: WorkspaceToolsOptions,
   session: SessionAccess,
+  rulesSawRealPaths = true,
 ) {
   const { backend } = workspace
   const paths = pathsOf(backend)
   const root = paths.resolve(workspace.root)
   const { access, note } = session
-  // The real outside folders the user allowed in this session, and the
-  // questions that wait for an answer, by folder, so parallel calls ask once.
-  const allowed: Array<string> = []
-  const asking = new Map<string, Promise<boolean>>()
   /** The working folder: `root`, or the thread's `cwd` in it. */
   const here = () => {
     const cwd = access?.cwd?.()
@@ -241,20 +244,6 @@ function bindTools(
       throw new Error(`The working folder ${cwd} is outside the workspace.`)
     }
     return folder
-  }
-
-  /** Ask once about `folder`. A yes allows it for the session. */
-  const allow = (folder: string, message: string) => {
-    let answer = asking.get(folder)
-    if (!answer) {
-      answer = Promise.resolve(access?.ask(message)).then((reply) => {
-        asking.delete(folder)
-        if (isYes(reply)) allowed.push(folder)
-        return isYes(reply)
-      })
-      asking.set(folder, answer)
-    }
-    return answer
   }
 
   /**
@@ -323,79 +312,124 @@ function bindTools(
       .join('/')
 
   /**
-   * The rules see the path that the call names. A link can lead to a path
-   * with a stricter rule, like `notes` to `.env`. So the rules check the
-   * real path too, and the strictest decision wins.
+   * Where `full` really is: its real path as the rules see it, and if it is
+   * outside the workspace. A UNC path of another server is outside, with no
+   * real path: `realpath` on it connects to its server, and Windows can
+   * send the user's credentials.
    */
-  const checkRealPath = async (
-    path: string,
-    tool: string,
-    full: string,
-    real: string,
-  ) => {
-    const decide = access?.rules?.()
-    // `bash` touches commands. Its rules do not match paths.
-    if (!access || !decide || !PATH_TOOLS.has(tool)) return
-    if (paths.relative(full, real) === '') return
-    // `permissions()` checked `full` before the call. Act only when the
-    // real path makes the decision stricter.
-    const decision = decide(tool, [full, real])
-    if (decision === decide(tool, [full])) return
-    if (decision === 'deny') {
-      throw new Error(
-        `The permission rules do not allow ${tool} on ${shown(real)}, the real path of ${path}.`,
-      )
-    }
-    const reply = await access.ask(
-      `${path} is a link to ${shown(real)}. The permission rules ask before ${tool} uses ${shown(real)}. Allow it? (y/n)`,
-    )
-    if (!isYes(reply)) {
-      throw new Error(
-        `The user did not allow ${tool} on ${shown(real)}, the real path of ${path}.`,
-      )
-    }
+  const locate = async (full: string) => {
+    if (isUnc(full) && !isUnc(root)) return { real: full, isOutside: true }
+    const real = await realPath(full)
+    const isOutside = !within(await realRoot(), real, paths.sep)
+    return { real: isOutside ? real : await forRules(real), isOutside }
   }
 
-  /** Throws when the user or the options do not allow `real`, outside. */
-  const allowOutside = async (
+  /**
+   * What a call that names `named` touches, for the rules: each path and
+   * its real path, so a link to a path with a stricter rule (like `notes`
+   * to `.env`) gets that rule too. With `outside: 'ask'`, the real paths
+   * outside the workspace ask. The rules decide them before the call runs.
+   */
+  const touched = async (named: ReadonlyArray<string>) => {
+    const fulls = named.map((path) => paths.resolve(here(), path))
+    const located = await Promise.all(fulls.map(locate))
+    const reals = located.map(({ real }) => real)
+    return {
+      paths: [...new Set([...fulls, ...reals])],
+      outside:
+        options.outside === 'ask'
+          ? located.flatMap(({ real, isOutside }) => (isOutside ? [real] : []))
+          : [],
+    }
+  }
+  const touches = (named: (input: unknown) => ReadonlyArray<string>) => {
+    // One read of the paths for each call input, for both fields.
+    const seen = new WeakMap<object, ReturnType<typeof touched>>()
+    const of = (input: unknown) => {
+      const key = typeof input === 'object' && input !== null ? input : null
+      const found = key ? seen.get(key) : undefined
+      if (found) return found
+      const result = touched(named(input))
+      if (key) seen.set(key, result)
+      return result
+    }
+    return {
+      paths: async (input: unknown) => (await of(input)).paths,
+      outside: async (input: unknown) => (await of(input)).outside,
+    } satisfies ToolResources
+  }
+  const file = (input: unknown) => [stringArg(input, 'path')]
+  const folder = (input: unknown) => [optionalString(input, 'path') ?? '.']
+  const resources: Record<string, ToolResources> = {
+    read_file: touches(file),
+    write_file: touches(file),
+    edit_file: touches(file),
+    list_files: touches(folder),
+    grep: touches(folder),
+    patch: touches((input) => patchPaths(stringArg(input, 'patch'))),
+    bash: { commands: bashResources },
+  }
+
+  /**
+   * Throws when the call must not use `full` at `real`. With
+   * `rulesSawRealPaths`, the rules decided the call before it ran, with the
+   * real paths (see `touched`), so a call that runs was allowed or
+   * approved. The check runs again here, on the paths as they are now: a
+   * deny refuses, and so does a path outside the workspace that nobody can
+   * approve.
+   *
+   * Without it (a workspace for each thread), the rules saw only the path
+   * that the call names. Then a real path that makes the decision stricter,
+   * or an outside path that no rule allows, is refused: nobody approved it.
+   */
+  const check = (
     path: string,
     tool: string,
-    kind: 'file' | 'folder',
     full: string,
-    real: string,
+    { real, isOutside }: Awaited<ReturnType<typeof locate>>,
   ) => {
-    if (options.outside !== 'ask' || !access) {
-      throw new Error(`Path "${path}" is outside the workspace.`)
+    const decide = access?.rules?.()
+    const isBypass = access?.mode() === 'bypass'
+    if (isOutside) {
+      const canAsk = options.outside === 'ask' && access
+      if (!canAsk || (!decide && !isBypass)) {
+        throw new Error(`Path "${path}" is outside the workspace.`)
+      }
     }
-    if (access.mode() === 'bypass') return
-    const dir = kind === 'folder' ? real : paths.dirname(real)
-    const yes = await allow(
-      dir,
-      `${tool} wants ${real}, outside the workspace (${root}). Allow ${dir} for this session? (y/n)`,
-    )
-    if (!yes) {
+    // `bash` touches commands. Its rules do not match paths.
+    if (!decide || !PATH_TOOLS.has(tool)) return
+    const decision = decide(tool, {
+      paths: [...new Set([full, real])],
+      outside: isOutside ? [real] : [],
+    })
+    if (decision === 'deny') {
       throw new Error(
-        `The user did not allow ${full}. It is outside the workspace.`,
+        paths.relative(full, real) === ''
+          ? `The permission rules do not allow ${tool} on ${shown(real)}.`
+          : `The permission rules do not allow ${tool} on ${shown(real)}, the real path of ${path}.`,
       )
     }
+    if (rulesSawRealPaths || isBypass || decision === 'allow') return
+    if (isOutside) {
+      throw new Error(
+        `Path "${path}" is outside the workspace, and no rule allows it. With a workspace for each thread, the call cannot ask for it.`,
+      )
+    }
+    if (decision === decide(tool, { paths: [full] })) return
+    throw new Error(
+      `${path} is a link to ${shown(real)}, and the permission rules ask before ${tool} uses ${shown(real)}. Name ${shown(real)} in the call, so the approval covers it.`,
+    )
   }
 
   // The boundary check uses real paths, so a link inside the workspace that
   // leads out of it counts as outside. The tools work on the resolved path.
-  const reach: ToolEnv['reach'] = async (path, tool, kind) => {
+  const reach: ToolEnv['reach'] = async (path, tool) => {
     const full = paths.resolve(here(), path)
-    // `realpath` on a UNC path connects to its server, and Windows can send
-    // the user's credentials. So the boundary check runs first.
-    if (isUnc(full) && !isUnc(root)) {
-      await allowOutside(path, tool, kind, full, full)
-    }
-    const real = await realPath(full)
-    const folders = [await realRoot(), ...allowed]
-    const isAllowed = folders.some((dir) => within(dir, real, paths.sep))
-    if (!isAllowed) await allowOutside(path, tool, kind, full, real)
-    const inRoot = await forRules(real)
-    await checkRealPath(path, tool, full, inRoot)
-    return inRoot
+    const located = await locate(full)
+    check(path, tool, full, located)
+    // `locate` does not read a UNC path of another server. After the
+    // check, it is allowed, so read its real path now.
+    return isUnc(full) && !isUnc(root) ? resolved(full) : located.real
   }
 
   const env: ToolEnv = {
@@ -426,10 +460,9 @@ function bindTools(
       // itself can be a link, and its real path covers the files in it.
       const real = await resolved(dir)
       return (path) =>
-        decide('read_file', [
-          paths.resolve(dir, path),
-          paths.resolve(real, path),
-        ]) !== 'allow'
+        decide('read_file', {
+          paths: [paths.resolve(dir, path), paths.resolve(real, path)],
+        }) !== 'allow'
     },
   }
   // What this binding read and wrote, so a write fails when the file changed
@@ -464,7 +497,7 @@ function bindTools(
 
   const intro =
     options.outside === 'ask'
-      ? `Your workspace is ${root}. Paths are relative to it. A path outside it asks the user first.`
+      ? `Your workspace is ${root}. Paths are relative to it. A path outside it needs the approval of the user.`
       : `Your workspace is ${root}. Paths are relative to it.`
   /** The prompt, with the working folder of the thread when it has one. */
   const prompt = () => {
@@ -476,8 +509,7 @@ function bindTools(
   return {
     tools,
     prompt,
-    /** `path` as a full path, from the working folder. */
-    fromHere: (path: string) => paths.resolve(here(), path),
+    resources,
   }
 }
 
@@ -619,6 +651,7 @@ function threadTools(
         { backend: workspace, root: workspace.root },
         options,
         session,
+        false,
       )
       bound.set(key, tools)
       return tools
@@ -638,6 +671,7 @@ function threadTools(
     { backend: hostBackend, root: '/' },
     options,
     {},
+    false,
   ).tools
   const tools = templates.map((template): AnyTool => {
     const execute = async (args: unknown, context?: ToolExecutionContext) => {
@@ -659,37 +693,13 @@ function threadTools(
   /**
    * The root is not known before the call, so a relative path stays
    * relative, from the working folder. `permissions()` reads it from its own
-   * `root`.
+   * `root`. The real paths are not known either: `check` in `bindTools`
+   * refuses what the rules did not see.
    */
   const fromHere = (path: string) => {
     const cwd = session.access?.cwd?.()
     return cwd && !isAbsolutePath(path) ? `${cwd}/${path}` : path
   }
-  return { tools, prompt, bind, fromHere }
-}
-
-/**
- * The tools of {@link workspaceTools} for one session, and what each call
- * touches for `PermissionResources`. `access` asks the user about a path
- * outside the workspace when `options.outside` is `'ask'`. `hooks` are the
- * hooks that plugins added. `note` tells the model that a background `bash`
- * job ended, and `signal` kills the jobs that still run.
- *
- * With `options.workspace`, each tool call works in the workspace of its
- * thread. `bind(run)` binds the thread of `run`, and `prompt(run)` gives the
- * prompt of its workspace.
- */
-export function createWorkspaceTools(
-  options: WorkspaceToolsOptions,
-  session: SessionAccess = {},
-) {
-  const source =
-    options.workspace === undefined
-      ? fixedTools(options.root, options, session)
-      : threadTools(options.workspace, options, session)
-  const { fromHere } = source
-  // What each call touches, as the tool resolves it, for the permission
-  // rules with a `resource`.
   const file = (input: unknown) => [fromHere(stringArg(input, 'path'))]
   const folder = (input: unknown) => [
     fromHere(optionalString(input, 'path') ?? '.'),
@@ -705,6 +715,29 @@ export function createWorkspaceTools(
     },
     bash: { commands: bashResources },
   }
+  return { tools, prompt, bind, resources }
+}
+
+/**
+ * The tools of {@link workspaceTools} for one session, and what each call
+ * touches for `PermissionResources`. `permissions()` decides them before the
+ * call runs, so no tool asks while it runs. `access` gives the rules and the
+ * mode. `hooks` are the hooks that plugins added. `note` tells the model
+ * that a background `bash` job ended, and `signal` kills the jobs that still
+ * run.
+ *
+ * With `options.workspace`, each tool call works in the workspace of its
+ * thread. `bind(run)` binds the thread of `run`, and `prompt(run)` gives the
+ * prompt of its workspace.
+ */
+export function createWorkspaceTools(
+  options: WorkspaceToolsOptions,
+  session: SessionAccess = {},
+) {
+  const source =
+    options.workspace === undefined
+      ? fixedTools(options.root, options, session)
+      : threadTools(options.workspace, options, session)
   // Each call runs with its run in `callRuns`, for `writingRun`.
   const tools = source.tools.map((tool): AnyTool => {
     const { execute } = tool
@@ -717,7 +750,7 @@ export function createWorkspaceTools(
   })
   return {
     tools,
-    resources,
+    resources: source.resources,
     prompt: source.prompt,
     bind: source.bind,
   }
@@ -771,8 +804,8 @@ function fixedTools(
     tools,
     prompt: () => own.prompt(),
     bind: async () => own,
-    // A full path, from the working folder.
-    fromHere: own.fromHere,
+    // The paths and the real paths, from the working folder.
+    resources: own.resources,
   }
 }
 
@@ -796,14 +829,15 @@ function withEditStyle(
  * `edit_file` or `patch` (see `editStyle`), `list_files`, `grep`, `bash`,
  * `webfetch`, and `websearch` with a search provider. Edits, `bash`, and
  * `webfetch` ask for approval through `permissions()`, and each call tells
- * the permission rules which paths or commands it touches.
+ * the permission rules which paths or commands it touches, before the call
+ * runs.
  *
  * The workspace is `root` for every thread, or with `workspace.bind`, a
  * workspace for each thread. Its root is the boundary of every tool: a path
- * outside it is refused, or with `outside: 'ask'` the user is asked first. A
- * link that leads out of the root counts as outside, and the working folder
- * must be in the root. Other plugins add {@link WorkspaceHooks} to run code
- * after a read or a write.
+ * outside it is refused, or with `outside: 'ask'` it needs an approval. A
+ * link that leads out of the root counts as outside, the rules see the real
+ * path of a link, and the working folder must be in the root. Other plugins
+ * add {@link WorkspaceHooks} to run code after a read or a write.
  *
  * The tools use `backend` for files and commands. The default,
  * `hostBackend`, runs on this machine with the host's authority. Its
@@ -832,9 +866,6 @@ export function workspaceTools(options: WorkspaceToolsOptions) {
       const hooks = ctx.collect(WorkspaceHooks)
       const { tools, prompt, resources, bind } = createWorkspaceTools(options, {
         access: {
-          // ponytail: D9, PR 7 rebuilds ask. The question goes to the
-          // running turn, not to the run of the tool call that asks.
-          ask: (message) => ctx.session.ask({ message }),
           mode: () => ctx.config.get('mode'),
           // The working folder is the thread's `cwd` setting, read at each call.
           cwd: () => ctx.session.settings().cwd,
@@ -845,12 +876,12 @@ export function workspaceTools(options: WorkspaceToolsOptions) {
             const value = ctx.config.get('mode')
             const mode =
               PERMISSION_MODES.find((each) => each === value) ?? 'default'
-            return (tool, paths) => decide(tool, mode, { paths })
+            return (tool, resources) => decide(tool, mode, resources)
           },
         },
         hooks: () => hooks,
-        // ponytail: D9, PR 7 rebuilds ask and note. The wake turn runs as the
-        // sender of the running turn, not as the user of the job's turn.
+        // ponytail: D9. The wake turn of a note runs as the sender of the
+        // running turn, not as the user of the job's turn.
         note: (text, note) => ctx.session.note(text, note),
         // Kills the background `bash` jobs when the session closes. A reload
         // keeps them. Without a session, the plugin cleanup kills them.

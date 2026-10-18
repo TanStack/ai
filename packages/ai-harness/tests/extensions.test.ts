@@ -288,7 +288,8 @@ describe('commands and questions', () => {
           deploy: defineCommand({
             description: 'Deploy after a confirmation',
             run: async (_input, ctx) => {
-              const sure = await ctx.session.ask({
+              const sure = await ctx.step.ask({
+                name: 'sure',
                 message: 'Deploy to production?',
                 schema: z.boolean(),
               })

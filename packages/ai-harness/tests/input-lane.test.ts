@@ -88,7 +88,8 @@ const asking = (secret: boolean) =>
         ask: defineCommand({
           description: 'Sign in with a password',
           run: async (_input, ctx) => {
-            const password = await ctx.session.ask({
+            const password = await ctx.step.ask({
+              name: 'password',
               message: 'Password?',
               schema: z.string(),
               secret,
@@ -232,7 +233,8 @@ describe('an input that reaches a host that does not own the log', () => {
           ask: defineCommand({
             description: 'Sign in with a password',
             run: async (_input, ctx) => {
-              const password = await ctx.session.ask({
+              const password = await ctx.step.ask({
+                name: 'password',
                 message: 'Password?',
                 schema: z.string(),
                 secret: true,
@@ -303,9 +305,12 @@ describe('an input that reaches a host that does not own the log', () => {
       expect(receipt.status).toBe('queued')
       expect(await running).toBe('signed in')
 
-      expect(saved).toHaveLength(1)
-      const [ref] = saved
+      // The ref of the other host, and the answer that the owner keeps
+      // until the command ends, so a run again can read it.
+      expect(saved).toHaveLength(2)
+      const [ref, kept] = saved
       expect(ref).toMatch(/^harness:answer:/)
+      expect(kept).toBe(`harness:answer:${questionId}#kept`)
       // The lane got only the ref, and the owner consumed it.
       expect(JSON.stringify(offers)).toContain(ref)
       expect(JSON.stringify(offers)).not.toContain(PASSWORD)
@@ -314,8 +319,12 @@ describe('an input that reaches a host that does not own the log', () => {
         PASSWORD,
       )
       expect(JSON.stringify(events)).not.toContain(PASSWORD)
-      // The owner deleted the entry after it read it.
+      // The owner deleted the entry after it read it, and the kept answer
+      // when the command ended.
       expect(await credentials.get({ scope: {}, id: ref! })).toBeNull()
+      expect(
+        await credentials.get({ scope: { threadId: THREAD }, id: kept! }),
+      ).toBeNull()
       expect(await credentials.list({})).toEqual([])
 
       // The same ref again, as the owner applies it from the lane, is

@@ -215,12 +215,14 @@ describe('foldThreadRecord', () => {
       'harness.schedule.done',
       'harness.run',
       'harness.run.update',
+      'harness.run.node',
       'harness.interrupt',
       'harness.interrupt.end',
       'harness.wait',
       'harness.wait.settled',
       'harness.transferred',
       'harness.handoff',
+      'harness.state',
       'harness.workspace.bound',
     ])
   })

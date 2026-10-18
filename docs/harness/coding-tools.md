@@ -50,12 +50,10 @@ vanilla: @vscode/ripgrep turndown
 ## 2. Add the tools
 
 ```ts group=harness-coding-tools
+import { randomUUID } from 'node:crypto'
 import { createInterface } from 'node:readline/promises'
-import {
-  HARNESS_EVENTS,
-  createHarnessHost,
-  defineHarness,
-} from '@tanstack/ai-harness'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import type { RunAgentResumeItem } from '@tanstack/ai'
 import { permissions } from '@tanstack/ai-harness/plugins'
 import { workspaceTools } from '@tanstack/ai-harness/plugins/coding'
 import { openaiText } from '@tanstack/ai-openai'
@@ -76,38 +74,41 @@ const terminal = createInterface({
   output: process.stdout,
 })
 
-// Ask the user each question that a risky call waits on. Calls can run
-// in parallel, so ask one question at a time, each once.
-const asked = new Set<string>()
-let asking = Promise.resolve()
-const stopAsking = session.onEvent('CUSTOM', ({ event }) => {
-  if (event.name !== HARNESS_EVENTS.question) return
-  asking = asking.then(async () => {
-    for (const question of session.snapshot().pendingQuestions) {
-      if (asked.has(question.questionId)) continue
-      asked.add(question.questionId)
-      const answer = await terminal.question(`\n${question.message} `)
-      await session.answer({ questionId: question.questionId, value: answer })
-    }
-  })
+// Print the text of every turn, also of a turn that continues after an answer.
+const stopPrinting = session.onEvent('TEXT_MESSAGE_CONTENT', ({ event }) => {
+  process.stdout.write(event.delta)
 })
 
-// Send each line as a prompt. Print the answer. Type `exit` to stop.
+// A risky call stops the turn before it runs. Ask about each approval of
+// the turn, then send all the answers in one resolve.
+async function answerApprovals() {
+  let waits = session.snapshot().pendingWaits ?? []
+  while (waits.length > 0) {
+    const resume: Array<RunAgentResumeItem> = []
+    for (const wait of waits) {
+      const answer = await terminal.question(`\n${wait.message ?? wait.kind} (once/always/reject) `)
+      resume.push({ interruptId: wait.waitId, status: 'resolved', payload: answer })
+    }
+    const inputId = randomUUID()
+    await session.resolve({ resume, inputId })
+    await session.settled({ inputId })
+    waits = session.snapshot().pendingWaits ?? []
+  }
+}
+
+// Send each line as a prompt. Type `exit` to stop.
 let line = await terminal.question('\n> ')
 while (line !== 'exit') {
-  const turn = session.send(line)
-  turn.onEvent('TEXT_MESSAGE_CONTENT', ({ event }) => {
-    process.stdout.write(event.delta)
-  })
   try {
-    await turn
+    await session.send(line)
+    await answerApprovals()
   } catch (error) {
     // A failed turn rejects. Show the error and keep the loop.
     console.error(error)
   }
   line = await terminal.question('\n> ')
 }
-stopAsking()
+stopPrinting()
 terminal.close()
 await host.close()
 ```
@@ -118,7 +119,7 @@ await host.close()
 
 1. Run `npx tsx coder.ts` in your project.
 2. Ask: `find the failing test and fix it`.
-3. When the agent wants to change a file or run a command, it asks in the terminal. Answer `once`, `always`, or `reject`.
+3. When the agent wants to change a file or run a command, the turn stops, and the script asks in the terminal. Answer `once`, `always`, or `reject`.
 
 The agent reads and searches without a question. For a full coding agent with undo, a todo list, and a model picker, see [Build a coding agent](./coding-agent).
 
@@ -255,6 +256,7 @@ export const trustTests = permissions({
 
 - Paths match from `root`. Give `permissions()` and `workspaceTools()` the same `root`.
 - A rule also matches the real path of a link, and the stricter decision wins. So a link `notes` to `.env` asks, and a `deny` for `secrets/**` also stops a link to `secrets`.
+- The rules decide every path before the call runs. A tool never asks while it runs.
 - `bash` splits a command at `&&`, `||`, `;`, `|`, and new lines. Every part must be allowed.
 - A command with `$(`, a backtick, or a heredoc never gets an allow.
 
@@ -264,16 +266,21 @@ export const trustTests = permissions({
 
 ### A path outside `root`
 
-The tools refuse a path outside `root`. To ask the user instead, set `outside: 'ask'`:
+The tools refuse a path outside `root`. To let the user approve it, set `outside: 'ask'`:
 
 ```ts group=harness-coding-tools
 export const askOutside = workspaceTools({ root, outside: 'ask' })
 ```
 
-- A yes allows that folder, and the folders in it, until the session ends.
-- `bypass` mode allows every path without a question.
-- A link in `root` that leads out of `root` counts as outside.
+`permissions()` decides the outside path before the call runs. The path is a part of the one [approval](./permissions#answer-an-approval) of the call: the turn stops, and you answer with `resolve`. The tool never stops in the middle of a call to ask.
+
+- `once` allows this call. `always` also saves an allow rule for the path.
+- `reject` stops the call. The call does not run, so nothing is read or written.
+- A link in `root` that leads out of `root` counts as outside. The rules decide its real path.
+- `bypass` mode allows every path without a question. Without `permissions()`, nobody can approve the path, so the tool refuses it.
 - With `permissions()`, `grep` skips the files outside `root`, because `read_file` asks for them. A `read_file` rule for that folder, for example `{ tool: 'read_file', resource: '/shared/**', decision: 'allow' }`, lets `grep` show them.
+
+With a [workspace for each thread](./coding-workspaces), the root is not known before the call, so no approval can cover an outside path. Then only a rule that allows the path, or `bypass` mode, lets the call use it.
 
 ### A working folder for each thread
 
@@ -299,7 +306,7 @@ await session.configure({ settings: { cwd: 'web-app' } })
 - Relative paths start in `/srv/repos/web-app`, and `bash` runs there.
 - The system prompt tells the model the working folder.
 - Permission rules still match paths from `root`, for example `web-app/src/**`.
-- `cwd` is relative to `root`. A `cwd` outside `root` counts as an outside path.
+- `cwd` is relative to `root`. The tools refuse a `cwd` outside `root`, also with `outside: 'ask'`.
 
 [Store settings per thread](./thread-settings) shows how a client sets `cwd`.
 

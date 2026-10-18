@@ -72,6 +72,34 @@ export function finalizeHandle(handle: object) {
   releaseDropped(token)
 }
 
+/**
+ * @internal Throws `AccessDeniedError` unless `authorize` allows `input`. A `human`
+ * wait takes an operator too: a user that may not answer the run may still
+ * have the `operator` action.
+ */
+export async function authorizeInput({
+  authorize,
+  input,
+  run,
+  wait,
+}: {
+  authorize: HandleGuard['authorize']
+  input: HarnessInput
+  run: AccessRun | undefined
+  wait: AccessWait | undefined
+}) {
+  const action = actionOf(input)
+  if (action !== 'answer' || wait?.kind !== 'human') {
+    return authorize(action, run, wait)
+  }
+  try {
+    await authorize(action, run, wait)
+  } catch (error) {
+    if (!(error instanceof AccessDeniedError)) throw error
+    await authorize('operator', run, wait)
+  }
+}
+
 /** @internal The action that `authorize` gets for an input. */
 export function actionOf(input: HarnessInput): AccessAction {
   switch (input.op) {
@@ -350,27 +378,6 @@ export function sessionHandle<THarness extends AnyHarness>({
     const acting = actor(options.principal)
     return acting ? { ...options, principal: acting } : options
   }
-  /**
-   * The check of one input. A `human` wait takes an operator too: a user
-   * that may not answer the run may still have the `operator` action.
-   */
-  const checkInput = async (
-    authorize: HandleGuard['authorize'],
-    input: HarnessInput,
-    accessRun: AccessRun | undefined,
-    wait: AccessWait | undefined,
-  ) => {
-    const action = actionOf(input)
-    if (action !== 'answer' || wait?.kind !== 'human') {
-      return authorize(action, accessRun, wait)
-    }
-    try {
-      await authorize(action, accessRun, wait)
-    } catch (error) {
-      if (!(error instanceof AccessDeniedError)) throw error
-      await authorize('operator', accessRun, wait)
-    }
-  }
   /** `call` on `target`, which stores an input: the session checks it first. */
   const checkedOn = <T>(
     target: Session<THarness>,
@@ -379,7 +386,12 @@ export function sessionHandle<THarness extends AnyHarness>({
     guard
       ? target.checked(
           ({ input, run: accessRun, wait }) =>
-            checkInput(guard.authorize, input, accessRun, wait),
+            authorizeInput({
+              authorize: guard.authorize,
+              input,
+              run: accessRun,
+              wait,
+            }),
           () => call(target),
         )
       : call(target)

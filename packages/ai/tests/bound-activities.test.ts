@@ -167,6 +167,38 @@ describe('createBoundActivities', () => {
     })
   })
 
+  it('adds the host interrupts to chat, and the own interrupts of the call win on an id clash', () => {
+    const approval = { id: 'host:approval', from: 'host' }
+    const question = { id: 'host:question', from: 'host' }
+    const ownQuestion = { id: 'host:question', from: 'own' }
+    const review = { id: 'own:review', from: 'own' }
+    const activities = createBoundActivities(
+      'helper',
+      input,
+      new AbortController(),
+      { interrupts: [approval, question] as never },
+    )
+    const chat = activities.chat as unknown as (options: object) => Recorded
+    expect(chat({ adapter: 'a' }).options.interrupts).toEqual([
+      approval,
+      question,
+    ])
+    expect(
+      chat({ adapter: 'a', interrupts: [ownQuestion, review] }).options
+        .interrupts,
+    ).toEqual([approval, ownQuestion, review])
+    // Nested children get them too, after the same rule.
+    const nested = chat({
+      adapter: 'a',
+      subagents: { agents: [], binding: { interrupts: [review] } },
+    })
+    expect(nested.options.subagents.binding.interrupts).toEqual([
+      approval,
+      question,
+      review,
+    ])
+  })
+
   it('works without a binding', () => {
     const activities = createBoundActivities(
       'helper',

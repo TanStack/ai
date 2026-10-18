@@ -1,6 +1,6 @@
 import { toolDefinition } from '@tanstack/ai'
-import { afterWrite, readText, stringArg } from './backend'
-import { findMatches, toEndingsOf } from './edit'
+import { readText, stringArg } from './backend'
+import { afterWriteSeen, findMatches, toEndingsOf } from './edit'
 import type { ToolEnv } from './backend'
 import type { FileVersions } from './edit'
 
@@ -306,9 +306,9 @@ interface Step {
 
 /**
  * Apply each step. Every file is read and checked first. The files are
- * written and removed only when every operation fits. Then the `afterWrite`
- * hooks run for the written files, and `versions` remembers the files as the
- * patch left them.
+ * written and removed only when every operation fits, and `versions`
+ * remembers the files as the patch left them. Resolves to the lines of the
+ * result and the written files, for the `afterWrite` hooks.
  */
 async function applyAll(
   env: ToolEnv,
@@ -398,12 +398,9 @@ async function applyAll(
   for (const { full, text } of written) await backend.writeFile(full, text)
   // The checks above refuse a removal when the backend has no `remove`.
   for (const full of removed) await backend.remove?.(full)
-  const notes: Array<string> = []
-  for (const { full } of written) notes.push(...(await afterWrite(env, full)))
-  // After the hooks: a formatter can write a file again.
   for (const { full } of written) await versions.saw(full)
   for (const full of removed) versions.forget(full)
-  return ['Applied the patch:', ...changes, ...notes].join('\n')
+  return { changes, written: written.map(({ full }) => full) }
 }
 
 /**
@@ -436,8 +433,8 @@ export function patchTools(env: ToolEnv, versions: FileVersions) {
       },
     }).server(async (args: unknown) => {
       const operations = parsePatch(stringArg(args, 'patch'))
-      // Resolve each path first. A path outside the workspace can ask the
-      // user.
+      // Resolve each path first. The rules decided an outside path before
+      // the call.
       const steps: Array<Step> = []
       for (const operation of operations) {
         const full = await env.reach(operation.path, 'patch', 'file')
@@ -470,7 +467,9 @@ export function patchTools(env: ToolEnv, versions: FileVersions) {
         const inner = run
         run = () => env.lock(path, inner)
       }
-      return run()
+      const { changes, written } = await run()
+      const notes = await afterWriteSeen(env, versions, written)
+      return ['Applied the patch:', ...changes, ...notes].join('\n')
     }),
   ]
 }

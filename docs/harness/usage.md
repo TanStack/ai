@@ -2,7 +2,7 @@
 title: Track usage and cost
 id: harness-usage
 order: 7
-description: "Read the tokens and the cost of a thread, in total, by model, and by sender. Show a live total, stop a person who is over budget, and add /usage with your own prices."
+description: "Read the tokens and the cost of a thread, in total, by model, by sender, and by run. Show a live total, stop a person who is over budget, and add /usage with your own prices."
 keywords:
   - tanstack ai
   - harness
@@ -54,6 +54,7 @@ At the end of each call, the provider reports its usage. These calls count:
 - The model calls of each turn, for the sender of that turn.
 - The subagents that a turn starts, for the same sender.
 - Background agents, for the person who started the agent.
+- A harness that runs as a child with [`harnessAgent`](./subagents#call-a-harness-as-a-child), for the same person.
 
 A call that fails before it ends does not count. Each message runs as its sender, so in a [shared thread](./shared-threads), `bySender` shows what each person used.
 
@@ -66,6 +67,32 @@ The totals stay with the thread:
 - A host with neither keeps them in memory.
 
 A [fork of a thread](./fork-and-reset) starts at zero.
+
+## Usage of one run
+
+One agent run used much more than the others, and you want to know which one. Each `harness.usage` record in the log has the `runId` of the run that made the call: a turn, or an agent run. Add them up per run:
+
+```ts group=harness-usage
+import { logIdOf } from '@tanstack/ai-harness'
+import type { LogStore } from '@tanstack/ai-persistence'
+
+// The tokens of the model calls that each run made itself.
+export async function tokensByRun(log: LogStore, threadId: string) {
+  const tokens = new Map<string, number>()
+  for (const { record } of await log.read({ logId: logIdOf({ logId: threadId }) })) {
+    if (record.type !== 'harness.usage' || typeof record.runId !== 'string') continue
+    const { usage } = record
+    if (typeof usage !== 'object' || usage === null || !('totalTokens' in usage)) continue
+    if (typeof usage.totalTokens !== 'number') continue
+    tokens.set(record.runId, (tokens.get(record.runId) ?? 0) + usage.totalTokens)
+  }
+  return tokens
+}
+```
+
+- A call also counts for each run above its run in the [run tree](./subagents#the-run-tree). So the use of a run includes the use of its children.
+- When an agent run ends, its run record gets `usage`: the tokens of the run and of all its children. It is in the `harness.run.update` record of the end.
+- To stop a run that uses too much, give it a `budget`. See [Give one run a budget and a time limit](./subagents#give-one-run-a-budget-and-a-time-limit).
 
 ## Show a live total
 
@@ -167,6 +194,7 @@ Limits of the plugin:
 ## What you have now
 
 - The tokens and the cost of a thread, in total, by model, and by sender.
+- The tokens of each run, with the use of its children in the run above them.
 - Totals that stay after a restart.
 - A live total from the `harness.usage` event.
 - A budget check before each prompt.

@@ -1,10 +1,14 @@
 import {
   EventType,
   convertSchemaToJsonSchema,
-  readUnopenedInterruptBinding,
   toolDefinition,
 } from '@tanstack/ai'
-import { AccessDeniedError, HARNESS_EVENTS } from '@tanstack/ai-harness'
+import {
+  AccessDeniedError,
+  HARNESS_EVENTS,
+  isApproval,
+  waitKind,
+} from '@tanstack/ai-harness'
 import {
   isMediaRecord,
   kindOf,
@@ -30,7 +34,6 @@ import type {
 } from '@tanstack/ai'
 import type {
   AnyHarness,
-  Cursor,
   HarnessHost,
   HarnessSession,
   MediaRecord,
@@ -38,6 +41,8 @@ import type {
   Operation,
   Principal,
   SessionSnapshot,
+  Wait,
+  WaitKind,
 } from '@tanstack/ai-harness'
 import type { OpenAccess } from '@tanstack/ai-harness/server'
 import type { ContentBlock } from '@modelcontextprotocol/server'
@@ -207,9 +212,13 @@ const attachmentsSchema: JSONSchema = {
  * The server throws at the start for a host without `access` and without
  * `openAccess`, and for a host with both.
  *
- * Each interrupt in a result has a `kind`: `approval`, `client-tool`, or
- * `generic`. `approve` and `reject` answer approvals only. `resolve` answers
- * every kind: `approved` for an approval, and `payload` for the others.
+ * A result lists the open waits of its work in `waits`, each with its
+ * `kind` (see `waitKind`): `approval`, `question`, `sign-in`,
+ * `client-tool`, or `human`. `interrupts` are the waits of a stopped turn,
+ * and `questions` the questions of the work. `approve` and `reject` answer
+ * the approvals of the turn only. `resolve` answers the interrupts of the
+ * turn, or the waits of a background agent run: `approved` for an
+ * approval, and `payload` for the others. `answer` answers a question.
  *
  * `chat` takes `attachments`: `{ path }` (only inside `filePaths`),
  * `{ url, mimeType? }` (the model reads the URL, the server does not fetch
@@ -252,7 +261,9 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
   const defaultThread = options.threadId ?? 'main'
   const approvals = options.approvals ?? 'ask'
   const filePaths = options.filePaths ?? []
-  // Work that stopped for a question, by question id. `answer` continues it.
+  // Work that waits for an answer, by the id of each of its waits (a
+  // question, or a wait of a background agent run). `answer` or `resolve`
+  // continues it.
   const waiting = new Map<string, Operation<unknown>>()
   // The user of each request, by the token in its context. A token that
   // this server did not make is in no map, so a context cannot name a user.
@@ -358,18 +369,19 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
   async function finish(
     session: HarnessSession,
     work: Operation<unknown>,
-    workFrom: Cursor,
     context: MCPToolContext,
   ) {
     let operation = work
-    let from = workFrom
     // The media of every operation that this call waited for.
     const media: Array<MediaRecord> = []
     while (true) {
-      const outcome = await settle(session, operation, from)
+      const outcome = await settle(session, operation)
       if (!outcome.done) {
-        waiting.set(outcome.questionId, operation)
-        return { status: 'waiting', ...pending(session.snapshot()) }
+        const snapshot = session.snapshot()
+        for (const wait of snapshot.pendingWaits ?? []) {
+          if (wait.runId === operation.id) waiting.set(wait.waitId, operation)
+        }
+        return { status: 'waiting', ...pending(snapshot, operation.id) }
       }
       media.push(...(await mediaOf(operation)))
       if (operation.kind !== 'chat') {
@@ -383,11 +395,10 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
         const result = {
           status: operation.status(),
           text: turnText(outcome.value),
-          ...pending(session.snapshot()),
+          ...pending(session.snapshot(), operation.id),
         }
         return withMedia(session, result, media)
       }
-      from = session.snapshot().cursor
       operation = (await resolveAll(session, answers)).turn
     }
   }
@@ -397,9 +408,8 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
     answers: Array<Answer>,
     context: MCPToolContext,
   ) {
-    const from = session.snapshot().cursor
     const { turn } = await resolveAll(session, answers)
-    return finish(session, turn, from, context)
+    return finish(session, turn, context)
   }
 
   async function decideAll(
@@ -435,9 +445,8 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
   }).server<CallContext>(
     onSession(async (session, args, context) => {
       const message = await userInputOf(session, args, filePaths)
-      const from = session.snapshot().cursor
       const turn = session.send(message, { busy: 'queue' })
-      return finish(session, turn, from, context)
+      return finish(session, turn, context)
     }),
   )
 
@@ -490,7 +499,7 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
   const resolve = toolDefinition({
     name: 'resolve',
     description:
-      'Answer every interrupt that waits, then wait for the turn to continue. Give one decision for each interrupt. For an approval, set approved. For a client tool, set payload to the tool output. For a generic interrupt, set payload to a value that matches its responseSchema.',
+      'Answer every interrupt of the stopped turn, or every wait of a background agent run, then wait for the work to continue. Give one decision for each one, by its id (interruptId is the waitId). For an approval, set approved. For a client tool, set payload to the tool output. For any other kind, set payload to a value that matches its schema.',
     inputSchema: withThreadId({
       type: 'object',
       properties: {
@@ -510,7 +519,7 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
               },
               payload: {
                 description:
-                  'The answer. For a client tool, the tool output. For a generic interrupt, a value that matches its responseSchema.',
+                  'The answer. For a client tool, the tool output. For any other kind, a value that matches its schema.',
               },
             },
             required: ['interruptId'],
@@ -521,16 +530,41 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
     }),
   }).server<CallContext>(
     onSession(async (session, args, context) => {
-      const interrupts = session.snapshot().pendingInterrupts
-      const answers = answersOf(decisionsOf(args), interrupts)
-      return resume(session, answers, context)
+      const decisions = decisionsOf(args)
+      const snapshot = session.snapshot()
+      // The waits of a background agent run: the run goes on after them.
+      const run = waiting.get(decisions[0]?.interruptId ?? '')
+      if (run !== undefined) {
+        const waits = (snapshot.pendingWaits ?? []).filter(
+          (wait) => wait.runId === run.id,
+        )
+        const answers = answersOf(
+          decisions,
+          waits.map(({ waitId, kind }) => ({ id: waitId, kind })),
+        )
+        const receipt = await session.resolve({
+          resume: answers.map((answer) => ({ ...answer, status: 'resolved' })),
+        })
+        if (receipt.status === 'rejected') {
+          throw new Error(
+            `The harness refused the decisions: ${receipt.reason ?? 'no reason'}.`,
+          )
+        }
+        for (const wait of waits) waiting.delete(wait.waitId)
+        return finish(session, run, context)
+      }
+      const interrupts = snapshot.pendingInterrupts.map((interrupt) => ({
+        id: interrupt.id,
+        kind: waitKind(interrupt),
+      }))
+      return resume(session, answersOf(decisions, interrupts), context)
     }),
   )
 
   const answer = toolDefinition({
     name: 'answer',
     description:
-      'Answer a question from the harness, then wait for the work that asked it.',
+      'Answer a question from the harness (in questions), then wait for the work that asked it.',
     inputSchema: withThreadId({
       type: 'object',
       properties: {
@@ -542,7 +576,6 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
   }).server<CallContext>(
     onSession(async (session, args, context) => {
       const questionId = textArg(args, 'questionId')
-      const from = session.snapshot().cursor
       const receipt = await session.answer({
         questionId,
         value: isRecord(args) ? args.value : undefined,
@@ -558,14 +591,14 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
       if (operation === undefined) {
         return { status: 'answered', ...pending(session.snapshot()) }
       }
-      return finish(session, operation, from, context)
+      return finish(session, operation, context)
     }),
   )
 
   const status = toolDefinition({
     name: 'status',
     description:
-      'Show what the harness does now: the status, the interrupts and questions that wait, the background agents, and the queued turns.',
+      'Show what the harness does now: the status, every wait (the interrupts, the questions, and the waits of background agents), the background agents, and the queued turns.',
     inputSchema: withThreadId(undefined),
   }).server<CallContext>(
     onView(async (view) => {
@@ -575,7 +608,16 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
         ...pending(snapshot),
         agents: snapshot.activeOperations
           .filter((operation) => operation.kind === 'agent')
-          .map(({ id, agent }) => ({ id, agent })),
+          .map(({ id, agent }) => ({
+            id,
+            agent,
+            // A run with an open wait waits for its answer.
+            status: (snapshot.pendingWaits ?? []).some(
+              (wait) => wait.runId === id,
+            )
+              ? 'waiting'
+              : 'running',
+          })),
         queuedTurns: snapshot.queuedTurns,
       }
     }),
@@ -614,8 +656,7 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
         onSession(async (target, args, context) => {
           const handle = target.agent(name)
           if (handle === undefined) throw new Error(`Unknown agent: ${name}`)
-          const from = target.snapshot().cursor
-          return finish(target, handle.start(inputOf(args)), from, context)
+          return finish(target, handle.start(inputOf(args)), context)
         }),
       ),
   )
@@ -638,12 +679,11 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
         ),
       }).server<CallContext>(
         onSession(async (target, args, context) => {
-          const from = target.snapshot().cursor
           const operation = target.command({
             name: command.name,
             input: inputOf(args),
           })
-          return finish(target, operation, from, context)
+          return finish(target, operation, context)
         }),
       ),
   )
@@ -661,12 +701,11 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
         inputSchema: withThreadId(convertSchemaToJsonSchema(tool.inputSchema)),
       }).server<CallContext>(
         onSession(async (target, args, context) => {
-          const from = target.snapshot().cursor
           const operation = target.tool({
             name: tool.name,
             args: inputOf(args),
           })
-          return finish(target, operation, from, context)
+          return finish(target, operation, context)
         }),
       ),
   )
@@ -839,26 +878,34 @@ async function resolveAll(session: HarnessSession, answers: Array<Answer>) {
   return { turn: operation }
 }
 
+/** How the work of a call stands: done with its value, or waiting. */
+type Settled = { done: true; value: unknown } | { done: false; wait: Wait }
+
 /**
- * Waits for `operation`. Stops early when the session asks a question after
- * `from`, because the work waits for that answer.
+ * Waits for `operation`. Stops early when a wait of the operation opens that
+ * is not the stop of a turn: the work waits for its answer.
  */
 async function settle(
   session: HarnessSession,
   operation: Operation<unknown>,
-  from: Cursor,
-) {
+): Promise<Settled> {
   const stop = new AbortController()
-  const done = Promise.resolve(operation).then((value) => ({
-    done: true as const,
-    value,
-  }))
-  const asked = (async () => {
-    const questionId = await questionAfter(session, from, stop.signal)
-    // The feed closed without a question: only the work can end the wait.
-    if (questionId === undefined) return done
-    return { done: false as const, questionId }
-  })()
+  const done = Promise.resolve(operation).then(
+    (value): Settled => ({ done: true, value }),
+  )
+  const asked = session
+    .waitFor({ runId: operation.id, signal: stop.signal })
+    .then(
+      (wait): Settled | Promise<Settled> => {
+        // The interrupts of a turn come with its end.
+        const isTurnStop = session
+          .snapshot()
+          .pendingInterrupts.some((interrupt) => interrupt.id === wait.waitId)
+        return isTurnStop ? done : { done: false, wait }
+      },
+      // The session closed: only the work can end the wait.
+      () => done,
+    )
   try {
     return await Promise.race([done, asked])
   } finally {
@@ -866,39 +913,40 @@ async function settle(
   }
 }
 
-async function questionAfter(
-  session: HarnessSession,
-  from: Cursor,
-  signal: AbortSignal,
-) {
-  const events = session.events({ from, signal })
-  for await (const entry of events) {
-    const event = entry.event
-    const isQuestion =
-      event.type === EventType.CUSTOM && event.name === HARNESS_EVENTS.question
-    if (!isQuestion || !isRecord(event.value)) continue
-    const questionId = event.value.questionId
-    if (typeof questionId === 'string') return questionId
+/**
+ * The open waits of `snapshot` for the client: of the run `runId`, or every
+ * one without it. `interrupts` are the waits of a stopped turn, `questions`
+ * the questions, and `waits` all of them, each with its kind.
+ */
+function pending(snapshot: SessionSnapshot, runId?: string) {
+  const waits = (snapshot.pendingWaits ?? []).filter(
+    (wait) => runId === undefined || wait.runId === runId,
+  )
+  const ids = new Set(waits.map(({ waitId }) => waitId))
+  return {
+    interrupts: snapshot.pendingInterrupts
+      .filter((interrupt) => runId === undefined || ids.has(interrupt.id))
+      .map((interrupt) => ({
+        id: interrupt.id,
+        kind: waitKind(interrupt),
+        tool: interrupt.metadata?.toolName,
+        args: interrupt.metadata?.input,
+        message: interrupt.message,
+        responseSchema: interrupt.responseSchema,
+      })),
+    questions: snapshot.pendingQuestions
+      .filter(({ questionId }) => runId === undefined || ids.has(questionId))
+      .map(({ questionId, ...question }) => ({
+        id: questionId,
+        ...question,
+      })),
+    waits: waits.map(waitForClient),
   }
-  return undefined
 }
 
-/** The interrupts and questions of `snapshot` that wait for the client. */
-function pending(snapshot: SessionSnapshot) {
-  return {
-    interrupts: snapshot.pendingInterrupts.map((interrupt) => ({
-      id: interrupt.id,
-      kind: interruptKind(interrupt),
-      tool: interrupt.metadata?.toolName,
-      args: interrupt.metadata?.input,
-      message: interrupt.message,
-      responseSchema: interrupt.responseSchema,
-    })),
-    questions: snapshot.pendingQuestions.map(({ questionId, ...question }) => ({
-      id: questionId,
-      ...question,
-    })),
-  }
+/** A wait as a result shows it: who started its run stays out. */
+function waitForClient({ principal: _principal, ...wait }: Wait) {
+  return wait
 }
 
 /**
@@ -1110,35 +1158,15 @@ function toBase64(bytes: Uint8Array) {
 }
 
 /**
- * How the client answers `interrupt`. `chat()` puts a binding on each
- * interrupt. The binding marks a tool approval (answer with `approved`) and a
- * client tool (answer with the tool output). Any other interrupt is generic:
- * answer with a value that matches its `responseSchema`.
- */
-function interruptKind(interrupt: Interrupt) {
-  const binding = readUnopenedInterruptBinding(interrupt)
-  switch (binding?.kind) {
-    case 'tool-approval':
-      return 'approval'
-    case 'client-tool-execution':
-      return 'client-tool'
-    case 'generic':
-    case undefined:
-      return 'generic'
-  }
-}
-
-function isApproval(interrupt: Interrupt) {
-  return interruptKind(interrupt) === 'approval'
-}
-
-/**
  * The answers of a `resolve` call. The decisions must answer every open
- * interrupt, and only those. An approval takes `approved` (or `payload`).
- * Every other interrupt takes `payload`.
+ * wait of `open`, and only those. An approval takes `approved` (or
+ * `payload`). Every other kind takes `payload`.
  */
-function answersOf(decisions: Array<Decision>, interrupts: Array<Interrupt>) {
-  const openIds = interrupts.map(({ id }) => id)
+function answersOf(
+  decisions: Array<Decision>,
+  open: Array<{ id: string; kind: WaitKind }>,
+) {
+  const openIds = open.map(({ id }) => id)
   const decidedIds = decisions.map(({ interruptId }) => interruptId)
   const missing = openIds.filter((id) => !decidedIds.includes(id))
   if (missing.length > 0) {
@@ -1150,7 +1178,9 @@ function answersOf(decisions: Array<Decision>, interrupts: Array<Interrupt>) {
   if (unknown.length > 0) {
     throw new Error(`These interrupts are not open: ${unknown.join(', ')}.`)
   }
-  const approvalIds = interrupts.filter(isApproval).map(({ id }) => id)
+  const approvalIds = open
+    .filter(({ kind }) => kind === 'approval')
+    .map(({ id }) => id)
   return decisions.map(({ interruptId, approved, payload }) => {
     if (approvalIds.includes(interruptId)) {
       const answer = approved ?? payload

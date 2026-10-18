@@ -65,19 +65,24 @@ Make the id once per user action (a button press), and keep it for every retry o
 
 ## Wait for the outcome
 
-On the server, `session.settled(inputId)` waits until the input ends. It reads the log, so on a [durable host](./durable-sessions) it also works after a restart and on another host that opens the thread.
+On the server, `session.settled({ inputId })` waits until the input ends. It reads the log, so on a [durable host](./durable-sessions) it also works after a restart and on another host that opens the thread.
 
 ```ts group=harness-inputs
-const settlement = await session.settled('req-42')
+const settlement = await session.settled({
+  inputId: 'req-42',
+  signal: AbortSignal.timeout(60_000),
+})
 if (settlement.outcome === 'failed') {
   console.log(settlement.error?.code) // 'attempts_exhausted', 'timeout', or undefined
 }
 ```
 
+`signal` is optional. When it aborts first, `settled` rejects with its reason. The input keeps running.
+
 - `completed`: the turn has its answer.
 - `failed`: the turn failed. `error.code` is set for a limit.
 - `aborted`: someone cancelled the turn.
-- `interrupted`: the turn waits for human input. The `resolve` that answers it is a new input.
+- `interrupted`: the turn waits for a person. The `resolve` that answers it is a new input. See [Wait for a person](./waits).
 
 If the turn fails after an approved tool ran (for example, the next model call fails), the interrupt is used up, and the tool does not run again. Its result stays in the transcript. To go on, send a new message. If a resume stopped before its tool ran, the interrupt stays open, and you can resolve it again.
 
@@ -173,7 +178,7 @@ const joined = session.send('Keep it under five steps.', {
 })
 // One turn answers both, so both get its result.
 await Promise.all([running, joined])
-console.log((await session.settled('req-44')).operationId === running.id) // true
+console.log((await session.settled({ inputId: 'req-44' })).operationId === running.id) // true
 ```
 
 A message that arrives while the model writes its final answer still gets an answer in the same turn.

@@ -303,10 +303,11 @@ describe('list_files and grep engines', () => {
     )
     // Rules that ask about every .env file, like permissions() does.
     const { grep } = searchOn(fake.backend, root, {
-      ask: async () => 'n',
       mode: () => 'default',
-      rules: () => (_tool, paths) =>
-        paths.some((path) => path.endsWith('.env')) ? 'ask' : 'allow',
+      rules: () => (_tool, resources) =>
+        resources.paths?.some((path) => path.endsWith('.env'))
+          ? 'ask'
+          : 'allow',
     })
 
     expect(await grep({ pattern: 'two' })).toBe(
@@ -325,10 +326,11 @@ describe('list_files and grep engines', () => {
     )
     const readdir = vi.spyOn(fake.backend, 'readdir')
     const { grep } = searchOn(fake.backend, root, {
-      ask: async () => 'n',
       mode: () => 'default',
-      rules: () => (_tool, paths) =>
-        paths.some((path) => path.endsWith('.env')) ? 'ask' : 'allow',
+      rules: () => (_tool, resources) =>
+        resources.paths?.some((path) => path.endsWith('.env'))
+          ? 'ask'
+          : 'allow',
     })
 
     expect(await grep({ pattern: 'two' })).toBe(

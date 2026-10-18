@@ -48,7 +48,7 @@ export const coder = defineHarness({
 ```
 
 - The tools call `bind` once for each thread, before the first turn or at the first tool call. If `bind` throws, the next turn calls it again.
-- The `root` that `bind` gives is the boundary of every tool. A path outside it is refused, or asks first with `outside: 'ask'`. The `cwd` thread setting must stay inside it.
+- The `root` that `bind` gives is the boundary of every tool. A path outside it is refused. With `outside: 'ask'`, a rule that allows the path, or `bypass` mode, lets a call use it. No approval can cover it, because the root is not known before the call. The `cwd` thread setting must stay inside it.
 - The tools resolve every link with `realpath` before they read or write, while they hold the lock on the file. So a link in one thread cannot lead into the folder of another thread.
 - The session log keeps a `harness.workspace.bound` record with the place of the workspace. [Move a thread to another server](#5-move-a-thread-to-another-server) uses it.
 
