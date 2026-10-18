@@ -139,17 +139,22 @@ export interface AgentStartOptions {
  * The options of an agent run inside the session. `offered`: the run starts
  * from an input that another host offered. It keeps the input id, and the
  * run id that the host which offered it follows in the log. A submitted
- * input has no run id.
+ * input has no run id. `inputId`: the input id of the run, from its key in
+ * the run that starts it, so a run again finds the same child. `ready`: a
+ * child that waits for a slot of its group starts when it resolves `true`,
+ * and ends cancelled on `false`. A rejection fails the run.
  */
 export type AgentRunStartOptions = AgentStartOptions & {
   offered?: { inputId: string; runId?: string }
+  inputId?: string
+  ready?: Promise<boolean>
 }
 
 /** Start one agent run. `start`, `run`, and `group` of `AgentActions` use it. */
 export type AgentStartFn = (
   target: string | AnyAgent,
   input: unknown,
-  options: AgentStartOptions,
+  options: AgentRunStartOptions,
 ) => AgentRunImpl
 
 /** The runs that the body of a `group` returns. */

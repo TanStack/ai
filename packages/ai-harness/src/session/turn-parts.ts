@@ -605,84 +605,126 @@ export abstract class SessionTurnParts<
 
   /**
    * Middleware that runs before each model call. Queued steers join the
-   * running turn in admission order, as far as `claimJoins` lets them.
-   * `turn.onJoin` adds its messages after theirs. One append commits the
-   * engine's messages, the steer messages, the join
-   * records, and the `onJoin` records, so a crash never splits a join. The
-   * model gets the folded log when a host record changed the context. The
-   * `onJoin` ephemeral messages go to `ephemeral`, for this model call. It
-   * runs before the harness middleware, so they get the steer messages too.
+   * running turn, as `joinSteers` says. It runs before the harness
+   * middleware, so they get the steer messages too.
+   *
+   * With `routed` (a part of the turn that root agents answer), it runs in
+   * the model calls of the root agents, and not in the calls of their own
+   * children. The steers join the turn `routed.operationId`.
    */
-  protected steering(ephemeral: Array<ModelMessage>): AnyChatMiddleware {
+  protected steering(
+    ephemeral: Array<ModelMessage>,
+    routed?: { operationId: string },
+  ): AnyChatMiddleware {
     return {
       name: 'harness:steering',
       onConfig: async (ctx, config) => {
         if (ctx.phase !== 'beforeModel') return undefined
-        const count = await this.claimJoins()
-        const steers = this.steerQueue.slice(0, count)
-        try {
-          const running =
-            this.activeTurn?.id === ctx.runId ? this.activeTurn : undefined
-          const onJoin = this.harness.turn?.onJoin
-          let added: TurnAdditions | undefined
-          if (steers.length > 0 && onJoin && running) {
-            added = await onJoin({
-              session: this.self(),
-              operationId: ctx.runId,
-              inputs: steers.map((steer) => ({
-                inputId: steer.inputId,
-                message: steer.message,
-                ...(steer.principal ? { principal: steer.principal } : {}),
-              })),
-              signal: running.abortController.signal,
-            })
-            // A cancelled turn gets nothing from the hook. Its steers run as
-            // their own turns.
-            if (running.abortController.signal.aborted) return undefined
-          }
-          const records = added?.records ?? []
-          checkHostRecords(records)
-          const hostInput = this.operationInputs.get(ctx.runId)
-          const joins = hostInput
-            ? steers.map((steer) => ({
-                type: 'harness.input.joined',
-                inputId: steer.inputId,
-                into: hostInput,
-              }))
-            : []
-          const list = [
-            ...config.messages,
-            ...steers.map(
-              (steer): ModelMessage => ({
-                id: createMessageId(),
-                role: 'user',
-                content: steer.message,
-                ...(steer.wake ? { metadata: WAKE_METADATA } : {}),
-              }),
-            ),
-            ...(added?.messages ?? []).map(
-              (message): ModelMessage =>
-                message.id ? message : { ...message, id: createMessageId() },
-            ),
-          ]
-          const synced = await this.engine.beforeModel(list, [
-            ...joins,
-            ...records,
-          ])
-          // Only now, so a hook or an append that fails leaves them waiting.
-          this.steerQueue.splice(0, count)
-          for (const steer of steers) this.join(ctx.runId, steer)
-          ephemeral.push(...(added?.ephemeral ?? []))
-          if (list.length === config.messages.length && !synced) {
-            return undefined
-          }
-          // ponytail: no middleware before this one changes what the model
-          // call gets (`providerMessages`), so there is nothing to keep.
-          return { messages: synced ?? list }
-        } finally {
-          for (const steer of steers) this.joining.delete(steer.inputId)
-        }
+        if (routed && ctx.parentSubagentRunId !== undefined) return undefined
+        const messages = await this.joinSteers({
+          operationId: routed?.operationId ?? ctx.runId,
+          messages: config.messages,
+          ephemeral,
+          isRouted: routed !== undefined,
+        })
+        // ponytail: no middleware before this one changes what the model
+        // call gets (`providerMessages`), so there is nothing to keep.
+        return messages && { messages }
       },
+    }
+  }
+
+  /**
+   * Queued steers join the running turn `operationId` in admission order, as
+   * far as `claimJoins` lets them. `turn.onJoin` adds its messages after
+   * theirs. One append commits the engine's `messages`, the steer messages,
+   * the join records, and the `onJoin` records, so a crash never splits a
+   * join. The `onJoin` ephemeral messages go to `ephemeral`, for the next
+   * model call. Returns what the model gets: the folded log when a host
+   * record changed the context, else `messages` with the joined ones.
+   * `undefined` when nothing changed.
+   *
+   * `isRouted`: a root agent answers this part of the turn. It keeps its own
+   * thread, so the steers go to the session transcript, and the returned
+   * list is the agent's `messages` with them.
+   */
+  protected async joinSteers({
+    operationId,
+    messages,
+    ephemeral,
+    isRouted,
+  }: {
+    operationId: string
+    messages: Array<ModelMessage>
+    ephemeral: Array<ModelMessage>
+    isRouted: boolean
+  }): Promise<Array<ModelMessage> | undefined> {
+    const count = await this.claimJoins()
+    const steers = this.steerQueue.slice(0, count)
+    // Nothing joins, and a root agent has no engine messages to commit.
+    if (isRouted && steers.length === 0) return undefined
+    try {
+      const running =
+        this.activeTurn?.id === operationId ? this.activeTurn : undefined
+      const onJoin = this.harness.turn?.onJoin
+      let added: TurnAdditions | undefined
+      if (steers.length > 0 && onJoin && running) {
+        added = await onJoin({
+          session: this.self(),
+          operationId,
+          inputs: steers.map((steer) => ({
+            inputId: steer.inputId,
+            message: steer.message,
+            ...(steer.principal ? { principal: steer.principal } : {}),
+          })),
+          signal: running.abortController.signal,
+        })
+        // A cancelled turn gets nothing from the hook. Its steers run as
+        // their own turns.
+        if (running.abortController.signal.aborted) return undefined
+      }
+      const records = added?.records ?? []
+      checkHostRecords(records)
+      const hostInput = this.operationInputs.get(operationId)
+      const joins = hostInput
+        ? steers.map((steer) => ({
+            type: 'harness.input.joined',
+            inputId: steer.inputId,
+            into: hostInput,
+          }))
+        : []
+      const joined = [
+        ...steers.map(
+          (steer): ModelMessage => ({
+            id: createMessageId(),
+            role: 'user',
+            content: steer.message,
+            ...(steer.wake ? { metadata: WAKE_METADATA } : {}),
+          }),
+        ),
+        ...(added?.messages ?? []).map(
+          (message): ModelMessage =>
+            message.id ? message : { ...message, id: createMessageId() },
+        ),
+      ]
+      const list = [...messages, ...joined]
+      let synced: Array<ModelMessage> | undefined
+      if (isRouted) {
+        await this.writer.commit({
+          messages: [...this.writer.state.messages, ...joined],
+          records: [...joins, ...records],
+        })
+      } else {
+        synced = await this.engine.beforeModel(list, [...joins, ...records])
+      }
+      // Only now, so a hook or an append that fails leaves them waiting.
+      this.steerQueue.splice(0, count)
+      for (const steer of steers) this.join(operationId, steer)
+      ephemeral.push(...(added?.ephemeral ?? []))
+      if (joined.length === 0 && !synced) return undefined
+      return synced ?? list
+    } finally {
+      for (const steer of steers) this.joining.delete(steer.inputId)
     }
   }
 

@@ -210,8 +210,11 @@ describe('limits of agent starts', () => {
       description: 'Starts the helper, then waits on its first attempt',
       run: async (ctx) => {
         attempt += 1
+        // A new key on the second attempt: a new child, not the one that
+        // the first attempt started.
+        const options = attempt === 1 ? {} : { key: 'again' }
         const got = await Promise.resolve()
-          .then(() => ctx.harness.agents.run(helper))
+          .then(() => ctx.harness.agents.run(helper, undefined, options))
           .then(String, (error: unknown) => `refused: ${why(error)}`)
         if (attempt === 1) await untilAbort(ctx.abortSignal)
         return got

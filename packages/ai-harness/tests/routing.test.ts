@@ -403,72 +403,181 @@ describe('routing.router', () => {
     await host.close()
   })
 
-  it.each([
-    { strategy: 'exclusive', text: 'writer:\nDraft 1' },
-    { strategy: 'handoff', text: 'Main 1' },
-  ] as const)(
-    'runs a steer sent during a $strategy routed turn as its own routed turn',
-    async ({ strategy, text: firstText }) => {
-      const started = gate()
-      const release = gate()
-      const answers: Array<Array<string>> = []
-      const writer = defineAgent({
-        name: 'writer',
-        description: 'Writes',
-        run: async (ctx) => {
-          answers.push(messageTexts({ messages: ctx.messages }))
-          started.open()
-          await release.opened
-          return `Draft ${answers.length}`
-        },
-      })
-      const { router, seen } = scriptedRouter('writer', 'writer')
-      const { host, session, main } = await openRouting({
-        router,
-        strategy,
-        agents: [writer],
-        replies: [() => text('Main 1'), () => text('Main 2')],
-      })
-
-      const turn = session.send('first')
-      await started.opened
-      const receipt = await session.send('second', { mode: 'steer' }).receipt
-      release.open()
-
-      expect((await turn).text).toBe(firstText)
-      const settled = await session.settled({ inputId: receipt.inputId })
-      expect(settled.outcome).toBe('completed')
-      expect(settled.operationId).not.toBe(turn.id)
-      expect(seen.map((ctx) => ctx.input)).toEqual(['first', 'second'])
-      expect(answers[1]?.at(-1)).toBe('second')
-      // The main model of a handoff does not get the steer in the first turn.
-      expect(main.calls.slice(0, 1).flatMap(messageTexts)).not.toContain(
-        'second',
-      )
-      await host.close()
-    },
-  )
-
-  it('runs no turn hooks on a routed turn', async () => {
-    const writer = textAgent('writer', 'Draft')
-    const beforeFinish = vi.fn(() => ({
-      messages: [{ role: 'user' as const, content: 'one more' }],
-    }))
-    const onModelError = vi.fn(() => undefined)
-    const { router } = scriptedRouter('writer', 'ghost')
-    const { host, session } = await openRouting({
+  it('runs a steer sent during a handoff routed turn as its own routed turn', async () => {
+    const started = gate()
+    const release = gate()
+    const answers: Array<Array<string>> = []
+    const writer = defineAgent({
+      name: 'writer',
+      description: 'Writes',
+      run: async (ctx) => {
+        answers.push(messageTexts({ messages: ctx.messages }))
+        started.open()
+        await release.opened
+        return `Draft ${answers.length}`
+      },
+    })
+    const { router, seen } = scriptedRouter('writer', 'writer')
+    const { host, session, main } = await openRouting({
       router,
-      agents: [writer.agent],
-      turn: { beforeFinish, onModelError },
+      strategy: 'handoff',
+      agents: [writer],
+      replies: [() => text('Main 1'), () => text('Main 2')],
     })
 
-    expect((await session.send('write it')).text).toBe('writer:\nDraft')
-    await expect(session.send('again')).rejects.toThrow(
-      'Unknown subagent: ghost',
+    const turn = session.send('first')
+    await started.opened
+    const receipt = await session.send('second', { mode: 'steer' }).receipt
+    release.open()
+
+    expect((await turn).text).toBe('Main 1')
+    const settled = await session.settled({ inputId: receipt.inputId })
+    expect(settled.outcome).toBe('completed')
+    expect(settled.operationId).not.toBe(turn.id)
+    expect(seen.map((ctx) => ctx.input)).toEqual(['first', 'second'])
+    expect(answers[1]?.at(-1)).toBe('second')
+    // The main model of a handoff does not get the steer in the first turn.
+    expect(main.calls.slice(0, 1).flatMap(messageTexts)).not.toContain('second')
+    await host.close()
+  })
+
+  it('joins a steer to the next model call of a routed agent', async () => {
+    const started = gate()
+    const release = gate()
+    const wait = toolDefinition({
+      name: 'wait',
+      description: 'Waits',
+      inputSchema: z.object({}),
+    }).server(async () => {
+      started.open()
+      await release.opened
+      return { waited: true }
+    })
+    const child = mockAdapter([
+      () => toolCall('wait', {}, 'call_w'),
+      () => text('Draft with both'),
+    ])
+    const writer = defineAgent({
+      name: 'writer',
+      description: 'Writes',
+      run: (ctx) => ctx.chat({ adapter: child.adapter, tools: [wait] }),
+    })
+    const { router, seen } = scriptedRouter('writer')
+    const { host, session } = await openRouting({ router, agents: [writer] })
+
+    const turn = session.send('first')
+    await started.opened
+    const receipt = await session.send('second', { mode: 'steer' }).receipt
+    release.open()
+
+    expect((await turn).text).toBe('writer:\nDraft with both')
+    const settled = await session.settled({ inputId: receipt.inputId })
+    expect(settled.operationId).toBe(turn.id)
+    expect(seen).toHaveLength(1)
+    expect(child.calls).toHaveLength(2)
+    expect(messageTexts(child.calls[1]).at(-1)).toBe('second')
+    expect(await transcriptTexts(session)).toEqual([
+      'first',
+      'second',
+      'writer:\nDraft with both',
+    ])
+    await host.close()
+  })
+
+  it('gives a late join of a routed turn its answer in the same turn', async () => {
+    const started = gate()
+    const release = gate()
+    const answers: Array<Array<string>> = []
+    const writer = defineAgent({
+      name: 'writer',
+      description: 'Writes',
+      run: async (ctx) => {
+        answers.push(messageTexts({ messages: ctx.messages }))
+        started.open()
+        await release.opened
+        return `Draft ${answers.length}`
+      },
+    })
+    const { router, seen } = scriptedRouter('writer', 'writer')
+    const { host, session } = await openRouting({ router, agents: [writer] })
+
+    const turn = session.send('first')
+    await started.opened
+    const receipt = await session.send('second', { mode: 'steer' }).receipt
+    release.open()
+
+    expect((await turn).text).toBe('writer:\nDraft 2')
+    const settled = await session.settled({ inputId: receipt.inputId })
+    expect(settled.outcome).toBe('completed')
+    expect(settled.operationId).toBe(turn.id)
+    // The router ran once. The picked agent answered the late join.
+    expect(seen).toHaveLength(1)
+    expect(answers[1]?.at(-1)).toBe('second')
+    expect(await transcriptTexts(session)).toEqual([
+      'first',
+      'writer:\nDraft 1',
+      'second',
+      'writer:\nDraft 2',
+    ])
+    await host.close()
+  })
+
+  it('runs turn.beforeFinish for a routed part', async () => {
+    const writer = textAgent('writer', 'Draft')
+    const beforeFinish = vi.fn(({ cycle }: { cycle: number }) =>
+      cycle === 0
+        ? { messages: [{ role: 'user' as const, content: 'one more' }] }
+        : undefined,
     )
-    expect(writer.runs).toHaveLength(1)
-    expect(beforeFinish).not.toHaveBeenCalled()
-    expect(onModelError).not.toHaveBeenCalled()
+    const { host, session } = await openRouting({
+      router: () => 'writer',
+      agents: [writer.agent],
+      turn: { beforeFinish },
+    })
+
+    await session.send('write it')
+
+    expect(beforeFinish).toHaveBeenCalledTimes(2)
+    expect(writer.runs).toHaveLength(2)
+    expect(writer.runs[1]?.at(-1)).toBe('one more')
+    expect(await transcriptTexts(session)).toEqual([
+      'write it',
+      'writer:\nDraft',
+      'one more',
+      'writer:\nDraft',
+    ])
+    await host.close()
+  })
+
+  it('retries a failed routed part with turn.onModelError', async () => {
+    let runs = 0
+    const writer = defineAgent({
+      name: 'writer',
+      description: 'Writes',
+      run: async () => {
+        runs += 1
+        if (runs === 1) throw new Error('503 Service Unavailable')
+        return 'Draft'
+      },
+    })
+    const onModelError = vi.fn(
+      ({ retries }: { retries: number }): 'retry' | undefined =>
+        retries === 0 ? 'retry' : undefined,
+    )
+    const { host, session } = await openRouting({
+      router: () => 'writer',
+      agents: [writer],
+      turn: { onModelError },
+    })
+
+    const turn = await session.send('write it')
+
+    expect(turn.text).toBe('writer:\nDraft')
+    expect(onModelError).toHaveBeenCalledTimes(1)
+    expect(onModelError.mock.calls[0]?.[0]).toMatchObject({
+      error: { message: expect.stringContaining('503') },
+    })
+    expect(runs).toBe(2)
     await host.close()
   })
 

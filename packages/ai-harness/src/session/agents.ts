@@ -541,7 +541,7 @@ export abstract class SessionAgents<
     child?: AgentChild,
   ): AgentRunImpl {
     const name = typeof target === 'string' ? target : target.name
-    const { offered } = options
+    const { offered, inputId, ready, ...startOptions } = options
     const operation = this.agentOperation(name, offered?.runId)
     // The agent runs for the user who starts it, also after the turn that
     // starts it ends. A child of agent code runs for its parent run's user.
@@ -563,16 +563,15 @@ export abstract class SessionAgents<
         : {}
     const chain = this.createChain(
       {
-        runInputId: offered?.inputId ?? createInputId(),
+        runInputId: offered?.inputId ?? inputId ?? createInputId(),
         target,
         input,
-        options,
+        options: startOptions,
         ...sender,
         ...fromParent,
       },
       { operation, ...sender },
     )
-    parent?.children.add(chain)
     // The run keeps the turn plugins until it settles, and stops when the
     // run that started it stops.
     if (chain.plugins && !chain.plugins.hold(operation)) delete chain.plugins
@@ -582,11 +581,47 @@ export abstract class SessionAgents<
         ? undefined
         : this.operations.get(child.turnRunId))
     if (parentRun) linkSignal(parentRun, operation)
-    void this.executeAgent(operation, chain, {
-      inputId: chain.runInputId,
-      ...(child ? { child } : {}),
-    })
+    const begin = () => {
+      parent?.children.add(chain)
+      void this.executeAgent(operation, chain, {
+        inputId: chain.runInputId,
+        ...(child ? { child } : {}),
+      })
+    }
+    if (ready) this.startWhenReady(operation, chain, ready, begin)
+    else begin()
     return operation
+  }
+
+  /**
+   * Start the run `operation` of `chain` with `begin` when `ready` resolves
+   * `true`: its group has a free slot. Until then, nothing of the run is in
+   * the log. On `false` (the run was cancelled while it waited), it ends
+   * cancelled. A rejection (the start was refused) fails it. In both cases
+   * the start took no call of the tree budget.
+   */
+  protected startWhenReady(
+    operation: AgentRunImpl,
+    chain: AgentChain,
+    ready: Promise<boolean>,
+    begin: () => void,
+  ) {
+    ready.then(
+      (isFree) => {
+        if (isFree) {
+          begin()
+          return
+        }
+        delete chain.release
+        operation.fail('cancelled', new Error('Cancelled before it started.'))
+        this.checkIdle()
+      },
+      (error: unknown) => {
+        delete chain.release
+        operation.fail('failed', error)
+        this.checkIdle()
+      },
+    )
   }
 
   /**
@@ -607,14 +642,19 @@ export abstract class SessionAgents<
     const started: Array<AgentRunImpl> = []
     const user = principal ? { principal } : {}
     return this.agentActions((target, input, options) => {
-      const active = started.filter((run) => !run.isSettled()).length
-      const refusal = budget.reserve(active)
-      if (refusal !== undefined) throw new Error(refusal)
+      // ponytail: a child that waits for a slot of its group counts as
+      // active here too.
+      const reserve = () => {
+        const active = started.filter((run) => !run.isSettled()).length
+        const refusal = budget.reserve(active)
+        if (refusal !== undefined) throw new Error(refusal)
+      }
+      const reserved = this.reserveWhenReady(options, reserve)
       try {
         const run = this.runAgent(
           target,
           input,
-          { ...user, ...options },
+          { ...user, ...reserved },
           undefined,
           {
             subagentRunId: createSubagentId(),
@@ -626,10 +666,33 @@ export abstract class SessionAgents<
         started.push(run)
         return run
       } catch (error) {
-        budget.release()
+        if (!options.ready) budget.release()
         throw error
       }
     })
+  }
+
+  /**
+   * `options` with `reserve` run when the run may start: now, or, for a
+   * child that waits for a slot of its group, when its `ready` resolves
+   * `true`. Now, a throw of `reserve` throws here. Later, it fails the run.
+   */
+  protected reserveWhenReady(
+    options: AgentRunStartOptions,
+    reserve: () => void,
+  ): AgentRunStartOptions {
+    const { ready } = options
+    if (!ready) {
+      reserve()
+      return options
+    }
+    return {
+      ...options,
+      ready: ready.then((isFree) => {
+        if (isFree) reserve()
+        return isFree
+      }),
+    }
   }
 
   /**
@@ -654,25 +717,101 @@ export abstract class SessionAgents<
    * it the start throws. A start that fails before its run applies gives
    * its call back. A run with no model budget left starts no child. The
    * child records the run that started it, and runs for that run's sender.
+   *
+   * In a resumable run, `runInputId` is the input the run applies. Each
+   * child then gets an input id from it: `${runInputId}:start:${key ?? n}`
+   * for the n-th `start` or `run`, and `${runInputId}:${groupKey}:${index}`
+   * in a group (`groupKey`: its `key`, else `group-${n}` for the n-th
+   * group). A run again (after its host stopped) gets a new operation id,
+   * but the same input, so its children get the same ids. A child that the
+   * log knows then binds to the old run, and does not start again.
    */
-  protected agentStarter(chain: AgentChain): AgentActions {
-    return this.agentActions((target, input, options) => {
-      const runId = chain.current.operation.id
-      if (this.overBudget(runId, (left) => left <= 0).length > 0) {
-        throw new Error(`The agent run ${runId} has no budget left.`)
+  protected agentStarter(chain: AgentChain, runInputId?: string): AgentActions {
+    const keyed = chain.options.resume ? runInputId : undefined
+    const startChild: AgentStartFn = (target, input, options) => {
+      if (options.inputId !== undefined) {
+        const name = typeof target === 'string' ? target : target.name
+        const known = this.knownChild(chain, name, options.inputId)
+        if (known) return known
       }
-      const active = [...chain.children].filter(
-        (child) => !child.current.operation.isSettled(),
-      ).length
-      const refusal = chain.budget.reserve(active)
-      if (refusal !== undefined) throw new Error(refusal)
+      const reserved = this.reserveWhenReady(options, () =>
+        this.reserveChild(chain),
+      )
       try {
-        return this.runAgent(target, input, options, chain)
+        return this.runAgent(target, input, reserved, chain)
       } catch (error) {
-        chain.budget.release()
+        if (!options.ready) chain.budget.release()
         throw error
       }
+    }
+    let starts = 0
+    const actions = this.agentActions((target, input, options) => {
+      if (keyed === undefined) return startChild(target, input, options)
+      const n = starts++
+      const inputId = `${keyed}:start:${options.key ?? n}`
+      return startChild(target, input, { ...options, inputId })
     })
+    if (keyed === undefined) return actions
+    let groups = 0
+    const group = (
+      options: AgentGroupOptions,
+      body: (g: AgentGroup) => GroupRuns | Promise<GroupRuns>,
+    ) => {
+      const groupKey = options.key ?? `group-${groups}`
+      groups += 1
+      let index = 0
+      return this.agentGroup(options, body, (target, input, childOptions) =>
+        startChild(target, input, {
+          wake: false,
+          ...childOptions,
+          inputId: `${keyed}:${groupKey}:${index++}`,
+        }),
+      )
+    }
+    return { ...actions, group: group as AgentActions['group'] }
+  }
+
+  /**
+   * Take a call of the tree budget of `chain` for a new child. Throws when
+   * the run has no model budget left, or the tree budget refuses it.
+   */
+  protected reserveChild(chain: AgentChain) {
+    const runId = chain.current.operation.id
+    if (this.overBudget(runId, (left) => left <= 0).length > 0) {
+      throw new Error(`The agent run ${runId} has no budget left.`)
+    }
+    const active = [...chain.children].filter(
+      (child) => !child.current.operation.isSettled(),
+    ).length
+    const refusal = chain.budget.reserve(active)
+    if (refusal !== undefined) throw new Error(refusal)
+  }
+
+  /**
+   * The child of `chain` with the input id `inputId`, when an earlier run
+   * of `chain` started it: its chain on this host (a run again after a
+   * retry, or a child that this host runs again), else a run that ends as
+   * the log says. `undefined` when the log does not know the input. A known
+   * child takes no call of the tree budget: the log counts it already.
+   */
+  protected knownChild(
+    chain: AgentChain,
+    name: string,
+    inputId: string,
+  ): AgentRunImpl | undefined {
+    const live = this.agentChains.get(inputId)
+    if (live) {
+      chain.children.add(live)
+      return live.runs[0]?.operation
+    }
+    const { inputs, thread } = this.writer.state
+    const isLogged =
+      inputs.has(inputId) ||
+      [...thread.tree.values()].some((node) => node.inputId === inputId)
+    if (!isLogged) return undefined
+    const operation = this.agentOperation(name)
+    this.followLoggedRun(operation, inputId)
+    return operation
   }
 
   /** Give back the tree budget call of the start of `chain`, once. */
@@ -1027,15 +1166,30 @@ export abstract class SessionAgents<
 
   /**
    * Run a group of agents that `start` starts. Every child settles before
-   * the group returns.
+   * the group returns. At most `concurrency` children run at the same time.
+   * A child over it waits for a slot, oldest first, and nothing of it is in
+   * the log until it starts. A cancel while it waits ends it cancelled.
    */
   protected override async agentGroup(
     options: AgentGroupOptions,
     body: (group: AgentGroup) => GroupRuns | Promise<GroupRuns>,
     start: AgentStartFn,
   ): Promise<Array<unknown>> {
-    // `concurrency` and `key` have no runtime yet: every child starts at
-    // once, and a group that runs again starts new children.
+    let slots = options.concurrency ?? Infinity
+    if (!(slots >= 1)) {
+      throw new RangeError('The concurrency of a group must be 1 or more.')
+    }
+    /** The children that wait for a slot, oldest first. */
+    const waiting: Array<(isFree: boolean) => void> = []
+    const leave = (waiter: (isFree: boolean) => void) => {
+      const at = waiting.indexOf(waiter)
+      if (at >= 0) waiting.splice(at, 1)
+      return at >= 0
+    }
+    const freeSlot = () => {
+      slots += 1
+      waiting.shift()?.(true)
+    }
     const started: Array<OperationImpl<unknown>> = []
     const cancelOthers = (failed: OperationImpl<unknown>) => {
       if (options.onFailure === 'collect') return
@@ -1055,9 +1209,52 @@ export abstract class SessionAgents<
         input?: unknown,
         childOptions?: AgentStartOptions,
       ) => {
-        const operation = start(target, input, childOptions ?? {})
+        let holdsSlot = slots > 0
+        let wake: (isFree: boolean) => void = () => undefined
+        const ready = holdsSlot
+          ? undefined
+          : new Promise<boolean>((resolve) => {
+              wake = resolve
+            })
+        if (holdsSlot) slots -= 1
+        let operation: AgentRunImpl
+        try {
+          operation = start(target, input, {
+            ...childOptions,
+            ...(ready ? { ready } : {}),
+          })
+        } catch (error) {
+          if (holdsSlot) freeSlot()
+          throw error
+        }
+        const waiter = (isFree: boolean) => {
+          if (isFree) {
+            holdsSlot = true
+            slots -= 1
+          }
+          wake(isFree)
+        }
+        if (ready) {
+          waiting.push(waiter)
+          operation.abortController.signal.addEventListener(
+            'abort',
+            () => {
+              if (leave(waiter)) wake(false)
+            },
+            { once: true },
+          )
+        }
+        const done = () => {
+          leave(waiter)
+          if (!holdsSlot) return
+          holdsSlot = false
+          freeSlot()
+        }
         started.push(operation)
-        Promise.resolve(operation).catch(() => cancelOthers(operation))
+        Promise.resolve(operation).then(done, () => {
+          done()
+          cancelOthers(operation)
+        })
         return operation
       }) as AgentGroup['start'],
     }
@@ -1227,6 +1424,8 @@ export abstract class SessionAgents<
         case 'offered':
         case 'duplicate':
           // Another host runs it, or it ran before: the log says how it ends.
+          // A run before took its call of the tree budget already.
+          if (admission === 'duplicate') this.releaseStart(chain)
           this.followLoggedRun(operation, inputId)
           return
       }
@@ -1378,7 +1577,7 @@ export abstract class SessionAgents<
           : undefined
         const harnessContext: HarnessAgentContext = {
           step: durable?.step ?? NO_SESSION_CONTEXT.step,
-          agents: this.agentStarter(chain),
+          agents: this.agentStarter(chain, inputId),
           state: (options) => this.sharedState(options),
         }
         const stream = runAgentStream(

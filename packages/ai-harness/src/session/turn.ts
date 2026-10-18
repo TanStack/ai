@@ -3,6 +3,7 @@ import {
   StreamProcessor,
   SubagentBudget,
   chat,
+  subagentHostMessageId,
   compactForModel,
   modelMessagesToUIMessages,
   isStandardSchema,
@@ -18,6 +19,7 @@ import { OperationImpl } from '../operation'
 import { mountPlugins } from '../plugins'
 import { scrubToolResults, truncationMiddleware } from '../resume'
 import { HARNESS_EVENTS, InputRejectedError } from '../types'
+import { isRecord } from '../utils'
 import {
   createInputId,
   customEvent,
@@ -738,6 +740,8 @@ export abstract class SessionTurn<
       let continued: Array<ModelMessage> = []
       /** How many times `turn.beforeFinish` continued this turn. */
       let cycle = 0
+      /** How many times the root agents of a routed part ran again. */
+      let routedRuns = 0
       /** The ephemeral messages of a turn hook, for the next model call. */
       const ephemeral: Array<ModelMessage> = []
       // Each model call gets the input's ephemeral messages after the last
@@ -750,9 +754,8 @@ export abstract class SessionTurn<
       // runs again when `turn.onModelError` answers 'retry'. A final answer
       // runs again when `turn.beforeFinish` adds to the transcript.
       for (;;) {
-        // The root agents of a routed turn run no turn hooks. The main model
-        // runs them, also in the main part of a handoff.
-        const turnHooks = isRootPart ? undefined : this.harness.turn
+        // The main model and the root agents of a routed part run them.
+        const turnHooks = this.harness.turn
         let textBefore = text
         /** Text, reasoning, or a tool call streamed since `textBefore`. */
         let streamed = false
@@ -782,6 +785,30 @@ export abstract class SessionTurn<
                   routedFrom ?? modelMessagesToUIMessages(turnMessages),
               })
             : undefined
+          const binding =
+            bag &&
+            this.binding(operation, captured, sender, run, runPlugins, {
+              agents: bag.agents,
+              // The tree budget of this chat() call, as core makes it. The
+              // binding has it too, so the starts of a tool-mode child count
+              // against it.
+              budget: SubagentBudget.root(bag.limits ?? this.limits()),
+              ...(heldPlugins ? { plugins: heldPlugins } : {}),
+            })
+          if (binding && isRootPart) {
+            // The root agents of a routed part take steers at each model
+            // call, as the main model does, and get the ephemeral messages
+            // of a turn hook. Those go after the reset cut, so it keeps them.
+            const { chatMiddleware } = binding
+            chatMiddleware.splice(
+              chatMiddleware.indexOf(resetCut) + 1,
+              0,
+              ephemeralCall(ephemeral),
+            )
+            chatMiddleware.unshift(
+              this.steering(ephemeral, { operationId: operation.id }),
+            )
+          }
           const stream = chat({
             adapter,
             messages: routedFrom ?? turnMessages,
@@ -849,28 +876,12 @@ export abstract class SessionTurn<
               // The registry types of the harness interrupts do not line up
               // with the middleware tuple chat() infers. Only this field.
             ] as never,
-            ...(bag
+            ...(bag && binding
               ? {
                   subagents: {
                     ...bag,
                     limits: bag.limits ?? this.limits(),
-                    binding: this.binding(
-                      operation,
-                      captured,
-                      sender,
-                      run,
-                      runPlugins,
-                      {
-                        agents: bag.agents,
-                        // The tree budget of this chat() call, as core makes
-                        // it. The binding has it too, so the starts of a
-                        // tool-mode child count against it.
-                        budget: SubagentBudget.root(
-                          bag.limits ?? this.limits(),
-                        ),
-                        ...(heldPlugins ? { plugins: heldPlugins } : {}),
-                      },
-                    ),
+                    binding,
                   },
                 }
               : {}),
@@ -1078,18 +1089,29 @@ export abstract class SessionTurn<
           (interrupts?.length ?? 0) > 0 ||
           signal.aborted
         if (isFinished) break
-        if (isRootPart) {
-          if (routing?.strategy !== 'handoff') break
+        if (isRootPart && routing?.strategy === 'handoff') {
           // The agents answered. The main model answers next, with the
           // transcript that has their answer.
           isRootPart = false
           bag = subagents
           routed = isRoutedBag(bag)
         } else {
-          // A steer does not join a turn that `routing` sent to root agents.
-          // It waits and runs as its own turn. Claimed, so a cancel after
-          // this check cannot leave a run with no new input.
-          const hasLateJoin = !rootBag && (await this.claimJoins()) > 0
+          // A resolve continues the saved plan of the root agents. It has no
+          // pick, so they cannot run again for a join or a hook.
+          if (isRootPart && pick === undefined) break
+          // The root agents run again for a late join. Its steers join now:
+          // an agent that makes no model call takes no steer. The main part
+          // of a handoff takes no steer: it waits and runs as its own turn.
+          // The main model claims them, so a cancel after this check cannot
+          // leave a run with no new input.
+          const hasLateJoin = isRootPart
+            ? (await this.joinSteers({
+                operationId: operation.id,
+                messages: [],
+                ephemeral,
+                isRouted: true,
+              })) !== undefined
+            : !rootBag && (await this.claimJoins()) > 0
           if (!hasLateJoin) {
             const goesOn = await this.continueBeforeFinish(
               operation,
@@ -1100,6 +1122,19 @@ export abstract class SessionTurn<
             if (!goesOn) break
             cycle += 1
           }
+        }
+        if (isRootPart) {
+          // The store keeps one answer message per run, and the next run of
+          // the root agents writes it again. The answer so far keeps its
+          // place under its own id.
+          routedRuns += 1
+          await this.writer.commit({
+            messages: this.writer.state.messages.map((entry) =>
+              entry.id === subagentHostMessageId(operation.id)
+                ? keptAnswer(entry, routedRuns)
+                : entry,
+            ),
+          })
         }
         message = undefined
         resume = undefined
@@ -1285,5 +1320,24 @@ export abstract class SessionTurn<
     }
     this.publishFinished(operation)
     this.requeueWaitingSteers()
+  }
+}
+
+/**
+ * The answer message of a routed run, kept under the id `${id}:${index}`.
+ * It loses its run tag, so the store writes the next answer of the run as a
+ * new message.
+ */
+function keptAnswer(message: ModelMessage, index: number): ModelMessage {
+  const { metadata } = message
+  const tanstack = isRecord(metadata) ? metadata.tanstack : undefined
+  if (!isRecord(metadata) || !isRecord(tanstack)) {
+    return { ...message, id: `${message.id}:${index}` }
+  }
+  const { runId: _runId, ...rest } = tanstack
+  return {
+    ...message,
+    id: `${message.id}:${index}`,
+    metadata: { ...metadata, tanstack: rest },
   }
 }
