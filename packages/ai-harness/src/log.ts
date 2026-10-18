@@ -9,8 +9,10 @@ import { LogOwnedElsewhereError } from './ownership'
 import { HARNESS_EVENTS } from './types'
 import {
   THREAD_RECORD_TYPES,
+  applyRunNode,
   emptyThreadState,
   foldThreadRecord,
+  settleRunNode,
 } from './log-records'
 import { addUsage, emptyUsage, isSessionUsage } from './usage'
 import { isRecord } from './utils'
@@ -33,6 +35,7 @@ import type {
   AgentResultRecord,
   InterruptedTurnRecord,
   NamedTurnOverrides,
+  RunTreeNode,
   ScheduleRecord,
   ThreadRecord,
   ThreadStateFold,
@@ -437,6 +440,11 @@ export function foldEntry(
       return
     case 'harness.input.applied': {
       const appliedAt = state.messages.length
+      state.thread = applyRunNode(state.thread, {
+        inputId: record.inputId,
+        operationId: record.operationId,
+        previous: state.inputs.get(record.inputId)?.operationId,
+      })
       updateInput(state, record.inputId, (input) => ({
         ...input,
         status: 'applied',
@@ -502,6 +510,7 @@ export function foldEntry(
             : { outcome: record.outcome }),
         },
       }))
+      state.thread = settleRunNode(state.thread, record)
       return
     }
     case 'harness.tool.result':
@@ -540,6 +549,7 @@ export function foldEntry(
     case 'harness.schedule.done':
     case 'harness.run':
     case 'harness.run.update':
+    case 'harness.run.node':
     case 'harness.interrupt':
     case 'harness.interrupt.end':
     case 'harness.wait':
@@ -714,6 +724,7 @@ function serializeThread(thread: ThreadStateFold) {
     turnOverrides: [...thread.turnOverrides],
     schedules: [...thread.schedules],
     runs: [...thread.runs],
+    tree: [...thread.tree],
     interrupts: [...thread.interrupts],
     waits: [...thread.waits],
   }
@@ -723,7 +734,8 @@ function serializeThread(thread: ThreadStateFold) {
 function parseThread(value: unknown) {
   if (!isRecord(value) || !isRecord(value.settings)) return undefined
   const { config, plugins, agentResults, turnOverrides, schedules } = value
-  const { runs, interrupts } = value
+  const { runs, tree, interrupts } = value
+  // A snapshot with no run tree is not used: a fold from the start makes it.
   const isShaped =
     Array.isArray(config) &&
     Array.isArray(plugins) &&
@@ -731,6 +743,7 @@ function parseThread(value: unknown) {
     Array.isArray(turnOverrides) &&
     Array.isArray(schedules) &&
     Array.isArray(runs) &&
+    Array.isArray(tree) &&
     Array.isArray(interrupts)
   if (!isShaped) return undefined
   // The harness wrote these values with `serializeThread`.
@@ -745,6 +758,7 @@ function parseThread(value: unknown) {
     ),
     schedules: new Map(schedules as Array<[string, ScheduleRecord]>),
     runs: new Map(runs as Array<[string, RunRecord]>),
+    tree: new Map(tree as Array<[string, RunTreeNode]>),
     interrupts: new Map(interrupts as Array<[string, InterruptRecord]>),
     // A state with no waits gets an empty value.
     waits: new Map(

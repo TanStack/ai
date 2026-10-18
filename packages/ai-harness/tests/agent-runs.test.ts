@@ -359,12 +359,16 @@ describe('agentRuns() and agentRun(id)', () => {
     expect(session.agentRuns()).toEqual([
       {
         operationId: run.id,
+        runId: run.id,
+        kind: 'agent',
         agent: 'writer',
         status: 'running',
         principal: alice,
       },
       {
         operationId: queued.operationId,
+        runId: queued.operationId,
+        kind: 'agent',
         agent: 'writer',
         status: 'queued',
         principal: alice,
@@ -410,9 +414,12 @@ describe('agentRuns() and agentRun(id)', () => {
     expect(sessionB.agentRuns()).toEqual([
       {
         operationId: run.id,
+        runId: run.id,
+        kind: 'agent',
         agent: 'writer',
         status: 'completed',
         principal: alice,
+        result: 'Draft one.',
       },
     ])
     const again = sessionB.agentRun(run.id)
@@ -489,16 +496,22 @@ describe('agents that agent code starts', () => {
     expect(session.agentRuns()).toEqual([
       {
         operationId: run.id,
+        runId: run.id,
+        kind: 'agent',
         agent: 'lead',
         status: 'completed',
         principal: alice,
+        result: 'helped',
       },
       {
         operationId: childId,
+        runId: childId,
+        kind: 'agent',
         agent: 'helper',
         status: 'completed',
         parentRunId: run.id,
         principal: alice,
+        result: 'helped',
       },
     ])
     await host.close()

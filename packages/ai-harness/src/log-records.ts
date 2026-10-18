@@ -12,7 +12,12 @@ import type {
   RunRecord,
   RunStore,
 } from '@tanstack/ai-persistence'
-import type { HarnessInput, ThreadSettings } from './types'
+import type {
+  HarnessInput,
+  RunNode,
+  SettlementOutcome,
+  ThreadSettings,
+} from './types'
 import type { Wait, WaitOutcome } from './waits'
 
 /** A change to a run record, as `RunStore.update` takes it. */
@@ -124,6 +129,23 @@ export type WaitState = WaitRecord & {
 }
 
 /**
+ * A run of the run tree, with what the session needs to find its input: the
+ * input that the run applies, and for an agent run, the `agent` input of the
+ * first run of its chain.
+ */
+export type RunTreeNode = RunNode & {
+  inputId?: string
+  chainInputId?: string
+}
+
+/**
+ * What the log keeps of a run when the owner admits it: the fields that a
+ * run record does not have. The status, the result, and the error come from
+ * later records.
+ */
+export type RunNodeRecord = Omit<RunTreeNode, 'status' | 'result' | 'error'>
+
+/**
  * The thread-state records of a session log. Each change to what a record
  * means takes a new record type, never a new shape of one of these.
  */
@@ -161,6 +183,8 @@ export type ThreadRecord =
   | { type: 'harness.schedule.done'; scheduleId: string }
   /** A run started. A run id that the fold has already keeps its record. */
   | { type: 'harness.run'; run: RunRecord }
+  /** The owner admitted a run of the run tree. */
+  | ({ type: 'harness.run.node' } & RunNodeRecord)
   /**
    * A change to a known run. `unset` names the fields that the change
    * removes: JSON has no `undefined`.
@@ -207,6 +231,7 @@ export const THREAD_RECORD_TYPES = [
   'harness.schedule.done',
   'harness.run',
   'harness.run.update',
+  'harness.run.node',
   'harness.interrupt',
   'harness.interrupt.end',
   'harness.wait',
@@ -237,6 +262,12 @@ export interface ThreadStateFold {
   schedules: Map<string, ScheduleRecord>
   /** Every run of the thread and of its child runs, by run id, oldest first. */
   runs: Map<string, RunRecord>
+  /**
+   * The run tree: the turns, agent runs, and commands of the thread, by run
+   * id, in the order they were admitted. A run that runs again after a host
+   * stop takes the place of the run before it.
+   */
+  tree: Map<string, RunTreeNode>
   /** Every interrupt of the thread and of its child runs, by id, oldest first. */
   interrupts: Map<string, InterruptRecord>
   /**
@@ -258,6 +289,7 @@ export function emptyThreadState() {
     turnOverrides: new Map(),
     schedules: new Map(),
     runs: new Map(),
+    tree: new Map(),
     interrupts: new Map(),
     waits: new Map(),
   }
@@ -316,6 +348,137 @@ function withoutEntry<V>(map: Map<string, V>, key: string) {
   return next
 }
 
+/** The status of a run node for each status of a run record. */
+const NODE_STATUS: Record<RunRecord['status'], RunNode['status']> = {
+  running: 'running',
+  interrupted: 'waiting',
+  completed: 'completed',
+  failed: 'failed',
+  aborted: 'cancelled',
+}
+
+/** The kind of a run node for each kind of a run record. */
+const NODE_KIND: Record<NonNullable<RunRecord['kind']>, RunNode['kind']> = {
+  chat: 'turn',
+  agent: 'agent',
+  activity: 'tool',
+  command: 'command',
+  compact: 'command',
+}
+
+/** True for a run that ended. Its status does not change again. */
+const isEnded = (status: RunNode['status']) =>
+  status === 'completed' || status === 'failed' || status === 'cancelled'
+
+/** `node` with `status`, and with `error` when there is one. */
+function withStatus(
+  node: RunTreeNode,
+  status: RunNode['status'],
+  error: RunNode['error'] | undefined,
+): RunTreeNode {
+  return { ...node, status, ...(error ? { error } : {}) }
+}
+
+/**
+ * The tree after the run record `run` changed. A known node takes its
+ * status, unless the node ended. A new run record makes a node only with
+ * `create` and a `kind`: the runs that core writes inside a run (a chat run
+ * of an agent, a subagent of a tool call) have no kind, so they never show
+ * as a second node.
+ */
+function treeWithRun(
+  tree: Map<string, RunTreeNode>,
+  run: RunRecord,
+  create: boolean,
+) {
+  const node = tree.get(run.runId)
+  if (node) {
+    if (isEnded(node.status)) return tree
+    return withEntry(
+      tree,
+      run.runId,
+      withStatus(node, NODE_STATUS[run.status], run.error),
+    )
+  }
+  if (!create || run.kind === undefined) return tree
+  const added: RunTreeNode = {
+    runId: run.runId,
+    kind: NODE_KIND[run.kind],
+    status: NODE_STATUS[run.status],
+    ...(run.parentRunId !== undefined ? { parentRunId: run.parentRunId } : {}),
+    ...(run.agent !== undefined ? { agent: run.agent } : {}),
+    ...(run.principal ? { principal: run.principal } : {}),
+    ...(run.error ? { error: run.error } : {}),
+  }
+  return withEntry(tree, run.runId, added)
+}
+
+/**
+ * The thread state after the input `inputId` applied as the run
+ * `operationId`. The node of that run starts. A run before it that applied
+ * the same input (a host stopped, and this run runs it again) leaves the
+ * tree: this run takes its place. `previous` is the run that applied the
+ * input before.
+ */
+export function applyRunNode(
+  state: ThreadStateFold,
+  applied: { inputId: string; operationId: string; previous?: string },
+) {
+  const { inputId, operationId, previous } = applied
+  let { tree } = state
+  if (previous !== undefined && previous !== operationId) {
+    if (tree.get(previous)?.inputId === inputId) {
+      tree = withoutEntry(tree, previous)
+    }
+  }
+  const node = tree.get(operationId)
+  if (node?.inputId === inputId && node.status === 'queued') {
+    tree = withEntry(tree, operationId, { ...node, status: 'running' })
+  }
+  return tree === state.tree ? state : { ...state, tree }
+}
+
+/**
+ * The thread state after the input `inputId` of the run `operationId`
+ * settled. Its node ends, unless it ended already. A run with no run record
+ * (a command, a turn that failed before its model call) ends here. An
+ * interrupted input does not end its node: its run record says it waits.
+ */
+export function settleRunNode(
+  state: ThreadStateFold,
+  settled: { inputId: string; operationId?: string } & SettlementOutcome,
+) {
+  const node =
+    settled.operationId === undefined
+      ? undefined
+      : state.tree.get(settled.operationId)
+  if (!node || node.inputId !== settled.inputId || isEnded(node.status)) {
+    return state
+  }
+  const ended =
+    settled.outcome === 'completed'
+      ? withStatus(node, 'completed', undefined)
+      : settled.outcome === 'failed'
+        ? withStatus(node, 'failed', settled.error)
+        : settled.outcome === 'aborted'
+          ? withStatus(node, 'cancelled', undefined)
+          : undefined
+  if (!ended) return state
+  return { ...state, tree: withEntry(state.tree, node.runId, ended) }
+}
+
+/** `node` as the agent result `ended` says the run ended. */
+function endedNode(node: RunTreeNode, ended: AgentResultRecord) {
+  const { result: _result, error: _error, ...rest } = node
+  const next: RunTreeNode = {
+    ...rest,
+    status: ended.status,
+    ...(ended.result !== undefined ? { result: ended.result } : {}),
+    ...(ended.error ? { error: ended.error } : {}),
+  }
+  return next
+}
+
 /**
  * Fold one log record into the thread state. It is pure: it returns a new
  * state, or `state` itself for a record type it does not fold. It never
@@ -354,9 +517,13 @@ export function foldThreadRecord(state: ThreadStateFold, record: LogRecord) {
         ...(result !== undefined ? { result } : {}),
         ...(error ? { error } : {}),
       }
+      const node = state.tree.get(runId)
       return {
         ...state,
         agentResults: withEntry(state.agentResults, runId, ended),
+        tree: node
+          ? withEntry(state.tree, runId, endedNode(node, ended))
+          : state.tree,
       }
     }
     case 'harness.input.turn':
@@ -388,14 +555,36 @@ export function foldThreadRecord(state: ThreadStateFold, record: LogRecord) {
     case 'harness.run': {
       const { run } = record
       if (state.runs.has(run.runId)) return state
-      return { ...state, runs: withEntry(state.runs, run.runId, run) }
+      return {
+        ...state,
+        runs: withEntry(state.runs, run.runId, run),
+        tree: treeWithRun(state.tree, run, true),
+      }
     }
     case 'harness.run.update': {
       const current = state.runs.get(record.runId)
       if (!current) return state
       const next: RunRecord = { ...current, ...record.patch }
       for (const field of record.unset ?? []) delete next[field]
-      return { ...state, runs: withEntry(state.runs, record.runId, next) }
+      return {
+        ...state,
+        runs: withEntry(state.runs, record.runId, next),
+        // A change of other fields (a lease, a checkpoint) keeps the status
+        // of the node.
+        tree:
+          record.patch.status === undefined
+            ? state.tree
+            : treeWithRun(state.tree, next, false),
+      }
+    }
+    case 'harness.run.node': {
+      const { type: _type, ...fields } = record
+      const known = state.tree.get(fields.runId)
+      // A node that a run record made first keeps its status.
+      const node: RunTreeNode = known
+        ? { ...known, ...fields }
+        : { ...fields, status: 'queued' }
+      return { ...state, tree: withEntry(state.tree, fields.runId, node) }
     }
     case 'harness.interrupt': {
       const { interrupt } = record

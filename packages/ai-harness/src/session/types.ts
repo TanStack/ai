@@ -40,6 +40,7 @@ import type {
   PendingQuestion,
   Principal,
   ResolveOptions,
+  RunNode,
   ThreadSettings,
   TurnOverrides,
   UserInput,
@@ -161,6 +162,8 @@ export interface AgentChild {
   parentToolCallId?: string
   /** Text for an agent without `inputSchema`: one user message at the end. */
   prompt?: string
+  /** The turn whose tool started the run. */
+  turnRunId?: string
 }
 
 export type RunArgs<TAgent, TOptions> =
@@ -195,6 +198,9 @@ export type AgentHandles<THarness> = {
 /** One agent run, as `session.agentRuns()` lists it. */
 export interface AgentRunInfo {
   operationId: string
+  /** The id of the run in the run tree: the same as `operationId`. */
+  runId: string
+  kind: 'agent'
   agent: string
   /**
    * `queued`: a follow-up that waits for the run before it. `waiting`: the
@@ -208,10 +214,19 @@ export interface AgentRunInfo {
     | 'completed'
     | 'failed'
     | 'cancelled'
-  /** The run whose agent code started this run. */
+  /**
+   * The run that started this run: the agent run whose code started it, or
+   * the turn whose tool started it.
+   */
   parentRunId?: string
   /** Who the run runs for. */
   principal?: Principal
+  /** The model use the run can have (`AgentStartOptions.budget`). */
+  budget?: RunNode['budget']
+  /** The raw result of a run that completed, as `agentResult` gives it. JSON. */
+  result?: unknown
+  /** Why the run failed. */
+  error?: RunNode['error']
 }
 
 /** What a session looks like right now. */
@@ -477,6 +492,12 @@ export interface AgentChain {
   principal?: Principal
   /** The run whose agent code started this chain. */
   parentRunId?: string
+  /**
+   * The turn whose tool started this chain. Only the run tree keeps it: the
+   * run record does not, so core does not show the run as a child of the
+   * turn.
+   */
+  turnRunId?: string
   budget: SubagentBudget
   /** The newest run that started. */
   current: AgentRunEntry

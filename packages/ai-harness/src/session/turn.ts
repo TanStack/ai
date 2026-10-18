@@ -42,6 +42,7 @@ import {
   lastAssistantText,
   isRoutedBag,
   keepTurnTools,
+  runNodeRecord,
 } from './helpers'
 import { SessionAgents } from './agents'
 import { commandStepScope, stepWaitPrefix } from './turn-parts'
@@ -210,7 +211,14 @@ export abstract class SessionTurn<
     inputId: string
   }) {
     operation.setStatus('running')
-    await this.applied(inputId, operation.id)
+    await this.applied(inputId, operation.id, [
+      runNodeRecord({
+        runId: operation.id,
+        kind: 'command',
+        inputId,
+        principal,
+      }),
+    ])
     this.publishStarted(operation)
     const run = this.runContext({
       principal,
@@ -344,7 +352,14 @@ export abstract class SessionTurn<
     this.publishStarted(operation)
     let error: { message: string; code?: string } | undefined
     try {
-      await this.applied(inputId, operation.id)
+      await this.applied(inputId, operation.id, [
+        runNodeRecord({
+          runId: operation.id,
+          kind: 'turn',
+          inputId,
+          principal: turn.principal,
+        }),
+      ])
       await this.refreshInterrupted(undefined, false)
       if (this.interrupted) {
         error = {
@@ -431,7 +446,14 @@ export abstract class SessionTurn<
           this.requeueWaitingSteers()
           return
         }
-        await this.applied(turn.inputId, operation.id)
+        await this.applied(turn.inputId, operation.id, [
+          runNodeRecord({
+            runId: operation.id,
+            kind: 'turn',
+            inputId: turn.inputId,
+            principal: turn.principal,
+          }),
+        ])
       } catch (error) {
         // The log refused the write, so the session stops.
         await this.refreshTurnInterrupts(operation)

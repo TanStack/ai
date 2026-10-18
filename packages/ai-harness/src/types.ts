@@ -612,6 +612,48 @@ export interface AgentRun<TResult> extends Operation<TResult> {
   ) => Promise<Receipt>
 }
 
+/**
+ * One run in the run tree of a session, as the log keeps it: a chat turn, an
+ * agent run, a tool run, or a command. Each run knows the run that started
+ * it, so the runs of a session form a tree.
+ */
+export interface RunNode {
+  /** The operation id of the run. */
+  runId: string
+  kind: 'turn' | 'agent' | 'tool' | 'command'
+  /**
+   * `queued`: the run is in the log, and it did not start yet. `waiting`:
+   * the run stopped for its waits (an approval, a sign-in), and an answer
+   * resumes it.
+   */
+  status:
+    | 'queued'
+    | 'running'
+    | 'waiting'
+    | 'completed'
+    | 'failed'
+    | 'cancelled'
+  /**
+   * The run that started this run: the agent run whose code started it, or
+   * the turn whose tool started it. A top-level run has none.
+   */
+  parentRunId?: string
+  /** The agent name, for `kind: 'agent'`. */
+  agent?: string
+  /** Who the run runs for. */
+  principal?: { id: string; tenantId?: string }
+  /** The durable name of the run in its parent (`AgentStartOptions.key`). */
+  key?: string
+  /** The limits of the run (`AgentStartOptions.limits`). */
+  limits?: { timeoutMs?: number; maxAttempts?: number }
+  /** The model use the run can have (`AgentStartOptions.budget`). */
+  budget?: { maxTokens?: number; maxCost?: number }
+  /** The raw result of an agent run that completed. JSON. */
+  result?: unknown
+  /** Why the run failed. */
+  error?: { message: string; code?: string }
+}
+
 /** What a media file holds. It picks the content part a model gets. */
 export type MediaKind = 'image' | 'audio' | 'video' | 'document'
 

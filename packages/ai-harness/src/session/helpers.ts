@@ -17,11 +17,7 @@ import type {
   StreamChunk,
   SubagentsBag,
 } from '@tanstack/ai'
-import type {
-  LogRecord,
-  MessageStore,
-  RunRecord,
-} from '@tanstack/ai-persistence'
+import type { LogRecord, MessageStore } from '@tanstack/ai-persistence'
 import type { Redactor } from '../auth'
 import type { EventFeed, EventListener, ListenedFeed } from '../feed'
 import type { InputState } from '../log'
@@ -37,10 +33,16 @@ import type {
   OperationStatus,
   Principal,
   RunContext,
+  RunNode,
   ThreadSettings,
   TurnOverrides,
 } from '../types'
-import type { AgentRunInfo, AgentMessage, AgentInputState } from './types'
+import type {
+  AgentRunInfo,
+  AgentMessage,
+  AgentInputState,
+  AgentStartOptions,
+} from './types'
 
 /** A metadata row of usage totals that `host.sessions.delete` still deletes. */
 export const USAGE = 'harness:usage'
@@ -245,25 +247,36 @@ export const runStatus = (status: OperationStatus): AgentRunInfo['status'] => {
 }
 
 /**
- * The `agentRuns()` status of a run in the log, from how it ended, and from
- * `run`, its run record: `interrupted` while it waits.
+ * The `harness.run.node` record of a run that applies the input `inputId`:
+ * a turn, an agent run, or a command. It goes in the append of the applied
+ * record, so the run tree has the run once it starts. `options`: the
+ * options of an agent run that the tree keeps.
  */
-export const loggedStatus = (
-  input: InputState,
-  run?: Pick<RunRecord, 'status'>,
-): AgentRunInfo['status'] => {
-  const outcome = input.settlement?.outcome
-  switch (outcome) {
-    case undefined:
-      return run?.status === 'interrupted' ? 'waiting' : 'running'
-    case 'aborted':
-      return 'cancelled'
-    case 'failed':
-      return 'failed'
-    case 'completed':
-    case 'interrupted':
-      return 'completed'
+export function runNodeRecord(node: {
+  runId: string
+  kind: RunNode['kind']
+  inputId: string
+  principal: Principal | undefined
+  parentRunId?: string
+  agent?: string
+  chainInputId?: string
+  options?: Pick<AgentStartOptions, 'key' | 'limits' | 'budget'>
+}) {
+  const { parentRunId, agent, chainInputId, options } = node
+  const record: ThreadRecord = {
+    type: 'harness.run.node',
+    runId: node.runId,
+    kind: node.kind,
+    inputId: node.inputId,
+    ...storedPrincipal(node.principal),
+    ...(parentRunId !== undefined ? { parentRunId } : {}),
+    ...(agent !== undefined ? { agent } : {}),
+    ...(chainInputId !== undefined ? { chainInputId } : {}),
+    ...(options?.key !== undefined ? { key: options.key } : {}),
+    ...(options?.limits ? { limits: options.limits } : {}),
+    ...(options?.budget ? { budget: options.budget } : {}),
   }
+  return record
 }
 
 /** The connector a sign-in interrupt (`require` with `wait`) waits for. */

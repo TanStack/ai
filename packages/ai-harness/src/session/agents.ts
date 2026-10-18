@@ -26,11 +26,12 @@ import {
   asUserMessage,
   chainInputOf,
   runStatus,
-  loggedStatus,
   createInputId,
   createMessageId,
   customEvent,
   inputKey,
+  isAgentInput,
+  runNodeRecord,
   storedPrincipal,
   isSameSender,
   resetCut,
@@ -51,7 +52,7 @@ import type {
 } from '@tanstack/ai'
 import type { InterruptRecord } from '@tanstack/ai-persistence'
 import type { InputState, LogWriter } from '../log'
-import type { AgentResultRecord } from '../log-records'
+import type { AgentResultRecord, RunTreeNode } from '../log-records'
 import { NO_SESSION_CONTEXT } from '../agents'
 import type {
   AgentActions,
@@ -244,16 +245,27 @@ export abstract class SessionAgents<
    * also lists the runs in the log, so it works after a restart.
    */
   agentRuns(): Array<AgentRunInfo> {
+    const { tree } = this.writer.state.thread
     const live = [...this.agentChains.values()].flatMap((chain) =>
-      [...chain.runs, ...chain.followUps].map(
-        ({ operation, principal }): AgentRunInfo => ({
-          operationId: operation.id,
-          agent: chain.agent,
-          status: runStatus(operation.status()),
-          ...(chain.parentRunId ? { parentRunId: chain.parentRunId } : {}),
-          ...(principal ? { principal } : {}),
-        }),
-      ),
+      [...chain.runs, ...chain.followUps].map(({ operation, principal }) => {
+        // A follow-up that waits has no node in the tree yet.
+        const parentRunId = chain.parentRunId ?? chain.turnRunId
+        const node: RunTreeNode = tree.get(operation.id) ?? {
+          runId: operation.id,
+          kind: 'agent',
+          status: 'queued',
+          ...(parentRunId !== undefined ? { parentRunId } : {}),
+        }
+        const { principal: _logged, ...rest } = node
+        return agentRunInfo(
+          {
+            ...rest,
+            status: runStatus(operation.status()),
+            ...(principal ? { principal } : {}),
+          },
+          chain.agent,
+        )
+      }),
     )
     const known = new Set(live.map((run) => run.operationId))
     return [
@@ -277,27 +289,13 @@ export abstract class SessionAgents<
     return this.writer.state.thread.agentResults.get(runId)?.result
   }
 
-  /** The agent runs in the log: each input that a run applied. */
+  /** The agent runs in the log: the agent runs of the run tree. */
   protected loggedRuns(): Array<AgentRunInfo> {
-    const { inputs } = this.writer.state
-    return [...inputs.values()].flatMap((input): Array<AgentRunInfo> => {
-      const first = chainInputOf(inputs, input)
-      if (!first || input.operationId === undefined) return []
-      return [
-        {
-          operationId: input.operationId,
-          agent: first.input.agent,
-          status: loggedStatus(
-            input,
-            this.writer.state.thread.runs.get(input.operationId),
-          ),
-          ...(first.input.parentRunId
-            ? { parentRunId: first.input.parentRunId }
-            : {}),
-          ...(input.principal ? { principal: input.principal } : {}),
-        },
-      ]
-    })
+    return [...this.writer.state.thread.tree.values()].flatMap((node) =>
+      node.kind === 'agent' && node.agent !== undefined
+        ? [agentRunInfo(node, node.agent)]
+        : [],
+    )
   }
 
   /**
@@ -343,11 +341,11 @@ export abstract class SessionAgents<
 
   /** The `agent` input in the log of the chain that runs `operationId`. */
   protected loggedChainInput(operationId: string) {
-    const { inputs } = this.writer.state
-    const own = [...inputs.values()].find(
-      (input) => input.operationId === operationId,
-    )
-    return own && chainInputOf(inputs, own)
+    const { inputs, thread } = this.writer.state
+    const chainInputId = thread.tree.get(operationId)?.chainInputId
+    const first =
+      chainInputId === undefined ? undefined : inputs.get(chainInputId)
+    return isAgentInput(first) ? first : undefined
   }
 
   /**
@@ -356,28 +354,34 @@ export abstract class SessionAgents<
    * and while a run of the chain has not ended: another host runs it.
    */
   protected loggedChain(operationId: string): AgentChain | undefined {
-    const { inputs } = this.writer.state
+    const { inputs, thread } = this.writer.state
     const first = this.loggedChainInput(operationId)
     if (!first) return undefined
     const known = this.agentChains.get(first.inputId)
     if (known) return known
-    const logged = [...inputs.values()].filter(
-      (input) =>
-        input.operationId !== undefined &&
-        chainInputOf(inputs, input) === first,
+    // The runs of the chain, oldest first, with how each one settled.
+    const logged = [...thread.tree.values()].flatMap((node) =>
+      node.chainInputId === first.inputId
+        ? [
+            {
+              node,
+              settlement:
+                node.inputId === undefined
+                  ? undefined
+                  : inputs.get(node.inputId)?.settlement,
+            },
+          ]
+        : [],
     )
-    if (logged.some((input) => input.settlement === undefined)) {
+    if (logged.some(({ settlement }) => settlement === undefined)) {
       return undefined
     }
-    const entries = logged.map((input) => {
-      const operation = this.agentOperation(
-        first.input.agent,
-        input.operationId,
-      )
-      this.endAgentRun(operation, input.settlement)
+    const entries = logged.map(({ node, settlement }) => {
+      const operation = this.agentOperation(first.input.agent, node.runId)
+      this.endAgentRun(operation, settlement)
       return {
         operation,
-        ...(input.principal ? { principal: input.principal } : {}),
+        ...(node.principal ? { principal: node.principal } : {}),
       }
     })
     const [firstRun, ...later] = entries
@@ -424,20 +428,22 @@ export abstract class SessionAgents<
         const agent = agents.find((entry) => entry.name === call.agent)
         if (!agent) throw new Error(`Unknown agent "${call.agent}".`)
         const subagentRunId = createSubagentId()
-        const operation = this.runAgent(
+        const started = this.runAgent(
           agent,
           call.input,
           { ...startOptions, ...(principal ? { principal } : {}) },
           undefined,
           {
             subagentRunId,
+            // The run tree keeps the turn as the parent of the run.
+            turnRunId: operation.id,
             ...(call.prompt !== undefined && { prompt: call.prompt }),
             ...(call.parentToolCallId !== undefined && {
               parentToolCallId: call.parentToolCallId,
             }),
           },
         )
-        return { subagentRunId, done: Promise.resolve(operation) }
+        return { subagentRunId, done: Promise.resolve(started) }
       })
     return {
       generationMiddleware: [
@@ -508,7 +514,9 @@ export abstract class SessionAgents<
           parentRunId: parent.current.operation.id,
           budget: parent.budget.child(),
         }
-      : {}
+      : child?.turnRunId !== undefined
+        ? { turnRunId: child.turnRunId }
+        : {}
     const chain = this.createChain(
       {
         runInputId: offered?.inputId ?? createInputId(),
@@ -579,6 +587,7 @@ export abstract class SessionAgents<
       | 'options'
       | 'principal'
       | 'parentRunId'
+      | 'turnRunId'
     > & { budget?: SubagentBudget },
     first: AgentRunEntry,
   ): AgentChain {
@@ -937,8 +946,23 @@ export abstract class SessionAgents<
     }
 
     operation.setStatus('running')
-    // A run that goes on after its waits applied its input already.
-    if (!answers) await this.applied(inputId, operation.id)
+    // A run that goes on after its waits applied its input already. The
+    // node of the run goes in the same append.
+    if (!answers) {
+      const parentRunId = chain.parentRunId ?? chain.turnRunId
+      await this.applied(inputId, operation.id, [
+        runNodeRecord({
+          runId: operation.id,
+          kind: 'agent',
+          inputId,
+          principal,
+          agent: name,
+          chainInputId: chain.runInputId,
+          options,
+          ...(parentRunId !== undefined ? { parentRunId } : {}),
+        }),
+      ])
+    }
     const child = answers
       ? { subagentRunId: answers.subagentRunId }
       : (start.child ?? { subagentRunId: createSubagentId() })
@@ -952,6 +976,9 @@ export abstract class SessionAgents<
       kind: 'agent',
       agent: name,
       subagentRunId: child.subagentRunId,
+      // Only a run that agent code started: core reads a parent run here as
+      // a chat run whose child cards it shows.
+      ...(chain.parentRunId ? { parentRunId: chain.parentRunId } : {}),
       ...storedPrincipal(principal),
     })
     if (answers) await runs.update(operation.id, { status: 'running' })
@@ -1649,6 +1676,24 @@ export abstract class SessionAgents<
       ])
     }
     if (this.canFlushNotes()) await this.flushNotes()
+  }
+}
+
+/** The `agentRuns()` entry of the agent run `node`, of the agent `agent`. */
+function agentRunInfo(node: RunTreeNode, agent: string): AgentRunInfo {
+  return {
+    operationId: node.runId,
+    runId: node.runId,
+    kind: 'agent',
+    agent,
+    status: node.status,
+    ...(node.parentRunId !== undefined
+      ? { parentRunId: node.parentRunId }
+      : {}),
+    ...(node.principal ? { principal: node.principal } : {}),
+    ...(node.budget ? { budget: node.budget } : {}),
+    ...(node.result !== undefined ? { result: node.result } : {}),
+    ...(node.error ? { error: node.error } : {}),
   }
 }
 

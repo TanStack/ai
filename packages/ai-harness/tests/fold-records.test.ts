@@ -215,6 +215,7 @@ describe('foldThreadRecord', () => {
       'harness.schedule.done',
       'harness.run',
       'harness.run.update',
+      'harness.run.node',
       'harness.interrupt',
       'harness.interrupt.end',
       'harness.wait',
