@@ -12,21 +12,9 @@ keywords:
   - server-sent events
 ---
 
-<!--
-DRAFT (PR 11, node 11-F). Node 11-N checks this page against the final code and removes this comment.
-This page describes the behavior that PR 11 ships. All of it is in the code (11-A, 11-B, 11-D, 11-E, 11-H, 11-I, 11-L).
--->
-
 You want a client for a harness that is not `useChat` or `createHarnessClient`: a Python service, a mobile app, or a proxy of your own. This page lists every route, frame, and `harness.*` event, so you can write that client in any language.
 
-Open the session stream of a thread with `curl`:
-
-```bash
-curl -N -H 'authorization: Bearer my-token' \
-  'https://example.com/api/harness/events?threadId=thread-1&v=2'
-```
-
-In a second terminal, send a prompt to the same thread:
+Send a prompt to a thread with `curl`:
 
 ```bash
 curl -X POST https://example.com/api/harness/control \
@@ -35,7 +23,14 @@ curl -X POST https://example.com/api/harness/control \
   -d '{"threadId":"thread-1","input":{"op":"prompt","message":"Hello"}}'
 ```
 
-The second command prints the receipt, for example `{"inputId":"in-1","status":"accepted","operationId":"op-1"}`. The first terminal shows the hello frame, then one SSE event per session event, and a ping comment when the stream is idle:
+The command prints the receipt, for example `{"inputId":"in-1","status":"accepted","operationId":"op-1"}`. The first prompt also makes the thread. Then open the session stream of the thread:
+
+```bash
+curl -N -H 'authorization: Bearer my-token' \
+  'https://example.com/api/harness/events?threadId=thread-1&v=2'
+```
+
+With no cursor, the stream starts at the first event of the thread. It shows the hello frame, then one SSE event per session event, and a ping comment when the stream is idle:
 
 ```text
 data: {"type":"harness.hello","v":2,"threadId":"thread-1"}
@@ -98,7 +93,7 @@ The socket and the stdio worker use the same frames. The HTTP routes send the sa
 
 These routes are enough for a full client. [Connect clients to a harness](./connect#serve-the-session-over-http) lists the others (media, sessions, and more).
 
-- `GET events?threadId=&v=&from=`: the session stream as SSE. Each SSE `data` is one frame.
+- `GET events?threadId=&v=&from=`: the session stream as SSE. Each SSE `data` is one frame. On a host with `access`, a thread that has no session yet answers `404`, so send the first input before you open it.
 - `POST control`: the body is `{ threadId, input }`. The answer is the receipt as JSON.
 - `GET snapshot?threadId=` and `GET transcript?threadId=`: the state and the saved messages of the thread. When the client starts, load both.
 - `GET capabilities`: the AG-UI capabilities. `custom.tanstack.protocol` is the protocol version of the server.
@@ -409,7 +404,7 @@ To give the host a tracer, see [Trace runs and report operations](./deploy#trace
 
 A harness adds its own events to the stream as AG-UI `CUSTOM` events. `name` is the event name, and `value` has the fields below. Ignore a name that you do not know. A later version can add names.
 
-In TypeScript, `HarnessEventValues` from `@tanstack/ai-harness` maps each name to its value type, and `HARNESS_EVENTS` has the names.
+In TypeScript, `HarnessEventValues` from `@tanstack/ai-harness` maps each name to its value type, and `HARNESS_EVENTS` has the names. `harness.plugin.warning` is the only name that is in neither.
 
 ### Runs
 
@@ -420,7 +415,7 @@ In TypeScript, `HarnessEventValues` from `@tanstack/ai-harness` maps each name t
 | `harness.operation.resumed` | `{ operationId, resumedFrom? }`. A host continued a run after another host stopped. |
 | `harness.turn.retry` | `{ operationId, retries, error: { message, code?, retryAfterMs? }, continued }`. `continued` is true when the model continues a partial answer. |
 | `harness.handoff` | `{ from, to, note?, runId, by, waitId? }`. `from` and `to` are an agent name, `null` for the main model, or `{ human: true }`. `by` is `tool`, `code`, `router`, or `operator`. A handoff to a person has the `waitId` of its wait. |
-| `harness.usage` | `{ model, sender?, source?, label?, usage, total }`. `usage` is this model call, and `total` is the new total of the thread. `source` is `plugin:<name>` or `router`. A turn or an agent run has no `source`. |
+| `harness.usage` | `{ model, sender?, source?, label?, usage, total }`. `usage` is this model call, and `total` is the new total of the thread. `source` is `plugin:<name>`, `router`, or `transfer`. A turn or an agent run has no `source`. |
 
 ### Inputs
 
@@ -462,6 +457,7 @@ When you get one of these events, load the part of the session that it names aga
 | --- | --- |
 | `harness.media` | A media record: `{ id, threadId, kind, mimeType, name, size, createdAt, source }`. See [Send and show media](./media). |
 | `harness.plugin.event` | `{ plugin, name, value }`. An event that a plugin sent. |
+| `harness.plugin.warning` | `{ plugin, message }`. A plugin hook, a listener, or a write that no one waits for failed. The work goes on. |
 | `harness.ownership.changed` | `{ epoch, reason }`. A new host owns the log, from its first write. `reason` is `taken_over` when the old owner stopped with inputs that did not end, else `acquired`. |
 | `harness.stranded` | `{ operationId?, hostId? }`. The workspace that the log binds the thread to is gone, so the workspace tools fail. `operationId` is the run that tried it. `hostId` is the host of a folder. |
 | `harness.transferred` | `{ transferId, from?, to? }`. `from` and `to` are `{ threadId }`. The conversation came from, or went to, another thread. |

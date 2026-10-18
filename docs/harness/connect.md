@@ -84,13 +84,24 @@ A cursor is a position in the log of the thread. It works on every instance that
 
 To run more than one instance behind one URL, give every instance the same log store.
 
-A host with `logRecords: 'since-snapshot'` drops old records (see [Drop the records before a snapshot](./lifecycle#drop-the-records-before-a-snapshot)). A reader whose cursor is in the dropped part gets one `CUSTOM` event first:
+Sometimes the events after a cursor are gone. A host with `logRecords: 'since-snapshot'` drops old records (see [Drop the records before a snapshot](./lifecycle#drop-the-records-before-a-snapshot)), and before its log opens, a session keeps only its newest events in memory. A reader whose cursor is in the lost part gets one `CUSTOM` event first:
 
 - Its name is `harness.gap` (`HARNESS_EVENTS.gap`).
-- Its value is an `EventGap`: `{ from, resumeAt, reason: 'truncated' }`. Its cursor is `resumeAt`.
+- Its value is an `EventGap`: `{ from, resumeAt, reason }`. `reason` is `truncated` or `evicted`. Its cursor is `resumeAt`.
 - Then the stream goes on from `resumeAt`.
 
-The session view loads the snapshot and the transcript again when it sees this event. A custom client must do the same.
+The session view loads the snapshot and the transcript again when it sees this event. A custom client must do the same. See [When events are missing](./protocol#when-events-are-missing).
+
+## Keep the stream open
+
+Every transport sends the same frames: each event is an AG-UI wire chunk in a `harness.event` frame. A long stream stays usable through proxies and slow networks:
+
+- The first frame of `GET events` and of the socket is `harness.hello`, with the protocol version `v`. A client can ask for a version with `?v=2` or `v: 2`.
+- When the stream is idle, the server sends a heartbeat every 20 s. Set the idle timeout of your proxy to more than that.
+- A client that does not read for 30 s gets a `slow_consumer` error frame, and the stream closes. Connect again from the last cursor.
+- Every answer of the handler has an `X-Request-Id` header, and every error frame has a `code` and a `requestId`. Log the id, to find the request in the server logs.
+
+To change the heartbeat or the limits, pass `stream` to `createHarnessHandler` and `handleHarnessSocket`. [The harness wire protocol](./protocol) lists every frame, the error codes, and the `stream` values, for a client in any language.
 
 ## Choose what clients can change
 
@@ -338,6 +349,80 @@ The join has these rules:
 - Without `threadId`, only the instance that runs the turn finds it. Another instance answers `400`.
 - A turn that ended gives the events that the session still keeps, and then the stream ends.
 
+### Stop a turn from useChat
+
+The `stop()` of `useChat` closes the request, but the turn continues on the server. A closed connection never cancels work, because another tab or a reload can still read the turn. To stop the turn too, send a `cancel` input for its run.
+
+1. On the server, serve the harness with one handler. `POST run` streams the turn to `useChat`, and `POST control` takes the cancel:
+
+```ts group=harness-connect-stop-server
+import { createHarnessHost, defineHarness, membersOnly } from '@tanstack/ai-harness'
+import { createHarnessHandler } from '@tanstack/ai-harness/server'
+import { memoryPersistence } from '@tanstack/ai-persistence'
+import { openaiText } from '@tanstack/ai-openai'
+
+export const writer = defineHarness({
+  name: 'acme/writer',
+  adapter: openaiText('gpt-6.1-sol'),
+})
+
+const host = createHarnessHost({
+  persistence: memoryPersistence(),
+  access: {
+    identify: ({ request }) =>
+      request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
+        ? { id: 'user-1' }
+        : null,
+    authorize: membersOnly(),
+  },
+})
+
+// Mount it on `/api/harness/*`.
+export const handler = createHarnessHandler({ host, harness: writer })
+```
+
+2. In the browser, call `client.cancel` with the `runId` of `useChat` in your stop handler. The turn of `POST run` runs as that id:
+
+```tsx group=harness-connect-stop-client
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { createHarnessClient } from '@tanstack/ai-harness/client'
+import type { writer } from './harness'
+
+const headers = { authorization: 'Bearer my-token' }
+
+const client = createHarnessClient<typeof writer>({
+  url: '/api/harness',
+  threadId: 'user-1-thread',
+  headers,
+})
+
+export function StoppableChat() {
+  const { messages, runId, isLoading, stop, sendMessage } = useChat({
+    threadId: 'user-1-thread',
+    connection: fetchServerSentEvents('/api/harness/run', { headers }),
+  })
+
+  const stopTurn = async () => {
+    stop()
+    if (!runId) return
+    const receipt = await client.cancel({ operationId: runId })
+    if (receipt.status === 'rejected') console.warn(receipt.reason)
+  }
+
+  return (
+    <>
+      <p>{messages.length} messages</p>
+      <button onClick={() => sendMessage('Write a long story.')}>Send</button>
+      {isLoading ? <button onClick={stopTurn}>Stop</button> : null}
+    </>
+  )
+}
+```
+
+- The cancel works on any server that reads the same log store. The input goes to the server that runs the turn.
+- If the turn already ended, the receipt can be `rejected` with the reason `not_running`.
+- The turn ends with the status `cancelled`.
+
 ## Use a WebSocket
 
 For one connection that carries events and inputs, hand the socket and its upgrade request to `handleHarnessSocket`:
@@ -351,7 +436,7 @@ export function onUpgrade(socket: WebSocketLike, request: Request) {
 }
 ```
 
-The client sends `{ type: 'harness.subscribe', threadId }` first. After that, each `harness.input` frame gets a `harness.receipt`, and every event arrives as a `harness.event` frame with its cursor.
+The client sends `{ type: 'harness.subscribe', threadId }` first, and the host answers with a `harness.hello` frame. After that, each `harness.input` frame gets a `harness.receipt`, and every event arrives as a `harness.event` frame with its cursor.
 
 - The host reads the user from the upgrade request with `identify`, the same as for HTTP. Every input on the socket runs as that user.
 - A user that `identify` refuses gets an `unauthorized` error frame, and the socket closes.
@@ -381,7 +466,7 @@ If a plugin picks the model of the harness, the harness has no adapter to read i
 
 - One handler that serves standard AG-UI and the session stream, as the user of each request.
 - Clients that can change only what you expose.
-- A `useChat` screen on the harness, with approvals, tools that run in the browser, and a reload that joins the running turn.
+- A `useChat` screen on the harness, with approvals, tools that run in the browser, a reload that joins the running turn, and a stop button that cancels the turn.
 - A typed web client that reconnects and resumes from a cursor.
 - Messages from the browser to a running agent.
 - A WebSocket, and a harness you can call from `chat()`.
