@@ -53,6 +53,8 @@ The fork copies:
 
 The fork does not copy plugin state, pending interrupts, queued inputs, running work, or [usage totals](./usage). If `newThreadId` already has messages, `host.fork` throws. It also throws for an `at` that the thread does not have.
 
+A fork stays in its harness. If the index entry of the thread names another harness, `host.fork` throws. To move a conversation to another harness, use [`host.transfer`](./handoffs#5-move-a-conversation-to-another-harness).
+
 On a host with [`access`](./access), pass `principal` too. The user needs the `fork` action on the old thread, and owns the new thread.
 
 If a thread waits for an approval, fork it at a message before the tool call. A fork of the whole transcript copies the tool call, but the fork has no interrupt to answer it.

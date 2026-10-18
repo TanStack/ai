@@ -373,7 +373,7 @@ You get an empty list when the id is unknown, or when the child belongs to anoth
 
 Your harness has a writer and a pricer, but the main model answers every turn. Add `routing.router` to send a turn to the agent that can answer it. The router runs at the start of each new turn: a new message, a follow-up, or the wake turn of a background agent.
 
-```ts
+```ts group=harness-routing
 import { chat, decide, defineAgent, subagentRoute } from '@tanstack/ai'
 import { defineHarness } from '@tanstack/ai-harness'
 import { openaiText } from '@tanstack/ai-openai'
@@ -431,7 +431,7 @@ export const studio = defineHarness({
 
 The router can also return a pick of its own: `'main'`, a name, a list of names, `{ names, order }`, or `{ steps }`. Anywhere a name goes, `{ name, input }` can go too, for example `{ name: 'pricer', input: { vendor: 'Acme' } }`. If a picked agent has an `inputSchema` and no input, the turn fails with `Agent "pricer" needs input. Return { name: 'pricer', input } from the router.` See [Route, or let the model pick](../chat/subagents#route-or-let-the-model-pick) for each pick.
 
-The router also gets `session`, the `input` of the turn as the user sent it, `operationId`, `inputId`, and `abortSignal`. Next to `router`, `routing` takes `order`, `limits`, `sandbox`, and `after`. The first three work the same as in `subagents`.
+The router also gets `session`, the `input` of the turn as the user sent it, `operationId`, `inputId`, `abortSignal`, and `activeAgent`. Next to `router`, `routing` takes `order`, `limits`, `sandbox`, `after`, and `humans`. The first three work the same as in `subagents`.
 
 What the turn does with the pick:
 
@@ -440,6 +440,37 @@ What the turn does with the pick:
 - `after: 'main'`: the agents run first. Then the main model answers in the same turn. It reads their text and keeps its subagent tools. With the default, `after: 'end'`, the turn ends after the agents.
 - An interrupt in a routed agent ends the turn. `session.resolve` continues the same plan, and it does not call the router again.
 - A steer that you send during a routed turn waits. It runs as its own turn, and the router picks for that turn too.
+
+### Keep the agent that answers
+
+A user works with the writer for five turns. The router does not have to pick the writer again each time. The log keeps the active agent, and the router reads it as `activeAgent`:
+
+```ts group=harness-routing
+export const desk = defineHarness({
+  name: 'acme/desk',
+  adapter: openaiText('gpt-6.1-sol'),
+  agents: [writer, pricer],
+  routing: {
+    router: ({ activeAgent, input }) => {
+      if (input === 'Thanks, that is all.') return 'main'
+      if (activeAgent === undefined && typeof input === 'string' && input.includes('blog')) {
+        return { handoff: 'writer', note: 'The user wants a blog post.' }
+      }
+      return undefined
+    },
+  },
+})
+```
+
+How each pick changes the active agent:
+
+- `undefined`: the active agent answers. With no active agent, the main model answers.
+- One agent name: that agent answers, and it becomes the active agent.
+- `'main'`: the main model answers, and no agent is active.
+- `{ handoff, note }`: the log keeps the note in a `harness.handoff` record. Then the target answers, and it becomes the active agent. `handoff: 'main'` clears it.
+- `{ name, input }`, a list, `{ names }`, or `{ steps }`: those agents answer. The active agent does not change.
+
+Agents can also hand the turn to each other, or to a person. See [Hand off a conversation](./handoffs).
 
 ## Call a harness as a child
 

@@ -145,6 +145,16 @@ console.log(signals.map((entry) => entry.seq))
 
 Each `harness.input` record has the `principal` of its sender: its `id` and `tenantId`. Every kind of input has it when the sender is known, also a cancel, an answer, a delivery change, and a change of settings.
 
+Two harness records tell who answers a thread and where a conversation went. See [Hand off a conversation](./handoffs).
+
+- `harness.handoff`: another agent answers from now on. It has `from` and `to` (an agent name, `null` for the main model, or `{ human: true }` for a person), the `note`, the `runId`, and `by` (`'tool'`, `'code'`, `'router'`, or `'operator'`). A handoff to a person also has the `waitId` of its `human` wait. The last one is the active agent of the thread.
+- `harness.transferred`: `host.transfer` moved the conversation. The log of the target has `from`, and the log of the source has `to`. Each is `{ harness, threadId }`. Both records have the same `transferId`, the `principal`, and `at`.
+
+```ts group=harness-session-log
+const handoffs = entries.filter((entry) => entry.record.type === 'harness.handoff')
+console.log(handoffs.at(-1)?.record.to)
+```
+
 A reader outside a session that needs a `MessageStore`, for example `reconstructChat`, uses `logMessageStore`. It folds the log with the same `project`. Pass `tenantId` to read the threads of a tenant:
 
 ```ts group=harness-session-log

@@ -55,6 +55,7 @@ The user who opens a new thread is its owner. Nobody else can open it until the 
 | Send messages, run commands, start agents | Yes | Yes | No |
 | Answer and cancel | Every run | Only the runs they started | No |
 | Fork | Yes | Yes | No |
+| Reply as an [operator](./handoffs#reply-as-the-operator) | Yes | Yes | No |
 | Configure, share, delete, transfer | Yes | No | No |
 
 A user who is not a member can do nothing. A child thread of a subagent uses the members of its root thread.

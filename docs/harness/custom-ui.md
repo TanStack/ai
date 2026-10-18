@@ -145,6 +145,8 @@ Settings and usage, for a settings panel or a status bar:
 - `settings`: the stored settings of the thread, for example the model it uses now.
 - `usage`: the token usage of the thread. It updates after each model call.
 
+In a harness with `routing`, an assistant message also has `agent`: the name of the root agent that wrote it, or `undefined` for the main model. After a [handoff](./handoffs), the next agent writes a new message in the same turn.
+
 An assistant message has `parts`. Each part is one of these:
 
 - `text` or `reasoning`: the text, which grows while it streams.
@@ -164,12 +166,11 @@ A notice has a `kind`:
 
 Send work:
 
-- `view.send(text)`: sends a prompt. While a turn runs, the text steers that turn. Text that starts with `/` runs a command, for example `/goal all tests pass`.
+- `view.send(text)`: sends a prompt. While a turn runs, the text steers that turn. Text that starts with `/` runs a command, for example `/goal all tests pass`. With `{ as: 'operator' }`, it sends the [reply of an operator](./handoffs#reply-as-the-operator), and no model runs.
 - `view.followUp(text)`: the message waits, and runs as its own turn after the current work.
 - `view.continue()`: starts a turn from the saved messages, with no new message.
 - `view.command({ name, input })`: runs a command, for example from a button.
 - `view.upload({ body, mimeType, name })`: stores a file. Send the record you get back with `view.send(text, [record])`. See [Show media](#show-media).
-
 Change the session:
 
 - `view.setConfig({ key, value })`: changes a config value, for example `view.setConfig({ key: 'mode', value: 'plan' })`.
