@@ -395,7 +395,8 @@ describe('per-run limits of an agent run', () => {
     const sessionA = await hostA.open(harness, { threadId: THREAD })
     const running = sessionA.agents.worker.start(undefined, {
       resume: true,
-      limits: { timeoutMs: 400 },
+      // Long enough that a slow CI coverage run takes the run over first.
+      limits: { timeoutMs: 2_000 },
       attach: 'none',
     })
     await waitFor(() => expect(sessionA.agentRuns()[0]?.status).toBe('running'))
