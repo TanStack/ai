@@ -151,15 +151,23 @@ describe('{ op: "tool" }', () => {
       name: 'fetch_stats',
       args: { ticketId: 'T-2' },
     })
-    await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
+    // The approval is a turn wait at the boundary, answered with `resolve`.
+    await vi.waitFor(
+      () => expect(session.snapshot().pendingWaits).toHaveLength(1),
+      { timeout: 5_000 },
     )
-    const [question] = session.snapshot().pendingQuestions
-    await session.answer({
-      questionId: question!.questionId,
-      value: { answer: 'once' },
+    const [wait] = session.snapshot().pendingWaits ?? []
+    if (!wait) throw new Error('No approval.')
+    expect(wait.kind).toBe('approval')
+    const inputId = `answer:${wait.waitId}`
+    await session.resolve({
+      resume: [
+        { interruptId: wait.waitId, status: 'resolved', payload: 'once' },
+      ],
+      inputId,
     })
-    await operation
+    await session.settled({ inputId })
+    void operation
     const transcript = await session.transcript()
     const result = transcript.find((message) => message.role === 'tool')
     expect(JSON.stringify(result?.content)).toContain('T-2')
