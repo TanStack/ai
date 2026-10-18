@@ -6,7 +6,12 @@ import { isApproval } from '../waits'
 import { textOf, transcriptText } from './session-tools'
 import type { AnyTextAdapter, ChatMiddleware, KeyedAdapter } from '@tanstack/ai'
 import type { PluginSessionApi } from '../commands'
-import type { ChatTurnResult, HarnessRunContext, Operation } from '../types'
+import type {
+  ChatTurnResult,
+  HarnessRunContext,
+  Operation,
+  Principal,
+} from '../types'
 
 /** The goal of a session. It is plugin state, so it survives restarts. */
 export interface Goal {
@@ -126,13 +131,15 @@ export function goal(options: {
 
       /**
        * Queue the next turn of the goal. `/goal` passes its own session, so
-       * the turn runs as the user who runs it.
+       * the turn runs as the user who runs it. `onFinish` passes the user of
+       * the goal's last turn, so the goal goes on as that user.
        */
-      // ponytail: D9. From `onFinish`, `ctx.session.send` runs as the sender
-      // of the running turn: the goal's own turn there. PR 7 rebuilds send
-      // on the run that calls.
-      const queue = (message: string, session = ctx.session) => {
-        queuedTurn = session.send(message)
+      const queue = (
+        message: string,
+        session = ctx.session,
+        principal?: Principal,
+      ) => {
+        queuedTurn = session.send(message, principal ? { principal } : {})
       }
 
       /** Cancel the queued turn if it has not started. */
@@ -367,8 +374,9 @@ export function goal(options: {
                 return
               }
               const message = keepWorking(text, reason)
-              if (await change(text, { reason, queued: message }))
-                queue(message)
+              if (await change(text, { reason, queued: message })) {
+                queue(message, ctx.session, run.context.run.principal)
+              }
             },
           } satisfies ChatMiddleware<HarnessRunContext>,
         ],

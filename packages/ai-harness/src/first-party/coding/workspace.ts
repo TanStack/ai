@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { createCapability } from '@tanstack/ai'
 import {
   BackgroundJobs,
   SessionSignal,
@@ -146,8 +147,14 @@ export interface OutsideAccess {
 interface SessionAccess {
   access?: OutsideAccess
   hooks?: () => ReadonlyArray<WorkspaceHooks>
-  /** Add a note to the transcript. With `wake`, the model acts on it. */
-  note?: (text: string, options?: { wake?: boolean }) => Promise<void>
+  /**
+   * Add a note to the transcript. With `wake`, the model acts on it, in a
+   * turn of `principal`.
+   */
+  note?: (
+    text: string,
+    options?: { wake?: boolean; principal?: RunContext['principal'] },
+  ) => Promise<void>
   signal?: AbortSignal
   jobs?: BackgroundJobsApi
   /** Sends the events of the background `bash` jobs and of a stranded thread. */
@@ -204,6 +211,25 @@ function prefersPatch(model: string) {
   const id = model.slice(model.lastIndexOf('/') + 1)
   return /^(gpt-|o\d)/i.test(id)
 }
+
+/**
+ * @internal The workspaces of `workspaceTools()` with `workspace.bind`, so
+ * `snapshots()` and `formatter()` work in the workspace of each thread, not
+ * in their own `root`. The package does not export it.
+ */
+export interface ThreadWorkspaces {
+  /** True when each thread has its own workspace (`workspace.bind`). */
+  perThread: boolean
+  /** The workspace of the thread of `run`. It binds the thread first. */
+  of: (run: RunContext) => Promise<BoundWorkspace | undefined>
+  /** The workspace of the thread `threadId`, when it is bound already. */
+  bound: (threadId: string) => BoundWorkspace | undefined
+}
+
+/** @internal See {@link ThreadWorkspaces}. */
+export const ThreadWorkspace = createCapability<ThreadWorkspaces>()(
+  'tanstack/thread-workspace',
+)
 
 /** The run of the workspace tool call that runs now. */
 const callRuns = new AsyncLocalStorage<RunContext | undefined>()
@@ -485,7 +511,10 @@ function bindTools(
     ...searchTools(env),
     ...bashTools(env, {
       timeoutMs: options.bashTimeoutMs,
-      note: note && ((text) => note(text, { wake: true })),
+      note:
+        note &&
+        ((text, principal) =>
+          note(text, { wake: true, ...(principal ? { principal } : {}) })),
       spillDir: options.spillDir,
       signal: session.signal,
       jobs: session.jobs,
@@ -627,16 +656,25 @@ function threadTools(
   // By the log and the thread of the run.
   const bindings = new Map<string, Promise<BoundTools>>()
   const bound = new Map<string, BoundTools>()
+  // The workspace of each bound thread, by the log and the thread too.
+  const opened = new Map<string, BoundWorkspace>()
   const keyOf = (run: RunContext) => `${run.logId}\0${run.threadId}`
   // The workspaces that `bind` gave. They belong to the tools, so the tools
   // close them when the session ends. A fixed `backend` option belongs to
   // the caller and is never closed here.
   const workspaces = new Set<BoundWorkspace>()
+  // A session close is not the end of its thread: an idle close, a host
+  // that stops for a deploy, or a move to another host all keep the
+  // thread, and the next host reattaches its workspace. So the close is
+  // `'moved'`: a sandbox stays, and the session signal stops the jobs of
+  // this host (see `bashTools`).
+  // ponytail: no close here is `'closed'`. The thread purge does not reach
+  // the plugins, so it cannot destroy an owned sandbox yet.
   session.signal?.addEventListener(
     'abort',
     () => {
       for (const workspace of workspaces) {
-        void workspace.close?.({ reason: 'closed' }).catch(() => undefined)
+        void workspace.close?.({ reason: 'moved' }).catch(() => undefined)
       }
     },
     { once: true },
@@ -654,6 +692,7 @@ function threadTools(
     if (known) return known
     const binding = openWorkspace(run, binder, session).then((workspace) => {
       workspaces.add(workspace)
+      opened.set(key, workspace)
       const tools = bindTools(
         { backend: workspace, root: workspace.root },
         options,
@@ -722,7 +761,16 @@ function threadTools(
     },
     bash: { commands: bashResources },
   }
-  return { tools, prompt, bind, resources }
+  const threads: ThreadWorkspaces = {
+    perThread: true,
+    of: async (run) => {
+      await bind(run)
+      return opened.get(keyOf(run))
+    },
+    bound: (threadId) =>
+      [...opened].find(([key]) => key.endsWith(`\0${threadId}`))?.[1],
+  }
+  return { tools, prompt, bind, resources, threads }
 }
 
 /**
@@ -760,6 +808,7 @@ export function createWorkspaceTools(
     resources: source.resources,
     prompt: source.prompt,
     bind: source.bind,
+    threads: source.threads,
   }
 }
 
@@ -807,12 +856,19 @@ function fixedTools(
       },
     }
   })
+  // One workspace for every thread: the other plugins keep their own root.
+  const threads: ThreadWorkspaces = {
+    perThread: false,
+    of: async () => undefined,
+    bound: () => undefined,
+  }
   return {
     tools,
     prompt: () => own.prompt(),
     bind: async () => own,
     // The paths and the real paths, from the working folder.
     resources: own.resources,
+    threads,
   }
 }
 
@@ -869,36 +925,42 @@ export function workspaceTools(options: WorkspaceToolsOptions) {
   return definePlugin({
     name: 'tanstack/workspace-tools',
     optionalRequires: [PermissionDecisionCapability],
+    provides: [ThreadWorkspace],
     setup: (ctx) => {
       const hooks = ctx.collect(WorkspaceHooks)
-      const { tools, prompt, resources, bind } = createWorkspaceTools(options, {
-        access: {
-          mode: () => ctx.config.get('mode'),
-          // The working folder is the thread's `cwd` setting, read at each call.
-          cwd: () => ctx.session.settings().cwd,
-          // Read at each call, so permissions() can come after this plugin.
-          rules: () => {
-            const decide = ctx.getOptional(PermissionDecisionCapability)
-            if (!decide) return undefined
-            const value = ctx.config.get('mode')
-            const mode =
-              PERMISSION_MODES.find((each) => each === value) ?? 'default'
-            return (tool, resources) => decide(tool, mode, resources)
+      const { tools, prompt, resources, bind, threads } = createWorkspaceTools(
+        options,
+        {
+          access: {
+            mode: () => ctx.config.get('mode'),
+            // The working folder is the thread's `cwd` setting, read at each call.
+            cwd: () => ctx.session.settings().cwd,
+            // Read at each call, so permissions() can come after this plugin.
+            rules: () => {
+              const decide = ctx.getOptional(PermissionDecisionCapability)
+              if (!decide) return undefined
+              const value = ctx.config.get('mode')
+              const mode =
+                PERMISSION_MODES.find((each) => each === value) ?? 'default'
+              return (tool, resources) => decide(tool, mode, resources)
+            },
           },
+          hooks: () => hooks,
+          // The wake turn of a job's note runs as the user of the run that
+          // started the job, not as the sender of a turn that runs now.
+          note: (text, note) => ctx.session.note(text, note),
+          // Kills the background `bash` jobs when the session closes. A reload
+          // keeps them. Without a session, the plugin cleanup kills them.
+          signal: ctx.getOptional(SessionSignal) ?? ctx.resources.signal,
+          jobs: ctx.getOptional(BackgroundJobs),
+          // The binding of each thread, and the pin, go to the session log.
+          log: ctx.getOptional(WorkspaceLog),
+          // The events of the background jobs go to the clients.
+          emit: ctx.emit,
         },
-        hooks: () => hooks,
-        // ponytail: D9. The wake turn of a note runs as the sender of the
-        // running turn, not as the user of the job's turn.
-        note: (text, note) => ctx.session.note(text, note),
-        // Kills the background `bash` jobs when the session closes. A reload
-        // keeps them. Without a session, the plugin cleanup kills them.
-        signal: ctx.getOptional(SessionSignal) ?? ctx.resources.signal,
-        jobs: ctx.getOptional(BackgroundJobs),
-        // The binding of each thread, and the pin, go to the session log.
-        log: ctx.getOptional(WorkspaceLog),
-        // The events of the background jobs go to the clients.
-        emit: ctx.emit,
-      })
+      )
+      // `snapshots()` and `formatter()` read the workspace of each thread.
+      ctx.provide(ThreadWorkspace, threads)
       return {
         tools,
         prompts: [(turn) => prompt(turn.run)],

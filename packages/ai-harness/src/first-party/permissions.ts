@@ -780,7 +780,11 @@ export function permissions(
             )
           }
         },
-        onBeforeToolCall: async (run, hook) => {
+        // The guard tier, not the first-win `onBeforeToolCall`: it runs for
+        // every call, after every middleware that changes the args and after
+        // the input check, so it decides on the args that the tool gets. A
+        // middleware before this one cannot change a call past the rules.
+        onGuardToolCall: async (run, hook) => {
           const current = mode()
           if (current === 'bypass') return undefined
           const metadata = getMetadata(run, { optional: true })

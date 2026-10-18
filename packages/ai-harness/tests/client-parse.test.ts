@@ -146,6 +146,38 @@ describe('events() reconnects', () => {
     ])
   })
 
+  it('connects again from its last cursor when a connection sends nothing for 60 s', async () => {
+    vi.useFakeTimers()
+    const encoder = new TextEncoder()
+    const urls: Array<string> = []
+    // The first connection sends one event, then nothing: a half-open
+    // connection. The next ones send one event each.
+    const client = clientOn(async (input) => {
+      urls.push(String(input))
+      if (urls.length > 1) return streamed([sessionFrame(String(urls.length))])
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode(sessionFrame('1')))
+        },
+      })
+      return new Response(body, { status: 200 })
+    }, 1)
+    const controller = new AbortController()
+    const iterator = client
+      .events({ from: '0', signal: controller.signal })
+      [Symbol.asyncIterator]()
+
+    expect((await iterator.next()).value?.cursor).toBe('1')
+    const next = iterator.next()
+    await vi.advanceTimersByTimeAsync(59_000)
+    expect(urls).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(1_100)
+
+    expect((await next).value?.cursor).toBe('2')
+    expect(urls[1]).toContain('from=1')
+    controller.abort()
+  })
+
   it('stops the wait before a reconnect when the signal aborts', async () => {
     vi.useFakeTimers()
     const client = clientOn(async () => {

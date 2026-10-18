@@ -350,16 +350,33 @@ export abstract class SessionInputs<
       )
     }
     signal?.throwIfAborted()
+    // A refused input ends too: the owner on another host writes only its
+    // rejected record, and `knownSettlement` throws for it.
     const settledEvent = (entry: SessionEvent) =>
       entry.event.type === EventType.CUSTOM &&
-      entry.event.name === HARNESS_EVENTS.inputSettled &&
+      (entry.event.name === HARNESS_EVENTS.inputSettled ||
+        entry.event.name === HARNESS_EVENTS.inputRejected) &&
       isRecord(entry.event.value) &&
       entry.event.value.inputId === inputId
-    for await (const _entry of this.feed.read({
+    for await (const entry of this.feed.read({
       from: this.feed.head(),
       filter: settledEvent,
       ...(signal ? { signal } : {}),
     })) {
+      // The owner refused the offer of this host: the log has another input
+      // with this id, and only this host ends with the refusal.
+      const value = entry.event.type === EventType.CUSTOM && entry.event.value
+      if (
+        isRecord(value) &&
+        value.offered === true &&
+        this.offeredInputs.has(inputId)
+      ) {
+        throw new InputRejectedError({
+          inputId,
+          status: 'rejected',
+          reason: typeof value.reason === 'string' ? value.reason : 'conflict',
+        })
+      }
       const settlement = this.knownSettlement(inputId)
       if (settlement) return settlement
     }
@@ -577,7 +594,9 @@ export abstract class SessionInputs<
     const consumes = offer ? [inputId] : []
     if (known) {
       // The input ran before: its offer goes, and it does not run again.
-      if (offer) await this.writer.append([], { consumes })
+      // An offer with another payload is refused, so its host stops waiting.
+      if (offer && known === 'conflict') await this.refuseOffer(inputId)
+      else if (offer) await this.writer.append([], { consumes })
       return known
     }
     // A closing session runs no new work. Nothing is stored. An offer stays
@@ -750,6 +769,13 @@ export abstract class SessionInputs<
       }
       if (isTaken) {
         await done
+        return
+      }
+      // A prompt with a known id ends before `accept`. One with another
+      // payload is refused, so the host that offered it stops waiting.
+      const payload = inputKey(record.input, record.principal)
+      if (this.knownAdmission(inputId, payload) === 'conflict') {
+        await this.refuseOffer(inputId)
         return
       }
     }
@@ -1003,6 +1029,28 @@ export abstract class SessionInputs<
   }
 
   /**
+   * Refuse an offer whose id the log has with another payload. The record
+   * consumes the offer in the same append. The input in the log does not
+   * change: the event has `offered`, so only the host that offered the
+   * input ends its wait with the refusal.
+   */
+  private async refuseOffer(inputId: string) {
+    const reason = 'conflict'
+    await this.writer.append(
+      [{ type: 'harness.offer.rejected', inputId, reason }],
+      { consumes: [inputId] },
+    )
+    this.feed.publish(
+      'session',
+      customEvent(HARNESS_EVENTS.inputRejected, {
+        inputId,
+        reason,
+        offered: true,
+      }),
+    )
+  }
+
+  /**
    * Record how inputs ended, all in one append: a turn and the inputs that
    * joined it settle together. Clients get a `harness.input.settled` event.
    */
@@ -1123,7 +1171,15 @@ export abstract class SessionInputs<
   }
 
   protected refuse(operation: OperationImpl<ChatTurnResult>, receipt: Receipt) {
-    this.answerTurn(operation, receipt)
+    // A conflict refuses a second payload. The id stays with the input that
+    // has it, so `settled()` of that input does not read this refusal.
+    const id = receipt.inputId
+    const isOtherInput =
+      receipt.status === 'rejected' &&
+      receipt.reason === 'conflict' &&
+      (this.admitted.has(id) || this.writer.state.inputs.has(id))
+    if (isOtherInput) operation.resolveReceipt(receipt)
+    else this.answerTurn(operation, receipt)
     operation.fail('failed', new InputRejectedError(receipt))
   }
 

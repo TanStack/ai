@@ -702,11 +702,17 @@ export interface AgentRun<TResult> extends Operation<TResult> {
    * runs as a follow-up. `mode: 'followUp'` runs the agent again after the
    * run ends, on the run's transcript with the message added, with its
    * first input and options. A run that ended starts again at once. The
-   * receipt names the run that gets the message.
+   * receipt names the run that gets the message. `principal` is who sends
+   * it. Default: the user of the run. On a handle of `host.open`, the
+   * principal of the handle, after its access check.
    */
   send: (
     message: UserInput,
-    options?: { mode?: 'steer' | 'followUp'; inputId?: string },
+    options?: {
+      mode?: 'steer' | 'followUp'
+      inputId?: string
+      principal?: Principal
+    },
   ) => Promise<Receipt>
 }
 
@@ -954,7 +960,15 @@ export interface HarnessEventValues {
   'harness.auth_required': AuthRequest
   'harness.input.accepted': { inputId: string; op: HarnessInput['op'] }
   'harness.input.applied': { inputId: string; operationId: string }
-  'harness.input.rejected': { inputId: string; reason: string }
+  /**
+   * `offered` is true when the owner refused an offer from another host, and
+   * the log has another input with the id. That input is not refused.
+   */
+  'harness.input.rejected': {
+    inputId: string
+    reason: string
+    offered?: true
+  }
   'harness.input.settled': InputSettlement
   'harness.input.delivery': {
     inputId: string

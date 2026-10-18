@@ -5,6 +5,7 @@ import { memoryLogBackend, memoryLogStore } from '@tanstack/ai-persistence'
 import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { credentialsFor } from '../src/auth'
 import {
+  InputRejectedError,
   createHarnessHost,
   defineCommand,
   defineHarness,
@@ -170,6 +171,91 @@ describe('an input that reaches a host that does not own the log', () => {
         (message) => message.content === 'Again?',
       ),
     ).toHaveLength(1)
+    await owner.host.close()
+    await other.host.close()
+  })
+
+  it('ends settled() with InputRejectedError when the owner refuses the offered input', async () => {
+    const { a, b } = twoStores()
+    const release = gate()
+    const owner = await hostOn(
+      a,
+      harnessWith(mockAdapter([after(release.opened, 'One.')]).adapter),
+    )
+    const other = await hostOn(b, harnessWith(mockAdapter([]).adapter))
+
+    const turn = owner.session.send('Go.')
+    await turn.receipt
+    const refused = other.session.send('Now!', {
+      inputId: 'in-b',
+      busy: 'reject',
+    })
+    refused.then(
+      () => {},
+      () => {},
+    )
+    expect((await refused.receipt).status).toBe('queued')
+    await expect(
+      other.session.settled({
+        inputId: 'in-b',
+        signal: AbortSignal.timeout(3_000),
+      }),
+    ).rejects.toBeInstanceOf(InputRejectedError)
+
+    release.open()
+    await turn
+    await owner.host.close()
+    await other.host.close()
+  })
+
+  it('refuses an offer whose id the log has with another payload, on the host that offered it', async () => {
+    const { a, b } = twoStores()
+    // The owner does not read the lane until the test lets it.
+    let isLaneOpen = false
+    const slowLane = wrapLogStore(a, {
+      offered: (scope) => (isLaneOpen ? a.offered(scope) : Promise.resolve([])),
+    })
+    const release = gate()
+    const ownerModel = mockAdapter([
+      after(release.opened, 'One.'),
+      () => text('Two.'),
+    ])
+    const owner = await hostOn(slowLane, harnessWith(ownerModel.adapter))
+    const other = await hostOn(b, harnessWith(mockAdapter([]).adapter))
+
+    const turn = owner.session.send('Go.')
+    await turn.receipt
+    const offered = other.session.send('From B.', { inputId: 'in-x' })
+    offered.then(
+      () => {},
+      () => {},
+    )
+    expect((await offered.receipt).status).toBe('queued')
+    const settled = other.session.settled({
+      inputId: 'in-x',
+      signal: AbortSignal.timeout(3_000),
+    })
+    settled.catch(() => {})
+    // The owner stores another input with the same id first.
+    const stored = owner.session.send('From A.', { inputId: 'in-x' })
+    expect((await stored.receipt).status).toBe('queued')
+    isLaneOpen = true
+    await owner.session.recover()
+
+    await expect(settled).rejects.toMatchObject({
+      name: 'InputRejectedError',
+      receipt: { reason: 'conflict' },
+    })
+    await expect(Promise.resolve(offered)).rejects.toBeInstanceOf(
+      InputRejectedError,
+    )
+    expect(await waiting(a)).toEqual([])
+    // The input that the log has is not refused: it runs.
+    release.open()
+    expect((await owner.session.settled({ inputId: 'in-x' })).outcome).toBe(
+      'completed',
+    )
+    expect(ownerModel.calls).toHaveLength(2)
     await owner.host.close()
     await other.host.close()
   })
@@ -421,6 +507,42 @@ describe('an input that reaches a host that does not own the log', () => {
     expect(turn.status()).toBe('cancelled')
     await owner.host.close()
     await other.host.close()
+  })
+
+  it('cancels the turn of the owner when the offer comes while the owner appends', async () => {
+    const { a, b } = twoStores()
+    let other: Awaited<ReturnType<typeof hostOn>> | undefined
+    let cancelIn: string | undefined
+    // The offer of B lands while the owner's append runs, so the store
+    // tells the owner about it during its own write.
+    const ownerLog = wrapLogStore(a, {
+      append: async (batch) => {
+        const operationId = cancelIn
+        if (operationId !== undefined && other) {
+          cancelIn = undefined
+          const receipt = await other.session.cancel({ operationId })
+          expect(receipt.status).toBe('queued')
+        }
+        return a.append(batch)
+      },
+    })
+    const ownerModel = mockAdapter([untilAborted()])
+    const owner = await hostOn(ownerLog, harnessWith(ownerModel.adapter))
+    const otherHost = await hostOn(b, harnessWith(mockAdapter([]).adapter))
+    other = otherHost
+
+    const turn = owner.session.send('Go.')
+    const { operationId } = await turn.receipt
+    await waitFor(() => expect(ownerModel.calls).toHaveLength(1))
+    cancelIn = operationId
+    // A write of the owner while its turn runs, with no write after it.
+    await owner.session.configure({ settings: { instructions: 'Be brief.' } })
+    expect(cancelIn).toBeUndefined()
+
+    await expect(Promise.resolve(turn)).rejects.toThrow()
+    expect(turn.status()).toBe('cancelled')
+    await owner.host.close()
+    await otherHost.host.close()
   })
 
   it('starts an agent on the owner, and the run of the other host ends with it', async () => {

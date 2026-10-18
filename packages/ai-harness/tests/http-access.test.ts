@@ -196,6 +196,50 @@ describe('the handler on a host with access', () => {
     await host.close()
   })
 
+  it('watches revokes on the bus of the tenant, not on the every-tenant host.events()', async () => {
+    const { host, call, prompt, share } = setup()
+    await prompt('olga', 't1')
+    await share('bea', 'member')
+    // The every-tenant reader starts with all statuses and gets every event
+    // of every tenant, so a watch of each stream must not use it.
+    const everyTenant = vi.spyOn(host, 'events')
+    const response = await call('bea', 'events?threadId=t1')
+    const reading = readSse(response, () => false)
+
+    host.revoke({ threadId: 't1', principal: bea })
+
+    await expect(reading).resolves.toBeInstanceOf(Array)
+    expect(everyTenant).not.toHaveBeenCalled()
+    await host.close()
+  })
+
+  it('reads the access of a readable thread once, not on each index change', async () => {
+    const { host, call, prompt } = setup()
+    await prompt('olga', 't1')
+    const get = vi.spyOn(host.sessions, 'get')
+    const renames: Array<Promise<unknown>> = []
+    const reading = readSse(
+      await call('olga', 'host-events'),
+      (frame: { type: string } | HostEvent) => {
+        // The hello: the stream reads the bus now.
+        if (frame.type === 'harness.hello') {
+          for (const title of ['a', 'b', 'c']) {
+            renames.push(
+              host.sessions.rename({ threadId: 't1', title, principal: olga }),
+            )
+          }
+        }
+        return 'entry' in frame && frame.entry.title === 'c'
+      },
+    )
+
+    await reading
+    await Promise.all(renames)
+    const reads = get.mock.calls.filter(([read]) => read.threadId === 't1')
+    expect(reads).toHaveLength(1)
+    await host.close()
+  })
+
   it('never shows the threads of another tenant in host-events', async () => {
     const { host, call, prompt } = setup()
     const reading = readSse(

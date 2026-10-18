@@ -122,11 +122,13 @@ export interface PluginContributions {
    * `discoverTools`. Return the new list. Runs before prompts resolve, so a
    * prompt `text()` can describe the tools this returned. Code mode uses it to
    * move tools behind `execute_typescript`. `model` is the model id of the
-   * turn's adapter, so the list can differ for each model.
+   * turn's adapter, so the list can differ for each model. `run` is the run
+   * of the turn: its id and its user.
    */
   prepareTools?: (turn: {
     tools: ReadonlyArray<AnyTool>
     model: string
+    run: RunContext
   }) => ReadonlyArray<AnyTool> | Promise<ReadonlyArray<AnyTool>>
 }
 
@@ -628,8 +630,9 @@ export interface MountedPlugins {
    * A copy without everything that the plugins in `names` contributed: tools,
    * prompts (also the `'context'` prompts), every kind of middleware, agents, subagents, commands, config,
    * adapter picks, discoverers, preparers, extension items, and capabilities.
-   * The copy is a snapshot: a later `ctx.agents.set` or `ctx.commands.set`
-   * changes this set only. It shares `dispose` with this set. It throws when
+   * The copy reads the commands and agents of this set at each use, so a
+   * later `ctx.agents.set` or `ctx.commands.set` of a kept plugin reaches
+   * it. It shares `dispose` with this set. It throws when
    * a kept plugin requires a capability that a removed plugin provides.
    */
   withoutOwners: (names: ReadonlyArray<string>) => MountedPlugins
@@ -962,9 +965,14 @@ function withoutOwnersOf(
       mounted.generationMiddleware,
       owners.generationMiddleware,
     ),
-    commands: new Map(
-      [...mounted.commands].filter(([, entry]) => isKept(entry.owner)),
-    ),
+    // Commands and agents are read at each use: a kept plugin can change
+    // them later (`ctx.commands.set`, `ctx.agents.set`), and this thread
+    // must see that.
+    get commands() {
+      return new Map(
+        [...mounted.commands].filter(([, entry]) => isKept(entry.owner)),
+      )
+    },
     config: new Map(
       [...mounted.config].filter(([, entry]) => isKept(entry.owner)),
     ),
@@ -972,8 +980,12 @@ function withoutOwnersOf(
     adapters: keep(mounted.adapters, owners.adapters),
     discoverers: mounted.discoverers.filter((item) => isKept(item.owner)),
     preparers: mounted.preparers.filter((item) => isKept(item.owner)),
-    agents: keep(mounted.agents, owners.agents),
-    subagents: keep(mounted.subagents, owners.subagents),
+    get agents() {
+      return keep(mounted.agents, owners.agents)
+    },
+    get subagents() {
+      return keep(mounted.subagents, owners.subagents)
+    },
     owners: {
       plugins: owners.plugins.filter((plugin) => isKept(plugin.name)),
       tools: owners.tools.filter((entry) => isKept(entry.owner)),
@@ -982,8 +994,12 @@ function withoutOwnersOf(
       adapters: owners.adapters.filter(isKept),
       agentMiddleware: owners.agentMiddleware.filter(isKept),
       generationMiddleware: owners.generationMiddleware.filter(isKept),
-      agents: owners.agents.filter(isKept),
-      subagents: owners.subagents.filter(isKept),
+      get agents() {
+        return owners.agents.filter(isKept)
+      },
+      get subagents() {
+        return owners.subagents.filter(isKept)
+      },
       capabilities: owners.capabilities.filter((entry) => isKept(entry.owner)),
     },
     capabilityBridge: capabilityBridgeOf(values),

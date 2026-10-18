@@ -230,6 +230,19 @@ function parseArgs(raw: string | undefined): unknown {
   }
 }
 
+/**
+ * The tool call of an interrupt: its own `toolCallId`, or for an approval of
+ * `permissions()`, the `toolCallId` in its payload. Core gives such an
+ * approval no `toolCallId` of its own.
+ */
+function toolCallIdOf(interrupt: Interrupt) {
+  if (interrupt.toolCallId) return interrupt.toolCallId
+  const payload = interrupt.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY]
+  return isRecord(payload) && typeof payload.toolCallId === 'string'
+    ? payload.toolCallId
+    : undefined
+}
+
 /** The sign-in page of a sign-in interrupt, when it has one. */
 function signInUrl(interrupt: Interrupt) {
   const payload = interrupt.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY]
@@ -357,401 +370,445 @@ export function createAcpAgent<P extends Principal = Principal>(
     )
   }
   /**
-   * The handle of each session that this agent holds, by session id. The
-   * agent holds one while the session has work, and releases it when the
-   * prompt queue of the session is empty. `session/close` releases it too,
-   * and so does the close of the connection.
+   * The state of one connection, and the work on it. An app can connect
+   * many times, for example once for each editor. So each connection keeps
+   * its own session handles, prompt queues, and editor capabilities, and
+   * its close releases only its own handles.
    */
-  const handles = new Map<string, Promise<HarnessSession>>()
-  /**
-   * The last prompt of each session. The prompts of one session run in the
-   * order that they came in.
-   */
-  const tails = new Map<string, Promise<void>>()
+  const forConnection = () => {
+    /**
+     * The handle of each session that this agent holds, by session id. The
+     * agent holds one while the session has work, and releases it when the
+     * prompt queue of the session is empty. `session/close` releases it too,
+     * and so does the close of the connection.
+     */
+    const handles = new Map<string, Promise<HarnessSession>>()
+    /**
+     * The last prompt of each session. The prompts of one session run in the
+     * order that they came in.
+     */
+    const tails = new Map<string, Promise<void>>()
 
-  /** The handle of a session: the one that the agent holds, or a new one. */
-  const live = (sessionId: string) => {
-    const held = handles.get(sessionId)
-    if (held) return held
-    const opening = host.open(harness, { threadId: sessionId, principal })
-    handles.set(sessionId, opening)
-    // A failed open holds nothing, so the next request opens again.
-    opening.catch(() => {
-      if (handles.get(sessionId) === opening) handles.delete(sessionId)
-    })
-    return opening
-  }
-
-  /** Release the handle of a session. The session closes on idle. */
-  const release = async (sessionId: string) => {
-    const held = handles.get(sessionId)
-    if (!held) return
-    handles.delete(sessionId)
-    await held.then(
-      (session) => session.close(),
-      () => {},
-    )
-  }
-
-  /**
-   * Release the handle of a session when no prompt of it runs or waits. An
-   * idle session holds nothing, and the next prompt opens it again.
-   */
-  const releaseIfIdle = (sessionId: string) => {
-    if (tails.has(sessionId)) return
-    void release(sessionId)
-  }
-
-  /**
-   * Throw unless this agent or the session index knows the id. A subagent
-   * child is not a session of its own: ACP reaches it through its parent. A
-   * session that the principal may not read gets the same answer as an
-   * unknown id. It reads the index only: no session opens.
-   */
-  const checkKnown = async (sessionId: string) => {
-    if (handles.has(sessionId)) return
-    try {
-      const entry = await host.sessions.get({ threadId: sessionId, principal })
-      const isOwnSession =
-        entry?.harness === harness.name && entry.parentThreadId === undefined
-      if (!isOwnSession) throw RequestError.resourceNotFound(sessionId)
-    } catch (error) {
-      if (error instanceof AccessDeniedError) {
-        throw RequestError.resourceNotFound(sessionId)
-      }
-      throw error
-    }
-  }
-
-  /** The session of an id that this agent or the session index knows. */
-  const known = async (sessionId: string) => {
-    await checkKnown(sessionId)
-    try {
-      return await live(sessionId)
-    } catch (error) {
-      if (error instanceof AccessDeniedError) {
-        throw RequestError.resourceNotFound(sessionId)
-      }
-      throw error
-    }
-  }
-
-  const notify = (
-    client: AgentContext,
-    sessionId: string,
-    update: SessionUpdate,
-  ) => client.notify('session/update', { sessionId, update }).catch(() => {})
-
-  /** What the editor can show, from its `initialize`. */
-  let capabilities: ClientCapabilities = {}
-
-  /** True when the editor can answer `wait` (see `askEditor`). */
-  const canAsk = (wait: Wait, url: string | undefined) => {
-    const elicitation = capabilities.elicitation
-    switch (wait.kind) {
-      case 'approval':
-        return true
-      case 'question':
-      case 'human':
-        return Boolean(elicitation?.form)
-      case 'sign-in':
-        return url !== undefined && Boolean(elicitation?.url)
-      case 'client-tool':
-        return false
-    }
-  }
-
-  /**
-   * Ask the editor for the answer to `wait`, by its kind:
-   *
-   * - `approval`: a permission request. `allow_always` only when the
-   *   answer schema takes `always`.
-   * - `question` and `human`: a form elicitation of the wait schema.
-   * - `sign-in`: a URL elicitation of the sign-in page.
-   * - `client-tool`, and a kind that the editor cannot show: cancelled.
-   */
-  const askEditor = async ({
-    client,
-    sessionId,
-    wait,
-    toolCallId,
-    url,
-  }: {
-    client: AgentContext
-    sessionId: string
-    wait: Wait
-    toolCallId?: string
-    url?: string
-  }): Promise<WaitAnswer> => {
-    if (!canAsk(wait, url)) return { status: 'cancelled' }
-    if (wait.kind === 'approval') {
-      const { outcome } = await client.request('session/request_permission', {
-        sessionId,
-        title: wait.message ?? 'Allow this tool call?',
-        subject: {
-          type: 'tool_call',
-          toolCall: { toolCallId: toolCallId ?? wait.waitId },
-        },
-        options: approvalOptions(wait),
+    /** The handle of a session: the one that the agent holds, or a new one. */
+    const live = (sessionId: string) => {
+      const held = handles.get(sessionId)
+      if (held) return held
+      const opening = host.open(harness, { threadId: sessionId, principal })
+      handles.set(sessionId, opening)
+      // A failed open holds nothing, so the next request opens again.
+      opening.catch(() => {
+        if (handles.get(sessionId) === opening) handles.delete(sessionId)
       })
-      if (outcome.outcome !== 'selected' || !('optionId' in outcome)) {
-        return { status: 'stop' }
-      }
-      return { status: 'resolved', payload: approvalAnswer(outcome.optionId) }
+      return opening
     }
-    const scope = { sessionId, ...(toolCallId ? { toolCallId } : {}) }
-    if (wait.kind === 'question' || wait.kind === 'human') {
-      const form = formOf(wait)
-      const reply = await client.request('elicitation/create', {
-        ...scope,
-        mode: 'form',
-        message: wait.message ?? 'The agent asks for input.',
-        requestedSchema: form.requestedSchema,
-      })
-      if (reply.action === 'cancel') return { status: 'stop' }
-      if (reply.action !== 'accept') return { status: 'cancelled' }
-      const content = 'content' in reply ? reply.content : undefined
-      return { status: 'resolved', payload: form.answerOf(content) }
-    }
-    const reply = await client.request('elicitation/create', {
-      ...scope,
-      mode: 'url',
-      elicitationId: wait.waitId,
-      url: url ?? '',
-      message: wait.message ?? 'Sign in to go on.',
-    })
-    if (reply.action === 'cancel') return { status: 'stop' }
-    return reply.action === 'accept'
-      ? { status: 'resolved', payload: true }
-      : { status: 'cancelled' }
-  }
 
-  /**
-   * Answer the interrupts of a turn, then continue it. The editor answers
-   * each wait of its kind (see `askEditor`). A wait that it cannot answer
-   * (a client tool) is cancelled. A cancelled request (the editor cancelled
-   * the prompt) stops the turn, and the interrupts stay open until the next
-   * prompt. The next operation is wrapped, because an operation is thenable
-   * and an async function would unwrap it.
-   */
-  const answer = async (
-    client: AgentContext,
-    sessionId: string,
-    session: HarnessSession,
-    interrupts: ReadonlyArray<Interrupt>,
-  ): Promise<{ next?: Operation<unknown>; cancelled?: boolean }> => {
-    const items = interrupts.map((interrupt) => ({
-      interrupt,
-      wait: waitOfInterrupt({ interrupt, runId: sessionId }),
-      url: signInUrl(interrupt),
-    }))
-    if (items.some(({ wait, url }) => canAsk(wait, url))) {
-      await notify(client, sessionId, {
-        sessionUpdate: 'state_update',
-        state: 'requires_action',
-      })
-    }
-    const resume: Array<RunAgentResumeItem> = []
-    for (const { interrupt, wait, url } of items) {
-      const reply = await askEditor({
-        client,
-        sessionId,
-        wait,
-        ...(interrupt.toolCallId ? { toolCallId: interrupt.toolCallId } : {}),
-        ...(url ? { url } : {}),
-      })
-      if (reply.status === 'stop') return { cancelled: true }
-      resume.push(
-        reply.status === 'resolved'
-          ? {
-              interruptId: interrupt.id,
-              status: 'resolved',
-              payload: reply.payload,
-            }
-          : { interruptId: interrupt.id, status: 'cancelled' },
+    /** Release the handle of a session. The session closes on idle. */
+    const release = async (sessionId: string) => {
+      const held = handles.get(sessionId)
+      if (!held) return
+      handles.delete(sessionId)
+      await held.then(
+        (session) => session.close(),
+        () => {},
       )
     }
-    const receipt = await session.resolve({ resume })
-    // For example `busy`: a later prompt runs already.
-    if (receipt.status === 'rejected') throw new InputRejectedError(receipt)
-    return {
-      next: receipt.operationId
-        ? session.operation(receipt.operationId)
-        : undefined,
-    }
-  }
 
-  /**
-   * Answer each question that the operation `operationId` asks while it
-   * runs (a `step.ask` of a durable tool, or an MCP server that asks), with
-   * a form elicitation. A question that the editor cannot or will not
-   * answer cancels the operation. Stops when `signal` aborts, or when the
-   * operation stops for interrupts: the pump answers those.
-   */
-  const answerQuestions = async ({
-    client,
-    sessionId,
-    session,
-    operationId,
-    signal,
-  }: {
-    client: AgentContext
-    sessionId: string
-    session: HarnessSession
-    operationId: string
-    signal: AbortSignal
-  }) => {
-    while (!signal.aborted) {
-      const wait = await session
-        .waitFor({ runId: operationId, signal })
-        .catch(() => undefined)
-      if (!wait) return
-      const isQuestion = session
-        .snapshot()
-        .pendingQuestions.some(({ questionId }) => questionId === wait.waitId)
-      if (!isQuestion) return
-      const reply = await askEditor({ client, sessionId, wait })
-      if (signal.aborted) return
-      if (reply.status !== 'resolved') {
-        await session.cancel({ operationId })
-        return
-      }
-      // A refused answer (it does not fit the schema) asks again.
-      await session.answer({ questionId: wait.waitId, value: reply.payload })
+    /**
+     * Release the handle of a session when no prompt of it runs or waits. An
+     * idle session holds nothing, and the next prompt opens it again.
+     */
+    const releaseIfIdle = (sessionId: string) => {
+      if (tails.has(sessionId)) return
+      void release(sessionId)
     }
-  }
 
-  /**
-   * Cancel the open interrupts of a session (from a cancelled approval, or
-   * from another client), and wait for the turn that takes the answers. The
-   * thread takes no new prompt while an interrupt is open. Resolves `false`
-   * when the client cancelled that turn: its interrupts stay open.
-   */
-  const closeInterrupts = async (session: HarnessSession) => {
-    const open = session.snapshot().pendingInterrupts
-    if (open.length === 0) return true
-    const receipt = await session.resolve({
-      resume: open.map((interrupt) => ({
-        interruptId: interrupt.id,
-        status: 'cancelled' as const,
-      })),
-    })
-    if (receipt.status === 'rejected') throw new InputRejectedError(receipt)
-    // ponytail: the reply of the model to the cancel stays out of the client.
-    const turn = receipt.operationId
-      ? session.operation(receipt.operationId)
-      : undefined
-    let failure: unknown
-    await turn?.then(
-      () => {},
-      (error: unknown) => {
-        failure = error
-      },
-    )
-    if (turn?.status() === 'cancelled') return false
-    if (turn?.status() === 'failed') throw failure
-    if (session.snapshot().pendingInterrupts.length > 0) {
-      throw new Error(
-        'The model asked again for input that the client cannot give.',
-      )
-    }
-    return true
-  }
-
-  /**
-   * Close the open interrupts, run one prompt, and stream its turn to the
-   * client through its interrupts, then report idle. A failed turn, or a
-   * failure here, ends with the `error` stop reason.
-   */
-  const pump = async (
-    client: AgentContext,
-    sessionId: string,
-    session: HarnessSession,
-    input: Parameters<HarnessSession['send']>[0],
-  ) => {
-    let operation: Operation<unknown> | undefined
-    let stopReason: 'end_turn' | 'cancelled' | 'error' = 'end_turn'
-    let failure: string | undefined
-    const running = () =>
-      notify(client, sessionId, {
-        sessionUpdate: 'state_update',
-        state: 'running',
-      })
-    try {
-      await running()
-      if (await closeInterrupts(session)) operation = session.send(input)
-      else stopReason = 'cancelled'
-      const args = new Map<string, string>()
-      while (operation) {
-        const asking = new AbortController()
-        const questions = answerQuestions({
-          client,
-          sessionId,
-          session,
-          operationId: operation.id,
-          signal: asking.signal,
-        }).catch(() => {})
-        try {
-          for await (const chunk of operation.stream()) {
-            const update = toSessionUpdate(chunk, args)
-            if (update) await notify(client, sessionId, update)
-          }
-        } finally {
-          asking.abort()
-          await questions
+    /**
+     * Throw unless this agent or the session index knows the id. A subagent
+     * child is not a session of its own: ACP reaches it through its parent. A
+     * session that the principal may not read gets the same answer as an
+     * unknown id. It reads the index only: no session opens.
+     */
+    const checkKnown = async (sessionId: string) => {
+      if (handles.has(sessionId)) return
+      try {
+        const entry = await host.sessions.get({
+          threadId: sessionId,
+          principal,
+        })
+        const isOwnSession =
+          entry?.harness === harness.name && entry.parentThreadId === undefined
+        if (!isOwnSession) throw RequestError.resourceNotFound(sessionId)
+      } catch (error) {
+        if (error instanceof AccessDeniedError) {
+          throw RequestError.resourceNotFound(sessionId)
         }
-        const result: unknown = await operation.then(
-          (value) => value,
-          (error: unknown) => {
-            failure = error instanceof Error ? error.message : String(error)
-            return undefined
-          },
-        )
-        if (operation.status() === 'cancelled') stopReason = 'cancelled'
-        if (operation.status() === 'failed') stopReason = 'error'
-        const interrupts =
-          typeof result === 'object' &&
-          result !== null &&
-          'interrupts' in result &&
-          Array.isArray(result.interrupts)
-            ? (result.interrupts as Array<Interrupt>)
-            : []
-        if (interrupts.length === 0) break
-        const answered = await answer(client, sessionId, session, interrupts)
-        if (answered.cancelled) stopReason = 'cancelled'
-        operation = answered.next
-        if (operation) await running()
+        throw error
       }
-    } catch (error) {
-      stopReason = 'error'
-      failure = error instanceof Error ? error.message : String(error)
     }
-    await notify(
+
+    /** The session of an id that this agent or the session index knows. */
+    const known = async (sessionId: string) => {
+      await checkKnown(sessionId)
+      try {
+        return await live(sessionId)
+      } catch (error) {
+        if (error instanceof AccessDeniedError) {
+          throw RequestError.resourceNotFound(sessionId)
+        }
+        throw error
+      }
+    }
+
+    const notify = (
+      client: AgentContext,
+      sessionId: string,
+      update: SessionUpdate,
+    ) => client.notify('session/update', { sessionId, update }).catch(() => {})
+
+    /** What the editor can show, from its `initialize`. */
+    let capabilities: ClientCapabilities = {}
+
+    /** True when the editor can answer `wait` (see `askEditor`). */
+    const canAsk = (wait: Wait, url: string | undefined) => {
+      const elicitation = capabilities.elicitation
+      switch (wait.kind) {
+        case 'approval':
+          return true
+        case 'question':
+        case 'human':
+          return Boolean(elicitation?.form)
+        case 'sign-in':
+          return url !== undefined && Boolean(elicitation?.url)
+        case 'client-tool':
+          return false
+      }
+    }
+
+    /**
+     * Ask the editor for the answer to `wait`, by its kind:
+     *
+     * - `approval`: a permission request. `allow_always` only when the
+     *   answer schema takes `always`.
+     * - `question` and `human`: a form elicitation of the wait schema.
+     * - `sign-in`: a URL elicitation of the sign-in page.
+     * - `client-tool`, and a kind that the editor cannot show: cancelled.
+     */
+    const askEditor = async ({
       client,
       sessionId,
-      stopReason === 'error'
-        ? {
-            sessionUpdate: 'state_update',
-            state: 'idle',
-            stopReason,
-            error: { code: -32603, message: failure ?? 'The turn failed.' },
+      wait,
+      toolCallId,
+      url,
+    }: {
+      client: AgentContext
+      sessionId: string
+      wait: Wait
+      toolCallId?: string
+      url?: string
+    }): Promise<WaitAnswer> => {
+      if (!canAsk(wait, url)) return { status: 'cancelled' }
+      if (wait.kind === 'approval') {
+        const { outcome } = await client.request('session/request_permission', {
+          sessionId,
+          title: wait.message ?? 'Allow this tool call?',
+          subject: {
+            type: 'tool_call',
+            toolCall: { toolCallId: toolCallId ?? wait.waitId },
+          },
+          options: approvalOptions(wait),
+        })
+        if (outcome.outcome !== 'selected' || !('optionId' in outcome)) {
+          return { status: 'stop' }
+        }
+        return { status: 'resolved', payload: approvalAnswer(outcome.optionId) }
+      }
+      const scope = { sessionId, ...(toolCallId ? { toolCallId } : {}) }
+      if (wait.kind === 'question' || wait.kind === 'human') {
+        const form = formOf(wait)
+        const reply = await client.request('elicitation/create', {
+          ...scope,
+          mode: 'form',
+          message: wait.message ?? 'The agent asks for input.',
+          requestedSchema: form.requestedSchema,
+        })
+        if (reply.action === 'cancel') return { status: 'stop' }
+        if (reply.action !== 'accept') return { status: 'cancelled' }
+        const content = 'content' in reply ? reply.content : undefined
+        return { status: 'resolved', payload: form.answerOf(content) }
+      }
+      const reply = await client.request('elicitation/create', {
+        ...scope,
+        mode: 'url',
+        elicitationId: wait.waitId,
+        url: url ?? '',
+        message: wait.message ?? 'Sign in to go on.',
+      })
+      if (reply.action === 'cancel') return { status: 'stop' }
+      return reply.action === 'accept'
+        ? { status: 'resolved', payload: true }
+        : { status: 'cancelled' }
+    }
+
+    /**
+     * Answer the interrupts of a turn, then continue it. The editor answers
+     * each wait of its kind (see `askEditor`). A wait that it cannot answer
+     * (a client tool) is cancelled. A cancelled request (the editor cancelled
+     * the prompt) stops the turn, and the interrupts stay open until the next
+     * prompt. The next operation is wrapped, because an operation is thenable
+     * and an async function would unwrap it.
+     */
+    const answer = async (
+      client: AgentContext,
+      sessionId: string,
+      session: HarnessSession,
+      interrupts: ReadonlyArray<Interrupt>,
+    ): Promise<{ next?: Operation<unknown>; cancelled?: boolean }> => {
+      const items = interrupts.map((interrupt) => ({
+        interrupt,
+        wait: waitOfInterrupt({ interrupt, runId: sessionId }),
+        url: signInUrl(interrupt),
+      }))
+      if (items.some(({ wait, url }) => canAsk(wait, url))) {
+        await notify(client, sessionId, {
+          sessionUpdate: 'state_update',
+          state: 'requires_action',
+        })
+      }
+      const resume: Array<RunAgentResumeItem> = []
+      for (const { interrupt, wait, url } of items) {
+        const toolCallId = toolCallIdOf(interrupt)
+        const reply = await askEditor({
+          client,
+          sessionId,
+          wait,
+          ...(toolCallId ? { toolCallId } : {}),
+          ...(url ? { url } : {}),
+        })
+        if (reply.status === 'stop') return { cancelled: true }
+        resume.push(
+          reply.status === 'resolved'
+            ? {
+                interruptId: interrupt.id,
+                status: 'resolved',
+                payload: reply.payload,
+              }
+            : { interruptId: interrupt.id, status: 'cancelled' },
+        )
+      }
+      const receipt = await session.resolve({ resume })
+      // For example `busy`: a later prompt runs already.
+      if (receipt.status === 'rejected') throw new InputRejectedError(receipt)
+      return {
+        next: receipt.operationId
+          ? session.operation(receipt.operationId)
+          : undefined,
+      }
+    }
+
+    /**
+     * Answer each question that the operation `operationId` asks while it
+     * runs (a `step.ask` of a durable tool, or an MCP server that asks), with
+     * a form elicitation. A question that the editor cannot or will not
+     * answer cancels the operation. Stops when `signal` aborts, or when the
+     * operation stops for interrupts: the pump answers those.
+     */
+    const answerQuestions = async ({
+      client,
+      sessionId,
+      session,
+      operationId,
+      signal,
+    }: {
+      client: AgentContext
+      sessionId: string
+      session: HarnessSession
+      operationId: string
+      signal: AbortSignal
+    }) => {
+      while (!signal.aborted) {
+        const wait = await session
+          .waitFor({ runId: operationId, signal })
+          .catch(() => undefined)
+        if (!wait) return
+        const isQuestion = session
+          .snapshot()
+          .pendingQuestions.some(({ questionId }) => questionId === wait.waitId)
+        if (!isQuestion) return
+        const reply = await askEditor({ client, sessionId, wait })
+        if (signal.aborted) return
+        if (reply.status !== 'resolved') {
+          await session.cancel({ operationId })
+          return
+        }
+        // A refused answer (it does not fit the schema) asks again.
+        await session.answer({ questionId: wait.waitId, value: reply.payload })
+      }
+    }
+
+    /**
+     * Cancel the open interrupts of a session (from a cancelled approval, or
+     * from another client), and wait for the turn that takes the answers. The
+     * thread takes no new prompt while an interrupt is open. Resolves `false`
+     * when the client cancelled that turn: its interrupts stay open.
+     */
+    const closeInterrupts = async (session: HarnessSession) => {
+      const open = session.snapshot().pendingInterrupts
+      if (open.length === 0) return true
+      const receipt = await session.resolve({
+        resume: open.map((interrupt) => ({
+          interruptId: interrupt.id,
+          status: 'cancelled' as const,
+        })),
+      })
+      if (receipt.status === 'rejected') throw new InputRejectedError(receipt)
+      // ponytail: the reply of the model to the cancel stays out of the client.
+      const turn = receipt.operationId
+        ? session.operation(receipt.operationId)
+        : undefined
+      let failure: unknown
+      await turn?.then(
+        () => {},
+        (error: unknown) => {
+          failure = error
+        },
+      )
+      if (turn?.status() === 'cancelled') return false
+      if (turn?.status() === 'failed') throw failure
+      if (session.snapshot().pendingInterrupts.length > 0) {
+        throw new Error(
+          'The model asked again for input that the client cannot give.',
+        )
+      }
+      return true
+    }
+
+    /**
+     * Close the open interrupts, run one prompt, and stream its turn to the
+     * client through its interrupts, then report idle. A failed turn, or a
+     * failure here, ends with the `error` stop reason.
+     */
+    const pump = async (
+      client: AgentContext,
+      sessionId: string,
+      session: HarnessSession,
+      input: Parameters<HarnessSession['send']>[0],
+    ) => {
+      let operation: Operation<unknown> | undefined
+      let stopReason: 'end_turn' | 'cancelled' | 'error' = 'end_turn'
+      let failure: string | undefined
+      const running = () =>
+        notify(client, sessionId, {
+          sessionUpdate: 'state_update',
+          state: 'running',
+        })
+      try {
+        await running()
+        if (await closeInterrupts(session)) operation = session.send(input)
+        else stopReason = 'cancelled'
+        const args = new Map<string, string>()
+        while (operation) {
+          const asking = new AbortController()
+          const questions = answerQuestions({
+            client,
+            sessionId,
+            session,
+            operationId: operation.id,
+            signal: asking.signal,
+          }).catch(() => {})
+          try {
+            for await (const chunk of operation.stream()) {
+              const update = toSessionUpdate(chunk, args)
+              if (update) await notify(client, sessionId, update)
+            }
+          } finally {
+            asking.abort()
+            await questions
           }
-        : stopReason === 'cancelled'
-          ? { sessionUpdate: 'state_update', state: 'idle', stopReason }
-          : { sessionUpdate: 'state_update', state: 'idle', stopReason },
-    )
+          const result: unknown = await operation.then(
+            (value) => value,
+            (error: unknown) => {
+              failure = error instanceof Error ? error.message : String(error)
+              return undefined
+            },
+          )
+          if (operation.status() === 'cancelled') stopReason = 'cancelled'
+          if (operation.status() === 'failed') stopReason = 'error'
+          const interrupts =
+            typeof result === 'object' &&
+            result !== null &&
+            'interrupts' in result &&
+            Array.isArray(result.interrupts)
+              ? (result.interrupts as Array<Interrupt>)
+              : []
+          if (interrupts.length === 0) break
+          const answered = await answer(client, sessionId, session, interrupts)
+          if (answered.cancelled) stopReason = 'cancelled'
+          operation = answered.next
+          if (operation) await running()
+        }
+      } catch (error) {
+        stopReason = 'error'
+        failure = error instanceof Error ? error.message : String(error)
+      }
+      await notify(
+        client,
+        sessionId,
+        stopReason === 'error'
+          ? {
+              sessionUpdate: 'state_update',
+              state: 'idle',
+              stopReason,
+              error: { code: -32603, message: failure ?? 'The turn failed.' },
+            }
+          : stopReason === 'cancelled'
+            ? { sessionUpdate: 'state_update', state: 'idle', stopReason }
+            : { sessionUpdate: 'state_update', state: 'idle', stopReason },
+      )
+    }
+
+    return {
+      handles,
+      live,
+      release,
+      releaseIfIdle,
+      checkKnown,
+      known,
+      notify,
+      pump,
+      tails,
+      /** Keep what the editor can show, from its `initialize`. */
+      initialize: (given: ClientCapabilities) => {
+        capabilities = given
+      },
+    }
+  }
+
+  /** The state of each connection, by the SDK context of the connection. */
+  const connections = new WeakMap<object, ReturnType<typeof forConnection>>()
+  /** The state of the connection of `client`. */
+  const connectionOf = (client: AgentContext) => {
+    // ponytail: the SDK gives a handler no public id of its connection. Its
+    // `cx` is the one context object of the connection.
+    const key: object = client['cx']
+    let state = connections.get(key)
+    if (!state) {
+      state = forConnection()
+      connections.set(key, state)
+    }
+    return state
   }
 
   return (
     agent()
       .onConnect((connection) => {
-        // The handles of the sessions go with the connection.
+        // The handles of the sessions of this connection go with it.
+        const state = connectionOf(connection.client)
         void connection.closed.then(() =>
-          Promise.all([...handles.keys()].map(release)),
+          Promise.all([...state.handles.keys()].map(state.release)),
         )
       })
-      .onRequest('initialize', ({ params }) => {
-        capabilities = params.capabilities ?? {}
+      .onRequest('initialize', ({ params, client }) => {
+        connectionOf(client).initialize(params.capabilities ?? {})
         return {
           protocolVersion: PROTOCOL_VERSION,
           info: { name: harness.name, version: options.version ?? '0.0.0' },
@@ -762,7 +819,8 @@ export function createAcpAgent<P extends Principal = Principal>(
           },
         }
       })
-      .onRequest('session/new', async () => {
+      .onRequest('session/new', async ({ client }) => {
+        const { live, releaseIfIdle } = connectionOf(client)
         const sessionId = `acp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
         // The open saves the session in the session index. The first prompt
         // opens it again.
@@ -793,11 +851,13 @@ export function createAcpAgent<P extends Principal = Principal>(
         }
       })
       // The session opens at its first prompt: a resume mounts nothing.
-      .onRequest('session/resume', async ({ params }) => {
-        await checkKnown(params.sessionId)
+      .onRequest('session/resume', async ({ params, client }) => {
+        await connectionOf(client).checkKnown(params.sessionId)
         return {}
       })
       .onRequest('session/prompt', async ({ params, client }) => {
+        const { known, notify, pump, releaseIfIdle, tails } =
+          connectionOf(client)
         const { sessionId } = params
         const messageId = `user-${crypto.randomUUID()}`
         /**
@@ -849,8 +909,11 @@ export function createAcpAgent<P extends Principal = Principal>(
         return { messageId }
       })
       // Only the handle of this agent goes. Other handles keep the session.
-      .onRequest('session/close', ({ params }) => release(params.sessionId))
-      .onNotification('session/cancel', async ({ params }) => {
+      .onRequest('session/close', ({ params, client }) =>
+        connectionOf(client).release(params.sessionId),
+      )
+      .onNotification('session/cancel', async ({ params, client }) => {
+        const { handles, live } = connectionOf(client)
         // While the client asks for an approval, no turn runs: the client
         // answers that request with `cancelled`, and the turn stops there.
         if (!handles.has(params.sessionId)) return

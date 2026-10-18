@@ -532,6 +532,9 @@ export class SessionImpl<
           operationId,
           event,
         }),
+      // Records of another host: the settings, the config, and the
+      // interrupted turn come from the new fold.
+      onRemoteFold: () => this.syncFromLog(),
       // This host became the owner. The event goes in the next append.
       onOwned: (change) =>
         this.feed.publish(

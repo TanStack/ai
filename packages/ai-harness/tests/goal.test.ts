@@ -4,6 +4,7 @@ import { toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import { GoalMet, goal, selectGoal } from '../src/first-party'
+import { loadLogState, logIdOf, sessionOf } from '../src/log'
 import {
   after,
   appendToLog,
@@ -518,5 +519,46 @@ describe('goal', () => {
     const state = { plugins: { 'tanstack/goal': { text: 'finish' } } }
 
     expect(selectGoal(state)).toBeNull()
+  })
+})
+
+describe('goal with two users', () => {
+  it('runs each round as the user who set the goal, not as the owner of the thread', async () => {
+    const main = mockAdapter([
+      () => text('Round one.'),
+      () => text('Round two.'),
+    ])
+    const { judge } = scriptedJudge([
+      { met: false, reason: 'Not yet.' },
+      { met: true, reason: 'Done.' },
+    ])
+    const persistence = memoryPersistence()
+    const host = createHarnessHost({ persistence })
+    const harness = defineHarness({
+      name: 'test/goal',
+      adapter: main.adapter,
+      plugins: () => [goal({ judge })],
+    })
+    // Olga opens the thread first, so she owns it.
+    await host.open(harness, { threadId: 't', principal: { id: 'olga' } })
+    const bea = await host.open(harness, {
+      threadId: 't',
+      principal: { id: 'bea' },
+    })
+
+    await bea.command({ name: 'goal', input: 'ship it' })
+    await waitFor(() => expect(main.calls).toHaveLength(2))
+    await bea.whenIdle()
+
+    const state = await loadLogState({
+      store: persistence.stores.log,
+      logId: logIdOf({ logId: 't' }),
+      rootThread: 't',
+    })
+    const prompts = [...sessionOf(state, 't').inputs.values()]
+      .filter((logged) => logged.input.op === 'prompt')
+      .map((logged) => logged.principal?.id)
+    expect(prompts).toEqual(['bea', 'bea'])
+    await host.close()
   })
 })

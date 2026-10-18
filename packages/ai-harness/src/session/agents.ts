@@ -124,7 +124,8 @@ export abstract class SessionAgents<
    * command, a protocol input). `undefined` when no such agent exists.
    */
   agent(name: string): DynamicAgentHandle | undefined {
-    if (!this.agentRegistry.get(name)) return undefined
+    // An agent of a plugin that this thread removed does not exist here.
+    if (!this.threadAgent(name)) return undefined
     return this.agentHandle(name)
   }
 
@@ -141,7 +142,14 @@ export abstract class SessionAgents<
     const follower = new OperationImpl<unknown>(
       'agent',
       this.feed,
-      () => this.cancel({ operationId: target }),
+      () => {
+        // It acts as the user of the run, as a cancel of the run does.
+        const principal = this.principalOfRun(target)
+        return this.cancel({
+          operationId: target,
+          ...(principal ? { principal } : {}),
+        })
+      },
       chain?.agent,
     )
     void this.sendToAgent({
@@ -516,6 +524,7 @@ export abstract class SessionAgents<
           },
           (inner, ctx) =>
             this.runHarnessChild(inner, ctx, { operation, principal }),
+          run,
         )
         return { harness }
       })
@@ -1094,7 +1103,14 @@ export abstract class SessionAgents<
     for (const item of this.writer.state.thread.tree.values()) {
       if (item.chainInputId === first.inputId) node = item
     }
-    return chainFields(first, node)
+    const fields = chainFields(first, node)
+    // The input keeps only a parent run of agent code. The tree keeps the
+    // turn that started the chain too, so a run of the chain on any host
+    // knows that turn.
+    const parent = node?.parentRunId
+    return parent !== undefined && fields.parentRunId === undefined
+      ? { ...fields, turnRunId: parent }
+      : fields
   }
 
   /**
@@ -1165,10 +1181,17 @@ export abstract class SessionAgents<
     id?: string,
     startedCursor?: Cursor,
   ): AgentRunImpl {
+    // A call on the run itself acts as the user of the run, not as the
+    // principal that opened the session. A handle passes its own principal.
+    const user = (running: string) => {
+      const principal = this.principalOfRun(running)
+      return principal ? { principal } : {}
+    }
     const operation = new OperationImpl<unknown>(
       'agent',
       this.feed,
-      (running) => this.cancel({ operationId: running.id }),
+      (running) =>
+        this.cancel({ operationId: running.id, ...user(running.id) }),
       agent,
       id,
       startedCursor,
@@ -1179,9 +1202,18 @@ export abstract class SessionAgents<
       {
         send: (
           message: UserInput,
-          options?: { mode?: 'steer' | 'followUp'; inputId?: string },
+          options?: {
+            mode?: 'steer' | 'followUp'
+            inputId?: string
+            principal?: Principal
+          },
         ) =>
-          this.sendToAgent({ ...options, operationId: operation.id, message }),
+          this.sendToAgent({
+            ...user(operation.id),
+            ...options,
+            operationId: operation.id,
+            message,
+          }),
       },
     )
     this.track(run)
@@ -1614,8 +1646,9 @@ export abstract class SessionAgents<
         return
       }
     }
+    // By name, an agent of a plugin that this thread removed is unknown.
     const agent: AnyAgent | undefined =
-      typeof target === 'string' ? this.agentRegistry.get(target) : target
+      typeof target === 'string' ? this.threadAgent(target) : target
     if (!agent) {
       this.releaseStart(chain)
       this.reject(inputId, 'unknown_agent')
@@ -1763,6 +1796,7 @@ export abstract class SessionAgents<
           },
           (inner, ctx) =>
             this.runHarnessChild(inner, ctx, { operation, principal }),
+          run,
         )
         const stream = runAgentStream(
           agent,
@@ -2440,8 +2474,16 @@ export abstract class SessionAgents<
       if (queued.has(id)) continue
       this.pendingNotes.push({ id, role: 'assistant', content: note })
     }
-    for (const [jobId, backendId] of [...writer.state.jobs]) {
-      if (this.jobs.has(jobId) || backendId !== undefined) continue
+    const lost = [...writer.state.jobs]
+      .filter(
+        ([jobId, backendId]) =>
+          !this.jobs.has(jobId) && backendId === undefined,
+      )
+      .map(([jobId]) => jobId)
+    // Only the owner notes them. While another live host owns the log, the
+    // job runs there.
+    if (lost.length > 0 && !(await writer.own())) return
+    for (const jobId of lost) {
       const id = createMessageId()
       const note = `Background job ${jobId} stopped when the host restarted.`
       this.pendingNotes.push({ id, role: 'assistant', content: note })

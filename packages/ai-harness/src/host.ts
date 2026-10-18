@@ -9,16 +9,18 @@ import {
   logIdOf,
   loggedTargetOf,
   parseLogId,
+  sessionOf,
 } from './log'
 import { HostEventBus, tenantOfHostEvent } from './host-event-bus'
 import { refreshFlights } from './auth'
 import { HostPlugins } from './host-plugins'
 import { purgeThreadData } from './purge'
-import { HostOwnership } from './ownership'
+import { HostOwnership, OPEN_RETRY_MS } from './ownership'
 import { withSpan } from './observability'
 import { SessionImpl } from './session/harness-session'
 import { authorizeInput, sessionHandle } from './session/handle'
 import {
+  WORK_OPS,
   createInputId,
   createMessageId,
   offeredInputRecord,
@@ -439,8 +441,9 @@ export interface HostSessions<P extends Principal = Principal> {
   }) => Promise<SessionIndexEntry | undefined>
   /**
    * Remove the user `userId` from the members of a thread. Needs
-   * `membersOnly()`, and the `share` action. The work that the user started
-   * on the session in this host stops, and `host.revoke` runs for the user.
+   * `membersOnly()`, and the `share` action. The running and queued work
+   * that the user started on the thread stops, on any host, their schedules
+   * do not run, and `host.revoke` runs for the user.
    * The owner cannot be removed. Resolves to the changed entry, or
    * `undefined` for a thread that has no entry.
    *
@@ -799,9 +802,13 @@ export interface HarnessHost<P extends Principal = Principal> {
    * Take the access of the user `principal` to a thread, after your app
    * changed its own access tables. `host.events()` yields a `revoked`
    * event, so the user's streams close. On a host with access, the open
-   * handles of that user on the thread throw `AccessDeniedError` from now
-   * on, and a new `host.open` asks `authorize` again. The `tenantId` of
-   * `principal` picks the tenant. Only `id` and `tenantId` are read.
+   * handles and `host.observe` views of that user on the thread throw
+   * `AccessDeniedError` from now on, their running `events()` reads end
+   * with it, and a new `host.open` asks `authorize` again. The running and
+   * queued work of the user on the thread is cancelled on any host, and
+   * their schedules do not run. Resolves when the cancels are sent. The
+   * `tenantId` of `principal` picks the tenant. Only `id` and `tenantId`
+   * are read.
    *
    * @example
    * ```ts
@@ -811,7 +818,7 @@ export interface HarnessHost<P extends Principal = Principal> {
   revoke: (options: {
     threadId: string
     principal: { id: string; tenantId?: string }
-  }) => void
+  }) => Promise<void>
   /**
    * The user of `request`, from `access.identify`, or `null` when
    * `identify` refuses it. Network code other than the HTTP handler (an MCP
@@ -1101,7 +1108,8 @@ export interface HostSweep {
    * Acquire the log of `orphan`, open its thread with `harness`, and take
    * its work over, as `host.resumePending` does for each log. Resolves
    * `null` when another host got the log. Rejects when the thread does not
-   * open: the log goes back, so a later sweep tries again.
+   * open: the log goes back with a wake of `OPEN_RETRY_MS`, so a sweep
+   * after that time tries again.
    */
   takeOver: (
     orphan: OrphanedLog,
@@ -1809,10 +1817,11 @@ export function createHarnessHost<P extends Principal = Principal>(
     // Of two hosts that sweep at once, one gets the log.
     const epoch = held ?? (await ownership.acquire(storeLogId, name))
     if (epoch === null) return null
-    // Only an ownership that this sweep acquired goes back here.
-    const giveBack = () =>
+    // Only an ownership that this sweep acquired goes back here. `wakeIn`
+    // lists the log again after that time, so a later sweep tries again.
+    const giveBack = (wakeIn?: number) =>
       held === undefined
-        ? ownership.release(storeLogId, epoch)
+        ? ownership.release(storeLogId, epoch, wakeIn)
         : Promise.resolve()
     // The store id of a log is its tenant and its root thread.
     const { tenantId, logId: threadId } = parseLogId(storeLogId)
@@ -1838,9 +1847,10 @@ export function createHarnessHost<P extends Principal = Principal>(
         return null
       }
     } catch (error) {
-      // The log goes back, so the next sweep tries again.
+      // The log goes back with a wake, so a sweep after the wait tries
+      // again. With no wake, no sweep lists the log again.
       if (isOwn) endSweep(key)
-      await giveBack().catch(() => {})
+      await giveBack(OPEN_RETRY_MS).catch(() => {})
       throw error
     }
     const thread: ResumedThread = {
@@ -1858,8 +1868,29 @@ export function createHarnessHost<P extends Principal = Principal>(
   // ponytail: one count per revoked user and thread, for the life of the
   // host. Drop the old ones if a host revokes millions.
   const revocations = new Map<string, number>()
+  /**
+   * The reads that run now (`handle.events()`, a view of `host.observe`),
+   * by revoked key: a revoke ends them.
+   */
+  const revokeListeners = new Map<string, Set<() => void>>()
+  /** Call `listener` at the next revoke of `key`. Returns the stop. */
+  const onRevoke = (key: string, listener: () => void) => {
+    let listeners = revokeListeners.get(key)
+    if (!listeners) {
+      listeners = new Set()
+      revokeListeners.set(key, listeners)
+    }
+    const set = listeners
+    set.add(listener)
+    return () => {
+      set.delete(listener)
+      if (set.size === 0 && revokeListeners.get(key) === set) {
+        revokeListeners.delete(key)
+      }
+    }
+  }
 
-  /** Count a revoke, and tell the readers of `host.events()`. */
+  /** Count a revoke, end the reads of the user, and tell `host.events()`. */
   const revokeUser = ({
     tenantId,
     threadId,
@@ -1871,6 +1902,7 @@ export function createHarnessHost<P extends Principal = Principal>(
   }) => {
     const key = revokedKey(tenantId, threadId, principalId)
     revocations.set(key, (revocations.get(key) ?? 0) + 1)
+    for (const listener of [...(revokeListeners.get(key) ?? [])]) listener()
     emit({
       type: 'revoked',
       ...(tenantId !== undefined ? { tenantId } : {}),
@@ -1997,6 +2029,7 @@ export function createHarnessHost<P extends Principal = Principal>(
     const count = revocations.get(key) ?? 0
     return {
       isRevoked: () => (revocations.get(key) ?? 0) !== count,
+      onRevoke: (listener) => onRevoke(key, listener),
       authorize: async (action, run, wait) =>
         allow({
           principal,
@@ -2105,6 +2138,82 @@ export function createHarnessHost<P extends Principal = Principal>(
     return opened.flatMap((entry) =>
       entry.status === 'fulfilled' ? [entry.value] : [],
     )
+  }
+
+  /**
+   * Stop the work of the user `userId` on a thread, on any host, after
+   * `unshare` or `revoke` took their access. The sessions open here cancel
+   * it at once. Then each input of the user that did not end gets a cancel
+   * through the input lane, so the owner of the log stops it, on any host.
+   * Each schedule of the user takes its input id in the lane, so it never
+   * runs: the store keeps each input id once. `principal` is who stops the
+   * work, and the log keeps it. A failure is a warning: the access is gone
+   * already.
+   */
+  const stopWorkOf = async ({
+    tenantId,
+    threadId,
+    userId,
+    principal,
+  }: {
+    tenantId: string | undefined
+    threadId: string
+    userId: string
+    principal: P | undefined
+  }) => {
+    try {
+      const open = await openSessionsOf(tenantId, threadId)
+      for (const session of open) {
+        await session.cancelWorkOf({ userId, principal })
+      }
+      const entry = await index.get({ tenantId, threadId })
+      // The lane needs the harness of the log.
+      if (entry?.harness === undefined) return
+      const harness = entry.harness
+      const logId = logIdOf({ tenantId, logId: threadId })
+      const state = await loadLogState({
+        store: logStore,
+        logId,
+        rootThread: threadId,
+      })
+      const root = sessionOf(state, threadId)
+      /** The sessions here stopped the operations that they know. */
+      const isKnownHere = (operationId: string) =>
+        open.some((session) => session.operation(operationId) !== undefined)
+      const offer = (
+        inputId: string,
+        record: Parameters<LogStore['offer']>[0]['record'],
+      ) => logStore.offer({ logId, harness, inputId, record })
+      for (const logged of root.inputs.values()) {
+        const isTheirs =
+          logged.principal?.id === userId && WORK_OPS.has(logged.input.op)
+        const hasEnded =
+          logged.status === 'settled' ||
+          logged.status === 'rejected' ||
+          logged.status === 'joined'
+        if (!isTheirs || hasEnded) continue
+        const { operationId } = logged
+        if (operationId !== undefined && isKnownHere(operationId)) continue
+        const input: HarnessInput =
+          operationId === undefined
+            ? { op: 'cancelInput', inputId: logged.inputId }
+            : { op: 'cancel', operationId }
+        const inputId = createInputId()
+        await offer(inputId, offeredInputRecord({ inputId, input, principal }))
+      }
+      for (const [scheduleId, schedule] of root.thread.schedules) {
+        if (schedule.principal?.id !== userId || !schedule.input) continue
+        // The id that the schedule offers its input with when it fires.
+        await offer(`schedule:${scheduleId}`, {
+          type: 'harness.schedule.done',
+          scheduleId,
+        })
+      }
+    } catch (error) {
+      console.warn(
+        `[@tanstack/ai-harness] The work of ${JSON.stringify(userId)} on thread ${JSON.stringify(threadId)} did not stop: ${String(error)}`,
+      )
+    }
   }
 
   /** The thread ids of the index entries with `threadId` as parent. */
@@ -2274,8 +2383,9 @@ export function createHarnessHost<P extends Principal = Principal>(
       if (isClosed) throw hostClosed()
       const tenantId = principal?.tenantId
       const entry = await index.get({ tenantId, threadId })
+      let user: P | undefined
       if (access) {
-        const user = need(principal, 'host.observe')
+        user = need(principal, 'host.observe')
         // No entry is not found: the same answer as a refusal.
         if (!entry) throw new AccessDeniedError({ action: 'read', threadId })
         // `allow` checks a child thread through its root thread.
@@ -2285,6 +2395,9 @@ export function createHarnessHost<P extends Principal = Principal>(
       // A child thread has its records in the log of its root, with its
       // thread on each. A thread with no entry is a root.
       const root = entry ? (await rootOf(entry)).threadId : threadId
+      // A revoke of the user on the thread (its root) ends the view: each
+      // later call throws, and a read that runs now stops.
+      const revoked = user && guardOf(user, root)
       const ids = {
         logId: logIdOf({ tenantId, logId: root }),
         rootThread: root,
@@ -2303,7 +2416,11 @@ export function createHarnessHost<P extends Principal = Principal>(
         },
         check: () => {
           if (isClosed) throw hostClosed()
+          if (revoked?.isRevoked()) {
+            throw new AccessDeniedError({ action: 'read', threadId })
+          }
         },
+        ...(revoked ? { onRevoke: revoked.onRevoke } : {}),
         index,
         media,
         readLog: () => readLog(logStore, ids, harness, threadId),
@@ -2472,12 +2589,21 @@ export function createHarnessHost<P extends Principal = Principal>(
         await release(sourceKey)
       }
     },
-    revoke: ({ threadId, principal }) =>
+    revoke: async ({ threadId, principal }) => {
+      // At once, so the handles of the user refuse each call from now on.
       revokeUser({
         tenantId: principal.tenantId,
         threadId,
         principalId: principal.id,
-      }),
+      })
+      // No principal stops it: the app changed its own access tables.
+      await stopWorkOf({
+        tenantId: principal.tenantId,
+        threadId,
+        userId: principal.id,
+        principal: undefined,
+      })
+    },
     hasAccess: access !== undefined,
     async identify({ request }) {
       if (!access) {
@@ -2822,10 +2948,7 @@ export function createHarnessHost<P extends Principal = Principal>(
         })
         // After the write, so no new work of the user gets through. The log
         // keeps who cancelled it.
-        const open = await openSessionsOf(tenantId, threadId)
-        for (const session of open) {
-          await session.cancelWorkOf({ userId, principal: user })
-        }
+        await stopWorkOf({ tenantId, threadId, userId, principal: user })
         revokeUser({ tenantId, threadId, principalId: userId })
         return changed
       },

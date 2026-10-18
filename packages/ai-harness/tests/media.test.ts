@@ -266,6 +266,40 @@ describe('createMediaStore', () => {
     expect(await store.dataUrl(a.id)).toBe('data:image/png;base64,YWFhYWE=')
   })
 
+  it('keeps one base64 cap for all the threads of a blob store', async () => {
+    const persistence = memoryPersistence()
+    const blobGet = vi.spyOn(persistence.stores.blobs, 'get')
+    // Each 5-byte file is 8 characters of base64: two fit in 16, for both
+    // threads together.
+    const one = createMediaStore({
+      persistence,
+      threadId: 't1',
+      encodedBytes: 16,
+    })
+    const two = createMediaStore({
+      persistence,
+      threadId: 't2',
+      encodedBytes: 16,
+    })
+    const put = (store: typeof one, body: string) =>
+      store.put(body, { mimeType: 'image/png', name: `${body}.png` })
+    const a = await put(one, 'aaaaa')
+    const b = await put(two, 'bbbbb')
+    const c = await put(one, 'ccccc')
+    const reads = async (store: typeof one, id: string) => {
+      const before = blobGet.mock.calls.length
+      await store.dataUrl(id)
+      return blobGet.mock.calls.length - before
+    }
+
+    expect(await reads(one, a.id)).toBe(1)
+    expect(await reads(two, b.id)).toBe(1)
+    // `c` pushes out `a`, the oldest, though `a` is of the other thread.
+    expect(await reads(one, c.id)).toBe(1)
+    expect(await reads(two, b.id)).toBe(0)
+    expect(await reads(one, a.id)).toBe(1)
+  })
+
   it('makes a data URL up to 1 MB only', async () => {
     const { store } = setup()
     const small = await store.put(encoder.encode('hello'), {

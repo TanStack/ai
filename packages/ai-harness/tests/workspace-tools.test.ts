@@ -1236,7 +1236,7 @@ describe('a workspace for each thread', () => {
     )
   }
 
-  it('closes the workspace that bind gave when the session closes', async () => {
+  it('closes the workspace that bind gave as moved when the session closes, so the thread can reattach it', async () => {
     const { workspace } = threadWorkspaces()
     const closed: Array<string> = []
     const closing: WorkspaceBinder = {
@@ -1258,7 +1258,8 @@ describe('a workspace for each thread', () => {
 
     await host.close()
 
-    expect(closed).toEqual(['closed'])
+    // A session close does not end the thread: a sandbox stays.
+    expect(closed).toEqual(['moved'])
   })
 
   it('keeps a thread in its root: no path through .. or a link reaches another root', async () => {

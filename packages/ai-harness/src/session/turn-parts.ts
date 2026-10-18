@@ -375,13 +375,19 @@ export abstract class SessionTurnParts<
    */
   protected async prepareTools(
     preparers: MountedPlugins['preparers'],
-    turn: { tools: Array<AnyTool>; model: string },
+    turn: { tools: Array<AnyTool>; model: string; run: RunContext },
     operation: OperationImpl<ChatTurnResult>,
   ): Promise<Array<AnyTool>> {
     let prepared = turn.tools
     for (const { prepare, owner } of preparers) {
       try {
-        prepared = [...(await prepare({ tools: prepared, model: turn.model }))]
+        prepared = [
+          ...(await prepare({
+            tools: prepared,
+            model: turn.model,
+            run: turn.run,
+          })),
+        ]
       } catch (error) {
         this.warn(operation, owner, error)
       }

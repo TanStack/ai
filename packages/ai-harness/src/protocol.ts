@@ -9,6 +9,7 @@ import type { AnyAgent } from './agents'
 import type { AnyHarness } from './define'
 import type { InlineMediaContext } from './inline-media'
 import type { HarnessSession, SessionSnapshot } from './session/index'
+import type { AgentRunStartOptions } from './session/types'
 import type {
   Cursor,
   HarnessInput,
@@ -409,9 +410,12 @@ export async function applyInput({
       if (!(harness.expose?.commands ?? []).includes(input.name)) {
         return notExposed
       }
+      // The client's id makes a resent command a duplicate, so it runs once.
+      const inputId = input.inputId ?? createInputId()
       const operation = session.command({
         name: input.name,
         input: input.input,
+        inputId,
         ...user,
       })
       // ponytail: a command has no receipt, so it is accepted at once. A
@@ -420,11 +424,7 @@ export async function applyInput({
         () => {},
         () => {},
       )
-      return {
-        inputId: operation.id,
-        status: 'accepted',
-        operationId: operation.id,
-      }
+      return { inputId, status: 'accepted', operationId: operation.id }
     }
     case 'answer':
       return session.answer({
@@ -495,15 +495,16 @@ export async function applyInput({
       // The run is the client's: its credentials and keys are theirs.
       // ponytail: accepted at once, as a command. A run that the host
       // refuses fails with a `RUN_ERROR` event.
-      const operation = handle.start(input.input, {
+      // The client's id makes a resent start a duplicate, so the agent runs
+      // once.
+      const inputId = input.inputId ?? createInputId()
+      const options: AgentRunStartOptions = {
         wake: input.detached === true,
+        inputId,
         ...user,
-      })
-      return {
-        inputId: operation.id,
-        status: 'accepted',
-        operationId: operation.id,
       }
+      const operation = handle.start(input.input, options)
+      return { inputId, status: 'accepted', operationId: operation.id }
     }
     case 'agentMessage': {
       const run = session.agentRun(input.operationId)

@@ -93,6 +93,12 @@ export type HarnessRecord =
     }
   | { type: 'harness.input.joined'; inputId: string; into: string }
   | { type: 'harness.input.rejected'; inputId: string; reason: string }
+  /**
+   * The owner refused an offer from the input lane, and the log has another
+   * input with its id. It does not change that input. Only the host that
+   * offered it ends its wait with the refusal.
+   */
+  | { type: 'harness.offer.rejected'; inputId: string; reason: string }
   | { type: 'harness.input.abort'; inputId: string }
   | {
       type: 'harness.turn.retry'
@@ -177,6 +183,7 @@ const HARNESS_RECORD_TYPES = new Set<string>([
   'harness.input.applied',
   'harness.input.joined',
   'harness.input.rejected',
+  'harness.offer.rejected',
   'harness.input.abort',
   'harness.turn.retry',
   'harness.input.delivery',
@@ -311,8 +318,35 @@ export interface LogState {
   jobs: Map<string, string | undefined>
   /** Notes that are not in the transcript yet, by message id. */
   notes: Map<string, string>
+  /**
+   * The last host records of the types in {@link KEPT_HOST_RECORDS}, oldest
+   * first. The snapshot keeps them, so a truncate of the log does not drop
+   * what `session.revert` reads.
+   */
+  keptRecords: Array<LogEntry>
   /** The thread state that the thread-state records fold to. */
   thread: ThreadStateFold
+}
+
+/**
+ * The host records that the fold keeps, by type, with how many of each it
+ * keeps: the file steps that `session.revert` reads.
+ */
+const KEPT_HOST_RECORDS: ReadonlyMap<string, number> = new Map([
+  ['tanstack/snapshots:step', 500],
+])
+
+/** Keep `entry` in `state` when its type is a kept host record type. */
+function keepHostRecord(state: LogState, entry: LogEntry) {
+  const limit = KEPT_HOST_RECORDS.get(entry.record.type)
+  if (limit === undefined) return
+  state.keptRecords.push(entry)
+  const ofType = state.keptRecords.filter(
+    (kept) => kept.record.type === entry.record.type,
+  )
+  if (ofType.length <= limit) return
+  const oldest = ofType[0]
+  state.keptRecords = state.keptRecords.filter((kept) => kept !== oldest)
 }
 
 /**
@@ -345,6 +379,7 @@ export function emptyLogState() {
     runUsage: new Map(),
     jobs: new Map(),
     notes: new Map(),
+    keptRecords: [],
     thread: emptyThreadState(),
   }
   return state
@@ -481,6 +516,7 @@ export function foldEntry(
   state.seq = entry.seq
   const { record } = entry
   if (!record.type.startsWith('harness.')) {
+    keepHostRecord(state, entry)
     const next = project
       ? hostFold(
           entry.seq,
@@ -495,6 +531,7 @@ export function foldEntry(
   if (!isHarnessRecord(record)) return
   switch (record.type) {
     case 'harness.event':
+    case 'harness.offer.rejected':
       return
     case 'harness.transcript':
       state.messages = [
@@ -916,6 +953,7 @@ function serialize(state: SharedLogState, versions: SnapshotVersions) {
           backendId === undefined ? jobId : [jobId, backendId],
         ),
         notes: [...session.notes.entries()],
+        keptRecords: session.keptRecords,
         thread: serializeThread(session.thread),
       },
     ]),
@@ -979,6 +1017,10 @@ function parseSession(value: unknown, seq: number) {
         ? (value.notes as Array<[string, string]>)
         : [],
     ),
+    // A state with no kept records gets an empty value.
+    keptRecords: Array.isArray(value.keptRecords)
+      ? (value.keptRecords as Array<LogEntry>)
+      : [],
     thread,
   }
   return session
@@ -1319,6 +1361,12 @@ export interface LogViewHooks {
    */
   onRemoteEvent?: (entry: SessionEvent) => void
   /**
+   * This log folded records that another host wrote: on a notification, or
+   * when this host acquires the log. It comes before the `onRemoteEvent`
+   * calls, so a session reads the new fold first.
+   */
+  onRemoteFold?: () => void
+  /**
    * This host became the owner of the log, before its first append. Only
    * one session of the log gets it: the root session when it is open.
    */
@@ -1459,6 +1507,13 @@ export class SharedLog<TState = unknown> {
    */
   private hasLeftWork = false
   private writing = false
+  /**
+   * The store notifications that came while this host appended. The store
+   * calls each instance once for each append, also for its own. A second
+   * call is another host's offer, so the write looks at the offers after
+   * its append.
+   */
+  private callsInWrite = 0
   private readonly unsubscribe: () => void
   private readonly stopLost: () => void
   private readonly stopWake: () => void
@@ -1511,17 +1566,17 @@ export class SharedLog<TState = unknown> {
       from: options.state.seq,
     })
     // Records from another writer join the fold. A call during this
-    // writer's own append is its own records.
+    // writer's own append can be its own records or another host's offer:
+    // the write looks at the offers after its append.
     this.unsubscribe = options.store.subscribe({
       logId: options.logId,
       listener: () => {
-        if (this.writing) return
-        this.catchUpLater()
-        // The call can be a new offer. The owner applies it. A host that
-        // offered applies its own offers when no live host owns the log.
-        if (this.epoch !== undefined || this.offeredHere.size > 0) {
-          this.notifyOffers()
+        if (this.writing) {
+          this.callsInWrite += 1
+          return
         }
+        this.catchUpLater()
+        this.onOffersChanged()
       },
     })
     this.stopLost = options.ownership.onLost(options.logId, (error) =>
@@ -1755,6 +1810,16 @@ export class SharedLog<TState = unknown> {
     if (epoch === undefined || isBusy || this.pending.length > 0) return
     this.epoch = undefined
     await this.ownership.release(this.logId, epoch)
+  }
+
+  /**
+   * A store notification can be a new offer. The owner applies it. A host
+   * that offered applies its own offers when no live host owns the log.
+   */
+  private onOffersChanged() {
+    if (this.epoch !== undefined || this.offeredHere.size > 0) {
+      this.notifyOffers()
+    }
   }
 
   /** Fold the records of another writer, after the queued writes. */
@@ -2081,6 +2146,7 @@ export class SharedLog<TState = unknown> {
     const epoch = await this.own()
     const seq = this.state.seq + 1
     this.writing = true
+    this.callsInWrite = 0
     try {
       await this.appendOnce({ seq, epoch, batch, consumes })
     } catch (error) {
@@ -2090,6 +2156,11 @@ export class SharedLog<TState = unknown> {
       throw error
     } finally {
       this.writing = false
+      // Only the owner appends, so a call is this append or an offer.
+      // Records of a new owner reach this host when its next renewal or
+      // write fails. A store that calls after the append calls outside of
+      // the write, and the listener looks at the offers then.
+      if (this.callsInWrite > 1) this.onOffersChanged()
     }
     batch.forEach((record, index) => this.apply({ seq: seq + index, record }))
     this.wake()
@@ -2289,6 +2360,13 @@ export class SharedLog<TState = unknown> {
       this.lose(new OwnershipLostError(this.logId, this.epoch))
     }
     this.wake()
+    for (const view of [...this.views.values()]) {
+      try {
+        view.hooks.onRemoteFold?.()
+      } catch {
+        // A hook never stops the fold of the log.
+      }
+    }
     // After the whole fold, so a hook reads the state after the events.
     for (const { thread, entry } of remote) {
       try {

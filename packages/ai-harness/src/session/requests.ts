@@ -781,15 +781,15 @@ export abstract class SessionRequests<
 
   /**
    * @internal Cancel the queued and running work that the user `userId`
-   * started: `host.sessions.unshare` stops it. `principal` is who cancels,
-   * and the log keeps it.
+   * started: `host.sessions.unshare` and `host.revoke` stop it. `principal`
+   * is who cancels, and the log keeps it.
    */
   async cancelWorkOf({
     userId,
     principal,
   }: {
     userId: string
-    principal: Principal
+    principal: Principal | undefined
   }): Promise<void> {
     const theirs = [...this.operations.values()].filter(
       (operation) =>
@@ -797,7 +797,10 @@ export abstract class SessionRequests<
         this.startedBy(operation.id).principalId === userId,
     )
     for (const operation of theirs) {
-      await this.cancel({ operationId: operation.id, principal })
+      await this.cancel({
+        operationId: operation.id,
+        ...(principal ? { principal } : {}),
+      })
     }
   }
 
@@ -970,8 +973,10 @@ export abstract class SessionRequests<
 
   /**
    * The session API of plugins. With `principal` (a command, a turn plugin),
-   * it acts for that user. Without it (a session plugin), its `principal` is
-   * the principal that opened the session. With `operationId` (a command, a
+   * it acts for that user. Without it (a session plugin), it acts for the
+   * owner of the session entry, else for the principal that opened the
+   * session. A `principal` option of `send` and `note` wins: a plugin passes
+   * the user whose work the turn continues. With `operationId` (a command, a
    * turn plugin), its questions belong to that operation.
    */
   protected override pluginApi(
@@ -979,13 +984,11 @@ export abstract class SessionRequests<
     metadataSchema?: SchemaInput,
     operationId?: string,
   ): PluginSessionApi {
-    // ponytail: D9. Without `principal`, `send`, `note`, and `ask` follow the
-    // running turn: its sender, and its operation for a question. PR 7
-    // rebuilds them on the run that calls.
-    const sender = () => principal ?? this.sender()
     // A session plugin acts for the owner of the entry, not for whoever
     // opened the session first on this host. The owner is known only after
-    // the session read its entry, so it is read at each call.
+    // the session read its entry, so it is read at each call. A turn of
+    // `send` or `note` never follows the sender of the running turn: that
+    // user did not start the work of the plugin.
     const owner = () => principal ?? this.owner ?? this.principal
     return {
       threadId: this.threadId,
@@ -994,17 +997,17 @@ export abstract class SessionRequests<
       },
       snapshot: () => this.snapshot(),
       // A plugin turn always waits its turn. It cannot see a busy rejection.
-      send: (text) =>
+      send: (text, options) =>
         this.startTurn(
           { op: 'prompt', message: text, busy: 'queue' },
-          { principal: sender() },
+          { principal: options?.principal ?? owner() },
         ),
       note: async (text, options) => {
         await this.addNote(text)
         if (options?.wake) {
           const receipt = await this.startTurn(
             { op: 'followUp', message: text },
-            { principal: sender(), wake: true },
+            { principal: options.principal ?? owner(), wake: true },
           ).receipt
           if (receipt.status === 'rejected')
             throw new InputRejectedError(receipt)
@@ -1147,7 +1150,15 @@ export abstract class SessionRequests<
     const operation = new OperationImpl<ChatTurnResult>(
       'chat',
       this.feed,
-      (target) => this.cancel({ operationId: target.id }),
+      (target) => {
+        // A cancel on the turn itself acts as its sender, not as the
+        // principal that opened the session. A handle passes its own.
+        const principal = this.principalOfRun(target.id)
+        return this.cancel({
+          operationId: target.id,
+          ...(principal ? { principal } : {}),
+        })
+      },
       undefined,
       id,
       startedCursor,

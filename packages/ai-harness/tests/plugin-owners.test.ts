@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
+import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createCapability, defineAgent, toolDefinition } from '@tanstack/ai'
 import { AgentRegistry } from '../src/agents'
 import { defineCommand } from '../src/commands'
 import { configOption } from '../src/config'
 import { createExtensionPoint, createPluginEvent } from '../src/extensions'
 import { definePlugin, mountPlugins } from '../src/plugins'
+import { createHarnessHost, defineHarness } from '../src'
+import { mockAdapter, text } from './helpers'
 import type { MountedPlugins, PluginSetupContext } from '../src/plugins'
 
 const env = () => ({
@@ -136,6 +139,29 @@ describe('MountedPlugins.withoutOwners', () => {
     ])
   })
 
+  it('reads the commands and agents that a kept plugin sets after the copy', async () => {
+    let saved: PluginSetupContext | undefined
+    const late = definePlugin({
+      name: 'late',
+      setup: (ctx) => {
+        saved = ctx
+      },
+    })
+    const mounted = await mountPlugins([late, contributor('b').plugin], env())
+    const kept = mounted.withoutOwners(['b'])
+
+    saved?.commands.set(
+      'deploy',
+      defineCommand({ description: 'Deploy', run: () => 'deployed' }),
+    )
+    saved?.agents.set(agentNamed('late-subagent'), { subagent: true })
+
+    expect(contents(kept).commands).toEqual(['deploy'])
+    expect(contents(kept).subagents).toEqual(['late-subagent'])
+    saved?.commands.delete('deploy')
+    expect(contents(kept).commands).toEqual([])
+  })
+
   it('refuses to remove a plugin whose capability a kept plugin requires', async () => {
     const a = contributor('a')
     const reader = definePlugin({
@@ -175,5 +201,38 @@ describe('ctx.on', () => {
     const removed = removeListener.mock.calls.map((call) => call[1])
     expect(added).toHaveLength(3)
     expect(added.filter((item) => !removed.includes(item))).toEqual([])
+  })
+})
+
+describe('a thread that removes a plugin', () => {
+  it('does not run an agent of that plugin by name', async () => {
+    const worker = defineAgent({
+      name: 'worker',
+      description: 'Works',
+      run: async () => 'worked',
+    })
+    const plugin = definePlugin({
+      name: 'test/workers',
+      setup: () => ({ agents: [worker] }),
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/plugin-owners',
+        adapter: mockAdapter(() => text('ok')).adapter,
+        plugins: () => [plugin],
+      }),
+      { threadId: 't' },
+    )
+    const byName = session.agent('worker')
+    expect(await byName?.run()).toBe('worked')
+
+    await session.configure({
+      settings: { plugins: { remove: ['test/workers'] } },
+    })
+
+    expect(session.agent('worker')).toBeUndefined()
+    await expect(byName?.start()).rejects.toThrow('Unknown agent: worker')
+    await host.close()
   })
 })

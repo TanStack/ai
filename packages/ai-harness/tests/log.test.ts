@@ -21,7 +21,7 @@ import {
   sessionOf,
 } from '../src/log'
 import { HostOwnership, LogOwnedElsewhereError } from '../src/ownership'
-import { wrapLogStore, writeAsOtherHost } from './helpers'
+import { CRASHING_OWNERSHIP, wrapLogStore, writeAsOtherHost } from './helpers'
 import { HARNESS_EVENTS } from '../src/types'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { LogRecord, LogSnapshot, LogStore } from '@tanstack/ai-persistence'
@@ -685,7 +685,10 @@ describe('write failures', () => {
     // the test: a host that pauses.
     const first = new SharedLog({
       store,
-      ownership: hostOwnership(store, { ttlMs: 20, renewMs: 60_000 }),
+      ownership: hostOwnership(store, {
+        ...CRASHING_OWNERSHIP,
+        ttlMs: 20,
+      }),
       harness: HARNESS,
       logId: LOG,
       rootThread: THREAD,
@@ -1777,7 +1780,10 @@ describe('a log shared by sessions', () => {
     const onIdle = vi.fn()
     const log = new SharedLog({
       store,
-      ownership: hostOwnership(store, { ttlMs: 20, renewMs: 60_000 }),
+      ownership: hostOwnership(store, {
+        ...CRASHING_OWNERSHIP,
+        ttlMs: 20,
+      }),
       harness: HARNESS,
       logId: SHARED,
       rootThread: 'log-1',

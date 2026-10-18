@@ -835,6 +835,18 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     return cache.plugins
   }
 
+  /**
+   * The agent `name` of the session registry, as this thread has it:
+   * `undefined` when a plugin that this thread removed added it.
+   */
+  protected threadAgent(name: string): AnyAgent | undefined {
+    const owner = this.agentRegistry.ownerOf(name)
+    if (owner === undefined || this.removedPlugins().has(owner)) {
+      return undefined
+    }
+    return this.agentRegistry.get(name)
+  }
+
   /** Put each plugin's saved state in the snapshot before the first read. */
   protected loadPluginState() {
     for (const [plugin, load] of this.stateLoaders) {
@@ -1096,8 +1108,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
 
   /**
    * @internal No input being stored, no queued or running turn, no waiting
-   * steer, and no running agent. The host closes an idle session that no
-   * handle holds.
+   * steer, no running agent, and no background job of this host. The host
+   * closes an idle session that no handle holds.
    */
   isIdle(): boolean {
     // A follow-up that waits for its run keeps the thread busy.
@@ -1106,6 +1118,9 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     )
     if (hasFollowUps) return false
     return (
+      // A background job of this host runs in its memory. A close stops it,
+      // and its end note is lost.
+      this.jobs.size === 0 &&
       // A live wait (an `ask()`) waits in this host's memory: its answer
       // must come here, so it keeps the log. A wait that only the log keeps
       // does not: the session is idle, and an answer reaches any host.
@@ -1175,9 +1190,10 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
-   * Resolves when the thread is idle: no input is being stored, and no turn,
-   * steer, agent run, or command runs or waits. A thread that waits for a
-   * human (an approval, a sign-in) is idle. When the thread is idle now, it
+   * Resolves when the thread is idle: no input is being stored, no turn,
+   * steer, agent run, or command runs or waits, and no background job of
+   * this host runs. A thread that waits for a human (an approval, a sign-in)
+   * is idle. When the thread is idle now, it
    * resolves at once. When `signal` aborts first, it rejects with the reason
    * of `signal`.
    *
@@ -1329,6 +1345,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     }
     // No one waits for a job record. A failed log write fails the session.
     this.writer.append([record]).catch(() => undefined)
+    // The last job ended: the host can close the session now.
+    if (ended) queueMicrotask(() => this.checkIdle())
   }
 
   // Implemented by a later layer of the class.

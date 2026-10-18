@@ -2,6 +2,7 @@ import { loadChildTranscript } from '@tanstack/ai-persistence'
 import { runStartOf, visibleMessages } from '../log'
 import { snapshotWaits } from '../waits'
 import { createMediaStore } from '../media'
+import { untilRevoked } from './handle'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
   BlobRange,
@@ -19,6 +20,7 @@ import type {
 } from '../define'
 import type { SessionIndexWriter } from '../host'
 import type { Cursor, MediaRecord, SessionEvent } from '../types'
+import type { HandleGuard } from './handle'
 import type { SessionImpl } from './harness-session'
 import type { SessionSnapshot } from './types'
 
@@ -108,8 +110,13 @@ export interface ObservedSources<THarness extends AnyHarness> {
   tenantId: string | undefined
   /** The open session of the thread on this host, or `undefined`. */
   live: () => SessionImpl<THarness> | undefined
-  /** Throws when the host is closed. */
+  /** Throws when the host is closed, and when a revoke took the access. */
   check: () => void
+  /**
+   * With access: call `listener` when `host.revoke` (or `unshare`) takes the
+   * access of the user of the view. A read that runs then stops.
+   */
+  onRevoke?: HandleGuard['onRevoke']
   index: SessionIndexWriter
   media: MediaPersistence
   /**
@@ -226,9 +233,19 @@ export function observedSession<THarness extends AnyHarness>(
     }
   }
 
+  const { onRevoke } = sources
   const view: ObservedSession<THarness> = {
     threadId,
-    events: (options) => events(options ?? {}),
+    // A revoke ends a read that runs now, not only the next call.
+    events: (options) =>
+      onRevoke
+        ? untilRevoked({
+            onRevoke,
+            threadId,
+            signal: options?.signal,
+            read: (signal) => events({ ...options, signal }),
+          })
+        : events(options ?? {}),
     async transcript() {
       const session = open()
       if (session) return session.transcript()

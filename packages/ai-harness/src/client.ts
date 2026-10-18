@@ -358,6 +358,17 @@ type SessionChange =
 const MAX_RECONNECT_DELAY_MS = 30_000
 
 /**
+ * A connection of `events()` that gets no bytes for this long is dead, for
+ * example after a laptop sleeps or a NAT drops the mapping. The client
+ * closes it and connects again from its last cursor. The server sends a
+ * ping every `stream.heartbeatMs` (default 20 s), so a live connection
+ * always sends bytes before this time.
+ * ponytail: 3 times the default heartbeat. Add a client option when a
+ * server sets `stream.heartbeatMs` above 20 s.
+ */
+const IDLE_TIMEOUT_MS = 60_000
+
+/**
  * The wait before reconnect number `attempt` (0 is the first): `base`
  * doubled for each attempt, up to 30 s. A random part takes up to half of
  * it away, so many clients do not reconnect at the same time.
@@ -614,6 +625,8 @@ export function createHarnessClient<THarness extends AnyHarness>(
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
     // Ends the wait before a reconnect.
     let wake: (() => void) | undefined
+    // Closes a connection that sends nothing for `IDLE_TIMEOUT_MS`.
+    let idle: ReturnType<typeof setTimeout> | undefined
     // One listener for all the connections: it stops the current read or
     // the current wait.
     const stopListening = whenAborted(signal, () => {
@@ -650,8 +663,19 @@ export function createHarnessClient<THarness extends AnyHarness>(
             throw new Error(`Harness events failed (${response.status})`)
           }
           eventOptions.onConnection?.('open')
-          reader = response.body.getReader()
-          const frames = sseFrames(reader, () => (attempt = 0))
+          const connection = response.body.getReader()
+          reader = connection
+          // Each read, a ping too, shows that the connection is alive. A
+          // cancel ends the read, and the loop below connects again.
+          const isAlive = () => {
+            clearTimeout(idle)
+            idle = setTimeout(() => cancelReader(connection), IDLE_TIMEOUT_MS)
+          }
+          isAlive()
+          const frames = sseFrames(reader, () => {
+            attempt = 0
+            isAlive()
+          })
           for await (const frame of frames) {
             if (
               typeof frame === 'object' &&
@@ -675,6 +699,8 @@ export function createHarnessClient<THarness extends AnyHarness>(
           // its first message. Try again, the same as after a network error.
           if (error instanceof Error && /\((401|403)\)/.test(error.message))
             throw error
+        } finally {
+          clearTimeout(idle)
         }
         if (signal?.aborted) return
         eventOptions.onConnection?.('reconnecting')

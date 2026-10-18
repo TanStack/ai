@@ -3,7 +3,11 @@ import {
   convertSchemaToJsonSchema,
   validateWithStandardSchema,
 } from '@tanstack/ai'
-import { UNOWNED_EPOCH, loadChildTranscript } from '@tanstack/ai-persistence'
+import {
+  LogTruncatedError,
+  UNOWNED_EPOCH,
+  loadChildTranscript,
+} from '@tanstack/ai-persistence'
 import { checkConfigValue } from '../config'
 import { transcriptText } from '../first-party/session-tools'
 import { LogOwnedElsewhereError } from '../ownership'
@@ -633,16 +637,19 @@ export abstract class SessionState<
       principal,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+    // The store took the input, so this host owns the log, and its fold has
+    // the settings that other hosts wrote. The change merges into them.
+    const current = this.settingsFromLog()
     let next: ThreadSettings
     try {
-      next = changeSettings(this.threadSettings, settings, this.settingNames())
+      next = changeSettings(current, settings, this.settingNames())
       this.checkRemovable(next)
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
       this.reject(inputId, reason)
       return this.keep({ inputId, status: 'rejected', reason })
     }
-    const movedFrom = this.threadSettings.cwd
+    const movedFrom = current.cwd
     this.threadSettings = next
     // Tell the model about a new folder, so it stops using the old paths.
     // A new thread gets no note: some providers refuse a conversation that
@@ -900,16 +907,33 @@ export abstract class SessionState<
     )
   }
 
-  /** The host records of `type` of this thread, from the log, oldest first. */
+  /**
+   * The host records of `type` of this thread, from the log, oldest first.
+   * When a truncate dropped the first records, the fold has the kept ones
+   * of them (see `keptRecords`), and the read goes on after the cut.
+   */
   protected async hostRecords(type: string) {
     const found: Array<Record<string, unknown>> = []
     let after = 0
     for (;;) {
-      const entries = await this.log.store.read({
-        logId: this.storeLogId,
-        after,
-        limit: 256,
-      })
+      let entries
+      try {
+        entries = await this.log.store.read({
+          logId: this.storeLogId,
+          after,
+          limit: 256,
+        })
+      } catch (error) {
+        const resumeAt =
+          error instanceof LogTruncatedError ? error.firstSeq - 1 : after
+        if (resumeAt <= after) throw error
+        for (const { seq, record } of this.writer.state.keptRecords) {
+          const isDropped = seq > after && seq <= resumeAt
+          if (isDropped && record.type === type) found.push(record)
+        }
+        after = resumeAt
+        continue
+      }
       for (const { seq, record } of entries) {
         after = seq
         const isOwn = threadOf(record, this.threadId) === this.threadId
@@ -1715,21 +1739,43 @@ export abstract class SessionState<
 
   /** Read the stored settings of this thread from the log. */
   protected loadSettings() {
+    this.threadSettings = this.settingsFromLog(this.threadSettings)
+  }
+
+  /** The stored settings in the fold of the log, over `base`. */
+  protected settingsFromLog(base: ThreadSettings = {}): ThreadSettings {
     const stored = this.writer.state.thread.settings
     const names = this.settingNames()
+    let settings = base
     for (const [key, value] of Object.entries(stored)) {
       try {
-        const next = changeSettings(
-          this.threadSettings,
-          { [key]: value },
-          names,
-        )
+        const next = changeSettings(settings, { [key]: value }, names)
         this.checkRemovable(next)
-        this.threadSettings = next
+        settings = next
       } catch {
         // A value the harness no longer takes (a removed model or plugin)
         // is dropped.
       }
+    }
+    return settings
+  }
+
+  /**
+   * Another host wrote to the log, and this log folded its records. Read
+   * the settings, the config values, and the interrupted turn from the fold
+   * again, so a turn and a change on this host use what that host wrote.
+   */
+  protected syncFromLog() {
+    // While the plugins mount (an open or a reload), the open reads them.
+    if (!this.sessionPlugins) return
+    this.threadSettings = this.settingsFromLog()
+    this.configValues.clear()
+    for (const [key, value] of this.configSnapshot()) {
+      this.configValues.set(key, value)
+    }
+    const logged = this.writer.state.thread.interrupted ?? undefined
+    if (stableJson(logged ?? null) !== stableJson(this.interrupted ?? null)) {
+      this.interrupted = logged
     }
   }
 

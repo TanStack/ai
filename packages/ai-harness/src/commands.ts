@@ -69,18 +69,27 @@ export interface PluginSessionApi<TMetadata = Record<string, unknown>> {
   /**
    * Start a chat turn, as if the user typed `text`. While a turn runs, the new
    * turn waits in the queue. Cancel the returned turn to drop it before it starts.
-   * In a command or a turn plugin, the turn runs as `principal`. In a session
-   * plugin, it runs as the sender of the running turn, else as `principal`.
+   * The turn runs as `options.principal`: pass the user whose work it
+   * continues, for example `ctx.context.run.principal` of the run that
+   * started the work. Default: `principal` of this API. It never runs as
+   * the sender of another running turn.
    */
-  send: (text: string) => Operation<ChatTurnResult>
+  send: (
+    text: string,
+    options?: { principal?: Principal },
+  ) => Operation<ChatTurnResult>
   /**
    * Add `text` to the transcript as an assistant note, not as a user prompt.
    * When no turn runs, the note is written at once. Else it is written before
    * the next turn starts. With `wake: true`, a new turn that sends `text` is
    * also queued, so the model can act on the note. Resolves when the note is
    * written or queued and the wake turn is queued, not when that turn ends.
+   * The wake turn runs as `options.principal`, as `send` does.
    */
-  note: (text: string, options?: { wake?: boolean }) => Promise<void>
+  note: (
+    text: string,
+    options?: { wake?: boolean; principal?: Principal },
+  ) => Promise<void>
   /** The saved transcript. */
   transcript: () => Promise<Array<ModelMessage>>
   /** Replace the saved transcript (for example after a summary). */

@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
+import {
+  createHarnessHost,
+  defineCommand,
+  defineHarness,
+  definePlugin,
+} from '../src'
 import {
   applyInput,
   createHarnessHandler,
@@ -24,6 +29,7 @@ import {
   negotiateVersion,
   requestIdOf,
 } from '../src/protocol'
+import type { Receipt } from '../src'
 import type { HostFrame } from '../src/server'
 import type { Reply } from './helpers'
 
@@ -218,6 +224,61 @@ describe('HTTP handler', () => {
     expect(await control({ op: 'prompt', message: 'x', inputId: 7 })).toEqual({
       error: 'Invalid input: inputId must be a string.',
     })
+    await host.close()
+  })
+
+  it('runs a resent command or agent start with the same inputId once', async () => {
+    const runs = { command: 0, agent: 0 }
+    const counter = defineAgent({
+      name: 'counter',
+      description: 'Counts its runs',
+      run: async () => ++runs.agent,
+    })
+    const harness = defineHarness({
+      name: 'test/protocol-resend',
+      adapter: mockAdapter([]).adapter,
+      agents: [counter],
+      plugins: () => [
+        definePlugin({
+          name: 'test/count',
+          setup: () => ({
+            commands: {
+              count: defineCommand({
+                description: 'Counts its runs',
+                run: () => ++runs.command,
+              }),
+            },
+          }),
+        }),
+      ],
+      expose: { agents: ['counter'], commands: ['count'] },
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(harness, { threadId: 'resend' })
+
+    // The operation of a receipt ends, also as a duplicate.
+    const settled = (receipt: Receipt) =>
+      receipt.operationId === undefined
+        ? undefined
+        : session.operation(receipt.operationId)?.then(
+            () => {},
+            () => {},
+          )
+    const command = { op: 'command', name: 'count', inputId: 'c-1' } as const
+    const first = await applyInput({ harness, session, input: command })
+    expect(first).toMatchObject({ inputId: 'c-1', status: 'accepted' })
+    await vi.waitFor(() => expect(runs.command).toBe(1), { timeout: 5000 })
+    await settled(await applyInput({ harness, session, input: command }))
+
+    const agent = { op: 'agent', agent: 'counter', inputId: 'a-1' } as const
+    expect(await applyInput({ harness, session, input: agent })).toMatchObject({
+      inputId: 'a-1',
+      status: 'accepted',
+    })
+    await vi.waitFor(() => expect(runs.agent).toBe(1), { timeout: 5000 })
+    await settled(await applyInput({ harness, session, input: agent }))
+
+    expect(runs).toEqual({ command: 1, agent: 1 })
     await host.close()
   })
 
@@ -491,6 +552,53 @@ describe('WebSocket', () => {
         snapshot: { status: 'idle' },
       }),
     )
+    socket.close()
+    await host.close()
+  })
+})
+
+describe('WebSocket frame order', () => {
+  it('applies the inputs of one socket in the order they came', async () => {
+    const { host, harness } = setup()
+    const { socket, sent, receive } = fakeSocket()
+    handleHarnessSocket({
+      host,
+      harness,
+      socket,
+      request: new Request('http://x/api/harness/socket', { headers: auth }),
+    })
+    receive({ type: 'harness.subscribe', threadId: 'user-1-order' })
+    await vi.waitFor(
+      () =>
+        expect(sent.some((frame) => frame.type === 'harness.hello')).toBe(true),
+      { timeout: 5000 },
+    )
+
+    // The first input stores its image before it reaches the session. The
+    // second is text only, so it is faster on its own.
+    const image = {
+      type: 'image',
+      source: { type: 'data', value: 'aGVsbG8=', mimeType: 'image/png' },
+    }
+    receive({
+      type: 'harness.input',
+      requestId: 'first',
+      input: { op: 'prompt', inputId: 'first', message: [image] },
+    })
+    receive({
+      type: 'harness.input',
+      requestId: 'second',
+      input: { op: 'prompt', inputId: 'second', message: 'B' },
+    })
+
+    const receipts = () =>
+      sent.flatMap((frame) =>
+        frame.type === 'harness.receipt' ? [frame.requestId] : [],
+      )
+    await vi.waitFor(() => expect(receipts()).toHaveLength(2), {
+      timeout: 5000,
+    })
+    expect(receipts()).toEqual(['first', 'second'])
     socket.close()
     await host.close()
   })

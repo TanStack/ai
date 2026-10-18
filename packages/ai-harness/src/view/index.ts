@@ -923,6 +923,38 @@ export function createSessionView(source: SessionViewSource) {
     }
   })
 
+  /**
+   * After a gap: the events of a part of the log are gone. Load the snapshot
+   * and the transcript again, as `ready` does, while `read` waits. The
+   * stream goes on after the gap's `resumeAt`. Its events up to the new
+   * snapshot cursor replay only for the operations that run now, and the
+   * parts that the transcript has are dropped by id.
+   */
+  const reload = async () => {
+    try {
+      // The snapshot before the transcript, as in `ready`.
+      const snapshot = await source.snapshot()
+      const transcript = await source.transcript()
+      if (disposed) return
+      commit({ ...get(), messages: messagesFromTranscript(transcript) })
+      takeSnapshot(snapshot)
+      saved = transcriptIds(transcript)
+      held = []
+      replayEnd = Number(snapshot.cursor)
+      replayOps = new Set(snapshot.activeOperations.map((item) => item.id))
+      // The children that loaded before load again, a parent before its
+      // nested children. The events do not wait for them.
+      const loaded = [...loadedAgents]
+      loadedAgents.clear()
+      savedAgents = new Set(agentIdsIn(get().messages))
+      void (async () => {
+        for (const id of loaded) await loadAgent(id)
+      })()
+    } catch (error) {
+      fail(error)
+    }
+  }
+
   const fire = (
     entry: SessionEvent,
     before: SessionViewState,
@@ -980,12 +1012,8 @@ export function createSessionView(source: SessionViewSource) {
         event.name === HARNESS_EVENTS.commandsChanged ||
         event.name === HARNESS_EVENTS.reloaded
       if (isDescriptionChange) refreshDescription()
-      // A gap: the events of a part of the log are gone, so the view loads
-      // the transcript (and the snapshot, see `changesSnapshot`) again.
-      const isReload =
-        event.name === HARNESS_EVENTS.revert ||
-        event.name === HARNESS_EVENTS.gap
-      if (isReload) refreshTranscript()
+      // A gap loads the transcript again too, in `read` (see `reload`).
+      if (event.name === HARNESS_EVENTS.revert) refreshTranscript()
     }
     for (const signIn of after.signIns)
       if (!before.signIns.includes(signIn)) emit('signIn', signIn)
@@ -1000,9 +1028,12 @@ export function createSessionView(source: SessionViewSource) {
       })
       for await (const entry of entries) {
         if (disposed) return
-        // A gap is not an event of an operation, so no replay drops it.
-        if (isGap(entry)) apply(entry)
-        else for (const ready of replayed(entry)) apply(ready)
+        // A gap is not an event of an operation, so no replay drops it. No
+        // event applies until the reload ends.
+        if (isGap(entry)) {
+          apply(entry)
+          await reload()
+        } else for (const ready of replayed(entry)) apply(ready)
       }
     } catch (error) {
       fail(error)

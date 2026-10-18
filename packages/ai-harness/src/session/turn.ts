@@ -732,6 +732,7 @@ export abstract class SessionTurn<
             turnToolNames,
           ),
           model: adapter.model,
+          run,
         },
         operation,
       )

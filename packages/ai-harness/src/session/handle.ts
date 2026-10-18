@@ -25,6 +25,41 @@ export interface HandleGuard {
   ) => Promise<void>
   /** `host.revoke` took the access of the principal of the handle. */
   isRevoked: () => boolean
+  /**
+   * Call `listener` when `host.revoke` (or `unshare`) takes the access of
+   * the principal of the handle. Returns a function that stops the calls.
+   */
+  onRevoke: (listener: () => void) => () => void
+}
+
+/**
+ * @internal The items of `read`, until `signal` aborts or `onRevoke` calls
+ * its listener. A revoke ends the read with `AccessDeniedError`, so a read
+ * that started before the revoke stops too.
+ */
+export async function* untilRevoked<T>({
+  onRevoke,
+  threadId,
+  signal,
+  read,
+}: {
+  onRevoke: HandleGuard['onRevoke']
+  threadId: string
+  signal: AbortSignal | undefined
+  read: (signal: AbortSignal) => AsyncIterable<T>
+}): AsyncGenerator<T> {
+  const revoked = new AbortController()
+  const stop = onRevoke(() => revoked.abort())
+  try {
+    yield* read(
+      signal ? AbortSignal.any([signal, revoked.signal]) : revoked.signal,
+    )
+  } finally {
+    stop()
+  }
+  if (revoked.signal.aborted) {
+    throw new AccessDeniedError({ action: 'read', threadId })
+  }
 }
 
 /** How a handle reaches the shared session of its thread. The host gives one. */
@@ -403,6 +438,44 @@ export function sessionHandle<THarness extends AnyHarness>({
     live(action)
     return run((target) => checkedOn(target, call))
   }
+  /** The operations that `guarded` wrapped, so one operation gets one wrapper. */
+  const wrapped = new WeakMap<object, unknown>()
+  /**
+   * `operation`, with its `cancel` and `send` through this handle: they act
+   * as the principal of the handle, after `authorize` allows them.
+   */
+  const guarded = <T extends Operation<unknown>>(operation: T): T => {
+    const known = wrapped.get(operation)
+    if (known) return known as T
+    const proxy = new Proxy(operation, {
+      get(target, key) {
+        if (key === 'cancel') {
+          return async () => cancel({ operationId: target.id })
+        }
+        const value: unknown = Reflect.get(target, key)
+        if (typeof value !== 'function') return value
+        if (key === 'send') {
+          return async (
+            message: UserInput,
+            options?: Omit<AgentSendOptions, 'to'>,
+          ) => {
+            const sent = send(message, { ...options, to: target.id })
+            const receipt = await sent.receipt
+            // A refused access check throws, as the calls of the handle do.
+            if (receipt.status === 'rejected') {
+              await Promise.resolve(sent).catch((error: unknown) => {
+                if (error instanceof AccessDeniedError) throw error
+              })
+            }
+            return receipt
+          }
+        }
+        return value.bind(target)
+      },
+    })
+    wrapped.set(operation, proxy)
+    return proxy
+  }
   /** A call that stores an input and returns its operation. */
   const storingOperation = <T extends Operation<unknown>>(
     kind: OperationKind,
@@ -410,7 +483,11 @@ export function sessionHandle<THarness extends AnyHarness>({
     agent?: string,
   ) => {
     live('send')
-    return runOperation(kind, (target) => checkedOn(target, call), agent)
+    return runOperation(
+      kind,
+      (target) => guarded(checkedOn(target, call)),
+      agent,
+    )
   }
   /**
    * A call that stores no input: it runs after `authorize` allows `action`.
@@ -434,7 +511,10 @@ export function sessionHandle<THarness extends AnyHarness>({
     run: (input?: unknown, options?: AgentRunOptions) =>
       storingOperation(
         'agent',
-        (target) => target.agentHandle(name, principal).run(input, options),
+        (target) =>
+          target
+            .agentHandle(name, actor(options?.principal))
+            .run(input, options),
         name,
       ),
     start: (input?: unknown, options?: AgentStartOptions) =>
@@ -474,18 +554,40 @@ export function sessionHandle<THarness extends AnyHarness>({
     live('read')
     const target = open()
     const isHeld = target !== undefined && !token.isReleased
-    return isHeld ? target.events(options) : heldEvents(options)
+    const read = (next?: EventsOptions) =>
+      isHeld ? target.events(next) : heldEvents(next)
+    if (!guard) return read(options)
+    // A revoke ends a read that runs now, not only the next call.
+    return untilRevoked({
+      onRevoke: guard.onRevoke,
+      threadId,
+      signal: options?.signal,
+      read: (signal) => read({ ...options, signal }),
+    })
+  }
+  const send = (message: UserInput, options?: SendOptions | AgentSendOptions) =>
+    storingOperation(options?.to === undefined ? 'chat' : 'agent', (target) =>
+      options?.to === undefined
+        ? target.send(message, as(options ?? {}))
+        : target.send(message, as(options)),
+    )
+  const cancel = (options?: Parameters<Session<THarness>['cancel']>[0]) =>
+    storing('cancel', (target) => target.cancel(as(options ?? {})))
+  /** The operation `id` of the session, through this handle. */
+  const operationOf = <T extends Operation<unknown>>(
+    find: (target: Session<THarness>) => T | undefined,
+  ) => {
+    live('read')
+    const found = find(open() ?? last)
+    return found && guarded(found)
   }
   const methods = new Map<PropertyKey, unknown>([
     ...Object.entries({
-      send: (message: UserInput, options?: SendOptions | AgentSendOptions) =>
-        storingOperation(
-          options?.to === undefined ? 'chat' : 'agent',
-          (target) =>
-            options?.to === undefined
-              ? target.send(message, as(options ?? {}))
-              : target.send(message, as(options)),
-        ),
+      send,
+      // A returned operation cancels, and an agent run takes messages,
+      // through this handle too.
+      operation: (id: string) => operationOf((target) => target.operation(id)),
+      agentRun: (id: string) => operationOf((target) => target.agentRun(id)),
       tool: (options: Parameters<Session<THarness>['tool']>[0]) =>
         storingOperation('chat', (target) => target.tool(as(options))),
       continue: (options?: Parameters<Session<THarness>['continue']>[0]) =>
@@ -505,8 +607,7 @@ export function sessionHandle<THarness extends AnyHarness>({
       ) => storing('answer', (target) => target.resolveForRun(as(options))),
       answer: (options: Parameters<Session<THarness>['answer']>[0]) =>
         storing('answer', (target) => target.answer(as(options))),
-      cancel: (options?: Parameters<Session<THarness>['cancel']>[0]) =>
-        storing('cancel', (target) => target.cancel(as(options ?? {}))),
+      cancel,
       cancelInput: (
         inputId: string,
         options?: Parameters<Session<THarness>['cancelInput']>[1],

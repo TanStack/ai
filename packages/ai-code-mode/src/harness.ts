@@ -7,7 +7,16 @@ import {
 } from '@tanstack/ai-harness'
 import { createCodeMode } from './create-code-mode'
 import type { AnyTool } from '@tanstack/ai'
+import type { PermissionMode } from '@tanstack/ai-harness'
 import type { CodeModeTool, CodeModeToolConfig } from './types'
+
+/** The permission modes of `permissions()`, for the `mode` setting. */
+const MODES: ReadonlyArray<PermissionMode> = [
+  'default',
+  'plan',
+  'acceptEdits',
+  'bypass',
+]
 
 export interface CodeModePluginOptions extends Omit<
   CodeModeToolConfig,
@@ -24,7 +33,8 @@ export interface CodeModePluginOptions extends Omit<
    * `include` cannot move a tool with `needsApproval`, or a tool that a rule
    * asks for or denies: such a tool stays a normal tool call, with its
    * approval and its checks. Code mode warns once for each such tool that `include`
-   * picks.
+   * picks. The rules decide in the permission mode of the session at each
+   * turn, so in plan mode a tool that edits stays a normal tool call.
    */
   include?: (tool: CodeModeTool) => boolean
   /**
@@ -120,15 +130,20 @@ export function codeMode(options: CodeModePluginOptions) {
           // Ask permissions() when it is mounted: it knows all rules in its
           // order and its default. Read here, so it can come after code mode.
           const decide = ctx.getOptional(PermissionDecisionCapability)
-          const decisionOf = (tool: CodeModeTool, mode: 'default' | 'plan') =>
+          const decisionOf = (tool: CodeModeTool, mode: PermissionMode) =>
             decide?.(tool.name, mode) ??
             decidePermission(rules, tool.name, mode)
           const safe = (tool: CodeModeTool) =>
             !tool.needsApproval && decisionOf(tool, 'plan') === 'allow'
+          // The permission mode of the session now, read at each turn. In
+          // plan mode, a tool that edits must stay a tool call, where the
+          // rules deny it.
+          const value = ctx.config.get('mode')
+          const mode = MODES.find((each) => each === value) ?? 'default'
           // `include` widens the pick past plan mode, but a call inside the
           // isolate must not skip an approval, an `ask` rule, or a deny rule.
           const canInclude = (tool: CodeModeTool) =>
-            !tool.needsApproval && decisionOf(tool, 'default') === 'allow'
+            !tool.needsApproval && decisionOf(tool, mode) === 'allow'
           const moves = (tool: CodeModeTool) => {
             // The permission checks run on tool calls of the model. A call
             // inside the isolate skips them, so such a tool stays a tool call.

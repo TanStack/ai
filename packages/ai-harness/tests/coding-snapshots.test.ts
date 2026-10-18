@@ -495,6 +495,42 @@ describe.skipIf(!hasGit)('snapshots', () => {
   })
 })
 
+describe.skipIf(!hasGit)('snapshots with a workspace for each thread', () => {
+  it('keeps the snapshots in the workspace that bind gave the thread', async () => {
+    // The workspace of each thread is a folder of its own, not `root`.
+    const own = join(base, 'thread-a')
+    await mkdir(own)
+    await writeFile(join(own, 'a.txt'), 'one')
+    const { adapter } = mockAdapter([
+      () => toolCall('write_file', { path: 'a.txt', content: 'two' }, 'w-1'),
+      () => text('Done.'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/snapshots-bind',
+        adapter,
+        plugins: () => [
+          workspaceTools({
+            workspace: { bind: async () => ({ ...hostBackend, root: own }) },
+            web: false,
+          }),
+          snapshots({ dataDir }),
+        ],
+      }),
+      { threadId: THREAD },
+    )
+
+    await session.send('Write a.txt')
+    expect(await readFile(join(own, 'a.txt'), 'utf8')).toBe('two')
+    expect(await session.command({ name: 'undo' })).toBe(
+      'Undid the last turn. Files restored: 1.',
+    )
+    expect(await readFile(join(own, 'a.txt'), 'utf8')).toBe('one')
+    await host.close()
+  })
+})
+
 describe.skipIf(!hasGit)('snapshots of many runs', () => {
   it("/undo of run A keeps the change that run B made during A's step", async () => {
     await put('a.txt', 'one')

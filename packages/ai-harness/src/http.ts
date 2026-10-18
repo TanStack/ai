@@ -208,11 +208,13 @@ function cursorResponse(
   // Not `request.signal`: some servers abort it once the body is read.
   const reader = new AbortController()
   watch?.(reader)
-  const cursors: Array<string> = []
+  // The stream encodes each event right after it pulls it, before the next
+  // pull, so the cursor of the last event is the only one it needs.
+  let cursor: string | undefined
   async function* chunks() {
     try {
       for await (const entry of read(reader.signal)) {
-        cursors.push(entry.cursor)
+        cursor = entry.cursor
         yield entry.event
       }
     } finally {
@@ -222,9 +224,7 @@ function cursorResponse(
   }
   return new Response(
     withHeartbeat(
-      toServerSentEventsStream(chunks(), reader, (_chunk, index) =>
-        cursors.at(index),
-      ),
+      toServerSentEventsStream(chunks(), reader, () => cursor),
       { heartbeatMs: stream.heartbeatMs },
     ),
     { headers: SSE_HEADERS },
@@ -466,9 +466,18 @@ function watchRevoke<P extends Principal>(
   onRevoke: () => void,
 ) {
   if (principal === undefined) return
+  const isRevoke = (event: HostEvent) => isRevokeOf(event, principal, threadId)
+  // Only the revokes of this principal, from the bus of its tenant: the
+  // filter runs before the queue, so other events cost this watch nothing,
+  // and the first revoke ends the watch, so its queue does not fill.
+  // A host that `createHarnessHost` did not make has `host.events()`.
+  const readTenant = tenantEventsOf(host)
+  const events = readTenant
+    ? readTenant({ tenantId: principal.tenantId, filter: isRevoke, signal })
+    : host.events({ signal })
   void (async () => {
-    for await (const event of host.events({ signal })) {
-      if (!isRevokeOf(event, principal, threadId)) continue
+    for await (const event of events) {
+      if (!isRevoke(event)) continue
       onRevoke()
       return
     }
@@ -779,32 +788,49 @@ export function createHarnessHandler<P extends Principal = Principal>(
   /**
    * The `host.events()` that `principal` may read. With access, a thread
    * needs the `read` action. The decision of each thread is kept for the
-   * stream, until a revoke or an index change of that thread. `accepts`
+   * stream, until a revoke or a delete of that thread. An index change of
+   * the thread drops only a decision that is not `true` (for example after
+   * a share), so the index changes of each turn read no store. `accepts`
    * reads no store, so the host event bus runs it before the queue.
    * `mayWatch` runs after the queue.
    */
   const watchedEvents = (principal: P | undefined) => {
     const user = principal ? { principal } : {}
     const decisions = new Map<string, Promise<boolean>>()
+    /** The threads whose kept decision is `true`. */
+    const readable = new Set<string>()
+    const forget = (threadId: string) => {
+      decisions.delete(threadId)
+      readable.delete(threadId)
+    }
     const mayRead = (threadId: string) => {
       const known = decisions.get(threadId)
       if (known) return known
-      const decision = host.sessions.get({ threadId, ...user }).then(
-        (entry) => entry !== undefined,
-        () => false,
-      )
+      const decision: Promise<boolean> = host.sessions
+        .get({ threadId, ...user })
+        .then(
+          (entry) => {
+            // A revoke while the read ran dropped this decision.
+            const isKept = decisions.get(threadId) === decision
+            if (entry !== undefined && isKept) readable.add(threadId)
+            return entry !== undefined
+          },
+          () => false,
+        )
       decisions.set(threadId, decision)
       return decision
     }
     const accepts = (event: HostEvent) => {
       if (tenantOfHostEvent(event) !== principal?.tenantId) return false
       if (event.type === 'revoked') {
-        decisions.delete(event.threadId)
+        forget(event.threadId)
         // A user hears of their own revokes only.
         return event.principalId === principal?.id
       }
-      if (event.type === 'session' || event.type === 'session-deleted') {
-        decisions.delete(event.threadId)
+      if (event.type === 'session-deleted') forget(event.threadId)
+      // A user who may read the thread keeps that until a revoke.
+      if (event.type === 'session' && !readable.has(event.threadId)) {
+        forget(event.threadId)
       }
       return true
     }
@@ -1457,6 +1483,10 @@ export function handleHarnessSocket<P extends Principal = Principal>(
   socket.addEventListener('close', () => reader.abort())
   socket.addEventListener('error', () => reader.abort())
   const frameLimit = maxBodyBytesOf(harness.media)
+  // The frames of the socket run one after another, as the stdio worker
+  // runs them: an input with media to store does not let a later input
+  // reach the session first.
+  let frames = Promise.resolve()
   socket.addEventListener('message', (message) => {
     const data = String(message.data)
     // A frame over `media.maxBodyBytes` is not parsed, so its error frame
@@ -1476,7 +1506,7 @@ export function handleHarnessSocket<P extends Principal = Principal>(
     // Read before the full parse, so a frame with a bad `input` still names
     // its request.
     const requestId = requestIdOf(data) ?? socketId
-    void (async () => {
+    frames = frames.then(async () => {
       try {
         const user = await who
         if (!user) return refuse('unauthorized', requestId)
@@ -1568,6 +1598,6 @@ export function handleHarnessSocket<P extends Principal = Principal>(
         // no session is open, so there is none to scrub.
         fail(code, errorMessage(scrubbedBy(holding, error)), requestId)
       }
-    })()
+    })
   })
 }

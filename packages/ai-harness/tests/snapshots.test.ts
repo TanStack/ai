@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai'
-import { memoryPersistence } from '@tanstack/ai-persistence'
-import { HARNESS_EVENTS, createHarnessHost, defineHarness } from '../src'
+import { UNOWNED_EPOCH, memoryPersistence } from '@tanstack/ai-persistence'
+import {
+  HARNESS_EVENTS,
+  createHarnessHost,
+  defineHarness,
+  definePlugin,
+} from '../src'
+import { RevertFiles } from '../src/plugins'
 import { createHarnessHandler } from '../src/server'
 import { createHarnessClient } from '../src/client'
 import { createSessionView } from '../src/view'
@@ -133,6 +139,66 @@ describe('log snapshots on a host', () => {
       ]),
     )
     view.dispose()
+    await host.close()
+  })
+
+  it('reverts after a truncate with the file steps from before the cut', async () => {
+    const persistence = memoryPersistence()
+    const step = {
+      type: 'tanstack/snapshots:step',
+      from: 'a',
+      to: 'b',
+      files: ['notes.md'],
+      toolCallIds: ['call-1'],
+    }
+    // A step record of the snapshots plugin, before the first turn.
+    await persistence.stores.log.append({
+      logId: LOG,
+      seq: 1,
+      epoch: UNOWNED_EPOCH,
+      records: [step],
+    })
+    const options: HarnessHostOptions = {
+      persistence,
+      log: { snapshot: { afterBytes: 1 } },
+      lifecycle: { retention: { logRecords: 'since-snapshot' } },
+    }
+    await seed(options)
+    const snapshot = await snapshotOf(persistence)
+    if (!snapshot) throw new Error('The first host wrote a snapshot.')
+    await expect(
+      persistence.stores.log.read({ logId: LOG, after: 0 }),
+    ).rejects.toThrow()
+
+    let steps: Array<Record<string, unknown>> = []
+    const files = definePlugin({
+      name: 'test/files',
+      provides: [RevertFiles],
+      setup: ({ provide }) =>
+        provide(RevertFiles, {
+          revert: async (_hidden, records) => {
+            steps = await records(step.type)
+            return undefined
+          },
+          unrevert: async () => {},
+        }),
+    })
+    const host = createHarnessHost(options)
+    const session = await host.open(
+      defineHarness({
+        name: 'test/snapshots',
+        adapter: mockAdapter(() => text('Hello back.')).adapter,
+        plugins: () => [files],
+      }),
+      { threadId: THREAD },
+    )
+    const [first] = await session.transcript()
+
+    expect(await session.revert(first?.id ?? '')).toMatchObject({
+      status: 'accepted',
+    })
+    expect(steps).toEqual([step])
+    await session.close()
     await host.close()
   })
 })
