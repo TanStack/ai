@@ -927,13 +927,13 @@
           "label": "Build your first harness",
           "to": "harness/overview",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Send and show media",
           "to": "harness/media",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Connect clients",
@@ -944,7 +944,8 @@
         {
           "label": "Write a client in any language",
           "to": "harness/protocol",
-          "addedAt": "2026-10-17"
+          "addedAt": "2026-10-17",
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Access and tenants",
@@ -995,7 +996,8 @@
         {
           "label": "Lifecycle and retention",
           "to": "harness/lifecycle",
-          "addedAt": "2026-10-17"
+          "addedAt": "2026-10-17",
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Run side effects once",
@@ -1024,7 +1026,7 @@
           "label": "Store settings per thread",
           "to": "harness/thread-settings",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Compact a long session",
@@ -1131,12 +1133,13 @@
           "label": "Code mode in a harness",
           "to": "harness/code-mode",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Work until a goal is met",
           "to": "harness/goal",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Run agents from a harness",

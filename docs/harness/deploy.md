@@ -159,6 +159,22 @@ await client.send('Where is my order?', traceparent ? { traceparent } : {})
 
 The client sends it as the `traceparent` header. The `harness.operation` span of the turn gets a link to your span, on the server that runs the turn. To send it from another language, see [Traces](./protocol#traces).
 
+## Known limits
+
+Check these before you run many servers or long threads.
+
+Across servers and restarts:
+
+- A [`harnessAgent`](./subagents#call-a-harness-as-a-child) child waits only in memory. Its parent run waits on the same host. Another host, or a crash, does not resume it.
+- A [log snapshot](./durable-sessions#keep-a-long-log-fast-to-open) holds the full fold of the thread, so it grows with the thread. To keep the log small, drop the old records with [`logRecords: 'since-snapshot'`](./lifecycle#drop-the-records-before-a-snapshot).
+- `host.resumePending` opens the threads that it takes one at a time. A `GET run` by run id looks through the open sessions one at a time too.
+
+Users and plugins:
+
+- With an [OAuth MCP server](./mcp#3-sign-in-to-an-oauth-server), the MCP SDK sends its own refresh request for each session. Only the save of the new token is single-flight, so two sessions can use a rotating refresh token at the same time.
+- The `principal` on `revert` and `background` is checked against `access`, but the log does not keep it.
+- Plugin tools do not reach background agents. The `question` tool works only in a turn of the lead agent.
+
 ## What you have now
 
 - The same harness in your server, on background workers, in a worker process, on another machine, or as a binary.

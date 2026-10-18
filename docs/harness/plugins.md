@@ -299,6 +299,10 @@ Where each part of a plugin reads the run:
 - A session plugin (the default lifetime): `ctx.credentials` and `ctx.keys` have no user, so each call throws. `ctx.session.principal` is the owner of the session.
 - A plugin with `lifetime: 'host'`: its setup has no user and no session. Its tools read the user of each call from `ctx.context.run`.
 
+`prepareTools` gets `run` too: the run of the turn, with its id and its user.
+
+A plugin that starts a turn picks its user. `ctx.session.send(text, { principal })` and `ctx.session.note(text, { wake: true, principal })` run that turn as `principal`. Without it, the turn runs as `ctx.session.principal`. To continue the work of a run, pass the `principal` of that run.
+
 The run has these fields:
 
 | Field | What it is |

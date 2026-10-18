@@ -143,7 +143,7 @@ export const withReview = agents({
 
 | Field | What it does |
 | --- | --- |
-| `model` | A model id. `adapter` turns it into an adapter. Without it, a primary agent keeps the harness model, and a subagent uses the model of the main turn. |
+| `model` | A model id. `adapter` turns it into an adapter. Without it, a primary agent keeps the harness model, and a subagent uses the model of the turn that started it. |
 | `system` | Text for the system prompt of each turn of this agent. |
 | `tools` | The tools that this agent can call, by name. A `*` matches any text, for example `todo_*`. Without it, the agent gets every tool. |
 | `permissions` | [Permission rules](./permissions#write-rules) that count while this agent is the primary agent. At that time, they also apply in each subagent run. |
@@ -208,9 +208,9 @@ A profile with the mode `subagent` or `all` is also a subagent. The main model g
 
 A subagent run gets these parts of its profile:
 
-- The tools of the last main turn, filtered by its `tools`.
+- The tools of the turn that started it, filtered by its `tools`.
 - Its `system` prompt.
-- Its `model`, or the model of the main turn.
+- Its `model`, or the model of the turn that started it.
 - Its step limit.
 
 A subagent run stops after 50 model calls, or when an answer is cut at the output limit. The harness also limits the depth and the number of children. See [Stay within limits](./subagents#stay-within-limits). To give one run from code its own budget and time limit, see [Give one run a budget and a time limit](./subagents#give-one-run-a-budget-and-a-time-limit).
@@ -220,7 +220,8 @@ A subagent run stops after 50 model calls, or when an answer is cut at the outpu
 - A subagent run uses the `permissions` of the primary agent, not the rules of its own profile. For example, when `build` is the primary agent and starts `review`, the `build` rules apply and the `review` rules do not. Put rules that must hold in every run in `permissions({ rules })`. See [Rules in subagents](./permissions#rules-in-subagents).
 - A Markdown agent cannot set `permissions`. Put those rules in a profile in code.
 - On Amazon Bedrock, the model can still call a tool on the last call. The tool does not run, but the turn can end with no text answer.
-- A subagent that starts before the first turn of the session has no tools. It also needs its own `model`.
+- A subagent run gets the tools and the model of its turn from the memory of the host that ran that turn. On another host, or after a restart, the run fails with `Agent <name> cannot go on here`. Start it again from a turn.
+- A subagent run that your code starts, not a turn, has no tools of a turn. Give its profile a `model`.
 
 ## What you have now
 

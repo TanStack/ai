@@ -249,6 +249,12 @@ For a follow-up, `receipt.operationId` is the id of the new run. While the run b
 
 A steer joins only a run of the same sender. A steer from another sender runs as a follow-up for that sender. As a result, no message runs with the credentials of another person.
 
+Who sends:
+
+- `run.send` and `run.cancel` act as the user of the run, not as the user who opened the session.
+- To send as another user, pass `principal`: `run.send('Add a title.', { principal })`.
+- `session.agents.drafter.run(input, { principal })` and `start` run the agent as that user.
+
 An agent written as plain code, with no `ctx.chat` call, makes no model call. It gets a steer only as a follow-up.
 
 To message a run from the browser, see [Send a message to a running agent](./connect#send-a-message-to-a-running-agent).

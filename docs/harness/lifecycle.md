@@ -55,10 +55,10 @@ const busyHost = createHarnessHost({
 })
 ```
 
-- `idleCloseMs`: how long an idle session with no handle stays open, in milliseconds. The default is 60 000. `0` closes it at once.
+- `idleCloseMs`: how long an idle session with no handle stays open, in milliseconds. The default is 60 000. `0` closes it at once. A session is not idle while a background job of this host runs, for example a `bash` job.
 - `maxOpen`: how many sessions the host keeps open. The default is 500. An open past the limit first closes the least recently used sessions that are idle and that no handle holds.
 - If every open session is busy or held, the open goes on, and the host logs one warning.
-- A close cleans up the plugins of the session. The transcript and the other data stay in the stores, so the next open continues the thread.
+- A close cleans up the plugins of the session. The transcript and the other data stay in the stores, so the next open continues the thread. A workspace that `bind` gave the thread closes with `'moved'`, so an owned sandbox stays.
 - The idle timer does not keep the Node process alive.
 
 A plugin with `lifetime: 'host'` stays set up while another session uses it. See [Share one setup between sessions](./plugins#share-one-setup-between-sessions).
@@ -166,6 +166,7 @@ const trimmedHost = createHarnessHost({
 - `'all'` (default): the store keeps every record.
 - `'since-snapshot'`: after each snapshot, the owner truncates the records before it. The type is `LogRecordRetention`.
 - A reader whose cursor is in the dropped part gets one `harness.gap` event, then the stream goes on. See [Cursors](./connect#cursors).
+- `session.revert()` still works. The snapshot keeps the last 500 file steps of [`snapshots()`](./snapshots#go-back-to-an-earlier-message).
 
 CAUTION: With `'since-snapshot'`, do not change `durability.reduce` or `durability.project` often. When the host cannot use the snapshot (its `reduce` version or its `project` changed, or the snapshot has a newer version), a thread with dropped records cannot open. The open rejects with `LogTruncatedError`. Keep `'all'` if you change `reduce` often.
 
@@ -183,6 +184,12 @@ First, `delete` closes the sessions of the thread and of its child threads, for 
 - The index entry of each thread.
 - The uploaded media and the generated artifacts.
 - The log checkpoint in `stores.metadata`.
+
+The first-party plugins also end the thread:
+
+- [`workspaceTools()`](./coding-workspaces) reattaches an owned sandbox of the thread and closes it with `'closed'`, so it is destroyed.
+- [`snapshots()`](./snapshots#remove-the-snapshots-of-a-thread) removes the snapshot repository of the thread.
+- This needs the index entry of the thread, and a host that opened a session of this harness before.
 
 - On a host with `access`, `delete` needs the `delete` action. A child thread is checked through its root thread.
 - A handle that calls again after the delete opens a new, empty thread.
