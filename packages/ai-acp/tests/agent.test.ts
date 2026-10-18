@@ -357,7 +357,7 @@ describe('ACP v2 agent', () => {
     await host.close()
   })
 
-  it('keeps the editor capabilities of each connection apart', async () => {
+  it('refuses a second connection to one app, and keeps the first', async () => {
     const greet = durableTool(
       toolDefinition({
         name: 'greet',
@@ -407,13 +407,18 @@ describe('ACP v2 agent', () => {
         cwd: '/tmp',
         mcpServers: [],
       })
-      // The second editor connects, initializes, and closes its connection.
-      await second.connectWith(app, async (other) => {
-        await other.request('initialize', {
-          protocolVersion: 2,
-          info: { name: 'editor-b', version: '1.0.0' },
-        })
-      })
+      // A second editor on the same app would share its sessions, so the
+      // connection fails at once.
+      expect(() =>
+        second.connectWith(app, async (other) => {
+          await other.request('initialize', {
+            protocolVersion: 2,
+            info: { name: 'editor-b', version: '1.0.0' },
+          })
+        }),
+      ).toThrow(
+        'An ACP agent app serves one connection. Call createAcpAgent once for each connection.',
+      )
       await ctx.request('session/prompt', {
         sessionId,
         prompt: [{ type: 'text', text: 'greet me' }],
