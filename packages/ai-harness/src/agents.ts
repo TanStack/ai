@@ -3,9 +3,11 @@ import type {
   DefinedAgent,
   InferSchemaType,
   SchemaInput,
+  StreamChunk,
+  SubagentRunContext,
 } from '@tanstack/ai'
 import { registerSubagentContextDefaults } from '@tanstack/ai/adapter-internals'
-import { stepRunWithoutSession } from './durable-tool'
+import { askWithoutSession, stepRunWithoutSession } from './durable-tool'
 import { waitUntil } from './utils'
 import type { ToolStep } from './durable-tool'
 import type { HandoffOptions } from './handoff'
@@ -15,6 +17,8 @@ import type {
   RunArgs,
 } from './session/types'
 import type { AgentRun } from './types'
+import type { PluginState } from './plugins'
+import type { AnyHarness } from './define'
 
 /** Any agent made with `defineAgent`, with its types kept. */
 export type AnyAgent = DefinedAgent<any, any, any, any, any, any, any>
@@ -230,6 +234,24 @@ export interface HarnessAgentContext {
    * ```
    */
   handoff: (options: HandoffOptions) => Promise<void>
+  /**
+   * State that the agents of one session share, by `key`. The session log
+   * keeps it, so it survives a restart, and a fork of the thread has it.
+   * Before the first update, `get` gives `initial`. The value is JSON.
+   *
+   * @example
+   * ```ts
+   * const seen = ctx.harness.state({ key: 'seen', initial: [] as Array<string> })
+   * await seen.update((list) => [...list, 'docs.md'])
+   * ```
+   */
+  state: <T>(options: { key: string; initial: T }) => PluginState<T>
+}
+
+const noSessionState = () => {
+  throw new Error(
+    'ctx.harness.state needs a run that a harness session started.',
+  )
 }
 
 const noSessionAgents = () => {
@@ -248,14 +270,15 @@ const noTurnHandoff = () =>
 /**
  * `ctx.harness` outside a run that a session started from code (a tool-mode
  * child of a chat turn, or a run that a plain `chat()` starts): `step.do`
- * runs `fn` each time, `step.sleep` waits its full time, and each call of
- * `agents` and `handoff` throws.
+ * runs `fn` each time, `step.sleep` waits its full time, `step.ask`
+ * throws, and each call of `agents`, `state`, and `handoff` throws.
  */
 export const NO_SESSION_CONTEXT: HarnessAgentContext = {
   // `fn` runs each time, so it needs no JSON copy.
   step: {
     do: async (name, fn) => fn(stepRunWithoutSession(name)),
     sleep: ({ ms }) => waitUntil(Date.now() + ms),
+    ask: askWithoutSession,
   },
   agents: {
     start: noSessionAgents,
@@ -263,6 +286,39 @@ export const NO_SESSION_CONTEXT: HarnessAgentContext = {
     group: noSessionAgents,
   },
   handoff: noTurnHandoff,
+  state: noSessionState,
+}
+
+/**
+ * Run `harness` as a child session of the run that owns a `ctx.harness`, and
+ * stream its events. See `harnessAgent`.
+ */
+export type HarnessChildRun = (
+  harness: AnyHarness,
+  ctx: SubagentRunContext,
+) => AsyncIterable<StreamChunk>
+
+/**
+ * The child hook of each `ctx.harness` that a session made. Not a field of
+ * the context, so agent code cannot call it. `NO_SESSION_CONTEXT` has none.
+ */
+const childRuns = new WeakMap<HarnessAgentContext, HarnessChildRun>()
+
+/** @internal Give `context` the child hook `run`. Returns `context`. */
+export function withHarnessChild(
+  context: HarnessAgentContext,
+  run: HarnessChildRun,
+): HarnessAgentContext {
+  childRuns.set(context, run)
+  return context
+}
+
+/**
+ * @internal The child hook of `context`, or `undefined` outside a run that
+ * a harness session started.
+ */
+export function harnessChildOf(context: HarnessAgentContext | undefined) {
+  return context ? childRuns.get(context) : undefined
 }
 
 // A run that a plain chat() starts gets NO_SESSION_CONTEXT, so ctx.harness is
@@ -271,14 +327,15 @@ registerSubagentContextDefaults(() => ({ harness: NO_SESSION_CONTEXT }))
 
 declare module '@tanstack/ai' {
   /**
-   * `ctx.harness` in the `run` of an agent: `step` and `agents`. A harness
+   * `ctx.harness` in the `run` of an agent: `step`, `agents`, `state`, and
+   * `handoff`. A harness
    * session gives them to each agent run it starts from code (a session
    * agent, `ctx.harness.agents.start`, a background child), and to the
    * children those runs start through `ctx.chat({ subagents })`. Any
    * other run, for example one that a plain `chat()` starts, gets
    * `NO_SESSION_CONTEXT`: `step.do` runs `fn` each time, and each call of
-   * `agents` throws. `handoff` works only in a root agent that answers a
-   * turn of a harness with `routing`.
+   * `agents` and `state` throws. `handoff` works only in a root agent that
+   * answers a turn of a harness with `routing`.
    */
   interface SubagentContextExtension {
     harness: HarnessAgentContext

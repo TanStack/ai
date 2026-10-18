@@ -8,7 +8,13 @@ import {
 import { startLoopbackReceiver } from '@tanstack/ai-harness/oauth'
 import { connectTransport } from './client'
 import { MCPConnectionError } from './errors'
-import { askForInput, elicitFor, harnessClientOptions } from './harness-plugin'
+import {
+  askForInput,
+  elicitFor,
+  harnessClientOptions,
+  trackCaller,
+} from './harness-plugin'
+import type { Caller } from './harness-plugin'
 import type {
   OAuthClientProvider,
   OAuthDiscoveryState,
@@ -305,6 +311,8 @@ export function mcpConnector(options: McpConnectorOptions) {
               (saved?.type === 'oauth'
                 ? saved.client?.redirectUri
                 : undefined) ?? 'http://127.0.0.1/callback'
+            // The tool calls of this client that run now, newest last.
+            const calling: Array<Caller> = []
             try {
               connection.client = await connectTransport(
                 {
@@ -326,7 +334,7 @@ export function mcpConnector(options: McpConnectorOptions) {
                     ((tool) => tool.annotations?.readOnlyHint !== true),
                   clientOptions: harnessClientOptions,
                 },
-                elicitFor(ctx.session),
+                elicitFor(calling),
               )
             } catch (error) {
               // The server wants a new sign-in: ask the user to run /connect.
@@ -351,7 +359,11 @@ export function mcpConnector(options: McpConnectorOptions) {
                 throw error
               })
             connection.tools = askForInput(
-              listed as ReadonlyArray<AnyTool>,
+              trackCaller(
+                listed as ReadonlyArray<AnyTool>,
+                ctx.session,
+                calling,
+              ),
               ctx.session,
             )
           }
@@ -362,8 +374,9 @@ export function mcpConnector(options: McpConnectorOptions) {
             description: `Sign in to ${label}`,
             // The sign-in belongs to the user who runs the command. A cancel
             // or a session close stops it at once: the loopback stops
-            // listening, and the OAuth requests abort.
-            run: async (_input, { run }) => {
+            // listening, and the OAuth requests abort. The `session` of the
+            // command makes the sign-in a wait of the command run.
+            run: async (_input, { run, session }) => {
               const { signal } = run
               const receiver = await startLoopbackReceiver({ signal })
               const state = randomBytes(16).toString('base64url')
@@ -374,7 +387,7 @@ export function mcpConnector(options: McpConnectorOptions) {
                   scopes: options.scopes,
                   state,
                   onRedirect: (authorizationUrl) =>
-                    ctx.session.authRequired({
+                    session.authRequired({
                       connector: id,
                       url: authorizationUrl.href,
                     }),

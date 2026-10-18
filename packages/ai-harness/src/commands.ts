@@ -1,6 +1,7 @@
 import type { InferSchemaType, ModelMessage, SchemaInput } from '@tanstack/ai'
 import type { SessionIndexEntry } from '@tanstack/ai-persistence'
 import type { CredentialsAccess } from './auth'
+import type { ToolStep } from './durable-tool'
 import type { SessionSnapshot } from './session/index'
 import type { SessionEntryChange, SessionEntryUpdate } from './session-entry'
 import type {
@@ -37,6 +38,14 @@ export interface Question<TSchema extends SchemaInput | undefined = undefined> {
    * reason of the signal.
    */
   signal?: AbortSignal
+  /**
+   * A live wait of a tool call, by its name: the harness keeps the answer
+   * in the memory of this host, so the host keeps the session while it
+   * waits. Only an MCP elicitation (`'mcp-elicitation'`) asks this way. The
+   * wait belongs to `run`, the run of the tool call: its user may answer,
+   * and the wait ends `cancelled` when that run stops.
+   */
+  live?: { name: 'mcp-elicitation'; run: RunContext }
 }
 
 export type AnswerOf<TSchema> = TSchema extends SchemaInput
@@ -103,11 +112,18 @@ export interface PluginSessionApi<TMetadata = Record<string, unknown>> {
     >,
   ) => Promise<SessionIndexEntry<TMetadata> | undefined>
   /**
-   * Ask the user and wait for the answer. Hosts show it (the CLI prompts,
-   * ACP shows an elicitation). The log keeps the question as a wait of the
-   * run that asks, so a user on any machine can answer it. Rejects when the
-   * session closes, when the run is cancelled, when `signal` aborts, and
-   * when the question expires.
+   * Ask the user in a live wait of a tool call, and wait for the answer:
+   * only an MCP elicitation asks this way (see `live`). Hosts show it (the
+   * CLI prompts, ACP shows an elicitation). The log keeps the question as a
+   * wait of that run, so every host shows it. Rejects when the session
+   * closes, when the run stops, when `signal` aborts, and when the question
+   * expires.
+   *
+   * Without `live`, it throws: no process waits for a user. In a command, a
+   * durable tool, or an agent run, use `step.ask`. To let the model ask, add
+   * the `question` tool. To ask before a tool call, give the tool its
+   * resources (`PermissionResources`), and `permissions()` asks before the
+   * call runs.
    */
   ask: <TSchema extends SchemaInput | undefined = undefined>(
     question: Question<TSchema>,
@@ -115,11 +131,18 @@ export interface PluginSessionApi<TMetadata = Record<string, unknown>> {
   /**
    * Tell clients that the user must sign in. Hosts show the link (the CLI
    * opens the browser) or the device code.
+   *
+   * In a command (an OAuth login), it also opens a live `sign-in` wait of
+   * the command run. The wait ends `answered` when the command completes,
+   * and `cancelled` when it fails. At `expiresAt` (default: 15 minutes), the
+   * wait ends `expired`, and the command is cancelled.
    */
   authRequired: (info: {
     connector: string
     url?: string
     userCode?: string
+    /** When the sign-in expires, in epoch milliseconds. */
+    expiresAt?: number
   }) => void
   /** Change a session setting, the same as a client. Applies at the next turn. */
   setConfig: (change: { key: string; value: unknown }) => Promise<Receipt>
@@ -148,6 +171,22 @@ export interface CommandContext {
    * credentials and model provider keys (`run.keys`).
    */
   run: RunContext
+  /**
+   * The steps of the command. To ask the user, call `step.ask`: the log
+   * keeps the question, so a user on any machine can answer it. When the
+   * host stops while the command waits, the next host runs the command
+   * again from the top: put each side effect before the ask in `step.do`,
+   * and it does not run twice.
+   *
+   * @example
+   * ```ts
+   * run: async (_input, { step, credentials }) => {
+   *   const key = await step.ask({ name: 'key', message: 'Paste your key', secret: true })
+   *   await credentials.set({ id: 'acme', credential: { type: 'api_key', value: key } })
+   * }
+   * ```
+   */
+  step: ToolStep
 }
 
 /** A user action: a slash command, a button, a dashboard action. Not a model tool. */

@@ -213,7 +213,7 @@ A subagent run gets these parts of its profile:
 - Its `model`, or the model of the main turn.
 - Its step limit.
 
-A subagent run stops after 50 model calls, or when an answer is cut at the output limit. The harness also limits the depth and the number of children. See [Stay within limits](./subagents#stay-within-limits).
+A subagent run stops after 50 model calls, or when an answer is cut at the output limit. The harness also limits the depth and the number of children. See [Stay within limits](./subagents#stay-within-limits). To give one run from code its own budget and time limit, see [Give one run a budget and a time limit](./subagents#give-one-run-a-budget-and-a-time-limit).
 
 ## Known limits
 

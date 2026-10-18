@@ -72,6 +72,7 @@ import type { HarnessPersistence, SessionIndexWriter } from '../host'
 import type {
   HarnessPlugin,
   MountedPlugins,
+  PluginModelCall,
   PluginServices,
   PluginState,
 } from '../plugins'
@@ -107,6 +108,9 @@ import type {
   InterruptedTurn,
   AgentRunImpl,
   AgentChain,
+  ChildSessionLink,
+  HarnessChild,
+  OpenChildSession,
 } from './types'
 import type { HarnessSession } from './harness-session'
 
@@ -357,6 +361,21 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * They wait for the log, so they do not keep the thread busy here.
    */
   protected readonly remoteRuns = new Set<string>()
+  /**
+   * Agent runs of this host that wait for answers to their interrupts, by
+   * operation id. The log keeps the waits, so they do not keep the thread
+   * busy here: an answer on any host resumes the run.
+   */
+  protected readonly waitingRuns = new Map<
+    string,
+    {
+      operation: AgentRunImpl
+      chain: AgentChain
+      /** The input the run applies. */
+      inputId: string
+      subagentRunId: string
+    }
+  >()
   /** Called each time the thread goes idle. See `onIdle`. */
   protected readonly idleListeners = new Set<() => void>()
   /** Work inputs that are being stored and are not queued yet. */
@@ -423,6 +442,14 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       release: () => void
     }
   >()
+  /**
+   * The live `sign-in` waits of the OAuth logins that the commands of this
+   * host run, by wait id: the connector, and the command that waits.
+   */
+  protected readonly signIns = new Map<
+    string,
+    { connector: string; operation: OperationImpl<unknown> }
+  >()
   /** Plugin state by plugin name. No prototype, so any name is a plain key. */
   protected readonly stateDoc: Record<string, unknown> = Object.create(null)
   /** Reads each plugin's saved state, so the first snapshot has it. */
@@ -466,6 +493,18 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected readonly promptCache: ResolvedPromptCache
   /** The host checks access. See `SessionDependencies.access`. */
   protected readonly hasAccess: boolean
+  /** The root thread of the session tree: this thread, unless it is a child. */
+  protected readonly rootThreadId: string
+  /** See `SessionDependencies.openChild`. */
+  protected readonly openChild: OpenChildSession | undefined
+  /** See `SessionDependencies.child`. Set on a child session only. */
+  protected readonly childLink: ChildSessionLink | undefined
+  /**
+   * The child sessions of `harnessAgent` that runs of this session have open
+   * now, by thread. The snapshot lists their waits, and `resolve` sends an
+   * answer to the child that waits for it.
+   */
+  protected readonly harnessChildren = new Map<string, HarnessChild>()
 
   constructor(deps: SessionDependencies) {
     this.harness = deps.harness as THarness
@@ -495,15 +534,22 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     this.inputRecords = new InputRecords(deps.retention.settledOperations)
     this.notifyHost = deps.onEvent
     this.feed = tapFeed(
-      new SessionFeed({ eventBytes: deps.retention.eventBytes }),
+      new SessionFeed({
+        threadId: deps.threadId,
+        eventBytes: deps.retention.eventBytes,
+      }),
       deps.onEvent,
       this.eventListeners,
       this.redactor,
+      (operationId) => this.parentRunOf(operationId),
     )
     this.onClose = deps.onClose
     this.notifyIdle = deps.onIdle
     this.index = deps.index
     this.log = deps.log
+    this.openChild = deps.openChild
+    this.childLink = deps.child
+    this.rootThreadId = deps.child?.rootThreadId ?? deps.threadId
     // The session gets its log view in `open()`.
     this.messages = notOpenMessages
     const onMissing = (error: AuthRequiredError) =>
@@ -515,10 +561,12 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
         }),
       )
     const refreshes = deps.refreshes ?? refreshFlights()
+    // A child of `harnessAgent` reads the credentials of its root thread, so
+    // it runs with the keys of the user of the run that started it.
     this.credentialsOf = (principal, canWait) =>
       credentialsFor(
         deps.credentials,
-        scopeOf(deps.threadId, principal),
+        scopeOf(this.rootThreadId, principal),
         onMissing,
         {
           ...(canWait ? { canWait } : {}),
@@ -801,6 +849,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
           'session',
           customEvent(HARNESS_EVENTS.commandsChanged, {}),
         ),
+      modelChat: (call) => this.modelChat(call),
     }
   }
 
@@ -873,50 +922,86 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * value back, also after a restart.
    */
   protected pluginState<T>(plugin: string, initial: T): PluginState<T> {
+    return this.loggedState({ kind: 'plugins', key: plugin, initial })
+  }
+
+  /**
+   * `ctx.harness.state`: the value of `key` that the agents of this session
+   * share. The log keeps it, as it keeps plugin state.
+   */
+  protected sharedState<T>(options: {
+    key: string
+    initial: T
+  }): PluginState<T> {
+    return this.loggedState({ kind: 'shared', ...options })
+  }
+
+  /**
+   * One value of the thread state that the log keeps: the state of a plugin,
+   * or a shared key. Each update appends the deltas from the current value.
+   * The updates of one value run one at a time.
+   */
+  private loggedState<T>(options: {
+    kind: 'plugins' | 'shared'
+    key: string
+    initial: T
+  }): PluginState<T> {
+    const { kind, key, initial } = options
     const read = () => {
-      const { plugins } = this.writer.state.thread
-      // The fold holds what this plugin wrote.
-      return plugins.has(plugin) ? (plugins.get(plugin) as T) : initial
+      const values = this.writer.state.thread[kind]
+      // The fold holds what was written for this key.
+      return values.has(key) ? (values.get(key) as T) : initial
     }
     // A copy: the snapshot must not share objects with the fold.
-    this.stateLoaders.set(plugin, () => structuredClone(read()))
+    if (kind === 'plugins') {
+      this.stateLoaders.set(key, () => structuredClone(read()))
+    }
     const publish = (value: T) => {
-      this.stateDoc[plugin] = value
+      if (kind === 'plugins') this.stateDoc[key] = value
       this.feed.publish('session', {
         type: EventType.STATE_SNAPSHOT,
-        snapshot: { plugins: { ...this.stateDoc } },
+        snapshot: {
+          plugins: { ...this.stateDoc },
+          // fromEntries defines own keys, so a key named `__proto__` stays
+          // a key.
+          shared: structuredClone(
+            Object.fromEntries(this.writer.state.thread.shared),
+          ),
+        },
         timestamp: Date.now(),
       })
     }
     const write = async (change: (current: T) => T) => {
-      const { plugins } = this.writer.state.thread
+      const values = this.writer.state.thread[kind]
       // The first write sets the whole value: the log has no value to change.
-      const stored = plugins.has(plugin) ? plugins.get(plugin) : undefined
+      const stored = values.has(key) ? values.get(key) : undefined
       // Scrubbed here, so the log, the snapshot, and the caller get one value.
       const next = this.redactor.redact(change(structuredClone(read())))
       // The append is a compare-and-set: it goes at the next position of
       // the log, so a write of another host makes it fail, and no update is
       // lost.
       await this.writer.append(
-        pluginStateDeltas(stored, next).map((delta) => ({
-          type: 'harness.plugin.state',
-          plugin,
-          delta,
-        })),
+        pluginStateDeltas(stored, next).map((delta) =>
+          kind === 'plugins'
+            ? { type: 'harness.plugin.state' as const, plugin: key, delta }
+            : { type: 'harness.state' as const, key, delta },
+        ),
       )
       publish(next)
       return next
     }
+    // A plugin name and a shared key can be the same string.
+    const chain = JSON.stringify([kind, key])
     return {
       get: async () => structuredClone(read()),
       update: (change) => {
         // One at a time, so each change starts from the value that the
         // update before it wrote.
-        const run = (this.stateWrites.get(plugin) ?? Promise.resolve()).then(
+        const run = (this.stateWrites.get(chain) ?? Promise.resolve()).then(
           () => write(change),
         )
         this.stateWrites.set(
-          plugin,
+          chain,
           run.catch(() => {}),
         )
         return run
@@ -961,7 +1046,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
         (operation) =>
           (operation.kind === 'agent' || operation.kind === 'command') &&
           !operation.isSettled() &&
-          !this.remoteRuns.has(operation.id),
+          !this.remoteRuns.has(operation.id) &&
+          !this.waitingRuns.has(operation.id),
       )
     )
   }
@@ -1062,13 +1148,37 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
-   * A tree budget for a child started from code. The child counts as the
-   * first call, and its own children count against the same limits.
+   * A tree budget for a chain started from code. The chain counts as the
+   * first call, and its own children count against the same limits. Each
+   * child that the log has under the chain `chainInputId` counts too, so a
+   * chain that runs again after a restart keeps its count.
    */
-  protected codeBudget(): SubagentBudget {
+  protected codeBudget(chainInputId?: string): SubagentBudget {
     const root = SubagentBudget.root(this.limits())
-    root.reserve(0)
+    const logged =
+      chainInputId === undefined ? 0 : this.loggedCalls(chainInputId)
+    for (let call = 0; call <= logged; call += 1) root.reserve(0)
     return root.child()
+  }
+
+  /**
+   * How many chains the log has under the chain `chainInputId`, at any
+   * depth: one for each child that agent code started.
+   */
+  protected loggedCalls(chainInputId: string) {
+    const nodes = [...this.writer.state.thread.tree.values()]
+    const found = new Set<string>()
+    const parents = [chainInputId]
+    for (let parent = parents.pop(); parent !== undefined;) {
+      for (const { chainInputId: child, parentChainInputId } of nodes) {
+        if (parentChainInputId !== parent || child === undefined) continue
+        if (found.has(child)) continue
+        found.add(child)
+        parents.push(child)
+      }
+      parent = parents.pop()
+    }
+    return found.size
   }
 
   // ===========================
@@ -1127,15 +1237,26 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
 
   /**
    * Track a background job of this host. The log also has its start and
-   * end, so recovery can note a job that a crash stopped.
+   * end, so recovery can note a job that a crash stopped. The record goes
+   * to `threadId`, the thread of the workspace that runs the job.
    */
-  protected logJob(jobId: string, ended: boolean) {
+  protected logJob(
+    job: { jobId: string; backendId?: string; threadId?: string },
+    ended: boolean,
+  ) {
+    const { jobId, backendId, threadId } = job
     if (ended) this.jobs.delete(jobId)
     else this.jobs.add(jobId)
+    const isOtherThread = threadId !== undefined && threadId !== this.threadId
+    const record = {
+      type: 'harness.job',
+      jobId,
+      ended,
+      ...(!ended && backendId !== undefined ? { backendId } : {}),
+      ...(isOtherThread ? { thread: threadId } : {}),
+    }
     // No one waits for a job record. A failed log write fails the session.
-    this.writer
-      .append([{ type: 'harness.job', jobId, ended }])
-      .catch(() => undefined)
+    this.writer.append([record]).catch(() => undefined)
   }
 
   // Implemented by a later layer of the class.
@@ -1152,6 +1273,12 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     operationId?: string,
   ): PluginSessionApi
   protected abstract resumeSignIns(): Promise<void>
+  /** One model call of `ctx.model.chat`. See `SessionTurnParts.modelChat`. */
+  protected abstract modelChat(call: PluginModelCall): Promise<unknown>
+  /** Resume the agent runs whose waits all ended. See `SessionAgents`. */
+  protected abstract resumeWaitingRuns(): Promise<void>
+  /** The run that started an operation, for a child run. See `SessionAgents`. */
+  protected abstract parentRunOf(operationId: string): string | undefined
   /** Set the timer of the next schedule. See `SessionImpl.armSchedules`. */
   protected abstract armSchedules(options?: { isRetry?: boolean }): void
   /** @internal See `SessionRequests.resolveForRun`. */

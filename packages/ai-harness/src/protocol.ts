@@ -1,5 +1,6 @@
 import { convertSchemaToJsonSchema } from '@tanstack/ai'
 import { AccessDeniedError } from './access'
+import { parseTraceparent } from './observability'
 import { isRecord } from './utils'
 import { createInputId, errorText } from './session/helpers'
 import type { StreamChunk } from '@tanstack/ai'
@@ -15,12 +16,32 @@ import type {
 } from './types'
 
 /** The session-tier protocol version. Sent in `subscribe` and `hello`. */
-export const HARNESS_PROTOCOL_VERSION = 1
+export const HARNESS_PROTOCOL_VERSION = 2
+
+/** The protocol versions that this host speaks. */
+export const SUPPORTED_PROTOCOL_VERSIONS: ReadonlyArray<number> = [
+  HARNESS_PROTOCOL_VERSION,
+]
+
+/** What failed, in a `harness.error` frame. */
+export type HarnessErrorCode =
+  | 'unauthorized'
+  | 'forbidden'
+  | 'invalid_frame'
+  | 'unsupported_version'
+  | 'slow_consumer'
+  | 'internal'
 
 /** Client to host. */
 export type ControlFrame =
   | { type: 'harness.subscribe'; threadId: string; from?: Cursor; v?: number }
-  | { type: 'harness.input'; requestId: string; input: HarnessInput }
+  | {
+      type: 'harness.input'
+      requestId: string
+      input: HarnessInput
+      /** A W3C `traceparent` of the caller. An invalid value is dropped. */
+      traceparent?: string
+    }
   | { type: 'harness.snapshot' }
 
 /** Host to client. */
@@ -37,11 +58,29 @@ export type HostFrame =
   | {
       type: 'harness.event'
       cursor: Cursor
+      /** The thread of the event: the thread, or a child thread of its tree. */
+      threadId: string
       operationId: string
+      /** The run that started the operation, for a child run. */
+      parentRunId?: string
       event: StreamChunk
     }
   | { type: 'harness.snapshot'; snapshot: SessionSnapshot }
-  | { type: 'harness.error'; message: string }
+  | {
+      type: 'harness.error'
+      /** A short reason, for people. Read `code` in code. */
+      message: string
+      code: HarnessErrorCode
+      /**
+       * The `requestId` of the frame or the request that failed. A frame or
+       * a request with no id gets an id from the server.
+       */
+      requestId: string
+      /** With `unsupported_version`: the versions that the host speaks. */
+      supported?: ReadonlyArray<number>
+    }
+  /** A heartbeat. It keeps idle connections open. Ignore it. */
+  | { type: 'harness.ping' }
 
 const INPUT_OPS = new Set([
   'prompt',
@@ -200,10 +239,14 @@ export function parseControlFrame(data: string): ControlFrame {
     value.type === 'harness.subscribe' &&
     typeof value.threadId === 'string'
   ) {
+    if (value.v !== undefined && typeof value.v !== 'number') {
+      throw new Error('Invalid frame: v must be a number.')
+    }
     return {
       type: 'harness.subscribe',
       threadId: value.threadId,
       ...(typeof value.from === 'string' ? { from: value.from } : {}),
+      ...(value.v === undefined ? {} : { v: value.v }),
     }
   }
   if (value.type === 'harness.input' && typeof value.requestId === 'string') {
@@ -211,6 +254,11 @@ export function parseControlFrame(data: string): ControlFrame {
       type: 'harness.input',
       requestId: value.requestId,
       input: parseHarnessInput(value.input),
+      // As the W3C rules say, an invalid `traceparent` is dropped.
+      ...(typeof value.traceparent === 'string' &&
+      parseTraceparent(value.traceparent)
+        ? { traceparent: value.traceparent }
+        : {}),
     }
   }
   if (value.type === 'harness.snapshot') return { type: 'harness.snapshot' }
@@ -237,14 +285,18 @@ export async function applyInput({
   session,
   input,
   principal,
+  traceparent,
 }: {
   harness: AnyHarness
   session: HarnessSession
   input: HarnessInput
   principal?: Principal
+  /** A W3C `traceparent` of the caller, for a message to the session. */
+  traceparent?: string
 }): Promise<Receipt> {
   // The log keeps who sent each input, for every input kind.
   const user = principal ? { principal } : {}
+  const traced = traceparent === undefined ? {} : { traceparent }
   const id = {
     ...(input.inputId === undefined ? {} : { inputId: input.inputId }),
     ...user,
@@ -269,6 +321,7 @@ export async function applyInput({
           // The host checks the `operator` action of the sender.
           ...(input.as ? { as: input.as } : {}),
           ...sent,
+          ...traced,
         }),
       )
     case 'continue':
@@ -281,7 +334,7 @@ export async function applyInput({
     case 'steer':
     case 'followUp':
       return turnReceipt(
-        session.send(input.message, { ...sent, mode: input.op }),
+        session.send(input.message, { ...sent, ...traced, mode: input.op }),
       )
     case 'resolve':
       return session.resolve({ resume: input.resume, ...id })
@@ -510,5 +563,54 @@ export function capabilitiesOf(harness: AnyHarness) {
           })),
       },
     },
+  }
+}
+
+/**
+ * Pick the protocol version for a `harness.subscribe` frame or a `?v=`
+ * query. No `requested` version means the current version. A version that
+ * this host does not speak gets the parts of an `unsupported_version` error
+ * frame: send it, then close the stream.
+ *
+ * @example
+ * ```ts
+ * const picked = negotiateVersion({ requested: frame.v })
+ * if ('error' in picked) send({ type: 'harness.error', requestId, ...picked.error })
+ * ```
+ */
+export function negotiateVersion({ requested }: { requested?: number }):
+  | { v: number }
+  | {
+      error: {
+        message: string
+        code: 'unsupported_version'
+        supported: ReadonlyArray<number>
+      }
+    } {
+  if (requested === undefined) return { v: HARNESS_PROTOCOL_VERSION }
+  if (SUPPORTED_PROTOCOL_VERSIONS.includes(requested)) return { v: requested }
+  return {
+    error: {
+      message: `Protocol version ${requested} is not supported.`,
+      code: 'unsupported_version',
+      supported: SUPPORTED_PROTOCOL_VERSIONS,
+    },
+  }
+}
+
+/**
+ * The `requestId` of the raw text of a client frame, or `undefined`. It
+ * reads only that field, so the error frame of a frame that fails the full
+ * parse (for example, with a bad `input`) still names its request. It never
+ * throws.
+ */
+export function requestIdOf(data: string): string | undefined {
+  try {
+    const value: unknown = JSON.parse(data)
+    return isRecord(value) && typeof value.requestId === 'string'
+      ? value.requestId
+      : undefined
+  } catch {
+    return undefined
   }
 }

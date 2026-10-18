@@ -2,6 +2,7 @@ import { RUN_CANCEL_REASON } from '@tanstack/ai'
 import { changedEntry } from '../session-entry'
 import { OperationImpl } from '../operation'
 import { HARNESS_EVENTS, InputRejectedError } from '../types'
+import { timeOf } from '../waits'
 import {
   signInConnector,
   createInputId,
@@ -30,8 +31,14 @@ import type {
   UserInput,
   WaitingInput,
 } from '../types'
-import type { QueuedTurn, ResolveForRunOptions, WaitingSteer } from './types'
+import type {
+  HarnessChild,
+  QueuedTurn,
+  ResolveForRunOptions,
+  WaitingSteer,
+} from './types'
 import type { Admission } from './inputs'
+import type { HeldPlugins } from './helpers'
 
 /**
  * A layer of {@link HarnessSession}: prompt, steer, follow-up, continue, reset,
@@ -40,6 +47,12 @@ import type { Admission } from './inputs'
 export abstract class SessionRequests<
   THarness extends AnyHarness = AnyHarness,
 > extends SessionState<THarness> {
+  /**
+   * The plugins of turns that are not disposed yet: a turn, or a run that it
+   * started, still runs. `close()` disposes them.
+   */
+  protected readonly turnPlugins = new Set<HeldPlugins>()
+
   // ===========================
   // Inputs
   // ===========================
@@ -519,6 +532,22 @@ export abstract class SessionRequests<
   }
 
   /**
+   * The `harnessAgent` child that waits for every id of `waitIds`, or
+   * `undefined`. A child lists the waits of its own children too.
+   */
+  protected childOfWaits(
+    waitIds: ReadonlyArray<string>,
+  ): HarnessChild | undefined {
+    if (waitIds.length === 0) return undefined
+    for (const child of this.harnessChildren.values()) {
+      const waits = child.session.snapshot().pendingWaits ?? []
+      const open = new Set(waits.map((wait) => wait.waitId))
+      if (waitIds.every((id) => open.has(id))) return child
+    }
+    return undefined
+  }
+
+  /**
    * @internal `resolve`, with the AG-UI `runId` of a `POST run` request: the
    * turn runs as it. The HTTP handler and an offered resolve call it.
    */
@@ -526,6 +555,17 @@ export abstract class SessionRequests<
     options: ResolveForRunOptions,
   ): Promise<Receipt> {
     const { resume } = options
+    // The waits of a `harnessAgent` child: the child takes the answers, and
+    // its run goes on, still for the user of the run that started it. The
+    // AG-UI run id names a run of this session only.
+    const child = this.childOfWaits(resume.map((item) => item.interruptId))
+    if (child) {
+      const { inputId } = options
+      return child.answer({
+        resume,
+        ...(inputId !== undefined ? { inputId } : {}),
+      })
+    }
     return this.admitting(async () => {
       const inputId = options.inputId ?? createInputId()
       const principal = options.principal ?? this.principal
@@ -554,6 +594,32 @@ export abstract class SessionRequests<
       if (isTaken) {
         this.reject(inputId, 'conflict')
         return { inputId, status: 'rejected', reason: 'conflict' }
+      }
+      // The waits of a background agent run: the log ends them, and the
+      // run goes on (see `resumeWaitingRuns`).
+      const logged = resume.map((item) => this.loggedWait(item.interruptId))
+      const isLogged = logged.every(
+        (state) =>
+          state !== undefined &&
+          state.outcome === undefined &&
+          state.live === undefined,
+      )
+      if (resume.length > 0 && isLogged) {
+        // The input ends here, in the append that ends the waits.
+        await this.settleWith(
+          [{ inputId, outcome: 'completed' }],
+          resume.flatMap((item) =>
+            item.status === 'resolved'
+              ? this.waitEndRecords(item.interruptId, 'answered', item.payload)
+              : this.waitEndRecords(item.interruptId, 'cancelled'),
+          ),
+        )
+        for (const item of resume) await this.afterWaitEnd(item.interruptId)
+        return this.keep({
+          inputId,
+          status: 'accepted',
+          ...(logged[0] ? { operationId: logged[0].wait.runId } : {}),
+        })
       }
       const answers = this.interrupted
       if (!answers) {
@@ -858,6 +924,43 @@ export abstract class SessionRequests<
   }
 
   /**
+   * End the waits of the last turn when one of them expired. A batch of
+   * interrupts resumes as one, so the first expiry ends them all: the turn
+   * goes on, and its model gets each call cancelled ("no answer"). chat()
+   * refuses any answer to an interrupt past its own `expiresAt`, so then the
+   * turn cannot go on: its interrupts end cancelled, and the thread takes
+   * new turns again. Only the owner of the log ends them.
+   */
+  // ponytail: a turn that cannot go on keeps the tool calls with no result
+  // in its transcript. chat() repairs them at the next turn.
+  protected async expireInterrupted(): Promise<void> {
+    const stopped = this.interrupted
+    if (!stopped || this.activeTurn || this.queue.length > 0) return
+    const now = Date.now()
+    const isDue = (at: number | undefined) => at !== undefined && at <= now
+    const { interrupts } = stopped
+    if (!interrupts.some((item) => isDue(this.interruptExpiry(item)))) return
+    if (!(await this.writer.own()) || this.interrupted !== stopped) return
+    const resume = interrupts.map((interrupt) => ({
+      interruptId: interrupt.id,
+      status: 'cancelled' as const,
+    }))
+    if (interrupts.some((interrupt) => isDue(timeOf(interrupt.expiresAt)))) {
+      await this.consumeResume(resume)
+      this.interrupted = undefined
+      await this.saveInterrupted(undefined)
+      this.checkIdle()
+      return
+    }
+    const principal = stopped.principal ?? this.principal
+    await this.resolve({
+      resume,
+      inputId: `expired:${interrupts.map((item) => item.id).join(',')}`,
+      ...(principal ? { principal } : {}),
+    })
+  }
+
+  /**
    * The session API of plugins. With `principal` (a command, a turn plugin),
    * it acts for that user. Without it (a session plugin), its `principal` is
    * the principal that opened the session. With `operationId` (a command, a
@@ -927,14 +1030,18 @@ export abstract class SessionRequests<
           ),
         )
       },
-      // The public type narrows the answer from the schema.
+      // The public type narrows the answer from the schema. A live wait
+      // belongs to the run of its tool call, never to the run of this API.
       ask: ((question: Question<SchemaInput | undefined>) =>
-        this.ask(question, operationId)) as PluginSessionApi['ask'],
-      authRequired: (info) =>
+        this.ask(question)) as PluginSessionApi['ask'],
+      authRequired: (info) => {
         this.feed.publish(
           'session',
           customEvent(HARNESS_EVENTS.authRequired, { ...info }),
-        ),
+        )
+        // The OAuth login of a command is a live wait of that command.
+        if (operationId !== undefined) this.openSignIn(info, operationId)
+      },
       setConfig: (change) => this.setConfig({ ...change, principal: owner() }),
       settings: () => this.settings(),
     }
@@ -994,6 +1101,8 @@ export abstract class SessionRequests<
       await Promise.allSettled(
         running.map((operation) => Promise.resolve(operation)),
       )
+      // The turn plugins that a run still held, before the feed closes.
+      await Promise.all([...this.turnPlugins].map((held) => held.dispose()))
       // The events from before the close land first, so the next host has
       // the text of a cut answer.
       if (options?.recoverable)

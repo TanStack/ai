@@ -62,6 +62,7 @@ import type {
   ViewPart,
   ViewQuestion,
 } from './types'
+import type { WaitKind } from '../waits'
 
 export {
   MEDIA_URL_PREFIX,
@@ -427,6 +428,14 @@ export function createSessionView(source: SessionViewSource) {
   const handlers = new Map<string, Set<(value: unknown) => void>>()
   /** The answer to each open approval and client tool, by interrupt id. */
   const decisions = new Map<string, RunAgentResumeItem>()
+  /**
+   * The kinds of the waits that no turn holds (the waits of background agent
+   * runs), by id, from the last snapshot. Each one is answered on its own,
+   * not with the interrupts of the turn.
+   */
+  let runWaits = new Map<string, WaitKind>()
+  /** The waits of background runs whose answer is on its way. */
+  const sending = new Set<string>()
   const chatTurns = new Set<string>()
   const agentNames = new Map<string, string>()
   const mediaParts = new Map<string, MediaPart>()
@@ -574,9 +583,30 @@ export function createSessionView(source: SessionViewSource) {
     return messages === state.messages ? state : { ...state, messages }
   }
 
+  /** `items` without the items that `drop` matches. */
+  const without = <T extends { id: string }>(
+    items: Array<T>,
+    drop: (id: string) => boolean,
+  ) =>
+    keep(
+      items,
+      items.filter((item) => !drop(item.id)),
+    )
+  /** The state without the approvals, client tools, and interrupts `drop` matches. */
+  const withoutItems = (drop: (id: string) => boolean) => {
+    const state = get()
+    return {
+      ...state,
+      approvals: without(state.approvals, drop),
+      clientTools: without(state.clientTools, drop),
+      interrupts: without(state.interrupts, drop),
+    }
+  }
   /**
    * Keep the answer to an item of `open`. One resume must answer every open
-   * interrupt, so it goes when each approval and client tool has an answer.
+   * interrupt of the turn, so it goes when each approval and client tool of
+   * the turn has an answer. A wait of a background agent run goes at once,
+   * on its own.
    */
   const answer = (
     open: ReadonlyArray<{ id: string }>,
@@ -584,17 +614,35 @@ export function createSessionView(source: SessionViewSource) {
   ) => {
     alive()
     const id = entry.interruptId
-    const isDecided =
-      resolving || decisions.has(id) || !open.some((item) => item.id === id)
-    if (isDecided) return
+    if (!open.some((item) => item.id === id)) return
+    const kind = runWaits.get(id)
+    if (kind !== undefined) {
+      if (sending.has(id)) return
+      sending.add(id)
+      commit(withoutItems((item) => item === id))
+      // A person answers a `human` wait with `answer`, which an operator
+      // may send too.
+      const sent =
+        kind === 'human' && entry.status === 'resolved'
+          ? source.answer({ questionId: id, value: entry.payload })
+          : source.resolve({ resume: [entry] })
+      void sent.then(refused, fail).finally(() => {
+        sending.delete(id)
+        refreshSnapshot()
+      })
+      return
+    }
+    if (resolving || decisions.has(id)) return
     decisions.set(id, entry)
     const { approvals, clientTools, interrupts } = get()
-    const waiting = [...approvals, ...clientTools, ...interrupts]
+    const waiting = [...approvals, ...clientTools, ...interrupts].filter(
+      (item) => !runWaits.has(item.id),
+    )
     const resume = waiting.flatMap((item) => decisions.get(item.id) ?? [])
     if (resume.length < waiting.length) return
     decisions.clear()
     resolving = true
-    commit({ ...get(), approvals: [], clientTools: [], interrupts: [] })
+    commit(withoutItems((item) => !runWaits.has(item)))
     void source
       .resolve({ resume })
       .then(undefined, fail)
@@ -713,6 +761,12 @@ export function createSessionView(source: SessionViewSource) {
   }
 
   const takeSnapshot = (snapshot: SessionSnapshot, initial = false) => {
+    const turnIds = new Set(snapshot.pendingInterrupts.map(({ id }) => id))
+    runWaits = new Map(
+      (snapshot.pendingWaits ?? []).flatMap(({ waitId, kind }) =>
+        turnIds.has(waitId) ? [] : [[waitId, kind] as const],
+      ),
+    )
     const before = get()
     const next = applySnapshot(before, snapshot, factory, { initial })
     commit(next)

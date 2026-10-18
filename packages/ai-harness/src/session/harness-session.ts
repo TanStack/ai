@@ -22,6 +22,7 @@ import {
   CONTROL_OPS,
   hasFinalAnswer,
   loggedExtras,
+  notifyListeners,
   offeredInputRecord,
   SHUTDOWN_REASON,
   storedPrincipal,
@@ -29,6 +30,7 @@ import {
   toolCallOf,
 } from './helpers'
 import { SessionTurn } from './turn'
+import { commandStepScope, stepWaitPrefix } from './turn-parts'
 import { MAX_TIMER_MS } from '../utils'
 import type { ModelMessage } from '@tanstack/ai'
 import type { AccessRun } from '../access'
@@ -521,6 +523,13 @@ export class SessionImpl<
         (!this.isIdle() || this.jobs.size > 0 || this.recovering > 0) &&
         this.sleeping === 0,
       onOffers: () => void this.drainOffers(),
+      // An event that another host wrote: the host status and the `onEvent`
+      // listeners see it, as they see the events of this host at publish.
+      onRemoteEvent: ({ operationId, event }) =>
+        notifyListeners(this.notifyHost, this.eventListeners, {
+          operationId,
+          event,
+        }),
       redact: this.redactor.redact,
     })
     this.logWriter = writer
@@ -529,6 +538,7 @@ export class SessionImpl<
       this.notifyHost,
       this.eventListeners,
       this.redactor,
+      (operationId) => this.parentRunOf(operationId),
     )
     // The child threads (agent chains and subagent runs) are in this log.
     const view = { writer }
@@ -797,6 +807,9 @@ export class SessionImpl<
       await this.recoverBackground(writer)
       // The waits that expired, and the live waits of a host that stopped.
       await this.endStaleWaits()
+      await this.expireInterrupted()
+      // The agent runs whose waits ended while no host could resume them.
+      await this.resumeWaitingRuns()
     } finally {
       this.recovering -= 1
       // A recovery that left no work gives the log back.
@@ -836,9 +849,23 @@ export class SessionImpl<
         }
         continue
       }
-      // A command that the host stopped during: no host runs it again.
+      // A command that the host stopped during: no host runs it again,
+      // unless it asked in a `step.ask`. Then it runs again from the top.
       if (input.input.op === 'command' && input.status === 'applied') {
         if (isTaken(input)) continue
+        const prefix = stepWaitPrefix(commandStepScope(input.inputId))
+        const hasAsked = [...writer.state.thread.waits.keys()].some((waitId) =>
+          waitId.startsWith(prefix),
+        )
+        const isReplayed =
+          hasAsked &&
+          this.replayCommand({
+            inputId: input.inputId,
+            name: input.input.name,
+            input: input.input.input,
+            principal: input.principal,
+          })
+        if (isReplayed) continue
         await this.settle({
           inputId: input.inputId,
           ...(input.operationId ? { operationId: input.operationId } : {}),
@@ -963,10 +990,19 @@ export class SessionImpl<
       const run = input.operationId ? await runs.get(input.operationId) : null
       const now = Date.now()
       if (first) {
+        // A run that waits for answers waits on here.
+        if (run?.status === 'interrupted') {
+          this.adoptWaitingRun(input, first, run)
+          continue
+        }
         // A run that ended before its settle record landed did not stop.
         if (!run || run.status === 'running') {
           const isResumable = first.input.resume === true
-          if (isResumable && input.attempt < maxAttempts) {
+          // `limits.maxAttempts` of the run wins over the harness's.
+          const runMax =
+            writer.state.thread.tree.get(input.operationId ?? '')?.limits
+              ?.maxAttempts ?? maxAttempts
+          if (isResumable && input.attempt < runMax) {
             if (input.operationId) {
               await runs.update(input.operationId, {
                 status: 'failed',

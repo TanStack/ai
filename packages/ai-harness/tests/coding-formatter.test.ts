@@ -10,8 +10,10 @@ import {
   formatOnWrite,
   formatter,
 } from '../src/first-party/coding/formatter'
+import { FormatterRewrote } from '../src/first-party/coding/events'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { HarnessSession } from '../src'
+import type { PermissionRule } from '../src/first-party/permissions'
 import type { WorkspaceBackend } from '../src/first-party/coding/backend'
 import type {
   FormatFailure,
@@ -59,6 +61,8 @@ function project(files: Record<string, string>, exec: Exec = ok, shell?: 'sh') {
       const data = store.get(path)
       return data && { type: 'file', size: data.length, mtimeMs: 0 }
     },
+    // No links: each path is its own real path.
+    realpath: async (path) => path,
     readdir: async (dir) =>
       [...store.keys()]
         .filter((path) => paths.dirname(path) === dir)
@@ -82,8 +86,9 @@ async function formatIn(
 ) {
   const { backend, runs } = project(files, exec)
   const failures: Array<FormatFailure> = []
-  const afterWrite = formatOnWrite({ root, backend, ...options }, (failure) =>
-    failures.push(failure),
+  const afterWrite = formatOnWrite(
+    { root, backend, ...options },
+    { onFailure: (failure) => failures.push(failure) },
   )
   await afterWrite(join(root, path))
   return { runs, commands: runs.map((run) => run.command), failures }
@@ -199,7 +204,7 @@ describe('formatOnWrite', () => {
     const { backend, runs } = project(prettier, ok, 'sh')
     const afterWrite = formatOnWrite(
       { root: '/workspace', backend },
-      () => undefined,
+      { onFailure: () => undefined },
     )
     await afterWrite('/workspace/src/a.ts')
     expect(runs).toEqual([
@@ -225,8 +230,9 @@ describe('formatOnWrite', () => {
       return readdir(dir)
     }
     const failures: Array<FormatFailure> = []
-    const afterWrite = formatOnWrite({ root, backend }, (failure) =>
-      failures.push(failure),
+    const afterWrite = formatOnWrite(
+      { root, backend },
+      { onFailure: (failure) => failures.push(failure) },
     )
     await afterWrite(join(root, 'a.ts'))
     fail = false
@@ -237,7 +243,10 @@ describe('formatOnWrite', () => {
 
   it('checks the config files once, at the first write', async () => {
     const { backend, runs, put } = project({})
-    const afterWrite = formatOnWrite({ root, backend }, () => undefined)
+    const afterWrite = formatOnWrite(
+      { root, backend },
+      { onFailure: () => undefined },
+    )
     await afterWrite(join(root, 'a.ts'))
     put('.prettierrc', '{}')
     await afterWrite(join(root, 'a.ts'))
@@ -270,6 +279,34 @@ describe('formatOnWrite', () => {
     expect(runs[0]?.timeoutMs).toBe(5000)
     expect(failures).toEqual([{ path: join(root, 'a.ts'), message }])
   })
+
+  it.each([
+    [
+      'changed',
+      'let a = 1\n',
+      [{ path: join(root, 'a.ts'), formatter: 'prettier' }],
+    ],
+    ['kept', 'let a=1', []],
+  ])(
+    'reports a rewrite only when the formatter changed the file (%s)',
+    async (_, formatted, expected) => {
+      // The fake prettier writes `formatted` to the file.
+      const files = project({ ...prettier, 'a.ts': 'let a=1' }, () => {
+        files.put('a.ts', formatted)
+        return { exitCode: 0, stdout: '', stderr: '' }
+      })
+      const rewrites: Array<{ path: string; formatter: string }> = []
+      const afterWrite = formatOnWrite(
+        { root, backend: files.backend },
+        {
+          onFailure: () => undefined,
+          onRewrite: (rewrite) => rewrites.push(rewrite),
+        },
+      )
+      await afterWrite(join(root, 'a.ts'))
+      expect(rewrites).toEqual(expected)
+    },
+  )
 
   it('reports a backend that throws, and does not throw', async () => {
     const { failures } = await formatIn(prettier, 'a.ts', {}, () => {
@@ -334,6 +371,48 @@ describe('formatter', () => {
   })
 })
 
+describe('formatter events', () => {
+  it('sends tanstack/formatter:rewrote when the formatter changed the written file', async () => {
+    // The fake prettier puts spaces around `=`.
+    const files = project(prettier, () => {
+      files.put('a.ts', files.read('a.ts').replace('=', ' = '))
+      return { exitCode: 0, stdout: '', stderr: '' }
+    })
+    const rewrites: Array<unknown> = []
+    const listener = definePlugin({
+      name: 'test/listener',
+      setup: (ctx) => {
+        ctx.on(FormatterRewrote, (rewrite) => rewrites.push(rewrite))
+      },
+    })
+    const { adapter } = mockAdapter([
+      () => toolCall('write_file', { path: 'a.ts', content: 'let a=1' }, 'c1'),
+      () => text('done'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/formatter-events',
+        adapter,
+        plugins: () => [
+          workspaceTools({ root, backend: files.backend }),
+          formatter({ root, backend: files.backend }),
+          listener,
+        ],
+      }),
+      { threadId: 't' },
+    )
+
+    await session.send('work')
+    await host.close()
+
+    expect(files.read('a.ts')).toBe('let a = 1')
+    expect(rewrites).toEqual([
+      { path: join(root, 'a.ts'), formatter: 'prettier' },
+    ])
+  })
+})
+
 describe('formatter with permissions()', () => {
   /**
    * A session with the workspace tools, the formatter, and `permissions()`
@@ -345,6 +424,7 @@ describe('formatter with permissions()', () => {
     paths: Array<string>,
     persistence = memoryPersistence(),
     files: Record<string, string> = {},
+    rules: Array<PermissionRule> = [],
   ) {
     const { backend, runs } = project(files)
     const { adapter, calls } = mockAdapter([
@@ -360,7 +440,7 @@ describe('formatter with permissions()', () => {
         name: 'test/formatter-permissions',
         adapter,
         plugins: () => [
-          permissions({ root }),
+          permissions({ root, rules }),
           workspaceTools({ root, backend }),
           formatter({ root, backend }),
         ],
@@ -370,34 +450,65 @@ describe('formatter with permissions()', () => {
       },
     )
     await session.command({ name: 'mode', input: mode })
-    return { host, session, runs, calls }
+    return { host, session, runs, calls, backend }
   }
 
-  /** Wait for the one open question, then answer it. Returns its message. */
+  /**
+   * Wait for the one open approval of the turn, then answer it, and wait
+   * for the turn that resumes. Returns its message.
+   */
   async function answer(session: HarnessSession, value: unknown) {
-    await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
+    await vi.waitFor(
+      () => expect(session.snapshot().pendingWaits).toHaveLength(1),
+      { timeout: 5_000 },
     )
-    const [question] = session.snapshot().pendingQuestions
-    if (!question) throw new Error('No question.')
-    await session.answer({ questionId: question.questionId, value })
-    return question.message
+    const [wait] = session.snapshot().pendingWaits ?? []
+    if (!wait) throw new Error('No approval.')
+    const inputId = `answer:${wait.waitId}`
+    await session.resolve({
+      resume: [
+        { interruptId: wait.waitId, status: 'resolved', payload: value },
+      ],
+      inputId,
+    })
+    await session.settled({ inputId })
+    return wait.message ?? ''
   }
 
-  it('in acceptEdits, asks before prettier runs after an edit of prettier.config.js', async () => {
-    const { host, session, runs, calls } = await openWith('acceptEdits', [
-      'prettier.config.js',
-    ])
+  it('in acceptEdits, asks before the write of prettier.config.js, for the write and prettier', async () => {
+    const { host, session, runs, calls, backend } = await openWith(
+      'acceptEdits',
+      ['prettier.config.js'],
+    )
 
-    const turn = session.send('change the config')
+    await session.send('change the config')
     const message = await answer(session, { answer: 'reject' })
-    await turn
 
-    expect(message).toContain('formatter:prettier')
+    // The approval came before the call: a reject refuses the write too.
+    expect(message).toContain('Allow write_file')
     expect(runs).toEqual([])
-    // The write stays, and the result says the formatter did not run.
+    expect(await backend.stat(join(root, 'prettier.config.js'))).toBe(undefined)
     expect(JSON.stringify(calls[1].messages)).toContain(
-      'Wrote prettier.config.js.\\nThe formatter prettier did not run: it is not allowed.',
+      'The user denied this tool call.',
+    )
+    await host.close()
+  })
+
+  it('keeps the write and skips the formatter that a rule denies', async () => {
+    const { host, session, runs, calls } = await openWith(
+      'acceptEdits',
+      ['a.ts'],
+      memoryPersistence(),
+      prettier,
+      [{ tool: 'formatter:prettier', decision: 'deny' }],
+    )
+
+    await session.send('write it')
+
+    expect(session.snapshot().pendingWaits).toEqual([])
+    expect(runs).toEqual([])
+    expect(JSON.stringify(calls[1].messages)).toContain(
+      'Wrote a.ts.\\nThe formatter prettier did not run: it is not allowed.',
     )
     await host.close()
   })
@@ -409,9 +520,8 @@ describe('formatter with permissions()', () => {
       ['prettier.config.js', 'a.ts'],
       persistence,
     )
-    const turn = first.session.send('write twice')
+    await first.session.send('write twice')
     await answer(first.session, { answer: 'always' })
-    await turn
     expect(first.runs.map((run) => run.command)).toEqual([
       `npx --no-install prettier --write ${quoted('prettier.config.js')}`,
       `npx --no-install prettier --write ${quoted('a.ts')}`,

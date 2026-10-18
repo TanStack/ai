@@ -3,7 +3,14 @@ import { createSessionView } from '@tanstack/ai-harness/view'
 import { saveMediaLine } from './attach'
 import { handleLine } from './commands'
 import { createPrinter } from './printer'
-import { approvalQuestion, openUrl, resolveAll, waitIdle } from './session-view'
+import {
+  answerOf,
+  openUrl,
+  turnWaits,
+  waitIdle,
+  waitQuestion,
+} from './session-view'
+import type { RunAgentResumeItem } from '@tanstack/ai'
 import type { HarnessSession } from '@tanstack/ai-harness'
 
 interface Output {
@@ -63,9 +70,11 @@ function secretTyping(input: NodeJS.ReadableStream, onCtrlC: () => void) {
 
 /**
  * The line mode: one message or command per line. When a turn stops for
- * approval, the next line answers it (`y` approves, anything else
- * rejects). In a terminal, the answer to a secret question (a key) is not
- * shown as the user types. Line mode never prints the answer.
+ * its waits, each next line answers one of them, by its kind and schema
+ * (see `answerOf`: `y` approves an approval). After the last one, the turn
+ * goes on. A question of a command or a durable tool takes the next line.
+ * In a terminal, the answer to a secret question (a key) is not shown as
+ * the user types. Line mode never prints the answer.
  *
  * `interactive`: the user types the lines (a terminal). Each line acts at
  * once: `/cancel` cancels the running turn, and a message steers it. Sign-in
@@ -115,17 +124,22 @@ export async function runLines(
     signal: options.signal,
   })
   const pendingLater: Array<Promise<void>> = []
+  /** The answers to the waits of the stopped turn so far, by wait id. */
+  const decided = new Map<string, RunAgentResumeItem>()
   /**
-   * Wait for the turn to end. Then ask for its approvals, and hide the
-   * typing for a secret question. In a terminal, this runs while the next
-   * lines are read. Only one runs at a time, so each approval is asked once.
+   * Wait for the turn to end. Then ask for its next wait that has no
+   * answer, and hide the typing for a secret question. In a terminal, this
+   * runs while the next lines are read. Only one runs at a time, so each
+   * wait is asked once.
    */
   const afterTurn = async () => {
     await waitIdle(session)
     const after = session.snapshot()
-    if (after.status === 'requires_action') {
-      line(approvalQuestion(after.pendingInterrupts))
-    }
+    const ask =
+      after.status === 'requires_action'
+        ? turnWaits(after).find(({ waitId }) => !decided.has(waitId))
+        : undefined
+    if (ask) line(waitQuestion(ask))
     if (after.pendingQuestions[0]?.secret) typing.hide()
   }
   let waiting: Promise<void> | undefined
@@ -136,12 +150,18 @@ export async function runLines(
       const typed = typing.isHidden() ? typedText(raw) : raw
       typing.show()
       const snapshot = session.snapshot()
-      if (snapshot.status === 'requires_action') {
-        await resolveAll(
-          session,
-          snapshot.pendingInterrupts,
-          /^y(es)?$/i.test(typed.trim()),
-        )
+      const waits = turnWaits(snapshot)
+      const next = waits.find(({ waitId }) => !decided.has(waitId))
+      if (snapshot.status === 'requires_action' && next) {
+        decided.set(next.waitId, answerOf(next, typed))
+        // One resolve answers every wait of the turn.
+        if (waits.every(({ waitId }) => decided.has(waitId))) {
+          const resume = waits.flatMap(
+            ({ waitId }) => decided.get(waitId) ?? [],
+          )
+          decided.clear()
+          await session.resolve({ resume })
+        }
       } else {
         const result = await handleLine(session, typed)
         if (result.type === 'exit') break

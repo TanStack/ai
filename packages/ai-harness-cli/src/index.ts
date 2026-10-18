@@ -196,6 +196,11 @@ export async function runCli<P extends Principal = Principal>(
   const stop = stopOnSignals(options.signals ?? process, () => cancel())
   /** The handle of the session modes. The CLI releases it at the end. */
   let session: HarnessSession | undefined
+  /**
+   * The run of --print waits for a person. A durable host keeps the wait,
+   * so a later run (or another machine) answers it.
+   */
+  let isWaiting = false
   try {
     if (args.acp) {
       const acp = await loadOptional<AcpAgentModule>(
@@ -297,6 +302,7 @@ export async function runCli<P extends Principal = Principal>(
               onCtrlC: () => stop.receive('SIGINT'),
             }).then(() => EXIT.ok)
     const code = await Promise.race([running, stop.stopped])
+    isWaiting = code === EXIT.needsAction
     if (!stop.signal.aborted) {
       // A signal that cancelled the turn of --print gives its exit code.
       return code === EXIT.cancelled ? (stop.exitCode() ?? code) : code
@@ -319,7 +325,9 @@ export async function runCli<P extends Principal = Principal>(
     // A host the caller gave stays open: the caller owns it. After a
     // signal, its running work stops as on a crash, so a durable host runs
     // it again.
-    if (!options.host) await host.close({ recoverable: stop.signal.aborted })
+    if (!options.host) {
+      await host.close({ recoverable: stop.signal.aborted || isWaiting })
+    }
   }
 }
 

@@ -24,6 +24,7 @@ import type { InputState } from '../log'
 import type {
   AgentResultRecord,
   NamedTurnOverrides,
+  RunTreeNode,
   ThreadRecord,
 } from '../log-records'
 import type { MountedPlugins } from '../plugins'
@@ -33,10 +34,16 @@ import type {
   OperationStatus,
   Principal,
   RunContext,
+  RunNode,
   ThreadSettings,
   TurnOverrides,
 } from '../types'
-import type { AgentRunInfo, AgentMessage, AgentInputState } from './types'
+import type {
+  AgentRunInfo,
+  AgentMessage,
+  AgentInputState,
+  AgentStartOptions,
+} from './types'
 
 /** A metadata row of usage totals that `host.sessions.delete` still deletes. */
 export const USAGE = 'harness:usage'
@@ -181,8 +188,14 @@ export function loggedExtras(named: NamedTurnOverrides) {
  */
 export const agentKey = (inputId: string) => `agent:${inputId}`
 
-/** The chain fields that the `agent` input of a first run keeps. */
-export const chainFields = (first: AgentInputState) => ({
+/**
+ * The chain fields that the `agent` input of a first run keeps, and the
+ * start options that `node`, a run node of the chain, keeps.
+ */
+export const chainFields = (
+  first: AgentInputState,
+  node?: Pick<RunTreeNode, 'key' | 'limits' | 'budget'>,
+) => ({
   runInputId: first.inputId,
   target: first.input.agent,
   input: first.input.input,
@@ -190,6 +203,10 @@ export const chainFields = (first: AgentInputState) => ({
     wake: first.input.detached === true,
     ...(first.input.resume ? { resume: true } : {}),
     ...(first.input.attach ? { attach: first.input.attach } : {}),
+    // The run tree keeps the start options that the input does not.
+    ...(node?.key !== undefined ? { key: node.key } : {}),
+    ...(node?.limits ? { limits: node.limits } : {}),
+    ...(node?.budget ? { budget: node.budget } : {}),
   },
   ...(first.principal ? { principal: first.principal } : {}),
   ...(first.input.parentRunId ? { parentRunId: first.input.parentRunId } : {}),
@@ -229,8 +246,9 @@ export const runStatus = (status: OperationStatus): AgentRunInfo['status'] => {
   switch (status) {
     case 'accepted':
       return 'queued'
+    // The run stopped for its waits. An answer resumes it.
     case 'interrupted':
-      return 'running'
+      return 'waiting'
     case 'running':
     case 'completed':
     case 'failed':
@@ -239,20 +257,43 @@ export const runStatus = (status: OperationStatus): AgentRunInfo['status'] => {
   }
 }
 
-/** The `agentRuns()` status of a run in the log, from how it ended. */
-export const loggedStatus = (input: InputState): AgentRunInfo['status'] => {
-  const outcome = input.settlement?.outcome
-  switch (outcome) {
-    case undefined:
-      return 'running'
-    case 'aborted':
-      return 'cancelled'
-    case 'failed':
-      return 'failed'
-    case 'completed':
-    case 'interrupted':
-      return 'completed'
+/**
+ * The `harness.run.node` record of a run that applies the input `inputId`:
+ * a turn, an agent run, or a command. It goes in the append of the applied
+ * record, so the run tree has the run once it starts. `options`: the
+ * options of an agent run that the tree keeps.
+ */
+export function runNodeRecord(node: {
+  runId: string
+  kind: RunNode['kind']
+  inputId: string
+  principal: Principal | undefined
+  parentRunId?: string
+  agent?: string
+  chainInputId?: string
+  parentChainInputId?: string
+  options?: Pick<
+    AgentStartOptions,
+    'key' | 'limits' | 'budget' | 'onModelError'
+  >
+}) {
+  const { parentRunId, agent, chainInputId, parentChainInputId, options } = node
+  const record: ThreadRecord = {
+    type: 'harness.run.node',
+    runId: node.runId,
+    kind: node.kind,
+    inputId: node.inputId,
+    ...storedPrincipal(node.principal),
+    ...(parentRunId !== undefined ? { parentRunId } : {}),
+    ...(agent !== undefined ? { agent } : {}),
+    ...(chainInputId !== undefined ? { chainInputId } : {}),
+    ...(parentChainInputId !== undefined ? { parentChainInputId } : {}),
+    ...(options?.key !== undefined ? { key: options.key } : {}),
+    ...(options?.limits ? { limits: options.limits } : {}),
+    ...(options?.budget ? { budget: options.budget } : {}),
+    ...(options?.onModelError ? { liveOnly: ['onModelError' as const] } : {}),
   }
+  return record
 }
 
 /** The connector a sign-in interrupt (`require` with `wait`) waits for. */
@@ -688,8 +729,11 @@ export function dropOldest<T>(set: Set<T>, limit: number) {
   return dropped
 }
 
-/** Why a turn stops when its input passes its time limit. */
+/** Why a turn or an agent run stops when its input passes its time limit. */
 export const TIMEOUT_REASON = 'harness:input-timeout'
+
+/** Why an agent run stops when it, or a run above it, used its budget. */
+export const BUDGET_REASON = 'harness:budget'
 
 /** What the model gets after its partial answer, on a `'continue'`. */
 export const CONTINUE_NOTE =
@@ -794,41 +838,53 @@ export const notOpenMessages: MessageStore = {
 }
 
 /**
+ * Give one event to `notifyHost` and each of `listeners`. A listener that
+ * throws, or whose promise rejects, is logged, and the others still run.
+ */
+export function notifyListeners(
+  notifyHost: (event: StreamChunk) => void,
+  listeners: Set<EventListener>,
+  entry: Parameters<EventListener>[0],
+) {
+  const report = (error: unknown) =>
+    console.error('[@tanstack/ai-harness] An onEvent listener threw.', error)
+  try {
+    notifyHost(entry.event)
+  } catch (error) {
+    report(error)
+  }
+  for (const listener of [...listeners]) {
+    // A listener that an earlier listener stopped gets nothing.
+    if (!listeners.has(listener)) continue
+    try {
+      const result: unknown = listener(entry)
+      if (result instanceof Promise) result.catch(report)
+    } catch (error) {
+      report(error)
+    }
+  }
+}
+
+/**
  * `feed`, then `notifyHost` and each of `listeners` after each publish. This
  * is how the host and `onEvent` see events. The caller keeps `listeners`, so
  * they survive a new tap of another feed. Each event goes through
  * `redactor` first, so no one of them gets a secret of the session.
+ * `parentOf` gives the parent run of an operation, so each event of a child
+ * run names its parent.
  */
 export function tapFeed(
   feed: EventFeed,
   notifyHost: (event: StreamChunk) => void,
   listeners: Set<EventListener>,
   redactor: Redactor,
+  parentOf: (operationId: string) => string | undefined,
 ): ListenedFeed {
   return {
-    publish: (operationId, raw) => {
+    publish: (operationId, raw, parentRunId) => {
       const event = redactor.redact(raw)
-      feed.publish(operationId, event)
-      const report = (error: unknown) =>
-        console.error(
-          '[@tanstack/ai-harness] An onEvent listener threw.',
-          error,
-        )
-      try {
-        notifyHost(event)
-      } catch (error) {
-        report(error)
-      }
-      for (const listener of [...listeners]) {
-        // A listener that an earlier listener stopped gets nothing.
-        if (!listeners.has(listener)) continue
-        try {
-          const result: unknown = listener({ operationId, event })
-          if (result instanceof Promise) result.catch(report)
-        } catch (error) {
-          report(error)
-        }
-      }
+      feed.publish(operationId, event, parentRunId ?? parentOf(operationId))
+      notifyListeners(notifyHost, listeners, { operationId, event })
     },
     listen: (listener) => {
       // A new entry per call: a listener added twice is called twice.
@@ -843,4 +899,84 @@ export function tapFeed(
     close: () => feed.close(),
     wake: () => feed.wake(),
   }
+}
+
+/**
+ * The plugins of one turn, with a count of the runs that still use them. The
+ * turn holds them first. Each run that the turn starts takes a hold until it
+ * settles. The plugins dispose once, when the last hold ends, or at
+ * `dispose()` (a session close).
+ */
+export interface HeldPlugins {
+  plugins: MountedPlugins
+  /**
+   * Keep the plugins for `run` until it settles. True when `run` holds them
+   * now. False when they are disposed already.
+   */
+  hold: (run: PromiseLike<unknown>) => boolean
+  /** End the hold of the turn. Resolves when a dispose that it starts ends. */
+  release: () => Promise<void>
+  /** Dispose the plugins now, once. */
+  dispose: () => Promise<void>
+}
+
+/** Hold `plugins` for the turn that mounted them. See {@link HeldPlugins}. */
+export function holdPlugins(
+  plugins: MountedPlugins,
+  onDisposed: (held: HeldPlugins) => void,
+): HeldPlugins {
+  let holds = 1
+  let disposing: Promise<void> | undefined
+  const runs = new WeakSet<PromiseLike<unknown>>()
+  const held: HeldPlugins = {
+    plugins,
+    hold: (run) => {
+      if (runs.has(run)) return true
+      if (disposing) return false
+      runs.add(run)
+      holds += 1
+      const end = () => void held.release()
+      run.then(end, end)
+      return true
+    },
+    release: () => {
+      holds -= 1
+      return holds <= 0 ? held.dispose() : Promise.resolve()
+    },
+    dispose: () => {
+      // A failed dispose does not fail the turn or the close.
+      disposing ??= plugins
+        .dispose()
+        .catch(() => {})
+        .finally(() => onDisposed(held))
+      return disposing
+    },
+  }
+  return held
+}
+
+/**
+ * Abort `child` with the reason of `parent` when `parent` aborts: a cancel,
+ * a time limit, a budget, or a shutdown, with the same reason, so a shutdown
+ * stays a shutdown. The link ends when either run settles. A parent that ends
+ * normally does not stop the child.
+ */
+export function linkSignal(parent: LinkedRun, child: LinkedRun) {
+  const parentSignal = parent.abortController.signal
+  if (parent.isSettled()) return
+  const stop = () => child.abortController.abort(parentSignal.reason)
+  if (parentSignal.aborted) {
+    stop()
+    return
+  }
+  parentSignal.addEventListener('abort', stop, { once: true })
+  const unlink = () => parentSignal.removeEventListener('abort', stop)
+  child.then(unlink, unlink)
+  parent.then(unlink, unlink)
+}
+
+/** A run that {@link linkSignal} links: an operation of the session. */
+type LinkedRun = PromiseLike<unknown> & {
+  abortController: AbortController
+  isSettled: () => boolean
 }

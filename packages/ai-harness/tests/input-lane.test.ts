@@ -11,6 +11,7 @@ import {
   definePlugin,
   logIdOf,
 } from '../src'
+import { createHarnessHandler } from '../src/server'
 import {
   CRASHING_OWNERSHIP,
   after,
@@ -88,7 +89,8 @@ const asking = (secret: boolean) =>
         ask: defineCommand({
           description: 'Sign in with a password',
           run: async (_input, ctx) => {
-            const password = await ctx.session.ask({
+            const password = await ctx.step.ask({
+              name: 'password',
               message: 'Password?',
               schema: z.string(),
               secret,
@@ -232,7 +234,8 @@ describe('an input that reaches a host that does not own the log', () => {
           ask: defineCommand({
             description: 'Sign in with a password',
             run: async (_input, ctx) => {
-              const password = await ctx.session.ask({
+              const password = await ctx.step.ask({
+                name: 'password',
                 message: 'Password?',
                 schema: z.string(),
                 secret: true,
@@ -303,9 +306,12 @@ describe('an input that reaches a host that does not own the log', () => {
       expect(receipt.status).toBe('queued')
       expect(await running).toBe('signed in')
 
-      expect(saved).toHaveLength(1)
-      const [ref] = saved
+      // The ref of the other host, and the answer that the owner keeps
+      // until the command ends, so a run again can read it.
+      expect(saved).toHaveLength(2)
+      const [ref, kept] = saved
       expect(ref).toMatch(/^harness:answer:/)
+      expect(kept).toBe(`harness:answer:${questionId}#kept`)
       // The lane got only the ref, and the owner consumed it.
       expect(JSON.stringify(offers)).toContain(ref)
       expect(JSON.stringify(offers)).not.toContain(PASSWORD)
@@ -314,8 +320,12 @@ describe('an input that reaches a host that does not own the log', () => {
         PASSWORD,
       )
       expect(JSON.stringify(events)).not.toContain(PASSWORD)
-      // The owner deleted the entry after it read it.
+      // The owner deleted the entry after it read it, and the kept answer
+      // when the command ended.
       expect(await credentials.get({ scope: {}, id: ref! })).toBeNull()
+      expect(
+        await credentials.get({ scope: { threadId: THREAD }, id: kept! }),
+      ).toBeNull()
       expect(await credentials.list({})).toEqual([])
 
       // The same ref again, as the owner applies it from the lane, is
@@ -698,5 +708,83 @@ describe('the input lane while idle', () => {
     expect(idleCalls).toBe(0)
     await owner.host.close()
     await other.host.close()
+  })
+})
+
+describe('a cancel from any server', () => {
+  it('stops the turn of the owner when POST control on another server sends it', async () => {
+    const { a, b } = twoStores()
+    const ownerModel = mockAdapter([untilAborted()])
+    const owner = await hostOn(a, harnessWith(ownerModel.adapter))
+    const harness = harnessWith(mockAdapter([]).adapter)
+    const other = await hostOn(b, harness)
+    const handler = createHarnessHandler({
+      host: other.host,
+      harness,
+      openAccess: true,
+    })
+
+    const turn = owner.session.send('Go.')
+    const { operationId } = await turn.receipt
+    await waitFor(() => expect(ownerModel.calls).toHaveLength(1))
+    const response = await handler(
+      new Request('http://x/api/harness/control', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          threadId: THREAD,
+          input: { op: 'cancel', operationId },
+        }),
+      }),
+    )
+
+    expect(await response.json()).toMatchObject({ status: 'queued' })
+    await expect(Promise.resolve(turn)).rejects.toThrow()
+    expect(turn.status()).toBe('cancelled')
+    await owner.host.close()
+    await other.host.close()
+  })
+
+  it('does not stop a turn when the client of POST run leaves', async () => {
+    const { a } = twoStores()
+    const release = gate()
+    const harness = harnessWith(
+      mockAdapter([after(release.opened, 'Late.')]).adapter,
+    )
+    const owner = await hostOn(a, harness)
+    const handler = createHarnessHandler({
+      host: owner.host,
+      harness,
+      openAccess: true,
+    })
+
+    const response = await handler(
+      new Request('http://x/api/harness/run', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          threadId: THREAD,
+          runId: 'run-1',
+          messages: [{ id: 'u1', role: 'user', content: 'Go.' }],
+          tools: [],
+          context: [],
+          state: {},
+          forwardedProps: {},
+        }),
+      }),
+    )
+    const reader = response.body!.getReader()
+    await reader.read()
+    // The client leaves while the turn runs.
+    await reader.cancel()
+    release.open()
+
+    await waitFor(() =>
+      expect(owner.session.operation('run-1')?.status()).toBe('completed'),
+    )
+    expect(contents(await owner.session.transcript()).at(-1)?.content).toBe(
+      'Late.',
+    )
+    await owner.host.close()
   })
 })

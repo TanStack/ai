@@ -38,7 +38,9 @@ interface ExecResult {
 
 const ok = (stdout: string): ExecResult => ({ exitCode: 0, stdout, stderr: '' })
 const NOT_FOUND: ExecResult = { exitCode: 127, stdout: '', stderr: 'not found' }
-const GIT = 'git ls-files -z --cached --others --exclude-standard'
+// git runs with no fsmonitor and no hooks: the model can write .git/config.
+const GIT =
+  'git -c core.fsmonitor= -c core.hooksPath= ls-files -z --cached --others --exclude-standard'
 const NOT_GIT: ExecResult = {
   exitCode: 128,
   stdout: '',
@@ -70,6 +72,8 @@ function fakeBackend(
     ]),
   )
   const commands: Array<string> = []
+  /** The env of each command, in the order of `commands`. */
+  const envs: Array<Record<string, string> | undefined> = []
   const backend: WorkspaceBackend = {
     readFile: async (path) => {
       const data = byPath.get(path)
@@ -84,6 +88,8 @@ function fakeBackend(
       if (!data) return undefined
       return { type: 'file', size: data.length, mtimeMs: 0 }
     },
+    // No links: each path is its own real path.
+    realpath: async (path) => path,
     readdir: async (path) => {
       const prefix = path + sep
       const entries = new Map<string, 'file' | 'dir'>()
@@ -97,12 +103,13 @@ function fakeBackend(
         .sort(([a], [b]) => (a < b ? -1 : 1))
         .map(([name, type]) => ({ name, type }))
     },
-    exec: async (command) => {
+    exec: async (command, options) => {
       commands.push(command)
+      envs.push(options?.env)
       return script(command) ?? NOT_FOUND
     },
   }
-  return { backend, commands }
+  return { backend, commands, envs }
 }
 
 /**
@@ -216,6 +223,15 @@ describe('list_files and grep engines', () => {
     },
   )
 
+  it('runs git without the system config', async () => {
+    const fake = fakeBackend(files, (command) =>
+      command === GIT ? ok(gitFiles) : undefined,
+    )
+    await searchOn(fake.backend).listFiles()
+    const gitEnv = fake.envs[fake.commands.indexOf(GIT)]
+    expect(gitEnv).toEqual({ GIT_CONFIG_NOSYSTEM: '1' })
+  })
+
   it('runs the bundled rg with the host backend, and does not look on the PATH', async () => {
     const exec = scriptHostExec(() => ok('./a.ts\0'))
     expect(await searchOn(hostBackend, tmpdir()).listFiles()).toBe('a.ts')
@@ -270,23 +286,28 @@ describe('list_files and grep engines', () => {
     )
   })
 
-  it('rg: grep drops the lines of a protected file, and lists the files to count them', async () => {
+  it('rg: grep drops the lines of a protected file, and lists the files to count them in the same command', async () => {
+    // One shell runs the list, an `echo` of a marker line, and the search,
+    // like `sh` does with `;`.
+    const listAndSearch =
+      /^rg --files .* \. ; echo (-- [\w-]+ --) ; rg --line-number .* \.$/
     const fake = fakeBackend(
       { '.env': 'two=1\n', 'a.ts': 'two\n' },
       (command) => {
         if (command === 'rg --version') return ok('ripgrep 14.1.0')
-        if (command.startsWith('rg --files ')) return ok('./.env\0./a.ts\0')
-        return command.startsWith('rg --line-number ')
-          ? ok('./.env\x001:two=1\n./a.ts\x001:two\n')
-          : undefined
+        const marker = listAndSearch.exec(command)?.[1]
+        if (marker === undefined) return undefined
+        const hits = './.env\x001:two=1\n./a.ts\x001:two\n'
+        return ok(`./.env\0./a.ts\0${marker}\n${hits}`)
       },
     )
     // Rules that ask about every .env file, like permissions() does.
     const { grep } = searchOn(fake.backend, root, {
-      ask: async () => 'n',
       mode: () => 'default',
-      rules: () => (_tool, paths) =>
-        paths.some((path) => path.endsWith('.env')) ? 'ask' : 'allow',
+      rules: () => (_tool, resources) =>
+        resources.paths?.some((path) => path.endsWith('.env'))
+          ? 'ask'
+          : 'allow',
     })
 
     expect(await grep({ pattern: 'two' })).toBe(
@@ -294,9 +315,30 @@ describe('list_files and grep engines', () => {
     )
     expect(fake.commands).toEqual([
       'rg --version',
-      expect.stringMatching(/^rg --files /),
-      expect.stringMatching(/^rg --line-number /),
+      expect.stringMatching(listAndSearch),
     ])
+  })
+
+  it('git: grep with protected files lists the files once', async () => {
+    const fake = fakeBackend(
+      { '.env': 'two=1\n', 'a.ts': 'two\n' },
+      (command) => (command === GIT ? ok('.env\0a.ts\0') : undefined),
+    )
+    const readdir = vi.spyOn(fake.backend, 'readdir')
+    const { grep } = searchOn(fake.backend, root, {
+      mode: () => 'default',
+      rules: () => (_tool, resources) =>
+        resources.paths?.some((path) => path.endsWith('.env'))
+          ? 'ask'
+          : 'allow',
+    })
+
+    expect(await grep({ pattern: 'two' })).toBe(
+      'a.ts:1: two\n[Skipped 1 file that the permission rules protect.]',
+    )
+    expect(fake.commands.filter((command) => command === GIT)).toHaveLength(1)
+    // The link check of the git list reads the root folder once.
+    expect(readdir.mock.calls).toEqual([[root]])
   })
 })
 

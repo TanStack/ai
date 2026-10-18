@@ -250,7 +250,14 @@ describe('WebSocket edges', () => {
     handleHarnessSocket({ host, harness, socket, request: upgrade })
     receive({ type: 'harness.subscribe', threadId: 'user-2-x' })
     await vi.waitFor(() => expect(closed).toEqual([4403]))
-    expect(sent).toEqual([{ type: 'harness.error', message: 'forbidden' }])
+    expect(sent).toEqual([
+      {
+        type: 'harness.error',
+        message: 'forbidden',
+        code: 'forbidden',
+        requestId: expect.any(String),
+      },
+    ])
     await host.close()
   })
 
@@ -274,6 +281,8 @@ describe('WebSocket edges', () => {
       expect(first.sent.at(-1)).toEqual({
         type: 'harness.error',
         message: 'Already subscribed.',
+        code: 'invalid_frame',
+        requestId: expect.any(String),
       }),
     )
     first.receive('[1, 2]')

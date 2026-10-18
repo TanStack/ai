@@ -12,7 +12,7 @@ import type {
 import { isHarnessDefinition } from './define'
 import type { AnyHarness } from './define'
 import type { HarnessHost } from './host'
-import type { Principal, UserInput } from './types'
+import type { Operation, Principal, UserInput } from './types'
 
 export interface HarnessTextOptions {
   /** The host that runs the inner sessions. Default: a memory host. */
@@ -36,7 +36,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null
 
 /** The content of the last user message: its text, or its content parts. */
-function lastUserInput(messages: ReadonlyArray<ModelMessage>) {
+export function lastUserInput(messages: ReadonlyArray<ModelMessage>) {
   const message = messages.findLast((entry) => entry.role === 'user')
   const input: UserInput = message?.content ?? ''
   return input
@@ -227,7 +227,7 @@ function runPrincipalOf(capabilities: unknown) {
   return principal
 }
 
-type FinishReason = NonNullable<RunFinishedEvent['finishReason']>
+export type FinishReason = NonNullable<RunFinishedEvent['finishReason']>
 
 /**
  * The finish reason of an inner RUN_FINISHED. An interrupted inner turn
@@ -244,6 +244,80 @@ function signalOf(request: unknown) {
   return isRecord(request) && request.signal instanceof AbortSignal
     ? request.signal
     : undefined
+}
+
+/** How one inner turn ended. See {@link forwardTurn}. */
+export interface InnerTurnEnd {
+  /** The error text of a turn that failed or was cancelled. */
+  failed?: string
+  finished: FinishReason
+  /** The turn stopped for waits: approvals, client tools, or questions. */
+  isInterrupted: boolean
+  /** The usage of the turn's model calls, with its child agents. */
+  usage?: TokenUsage
+}
+
+/**
+ * Stream the chunks of an inner turn that `pass` keeps, and return how the
+ * turn ended. `finished` is `undefined` when no RUN_FINISHED of the turn
+ * came. `pass` gets each chunk, and whether the turn itself sent it (not a
+ * child run of the turn).
+ */
+async function* forwardChunks(
+  chunks: AsyncIterable<StreamChunk>,
+  pass: (chunk: StreamChunk, isOwn: boolean) => StreamChunk | undefined,
+): AsyncGenerator<
+  StreamChunk,
+  Omit<InnerTurnEnd, 'finished'> & { finished?: FinishReason }
+> {
+  let failed: string | undefined
+  let finished: FinishReason | undefined
+  let isInterrupted = false
+  let usage: TokenUsage | undefined
+  for await (const chunk of chunks) {
+    const isOwn = !('subagentRunId' in chunk && chunk.subagentRunId)
+    const kept = pass(chunk, isOwn)
+    if (kept) yield kept
+    if (chunk.type === EventType.RUN_FINISHED && isOwn) {
+      finished = finishReasonOf(chunk)
+      isInterrupted = chunk.outcome?.type === 'interrupt'
+      // It has the usage of the child agents of the call too.
+      const used = usageOf(chunk)
+      if (used) usage = addUsage(usage, used)
+    }
+    if (chunk.type === EventType.RUN_ERROR) failed = chunk.message
+  }
+  return {
+    ...(failed !== undefined && { failed }),
+    ...(finished !== undefined && { finished }),
+    isInterrupted,
+    ...(usage && { usage }),
+  }
+}
+
+/**
+ * @internal Stream the events of the inner turn `operation` that `pass`
+ * keeps, and return how the turn ended. `pass` gets each event, and whether
+ * the turn itself sent it (not a child run of the turn). `harnessText` and
+ * `harnessAgent` share it.
+ */
+export async function* forwardTurn(
+  operation: Operation<unknown>,
+  pass: (chunk: StreamChunk, isOwn: boolean) => StreamChunk | undefined,
+): AsyncGenerator<StreamChunk, InnerTurnEnd> {
+  const end = yield* forwardChunks(operation.stream(), pass)
+  let { failed } = end
+  // A cancel or a store failure ends the turn with no RUN_ERROR.
+  try {
+    await operation
+  } catch (error) {
+    failed ??= error instanceof Error ? error.message : String(error)
+  }
+  return {
+    ...end,
+    ...(failed !== undefined && { failed }),
+    finished: end.finished ?? 'stop',
+  }
 }
 
 function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
@@ -314,28 +388,28 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
             threadId,
             timestamp: Date.now(),
           }
-          let finished: FinishReason | undefined
-          let usage: TokenUsage | undefined
-          for await (const data of sseData(response)) {
-            if (!isRecord(data) || typeof data.type !== 'string') continue
-            // The handler sends AG-UI chunks over SSE.
-            const chunk = data as StreamChunk
-            const isOwn = !('subagentRunId' in chunk && chunk.subagentRunId)
-            if (FORWARDED.has(chunk.type) && isOwn) yield chunk
-            if (chunk.type === EventType.RUN_FINISHED && isOwn) {
-              finished = finishReasonOf(chunk)
-              // It has the usage of the child agents of the call too.
-              const used = usageOf(chunk)
-              if (used) usage = addUsage(usage, used)
+          async function* remoteChunks() {
+            for await (const data of sseData(response)) {
+              // The handler sends AG-UI chunks over SSE.
+              if (!isRecord(data) || typeof data.type !== 'string') continue
+              const chunk = data as StreamChunk
+              yield chunk
+              // A run error ends the remote call. Later data is not read.
+              if (chunk.type === EventType.RUN_ERROR) return
             }
-            if (chunk.type === EventType.RUN_ERROR) {
-              yield {
-                type: EventType.RUN_ERROR,
-                message: chunk.message,
-                timestamp: Date.now(),
-              }
-              return
+          }
+          const { failed, finished, usage } = yield* forwardChunks(
+            remoteChunks(),
+            (chunk, isOwn) =>
+              FORWARDED.has(chunk.type) && isOwn ? chunk : undefined,
+          )
+          if (failed !== undefined) {
+            yield {
+              type: EventType.RUN_ERROR,
+              message: failed,
+              timestamp: Date.now(),
             }
+            return
           }
           // A stream that ends with no RUN_FINISHED lost the end of the run.
           if (finished === undefined) {
@@ -441,26 +515,11 @@ export function harnessText(
             threadId,
             timestamp: Date.now(),
           }
-          let failed: string | undefined
-          let finished: FinishReason = 'stop'
-          let usage: TokenUsage | undefined
-          for await (const chunk of operation.stream()) {
-            const isOwn = !('subagentRunId' in chunk && chunk.subagentRunId)
-            if (FORWARDED.has(chunk.type) && isOwn) yield chunk
-            if (chunk.type === EventType.RUN_FINISHED && isOwn) {
-              finished = finishReasonOf(chunk)
-              // It has the usage of the child agents of the call too.
-              const used = usageOf(chunk)
-              if (used) usage = addUsage(usage, used)
-            }
-            if (chunk.type === EventType.RUN_ERROR) failed = chunk.message
-          }
-          // A cancel or a store failure ends the turn with no RUN_ERROR.
-          try {
-            await operation
-          } catch (error) {
-            failed ??= error instanceof Error ? error.message : String(error)
-          }
+          const { failed, finished, usage } = yield* forwardTurn(
+            operation,
+            (chunk, isOwn) =>
+              FORWARDED.has(chunk.type) && isOwn ? chunk : undefined,
+          )
           if (failed !== undefined) {
             yield {
               type: EventType.RUN_ERROR,

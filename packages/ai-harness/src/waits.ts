@@ -3,6 +3,7 @@ import {
   readUnopenedInterruptBinding,
 } from '@tanstack/ai'
 import { isRecord } from './utils'
+import { APPROVAL_INTERRUPT_ID, QUESTION_INTERRUPT_ID } from './boundary-waits'
 import type { Interrupt } from '@tanstack/ai'
 import type { WaitState } from './log-records'
 import type { PendingQuestion } from './types'
@@ -98,6 +99,10 @@ export function waitKind(wait: WaitLike): WaitKind {
     case 'client-tool-execution':
       return 'client-tool'
     case 'generic':
+      // The approvals and the questions that a turn stops with before its
+      // tools run (see `permissions()` and `question()`).
+      if (binding.definitionId === APPROVAL_INTERRUPT_ID) return 'approval'
+      if (binding.definitionId === QUESTION_INTERRUPT_ID) return 'question'
       return binding.definitionId === undefined ? 'question' : 'human'
     case 'tool-approval':
     case undefined:
@@ -111,7 +116,7 @@ export function isApproval(wait: WaitLike): boolean {
 }
 
 /** The time of an ISO date, or `undefined` for a value that is not one. */
-function timeOf(iso: string | undefined) {
+export function timeOf(iso: string | undefined) {
   if (iso === undefined) return undefined
   const time = Date.parse(iso)
   return Number.isFinite(time) ? time : undefined
@@ -137,14 +142,21 @@ export function waitOfInterrupt({
   principal?: Wait['principal']
 }): Wait {
   const expiresAt = timeOf(interrupt.expiresAt)
+  // A question of the `question` tool has its own answer shape in its
+  // payload. The interrupt has the shape of every question.
+  const payload = interrupt.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY]
+  const binding = readUnopenedInterruptBinding(interrupt)
+  const isToolQuestion =
+    binding?.kind === 'generic' &&
+    binding.definitionId === QUESTION_INTERRUPT_ID &&
+    isRecord(payload)
+  const schema = isToolQuestion ? payload.schema : interrupt.responseSchema
   return {
     waitId: interrupt.id,
     kind: waitKind(interrupt),
     runId,
     ...(principal ? { principal } : {}),
-    ...(interrupt.responseSchema !== undefined
-      ? { schema: interrupt.responseSchema }
-      : {}),
+    ...(schema !== undefined ? { schema } : {}),
     ...(expiresAt !== undefined ? { expiresAt } : {}),
     ...(interrupt.message ? { message: interrupt.message } : {}),
   }

@@ -173,6 +173,7 @@ An MCP server can ask the user for input in the middle of a tool call. MCP calls
 - A URL request becomes a question with a `url`. The user opens the page, then answers. The session does not open the page.
 - `mcp()` and `mcpConnector` both ask this way, for servers on MCP spec 2025 and on spec 2026-07-28.
 - One tool call can ask more than once. On spec 2026-07-28, one call can ask up to 5 times. One more request fails the tool call.
+- The question is a live [wait](./waits) of the run that made the tool call. The host that runs the call keeps the thread until the answer comes. When that run stops, the wait ends `cancelled`.
 
 Answer with `session.answer({ questionId, value })`, or from a [`HarnessClient`](./connect). The value tells the server what the user did:
 

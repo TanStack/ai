@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { defineAgent, toolDefinition } from '@tanstack/ai'
+import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import {
   LogConflictError,
   memoryLogStore,
@@ -359,12 +359,16 @@ describe('agentRuns() and agentRun(id)', () => {
     expect(session.agentRuns()).toEqual([
       {
         operationId: run.id,
+        runId: run.id,
+        kind: 'agent',
         agent: 'writer',
         status: 'running',
         principal: alice,
       },
       {
         operationId: queued.operationId,
+        runId: queued.operationId,
+        kind: 'agent',
         agent: 'writer',
         status: 'queued',
         principal: alice,
@@ -410,9 +414,12 @@ describe('agentRuns() and agentRun(id)', () => {
     expect(sessionB.agentRuns()).toEqual([
       {
         operationId: run.id,
+        runId: run.id,
+        kind: 'agent',
         agent: 'writer',
         status: 'completed',
         principal: alice,
+        result: 'Draft one.',
       },
     ])
     const again = sessionB.agentRun(run.id)
@@ -489,18 +496,41 @@ describe('agents that agent code starts', () => {
     expect(session.agentRuns()).toEqual([
       {
         operationId: run.id,
+        runId: run.id,
+        kind: 'agent',
         agent: 'lead',
         status: 'completed',
         principal: alice,
+        result: 'helped',
       },
       {
         operationId: childId,
+        runId: childId,
+        kind: 'agent',
         agent: 'helper',
         status: 'completed',
         parentRunId: run.id,
         principal: alice,
+        result: 'helped',
       },
     ])
+    // Each event of the child names its parent run. The lead has none.
+    const events = []
+    for await (const entry of session.events()) {
+      events.push(entry)
+      const { event } = entry
+      const isLeadEnd =
+        entry.operationId === run.id &&
+        event.type === EventType.CUSTOM &&
+        event.name === 'harness.operation.finished'
+      if (isLeadEnd) break
+    }
+    const ofChild = events.filter((entry) => entry.operationId === childId)
+    const ofLead = events.filter((entry) => entry.operationId === run.id)
+    expect(ofChild.length).toBeGreaterThan(0)
+    expect(ofLead.length).toBeGreaterThan(0)
+    for (const entry of ofChild) expect(entry.parentRunId).toBe(run.id)
+    for (const entry of ofLead) expect(entry).not.toHaveProperty('parentRunId')
     await host.close()
   })
 

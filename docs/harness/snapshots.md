@@ -26,10 +26,8 @@ import { openaiText } from '@tanstack/ai-openai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 
 const root = process.cwd()
-const history = snapshots({
-  root,
-  dataDir: join(homedir(), '.acme-coder', 'snapshots'),
-})
+const dataDir = join(homedir(), '.acme-coder', 'snapshots')
+const history = snapshots({ root, dataDir })
 
 const coder = defineHarness({
   name: 'acme/coder',
@@ -44,7 +42,7 @@ const session = await host.open(coder, { threadId: 'fix-login' })
 ```
 
 - `root` is the workspace folder, an absolute path.
-- `dataDir` is a folder for the snapshot repositories, an absolute path. Put it outside `root`. Each workspace gets its own repository in it.
+- `dataDir` is a folder for the snapshot repositories, an absolute path. Put it outside `root`. Each thread of each tenant gets its own repository in it.
 - The plugin needs the `git` command. `/undo` and `/redo` need git 2.26 or later.
 - Your project does not need to be a git repository, and the plugin never uses the `.git` folder of your project.
 
@@ -59,9 +57,14 @@ In a terminal app, the user types `/undo` and `/redo`. See [Build a coding agent
 
 - `/undo` puts back each file that the turn changed in `root`. This includes the edits of the file tools and the changes of `bash` commands.
 - `/undo` and `/redo` do not touch other files. This is also true for a file that you add or edit after the turn.
-- If you edit a file that the turn changed, `/undo` and `/redo` still write over it, and your edit is lost.
-- The snapshots skip the files that `.gitignore` names, like `node_modules`. `/undo` does not touch them.
+- The snapshots skip the files that `.gitignore` names, like `node_modules`, and `.env` files. `/undo` does not touch them.
 - A new turn clears `/redo`.
+
+When someone else edits the same files:
+
+- If you edit a file that the turn changed, `/undo` and `/redo` still write over it, and your edit is lost.
+- A step keeps only the files that its own run changed. So when another agent or session edits a file during the turn, `/undo` keeps that edit.
+- A `bash` command does not tell which files it changed. So its step keeps every file that changed while the command ran.
 
 In your own UI, add `expose: { commands: ['undo', 'redo'] }` to `defineHarness`. A client can run only the commands that the harness exposes. Then call `client.command({ name: 'undo' })`. The result text arrives as a `harness.command.result` event.
 
@@ -86,6 +89,7 @@ for (const { record } of await log.read({ logId: logIdOf({ logId: 'fix-login' })
 ```
 
 - Without `to`, `diff` compares with the files now. `history.diff(record.to)` shows what changed after that step.
+- `diff` finds a snapshot only in the repository of a session that is open.
 - A step that changed no file is not saved.
 
 ## Go back to an earlier message
@@ -101,6 +105,7 @@ if (firstAnswer?.id) await session.revert(firstAnswer.id)
 await session.unrevert()
 ```
 
+- A revert uses the last 500 steps of the thread.
 - A revert touches only the files that the tool calls after that message changed. Each file goes back to its state before the first of these calls. A file that did not exist then is removed.
 - Other files stay as they are. Your own edits between the hidden turns stay too.
 - `unrevert()` touches only the same files. It puts them back as they were when the revert started, with your edits.
@@ -131,14 +136,35 @@ export const sandboxHistory = snapshots({
 
 Git then runs in the sandbox, and `dataDir` is a path in the sandbox. The sandbox image needs `git`.
 
+## On more than one server
+
+The undo point and the steps are in the session log. So when another server takes the thread, `/undo`, `/redo`, and a revert work there too, if that server reaches the same snapshot repository:
+
+- In a sandbox, the repository is in the sandbox. A server that uses the same sandbox reaches it. See [A sandbox](./coding-workspaces#a-sandbox).
+- On the host, give every server the same `dataDir` on a shared disk. Or pin each thread to the server that has its folder with `ownership: { hostId }`. See [A folder on one server](./coding-workspaces#a-folder-on-one-server).
+
+## Remove the snapshots of a thread
+
+When you delete a thread, remove its snapshot repository too. Call `purgeSnapshots` with the options of the plugin and the thread:
+
+```ts group=harness-snapshots
+import { purgeSnapshots } from '@tanstack/ai-harness/plugins/coding'
+
+await purgeSnapshots({ root, dataDir }, { tenantId: 'acme', threadId: 'fix-login' })
+```
+
+- Call it after the sessions of the thread close. See [Lifecycle and retention](./lifecycle).
+- Leave out `tenantId` for a thread in the default tenant.
+- It waits for the git commands of that repository in this process.
+- It resolves also when there is no repository.
+
 ## Known limits
 
 - One level of undo. A second `/undo` answers `Nothing to undo.` After a `/redo`, `/undo` works again.
 - `/undo` and `/redo` work only when the session is idle. During a turn, they answer `Wait until the turn ends, then try again.`
 - While a revert stands, `/undo` and `/redo` answer `A revert stands. Run unrevert, or send a prompt, first.`
-- The undo point is kept in memory. After a restart, or when the session opens again, `/undo` works again after the next turn.
 - If you sent a message while the turn ran, `/undo` removes the conversation from that message on. The files still go back to the start of the turn.
-- Without `git`, the plugin prints `snapshots: git was not found. Snapshots are off.` once, and adds no commands. `diff()` throws. The turns run as usual.
+- Without `git`, the plugin sends a `tanstack/snapshots:failed` event (`SnapshotFailed`) with `snapshots: git was not found. Snapshots are off.`, and adds no commands. `diff()` throws. The turns run as usual. A snapshot that fails for another reason sends the same event, and the turn goes on.
 
 ## What you have now
 

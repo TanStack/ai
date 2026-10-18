@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, logIdOf } from '../src'
+import { emptySharedLogState, foldLogEntry, sessionOf } from '../src/log'
 import { addUsage, emptyUsage } from '../src/usage'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
@@ -248,6 +249,131 @@ describe('usage totals after a restart', () => {
     expect(reopened.usage()).toEqual(before)
     expect(reopened.usage().total.totalTokens).toBe(45)
     await next.close()
+  })
+})
+
+describe('usage of each run', () => {
+  it('names the run of each call, adds a child call to its parent, and drops the sum when the run ends', async () => {
+    const workerModel = model('worker-model', [
+      () => withUsage(text('worked'), { prompt: 6, completion: 3 }),
+    ])
+    const worker = defineAgent({
+      name: 'worker',
+      description: 'Works',
+      run: (ctx) => ctx.chat({ adapter: workerModel.adapter }),
+    })
+    const lead = defineAgent({
+      name: 'lead',
+      description: 'Runs the worker',
+      run: async (ctx) => ctx.harness.agents.run(worker),
+    })
+    const { metadata } = memoryPersistence().stores
+    const log = memoryLogStore()
+    const host = createHarnessHost({
+      persistence: { stores: { log, metadata } },
+    })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/usage-runs',
+        adapter: model('main-model', []).adapter,
+        agents: [lead, worker],
+      }),
+      { threadId: THREAD, principal: alice },
+    )
+
+    const run = session.agents.lead.start(undefined, { attach: 'none' })
+    expect(await run).toBe('worked')
+    const workerRun = session
+      .agentRuns()
+      .find((item) => item.agent === 'worker')
+
+    const entries = await log.read({ logId: LOG })
+    const usage = entries.filter(
+      (entry) => entry.record.type === 'harness.usage',
+    )
+    expect(usage.map((entry) => entry.record.runId)).toEqual([workerRun?.runId])
+    /** The run sums of the thread after the log up to `seq`. */
+    const sumsAt = (seq: number) => {
+      const state = emptySharedLogState()
+      for (const entry of entries) {
+        if (entry.seq <= seq) foldLogEntry(state, entry, { rootThread: THREAD })
+      }
+      return sessionOf(state, THREAD).runUsage
+    }
+    const afterCall = sumsAt(usage[0]?.seq ?? 0)
+    expect(afterCall.get(workerRun?.runId ?? '')?.totalTokens).toBe(9)
+    expect(afterCall.get(run.id)?.totalTokens).toBe(9)
+    expect(sumsAt(Infinity).size).toBe(0)
+    // The run record of each run keeps its final usage.
+    const finalUsage = (runId: string) =>
+      entries.find(
+        (entry) =>
+          entry.record.type === 'harness.run.update' &&
+          entry.record.runId === runId &&
+          isRecordWithUsage(entry.record.patch),
+      )?.record.patch
+    expect(finalUsage(run.id)).toMatchObject({ usage: { totalTokens: 9 } })
+    expect(finalUsage(workerRun?.runId ?? '')).toMatchObject({
+      usage: { totalTokens: 9 },
+    })
+    await host.close()
+  })
+})
+
+/** Is `value` a run record change that sets `usage`? */
+const isRecordWithUsage = (value: unknown) =>
+  typeof value === 'object' && value !== null && 'usage' in value
+
+describe('usage totals by source', () => {
+  const counts = (totalTokens: number) => ({
+    promptTokens: totalTokens,
+    completionTokens: 0,
+    totalTokens,
+    cachedTokens: 0,
+    cacheWriteTokens: 0,
+  })
+
+  it('adds a call with a source under it, and keeps a turn call out of bySource', () => {
+    const totals = emptyUsage()
+
+    addUsage(totals, { model: 'm', usage: counts(5) })
+    addUsage(totals, {
+      model: 'm',
+      source: 'plugin:tanstack/title',
+      label: 'title',
+      usage: counts(2),
+    })
+    addUsage(totals, {
+      model: 'm',
+      source: 'plugin:tanstack/title',
+      usage: counts(3),
+    })
+    addUsage(totals, {
+      model: 'm',
+      source: 'plugin:tanstack/goal',
+      usage: counts(4),
+    })
+
+    expect(totals.total).toMatchObject({ calls: 4, totalTokens: 14 })
+    expect(totals.bySource).toEqual({
+      'plugin:tanstack/title': expect.objectContaining({
+        calls: 2,
+        totalTokens: 5,
+      }),
+      'plugin:tanstack/goal': expect.objectContaining({
+        calls: 1,
+        totalTokens: 4,
+      }),
+    })
+  })
+
+  it('adds bySource to totals that a log kept before it existed', () => {
+    const { bySource: _bySource, ...old } = emptyUsage()
+    const totals = old as ReturnType<typeof emptyUsage>
+
+    addUsage(totals, { model: 'm', source: 'plugin:p', usage: counts(1) })
+
+    expect(totals.bySource['plugin:p']?.totalTokens).toBe(1)
   })
 })
 

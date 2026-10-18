@@ -608,18 +608,30 @@ describe('codeMode', () => {
         threadId: 't',
       },
     )
-    const turn = session.send('look it up')
-    await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
+    // The approval is a turn wait at the boundary: the turn stops, and a
+    // `resolve` answers it.
+    void session.send('look it up')
+    await vi.waitFor(
+      () => expect(session.snapshot().pendingWaits).toHaveLength(1),
+      { timeout: 5_000 },
     )
-    const [question] = session.snapshot().pendingQuestions
-    if (!question) throw new Error('No question.')
-    expect(question.message).toContain('execute_typescript')
-    await session.answer({
-      questionId: question.questionId,
-      value: { answer: 'reject' },
+    const [wait] = session.snapshot().pendingWaits ?? []
+    if (!wait) throw new Error('No approval.')
+    expect(wait.kind).toBe('approval')
+    expect(wait.message).toContain('execute_typescript')
+    const inputId = `answer:${wait.waitId}`
+    await session.resolve({
+      resume: [
+        { interruptId: wait.waitId, status: 'resolved', payload: 'reject' },
+      ],
+      inputId,
     })
-    expect((await turn).text).toBe('done')
+    await session.settled({ inputId })
+    const messages = await session.transcript()
+    expect(messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      content: 'done',
+    })
     expect(seen).toEqual([])
     await host.close()
   })

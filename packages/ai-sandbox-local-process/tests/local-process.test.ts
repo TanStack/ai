@@ -121,6 +121,28 @@ describe('local-process process', () => {
     await sbx.destroy()
   })
 
+  it('does not give a variable of the server to a command', async () => {
+    const sbx = await fresh()
+    process.env.LP_SERVER_SECRET = 'hunter2'
+    try {
+      const r = await sbx.process.exec('echo "${LP_SERVER_SECRET:-unset}"')
+      expect(r.stdout.trim()).toBe('unset')
+    } finally {
+      delete process.env.LP_SERVER_SECRET
+      await sbx.destroy()
+    }
+  })
+
+  it('gives a command the env of env.set and of the call', async () => {
+    const sbx = await fresh()
+    await sbx.env.set({ LP_SET: 'from-set' })
+    const r = await sbx.process.exec('echo "$LP_SET $LP_CALL"', {
+      env: { LP_CALL: 'from-call' },
+    })
+    expect(r.stdout.trim()).toBe('from-set from-call')
+    await sbx.destroy()
+  })
+
   it('spawn streams stdout and resolves wait()', async () => {
     const sbx = await fresh()
     const proc = await sbx.process.spawn('echo streamed')
