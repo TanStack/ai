@@ -4,7 +4,9 @@ import type { SubagentRunContext } from './define-agent'
 /** Gives fields for the `ctx` of an agent run, as `binding.extend` does. */
 type ContextDefault = NonNullable<SubagentBinding['extend']>
 
-const contextDefaults = new Set<ContextDefault>()
+// One entry per call, so two callers with the same function each remove only
+// their own default.
+const contextDefaults = new Set<{ extend: ContextDefault }>()
 
 /**
  * Add default fields to the `ctx` of every agent run in this process. This
@@ -22,15 +24,18 @@ const contextDefaults = new Set<ContextDefault>()
  * ```
  */
 export function registerSubagentContextDefaults(extend: ContextDefault) {
-  contextDefaults.add(extend)
+  const entry = { extend }
+  contextDefaults.add(entry)
   return () => {
-    contextDefaults.delete(extend)
+    contextDefaults.delete(entry)
   }
 }
 
 /** The fields of every registered default, merged in registration order. */
 export function applySubagentContextDefaults(ctx: SubagentRunContext) {
   let fields: ReturnType<ContextDefault> = {}
-  for (const extend of contextDefaults) fields = { ...fields, ...extend(ctx) }
+  for (const { extend } of contextDefaults) {
+    fields = { ...fields, ...extend(ctx) }
+  }
   return fields
 }

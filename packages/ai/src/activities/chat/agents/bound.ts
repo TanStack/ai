@@ -12,6 +12,7 @@ import { embed } from '../../embed/index'
 import { rerank } from '../../rerank/index'
 import { decide } from '../../evaluate/index'
 import type { GenerationMiddleware } from '../../middleware/types'
+import type { InterruptDefinition } from '../../../interrupt-definition'
 import type { AnyChatMiddleware } from '../middleware/types'
 import type { PromptCacheRetention, RunAgentResumeItem } from '../../../types'
 import type {
@@ -57,6 +58,15 @@ export interface SubagentBinding {
    * child's `ctx.chat({ subagents })` passes it down to its own children.
    */
   generationMiddleware?: ReadonlyArray<GenerationMiddleware>
+  /**
+   * Interrupt definitions added to every `ctx.chat` call, so the host
+   * middleware in `chatMiddleware` can stop the child with them. The call's
+   * own `interrupts` (for example, the agent's own definitions) win: a host
+   * definition with the same id is not added. A child's
+   * `ctx.chat({ subagents })` passes them down to its own children. A plain
+   * `chat()` call does not get them.
+   */
+  interrupts?: ReadonlyArray<InterruptDefinition<any, any, any, any>>
   /**
    * The subagent tree budget. A child's `ctx.chat({ subagents })` passes it
    * down, so limits hold across the whole tree.
@@ -125,6 +135,23 @@ type LooseOptions = Record<string, any> & {
   middleware?: Array<unknown>
 }
 
+type AnyInterruptDefinition = InterruptDefinition<any, any, any, any>
+
+/**
+ * The host definitions, then the call's own. The call's own definitions win:
+ * a host definition with the same id is left out.
+ */
+function mergeInterrupts(
+  host: ReadonlyArray<AnyInterruptDefinition>,
+  own: ReadonlyArray<AnyInterruptDefinition> | undefined,
+): Array<AnyInterruptDefinition> {
+  const ids = new Set((own ?? []).map((definition) => definition.id))
+  return [
+    ...host.filter((definition) => !ids.has(definition.id)),
+    ...(own ?? []),
+  ]
+}
+
 export function createBoundActivities(
   agentName: string,
   input: SubagentRunInput,
@@ -136,6 +163,7 @@ export function createBoundActivities(
   const signal = abortController.signal
   const chatMiddleware = binding?.chatMiddleware ?? []
   const generationMiddleware = binding?.generationMiddleware ?? []
+  const interrupts = binding?.interrupts ?? []
 
   // Every generation call gets its own run id under the child run.
   const ids = (activity: string) => {
@@ -190,11 +218,23 @@ export function createBoundActivities(
                     ...generationMiddleware,
                     ...(options.subagents.binding?.generationMiddleware ?? []),
                   ],
+                  ...(interrupts.length > 0
+                    ? {
+                        interrupts: mergeInterrupts(
+                          interrupts,
+                          options.subagents.binding?.interrupts,
+                        ),
+                      }
+                    : {}),
                   ...(binding?.budget ? { budget: binding.budget } : {}),
                   ...(binding?.extend ? { extend: binding.extend } : {}),
                 },
               },
             }
+          : {}),
+        // The host middleware can stop the call with the host interrupts.
+        ...(interrupts.length > 0
+          ? { interrupts: mergeInterrupts(interrupts, options.interrupts) }
           : {}),
         middleware: [...chatMiddleware, ...(options.middleware ?? [])],
       } as never)) as typeof chat,

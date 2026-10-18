@@ -11,6 +11,10 @@ const status = (threadId: string, tenantId?: string): HostEvent => ({
   ...(tenantId !== undefined ? { tenantId } : {}),
 })
 
+/** The thread of a status event. */
+const threadOf = (event: HostEvent) =>
+  'threadId' in event ? event.threadId : undefined
+
 /** Take `count` events of `read`, then stop it. */
 async function take(read: AsyncIterable<HostEvent>, count: number) {
   const seen: Array<HostEvent> = []
@@ -34,13 +38,9 @@ describe('the host event bus', () => {
     bus.emit(status('t2', 'a'))
     bus.emit(status('t3'))
 
-    expect((await ofA).map((event) => event.threadId)).toEqual(['t2'])
-    expect((await ofDefault).map((event) => event.threadId)).toEqual(['t3'])
-    expect((await ofAll).map((event) => event.threadId)).toEqual([
-      't1',
-      't2',
-      't3',
-    ])
+    expect((await ofA).map(threadOf)).toEqual(['t2'])
+    expect((await ofDefault).map(threadOf)).toEqual(['t3'])
+    expect((await ofAll).map(threadOf)).toEqual(['t1', 't2', 't3'])
     expect(bus.readers).toBe(0)
   })
 
@@ -51,8 +51,9 @@ describe('the host event bus', () => {
       bus.read({
         initial: [status('t0')],
         filter: (event) => {
-          asked.push(event.threadId)
-          return event.threadId !== 'skip'
+          const thread = threadOf(event) ?? ''
+          asked.push(thread)
+          return thread !== 'skip'
         },
       }),
       2,
@@ -61,7 +62,7 @@ describe('the host event bus', () => {
     bus.emit(status('skip'))
     bus.emit(status('t1'))
 
-    expect((await read).map((event) => event.threadId)).toEqual(['t0', 't1'])
+    expect((await read).map(threadOf)).toEqual(['t0', 't1'])
     // The filter runs once per emitted event, not for the initial ones.
     expect(asked).toEqual(['skip', 't1'])
   })

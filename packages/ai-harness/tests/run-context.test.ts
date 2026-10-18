@@ -331,7 +331,7 @@ describe('the run context of each run', () => {
       },
       principal: bob,
     })
-    expect(await session.settled('in-1')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
 

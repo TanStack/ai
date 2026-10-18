@@ -107,6 +107,7 @@ describe('log snapshots on a host', () => {
     expect(seen).toEqual([
       {
         cursor: head,
+        threadId: THREAD,
         operationId: 'session',
         event: expect.objectContaining({
           type: EventType.CUSTOM,

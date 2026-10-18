@@ -88,17 +88,22 @@ describe('workspace tools with permissions', () => {
       workspaceTools({ root }),
     ])
 
-    const turn = session.send('work')
-    await waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
-    const [question] = session.snapshot().pendingQuestions
-    expect(question?.message).toContain('write_file')
-    await session.answer({
-      questionId: question!.questionId,
-      value: { answer: 'once' },
+    // The write asks before it runs: the turn stops with an approval wait.
+    await session.send('work')
+    const [wait] = session.snapshot().pendingWaits ?? []
+    expect(wait?.kind).toBe('approval')
+    expect(wait?.message).toContain('write_file')
+    await session.resolve({
+      resume: [
+        {
+          interruptId: wait!.waitId,
+          status: 'resolved',
+          payload: { answer: 'once' },
+        },
+      ],
+      inputId: 'approve',
     })
-    await turn
+    await session.settled({ inputId: 'approve' })
 
     expect(await readFile(join(root, 'out.txt'), 'utf8')).toBe('written')
     const toolResults = JSON.stringify(calls[3].messages)
@@ -121,7 +126,7 @@ describe('workspace tools with permissions', () => {
     )
     await session.send('write')
     await expect(readFile(join(root, 'x.txt'), 'utf8')).rejects.toThrow()
-    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(session.snapshot().pendingWaits).toEqual([])
     await host.close()
   })
 
@@ -261,6 +266,40 @@ describe('compact and usage', () => {
     expect(await session.command({ name: 'usage' })).toBe(
       '2 model calls, 20 input tokens (12 cache read, 4 cache write), 10 output tokens, 30 total.',
     )
+    await host.close()
+  })
+
+  it('counts the summary call of /compact under plugin:tanstack/compact', async () => {
+    const summarizer = mockAdapter([
+      () =>
+        text('We planned a trip.').map((chunk) =>
+          chunk.type === 'RUN_FINISHED'
+            ? {
+                ...chunk,
+                usage: {
+                  promptTokens: 40,
+                  completionTokens: 8,
+                  totalTokens: 48,
+                },
+              }
+            : chunk,
+        ),
+    ])
+    const main = mockAdapter([() => text('one'), () => text('two')])
+    const { host, session } = await open(main.adapter, [
+      compact({ adapter: summarizer.adapter }),
+    ])
+    await session.send('first')
+    await session.send('second')
+
+    await session.command({ name: 'compact' })
+
+    expect(session.usage().bySource).toEqual({
+      'plugin:tanstack/compact': expect.objectContaining({
+        calls: 1,
+        totalTokens: 48,
+      }),
+    })
     await host.close()
   })
 })

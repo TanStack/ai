@@ -20,13 +20,6 @@ export function createOperationId(kind: OperationKind): string {
   return `op-${kind}-${Date.now().toString(36)}-${counter}`
 }
 
-const TERMINAL: ReadonlySet<OperationStatus> = new Set([
-  'completed',
-  'failed',
-  'cancelled',
-  'interrupted',
-])
-
 /** The session-side implementation of {@link Operation}. */
 export class OperationImpl<TResult> implements Operation<TResult> {
   readonly id: string
@@ -38,6 +31,11 @@ export class OperationImpl<TResult> implements Operation<TResult> {
   readonly abortController = new AbortController()
   readonly receipt: Promise<Receipt>
   private current: OperationStatus = 'accepted'
+  /**
+   * The result is set. An agent run that waits is `interrupted`, but it
+   * does not end until an answer resumes it.
+   */
+  private ended = false
   private readonly settled: Promise<TResult>
   private resolveResult!: (value: TResult) => void
   private rejectResult!: (error: unknown) => void
@@ -107,7 +105,7 @@ export class OperationImpl<TResult> implements Operation<TResult> {
   }
 
   isSettled(): boolean {
-    return TERMINAL.has(this.current)
+    return this.ended
   }
 
   setStatus(status: OperationStatus): void {
@@ -125,6 +123,7 @@ export class OperationImpl<TResult> implements Operation<TResult> {
 
   finish(status: 'completed' | 'interrupted', result: TResult): void {
     this.current = status
+    this.ended = true
     this.resolveResult(result)
     // A reader of `events()` waits for the next event: it ends now instead.
     this.feed.wake()
@@ -132,6 +131,7 @@ export class OperationImpl<TResult> implements Operation<TResult> {
 
   fail(status: 'failed' | 'cancelled', error: unknown): void {
     this.current = status
+    this.ended = true
     this.rejectResult(error)
     this.feed.wake()
   }

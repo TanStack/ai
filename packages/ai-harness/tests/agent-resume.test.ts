@@ -124,7 +124,7 @@ describe('a background agent with resume: true', () => {
       next: [() => text('Worked.')],
     })
 
-    expect(await run.sessionB.settled(run.inputId)).toMatchObject({
+    expect(await run.sessionB.settled({ inputId: run.inputId })).toMatchObject({
       outcome: 'completed',
     })
     // The chain thread of the run is in the log of the root thread, on both
@@ -165,7 +165,7 @@ describe('a background agent with resume: true', () => {
       next: [() => text('never')],
     })
 
-    expect(await run.sessionB.settled(run.inputId)).toMatchObject({
+    expect(await run.sessionB.settled({ inputId: run.inputId })).toMatchObject({
       outcome: 'failed',
       error: { code: 'attempts_exhausted' },
     })
@@ -180,7 +180,7 @@ describe('a background agent with resume: true', () => {
       next: [() => text('never')],
     })
 
-    expect(await run.sessionB.settled(run.inputId)).toMatchObject({
+    expect(await run.sessionB.settled({ inputId: run.inputId })).toMatchObject({
       outcome: 'failed',
       error: { message: 'The host stopped during this agent run.' },
     })

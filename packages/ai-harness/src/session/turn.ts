@@ -1,7 +1,9 @@
 import {
   EventType,
   StreamProcessor,
+  SubagentBudget,
   chat,
+  subagentHostMessageId,
   compactForModel,
   modelMessagesToUIMessages,
   isStandardSchema,
@@ -9,12 +11,17 @@ import {
 } from '@tanstack/ai'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { withPersistence } from '@tanstack/ai-persistence'
+import { redactMiddleware } from '../auth'
 import { bindDurable } from '../durable-tool'
+import { NO_SESSION_CONTEXT } from '../agents'
+import { isHumanTarget } from '../log-records'
+import { BOUNDARY_INTERRUPTS } from '../boundary-waits'
 import { mediaMiddleware } from '../media'
 import { OperationImpl } from '../operation'
 import { mountPlugins } from '../plugins'
-import { truncationMiddleware } from '../resume'
+import { scrubToolResults, truncationMiddleware } from '../resume'
 import { HARNESS_EVENTS, InputRejectedError } from '../types'
+import { isRecord } from '../utils'
 import {
   createInputId,
   customEvent,
@@ -41,9 +48,13 @@ import {
   lastAssistantText,
   isRoutedBag,
   keepTurnTools,
+  runNodeRecord,
+  holdPlugins,
 } from './helpers'
 import { SessionAgents } from './agents'
+import { commandStepScope, stepWaitPrefix } from './turn-parts'
 import { ToolTurnAdapter } from '../tool-turn'
+import { HANDOFF_TOOL, TurnHandoffs, answererOf, markRouted } from '../handoff'
 import type {
   AnyChatMiddleware,
   AnyTextAdapter,
@@ -53,15 +64,19 @@ import type {
   SubagentRouterPick,
 } from '@tanstack/ai'
 import type { AnyHarness } from '../define'
+import type { AnyCommand } from '../commands'
 import type { ModelErrorContext } from '../turn'
 import type { MountedPlugins } from '../plugins'
+import type { HeldPlugins } from './helpers'
 import type {
   CommandOptions,
   SettlementOutcome,
   MediaRecord,
   Operation,
   Principal,
+  RunContext,
   TurnInfo,
+  UserInput,
 } from '../types'
 import type { QueuedTurn } from './types'
 
@@ -152,26 +167,106 @@ export abstract class SessionTurn<
       }
       checked = result.data
     }
+    await this.runCommand({
+      operation,
+      name,
+      command: entry.command,
+      input: checked,
+      principal,
+      inputId,
+    })
+  }
+
+  /**
+   * Run again a command that a host stopped during while it waited in a
+   * `step.ask`: from the top, as a new operation. Its finished steps return
+   * their values, and the ask returns the logged answer, or waits again.
+   * `false`: the session has no such command now.
+   */
+  protected replayCommand(input: {
+    inputId: string
+    name: string
+    input: unknown
+    principal: Principal | undefined
+  }): boolean {
+    const entry = this.sessionPlugins?.commands.get(input.name)
+    if (!entry) return false
+    const operation = new OperationImpl<unknown>(
+      'command',
+      this.feed,
+      (target) => this.cancel({ operationId: target.id }),
+    )
+    this.track(operation)
+    // The input was checked when it came. A store write that throws (the
+    // log) still ends the command.
+    this.runCommand({ ...input, operation, command: entry.command }).catch(
+      (error: unknown) => this.failOperation(operation, error),
+    )
+    return true
+  }
+
+  /** Apply the checked input of a command, run it, and settle the input. */
+  private async runCommand({
+    operation,
+    name,
+    command,
+    input,
+    principal,
+    inputId,
+  }: {
+    operation: OperationImpl<unknown>
+    name: string
+    command: AnyCommand
+    input: unknown
+    principal: Principal | undefined
+    inputId: string
+  }) {
     operation.setStatus('running')
-    await this.applied(inputId, operation.id)
+    await this.applied(inputId, operation.id, [
+      runNodeRecord({
+        runId: operation.id,
+        kind: 'command',
+        inputId,
+        principal,
+      }),
+    ])
     this.publishStarted(operation)
     const run = this.runContext({
       principal,
       runId: operation.id,
       signal: operation.abortController.signal,
     })
+    const scope = commandStepScope(inputId)
+    // The steps of the command are under the key of its input: the same on
+    // each run again.
+    const { step } = this.durableBinding(this.writer, scope, run)
+    /**
+     * The command ended: delete the secret answers of its steps, before its
+     * caller sees the end. A host that stops keeps them: the next host runs
+     * the command again, and reads them again.
+     */
+    const endSteps = async () => {
+      const isStop =
+        operation.abortController.signal.reason === SHUTDOWN_REASON ||
+        this.ownershipLoss !== undefined
+      if (isStop) return
+      await this.dropKeptAnswers(stepWaitPrefix(scope)).catch(
+        (error: unknown) => this.warnSession('harness:waits', error),
+      )
+    }
     try {
       const { signal } = operation.abortController
       // A cancel or a session close ends the command at once. A handler that
       // does not stop on its signal runs on alone, and its result is dropped.
       const result: unknown = await Promise.race([
-        entry.command.run(checked, {
+        command.run(input, {
           signal,
           // The command acts for its sender, also while another user's turn runs.
           session: this.pluginApi(principal, undefined, operation.id),
           ...(principal ? { principal } : {}),
           credentials: run.credentials,
           run,
+          step,
         }),
         new Promise<never>((_, reject) => {
           if (signal.aborted) reject(signal.reason)
@@ -194,6 +289,7 @@ export abstract class SessionTurn<
       }).catch((failure: unknown) =>
         this.warnSession('harness:commands', failure),
       )
+      await endSteps()
       operation.finish('completed', result)
     } catch (error) {
       const message = this.scrub(errorText(error))
@@ -212,6 +308,7 @@ export abstract class SessionTurn<
       }).catch((failure: unknown) =>
         this.warnSession('harness:commands', failure),
       )
+      await endSteps()
       // A lost log stopped the command: that is the reason, not the abort.
       operation.fail(
         cancelled ? 'cancelled' : 'failed',
@@ -266,7 +363,14 @@ export abstract class SessionTurn<
     this.publishStarted(operation)
     let error: { message: string; code?: string } | undefined
     try {
-      await this.applied(inputId, operation.id)
+      await this.applied(inputId, operation.id, [
+        runNodeRecord({
+          runId: operation.id,
+          kind: 'turn',
+          inputId,
+          principal: turn.principal,
+        }),
+      ])
       await this.refreshInterrupted(undefined, false)
       if (this.interrupted) {
         error = {
@@ -298,6 +402,61 @@ export abstract class SessionTurn<
     else operation.finish('completed', { text: '', media: [] })
     this.publishFinished(operation)
     // A steer that came while the reset ran runs as its own turn.
+    this.requeueWaitingSteers()
+  }
+
+  /**
+   * A turn that runs no model: the reply of an operator, or a message while
+   * a person answers the thread after a handoff to a person. The message
+   * goes in the transcript once: recovery can run the same input again. An
+   * operator reply with no open handoff to a person fails with
+   * `no_human_wait`. Any other message settles `interrupted`: the session
+   * waits for the operator.
+   */
+  protected async runWithoutModel(turn: QueuedTurn): Promise<void> {
+    const { operation } = turn
+    const inputId = turn.inputId ?? operation.id
+    const isOperator = turn.operator === true
+    // A held turn that recovery runs again has its message in the
+    // transcript. An operator reply is found by its id.
+    const sent = isOperator ? (turn.message ?? turn.sentMessage) : turn.message
+    this.publishStarted(operation)
+    let error: { message: string; code?: string } | undefined
+    try {
+      const id = `${isOperator ? 'operator' : 'held'}-${inputId}`
+      const history = await this.messages.loadThread(this.threadId)
+      const isAdded = history.some((message) => message.id === id)
+      if (isOperator && !isAdded && !this.humanHandoff()) {
+        error = {
+          message: 'No handoff to a person waits for an operator.',
+          code: 'no_human_wait',
+        }
+      } else if (!isAdded && sent !== undefined) {
+        const message = isOperator
+          ? operatorMessage(id, sent, turn.principal ?? this.principal)
+          : { ...(await this.userMessage(sent, turn.wake)), id }
+        await this.addToTurn({ messages: [message] })
+        // A view shows the reply live, as the text of a model.
+        if (isOperator) publishText(operation, id, message.content)
+      }
+    } catch (failure) {
+      error = { message: this.scrub(errorText(this.logFailure ?? failure)) }
+    }
+    if (turn.inputId !== undefined && !this.logFailure) {
+      await this.settle({
+        inputId,
+        operationId: operation.id,
+        ...(error
+          ? { outcome: 'failed', error }
+          : { outcome: isOperator ? 'completed' : 'interrupted' }),
+      }).catch((failure: unknown) => this.warnSession('harness:log', failure))
+    }
+    const text = isOperator && typeof sent === 'string' ? sent : ''
+    if (error) operation.fail('failed', new Error(error.message))
+    else if (isOperator) operation.finish('completed', { text, media: [] })
+    else operation.finish('interrupted', { text, interrupts: [], media: [] })
+    this.publishFinished(operation)
+    // A steer that came while it ran runs as its own turn.
     this.requeueWaitingSteers()
   }
 
@@ -353,21 +512,37 @@ export abstract class SessionTurn<
           this.requeueWaitingSteers()
           return
         }
-        await this.applied(turn.inputId, operation.id)
+        await this.applied(turn.inputId, operation.id, [
+          runNodeRecord({
+            runId: operation.id,
+            kind: 'turn',
+            inputId: turn.inputId,
+            principal: turn.principal,
+          }),
+        ])
       } catch (error) {
         // The log refused the write, so the session stops.
         await this.refreshTurnInterrupts(operation)
         return failEarly(error)
       }
     }
+    // While a person answers the thread, no model runs. A resolve and a
+    // tool turn still run: they answer work that started before.
+    const isHeld =
+      this.humanHandoff() !== undefined && !turn.answers && !turn.tool
+    if (turn.operator || isHeld) return this.runWithoutModel(turn)
     const stopTimer = this.startTimeout(turn.inputId, operation)
     this.publishStarted(operation)
 
     let runPlugins: MountedPlugins | undefined
+    /** The turn plugins, held until the turn and the runs it started settle. */
+    let heldPlugins: HeldPlugins | undefined
     /** The next chat() call runs the root agents that `routing` picked. */
     let isRootPart = false
     /** chat() refused the resume of this turn, so it ran nothing. */
     let isResumeRefused = false
+    /** The turn handed off to a person: it ends `interrupted`. */
+    let isPaused = false
     /** The tool calls of this turn that got a result, and an error result. */
     const resultIds = new Set<string>()
     const errorResultIds = new Set<string>()
@@ -380,6 +555,8 @@ export abstract class SessionTurn<
     const sentMessage = turn.message ?? turn.sentMessage
     const sender = turn.principal ?? this.principal
     const runParent = turn.answers?.runId ?? turn.parentRunId
+    /** `run.handoff`: the handoff of this turn, once it has `routing`. */
+    let turnHandoff: RunContext['handoff'] = NO_SESSION_CONTEXT.handoff
     // The run of this turn: its tools, its middleware, its subagents, and
     // its turn plugins get the credentials and keys of its sender. A sign-in
     // wait of one of its tools stops this turn only.
@@ -390,6 +567,7 @@ export abstract class SessionTurn<
       signal: operation.abortController.signal,
       canWait: (id) =>
         this.activeTurn === operation && !this.declinedSignIns.has(id),
+      handoff: (options) => turnHandoff(options),
     })
     const info: TurnInfo = {
       operationId: operation.id,
@@ -432,6 +610,10 @@ export abstract class SessionTurn<
           // Bound to this turn's run, not read when a service is called.
           services: this.pluginServices(info),
         })
+        heldPlugins = holdPlugins(runPlugins, (held) =>
+          this.turnPlugins.delete(held),
+        )
+        this.turnPlugins.add(heldPlugins)
       }
       // A removed session plugin stays mounted, but gives this turn nothing.
       const session =
@@ -462,8 +644,26 @@ export abstract class SessionTurn<
           ...(runPlugins?.agents ?? []),
         ]),
       ]
+      // The handoffs of this turn: the router, the `handoff` tool, and
+      // `ctx.harness.handoff` all go through it.
+      const handoffs =
+        this.harness.routing && rootAgents.length > 0
+          ? new TurnHandoffs({
+              runId: operation.id,
+              rootAgents,
+              subagents: subagentList.map((agent) => agent.name),
+              humans: this.harness.routing.humans === true,
+              append: (record) =>
+                this.appendHandoff(record, storedPrincipal(sender).principal),
+              publish: (record) =>
+                operation.publish(
+                  customEvent(HARNESS_EVENTS.handoff, { ...record }),
+                ),
+            })
+          : undefined
       // The settings of this turn. Every chat() call below uses them: the
-      // tool loop, retries, `beforeFinish` cycles, handoffs, and late joins.
+      // tool loop, retries, `beforeFinish` cycles, the main part of
+      // `routing.after: 'main'`, and late joins.
       const { overrides } = turn
       const picked = [
         ...(session?.adapters ?? []),
@@ -534,7 +734,23 @@ export abstract class SessionTurn<
       // here, so a middleware wrapper wraps the bound tool,
       // and again at each model call, for tools that a middleware returns.
       const bindTool = this.durableBinder(run)
-      const tools = prepared.map((tool) => bindDurable(tool, bindTool))
+      const clash = handoffs
+        ? prepared.find((tool) => tool.name === HANDOFF_TOOL)
+        : undefined
+      if (clash) {
+        const owner =
+          [
+            ...(session?.owners.tools ?? []),
+            ...(runPlugins?.owners.tools ?? []),
+          ].find((entry) => entry.name === HANDOFF_TOOL)?.owner ?? 'the turn'
+        throw new Error(
+          `Duplicate tool "${HANDOFF_TOOL}": first owner routing (the handoff tool), second owner ${owner}. Rename the tool.`,
+        )
+      }
+      const tools = [
+        ...prepared.map((tool) => bindDurable(tool, bindTool)),
+        ...(handoffs ? [handoffs.tool(null)] : []),
+      ]
       // The override tools as the turn has them: prepared and bound.
       const keptTools = tools.filter((tool) => turnToolNames.has(tool.name))
       const keepTools =
@@ -559,8 +775,8 @@ export abstract class SessionTurn<
           : undefined
       let resume = turn.resume
       let parentRunId = runParent
-      const { chatPersistence, checkpoint } = this
-      if (!chatPersistence || !checkpoint) {
+      const { chatPersistence, checkpoint, toolRecorder } = this
+      if (!chatPersistence || !checkpoint || !toolRecorder) {
         throw new Error('The session is not open yet.')
       }
       const durableTools = this.durableTools(bindTool)
@@ -569,14 +785,13 @@ export abstract class SessionTurn<
       // A new turn asks the router once. A resolve does not: it continues the
       // turn it answers, the main model or the saved plan of the root agents.
       let pick: SubagentRouterPick | undefined
-      if (
-        routing &&
-        rootAgents.length > 0 &&
-        turn.resume === undefined &&
-        !turn.tool
-      ) {
+      if (routing && handoffs && turn.resume === undefined && !turn.tool) {
         const history = await this.messages.loadThread(this.threadId)
-        pick = await routing.router({
+        const active = this.writer.state.thread.activeAgent
+        // A tool turn and a resolve run while a person answers. They do not
+        // reach here, so this is only for the type.
+        const activeAgent = isHumanTarget(active) ? active.from : active
+        const chosen = await routing.router({
           messages: resetContext([...history, ...(message ? [message] : [])]),
           agents: rootAgents,
           abortSignal: signal,
@@ -587,28 +802,48 @@ export abstract class SessionTurn<
           ...(sender ? { principal: sender } : {}),
           ...(turn.context !== undefined ? { context: turn.context } : {}),
           adapter,
+          ...(activeAgent !== null ? { activeAgent } : {}),
         })
+        // Before the agent runs, so a takeover goes on with the new agent.
+        pick = await handoffs.route(chosen, activeAgent)
       }
       const isRootTurn =
         turn.answers?.routed?.root === true || (pick ?? 'main') !== 'main'
-      const rootBag =
-        routing && isRootTurn
-          ? {
-              ...routing,
-              agents: rootAgents,
-              router: () => {
-                // A resolve has no pick. chat() continues its saved plan.
-                if (pick === undefined) {
-                  throw new Error('The routed turn has no saved plan.')
-                }
-                return pick
-              },
-              // The harness runs the handoff, so the main model keeps its
-              // subagents.
-              strategy: 'exclusive' as const,
-            }
-          : undefined
+      const { after, humans: _humans, ...shared } = routing ?? {}
+      const routedBag = routing
+        ? {
+            ...shared,
+            agents: rootAgents,
+            router: () => {
+              // A resolve has no pick. chat() continues its saved plan.
+              if (pick === undefined) {
+                throw new Error('The routed turn has no saved plan.')
+              }
+              return pick
+            },
+            // The harness runs the main part of `after: 'main'`, so the main
+            // model keeps its subagents.
+            strategy: 'exclusive' as const,
+          }
+        : undefined
+      /** The bag of the root agents, while a part of them runs. */
+      let rootBag = isRootTurn ? routedBag : undefined
       isRootPart = rootBag !== undefined
+      /**
+       * The agent that answers the next part, when one agent does: `null`
+       * for the main model. The routed message gets its name.
+       */
+      let answerer = isRootPart ? answererOf(pick) : null
+      // A tool of the main model hands off as the main model. A tool of a
+      // root agent hands off as that agent.
+      if (handoffs) {
+        turnHandoff = (options) =>
+          handoffs.handoff(
+            options,
+            isRootPart ? (answerer ?? null) : null,
+            'code',
+          )
+      }
       /** The subagents of the next chat() call. */
       let bag = rootBag ?? subagents
       let routed = isRoutedBag(bag)
@@ -629,6 +864,8 @@ export abstract class SessionTurn<
       let continued: Array<ModelMessage> = []
       /** How many times `turn.beforeFinish` continued this turn. */
       let cycle = 0
+      /** How many routed passes of this turn kept their answer. */
+      let routedRuns = 0
       /** The ephemeral messages of a turn hook, for the next model call. */
       const ephemeral: Array<ModelMessage> = []
       // Each model call gets the input's ephemeral messages after the last
@@ -641,9 +878,8 @@ export abstract class SessionTurn<
       // runs again when `turn.onModelError` answers 'retry'. A final answer
       // runs again when `turn.beforeFinish` adds to the transcript.
       for (;;) {
-        // The root agents of a routed turn run no turn hooks. The main model
-        // runs them, also in the main part of a handoff.
-        const turnHooks = isRootPart ? undefined : this.harness.turn
+        // The main model and the root agents of a routed part run them.
+        const turnHooks = this.harness.turn
         let textBefore = text
         /** Text, reasoning, or a tool call streamed since `textBefore`. */
         let streamed = false
@@ -673,6 +909,39 @@ export abstract class SessionTurn<
                   routedFrom ?? modelMessagesToUIMessages(turnMessages),
               })
             : undefined
+          const binding =
+            bag &&
+            this.binding(
+              operation,
+              captured,
+              sender,
+              run,
+              runPlugins,
+              {
+                agents: bag.agents,
+                // The tree budget of this chat() call, as core makes it. The
+                // binding has it too, so the starts of a tool-mode child
+                // count against it.
+                budget: SubagentBudget.root(bag.limits ?? this.limits()),
+                ...(heldPlugins ? { plugins: heldPlugins } : {}),
+              },
+              // The root agents of a routed part can hand off.
+              isRootPart ? handoffs : undefined,
+            )
+          if (binding && isRootPart) {
+            // The root agents of a routed part take steers at each model
+            // call, as the main model does, and get the ephemeral messages
+            // of a turn hook. Those go after the reset cut, so it keeps them.
+            const { chatMiddleware } = binding
+            chatMiddleware.splice(
+              chatMiddleware.indexOf(resetCut) + 1,
+              0,
+              ephemeralCall(ephemeral),
+            )
+            chatMiddleware.unshift(
+              this.steering(ephemeral, { operationId: operation.id }),
+            )
+          }
           const stream = chat({
             adapter,
             messages: routedFrom ?? turnMessages,
@@ -712,6 +981,7 @@ export abstract class SessionTurn<
               ...(keepTools ? [keepTools] : []),
               durableTools,
               this.detachTools(operation.id, sender),
+              ...(handoffs ? [handoffs.middleware()] : []),
               ...(rootBag ? [] : [this.syncFold()]),
               // Again: a middleware that returns `messages` (as `syncFold`
               // does) resets what the model gets to the whole transcript.
@@ -739,22 +1009,21 @@ export abstract class SessionTurn<
                 ),
                 transcribe: this.harness.media?.transcribe,
               }),
+              // After the media, so the model gets no secret of the session.
+              redactMiddleware(this.redactor),
+              // Last: the log keeps the result that the model really got,
+              // after every plugin, without the secrets of the session.
+              scrubToolResults(this.redactor),
+              toolRecorder,
               // The registry types of the harness interrupts do not line up
               // with the middleware tuple chat() infers. Only this field.
             ] as never,
-            ...(bag
+            ...(bag && binding
               ? {
                   subagents: {
                     ...bag,
                     limits: bag.limits ?? this.limits(),
-                    binding: this.binding(
-                      operation,
-                      captured,
-                      sender,
-                      run,
-                      runPlugins,
-                      bag.agents,
-                    ),
+                    binding,
                   },
                 }
               : {}),
@@ -763,9 +1032,12 @@ export abstract class SessionTurn<
               ? { toolExecution: this.harness.toolExecution }
               : {}),
             ...(modelOptions !== undefined ? { modelOptions } : {}),
-            ...(this.harness.interrupts
-              ? { interrupts: this.harness.interrupts }
-              : {}),
+            // The approvals and questions that plugins stop the turn with
+            // before its tools run, then the app's own.
+            interrupts: [
+              ...BOUNDARY_INTERRUPTS,
+              ...(this.harness.interrupts ?? []),
+            ],
             // The context type narrows per harness; chat() wants it exact.
             context: context as never,
             ...(reasoning !== undefined ? { reasoning } : {}),
@@ -954,23 +1226,73 @@ export abstract class SessionTurn<
           failure = runError.message
           break
         }
+        // The routed message of this part gets the name of its agent. A part
+        // that waits for an answer gets it too.
+        if (routed && failure === undefined && !signal.aborted) {
+          await markRouted(this.messages, this.threadId, operation.id, {
+            ...(answerer ? { agent: answerer } : {}),
+          })
+        }
         const isFinished =
           failure !== undefined ||
           (interrupts?.length ?? 0) > 0 ||
           signal.aborted
         if (isFinished) break
-        if (isRootPart) {
-          if (routing?.strategy !== 'handoff') break
+        const handoff = handoffs?.take()
+        const target = handoff?.to
+        if (isHumanTarget(target)) {
+          // A person answers next. The turn ends, and the session pauses.
+          isPaused = true
+          break
+        }
+        if (target !== undefined) {
+          // The target answers in this turn, with its own prompt and tools,
+          // from the saved thread. A routed target runs on the same run id,
+          // so the answer of an earlier routed pass is kept below.
+          answerer = target
+          if (target === null) {
+            isRootPart = false
+            rootBag = undefined
+            bag = subagents
+          } else {
+            pick = target
+            isRootPart = true
+            rootBag = routedBag
+            bag = routedBag
+            // The turn text is the answer of the target.
+            text = ''
+          }
+          routed = isRoutedBag(bag)
+          if (routed) {
+            await this.runStore.createOrResume({
+              runId: operation.id,
+              threadId: this.threadId,
+              startedAt: Date.now(),
+            })
+          }
+        } else if (isRootPart && after === 'main') {
           // The agents answered. The main model answers next, with the
           // transcript that has their answer.
           isRootPart = false
           bag = subagents
           routed = isRoutedBag(bag)
         } else {
-          // A steer does not join a turn that `routing` sent to root agents.
-          // It waits and runs as its own turn. Claimed, so a cancel after
-          // this check cannot leave a run with no new input.
-          const hasLateJoin = !rootBag && (await this.claimJoins()) > 0
+          // A resolve continues the saved plan of the root agents. It has no
+          // pick, so they cannot run again for a join or a hook.
+          if (isRootPart && pick === undefined) break
+          // The root agents run again for a late join. Its steers join now:
+          // an agent that makes no model call takes no steer. The main part
+          // of a handoff takes no steer: it waits and runs as its own turn.
+          // The main model claims them, so a cancel after this check cannot
+          // leave a run with no new input.
+          const hasLateJoin = isRootPart
+            ? (await this.joinSteers({
+                operationId: operation.id,
+                messages: [],
+                ephemeral,
+                isRouted: true,
+              })) !== undefined
+            : !rootBag && (await this.claimJoins()) > 0
           if (!hasLateJoin) {
             const goesOn = await this.continueBeforeFinish(
               operation,
@@ -981,6 +1303,20 @@ export abstract class SessionTurn<
             if (!goesOn) break
             cycle += 1
           }
+        }
+        if (isRootPart) {
+          // The store keeps one answer message per run, and the next routed
+          // pass (a late join, a hook, or a handoff to a root agent) writes
+          // it again. The answer so far keeps its place under its own id, as
+          // its own message, with the agent that wrote it.
+          routedRuns += 1
+          await this.writer.commit({
+            messages: this.writer.state.messages.map((entry) =>
+              entry.id === subagentHostMessageId(operation.id)
+                ? keptAnswer(entry, routedRuns)
+                : entry,
+            ),
+          })
         }
         message = undefined
         resume = undefined
@@ -1009,7 +1345,8 @@ export abstract class SessionTurn<
       }
     } finally {
       stopTimer()
-      await runPlugins?.dispose().catch(() => {})
+      // The runs that the turn started keep the plugins until they settle.
+      await heldPlugins?.release()
     }
     const timedOut = operation.abortController.signal.reason === TIMEOUT_REASON
     // A recoverable close: the turn stops as on a crash, and the next host
@@ -1159,11 +1496,81 @@ export abstract class SessionTurn<
       // `this.interrupted` was kept at RUN_FINISHED.
       await settleTurn({ outcome: 'interrupted' })
       operation.finish('interrupted', { text, interrupts, media: captured })
+    } else if (isPaused) {
+      // The `human` wait of the handoff is in the log. An operator answers it.
+      await settleTurn({ outcome: 'interrupted' })
+      operation.finish('interrupted', { text, interrupts: [], media: captured })
     } else {
       await settleTurn({ outcome: 'completed' })
       operation.finish('completed', { text, media: captured })
     }
     this.publishFinished(operation)
     this.requeueWaitingSteers()
+  }
+}
+
+/**
+ * Publish the text of a message that no model wrote, as the text events of
+ * one assistant message.
+ */
+function publishText(
+  operation: Pick<OperationImpl<unknown>, 'publish'>,
+  messageId: string,
+  content: ModelMessage['content'],
+) {
+  const delta =
+    typeof content === 'string'
+      ? content
+      : (content ?? [])
+          .map((part) => (part.type === 'text' ? part.content : ''))
+          .join('')
+  if (delta === '') return
+  const timestamp = Date.now()
+  operation.publish({
+    type: EventType.TEXT_MESSAGE_START,
+    messageId,
+    role: 'assistant',
+    timestamp,
+  })
+  operation.publish({
+    type: EventType.TEXT_MESSAGE_CONTENT,
+    messageId,
+    delta,
+    timestamp,
+  })
+  operation.publish({ type: EventType.TEXT_MESSAGE_END, messageId, timestamp })
+}
+
+/** The reply of an operator, as the transcript keeps it. */
+function operatorMessage(
+  id: string,
+  content: UserInput,
+  principal: Principal | undefined,
+): ModelMessage {
+  return {
+    id,
+    role: 'assistant',
+    content,
+    // The id of the operator. A session with no user has none.
+    metadata: { harness: { operator: principal?.id ?? true } },
+  }
+}
+
+/**
+ * The answer message of a routed run, kept under the id `${id}:${index}`.
+ * It loses its run tag, so the store writes the next answer of the run as a
+ * new message.
+ */
+function keptAnswer(message: ModelMessage, index: number): ModelMessage {
+  const { metadata } = message
+  const tanstack = isRecord(metadata) ? metadata.tanstack : undefined
+  if (!isRecord(metadata) || !isRecord(tanstack)) {
+    return { ...message, id: `${message.id}:${index}` }
+  }
+  const { runId: _runId, ...rest } = tanstack
+  return {
+    ...message,
+    id: `${message.id}:${index}`,
+    metadata: { ...metadata, tanstack: rest },
   }
 }

@@ -10,32 +10,37 @@ import {
 } from '@tanstack/ai'
 import { parseRangeHeader, resolveBlobRange } from '@tanstack/ai-persistence'
 import { AccessDeniedError } from './access'
-import { accessOf, sessionOfTurn } from './host'
+import { accessOf, sessionOfTurn, tenantEventsOf } from './host'
+import { tenantOfHostEvent } from './host-event-bus'
 import { activeRunIn } from './log-stores'
 import { MediaError } from './media'
 import {
-  HARNESS_PROTOCOL_VERSION,
   applyInput,
   capabilitiesOf,
   describeForClient,
+  negotiateVersion,
   parseControlFrame,
   parseHarnessInput,
+  requestIdOf,
   turnReceipt,
 } from './protocol'
+import { socketSender, sseStream, streamValues, withHeartbeat } from './sse'
 import { base64url, isRecord } from './utils'
 import { SessionMetadataError } from './session-entry'
-import { SessionImpl } from './session/harness-session'
+import { SessionImpl, scrubbedBy } from './session/harness-session'
 import {
   liveSessionOf,
   mediaStoreOf,
   storedRunOf,
   storedRunsOf,
 } from './session/observed-session'
+import { wireFrame } from './wire'
 import type { ModelMessage, UIMessage, WebSocketLike } from '@tanstack/ai'
 import type { SessionIndexEntry, SessionMember } from '@tanstack/ai-persistence'
 import type { AnyHarness } from './define'
 import type { HarnessHost, HostEvent } from './host'
-import type { HostFrame } from './protocol'
+import type { ControlFrame, HarnessErrorCode, HostFrame } from './protocol'
+import type { HarnessStreamOptions, SseFrame, StreamValues } from './sse'
 import type { HarnessSession } from './session/index'
 import type { ObservedSession } from './session/observed-session'
 import type { Cursor, Principal, SessionEvent, UserInput } from './types'
@@ -76,6 +81,12 @@ export interface HarnessHandlerOptions<P extends Principal = Principal> {
      */
     secret: string
   }
+  /**
+   * The values of the SSE streams: the heartbeat, the slow-client close, and
+   * the queue size. A value that you do not set keeps its default. See
+   * `HarnessStreamOptions`.
+   */
+  stream?: HarnessStreamOptions
 }
 
 /** How long a signed media URL works. */
@@ -111,41 +122,68 @@ const json = (body: unknown, status = 200) =>
 const forbidden = () => json({ error: 'forbidden' }, 403)
 
 /**
- * An SSE response: one event per frame, with `data` as JSON and `id` when
- * the frame has one. `watch` gets the reader: aborting it ends the stream.
- * When the client leaves, the reader aborts.
+ * The id of a request, for its error frames and its `X-Request-Id` answer
+ * header. The rule: the `X-Request-Id` header of the request when it is a
+ * short safe id (1 to 128 letters, digits, `-`, `_`, `.`, or `:`), else a
+ * new UUID. So a proxy can trace a request, and a client cannot put other
+ * text into the logs.
+ */
+function requestIdFor(request: Request) {
+  const sent = request.headers.get('X-Request-Id')
+  return sent !== null && /^[\w.:-]{1,128}$/.test(sent)
+    ? sent
+    : crypto.randomUUID()
+}
+
+/**
+ * An SSE response from `sseStream`: pull-based, with a heartbeat and a close
+ * for a slow client (see `sse.ts`). `watch` gets the reader: aborting it
+ * ends the stream. When the stream ends or the client leaves, the reader
+ * aborts.
  */
 function sseResponse(
-  frames: (
-    signal: AbortSignal,
-  ) => AsyncIterable<{ id?: string; data: unknown }>,
+  frames: (signal: AbortSignal) => AsyncIterable<SseFrame>,
+  requestId: string,
+  stream: StreamValues,
   watch?: (reader: AbortController) => void,
 ) {
   // Not `request.signal`: some servers abort it once the body is read.
   const reader = new AbortController()
-  let isCancelled = false
-  const body = new ReadableStream<Uint8Array>({
-    cancel: () => {
-      isCancelled = true
-      reader.abort()
+  watch?.(reader)
+  const body = sseStream({
+    frames: (signal) => {
+      // The watch ends with the stream.
+      signal.addEventListener('abort', () => reader.abort(), { once: true })
+      return frames(signal)
     },
-    async start(controller) {
-      watch?.(reader)
-      try {
-        for await (const { id, data } of frames(reader.signal)) {
-          const idLine = id === undefined ? '' : `id: ${id}\n`
-          controller.enqueue(
-            encoder.encode(`${idLine}data: ${JSON.stringify(data)}\n\n`),
-          )
-        }
-      } finally {
-        if (!isCancelled) controller.close()
-        // The watch ends with the stream.
-        reader.abort()
-      }
-    },
+    requestId,
+    signal: reader.signal,
+    stream,
   })
   return new Response(body, { headers: SSE_HEADERS })
+}
+
+/** The protocol version that `?v=` asks for. See `negotiateVersion`. */
+function versionOf(url: URL) {
+  const v = url.searchParams.get('v')
+  return negotiateVersion(v === null ? {} : { requested: Number(v) })
+}
+
+/**
+ * The answer to a stream with a `?v=` that the host does not speak: an SSE
+ * stream with one `unsupported_version` error frame. Then it closes.
+ */
+function versionRefused(
+  error: Omit<
+    Extract<HostFrame, { type: 'harness.error' }>,
+    'type' | 'requestId'
+  >,
+  requestId: string,
+) {
+  const frame: HostFrame = { type: 'harness.error', requestId, ...error }
+  return new Response(encoder.encode(`data: ${JSON.stringify(frame)}\n\n`), {
+    headers: SSE_HEADERS,
+  })
 }
 
 /**
@@ -156,6 +194,7 @@ function sseResponse(
  */
 function cursorResponse(
   read: (signal: AbortSignal) => AsyncIterable<SessionEvent>,
+  stream: StreamValues,
   watch?: (reader: AbortController) => void,
 ) {
   // Not `request.signal`: some servers abort it once the body is read.
@@ -174,8 +213,11 @@ function cursorResponse(
     }
   }
   return new Response(
-    toServerSentEventsStream(chunks(), reader, (_chunk, index) =>
-      cursors.at(index),
+    withHeartbeat(
+      toServerSentEventsStream(chunks(), reader, (_chunk, index) =>
+        cursors.at(index),
+      ),
+      { heartbeatMs: stream.heartbeatMs },
     ),
     { headers: SSE_HEADERS },
   )
@@ -490,8 +532,11 @@ function watchRevoke<P extends Principal>(
  * Signed media URLs use `media.secret`. Without it, they work only on this
  * server (see `HarnessHandlerOptions.media`).
  *
+ * `stream` sets the values of the SSE streams (see `HarnessStreamOptions`).
+ *
  * Throws at the start for a host without `access` and without
- * `openAccess`, and for a host with both.
+ * `openAccess`, for a host with both, and for a `stream` value that is not
+ * a finite number above 0.
  *
  * @example
  * ```ts
@@ -504,6 +549,12 @@ export function createHarnessHandler<P extends Principal = Principal>(
   const { host, harness, media } = options
   const usersOf = requestUsers('createHarnessHandler', host, options.openAccess)
   const hasAccess = accessOf(host) !== undefined
+  if (media !== undefined && media.secret.length === 0) {
+    throw new Error(
+      'createHarnessHandler needs a media.secret that is not empty.',
+    )
+  }
+  const stream = streamValues('createHarnessHandler', options.stream)
 
   const openFor = (principal: P | undefined, threadId: string) =>
     host.open(harness, { threadId, ...(principal ? { principal } : {}) })
@@ -560,6 +611,9 @@ export function createHarnessHandler<P extends Principal = Principal>(
       }
     try {
       return await answer(keep)
+    } catch (error) {
+      // The answer is a frame that leaves the session: no secret of it.
+      throw scrubbedBy(session, error)
     } finally {
       if (!isKept) void session.close()
     }
@@ -678,6 +732,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
       const from = resumeFrom ?? startedCursor ?? '0'
       return cursorResponse(
         (signal) => turn.events({ from, signal }),
+        stream,
         closeOnRevoke(principal, threadId),
       )
     }
@@ -712,6 +767,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
           view.events({ from: resumeFrom ?? start ?? '0', signal }),
           runId,
         ),
+      stream,
       closeOnRevoke(principal, threadId),
     )
   }
@@ -719,7 +775,9 @@ export function createHarnessHandler<P extends Principal = Principal>(
   /**
    * The `host.events()` that `principal` may read. With access, a thread
    * needs the `read` action. The decision of each thread is kept for the
-   * stream, until a revoke or an index change of that thread.
+   * stream, until a revoke or an index change of that thread. `accepts`
+   * reads no store, so the host event bus runs it before the queue.
+   * `mayWatch` runs after the queue.
    */
   const watchedEvents = (principal: P | undefined) => {
     const user = principal ? { principal } : {}
@@ -734,21 +792,29 @@ export function createHarnessHandler<P extends Principal = Principal>(
       decisions.set(threadId, decision)
       return decision
     }
-    return async (event: HostEvent) => {
-      const tenantId =
-        event.type === 'session' || event.type === 'session-deleted'
-          ? event.entry.tenantId
-          : event.tenantId
-      if (tenantId !== principal?.tenantId) return false
+    const accepts = (event: HostEvent) => {
+      if (tenantOfHostEvent(event) !== principal?.tenantId) return false
       if (event.type === 'revoked') {
         decisions.delete(event.threadId)
         // A user hears of their own revokes only.
         return event.principalId === principal?.id
       }
-      if (!hasAccess) return true
-      if (event.type === 'session') decisions.delete(event.threadId)
-      if (event.type === 'session-deleted') {
+      if (event.type === 'session' || event.type === 'session-deleted') {
         decisions.delete(event.threadId)
+      }
+      return true
+    }
+    const mayWatch = async (event: HostEvent) => {
+      if (!hasAccess || event.type === 'revoked') return true
+      // A transfer names two threads: the user must read both.
+      if (event.type === 'transferred') {
+        const reads = await Promise.all([
+          mayRead(event.from.threadId),
+          mayRead(event.to.threadId),
+        ])
+        return reads.every(Boolean)
+      }
+      if (event.type === 'session-deleted') {
         // The entry is gone: decide on the removed one.
         const access = accessOf(host)
         return principal !== undefined && access !== undefined
@@ -761,9 +827,14 @@ export function createHarnessHandler<P extends Principal = Principal>(
       }
       return mayRead(event.threadId)
     }
+    return { accepts, mayWatch }
   }
 
-  const handle = async (request: Request, principal: P | undefined) => {
+  const handle = async (
+    request: Request,
+    principal: P | undefined,
+    requestId: string,
+  ) => {
     const url = new URL(request.url)
     const route = url.pathname.split('/').at(-1)
     const user = principal ? { principal } : {}
@@ -808,6 +879,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
                 session.events({ ...(from ? { from } : {}), signal }),
                 operationId,
               ),
+            stream,
             keep(watch),
           )
         }
@@ -838,6 +910,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
               ...(lastEventId ? { from: lastEventId } : {}),
               signal,
             }),
+          stream,
           keep(watch),
         )
       })
@@ -867,25 +940,51 @@ export function createHarnessHandler<P extends Principal = Principal>(
         request.headers.get('Last-Event-ID') ??
         url.searchParams.get('from') ??
         undefined
+      const picked = versionOf(url)
+      if ('error' in picked) return versionRefused(picked.error, requestId)
+      const hello: HostFrame = { type: 'harness.hello', v: picked.v, threadId }
       return sseResponse(
         async function* (signal) {
+          yield { data: JSON.stringify(hello) }
           const events = view.events({ ...(from ? { from } : {}), signal })
+          // Each event goes out as an AG-UI wire chunk.
           for await (const entry of events) {
-            const frame: HostFrame = { type: 'harness.event', ...entry }
-            yield { id: entry.cursor, data: frame }
+            yield { id: entry.cursor, data: wireFrame(entry) }
           }
         },
+        requestId,
+        stream,
         closeOnRevoke(principal, threadId),
       )
     }
 
     if (request.method === 'GET' && route === 'host-events') {
-      const mayWatch = watchedEvents(principal)
-      return sseResponse(async function* (signal) {
-        for await (const event of host.events({ signal })) {
-          if (await mayWatch(event)) yield { data: event }
-        }
-      })
+      const picked = versionOf(url)
+      if ('error' in picked) return versionRefused(picked.error, requestId)
+      const { accepts, mayWatch } = watchedEvents(principal)
+      // The events of the principal's tenant only, from the host event bus.
+      // A host that `createHarnessHost` did not make has `host.events()`.
+      const readTenant = tenantEventsOf(host)
+      // The hello of `host-events` names no thread.
+      const hello = JSON.stringify({ type: 'harness.hello', v: picked.v })
+      return sseResponse(
+        async function* (signal) {
+          yield { data: hello }
+          const events = readTenant
+            ? readTenant({
+                tenantId: principal?.tenantId,
+                filter: accepts,
+                signal,
+              })
+            : host.events({ signal })
+          for await (const event of events) {
+            if (!readTenant && !accepts(event)) continue
+            if (await mayWatch(event)) yield { data: JSON.stringify(event) }
+          }
+        },
+        requestId,
+        stream,
+      )
     }
 
     if (request.method === 'POST' && route === 'control') {
@@ -1085,7 +1184,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
     return json({ error: 'not found' }, 404)
   }
 
-  return async (request: Request) => {
+  const answer = async (request: Request, requestId: string) => {
     const url = new URL(request.url)
     const isSignedMedia =
       request.method === 'GET' &&
@@ -1096,10 +1195,18 @@ export function createHarnessHandler<P extends Principal = Principal>(
       if (isSignedMedia) return await serveSigned(request, url)
       const user = await usersOf(request)
       if (!user) return json({ error: 'unauthorized' }, 401)
-      return await handle(request, user.principal)
+      return await handle(request, user.principal, requestId)
     } catch (error) {
       return failed(error)
     }
+  }
+
+  return async (request: Request) => {
+    const requestId = requestIdFor(request)
+    const response = await answer(request, requestId)
+    // Every answer names its request, so a client can find it in the logs.
+    response.headers.set('X-Request-Id', requestId)
+    return response
   }
 }
 
@@ -1162,7 +1269,16 @@ export interface HarnessSocketOptions<P extends Principal = Principal> {
   request: Request
   /** For a host without `access` only. See `HarnessHandlerOptions`. */
   openAccess?: OpenAccess<P>
+  /**
+   * The values of the socket: the heartbeat, the slow-client close, and the
+   * buffer size. A value that you do not set keeps its default. See
+   * `HarnessStreamOptions`.
+   */
+  stream?: HarnessStreamOptions
 }
+
+/** The close code of a socket after an `unsupported_version` error frame. */
+const UNSUPPORTED_VERSION_CLOSE_CODE = 4400
 
 /** The text of an error frame: a refused action is `forbidden`. */
 const errorMessage = (error: unknown) =>
@@ -1184,8 +1300,11 @@ const errorMessage = (error: unknown) =>
  * session. The first input opens the session, and the socket holds it until
  * it closes.
  *
+ * `stream` sets the values of the socket (see `HarnessStreamOptions`).
+ *
  * Throws at the start for a host without `access` and without `openAccess`,
- * and for a host with both.
+ * for a host with both, and for a `stream` value that is not a finite number
+ * above 0.
  *
  * @example
  * ```ts
@@ -1197,7 +1316,17 @@ export function handleHarnessSocket<P extends Principal = Principal>(
 ) {
   const { host, harness, socket, request } = options
   const usersOf = requestUsers('handleHarnessSocket', host, options.openAccess)
+  const values = streamValues('handleHarnessSocket', options.stream)
   const reader = new AbortController()
+  // The id of the upgrade request, with the rule of `requestIdFor`. An error
+  // frame of the socket itself, or of a frame with no `requestId`, names it.
+  const socketId = requestIdFor(request)
+  const sender = socketSender({
+    socket,
+    requestId: socketId,
+    signal: reader.signal,
+    stream: values,
+  })
   const who = usersOf(request).catch(() => null)
   // Set by the first subscribe, before its awaits, so a second subscribe is
   // refused and an input sent right after the subscribe waits for it. It
@@ -1251,10 +1380,12 @@ export function handleHarnessSocket<P extends Principal = Principal>(
     from: Cursor | undefined,
   ) => {
     let cursor = from
+    // Each event goes out as an AG-UI wire chunk. The send waits while the
+    // socket buffer is full, so a slow client stops the read of the log.
     const forward = async (events: AsyncIterable<SessionEvent>) => {
       for await (const entry of events) {
         cursor = entry.cursor
-        send({ type: 'harness.event', ...entry })
+        if (!(await send(wireFrame(entry)))) return
       }
     }
     const readOptions = () => ({
@@ -1270,30 +1401,64 @@ export function handleHarnessSocket<P extends Principal = Principal>(
     if (!session) return
     await forward(session.events(readOptions()))
   }
-  const send = (frame: HostFrame) => {
+  /** Send a frame in order. False when the socket is gone. */
+  const send = async (frame: HostFrame | string) => {
+    if (await sender(frame)) return true
+    reader.abort()
+    return false
+  }
+  const fail = (code: HarnessErrorCode, message: string, requestId: string) =>
+    void send({ type: 'harness.error', message, code, requestId })
+  /**
+   * Send a last error frame and close. It goes out at once, before the
+   * frames that wait in the sender: the socket closes next.
+   */
+  const closeWith = (
+    frame: Extract<HostFrame, { type: 'harness.error' }>,
+    closeCode: number,
+  ) => {
     try {
       socket.send(JSON.stringify(frame))
     } catch {
-      reader.abort()
+      // The socket is gone already.
     }
-  }
-  const refuse = (message: 'unauthorized' | 'forbidden') => {
-    send({ type: 'harness.error', message })
-    socket.close(message === 'unauthorized' ? 4401 : 4403, message)
+    socket.close(closeCode, frame.code)
     reader.abort()
   }
+  const refuse = (message: 'unauthorized' | 'forbidden', requestId: string) =>
+    closeWith(
+      { type: 'harness.error', message, code: message, requestId },
+      message === 'unauthorized' ? 4401 : 4403,
+    )
 
   socket.addEventListener('close', () => reader.abort())
   socket.addEventListener('error', () => reader.abort())
   socket.addEventListener('message', (message) => {
+    const data = String(message.data)
+    // Read before the full parse, so a frame with a bad `input` still names
+    // its request.
+    const requestId = requestIdOf(data) ?? socketId
     void (async () => {
       try {
         const user = await who
-        if (!user) return refuse('unauthorized')
+        if (!user) return refuse('unauthorized', requestId)
         const { principal } = user
-        const frame = parseControlFrame(String(message.data))
+        let frame: ControlFrame
+        try {
+          frame = parseControlFrame(data)
+        } catch (error) {
+          return fail('invalid_frame', errorMessage(error), requestId)
+        }
         if (frame.type === 'harness.subscribe') {
-          if (subscribed) throw new Error('Already subscribed.')
+          if (subscribed)
+            return fail('invalid_frame', 'Already subscribed.', requestId)
+          const picked = negotiateVersion({ requested: frame.v })
+          if ('error' in picked) {
+            return closeWith(
+              { type: 'harness.error', requestId, ...picked.error },
+              UNSUPPORTED_VERSION_CLOSE_CODE,
+            )
+          }
           const { threadId } = frame
           subscribed = observeToRead(host, harness, {
             threadId,
@@ -1306,20 +1471,22 @@ export function handleHarnessSocket<P extends Principal = Principal>(
             },
           )
           const subscription = await subscribed
-          if (!subscription) return refuse('forbidden')
+          if (!subscription) return refuse('forbidden', requestId)
           watchRevoke(
             host,
             { principal, threadId, signal: reader.signal },
-            () => refuse('forbidden'),
+            () => refuse('forbidden', requestId),
           )
-          send({
-            type: 'harness.hello',
-            v: HARNESS_PROTOCOL_VERSION,
-            threadId: frame.threadId,
-          })
+          void send({ type: 'harness.hello', v: picked.v, threadId })
           void stream(subscription.view, frame.from)
+            // The close waits for this frame: it goes out first.
             .catch((error: unknown) =>
-              send({ type: 'harness.error', message: errorMessage(error) }),
+              send({
+                type: 'harness.error',
+                message: errorMessage(scrubbedBy(holding, error)),
+                code: 'internal',
+                requestId,
+              }),
             )
             // The feed ended while the socket is open: close it, so the
             // client subscribes again.
@@ -1329,13 +1496,18 @@ export function handleHarnessSocket<P extends Principal = Principal>(
           return
         }
         const subscription = await subscribed
-        if (!subscription) throw new Error('Send harness.subscribe first.')
+        if (!subscription)
+          return fail(
+            'invalid_frame',
+            'Send harness.subscribe first.',
+            requestId,
+          )
         if (frame.type === 'harness.snapshot') {
           // The held session, else the view: a snapshot opens nothing.
           const live = holding?.snapshot()
           const snapshot = live ?? (await subscription.view?.snapshot())
           if (!snapshot) throw new Error('not found')
-          send({ type: 'harness.snapshot', snapshot })
+          void send({ type: 'harness.snapshot', snapshot })
           return
         }
         const session = await hold(subscription.threadId, principal)
@@ -1344,14 +1516,19 @@ export function handleHarnessSocket<P extends Principal = Principal>(
           session,
           input: frame.input,
           ...(principal ? { principal } : {}),
+          ...(frame.traceparent ? { traceparent: frame.traceparent } : {}),
         })
-        send({
+        void send({
           type: 'harness.receipt',
           requestId: frame.requestId,
           ...receipt,
         })
       } catch (error) {
-        send({ type: 'harness.error', message: errorMessage(error) })
+        const code =
+          error instanceof AccessDeniedError ? 'forbidden' : 'internal'
+        // The held session scrubs its secrets. Before the first input,
+        // no session is open, so there is none to scrub.
+        fail(code, errorMessage(scrubbedBy(holding, error)), requestId)
       }
     })()
   })

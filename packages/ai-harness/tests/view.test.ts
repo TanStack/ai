@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
@@ -13,6 +14,10 @@ import { createHarnessClient } from '../src/client'
 import { createSessionView } from '../src/view'
 import { after, gate, mockAdapter, text, toolCall } from './helpers'
 import type { Reply } from './helpers'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(check: () => T | Promise<T>) =>
+  vi.waitFor(check, { timeout: 5_000 })
 
 const Pinged = createPluginEvent<{ count: number }>('test/pinged')
 
@@ -434,6 +439,61 @@ describe('the agents of a session view', () => {
     ])
     hold.open()
     await run
+    view.dispose()
+    await host.close()
+  })
+
+  it('shows the wait of a background run, and answers it on its own', async () => {
+    const removed: Array<string> = []
+    const prune = toolDefinition({
+      name: 'prune',
+      description: 'Prune a file. Needs approval.',
+      needsApproval: true,
+      inputSchema: z.object({ path: z.string() }),
+    }).server(({ path }) => {
+      removed.push(path)
+      return Promise.resolve({ removed: true })
+    })
+    const model = mockAdapter([
+      () => toolCall('prune', { path: 'old.log' }),
+      () => text('Done.'),
+    ])
+    const cleaner = defineAgent({
+      name: 'cleaner',
+      description: 'Cleans up',
+      run: (ctx) => ctx.chat({ adapter: model.adapter, tools: [prune] }),
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/view-run-waits',
+        adapter: mockAdapter([]).adapter,
+        agents: [cleaner],
+      }),
+      { threadId: 't' },
+    )
+    const view = createSessionView(session)
+    await view.ready
+    const run = session.agents.cleaner.start()
+    const wait = await session.waitFor({
+      runId: run.id,
+      signal: AbortSignal.timeout(5_000),
+    })
+
+    await waitFor(() =>
+      expect(view.store.get().approvals.map(({ id }) => id)).toEqual([
+        wait.waitId,
+      ]),
+    )
+    expect(view.store.get().waits).toEqual([wait])
+    expect(view.store.get().agents).toMatchObject([
+      { id: run.id, status: 'waiting' },
+    ])
+    view.approve(wait.waitId)
+    await expect(run).resolves.toBe('Done.')
+    expect(removed).toEqual(['old.log'])
+    await waitFor(() => expect(view.store.get().waits).toEqual([]))
+    expect(view.store.get().approvals).toEqual([])
     view.dispose()
     await host.close()
   })

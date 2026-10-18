@@ -427,6 +427,7 @@ describe('media in results', () => {
       text: 'Here it is.',
       interrupts: [],
       questions: [],
+      waits: [],
       media: [
         {
           id: expect.any(String),

@@ -1,4 +1,4 @@
-import { EventType } from '@tanstack/ai'
+import { EventType, INTERRUPT_PAYLOAD_METADATA_KEY } from '@tanstack/ai'
 import {
   ContentBlock,
   PROTOCOL_VERSION,
@@ -6,12 +6,19 @@ import {
   agent,
   ndJsonStream,
 } from '@agentclientprotocol/sdk/experimental/v2'
-import { AccessDeniedError, InputRejectedError } from '@tanstack/ai-harness'
+import {
+  AccessDeniedError,
+  InputRejectedError,
+  waitOfInterrupt,
+} from '@tanstack/ai-harness'
 import { MediaError, kindOf, mediaPart } from '@tanstack/ai-harness/media'
 import type {
   AgentApp,
   AgentContext,
   AgentConnection,
+  ClientCapabilities,
+  ElicitationSchema,
+  PermissionOption,
   SessionUpdate,
   Stream,
 } from '@agentclientprotocol/sdk/experimental/v2'
@@ -27,6 +34,7 @@ import type {
   HarnessSession,
   Operation,
   Principal,
+  Wait,
 } from '@tanstack/ai-harness'
 
 export interface AcpAgentOptions<P extends Principal = Principal> {
@@ -222,26 +230,107 @@ function parseArgs(raw: string | undefined): unknown {
   }
 }
 
-/** True for an interrupt that asks to approve a tool call. */
-function isApproval(interrupt: Interrupt) {
-  return (
-    interrupt.metadata?.kind === 'approval' ||
-    interrupt.reason === 'approval_required'
-  )
+/** The sign-in page of a sign-in interrupt, when it has one. */
+function signInUrl(interrupt: Interrupt) {
+  const payload = interrupt.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY]
+  const request = isRecord(payload) ? payload.request : undefined
+  return isRecord(request) && typeof request.url === 'string'
+    ? request.url
+    : undefined
 }
 
-const APPROVAL_OPTIONS = [
-  { optionId: 'allow', name: 'Allow', kind: 'allow_once' },
-  { optionId: 'reject', name: 'Reject', kind: 'reject_once' },
-] as const
+/** The JSON Schema of a wait, as a record, when it has one. */
+function schemaOf(wait: Wait) {
+  return isRecord(wait.schema) ? wait.schema : undefined
+}
+
+/**
+ * True when the answer schema of an approval takes `always` (an approval of
+ * `permissions()`): the editor can then allow the call from now on.
+ */
+function takesAlways(schema: unknown): boolean {
+  if (!isRecord(schema)) return false
+  if (Array.isArray(schema.enum) && schema.enum.includes('always')) return true
+  const branches = [schema.anyOf, schema.oneOf].flatMap((list) =>
+    Array.isArray(list) ? list : [],
+  )
+  const answer = isRecord(schema.properties)
+    ? schema.properties.answer
+    : undefined
+  return [...branches, answer].some(takesAlways)
+}
+
+/** The permission options of an approval: allow once, maybe always, reject. */
+function approvalOptions(wait: Wait): Array<PermissionOption> {
+  return [
+    { optionId: 'allow', name: 'Allow', kind: 'allow_once' },
+    ...(takesAlways(wait.schema)
+      ? [
+          {
+            optionId: 'always',
+            name: 'Always allow',
+            kind: 'allow_always',
+          } as const,
+        ]
+      : []),
+    { optionId: 'reject', name: 'Reject', kind: 'reject_once' },
+  ]
+}
+
+/** The answer to an approval for the option the editor selected. */
+function approvalAnswer(optionId: unknown) {
+  if (optionId === 'always') return { answer: 'always' }
+  return optionId === 'allow'
+}
+
+/**
+ * The form of an elicitation for the answer schema of a wait. An object
+ * schema is the form. Any other answer is the one field `answer`.
+ */
+function formOf(wait: Wait) {
+  const schema = schemaOf(wait)
+  const isForm = schema?.type === 'object' && isRecord(schema.properties)
+  const requestedSchema = (
+    isForm
+      ? schema
+      : {
+          type: 'object',
+          properties: { answer: schema ?? { type: 'string' } },
+          required: ['answer'],
+        }
+  ) as ElicitationSchema
+  return {
+    requestedSchema,
+    answerOf: (content: unknown) =>
+      isForm || !isRecord(content) ? content : content.answer,
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+/**
+ * The answer of the editor to one wait: `resolved` with its payload,
+ * `cancelled` (the editor said no, or cannot answer it), or `stop` (the
+ * editor cancelled the prompt).
+ */
+type WaitAnswer =
+  | { status: 'resolved'; payload: unknown }
+  | { status: 'cancelled' }
+  | { status: 'stop' }
 
 /**
  * An ACP v2 agent backed by a harness. Each ACP session is one harness
  * session, and `session/list` reads the top-level sessions of the harness from
  * the session index of the host. The prompts of a session run one after
- * another, whatever the harness `busy` setting says. Tool approvals become
- * `session/request_permission` requests, and cancel cancels the running
- * turn. Image, audio, and embedded resource blocks of a prompt go to the media
+ * another, whatever the harness `busy` setting says. Each wait of a turn
+ * goes to the editor by its kind: an approval becomes a
+ * `session/request_permission` request (with `allow_always` for an approval
+ * of `permissions()`), a question or a `human` wait a form elicitation, and
+ * a sign-in a URL elicitation, when the editor declares them in
+ * `initialize`. A wait that the editor cannot answer is cancelled. Cancel
+ * cancels the running turn. Image, audio, and embedded resource blocks of a prompt go to the media
  * store of the session. A file the harness refuses (too big, or a type it
  * does not take) fails `session/prompt` with an invalid params error.
  *
@@ -338,14 +427,97 @@ export function createAcpAgent<P extends Principal = Principal>(
     update: SessionUpdate,
   ) => client.notify('session/update', { sessionId, update }).catch(() => {})
 
+  /** What the editor can show, from its `initialize`. */
+  let capabilities: ClientCapabilities = {}
+
+  /** True when the editor can answer `wait` (see `askEditor`). */
+  const canAsk = (wait: Wait, url: string | undefined) => {
+    const elicitation = capabilities.elicitation
+    switch (wait.kind) {
+      case 'approval':
+        return true
+      case 'question':
+      case 'human':
+        return Boolean(elicitation?.form)
+      case 'sign-in':
+        return url !== undefined && Boolean(elicitation?.url)
+      case 'client-tool':
+        return false
+    }
+  }
+
   /**
-   * Answer the interrupts of a turn, then continue it. The client gets a
-   * permission request for each tool approval. The other interrupts (a
-   * sign-in, an input form, a client tool) are cancelled, because the client
-   * cannot answer them. A permission answer other than a selected option (the
-   * client cancelled the prompt) stops the turn, and the interrupts stay open
-   * until the next prompt. The next operation is wrapped, because an
-   * operation is thenable and an async function would unwrap it.
+   * Ask the editor for the answer to `wait`, by its kind:
+   *
+   * - `approval`: a permission request. `allow_always` only when the
+   *   answer schema takes `always`.
+   * - `question` and `human`: a form elicitation of the wait schema.
+   * - `sign-in`: a URL elicitation of the sign-in page.
+   * - `client-tool`, and a kind that the editor cannot show: cancelled.
+   */
+  const askEditor = async ({
+    client,
+    sessionId,
+    wait,
+    toolCallId,
+    url,
+  }: {
+    client: AgentContext
+    sessionId: string
+    wait: Wait
+    toolCallId?: string
+    url?: string
+  }): Promise<WaitAnswer> => {
+    if (!canAsk(wait, url)) return { status: 'cancelled' }
+    if (wait.kind === 'approval') {
+      const { outcome } = await client.request('session/request_permission', {
+        sessionId,
+        title: wait.message ?? 'Allow this tool call?',
+        subject: {
+          type: 'tool_call',
+          toolCall: { toolCallId: toolCallId ?? wait.waitId },
+        },
+        options: approvalOptions(wait),
+      })
+      if (outcome.outcome !== 'selected' || !('optionId' in outcome)) {
+        return { status: 'stop' }
+      }
+      return { status: 'resolved', payload: approvalAnswer(outcome.optionId) }
+    }
+    const scope = { sessionId, ...(toolCallId ? { toolCallId } : {}) }
+    if (wait.kind === 'question' || wait.kind === 'human') {
+      const form = formOf(wait)
+      const reply = await client.request('elicitation/create', {
+        ...scope,
+        mode: 'form',
+        message: wait.message ?? 'The agent asks for input.',
+        requestedSchema: form.requestedSchema,
+      })
+      if (reply.action === 'cancel') return { status: 'stop' }
+      if (reply.action !== 'accept') return { status: 'cancelled' }
+      const content = 'content' in reply ? reply.content : undefined
+      return { status: 'resolved', payload: form.answerOf(content) }
+    }
+    const reply = await client.request('elicitation/create', {
+      ...scope,
+      mode: 'url',
+      elicitationId: wait.waitId,
+      url: url ?? '',
+      message: wait.message ?? 'Sign in to go on.',
+    })
+    if (reply.action === 'cancel') return { status: 'stop' }
+    return reply.action === 'accept'
+      ? { status: 'resolved', payload: true }
+      : { status: 'cancelled' }
+  }
+
+  /**
+   * Answer the interrupts of a turn, then continue it. The editor answers
+   * each wait of its kind (see `askEditor`). A wait that it cannot answer
+   * (a client tool) is cancelled. A cancelled request (the editor cancelled
+   * the prompt) stops the turn, and the interrupts stay open until the next
+   * prompt. The next operation is wrapped, because an operation is thenable
+   * and an async function would unwrap it.
    */
   const answer = async (
     client: AgentContext,
@@ -353,31 +525,36 @@ export function createAcpAgent<P extends Principal = Principal>(
     session: HarnessSession,
     interrupts: ReadonlyArray<Interrupt>,
   ): Promise<{ next?: Operation<unknown>; cancelled?: boolean }> => {
-    if (interrupts.some(isApproval)) {
+    const items = interrupts.map((interrupt) => ({
+      interrupt,
+      wait: waitOfInterrupt({ interrupt, runId: sessionId }),
+      url: signInUrl(interrupt),
+    }))
+    if (items.some(({ wait, url }) => canAsk(wait, url))) {
       await notify(client, sessionId, {
         sessionUpdate: 'state_update',
         state: 'requires_action',
       })
     }
     const resume: Array<RunAgentResumeItem> = []
-    for (const interrupt of interrupts) {
-      if (!isApproval(interrupt)) {
-        resume.push({ interruptId: interrupt.id, status: 'cancelled' })
-        continue
-      }
-      const toolCallId = interrupt.toolCallId ?? interrupt.id
-      const { outcome } = await client.request('session/request_permission', {
+    for (const { interrupt, wait, url } of items) {
+      const reply = await askEditor({
+        client,
         sessionId,
-        title: interrupt.message ?? 'Allow this tool call?',
-        subject: { type: 'tool_call', toolCall: { toolCallId } },
-        options: [...APPROVAL_OPTIONS],
+        wait,
+        ...(interrupt.toolCallId ? { toolCallId: interrupt.toolCallId } : {}),
+        ...(url ? { url } : {}),
       })
-      if (outcome.outcome !== 'selected') return { cancelled: true }
-      resume.push({
-        interruptId: interrupt.id,
-        status: 'resolved',
-        payload: 'optionId' in outcome && outcome.optionId === 'allow',
-      })
+      if (reply.status === 'stop') return { cancelled: true }
+      resume.push(
+        reply.status === 'resolved'
+          ? {
+              interruptId: interrupt.id,
+              status: 'resolved',
+              payload: reply.payload,
+            }
+          : { interruptId: interrupt.id, status: 'cancelled' },
+      )
     }
     const receipt = await session.resolve({ resume })
     // For example `busy`: a later prompt runs already.
@@ -386,6 +563,46 @@ export function createAcpAgent<P extends Principal = Principal>(
       next: receipt.operationId
         ? session.operation(receipt.operationId)
         : undefined,
+    }
+  }
+
+  /**
+   * Answer each question that the operation `operationId` asks while it
+   * runs (a `step.ask` of a durable tool, or an MCP server that asks), with
+   * a form elicitation. A question that the editor cannot or will not
+   * answer cancels the operation. Stops when `signal` aborts, or when the
+   * operation stops for interrupts: the pump answers those.
+   */
+  const answerQuestions = async ({
+    client,
+    sessionId,
+    session,
+    operationId,
+    signal,
+  }: {
+    client: AgentContext
+    sessionId: string
+    session: HarnessSession
+    operationId: string
+    signal: AbortSignal
+  }) => {
+    while (!signal.aborted) {
+      const wait = await session
+        .waitFor({ runId: operationId, signal })
+        .catch(() => undefined)
+      if (!wait) return
+      const isQuestion = session
+        .snapshot()
+        .pendingQuestions.some(({ questionId }) => questionId === wait.waitId)
+      if (!isQuestion) return
+      const reply = await askEditor({ client, sessionId, wait })
+      if (signal.aborted) return
+      if (reply.status !== 'resolved') {
+        await session.cancel({ operationId })
+        return
+      }
+      // A refused answer (it does not fit the schema) asks again.
+      await session.answer({ questionId: wait.waitId, value: reply.payload })
     }
   }
 
@@ -451,9 +668,22 @@ export function createAcpAgent<P extends Principal = Principal>(
       else stopReason = 'cancelled'
       const args = new Map<string, string>()
       while (operation) {
-        for await (const chunk of operation.stream()) {
-          const update = toSessionUpdate(chunk, args)
-          if (update) await notify(client, sessionId, update)
+        const asking = new AbortController()
+        const questions = answerQuestions({
+          client,
+          sessionId,
+          session,
+          operationId: operation.id,
+          signal: asking.signal,
+        }).catch(() => {})
+        try {
+          for await (const chunk of operation.stream()) {
+            const update = toSessionUpdate(chunk, args)
+            if (update) await notify(client, sessionId, update)
+          }
+        } finally {
+          asking.abort()
+          await questions
         }
         const result: unknown = await operation.then(
           (value) => value,
@@ -505,15 +735,18 @@ export function createAcpAgent<P extends Principal = Principal>(
           Promise.all([...handles.keys()].map(release)),
         )
       })
-      .onRequest('initialize', () => ({
-        protocolVersion: PROTOCOL_VERSION,
-        info: { name: harness.name, version: options.version ?? '0.0.0' },
-        // Text and resource links are the baseline. Images, audio, and embedded
-        // resources go to the media store of the session.
-        capabilities: {
-          session: { prompt: { image: {}, audio: {}, embeddedContext: {} } },
-        },
-      }))
+      .onRequest('initialize', ({ params }) => {
+        capabilities = params.capabilities ?? {}
+        return {
+          protocolVersion: PROTOCOL_VERSION,
+          info: { name: harness.name, version: options.version ?? '0.0.0' },
+          // Text and resource links are the baseline. Images, audio, and embedded
+          // resources go to the media store of the session.
+          capabilities: {
+            session: { prompt: { image: {}, audio: {}, embeddedContext: {} } },
+          },
+        }
+      })
       .onRequest('session/new', async () => {
         const sessionId = `acp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
         await live(sessionId)

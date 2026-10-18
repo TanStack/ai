@@ -6,6 +6,7 @@ import type { SessionEvent } from '../src/types'
 function event(cursor: number): SessionEvent {
   return {
     cursor: String(cursor),
+    threadId: 't',
     operationId: 'op-1',
     event: { type: EventType.RUN_STARTED, threadId: 't', runId: 'r' },
   }

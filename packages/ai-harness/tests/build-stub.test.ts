@@ -43,6 +43,10 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     send({ type: 'harness.error', message: 'worker crashed' })
     return
   }
+  // An error frame of an older input of this worker (its first prompt).
+  if (message === 'noisy') {
+    send({ type: 'harness.error', message: 'old input failed', code: 'internal', requestId: 'r1' })
+  }
   turns += 1
   const operationId = 'op-' + turns
   const event = (value) =>
@@ -285,6 +289,12 @@ describe('artifactText with a built stub', () => {
         if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) text += chunk.delta
       }
       expect(text).toBe('turn 2: x')
+      // The error of another input does not fail this turn.
+      text = ''
+      for await (const chunk of stream('noisy')) {
+        if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) text += chunk.delta
+      }
+      expect(text).toBe('turn 3: noisy')
     } finally {
       model.dispose()
     }

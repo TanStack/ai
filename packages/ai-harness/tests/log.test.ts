@@ -960,6 +960,7 @@ describe('snapshots', () => {
     turnOverrides: [],
     schedules: [],
     runs: [],
+    tree: [],
     interrupts: [],
     ...overrides,
   })
@@ -1033,6 +1034,53 @@ describe('snapshots', () => {
     ])
     expect(state.thread.settings).toEqual({ instructions: 'from the snapshot' })
     expect([...state.thread.config]).toEqual([['level', 'high']])
+  })
+
+  it('folds the workspace binding and the backend ids of jobs, from records and from a snapshot', async () => {
+    const binding = {
+      kind: 'sandbox',
+      provider: 'fake',
+      sandboxId: 's1',
+      root: '/ws',
+    }
+    const fromRecords = await loadSession({
+      store: await seededStore(null, [
+        { type: 'harness.workspace.bound', binding },
+        { type: 'harness.job', jobId: 'bash-1', ended: false, backendId: 'p9' },
+        { type: 'harness.job', jobId: 'bash-2', ended: false },
+      ]),
+      project,
+    })
+    expect(fromRecords.thread.workspace).toEqual(binding)
+    expect([...fromRecords.jobs]).toEqual([
+      ['bash-1', 'p9'],
+      ['bash-2', undefined],
+    ])
+
+    const snapshot = snapshotOf({
+      sessions: [
+        [
+          THREAD,
+          {
+            messages: [],
+            inputs: [],
+            toolResults: [],
+            steps: [],
+            jobs: [['bash-1', 'p9'], 'bash-2'],
+            thread: threadOf({ workspace: binding }),
+          },
+        ],
+      ],
+    })
+    const fromSnapshot = await loadSession({
+      store: await seededStore(snapshot),
+      project,
+    })
+    expect(fromSnapshot.thread.workspace).toEqual(binding)
+    expect([...fromSnapshot.jobs]).toEqual([
+      ['bash-1', 'p9'],
+      ['bash-2', undefined],
+    ])
   })
 
   it.each([

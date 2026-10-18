@@ -10,6 +10,8 @@ import type {
   AnyTool,
   Capability,
   CapabilityHandle,
+  ChatResult,
+  InferSchemaType,
   KeyedAdapter,
   MetadataStore,
   ModelMessage,
@@ -17,19 +19,19 @@ import type {
   SchemaInput,
 } from '@tanstack/ai'
 import type {
-  AgentInputOf,
+  AgentActions,
   AgentRegistry,
   AgentRegistryView,
-  AgentResultOf,
   AnyAgent,
 } from './agents'
-import type { AgentRun, Operation, Principal, TurnInfo } from './types'
+import type { RunContext, TurnInfo } from './types'
 import type { CredentialsAccess } from './auth'
 import type { AnyCommand, PluginSessionApi } from './commands'
 import type { ConfigOption } from './config'
 import type { ExtensionItem, ExtensionPoint, PluginEvent } from './extensions'
 import type { MetadataOf } from './session-entry'
 import type { SharedHostPlugin } from './host-plugins'
+import type { WorkspaceBinding } from './log-records'
 
 /**
  * How long a plugin's `setup` result and resources live:
@@ -187,69 +189,6 @@ export interface PluginState<T> {
   update: (change: (current: T) => T) => Promise<T>
 }
 
-/**
- * Run agents from a plugin: in the foreground, in the background, or as a
- * group. The runs are for the user of a turn plugin's turn. In a session
- * plugin, they are for the principal that opened the session: to start an
- * agent for the user of a tool call, pass `principal: ctx.context.run.principal`
- * to `start`.
- */
-export interface PluginAgentActions {
-  run: {
-    <TAgent extends AnyAgent>(
-      agent: TAgent,
-      input?: AgentInputOf<TAgent>,
-    ): Operation<AgentResultOf<TAgent>>
-    (name: string, input?: unknown): Operation<unknown>
-  }
-  start: {
-    <TAgent extends AnyAgent>(
-      agent: TAgent,
-      input?: AgentInputOf<TAgent>,
-      /** See `AgentStartOptions`. */
-      options?: { wake?: boolean; resume?: boolean; principal?: Principal },
-    ): AgentRun<AgentResultOf<TAgent>>
-    (
-      name: string,
-      input?: unknown,
-      /** See `AgentStartOptions`. */
-      options?: { wake?: boolean; resume?: boolean; principal?: Principal },
-    ): AgentRun<unknown>
-  }
-  /**
-   * Run children together. With `onFailure: 'cancel-siblings'` (default), one
-   * failure cancels the others. Every child settles before `group` returns.
-   */
-  group: <T>(
-    options: { onFailure?: 'cancel-siblings' | 'collect' },
-    body: (group: AgentGroup) => Promise<T>,
-  ) => Promise<T>
-}
-
-/** The children of one `ctx.agents.group` call. */
-export interface AgentGroup {
-  run: {
-    <TAgent extends AnyAgent>(
-      agent: TAgent,
-      input?: AgentInputOf<TAgent>,
-    ): Promise<AgentResultOf<TAgent>>
-    (name: string, input?: unknown): Promise<unknown>
-  }
-  /** Like `run`, but never rejects: resolves with the result or the error. */
-  runSettled: {
-    <TAgent extends AnyAgent>(
-      agent: TAgent,
-      input?: AgentInputOf<TAgent>,
-    ): Promise<
-      { ok: true; value: AgentResultOf<TAgent> } | { ok: false; error: unknown }
-    >
-    (
-      name: string,
-      input?: unknown,
-    ): Promise<{ ok: true; value: unknown } | { ok: false; error: unknown }>
-  }
-}
-
 /** What the session gives plugins. */
 export interface PluginServices {
   emit: (plugin: string, name: string, value: unknown) => void
@@ -261,9 +200,76 @@ export interface PluginServices {
   session: PluginSessionApi
   /** The session API of a plugin with a `metadataSchema`: its writes check it too. */
   sessionWith: (metadataSchema: SchemaInput) => PluginSessionApi
-  agents: PluginAgentActions
+  /**
+   * `ctx.agents` of a plugin. The runs are for the user of a turn plugin's
+   * turn. In a session plugin, they are for the principal that opened the
+   * session: to start an agent for the user of a tool call, pass
+   * `principal: ctx.context.run.principal` to `start`.
+   */
+  agents: AgentActions
   /** Called after `ctx.commands` adds or removes a command. */
   commandsChanged?: () => void
+  /** One model call of `ctx.model.chat`. Resolves to what chat() gives. */
+  modelChat: (call: PluginModelCall) => Promise<unknown>
+}
+
+/** The chat() options of one `ctx.model.chat` call. */
+export interface PluginChatOptions<TSchema extends SchemaInput | undefined> {
+  messages: Array<ModelMessage>
+  systemPrompts?: Array<string>
+  /** A schema for the answer. The call then resolves to the checked value. */
+  outputSchema?: TSchema
+}
+
+/** What `ctx.model.chat` takes. */
+export interface PluginModelChatOptions<
+  TSchema extends SchemaInput | undefined = undefined,
+> {
+  /**
+   * The model. A `keyedAdapter(...)` gets the key of the user of `run`.
+   * Default: the model of the session, as the summary of `host.transfer`
+   * picks it: the thread setting `model`, else the harness `adapter`.
+   */
+  adapter?: AnyTextAdapter | KeyedAdapter<AnyTextAdapter>
+  options: PluginChatOptions<TSchema>
+  /** A name for this call in its usage record, for example `judge`. */
+  label?: string
+  /**
+   * The run that the call is for: its user's keys, its signal, and its
+   * budget. In a tool or a middleware hook, pass `ctx.context.run`. In a
+   * command, pass `run` of the command context. Default: the turn of a
+   * plugin with `lifetime: 'turn'`.
+   */
+  run?: RunContext
+  /** Stop the call after this time, in milliseconds. Default 120000 (2 minutes). */
+  timeoutMs?: number
+}
+
+/** What `ctx.model.chat` resolves to: the checked value with `outputSchema`, else the text and chunks. */
+export type PluginModelChatResult<TSchema extends SchemaInput | undefined> =
+  TSchema extends SchemaInput ? InferSchemaType<TSchema> : ChatResult
+
+/** `ctx.model` of a plugin. */
+export interface PluginModel {
+  /**
+   * Call a model, for example to judge, to name, or to summarize. The call
+   * stops when its run stops or after `timeoutMs`, and then rejects. Its
+   * usage counts in the session (`session.usage().bySource` under
+   * `plugin:<name>`) and in its run, and the budget of the run applies.
+   */
+  chat: <TSchema extends SchemaInput | undefined = undefined>(
+    options: PluginModelChatOptions<TSchema>,
+  ) => Promise<PluginModelChatResult<TSchema>>
+}
+
+/** @internal One model call of a plugin, as the session runs it. */
+export interface PluginModelCall extends Omit<
+  PluginModelChatOptions<SchemaInput | undefined>,
+  'run'
+> {
+  run: RunContext
+  /** `plugin:<name>`. */
+  source: string
 }
 
 /**
@@ -311,7 +317,7 @@ export interface PluginSetupContext<TMetadata = Record<string, unknown>> {
    * like `ctx.commands`.
    */
   agents: AgentRegistryView &
-    PluginAgentActions & {
+    AgentActions & {
       /**
        * Add this plugin's agent, or replace the one with the same name. A
        * name that another plugin or the harness owns throws.
@@ -367,6 +373,8 @@ export interface PluginSetupContext<TMetadata = Record<string, unknown>> {
   session: PluginSessionApi<TMetadata>
   /** Add and remove this plugin's commands while the session runs. */
   commands: PluginCommands
+  /** Call a model, with the usage counted under `plugin:<name>`. */
+  model: PluginModel
   /**
    * The turn this plugin is set up for: its input, context, sender, and run.
    * Set only for a plugin with `lifetime: 'turn'`. A session plugin has no
@@ -643,6 +651,7 @@ export const SESSION_PLUGIN_CREDENTIALS: CredentialsAccess = {
   get: noUser('credentials'),
   require: noUser('credentials'),
   set: noUser('credentials'),
+  refresh: noUser('credentials'),
   delete: noUser('credentials'),
   list: noUser('credentials'),
 }
@@ -679,6 +688,7 @@ const NO_SERVICES: PluginServices = {
     get: unavailable('ctx.credentials'),
     require: unavailable('ctx.credentials'),
     set: unavailable('ctx.credentials'),
+    refresh: unavailable('ctx.credentials'),
     delete: unavailable('ctx.credentials'),
     list: unavailable('ctx.credentials'),
   },
@@ -690,10 +700,11 @@ const NO_SERVICES: PluginServices = {
   session: NO_SESSION,
   sessionWith: () => NO_SESSION,
   agents: {
-    run: unavailable('ctx.agents.run') as PluginAgentActions['run'],
-    start: unavailable('ctx.agents.start') as PluginAgentActions['start'],
+    run: unavailable('ctx.agents.run'),
+    start: unavailable('ctx.agents.start'),
     group: unavailable('ctx.agents.group'),
   },
+  modelChat: unavailable('ctx.model'),
 }
 
 /**
@@ -748,12 +759,57 @@ export const SessionSignal = createCapability<AbortSignal>()(
 /**
  * @internal Tells the session that a background job, like a `bash` job,
  * started or ended. A durable session logs it, so recovery can note a job
- * that a crash stopped. The package does not export it.
+ * that a crash stopped. `backendId` is the id of the process in the
+ * workspace backend, so a later host can stop it. `threadId` is the thread
+ * of the workspace that runs it. Default: the thread of the session. The
+ * package does not export it.
  */
-export const BackgroundJobs = createCapability<{
-  started: (jobId: string) => void
-  ended: (jobId: string) => void
-}>()('tanstack/background-jobs')
+export const BackgroundJobs = createCapability<BackgroundJobsApi>()(
+  'tanstack/background-jobs',
+)
+
+/** @internal See {@link BackgroundJobs}. */
+export interface BackgroundJobsApi {
+  started: (job: {
+    jobId: string
+    backendId?: string
+    threadId?: string
+  }) => void
+  ended: (job: { jobId: string; threadId?: string }) => void
+}
+
+/**
+ * @internal What the workspace tools keep in the session log: the binding of
+ * the workspace of each thread, the pin of the log to a host, and the jobs
+ * that no tool of this host runs. The session provides it. The package does
+ * not export it.
+ */
+export const WorkspaceLog = createCapability<WorkspaceLogApi>()(
+  'tanstack/workspace-log',
+)
+
+/** @internal See {@link WorkspaceLog}. */
+export interface WorkspaceLogApi {
+  /**
+   * The stable id of this host, for a `'host'` binding, or `undefined` when
+   * the host has none. Without it, a folder binding pins nothing.
+   */
+  hostId: () => string | undefined
+  /** The last binding of the workspace of `threadId`, or `undefined`. */
+  bound: (threadId: string) => WorkspaceBinding | undefined
+  /** Log `binding` as the workspace of `threadId`. */
+  bind: (input: {
+    threadId: string
+    binding: WorkspaceBinding
+  }) => Promise<void>
+  /** Pin the log to the host `hostId`. */
+  pin: (hostId: string) => Promise<void>
+  /**
+   * The background jobs of the workspace of `threadId` that the log has as
+   * running, with a backend id, and that do not run on this host.
+   */
+  lostJobs: (threadId: string) => Array<{ jobId: string; backendId: string }>
+}
 
 /** Capability values provided by plugins, keyed by handle. */
 export class CapabilityValues {
@@ -1029,6 +1085,21 @@ export async function mountPlugins(
             services.commandsChanged?.()
           },
           ready,
+        },
+        model: {
+          chat: async ({ run = env.turn?.run, ...call }) => {
+            if (!run) {
+              throw new Error(
+                `ctx.model.chat of ${plugin.name} needs a run. In a tool or a middleware hook, pass run: ctx.context.run. In a command, pass the run of its context.`,
+              )
+            }
+            // The session gives back what chat() gave for these options.
+            return (await services.modelChat({
+              ...call,
+              run,
+              source: `plugin:${plugin.name}`,
+            })) as never
+          },
         },
         ...(env.turn ? { turn: env.turn } : {}),
       }

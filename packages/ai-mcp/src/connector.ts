@@ -8,7 +8,13 @@ import {
 import { startLoopbackReceiver } from '@tanstack/ai-harness/oauth'
 import { connectTransport } from './client'
 import { MCPConnectionError } from './errors'
-import { askForInput, elicitFor, harnessClientOptions } from './harness-plugin'
+import {
+  askForInput,
+  elicitFor,
+  harnessClientOptions,
+  trackCaller,
+} from './harness-plugin'
+import type { Caller } from './harness-plugin'
 import type {
   OAuthClientProvider,
   OAuthDiscoveryState,
@@ -73,6 +79,8 @@ function credentialProvider(
   let client: StoredOAuthClientInformation | undefined
   let verifier = ''
   let discovery: OAuthDiscoveryState | undefined
+  /** The access token this provider last gave the SDK or saved. */
+  let seenToken: string | undefined
   const stored = async () => {
     const credential = await credentials.get(id)
     return credential?.type === 'oauth' ? credential : undefined
@@ -113,6 +121,7 @@ function credentialProvider(
       if (options.onRedirect) return undefined
       const credential = await stored()
       if (!credential) return undefined
+      seenToken = credential.accessToken
       return {
         access_token: credential.accessToken,
         token_type: 'Bearer',
@@ -139,37 +148,61 @@ function credentialProvider(
       if (!information) {
         throw new Error('The MCP SDK saved OAuth tokens before the client.')
       }
-      // A new sign-in replaces the old one, with all its tokens. On a
-      // refresh, the SDK passes the old refresh token itself.
-      await credentials.set({
-        id,
-        credential: {
-          type: 'oauth',
-          accessToken: tokens.access_token,
-          ...(tokens.refresh_token
-            ? { refreshToken: tokens.refresh_token }
+      // On a refresh, the SDK passes the old refresh token itself.
+      const credential = {
+        type: 'oauth' as const,
+        accessToken: tokens.access_token,
+        ...(tokens.refresh_token ? { refreshToken: tokens.refresh_token } : {}),
+        ...(tokens.expires_in
+          ? { expiresAt: Date.now() + tokens.expires_in * 1000 }
+          : {}),
+        ...(tokens.scope ? { scopes: tokens.scope.split(' ') } : {}),
+        client: {
+          clientId: information.client_id,
+          ...(information.client_secret
+            ? { clientSecret: information.client_secret }
             : {}),
-          ...(tokens.expires_in
-            ? { expiresAt: Date.now() + tokens.expires_in * 1000 }
-            : {}),
-          ...(tokens.scope ? { scopes: tokens.scope.split(' ') } : {}),
-          client: {
-            clientId: information.client_id,
-            ...(information.client_secret
-              ? { clientSecret: information.client_secret }
-              : {}),
-            redirectUri: options.redirectUri,
-            issuer: information.issuer,
-          },
+          redirectUri: options.redirectUri,
+          issuer: information.issuer,
         },
-      })
+      }
+      if (options.onRedirect) {
+        // A new sign-in replaces the old one, with all its tokens.
+        await credentials.set({ id, credential })
+        seenToken = credential.accessToken
+        return
+      }
+      // A refresh. The SDK sends the refresh request itself, so two
+      // sessions can both refresh: only the save is single-flight and
+      // compare-and-set. `refresh` saves where the credential is (a tenant
+      // token stays the tenant's). When the saved token is not the one this
+      // session refreshed, another session saved first: its token stays, and
+      // the next connect uses it. This connection keeps the SDK's new token.
+      await credentials.refresh(id, (current) =>
+        Promise.resolve(
+          current.type === 'oauth' &&
+            seenToken !== undefined &&
+            current.accessToken !== seenToken
+            ? current
+            : credential,
+        ),
+      )
+      // The token this connection uses, also when another one was saved.
+      seenToken = credential.accessToken
     },
     // The SDK calls this with 'client' or 'tokens' when the server refuses
     // the saved client or refresh token, for example a revoked refresh token.
     // Both are in one saved credential, so either scope deletes it, and the
     // user signs in again. A new sign-in keeps the old one until it works.
+    // Another session can save a new token after this one read its token,
+    // for example after a refresh. Then the saved token is not the one the
+    // server refused, so it stays.
     invalidateCredentials: async () => {
-      if (!options.onRedirect) await credentials.delete(id)
+      if (options.onRedirect) return
+      const saved = await stored()
+      if (saved && seenToken !== undefined && saved.accessToken !== seenToken)
+        return
+      await credentials.delete(id)
     },
     redirectToAuthorization: (url) => {
       // Outside `/connect`, a missing or revoked sign-in stops the tool.
@@ -278,6 +311,8 @@ export function mcpConnector(options: McpConnectorOptions) {
               (saved?.type === 'oauth'
                 ? saved.client?.redirectUri
                 : undefined) ?? 'http://127.0.0.1/callback'
+            // The tool calls of this client that run now, newest last.
+            const calling: Array<Caller> = []
             try {
               connection.client = await connectTransport(
                 {
@@ -299,7 +334,7 @@ export function mcpConnector(options: McpConnectorOptions) {
                     ((tool) => tool.annotations?.readOnlyHint !== true),
                   clientOptions: harnessClientOptions,
                 },
-                elicitFor(ctx.session),
+                elicitFor(calling),
               )
             } catch (error) {
               // The server wants a new sign-in: ask the user to run /connect.
@@ -324,7 +359,11 @@ export function mcpConnector(options: McpConnectorOptions) {
                 throw error
               })
             connection.tools = askForInput(
-              listed as ReadonlyArray<AnyTool>,
+              trackCaller(
+                listed as ReadonlyArray<AnyTool>,
+                ctx.session,
+                calling,
+              ),
               ctx.session,
             )
           }
@@ -335,8 +374,9 @@ export function mcpConnector(options: McpConnectorOptions) {
             description: `Sign in to ${label}`,
             // The sign-in belongs to the user who runs the command. A cancel
             // or a session close stops it at once: the loopback stops
-            // listening, and the OAuth requests abort.
-            run: async (_input, { run }) => {
+            // listening, and the OAuth requests abort. The `session` of the
+            // command makes the sign-in a wait of the command run.
+            run: async (_input, { run, session }) => {
               const { signal } = run
               const receiver = await startLoopbackReceiver({ signal })
               const state = randomBytes(16).toString('base64url')
@@ -347,7 +387,7 @@ export function mcpConnector(options: McpConnectorOptions) {
                   scopes: options.scopes,
                   state,
                   onRedirect: (authorizationUrl) =>
-                    ctx.session.authRequired({
+                    session.authRequired({
                       connector: id,
                       url: authorizationUrl.href,
                     }),

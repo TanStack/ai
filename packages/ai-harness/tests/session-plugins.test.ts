@@ -11,6 +11,7 @@ import {
   createHarnessHost,
   createPluginEvent,
   defineCommand,
+  durableTool,
   defineHarness,
   definePlugin,
 } from '../src'
@@ -226,12 +227,13 @@ describe('questions', () => {
   it('asks with a schema, checks answers, and rejects open questions on close', async () => {
     const asker = definePlugin({
       name: 'test/asker',
-      setup: (ctx) => ({
+      setup: () => ({
         commands: {
           pick: defineCommand({
             description: 'Pick a number',
-            run: async () => {
-              const answer = await ctx.session.ask({
+            run: async (_input, { step }) => {
+              const answer = await step.ask({
+                name: 'count',
                 message: 'How many?',
                 schema: z.object({ count: z.number() }),
               })
@@ -240,7 +242,8 @@ describe('questions', () => {
           }),
           open: defineCommand({
             description: 'Asks and never gets an answer',
-            run: () => ctx.session.ask({ message: 'Still there?' }),
+            run: (_input, { step }) =>
+              step.ask({ name: 'there', message: 'Still there?' }),
           }),
         },
       }),
@@ -305,11 +308,12 @@ describe('questions', () => {
     let asked: Promise<unknown> | undefined
     const asker = definePlugin({
       name: 'test/turn-asker',
-      setup: (ctx) => ({
+      setup: () => ({
         tools: [
-          toolDefinition({ name: 'confirm', description: 'Ask' }).server(
-            async () => {
-              asked = ctx.session.ask({ message: 'Sure?' })
+          durableTool(
+            toolDefinition({ name: 'confirm', description: 'Ask' }),
+            async (_args, { step }) => {
+              asked = step.ask({ name: 'sure', message: 'Sure?' })
               return asked
             },
           ),
@@ -347,8 +351,8 @@ describe('questions', () => {
         commands: {
           confirm: defineCommand({
             description: 'Ask',
-            run: (_input, { session }) => {
-              asked = session.ask({ message: 'Sure?' })
+            run: (_input, { step }) => {
+              asked = step.ask({ name: 'sure', message: 'Sure?' })
               return asked
             },
           }),

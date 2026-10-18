@@ -12,6 +12,7 @@ const base: SessionViewState = {
   interrupts: [],
   questions: [],
   signIns: [],
+  waits: [],
   agents: [],
   queuedTurns: 0,
   waitingInputs: [],

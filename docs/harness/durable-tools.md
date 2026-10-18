@@ -48,6 +48,8 @@ export const checkout = durableTool(
 
 Add it to `tools` in `defineHarness`, as any other tool. Each finished step is in the [session log](./durable-sessions) before `step.do` resolves.
 
+The log keeps a step value without the secrets of the session, and `step.do` returns that same value. So a token in a step value comes back as `[redacted]`, also on the first run. Return an id, not a token. See [Keep tokens out of the log and the model](./auth#keep-tokens-out-of-the-log-and-the-model).
+
 ## Rules for steps
 
 - Give each step a name that is the same on every run, for example `charge:${orderId}`.
@@ -55,6 +57,7 @@ Add it to `tools` in `defineHarness`, as any other tool. Each finished step is i
 - A step value must be JSON. Keep it small: store big data somewhere else and return its id.
 - A step is stored once, but it can run more than once: a crash after `fn` ends and before the value is stored runs `fn` again. `fn` gets `{ idempotencyKey }`. Pass it to the system that does the side effect, so that system refuses the second call.
 - To wait inside a tool, for minutes or for days, use `step.sleep`. See [Wait inside a tool](./workers#4-wait-inside-a-tool).
+- To ask the user inside a tool, use `step.ask({ name, message, schema })`. The log keeps the question, so a user on any server can answer it. After a crash, `step.ask` returns the logged answer. See [Wait for a person](./waits).
 
 `durableTool` sets `replay: 'safe'`, so the harness runs the tool again after a crash.
 
@@ -116,12 +119,15 @@ After a crash, the harness looks at each call of the batch:
 - A `durableTool` call, or another tool with `replay: 'safe'`, runs again.
 - Any other call gets a tool error: nobody knows if the tool ran, so the model checks before it tries again.
 
+The kept result is the one that the model saw before the crash. The log keeps it after every `onAfterToolCall` hook, without the secrets of the session. If a hook replaced the result, the replacement wins, also on an error.
+
 ## Outside a durable session
 
-The same tool works in plain `chat()`. There, `step.do` runs `fn` each time, `step.sleep` waits its full time, and `append` throws, because there is no log to hold the records.
+The same tool works in plain `chat()`. There, `step.do` runs `fn` each time, and `step.sleep` waits its full time. `step.ask` and `append` throw, because there is no log to hold the question or the records.
 
 ## What you have now
 
 - Side effects that do not repeat after a crash.
+- Questions to the user that any server can answer.
 - Your own records that land together with the tool batch, or not at all.
 - One tool definition for durable and plain runs.
