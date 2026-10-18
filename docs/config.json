@@ -957,7 +957,7 @@
           "label": "Deploy a harness",
           "to": "harness/deploy",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Send inputs safely",
@@ -974,7 +974,7 @@
           "label": "Durable sessions",
           "to": "harness/durable-sessions",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Run background work on workers",
@@ -1056,19 +1056,24 @@
           "label": "Give your agent coding tools",
           "to": "harness/coding-tools",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Sandbox and extend the coding tools",
           "to": "harness/coding-tools-backends",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-16"
+          "updatedAt": "2026-10-18"
+        },
+        {
+          "label": "Run the coding tools for many threads",
+          "to": "harness/coding-workspaces",
+          "addedAt": "2026-10-18"
         },
         {
           "label": "Undo a turn",
           "to": "harness/snapshots",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Build a coding agent",
@@ -1079,7 +1084,8 @@
         {
           "label": "Delegate to coding agents",
           "to": "harness/coding-agents",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Switch between agent profiles",

@@ -184,7 +184,7 @@ const stream = chat({
 ```
 
 Set `authMode: 'host'` so the adapter uses `grok login`. `scrubEnv` removes
-keys the host process inherited. Those keys would override the login.
+keys from the env of each command. Those keys would override the login.
 
 A local-process run can also be a CI runner. That machine has no browser
 login. Set `authMode: 'api-key'`. Then inject `XAI_API_KEY` as a workspace
