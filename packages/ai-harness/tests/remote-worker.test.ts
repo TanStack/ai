@@ -8,6 +8,12 @@ import { runHarnessWorker } from '../src/worker'
 import { mockAdapter, text } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 async function collect(stream: AsyncIterable<StreamChunk>) {
   const chunks: Array<StreamChunk> = []
   for await (const chunk of stream) chunks.push(chunk)
@@ -163,7 +169,7 @@ describe('runHarnessWorker edges', () => {
 
     send('')
     send({ type: 'harness.snapshot' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(frames.at(-1)).toEqual({
         type: 'harness.error',
         message: 'Send harness.subscribe first.',
@@ -172,7 +178,7 @@ describe('runHarnessWorker edges', () => {
       }),
     )
     send('{not json')
-    await vi.waitFor(() => expect(frames).toHaveLength(2))
+    await waitFor(() => expect(frames).toHaveLength(2))
     expect(frames[1]).toMatchObject({
       type: 'harness.error',
       code: 'invalid_frame',
@@ -180,11 +186,11 @@ describe('runHarnessWorker edges', () => {
     })
 
     send({ type: 'harness.subscribe', threadId: 'w', from: '0' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(frames.some((frame) => frame.type === 'harness.hello')).toBe(true),
     )
     send({ type: 'harness.subscribe', threadId: 'w' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(frames.at(-1)).toEqual({
         type: 'harness.error',
         message: 'Already subscribed.',
@@ -193,7 +199,7 @@ describe('runHarnessWorker edges', () => {
       }),
     )
     send({ type: 'harness.snapshot' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(frames.at(-1)).toMatchObject({
         type: 'harness.snapshot',
         snapshot: { threadId: 'w', status: 'idle' },
@@ -219,7 +225,7 @@ describe('runHarnessWorker edges', () => {
       `${JSON.stringify({ type: 'harness.input', requestId: 'r7', input: {} })}
 `,
     )
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(frames.at(-1)).toMatchObject({
         type: 'harness.error',
         code: 'invalid_frame',
