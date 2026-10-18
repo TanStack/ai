@@ -1435,7 +1435,8 @@ export abstract class SessionAgents<
           interrupts.get(state.wait.waitId)?.status === 'pending',
       )
       if (own.length === 0 || own.some((state) => !state.outcome)) continue
-      const stopped = interrupts.get(own[0]!.wait.waitId)
+      const ownFirst = own[0]
+      const stopped = ownFirst && interrupts.get(ownFirst.wait.waitId)
       const waiting = this.waitingRuns.get(runId)
       const subagentRunId = waiting?.subagentRunId ?? record.subagentRunId
       if (!stopped || subagentRunId === undefined) continue

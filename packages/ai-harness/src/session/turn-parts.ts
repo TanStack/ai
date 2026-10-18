@@ -198,7 +198,8 @@ export abstract class SessionTurnParts<
         throw new Error(
           `step.ask: the question ${JSON.stringify(name)} expired with no answer.`,
         )
-      default:
+      case 'cancelled':
+      case undefined:
         throw new Error(
           `step.ask: the question ${JSON.stringify(name)} was cancelled.`,
         )
