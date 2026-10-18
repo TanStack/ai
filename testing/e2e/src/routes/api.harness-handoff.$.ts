@@ -275,11 +275,11 @@ async function debug(run: Run) {
       role: message.role,
       agent: message.role === 'assistant' ? (message.agent ?? null) : null,
       text:
-        message.role === 'notice'
-          ? message.text
-          : message.parts
+        message.role === 'assistant'
+          ? message.parts
               .map((part) => (part.type === 'text' ? part.text : ''))
-              .join(''),
+              .join('')
+          : message.text,
     })),
     waits: snapshot.pendingWaits ?? [],
     mainCalls: run.main.counter.calls,
