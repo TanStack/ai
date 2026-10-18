@@ -81,8 +81,6 @@ export type SendOptions = {
   ephemeral?: ReadonlyArray<ModelMessage>
   /** System prompts ahead of the harness prompts, from server code only. */
   systemPreamble?: Array<string>
-  /** @internal The AG-UI `runId` of a `POST run` request. The turn runs as it. */
-  runId?: string
   /**
    * A W3C `traceparent` header value of the caller. The span of the turn gets
    * a link to it. A value that is not a valid `traceparent` is ignored.
@@ -104,6 +102,13 @@ export type SendOptions = {
     }
   | { mode: 'steer' | 'followUp'; busy?: never; as?: never }
 )
+
+/**
+ * @internal `SendOptions` with the AG-UI `runId` of a `POST run` request: the
+ * turn runs as it. The HTTP handler and an offered prompt pass it to
+ * `sendForRun`. The package index does not export it.
+ */
+export type SendForRunOptions = SendOptions & { runId?: string }
 
 /** Options of `session.send` for a message to an agent run. See `send`. */
 export interface AgentSendOptions {
@@ -291,16 +296,7 @@ export type HarnessInput = (
    * `pendingQuestions` (a `step.ask` wait, a live MCP question), or a
    * `human` wait.
    */
-  | {
-      op: 'answer'
-      questionId: string
-      value: unknown
-      /**
-       * @internal A secret answer that another host saved in the credential
-       * store, for the owner of the log. The owner reads it once.
-       */
-      ref?: string
-    }
+  | { op: 'answer'; questionId: string; value: unknown }
   | { op: 'config'; key: string; value: unknown }
   /** Run one tool in `expose.tools` with no model. See `session.tool`. */
   | { op: 'tool'; name: string; args?: unknown; meta?: Record<string, unknown> }
@@ -321,6 +317,16 @@ export type HarnessInput = (
       run?: string
     }
 ) & { inputId?: string }
+
+/**
+ * @internal An input that a host offers to the owner of the log. An answer
+ * can carry `ref`: a secret answer that another host saved in the
+ * credential store, for the owner of the log. The owner reads it once. The
+ * package index does not export it.
+ */
+export type OfferedHarnessInput =
+  | Exclude<HarnessInput, { op: 'answer' }>
+  | (Extract<HarnessInput, { op: 'answer' }> & { ref?: string })
 
 /**
  * An input that waits to run. `session.inputs()` lists them. Change one with

@@ -571,6 +571,13 @@ export function sessionHandle<THarness extends AnyHarness>({
         ? target.send(message, as(options ?? {}))
         : target.send(message, as(options)),
     )
+  const sendForRun = (
+    message: UserInput,
+    options?: Parameters<Session<THarness>['sendForRun']>[1],
+  ) =>
+    storingOperation('chat', (target) =>
+      target.sendForRun(message, as(options ?? {})),
+    )
   const cancel = (options?: Parameters<Session<THarness>['cancel']>[0]) =>
     storing('cancel', (target) => target.cancel(as(options ?? {})))
   /** The operation `id` of the session, through this handle. */
@@ -584,6 +591,7 @@ export function sessionHandle<THarness extends AnyHarness>({
   const methods = new Map<PropertyKey, unknown>([
     ...Object.entries({
       send,
+      sendForRun,
       // A returned operation cancels, and an agent run takes messages,
       // through this handle too.
       operation: (id: string) => operationOf((target) => target.operation(id)),
@@ -608,13 +616,8 @@ export function sessionHandle<THarness extends AnyHarness>({
       answer: (options: Parameters<Session<THarness>['answer']>[0]) =>
         storing('answer', (target) => target.answer(as(options))),
       cancel,
-      cancelInput: (
-        inputId: string,
-        options?: Parameters<Session<THarness>['cancelInput']>[1],
-      ) =>
-        storing('cancel', (target) =>
-          target.cancelInput(inputId, as(options ?? {})),
-        ),
+      cancelInput: (options: Parameters<Session<THarness>['cancelInput']>[0]) =>
+        storing('cancel', (target) => target.cancelInput(as(options))),
       configure: (options: Parameters<Session<THarness>['configure']>[0]) =>
         storing('configure', (target) => target.configure(as(options))),
       setConfig: (options: Parameters<Session<THarness>['setConfig']>[0]) =>
@@ -623,11 +626,11 @@ export function sessionHandle<THarness extends AnyHarness>({
       agent: (name: string) =>
         (open() ?? last).agent(name) === undefined ? undefined : agentOf(name),
       // These store no input, so the handle asks `authorize` itself.
-      revert: (messageId: string) =>
-        acting('send', (target) => target.revert(messageId)),
+      revert: (options: Parameters<Session<THarness>['revert']>[0]) =>
+        acting('send', (target) => target.revert(as(options))),
       unrevert: () => acting('send', (target) => target.unrevert()),
-      background: (toolCallId?: string) =>
-        acting('send', (target) => target.background(toolCallId)),
+      background: (options?: Parameters<Session<THarness>['background']>[0]) =>
+        acting('send', (target) => target.background(as(options ?? {}))),
       append: (options: Parameters<Session<THarness>['append']>[0]) =>
         acting('send', (target) => target.append(as(options))),
       putMedia: (upload: Parameters<Session<THarness>['putMedia']>[0]) =>

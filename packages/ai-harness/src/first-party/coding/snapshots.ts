@@ -425,7 +425,7 @@ export function purgeSnapshots(
  *   as they are.
  * - `/redo`: bring back what the last `/undo` removed. A new turn clears it.
  *
- * `session.revert(messageId)` also puts back the files that the tool calls
+ * `session.revert({ messageId })` also puts back the files that the tool calls
  * after that message changed, and `session.unrevert()` brings them back.
  *
  * A step keeps only the files that its run changed. The workspace tools

@@ -137,7 +137,7 @@ function attachingSource(session: HarnessSession) {
     snapshot: () => session.snapshot(),
     transcript: () => session.transcript(),
     describe: () => session.describe(),
-    mediaUrl: (id) => session.mediaUrl(id),
+    mediaUrl: (options) => session.mediaUrl(options),
     loadMedia: (options) => session.loadMedia(options),
   }
   return source

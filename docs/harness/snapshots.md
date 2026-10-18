@@ -99,7 +99,7 @@ for (const { record } of await log.read({ logId: logIdOf({ logId: 'fix-login' })
 ```ts group=harness-snapshots
 const messages = await session.transcript()
 const firstAnswer = messages.find((message) => message.role === 'assistant')
-if (firstAnswer?.id) await session.revert(firstAnswer.id)
+if (firstAnswer?.id) await session.revert({ messageId: firstAnswer.id })
 
 // Bring back the files and the messages.
 await session.unrevert()
@@ -114,7 +114,7 @@ await session.unrevert()
 - The next prompt drops the hidden messages for good. Then `unrevert()` does not change the files.
 - The revert is saved, so `unrevert()` still works after a restart.
 
-In your own UI, call `client.revert(messageId)` and `client.unrevert()`. The client needs `'undo'` in `expose.commands`. More about reverts: [Go back to an earlier message](./sessions#go-back-to-an-earlier-message).
+In your own UI, call `client.revert({ messageId })` and `client.unrevert()`. The client needs `'undo'` in `expose.commands`. More about reverts: [Go back to an earlier message](./sessions#go-back-to-an-earlier-message).
 
 ## In a sandbox
 

@@ -81,7 +81,7 @@ import type { SessionEntryChange, SessionEntryUpdate } from '../session-entry'
 import type {
   ChatTurnResult,
   ConfigureOptions,
-  HarnessInput,
+  OfferedHarnessInput,
   MediaRecord,
   MediaUpload,
   PendingQuestion,
@@ -315,7 +315,7 @@ export abstract class SessionState<
   }
 
   /** The record of a media file of this thread, or `null` when it is not found. */
-  getMedia(id: string) {
+  getMedia({ id }: { id: string }) {
     return this.mediaStore.get(id)
   }
 
@@ -335,7 +335,7 @@ export abstract class SessionState<
    * has no server, so this is a data URL for a file up to 1 MB, and `{}` for
    * a bigger file (use `loadMedia`).
    */
-  async mediaUrl(id: string) {
+  async mediaUrl({ id }: { id: string }) {
     const url = await this.mediaStore.dataUrl(id)
     const answer: { url?: string; expiresAt?: number } =
       url === undefined ? {} : { url }
@@ -371,7 +371,7 @@ export abstract class SessionState<
     const copies = new Map<string, MediaRecord | null>()
     const copy = async (id: string) => {
       if (!copies.has(id)) {
-        const record = await source.getMedia(id)
+        const record = await source.getMedia({ id })
         copies.set(
           id,
           record &&
@@ -570,17 +570,28 @@ export abstract class SessionState<
    * who changes it. Default: the principal that opened the session. The log
    * keeps it.
    */
-  async setConfig({
+  setConfig(options: {
+    key: string
+    value: unknown
+    principal?: Principal
+  }): Promise<Receipt> {
+    return this.applyConfig(options)
+  }
+
+  /**
+   * `setConfig`, with `controlId`: the id of an offered input, so a replay
+   * is a duplicate.
+   */
+  protected override async applyConfig({
     key,
     value,
-    inputId = createInputId(),
+    controlId: inputId = createInputId(),
     principal,
   }: {
     key: string
     value: unknown
-    /** @internal The id of an offered input, so a replay is a duplicate. */
-    inputId?: string
     principal?: Principal
+    controlId?: string
   }): Promise<Receipt> {
     const admission = await this.accept(
       inputId,
@@ -778,7 +789,11 @@ export abstract class SessionState<
    * child of this thread too. Empty for an unknown id, and for a child of
    * another thread.
    */
-  async agentTranscript(subagentRunId: string): Promise<Array<ModelMessage>> {
+  async agentTranscript({
+    subagentRunId,
+  }: {
+    subagentRunId: string
+  }): Promise<Array<ModelMessage>> {
     return (
       (await loadChildTranscript(this.engine, subagentRunId, this.threadId)) ??
       []
@@ -819,9 +834,20 @@ export abstract class SessionState<
    * hidden messages for good. The revert state is saved, so it survives a
    * restart. Refused while the session is not idle, or another host runs
    * the thread (`'busy'`), and for a message that is not in the transcript
-   * (`'unknown_message'`).
+   * (`'unknown_message'`). `principal` is who reverts. A handle of
+   * `host.open` checks that it is the principal of the handle.
+   *
+   * @example
+   * ```ts
+   * await session.revert({ messageId: message.id })
+   * ```
    */
-  async revert(messageId: string): Promise<Receipt> {
+  async revert({
+    messageId,
+  }: {
+    messageId: string
+    principal?: Principal
+  }): Promise<Receipt> {
     const inputId = createInputId()
     if (!(await this.ownsIdleThread())) {
       return { inputId, status: 'rejected', reason: 'busy' }
@@ -976,19 +1002,30 @@ export abstract class SessionState<
    * wait, by its id. `principal` is who answers. Default: the principal that
    * opened the session. The log keeps it.
    */
-  async answer({
+  answer(options: {
+    questionId: string
+    value: unknown
+    principal?: Principal
+  }): Promise<Receipt> {
+    return this.applyAnswer(options)
+  }
+
+  /**
+   * `answer`, with `controlId` (the id of an offered input, so a replay is a
+   * duplicate) and `ref` (a secret answer that another host saved, see
+   * `answerOffer`).
+   */
+  protected override async applyAnswer({
     questionId,
     value,
-    inputId = createInputId(),
+    controlId: inputId = createInputId(),
     principal,
     ref,
   }: {
     questionId: string
     value: unknown
-    /** @internal The id of an offered input, so a replay is a duplicate. */
-    inputId?: string
     principal?: Principal
-    /** @internal A secret answer that another host saved. See `answerOffer`. */
+    controlId?: string
     ref?: string
   }): Promise<Receipt> {
     // A secret (a key or a password) stays out of the log. A restart does
@@ -1242,7 +1279,7 @@ export abstract class SessionState<
     value: unknown
     inputId: string
     sender: Principal | undefined
-  }): Promise<HarnessInput> {
+  }): Promise<OfferedHarnessInput> {
     // The wait of another host: read what that host wrote first.
     if (!this.questions.has(questionId)) await this.writer.catchUp()
     const logged = this.loggedWait(questionId)

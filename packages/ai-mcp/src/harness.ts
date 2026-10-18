@@ -780,7 +780,7 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
     try {
       // A read: no session opens.
       const view = await observe(threadId, ctx.context)
-      const record = await view.getMedia(id)
+      const record = await view.getMedia({ id })
       if (record === null) {
         throw new Error(`Media ${id} was not found in thread ${threadId}.`)
       }

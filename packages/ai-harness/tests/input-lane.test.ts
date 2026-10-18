@@ -32,7 +32,9 @@ import type {
   AnyHarness,
   HarnessHostOptions,
   HarnessSession,
+  Receipt,
 } from '../src'
+import type { SessionImpl } from '../src/session/harness-session'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
 const waitFor = <T>(
@@ -273,7 +275,10 @@ describe('an input that reaches a host that does not own the log', () => {
     const first = owner.session.send('Go.')
     await first.receipt
     // A `POST run` on the other host: the turn runs on the owner as `run-2`.
-    const second = other.session.send('And then?', { runId: 'run-2' })
+    const second = (other.session as unknown as SessionImpl).sendForRun(
+      'And then?',
+      { runId: 'run-2' },
+    )
     expect(await second.receipt).toMatchObject({ status: 'queued' })
     release.open()
     const texts: Array<string> = []
@@ -352,6 +357,26 @@ describe('an input that reaches a host that does not own the log', () => {
       return { credentials, saved }
     }
 
+    /**
+     * An answer as the owner applies it from the lane: with the `ref` of a
+     * secret answer, and the input id of the offer.
+     */
+    function laneAnswer(
+      session: HarnessSession,
+      options: {
+        questionId: string
+        value: unknown
+        ref: string
+        controlId: string
+      },
+    ): Promise<Receipt> {
+      // `applyAnswer` is internal: the input lane calls it.
+      const internal = session as unknown as {
+        applyAnswer: (offered: typeof options) => Promise<Receipt>
+      }
+      return internal.applyAnswer(options)
+    }
+
     /** The owner asks for the password. Resolves with its question id. */
     async function ask(session: HarnessSession, log: LogStore) {
       const running = session.command({ name: 'ask' })
@@ -416,11 +441,11 @@ describe('an input that reaches a host that does not own the log', () => {
 
       // The same ref again, as the owner applies it from the lane, is
       // refused: the store no longer has it.
-      const replay = await owner.session.answer({
+      const replay = await laneAnswer(owner.session, {
         questionId,
         value: '[secret]',
-        ref,
-        inputId: 'replay',
+        ref: ref!,
+        controlId: 'replay',
       })
       expect(replay).toMatchObject({
         status: 'rejected',
@@ -431,11 +456,11 @@ describe('an input that reaches a host that does not own the log', () => {
       const scope = { userId: 'someone-else' }
       const credential = { type: 'api_key' as const, value: '"theirs"' }
       await credentials.set({ scope, id: theirs, credential })
-      const wrongUser = await owner.session.answer({
+      const wrongUser = await laneAnswer(owner.session, {
         questionId,
         value: '[secret]',
         ref: theirs,
-        inputId: 'wrong-user',
+        controlId: 'wrong-user',
       })
       expect(wrongUser).toMatchObject({ reason: 'unknown_secret_answer' })
       expect(await credentials.get({ scope, id: theirs })).toEqual(credential)
@@ -595,7 +620,9 @@ describe('an input that reaches a host that does not own the log', () => {
     const other = await hostOn(b, harness)
 
     const [first] = await other.session.transcript()
-    expect(await other.session.revert(first?.id ?? '')).toMatchObject({
+    expect(
+      await other.session.revert({ messageId: first?.id ?? '' }),
+    ).toMatchObject({
       status: 'rejected',
       reason: 'busy',
     })

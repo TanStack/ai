@@ -32,7 +32,7 @@ const assistant = defineHarness({
 const host = createHarnessHost({ persistence })
 const session = await host.open(assistant, { threadId: 'thread-1' })
 
-await session.append([{ type: 'app.signal', text: 'The build failed.' }])
+await session.append({ records: [{ type: 'app.signal', text: 'The build failed.' }] })
 ```
 
 - A record is JSON with a `type`. Types that start with `harness.` belong to the harness, so `append` refuses them.
@@ -122,7 +122,7 @@ const client = createHarnessClient<typeof watcher>({
   headers: { authorization: 'Bearer my-token' },
 })
 
-await client.append([{ type: 'app.signal', text: 'The build failed.' }])
+await client.append({ records: [{ type: 'app.signal', text: 'The build failed.' }] })
 await client.continue()
 ```
 

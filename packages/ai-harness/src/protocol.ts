@@ -396,9 +396,11 @@ export async function applyInput({
     // It runs no new code, so it needs no `expose` entry, like `cancel`. It
     // stores no input, so there is no sender to keep.
     case 'background':
-      return session.background(input.toolCallId)
+      return session.background(
+        input.toolCallId !== undefined ? { toolCallId: input.toolCallId } : {},
+      )
     case 'cancelInput':
-      return session.cancelInput(input.inputId, user)
+      return session.cancelInput({ inputId: input.inputId, ...user })
     case 'setDelivery':
       return session.setDelivery({
         inputId: input.inputId,
@@ -486,7 +488,7 @@ export async function applyInput({
     case 'unrevert':
       if (!(harness.expose?.commands ?? []).includes('undo')) return notExposed
       return input.op === 'revert'
-        ? session.revert(input.messageId)
+        ? session.revert({ messageId: input.messageId })
         : session.unrevert()
     case 'agent': {
       const exposed = (harness.expose?.agents ?? []).includes(input.agent)

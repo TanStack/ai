@@ -262,7 +262,7 @@ describe('createSessionView', () => {
 
     const second = await open([], persistence)
     const view = createSessionView(second.session)
-    view.notice('Welcome back.')
+    view.notice({ text: 'Welcome back.' })
     await view.ready
 
     expect(view.store.get().messages).toEqual([
@@ -303,7 +303,7 @@ describe('createSessionView', () => {
     expect(view.store.get()).toEqual({ ...before, connection: 'closed' })
     expect(snapshot).not.toHaveBeenCalled()
     await expect(view.send('hi')).rejects.toThrow('disposed')
-    expect(() => view.approve('x')).toThrow('disposed')
+    expect(() => view.approve({ id: 'x' })).toThrow('disposed')
     await host.close()
   })
 
@@ -489,7 +489,7 @@ describe('the agents of a session view', () => {
     expect(view.store.get().agents).toMatchObject([
       { id: run.id, status: 'waiting' },
     ])
-    view.approve(wait.waitId)
+    view.approve({ id: wait.waitId })
     await expect(run).resolves.toBe('Done.')
     expect(removed).toEqual(['old.log'])
     await waitFor(() => expect(view.store.get().waits).toEqual([]))

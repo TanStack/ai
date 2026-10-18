@@ -280,7 +280,7 @@ describe('goal', () => {
     await session.command({ name: 'goal', input: 'finish' })
     await waitFor(() => expect(session.inputs()).toHaveLength(1))
     const [waiting] = session.inputs()
-    if (waiting) await session.cancelInput(waiting.inputId)
+    if (waiting) await session.cancelInput({ inputId: waiting.inputId })
     hold.open()
     await question
     await waitFor(() => expect(session.snapshot().status).toBe('idle'))

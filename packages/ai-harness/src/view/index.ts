@@ -149,7 +149,7 @@ export type ViewSendOptions = { to?: undefined } & (
 
 /** The options of `view.send`. */
 export interface ViewTextOptions {
-  /** Stored media files (from `upload`) that go with the text. */
+  /** Stored media files (from `putMedia`) that go with the text. */
   attachments?: ReadonlyArray<MediaRecord>
   /**
    * `'operator'`: the reply of an operator while a handoff to a person is
@@ -184,14 +184,14 @@ export interface SessionViewSource {
   cancel: (options?: CancelOptions) => Promise<Receipt>
   // Both sources have these. Without one, its view action shows an error.
   continue?: () => unknown
-  cancelInput?: (inputId: string) => Promise<Receipt>
+  cancelInput?: (options: { inputId: string }) => Promise<Receipt>
   setDelivery?: (change: {
     inputId: string
     delivery: WaitingInput['delivery']
   }) => Promise<Receipt>
   configure?: (options: ConfigureOptions) => Promise<Receipt>
   reset?: (options?: ResetOptions) => Promise<Receipt>
-  revert?: (messageId: string) => Promise<Receipt>
+  revert?: (options: { messageId: string }) => Promise<Receipt>
   unrevert?: () => Promise<Receipt>
   answer: (answer: { questionId: string; value: unknown }) => Promise<Receipt>
   command: (options: CommandOptions) => unknown
@@ -205,14 +205,17 @@ export interface SessionViewSource {
   transcript: () => Promise<Array<ModelMessage>>
   describe: () => SessionDescription | Promise<SessionDescription>
   /** A URL for a media file. Without it, media parts have no `url`. */
-  mediaUrl?: (id: string) => Promise<{ url?: string; expiresAt?: number }>
+  mediaUrl?: (options: {
+    id: string
+  }) => Promise<{ url?: string; expiresAt?: number }>
   /** The bytes of a media file. Without it, `load()` rejects. */
   loadMedia?: (options: { id: string }) => Promise<Uint8Array>
-  /** Store a file: `upload` on a client, `putMedia` on a session. */
-  upload?: (file: MediaUpload<MediaBody>) => Promise<MediaRecord>
+  /** Store a file. Without it, `view.putMedia` rejects. */
   putMedia?: (file: MediaUpload<MediaBody>) => Promise<MediaRecord>
   /** The saved messages of a child agent run. Without it, a reload shows no child parts. */
-  agentTranscript?: (subagentRunId: string) => Promise<Array<ModelMessage>>
+  agentTranscript?: (options: {
+    subagentRunId: string
+  }) => Promise<Array<ModelMessage>>
 }
 
 /** The bytes of a file to store. */
@@ -253,7 +256,7 @@ export interface SessionView {
   ready: Promise<void>
   /**
    * A `/command`, a prompt, or a steer while a turn runs. `attachments` are
-   * stored media files (from `upload`) that go with the text. Pass them as
+   * stored media files (from `putMedia`) that go with the text. Pass them as
    * a list, or as `{ attachments }`. A `/command` ignores them. Empty text
    * with no attachments does nothing. `{ as: 'operator' }` sends the reply
    * of an operator (see {@link ViewTextOptions}).
@@ -279,10 +282,10 @@ export interface SessionView {
    *
    * @example
    * ```ts
-   * const record = await view.upload({ body: bytes, mimeType: 'image/png', name: 'cat.png' })
+   * const record = await view.putMedia({ body: bytes, mimeType: 'image/png', name: 'cat.png' })
    * ```
    */
-  upload: (file: MediaUpload<MediaBody>) => Promise<MediaRecord>
+  putMedia: (file: MediaUpload<MediaBody>) => Promise<MediaRecord>
   /**
    * Run the plugin command `name` with its `input`.
    *
@@ -305,7 +308,7 @@ export interface SessionView {
   /** Stop the running turn, or the operation `operationId`. */
   cancel: (options?: CancelOptions) => Promise<void>
   /** Drop an input from `waitingInputs` before it runs. */
-  cancelInput: (inputId: string) => Promise<void>
+  cancelInput: (options: { inputId: string }) => Promise<void>
   /** Move a waiting input: `'steer'` joins the running turn, `'queue'` waits for its own turn. */
   setDelivery: (change: {
     inputId: string
@@ -313,15 +316,46 @@ export interface SessionView {
   }) => Promise<void>
   /** Start a fresh model context. The model sees `note` first. */
   reset: (options?: ResetOptions) => Promise<void>
-  /** Go back to the message `messageId`. `unrevert` undoes it. */
-  revert: (messageId: string) => Promise<void>
+  /**
+   * Go back to the message `messageId`. `unrevert` undoes it.
+   *
+   * @example
+   * ```ts
+   * await view.revert({ messageId: message.id })
+   * ```
+   */
+  revert: (options: { messageId: string }) => Promise<void>
   unrevert: () => Promise<void>
-  approve: (id: string, options?: ApproveOptions) => void
-  reject: (id: string, payload?: unknown) => void
+  /**
+   * Say yes to the approval `id`, maybe with changed arguments or data.
+   *
+   * @example
+   * ```ts
+   * view.approve({ id: approval.id })
+   * ```
+   */
+  approve: (options: { id: string } & ApproveOptions) => void
+  /**
+   * Say no to the approval `id`. `payload` goes to the tool's approval
+   * schema, when it has one.
+   *
+   * @example
+   * ```ts
+   * view.reject({ id: approval.id })
+   * ```
+   */
+  reject: (options: { id: string; payload?: unknown }) => void
   approveAll: () => void
   rejectAll: () => void
-  /** Add a line of your own to the messages. */
-  notice: (text: string) => void
+  /**
+   * Add a line of your own to the messages.
+   *
+   * @example
+   * ```ts
+   * view.notice({ text: 'Saved.' })
+   * ```
+   */
+  notice: (options: { text: string }) => void
   /**
    * Fill the agent part `id` of a saved message with what that child wrote.
    * After a reload, a saved child shows only its card (name, status, result)
@@ -573,7 +607,7 @@ export function createSessionView(source: SessionViewSource) {
   const fetchUrl = async (id: string) => {
     if (!source.mediaUrl) return
     try {
-      const { url, expiresAt } = await source.mediaUrl(id)
+      const { url, expiresAt } = await source.mediaUrl({ id })
       const part = mediaParts.get(id)
       if (disposed || !part) return
       if (url !== undefined) mediaParts.set(id, { ...part, url })
@@ -755,7 +789,8 @@ export function createSessionView(source: SessionViewSource) {
         args: call?.args ?? bound?.originalArgs,
         ...(interrupt.message ? { message: interrupt.message } : {}),
         approve: (options) => decide(interrupt.id, approvedWith(options)),
-        reject: (payload) => decide(interrupt.id, rejectedWith(payload)),
+        reject: ({ payload } = {}) =>
+          decide(interrupt.id, rejectedWith(payload)),
       }
     },
     interrupt: (interrupt) => {
@@ -891,7 +926,7 @@ export function createSessionView(source: SessionViewSource) {
     if (!source.agentTranscript || !isWaiting) return
     loadedAgents.add(id)
     try {
-      const messages = await source.agentTranscript(id)
+      const messages = await source.agentTranscript({ subagentRunId: id })
       const parts = agentPartsFrom(messages)
       if (disposed) return
       // A child that failed before its first message has only its card.
@@ -1231,9 +1266,8 @@ export function createSessionView(source: SessionViewSource) {
       alive()
       settle(source.continue ? source.continue() : missing('continue'))
     },
-    upload: (file) => {
+    putMedia: (file) => {
       alive()
-      if (source.upload) return source.upload(file)
       if (source.putMedia) return source.putMedia(file)
       return Promise.reject(new Error('This view source cannot store media.'))
     },
@@ -1247,10 +1281,10 @@ export function createSessionView(source: SessionViewSource) {
         source.configure ? source.configure(options) : missing('configure'),
       ),
     cancel: (options) => act(() => source.cancel(options)),
-    cancelInput: (inputId) =>
+    cancelInput: ({ inputId }) =>
       act(() =>
         source.cancelInput
-          ? source.cancelInput(inputId)
+          ? source.cancelInput({ inputId })
           : missing('cancel inputs'),
       ),
     setDelivery: (change) =>
@@ -1261,15 +1295,21 @@ export function createSessionView(source: SessionViewSource) {
       ),
     reset: (options) =>
       act(() => (source.reset ? source.reset(options) : missing('reset'))),
-    revert: (messageId) =>
-      act(() => (source.revert ? source.revert(messageId) : missing('revert'))),
+    revert: ({ messageId }) =>
+      act(() =>
+        source.revert ? source.revert({ messageId }) : missing('revert'),
+      ),
     unrevert: () =>
       act(() => (source.unrevert ? source.unrevert() : missing('unrevert'))),
-    approve: (id, options) => decide(id, approvedWith(options)),
-    reject: (id, payload) => decide(id, rejectedWith(payload)),
+    approve: ({ id, ...options }) =>
+      decide(
+        id,
+        approvedWith(Object.keys(options).length > 0 ? options : undefined),
+      ),
+    reject: ({ id, payload }) => decide(id, rejectedWith(payload)),
     approveAll: () => decideAll(true),
     rejectAll: () => decideAll(false),
-    notice: (text) => {
+    notice: ({ text }) => {
       alive()
       commit(withNotice(get(), 'ui', text))
     },

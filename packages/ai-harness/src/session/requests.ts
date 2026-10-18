@@ -28,6 +28,7 @@ import type {
   Receipt,
   ResetOptions,
   ResolveOptions,
+  SendForRunOptions,
   SendOptions,
   TurnOverrides,
   UserInput,
@@ -127,6 +128,18 @@ export abstract class SessionRequests<
     options?: SendOptions | AgentSendOptions,
   ): Operation<unknown> {
     if (options?.to !== undefined) return this.sendToRun(message, options)
+    return this.sendForRun(message, options)
+  }
+
+  /**
+   * @internal `send` of a message to the session, with the AG-UI `runId` of
+   * a `POST run` request: the turn runs as it. The HTTP handler and an
+   * offered prompt call it.
+   */
+  override sendForRun(
+    message: UserInput,
+    options?: SendForRunOptions,
+  ): Operation<ChatTurnResult> {
     const context = options?.context
     const mode = options?.mode ?? 'prompt'
     const input: HarnessInput =
@@ -160,7 +173,7 @@ export abstract class SessionRequests<
    */
   protected startTurn(
     input: HarnessInput & { op: 'prompt' | 'steer' | 'followUp' },
-    options?: SendOptions & { wake?: boolean },
+    options?: SendForRunOptions & { wake?: boolean },
   ): Operation<ChatTurnResult> {
     const { message } = input
     const inputId = options?.inputId ?? createInputId()
@@ -816,22 +829,34 @@ export abstract class SessionRequests<
    * @example
    * ```ts
    * await session.send('Then write the tests.', { mode: 'followUp', inputId: 'tests' })
-   * await session.cancelInput('tests')
+   * await session.cancelInput({ inputId: 'tests' })
    * ```
    */
-  async cancelInput(
-    target: string,
-    options?: {
-      principal?: Principal
-      /** @internal The id of an offered input, so a replay is a duplicate. */
-      inputId?: string
-    },
-  ): Promise<Receipt> {
-    const inputId = options?.inputId ?? createInputId()
+  cancelInput(options: {
+    inputId: string
+    principal?: Principal
+  }): Promise<Receipt> {
+    return this.applyCancelInput(options)
+  }
+
+  /**
+   * `cancelInput`, with `controlId`: the id of an offered input, so a replay
+   * is a duplicate.
+   */
+  protected override async applyCancelInput({
+    inputId: target,
+    principal,
+    controlId,
+  }: {
+    inputId: string
+    principal?: Principal
+    controlId?: string
+  }): Promise<Receipt> {
+    const inputId = controlId ?? createInputId()
     const admission = await this.accept(
       inputId,
       { op: 'cancelInput', inputId: target },
-      options?.principal,
+      principal,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const taken = this.takeWaiting(target) ?? this.takeQueuedContinue(target)
@@ -868,7 +893,19 @@ export abstract class SessionRequests<
    * await session.setDelivery({ inputId: 'style', delivery: 'steer' })
    * ```
    */
-  async setDelivery({
+  setDelivery(options: {
+    inputId: string
+    delivery: WaitingInput['delivery']
+    principal?: Principal
+  }): Promise<Receipt> {
+    return this.applySetDelivery(options)
+  }
+
+  /**
+   * `setDelivery`, with `controlId`: the id of an offered input, so a replay
+   * is a duplicate.
+   */
+  protected override async applySetDelivery({
     inputId: target,
     delivery,
     principal,
@@ -877,7 +914,6 @@ export abstract class SessionRequests<
     inputId: string
     delivery: WaitingInput['delivery']
     principal?: Principal
-    /** @internal The id of an offered input, so a replay is a duplicate. */
     controlId?: string
   }): Promise<Receipt> {
     const inputId = controlId ?? createInputId()

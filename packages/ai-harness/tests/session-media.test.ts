@@ -149,7 +149,7 @@ describe('session media store', () => {
     })
 
     expect(record).toEqual(storedImage())
-    expect(await session.getMedia(record.id)).toEqual(record)
+    expect(await session.getMedia({ id: record.id })).toEqual(record)
     expect(decoder.decode(await session.loadMedia({ id: record.id }))).toBe(
       'hello',
     )
@@ -201,7 +201,7 @@ describe('session media store', () => {
       name: 'a.png',
     })
 
-    expect(await other.getMedia(record.id)).toBeNull()
+    expect(await other.getMedia({ id: record.id })).toBeNull()
     await host.close()
   })
 
@@ -213,10 +213,10 @@ describe('session media store', () => {
       name: 'cat.png',
     })
 
-    expect(await session.mediaUrl(record.id)).toEqual({
+    expect(await session.mediaUrl({ id: record.id })).toEqual({
       url: 'data:image/png;base64,aGVsbG8=',
     })
-    expect(await session.mediaUrl('nope')).toStrictEqual({})
+    expect(await session.mediaUrl({ id: 'nope' })).toStrictEqual({})
     await host.close()
   })
 })

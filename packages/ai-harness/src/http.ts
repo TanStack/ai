@@ -345,7 +345,7 @@ async function mediaResponse(
   view: ObservedSession,
   id: string,
 ) {
-  const record = await view.getMedia(id)
+  const record = await view.getMedia({ id })
   if (!record) return json({ error: 'not found' }, 404)
   const asked = parseRangeHeader(request.headers.get('Range'), record.size)
   if (asked === 'unsatisfiable') {
@@ -934,13 +934,18 @@ export function createHarnessHandler<P extends Principal = Principal>(
         const { forwardedProps } = params
         // The span of the turn links the `traceparent` of the caller.
         const traceparent = request.headers.get('traceparent')
-        const operation = session.send(checked.parts, {
+        const sent = {
           ...ids,
           ...(Object.keys(forwardedProps).length > 0
             ? { context: forwardedProps }
             : {}),
           ...(traceparent ? { traceparent } : {}),
-        })
+        }
+        // Only the session class takes the run id. `host.open` gives one.
+        const operation =
+          session instanceof SessionImpl
+            ? session.sendForRun(checked.parts, sent)
+            : session.send(checked.parts, sent)
         // A turn that the host refused throws, and the answer is 403.
         const receipt = await turnReceipt(operation)
         if (receipt.status === 'rejected') {
@@ -1078,7 +1083,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
         return json({ error: 'subagentRunId is required' }, 400)
       const view = await viewFor(principal, threadId)
       if (!view) return json({ error: 'not found' }, 404)
-      return json(await view.agentTranscript(subagentRunId))
+      return json(await view.agentTranscript({ subagentRunId }))
     }
 
     if (request.method === 'GET' && route === 'snapshot') {
@@ -1211,7 +1216,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
       const view = await viewFor(principal, threadId)
       if (!view) return json({ error: 'not found' }, 404)
       if (route === 'media') return mediaResponse(request, view, id)
-      if (!(await view.getMedia(id))) {
+      if (!(await view.getMedia({ id }))) {
         return json({ error: 'not found' }, 404)
       }
       const expiresAt = Date.now() + SIGNED_URL_TTL_MS

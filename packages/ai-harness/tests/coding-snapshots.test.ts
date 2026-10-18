@@ -679,7 +679,9 @@ describe.skipIf(!hasGit)('session.revert', () => {
     const { transcript, firstId } = await runThreeTurns(session)
     expect(transcript).toHaveLength(12)
 
-    expect(await session.revert(firstId)).toMatchObject({ status: 'accepted' })
+    expect(await session.revert({ messageId: firstId })).toMatchObject({
+      status: 'accepted',
+    })
 
     expect(await read('a.txt')).toBe('two')
     expect(await readdir(root)).toEqual(['a.txt'])
@@ -691,7 +693,7 @@ describe.skipIf(!hasGit)('session.revert', () => {
     await put('a.txt', 'one')
     const { host, session } = await open(threeTurns())
     const { transcript, firstId } = await runThreeTurns(session)
-    await session.revert(firstId)
+    await session.revert({ messageId: firstId })
 
     expect(await session.unrevert()).toMatchObject({ status: 'accepted' })
 
@@ -709,7 +711,7 @@ describe.skipIf(!hasGit)('session.revert', () => {
       replies: [...turns.replies, () => text('Fourth.')],
     })
     const { transcript, firstId } = await runThreeTurns(session)
-    await session.revert(firstId)
+    await session.revert({ messageId: firstId })
 
     await session.send('Four')
 
@@ -742,13 +744,15 @@ describe.skipIf(!hasGit)('session.revert', () => {
     const running = session.send('Again')
     await waitFor(() => expect(session.snapshot().status).toBe('running'))
 
-    expect(await session.revert(message?.id ?? '')).toMatchObject({
+    expect(
+      await session.revert({ messageId: message?.id ?? '' }),
+    ).toMatchObject({
       status: 'rejected',
       reason: 'busy',
     })
     wait.open()
     await running
-    expect(await session.revert('no-such-id')).toMatchObject({
+    expect(await session.revert({ messageId: 'no-such-id' })).toMatchObject({
       status: 'rejected',
       reason: 'unknown_message',
     })
@@ -761,7 +765,7 @@ describe.skipIf(!hasGit)('session.revert', () => {
     const persistence = memoryPersistence()
     const first = await open({ ...threeTurns(), persistence })
     const { transcript, firstId } = await runThreeTurns(first.session)
-    await first.session.revert(firstId)
+    await first.session.revert({ messageId: firstId })
     await first.host.close()
 
     const second = await open({ replies: [], persistence })
@@ -789,7 +793,7 @@ describe.skipIf(!hasGit)('session.revert keeps the edits of the user', () => {
       (message) => message.content === 'First.',
     )
 
-    await session.revert(first?.id ?? '')
+    await session.revert({ messageId: first?.id ?? '' })
 
     expect(await read('a.txt')).toBe('two')
     expect(await read('c.txt')).toBe('mine')
@@ -804,7 +808,7 @@ describe.skipIf(!hasGit)('session.revert keeps the edits of the user', () => {
     // The user edits a file that a hidden turn changed.
     await put('a.txt', 'mine')
 
-    await session.revert(firstId)
+    await session.revert({ messageId: firstId })
     expect(await read('a.txt')).toBe('two')
     await session.unrevert()
 
@@ -837,7 +841,7 @@ describe.skipIf(!hasGit)('session.revert keeps the edits of the user', () => {
     })
     const { firstId } = await runThreeTurns(session)
     blocking = true
-    const reverting = session.revert(firstId)
+    const reverting = session.revert({ messageId: firstId })
     await reached.opened
 
     const prompting = session.send('Four')
@@ -868,7 +872,7 @@ describe.skipIf(!hasGit)('session.revert keeps the edits of the user', () => {
       replies: [...turns.replies, () => text('Fourth.')],
     })
     const { firstId } = await runThreeTurns(session)
-    await session.revert(firstId)
+    await session.revert({ messageId: firstId })
 
     await session.configure({ settings: { cwd: 'sub' } })
     await session.send('Four')
@@ -888,7 +892,7 @@ describe.skipIf(!hasGit)('session.revert keeps the edits of the user', () => {
     await mkdir(join(root, 'sub'))
     const { host, session } = await open(threeTurns())
     const { transcript, firstId } = await runThreeTurns(session)
-    await session.revert(firstId)
+    await session.revert({ messageId: firstId })
 
     await session.configure({ settings: { cwd: 'sub' } })
     await session.unrevert()
@@ -906,7 +910,7 @@ describe.skipIf(!hasGit)('session.revert keeps the edits of the user', () => {
     await put('a.txt', 'one')
     const { host, session } = await open(threeTurns())
     const { transcript, firstId } = await runThreeTurns(session)
-    await session.revert(firstId)
+    await session.revert({ messageId: firstId })
 
     const refused = 'A revert stands. Run unrevert, or send a prompt, first.'
     expect(await session.command({ name: 'undo' })).toBe(refused)
@@ -1003,7 +1007,7 @@ describe('snapshots with a fake git', () => {
 
     // The steps of call-1 to call-505 come after the first answer. Of them,
     // the revert uses the last 500: from call-6 on.
-    await session.revert(first.id)
+    await session.revert({ messageId: first.id })
 
     const restores = commands.filter((command) =>
       command.includes('--name-status'),

@@ -115,11 +115,11 @@ What the view reads for the chat:
 - `transcript()`: the saved messages.
 - `snapshot()`: the status and the waiting approvals. When the session is open on this host, it also has the running operations.
 - `events({ from, signal })`: the events of the thread after a cursor.
-- `agentTranscript(id)`: the messages of one child agent run.
+- `agentTranscript({ subagentRunId })`: the messages of one child agent run.
 
 What the view reads for the rest:
 
-- `getMedia(id)` and `loadMedia({ id, range })`: a media file and its bytes.
+- `getMedia({ id })` and `loadMedia({ id, range })`: a media file and its bytes.
 - `usage()`: the token totals of the thread.
 - `entry()`: the index entry of the thread.
 - `logState()`: the `durability.reduce` fold of the log. See [One log for a session tree](./shared-logs#keep-state-for-the-whole-tree).

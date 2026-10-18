@@ -59,6 +59,7 @@ export interface HarnessSession<
   | 'transferSummary'
   | 'onIdle'
   | 'resolveForRun'
+  | 'sendForRun'
   | 'checked'
   | 'cancelWorkOf'
   | 'agentHandle'

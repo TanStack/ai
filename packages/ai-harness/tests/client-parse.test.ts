@@ -256,7 +256,7 @@ describe('control inputs', () => {
   it('keeps the inputId of the input to change in cancelInput', async () => {
     const { host, client, bodies } = recorded()
 
-    await client.cancelInput('waiting-1').catch(() => undefined)
+    await client.cancelInput({ inputId: 'waiting-1' }).catch(() => undefined)
     await host.close()
 
     expect(inputIdOf(bodies[0])).toBe('waiting-1')

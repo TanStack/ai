@@ -77,9 +77,11 @@ export interface ObservedSession<THarness extends AnyHarness = AnyHarness> {
    * The saved messages of a child agent run of the thread, as
    * `session.agentTranscript()` gives them. Empty for an unknown id.
    */
-  agentTranscript: (subagentRunId: string) => Promise<Array<ModelMessage>>
+  agentTranscript: (options: {
+    subagentRunId: string
+  }) => Promise<Array<ModelMessage>>
   /** The record of a media file of the thread, or `null` when it is not found. */
-  getMedia: (id: string) => Promise<MediaRecord | null>
+  getMedia: (options: { id: string }) => Promise<MediaRecord | null>
   /**
    * The bytes of the media file `id`, or of one `range` of them. Throws a
    * `MediaError` with 404 when it is not found.
@@ -292,7 +294,7 @@ export function observedSession<THarness extends AnyHarness>(
       }
       return snapshot
     },
-    async agentTranscript(subagentRunId) {
+    async agentTranscript({ subagentRunId }) {
       check()
       const { reader } = await readLog()
       try {
@@ -311,7 +313,7 @@ export function observedSession<THarness extends AnyHarness>(
         reader.close()
       }
     },
-    getMedia(id) {
+    getMedia({ id }) {
       check()
       return mediaStore.get(id)
     },

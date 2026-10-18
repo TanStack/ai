@@ -194,7 +194,7 @@ describe('log snapshots on a host', () => {
     )
     const [first] = await session.transcript()
 
-    expect(await session.revert(first?.id ?? '')).toMatchObject({
+    expect(await session.revert({ messageId: first?.id ?? '' })).toMatchObject({
       status: 'accepted',
     })
     expect(steps).toEqual([step])

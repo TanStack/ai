@@ -28,6 +28,7 @@ import type { AnyHarness } from '../define'
 import type {
   ChatTurnResult,
   HarnessInput,
+  OfferedHarnessInput,
   InputSettlement,
   Principal,
   Receipt,
@@ -59,7 +60,7 @@ interface AcceptOptions {
    * The input that goes to the owner when another host owns the log, if it
    * is not the input that this host logs. It throws to refuse the input.
    */
-  offer?: () => Promise<HarnessInput>
+  offer?: () => Promise<OfferedHarnessInput>
 }
 
 /** The offer that the next `accept` applies. See `applyOffer`. */
@@ -289,13 +290,21 @@ export abstract class SessionInputs<
    * wakes an idle session. Without `toolCallId`, it moves every running
    * call that supports it, such as `bash` and the agent tools.
    * With no such call, the receipt is rejected with `not_running`.
+   * `principal` is who moves it. A handle of `host.open` checks that it is
+   * the principal of the handle. The move stores no input.
    *
    * @example
    * ```ts
    * await session.background()
+   * await session.background({ toolCallId: 'call_1' })
    * ```
    */
-  async background(toolCallId?: string): Promise<Receipt> {
+  async background({
+    toolCallId,
+  }: {
+    toolCallId?: string
+    principal?: Principal
+  } = {}): Promise<Receipt> {
     const inputId = createInputId()
     const ids =
       toolCallId === undefined ? [...this.detachable.keys()] : [toolCallId]
@@ -316,7 +325,9 @@ export abstract class SessionInputs<
    * @example
    * ```ts
    * for (const input of session.inputs()) {
-   *   if (input.delivery === 'queue') await session.cancelInput(input.inputId)
+   *   if (input.delivery === 'queue') {
+   *     await session.cancelInput({ inputId: input.inputId })
+   *   }
    * }
    * ```
    */
@@ -856,7 +867,7 @@ export abstract class SessionInputs<
     switch (input.op) {
       case 'prompt':
         ignore(
-          session.send(input.message, {
+          this.sendForRun(input.message, {
             ...sent,
             ...turn,
             ...(input.busy ? { busy: input.busy } : {}),
@@ -925,11 +936,17 @@ export abstract class SessionInputs<
         )
         return
       case 'cancelInput':
-        ignore(session.cancelInput(input.inputId, { inputId, ...user }))
+        ignore(
+          this.applyCancelInput({
+            inputId: input.inputId,
+            controlId: inputId,
+            ...user,
+          }),
+        )
         return
       case 'setDelivery':
         ignore(
-          session.setDelivery({
+          this.applySetDelivery({
             inputId: input.inputId,
             delivery: input.delivery,
             controlId: inputId,
@@ -949,21 +966,21 @@ export abstract class SessionInputs<
         return
       case 'answer':
         ignore(
-          session.answer({
+          this.applyAnswer({
             questionId: input.questionId,
             value: input.value,
             ...(input.ref !== undefined ? { ref: input.ref } : {}),
-            inputId,
+            controlId: inputId,
             ...user,
           }),
         )
         return
       case 'config':
         ignore(
-          session.setConfig({
+          this.applyConfig({
             key: input.key,
             value: input.value,
-            inputId,
+            controlId: inputId,
             ...user,
           }),
         )

@@ -957,7 +957,7 @@ export abstract class SessionTurnParts<
       typeof content === 'string'
         ? []
         : content.map(mediaIdOf).filter((id) => id !== undefined)
-    const records = await Promise.all(ids.map((id) => this.getMedia(id)))
+    const records = await Promise.all(ids.map((id) => this.getMedia({ id })))
     const media = records.filter((record) => record !== null)
     const message: ModelMessage = {
       id: createMessageId(),

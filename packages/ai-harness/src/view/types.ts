@@ -102,7 +102,7 @@ export interface Approval {
   message?: string
   approve: (options?: ApproveOptions) => void
   /** Say no. `payload` goes to the tool's approval schema, when it has one. */
-  reject: (payload?: unknown) => void
+  reject: (options?: { payload?: unknown }) => void
 }
 
 /**

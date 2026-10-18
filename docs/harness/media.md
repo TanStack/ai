@@ -51,9 +51,9 @@ console.log(turn.text)
 
 The session also has:
 
-- `getMedia(id)`: the record, or `null` when the thread has no file with this id.
+- `getMedia({ id })`: the record, or `null` when the thread has no file with this id.
 - `loadMedia({ id, range })`: the bytes, or one range of them. `range` is optional.
-- `mediaUrl(id)`: `{ url }`, with a data URL for a file up to 1 MB. A bigger file gets `{}`. Use `loadMedia` for it, and serve the bytes from your own route.
+- `mediaUrl({ id })`: `{ url }`, with a data URL for a file up to 1 MB. A bigger file gets `{}`. Use `loadMedia` for it, and serve the bytes from your own route.
 
 ## Media that agents make
 

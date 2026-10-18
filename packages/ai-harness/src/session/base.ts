@@ -90,8 +90,9 @@ import type {
   RunContext,
   SessionEvent,
   ThreadSettings,
-  SendOptions,
+  SendForRunOptions,
   TurnInfo,
+  UserInput,
 } from '../types'
 import type {
   AgentRunOptions,
@@ -1373,10 +1374,43 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected abstract armSchedules(options?: { isRetry?: boolean }): void
   /** @internal See `SessionRequests.resolveForRun`. */
   abstract resolveForRun(options: ResolveForRunOptions): Promise<Receipt>
+  /** @internal See `SessionRequests.sendForRun`. */
+  abstract sendForRun(
+    message: UserInput,
+    options?: SendForRunOptions,
+  ): Operation<ChatTurnResult>
+  /** See `SessionRequests.applyCancelInput`. */
+  protected abstract applyCancelInput(options: {
+    inputId: string
+    principal?: Principal
+    controlId?: string
+  }): Promise<Receipt>
+  /** See `SessionRequests.applySetDelivery`. */
+  protected abstract applySetDelivery(options: {
+    inputId: string
+    delivery: 'steer' | 'queue'
+    principal?: Principal
+    controlId?: string
+  }): Promise<Receipt>
+  /** See `SessionState.applyConfig`. */
+  protected abstract applyConfig(options: {
+    key: string
+    value: unknown
+    principal?: Principal
+    controlId?: string
+  }): Promise<Receipt>
+  /** See `SessionState.applyAnswer`. */
+  protected abstract applyAnswer(options: {
+    questionId: string
+    value: unknown
+    principal?: Principal
+    controlId?: string
+    ref?: string
+  }): Promise<Receipt>
   protected abstract recoverFromLog(writer: LogWriter): Promise<void>
   protected abstract startTurn(
     input: HarnessInput & { op: 'prompt' | 'steer' | 'followUp' },
-    options?: SendOptions & { wake?: boolean },
+    options?: SendForRunOptions & { wake?: boolean },
   ): Operation<ChatTurnResult>
   protected abstract runAgent(
     target: string | AnyAgent,
