@@ -23,18 +23,14 @@ On the server, pass `inputId` to `send`. `await turn.receipt` resolves when the 
 
 ```ts group=harness-inputs
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryPersistence } from '@tanstack/ai-persistence'
 import { openaiText } from '@tanstack/ai-openai'
 
 const assistant = defineHarness({
   name: 'acme/assistant',
   adapter: openaiText('gpt-6.1-sol'),
 })
-const host = createHarnessHost({
-  persistence: {
-    stores: { log: memoryLogStore(), runs: memoryPersistence().stores.runs },
-  },
-})
+const host = createHarnessHost({ persistence: memoryPersistence() })
 const session = await host.open(assistant, { threadId: 'user-1-thread' })
 
 const turn = session.send('Summarize the report.', { inputId: 'req-42' })
@@ -69,7 +65,7 @@ Make the id once per user action (a button press), and keep it for every retry o
 
 ## Wait for the outcome
 
-On the server, `session.settled(inputId)` waits until the input ends. On a durable host it reads the log, so it also works after a restart and on another host that opens the thread.
+On the server, `session.settled(inputId)` waits until the input ends. It reads the log, so on a [durable host](./durable-sessions) it also works after a restart and on another host that opens the thread.
 
 ```ts group=harness-inputs
 const settlement = await session.settled('req-42')
@@ -214,7 +210,7 @@ await migration
 - `inputs()` lists the inputs in the order they run: first the steers for the running turn, then the queued turns.
 - `delivery: 'steer'`: the input joins the running turn at the next model call. `'queue'`: it runs as its own turn, after the turns before it.
 - A cancelled input never runs, also after a restart. It settles `aborted`.
-- On a durable host, the log keeps a new delivery, and a restart obeys it. Without a log, the delivery stays in memory.
+- The log keeps a new delivery, and a restart obeys it.
 - If the input started, or joins the running turn now, the receipt has `status: 'rejected'` and `reason: 'not_waiting'`. To stop it, cancel its operation with `session.cancel({ operationId })`.
 
 A client reads the waiting inputs from the snapshot, and sends the same two inputs:
@@ -248,8 +244,7 @@ await build
 - Without an argument, it moves every running call that supports it. Pass a `toolCallId` to move one call.
 - `bash` and the single `subagent` tool support it. Other tools keep running as before.
 - With no running call that supports it, the receipt has `status: 'rejected'` and `reason: 'not_running'`.
-- On a durable host (one with `stores.log`), the log keeps each job until it ends. When a crash stops a job, the next host adds the note "Background job call-1 stopped when the host restarted."
-- Without `stores.log`, the job lives in memory only. A crash stops it, and no note comes.
+- The log keeps each job until it ends. When a crash stops a job, the next host adds the note "Background job call-1 stopped when the host restarted."
 
 A client sends `{ op: 'background' }` over `POST control`. It runs no new code, so it needs no `expose` entry:
 

@@ -6,12 +6,15 @@ import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import {
   AccessDeniedError,
   createHarnessHost,
+  defineCommand,
   defineHarness,
   definePlugin,
+  logIdOf,
   membersOnly,
 } from '../src'
 import { after, gate, mockAdapter, text, toolCall } from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
+import type { LogStore } from '@tanstack/ai-persistence'
 import type {
   Authorize,
   HarnessHost,
@@ -19,6 +22,12 @@ import type {
   HostEvent,
 } from '../src'
 import type { Reply } from './helpers'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -44,20 +53,14 @@ function accessHost({
   authorize = membersOnly(),
   envKeys,
   adapter,
-  durable = false,
 }: {
   replies?: Array<Reply> | Reply
   authorize?: Authorize<User>
   envKeys?: boolean
   adapter?: AnyTextAdapter | ReturnType<typeof acmeAdapter>['adapter']
-  /** A log store: the log id of each session has its tenant. */
-  durable?: boolean
 } = {}) {
-  const memory = memoryPersistence()
-  const { runs, metadata, sessions } = memory.stores
-  const persistence = durable
-    ? { stores: { log: memoryLogStore(), runs, metadata, sessions } }
-    : memory
+  const persistence = memoryPersistence()
+  const { sessions } = persistence.stores
   const host = createHarnessHost({
     persistence,
     access: {
@@ -72,7 +75,7 @@ function accessHost({
   })
   const open = (principal: User, threadId = THREAD) =>
     host.open(harness, { threadId, principal })
-  return { host, harness, sessions, open }
+  return { host, harness, sessions, open, log: persistence.stores.log }
 }
 
 /** A tool that keeps the user of each run that calls it. */
@@ -163,7 +166,7 @@ describe('host access with membersOnly()', () => {
   })
 
   it('opens a thread id of another tenant as a new session of the own tenant', async () => {
-    const { host, open } = accessHost({ durable: true })
+    const { host, open } = accessHost()
     const owner = await open(olga)
     await owner.send('The plan of acme.')
 
@@ -434,7 +437,8 @@ describe('host access with your own access tables', () => {
     host.revoke({ threadId: THREAD, principal: bea })
 
     expect(() => member.snapshot()).toThrow(AccessDeniedError)
-    await vi.waitFor(() =>
+    expect(() => member.logState()).toThrow(AccessDeniedError)
+    await waitFor(() =>
       expect(reader.events.filter((event) => event.type === 'revoked')).toEqual(
         [
           {
@@ -470,6 +474,180 @@ describe('host access with your own access tables', () => {
     ).rejects.toThrow(
       'host.sessions.share needs membersOnly() as the authorize of the host access. With your own access tables, change them and call host.revoke.',
     )
+    await host.close()
+  })
+})
+
+/** Each user may do all, but answer or cancel only for a run or a schedule of their own. */
+const ownRunsOnly: Authorize<User> = ({ principal, action, run }) =>
+  (action !== 'cancel' && action !== 'answer') ||
+  run === undefined ||
+  run.principalId === principal.id
+
+/** Does the log of `THREAD` in tenant `acme` have a record of `type`? */
+async function hasRecord(
+  log: LogStore,
+  type: string,
+  match: (record: Record<string, unknown>) => boolean = () => true,
+) {
+  const entries = await log.read({
+    logId: logIdOf({ tenantId: 'acme', logId: THREAD }),
+  })
+  return entries.some(({ record }) => record.type === type && match(record))
+}
+
+/** The input ids that wait in the lane of `THREAD` in tenant `acme`. */
+const waitingIn = async (log: LogStore) =>
+  (
+    await log.offered({ logId: logIdOf({ tenantId: 'acme', logId: THREAD }) })
+  ).map((offer) => offer.inputId)
+
+/** A command that asks a question, and returns the answer. */
+const asking = definePlugin({
+  name: 'test/ask',
+  setup: () => ({
+    commands: {
+      ask: defineCommand({
+        description: 'Ask a question',
+        run: (_input, ctx) =>
+          ctx.session.ask({ message: 'Name?', schema: z.string() }),
+      }),
+    },
+  }),
+})
+
+/** Two hosts with access on one database, and a harness with `asking`. */
+function twoAccessHosts(replies: Array<Reply>) {
+  const persistence = memoryPersistence()
+  const access = { identify: (): User | null => null, authorize: ownRunsOnly }
+  const owner = createHarnessHost({ persistence, access })
+  const submitter = createHarnessHost({ persistence, access })
+  const harness = defineHarness({
+    name: 'test/access',
+    adapter: mockAdapter(replies).adapter,
+    plugins: () => [asking],
+  })
+  return { owner, submitter, harness, log: persistence.stores.log }
+}
+
+describe('access to the inputs of the input lane', () => {
+  it('checks a cancel from host.submit against the run it targets', async () => {
+    const release = gate()
+    const { owner, submitter, harness, log } = twoAccessHosts([
+      after(release.opened, 'bea done'),
+    ])
+    const member = await owner.open(harness, {
+      threadId: THREAD,
+      principal: bea,
+    })
+    const turn = member.send('A long task.')
+    // The run starts: the log has it.
+    await waitFor(async () =>
+      expect(await hasRecord(log, 'harness.input.applied')).toBe(true),
+    )
+    const submit = (principal: User, operationId: string) =>
+      submitter.submit({
+        harness,
+        threadId: THREAD,
+        principal,
+        input: { op: 'cancel', operationId },
+      })
+
+    await expect(submit(olga, turn.id)).rejects.toBeInstanceOf(
+      AccessDeniedError,
+    )
+    expect(await waitingIn(log)).toEqual([])
+    expect(await submit(olga, 'no-such-run')).toMatchObject({
+      status: 'rejected',
+      reason: 'unknown_run',
+    })
+    expect(await waitingIn(log)).toEqual([])
+    expect(turn.status()).not.toBe('cancelled')
+
+    release.open()
+    expect(await turn).toEqual({ text: 'bea done', media: [] })
+    await owner.close()
+    await submitter.close()
+  })
+
+  it('checks an answer from host.submit against the run that asked', async () => {
+    const { owner, submitter, harness } = twoAccessHosts([])
+    const member = await owner.open(harness, {
+      threadId: THREAD,
+      principal: bea,
+    })
+    const running = member.command({ name: 'ask' })
+    await waitFor(() =>
+      expect(member.snapshot().pendingQuestions).toHaveLength(1),
+    )
+    const [question] = member.snapshot().pendingQuestions
+    const answer = (principal: User, value: string) =>
+      submitter.submit({
+        harness,
+        threadId: THREAD,
+        principal,
+        input: { op: 'answer', questionId: question!.questionId, value },
+      })
+
+    await expect(answer(olga, 'olga')).rejects.toBeInstanceOf(AccessDeniedError)
+    expect((await answer(bea, 'bea')).status).toBe('queued')
+    expect(await running).toBe('bea')
+    await owner.close()
+    await submitter.close()
+  })
+
+  it('checks a scheduled cancel against the run it targets', async () => {
+    const release = gate()
+    const { host, open, log } = accessHost({
+      authorize: ownRunsOnly,
+      replies: [after(release.opened, 'bea done')],
+    })
+    const member = await open(bea)
+    const other = await open(olga)
+    const turn = member.send('A long task.')
+    // The run starts: the log has it.
+    await waitFor(async () =>
+      expect(await hasRecord(log, 'harness.input.applied')).toBe(true),
+    )
+    const schedule = (operationId: string) =>
+      other.schedule({
+        at: Date.now(),
+        input: { op: 'cancel', operationId },
+      })
+
+    await expect(schedule(turn.id)).rejects.toBeInstanceOf(AccessDeniedError)
+    await expect(schedule('no-such-run')).rejects.toThrow(
+      'The session rejected the input: unknown_run.',
+    )
+    expect(await hasRecord(log, 'harness.schedule')).toBe(false)
+    expect(turn.status()).not.toBe('cancelled')
+
+    release.open()
+    expect(await turn).toEqual({ text: 'bea done', media: [] })
+    await host.close()
+  })
+
+  it('lets a user cancel only a schedule that the user made', async () => {
+    const { host, open, log } = accessHost({ authorize: ownRunsOnly })
+    const member = await open(bea)
+    const other = await open(olga)
+    const { scheduleId } = await member.schedule({
+      at: Date.now() + 60 * 60 * 1000,
+      input: { op: 'prompt', message: 'Later.' },
+    })
+    const isDone = () =>
+      hasRecord(
+        log,
+        'harness.schedule.done',
+        (record) => record.scheduleId === scheduleId,
+      )
+
+    await expect(other.cancelSchedule({ scheduleId })).rejects.toBeInstanceOf(
+      AccessDeniedError,
+    )
+    expect(await isDone()).toBe(false)
+    await member.cancelSchedule({ scheduleId })
+    expect(await isDone()).toBe(true)
     await host.close()
   })
 })
@@ -563,7 +741,7 @@ it('needs stores.sessions for host access', () => {
   expect(() =>
     createHarnessHost({
       persistence: {
-        stores: { messages: memoryPersistence().stores.messages },
+        stores: { log: memoryLogStore() },
       },
       access: { identify: () => null, authorize: membersOnly() },
     }),

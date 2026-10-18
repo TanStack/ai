@@ -1,16 +1,29 @@
 import { isKeyedAdapter } from '@tanstack/ai'
-import type { ProviderKeys, Scope } from '@tanstack/ai'
+import { scrubSecrets } from '@tanstack/ai/byok'
 import {
   envKeyEntry,
   readCredential,
+  readCredentialEntry,
   tenantScopeOf,
 } from '@tanstack/ai/byok/server'
+import type { ChatMiddleware, ProviderKeys, Scope } from '@tanstack/ai'
 import type {
   ByokProvider,
   Credential,
+  CredentialScope,
   CredentialStore,
   ProviderId,
 } from '@tanstack/ai/byok'
+
+// The harness API had its own copy. The core one is the only body now.
+export { scrubSecrets }
+
+/**
+ * @internal The id prefix of a secret answer in the credential store. A host
+ * that does not own the log saves the answer there, and the owner reads it
+ * once. `list` hides these ids.
+ */
+export const SECRET_ANSWER_PREFIX = 'harness:answer:'
 
 /**
  * Thrown when a tool or command needs a credential the user has not saved.
@@ -51,6 +64,28 @@ export interface CredentialsAccess {
    */
   require: (id: string, options?: { wait?: boolean }) => Promise<Credential>
   set: (entry: { id: string; credential: Credential }) => Promise<void>
+  /**
+   * Swap the saved credential `id` for a new one, for example an OAuth
+   * refresh. `update` gets the saved credential and returns the new one, or
+   * the same object to keep it. Resolves with the credential to use, or
+   * `null` when none is saved.
+   *
+   * - The new credential goes back to the scope where it was found. A
+   *   tenant credential stays the tenant's, and is not copied to the user.
+   * - One host runs one `update` at a time per saved credential. A call
+   *   that comes while one runs waits for it and gets its result.
+   * - When the store has `getVersioned` and `setIf`, the save is a
+   *   compare-and-set. If another host saved first, the call uses that
+   *   credential, and does not run `update` again.
+   * - `update` gets the signal of the host, not of a caller: an abort of
+   *   `options.signal` rejects this call only, and the refresh goes on for
+   *   the calls that wait for it.
+   */
+  refresh: (
+    id: string,
+    update: (current: Credential, signal: AbortSignal) => Promise<Credential>,
+    options?: { signal?: AbortSignal },
+  ) => Promise<Credential | null>
   delete: (id: string) => Promise<void>
   list: () => Promise<
     Array<{ id: string; type: Credential['type']; expiresAt?: number }>
@@ -61,13 +96,57 @@ export interface CredentialsAccess {
  * What a session adds to `credentialsFor`: `canWait` says if a `require`
  * with `wait` can stop the turn now, and `onSet` runs after each save.
  * `secrets` gets each secret value the access reads or saves, so the session
- * can scrub them from the errors it sends to clients.
+ * can scrub them from what it stores, publishes, and sends to a model.
  */
 export interface CredentialHooks {
   canWait?: (id: string) => boolean
   onSet?: (id: string) => Promise<void>
-  secrets?: Set<string>
+  secrets?: Redactor
+  /**
+   * The refreshes that run now, shared by every access of one host. See
+   * {@link RefreshFlights}. Without it, only the calls of this access share
+   * a refresh.
+   */
+  refreshes?: RefreshFlights
 }
+
+/**
+ * @internal The refreshes of one host. A host keeps one for all its
+ * sessions.
+ */
+export interface RefreshFlights {
+  /** The refresh that runs now for each saved credential, by {@link refreshKey}. */
+  running: Map<string, Promise<Credential | null>>
+  /** The signal of each refresh. The host aborts it when it closes. */
+  signal: AbortSignal
+}
+
+/** A {@link RefreshFlights} whose signal aborts with `controller`. */
+export function refreshFlights(
+  controller = new AbortController(),
+): RefreshFlights {
+  return { running: new Map(), signal: controller.signal }
+}
+
+/**
+ * `promise`, or a rejection with the reason of `signal` when it aborts
+ * first. The work of `promise` goes on.
+ */
+function untilAborted<T>(promise: Promise<T>, signal?: AbortSignal) {
+  if (!signal) return promise
+  if (signal.aborted) return Promise.reject<T>(signal.reason)
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(signal.reason)
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise
+      .then(resolve, reject)
+      .finally(() => signal.removeEventListener('abort', onAbort))
+  })
+}
+
+/** The key of one saved credential: its tenant, its user, and its id. */
+const refreshKey = (scope: CredentialScope, id: string) =>
+  JSON.stringify([scope.tenantId ?? null, scope.userId ?? null, id])
 
 /**
  * The error that chat() reads as "stop the turn for input" (the shape of
@@ -97,7 +176,8 @@ function secretValues(credential: Credential) {
  * Scope credentials to one principal and thread.
  *
  * A read finds the user's own credential first, then the tenant's (saved
- * without a `userId`). A save or a delete changes the user's own only.
+ * without a `userId`). A save or a delete changes the user's own only. A
+ * `refresh` writes back to the scope where it found the credential.
  */
 export function credentialsFor(
   store: CredentialStore,
@@ -112,10 +192,49 @@ export function credentialsFor(
     }
     return credential
   }
-  // ponytail: a refreshed tenant OAuth token is saved for the user, so each
-  // user keeps a copy. A provider that rotates refresh tokens would need a
-  // save for the whole tenant to share one token.
   const get = async (id: string) => keep(await readCredential(store, scope, id))
+  const flights = hooks?.refreshes ?? refreshFlights()
+  type Entry = NonNullable<Awaited<ReturnType<typeof readCredentialEntry>>>
+  /** True when the saved credential is not the one in `seen` any more. */
+  const isChanged = (seen: Entry, now: Entry) =>
+    seen.revision !== undefined && now.revision !== undefined
+      ? seen.revision !== now.revision
+      : JSON.stringify(seen.credential) !== JSON.stringify(now.credential)
+  const runRefresh = async (
+    id: string,
+    seen: Entry,
+    update: (current: Credential, signal: AbortSignal) => Promise<Credential>,
+  ): Promise<Credential | null> => {
+    let next: Credential
+    try {
+      next = await update(seen.credential, flights.signal)
+    } catch (error) {
+      // Another host can refresh first and use up the refresh token, so
+      // this refresh fails. Then the token that host saved wins.
+      const now = await readCredentialEntry(store, scope, id)
+      if (now && isChanged(seen, now)) return now.credential
+      throw error
+    }
+    if (next === seen.credential) return next
+    if (store.setIf && seen.revision !== undefined) {
+      const saved = await store.setIf({
+        scope: seen.scope,
+        id,
+        credential: next,
+        expectedRevision: seen.revision,
+      })
+      if (saved.ok) return next
+      // Another host saved first. Use its credential, and do not refresh
+      // again: with refresh token rotation, a second refresh can revoke
+      // both tokens.
+      return (await readCredentialEntry(store, scope, id))?.credential ?? null
+    }
+    // A store without `getVersioned` and `setIf` has no compare-and-set.
+    // Then the refresh is single-flight on this host only: two hosts can
+    // refresh at the same time, and the last save wins.
+    await store.set({ scope: seen.scope, id, credential: next })
+    return next
+  }
   const access: CredentialsAccess = {
     get,
     require: async (id, options) => {
@@ -131,12 +250,35 @@ export function credentialsFor(
       await store.set({ scope, id, credential })
       await hooks?.onSet?.(id)
     },
+    refresh: async (id, update, options) => {
+      options?.signal?.throwIfAborted()
+      const seen = await readCredentialEntry(store, scope, id)
+      if (!seen) return null
+      // Keyed by the scope where the credential is, so the users of one
+      // tenant credential share one refresh too.
+      const key = refreshKey(seen.scope, id)
+      let flight = flights.running.get(key)
+      if (!flight) {
+        // The calls that join use the first call's `update`. It runs with
+        // the host signal, so an abort of one caller stops no other caller.
+        flight = runRefresh(id, seen, update).finally(() => {
+          flights.running.delete(key)
+        })
+        flights.running.set(key, flight)
+      }
+      return keep(await untilAborted(flight, options?.signal))
+    },
     delete: (id) => store.delete({ scope, id }),
     list: async () => {
+      // A secret answer on its way to another host is not the user's own.
+      const saved = async (at: CredentialScope) =>
+        (await store.list(at)).filter(
+          (item) => !item.id.startsWith(SECRET_ANSWER_PREFIX),
+        )
       const tenant = tenantScopeOf(scope)
-      const own = await store.list(scope)
+      const own = await saved(scope)
       if (!tenant) return own
-      const shared = await store.list(tenant)
+      const shared = await saved(tenant)
       return [
         ...own,
         ...shared.filter((item) => !own.some((o) => o.id === item.id)),
@@ -157,7 +299,7 @@ export function credentialsFor(
 export function providerKeysFor(
   credentials: CredentialsAccess,
   onMissing: (error: AuthRequiredError) => void,
-  { secrets, envFallback }: { secrets?: Set<string>; envFallback: boolean },
+  { secrets, envFallback }: { secrets?: Redactor; envFallback: boolean },
 ) {
   const providerIdOf = (provider: ByokProvider | ProviderId) =>
     typeof provider === 'string' ? provider : provider.id
@@ -188,25 +330,101 @@ export function providerKeysFor(
 }
 
 /**
- * Replace each of `secrets` in `text` with `[redacted]`: the raw value, its
- * JSON-escaped form, and its URL-encoded form. A secret shorter than 6
- * characters is left alone, so a tiny value does not redact common words.
+ * @internal The secret values that one session handed out, and the scrub of
+ * them. The session sends each log record, feed event, and model call
+ * through it.
+ *
+ * `redact` never changes its input. It returns the same value when no
+ * secret is in it, so a check of identity downstream stays cheap.
  */
-export function scrubSecrets(
-  text: string,
-  secrets: ReadonlyArray<string>,
-): string {
-  const forms = new Set<string>()
-  for (const secret of secrets) {
-    if (secret.length < 6) continue
-    forms.add(secret)
-    forms.add(JSON.stringify(secret).slice(1, -1))
-    forms.add(encodeURIComponent(secret))
+export class Redactor {
+  private readonly values: Array<string> = []
+  /** Each form that `scrubSecrets` replaces: raw, JSON-escaped, URL-encoded. */
+  private readonly forms: Array<string> = []
+
+  /** No secret to scrub yet. Then `redact` and `scrub` do no work. */
+  get isEmpty(): boolean {
+    return this.forms.length === 0
   }
-  // The longest first, so a secret inside another does not leave a part.
-  let scrubbed = text
-  for (const form of [...forms].sort((a, b) => b.length - a.length)) {
-    scrubbed = scrubbed.split(form).join('[redacted]')
+
+  /** Scrub `value` from now on. A value shorter than 6 characters is left. */
+  add(value: string): void {
+    if (value.length < 6 || this.values.includes(value)) return
+    this.values.push(value)
+    for (const form of [
+      value,
+      JSON.stringify(value).slice(1, -1),
+      encodeURIComponent(value),
+    ]) {
+      if (!this.forms.includes(form)) this.forms.push(form)
+    }
   }
-  return scrubbed
+
+  /** `text` without the secrets. The same string when it has none. */
+  scrub(text: string): string {
+    // A quick check first, so a text without a secret makes no copy.
+    for (const form of this.forms) {
+      if (text.includes(form)) return scrubSecrets(text, this.values)
+    }
+    return text
+  }
+
+  /**
+   * `value` with each string in it scrubbed, in arrays and plain objects at
+   * any depth. A changed object or array is a copy. Other values (numbers,
+   * class instances like `Uint8Array`) stay as they are.
+   */
+  redact = <T>(value: T): T => (this.isEmpty ? value : (this.walk(value) as T))
+
+  private walk(value: unknown): unknown {
+    if (typeof value === 'string') return this.scrub(value)
+    if (typeof value !== 'object' || value === null) return value
+    if (Array.isArray(value)) {
+      let copy: Array<unknown> | undefined
+      for (let i = 0; i < value.length; i++) {
+        const item: unknown = value[i]
+        const next = this.walk(item)
+        if (next === item) continue
+        copy ??= value.slice()
+        copy[i] = next
+      }
+      return copy ?? value
+    }
+    const proto: unknown = Object.getPrototypeOf(value)
+    if (proto !== Object.prototype && proto !== null) return value
+    const record = value as Record<string, unknown>
+    let copy: Record<string, unknown> | undefined
+    for (const key of Object.keys(record)) {
+      const item = record[key]
+      const next = this.walk(item)
+      if (next === item) continue
+      copy ??= Object.assign(Object.create(proto) as object, record)
+      copy[key] = next
+    }
+    return copy ?? value
+  }
+}
+
+/**
+ * @internal The model gets the context without the secrets of `redactor`.
+ * Put it after `mediaMiddleware`, so no later middleware sets the messages
+ * again. The transcript itself is not changed here: the log view scrubs it.
+ */
+export function redactMiddleware(redactor: Redactor): ChatMiddleware {
+  return {
+    name: 'harness:redact',
+    onConfig(_ctx, config) {
+      if (redactor.isEmpty) return undefined
+      const messages = config.providerMessages ?? config.messages
+      const providerMessages = redactor.redact(messages)
+      const systemPrompts = redactor.redact(config.systemPrompts)
+      if (
+        providerMessages === messages &&
+        systemPrompts === config.systemPrompts
+      ) {
+        return undefined
+      }
+      return { providerMessages, systemPrompts }
+    },
+  }
 }

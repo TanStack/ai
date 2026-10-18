@@ -21,8 +21,6 @@ import type {
   BlobStore,
   GenerationRunRecord,
   GenerationRunStore,
-  InboxEntry,
-  InboxStore,
   InterruptCommitEntry,
   InterruptRecord,
   InterruptStore,
@@ -38,10 +36,6 @@ import type {
   SessionIndexKey,
   SessionIndexListOptions,
   SessionIndexStore,
-  WorkClaimStore,
-  LeaseStore,
-  TurnLease,
-  TurnLeaseKey,
 } from './types'
 
 const compareUtf8Bytes = (left: string, right: string): number => {
@@ -611,82 +605,6 @@ class MemoryBlobStore implements BlobStore {
   }
 }
 
-class MemoryInboxStore implements InboxStore {
-  private readonly entries = new Map<string, InboxEntry>()
-  append(entry: Omit<InboxEntry, 'status'>): Promise<InboxEntry> {
-    // Copies in and out, so a caller never changes a stored entry.
-    const existing = this.entries.get(entry.inputId)
-    if (existing) return Promise.resolve(structuredClone(existing))
-    const stored: InboxEntry = { ...entry, status: 'pending' }
-    this.entries.set(entry.inputId, structuredClone(stored))
-    return Promise.resolve(stored)
-  }
-  listPending(threadId: string): Promise<Array<InboxEntry>> {
-    // Map iteration keeps insertion order. The stable sort keeps it for ties.
-    const pending = [...this.entries.values()]
-      .filter(
-        (entry) => entry.threadId === threadId && entry.status === 'pending',
-      )
-      .sort((a, b) => a.createdAt - b.createdAt)
-      .map((entry) => structuredClone(entry))
-    return Promise.resolve(pending)
-  }
-  markApplied({
-    threadId,
-    inputId,
-    operationId,
-  }: {
-    threadId: string
-    inputId: string
-    operationId: string
-  }): Promise<void> {
-    const existing = this.of(threadId, inputId)
-    if (existing) {
-      this.entries.set(inputId, { ...existing, status: 'applied', operationId })
-    }
-    return Promise.resolve()
-  }
-  markRejected({
-    threadId,
-    inputId,
-    reason,
-  }: {
-    threadId: string
-    inputId: string
-    reason: string
-  }): Promise<void> {
-    const existing = this.of(threadId, inputId)
-    if (existing) {
-      this.entries.set(inputId, { ...existing, status: 'rejected', reason })
-    }
-    return Promise.resolve()
-  }
-  get({
-    threadId,
-    inputId,
-  }: {
-    threadId: string
-    inputId: string
-  }): Promise<InboxEntry | null> {
-    const existing = this.of(threadId, inputId)
-    return Promise.resolve(existing ? structuredClone(existing) : null)
-  }
-  delete({
-    threadId,
-    inputId,
-  }: {
-    threadId: string
-    inputId: string
-  }): Promise<void> {
-    if (this.of(threadId, inputId)) this.entries.delete(inputId)
-    return Promise.resolve()
-  }
-  private of(threadId: string, inputId: string) {
-    const existing = this.entries.get(inputId)
-    return existing?.threadId === threadId ? existing : undefined
-  }
-}
-
 /**
  * A JSON copy, so a store never shares an object with a caller. Throws when
  * the value cannot become JSON (a `BigInt`, a cycle).
@@ -780,6 +698,8 @@ export interface MemoryLogBackend {
  * listeners of both.
  */
 class LogBackendState {
+  /** The store clock, in epoch milliseconds. */
+  readonly now: () => number
   readonly logs = new Map<string, KeptLog>()
   readonly snapshots = new Map<string, LogSnapshot>()
   readonly owners = new Map<string, Ownership>()
@@ -791,6 +711,10 @@ class LogBackendState {
   readonly lanes = new Map<string, Lane>()
   /** The listeners of each store instance on this backend. */
   readonly instances = new Set<Listeners>()
+
+  constructor(now: () => number) {
+    this.now = now
+  }
 
   /**
    * Call the listeners of `logId` on every store instance. The write is done,
@@ -930,7 +854,7 @@ class MemoryLogStore implements LogStore {
     affinity,
   }: Parameters<LogStore['acquire']>[0]) {
     assertMs({ name: 'ttlMs', value: ttlMs, allowZero: false })
-    const now = Date.now()
+    const now = this.backend.now()
     const owner = this.backend.owners.get(logId)
     const isLive =
       owner !== undefined && !owner.released && owner.expiresAt > now
@@ -963,7 +887,7 @@ class MemoryLogStore implements LogStore {
     // An expired owner can renew. A new acquire would have changed the epoch.
     const owner = this.heldBy(logId, ownerId, epoch)
     if (owner === undefined) return false
-    owner.expiresAt = Date.now() + ttlMs
+    owner.expiresAt = this.backend.now() + ttlMs
     return true
   }
 
@@ -979,7 +903,7 @@ class MemoryLogStore implements LogStore {
     const owner = this.heldBy(logId, ownerId, epoch)
     if (owner === undefined) return
     owner.released = true
-    if (wakeInMs !== undefined) owner.wakeAt = Date.now() + wakeInMs
+    if (wakeInMs !== undefined) owner.wakeAt = this.backend.now() + wakeInMs
   }
 
   async setAffinity({
@@ -999,7 +923,7 @@ class MemoryLogStore implements LogStore {
     harnesses,
     affinity,
   }: Parameters<LogStore['listOrphaned']>[0]) {
-    const now = Date.now()
+    const now = this.backend.now()
     // A log with offers can have no ownership record, so look in both maps.
     const logIds = new Set([
       ...this.backend.owners.keys(),
@@ -1073,7 +997,7 @@ class MemoryLogStore implements LogStore {
     }
     inputs.set(inputId, {
       record: copy,
-      offeredAt: Date.now(),
+      offeredAt: this.backend.now(),
       consumed: false,
     })
     // The latest offer names the harness of the log.
@@ -1170,9 +1094,8 @@ class MemoryLogStore implements LogStore {
  * In-process reference {@link LogStore}, for tests and one-process hosts. The
  * log is lost when the process stops. Records are JSON-copied in and out.
  *
- * Not part of `memoryPersistence()`: add it yourself. A durable harness host
- * keeps the transcript and the inputs in the log, so leave out `messages`
- * and `inbox`.
+ * `memoryPersistence()` has one. Make your own to share a
+ * {@link memoryLogBackend} between two stores.
  *
  * @param options.backend - The log state to use. Pass one
  *   {@link memoryLogBackend} to two stores, and they act as two machines on
@@ -1181,16 +1104,18 @@ class MemoryLogStore implements LogStore {
  *
  * @example
  * ```ts
- * const { runs, metadata, workClaims, sessions } = memoryPersistence().stores
- * const persistence = defineAIPersistence({
- *   stores: { log: memoryLogStore(), runs, metadata, workClaims, sessions },
+ * const backend = memoryLogBackend()
+ * const machineA = defineAIPersistence({
+ *   stores: { ...memoryPersistence().stores, log: memoryLogStore({ backend }) },
  * })
  * ```
  */
 export function memoryLogStore({
   backend,
 }: { backend?: MemoryLogBackend } = {}): LogStore {
-  if (backend === undefined) return new MemoryLogStore(new LogBackendState())
+  if (backend === undefined) {
+    return new MemoryLogStore(new LogBackendState(() => Date.now()))
+  }
   const state = backendStates.get(backend)
   if (state === undefined) {
     throw new TypeError(
@@ -1219,59 +1144,25 @@ export function memoryLogStore({
  * })
  * // The listener on hostB ran.
  * ```
+ *
+ * @param options.now - The store clock, in epoch milliseconds. Ownership
+ *   expiry, wake times, and offer times use it. Default: `Date.now()`. Give a
+ *   test clock to move time in a test.
+ *
+ * @example
+ * ```ts
+ * let clock = 0
+ * const backend = memoryLogBackend({ now: () => clock })
+ * // A wake time of 5 s from now is due after this:
+ * clock += 5_000
+ * ```
  */
-export function memoryLogBackend() {
+export function memoryLogBackend({ now }: { now?: () => number } = {}) {
   const handle: MemoryLogBackend = Object.freeze({
     kind: 'memory-log-backend',
   })
-  backendStates.set(handle, new LogBackendState())
+  backendStates.set(handle, new LogBackendState(now ?? (() => Date.now())))
   return handle
-}
-
-type WorkClaim = Parameters<WorkClaimStore['claim']>[0]
-
-class MemoryWorkClaimStore implements WorkClaimStore {
-  private readonly claims = new Map<string, WorkClaim>()
-  claim(entry: WorkClaim): Promise<boolean> {
-    // Synchronous, so two claims in one process never both win.
-    const held = this.claims.get(entry.threadId)
-    const isTaken =
-      held !== undefined &&
-      held.ownerId !== entry.ownerId &&
-      held.until > Date.now()
-    if (isTaken) return Promise.resolve(false)
-    this.claims.set(entry.threadId, { ...entry })
-    return Promise.resolve(true)
-  }
-  release({
-    threadId,
-    ownerId,
-  }: {
-    threadId: string
-    ownerId: string
-  }): Promise<void> {
-    if (this.claims.get(threadId)?.ownerId === ownerId) {
-      this.claims.delete(threadId)
-    }
-    return Promise.resolve()
-  }
-  get(threadId: string) {
-    const held = this.claims.get(threadId)
-    return Promise.resolve(
-      held ? { ownerId: held.ownerId, until: held.until } : null,
-    )
-  }
-  listExpired(options: {
-    now: number
-    limit?: number
-  }): Promise<Array<{ threadId: string; harness: string }>> {
-    const expired = [...this.claims.values()]
-      .filter((claim) => claim.until <= options.now)
-      .sort((a, b) => a.until - b.until)
-      .slice(0, options.limit)
-      .map(({ threadId, harness }) => ({ threadId, harness }))
-    return Promise.resolve(expired)
-  }
 }
 
 // Newest `updatedAt` first, then `threadId` order. The cursor uses it too.
@@ -1407,21 +1298,24 @@ interface MemoryPersistenceStores {
   metadata: MetadataStore
   artifacts: ArtifactStore
   blobs: BlobStore
-  inbox: InboxStore
-  workClaims: WorkClaimStore
   sessions: SessionIndexStore
+  log: LogStore
 }
 
 /**
  * In-process reference backend for the full state + generation store set.
  *
  * Returns messages + activities + runs + generationRuns + interrupts +
- * metadata + artifacts + blobs + inbox + workClaims + sessions.
- * The session log is not included: a host can turn on more behavior when
- * `stores.log` is present, so add `memoryLogStore()` yourself (see its
- * example: a durable harness host takes no `messages` or `inbox`). Locks are not
- * included either. Use `InMemoryLockStore` + `withLocks` from `@tanstack/ai`
- * when a test or single-process app needs coordination.
+ * metadata + artifacts + blobs + sessions + log.
+ * Plain `chat()` does not use `log`. A harness host keeps each session in
+ * `log` and does not use `messages`. Locks are not included. Use
+ * `InMemoryLockStore` + `withLocks` from `@tanstack/ai` when a test or
+ * single-process app needs coordination.
+ *
+ * @example
+ * ```ts
+ * const persistence = memoryPersistence()
+ * ```
  */
 export function memoryPersistence() {
   const stores: MemoryPersistenceStores = {
@@ -1433,55 +1327,8 @@ export function memoryPersistence() {
     metadata: new MemoryMetadataStore(),
     artifacts: new MemoryArtifactStore(),
     blobs: new MemoryBlobStore(),
-    inbox: new MemoryInboxStore(),
-    workClaims: new MemoryWorkClaimStore(),
     sessions: new MemorySessionIndexStore(),
+    log: memoryLogStore(),
   }
   return defineAIPersistence({ stores })
-}
-
-/**
- * In-process {@link LeaseStore}, for tests and single-process hosts. A real
- * backend puts the lease in the system that already has one (a job queue).
- *
- * @example
- * ```ts
- * const { metadata, workClaims, sessions } = memoryPersistence().stores
- * const persistence = defineAIPersistence({
- *   stores: { log: memoryLogStore(), leases: memoryLeaseStore(), metadata, workClaims, sessions },
- * })
- * ```
- */
-export function memoryLeaseStore(): LeaseStore {
-  const leases = new Map<string, TurnLease>()
-  const keyOf = (key: TurnLeaseKey) =>
-    `${key.threadId}\u0000${key.inputId}\u0000${key.operationId}\u0000${key.attempt}`
-  return {
-    acquire: (lease) => {
-      leases.set(keyOf(lease), { ...lease })
-      return Promise.resolve()
-    },
-    renew: (lease) => {
-      const held = leases.get(keyOf(lease))
-      // Only the owner renews. Another host's expired lease is taken over.
-      if (
-        !held ||
-        held.ownerId === lease.ownerId ||
-        held.expiresAt <= Date.now()
-      ) {
-        leases.set(keyOf(lease), { ...lease })
-      }
-      return Promise.resolve()
-    },
-    release: (lease) => {
-      if (leases.get(keyOf(lease))?.ownerId === lease.ownerId) {
-        leases.delete(keyOf(lease))
-      }
-      return Promise.resolve()
-    },
-    isAlive: (key) => {
-      const held = leases.get(keyOf(key))
-      return Promise.resolve(held !== undefined && held.expiresAt > Date.now())
-    },
-  }
 }

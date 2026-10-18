@@ -1,6 +1,10 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { BackgroundJobs, SessionSignal, definePlugin } from '../../plugins'
-import { isRecord } from '../../utils'
+import {
+  BackgroundJobs,
+  SessionSignal,
+  WorkspaceLog,
+  definePlugin,
+} from '../../plugins'
 import {
   PERMISSION_MODES,
   PermissionDecisionCapability,
@@ -8,8 +12,15 @@ import {
   PermissionRules,
 } from '../permissions'
 import { WorkspaceHooks } from '../workspace-hooks'
-import { hostBackend, optionalString, pathsOf, stringArg } from './backend'
+import {
+  hostBackend,
+  optionalString,
+  pathsOf,
+  runOf,
+  stringArg,
+} from './backend'
 import { bashResources, bashTools } from './bash'
+import { WorkspaceStranded } from './events'
 import { editTools, fileVersions } from './edit'
 import { patchPaths, patchTools } from './patch'
 import { readTools } from './read'
@@ -17,9 +28,15 @@ import { searchTools } from './search'
 import { webTools } from './web'
 import type { AnyTool, ToolExecutionContext } from '@tanstack/ai'
 import type { PluginEvent } from '../../extensions'
+import type { BackgroundJobsApi, WorkspaceLogApi } from '../../plugins'
 import type { RunContext } from '../../types'
 import type { PermissionDecision, ToolResources } from '../permissions'
-import type { BoundWorkspace, ToolEnv, WorkspaceBackend } from './backend'
+import type {
+  BoundWorkspace,
+  ToolEnv,
+  WorkspaceBackend,
+  WorkspaceBinding,
+} from './backend'
 import type { WebToolsOptions } from './web'
 
 /** True for `true`, `y`, or `yes` (any case). */
@@ -36,6 +53,23 @@ export interface WorkspaceBinder {
    * tool call calls it again.
    */
   bind: (input: { run: RunContext }) => Promise<BoundWorkspace>
+  /**
+   * The workspace of a thread that the session log binds to another place:
+   * a sandbox, or a folder on another host. The tools call it in place of
+   * `bind`, once for each thread, with the last `binding` of the log. Give
+   * the workspace back, for example from `provider.resume()`. Or give
+   * `'pinned'` when only the host of the binding can continue the thread,
+   * and `'gone'` when the workspace is gone. Then each tool call of the
+   * thread fails, and `'gone'` sends a `tanstack/workspace-tools:stranded`
+   * event.
+   *
+   * Default: `'pinned'` for a folder on another host, and `'gone'` for a
+   * sandbox.
+   */
+  reattach?: (input: {
+    run: RunContext
+    binding: WorkspaceBinding
+  }) => Promise<BoundWorkspace | 'pinned' | 'gone'>
 }
 
 /** Where the workspace is: one folder for every thread, or one per thread. */
@@ -110,11 +144,14 @@ export interface OutsideAccess {
 interface SessionAccess {
   access?: OutsideAccess
   hooks?: () => ReadonlyArray<WorkspaceHooks>
-  note?: (text: string) => Promise<void>
+  /** Add a note to the transcript. With `wake`, the model acts on it. */
+  note?: (text: string, options?: { wake?: boolean }) => Promise<void>
   signal?: AbortSignal
-  jobs?: { started: (jobId: string) => void; ended: (jobId: string) => void }
-  /** Sends the events of the background `bash` jobs. */
+  jobs?: BackgroundJobsApi
+  /** Sends the events of the background `bash` jobs and of a stranded thread. */
   emit?: <T>(event: PluginEvent<T>, value: T) => void
+  /** The bindings, the pin, and the jobs in the session log. */
+  log?: WorkspaceLogApi
 }
 
 /** A Windows network path (`\\server\share`). Not `\\?\` or `\\.\`. */
@@ -166,28 +203,6 @@ function prefersPatch(model: string) {
   return /^(gpt-|o\d)/i.test(id)
 }
 
-/**
- * True for the run context that the harness gives a tool call. It checks the
- * fields that the tools read. The harness sets the others.
- */
-function isRun(value: unknown): value is RunContext {
-  return (
-    isRecord(value) &&
-    typeof value.logId === 'string' &&
-    typeof value.threadId === 'string'
-  )
-}
-
-/**
- * The run of a tool call or a middleware call: `ctx.context.run`, or
- * `undefined` without one.
- */
-export function runOf(context: unknown) {
-  if (!isRecord(context) || !isRecord(context.context)) return undefined
-  const { run } = context.context
-  return isRun(run) ? run : undefined
-}
-
 /** The run of the workspace tool call that runs now. */
 const callRuns = new AsyncLocalStorage<RunContext | undefined>()
 
@@ -212,7 +227,7 @@ function bindTools(
   const { backend } = workspace
   const paths = pathsOf(backend)
   const root = paths.resolve(workspace.root)
-  const { access } = session
+  const { access, note } = session
   // The real outside folders the user allowed in this session, and the
   // questions that wait for an answer, by folder, so parallel calls ask once.
   const allowed: Array<string> = []
@@ -437,7 +452,7 @@ function bindTools(
     ...searchTools(env),
     ...bashTools(env, {
       timeoutMs: options.bashTimeoutMs,
-      note: session.note,
+      note: note && ((text) => note(text, { wake: true })),
       spillDir: options.spillDir,
       signal: session.signal,
       jobs: session.jobs,
@@ -479,6 +494,86 @@ const PATH_TOOLS = new Set([
 /** The tools of one workspace, from {@link bindTools}. */
 type BoundTools = ReturnType<typeof bindTools>
 
+/** Where `binding` is, for a message. */
+const placeOf = (binding: WorkspaceBinding) =>
+  binding.kind === 'host'
+    ? `${binding.root} on the host ${binding.hostId}`
+    : `${binding.root} in the ${binding.provider} sandbox ${binding.sandboxId}`
+
+/**
+ * The default `reattach`: only the host of a folder continues the thread,
+ * and a sandbox needs a `reattach` that resumes it.
+ */
+const reattachNone: NonNullable<WorkspaceBinder['reattach']> = async ({
+  binding,
+}) => (binding.kind === 'host' ? 'pinned' : 'gone')
+
+/**
+ * The workspace of the thread of `run`, with the binding in the session
+ * log. The first time, `bind` gives it, and the log gets its binding. A
+ * folder on a host with a stable id also pins the log to that host. When
+ * the log binds the thread to another place, `reattach` gives the
+ * workspace, or tells that the thread is pinned to another host or
+ * stranded. Then it throws. Last, it stops the jobs of the thread that a
+ * host before this one left running.
+ */
+async function openWorkspace(
+  run: RunContext,
+  binder: WorkspaceBinder,
+  session: SessionAccess,
+) {
+  const { log } = session
+  if (!log) return binder.bind({ run })
+  const { threadId } = run
+  const hostId = log.hostId()
+  const known = log.bound(threadId)
+  // A folder with no host id is on every host.
+  const isHere = (binding: WorkspaceBinding) =>
+    binding.kind === 'host' &&
+    (binding.hostId === undefined || binding.hostId === hostId)
+  let found: BoundWorkspace
+  if (known === undefined || isHere(known)) found = await binder.bind({ run })
+  else {
+    const reattach = binder.reattach ?? reattachNone
+    const reattached = await reattach({ run, binding: known })
+    if (reattached === 'pinned' && known.kind === 'host' && known.hostId) {
+      // Only that host takes the log from now on.
+      await log.pin(known.hostId)
+    }
+    if (reattached === 'pinned' || reattached === 'gone') {
+      const message =
+        reattached === 'pinned'
+          ? `The workspace of this thread is ${placeOf(known)}. Only that host can continue the thread.`
+          : `The workspace of this thread, ${placeOf(known)}, is gone, so the tools cannot work on it.`
+      if (reattached === 'gone') {
+        session.emit?.(WorkspaceStranded, { threadId, binding: known, message })
+      }
+      throw new Error(message)
+    }
+    found = reattached
+  }
+  const sandbox = found.binding?.()
+  const binding: WorkspaceBinding = sandbox
+    ? { ...sandbox, root: found.root }
+    : { kind: 'host', ...(hostId ? { hostId } : {}), root: found.root }
+  if (JSON.stringify(binding) !== JSON.stringify(known)) {
+    await log.bind({ threadId, binding })
+    if (binding.kind === 'host' && hostId) await log.pin(hostId)
+  }
+  // A host before this one started these jobs. Background jobs do not move
+  // with a session, so each one is stopped and reported.
+  for (const { jobId, backendId } of log.lostJobs(threadId)) {
+    const isStopped = await (found.killJob?.(backendId) ?? false)
+    await session.note?.(
+      isStopped
+        ? `Background job ${jobId} was stopped: it ran on a host before the session moved to this one.`
+        : `Background job ${jobId} stopped when the host restarted.`,
+    )
+    session.jobs?.ended({ jobId, threadId })
+  }
+  return found
+}
+
 /**
  * The tools for the workspace of each thread, from `binder`. A tool call
  * reads its run from `ctx.context.run`, and works in the workspace of that
@@ -518,7 +613,7 @@ function threadTools(
     const key = keyOf(run)
     const known = bindings.get(key)
     if (known) return known
-    const binding = binder.bind({ run }).then((workspace) => {
+    const binding = openWorkspace(run, binder, session).then((workspace) => {
       workspaces.add(workspace)
       const tools = bindTools(
         { backend: workspace, root: workspace.root },
@@ -628,19 +723,52 @@ export function createWorkspaceTools(
   }
 }
 
-/** The tools for one workspace folder `root`, for every thread. */
+/**
+ * The tools for one workspace folder `root`, for every thread. The session
+ * log gets the binding of each thread, at its first tool call.
+ */
 function fixedTools(
   root: string,
   options: WorkspaceToolsOptions,
   session: SessionAccess,
 ) {
-  const own = bindTools(
-    { backend: options.backend ?? hostBackend, root },
-    options,
-    session,
-  )
+  const backend = options.backend ?? hostBackend
+  const own = bindTools({ backend, root }, options, session)
+  const workspace: BoundWorkspace = { ...backend, root }
+  // Every host has the same backend: only a folder on another host is
+  // another place.
+  const binder: WorkspaceBinder = {
+    bind: async () => workspace,
+    reattach: async ({ binding }) =>
+      binding.kind === 'host' ? 'pinned' : workspace,
+  }
+  // By the log and the thread of the run. A failed check is not kept.
+  const checks = new Map<string, Promise<unknown>>()
+  const check = (run: RunContext | undefined) => {
+    if (!run || !session.log) return undefined
+    const key = `${run.logId}\0${run.threadId}`
+    const known = checks.get(key)
+    if (known) return known
+    const opened = openWorkspace(run, binder, session)
+    opened.catch(() => {
+      if (checks.get(key) === opened) checks.delete(key)
+    })
+    checks.set(key, opened)
+    return opened
+  }
+  const tools = own.tools.map((tool): AnyTool => {
+    const { execute } = tool
+    if (!execute) return tool
+    return {
+      ...tool,
+      execute: async (args: unknown, context?: ToolExecutionContext) => {
+        await check(runOf(context))
+        return execute(args, context)
+      },
+    }
+  })
   return {
-    tools: own.tools,
+    tools,
     prompt: () => own.prompt(),
     bind: async () => own,
     // A full path, from the working folder.
@@ -723,11 +851,13 @@ export function workspaceTools(options: WorkspaceToolsOptions) {
         hooks: () => hooks,
         // ponytail: D9, PR 7 rebuilds ask and note. The wake turn runs as the
         // sender of the running turn, not as the user of the job's turn.
-        note: (text) => ctx.session.note(text, { wake: true }),
+        note: (text, note) => ctx.session.note(text, note),
         // Kills the background `bash` jobs when the session closes. A reload
         // keeps them. Without a session, the plugin cleanup kills them.
         signal: ctx.getOptional(SessionSignal) ?? ctx.resources.signal,
         jobs: ctx.getOptional(BackgroundJobs),
+        // The binding of each thread, and the pin, go to the session log.
+        log: ctx.getOptional(WorkspaceLog),
         // The events of the background jobs go to the clients.
         emit: ctx.emit,
       })

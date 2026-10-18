@@ -1,10 +1,11 @@
 import { toolDefinition } from '@tanstack/ai'
 import { isRecord } from '../../utils'
 import { boundText } from '../bound-output'
-import { pathsOf, stringArg } from './backend'
+import { pathsOf, runOf, stringArg } from './backend'
 import { JobEnded, JobOutput, JobStarted } from './events'
 import { createOutputTail } from './ring-buffer'
 import type { PluginEvent } from '../../extensions'
+import type { BackgroundJobsApi } from '../../plugins'
 import type { ToolEnv } from './backend'
 
 /** The longest timeout that one call can ask for: 10 minutes. */
@@ -215,8 +216,12 @@ export function bashTools(
     spillDir?: string
     /** Kills the background jobs that still run, for example on plugin cleanup. */
     signal?: AbortSignal
-    /** Told when a background job starts and ends. A durable session logs it. */
-    jobs?: { started: (jobId: string) => void; ended: (jobId: string) => void }
+    /**
+     * Told when a background job starts and ends, with the id of its
+     * process in the backend and the thread of its run. The session logs
+     * it.
+     */
+    jobs?: BackgroundJobsApi
     /**
      * Sends the events of the background jobs: {@link JobStarted},
      * {@link JobOutput}, and {@link JobEnded}. Without it, there are none.
@@ -265,8 +270,15 @@ export function bashTools(
     return lines.join('\n')
   }
 
-  /** Start `command` in the background. `note` tells the model when it ends. */
-  const startJob = (command: string, cwd: string) => {
+  /**
+   * Start `command` in the background, for a run of `threadId`. `note`
+   * tells the model when it ends.
+   */
+  const startJob = async (
+    command: string,
+    cwd: string,
+    threadId: string | undefined,
+  ) => {
     if (!env.backend.spawn) {
       throw new Error('This workspace cannot run commands in the background.')
     }
@@ -287,8 +299,14 @@ export function bashTools(
     })
     jobs.started += 1
     jobs.running.add(job)
-    options.jobs?.started(jobId)
     emit?.(JobStarted, { jobId, command })
+    // The log gets the start before the end: `tell` starts after it.
+    const backendId = await job.jobId
+    options.jobs?.started({
+      jobId,
+      ...(backendId !== undefined ? { backendId } : {}),
+      ...(threadId !== undefined ? { threadId } : {}),
+    })
     const tell = async () => {
       // A job that fails to wait gives its place back too.
       const { exitCode } = await job
@@ -311,7 +329,10 @@ export function bashTools(
         const result = await report(exitCode, job.output())
         await note(`Background job ${jobId} ended.\n${result}`)
       } finally {
-        options.jobs?.ended(jobId)
+        options.jobs?.ended({
+          jobId,
+          ...(threadId !== undefined ? { threadId } : {}),
+        })
       }
     }
     // No one waits for the job, so a failed note must not crash the process.
@@ -346,7 +367,7 @@ export function bashTools(
       // The shell runs in the working folder, so it must be in the workspace.
       const cwd = await env.reach('.', 'bash', 'folder')
       if (isRecord(args) && args.background === true) {
-        return startJob(command, cwd)
+        return startJob(command, cwd, runOf(context)?.threadId)
       }
       const requested = isRecord(args) ? args.timeoutMs : undefined
       // A timeout of 0 would mean no timeout, so it gets the default.

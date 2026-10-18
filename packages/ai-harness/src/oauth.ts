@@ -120,6 +120,11 @@ function credentialFrom(
     ...(typeof response.scope === 'string'
       ? { scopes: response.scope.split(/[ ,]/).filter(Boolean) }
       : {}),
+    // A refresh keeps the client the tokens belong to: the next refresh
+    // needs it too.
+    ...(previous?.type === 'oauth' && previous.client
+      ? { client: previous.client }
+      : {}),
   }
 }
 

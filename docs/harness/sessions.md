@@ -53,14 +53,14 @@ What an entry holds:
 - `tenantId`: the tenant of the thread. Without it, the thread is in the default tenant. See [Access and tenants](./access).
 - `usage` and `parentThreadId`: the token totals of the thread, and the parent thread of a child session, for example a subagent run.
 
-A durable host takes `sessions` next to `log`:
+The host takes `sessions` next to `log`:
 
 ```ts group=harness-sessions
 import { memoryLogStore } from '@tanstack/ai-persistence'
 
-const { runs, sessions } = memoryPersistence().stores
+const { sessions } = memoryPersistence().stores
 const durableHost = createHarnessHost({
-  persistence: { stores: { log: memoryLogStore(), runs, sessions } },
+  persistence: { stores: { log: memoryLogStore(), sessions } },
 })
 ```
 
@@ -131,7 +131,7 @@ await fork.send('Plan a trip to Porto.')
 - The host picks the new thread id. The new entry has the title of the old one plus ` (fork)`. A thread without a title gives a fork without a title.
 - With a `principal` and host `access`, the user who forks owns the fork. `members` picks who else is in it. See [Fork a shared thread](./shared-threads#6-fork-a-shared-thread). Without access and without `members`, the fork keeps the owner and the members of the old thread.
 - If the transcript has no message with that id, `fork` throws.
-- If the index entry of the thread names another harness, `fork` throws. One host can run more than one harness.
+- If the index entry of the thread names another harness, `fork` throws. One host can run more than one harness. To move a chat to another harness, use [`host.transfer`](./handoffs#5-move-a-conversation-to-another-harness).
 
 What a fork copies, and what it does not copy: [Fork and reset a thread](./fork-and-reset#fork-a-thread-at-a-message).
 
@@ -150,7 +150,7 @@ await session.unrevert()
 
 - While a revert stands, `transcript()` hides the messages after that message. The session keeps them.
 - The next turn drops the hidden messages for good. A steer, a follow-up, and `continue` are turns too.
-- The session saves the revert in the log, or in `stores.metadata` on a host without a log. A restart keeps it.
+- The session saves the revert in the log. A restart keeps it.
 - Each change sends a `harness.revert` event. Read the transcript again when it arrives.
 - `revert` and `unrevert` refuse with `busy` when the session is not idle, or when another host runs the thread. `revert` refuses with `unknown_message` for an id that is not in the transcript.
 

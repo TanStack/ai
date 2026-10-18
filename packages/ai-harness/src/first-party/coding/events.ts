@@ -1,4 +1,5 @@
 import { createPluginEvent } from '../../extensions'
+import type { WorkspaceBinding } from '../../log-records'
 
 /** A background `bash` job started. */
 export const JobStarted = createPluginEvent<{
@@ -22,6 +23,19 @@ export const JobOutput = createPluginEvent<{ jobId: string; output: string }>(
 export const JobEnded = createPluginEvent<{ jobId: string; exitCode: number }>(
   'tanstack/workspace-tools:job-ended',
 )
+
+/**
+ * The session log binds the workspace of a thread to a place that is gone,
+ * like a sandbox that `reattach` of `workspace` cannot resume. Each tool
+ * call of the thread fails with `message`. It comes each time the tools try
+ * the workspace again: before a turn, and at a tool call.
+ */
+export const WorkspaceStranded = createPluginEvent<{
+  threadId: string
+  /** The last binding of the thread in the log. */
+  binding: WorkspaceBinding
+  message: string
+}>('tanstack/workspace-tools:stranded')
 
 /**
  * The `snapshots()` plugin could not take or save a snapshot. The turn goes

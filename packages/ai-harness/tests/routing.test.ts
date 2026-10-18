@@ -2,8 +2,16 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, definePlugin } from '../src'
-import { gate, messageTexts, mockAdapter, text, toolCall } from './helpers'
+import { createHarnessHost, defineHarness, definePlugin, logIdOf } from '../src'
+import {
+  canOtherHostTake,
+  gate,
+  messageTexts,
+  mockAdapter,
+  storedRun,
+  text,
+  toolCall,
+} from './helpers'
 import type { AnyTool, SubagentRouterPick } from '@tanstack/ai'
 import type {
   AnyAgent,
@@ -16,6 +24,12 @@ import type {
   Operation,
 } from '../src'
 import type { Reply } from './helpers'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 const THREAD = 't1'
 
@@ -89,11 +103,10 @@ function scriptedRouter(...picks: Array<SubagentRouterPick>) {
   return { router, seen }
 }
 
-/** A session whose harness has `routing`. `durable` gives the host a log. */
+/** A session whose harness has `routing`. */
 async function openRouting(options: {
-  durable?: boolean
   router: HarnessRouting['router']
-  strategy?: HarnessRouting['strategy']
+  after?: HarnessRouting['after']
   agents?: ReadonlyArray<AnyAgent>
   subagents?: HarnessSubagents<ReadonlyArray<AnyAgent>>
   plugins?: () => ReadonlyArray<HarnessPlugin>
@@ -101,11 +114,9 @@ async function openRouting(options: {
   turn?: HarnessTurnOptions
   replies?: Array<Reply>
 }) {
-  const { stores } = memoryPersistence()
-  const { runs, metadata } = stores
-  const persistence = options.durable
-    ? { stores: { log: memoryLogStore(), runs, metadata } }
-    : { stores }
+  const { metadata } = memoryPersistence().stores
+  const log = memoryLogStore()
+  const persistence = { stores: { log, metadata } }
   const main = mockAdapter(options.replies ?? [])
   const host = createHarnessHost({ persistence })
   const session = await host.open(
@@ -119,14 +130,14 @@ async function openRouting(options: {
       ...(options.turn ? { turn: options.turn } : {}),
       routing: {
         router: options.router,
-        ...(options.strategy ? { strategy: options.strategy } : {}),
+        ...(options.after ? { after: options.after } : {}),
       },
     }),
     {
       threadId: THREAD,
     },
   )
-  return { host, session, runs, main }
+  return { host, session, log, main }
 }
 
 async function transcriptTexts(session: HarnessSession) {
@@ -318,12 +329,12 @@ describe('routing.router', () => {
     await host.close()
   })
 
-  it('hands off to the main model after the agents, with its subagent tools', async () => {
+  it("runs the main model after the agents with after: 'main', with its subagent tools", async () => {
     const writer = textAgent('writer', 'Draft')
     const checker = textAgent('checker', 'Checked')
     const { host, session, main } = await openRouting({
       router: () => 'writer',
-      strategy: 'handoff',
+      after: 'main',
       agents: [writer.agent],
       subagents: { agents: [checker.agent] },
       replies: [() => text('Edited draft')],
@@ -341,7 +352,7 @@ describe('routing.router', () => {
     await host.close()
   })
 
-  it('retries a model error in the main part of a handoff with turn.onModelError', async () => {
+  it("retries a model error in the main part of after: 'main' with turn.onModelError", async () => {
     const writer = textAgent('writer', 'Draft')
     const onModelError = vi.fn(
       ({ retries }: { retries: number }): 'retry' | undefined =>
@@ -349,7 +360,7 @@ describe('routing.router', () => {
     )
     const { host, session, main } = await openRouting({
       router: () => 'writer',
-      strategy: 'handoff',
+      after: 'main',
       agents: [writer.agent],
       turn: { onModelError },
       replies: [
@@ -368,7 +379,7 @@ describe('routing.router', () => {
     await host.close()
   })
 
-  it('runs turn.beforeFinish in the main part of a handoff', async () => {
+  it("runs turn.beforeFinish in the main part of after: 'main'", async () => {
     const writer = textAgent('writer', 'Draft')
     const beforeFinish = vi.fn(({ cycle }: { cycle: number }) =>
       cycle === 0
@@ -377,7 +388,7 @@ describe('routing.router', () => {
     )
     const { host, session, main } = await openRouting({
       router: () => 'writer',
-      strategy: 'handoff',
+      after: 'main',
       agents: [writer.agent],
       turn: { beforeFinish },
       replies: [() => text('Edited draft'), () => text('Edited again')],
@@ -393,11 +404,11 @@ describe('routing.router', () => {
   })
 
   it.each([
-    { strategy: 'exclusive', text: 'writer:\nDraft 1' },
-    { strategy: 'handoff', text: 'Main 1' },
+    { after: 'end', text: 'writer:\nDraft 1' },
+    { after: 'main', text: 'Main 1' },
   ] as const)(
-    'runs a steer sent during a $strategy routed turn as its own routed turn',
-    async ({ strategy, text: firstText }) => {
+    "runs a steer sent during a routed turn with after: '$after' as its own routed turn",
+    async ({ after, text: firstText }) => {
       const started = gate()
       const release = gate()
       const answers: Array<Array<string>> = []
@@ -414,7 +425,7 @@ describe('routing.router', () => {
       const { router, seen } = scriptedRouter('writer', 'writer')
       const { host, session, main } = await openRouting({
         router,
-        strategy,
+        after,
         agents: [writer],
         replies: [() => text('Main 1'), () => text('Main 2')],
       })
@@ -425,12 +436,12 @@ describe('routing.router', () => {
       release.open()
 
       expect((await turn).text).toBe(firstText)
-      const settled = await session.settled(receipt.inputId)
+      const settled = await session.settled({ inputId: receipt.inputId })
       expect(settled.outcome).toBe('completed')
       expect(settled.operationId).not.toBe(turn.id)
       expect(seen.map((ctx) => ctx.input)).toEqual(['first', 'second'])
       expect(answers[1]?.at(-1)).toBe('second')
-      // The main model of a handoff does not get the steer in the first turn.
+      // The main model of after: 'main' does not get the steer in the first turn.
       expect(main.calls.slice(0, 1).flatMap(messageTexts)).not.toContain(
         'second',
       )
@@ -498,8 +509,8 @@ describe('routing.router', () => {
     const handle = session.agent('indexer')
     if (!handle) throw new Error('No indexer agent.')
     await handle.start(undefined, { wake: true })
-    await vi.waitFor(() => expect(main.calls).toHaveLength(1))
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(main.calls).toHaveLength(1))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
 
     expect(seen.map((ctx) => ctx.input)).toEqual([
       'Background agent indexer finished: [indexer finished] Indexed',
@@ -536,11 +547,8 @@ describe('routing.router', () => {
   })
 })
 
-describe.each([
-  { host: 'a host without a log', durable: false },
-  { host: 'a durable host', durable: true },
-])('routing on $host', ({ durable }) => {
-  it('holds a run lease while a routed agent runs', async () => {
+describe('routing and ownership', () => {
+  it('keeps the thread from other hosts while a routed agent runs', async () => {
     const started = gate()
     const release = gate()
     const writer = defineAgent({
@@ -552,17 +560,17 @@ describe.each([
         return 'Done.'
       },
     })
-    const { host, session, runs } = await openRouting({
-      durable,
+    const { host, session, log } = await openRouting({
       router: () => 'writer',
       agents: [writer],
     })
 
     const turn = session.send('go')
     await started.opened
-    expect((await runs.get(turn.id))?.leaseExpiresAt).toBeGreaterThan(
-      Date.now(),
+    expect((await storedRun(log, { threadId: THREAD }, turn.id))?.status).toBe(
+      'running',
     )
+    expect(await canOtherHostTake(log, logIdOf({ logId: THREAD }))).toBe(false)
     release.open()
     expect((await turn).text).toBe('writer:\nDone.')
     await host.close()
@@ -576,7 +584,6 @@ describe.each([
       const releaseRouter = gate()
       let signal: AbortSignal | undefined
       const { host, session, main } = await openRouting({
-        durable,
         router: async ({ abortSignal }) => {
           signal = abortSignal
           routerStarted.open()
@@ -598,7 +605,9 @@ describe.each([
       expect(signal?.aborted).toBe(true)
       expect(writer.runs).toEqual([])
       expect(main.calls).toHaveLength(0)
-      expect((await session.settled('in-1')).outcome).toBe('aborted')
+      expect((await session.settled({ inputId: 'in-1' })).outcome).toBe(
+        'aborted',
+      )
       await host.close()
     },
   )
@@ -607,7 +616,6 @@ describe.each([
     const { make, execute } = cleaner()
     const { router, seen } = scriptedRouter('cleaner')
     const { host, session, main } = await openRouting({
-      durable,
       router,
       agents: [make()],
     })
@@ -615,7 +623,9 @@ describe.each([
     const turn = await session.send('clean up', { inputId: 'in-1' })
     expect(turn.interrupts).toHaveLength(1)
     expect(execute).not.toHaveBeenCalled()
-    expect((await session.settled('in-1')).outcome).toBe('interrupted')
+    expect((await session.settled({ inputId: 'in-1' })).outcome).toBe(
+      'interrupted',
+    )
     const resumed = await approve(session, turn)
 
     expect(await resumed).toEqual({
@@ -670,7 +680,6 @@ describe.each([
   }>)('fails the turn when $name', async ({ router, error }) => {
     const writer = textAgent('writer', 'Draft')
     const { host, session } = await openRouting({
-      durable,
       router,
       agents: [writer.agent, pricer],
     })
@@ -680,7 +689,7 @@ describe.each([
     await expect(turn).rejects.toThrow(error)
     expect(turn.status()).toBe('failed')
     expect(await errorMessages(turn)).toEqual([expect.stringContaining(error)])
-    const settled = await session.settled('in-1')
+    const settled = await session.settled({ inputId: 'in-1' })
     expect(settled.outcome).toBe('failed')
     expect(settled.error?.message).toContain(error)
     expect(writer.runs).toEqual([])

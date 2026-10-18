@@ -4,11 +4,11 @@ import { defineCommand } from '../../commands'
 import { RevertFiles, RevertStanding, definePlugin } from '../../plugins'
 import { isRecord } from '../../utils'
 import { WorkspaceHooks } from '../workspace-hooks'
-import { hostBackend, pathsOf } from './backend'
+import { hostBackend, pathsOf, runOf } from './backend'
 import { SnapshotFailed } from './events'
 import { parsePatch } from './patch'
 import { GIT, GIT_ENV, quoteArg, shellPlatform } from './search'
-import { createLock, runOf, writingRun } from './workspace'
+import { createLock, writingRun } from './workspace'
 import type { ModelMessage, ToolCall } from '@tanstack/ai'
 import type { WorkspaceBackend } from './backend'
 
@@ -66,7 +66,7 @@ const isReverted = (
 /** The log record type of a {@link SnapshotStep}. */
 const STEP_RECORD = 'tanstack/snapshots:step'
 const TIMEOUT_MS = 60_000
-/** The most steps that the plugin state keeps for a thread. */
+/** The most steps of a thread that the plugin keeps and that a revert uses. */
 const MAX_STEPS = 500
 /**
  * The waits, in ms, before each new try of a git command that found the
@@ -317,6 +317,25 @@ function shadowRepo(options: SnapshotsOptions, thread: SnapshotThread) {
 /** The shadow repository of one thread, from {@link shadowRepo}. */
 type ShadowRepo = ReturnType<typeof shadowRepo>
 
+/** A turn for `/undo` or `/redo`: its steps, and the tree at its end. */
+interface TurnBounds {
+  end: string
+  steps: Array<SnapshotStep>
+}
+
+/**
+ * The plugin state. It is in the session log, so a host that takes the
+ * session over can still `/undo` and `/redo`.
+ */
+interface SnapshotState {
+  /** The last 500 steps, when the session log takes no records. */
+  steps: Array<SnapshotStep>
+  /** What `/undo` puts back: the last run that ended. */
+  undo?: TurnBounds | null
+  /** What the last `/undo` removed, with its messages. A new turn clears it. */
+  redo?: (TurnBounds & { messages: Array<ModelMessage> }) | null
+}
+
 /** What the snapshots know of one run of a session. */
 interface RunSteps {
   /** The tree at the start of the step that runs. */
@@ -382,8 +401,10 @@ export function purgeSnapshots(
  * `.env*` files.
  *
  * The changed files of each step go to the session log as a
- * `tanstack/snapshots:step` record on a durable host, else to the plugin
- * state, which keeps the last 500 steps. `diff(from, to?)` gives the changed
+ * `tanstack/snapshots:step` record. A revert uses the last 500 steps. What
+ * `/undo` and `/redo` need is in the plugin state, which is in the log too.
+ * So a host that takes the session over can use them, when it has the
+ * shadow repository. `diff(from, to?)` gives the changed
  * files and a unified diff between two tree ids of an open session. Without
  * `to`, it compares with the files now.
  *
@@ -475,8 +496,8 @@ export function snapshots(options: SnapshotsOptions) {
         () => repos.delete(repo),
       )
       const reverted = ctx.getOptional(RevertStanding)
-      const noSteps: Array<SnapshotStep> = []
-      const steps = ctx.state(noSteps)
+      const initial: SnapshotState = { steps: [] }
+      const state = ctx.state(initial)
       ctx.provide(RevertFiles, {
         revert: async (hidden, records) => {
           const calls = new Set(
@@ -484,10 +505,14 @@ export function snapshots(options: SnapshotsOptions) {
               (message.toolCalls ?? []).map((call) => call.id),
             ),
           )
-          // A durable host keeps the steps in the log, else in the state.
-          const all = [...(await steps.get()), ...(await records(STEP_RECORD))]
+          // The log keeps the steps, else the state does.
+          const all = [
+            ...(await state.get()).steps,
+            ...(await records(STEP_RECORD)),
+          ]
           const later = all
             .filter(isStep)
+            .slice(-MAX_STEPS)
             .filter((step) => step.toolCallIds.some((id) => calls.has(id)))
           if (later.length === 0) return undefined
           // Only the files that the steps changed go back, each to its state
@@ -516,18 +541,20 @@ export function snapshots(options: SnapshotsOptions) {
        */
       const active = new Map<string, RunSteps>()
       /**
-       * The run that started last: what `/undo` puts back. `undefined` when
-       * there is nothing to undo.
+       * The run that started last. When it ends, the state gets it as what
+       * `/undo` puts back.
        */
       let last: RunSteps | undefined
-      /** What the last `/undo` removed: the steps, the end, and the messages. */
-      let redo:
-        | {
-            end: string
-            steps: Array<SnapshotStep>
-            messages: Array<ModelMessage>
-          }
-        | undefined
+      /** The run ended. When it is the last one, `/undo` puts it back. */
+      const ended = async (ctx: unknown) => {
+        const id = runIdOf(ctx)
+        const run = active.get(id)
+        active.delete(id)
+        if (!run || run !== last) return
+        const end = run.start
+        const undo = end === undefined ? null : { end, steps: run.steps }
+        await state.update((saved) => ({ ...saved, undo }))
+      }
 
       // A failed snapshot must not fail the turn. It only says so, with a
       // `tanstack/snapshots:failed` event.
@@ -590,8 +617,10 @@ export function snapshots(options: SnapshotsOptions) {
                 steps: [],
               }
               active.set(id, run)
-              last = run.start === undefined ? undefined : run
-              redo = undefined
+              last = run
+              if ((await state.get()).redo) {
+                await state.update((saved) => ({ ...saved, redo: null }))
+              }
             },
             onToolPhaseComplete: async (ctx, { toolCalls }) => {
               const run = active.get(runIdOf(ctx))
@@ -623,21 +652,15 @@ export function snapshots(options: SnapshotsOptions) {
               const log = getLogRecords(ctx, { optional: true })
               if (log) await log.append([{ type: STEP_RECORD, ...step }])
               else {
-                await steps.update((saved) =>
-                  [...saved, step].slice(-MAX_STEPS),
-                )
+                await state.update((saved) => ({
+                  ...saved,
+                  steps: [...saved.steps, step].slice(-MAX_STEPS),
+                }))
               }
             },
-            // `last` keeps the run for `/undo` after it ends.
-            onFinish: (ctx) => {
-              active.delete(runIdOf(ctx))
-            },
-            onAbort: (ctx) => {
-              active.delete(runIdOf(ctx))
-            },
-            onError: (ctx) => {
-              active.delete(runIdOf(ctx))
-            },
+            onFinish: ended,
+            onAbort: ended,
+            onError: ended,
           },
         ],
         commands: {
@@ -655,25 +678,18 @@ export function snapshots(options: SnapshotsOptions) {
               const start = messages.findLastIndex(
                 (message) => message.role === 'user',
               )
-              // When the run is done, its step start is the tree at its end.
-              const turnEnd = last?.start
-              if (!last || turnEnd === undefined || start === -1) {
-                return 'Nothing to undo.'
-              }
+              const { undo } = await state.get()
+              if (!undo || start === -1) return 'Nothing to undo.'
               // Only the files that the steps of the run changed go back,
               // each to its state before the first step that changed it. A
               // later edit in one of them is lost. Other files, also the
               // files of other runs and sessions, stay as they are.
-              const count = await restoreTurn(last.steps, (tree) => ({
+              const count = await restoreTurn(undo.steps, (tree) => ({
                 tree,
-                from: turnEnd,
+                from: undo.end,
               }))
-              redo = {
-                end: turnEnd,
-                steps: last.steps,
-                messages: messages.slice(start),
-              }
-              last = undefined
+              const redo = { ...undo, messages: messages.slice(start) }
+              await state.update((saved) => ({ ...saved, undo: null, redo }))
               await session.replaceTranscript(messages.slice(0, start))
               return `Undid the last turn. Files restored: ${count}.`
             },
@@ -683,12 +699,13 @@ export function snapshots(options: SnapshotsOptions) {
             run: async (_input, { session }) => {
               if (session.snapshot().status !== 'idle') return BUSY
               if (reverted?.()) return REVERTED
+              const { redo } = await state.get()
               if (!redo) return 'Nothing to redo.'
               const { end, steps: undone, messages } = redo
               await restoreTurn(undone, (from) => ({ tree: end, from }))
               // The same turn can be undone again.
-              last = { start: end, written: new Set(), steps: undone }
-              redo = undefined
+              const undo = { end, steps: undone }
+              await state.update((saved) => ({ ...saved, undo, redo: null }))
               const transcript = await session.transcript()
               await session.replaceTranscript([...transcript, ...messages])
               return 'Redid the last turn.'

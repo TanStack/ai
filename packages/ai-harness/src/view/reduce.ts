@@ -1,9 +1,6 @@
-import {
-  EventType,
-  INTERRUPT_PAYLOAD_METADATA_KEY,
-  readUnopenedInterruptBinding,
-} from '@tanstack/ai'
+import { EventType } from '@tanstack/ai'
 import { isMediaRecord, mediaIdOf, mediaOfMessage } from '../media-ref'
+import { isApproval, signInOf, waitKind } from '../waits'
 import { HARNESS_EVENTS } from '../types'
 import type { Interrupt, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { SessionDescription, SessionSnapshot } from '../session/index'
@@ -389,23 +386,67 @@ function applyToShownChild(
   return messages === state.messages ? state : { ...state, messages }
 }
 
+/**
+ * The index of the last assistant message of one turn: `turn-<id>`, or a
+ * message that a handoff in the turn started (`turn-<id>:<n>`).
+ */
+function turnIndex(state: SessionViewState, operationId: string) {
+  const id = `turn-${operationId}`
+  return state.messages.findLastIndex(
+    (message) => message.id === id || message.id.startsWith(`${id}:`),
+  )
+}
+
 /** Change the assistant message of one turn. It is created on its first part. */
 function updateTurn(
   state: SessionViewState,
   operationId: string,
   change: (parts: Array<ViewPart>) => Array<ViewPart>,
 ): SessionViewState {
-  const id = `turn-${operationId}`
-  const index = state.messages.findLastIndex((message) => message.id === id)
+  const index = turnIndex(state, operationId)
   const current = state.messages[index]
   const parts = current?.role === 'assistant' ? current.parts : []
   const next = change(parts)
   if (next === parts) return state
-  const message: ViewMessage = { id, role: 'assistant', parts: next }
+  const message: ViewMessage =
+    current?.role === 'assistant'
+      ? { ...current, parts: next }
+      : { id: `turn-${operationId}`, role: 'assistant', parts: next }
   if (index < 0) return { ...state, messages: [...state.messages, message] }
   const messages = [...state.messages]
   messages[index] = message
   return { ...state, messages }
+}
+
+/**
+ * Name the agent that writes the rest of one turn. A turn message with parts
+ * keeps its agent, and a new message starts. `agent` is `undefined` for the
+ * main model.
+ */
+function withTurnAgent(
+  state: SessionViewState,
+  operationId: string,
+  agent: string | undefined,
+): SessionViewState {
+  const index = turnIndex(state, operationId)
+  const current = state.messages[index]
+  const named = agent !== undefined ? { agent } : {}
+  if (current?.role === 'assistant' && current.parts.length === 0) {
+    if (current.agent === agent) return state
+    const message: ViewMessage = {
+      id: current.id,
+      role: 'assistant',
+      parts: [],
+      ...named,
+    }
+    return { ...state, messages: state.messages.with(index, message) }
+  }
+  const id =
+    index < 0
+      ? `turn-${operationId}`
+      : `turn-${operationId}:${state.messages.length}`
+  const message: ViewMessage = { id, role: 'assistant', parts: [], ...named }
+  return { ...state, messages: [...state.messages, message] }
 }
 
 /**
@@ -519,9 +560,29 @@ export function applyEvent(
   )
     return applyToolResult(state, event)
   if (TURN_EVENTS.has(event.type)) {
-    const next = updateTurn(state, operationId, (parts) =>
+    const updated = updateTurn(state, operationId, (parts) =>
       applyToParts(parts, event),
     )
+    // The start of a root agent that the router picked carries the plan of
+    // the router. That agent writes the message of the turn.
+    const isRouted =
+      event.type === EventType.SUBAGENT_STARTED &&
+      event.parentSubagentRunId === undefined &&
+      recordOf(recordOf(event.metadata).tanstack).subagentPlan !== undefined
+    const turnMessage = updated.messages[turnIndex(updated, operationId)]
+    const next =
+      isRouted &&
+      turnMessage?.role === 'assistant' &&
+      turnMessage.agent === undefined
+        ? {
+            ...updated,
+            messages: updated.messages.map((message) =>
+              message === turnMessage
+                ? { ...turnMessage, agent: event.name }
+                : message,
+            ),
+          }
+        : updated
     const child = subagentOf(event)
     const isElsewhere =
       next === state &&
@@ -574,6 +635,12 @@ export function applyEvent(
     return withNotice(state, 'rejected', notAccepted(value.reason))
   if (event.name === HARNESS_EVENTS.reset)
     return withNotice(state, 'info', resetNotice(value.note))
+  if (event.name === HARNESS_EVENTS.handoff)
+    return withTurnAgent(
+      state,
+      operationId,
+      typeof value.to === 'string' ? value.to : undefined,
+    )
   if (
     event.name === HARNESS_EVENTS.authRequired &&
     typeof value.connector === 'string'
@@ -669,30 +736,6 @@ export function keep<T>(old: Array<T>, next: Array<T>): Array<T> {
     : next
 }
 
-/** The turn waits for the output of a client tool, not for a yes or no. */
-const isClientTool = (interrupt: Interrupt) =>
-  readUnopenedInterruptBinding(interrupt)?.kind === 'client-tool-execution'
-
-/** The turn waits for an answer of the interrupt's own shape. */
-const isGeneric = (interrupt: Interrupt) =>
-  readUnopenedInterruptBinding(interrupt)?.kind === 'generic' &&
-  !signInOf(interrupt)
-
-/**
- * The sign-in a turn waits for, from `credentials.require(id, { wait: true })`.
- * The connector's `connect:<id>` command answers it, not a yes or no.
- */
-function signInOf(interrupt: Interrupt): SignIn | undefined {
-  if (interrupt.reason !== 'auth_required') return undefined
-  const payload = recordOf(interrupt.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY])
-  const request = recordOf(payload.request)
-  if (typeof request.connector !== 'string') return undefined
-  return {
-    connector: request.connector,
-    ...(typeof request.url === 'string' ? { url: request.url } : {}),
-  }
-}
-
 /**
  * Take status, approvals, client tools, questions, background agents, and
  * waiting inputs from a snapshot. Plugin state is taken only for the first
@@ -708,12 +751,7 @@ export function applySnapshot(
   const approvals = keep(
     state.approvals,
     snapshot.pendingInterrupts
-      .filter(
-        (interrupt) =>
-          !isClientTool(interrupt) &&
-          !isGeneric(interrupt) &&
-          !signInOf(interrupt),
-      )
+      .filter(isApproval)
       .map(
         (interrupt) =>
           state.approvals.find((item) => item.id === interrupt.id) ??
@@ -726,7 +764,7 @@ export function applySnapshot(
   const clientTools = keep(
     state.clientTools,
     snapshot.pendingInterrupts
-      .filter(isClientTool)
+      .filter((interrupt) => waitKind(interrupt) === 'client-tool')
       .map(
         (interrupt) =>
           state.clientTools.find((item) => item.id === interrupt.id) ??
@@ -739,7 +777,11 @@ export function applySnapshot(
   const interrupts = keep(
     state.interrupts,
     snapshot.pendingInterrupts
-      .filter(isGeneric)
+      // An interrupt that waits for an answer of its own shape.
+      .filter((interrupt) => {
+        const kind = waitKind(interrupt)
+        return kind === 'question' || kind === 'human'
+      })
       .map(
         (interrupt) =>
           state.interrupts.find((item) => item.id === interrupt.id) ??
@@ -847,7 +889,7 @@ export function applyDescription(
 /**
  * Messages for a saved transcript. Tool results fill in their tool calls.
  * The media a turn made (`metadata.harness.media`) goes at the end of its
- * assistant message.
+ * assistant message. `metadata.harness.agent` is its `agent`.
  */
 export function messagesFromTranscript(
   messages: ReadonlyArray<ModelMessage>,
@@ -903,7 +945,15 @@ export function messagesFromTranscript(
       }
       const media = mediaOfMessage(message)
       for (const record of media) parts.push(mediaView(record))
-      result.push({ id, role: 'assistant', parts })
+      // The root agent that wrote it, in a harness with `routing`.
+      const agent =
+        typeof harness.agent === 'string' ? harness.agent : undefined
+      result.push({
+        id,
+        role: 'assistant',
+        parts,
+        ...(agent !== undefined ? { agent } : {}),
+      })
       return
     }
     // A tool message holds the result of an earlier tool call. The list is

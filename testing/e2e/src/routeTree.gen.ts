@@ -101,6 +101,8 @@ import { Route as ApiHarnessContinueRouteImport } from './routes/api.harness-con
 import { Route as ApiHarnessFirstPartyRouteImport } from './routes/api.harness-first-party'
 import { Route as ApiHarnessForwardingRouteImport } from './routes/api.harness-forwarding'
 import { Route as ApiHarnessRetryAfterRouteImport } from './routes/api.harness-retry-after'
+import { Route as ApiHarnessTransferRouteImport } from './routes/api.harness-transfer'
+import { Route as ApiHarnessWorkerRouteImport } from './routes/api.harness-worker'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-test'
 import { Route as ApiJoinRunClientToolRouteImport } from './routes/api.join-run-client-tool'
@@ -186,6 +188,8 @@ import { Route as ApiWorldRouteImport } from './routes/api.world'
 import { Route as ApiWrapFetchWireRouteImport } from './routes/api.wrap-fetch-wire'
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 import { Route as ApiHarnessProtocolSplatRouteImport } from './routes/api.harness-protocol.$'
+import { Route as ApiHarnessSecretAnswerSplatRouteImport } from './routes/api.harness-secret-answer.$'
+import { Route as ApiHarnessHandoffSplatRouteImport } from './routes/api.harness-handoff.$'
 import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
 import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcription.stream'
 import { Route as ApiTtsStreamRouteImport } from './routes/api.tts.stream'
@@ -673,6 +677,16 @@ const ApiHarnessRetryAfterRoute = ApiHarnessRetryAfterRouteImport.update({
   path: '/api/harness-retry-after',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHarnessTransferRoute = ApiHarnessTransferRouteImport.update({
+  id: '/api/harness-transfer',
+  path: '/api/harness-transfer',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHarnessWorkerRoute = ApiHarnessWorkerRouteImport.update({
+  id: '/api/harness-worker',
+  path: '/api/harness-worker',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiImageRoute = ApiImageRouteImport.update({
   id: '/api/image',
   path: '/api/image',
@@ -1119,6 +1133,17 @@ const ApiHarnessProtocolSplatRoute = ApiHarnessProtocolSplatRouteImport.update({
   path: '/api/harness-protocol/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHarnessSecretAnswerSplatRoute =
+  ApiHarnessSecretAnswerSplatRouteImport.update({
+    id: '/api/harness-secret-answer/$',
+    path: '/api/harness-secret-answer/$',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiHarnessHandoffSplatRoute = ApiHarnessHandoffSplatRouteImport.update({
+  id: '/api/harness-handoff/$',
+  path: '/api/harness-handoff/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiImageStreamRoute = ApiImageStreamRouteImport.update({
   id: '/stream',
   path: '/stream',
@@ -1232,6 +1257,8 @@ export interface FileRoutesByFullPath {
   '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
   '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
   '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
+  '/api/harness-transfer': typeof ApiHarnessTransferRoute
+  '/api/harness-worker': typeof ApiHarnessWorkerRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
@@ -1318,6 +1345,8 @@ export interface FileRoutesByFullPath {
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
+  '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
+  '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
@@ -1415,6 +1444,8 @@ export interface FileRoutesByTo {
   '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
   '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
   '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
+  '/api/harness-transfer': typeof ApiHarnessTransferRoute
+  '/api/harness-worker': typeof ApiHarnessWorkerRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
@@ -1501,6 +1532,8 @@ export interface FileRoutesByTo {
   '/$provider': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
+  '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
+  '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
@@ -1599,6 +1632,8 @@ export interface FileRoutesById {
   '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
   '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
   '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
+  '/api/harness-transfer': typeof ApiHarnessTransferRoute
+  '/api/harness-worker': typeof ApiHarnessWorkerRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
   '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
@@ -1685,6 +1720,8 @@ export interface FileRoutesById {
   '/$provider/': typeof ProviderIndexRoute
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
+  '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
+  '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
   '/api/tts/stream': typeof ApiTtsStreamRoute
@@ -1784,6 +1821,8 @@ export interface FileRouteTypes {
     | '/api/harness-first-party'
     | '/api/harness-forwarding'
     | '/api/harness-retry-after'
+    | '/api/harness-transfer'
+    | '/api/harness-worker'
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
@@ -1870,6 +1909,8 @@ export interface FileRouteTypes {
     | '/$provider/'
     | '/api/audio/stream'
     | '/api/harness-protocol/$'
+    | '/api/harness-secret-answer/$'
+    | '/api/harness-handoff/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
     | '/api/tts/stream'
@@ -1967,6 +2008,8 @@ export interface FileRouteTypes {
     | '/api/harness-first-party'
     | '/api/harness-forwarding'
     | '/api/harness-retry-after'
+    | '/api/harness-transfer'
+    | '/api/harness-worker'
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
@@ -2053,6 +2096,8 @@ export interface FileRouteTypes {
     | '/$provider'
     | '/api/audio/stream'
     | '/api/harness-protocol/$'
+    | '/api/harness-secret-answer/$'
+    | '/api/harness-handoff/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
     | '/api/tts/stream'
@@ -2150,6 +2195,8 @@ export interface FileRouteTypes {
     | '/api/harness-first-party'
     | '/api/harness-forwarding'
     | '/api/harness-retry-after'
+    | '/api/harness-transfer'
+    | '/api/harness-worker'
     | '/api/image'
     | '/api/interrupts-test'
     | '/api/join-run-client-tool'
@@ -2236,6 +2283,8 @@ export interface FileRouteTypes {
     | '/$provider/'
     | '/api/audio/stream'
     | '/api/harness-protocol/$'
+    | '/api/harness-secret-answer/$'
+    | '/api/harness-handoff/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
     | '/api/tts/stream'
@@ -2334,6 +2383,8 @@ export interface RootRouteChildren {
   ApiHarnessFirstPartyRoute: typeof ApiHarnessFirstPartyRoute
   ApiHarnessForwardingRoute: typeof ApiHarnessForwardingRoute
   ApiHarnessRetryAfterRoute: typeof ApiHarnessRetryAfterRoute
+  ApiHarnessTransferRoute: typeof ApiHarnessTransferRoute
+  ApiHarnessWorkerRoute: typeof ApiHarnessWorkerRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiInterruptsTestRoute: typeof ApiInterruptsTestRoute
   ApiJoinRunClientToolRoute: typeof ApiJoinRunClientToolRoute
@@ -2419,6 +2470,8 @@ export interface RootRouteChildren {
   ApiWrapFetchWireRoute: typeof ApiWrapFetchWireRoute
   ProviderIndexRoute: typeof ProviderIndexRoute
   ApiHarnessProtocolSplatRoute: typeof ApiHarnessProtocolSplatRoute
+  ApiHarnessSecretAnswerSplatRoute: typeof ApiHarnessSecretAnswerSplatRoute
+  ApiHarnessHandoffSplatRoute: typeof ApiHarnessHandoffSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -3067,6 +3120,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHarnessRetryAfterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/harness-transfer': {
+      id: '/api/harness-transfer'
+      path: '/api/harness-transfer'
+      fullPath: '/api/harness-transfer'
+      preLoaderRoute: typeof ApiHarnessTransferRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/harness-worker': {
+      id: '/api/harness-worker'
+      path: '/api/harness-worker'
+      fullPath: '/api/harness-worker'
+      preLoaderRoute: typeof ApiHarnessWorkerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/image': {
       id: '/api/image'
       path: '/api/image'
@@ -3662,6 +3729,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHarnessProtocolSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/harness-secret-answer/$': {
+      id: '/api/harness-secret-answer/$'
+      path: '/api/harness-secret-answer/$'
+      fullPath: '/api/harness-secret-answer/$'
+      preLoaderRoute: typeof ApiHarnessSecretAnswerSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/harness-handoff/$': {
+      id: '/api/harness-handoff/$'
+      path: '/api/harness-handoff/$'
+      fullPath: '/api/harness-handoff/$'
+      preLoaderRoute: typeof ApiHarnessHandoffSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/image/stream': {
       id: '/api/image/stream'
       path: '/stream'
@@ -3848,6 +3929,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHarnessFirstPartyRoute: ApiHarnessFirstPartyRoute,
   ApiHarnessForwardingRoute: ApiHarnessForwardingRoute,
   ApiHarnessRetryAfterRoute: ApiHarnessRetryAfterRoute,
+  ApiHarnessTransferRoute: ApiHarnessTransferRoute,
+  ApiHarnessWorkerRoute: ApiHarnessWorkerRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiInterruptsTestRoute: ApiInterruptsTestRoute,
   ApiJoinRunClientToolRoute: ApiJoinRunClientToolRoute,
@@ -3934,6 +4017,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWrapFetchWireRoute: ApiWrapFetchWireRoute,
   ProviderIndexRoute: ProviderIndexRoute,
   ApiHarnessProtocolSplatRoute: ApiHarnessProtocolSplatRoute,
+  ApiHarnessSecretAnswerSplatRoute: ApiHarnessSecretAnswerSplatRoute,
+  ApiHarnessHandoffSplatRoute: ApiHarnessHandoffSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

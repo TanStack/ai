@@ -133,6 +133,11 @@ function parsePage(stdout: string, first: number) {
  *   chunk to `onOutput` as it comes.
  * - `close({ reason: 'moved' })` keeps the jobs and the sandbox, so the
  *   next machine can resume them.
+ * - `binding()` gives the provider and the id of the sandbox. The session
+ *   log keeps them, so `reattach` of `workspace` can resume the sandbox on
+ *   another machine.
+ * - The id of a job is its pid in the sandbox. `killJob` stops it, also
+ *   from a backend over the same sandbox on another machine.
  *
  * @param handle - The sandbox, from `provider.create()` or `provider.resume()`.
  * @param options - `owned: true` when the backend owns the sandbox. Then
@@ -353,6 +358,10 @@ export function sandboxWorkspaceBackend(
         started.then((each) => each.kill()).catch(() => undefined)
       },
       output: output.text,
+      jobId: started.then(
+        (each) => String(each.pid),
+        () => undefined,
+      ),
     }
     running.add(job)
     void exited.then(() => running.delete(job))
@@ -368,8 +377,25 @@ export function sandboxWorkspaceBackend(
     await destroyed
   }
 
+  // ponytail: a pid only. A sandbox that restarted can give the pid to
+  // another process, and this stops that process.
+  const killJob: NonNullable<WorkspaceBackend['killJob']> = async (jobId) => {
+    if (!/^\d+$/.test(jobId)) return false
+    // The process group first, so the commands of the job stop too.
+    const { exitCode } = await handle.process.exec(
+      `kill -9 -- -${jobId} 2>/dev/null || kill -9 ${jobId}`,
+    )
+    return exitCode === 0
+  }
+
   return {
     shell: 'sh',
+    binding: () => ({
+      kind: 'sandbox',
+      provider: handle.provider,
+      sandboxId: handle.id,
+    }),
+    killJob,
     readFile: (path) => fs.readBytes(path),
     writeFile: (path, data) => fs.write(path, data),
     // The sandbox `remove` also removes folders, and it does not fail for a

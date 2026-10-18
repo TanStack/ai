@@ -1,22 +1,24 @@
 import {
   EventType,
-  compactForModel,
   createSubagentId,
   runAgentStream,
   validateWithStandardSchema,
 } from '@tanstack/ai'
 import { withPersistence } from '@tanstack/ai-persistence'
+import { redactMiddleware } from '../auth'
 import { mediaCapture, mediaMiddleware } from '../media'
 import { OperationImpl } from '../operation'
 import {
   checkpointMiddleware,
-  holdRunLease,
   repairTranscript,
+  scrubToolResults,
+  toolResultRecorder,
   truncationMiddleware,
 } from '../resume'
 import { HARNESS_EVENTS, InputRejectedError } from '../types'
 import {
   agentKey,
+  agentResultRecord,
   chainFields,
   asUserMessage,
   chainInputOf,
@@ -40,12 +42,21 @@ import type {
   RunRecord,
   StreamChunk,
   SubagentBinding,
+  SubagentRunContext,
 } from '@tanstack/ai'
 import type { InputState, LogWriter } from '../log'
+import type { AgentResultRecord } from '../log-records'
 import { NO_SESSION_CONTEXT } from '../agents'
-import type { AgentStarter, AnyAgent, HarnessAgentContext } from '../agents'
+import type {
+  AgentActions,
+  AgentGroup,
+  AgentGroupOptions,
+  AnyAgent,
+  HarnessAgentContext,
+} from '../agents'
 import type { AnyHarness } from '../define'
-import type { AgentGroup, MountedPlugins } from '../plugins'
+import type { HandoffOptions, TurnHandoffs } from '../handoff'
+import type { MountedPlugins } from '../plugins'
 import type {
   AgentRun,
   AgentSendOptions,
@@ -60,6 +71,8 @@ import type {
   UserInput,
 } from '../types'
 import type {
+  AgentRunStartOptions,
+  AgentStartFn,
   AgentStartOptions,
   AgentChild,
   DynamicAgentHandle,
@@ -70,6 +83,7 @@ import type {
   AgentChain,
   AgentRunStart,
   AgentInputState,
+  GroupRuns,
 } from './types'
 
 /**
@@ -111,6 +125,12 @@ export abstract class SessionAgents<
     }).then(
       (receipt) => {
         follower.resolveReceipt(receipt)
+        // An offered message: the owner gives it to the run, and the log
+        // says how that run ends.
+        if (receipt.status === 'queued' && receipt.operationId === undefined) {
+          this.followLoggedRun(follower, inputId)
+          return
+        }
         const run =
           receipt.status === 'rejected'
             ? undefined
@@ -173,7 +193,12 @@ export abstract class SessionAgents<
     const { operationId, message } = options
     const inputId = options.inputId ?? createInputId()
     const chain = this.chainOf.get(operationId) ?? this.loggedChain(operationId)
-    if (!chain) return { inputId, status: 'rejected', reason: 'not_running' }
+    // A run that another host runs: the message goes to it through the lane.
+    const runInputId =
+      chain?.runInputId ?? this.loggedChainInput(operationId)?.inputId
+    if (runInputId === undefined) {
+      return { inputId, status: 'rejected', reason: 'not_running' }
+    }
     const principal = options.principal ?? this.principal
     const mode = options.mode ?? 'steer'
     return this.admitting(async () => {
@@ -184,22 +209,22 @@ export abstract class SessionAgents<
           operationId,
           message,
           mode,
-          run: chain.runInputId,
+          run: runInputId,
         },
         principal,
       )
       if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+      // This host owns the log, and no run of this host has the chain.
+      if (!chain) return this.reject(inputId, 'not_running')
       const sent = { inputId, message, ...(principal ? { principal } : {}) }
       return this.keep({ inputId, ...this.deliver(chain, sent, mode) })
     })
   }
 
   /**
-   * The agent run `operationId`: a run of this session, or on a durable
-   * host a run in the log that ended, so a follow-up continues it after a
-   * restart. `undefined` for an unknown run, for one that another host
-   * runs, and on a host without a log for a run older than the window of
-   * settled agent runs (`lifecycle.retention.settledAgentRuns`).
+   * The agent run `operationId`: a run of this session, or a run in the log
+   * that ended, so a follow-up continues it after a restart. `undefined` for
+   * an unknown run, and for one that another host runs.
    */
   agentRun(operationId: string): AgentRun<unknown> | undefined {
     const chain = this.chainOf.get(operationId) ?? this.loggedChain(operationId)
@@ -210,9 +235,8 @@ export abstract class SessionAgents<
 
   /**
    * The agent runs of this session, oldest first: the running ones, and the
-   * settled ones in the window of `lifecycle.retention.settledAgentRuns`. On
-   * a durable host it also lists the runs in the log, so it works after a
-   * restart.
+   * settled ones in the window of `lifecycle.retention.settledAgentRuns`. It
+   * also lists the runs in the log, so it works after a restart.
    */
   agentRuns(): Array<AgentRunInfo> {
     const live = [...this.agentChains.values()].flatMap((chain) =>
@@ -233,10 +257,24 @@ export abstract class SessionAgents<
     ]
   }
 
+  /**
+   * The raw result of the agent run `runId`, as the log keeps it: the value
+   * the run resolved to, as JSON. `undefined` while the run has not ended,
+   * for a run that failed or was cancelled, and for an unknown run. It reads
+   * the log, so it works after a restart, on any host.
+   *
+   * @example
+   * ```ts
+   * const result = session.agentResult({ runId: run.id })
+   * ```
+   */
+  agentResult({ runId }: { runId: string }) {
+    return this.writer.state.thread.agentResults.get(runId)?.result
+  }
+
   /** The agent runs in the log: each input that a run applied. */
   protected loggedRuns(): Array<AgentRunInfo> {
-    const inputs = this.writer?.state.inputs
-    if (!inputs) return []
+    const { inputs } = this.writer.state
     return [...inputs.values()].flatMap((input): Array<AgentRunInfo> => {
       const first = chainInputOf(inputs, input)
       if (!first || input.operationId === undefined) return []
@@ -255,17 +293,63 @@ export abstract class SessionAgents<
   }
 
   /**
+   * End `operation` as `settlement` says. A completed run resolves to the
+   * raw result in the log, of the run that the settlement names.
+   */
+  protected endAgentRun(
+    operation: OperationImpl<unknown>,
+    settlement: InputSettlement | undefined,
+  ) {
+    if (settlement?.outcome === 'completed') {
+      const { agentResults } = this.writer.state.thread
+      const runId = settlement.operationId ?? operation.id
+      operation.finish('completed', agentResults.get(runId)?.result)
+      return
+    }
+    operation.fail(
+      settlement?.outcome === 'aborted' ? 'cancelled' : 'failed',
+      new Error(settlement?.error?.message ?? 'The run did not complete.'),
+    )
+  }
+
+  /**
+   * End `operation` as the log says that the run of `inputId` ended: another
+   * host runs it (this host offered it), or it ran before. It does not keep
+   * the thread busy here.
+   */
+  protected followLoggedRun(
+    operation: OperationImpl<unknown>,
+    inputId: string,
+  ) {
+    this.remoteRuns.add(operation.id)
+    void this.settled({ inputId })
+      .then(
+        (settlement) => this.endAgentRun(operation, settlement),
+        (error: unknown) => operation.fail('failed', error),
+      )
+      .finally(() => {
+        this.remoteRuns.delete(operation.id)
+        this.checkIdle()
+      })
+  }
+
+  /** The `agent` input in the log of the chain that runs `operationId`. */
+  protected loggedChainInput(operationId: string) {
+    const { inputs } = this.writer.state
+    const own = [...inputs.values()].find(
+      (input) => input.operationId === operationId,
+    )
+    return own && chainInputOf(inputs, own)
+  }
+
+  /**
    * The chain of a run in the log, with every run it had, so a follow-up
    * continues its thread after a restart. `undefined` for an unknown run,
    * and while a run of the chain has not ended: another host runs it.
    */
   protected loggedChain(operationId: string): AgentChain | undefined {
-    const inputs = this.writer?.state.inputs
-    if (!inputs) return undefined
-    const own = [...inputs.values()].find(
-      (input) => input.operationId === operationId,
-    )
-    const first = own && chainInputOf(inputs, own)
+    const { inputs } = this.writer.state
+    const first = this.loggedChainInput(operationId)
     if (!first) return undefined
     const known = this.agentChains.get(first.inputId)
     if (known) return known
@@ -277,23 +361,12 @@ export abstract class SessionAgents<
     if (logged.some((input) => input.settlement === undefined)) {
       return undefined
     }
-    // ponytail: a run rebuilt from the log resolves to `undefined`. The log
-    // keeps how it ended, not its value. Read `stores.runs` if callers need
-    // the value.
     const entries = logged.map((input) => {
       const operation = this.agentOperation(
         first.input.agent,
         input.operationId,
       )
-      const settlement = input.settlement
-      if (settlement?.outcome === 'completed') {
-        operation.finish('completed', undefined)
-      } else {
-        operation.fail(
-          settlement?.outcome === 'aborted' ? 'cancelled' : 'failed',
-          new Error(settlement?.error?.message ?? 'The run did not complete.'),
-        )
-      }
+      this.endAgentRun(operation, input.settlement)
       return {
         operation,
         ...(input.principal ? { principal: input.principal } : {}),
@@ -319,7 +392,8 @@ export abstract class SessionAgents<
    * their tools read `run` as `ctx.context.run`. Their model calls count in
    * the usage of `principal`, the user of `run`. With `agents` (the
    * subagents of a turn), the agent tools can start them in the background,
-   * for `principal`.
+   * for `principal`. With `handoffs` (the root agents of a routed turn), each
+   * root agent gets the `handoff` tool and `ctx.harness.handoff`.
    */
   protected binding(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
@@ -328,6 +402,7 @@ export abstract class SessionAgents<
     run: RunContext,
     runPlugins?: MountedPlugins,
     agents?: ReadonlyArray<AnyAgent>,
+    handoffs?: TurnHandoffs,
   ) {
     const options = this.harness.media
     // The child runs as a background agent of this session, and its end
@@ -390,31 +465,41 @@ export abstract class SessionAgents<
           accepted: options?.accepts,
           transcribe: options?.transcribe,
         }),
+        // After the media, so the model gets no secret of the session.
+        redactMiddleware(this.redactor),
+        ...(handoffs ? [handoffs.middleware({ roots: true })] : []),
       ],
       keys: run.keys,
       // No `promptCache`: a tool-mode child then uses the retention of the
       // turn's chat() call, so a turn override reaches it.
       ...(start && { start }),
-      // No `extend`: a tool-mode child gets the registered default
-      // `NO_SESSION_CONTEXT` as `ctx.harness`.
+      // Only a root agent can hand off. Its nested children, and a tool-mode
+      // child (no `extend`), get the registered default `NO_SESSION_CONTEXT`.
+      ...(handoffs && {
+        extend: (ctx: SubagentRunContext) => ({
+          harness:
+            ctx.parentSubagentRunId === undefined
+              ? {
+                  ...NO_SESSION_CONTEXT,
+                  handoff: (handoff: HandoffOptions) =>
+                    handoffs.handoff(handoff, ctx.forward.subagentName, 'code'),
+                }
+              : NO_SESSION_CONTEXT,
+        }),
+      }),
     } satisfies SubagentBinding
   }
 
   protected override runAgent(
     target: string | AnyAgent,
     input: unknown,
-    options: AgentStartOptions,
+    options: AgentRunStartOptions,
     parent?: AgentChain,
     child?: AgentChild,
   ): AgentRunImpl {
     const name = typeof target === 'string' ? target : target.name
-    if (options.resume && !this.writer) {
-      throw new Error(
-        `Agent ${name}: resume: true needs a durable host (a host with stores.log).`,
-      )
-    }
-    const operation = this.agentOperation(name)
-    this.markBusy()
+    const { offered } = options
+    const operation = this.agentOperation(name, offered?.runId)
     // The agent runs for the user who starts it, also after the turn that
     // starts it ends. A child of agent code runs for its parent run's user.
     // Without either, it runs for the principal that opened the session.
@@ -429,7 +514,7 @@ export abstract class SessionAgents<
       : {}
     const chain = this.createChain(
       {
-        runInputId: createInputId(),
+        runInputId: offered?.inputId ?? createInputId(),
         target,
         input,
         options,
@@ -447,23 +532,20 @@ export abstract class SessionAgents<
   }
 
   /**
-   * `ctx.harness.agents` in the runs of `chain`: start a child in the
-   * background.
-   * The child counts against the chain's tree budget, and over it `start`
-   * throws. The child records the run that started it, and runs for that
-   * run's sender.
+   * `ctx.harness.agents` in the runs of `chain`: start, run, and group
+   * children. Each child counts against the chain's tree budget, and over
+   * it the start throws. The child records the run that started it, and
+   * runs for that run's sender.
    */
-  protected agentStarter(chain: AgentChain): AgentStarter {
-    return {
-      start: (target, input, options) => {
-        const active = [...chain.children].filter(
-          (child) => !child.current.operation.isSettled(),
-        ).length
-        const refusal = chain.budget.reserve(active)
-        if (refusal !== undefined) throw new Error(refusal)
-        return this.runAgent(target, input, options ?? {}, chain)
-      },
-    }
+  protected agentStarter(chain: AgentChain): AgentActions {
+    return this.agentActions((target, input, options) => {
+      const active = [...chain.children].filter(
+        (child) => !child.current.operation.isSettled(),
+      ).length
+      const refusal = chain.budget.reserve(active)
+      if (refusal !== undefined) throw new Error(refusal)
+      return this.runAgent(target, input, options, chain)
+    })
   }
 
   /** A new agent run operation. `id`: a stored one, after a restart. */
@@ -529,7 +611,6 @@ export abstract class SessionAgents<
    */
   protected resumeAgent(input: InputState, first: AgentInputState) {
     const operation = this.agentOperation(first.input.agent)
-    this.markBusy()
     const sender = input.principal ? { principal: input.principal } : {}
     const chain = this.createChain(chainFields(first), { operation, ...sender })
     this.feed.publish(
@@ -555,39 +636,41 @@ export abstract class SessionAgents<
   }
 
   /**
-   * What a resumable agent run adds on a durable host: checkpoints of its
-   * `ctx.chat` tool phases, and `ctx.harness.step` values in the
-   * session log, under the key of the input the run applies.
+   * What a resumable agent run adds: checkpoints of its `ctx.chat` tool
+   * phases, and `ctx.harness.step` values in the session log, under the key
+   * of the input the run applies.
    */
-  protected resumable(inputId: string) {
-    const { chatPersistence, writer } = this
-    if (!chatPersistence || !writer) return undefined
-    const { runs } = this.persistence.stores
+  protected resumable(inputId: string, run: RunContext) {
+    const { writer } = this
     const key = agentKey(inputId)
     const checkpoint = checkpointMiddleware({
-      ...(runs ? { runs } : {}),
-      messages: chatPersistence.stores.messages,
-      hostId: this.hostId,
-      ...(this.lease ? { lease: this.lease } : {}),
-      // As in a turn, each finished tool result goes to the session log at
-      // once, under a key of this run. A run again puts it back.
-      onToolResult: ({ toolCallId, message }) =>
-        writer.append([
-          {
-            type: 'harness.tool.result',
-            toolCallId: `${key}:${toolCallId}`,
-            message,
-          },
-        ]),
+      runs: this.runStore,
+      messages: this.engine,
     })
-    const durableTools = this.durableTools()
     return {
       middleware: [
         checkpoint,
         truncationMiddleware(this.harness.durability?.truncatedToolResult),
-        ...(durableTools ? [durableTools] : []),
+        this.durableTools(this.durableBinder(run)),
       ],
-      step: this.durableBinding(writer, key).step,
+      // As in a turn, each final tool result goes to the session log at
+      // once, under a key of this run. A run again puts it back. These go
+      // at the very end of the list, after every plugin.
+      last: [
+        scrubToolResults(this.redactor),
+        toolResultRecorder(({ toolCallId, message }) =>
+          writer.append([
+            {
+              type: 'harness.tool.result',
+              toolCallId: `${key}:${toolCallId}`,
+              message,
+            },
+          ]),
+        ),
+      ],
+      // The steps of the run are under the key of its input: the same on
+      // each run again.
+      step: this.durableBinding(writer, key, run).step,
     }
   }
 
@@ -598,12 +681,11 @@ export abstract class SessionAgents<
    * error for a cut call that must not run twice.
    */
   protected async continueAgentThread(agentThread: string, inputId: string) {
-    const store = this.chatPersistence?.stores.messages
-    if (!store) return []
-    const runs = this.persistence.stores.runs
-    const records = (await runs?.listByThread?.(agentThread)) ?? []
+    const store = this.engine
+    const runs = this.runStore
+    const records = (await runs.listByThread?.(agentThread)) ?? []
     for (const run of records.filter((item) => item.status === 'running')) {
-      await runs?.update(run.runId, {
+      await runs.update(run.runId, {
         status: 'failed',
         finishedAt: Date.now(),
         error: { message: AGENT_STOPPED },
@@ -612,7 +694,7 @@ export abstract class SessionAgents<
     const newest = [...records].sort((a, b) => b.startedAt - a.startedAt)[0]
     const prefix = `${agentKey(inputId)}:`
     const finished = new Map(
-      [...(this.writer?.state.toolResults ?? [])].flatMap(([id, message]) =>
+      [...this.writer.state.toolResults].flatMap(([id, message]) =>
         id.startsWith(prefix)
           ? [[id.slice(prefix.length), message] as const]
           : [],
@@ -630,15 +712,16 @@ export abstract class SessionAgents<
   }
 
   /**
-   * Run a group of agents, for `principal` (else the principal that opened
-   * the session). Every child settles before the group returns.
+   * Run a group of agents that `start` starts. Every child settles before
+   * the group returns.
    */
-  protected override async agentGroup<T>(
-    options: { onFailure?: 'cancel-siblings' | 'collect' },
-    body: (group: AgentGroup) => Promise<T>,
-    principal?: Principal,
-  ): Promise<T> {
-    const runOptions = { wake: false, ...(principal ? { principal } : {}) }
+  protected override async agentGroup(
+    options: AgentGroupOptions,
+    body: (group: AgentGroup) => GroupRuns | Promise<GroupRuns>,
+    start: AgentStartFn,
+  ): Promise<Array<unknown>> {
+    // `concurrency` and `key` have no runtime yet: every child starts at
+    // once, and a group that runs again starts new children.
     const started: Array<OperationImpl<unknown>> = []
     const cancelOthers = (failed: OperationImpl<unknown>) => {
       if (options.onFailure === 'collect') return
@@ -653,25 +736,28 @@ export abstract class SessionAgents<
       }
     }
     const group: AgentGroup = {
-      run: (target: string | AnyAgent, input?: unknown) => {
-        const operation = this.runAgent(target, input, runOptions)
+      start: ((
+        target: string | AnyAgent,
+        input?: unknown,
+        childOptions?: AgentStartOptions,
+      ) => {
+        const operation = start(target, input, childOptions ?? {})
         started.push(operation)
-        return Promise.resolve(operation).catch((error: unknown) => {
-          cancelOthers(operation)
-          throw error
-        })
-      },
-      runSettled: (target: string | AnyAgent, input?: unknown) => {
-        const operation = this.runAgent(target, input, runOptions)
-        started.push(operation)
-        return Promise.resolve(operation).then(
-          (value) => ({ ok: true as const, value }),
-          (error: unknown) => ({ ok: false as const, error }),
-        )
-      },
-    } as AgentGroup
+        Promise.resolve(operation).catch(() => cancelOthers(operation))
+        return operation
+      }) as AgentGroup['start'],
+    }
     try {
-      return await body(group)
+      const runs = await body(group)
+      if (options.onFailure !== 'collect') return await Promise.all(runs)
+      return await Promise.all(
+        runs.map((run) =>
+          Promise.resolve(run).then(
+            (value) => ({ ok: true as const, value }),
+            (error: unknown) => ({ ok: false as const, error }),
+          ),
+        ),
+      )
     } finally {
       await Promise.allSettled(
         started.map((operation) => Promise.resolve(operation)),
@@ -769,7 +855,6 @@ export abstract class SessionAgents<
       ...(next.principal ? { principal: next.principal } : {}),
     }
     chain.runs.push(chain.current)
-    this.markBusy()
     void this.executeAgent(next.operation, chain, {
       inputId: next.inputId,
       message: next,
@@ -803,10 +888,30 @@ export abstract class SessionAgents<
           ...(chain.parentRunId ? { parentRunId: chain.parentRunId } : {}),
         },
         principal,
+        // An offered run runs as this operation on the owner.
+        { runId: operation.id },
       )
-      if (admission === 'closed') {
-        operation.fail('cancelled', new Error('Session closed.'))
-        return
+      switch (admission) {
+        case 'new':
+          break
+        case 'closed':
+          operation.fail('cancelled', new Error('Session closed.'))
+          return
+        case 'conflict':
+          operation.fail(
+            'failed',
+            new InputRejectedError({
+              inputId,
+              status: 'rejected',
+              reason: 'conflict',
+            }),
+          )
+          return
+        case 'offered':
+        case 'duplicate':
+          // Another host runs it, or it ran before: the log says how it ends.
+          this.followLoggedRun(operation, inputId)
+          return
       }
     }
     const agent: AnyAgent | undefined =
@@ -835,8 +940,8 @@ export abstract class SessionAgents<
 
     operation.setStatus('running')
     await this.applied(inputId, operation.id)
-    const runs = this.persistence.stores.runs
-    await runs?.createOrResume({
+    const runs = this.runStore
+    await runs.createOrResume({
       runId: operation.id,
       threadId: this.threadId,
       startedAt: Date.now(),
@@ -858,17 +963,7 @@ export abstract class SessionAgents<
     let result: unknown
     let failure: string | undefined
     const { subagentRunId, prompt } = child
-    let stopRunLease = () => {}
-    let releaseLease: (() => Promise<void>) | undefined
     try {
-      // A host that stops lets these leases expire. Then recovery fails the run.
-      stopRunLease = await holdRunLease(
-        runs,
-        operation.id,
-        this.hostId,
-        this.lease,
-      )
-      releaseLease = await this.holdLease(inputId, operation)
       // A first run starts from the session thread. A run again after a
       // host stop continues the chain's thread. A follow-up run continues
       // the chain's thread, with its message added. The message id is its
@@ -877,10 +972,8 @@ export abstract class SessionAgents<
       const saved = start.resumed
         ? await this.continueAgentThread(chain.thread, inputId)
         : message
-          ? ((await this.chatPersistence?.stores.messages.loadThread(
-              chain.thread,
-            )) ?? [])
-          : ((await this.messages.loadThread(this.threadId)) ?? [])
+          ? await this.engine.loadThread(chain.thread)
+          : await this.messages.loadThread(this.threadId)
       const messages =
         message && !saved.some((item) => item.id === message.inputId)
           ? [...saved, asUserMessage(message)]
@@ -894,10 +987,12 @@ export abstract class SessionAgents<
         signal: operation.abortController.signal,
       })
       const binding = this.binding(operation, [], principal, run)
-      const durable = options.resume ? this.resumable(inputId) : undefined
+      const durable = options.resume ? this.resumable(inputId, run) : undefined
       const harnessContext: HarnessAgentContext = {
         step: durable?.step ?? NO_SESSION_CONTEXT.step,
         agents: this.agentStarter(chain),
+        // A background run does not answer a turn, so it cannot hand off.
+        handoff: NO_SESSION_CONTEXT.handoff,
       }
       const stream = runAgentStream(
         agent,
@@ -937,6 +1032,7 @@ export abstract class SessionAgents<
             ...(durable?.middleware ?? []),
             this.agentSteering(chain, inputId, operation),
             ...binding.chatMiddleware,
+            ...(durable?.last ?? []),
           ],
           budget: chain.budget,
           // No parent chat() call to take it from, so the session's retention.
@@ -980,23 +1076,26 @@ export abstract class SessionAgents<
     const value = result !== undefined ? result : text
     // The run record and the log keep how the agent ended, so recovery
     // leaves it alone. After a log failure, another host owns the thread and
-    // decides how the run ended, so this host writes neither.
+    // decides how the run ended, so this host writes neither. The result is
+    // in the `harness.agent.result` record only, so `agentResult` has it
+    // after a restart.
     const end = async (
-      run: Pick<RunRecord, 'status'> &
-        Partial<Pick<RunRecord, 'error' | 'result'>>,
+      run: Pick<RunRecord, 'status'> & Partial<Pick<RunRecord, 'error'>>,
       settlement: SettlementOutcome,
+      ended: Omit<AgentResultRecord, 'inputId'>,
     ) => {
       if (this.logFailure) return
-      await runs?.update(operation.id, { ...run, finishedAt: Date.now() })
+      await runs.update(operation.id, { ...run, finishedAt: Date.now() })
       // A refused append stops the session. The operation still ends. The
       // steers that joined the run settle with it, in one append.
       const joined = this.joinedInputs(operation.id, inputId)
-      await this.settle(
-        ...[inputId, ...joined].map((id) => ({
+      await this.settleWith(
+        [inputId, ...joined].map((id) => ({
           inputId: id,
           operationId: operation.id,
           ...settlement,
         })),
+        [agentResultRecord(operation.id, { inputId, ...ended })],
       ).catch((error: unknown) => this.warnSession('harness:agents', error))
     }
     // The run settled already: a note that fails must not leave it open.
@@ -1007,8 +1106,7 @@ export abstract class SessionAgents<
     // A recoverable close: the run stops as on a crash, and the next host
     // runs it again.
     if (operation.abortController.signal.reason === SHUTDOWN_REASON) {
-      stopRunLease()
-      await this.giveBack(operation, releaseLease)
+      this.giveBack(operation)
       return
     }
     try {
@@ -1020,7 +1118,11 @@ export abstract class SessionAgents<
           outcome: { type: 'cancelled' },
           timestamp: Date.now(),
         } as StreamChunk)
-        await end({ status: 'aborted' }, { outcome: 'aborted' })
+        await end(
+          { status: 'aborted' },
+          { outcome: 'aborted' },
+          { status: 'cancelled' },
+        )
         operation.fail('cancelled', new Error('Cancelled.'))
       } else if (failure !== undefined) {
         operation.publish({
@@ -1029,7 +1131,11 @@ export abstract class SessionAgents<
           timestamp: Date.now(),
         })
         const error = { message: failure }
-        await end({ status: 'failed', error }, { outcome: 'failed', error })
+        await end(
+          { status: 'failed', error },
+          { outcome: 'failed', error },
+          { status: 'failed', error },
+        )
         await note('failed', failure)
         operation.fail('failed', new Error(failure))
       } else {
@@ -1041,20 +1147,18 @@ export abstract class SessionAgents<
           timestamp: Date.now(),
         } as StreamChunk)
         await end(
-          { status: 'completed', result: compactForModel(value) },
+          { status: 'completed' },
           { outcome: 'completed' },
+          { status: 'completed', result: value },
         )
         await note('finished', value)
         operation.finish('completed', value)
       }
     } finally {
-      // Also when a store write above threw: the leases must not stay held.
-      stopRunLease()
-      // The finished event goes out as the run settles, before the lease
-      // write, so the listeners of the run still get it. A run that a store
-      // write failed gets it from failOperation.
+      // The finished event goes out as the run settles, so the listeners of
+      // the run still get it. A run that a store write failed gets it from
+      // failOperation.
       if (operation.isSettled()) this.publishFinished(operation)
-      await releaseLease?.()
     }
   }
 
@@ -1138,8 +1242,6 @@ export abstract class SessionAgents<
    * Fail an agent run whose host stopped. Its events end the operation for
    * views, and the main model gets a note.
    */
-  // ponytail: `wake` comes from the log. Without a log there is no wake, only
-  // the note. Keep `wake` on the run record if a host without a log needs it.
   protected async failStoppedAgent(stopped: {
     operationId: string
     agent: string
@@ -1152,20 +1254,21 @@ export abstract class SessionAgents<
   }): Promise<void> {
     const { operationId, inputId } = stopped
     const error = stopped.error ?? { message: AGENT_STOPPED }
-    await this.persistence.stores.runs?.update(operationId, {
+    await this.runStore.update(operationId, {
       status: 'failed',
       finishedAt: Date.now(),
       error,
     })
     if (inputId) {
       // The steers that joined the run settle with it.
-      await this.settle(
-        ...[inputId, ...this.joinedInputs(operationId, inputId)].map((id) => ({
+      await this.settleWith(
+        [inputId, ...this.joinedInputs(operationId, inputId)].map((id) => ({
           inputId: id,
           operationId,
           outcome: 'failed' as const,
           error,
         })),
+        [agentResultRecord(operationId, { inputId, status: 'failed', error })],
       )
     }
     this.feed.publish(operationId, {
@@ -1191,7 +1294,9 @@ export abstract class SessionAgents<
 
   /**
    * After a crash: queue the logged notes that are not in the transcript,
-   * and note each logged job that no host runs now.
+   * and note each logged job that no host runs now. A job with a backend id
+   * can still run in its workspace, so the workspace tools stop it and note
+   * it when they bind the workspace again.
    */
   protected async recoverBackground(writer: LogWriter) {
     const queued = new Set(this.pendingNotes.map((message) => message.id))
@@ -1199,8 +1304,8 @@ export abstract class SessionAgents<
       if (queued.has(id)) continue
       this.pendingNotes.push({ id, role: 'assistant', content: note })
     }
-    for (const jobId of [...writer.state.jobs]) {
-      if (this.jobs.has(jobId)) continue
+    for (const [jobId, backendId] of [...writer.state.jobs]) {
+      if (this.jobs.has(jobId) || backendId !== undefined) continue
       const id = createMessageId()
       const note = `Background job ${jobId} stopped when the host restarted.`
       this.pendingNotes.push({ id, role: 'assistant', content: note })

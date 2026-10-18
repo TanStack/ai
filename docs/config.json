@@ -712,7 +712,7 @@
           "label": "Build Your Own Adapter",
           "to": "persistence/build-your-own-adapter",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-16"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Migrations",
@@ -944,7 +944,8 @@
         {
           "label": "Access and tenants",
           "to": "harness/access",
-          "addedAt": "2026-10-17"
+          "addedAt": "2026-10-17",
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Run in the terminal",
@@ -976,10 +977,15 @@
           "updatedAt": "2026-10-17"
         },
         {
+          "label": "Run background work on workers",
+          "to": "harness/workers",
+          "addedAt": "2026-10-17"
+        },
+        {
           "label": "List, rename, and fork sessions",
           "to": "harness/sessions",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Lifecycle and retention",
@@ -989,41 +995,44 @@
         {
           "label": "Run side effects once",
           "to": "harness/durable-tools",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Build on the session log",
           "to": "harness/session-log",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Control how a turn ends",
           "to": "harness/turn-control",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-16"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Store settings per thread",
           "to": "harness/thread-settings",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Compact a long session",
           "to": "harness/compaction",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Fork and reset a thread",
           "to": "harness/fork-and-reset",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
-          "label": "Share one log between sessions",
+          "label": "One log for a session tree",
           "to": "harness/shared-logs",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-16"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Write a plugin",
@@ -1047,7 +1056,7 @@
           "label": "Give your agent coding tools",
           "to": "harness/coding-tools",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Sandbox and extend the coding tools",
@@ -1059,7 +1068,7 @@
           "label": "Undo a turn",
           "to": "harness/snapshots",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-13"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Build a coding agent",
@@ -1088,7 +1097,7 @@
           "label": "Share a thread between people",
           "to": "harness/shared-threads",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Connect model providers",
@@ -1100,7 +1109,7 @@
           "label": "Build your own UI",
           "to": "harness/custom-ui",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Code mode in a harness",
@@ -1116,7 +1125,12 @@
           "label": "Run agents from a harness",
           "to": "harness/subagents",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
+        },
+        {
+          "label": "Hand off a conversation",
+          "to": "harness/handoffs",
+          "addedAt": "2026-10-18"
         },
         {
           "label": "Add skills",
@@ -1358,7 +1372,8 @@
         {
           "label": "Keep Keys on the Server",
           "to": "advanced/server-keys",
-          "addedAt": "2026-10-16"
+          "addedAt": "2026-10-16",
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Debug Logging",
@@ -1708,7 +1723,7 @@
           "label": "@tanstack/ai",
           "to": "api/ai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-13"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "@tanstack/ai-client",

@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { toolDefinition } from '@tanstack/ai'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin, logIdOf } from '../src'
 import { SnapshotFailed } from '../src/first-party/coding/events'
 import { hostBackend } from '../src/first-party/coding/backend'
@@ -25,6 +25,7 @@ import {
   text,
   toolCall,
 } from './helpers'
+import type { LogStore } from '@tanstack/ai-persistence'
 import type { HarnessPersistence, HarnessSession, Principal } from '../src'
 import type { WorkspaceBackend } from '../src/first-party/coding/backend'
 import type { Reply } from './helpers'
@@ -100,9 +101,8 @@ async function open(options: {
     },
   })
   const { adapter, calls } = mockAdapter(options.replies)
-  const host = createHarnessHost({
-    persistence: options.persistence ?? memoryPersistence(),
-  })
+  const persistence = options.persistence ?? memoryPersistence()
+  const host = createHarnessHost({ persistence })
   const session = await host.open(
     defineHarness({
       name: 'test/snapshots',
@@ -118,14 +118,27 @@ async function open(options: {
       principal: options.principal,
     },
   )
-  return { host, session, plugin, calls, failures }
+  return {
+    host,
+    session,
+    plugin,
+    calls,
+    failures,
+    log: persistence.stores.log,
+  }
 }
 
-/** The steps that the plugin state keeps. */
-function savedSteps(session: HarnessSession) {
-  const steps = session.snapshot().plugins['tanstack/snapshots']
-  if (!Array.isArray(steps)) throw new Error('No steps in the plugin state.')
-  return steps
+/** The `tanstack/snapshots:step` records of the thread in `log`. */
+async function savedSteps(log: LogStore) {
+  const entries = await log.read({ logId: LOG, after: 0 })
+  return entries.flatMap(({ record }) =>
+    record.type === 'tanstack/snapshots:step' &&
+    typeof record.from === 'string' &&
+    typeof record.to === 'string' &&
+    Array.isArray(record.files)
+      ? [{ ...record, from: record.from, to: record.to, files: record.files }]
+      : [],
+  )
 }
 
 /** Every file under `folder`, by path, with its bytes. */
@@ -239,9 +252,9 @@ describe.skipIf(!hasGit)('snapshots', () => {
     await host.close()
   })
 
-  it('keeps the changed files of each step in the plugin state', async () => {
+  it('writes the changed files of each step as a log record', async () => {
     await put('a.txt', 'one')
-    const { host, session } = await open({
+    const { host, session, log } = await open({
       replies: editTurn('Done.'),
       changes: [
         async () => {
@@ -253,42 +266,24 @@ describe.skipIf(!hasGit)('snapshots', () => {
 
     await session.send('Edit the files')
 
-    const steps = savedSteps(session)
-    expect(steps).toMatchObject([{ files: ['a.txt', 'src/b.txt'] }])
-    expect(steps[0].from).toMatch(TREE)
-    expect(steps[0].to).toMatch(TREE)
-    expect(steps[0].to).not.toBe(steps[0].from)
-    await host.close()
-  })
-
-  it('writes each step as a log record on a durable host', async () => {
-    await put('a.txt', 'one')
-    const { runs, metadata } = memoryPersistence().stores
-    const log = memoryLogStore()
-    const { host, session } = await open({
-      replies: editTurn('Done.'),
-      changes: [() => put('a.txt', 'two')],
-      persistence: { stores: { log, runs, metadata } },
-    })
-
-    await session.send('Edit a.txt')
-
-    const entries = await log.read({ logId: LOG, after: 0 })
-    const records = entries
-      .map((entry) => entry.record)
-      .filter((record) => record.type === 'tanstack/snapshots:step')
-    expect(records).toMatchObject([{ files: ['a.txt'] }])
+    const [step, ...more] = await savedSteps(log)
+    expect(more).toEqual([])
+    expect(step).toMatchObject({ files: ['a.txt', 'src/b.txt'] })
+    expect(step?.from).toMatch(TREE)
+    expect(step?.to).toMatch(TREE)
+    expect(step?.to).not.toBe(step?.from)
     await host.close()
   })
 
   it('gives the changed files and a unified diff between two trees', async () => {
     await put('a.txt', 'one\n')
-    const { host, session, plugin } = await open({
+    const { host, session, plugin, log } = await open({
       replies: editTurn('Done.'),
       changes: [() => put('a.txt', 'two\n')],
     })
     await session.send('Edit a.txt')
-    const [step] = savedSteps(session)
+    const [step] = await savedSteps(log)
+    if (!step) throw new Error('No step in the log.')
 
     const between = await plugin.diff(step.from, step.to)
     expect(between.files).toEqual(['a.txt'])
@@ -444,6 +439,32 @@ describe.skipIf(!hasGit)('snapshots', () => {
     await host.close()
   })
 
+  it('/undo and /redo work on the next host of the session', async () => {
+    await put('a.txt', 'one')
+    const persistence = memoryPersistence()
+    const first = await open({
+      replies: editTurn('Done.'),
+      changes: [() => put('a.txt', 'two')],
+      persistence,
+    })
+    await first.session.send('Edit a.txt')
+    await first.host.close()
+
+    const second = await open({ replies: [], persistence })
+    expect(await second.session.command({ name: 'undo' })).toBe(
+      'Undid the last turn. Files restored: 1.',
+    )
+    expect(await read('a.txt')).toBe('one')
+    await second.host.close()
+
+    const third = await open({ replies: [], persistence })
+    expect(await third.session.command({ name: 'redo' })).toBe(
+      'Redid the last turn.',
+    )
+    expect(await read('a.txt')).toBe('two')
+    await third.host.close()
+  })
+
   it("leaves the project's own .git untouched", async () => {
     // GIT_DIR keeps this init in the test folder, even inside a git hook.
     const projectGit = join(root, '.git')
@@ -454,7 +475,7 @@ describe.skipIf(!hasGit)('snapshots', () => {
     expect(init.exitCode).toBe(0)
     await put('a.txt', 'one')
     const before = await filesUnder(projectGit)
-    const { host, session } = await open({
+    const { host, session, log } = await open({
       replies: editTurn('Done.'),
       changes: [() => put('b.txt', 'new')],
     })
@@ -462,7 +483,7 @@ describe.skipIf(!hasGit)('snapshots', () => {
     await session.send('Add b.txt')
     await session.command({ name: 'undo' })
 
-    expect(savedSteps(session)).toMatchObject([{ files: ['b.txt'] }])
+    expect(await savedSteps(log)).toMatchObject([{ files: ['b.txt'] }])
     expect(await filesUnder(projectGit)).toEqual(before)
     await host.close()
   })
@@ -493,7 +514,7 @@ describe.skipIf(!hasGit)('snapshots of many runs', () => {
 
     await runA.session.send('Write a.txt')
     expect(await read('b.txt')).toBe('B')
-    expect(savedSteps(runA.session)).toMatchObject([{ files: ['a.txt'] }])
+    expect(await savedSteps(runA.log)).toMatchObject([{ files: ['a.txt'] }])
     expect(await runA.session.command({ name: 'undo' })).toBe(
       'Undid the last turn. Files restored: 1.',
     )
@@ -523,7 +544,7 @@ describe.skipIf(!hasGit)('snapshots of many runs', () => {
     await put('a.txt', 'one')
     await put('.env', 'SECRET=1')
     await put('.env.local', 'SECRET=2')
-    const { host, session } = await open({
+    const { host, session, log } = await open({
       replies: editTurn('Done.'),
       changes: [
         async () => {
@@ -535,7 +556,8 @@ describe.skipIf(!hasGit)('snapshots of many runs', () => {
 
     await session.send('Edit the files')
 
-    const [step] = savedSteps(session)
+    const [step] = await savedSteps(log)
+    if (!step) throw new Error('No step in the log.')
     expect(step.files).toEqual(['a.txt'])
     const repo = await onlyRepo()
     expect(await filesOfTree(repo, step.from)).toEqual(['a.txt'])
@@ -671,25 +693,7 @@ describe.skipIf(!hasGit)('session.revert', () => {
     await host.close()
   })
 
-  it('keeps the revert after a restart on a durable host', async () => {
-    await put('a.txt', 'one')
-    const { runs, metadata } = memoryPersistence().stores
-    const persistence = { stores: { log: memoryLogStore(), runs, metadata } }
-    const first = await open({ ...threeTurns(), persistence })
-    const { transcript, firstId } = await runThreeTurns(first.session)
-    await first.session.revert(firstId)
-    await first.host.close()
-
-    const second = await open({ replies: [], persistence })
-
-    expect(await second.session.transcript()).toEqual(transcript.slice(0, 4))
-    await second.session.unrevert()
-    expect(await read('a.txt')).toBe('three')
-    expect(await second.session.transcript()).toEqual(transcript)
-    await second.host.close()
-  })
-
-  it('keeps the revert after a restart on a host without a log', async () => {
+  it('keeps the revert after a restart', async () => {
     await put('a.txt', 'one')
     const persistence = memoryPersistence()
     const first = await open({ ...threeTurns(), persistence })
@@ -701,7 +705,9 @@ describe.skipIf(!hasGit)('session.revert', () => {
 
     expect(await second.session.transcript()).toEqual(transcript.slice(0, 4))
     await second.session.unrevert()
+    expect(await read('a.txt')).toBe('three')
     expect(await read('b.txt')).toBe('new')
+    expect(await second.session.transcript()).toEqual(transcript)
     await second.host.close()
   })
 })
@@ -901,7 +907,7 @@ describe('snapshots git safety', () => {
 })
 
 describe('snapshots with a fake git', () => {
-  it('keeps the last 500 steps in the plugin state', async () => {
+  it('reverts with the last 500 steps of the log only', async () => {
     // 11 turns of 46 steps: 506 steps. A turn has at most 50 model calls.
     let callId = 0
     const replies = Array.from(
@@ -914,26 +920,46 @@ describe('snapshots with a fake git', () => {
         () => text('Done.'),
       ],
     ).flat()
-    const { host, session } = await open({ replies, backend: fakeGit() })
-
+    const git = fakeGit()
+    const commands: Array<string> = []
+    const backend: WorkspaceBackend = {
+      ...git,
+      exec: (command, options) => {
+        commands.push(command)
+        return git.exec(command, options)
+      },
+    }
+    const { host, session, log } = await open({ replies, backend })
     for (let turn = 0; turn < 11; turn += 1) await session.send('Edit')
+    const steps = await savedSteps(log)
+    expect(steps).toHaveLength(506)
+    const first = (await session.transcript()).find(
+      (message) => message.role === 'assistant',
+    )
+    if (!first?.id) throw new Error('No answer.')
 
-    const steps = savedSteps(session)
-    expect(steps).toHaveLength(500)
-    expect(steps[0]).toMatchObject({ toolCallIds: ['call-6'] })
-    expect(steps[499]).toMatchObject({ toolCallIds: ['call-505'] })
+    // The steps of call-1 to call-505 come after the first answer. Of them,
+    // the revert uses the last 500: from call-6 on.
+    await session.revert(first.id)
+
+    const restores = commands.filter((command) =>
+      command.includes('--name-status'),
+    )
+    expect(restores).toHaveLength(1)
+    expect(restores[0]).toContain(steps[6]?.from)
+    expect(restores[0]).not.toContain(steps[1]?.from)
     await host.close()
   }, 60_000)
 
   it('tries again when another git process holds the index lock', async () => {
-    const { host, session, failures } = await open({
+    const { host, session, failures, log } = await open({
       replies: editTurn('Done.'),
       backend: fakeGit({ locked: 2 }),
     })
 
     await session.send('Edit a.txt')
 
-    expect(savedSteps(session)).toMatchObject([{ files: ['a.txt'] }])
+    expect(await savedSteps(log)).toMatchObject([{ files: ['a.txt'] }])
     expect(failures).toEqual([])
     await host.close()
   })

@@ -6,6 +6,7 @@ export type {
   HarnessDefinition,
   HarnessDurability,
   HarnessRouterContext,
+  HarnessRouterPick,
   HarnessRouting,
   HarnessSubagents,
   HarnessToolInput,
@@ -24,17 +25,20 @@ export { durableTool } from './durable-tool'
 export type {
   DurableToolContext,
   DurableToolOptions,
+  StepRun,
   ToolStep,
 } from './durable-tool'
 
 export { LogVersionError, logIdOf, logMessageStore } from './log'
-export type { ProjectOptions, ProjectRecord, ReduceOptions } from './log'
-export type { LeaseOptions } from './resume'
+export { LogOwnedElsewhereError } from './ownership'
 export type {
-  LeaseStore,
-  TurnLease,
-  TurnLeaseKey,
-} from '@tanstack/ai-persistence'
+  LogRecordRetention,
+  ProjectOptions,
+  ProjectRecord,
+  ReduceOptions,
+  SnapshotTiming,
+} from './log'
+export type { OwnershipOptions } from './ownership'
 
 export { definePlugin } from './plugins'
 export type {
@@ -47,8 +51,6 @@ export type {
   PluginResources,
   PluginLifetime,
   PluginPrompt,
-  AgentGroup,
-  PluginAgentActions,
   PluginCommands,
   PluginSetupContext,
   PluginState,
@@ -90,15 +92,23 @@ export { AuthRequiredError, scrubSecrets } from './auth'
 export type { CredentialsAccess } from './auth'
 
 export type {
+  AgentActions,
+  AgentCall,
+  AgentGroup,
+  AgentGroupOptions,
   AgentInputOf,
   AgentRegistryView,
   AgentResultOf,
-  AgentStarter,
+  AgentSettled,
   AnyAgent,
   HarnessAgentContext,
 } from './agents'
+export type { HandoffOptions } from './handoff'
+export type { HumanTarget } from './log-records'
 
 export { createHarnessHost } from './host'
+export { createHarnessWorker } from './harness-worker'
+export type { HarnessWorkerPoolOptions } from './harness-worker'
 export type {
   ForkSessionOptions,
   HarnessHost,
@@ -111,15 +121,20 @@ export type {
   HostSessionEvent,
   HostSessions,
   HostStatusEvent,
+  HostTransferredEvent,
   OpenSessionOptions,
+  ResumedThread,
   ResumePendingOptions,
   RetentionLimits,
+  SubmitInput,
+  SubmitOptions,
 } from './host'
 export { AccessDeniedError, membersOnly, membersOnlyPolicyOf } from './access'
 export type {
   AccessAction,
   AccessRun,
   AccessSession,
+  AccessWait,
   Authorize,
   AuthorizeInput,
   HarnessAccess,
@@ -138,10 +153,12 @@ export type {
   HarnessSession,
   AgentHandle,
   AgentHandles,
+  AgentModelErrorContext,
   AgentRunInfo,
   AgentRunOptions,
   AgentStartOptions,
   DynamicAgentHandle,
+  ScheduleOptions,
   SessionDescription,
   SessionInspection,
   SessionSnapshot,
@@ -171,7 +188,9 @@ export type {
   BusyPolicy,
   ChatTurnResult,
   Cursor,
+  EventGap,
   ForkPoint,
+  HandoffEnvelope,
   HarnessInput,
   HarnessRunContext,
   InputSettlement,
@@ -192,12 +211,17 @@ export type {
   StreamChunkType,
   ThreadSettings,
   ThreadSettingsChange,
+  TransferOptions,
+  TransferResult,
   TurnInfo,
   TurnOverrides,
   UsageUpdate,
   UserInput,
   WaitingInput,
 } from './types'
+
+export { isApproval, waitKind, waitOfInterrupt, waitOfQuestion } from './waits'
+export type { Wait, WaitKind, WaitOutcome } from './waits'
 
 export { harnessText } from './harness-text'
 export type { HarnessTextOptions, RemoteHarness } from './harness-text'

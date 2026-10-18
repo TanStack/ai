@@ -56,12 +56,12 @@ const host = createHarnessHost({
   persistence: memoryPersistence(),
   access: tenantAccess,
 })
-// A durable host: a session log and run leases. A request picks it with the
+// A durable host: a session log. A request picks it with the
 // `x-harness-durable: 1` header. Host access keeps the owner and the members
 // of each thread in `stores.sessions`.
-const { runs, sessions } = memoryPersistence().stores
+const { sessions } = memoryPersistence().stores
 const durableHost = createHarnessHost({
-  persistence: { stores: { log: memoryLogStore(), runs, sessions } },
+  persistence: { stores: { log: memoryLogStore(), sessions } },
   access: tenantAccess,
 })
 // Only the members of a thread may use it. A request picks this host with

@@ -2,6 +2,7 @@ import { getEventListeners } from 'node:events'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { hostBackend } from '../src/first-party/coding/backend'
 import { bashTools } from '../src/first-party/coding/bash'
 import { createOutputTail } from '../src/first-party/coding/ring-buffer'
 import type { ToolExecutionContext } from '@tanstack/ai'
@@ -276,7 +277,9 @@ describe('bash job events', () => {
       /** The output events, as their text. */
       outputs: () =>
         events
-          .filter((event) => event.name === 'tanstack/workspace-tools:job-output')
+          .filter(
+            (event) => event.name === 'tanstack/workspace-tools:job-output',
+          )
           .map((event) => event.value),
     }
   }
@@ -296,7 +299,10 @@ describe('bash job events', () => {
         name: 'tanstack/workspace-tools:job-output',
         value: { jobId: 'bash-1', output: 'ready\n' },
       },
-      { name: 'tanstack/workspace-tools:job-ended', value: { jobId: 'bash-1', exitCode: 0 } },
+      {
+        name: 'tanstack/workspace-tools:job-ended',
+        value: { jobId: 'bash-1', exitCode: 0 },
+      },
     ])
   })
 
@@ -345,4 +351,56 @@ describe('bash job events', () => {
     ])
     expect(job.outputs()).toEqual([{ jobId: 'bash-1', output: 'early' }])
   })
+})
+
+describe('bash job ids', () => {
+  it('gives the session the backend id and the thread of each job', async () => {
+    const running = runningJob()
+    const { env } = workspace({
+      spawn: () => ({ ...running.job, jobId: Promise.resolve('pid-9') }),
+    })
+    const started = vi.fn()
+    const ended = vi.fn()
+    const [tool] = bashTools(env, { jobs: { started, ended } })
+    const run = { logId: 'log', threadId: 'child' }
+
+    await tool?.execute?.(
+      { command: 'serve', background: true },
+      { emitCustomEvent: () => undefined, context: { run } },
+    )
+    running.end(0)
+    await settle()
+
+    expect(started).toHaveBeenCalledWith({
+      jobId: 'bash-1',
+      backendId: 'pid-9',
+      threadId: 'child',
+    })
+    expect(ended).toHaveBeenCalledWith({ jobId: 'bash-1', threadId: 'child' })
+  })
+})
+
+describe('hostBackend.killJob', () => {
+  // Coverage runs in CI are slow, so polled checks wait up to 5 s.
+  const waitFor = (check: () => unknown) =>
+    vi.waitFor(check, { timeout: 5_000 })
+
+  it('stops a job by the id that spawn gave, and only that job', async () => {
+    const job = hostBackend.spawn('node -e "setInterval(() => {}, 1000)"')
+    const jobId = await job.jobId
+    if (!jobId) throw new Error('The job did not start.')
+    const [pid = 0, startedAt = 0] = jobId.split(':').map(Number)
+    let exited = false
+    void job.wait().then(() => (exited = true))
+
+    // The same pid with another start time is another process.
+    expect(await hostBackend.killJob(`${pid}:${startedAt - 60_000}`)).toBe(
+      false,
+    )
+    expect(exited).toBe(false)
+    expect(await hostBackend.killJob(jobId)).toBe(true)
+
+    await waitFor(() => expect(exited).toBe(true))
+    expect(await hostBackend.killJob(jobId)).toBe(false)
+  }, 20_000)
 })

@@ -607,6 +607,36 @@ describe('sandboxWorkspaceBackend close', () => {
   })
 })
 
+describe('sandboxWorkspaceBackend on another machine', () => {
+  it('gives the provider and the id of the sandbox as its binding', () => {
+    const { backend } = fakeSandbox()
+    expect(backend.binding()).toEqual({
+      kind: 'sandbox',
+      provider: 'fake',
+      sandboxId: 'sandbox-1',
+    })
+  })
+
+  it('gives the pid of a job as its id, and kills a job by that id', async () => {
+    const { backend, commands } = fakeSandbox()
+    const job = backend.spawn?.('serve')
+    expect(await job?.jobId).toBe('7')
+
+    await backend.killJob('7')
+
+    expect(commands.map(({ command }) => command)).toEqual([
+      'kill -9 -- -7 2>/dev/null || kill -9 7',
+    ])
+    job?.kill()
+  })
+
+  it('runs no command for a job id that is not a pid', async () => {
+    const { backend, commands } = fakeSandbox()
+    expect(await backend.killJob('7; rm -rf /')).toBe(false)
+    expect(commands).toEqual([])
+  })
+})
+
 const now = () => Date.now()
 
 /** The chunks of one model reply: `chunks` in one run. */

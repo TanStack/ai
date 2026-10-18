@@ -3,7 +3,10 @@ import * as fs from 'node:fs/promises'
 import * as nodePath from 'node:path'
 import { isRecord } from '../../utils'
 import { createOutputTail } from './ring-buffer'
+import type { RunContext } from '../../types'
 import type { WorkspaceHooks } from '../workspace-hooks'
+
+export type { WorkspaceBinding } from '../../log-records'
 
 /**
  * Where the workspace tools read and write files and run commands. Every
@@ -106,7 +109,28 @@ export interface WorkspaceBackend {
     wait: () => Promise<{ exitCode: number }>
     kill: () => void
     output: () => string
+    /**
+     * Resolves with the id of the process in this backend, for
+     * {@link killJob}, once it started. `undefined` when it did not start.
+     * The session log keeps it, so a later host can stop the job.
+     */
+    jobId?: Promise<string | undefined>
   }
+  /**
+   * Stop the job with the `jobId` that `spawn` gave, also a job of an
+   * earlier process or machine, with every command it started. Resolves
+   * `true` when the job ran and was stopped, and `false` when no such job
+   * runs. Optional: without it, a job that a crash left running is not
+   * stopped.
+   */
+  killJob?: (jobId: string) => Promise<boolean>
+  /**
+   * Where the files are, when they are not on this machine: a sandbox,
+   * which another machine can resume. The session log keeps it as the
+   * binding of the thread. Without it, the workspace is on this host, and
+   * the log is pinned to this host.
+   */
+  binding?: () => { kind: 'sandbox'; provider: string; sandboxId: string }
   /**
    * The tools are done with this backend. Before they call it, they stop
    * the jobs of the session. `reason` tells why:
@@ -307,6 +331,39 @@ function isAlive(pid: number) {
     return false
   }
 }
+
+/**
+ * When the process `pid` started, in epoch milliseconds, or `undefined` when
+ * no process has that pid. `ps` gives whole seconds.
+ */
+async function processStart(pid: number) {
+  if (process.platform === 'win32') {
+    const script = `[DateTimeOffset]::new((Get-Process -Id ${pid}).StartTime).ToUnixTimeMilliseconds()`
+    const stdout = await runWindowsProgram(
+      'WindowsPowerShell\\v1.0\\powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', script],
+    )
+    const ms = Number(stdout.trim())
+    return stdout.trim() !== '' && Number.isFinite(ms) ? ms : undefined
+  }
+  // The C locale gives the date in the format that `Date.parse` reads.
+  const stdout = await new Promise<string>((done) => {
+    childProcess.execFile(
+      'ps',
+      ['-o', 'lstart=', '-p', String(pid)],
+      { env: { ...commandEnv(undefined, process.platform), LC_ALL: 'C' } },
+      (_error, out) => done(String(out)),
+    )
+  })
+  const ms = Date.parse(stdout.trim())
+  return Number.isNaN(ms) ? undefined : ms
+}
+
+/**
+ * A process of a job starts in this many milliseconds after `spawn`, or
+ * `ps` rounds its start down to the second.
+ */
+const START_SLACK_MS = 5_000
 
 /**
  * Kill `child`, a `cmd.exe`, and every command it started. A killed
@@ -610,7 +667,36 @@ export const hostBackend = {
         done({ exitCode: 1 })
       })
     })
-    return { wait: () => exited, kill, output: output.text }
+    // The pid and the start time: a later process can get the same pid.
+    const jobId =
+      child.pid === undefined ? undefined : `${child.pid}:${Date.now()}`
+    return {
+      wait: () => exited,
+      kill,
+      output: output.text,
+      jobId: Promise.resolve(jobId),
+    }
+  },
+  killJob: async (jobId) => {
+    const [pid = NaN, startedAt = NaN] = jobId.split(':').map(Number)
+    if (!Number.isSafeInteger(pid) || pid <= 0 || !isAlive(pid)) return false
+    // Only the process that started with the job. Another process can have
+    // its pid now.
+    const start = await processStart(pid)
+    const isJob =
+      start !== undefined && Math.abs(start - startedAt) <= START_SLACK_MS
+    if (!isJob) return false
+    if (process.platform === 'win32') {
+      await taskkill(pid)
+      return true
+    }
+    // The job leads its own process group, so this stops its commands too.
+    try {
+      process.kill(-pid, 'SIGKILL')
+      return true
+    } catch {
+      return false
+    }
   },
 } satisfies WorkspaceBackend
 
@@ -621,6 +707,28 @@ export function clip(text: string) {
   return text.length > MAX_OUTPUT
     ? `${text.slice(0, MAX_OUTPUT)}\n[${text.length - MAX_OUTPUT} more characters]`
     : text
+}
+
+/**
+ * True for the run context that the harness gives a tool call. It checks the
+ * fields that the tools read. The harness sets the others.
+ */
+function isRun(value: unknown): value is RunContext {
+  return (
+    isRecord(value) &&
+    typeof value.logId === 'string' &&
+    typeof value.threadId === 'string'
+  )
+}
+
+/**
+ * The run of a tool call or a middleware call: `ctx.context.run`, or
+ * `undefined` without one.
+ */
+export function runOf(context: unknown) {
+  if (!isRecord(context) || !isRecord(context.context)) return undefined
+  const { run } = context.context
+  return isRun(run) ? run : undefined
 }
 
 /** The string argument `key` of a tool call. Throws when it is not a string. */

@@ -3,7 +3,11 @@
 export { workspaceTools } from './workspace'
 export type { WorkspaceBinder, WorkspaceToolsOptions } from './workspace'
 export { hostBackend } from './backend'
-export type { BoundWorkspace, WorkspaceBackend } from './backend'
+export type {
+  BoundWorkspace,
+  WorkspaceBackend,
+  WorkspaceBinding,
+} from './backend'
 export { WorkspaceHooks } from '../workspace-hooks'
 export type { SearchProvider, WebToolsOptions } from './web'
 export { purgeSnapshots, snapshots } from './snapshots'
@@ -19,5 +23,6 @@ export {
   JobOutput,
   JobStarted,
   SnapshotFailed,
+  WorkspaceStranded,
 } from './events'
 export type { Formatter, FormatterOptions, FormatterProject } from './formatter'

@@ -1,5 +1,6 @@
 import { createInterface } from 'node:readline'
 import { createHarnessHost } from './host'
+import { scrubbedBy } from './session/harness-session'
 import {
   HARNESS_PROTOCOL_VERSION,
   applyInput,
@@ -36,6 +37,14 @@ export async function runHarnessWorker(
   )
   const reader = new AbortController()
   let session: Awaited<ReturnType<typeof host.open>> | undefined
+  /** An error frame, without the secrets of the session once it is open. */
+  const sendError = (error: unknown) => {
+    const scrubbed = scrubbedBy(session, error)
+    send({
+      type: 'harness.error',
+      message: scrubbed instanceof Error ? scrubbed.message : String(scrubbed),
+    })
+  }
   const lines = createInterface({
     input: options.input ?? process.stdin,
     crlfDelay: Infinity,
@@ -61,12 +70,7 @@ export async function runHarnessWorker(
           void (async () => {
             for await (const entry of events)
               send({ type: 'harness.event', ...entry })
-          })().catch((error: unknown) =>
-            send({
-              type: 'harness.error',
-              message: error instanceof Error ? error.message : String(error),
-            }),
-          )
+          })().catch((error: unknown) => sendError(error))
           continue
         }
         if (!session) throw new Error('Send harness.subscribe first.')
@@ -85,10 +89,7 @@ export async function runHarnessWorker(
           ...receipt,
         })
       } catch (error) {
-        send({
-          type: 'harness.error',
-          message: error instanceof Error ? error.message : String(error),
-        })
+        sendError(error)
       }
     }
   } finally {

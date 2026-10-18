@@ -94,14 +94,17 @@ Each action covers these calls:
 | `list` | See the session in `host.sessions.list`. |
 | `send` | Prompt, steer, follow up, run a command or a tool, start an agent, and upload media. |
 | `answer` | Answer a question or an approval. |
+| `operator` | Reply as an operator with `send(text, { as: 'operator' })`, and answer a `human` wait of any run. See [Hand off to a person](./handoffs#4-hand-off-to-a-person). |
 | `cancel` | Stop a run, or drop an input that waits. |
 | `configure` | Change the thread settings, the plugin config, the title, and the metadata. |
 | `share` | Add or remove members. |
 | `delete` | Remove the session from the index. |
 | `fork` | Copy the session into a new session. |
-| `transfer` | Give the session to a new owner. |
+| `transfer` | Move the conversation to another thread, also of another harness, with `host.transfer`. See [Move a conversation to another harness](./handoffs#5-move-a-conversation-to-another-harness). |
 
 - For `answer` and `cancel`, `authorize` also gets `run`: the `runId` and the `principalId` of the user who started that run.
+- For `cancelSchedule`, `run` is the schedule: the `runId` is the schedule id, and the `principalId` is the user who made it.
+- `host.submit` and `schedule` check an answer or a cancel when you send it, with `run` from the log. A run that the log does not have is refused with `unknown_run`: `submit` returns a `rejected` receipt, and `schedule` throws `InputRejectedError`.
 - A handle checks `read` once, when it opens. Each action that changes the session asks `authorize` again.
 
 ## What the host checks for you
@@ -109,7 +112,7 @@ Each action covers these calls:
 `authorize` decides only the rule of your app. The host does these checks before it calls it:
 
 - The tenant. A user reaches only the sessions of their own tenant. `authorize` never gets a session of another tenant.
-- A user on every call. With access, `host.open`, `host.fork`, and each `host.sessions` method need a `principal`. A call without one throws.
+- A user on every call. With access, `host.open`, `host.fork`, `host.transfer`, and each `host.sessions` method need a `principal`. A call without one throws.
 - One user per handle. `host.open` returns a session that acts only as its `principal`. A call on it that passes another `principal` throws.
 - Child threads. The host checks a subagent child as its root thread, so `session` is the root session.
 - Missing threads. A read of a thread with no entry answers `404` and starts no session. `GET run?threadId=` answers an empty hydration instead, because `useChat` reads it before the first message.
@@ -124,7 +127,7 @@ Give each user a `tenantId` in `identify`. The tenant keeps each organization ap
 
 - One `threadId` in two tenants is two sessions, with two index entries and two logs.
 - `host.sessions.list` reads one tenant: the tenant of `principal`. A user with no `tenantId` is in the default tenant.
-- The stores keep each thread under `logIdOf({ tenantId, logId })`, for example `acme:thread-1`. The default tenant gives `:thread-1`. Use `logIdOf` when you read a log yourself.
+- The log store keeps each session tree under `logIdOf({ tenantId, logId })`, for example `acme:thread-1`. The default tenant gives `:thread-1`. Use `logIdOf` when you read a log yourself.
 - The credentials of a user are kept per tenant. See [Keep organizations apart](./shared-threads#7-keep-organizations-apart).
 
 ## Call the host from code with no request

@@ -16,21 +16,20 @@ Your framework keeps its own state next to the conversation: signals for the mod
 
 ## Append your own records
 
-`session.append` adds records to the log of a [durable host](./durable-sessions), in one batch after the events that wait:
+`session.append` adds records to the [session log](./durable-sessions), in one batch after the events that wait:
 
 ```ts group=harness-session-log
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryPersistence } from '@tanstack/ai-persistence'
 import { openaiText } from '@tanstack/ai-openai'
 
-const log = memoryLogStore()
+const persistence = memoryPersistence()
+const { log } = persistence.stores
 const assistant = defineHarness({
   name: 'acme/assistant',
   adapter: openaiText('gpt-6.1-sol'),
 })
-const host = createHarnessHost({
-  persistence: { stores: { log, runs: memoryPersistence().stores.runs } },
-})
+const host = createHarnessHost({ persistence })
 const session = await host.open(assistant, { threadId: 'thread-1' })
 
 await session.append([{ type: 'app.signal', text: 'The build failed.' }])
@@ -38,8 +37,9 @@ await session.append([{ type: 'app.signal', text: 'The build failed.' }])
 
 - A record is JSON with a `type`. Types that start with `harness.` belong to the harness, so `append` refuses them.
 - `append` resolves when the records are in the log.
-- To share one log between a parent and its child sessions, see [Share one log between sessions](./shared-logs).
+- A record can belong to a child thread of the same log. See [One log for a session tree](./shared-logs).
 - In a tool, use `append` from [`durableTool`](./durable-tools), so the records land with the tool batch.
+- A key or a token of the session in a record goes into the log as `[redacted]`. See [Keep tokens out of the log and the model](./auth#keep-tokens-out-of-the-log-and-the-model).
 
 ## Fold records into the model context
 
@@ -69,7 +69,7 @@ export const projected = defineHarness({
 - The model sees the change at its next model call. A message that arrives during a tool call comes after the tool result.
 - Change `version` when you change `record`. A fold checkpoint with another version is ignored.
 - For compaction, use `projectCompaction` from `@tanstack/ai-compaction`. See [Compact a harness session](./compaction).
-- A chat middleware on a durable host can append records itself with `getLogRecords(ctx).append([...])` from `@tanstack/ai`. The records land in the log at once. A plugin's middleware reads the writer with `getLogRecords(ctx, { optional: true })`. A plugin cannot list `LogRecordsCapability` in `requires`.
+- A chat middleware in a harness turn can append records itself with `getLogRecords(ctx).append([...])` from `@tanstack/ai`. The records land in the log at once. A plugin's middleware reads the writer with `getLogRecords(ctx, { optional: true })`. A plugin cannot list `LogRecordsCapability` in `requires`.
 
 ## Let a client add records
 
@@ -87,9 +87,8 @@ export const watcher = defineHarness({
   durability: { project },
 })
 
-const { runs, sessions } = memoryPersistence().stores
 const watcherHost = createHarnessHost({
-  persistence: { stores: { log: memoryLogStore(), runs, sessions } },
+  persistence: memoryPersistence(),
   access: {
     identify: ({ request }) =>
       request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
@@ -100,7 +99,7 @@ const watcherHost = createHarnessHost({
   },
 })
 
-// A durable host signs media URLs with the same secret on every instance.
+// Every instance signs media URLs with the same secret.
 const mediaSecret = process.env.HARNESS_MEDIA_SECRET
 if (!mediaSecret) throw new Error('Set HARNESS_MEDIA_SECRET.')
 
@@ -129,7 +128,6 @@ await client.continue()
 
 - A record of another type is refused with `not_exposed`. So is a record with a `thread` field: a client writes only to its own thread.
 - Types that start with `harness.` belong to the harness. `defineHarness` throws if `expose.records` lists one.
-- The host must be durable. On a host with no log, the receipt is `rejected`.
 - An MCP client adds records with the `append` tool. See [Use a harness from any MCP client](./mcp-server#3-use-the-tools).
 
 ## Read the log
@@ -147,6 +145,16 @@ console.log(signals.map((entry) => entry.seq))
 
 Each `harness.input` record has the `principal` of its sender: its `id` and `tenantId`. Every kind of input has it when the sender is known, also a cancel, an answer, a delivery change, and a change of settings.
 
+Two harness records tell who answers a thread and where a conversation went. See [Hand off a conversation](./handoffs).
+
+- `harness.handoff`: another agent answers from now on. It has `from` and `to` (an agent name, `null` for the main model, or `{ human: true }` for a person), the `note`, the `runId`, and `by` (`'tool'`, `'code'`, `'router'`, or `'operator'`). A handoff to a person also has the `waitId` of its `human` wait. The last one is the active agent of the thread.
+- `harness.transferred`: `host.transfer` moved the conversation. The log of the target has `from`, and the log of the source has `to`. Each is `{ harness, threadId }`. Both records have the same `transferId`, the `principal`, and `at`.
+
+```ts group=harness-session-log
+const handoffs = entries.filter((entry) => entry.record.type === 'harness.handoff')
+console.log(handoffs.at(-1)?.record.to)
+```
+
 A reader outside a session that needs a `MessageStore`, for example `reconstructChat`, uses `logMessageStore`. It folds the log with the same `project`. Pass `tenantId` to read the threads of a tenant:
 
 ```ts group=harness-session-log
@@ -158,11 +166,11 @@ console.log(await messages.loadThread('thread-1'))
 
 ## Tune how text streams into the log
 
-A durable host merges streamed text and tool call arguments for `log.coalesceMs` milliseconds (default 100) before it appends them. A message start or end, a tool call start or end, and your own records append at once.
+A host merges streamed text and tool call arguments for `log.coalesceMs` milliseconds (default 100) before it appends them. A message start or end, a tool call start or end, and your own records append at once.
 
 ```ts group=harness-session-log
 const smoothHost = createHarnessHost({
-  persistence: { stores: { log, runs: memoryPersistence().stores.runs } },
+  persistence: memoryPersistence(),
   log: { coalesceMs: 250 },
 })
 ```

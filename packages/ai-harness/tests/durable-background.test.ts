@@ -2,15 +2,29 @@ import { describe, expect, it, vi } from 'vitest'
 import { toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
-import { gate, mockAdapter, text, toolCall, untilAborted } from './helpers'
+import {
+  CRASHING_OWNERSHIP,
+  gate,
+  mockAdapter,
+  ownershipExpired,
+  text,
+  toolCall,
+  untilAborted,
+} from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type { HarnessPlugin, HarnessSession, PluginSessionApi } from '../src'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 const THREAD = 't'
 
 function durablePersistence() {
-  const { runs, metadata } = memoryPersistence().stores
-  return { stores: { log: memoryLogStore(), runs, metadata } }
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log: memoryLogStore(), metadata } }
 }
 
 type Durable = ReturnType<typeof durablePersistence>
@@ -60,7 +74,10 @@ describe('background work after a crash', () => {
       () => toolCall('wait', {}, 'call-1'),
       () => text('Moved.'),
     ])
-    const crashed = await createHarnessHost({ persistence }).open(
+    const crashed = await createHarnessHost({
+      persistence,
+      ownership: CRASHING_OWNERSHIP,
+    }).open(
       defineHarness({
         name: 'test/durable-background',
         adapter: first.adapter,
@@ -77,7 +94,9 @@ describe('background work after a crash', () => {
     })
     await turn
 
-    // The first host never closes, like a process that stopped.
+    // The first host never closes, like a process that stopped. Its
+    // ownership of the log expires.
+    await ownershipExpired()
     const next = mockAdapter([])
     const recovered = await openOn(persistence, next.adapter)
 
@@ -112,7 +131,10 @@ describe('background work after a crash', () => {
       () => toolCall('remind', {}, 'call-1'),
       untilAborted(),
     ])
-    const crashed = await createHarnessHost({ persistence }).open(
+    const crashed = await createHarnessHost({
+      persistence,
+      ownership: CRASHING_OWNERSHIP,
+    }).open(
       defineHarness({
         name: 'test/durable-background',
         adapter: first.adapter,
@@ -125,7 +147,8 @@ describe('background work after a crash', () => {
     )
     void Promise.resolve(crashed.send('Remind me')).catch(() => {})
     await noted.opened
-    await vi.waitFor(() => expect(first.calls).toHaveLength(2))
+    await waitFor(() => expect(first.calls).toHaveLength(2))
+    await ownershipExpired()
 
     const next = mockAdapter([() => text('Done.')])
     const recovered = await createHarnessHost({ persistence }).open(
@@ -139,7 +162,7 @@ describe('background work after a crash', () => {
         threadId: THREAD,
       },
     )
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await assistantTexts(recovered)).toContain('Remember the milk.'),
     )
     await recovered.recover()

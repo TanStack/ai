@@ -87,6 +87,13 @@ export function parseHarnessInput(value: unknown): HarnessInput {
   ) {
     throw new Error(`Invalid input: ${value.op} needs a message.`)
   }
+  if (
+    value.op === 'prompt' &&
+    value.as !== undefined &&
+    value.as !== 'operator'
+  ) {
+    throw new Error("Invalid input: the as of prompt must be 'operator'.")
+  }
   if (value.op === 'resolve' && !Array.isArray(value.resume)) {
     throw new Error('Invalid input: resolve needs a resume array.')
   }
@@ -259,6 +266,8 @@ export async function applyInput({
         session.send(input.message, {
           ...(input.busy ? { busy: input.busy } : {}),
           ...(input.ephemeral ? { ephemeral: input.ephemeral } : {}),
+          // The host checks the `operator` action of the sender.
+          ...(input.as ? { as: input.as } : {}),
           ...sent,
         }),
       )

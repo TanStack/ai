@@ -1,12 +1,13 @@
 import { EventType } from '@tanstack/ai'
 import { REDACTED_THINKING_ID_PREFIX } from '@tanstack/ai/adapter-internals'
 import { LogConflictError } from '@tanstack/ai-persistence'
-import { engineMessageStore, revertOf, sessionMessageStore } from '../log'
+import { engineMessageStore, loggedRunOf, sessionMessageStore } from '../log'
+import { logChatStores } from '../log-stores'
 import { mountPlugins } from '../plugins'
 import {
   CUT_OFF_NOTE,
   checkpointMiddleware,
-  findCrashedRuns,
+  toolResultRecorder,
   repairSteps,
   repairTranscript,
 } from '../resume'
@@ -20,20 +21,26 @@ import {
   CHAT_OPS,
   CONTROL_OPS,
   hasFinalAnswer,
+  loggedExtras,
+  offeredInputRecord,
+  SHUTDOWN_REASON,
+  storedPrincipal,
   tapFeed,
+  toolCallOf,
 } from './helpers'
 import { SessionTurn } from './turn'
+import { MAX_TIMER_MS } from '../utils'
 import type { ModelMessage } from '@tanstack/ai'
-import type { InboxEntry } from '@tanstack/ai-persistence'
+import type { AccessRun } from '../access'
 import type { InputState, LogWriter } from '../log'
 import type { AnyHarness } from '../define'
 import type { RecoverContext, RecoverDecision } from '../turn'
-import type { HarnessInput, SettlementOutcome } from '../types'
-import type { WaitingSteer } from './types'
+import type { HarnessInput, SettlementOutcome, TurnOverrides } from '../types'
+import type { ScheduleOptions, WaitingSteer } from './types'
 
 /**
  * A handle to a live harness session: one conversation (`threadId`) with its
- * plugins, operations, inbox, and event stream. Open one with `host.open()`.
+ * plugins, operations, inputs, and event stream. Open one with `host.open()`.
  * Each open gives its own handle. Release it with `close()`, or with
  * `await using`, when you are done.
  */
@@ -44,6 +51,10 @@ export interface HarnessSession<
   // The public members that only the host and the handler call.
   | 'open'
   | 'adoptFork'
+  | 'adoptMessages'
+  | 'transferOf'
+  | 'recordTransfer'
+  | 'transferSummary'
   | 'onIdle'
   | 'resolveForRun'
   | 'checked'
@@ -51,6 +62,7 @@ export interface HarnessSession<
   | 'agentHandle'
   | 'isIdle'
   | 'isClosing'
+  | 'openWait'
   // A handle closes itself, not the session.
   | 'close'
 > {
@@ -90,6 +102,13 @@ export interface HarnessSession<
 export class SessionImpl<
   THarness extends AnyHarness = AnyHarness,
 > extends SessionTurn<THarness> {
+  /** The recoveries that run. The host keeps the log while one runs. */
+  private recovering = 0
+  /** The timer of the next schedule of this thread. See `armSchedules`. */
+  private scheduleTimer: ReturnType<typeof setTimeout> | undefined
+  /** The schedule writes and runs, one at a time. */
+  private scheduling: Promise<void> = Promise.resolve()
+
   /** This session, typed as the public type, for the hooks of each layer. */
   protected override self(): HarnessSession<THarness> {
     return this
@@ -103,38 +122,47 @@ export class SessionImpl<
     return this.close()
   }
 
-  /** @internal Mount session plugins and replay inputs left in the inbox. */
+  /**
+   * @internal `error` without the secrets of this session, for an error
+   * frame that leaves it (the HTTP handler, the socket, a worker). An
+   * `Error` keeps its class: its message and stack are scrubbed in place.
+   * The same value when it has no secret.
+   */
+  scrubError(error: unknown): unknown {
+    if (!(error instanceof Error)) return this.redactor.redact(error)
+    const message = this.scrub(error.message)
+    if (message === error.message) return error
+    try {
+      error.message = message
+      if (error.stack !== undefined) error.stack = this.scrub(error.stack)
+      return error
+    } catch {
+      // A message that cannot change (a getter only): a plain error.
+      return new Error(message)
+    }
+  }
+
+  /** @internal Mount session plugins and recover the work in the log. */
   async open(): Promise<void> {
     // First: plugins publish events while they mount.
     await this.openLog()
     try {
       await this.mountSessionPlugins()
-      await this.loadSettings()
-      this.reverted = this.writer
-        ? this.writer.state.revert
-        : revertOf(
-            await this.persistence.stores.metadata?.get(
-              'harness:revert',
-              this.storeThreadId,
-            ),
-          )
+      this.loadSettings()
+      this.reverted = this.writer.state.revert
       await this.loadInterrupted()
       // Before recovery: a turn that recovery runs updates this entry.
       await this.openEntry()
-      if (this.writer) {
-        await this.recoverFromLog(this.writer)
-        // Inputs that waited for an owner that stopped.
-        void this.drainInbox()
-        return
-      }
-      await this.loadUsage()
-      await this.recoverCrashedTurn()
-      await this.recoverInbox()
+      await this.recoverFromLog(this.writer)
+      // Inputs that other hosts offered while no host owned the log.
+      this.acceptsOffers = true
+      void this.drainOffers()
+      this.armSchedules()
     } catch (error) {
-      // A session that fails to open stops what it started: the plugins, the
-      // claim timer, and the turns that recovery queued or runs. It stops
-      // them as on a crash, so the next open runs them again. It gives its
-      // log view back, so the thread can open again.
+      // A session that fails to open stops what it started: the plugins and
+      // the turns that recovery queued or runs. It stops them as on a crash,
+      // so the next open runs them again. It gives its log view back, so the
+      // thread can open again.
       await this.close({ recoverable: true }).catch(() => {})
       throw error
     }
@@ -142,6 +170,10 @@ export class SessionImpl<
 
   /** Also waits for the last append of the log, so a reopen reads it. */
   override async close(options?: { recoverable?: boolean }): Promise<void> {
+    // The log keeps the schedules. The release of the log gives the store
+    // their wake time.
+    clearTimeout(this.scheduleTimer)
+    this.scheduleTimer = undefined
     await super.close(options)
     // A recovery in flight queues turns after the stop: wait for it, then
     // drop what it queued.
@@ -149,7 +181,8 @@ export class SessionImpl<
     for (const turn of this.queue.splice(0)) {
       turn.operation.fail('cancelled', new Error('Session closed.'))
     }
-    await this.writer
+    // A session whose open failed before the log opened has no writer.
+    await this.logWriter
       ?.flush()
       .catch((error: unknown) =>
         console.error('[@tanstack/ai-harness] The log flush failed.', error),
@@ -174,15 +207,15 @@ export class SessionImpl<
         inherited: this.storeCapabilities(),
       },
     )
-    await this.loadConfig()
-    await this.loadPluginState()
+    this.loadConfig()
+    this.loadPluginState()
   }
 
   /**
    * Tear the plugins down and set them up again, with the list that
    * `harness.plugins()` gives now. It waits for the running turn, and no new
-   * turn starts until it ends. The transcript, the log, the thread settings,
-   * and the inbox stay. Clients get a `harness.reloaded` event.
+   * turn starts until it ends. The transcript, the log, and the thread
+   * settings stay. Clients get a `harness.reloaded` event.
    *
    * When the new setup throws, the session keeps working with no plugins,
    * and the promise rejects with the error. Call `reload()` again after a
@@ -234,19 +267,20 @@ export class SessionImpl<
   }
 
   /**
-   * Recover the work in the log again, as `open()` does. `open()` skips a
-   * turn while another host holds its lease. Call this after that lease
-   * expires, and the turn runs here. The work that this session runs or
-   * queues stays as it is. A session without `stores.log` does nothing.
+   * Recover the work in the log again, as `open()` does, then apply the
+   * inputs that other hosts offered. `open()` skips the work while another
+   * host owns the log. Call this after that host stops or gives the log up,
+   * and the work runs here. The work that this session runs or queues stays
+   * as it is.
    *
    * @example
    * ```ts
    * await session.recover()
    * ```
    */
-  recover(): Promise<void> {
+  async recover(): Promise<void> {
+    if (this.closing) return
     const { writer } = this
-    if (!writer || this.closing) return Promise.resolve()
     const run = this.recovery.then(async () => {
       // First the records that other hosts wrote since this session read.
       await writer.catchUp()
@@ -256,67 +290,275 @@ export class SessionImpl<
       await this.recoverFromLog(writer)
     })
     this.recovery = run.catch(() => {})
+    await run
+    await this.drainOffers()
+  }
+
+  /**
+   * @internal For a sweep that acquired the log of this session: recover
+   * the work, apply the offers, run the schedules that are due, then give
+   * the log back when the thread has no work. Resolves `false` when another
+   * live host owns the log.
+   */
+  async takeOver(): Promise<boolean> {
+    await this.recover()
+    // A log that a worker took for its wake has a schedule that is due.
+    await this.runDueSchedules()
+    const isOwner = await this.writer.own()
+    // A recovery with no work did not write, so the log goes back here.
+    await this.writer.rest()
+    return isOwner
+  }
+
+  /**
+   * Run `input` at the time `at` (epoch ms), on the host that owns the log
+   * then. The log keeps the schedule, so it runs once, also after a restart
+   * or on another machine: when no host has the thread open, the log store
+   * wakes a worker at that time (see `createHarnessWorker`). Resolves with
+   * the id of the schedule when the log has it.
+   *
+   * Throws `LogOwnedElsewhereError` when another live host owns the log of
+   * the thread, and a `RangeError` for an `at` that is not a finite number.
+   *
+   * @example
+   * ```ts
+   * const { scheduleId } = await session.schedule({
+   *   at: Date.now() + 60 * 60 * 1000,
+   *   input: { op: 'prompt', message: 'Write the daily summary.' },
+   * })
+   * ```
+   */
+  async schedule(options: ScheduleOptions): Promise<{ scheduleId: string }> {
+    const { at, input } = options
+    if (!Number.isFinite(at)) {
+      throw new RangeError(`schedule: at must be a finite number, got ${at}.`)
+    }
+    const scheduleId = options.scheduleId ?? createScheduleId()
+    const principal = options.principal ?? this.principal
+    await this.inSchedules(async () => {
+      if (this.writer.state.thread.schedules.has(scheduleId)) return
+      await this.writer.append([
+        {
+          type: 'harness.schedule',
+          scheduleId,
+          at,
+          input,
+          ...storedPrincipal(principal),
+        },
+      ])
+    })
+    this.armSchedules()
+    return { scheduleId }
+  }
+
+  /**
+   * Stop a schedule that did not run yet. A schedule that ran, or an id that
+   * the thread does not know, changes nothing. Throws
+   * `LogOwnedElsewhereError` when another live host owns the log.
+   *
+   * @example
+   * ```ts
+   * await session.cancelSchedule({ scheduleId })
+   * ```
+   */
+  async cancelSchedule({ scheduleId }: { scheduleId: string }): Promise<void> {
+    await this.inSchedules(async () => {
+      if (!this.writer.state.thread.schedules.has(scheduleId)) return
+      await this.writer.append([{ type: 'harness.schedule.done', scheduleId }])
+    })
+    this.armSchedules()
+  }
+
+  /**
+   * @internal The run that `authorize` gets for a cancel of the schedule
+   * `scheduleId`: the schedule, and who made it. `undefined` for an id that
+   * the thread does not know.
+   */
+  scheduleRun(scheduleId: string): AccessRun | undefined {
+    const schedule = this.writer.state.thread.schedules.get(scheduleId)
+    if (!schedule) return undefined
+    const { principal } = schedule
+    return {
+      runId: scheduleId,
+      ...(principal ? { principalId: principal.id } : {}),
+    }
+  }
+
+  /**
+   * @internal The run that `input` targets, and who started it, from the
+   * log: the access check of a schedule. See `loggedRunOf`.
+   */
+  loggedRun(input: HarnessInput) {
+    return loggedRunOf({
+      store: this.log.store,
+      logId: this.storeLogId,
+      rootThread: this.threadId,
+      input,
+    })
+  }
+
+  /** Run `task` after the schedule tasks before it. */
+  private inSchedules(task: () => Promise<void>) {
+    const run = this.scheduling.then(task)
+    this.scheduling = run.catch(() => {})
     return run
   }
 
   /**
-   * A durable host gives the session its view of the log, and the session
-   * writes through it: the log is the event feed and the transcript. Then
-   * both modes build the stores that `withPersistence` and the checkpoints
-   * get.
+   * Run the schedules that are due now, and set the timer for the first one
+   * that is not. When the timer fires, the session runs the schedules that
+   * are due, if this host can own the log. With `isRetry`, a schedule that
+   * is still due (another host owns the log, or a write failed) waits
+   * `SCHEDULE_RETRY_MS` before the next try.
+   */
+  protected override armSchedules({
+    isRetry = false,
+  }: { isRetry?: boolean } = {}) {
+    clearTimeout(this.scheduleTimer)
+    this.scheduleTimer = undefined
+    if (this.closing || this.logWriter === undefined) return
+    const schedules = [...this.writer.state.thread.schedules.values()]
+    if (schedules.length === 0) return
+    const first = Math.min(...schedules.map((schedule) => schedule.at))
+    const left = first - Date.now()
+    if (left <= 0 && !isRetry) {
+      // At once, so the thread is busy before the host can close it on idle.
+      this.runDueSchedules().catch((error: unknown) =>
+        this.warnSession('harness:schedules', error),
+      )
+      return
+    }
+    // A longer wait fires early, finds nothing due, and sets the timer again.
+    const delay = Math.min(left > 0 ? left : SCHEDULE_RETRY_MS, MAX_TIMER_MS)
+    const timer = setTimeout(() => {
+      this.scheduleTimer = undefined
+      this.runDueSchedules().catch((error: unknown) =>
+        this.warnSession('harness:schedules', error),
+      )
+    }, delay)
+    // The log store wakes a worker for the schedule, so the timer must not
+    // keep a process alive.
+    if (typeof timer === 'object' && 'unref' in timer) timer.unref()
+    this.scheduleTimer = timer
+  }
+
+  /**
+   * Run the schedules of this thread that are due, the first one first, and
+   * set the timer for the next one. Only the owner of the log runs them:
+   * when another live host owns it, that host runs them.
+   */
+  protected runDueSchedules(): Promise<void> {
+    // The thread is busy while it runs, so it does not close on idle.
+    return this.admitting(() =>
+      this.inSchedules(() => this.fireDueSchedules()),
+    ).finally(() => this.armSchedules({ isRetry: true }))
+  }
+
+  /**
+   * Each due schedule with an input offers the input, with the input id
+   * `schedule:<scheduleId>`, to the input lane, and then writes its done
+   * record. The store keeps each input id once: when a crash comes between
+   * the two writes, the next owner offers the same input again, gets a
+   * duplicate, and the input still runs once. A due wake (a `step.sleep`)
+   * writes its done record, and the session recovers the run that waits.
+   */
+  private async fireDueSchedules() {
+    const { writer } = this
+    const now = Date.now()
+    const due = [...writer.state.thread.schedules]
+      .filter(([, schedule]) => schedule.at <= now)
+      .sort(([, left], [, right]) => left.at - right.at)
+    const isStopped = () =>
+      this.closing !== undefined || this.logFailure !== undefined
+    if (due.length === 0 || isStopped()) return
+    if (!(await writer.own())) return
+    let hasWake = false
+    for (const [scheduleId, schedule] of due) {
+      if (isStopped() || writer.fenced) return
+      if (schedule.input) {
+        const inputId = `schedule:${scheduleId}`
+        const offered = await writer.offer(
+          inputId,
+          offeredInputRecord({
+            inputId,
+            input: schedule.input,
+            principal: schedule.principal,
+          }),
+        )
+        if (offered === 'conflict') {
+          this.warnSession(
+            'harness:schedules',
+            `Schedule ${scheduleId} did not run: another input has the id ${inputId}.`,
+          )
+        }
+      } else {
+        hasWake = true
+      }
+      await writer.append([{ type: 'harness.schedule.done', scheduleId }])
+    }
+    if (hasWake) await this.recover()
+    await this.drainOffers()
+    // A schedule that started no work gives the log back.
+    void writer.rest()
+  }
+
+  /**
+   * The host gives the session its view of the log, and the session writes
+   * through it: the log is the event feed, the transcript, and the runs and
+   * interrupts. Then the session builds the stores that `withPersistence`
+   * and the checkpoints get.
    */
   protected async openLog(): Promise<void> {
     const { stores } = this.persistence
-    if (this.log) {
-      const { store, project } = this.log
-      this.writer = await this.log.open(this.threadId, (error) =>
-        this.stopOnLogFailure(error),
-      )
-      this.feed = tapFeed(this.writer, this.notifyHost, this.eventListeners)
-      // The logs of the subagent children are in the tenant of this session.
-      const view = {
-        writer: this.writer,
-        store,
-        ...(project ? { project } : {}),
-        ...(this.tenantId !== undefined ? { tenantId: this.tenantId } : {}),
-      }
-      this.messages = sessionMessageStore(view)
-      this.engine = engineMessageStore(view)
-    }
-    const engineMessages = this.engine ?? this.messages
+    const writer = await this.log.open(this.threadId, {
+      onFailure: (error) => this.stopOnLogFailure(error),
+      onLost: () => this.stopOnOwnershipLoss(),
+      // A background job of this host keeps the log too: a host that takes
+      // the log over would note the job as stopped.
+      isBusy: () => !this.isIdle() || this.jobs.size > 0 || this.recovering > 0,
+      // A sleep has a schedule, so its wake comes at its time.
+      hasWorkNow: () =>
+        (!this.isIdle() || this.jobs.size > 0 || this.recovering > 0) &&
+        this.sleeping === 0,
+      onOffers: () => void this.drainOffers(),
+      redact: this.redactor.redact,
+    })
+    this.logWriter = writer
+    this.feed = tapFeed(
+      writer,
+      this.notifyHost,
+      this.eventListeners,
+      this.redactor,
+    )
+    // The child threads (agent chains and subagent runs) are in this log.
+    const view = { writer }
+    this.messages = sessionMessageStore(view)
+    const engineMessages = engineMessageStore(view)
+    this.openEngine = engineMessages
+    const { runs, interrupts } = logChatStores(writer)
+    this.logStores = { runs, interrupts }
     this.chatPersistence = {
       stores: {
         messages: engineMessages,
-        ...(stores.runs ? { runs: stores.runs } : {}),
-        ...(stores.interrupts ? { interrupts: stores.interrupts } : {}),
+        runs,
+        interrupts,
         ...(stores.metadata ? { metadata: stores.metadata } : {}),
         ...(stores.sessions ? { sessions: stores.sessions } : {}),
       },
     }
-    const { writer } = this
     this.checkpoint = checkpointMiddleware({
-      ...(stores.runs ? { runs: stores.runs } : {}),
+      runs,
       messages: engineMessages,
-      hostId: this.hostId,
-      ...(this.lease ? { lease: this.lease } : {}),
-      // A durable host keeps each finished tool result, so a crash later in
-      // the batch does not lose it.
-      ...(writer
-        ? {
-            onToolStart: ({ toolCallId, name, replay }) =>
-              writer.append([
-                { type: 'harness.tool.started', toolCallId, name, replay },
-              ]),
-            onToolResult: ({ toolCallId, message }) =>
-              writer.append([
-                { type: 'harness.tool.result', toolCallId, message },
-              ]),
-          }
-        : {}),
+      onToolStart: ({ toolCallId, name, replay }) =>
+        writer.append([
+          { type: 'harness.tool.started', toolCallId, name, replay },
+        ]),
     })
-    if (writer) {
-      this.bindTool = (toolCallId) => this.durableBinding(writer, toolCallId)
-    }
+    // The log keeps each finished tool result, so a crash later in the
+    // batch does not lose it. It is the final result, after every plugin.
+    this.toolRecorder = toolResultRecorder(({ toolCallId, message }) =>
+      writer.append([{ type: 'harness.tool.result', toolCallId, message }]),
+    )
   }
 
   /**
@@ -343,95 +585,57 @@ export class SessionImpl<
   }
 
   /**
-   * Continue the newest chat turn that a crashed host left running. Older
-   * crashed turns are marked failed, and so are crashed agent runs.
+   * Another host took the log of this session. Its running work stops at
+   * once, as on a crash: no later write of it lands, and the new owner runs
+   * it again. Queued turns end. The session stays open and reads the log.
+   * When the stopped work has ended (the session is idle), a later write
+   * acquires the log again.
    */
-  protected async recoverCrashedTurn(): Promise<void> {
-    const runs = await findCrashedRuns(
-      this.persistence.stores.runs,
-      this.threadId,
+  protected stopOnOwnershipLoss(): void {
+    this.ownershipLoss = new Error(
+      'Another host took this thread over, so this host stopped its work on it. The new owner runs that work. This session still reads the thread.',
     )
-    for (const run of runs.filter((record) => record.kind === 'agent')) {
-      await this.failStoppedAgent({
-        operationId: run.runId,
-        agent: run.agent ?? 'agent',
-      })
+    for (const turn of this.queue.splice(0)) {
+      turn.operation.fail('cancelled', this.ownershipLoss)
     }
-    const crashed = runs.filter((record) => record.kind !== 'agent')
-    const newest = crashed.sort((a, b) => b.startedAt - a.startedAt)[0]
-    for (const record of crashed) {
-      await this.persistence.stores.runs?.update(record.runId, {
-        status: 'failed',
-        finishedAt: Date.now(),
-        error: {
-          message:
-            record === newest
-              ? 'The host stopped. The session continued this turn in a new run.'
-              : 'The host stopped during this turn.',
-        },
-      })
+    for (const operation of this.operations.values()) {
+      if (!operation.isSettled()) {
+        operation.abortController.abort(SHUTDOWN_REASON)
+      }
     }
-    if (!newest || this.interrupted) return
-    await repairTranscript({
-      messages: this.messages,
-      threadId: newest.threadId,
-      pending: newest.checkpoint?.pendingTools ?? [],
-      interrupted: this.harness.durability?.interruptedToolResult,
-      truncated: this.harness.durability?.truncatedToolResult,
-    })
-    const operation = this.createTurnOperation()
-    this.feed.publish(
-      operation.id,
-      customEvent(HARNESS_EVENTS.operationResumed, {
-        operationId: operation.id,
-        resumedFrom: newest.runId,
-      }),
-    )
-    this.enqueueTurn({ operation })
+    // None of the inputs that this session took runs here now. A recovery
+    // after this host gets the log back must take them again. The duplicate
+    // check reads the log for the inputs that it stored.
+    this.admitted.clear()
+    // With no work that still ends, the session is idle now and unfences.
+    queueMicrotask(() => this.checkIdle())
   }
 
-  /** Re-run turns that were accepted but never applied before a restart. */
-  protected async recoverInbox(): Promise<void> {
-    const pending: Array<InboxEntry> = await this.inbox.listPending(
-      this.storeThreadId,
-    )
-    for (const entry of pending) {
-      const input = entry.input as HarnessInput
-      if (
-        input.op === 'prompt' ||
-        input.op === 'followUp' ||
-        input.op === 'steer'
-      ) {
-        const operation = this.createTurnOperation()
-        this.admitted.set(entry.inputId, inputKey(input, entry.principal))
-        this.bindTurn(entry.inputId, operation)
-        this.enqueueTurn({
-          operation,
-          message: input.message,
-          inputId: entry.inputId,
-          principal: entry.principal,
-          context: input.context,
-          ...(input.op === 'followUp' && input.wake ? { wake: true } : {}),
-        })
-      } else if (input.op === 'tool') {
-        const operation = this.createTurnOperation()
-        this.admitted.set(entry.inputId, inputKey(input, entry.principal))
-        this.bindTurn(entry.inputId, operation)
-        this.enqueueTurn({
-          operation,
-          inputId: entry.inputId,
-          principal: entry.principal,
-          tool: {
-            name: input.name,
-            args: input.args,
-            ...(input.meta ? { meta: input.meta } : {}),
-          },
-        })
-      } else if (input.op === 'reset') {
-        this.queueReset(entry.inputId, input.note, entry.principal, 'end')
-      } else {
-        this.reject(entry.inputId, 'expired_on_restart')
-      }
+  /**
+   * The extras of a turn that recovery runs again: the JSON overrides,
+   * preamble, and ephemeral messages that the log keeps, under the
+   * overrides of the recover hook (`decided`). A turn that had overrides
+   * that the log does not keep (an adapter object, tools) goes on without
+   * them, and the session warns once.
+   */
+  protected recoveredExtras(
+    inputId: string,
+    decided: TurnOverrides | undefined,
+  ) {
+    const named = this.writer.state.thread.turnOverrides.get(inputId)
+    if (named?.liveOnly) {
+      this.warnSession(
+        'harness:overrides',
+        `The turn of input ${inputId} runs again without its ${named.liveOnly.join(' and ')} overrides: the log keeps only JSON overrides. Name the model with overrides.model to keep it.`,
+      )
+    }
+    const logged = named ? loggedExtras(named) : {}
+    const hasOverrides = decided !== undefined || logged.overrides !== undefined
+    return {
+      ...logged,
+      ...(hasOverrides
+        ? { overrides: { ...logged.overrides, ...decided } }
+        : {}),
     }
   }
 
@@ -538,7 +742,8 @@ export class SessionImpl<
 
   /**
    * Recover a durable session from its log, input by input, in admission
-   * order. A chat turn whose host stopped (its run lease expired) settles
+   * order. Only the owner of the log recovers: while another host owns it,
+   * recovery waits. A chat turn whose host stopped settles
    * `completed` when the log already has its final answer. Else it settles
    * `aborted` when an abort was asked, settles `failed` when no attempt or no
    * time is left, and else runs again as the next attempt. An agent run (a
@@ -553,9 +758,16 @@ export class SessionImpl<
    * again.
    */
   protected async recoverFromLog(writer: LogWriter): Promise<void> {
-    // A live owner runs its own inputs, also one that has no run lease yet.
-    // A sweep recovers them after its claim expires.
-    if (await this.isOwnedElsewhere()) {
+    // The owner of the log decides. A host that gets it knows that no other
+    // host runs these inputs: the last owner stopped or gave the log up.
+    // While another host owns it, its work is alive, and recovery waits.
+    // A log with nothing to recover is not acquired: a reader owns nothing.
+    const hasWork = [...writer.state.inputs.values()].some(
+      (input) =>
+        (input.status === 'pending' || input.status === 'applied') &&
+        !this.admitted.has(input.inputId),
+    )
+    if (hasWork && !(await writer.own())) {
       this.recoveryDeferred = true
       return
     }
@@ -568,25 +780,35 @@ export class SessionImpl<
       taken.push(input.inputId)
       return false
     }
+    // The host keeps the log until recovery queued its work.
+    this.recovering += 1
     try {
-      await this.recoverInputs(writer, isTaken)
-    } catch (error) {
-      // Not recovered, so the next `recover()` takes them again.
-      for (const inputId of taken) {
-        if (!this.turnOperations.has(inputId)) this.admitted.delete(inputId)
+      try {
+        await this.recoverInputs(writer, isTaken)
+      } catch (error) {
+        // Not recovered, so the next `recover()` takes them again.
+        for (const inputId of taken) {
+          if (!this.turnOperations.has(inputId)) this.admitted.delete(inputId)
+        }
+        throw error
       }
-      throw error
+      // After the turns are decided: a note must not end the transcript
+      // that a cut turn continues.
+      await this.recoverBackground(writer)
+      // The waits that expired, and the live waits of a host that stopped.
+      await this.endStaleWaits()
+    } finally {
+      this.recovering -= 1
+      // A recovery that left no work gives the log back.
+      void writer.rest()
     }
-    // After the turns are decided: a note must not end the transcript that
-    // a cut turn continues.
-    await this.recoverBackground(writer)
   }
 
   private async recoverInputs(
     writer: LogWriter,
     isTaken: (input: InputState) => boolean,
   ): Promise<void> {
-    const runs = this.persistence.stores.runs
+    const runs = this.runStore
     const maxAttempts = this.harness.durability?.maxAttempts ?? 10
     const logged = [...writer.state.inputs.values()]
     for (const input of logged) {
@@ -684,7 +906,7 @@ export class SessionImpl<
             inputId: input.inputId,
             principal: input.principal,
             context: input.input.context,
-            overrides: decision.overrides,
+            ...this.recoveredExtras(input.inputId, decision.overrides),
             isContinue: true,
           })
           continue
@@ -701,12 +923,25 @@ export class SessionImpl<
           })
           continue
         }
+        if (input.input.op === 'prompt' && input.input.as === 'operator') {
+          // An operator reply runs no model, as `send` does.
+          const operation = this.createTurnOperation()
+          this.bindTurn(input.inputId, operation)
+          this.enqueueTurn({
+            operation,
+            inputId: input.inputId,
+            principal: input.principal,
+            message: input.input.message,
+            operator: true,
+          })
+          continue
+        }
         const steer: WaitingSteer = {
           inputId: input.inputId,
           message: input.input.message,
           principal: input.principal,
           context: input.input.context,
-          overrides: decision.overrides,
+          ...this.recoveredExtras(input.inputId, decision.overrides),
           ...(input.input.op === 'followUp' && input.input.wake
             ? { wake: true }
             : {}),
@@ -722,30 +957,18 @@ export class SessionImpl<
       // An agent run: a first run, or a follow-up run of its chain.
       const first = chainInputOf(writer.state.inputs, input)
       if (input.status !== 'applied' || !(isChat || first)) continue
-      const leases = this.persistence.stores.leases
-      const run = input.operationId ? await runs?.get(input.operationId) : null
+      // This host owns the log (see `recoverFromLog`), so no other host
+      // drives this turn.
+      if (isTaken(input)) continue
+      const run = input.operationId ? await runs.get(input.operationId) : null
       const now = Date.now()
-      // A host lease store decides when there is one. Else the run lease does.
-      const isAlive =
-        leases && input.operationId
-          ? await leases.isAlive({
-              threadId: this.storeThreadId,
-              inputId: input.inputId,
-              operationId: input.operationId,
-              attempt: input.attempt,
-            })
-          : run?.status === 'running' &&
-            run.leaseExpiresAt !== undefined &&
-            run.leaseExpiresAt >= now
-      // Another host still drives this turn.
-      if (isAlive || isTaken(input)) continue
       if (first) {
         // A run that ended before its settle record landed did not stop.
         if (!run || run.status === 'running') {
           const isResumable = first.input.resume === true
           if (isResumable && input.attempt < maxAttempts) {
             if (input.operationId) {
-              await runs?.update(input.operationId, {
+              await runs.update(input.operationId, {
                 status: 'failed',
                 finishedAt: now,
                 error: {
@@ -776,7 +999,7 @@ export class SessionImpl<
         continue
       }
       if (run?.status === 'running') {
-        await runs?.update(run.runId, {
+        await runs.update(run.runId, {
           status: 'failed',
           finishedAt: now,
           error: { message: 'The host stopped during this turn.' },
@@ -848,22 +1071,40 @@ export class SessionImpl<
         continue
       }
       if (input.input.op === 'resolve') {
-        const store = this.persistence.stores.interrupts
-        const records = store
-          ? await Promise.all(
-              input.input.resume.map((item) => store.get(item.interruptId)),
-            )
-          : []
-        const consumed =
-          records.length > 0 &&
-          records.every(
-            (record) =>
-              record !== null &&
-              record.threadId === this.threadId &&
-              record.status !== 'pending',
-          )
+        const { resume } = input.input
+        const store = this.interruptStore
+        const records = await Promise.all(
+          resume.map((item) => store.get(item.interruptId)),
+        )
         const newPhase =
           this.interrupted && this.interrupted.runId === operationId
+        // The tools of the resume ran, and the log failed before their
+        // resolve records landed. They are used up all the same, so they
+        // never run twice.
+        const isRunOut =
+          !newPhase &&
+          resume.length > 0 &&
+          resume.every((item) => {
+            const interrupt = this.interrupted?.interrupts.find(
+              (candidate) => candidate.id === item.interruptId,
+            )
+            const toolCallId = interrupt ? toolCallOf(interrupt) : undefined
+            return toolCallId !== undefined && hasToolResult(writer, toolCallId)
+          })
+        if (isRunOut) {
+          await this.consumeResume(resume)
+          this.dropInterrupts(resume)
+          await this.saveInterrupted(this.interrupted)
+        }
+        const consumed =
+          isRunOut ||
+          (records.length > 0 &&
+            records.every(
+              (record) =>
+                record !== null &&
+                record.threadId === this.threadId &&
+                record.status !== 'pending',
+            ))
         if (
           consumed ||
           newPhase ||
@@ -899,7 +1140,7 @@ export class SessionImpl<
           answers: this.interrupted,
           principal: input.principal,
           context: this.interrupted.context,
-          overrides: decision.overrides,
+          ...this.recoveredExtras(input.inputId, decision.overrides),
         })
         continue
       }
@@ -960,10 +1201,36 @@ export class SessionImpl<
         principal: input.principal,
         ...('message' in sent ? { sentMessage: sent.message } : {}),
         ...('context' in sent ? { context: sent.context } : {}),
-        overrides: decision.overrides,
+        // An operator reply runs no model.
+        ...(sent.op === 'prompt' && sent.as === 'operator'
+          ? { operator: true }
+          : {}),
+        ...this.recoveredExtras(input.inputId, decision.overrides),
       })
     }
   }
+}
+
+/** How long a schedule that could not run waits before the next try. */
+const SCHEDULE_RETRY_MS = 1_000
+
+/** A new schedule id. */
+function createScheduleId() {
+  return `sched-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
+}
+
+/**
+ * Does the log have the result of tool call `toolCallId`: a stored result,
+ * or a tool message in the transcript? Then the call ran to its end.
+ */
+function hasToolResult(writer: LogWriter, toolCallId: string) {
+  const { toolResults, messages } = writer.state
+  return (
+    toolResults.has(toolCallId) ||
+    messages.some(
+      (message) => message.role === 'tool' && message.toolCallId === toolCallId,
+    )
+  )
 }
 
 /**
@@ -978,3 +1245,10 @@ function appliedOperationId(input: InputState): string {
   }
   return input.operationId
 }
+
+/**
+ * `error` without the secrets of `session`, when it is a session of this
+ * package. Else the same `error`: a code path with no session leaves it.
+ */
+export const scrubbedBy = (session: unknown, error: unknown): unknown =>
+  session instanceof SessionImpl ? session.scrubError(error) : error
