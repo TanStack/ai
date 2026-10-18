@@ -10,4 +10,6 @@ Add first-party plugins. `@tanstack/ai-harness/plugins` loads no Node module. Th
 - `todos()`, `title()`, `modelPicker()`, `compact()`, and `usage()` (with your own prices for calls that have no provider cost).
 - `projectInstructions()`, `fileCommands()`, and `boundToolOutput()`, in `plugins/node`.
 
+A plugin runs agents with `ctx.agents.start`, `ctx.agents.run`, and `ctx.agents.group({ concurrency }, (g) => [g.start(agent, input)])`, with the same types as `ctx.harness.agents` in agent code.
+
 `PermissionRules`, `PermissionResources`, `PermissionDecisionCapability`, and `decidePermission` are also exported from the package root. They load no Node module, so an edge-safe plugin can read the permission rules.

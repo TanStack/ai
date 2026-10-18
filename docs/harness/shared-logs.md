@@ -21,6 +21,7 @@ Open the root thread. Each child thread that the harness starts writes to the lo
 
 - An agent run and its follow-ups (`<threadId>:<name>:<input id>`).
 - A subagent run (`subagent:<runId>`).
+- A session of another harness that runs as a child with [`harnessAgent`](./subagents#call-a-harness-as-a-child) (`<root thread id>/agent/<run id>`). <!-- harness-agent: check -->
 
 ```ts group=harness-shared-logs
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
@@ -39,7 +40,7 @@ const root = await host.open(assistant, { threadId: 'agent-1' })
 
 - The log has the id of the root thread, in its tenant: `logIdOf({ tenantId, logId: 'agent-1' })`.
 - Each thread folds only its own transcript, inputs, and events from the log. A child never sees the messages of the root.
-- A child thread does not open. Open its root, and read the child with `session.agentTranscript(subagentRunId)`.
+- A child thread does not open. Open its root, and read the child with `session.agentTranscript(subagentRunId)`. `host.open` throws for the thread id of a `harnessAgent` child. <!-- harness-agent: check -->
 - `host.observe` also reads a child thread by its own thread id. It finds the root through the session index, so it needs `stores.sessions`. `memoryPersistence()` has it.
 
 ## Write to several threads in one append

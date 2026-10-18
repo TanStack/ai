@@ -1007,7 +1007,7 @@
           "label": "Build on the session log",
           "to": "harness/session-log",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Control how a turn ends",
@@ -1037,7 +1037,7 @@
           "label": "One log for a session tree",
           "to": "harness/shared-logs",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Write a plugin",
@@ -1049,7 +1049,7 @@
           "label": "Track usage and cost",
           "to": "harness/usage",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Ask before risky tool calls",
@@ -1090,7 +1090,7 @@
           "label": "Switch between agent profiles",
           "to": "harness/agents",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-16"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Auth and connectors",

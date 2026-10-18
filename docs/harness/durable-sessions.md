@@ -80,7 +80,7 @@ A host that stops also stops renewing its ownership of the thread. When the owne
 
 An input that was stored but never ran, runs now. `session.settled({ inputId })` resolves to how an input ended. See [Send inputs safely](./inputs).
 
-A background agent that you started with `resume: true` runs again on the next host. See [Keep a background agent going after a crash](./subagents#keep-a-background-agent-going-after-a-crash). For any other background agent whose host stopped, the next host:
+A background agent that you started with `resume: true` runs again on the next host. See [Keep a background agent going after a crash](./subagents#keep-a-background-agent-going-after-a-crash). The children and groups that it started before the stop do not start again: they give their stored results. See [Children of a run that runs again](./subagents#children-of-a-run-that-runs-again). For any other background agent whose host stopped, the next host:
 
 1. Ends the run `failed`, with the message `The host stopped during this agent run.`
 2. Adds a note about the failure to the transcript.
