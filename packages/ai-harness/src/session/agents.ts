@@ -38,7 +38,9 @@ import {
   referenceNote,
   runMiddleware,
   AGENT_STOPPED,
+  BUDGET_REASON,
   SHUTDOWN_REASON,
+  TIMEOUT_REASON,
 } from './helpers'
 import { SessionTurnParts, stepWaitPrefix } from './turn-parts'
 import type {
@@ -98,6 +100,14 @@ import type {
 export abstract class SessionAgents<
   THarness extends AnyHarness = AnyHarness,
 > extends SessionTurnParts<THarness> {
+  /** The top-level agent runs of this host that hold a `maxConcurrent` slot. */
+  protected readonly slotHolders = new Set<string>()
+  /** The top-level starts that wait for a slot, oldest first. */
+  protected readonly slotWaiters: Array<{
+    operation: OperationImpl<unknown>
+    resolve: (isFree: boolean) => void
+  }> = []
+
   /**
    * The agent named `name`, for names known only at runtime (a slash
    * command, a protocol input). `undefined` when no such agent exists.
@@ -386,7 +396,7 @@ export abstract class SessionAgents<
     })
     const [firstRun, ...later] = entries
     if (!firstRun) return undefined
-    const chain = this.createChain(chainFields(first), firstRun)
+    const chain = this.createChain(this.loggedFields(first), firstRun)
     for (const entry of later) {
       chain.runs.push(entry)
       this.chainOf.set(entry.operation.id, chain)
@@ -512,7 +522,10 @@ export abstract class SessionAgents<
     const fromParent = parent
       ? {
           parentRunId: parent.current.operation.id,
+          parentChainInputId: parent.runInputId,
           budget: parent.budget.child(),
+          // `agentStarter` took a call of the tree budget for this start.
+          release: () => parent.budget.release(),
         }
       : child?.turnRunId !== undefined
         ? { turnRunId: child.turnRunId }
@@ -539,18 +552,200 @@ export abstract class SessionAgents<
   /**
    * `ctx.harness.agents` in the runs of `chain`: start, run, and group
    * children. Each child counts against the chain's tree budget, and over
-   * it the start throws. The child records the run that started it, and
-   * runs for that run's sender.
+   * it the start throws. A start that fails before its run applies gives
+   * its call back. A run with no model budget left starts no child. The
+   * child records the run that started it, and runs for that run's sender.
    */
   protected agentStarter(chain: AgentChain): AgentActions {
     return this.agentActions((target, input, options) => {
+      const runId = chain.current.operation.id
+      if (this.overBudget(runId, (left) => left <= 0).length > 0) {
+        throw new Error(`The agent run ${runId} has no budget left.`)
+      }
       const active = [...chain.children].filter(
         (child) => !child.current.operation.isSettled(),
       ).length
       const refusal = chain.budget.reserve(active)
       if (refusal !== undefined) throw new Error(refusal)
-      return this.runAgent(target, input, options, chain)
+      try {
+        return this.runAgent(target, input, options, chain)
+      } catch (error) {
+        chain.budget.release()
+        throw error
+      }
     })
+  }
+
+  /** Give back the tree budget call of the start of `chain`, once. */
+  protected releaseStart(chain: AgentChain) {
+    const { release } = chain
+    delete chain.release
+    release?.()
+  }
+
+  /**
+   * Is a `maxConcurrent` slot free for a top-level start? The session is
+   * the parent of every top-level run, so the runs that hold a slot here
+   * and the top-level runs that run or wait in the log count.
+   */
+  protected hasSlot() {
+    const max = this.limits().maxConcurrent
+    if (max === undefined) return true
+    const active = new Set(this.slotHolders)
+    for (const node of this.writer.state.thread.tree.values()) {
+      const isTopLevel = node.kind === 'agent' && node.parentRunId === undefined
+      if (
+        isTopLevel &&
+        (node.status === 'running' || node.status === 'waiting')
+      )
+        active.add(node.runId)
+    }
+    return active.size < max
+  }
+
+  /** Give the free slots to the starts that wait, oldest first. */
+  protected nextSlot() {
+    while (this.hasSlot()) {
+      const waiter = this.slotWaiters.shift()
+      if (!waiter) return
+      this.slotHolders.add(waiter.operation.id)
+      waiter.resolve(true)
+    }
+  }
+
+  /**
+   * Take a `maxConcurrent` slot for the top-level start `operation` of
+   * `chain`. With no slot free, the run waits as `queued` in the run tree.
+   * Returns false when the run ended while it waited: a cancel settles it
+   * `aborted`, and a close gives it back. ponytail: the input of a run that
+   * waits when its host stops is refused on restart (`expired_on_restart`).
+   */
+  protected async takeSlot(
+    operation: AgentRunImpl,
+    chain: AgentChain,
+    inputId: string,
+  ): Promise<boolean> {
+    if (this.hasSlot()) {
+      this.slotHolders.add(operation.id)
+      return true
+    }
+    const { signal } = operation.abortController
+    const isFree = new Promise<boolean>((resolve) => {
+      const waiter = { operation, resolve }
+      this.slotWaiters.push(waiter)
+      signal.addEventListener(
+        'abort',
+        () => {
+          const at = this.slotWaiters.indexOf(waiter)
+          if (at >= 0) this.slotWaiters.splice(at, 1)
+          resolve(false)
+        },
+        { once: true },
+      )
+    })
+    await this.writer.append([
+      runNodeRecord({
+        runId: operation.id,
+        kind: 'agent',
+        inputId,
+        principal: chain.current.principal,
+        agent: chain.agent,
+        chainInputId: chain.runInputId,
+        options: chain.options,
+      }),
+    ])
+    if (await isFree) return true
+    if (signal.reason === SHUTDOWN_REASON || this.logFailure) {
+      this.giveBack(operation)
+      return false
+    }
+    await this.settle({
+      inputId,
+      operationId: operation.id,
+      outcome: 'aborted',
+    })
+    operation.fail('cancelled', new Error('Cancelled before it started.'))
+    return false
+  }
+
+  /**
+   * The time limit of a new run of `chain`, in epoch ms: its own
+   * `limits.timeoutMs`, never later than the time limit of the run that
+   * started it.
+   */
+  protected agentDeadline(chain: AgentChain) {
+    const { inputs, thread } = this.writer.state
+    const parentId = chain.parentRunId ?? chain.turnRunId
+    const parentInput =
+      parentId === undefined ? undefined : thread.tree.get(parentId)?.inputId
+    const timeoutMs = chain.options.limits?.timeoutMs
+    const limits = [
+      ...(timeoutMs !== undefined ? [Date.now() + timeoutMs] : []),
+      ...(parentInput === undefined
+        ? []
+        : [inputs.get(parentInput)?.timeoutAt ?? Infinity]),
+    ]
+    const deadline = Math.min(...limits)
+    return Number.isFinite(deadline) ? deadline : undefined
+  }
+
+  /**
+   * The chain fields of the `agent` input `first`, with the start options
+   * that the newest run node of its chain keeps.
+   */
+  protected loggedFields(first: AgentInputState) {
+    let node: RunTreeNode | undefined
+    for (const item of this.writer.state.thread.tree.values()) {
+      if (item.chainInputId === first.inputId) node = item
+    }
+    return chainFields(first, node)
+  }
+
+  /**
+   * Warn once that the agent run `runId` runs again on this host without
+   * the start options that the log cannot keep (`onModelError`).
+   */
+  protected warnLiveOnly(runId: string | undefined) {
+    const node =
+      runId === undefined ? undefined : this.writer.state.thread.tree.get(runId)
+    if (!node?.liveOnly) return
+    this.warnSession(
+      'harness:agents',
+      `The agent run ${runId} runs again without its ${node.liveOnly.join(' and ')} option: the log keeps no function.`,
+    )
+  }
+
+  /**
+   * Ask the `onModelError` option of `chain` whether the run `operation`
+   * runs again after it failed with `failure`. `retries`: the attempts of
+   * this run that failed before. ponytail: any failure of the run asks, not
+   * only a failed model call, and the run starts again from its first
+   * message.
+   */
+  protected async isRetried(
+    operation: AgentRunImpl,
+    chain: AgentChain,
+    failure: string | undefined,
+    retries: number,
+  ) {
+    const hook = chain.options.onModelError
+    const { signal } = operation.abortController
+    if (failure === undefined || !hook || signal.aborted || this.logFailure) {
+      return false
+    }
+    try {
+      const answer = await hook({
+        runId: operation.id,
+        agent: chain.agent,
+        error: { message: failure },
+        retries,
+        signal,
+      })
+      return answer === 'retry' && !signal.aborted
+    } catch (error) {
+      this.warnSession('harness:agents', error)
+      return false
+    }
   }
 
   /** A new agent run operation. `id`: a stored one, after a restart. */
@@ -574,6 +769,13 @@ export abstract class SessionAgents<
       },
     )
     this.track(run)
+    // A settled run frees its slot. Any agent run that ends can free one: a
+    // top-level run that ran or waited in the log counts too.
+    const free = () => {
+      this.slotHolders.delete(run.id)
+      this.nextSlot()
+    }
+    run.then(free, free)
     return run
   }
 
@@ -587,6 +789,8 @@ export abstract class SessionAgents<
       | 'options'
       | 'principal'
       | 'parentRunId'
+      | 'parentChainInputId'
+      | 'release'
       | 'turnRunId'
     > & { budget?: SubagentBudget },
     first: AgentRunEntry,
@@ -597,7 +801,7 @@ export abstract class SessionAgents<
       ...fields,
       agent,
       thread: `${this.threadId}:${agent}:${fields.runInputId}`,
-      budget: fields.budget ?? this.codeBudget(),
+      budget: fields.budget ?? this.codeBudget(fields.runInputId),
       current: first,
       runs: [first],
       steers: [],
@@ -616,9 +820,13 @@ export abstract class SessionAgents<
    * transcript.
    */
   protected resumeAgent(input: InputState, first: AgentInputState) {
+    this.warnLiveOnly(input.operationId)
     const operation = this.agentOperation(first.input.agent)
     const sender = input.principal ? { principal: input.principal } : {}
-    const chain = this.createChain(chainFields(first), { operation, ...sender })
+    const chain = this.createChain(this.loggedFields(first), {
+      operation,
+      ...sender,
+    })
     this.feed.publish(
       operation.id,
       customEvent(HARNESS_EVENTS.operationResumed, {
@@ -902,9 +1110,11 @@ export abstract class SessionAgents<
         case 'new':
           break
         case 'closed':
+          this.releaseStart(chain)
           operation.fail('cancelled', new Error('Session closed.'))
           return
         case 'conflict':
+          this.releaseStart(chain)
           operation.fail(
             'failed',
             new InputRejectedError({
@@ -920,10 +1130,17 @@ export abstract class SessionAgents<
           this.followLoggedRun(operation, inputId)
           return
       }
+      // A top-level start waits for a slot of `maxConcurrent`.
+      const isTopLevel =
+        chain.parentRunId === undefined && chain.turnRunId === undefined
+      if (isTopLevel && !(await this.takeSlot(operation, chain, inputId))) {
+        return
+      }
     }
     const agent: AnyAgent | undefined =
       typeof target === 'string' ? this.agentRegistry.get(target) : target
     if (!agent) {
+      this.releaseStart(chain)
       this.reject(inputId, 'unknown_agent')
       operation.fail('failed', new Error(`Unknown agent: ${name}`))
       return
@@ -938,6 +1155,7 @@ export abstract class SessionAgents<
         const reason = `Input validation failed for agent ${name}: ${checked.issues
           .map((issue) => issue.message)
           .join(', ')}`
+        this.releaseStart(chain)
         this.reject(inputId, 'invalid_input')
         operation.fail('failed', new Error(reason))
         return
@@ -950,19 +1168,29 @@ export abstract class SessionAgents<
     // node of the run goes in the same append.
     if (!answers) {
       const parentRunId = chain.parentRunId ?? chain.turnRunId
-      await this.applied(inputId, operation.id, [
-        runNodeRecord({
-          runId: operation.id,
-          kind: 'agent',
-          inputId,
-          principal,
-          agent: name,
-          chainInputId: chain.runInputId,
-          options,
-          ...(parentRunId !== undefined ? { parentRunId } : {}),
-        }),
-      ])
+      const { parentChainInputId } = chain
+      await this.applied(
+        inputId,
+        operation.id,
+        [
+          runNodeRecord({
+            runId: operation.id,
+            kind: 'agent',
+            inputId,
+            principal,
+            agent: name,
+            chainInputId: chain.runInputId,
+            options,
+            ...(parentRunId !== undefined ? { parentRunId } : {}),
+            ...(parentChainInputId !== undefined ? { parentChainInputId } : {}),
+          }),
+        ],
+        this.agentDeadline(chain),
+      )
     }
+    // The run applied: its start keeps its call of the tree budget.
+    delete chain.release
+    const stopTimer = this.startTimeout(inputId, operation)
     const child = answers
       ? { subagentRunId: answers.subagentRunId }
       : (start.child ?? { subagentRunId: createSubagentId() })
@@ -999,133 +1227,151 @@ export abstract class SessionAgents<
     /** The run stopped for its interrupts: it waits for their answers. */
     let isSuspended = false
     // The interrupts of the run, when it stops for them.
-    const sink = createSubagentSink()
+    let sink = createSubagentSink()
     const { subagentRunId, prompt } = child
-    try {
-      // A first run starts from the session thread. A run again after a
-      // host stop continues the chain's thread. A follow-up run continues
-      // the chain's thread, with its message added. The message id is its
-      // input id, so a run again after a host stop does not add it twice.
-      // A run that goes on after its waits continues the chain's thread.
-      const { message } = start
-      const saved = start.resumed
-        ? await this.continueAgentThread(chain.thread, inputId)
-        : message || answers
-          ? await this.engine.loadThread(chain.thread)
-          : await this.messages.loadThread(this.threadId)
-      const messages =
-        message && !saved.some((item) => item.id === message.inputId)
-          ? [...saved, asUserMessage(message)]
-          : saved
-      // The run of this agent: its user's credentials and keys, for its own
-      // chat calls and its tools, also while another user's turn runs. A
-      // sign-in wait of one of its tools stops this run, until the user
-      // cancels that sign-in.
-      const declined = new Set(answers?.declined)
-      const run = this.runContext({
-        principal,
-        runId: operation.id,
-        ...(chain.parentRunId ? { parentRunId: chain.parentRunId } : {}),
-        signal: operation.abortController.signal,
-        canWait: (id) => !declined.has(id),
-      })
-      const binding = this.binding(operation, [], principal, run)
-      const durable = options.resume ? this.resumable(inputId, run) : undefined
-      const harnessContext: HarnessAgentContext = {
-        step: durable?.step ?? NO_SESSION_CONTEXT.step,
-        agents: this.agentStarter(chain),
+    // One attempt, and one more each time `onModelError` answers 'retry'.
+    for (let retries = 0; ; retries += 1) {
+      text = ''
+      result = undefined
+      failure = undefined
+      isSuspended = false
+      sink = createSubagentSink()
+      try {
+        // A first run starts from the session thread. A run again after a
+        // host stop continues the chain's thread. A follow-up run continues
+        // the chain's thread, with its message added. The message id is its
+        // input id, so a run again after a host stop does not add it twice.
+        // A run that goes on after its waits continues the chain's thread.
+        const { message } = start
+        const saved = start.resumed
+          ? await this.continueAgentThread(chain.thread, inputId)
+          : message || answers
+            ? await this.engine.loadThread(chain.thread)
+            : await this.messages.loadThread(this.threadId)
+        const messages =
+          message && !saved.some((item) => item.id === message.inputId)
+            ? [...saved, asUserMessage(message)]
+            : saved
+        // The run of this agent: its user's credentials and keys, for its own
+        // chat calls and its tools, also while another user's turn runs. A
+        // sign-in wait of one of its tools stops this run, until the user
+        // cancels that sign-in.
+        const declined = new Set(answers?.declined)
+        const run = this.runContext({
+          principal,
+          runId: operation.id,
+          ...(chain.parentRunId ? { parentRunId: chain.parentRunId } : {}),
+          signal: operation.abortController.signal,
+          canWait: (id) => !declined.has(id),
+        })
+        const binding = this.binding(operation, [], principal, run)
+        const durable = options.resume
+          ? this.resumable(inputId, run)
+          : undefined
+        const harnessContext: HarnessAgentContext = {
+          step: durable?.step ?? NO_SESSION_CONTEXT.step,
+          agents: this.agentStarter(chain),
+        }
+        const stream = runAgentStream(
+          agent,
+          {
+            input: checkedInput,
+            // A prompt is one more user message at the end, as in core.
+            messages:
+              prompt === undefined
+                ? messages
+                : [
+                    ...messages,
+                    { role: 'user', content: prompt } satisfies ModelMessage,
+                  ],
+            threadId: chain.thread,
+            // A run that goes on, or runs again after a failure, gets a new
+            // chat run.
+            runId:
+              answers || retries > 0
+                ? `${operation.id}:${subagentRunId}:${Date.now().toString(36)}`
+                : `${operation.id}:${subagentRunId}`,
+            parentRunId: answers?.interruptedRunId ?? operation.id,
+            subagentRunId,
+            ...(answers ? { resume: answers.resume } : {}),
+            abortSignal: operation.abortController.signal,
+          },
+          sink,
+          undefined,
+          // ponytail: the media of a background agent is kept and published,
+          // but not written to history: its messages live in its chain's
+          // thread. Write it to the session thread if a UI must show it after
+          // a restart.
+          {
+            ...binding,
+            chatMiddleware: [
+              // Every run keeps its transcript in the chain's thread.
+              ...(this.chatPersistence
+                ? [
+                    withPersistence(this.chatPersistence, {
+                      tenantId: this.tenantId,
+                    }),
+                  ]
+                : []),
+              ...(durable?.middleware ?? []),
+              this.agentSteering(chain, inputId, operation),
+              ...binding.chatMiddleware,
+              ...(durable?.last ?? []),
+            ],
+            // As in a turn: the approvals and questions that plugins stop the
+            // run with before its tools run, then the app's own. The run waits
+            // for them. The agent's own interrupts win on an id clash.
+            interrupts: [
+              ...BOUNDARY_INTERRUPTS,
+              ...(this.harness.interrupts ?? []),
+            ],
+            budget: chain.budget,
+            // No parent chat() call to take it from, so the session's retention.
+            promptCache: this.promptCache.retention,
+            extend: () => ({ harness: harnessContext }),
+          },
+        )
+        for await (const raw of stream) {
+          const chunk =
+            raw.type === EventType.RUN_ERROR ||
+            raw.type === EventType.SUBAGENT_ERROR
+              ? { ...raw, message: this.scrub(raw.message) }
+              : raw
+          operation.publish(chunk)
+          if (
+            chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
+            'subagentRunId' in chunk &&
+            chunk.subagentRunId === subagentRunId
+          ) {
+            text += chunk.delta
+          }
+          if (
+            chunk.type === EventType.SUBAGENT_FINISHED &&
+            chunk.subagentRunId === subagentRunId
+          ) {
+            result = chunk.result
+            isSuspended = chunk.outcome?.type === 'suspended'
+          }
+          if (
+            chunk.type === EventType.SUBAGENT_ERROR &&
+            chunk.subagentRunId === subagentRunId
+          ) {
+            failure = chunk.message
+          }
+        }
+      } catch (error) {
+        failure = this.scrub(
+          error instanceof Error ? error.message : String(error),
+        )
       }
-      const stream = runAgentStream(
-        agent,
-        {
-          input: checkedInput,
-          // A prompt is one more user message at the end, as in core.
-          messages:
-            prompt === undefined
-              ? messages
-              : [
-                  ...messages,
-                  { role: 'user', content: prompt } satisfies ModelMessage,
-                ],
-          threadId: chain.thread,
-          // A run that goes on gets a new chat run, which continues the one
-          // that stopped.
-          runId: answers
-            ? `${operation.id}:${subagentRunId}:${Date.now().toString(36)}`
-            : `${operation.id}:${subagentRunId}`,
-          parentRunId: answers?.interruptedRunId ?? operation.id,
-          subagentRunId,
-          ...(answers ? { resume: answers.resume } : {}),
-          abortSignal: operation.abortController.signal,
-        },
-        sink,
-        undefined,
-        // ponytail: the media of a background agent is kept and published,
-        // but not written to history: its messages live in its chain's
-        // thread. Write it to the session thread if a UI must show it after
-        // a restart.
-        {
-          ...binding,
-          chatMiddleware: [
-            // Every run keeps its transcript in the chain's thread.
-            ...(this.chatPersistence
-              ? [
-                  withPersistence(this.chatPersistence, {
-                    tenantId: this.tenantId,
-                  }),
-                ]
-              : []),
-            ...(durable?.middleware ?? []),
-            this.agentSteering(chain, inputId, operation),
-            ...binding.chatMiddleware,
-            ...(durable?.last ?? []),
-          ],
-          // As in a turn: the approvals and questions that plugins stop the
-          // run with before its tools run, then the app's own. The run waits
-          // for them. The agent's own interrupts win on an id clash.
-          interrupts: [
-            ...BOUNDARY_INTERRUPTS,
-            ...(this.harness.interrupts ?? []),
-          ],
-          budget: chain.budget,
-          // No parent chat() call to take it from, so the session's retention.
-          promptCache: this.promptCache.retention,
-          extend: () => ({ harness: harnessContext }),
-        },
+      // A run that goes on after its waits does not run again.
+      if (
+        answers ||
+        !(await this.isRetried(operation, chain, failure, retries))
       )
-      for await (const raw of stream) {
-        const chunk =
-          raw.type === EventType.RUN_ERROR ||
-          raw.type === EventType.SUBAGENT_ERROR
-            ? { ...raw, message: this.scrub(raw.message) }
-            : raw
-        operation.publish(chunk)
-        if (
-          chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
-          'subagentRunId' in chunk &&
-          chunk.subagentRunId === subagentRunId
-        ) {
-          text += chunk.delta
-        }
-        if (
-          chunk.type === EventType.SUBAGENT_FINISHED &&
-          chunk.subagentRunId === subagentRunId
-        ) {
-          result = chunk.result
-          isSuspended = chunk.outcome?.type === 'suspended'
-        }
-        if (
-          chunk.type === EventType.SUBAGENT_ERROR &&
-          chunk.subagentRunId === subagentRunId
-        ) {
-          failure = chunk.message
-        }
-      }
-    } catch (error) {
-      failure = this.scrub(
-        error instanceof Error ? error.message : String(error),
-      )
+        break
     }
+    stopTimer()
 
     // The run stopped for outside input: it waits, and does not end.
     const isWaiting =
@@ -1157,7 +1403,21 @@ export abstract class SessionAgents<
       ended: Omit<AgentResultRecord, 'inputId'>,
     ) => {
       if (this.logFailure) return
-      await runs.update(operation.id, { ...run, finishedAt: Date.now() })
+      // The model use of the run and of the runs below it.
+      const used = this.writer.state.runUsage.get(operation.id)
+      await runs.update(operation.id, {
+        ...run,
+        finishedAt: Date.now(),
+        ...(used
+          ? {
+              usage: {
+                promptTokens: used.promptTokens,
+                completionTokens: used.completionTokens,
+                totalTokens: used.totalTokens,
+              },
+            }
+          : {}),
+      })
       await this.endAgentSteps(inputId)
       // A refused append stops the session. The operation still ends. The
       // steers that joined the run settle with it, in one append.
@@ -1182,8 +1442,12 @@ export abstract class SessionAgents<
       this.giveBack(operation)
       return
     }
+    // A budget or a time limit stops the run: it fails with a code.
+    const limited = limitFailure(operation.abortController.signal.reason)
+    const error =
+      limited ?? (failure !== undefined ? { message: failure } : undefined)
     try {
-      if (operation.abortController.signal.aborted) {
+      if (operation.abortController.signal.aborted && !limited) {
         operation.publish({
           type: EventType.RUN_FINISHED,
           runId: operation.id,
@@ -1197,20 +1461,23 @@ export abstract class SessionAgents<
           { status: 'cancelled' },
         )
         operation.fail('cancelled', new Error('Cancelled.'))
-      } else if (failure !== undefined) {
+      } else if (error) {
         operation.publish({
           type: EventType.RUN_ERROR,
-          message: failure,
+          message: error.message,
+          ...(limited ? { code: limited.code } : {}),
           timestamp: Date.now(),
         })
-        const error = { message: failure }
         await end(
           { status: 'failed', error },
           { outcome: 'failed', error },
           { status: 'failed', error },
         )
-        await note('failed', failure)
-        operation.fail('failed', new Error(failure))
+        await note('failed', error.message)
+        operation.fail(
+          'failed',
+          Object.assign(new Error(error.message), limited ?? {}),
+        )
       } else {
         operation.publish({
           type: EventType.RUN_FINISHED,
@@ -1341,9 +1608,13 @@ export abstract class SessionAgents<
   ) {
     const runId = input.operationId
     if (runId === undefined || run.subagentRunId === undefined) return
+    this.warnLiveOnly(runId)
     const operation = this.agentOperation(first.input.agent, runId)
     const sender = input.principal ? { principal: input.principal } : {}
-    const chain = this.createChain(chainFields(first), { operation, ...sender })
+    const chain = this.createChain(this.loggedFields(first), {
+      operation,
+      ...sender,
+    })
     this.holdWaitingRun({
       operation,
       chain,
@@ -1511,9 +1782,10 @@ export abstract class SessionAgents<
       if (isRunning()) continue
       // Recovery must not run it again.
       this.admitted.set(input.inputId, inputKey(input.input, input.principal))
+      this.warnLiveOnly(runId)
       const operation = this.agentOperation(first.input.agent, runId)
       const sender = input.principal ? { principal: input.principal } : {}
-      const chain = this.createChain(chainFields(first), {
+      const chain = this.createChain(this.loggedFields(first), {
         operation,
         ...sender,
       })
@@ -1678,6 +1950,20 @@ export abstract class SessionAgents<
     }
     if (this.canFlushNotes()) await this.flushNotes()
   }
+}
+
+/**
+ * The error of an agent run that `reason` stopped: its budget, or its time
+ * limit. `undefined` for any other reason.
+ */
+function limitFailure(reason: unknown) {
+  if (reason === BUDGET_REASON) {
+    return { message: 'The agent run used its budget.', code: 'budget' }
+  }
+  if (reason === TIMEOUT_REASON) {
+    return { message: 'The agent run passed its time limit.', code: 'timeout' }
+  }
+  return undefined
 }
 
 /** The `agentRuns()` entry of the agent run `node`, of the agent `agent`. */

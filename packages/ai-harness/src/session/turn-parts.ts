@@ -9,6 +9,7 @@ import { bindDurable, createToolStep } from '../durable-tool'
 import { expiryOf } from '../waits'
 import { waitUntil } from '../utils'
 import { commonPrefix, stepKey } from '../log'
+import { isEnded } from '../log-records'
 import { mediaIdOf, mediaOfMessage } from '../media-ref'
 import { LogOwnedElsewhereError } from '../ownership'
 import { HARNESS_EVENTS } from '../types'
@@ -23,6 +24,7 @@ import {
   resetContext,
   TIMEOUT_REASON,
   SHUTDOWN_REASON,
+  BUDGET_REASON,
   checkHostRecords,
 } from './helpers'
 import { SessionRequests } from './requests'
@@ -464,8 +466,8 @@ export abstract class SessionTurnParts<
 
   /**
    * Middleware that counts the usage of each model call of `operation` for
-   * `principal`. The count does not hold back the stream: chat() waits for it
-   * after the run.
+   * `principal`, then checks the budgets of the run tree. The count does not
+   * hold back the stream: chat() waits for it after the run.
    */
   protected usageCounter(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
@@ -478,11 +480,59 @@ export abstract class SessionTurnParts<
           this.countUsage(operation, {
             model: `${ctx.provider}/${ctx.model}`,
             ...storedPrincipal(principal),
+            runId: operation.id,
             usage: callUsage(usage),
-          }),
+          }).then(() => this.checkBudget(operation)),
         )
       },
     }
+  }
+
+  /**
+   * After a model call of `operation`: stop each agent run on its path up
+   * the run tree that went over its budget, with `BUDGET_REASON`. The run
+   * that made the call stops too, because its budget is never more than
+   * what the runs above it have left. The check comes after the call, so a
+   * run can go over by one model call.
+   */
+  protected checkBudget(
+    operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
+  ) {
+    const over = this.overBudget(operation.id, (left) => left < 0)
+    if (over.length === 0) return
+    for (const runId of new Set([operation.id, ...over])) {
+      const run = this.operations.get(runId)
+      if (run?.kind !== 'agent' || run.isSettled()) continue
+      if (!run.abortController.signal.aborted) {
+        run.abortController.abort(BUDGET_REASON)
+      }
+    }
+  }
+
+  /**
+   * The runs on the path from `runId` up the run tree, with a budget that
+   * `isOut` says is used. `isOut` gets the tokens, or the cost, that a run
+   * has left. A run that ended does not count.
+   */
+  protected overBudget(runId: string, isOut: (left: number) => boolean) {
+    const { thread, runUsage } = this.writer.state
+    const out: Array<string> = []
+    const seen = new Set<string>()
+    let id: string | undefined = runId
+    while (id !== undefined && !seen.has(id)) {
+      seen.add(id)
+      const node = thread.tree.get(id)
+      if (!node) break
+      const used = runUsage.get(id)
+      const { maxTokens, maxCost } = node.budget ?? {}
+      const isUsed =
+        (maxTokens !== undefined &&
+          isOut(maxTokens - (used?.totalTokens ?? 0))) ||
+        (maxCost !== undefined && isOut(maxCost - (used?.cost ?? 0)))
+      if (isUsed && !isEnded(node.status)) out.push(id)
+      id = node.parentRunId
+    }
+    return out
   }
 
   /**
@@ -766,11 +816,12 @@ export abstract class SessionTurnParts<
 
   /**
    * Abort `operation` when its input passes `timeoutAt` (a harness with
-   * `durability.timeoutMs`). Returns the function that stops the timer.
+   * `durability.timeoutMs`, or an agent run with `limits.timeoutMs`).
+   * Returns the function that stops the timer.
    */
   protected startTimeout(
     inputId: string | undefined,
-    operation: OperationImpl<ChatTurnResult>,
+    operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
   ) {
     const timeoutAt =
       inputId === undefined

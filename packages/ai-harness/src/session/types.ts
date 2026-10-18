@@ -492,6 +492,13 @@ export interface AgentChain {
   principal?: Principal
   /** The run whose agent code started this chain. */
   parentRunId?: string
+  /** The `agent` input of the chain whose code started this chain. */
+  parentChainInputId?: string
+  /**
+   * Gives back the call that the start of this chain took from its parent's
+   * tree budget. A start that fails before its run applies calls it once.
+   */
+  release?: () => void
   /**
    * The turn whose tool started this chain. Only the run tree keeps it: the
    * run record does not, so core does not show the run as a child of the

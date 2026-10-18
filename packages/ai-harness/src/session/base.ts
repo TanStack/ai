@@ -1083,13 +1083,37 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
-   * A tree budget for a child started from code. The child counts as the
-   * first call, and its own children count against the same limits.
+   * A tree budget for a chain started from code. The chain counts as the
+   * first call, and its own children count against the same limits. Each
+   * child that the log has under the chain `chainInputId` counts too, so a
+   * chain that runs again after a restart keeps its count.
    */
-  protected codeBudget(): SubagentBudget {
+  protected codeBudget(chainInputId?: string): SubagentBudget {
     const root = SubagentBudget.root(this.limits())
-    root.reserve(0)
+    const logged =
+      chainInputId === undefined ? 0 : this.loggedCalls(chainInputId)
+    for (let call = 0; call <= logged; call += 1) root.reserve(0)
     return root.child()
+  }
+
+  /**
+   * How many chains the log has under the chain `chainInputId`, at any
+   * depth: one for each child that agent code started.
+   */
+  protected loggedCalls(chainInputId: string) {
+    const nodes = [...this.writer.state.thread.tree.values()]
+    const found = new Set<string>()
+    const parents = [chainInputId]
+    for (let parent = parents.pop(); parent !== undefined;) {
+      for (const { chainInputId: child, parentChainInputId } of nodes) {
+        if (parentChainInputId !== parent || child === undefined) continue
+        if (found.has(child)) continue
+        found.add(child)
+        parents.push(child)
+      }
+      parent = parents.pop()
+    }
+    return found.size
   }
 
   // ===========================

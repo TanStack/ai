@@ -136,6 +136,16 @@ export type WaitState = WaitRecord & {
 export type RunTreeNode = RunNode & {
   inputId?: string
   chainInputId?: string
+  /**
+   * The `agent` input of the chain whose code started this run. The tree
+   * budget of that chain counts this run, also after a restart.
+   */
+  parentChainInputId?: string
+  /**
+   * The start options that the log cannot keep: a function. A run that
+   * another host takes over runs without them.
+   */
+  liveOnly?: Array<'onModelError'>
 }
 
 /**
@@ -367,7 +377,7 @@ const NODE_KIND: Record<NonNullable<RunRecord['kind']>, RunNode['kind']> = {
 }
 
 /** True for a run that ended. Its status does not change again. */
-const isEnded = (status: RunNode['status']) =>
+export const isEnded = (status: RunNode['status']) =>
   status === 'completed' || status === 'failed' || status === 'cancelled'
 
 /** `node` with `status`, and with `error` when there is one. */
@@ -465,6 +475,29 @@ export function settleRunNode(
           : undefined
   if (!ended) return state
   return { ...state, tree: withEntry(state.tree, node.runId, ended) }
+}
+
+/**
+ * The thread state after the input `inputId` was refused. A queued run of
+ * that input (a start that waited for a slot) ends `failed`. ponytail: it
+ * scans the tree, because a refusal names only its input. Refusals are rare.
+ */
+export function rejectRunNode(
+  state: ThreadStateFold,
+  rejected: { inputId: string; reason: string },
+) {
+  const node = [...state.tree.values()].find(
+    (item) => item.inputId === rejected.inputId && item.status === 'queued',
+  )
+  if (!node) return state
+  const error = {
+    message: `The run was refused: ${rejected.reason}.`,
+    code: rejected.reason,
+  }
+  return {
+    ...state,
+    tree: withEntry(state.tree, node.runId, withStatus(node, 'failed', error)),
+  }
 }
 
 /** `node` as the agent result `ended` says the run ended. */

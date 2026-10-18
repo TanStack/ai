@@ -24,6 +24,7 @@ import type { InputState } from '../log'
 import type {
   AgentResultRecord,
   NamedTurnOverrides,
+  RunTreeNode,
   ThreadRecord,
 } from '../log-records'
 import type { MountedPlugins } from '../plugins'
@@ -187,8 +188,14 @@ export function loggedExtras(named: NamedTurnOverrides) {
  */
 export const agentKey = (inputId: string) => `agent:${inputId}`
 
-/** The chain fields that the `agent` input of a first run keeps. */
-export const chainFields = (first: AgentInputState) => ({
+/**
+ * The chain fields that the `agent` input of a first run keeps, and the
+ * start options that `node`, a run node of the chain, keeps.
+ */
+export const chainFields = (
+  first: AgentInputState,
+  node?: Pick<RunTreeNode, 'key' | 'limits' | 'budget'>,
+) => ({
   runInputId: first.inputId,
   target: first.input.agent,
   input: first.input.input,
@@ -196,6 +203,10 @@ export const chainFields = (first: AgentInputState) => ({
     wake: first.input.detached === true,
     ...(first.input.resume ? { resume: true } : {}),
     ...(first.input.attach ? { attach: first.input.attach } : {}),
+    // The run tree keeps the start options that the input does not.
+    ...(node?.key !== undefined ? { key: node.key } : {}),
+    ...(node?.limits ? { limits: node.limits } : {}),
+    ...(node?.budget ? { budget: node.budget } : {}),
   },
   ...(first.principal ? { principal: first.principal } : {}),
   ...(first.input.parentRunId ? { parentRunId: first.input.parentRunId } : {}),
@@ -260,9 +271,13 @@ export function runNodeRecord(node: {
   parentRunId?: string
   agent?: string
   chainInputId?: string
-  options?: Pick<AgentStartOptions, 'key' | 'limits' | 'budget'>
+  parentChainInputId?: string
+  options?: Pick<
+    AgentStartOptions,
+    'key' | 'limits' | 'budget' | 'onModelError'
+  >
 }) {
-  const { parentRunId, agent, chainInputId, options } = node
+  const { parentRunId, agent, chainInputId, parentChainInputId, options } = node
   const record: ThreadRecord = {
     type: 'harness.run.node',
     runId: node.runId,
@@ -272,9 +287,11 @@ export function runNodeRecord(node: {
     ...(parentRunId !== undefined ? { parentRunId } : {}),
     ...(agent !== undefined ? { agent } : {}),
     ...(chainInputId !== undefined ? { chainInputId } : {}),
+    ...(parentChainInputId !== undefined ? { parentChainInputId } : {}),
     ...(options?.key !== undefined ? { key: options.key } : {}),
     ...(options?.limits ? { limits: options.limits } : {}),
     ...(options?.budget ? { budget: options.budget } : {}),
+    ...(options?.onModelError ? { liveOnly: ['onModelError' as const] } : {}),
   }
   return record
 }
@@ -712,8 +729,11 @@ export function dropOldest<T>(set: Set<T>, limit: number) {
   return dropped
 }
 
-/** Why a turn stops when its input passes its time limit. */
+/** Why a turn or an agent run stops when its input passes its time limit. */
 export const TIMEOUT_REASON = 'harness:input-timeout'
+
+/** Why an agent run stops when it, or a run above it, used its budget. */
+export const BUDGET_REASON = 'harness:budget'
 
 /** What the model gets after its partial answer, on a `'continue'`. */
 export const CONTINUE_NOTE =

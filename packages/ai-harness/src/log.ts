@@ -12,9 +12,17 @@ import {
   applyRunNode,
   emptyThreadState,
   foldThreadRecord,
+  isEnded,
+  rejectRunNode,
   settleRunNode,
 } from './log-records'
-import { addUsage, emptyUsage, isSessionUsage } from './usage'
+import {
+  addCounts,
+  addUsage,
+  emptyCounts,
+  emptyUsage,
+  isSessionUsage,
+} from './usage'
 import { isRecord } from './utils'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type {
@@ -51,7 +59,7 @@ import type {
   ThreadSettings,
   WaitingInput,
 } from './types'
-import type { SessionUsage, UsageCall } from './usage'
+import type { SessionUsage, UsageCall, UsageCounts } from './usage'
 
 /** The records the harness writes to a session log. */
 export type HarnessRecord =
@@ -266,6 +274,12 @@ export interface LogState {
   steps: Map<string, unknown>
   /** The usage of every model call of the thread. */
   usage: SessionUsage
+  /**
+   * The usage of each run that did not end, by run id: its own model calls,
+   * and those of the runs below it in the run tree. A run that ends leaves
+   * it.
+   */
+  runUsage: Map<string, UsageCounts>
   /** The revert that stands, if any. */
   revert?: RevertState
   /** Background jobs that started and did not end. */
@@ -286,6 +300,7 @@ export function emptyLogState() {
     started: new Map(),
     steps: new Map(),
     usage: emptyUsage(),
+    runUsage: new Map(),
     jobs: new Set(),
     notes: new Map(),
     thread: emptyThreadState(),
@@ -372,6 +387,35 @@ function forgetCalls(state: LogState, isDone: (toolCallId: string) => boolean) {
   }
   for (const key of state.steps.keys()) {
     if (isDone(key.slice(0, key.indexOf('\u0000')))) state.steps.delete(key)
+  }
+}
+
+/**
+ * Add the model call `call` to the sum of its run, and of each run above it
+ * that did not end.
+ */
+function addRunUsage(state: LogState, call: UsageCall) {
+  const { tree } = state.thread
+  const seen = new Set<string>()
+  let runId = call.runId
+  while (runId !== undefined && !seen.has(runId)) {
+    seen.add(runId)
+    const node = tree.get(runId)
+    if (!node) return
+    if (!isEnded(node.status)) {
+      const counts = state.runUsage.get(runId) ?? emptyCounts()
+      addCounts(counts, call.usage)
+      state.runUsage.set(runId, counts)
+    }
+    runId = node.parentRunId
+  }
+}
+
+/** Drop the usage sums of the runs that ended. */
+function dropEndedUsage(state: LogState) {
+  for (const runId of state.runUsage.keys()) {
+    const node = state.thread.tree.get(runId)
+    if (!node || isEnded(node.status)) state.runUsage.delete(runId)
   }
 }
 
@@ -470,6 +514,8 @@ export function foldEntry(
         status: 'rejected',
         reason: record.reason,
       }))
+      state.thread = rejectRunNode(state.thread, record)
+      dropEndedUsage(state)
       return
     case 'harness.input.abort':
       updateInput(state, record.inputId, (input) => ({
@@ -511,6 +557,7 @@ export function foldEntry(
         },
       }))
       state.thread = settleRunNode(state.thread, record)
+      dropEndedUsage(state)
       return
     }
     case 'harness.tool.result':
@@ -527,6 +574,7 @@ export function foldEntry(
       return
     case 'harness.usage':
       addUsage(state.usage, record)
+      addRunUsage(state, record)
       return
     case 'harness.revert':
       if (record.revert) state.revert = record.revert
@@ -555,6 +603,7 @@ export function foldEntry(
     case 'harness.wait':
     case 'harness.wait.settled':
       state.thread = foldThreadRecord(state.thread, record)
+      if (state.runUsage.size > 0) dropEndedUsage(state)
       return
   }
 }
@@ -786,6 +835,7 @@ function serialize(state: SharedLogState, versions: SnapshotVersions) {
         started: [...session.started.entries()],
         steps: [...session.steps.entries()],
         usage: session.usage,
+        runUsage: [...session.runUsage.entries()],
         revert: session.revert ?? null,
         jobs: [...session.jobs],
         notes: [...session.notes.entries()],
@@ -831,6 +881,12 @@ function parseSession(value: unknown, seq: number) {
     steps: new Map(steps as Array<[string, unknown]>),
     // A state with no usage totals gets an empty value.
     usage: isSessionUsage(value.usage) ? value.usage : emptyUsage(),
+    // A state with no run sums gets an empty value.
+    runUsage: new Map(
+      Array.isArray(value.runUsage)
+        ? (value.runUsage as Array<[string, UsageCounts]>)
+        : [],
+    ),
     // A state with no reverts gets an empty value.
     ...(revert ? { revert } : {}),
     // A state with no jobs and notes gets an empty value.

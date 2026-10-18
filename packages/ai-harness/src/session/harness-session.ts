@@ -972,7 +972,11 @@ export class SessionImpl<
         // A run that ended before its settle record landed did not stop.
         if (!run || run.status === 'running') {
           const isResumable = first.input.resume === true
-          if (isResumable && input.attempt < maxAttempts) {
+          // `limits.maxAttempts` of the run wins over the harness's.
+          const runMax =
+            writer.state.thread.tree.get(input.operationId ?? '')?.limits
+              ?.maxAttempts ?? maxAttempts
+          if (isResumable && input.attempt < runMax) {
             if (input.operationId) {
               await runs.update(input.operationId, {
                 status: 'failed',

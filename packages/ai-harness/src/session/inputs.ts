@@ -888,18 +888,24 @@ export abstract class SessionInputs<
   /**
    * Record that `operationId` runs the input, and count the attempt.
    * `records` go first in the same append, so a crash keeps both or neither.
+   * `deadline`: an epoch ms time limit of the run (an agent run's own limit,
+   * or its parent's). The earlier of it and `durability.timeoutMs` wins.
    */
   protected async markApplied(
     inputId: string,
     operationId: string,
     records: ReadonlyArray<LogRecord> = [],
+    deadline?: number,
   ): Promise<void> {
     const logged = this.writer.state.inputs.get(inputId)
     const timeoutMs = this.harness.durability?.timeoutMs
+    const limits = [
+      ...(timeoutMs !== undefined ? [Date.now() + timeoutMs] : []),
+      ...(deadline !== undefined ? [deadline] : []),
+    ]
     // Stamped once, at the first apply. Retries do not move it.
     const timeoutAt =
-      logged?.timeoutAt ??
-      (timeoutMs !== undefined ? Date.now() + timeoutMs : undefined)
+      logged?.timeoutAt ?? (limits.length > 0 ? Math.min(...limits) : undefined)
     await this.writer.append([
       ...records,
       {
@@ -917,8 +923,9 @@ export abstract class SessionInputs<
     inputId: string,
     operationId: string,
     records: ReadonlyArray<LogRecord> = [],
+    deadline?: number,
   ): Promise<void> {
-    await this.markApplied(inputId, operationId, records)
+    await this.markApplied(inputId, operationId, records, deadline)
     this.feed.publish(
       operationId,
       customEvent(HARNESS_EVENTS.inputApplied, { inputId, operationId }),
