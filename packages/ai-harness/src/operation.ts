@@ -23,7 +23,10 @@ export function createOperationId(kind: OperationKind): string {
 /** The session-side implementation of {@link Operation}. */
 export class OperationImpl<TResult> implements Operation<TResult> {
   readonly id: string
-  /** The feed head when the operation was made. Its events come after it. */
+  /**
+   * The feed head when the operation was made. Its events come after it. A
+   * rebuilt operation gets the start of its run in the log.
+   */
   readonly startedCursor: Cursor
   readonly abortController = new AbortController()
   readonly receipt: Promise<Receipt>
@@ -51,9 +54,11 @@ export class OperationImpl<TResult> implements Operation<TResult> {
     readonly agent?: string,
     /** A stored operation id, when a restart rebuilds this operation. */
     id?: string,
+    /** The cursor before the first event of a rebuilt operation. */
+    startedCursor?: Cursor,
   ) {
     this.id = id ?? createOperationId(kind)
-    this.startedCursor = feed.head()
+    this.startedCursor = startedCursor ?? feed.head()
     // A settled operation sends no more events, so a listener is not added,
     // and its listeners go once it settled. After a tick, so the events it
     // sends as it settles (the finished event) still reach them.
@@ -149,6 +154,9 @@ export class OperationImpl<TResult> implements Operation<TResult> {
   }): AsyncIterable<SessionEvent> {
     return this.feed.read({
       ...options,
+      // Every event of this operation comes after its start, so the read
+      // does not walk the older events of the feed.
+      from: options?.from ?? this.startedCursor,
       filter: (entry) => entry.operationId === this.id,
       until: () => this.isSettled(),
     })
@@ -157,7 +165,7 @@ export class OperationImpl<TResult> implements Operation<TResult> {
   async *stream(options?: {
     signal?: AbortSignal
   }): AsyncIterable<StreamChunk> {
-    for await (const entry of this.events({ from: '0', ...options })) {
+    for await (const entry of this.events(options)) {
       yield entry.event
     }
   }

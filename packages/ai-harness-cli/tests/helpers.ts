@@ -54,11 +54,44 @@ export const toolTurn = (name: string, args: string): Array<StreamChunk> => [
   },
 ]
 
+/** A model call that the test drives. It gets the abort signal of the call. */
+type LiveTurn = (signal: AbortSignal | undefined) => AsyncIterable<StreamChunk>
+
+/** A promise that the test resolves with `open`. */
+export function gate() {
+  let open = () => {}
+  const opened = new Promise<void>((resolve) => {
+    open = resolve
+  })
+  return { open, opened }
+}
+
+/** Resolves when `signal` aborts. Never resolves without a signal. */
+function whenAborted(signal: AbortSignal | undefined) {
+  return new Promise<void>((resolve) => {
+    if (signal?.aborted) resolve()
+    signal?.addEventListener('abort', () => resolve(), { once: true })
+  })
+}
+
+/**
+ * A model call that streams `text`, then holds until `release` resolves or
+ * the call is aborted (a cancel). Then it ends.
+ */
+export function heldTurn(text: string, release: Promise<void>): LiveTurn {
+  const chunks = textTurn(text)
+  return async function* (signal) {
+    yield* chunks.slice(0, 3)
+    await Promise.race([release, whenAborted(signal)])
+    yield* chunks.slice(3)
+  }
+}
+
 /**
  * A model that answers each call with the next of `turns`, and keeps the
  * messages of each call in `seen`.
  */
-export function scripted(turns: Array<Array<StreamChunk>>) {
+export function scripted(turns: Array<Array<StreamChunk> | LiveTurn>) {
   let call = 0
   const seen: Array<Array<{ role: string; content: unknown }>> = []
   const adapter: AnyTextAdapter = {
@@ -82,10 +115,17 @@ export function scripted(turns: Array<Array<StreamChunk>>) {
     },
     chatStream: (options) => {
       seen.push(options.messages)
-      const chunks = turns[call] ?? textTurn('')
+      const turn = turns[call] ?? textTurn('')
       call += 1
+      if (typeof turn === 'function') {
+        return turn(
+          options.abortController?.signal ??
+            options.request?.signal ??
+            undefined,
+        )
+      }
       return (async function* () {
-        yield* chunks
+        yield* turn
       })()
     },
     structuredOutput: async () => ({ data: {}, rawText: '{}' }),

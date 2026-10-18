@@ -1,5 +1,5 @@
 import { loadChildTranscript } from '@tanstack/ai-persistence'
-import { visibleMessages } from '../log'
+import { runStartOf, visibleMessages } from '../log'
 import { snapshotWaits } from '../waits'
 import { createMediaStore } from '../media'
 import type { ModelMessage } from '@tanstack/ai'
@@ -10,7 +10,7 @@ import type {
   SessionIndexEntry,
 } from '@tanstack/ai-persistence'
 import type { LogReader, ReduceOptions } from '../log'
-import type { MediaPersistence } from '../media'
+import type { MediaPersistence, MediaStore } from '../media'
 import type { SessionUsage } from '../usage'
 import type {
   AnyHarness,
@@ -137,10 +137,25 @@ export function liveSessionOf(view: ObservedSession) {
   return liveSessions.get(view)?.()
 }
 
+/** The media store of each view, for the HTTP handler. Not public API. */
+const mediaStores = new WeakMap<object, MediaStore>()
+
+/** @internal The media store that `view` reads, so a route can stream bytes. */
+export function mediaStoreOf(view: ObservedSession) {
+  return mediaStores.get(view)
+}
+
 /** How each view reads the runs in its log, for the HTTP handler. Not public API. */
 const storedRuns = new WeakMap<
   object,
   () => Promise<ReadonlyMap<string, RunRecord>>
+>()
+/** How each view reads one run and its start, for the HTTP handler. */
+const storedRun = new WeakMap<
+  object,
+  (
+    runId: string,
+  ) => Promise<{ record: RunRecord | undefined; start: Cursor | undefined }>
 >()
 
 /**
@@ -151,6 +166,16 @@ export function storedRunsOf(view: ObservedSession) {
   const read = storedRuns.get(view)
   if (!read) throw new Error('Not a view of host.observe.')
   return read()
+}
+
+/**
+ * @internal The run `runId` in the log of the thread of `view`, and the
+ * cursor before its first event (`undefined` when the log does not know it).
+ */
+export function storedRunOf(view: ObservedSession, runId: string) {
+  const read = storedRun.get(view)
+  if (!read) throw new Error('Not a view of host.observe.')
+  return read(runId)
 }
 
 /** The view of `host.observe`. See {@link ObservedSession}. */
@@ -302,10 +327,18 @@ export function observedSession<THarness extends AnyHarness>(
     },
   }
   liveSessions.set(view, live)
+  mediaStores.set(view, mediaStore)
   // The fold changes by copy, so this map stays as it is after the read.
   storedRuns.set(view, () => {
     check()
     return fromLog(({ state }) => state.thread.runs)
+  })
+  storedRun.set(view, (runId) => {
+    check()
+    return fromLog(({ state }) => ({
+      record: state.thread.runs.get(runId),
+      start: runStartOf(state, runId),
+    }))
   })
   return view
 }

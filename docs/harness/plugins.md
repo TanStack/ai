@@ -31,7 +31,7 @@ Add it with `plugins: () => [today]` in `defineHarness`. `setup` runs once per s
 For the model:
 
 - `tools`: tools for the model, made with `toolDefinition`.
-- `prompts`: text for the system prompt. A function runs for each turn, so it can show current state.
+- `prompts`: text for the system prompt. A function runs for each turn, so it can show current state. For text that changes often, see [Put changing text after the history](#put-changing-text-after-the-history).
 - `middleware`: chat middleware for the lead turn, the same type as `chat({ middleware })`. `agentMiddleware` is for agent runs, see [Middleware in every agent](#middleware-in-every-agent).
 - `generationMiddleware`: middleware for the activities agents call.
 - `adapter`: a picker for the model of each turn, see [Pick the model of a turn](#pick-the-model-of-a-turn).
@@ -47,6 +47,34 @@ For agents and users:
 If two plugins add the same tool, command, setting, or prompt id, `host.open` fails and names both plugins.
 
 Return these from `setup`, not from the top level of `definePlugin`. A key like `adapter` or `tools` at the top level is a type error, and `definePlugin` throws for it. Other keys at the top level stay on the plugin object, so a plugin can give your code its own functions.
+
+### Put changing text after the history
+
+Set `placement: 'context'` on a prompt whose text changes often:
+
+```ts group=harness-plugins
+let openTickets = 0
+
+export const tickets = definePlugin({
+  name: 'acme/tickets',
+  setup: () => ({
+    prompts: [
+      {
+        id: 'acme/tickets:count',
+        text: () => `Open tickets: ${openTickets}.`,
+        placement: 'context',
+      },
+    ],
+  }),
+})
+```
+
+A provider caches the start of each request: the system prompts, then the history. If a system prompt changes, the cache misses for the whole conversation. A `'context'` prompt does not change that start.
+
+- The model gets `'context'` text in one user message after the history, at each model call.
+- The default is `'system'`: the text goes in the system prompts.
+- The log does not keep `'context'` text.
+- The first-party todos, goal, and plan mode prompts use `'context'`.
 
 ## Add commands and settings
 

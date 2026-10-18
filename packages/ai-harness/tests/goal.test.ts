@@ -109,9 +109,14 @@ async function waitForStatus(session: HarnessSession, expected: string) {
   await waitFor(async () => expect(await status(session)).toBe(expected))
 }
 
-/** The last message the main model got on `call`. */
+/** The goal prompt: a `'context'` prompt, after the history. */
+const GOAL_PROMPT = 'You work toward this goal:'
+
+/** The last message the main model got on `call`, before the goal prompt. */
 function lastMessage(call: unknown) {
-  return messageTexts(call).at(-1)
+  const texts = messageTexts(call)
+  const last = texts.at(-1)
+  return last?.startsWith(GOAL_PROMPT) ? texts.at(-2) : last
 }
 
 describe('goal', () => {
@@ -142,9 +147,11 @@ describe('goal', () => {
     expect(lastMessage(calls[2])).toBe(
       'Keep working on the goal: all tests pass. Last check: One test still fails.',
     )
-    expect(JSON.stringify(calls[0].systemPrompts)).toContain(
-      'You work toward this goal: all tests pass.',
+    // The goal prompt comes after the history, not in the system prompts.
+    expect(messageTexts(calls[0]).at(-1)).toContain(
+      `${GOAL_PROMPT} all tests pass.`,
     )
+    expect(JSON.stringify(calls[0].systemPrompts)).not.toContain(GOAL_PROMPT)
     expect(read).toHaveLength(3)
     expect(read[0]).toContain('Goal: all tests pass')
     expect(read[0]).toContain('assistant: wrote the test')

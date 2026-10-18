@@ -611,6 +611,31 @@ export function ephemeralCall(pending: Array<ModelMessage>): AnyChatMiddleware {
 }
 
 /**
+ * Gives each model call the `'context'` plugin prompts after the history,
+ * as one user message. It changes only what the adapter gets
+ * (`providerMessages`), so no save keeps them. A change of them leaves the
+ * system prompts and the history as they were, so the provider prompt
+ * cache keeps its prefix.
+ */
+export function contextPromptCall(
+  texts: () => ReadonlyArray<string>,
+): AnyChatMiddleware {
+  return {
+    name: 'harness:context-prompts',
+    onConfig: (ctx, config) => {
+      if (ctx.phase !== 'beforeModel') return undefined
+      const text = texts()
+        .filter((item) => item !== '')
+        .join('\n\n')
+      if (text === '') return undefined
+      const messages = config.providerMessages ?? config.messages
+      const note: ModelMessage = { role: 'user', content: text }
+      return { providerMessages: [...messages, note] }
+    },
+  }
+}
+
+/**
  * Gives each model call of a turn the `ephemeral` messages of its input,
  * after `start`: the last message of the context when the turn started. The
  * messages that the turn adds come after them. It changes only what the
@@ -871,7 +896,12 @@ export function tapFeed(
   return {
     publish: (operationId, raw, parentRunId) => {
       const event = redactor.redact(raw)
-      feed.publish(operationId, event, parentRunId ?? parentOf(operationId))
+      // Core sends the whole transcript as a MESSAGES_SNAPSHOT at each
+      // interrupt. The log has the transcript already, so the snapshot goes
+      // to the live listeners only, and the log does not keep a copy.
+      if (event.type !== EventType.MESSAGES_SNAPSHOT) {
+        feed.publish(operationId, event, parentRunId ?? parentOf(operationId))
+      }
       notifyListeners(notifyHost, listeners, { operationId, event })
     },
     listen: (listener) => {

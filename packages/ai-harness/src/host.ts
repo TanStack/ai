@@ -10,6 +10,7 @@ import {
   loggedTargetOf,
   parseLogId,
 } from './log'
+import { HostEventBus, tenantOfHostEvent } from './host-event-bus'
 import { refreshFlights } from './auth'
 import { HostPlugins } from './host-plugins'
 import { purgeThreadData } from './purge'
@@ -217,9 +218,8 @@ export interface RetentionLimits {
   settledAgentRuns?: number
   /**
    * How many bytes of events a session keeps in memory for `events()`, as
-   * the JSON length of each event. A reader whose cursor is older starts
-   * at the oldest event kept. Older events come from the log. Default
-   * 8 000 000.
+   * the JSON length of each event. A reader whose cursor is older reads
+   * the older events from the log. Default 8 000 000.
    */
   eventBytes?: number
   /**
@@ -797,7 +797,9 @@ export interface HarnessHost<P extends Principal = Principal> {
    * The status changes and the session index changes of this host, for a
    * list of sessions that stays current. First the current status of each
    * open session, then each change as it occurs. Each call reads on its own.
-   * The read stops when `signal` aborts or the loop ends.
+   * The read stops when `signal` aborts or the loop ends. It also stops when
+   * more than 1 000 events wait for a slow reader: read again to get the
+   * current statuses.
    *
    * @example
    * ```ts
@@ -1025,6 +1027,30 @@ export function sessionOfTurn<P extends Principal>(
   lookup: TurnLookup,
 ): Promise<HarnessSession | undefined> {
   return turnFinders.get(host)?.(lookup) ?? Promise.resolve(undefined)
+}
+
+/** A read of the host events of one tenant. */
+export interface TenantEventsRead {
+  /** The tenant to read. `undefined` is the default tenant. */
+  tenantId: string | undefined
+  /** Runs before the queue: an event it rejects takes no memory. */
+  filter: (event: HostEvent) => boolean
+  signal?: AbortSignal
+}
+
+/** How each host reads its events for one tenant. Not public API. */
+const tenantEventReaders = new WeakMap<
+  object,
+  (read: TenantEventsRead) => AsyncIterable<HostEvent>
+>()
+
+/**
+ * @internal The `host.events()` of one tenant, with the statuses of that
+ * tenant first. `filter` runs before the queue. `undefined` for a host that
+ * `createHarnessHost` did not make.
+ */
+export function tenantEventsOf<P extends Principal>(host: HarnessHost<P>) {
+  return tenantEventReaders.get(host)
 }
 
 /** A log that a sweep took over, and the end of what the sweep opened. */
@@ -1284,21 +1310,9 @@ export function createHarnessHost<P extends Principal = Principal>(
   }
   const logStore = persistence.stores.log
   const { sessions: sessionStore } = persistence.stores
-  /** One per running `host.events()` read. */
-  const listeners = new Set<(event: HostEvent) => void>()
-  const emit = (event: HostEvent) => {
-    for (const listener of [...listeners]) {
-      // One reader that throws must not stop the others.
-      try {
-        listener(event)
-      } catch (error) {
-        console.error(
-          '[@tanstack/ai-harness] A host events reader threw.',
-          error,
-        )
-      }
-    }
-  }
+  /** The readers of `host.events()`. */
+  const bus = new HostEventBus()
+  const emit = (event: HostEvent) => bus.emit(event)
   /** The latest status of each open session, by session key. */
   const statuses = new Map<string, HostStatusEvent>()
   const setStatus = (
@@ -2788,37 +2802,26 @@ export function createHarnessHost<P extends Principal = Principal>(
         return changed
       },
     },
-    async *events({ signal } = {}) {
+    events({ signal } = {}) {
       // The current statuses first. A change while the reader handles an
       // event waits in the queue.
-      const queue: Array<HostEvent> = [...statuses.values()]
-      let wake = () => {}
-      const listener = (event: HostEvent) => {
-        queue.push(event)
-        wake()
-      }
-      const onAbort = () => wake()
-      listeners.add(listener)
-      signal?.addEventListener('abort', onAbort)
-      try {
-        while (!signal?.aborted) {
-          const next = queue.shift()
-          if (next) {
-            yield next
-            continue
-          }
-          await new Promise<void>((resolve) => {
-            wake = resolve
-          })
-        }
-      } finally {
-        // A loop that ends (break, return, throw, abort) stops listening.
-        listeners.delete(listener)
-        signal?.removeEventListener('abort', onAbort)
-      }
+      return bus.read({
+        initial: [...statuses.values()],
+        ...(signal ? { signal } : {}),
+      })
     },
   }
   if (access) accesses.set(host, access)
+  tenantEventReaders.set(host, ({ tenantId, filter, signal }) =>
+    bus.read({
+      tenant: { tenantId },
+      filter,
+      initial: [...statuses.values()].filter(
+        (event) => tenantOfHostEvent(event) === tenantId && filter(event),
+      ),
+      ...(signal ? { signal } : {}),
+    }),
+  )
   sweeps.set(host, {
     listOrphaned: (query) =>
       logStore.listOrphaned({ ...query, ...pinOf(ownership) }),

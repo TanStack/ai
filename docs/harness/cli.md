@@ -59,7 +59,13 @@ To use the harness from another program:
 
 `--mcp` and `--serve` run only the commands in `expose.commands` of the harness. `--serve` also sets only the config keys in `expose.config`. Add the names to `expose` in `defineHarness`, for example `expose: { commands: ['connect:github'] }`. Line mode and `-p` run every command. See [Choose what clients can change](./connect#choose-what-clients-can-change).
 
-Line mode reads one message or command per line and waits for each turn. It works the same in a terminal and with piped input. In a terminal, it also opens sign-in links in the browser.
+Line mode reads one message or command per line. In a terminal, you can type while a turn runs:
+
+- `/cancel` cancels the running turn at once.
+- A message joins the running turn as a steer. The model reads it at its next call.
+- A message that you type when no turn runs starts a new turn.
+
+With piped input, each line waits for the turn that the line before it started. A script runs in order. In a terminal, line mode also opens sign-in links in the browser.
 
 ## 3. Use it in CI
 
@@ -144,7 +150,7 @@ await host.close()
 - Give `host`, or `persistence` and `credentials`, not both. With both, `runCli` writes `Give runCli a host, or persistence and credentials, not both.` and returns code 1.
 - Line mode, `-p`, your own `ui`, `--acp`, and `--mcp` open their sessions as `principal`, so `/connect` saves keys for that user.
 - `--serve` checks the token first. On a host without `access`, each request then runs as `principal`. On a host with [`access`](./access), `identify` reads the user of each request.
-- On a host with `access`, give `principal` too. `--mcp` does not start on such a host, because stdio has no login. `--dashboard` opens its sessions without the principal.
+- On a host with `access`, give `principal` too. `--mcp` does not start on such a host, because stdio has no login.
 
 ## Commands in line mode
 
@@ -215,7 +221,7 @@ process.exitCode = await runCli(assistant, {
 })
 ```
 
-- `ui` runs only in an interactive terminal. Piped input uses line mode. `-p`, `--acp`, `--mcp`, `--serve`, and `--dashboard` do not use `ui`.
+- `ui` runs only in an interactive terminal. Piped input uses line mode. `-p`, `--acp`, `--mcp`, and `--serve` do not use `ui`.
 - When `ui` resolves, the CLI disposes the view and `runCli` returns.
 - To write `Screen`, read [Build your own UI](./custom-ui).
 

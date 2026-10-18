@@ -338,10 +338,12 @@ type WaitAnswer =
  * checks each action, and a session that the principal may not read is not
  * found. Without `principal`, a host with access throws at the start.
  *
- * The agent holds one handle per session. `session/close` releases it, and
- * the close of the connection releases them all. The host then closes each
- * session when it is idle. `session/resume` only checks the session index:
- * the session opens at its first prompt.
+ * The agent holds a handle on a session only while the session has work: a
+ * new session, or prompts that run or wait in its queue. When the queue is
+ * empty, the agent releases the handle, and the host closes the session when
+ * it is idle. The next prompt opens it again. `session/close` and the close
+ * of the connection release the handles too. `session/resume` only checks the
+ * session index: the session opens at its first prompt.
  *
  * ACP v2 is a draft, so this API is experimental too.
  */
@@ -355,12 +357,16 @@ export function createAcpAgent<P extends Principal = Principal>(
     )
   }
   /**
-   * The handle of each session that this agent opened, by session id. The
-   * agent holds one per session. `session/close` releases it, and so does
-   * the close of the connection.
+   * The handle of each session that this agent holds, by session id. The
+   * agent holds one while the session has work, and releases it when the
+   * prompt queue of the session is empty. `session/close` releases it too,
+   * and so does the close of the connection.
    */
   const handles = new Map<string, Promise<HarnessSession>>()
-  /** The last pump of each session. The pumps of one session run in order. */
+  /**
+   * The last prompt of each session. The prompts of one session run in the
+   * order that they came in.
+   */
   const tails = new Map<string, Promise<void>>()
 
   /** The handle of a session: the one that the agent holds, or a new one. */
@@ -385,6 +391,15 @@ export function createAcpAgent<P extends Principal = Principal>(
       (session) => session.close(),
       () => {},
     )
+  }
+
+  /**
+   * Release the handle of a session when no prompt of it runs or waits. An
+   * idle session holds nothing, and the next prompt opens it again.
+   */
+  const releaseIfIdle = (sessionId: string) => {
+    if (tails.has(sessionId)) return
+    void release(sessionId)
   }
 
   /**
@@ -749,7 +764,10 @@ export function createAcpAgent<P extends Principal = Principal>(
       })
       .onRequest('session/new', async () => {
         const sessionId = `acp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
+        // The open saves the session in the session index. The first prompt
+        // opens it again.
         await live(sessionId)
+        releaseIfIdle(sessionId)
         return { sessionId }
       })
       .onRequest('session/list', async ({ params }) => {
@@ -781,36 +799,53 @@ export function createAcpAgent<P extends Principal = Principal>(
       })
       .onRequest('session/prompt', async ({ params, client }) => {
         const { sessionId } = params
-        const session = await known(sessionId)
-        const input = await promptInput(session, params.prompt).catch(
-          (error: unknown) => {
-            // The editor sent a file the harness refuses, so the prompt is
-            // invalid: answer with the reason, not an internal error.
-            if (error instanceof MediaError) {
-              throw RequestError.invalidParams(
-                { status: error.status },
-                error.message,
-              )
-            }
-            throw error
-          },
-        )
         const messageId = `user-${crypto.randomUUID()}`
-        await notify(client, sessionId, {
-          sessionUpdate: 'user_message',
-          messageId,
-          content: params.prompt,
-        })
-        // `pump` catches its own errors and always reports idle. The prompts of
-        // one session go to the harness in order, each after the turn before it
-        // ended, so a later prompt cannot overtake a permission request.
-        const tail = (tails.get(sessionId) ?? Promise.resolve()).then(() =>
-          pump(client, sessionId, session, input),
-        )
+        /**
+         * Open the session, store the files of the prompt, and echo the user
+         * message. A file upload can take long, so this runs at once, also
+         * while an earlier prompt still runs.
+         */
+        const accepted = (async () => {
+          const session = await known(sessionId)
+          const input = await promptInput(session, params.prompt).catch(
+            (error: unknown) => {
+              // The editor sent a file the harness refuses, so the prompt is
+              // invalid: answer with the reason, not an internal error.
+              if (error instanceof MediaError) {
+                throw RequestError.invalidParams(
+                  { status: error.status },
+                  error.message,
+                )
+              }
+              throw error
+            },
+          )
+          await notify(client, sessionId, {
+            sessionUpdate: 'user_message',
+            messageId,
+            content: params.prompt,
+          })
+          return { session, input }
+        })()
+        // Take the place in the queue before the first await, so a prompt
+        // keeps its place while its files upload. `pump` catches its own
+        // errors and always reports idle. The prompts of one session go to the
+        // harness in order, each after the turn before it ended, so a later
+        // prompt cannot overtake a permission request. A prompt that fails
+        // here runs no turn: the request answers with the error.
+        const tail = (tails.get(sessionId) ?? Promise.resolve())
+          .then(() => accepted)
+          .then(
+            ({ session, input }) => pump(client, sessionId, session, input),
+            () => {},
+          )
         tails.set(sessionId, tail)
         void tail.then(() => {
-          if (tails.get(sessionId) === tail) tails.delete(sessionId)
+          if (tails.get(sessionId) !== tail) return
+          tails.delete(sessionId)
+          releaseIfIdle(sessionId)
         })
+        await accepted
         return { messageId }
       })
       // Only the handle of this agent goes. Other handles keep the session.

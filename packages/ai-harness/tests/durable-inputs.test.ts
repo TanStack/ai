@@ -1362,6 +1362,29 @@ describe('input ids', () => {
     await second.host.close()
   })
 
+  it('streams a duplicate after a restart from the start of its run in the log', async () => {
+    const persistence = durablePersistence()
+    const first = await openDurable({
+      persistence,
+      replies: [() => text('from the first host')],
+    })
+    await first.session.send('hi', { inputId: 'dup-1' })
+    await first.host.close()
+
+    const second = await openDurable({ persistence, replies: [] })
+    const replay = second.session.send('hi', { inputId: 'dup-1' })
+    await replay
+    const deltas: Array<string> = []
+    for await (const chunk of replay.stream()) {
+      if (chunk.type === EventType.TEXT_MESSAGE_CONTENT)
+        deltas.push(chunk.delta)
+    }
+
+    // The rebuilt operation starts before its run, not at the log head.
+    expect(deltas.join('')).toBe('from the first host')
+    await second.host.close()
+  })
+
   it('settles an old duplicate after a restart with the text of its own turn', async () => {
     const persistence = durablePersistence()
     const release = gate()

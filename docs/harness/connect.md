@@ -155,9 +155,10 @@ const client = createHarnessClient<typeof assistant>({
   headers: { authorization: 'Bearer my-token' },
 })
 
+const { cursor } = await client.snapshot()
 await client.send('Summarize my open tickets.')
 
-for await (const entry of client.events()) {
+for await (const entry of client.events({ from: cursor })) {
   if (entry.event.type === 'TEXT_MESSAGE_CONTENT') {
     console.log(entry.event.delta)
   }
@@ -165,6 +166,8 @@ for await (const entry of client.events()) {
 ```
 
 `events()` reconnects after a network error and continues from the last cursor. A second tab, a phone, or a reload all see the same session.
+
+Without `from`, `events()` starts at the newest event, so it sends no old events. That is why the example reads the snapshot cursor before it sends. To read every event from the start of the session, pass `from: '0'`.
 
 To upload files and show the media that your agents make, read [Send and show media](./media).
 
@@ -397,6 +400,10 @@ const stream = chat({
 ```
 
 Each outer thread gets its own inner session, so the harness keeps its own history. The inner session gets every content part of the last user message, so images and files go through too.
+
+- Who runs the inner turn: when the outer `chat()` runs inside a harness turn, the inner session opens as the user of that turn. Else it opens as `principal`, for example `harnessText(assistant, { host, principal: { id: 'ada' } })`.
+- Usage: the outer run gets the token usage of every inner model call, so the usage totals of the outer session count them.
+- Cancel: an abort of the outer call cancels the inner turn. For a remote harness, `harnessText({ url, token })` also tells the remote host to cancel the turn.
 
 If a plugin picks the model of the harness, the harness has no adapter to read its input kinds from. Pass them with `harnessText(assistant, { host, inputModalities: ['text', 'image'] })`.
 

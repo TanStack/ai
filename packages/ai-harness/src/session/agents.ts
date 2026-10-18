@@ -79,6 +79,7 @@ import type {
   AgentRun,
   AgentSendOptions,
   ChatTurnResult,
+  Cursor,
   InputSettlement,
   SettlementOutcome,
   MediaRecord,
@@ -397,7 +398,11 @@ export abstract class SessionAgents<
       return undefined
     }
     const entries = logged.map(({ node, settlement }) => {
-      const operation = this.agentOperation(first.input.agent, node.runId)
+      const operation = this.agentOperation(
+        first.input.agent,
+        node.runId,
+        this.runStart(node.runId),
+      )
       this.endAgentRun(operation, settlement)
       return {
         operation,
@@ -1151,14 +1156,22 @@ export abstract class SessionAgents<
     return this.logWriter?.state.thread.tree.get(operationId)?.parentRunId
   }
 
-  /** A new agent run operation. `id`: a stored one, after a restart. */
-  protected agentOperation(agent: string, id?: string): AgentRunImpl {
+  /**
+   * A new agent run operation. `id`: a stored one, after a restart.
+   * `startedCursor`: the start of a run that the log rebuilds.
+   */
+  protected agentOperation(
+    agent: string,
+    id?: string,
+    startedCursor?: Cursor,
+  ): AgentRunImpl {
     const operation = new OperationImpl<unknown>(
       'agent',
       this.feed,
       (running) => this.cancel({ operationId: running.id }),
       agent,
       id,
+      startedCursor,
     )
     const run = Object.assign(
       // `kind` and `agent` are fixed by the constructor call above.
@@ -2088,7 +2101,11 @@ export abstract class SessionAgents<
     const runId = input.operationId
     if (runId === undefined || run.subagentRunId === undefined) return
     this.warnLiveOnly(runId)
-    const operation = this.agentOperation(first.input.agent, runId)
+    const operation = this.agentOperation(
+      first.input.agent,
+      runId,
+      this.runStart(runId),
+    )
     const sender = input.principal ? { principal: input.principal } : {}
     const chain = this.createChain(this.loggedFields(first), {
       operation,
@@ -2262,7 +2279,11 @@ export abstract class SessionAgents<
       // Recovery must not run it again.
       this.admitted.set(input.inputId, inputKey(input.input, input.principal))
       this.warnLiveOnly(runId)
-      const operation = this.agentOperation(first.input.agent, runId)
+      const operation = this.agentOperation(
+        first.input.agent,
+        runId,
+        this.runStart(runId),
+      )
       const sender = input.principal ? { principal: input.principal } : {}
       const chain = this.createChain(this.loggedFields(first), {
         operation,

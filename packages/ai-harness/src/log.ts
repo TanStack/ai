@@ -7,6 +7,7 @@ import {
 } from '@tanstack/ai-persistence'
 import { gapEvent } from './feed'
 import { LogOwnedElsewhereError } from './ownership'
+import { EventRing } from './ring'
 import {
   THREAD_RECORD_TYPES,
   applyRunNode,
@@ -249,6 +250,11 @@ export interface InputState {
   input: HarnessInput
   principal?: { id: string; tenantId?: string }
   at: number
+  /**
+   * The position of the input record. The events of its run come after it.
+   * Unknown in a fold snapshot from before this field.
+   */
+  seq?: number
   status: 'pending' | 'applied' | 'joined' | 'rejected' | 'settled'
   operationId?: string
   attempt: number
@@ -302,6 +308,23 @@ export interface LogState {
   notes: Map<string, string>
   /** The thread state that the thread-state records fold to. */
   thread: ThreadStateFold
+}
+
+/**
+ * The cursor before the first event of run `operationId`: before its
+ * first input record. A run that answers go on has more inputs, so the
+ * oldest one counts. `undefined` when the fold does not know it.
+ */
+export function runStartOf(
+  state: LogState,
+  operationId: string,
+): Cursor | undefined {
+  let first: number | undefined
+  for (const input of state.inputs.values()) {
+    if (input.operationId !== operationId || input.seq === undefined) continue
+    if (first === undefined || input.seq < first) first = input.seq
+  }
+  return first === undefined ? undefined : String(first - 1)
 }
 
 export function emptyLogState() {
@@ -374,7 +397,9 @@ export function commonPrefix(
 ) {
   const length = Math.min(a.length, b.length)
   let index = 0
-  while (index < length && sameJson(a[index], b[index])) index += 1
+  // The same message object is the same JSON, so it skips the stringify.
+  const isSame = (i: number) => a[i] === b[i] || sameJson(a[i], b[i])
+  while (index < length && isSame(index)) index += 1
   return index
 }
 
@@ -491,6 +516,7 @@ export function foldEntry(
         input: record.input,
         ...(record.principal ? { principal: record.principal } : {}),
         at: record.at,
+        seq: entry.seq,
         status: 'pending',
         attempt: 0,
         abortRequested: false,
@@ -1398,21 +1424,13 @@ export class SharedLog<TState = unknown> {
   private chain: Promise<void> = Promise.resolve()
   private failure: unknown
   /**
-   * The newest events, like SessionFeed: at most `eventBytes` of them (the
-   * JSON length of each). Older cursors page from the store.
+   * The newest events: at most `eventBytes` of them (the JSON length of
+   * each). Older cursors page from the store.
    */
-  private readonly tail: Array<{
-    thread: string
-    entry: SessionEvent
-    size: number
-  }> = []
-  /** The sum of the sizes in `tail`. */
-  private tailBytes = 0
+  private tail: EventRing
   /** While `catchUp` folds: the events that other writers appended. */
   private remote: Array<{ thread: string; entry: SessionEvent }> | undefined
   private readonly eventBytes: number
-  /** Every event after this position is in `tail`. */
-  private tailFrom: number
   private readonly waiters = new Set<() => void>()
   /** The open readers. Like the views, they keep the log open. */
   private readers = 0
@@ -1472,7 +1490,10 @@ export class SharedLog<TState = unknown> {
       ...(options.reduce ? { reduce: options.reduce } : {}),
     }
     this.versions = versionsOf(options.project, options.reduce)
-    this.tailFrom = options.state.seq
+    this.tail = new EventRing({
+      maxBytes: options.eventBytes,
+      from: options.state.seq,
+    })
     // Records from another writer join the fold. A call during this
     // writer's own append is its own records.
     this.unsubscribe = options.store.subscribe({
@@ -2252,9 +2273,7 @@ export class SharedLog<TState = unknown> {
     this.state.seq = loaded.seq
     this.state.reduced = loaded.reduced
     this.snapshotSeq = loaded.seq
-    this.tail.length = 0
-    this.tailBytes = 0
-    this.tailFrom = loaded.seq
+    this.tail = new EventRing({ maxBytes: this.eventBytes, from: loaded.seq })
     await readAll(this.store, this.logId, this.state, (entry) =>
       this.apply(entry),
     )
@@ -2279,15 +2298,8 @@ export class SharedLog<TState = unknown> {
     this.remote?.push({ thread, entry: event })
     // The fold has JSON values only, so this cannot throw.
     const size = JSON.stringify(event.event).length
+    // The ring keeps the newest event, so a live reader gets it from memory.
     this.tail.push({ thread, entry: event, size })
-    this.tailBytes += size
-    // The newest event stays, so a live reader gets it from memory.
-    while (this.tailBytes > this.eventBytes && this.tail.length > 1) {
-      const dropped = this.tail.shift()
-      if (!dropped) break
-      this.tailBytes -= dropped.size
-      this.tailFrom = Number(dropped.entry.cursor)
-    }
   }
 
   // ===========================
@@ -2313,17 +2325,14 @@ export class SharedLog<TState = unknown> {
     const accepts = (entry: SessionEvent) => (filter ? filter(entry) : true)
     /** The events of this session in the tail after `after`. */
     const ownAfter = (after: number) =>
-      this.tail
-        .filter((item) => item.thread === thread)
-        .map((item) => item.entry)
-        .filter((entry) => Number(entry.cursor) > after && accepts(entry))
+      this.tail.after(after, thread).entries.filter(accepts)
     let after = Number(options.from ?? '0')
     if (!Number.isFinite(after)) after = 0
     for (;;) {
       if (signal?.aborted) return
-      if (after < this.tailFrom) {
+      if (after < this.tail.from) {
         // Older than the in-memory tail: page it from the store.
-        const upTo = this.tailFrom
+        const upTo = this.tail.from
         let page: Array<LogEntry>
         try {
           page = await this.store.read({
@@ -2472,6 +2481,18 @@ export function engineMessageStore(options: SessionLogView) {
   const fold = () => [...writer.state.messages]
   let held = fold()
   /**
+   * The list that the last `beforeModel` gave the model, and the fold after
+   * its commit. A second call of the same model call (`steering`, then
+   * `syncFold`) with the same message objects and the same fold has
+   * nothing to commit, so it skips the compare and the commit.
+   */
+  let committed:
+    | {
+        list: ReadonlyArray<ModelMessage>
+        fold: ReadonlyArray<ModelMessage>
+      }
+    | undefined
+  /**
    * What to write for an engine save of `list`, when the engine held `base`:
    *
    * - The fold only added host messages after `base`: the engine's new
@@ -2497,11 +2518,13 @@ export function engineMessageStore(options: SessionLogView) {
   const engine = {
     loadThread: async (threadId: string) => {
       if (threadId !== writer.threadId) return shared.loadThread(threadId)
+      committed = undefined
       held = fold()
       return [...held]
     },
     saveThread: (threadId: string, list: Array<ModelMessage>) => {
       if (threadId !== writer.threadId) return shared.saveThread(threadId, list)
+      committed = undefined
       const target = rebase(held, list)
       held = [...list]
       return writer.commit({ messages: target })
@@ -2516,13 +2539,22 @@ export function engineMessageStore(options: SessionLogView) {
       list: ReadonlyArray<ModelMessage>,
       records: ReadonlyArray<LogRecord> = [],
     ) => {
+      const isUnchanged =
+        records.length === 0 &&
+        committed !== undefined &&
+        committed.fold === writer.state.messages &&
+        committed.list.length === list.length &&
+        committed.list.every((message, index) => message === list[index])
+      if (isUnchanged) return undefined
       const target = rebase(held, [...list])
       held = [...target]
       await writer.commit({ messages: target, records })
       const isSame =
         target.length === list.length &&
         commonPrefix(target, list) === list.length
-      return isSame ? undefined : [...target]
+      const result = isSame ? undefined : [...target]
+      committed = { list: result ?? [...list], fold: writer.state.messages }
+      return result
     },
     /**
      * Host records from a middleware of the running turn. The messages that
@@ -2538,6 +2570,7 @@ export function engineMessageStore(options: SessionLogView) {
       list: ReadonlyArray<ModelMessage>,
       records: ReadonlyArray<LogRecord>,
     ) => {
+      committed = undefined
       const kept = commonPrefix(held, list)
       if (kept < held.length || list.length === held.length) {
         return writer.append(records)

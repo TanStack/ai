@@ -52,7 +52,11 @@ describe('createHarnessClient', () => {
 
     const controller = new AbortController()
     const seen: Array<SessionEvent> = []
-    for await (const entry of client.events({ signal: controller.signal })) {
+    // From the start: the turn can send its events before this read.
+    for await (const entry of client.events({
+      from: '0',
+      signal: controller.signal,
+    })) {
       seen.push(entry)
       if (
         entry.event.type === 'CUSTOM' &&
@@ -242,6 +246,64 @@ describe('createHarnessClient', () => {
     await expect(async () => {
       for await (const _ of client.events()) break
     }).rejects.toThrow('401')
+    await host.close()
+  })
+})
+
+describe('client.events with no from', () => {
+  it('starts at the head, so it does not send the old events again', async () => {
+    const { adapter } = mockAdapter([
+      () => text('the old answer'),
+      () => text('the new answer'),
+    ])
+    const harness = defineHarness({ name: 'test/client-head', adapter })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const handler = createHarnessHandler({
+      host,
+      harness,
+      openAccess: { principal: { id: 'u' } },
+    })
+    const client = createHarnessClient<typeof harness>({
+      url: 'http://local/api/harness',
+      threadId: 't-head',
+      fetch: (input, init) => handler(new Request(input, init)),
+    })
+    const session = await host.open(harness, { threadId: 't-head' })
+    await session.send('one')
+    const { cursor } = await client.snapshot()
+
+    const controller = new AbortController()
+    const seen: Array<SessionEvent> = []
+    const opened = gate()
+    const reading = (async () => {
+      const events = client.events({
+        signal: controller.signal,
+        onConnection: (state) => {
+          if (state === 'open') opened.open()
+        },
+      })
+      for await (const entry of events) {
+        seen.push(entry)
+        if (
+          entry.event.type === 'CUSTOM' &&
+          entry.event.name === 'harness.operation.finished'
+        ) {
+          controller.abort()
+        }
+      }
+    })()
+    // The read asks for the head first, then streams from it.
+    await opened.opened
+    await session.send('two')
+    await reading
+
+    const body = JSON.stringify(seen)
+    expect(body).toContain('the new answer')
+    expect(body).not.toContain('the old answer')
+    expect(seen.every((entry) => Number(entry.cursor) > Number(cursor))).toBe(
+      true,
+    )
+    await session.close()
     await host.close()
   })
 })

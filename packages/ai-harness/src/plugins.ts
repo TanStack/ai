@@ -52,6 +52,16 @@ export type PluginLifetime = 'session' | 'turn' | 'host'
 export interface PluginPrompt {
   id: string
   text: string | ((turn: TurnInfo) => string)
+  /**
+   * Where the model gets the text. `'system'` (default): in the system
+   * prompts, before the history. `'context'`: in one user message after the
+   * history, at each model call. Use `'context'` for text that changes
+   * often, such as a todo list or a mode. A change of system prompts makes
+   * the provider prompt cache miss for the whole conversation. A change
+   * after the history keeps the cached prefix. The log does not keep the
+   * `'context'` text.
+   */
+  placement?: 'system' | 'context'
 }
 
 /** What a plugin's `setup` returns. Every field is optional. */
@@ -542,8 +552,13 @@ interface AgentList {
 /** Everything a set of mounted plugins contributes, plus its cleanup. */
 export interface MountedPlugins {
   tools: Array<AnyTool>
-  /** Strings, or functions to call for each turn. */
+  /** The `'system'` prompts: strings, or functions to call for each turn. */
   prompts: Array<string | ((turn: TurnInfo) => string)>
+  /** The `'context'` prompts, with their owners. They go after the history. */
+  contextPrompts: Array<{
+    text: string | ((turn: TurnInfo) => string)
+    owner: string
+  }>
   commands: Map<string, { command: AnyCommand; owner: string }>
   config: Map<string, { option: ConfigOption; owner: string }>
   /** Contributions to extension points, by point name. */
@@ -570,7 +585,10 @@ export interface MountedPlugins {
       provides: Array<string>
     }>
     tools: Array<{ name: string; owner: string }>
-    /** The owner of each item of `prompts`, at the same index. */
+    /**
+     * The owner of each prompt. The items of `prompts` come first, at the
+     * same index, then the items of `contextPrompts`.
+     */
     prompts: Array<{ id: string; owner: string }>
     /** The owner of each item of `middleware`, at the same index. */
     middleware: Array<string>
@@ -602,7 +620,7 @@ export interface MountedPlugins {
   dispose: () => Promise<void>
   /**
    * A copy without everything that the plugins in `names` contributed: tools,
-   * prompts, every kind of middleware, agents, subagents, commands, config,
+   * prompts (also the `'context'` prompts), every kind of middleware, agents, subagents, commands, config,
    * adapter picks, discoverers, preparers, extension items, and capabilities.
    * The copy is a snapshot: a later `ctx.agents.set` or `ctx.commands.set`
    * changes this set only. It shares `dispose` with this set. It throws when
@@ -921,10 +939,12 @@ function withoutOwnersOf(
   }
   const next: MountedPlugins = {
     tools: mounted.tools.filter((tool) => keptTools.has(tool.name)),
+    // `owners.prompts` has the owners of `prompts` first, at the same index.
     prompts: keep(
       mounted.prompts,
       owners.prompts.map((entry) => entry.owner),
     ),
+    contextPrompts: mounted.contextPrompts.filter((item) => isKept(item.owner)),
     middleware: keep(mounted.middleware, owners.middleware),
     agentMiddleware: keep(mounted.agentMiddleware, owners.agentMiddleware),
     generationMiddleware: keep(
@@ -1089,6 +1109,34 @@ export async function mountPlugins(
   // mount leaves it pending, so no plugin acts on a session that never opens.
   let markReady = () => {}
   const ready = new Promise<void>((resolve) => (markReady = resolve))
+  // The shown values of each extension point, built again only when it grows
+  // or when the hidden owners change. Contributions are only added, so the
+  // length tells when a copy is old. `hiddenOwners` gives a new set when the
+  // thread removes other plugins, so a different set also makes it old.
+  const snapshots = new Map<
+    string,
+    {
+      length: number
+      hidden: ReadonlySet<string> | undefined
+      values: Array<unknown>
+    }
+  >()
+  const valuesOf = (point: string) => {
+    const items = extensions.get(point) ?? []
+    const hidden = env.hiddenOwners?.()
+    const cached = snapshots.get(point)
+    if (cached?.length === items.length && cached.hidden === hidden) {
+      return cached.values
+    }
+    const shown = hidden?.size
+      ? items.filter((item) => !hidden.has(item.owner))
+      : items
+    const fresh = shown.map((item) => item.value)
+    snapshots.set(point, { length: items.length, hidden, values: fresh })
+    return fresh
+  }
+  // True after the last setup. No plugin contributes after that.
+  let settled = false
   const ownerOf = (name: string) =>
     commands.get(name)?.owner ?? env.takenCommands?.get(name)?.owner
 
@@ -1156,22 +1204,16 @@ export async function mountPlugins(
           },
         },
         collect: <T>(point: ExtensionPoint<T>): ReadonlyArray<T> => {
-          let items = extensions.get(point.name)
-          if (!items) {
-            items = []
-            extensions.set(point.name, items)
-          }
-          const source = items
-          const live = () => {
-            const hidden = env.hiddenOwners?.()
-            const shown = hidden?.size
-              ? source.filter((item) => !hidden.has(item.owner))
-              : source
-            return shown.map((item) => item.value as T)
-          }
-          // A live view: items contributed after this call appear too. Array
-          // methods like `filter` also check that an index exists, so every
-          // trap reads the items, not the empty target.
+          const name = point.name
+          if (!extensions.has(name)) extensions.set(name, [])
+          // The values are the `T` items that plugins gave for this point,
+          // without the items of the plugins that the thread removed.
+          const live = () => valuesOf(name) as Array<T>
+          // After setup, no plugin contributes: give the array itself.
+          if (settled) return live()
+          // During setup, a live view: items contributed after this call
+          // appear too. Array methods like `filter` also check that an index
+          // exists, so every trap reads the items, not the empty target.
           return new Proxy<Array<T>>([], {
             get: (_target, key) => Reflect.get(live(), key),
             has: (_target, key) => Reflect.has(live(), key),
@@ -1376,14 +1418,25 @@ export async function mountPlugins(
     throw error
   }
 
+  settled = true
   markReady()
   let disposed: Promise<void> | undefined
   const record: MountRecord = { plugins, capabilityOwners }
+  const systemPrompts = prompts.filter(
+    (entry) => entry.value.placement !== 'context',
+  )
+  const contextPrompts = prompts.filter(
+    (entry) => entry.value.placement === 'context',
+  )
   const mounted: MountedPlugins = {
     tools: tools
       .filter((entry) => entry.owner !== 'the harness')
       .map((entry) => entry.value),
-    prompts: prompts.map((entry) => entry.value.text),
+    prompts: systemPrompts.map((entry) => entry.value.text),
+    contextPrompts: contextPrompts.map((entry) => ({
+      text: entry.value.text,
+      owner: entry.owner,
+    })),
     middleware,
     agentMiddleware,
     generationMiddleware,
@@ -1410,7 +1463,7 @@ export async function mountPlugins(
         name: entry.value.name,
         owner: entry.owner,
       })),
-      prompts: prompts.map((entry) => ({
+      prompts: [...systemPrompts, ...contextPrompts].map((entry) => ({
         id: entry.value.id,
         owner: entry.owner,
       })),

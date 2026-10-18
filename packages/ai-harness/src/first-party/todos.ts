@@ -82,6 +82,8 @@ export function todos() {
         prompts: [
           {
             id: 'tanstack/todos:list',
+            // It changes often: after the history, so the prompt cache holds.
+            placement: 'context',
             text: () =>
               current.length > 0
                 ? `Current todo list:\n${formatTodos(current)}`

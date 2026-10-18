@@ -10,7 +10,8 @@ import {
 } from '@tanstack/ai'
 import { parseRangeHeader, resolveBlobRange } from '@tanstack/ai-persistence'
 import { AccessDeniedError } from './access'
-import { accessOf, sessionOfTurn } from './host'
+import { accessOf, sessionOfTurn, tenantEventsOf } from './host'
+import { tenantOfHostEvent } from './host-event-bus'
 import { activeRunIn } from './log-stores'
 import { MediaError } from './media'
 import { maxBodyBytesOf, readBodyText, storeInlineMedia } from './inline-media'
@@ -29,7 +30,12 @@ import { socketSender, sseStream, streamValues, withHeartbeat } from './sse'
 import { base64url, isRecord } from './utils'
 import { SessionMetadataError } from './session-entry'
 import { SessionImpl, scrubbedBy } from './session/harness-session'
-import { liveSessionOf, storedRunsOf } from './session/observed-session'
+import {
+  liveSessionOf,
+  mediaStoreOf,
+  storedRunOf,
+  storedRunsOf,
+} from './session/observed-session'
 import { wireFrame } from './wire'
 import type { ModelMessage, UIMessage, WebSocketLike } from '@tanstack/ai'
 import type { SessionIndexEntry, SessionMember } from '@tanstack/ai-persistence'
@@ -95,6 +101,9 @@ export interface HarnessHandlerOptions<P extends Principal = Principal> {
 
 /** How long a signed media URL works. */
 const SIGNED_URL_TTL_MS = 60 * 60 * 1000
+
+/** The most bytes one answer to an open-ended `Range` (`bytes=N-`) sends. */
+const OPEN_RANGE_MAX_BYTES = 8 * 1024 * 1024
 
 // Every media answer: a browser must not guess another type, and a `text/*`
 // document must not run as a page of this origin.
@@ -338,22 +347,37 @@ async function mediaResponse(
 ) {
   const record = await view.getMedia(id)
   if (!record) return json({ error: 'not found' }, 404)
-  const range = parseRangeHeader(request.headers.get('Range'), record.size)
-  if (range === 'unsatisfiable') {
+  const asked = parseRangeHeader(request.headers.get('Range'), record.size)
+  if (asked === 'unsatisfiable') {
     return new Response(null, {
       status: 416,
       headers: { ...MEDIA_HEADERS, 'Content-Range': `bytes */${record.size}` },
     })
   }
-  const bytes = await view.loadMedia({ id, range })
+  // A range with no end (`bytes=N-`) gets at most OPEN_RANGE_MAX_BYTES. A
+  // 206 may send less than was asked: the client asks again for the rest.
+  const range =
+    asked && asked.length === undefined
+      ? {
+          offset: asked.offset,
+          length: Math.min(OPEN_RANGE_MAX_BYTES, record.size - asked.offset),
+        }
+      : asked
+  const length = range
+    ? resolveBlobRange(record.size, range).length
+    : record.size
+  // A stream, so a big file is not held in memory.
+  const body =
+    (await mediaStoreOf(view)?.open(id, range)) ??
+    (await view.loadMedia({ id, range }))
   const headers = {
     ...MEDIA_HEADERS,
     'Content-Type': record.mimeType,
-    'Content-Length': String(bytes.byteLength),
+    'Content-Length': String(length),
   }
-  if (!range) return new Response(bytes, { headers })
-  const { offset, length } = resolveBlobRange(record.size, range)
-  return new Response(bytes, {
+  if (!range) return new Response(body, { headers })
+  const { offset } = range
+  return new Response(body, {
     status: 206,
     headers: {
       ...headers,
@@ -728,7 +752,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
     const threadId = named
     const view = await viewFor(principal, threadId)
     if (!view) return json({ error: 'unknown run' }, 404)
-    const record = (await storedRunsOf(view)).get(runId)
+    const { record, start } = await storedRunOf(view, runId)
     const isChatTurn =
       record !== undefined &&
       record.threadId === threadId &&
@@ -739,12 +763,12 @@ export function createHarnessHandler<P extends Principal = Principal>(
     if (entry?.harness !== undefined && entry.harness !== harness.name) {
       return json({ error: 'unknown run' }, 404)
     }
-    // ponytail: from the start of the log without a cursor. Store the
-    // started position on the run record if long threads make this slow.
+    // Without a cursor, from the start of the run: its first input record.
+    // A fold snapshot from before input positions does not know it: from 0.
     return cursorResponse(
       (signal) =>
         followOperation(
-          view.events({ from: resumeFrom ?? '0', signal }),
+          view.events({ from: resumeFrom ?? start ?? '0', signal }),
           runId,
         ),
       stream,
@@ -755,7 +779,9 @@ export function createHarnessHandler<P extends Principal = Principal>(
   /**
    * The `host.events()` that `principal` may read. With access, a thread
    * needs the `read` action. The decision of each thread is kept for the
-   * stream, until a revoke or an index change of that thread.
+   * stream, until a revoke or an index change of that thread. `accepts`
+   * reads no store, so the host event bus runs it before the queue.
+   * `mayWatch` runs after the queue.
    */
   const watchedEvents = (principal: P | undefined) => {
     const user = principal ? { principal } : {}
@@ -770,18 +796,20 @@ export function createHarnessHandler<P extends Principal = Principal>(
       decisions.set(threadId, decision)
       return decision
     }
-    return async (event: HostEvent) => {
-      const tenantId =
-        event.type === 'session' || event.type === 'session-deleted'
-          ? event.entry.tenantId
-          : event.tenantId
-      if (tenantId !== principal?.tenantId) return false
+    const accepts = (event: HostEvent) => {
+      if (tenantOfHostEvent(event) !== principal?.tenantId) return false
       if (event.type === 'revoked') {
         decisions.delete(event.threadId)
         // A user hears of their own revokes only.
         return event.principalId === principal?.id
       }
-      if (!hasAccess) return true
+      if (event.type === 'session' || event.type === 'session-deleted') {
+        decisions.delete(event.threadId)
+      }
+      return true
+    }
+    const mayWatch = async (event: HostEvent) => {
+      if (!hasAccess || event.type === 'revoked') return true
       // A transfer names two threads: the user must read both.
       if (event.type === 'transferred') {
         const reads = await Promise.all([
@@ -790,9 +818,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
         ])
         return reads.every(Boolean)
       }
-      if (event.type === 'session') decisions.delete(event.threadId)
       if (event.type === 'session-deleted') {
-        decisions.delete(event.threadId)
         // The entry is gone: decide on the removed one.
         const access = accessOf(host)
         return principal !== undefined && access !== undefined
@@ -805,6 +831,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
       }
       return mayRead(event.threadId)
     }
+    return { accepts, mayWatch }
   }
 
   const handle = async (
@@ -842,13 +869,18 @@ export function createHarnessHandler<P extends Principal = Principal>(
           }
           if (!receipt.operationId) return json({ error: 'rejected' }, 409)
           const { operationId } = receipt
+          // Without a cursor, from the start of the resumed run, not from
+          // the start of the log.
+          const from =
+            lastEventId ??
+            session
+              .snapshot()
+              .activeOperations.find((item) => item.id === operationId)
+              ?.startedCursor
           return cursorResponse(
             (signal) =>
               followOperation(
-                session.events({
-                  ...(lastEventId ? { from: lastEventId } : {}),
-                  signal,
-                }),
+                session.events({ ...(from ? { from } : {}), signal }),
                 operationId,
               ),
             stream,
@@ -889,9 +921,13 @@ export function createHarnessHandler<P extends Principal = Principal>(
         // sends the same request with `Last-Event-ID`, maybe to another
         // instance: the run id finds the same turn, and it streams from
         // there.
-        const from = lastEventId || '0'
+        // Without it, the operation reads from its own start.
         return cursorResponse(
-          (signal) => operation.events({ from, signal }),
+          (signal) =>
+            operation.events({
+              ...(lastEventId ? { from: lastEventId } : {}),
+              signal,
+            }),
           stream,
           keep(watch),
         )
@@ -943,13 +979,24 @@ export function createHarnessHandler<P extends Principal = Principal>(
     if (request.method === 'GET' && route === 'host-events') {
       const picked = versionOf(url)
       if ('error' in picked) return versionRefused(picked.error, requestId)
-      const mayWatch = watchedEvents(principal)
+      const { accepts, mayWatch } = watchedEvents(principal)
+      // The events of the principal's tenant only, from the host event bus.
+      // A host that `createHarnessHost` did not make has `host.events()`.
+      const readTenant = tenantEventsOf(host)
       // The hello of `host-events` names no thread.
       const hello = JSON.stringify({ type: 'harness.hello', v: picked.v })
       return sseResponse(
         async function* (signal) {
           yield { data: hello }
-          for await (const event of host.events({ signal })) {
+          const events = readTenant
+            ? readTenant({
+                tenantId: principal?.tenantId,
+                filter: accepts,
+                signal,
+              })
+            : host.events({ signal })
+          for await (const event of events) {
+            if (!readTenant && !accepts(event)) continue
             if (await mayWatch(event)) yield { data: JSON.stringify(event) }
           }
         },

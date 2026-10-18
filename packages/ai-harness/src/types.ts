@@ -671,7 +671,10 @@ export interface Operation<TResult> extends PromiseLike<TResult> {
    * A resolved receipt means that the input survives a restart.
    */
   readonly receipt: Promise<Receipt>
-  /** This operation's events, from `from` (exclusive) onward. */
+  /**
+   * This operation's events, from `from` (exclusive) onward. Default: from
+   * the start of the operation.
+   */
   events: (options?: {
     from?: Cursor
     signal?: AbortSignal

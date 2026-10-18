@@ -147,7 +147,11 @@ describe('run tags on session events', () => {
     })
     const reading = new AbortController()
     const kept: Array<SessionEvent> = []
-    for await (const entry of client.events({ signal: reading.signal })) {
+    // The run ended: read from the start, not from the snapshot cursor.
+    for await (const entry of client.events({
+      from: '0',
+      signal: reading.signal,
+    })) {
       kept.push(entry)
       if (isEndOf(entry, run.id)) break
     }

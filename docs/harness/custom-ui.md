@@ -241,7 +241,7 @@ These members are optional:
 - `continue`, `cancelInput`, `setDelivery`, `configure`, `reset`, `revert`, and `unrevert`. Without one, its view action adds an `error` notice.
 - `upload` or `putMedia`. If the source has neither, `view.upload` rejects.
 - `mediaUrl` and `loadMedia`. Without `mediaUrl`, media parts have no `url`. Without `loadMedia`, `load()` rejects.
-- `agentTranscript`. Without it, a reload shows no child parts.
+- `agentTranscript`. Without it, `view.loadAgent` does nothing, so a saved child shows only its card.
 
 ## 4. Listen for events
 
@@ -429,7 +429,18 @@ A child agent is an `agent` part in the assistant message of the turn that start
 - `status`: `running`, `done`, or `failed`, and `error` when it failed.
 - `result`: the typed result of the agent, when it gives one.
 
-After a reload, each child shows up again with what it wrote, not only with its final result. The view reads the saved messages of each child (see [Show what a child wrote after a reload](./subagents#show-what-a-child-wrote-after-a-reload)) and fills its part. A background child that still runs keeps getting its new text in the same part.
+After a reload, each saved child shows only its card: `name`, `status`, `error`, and `result`, with no `parts`. To show what the child wrote, call `view.loadAgent({ id })`, for example when the user opens the child. The view reads the saved messages of the child (see [Show what a child wrote after a reload](./subagents#show-what-a-child-wrote-after-a-reload)) and fills its part:
+
+```ts group=harness-custom-ui
+const last = view.store.get().messages.at(-1)
+const child =
+  last?.role === 'assistant'
+    ? last.parts.find((part) => part.type === 'agent')
+    : undefined
+if (child?.type === 'agent') await view.loadAgent({ id: child.id })
+```
+
+A nested child in that part loads the same way, with its own `loadAgent` call. A background child that still runs keeps getting its new text in the same part.
 
 To show a line when a child ends, listen for `'agent'`:
 

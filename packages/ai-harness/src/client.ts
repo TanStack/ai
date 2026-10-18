@@ -59,7 +59,11 @@ export interface HarnessClientOptions {
   /** Extra headers, for example `Authorization`. */
   headers?: Record<string, string> | (() => Record<string, string>)
   fetch?: typeof fetch
-  /** Wait before a reconnect of `events()`. Default 1000 ms. */
+  /**
+   * The first wait before a reconnect of `events()`. Default 1000 ms. Each
+   * failed try after it doubles the wait, up to 30 s, with a random part.
+   * A read from the server sets the wait back to this value.
+   */
   reconnectDelayMs?: number
 }
 
@@ -225,7 +229,9 @@ export interface HarnessClient<THarness extends AnyHarness> {
   /** End the revert that stands, as `session.unrevert` does. */
   unrevert: () => Promise<Receipt>
   /**
-   * The session events from `from` (exclusive). Reconnects after a network
+   * The session events from `from` (exclusive). Without `from`, the events
+   * start at the cursor of the snapshot: only new events come. Pass
+   * `from: '0'` to read the events from the start. Reconnects after a network
    * error and resumes from the last cursor. Ends when `signal` aborts.
    * `onConnection` reports `'open'` for each connection and `'reconnecting'`
    * before each new try. When the log dropped the events after `from`, the
@@ -341,38 +347,110 @@ type SessionChange =
   | { op: 'delete'; threadId: string }
   | ({ op: 'fork'; threadId: string } & ForkPoint)
 
-/** The `data` of each event of an SSE body, as parsed JSON. */
-async function* sseFrames(
-  body: ReadableStream<Uint8Array>,
-  signal: AbortSignal | undefined,
+/** The longest wait before a reconnect of `events()`. */
+const MAX_RECONNECT_DELAY_MS = 30_000
+
+/**
+ * The wait before reconnect number `attempt` (0 is the first): `base`
+ * doubled for each attempt, up to 30 s. A random part takes up to half of
+ * it away, so many clients do not reconnect at the same time.
+ */
+function reconnectDelay(base: number, attempt: number) {
+  const full = Math.min(MAX_RECONNECT_DELAY_MS, base * 2 ** attempt)
+  return full / 2 + (full / 2) * Math.random()
+}
+
+/** Run `stop` when `signal` aborts. Returns the function that removes it. */
+function whenAborted(signal: AbortSignal | undefined, stop: () => void) {
+  if (!signal) return () => {}
+  signal.addEventListener('abort', stop, { once: true })
+  return () => signal.removeEventListener('abort', stop)
+}
+
+/** Stop the read of an SSE body. Some fetch shims ignore the signal then. */
+function cancelReader(
+  reader: ReadableStreamDefaultReader<Uint8Array> | undefined,
 ) {
-  const reader = body.getReader()
-  // Some fetch shims ignore the signal once the body streams.
-  signal?.addEventListener('abort', () => void reader.cancel(), {
-    once: true,
-  })
+  reader?.cancel().catch(() => {})
+}
+
+/**
+ * An SSE parser that reads a stream as the SSE spec does. Give it the text
+ * as it comes. It returns the `data` of each event that the text ends.
+ *
+ * - A line ends with CR, LF, or CRLF, also when a CRLF is split across two
+ *   reads.
+ * - The `data` lines of one event are joined with `\n`. One space after the
+ *   colon is not part of the value.
+ * - A line that starts with `:` is a comment.
+ * - Only the new text is read. The part after the last line end is kept.
+ */
+function sseParser() {
+  let line = ''
+  let data: string | undefined
+  // The last text ended with CR. An LF at the start of the next text ends
+  // the same line, so it is skipped.
+  let afterCr = false
+  const endLine = (text: string, events: Array<string>) => {
+    if (text === '') {
+      if (data !== undefined) events.push(data)
+      data = undefined
+      return
+    }
+    if (text.startsWith(':')) return
+    const colon = text.indexOf(':')
+    const field = colon < 0 ? text : text.slice(0, colon)
+    // The client reads only `data`. `id`, `event`, and `retry` are left out.
+    if (field !== 'data') return
+    const raw = colon < 0 ? '' : text.slice(colon + 1)
+    const value = raw.startsWith(' ') ? raw.slice(1) : raw
+    data = data === undefined ? value : `${data}\n${value}`
+  }
+  return (text: string) => {
+    const events: Array<string> = []
+    let start = afterCr && text.startsWith('\n') ? 1 : 0
+    afterCr = false
+    const ends = /\r\n|\r|\n/g
+    ends.lastIndex = start
+    let match = ends.exec(text)
+    while (match) {
+      endLine(line + text.slice(start, match.index), events)
+      line = ''
+      start = match.index + match[0].length
+      afterCr = match[0] === '\r' && start === text.length
+      match = ends.exec(text)
+    }
+    line += text.slice(start)
+    return events
+  }
+}
+
+/**
+ * The `data` of each event of an SSE body, as parsed JSON. `onRead` runs
+ * for each chunk the server sends.
+ */
+async function* sseFrames(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  onRead?: () => void,
+) {
   const decoder = new TextDecoder()
-  let buffer = ''
+  const parse = sseParser()
   try {
     while (true) {
       const { value, done } = await reader.read()
       if (done) return
-      buffer += decoder.decode(value, { stream: true })
-      const blocks = buffer.split('\n\n')
-      buffer = blocks.pop() ?? ''
-      for (const block of blocks) {
-        const data = block
-          .split('\n')
-          .find((line) => line.startsWith('data: '))
-          ?.slice(6)
-        if (!data) continue
+      onRead?.()
+      const events = parse(decoder.decode(value, { stream: true }))
+      for (const data of events) {
+        // An event with an empty `data` has no frame.
+        if (data === '') continue
         const frame: unknown = JSON.parse(data)
         yield frame
       }
     }
   } finally {
     // A reader that stops early closes the connection, so the server stops.
-    reader.cancel().catch(() => {})
+    cancelReader(reader)
   }
 }
 
@@ -427,10 +505,16 @@ export function createHarnessClient<THarness extends AnyHarness>(
   }
 
   const send = async (input: HarnessInput): Promise<Receipt> => {
+    // In `cancelInput` and `setDelivery`, `inputId` is the input to change.
+    const namesOther = input.op === 'cancelInput' || input.op === 'setDelivery'
+    // Each input gets an id, so a retry of the same request is the same
+    // input: the handler answers it with the first receipt.
+    const withId =
+      namesOther || input.inputId ? input : { ...input, inputId: newInputId() }
     const response = await doFetch(`${base}/control`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...headers() },
-      body: JSON.stringify({ threadId: options.threadId, input }),
+      body: JSON.stringify({ threadId: options.threadId, input: withId }),
     })
     const body: unknown = await (await checked('request', response)).json()
     // The handler answers /control with a Receipt.
@@ -513,51 +597,92 @@ export function createHarnessClient<THarness extends AnyHarness>(
   ) {
     let cursor = eventOptions.from
     const signal = eventOptions.signal
-    while (!signal?.aborted) {
-      try {
-        const query = new URLSearchParams({ threadId: options.threadId })
-        if (cursor) query.set('from', cursor)
-        const response = await doFetch(`${base}/events?${query}`, {
-          headers: headers(),
-          ...(signal ? { signal } : {}),
-        })
-        if (!response.ok || !response.body) {
-          throw new Error(`Harness events failed (${response.status})`)
-        }
-        eventOptions.onConnection?.('open')
-        for await (const frame of sseFrames(response.body, signal)) {
-          if (
-            typeof frame === 'object' &&
-            frame !== null &&
-            'type' in frame &&
-            frame.type === 'harness.event' &&
-            'cursor' in frame &&
-            typeof frame.cursor === 'string'
-          ) {
-            cursor = frame.cursor
-            // The handler sends `{ type, cursor, operationId, event }`.
-            const { type: _type, ...entry } = frame as SessionEvent & {
-              type: string
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
+    // Ends the wait before a reconnect.
+    let wake: (() => void) | undefined
+    // One listener for all the connections: it stops the current read or
+    // the current wait.
+    const stopListening = whenAborted(signal, () => {
+      cancelReader(reader)
+      wake?.()
+    })
+    // The tries since the last read from the server, for the next wait.
+    let attempt = 0
+    try {
+      while (!signal?.aborted) {
+        try {
+          const query = new URLSearchParams({ threadId: options.threadId })
+          // No `from`: start at the head, so the stream does not send the
+          // whole history first. A thread with no entry has no events yet.
+          if (cursor === undefined) {
+            const head = await doFetch(`${base}/snapshot?${query}`, {
+              headers: headers(),
+              ...(signal ? { signal } : {}),
+            })
+            if (head.status === 404) cursor = '0'
+            else if (!head.ok) {
+              throw new Error(`Harness snapshot failed (${head.status})`)
+            } else {
+              // The handler answers /snapshot with a SessionSnapshot.
+              cursor = ((await head.json()) as SessionSnapshot).cursor
             }
-            yield entry
           }
+          if (cursor) query.set('from', cursor)
+          const response = await doFetch(`${base}/events?${query}`, {
+            headers: headers(),
+            ...(signal ? { signal } : {}),
+          })
+          if (!response.ok || !response.body) {
+            throw new Error(`Harness events failed (${response.status})`)
+          }
+          eventOptions.onConnection?.('open')
+          reader = response.body.getReader()
+          const frames = sseFrames(reader, () => (attempt = 0))
+          for await (const frame of frames) {
+            if (
+              typeof frame === 'object' &&
+              frame !== null &&
+              'type' in frame &&
+              frame.type === 'harness.event' &&
+              'cursor' in frame &&
+              typeof frame.cursor === 'string'
+            ) {
+              cursor = frame.cursor
+              // The handler sends `{ type, cursor, operationId, event }`.
+              const { type: _type, ...entry } = frame as SessionEvent & {
+                type: string
+              }
+              yield entry
+            }
+          }
+        } catch (error) {
+          if (signal?.aborted) return
+          // A 404 means that the thread has no entry yet: a new chat, before
+          // its first message. Try again, the same as after a network error.
+          if (error instanceof Error && /\((401|403)\)/.test(error.message))
+            throw error
         }
-      } catch (error) {
         if (signal?.aborted) return
-        // A 404 means that the thread has no entry yet: a new chat, before
-        // its first message. Try again, the same as after a network error.
-        if (error instanceof Error && /\((401|403)\)/.test(error.message))
-          throw error
+        eventOptions.onConnection?.('reconnecting')
+        const wait = reconnectDelay(options.reconnectDelayMs ?? 1000, attempt)
+        attempt += 1
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(resolve, wait)
+          wake = () => {
+            clearTimeout(timer)
+            resolve()
+          }
+        })
+        wake = undefined
       }
-      if (signal?.aborted) return
-      eventOptions.onConnection?.('reconnecting')
-      await new Promise((resolve) =>
-        setTimeout(resolve, options.reconnectDelayMs ?? 1000),
-      )
+    } finally {
+      stopListening()
     }
   }
 
   async function* hostEvents({ signal }: { signal?: AbortSignal } = {}) {
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
+    const stopListening = whenAborted(signal, () => cancelReader(reader))
     try {
       const response = await checked(
         'host-events',
@@ -568,7 +693,8 @@ export function createHarnessClient<THarness extends AnyHarness>(
       )
       if (!response.body)
         throw new Error('Harness host-events failed: the answer has no body')
-      for await (const frame of sseFrames(response.body, signal)) {
+      reader = response.body.getReader()
+      for await (const frame of sseFrames(reader)) {
         // The handler sends `HostEvent` frames, and `harness.*` frames (the
         // hello first, an error last) that are not host events.
         const isHarnessFrame =
@@ -582,6 +708,8 @@ export function createHarnessClient<THarness extends AnyHarness>(
     } catch (error) {
       if (signal?.aborted) return
       throw error
+    } finally {
+      stopListening()
     }
   }
 
@@ -708,4 +836,12 @@ export function createHarnessClient<THarness extends AnyHarness>(
     forkSession: ({ threadId, at }) =>
       sessionEntry({ op: 'fork', threadId, ...at }),
   }
+}
+
+// Browsers expose `crypto.randomUUID` only on HTTPS and localhost. The id
+// only has to be unique, so plain HTTP falls back to random digits.
+function newInputId(): string {
+  return typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`
 }
