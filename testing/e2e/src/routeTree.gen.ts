@@ -192,6 +192,7 @@ import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 import { Route as ApiHarnessProtocolSplatRouteImport } from './routes/api.harness-protocol.$'
 import { Route as ApiHarnessSecretAnswerSplatRouteImport } from './routes/api.harness-secret-answer.$'
 import { Route as ApiHarnessHandoffSplatRouteImport } from './routes/api.harness-handoff.$'
+import { Route as ApiHarnessObservabilitySplatRouteImport } from './routes/api.harness-observability.$'
 import { Route as ApiHarnessWaitsSplatRouteImport } from './routes/api.harness-waits.$'
 import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
 import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcription.stream'
@@ -1157,6 +1158,12 @@ const ApiHarnessHandoffSplatRoute = ApiHarnessHandoffSplatRouteImport.update({
   path: '/api/harness-handoff/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHarnessObservabilitySplatRoute =
+  ApiHarnessObservabilitySplatRouteImport.update({
+    id: '/api/harness-observability/$',
+    path: '/api/harness-observability/$',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiHarnessWaitsSplatRoute = ApiHarnessWaitsSplatRouteImport.update({
   id: '/api/harness-waits/$',
   path: '/api/harness-waits/$',
@@ -1367,6 +1374,7 @@ export interface FileRoutesByFullPath {
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
   '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
   '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
+  '/api/harness-observability/$': typeof ApiHarnessObservabilitySplatRoute
   '/api/harness-waits/$': typeof ApiHarnessWaitsSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
@@ -1557,6 +1565,7 @@ export interface FileRoutesByTo {
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
   '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
   '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
+  '/api/harness-observability/$': typeof ApiHarnessObservabilitySplatRoute
   '/api/harness-waits/$': typeof ApiHarnessWaitsSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
@@ -1748,6 +1757,7 @@ export interface FileRoutesById {
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
   '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
   '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
+  '/api/harness-observability/$': typeof ApiHarnessObservabilitySplatRoute
   '/api/harness-waits/$': typeof ApiHarnessWaitsSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
@@ -1940,6 +1950,7 @@ export interface FileRouteTypes {
     | '/api/harness-protocol/$'
     | '/api/harness-secret-answer/$'
     | '/api/harness-handoff/$'
+    | '/api/harness-observability/$'
     | '/api/harness-waits/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
@@ -2130,6 +2141,7 @@ export interface FileRouteTypes {
     | '/api/harness-protocol/$'
     | '/api/harness-secret-answer/$'
     | '/api/harness-handoff/$'
+    | '/api/harness-observability/$'
     | '/api/harness-waits/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
@@ -2320,6 +2332,7 @@ export interface FileRouteTypes {
     | '/api/harness-protocol/$'
     | '/api/harness-secret-answer/$'
     | '/api/harness-handoff/$'
+    | '/api/harness-observability/$'
     | '/api/harness-waits/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
@@ -2510,6 +2523,7 @@ export interface RootRouteChildren {
   ApiHarnessProtocolSplatRoute: typeof ApiHarnessProtocolSplatRoute
   ApiHarnessSecretAnswerSplatRoute: typeof ApiHarnessSecretAnswerSplatRoute
   ApiHarnessHandoffSplatRoute: typeof ApiHarnessHandoffSplatRoute
+  ApiHarnessObservabilitySplatRoute: typeof ApiHarnessObservabilitySplatRoute
   ApiHarnessWaitsSplatRoute: typeof ApiHarnessWaitsSplatRoute
 }
 
@@ -3796,6 +3810,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHarnessHandoffSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/harness-observability/$': {
+      id: '/api/harness-observability/$'
+      path: '/api/harness-observability/$'
+      fullPath: '/api/harness-observability/$'
+      preLoaderRoute: typeof ApiHarnessObservabilitySplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/harness-waits/$': {
       id: '/api/harness-waits/$'
       path: '/api/harness-waits/$'
@@ -4081,6 +4102,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHarnessProtocolSplatRoute: ApiHarnessProtocolSplatRoute,
   ApiHarnessSecretAnswerSplatRoute: ApiHarnessSecretAnswerSplatRoute,
   ApiHarnessHandoffSplatRoute: ApiHarnessHandoffSplatRoute,
+  ApiHarnessObservabilitySplatRoute: ApiHarnessObservabilitySplatRoute,
   ApiHarnessWaitsSplatRoute: ApiHarnessWaitsSplatRoute,
 }
 export const routeTree = rootRouteImport
