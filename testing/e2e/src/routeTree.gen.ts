@@ -97,6 +97,7 @@ import { Route as ApiGeminiImageGaModelsRouteImport } from './routes/api.gemini-
 import { Route as ApiGeminiNativeImageWireRouteImport } from './routes/api.gemini-native-image-wire'
 import { Route as ApiGenerationPersistenceResumeRouteImport } from './routes/api.generation-persistence-resume'
 import { Route as ApiGenerationPersistenceServerRouteImport } from './routes/api.generation-persistence-server'
+import { Route as ApiHarnessAgentTreeRouteImport } from './routes/api.harness-agent-tree'
 import { Route as ApiHarnessContinueRouteImport } from './routes/api.harness-continue'
 import { Route as ApiHarnessFirstPartyRouteImport } from './routes/api.harness-first-party'
 import { Route as ApiHarnessForwardingRouteImport } from './routes/api.harness-forwarding'
@@ -656,6 +657,11 @@ const ApiGenerationPersistenceServerRoute =
     path: '/api/generation-persistence-server',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiHarnessAgentTreeRoute = ApiHarnessAgentTreeRouteImport.update({
+  id: '/api/harness-agent-tree',
+  path: '/api/harness-agent-tree',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiHarnessContinueRoute = ApiHarnessContinueRouteImport.update({
   id: '/api/harness-continue',
   path: '/api/harness-continue',
@@ -1247,6 +1253,7 @@ export interface FileRoutesByFullPath {
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
+  '/api/harness-agent-tree': typeof ApiHarnessAgentTreeRoute
   '/api/harness-continue': typeof ApiHarnessContinueRoute
   '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
   '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
@@ -1433,6 +1440,7 @@ export interface FileRoutesByTo {
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
+  '/api/harness-agent-tree': typeof ApiHarnessAgentTreeRoute
   '/api/harness-continue': typeof ApiHarnessContinueRoute
   '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
   '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
@@ -1620,6 +1628,7 @@ export interface FileRoutesById {
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
+  '/api/harness-agent-tree': typeof ApiHarnessAgentTreeRoute
   '/api/harness-continue': typeof ApiHarnessContinueRoute
   '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
   '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
@@ -1808,6 +1817,7 @@ export interface FileRouteTypes {
     | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
+    | '/api/harness-agent-tree'
     | '/api/harness-continue'
     | '/api/harness-first-party'
     | '/api/harness-forwarding'
@@ -1994,6 +2004,7 @@ export interface FileRouteTypes {
     | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
+    | '/api/harness-agent-tree'
     | '/api/harness-continue'
     | '/api/harness-first-party'
     | '/api/harness-forwarding'
@@ -2180,6 +2191,7 @@ export interface FileRouteTypes {
     | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
+    | '/api/harness-agent-tree'
     | '/api/harness-continue'
     | '/api/harness-first-party'
     | '/api/harness-forwarding'
@@ -2367,6 +2379,7 @@ export interface RootRouteChildren {
   ApiGeminiNativeImageWireRoute: typeof ApiGeminiNativeImageWireRoute
   ApiGenerationPersistenceResumeRoute: typeof ApiGenerationPersistenceResumeRoute
   ApiGenerationPersistenceServerRoute: typeof ApiGenerationPersistenceServerRoute
+  ApiHarnessAgentTreeRoute: typeof ApiHarnessAgentTreeRoute
   ApiHarnessContinueRoute: typeof ApiHarnessContinueRoute
   ApiHarnessFirstPartyRoute: typeof ApiHarnessFirstPartyRoute
   ApiHarnessForwardingRoute: typeof ApiHarnessForwardingRoute
@@ -3077,6 +3090,13 @@ declare module '@tanstack/react-router' {
       path: '/api/generation-persistence-server'
       fullPath: '/api/generation-persistence-server'
       preLoaderRoute: typeof ApiGenerationPersistenceServerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/harness-agent-tree': {
+      id: '/api/harness-agent-tree'
+      path: '/api/harness-agent-tree'
+      fullPath: '/api/harness-agent-tree'
+      preLoaderRoute: typeof ApiHarnessAgentTreeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/harness-continue': {
@@ -3905,6 +3925,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGeminiNativeImageWireRoute: ApiGeminiNativeImageWireRoute,
   ApiGenerationPersistenceResumeRoute: ApiGenerationPersistenceResumeRoute,
   ApiGenerationPersistenceServerRoute: ApiGenerationPersistenceServerRoute,
+  ApiHarnessAgentTreeRoute: ApiHarnessAgentTreeRoute,
   ApiHarnessContinueRoute: ApiHarnessContinueRoute,
   ApiHarnessFirstPartyRoute: ApiHarnessFirstPartyRoute,
   ApiHarnessForwardingRoute: ApiHarnessForwardingRoute,
