@@ -1,6 +1,7 @@
 import { defineInterrupt } from '@tanstack/ai'
 import { standardJsonSchema } from './json-schema'
 import { isRecord } from './utils'
+import type { AnyChatMiddleware } from '@tanstack/ai'
 
 /** The id of the interrupt that asks the user to approve one tool call. */
 export const APPROVAL_INTERRUPT_ID = 'tanstack/harness:approval'
@@ -12,22 +13,35 @@ export interface ApprovalAnswer {
   message?: string
 }
 
-/** The answer shape of an approval, for hosts that render a form. */
+/**
+ * The answer shape of an approval, for hosts that render a form. A yes or
+ * no (`true` or `false`) works too, as for every approval, so a client
+ * answers each approval the same way.
+ */
 export const APPROVAL_ANSWER_SCHEMA: Record<string, unknown> = {
-  type: 'object',
-  properties: {
-    answer: {
-      type: 'string',
-      enum: ['once', 'always', 'reject'],
-      description:
-        'once: allow this call. always: allow it from now on in this project. reject: refuse it.',
+  anyOf: [
+    {
+      type: 'boolean',
+      description: 'true: allow this call. false: refuse it.',
     },
-    message: {
-      type: 'string',
-      description: 'With reject: what the model should do instead.',
+    { type: 'string', enum: ['once', 'always', 'reject'] },
+    {
+      type: 'object',
+      properties: {
+        answer: {
+          type: 'string',
+          enum: ['once', 'always', 'reject'],
+          description:
+            'once: allow this call. always: allow it from now on in this project. reject: refuse it.',
+        },
+        message: {
+          type: 'string',
+          description: 'With reject: what the model should do instead.',
+        },
+      },
+      required: ['answer'],
     },
-  },
-  required: ['answer'],
+  ],
 }
 
 /**
@@ -45,7 +59,9 @@ export const approvalInterrupt = defineInterrupt({
     },
     required: ['toolCallId', 'tool'],
   }),
-  responseSchema: standardJsonSchema<ApprovalAnswer>(APPROVAL_ANSWER_SCHEMA),
+  responseSchema: standardJsonSchema<
+    ApprovalAnswer | 'once' | 'always' | 'reject' | boolean
+  >(APPROVAL_ANSWER_SCHEMA),
 })
 
 /** The id of the interrupt that asks one question of the `question` tool. */
@@ -85,14 +101,45 @@ export const questionInterrupt = defineInterrupt({
 /** The interrupts that every chat call of a turn registers. */
 export const BOUNDARY_INTERRUPTS = [approvalInterrupt, questionInterrupt]
 
+const BOUNDARY_IDS = new Set<string>(
+  BOUNDARY_INTERRUPTS.map((definition) => definition.id),
+)
+
 /**
- * The user's reply to an approval: `{ answer, message? }`, or the answer as
- * text. Anything that is not `once` or `always` rejects.
+ * `middleware` that does not stop the run for an approval or a question.
+ * For a tool-mode child of a turn: the answer to its wait does not reach it
+ * when the turn resumes. So it does not ask, and a call that needs an
+ * approval is refused. Other interrupts stay.
+ */
+export function withoutBoundaryWaits(
+  middleware: ReadonlyArray<AnyChatMiddleware>,
+): Array<AnyChatMiddleware> {
+  return middleware.map((entry) => {
+    const boundary = entry.onInterruptBoundary
+    if (!boundary) return entry
+    return {
+      ...entry,
+      onInterruptBoundary: async (ctx) => {
+        const result = await boundary(ctx)
+        const interrupts = result?.interrupts.filter(
+          (request) => !BOUNDARY_IDS.has(request.definition.id),
+        )
+        return interrupts?.length ? { interrupts } : undefined
+      },
+    } satisfies AnyChatMiddleware
+  })
+}
+
+/**
+ * The user's reply to an approval: `{ answer, message? }`, the answer as
+ * text, or a yes or no (`true` is `once`). Anything that is not `once` or
+ * `always` rejects.
  */
 export function readApproval(value: unknown): {
   choice: ApprovalAnswer['answer']
   message: string | undefined
 } {
+  if (value === true) return { choice: 'once', message: undefined }
   const raw = isRecord(value) ? value.answer : value
   const choice = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
   const text =

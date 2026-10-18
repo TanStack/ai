@@ -225,6 +225,11 @@ export type HarnessInput = (
       context?: unknown
       ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
     }
+  /**
+   * Answer waits by `interruptId` (the `waitId`): the interrupts of the last
+   * turn (approvals, `question` tool calls, client tools, sign-ins), all in
+   * one resume, or the waits of a background agent run.
+   */
   | { op: 'resolve'; resume: Array<RunAgentResumeItem> }
   | {
       op: 'agent'
@@ -248,6 +253,11 @@ export type HarnessInput = (
       delivery: WaitingInput['delivery']
     }
   | { op: 'command'; name: string; input?: unknown }
+  /**
+   * Answer one wait that no turn holds, by its `waitId`: a question of
+   * `pendingQuestions` (a `step.ask` wait, a live MCP question), or a
+   * `human` wait.
+   */
   | {
       op: 'answer'
       questionId: string

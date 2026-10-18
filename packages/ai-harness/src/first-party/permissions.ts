@@ -793,8 +793,9 @@ export function permissions(
           }
           const reply = answers.get(hook.toolCallId)
           answers.delete(hook.toolCallId)
-          // The boundary asked about every call of the turn. A call with no
-          // answer did not get one: an agent run cannot stop for an approval.
+          // The boundary asked about every call of the model message. A call
+          // with no answer is one that the boundary did not see (for example,
+          // a call that a `chat()` without the approval interrupt makes).
           if (!reply) {
             return refuse(
               'This call needs the approval of the user, and this run cannot ask for it.',
@@ -812,14 +813,6 @@ export function permissions(
           }
           return undefined
         },
-      } satisfies AnyChatMiddleware
-      // An agent run cannot stop for an approval: `chat()` of an agent does
-      // not register the approval interrupt. So it gets no boundary, and a
-      // call that asks is refused.
-      // ponytail: agent runs cannot ask for approvals until their chat() registers the boundary interrupts.
-      const agentCheck = {
-        name: check.name,
-        onBeforeToolCall: check.onBeforeToolCall,
       } satisfies AnyChatMiddleware
       return {
         config: {
@@ -880,10 +873,12 @@ export function permissions(
         contribute: (options.rules ?? []).map((rule) =>
           PermissionRules.item(rule),
         ),
-        // The lead turn and every agent run check the same rules. Each run
-        // gets only one of the two lists, so a call is checked once.
+        // The lead turn and every agent run check the same rules, and ask at
+        // the same boundary: the session gives each agent run the approval
+        // interrupt. Each run gets only one of the two lists, so a call is
+        // checked once.
         middleware: [check],
-        agentMiddleware: [agentCheck],
+        agentMiddleware: [check],
       }
     },
   })

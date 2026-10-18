@@ -390,6 +390,27 @@ describe('permissions()', () => {
     await host.close()
   })
 
+  it('takes a yes or a no, as every approval does', async () => {
+    const tools = fakeTools()
+    const { host, session } = await open(
+      memoryPersistence(),
+      [permissions({ root: ROOT }), tools.plugin],
+      [
+        () => toolCall('read_file', { path: '../a.txt' }, 'c1'),
+        () => toolCall('read_file', { path: '../b.txt' }, 'c2'),
+      ],
+    )
+
+    const turn = session.send('read two files')
+    // A client that knows only yes or no (a view, the CLI, ACP, MCP).
+    await answer(session, true)
+    await answer(session, false)
+    await turn
+
+    expect(tools.ran).toEqual(['read_file'])
+    await host.close()
+  })
+
   it('gives the model a tool error with the message of a reject', async () => {
     const tools = fakeTools()
     const { host, session, calls } = await open(

@@ -371,7 +371,7 @@ describe('a human wait', () => {
         principal: olga,
       })
     }
-    return { host, log: persistence.stores.log, owner, open }
+    return { host, persistence, log: persistence.stores.log, owner, open }
   }
 
   /** `openWait` of the session: no public method opens a human wait yet. */
@@ -429,6 +429,40 @@ describe('a human wait', () => {
     expect(
       await owner.answer({ questionId: wait.waitId, value: { resume: true } }),
     ).toMatchObject({ status: 'rejected', reason: 'unknown_question' })
+    await host.close()
+  })
+
+  it('takes the answer of an operator through host.submit too', async () => {
+    const { host, persistence, owner } = await sharedThread()
+    const wait = await openWait(owner, {
+      kind: 'human',
+      runId: 'run-1',
+      principal: olga,
+    })
+    // Another host that does not own the log.
+    const submitter = createHarnessHost({
+      persistence,
+      access: { identify: (): User | null => null, authorize: membersOnly() },
+    })
+    const submit = (principal: User) =>
+      submitter.submit({
+        harness: harnessWith(),
+        threadId: THREAD,
+        principal,
+        input: {
+          op: 'answer',
+          questionId: wait.waitId,
+          value: { resume: true },
+        },
+      })
+
+    await expect(submit(vic)).rejects.toBeInstanceOf(AccessDeniedError)
+    // bea did not start the run, but a member may reply as an operator.
+    expect(await submit(bea)).toMatchObject({ status: 'queued' })
+    // The wait left the log free: a sweep runs the answer.
+    await host.resumePending({ harnesses: [harnessWith()] })
+    await waitFor(() => expect(owner.snapshot().pendingWaits).toEqual([]))
+    await submitter.close()
     await host.close()
   })
 

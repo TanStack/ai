@@ -1,5 +1,6 @@
 import type { ConfigOption } from '../config'
 import type { SessionUsage } from '../usage'
+import type { Wait } from '../waits'
 import type {
   MediaKind,
   Receipt,
@@ -80,7 +81,10 @@ export interface ApproveOptions {
   payload?: unknown
 }
 
-/** A tool call that waits for a yes or no. */
+/**
+ * A tool call that waits for a yes or no: a wait of kind `approval`. Its
+ * actions answer through `resolve`.
+ */
 export interface Approval {
   id: string
   toolCallId?: string
@@ -93,8 +97,10 @@ export interface Approval {
 }
 
 /**
- * An interrupt that waits for an answer of its own shape, for example an MCP
- * server that asks for input. The turn waits for it.
+ * An interrupt that waits for an answer of its own shape: a wait of kind
+ * `question` (a `question` tool call) or `human`. The run waits for it.
+ * `resolve` and `cancel` answer through `resolve`. For a `human` wait that
+ * no turn holds, `resolve` sends the answer through `answer`.
  */
 export interface ViewInterrupt {
   id: string
@@ -115,7 +121,7 @@ export interface ViewInterrupt {
 
 /**
  * A client tool call: a tool with no server implementation. The UI runs the
- * tool and sends its output. The turn waits for it.
+ * tool and sends its output through `resolve`. The run waits for it.
  */
 export interface ClientToolCall {
   id: string
@@ -128,7 +134,10 @@ export interface ClientToolCall {
   fail: (message: string) => void
 }
 
-/** A question from a command or a plugin. */
+/**
+ * A question of `step.ask` in a command, a durable tool, or an agent run,
+ * or of an MCP server. `answer` sends the answer through `answer`.
+ */
 export interface ViewQuestion {
   id: string
   message: string
@@ -168,6 +177,11 @@ export interface ViewAgent {
   id: string
   name: string
   /**
+   * `waiting`: the run stopped for a wait (see `waits`), and an answer
+   * resumes it.
+   */
+  status: 'running' | 'waiting'
+  /**
    * Send a message to this run. `mode` is `'steer'` (default) or
    * `'followUp'`, as in `AgentRun.send`. Rejects when the view's source
    * cannot send messages to agents.
@@ -197,6 +211,13 @@ export interface SessionViewState {
   interrupts: Array<ViewInterrupt>
   questions: Array<ViewQuestion>
   signIns: Array<SignIn>
+  /**
+   * Every open wait, as `snapshot().pendingWaits` lists it: the waits of
+   * the last turn, the questions, and the waits of background agent runs.
+   * Read the kind with `waitKind`. Answer each one through its item in
+   * `approvals`, `clientTools`, `interrupts`, or `questions`.
+   */
+  waits: Array<Wait>
   /** Background agents that run now. */
   agents: Array<ViewAgent>
   queuedTurns: number

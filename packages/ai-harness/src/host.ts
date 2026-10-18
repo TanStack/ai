@@ -7,7 +7,7 @@ import {
   SharedLog,
   loadLogState,
   logIdOf,
-  loggedRunOf,
+  loggedTargetOf,
   parseLogId,
 } from './log'
 import { refreshFlights } from './auth'
@@ -15,7 +15,7 @@ import { HostPlugins } from './host-plugins'
 import { purgeThreadData } from './purge'
 import { HostOwnership } from './ownership'
 import { SessionImpl } from './session/harness-session'
-import { actionOf, sessionHandle } from './session/handle'
+import { authorizeInput, sessionHandle } from './session/handle'
 import { createInputId, offeredInputRecord } from './session/helpers'
 import { observedSession } from './session/observed-session'
 import { HARNESS_EVENTS } from './types'
@@ -2084,18 +2084,27 @@ export function createHarnessHost<P extends Principal = Principal>(
       if (access) {
         const user = need(principal, 'host.submit')
         const entry = await index.get(of)
-        run = await loggedRunOf({
+        const target = await loggedTargetOf({
           store: logStore,
           logId: logIdOf({ tenantId, logId: threadId }),
           rootThread: threadId,
           input,
         })
-        await allow({
-          principal: user,
-          action: actionOf(input),
-          threadId,
-          entry,
-          ...(run ? { run } : {}),
+        run = target.run
+        // The same check as on a handle: a `human` wait takes an operator.
+        await authorizeInput({
+          authorize: (action, accessRun, wait) =>
+            allow({
+              principal: user,
+              action,
+              threadId,
+              entry,
+              ...(accessRun ? { run: accessRun } : {}),
+              ...(wait ? { wait } : {}),
+            }),
+          input,
+          run: run ?? undefined,
+          wait: target.wait,
         })
       }
       await refuseChild(of)

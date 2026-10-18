@@ -76,6 +76,20 @@ describe('an MCP elicitation is a live wait of the run that calls', () => {
     expect(calling).toEqual([])
   })
 
+  it('declines an elicitation of a call that has no run, and asks nobody', async () => {
+    const { session, ask } = askingSession({ city: 'Paris' })
+    const [tool] = askForInput(
+      [toolWith((context) => context.askInput(form))],
+      session,
+    )
+
+    await expect(tool?.execute?.({}, {} as never)).resolves.toEqual({
+      status: 'resolved',
+      payload: { action: 'decline' },
+    })
+    expect(ask).not.toHaveBeenCalled()
+  })
+
   it('declines a spec 2025 elicitation that comes when no call runs', async () => {
     const onElicit = elicitFor([])
     await expect(onElicit(form as never)).resolves.toEqual({

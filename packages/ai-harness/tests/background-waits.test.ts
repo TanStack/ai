@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, defineInterrupt, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import {
   createHarnessHost,
   defineCommand,
@@ -9,9 +10,11 @@ import {
   definePlugin,
   isApproval,
 } from '../src'
+import { permissions } from '../src/first-party'
 import { appendToLog, mockAdapter, text, toolCall } from './helpers'
 import type { AnyChatMiddleware } from '@tanstack/ai'
-import type { HarnessPersistence, HarnessRunContext } from '../src'
+import type { CredentialStore } from '@tanstack/ai/byok'
+import type { AnyHarness, HarnessPersistence, HarnessRunContext } from '../src'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
 const waitFor = <T>(check: () => T | Promise<T>) =>
@@ -52,8 +55,8 @@ function cleaning() {
   return { harness, removed, model }
 }
 
-async function open(
-  harness: ReturnType<typeof cleaning>['harness'],
+async function open<THarness extends AnyHarness>(
+  harness: THarness,
   persistence: HarnessPersistence,
 ) {
   const host = createHarnessHost({ persistence })
@@ -389,6 +392,159 @@ describe('a wait with expiresAt', () => {
     expect(session.agentRuns()).toMatchObject([
       { operationId: run.id, status: 'failed' },
     ])
+    await host.close()
+  })
+})
+
+/**
+ * A harness with one agent, `deployer`. Its model calls `deploy`, which a
+ * `permissions()` rule asks about, then answers with the text `Deployed.`.
+ */
+function deploying() {
+  const deployed: Array<string> = []
+  const deploy = toolDefinition({
+    name: 'deploy',
+    description: 'Deploy to an environment',
+    inputSchema: z.object({ env: z.string() }),
+  }).server(({ env }) => {
+    deployed.push(env)
+    return Promise.resolve({ deployed: true })
+  })
+  const model = mockAdapter([
+    () => toolCall('deploy', { env: 'prod' }),
+    () => text('Deployed.'),
+  ])
+  const deployer = defineAgent({
+    name: 'deployer',
+    description: 'Deploys',
+    run: (ctx) => ctx.chat({ adapter: model.adapter, tools: [deploy] }),
+  })
+  const harness = defineHarness({
+    name: 'test/background-permissions',
+    adapter: mockAdapter([]).adapter,
+    agents: [deployer],
+    plugins: () => [
+      permissions({ rules: [{ tool: 'deploy', decision: 'ask' }] }),
+    ],
+  })
+  return { harness, deployed, model }
+}
+
+describe('a background agent run asks through permissions()', () => {
+  it('waits for the approval, and goes on after the answer', async () => {
+    const { harness, deployed } = deploying()
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(harness, {
+      threadId: THREAD,
+      principal: alice,
+    })
+
+    const run = session.agents.deployer.start()
+    const wait = await session.waitFor({
+      runId: run.id,
+      signal: AbortSignal.timeout(5_000),
+    })
+    expect(wait).toMatchObject({ kind: 'approval', runId: run.id })
+    expect(session.agentRuns()).toMatchObject([
+      { operationId: run.id, status: 'waiting' },
+    ])
+    expect(deployed).toEqual([])
+
+    await session.resolve({
+      resume: [
+        {
+          interruptId: wait.waitId,
+          status: 'resolved',
+          payload: { answer: 'once' },
+        },
+      ],
+    })
+    await expect(run).resolves.toBe('Deployed.')
+    expect(deployed).toEqual(['prod'])
+    expect(session.snapshot().pendingWaits).toEqual([])
+    await host.close()
+  })
+
+  it('goes on from the log on another host after a restart', async () => {
+    const persistence = memoryPersistence()
+    const first = deploying()
+    const a = await open(first.harness, persistence)
+    const run = a.session.agents.deployer.start()
+    run.then(
+      () => {},
+      () => {},
+    )
+    const wait = await a.session.waitFor({
+      runId: run.id,
+      signal: AbortSignal.timeout(5_000),
+    })
+    expect(wait.kind).toBe('approval')
+    await a.host.close()
+
+    const second = deploying()
+    // The model call before the stop was the first one.
+    second.model.calls.push({})
+    const b = await open(second.harness, persistence)
+    expect(b.session.snapshot().pendingWaits).toEqual([wait])
+
+    await b.session.resolve({
+      resume: [
+        {
+          interruptId: wait.waitId,
+          status: 'resolved',
+          payload: { answer: 'once' },
+        },
+      ],
+    })
+    await waitFor(() =>
+      expect(b.session.agentResult({ runId: run.id })).toBe('Deployed.'),
+    )
+    expect(first.deployed).toEqual([])
+    expect(second.deployed).toEqual(['prod'])
+    await b.host.close()
+  })
+})
+
+describe('step.ask in a background agent run', () => {
+  it('deletes a secret answer from the credential store when the run ends', async () => {
+    const credentials: CredentialStore = memoryCredentialStore()
+    const asker = defineAgent({
+      name: 'asker',
+      description: 'Asks for a key',
+      run: async (ctx) => {
+        const key = await ctx.harness.step.ask({
+          name: 'key',
+          message: 'Paste your key',
+          schema: z.string(),
+          secret: true,
+        })
+        return `Got ${key.length} characters.`
+      },
+    })
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      credentials,
+    })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/background-step-ask',
+        adapter: mockAdapter([]).adapter,
+        agents: [asker],
+      }),
+      { threadId: THREAD },
+    )
+
+    const run = session.agents.asker.start(undefined, { resume: true })
+    const wait = await session.waitFor({
+      runId: run.id,
+      signal: AbortSignal.timeout(5_000),
+    })
+    expect(
+      await session.answer({ questionId: wait.waitId, value: 'sk-secret' }),
+    ).toMatchObject({ status: 'accepted' })
+
+    await expect(run).resolves.toBe('Got 9 characters.')
+    expect(await credentials.list({ threadId: THREAD })).toEqual([])
     await host.close()
   })
 })

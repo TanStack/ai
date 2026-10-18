@@ -1,10 +1,11 @@
 import { EventType } from '@tanstack/ai'
 import { isMediaRecord, mediaIdOf, mediaOfMessage } from '../media-ref'
-import { isApproval, signInOf, waitKind } from '../waits'
+import { signInOf, waitKind } from '../waits'
 import { HARNESS_EVENTS } from '../types'
 import type { Interrupt, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { SessionDescription, SessionSnapshot } from '../session/index'
 import type { SessionEvent } from '../types'
+import type { Wait } from '../waits'
 import type {
   AgentPart,
   Approval,
@@ -48,7 +49,11 @@ export interface ItemFactory {
     question: SessionSnapshot['pendingQuestions'][number],
   ) => ViewQuestion
   interrupt: (interrupt: Interrupt) => ViewInterrupt
-  agent: (operation: { id: string; name: string }) => ViewAgent
+  agent: (operation: {
+    id: string
+    name: string
+    status: ViewAgent['status']
+  }) => ViewAgent
 }
 
 /** The state of a view before it reads anything from its session. */
@@ -63,6 +68,7 @@ export function emptyState(): SessionViewState {
     interrupts: [],
     questions: [],
     signIns: [],
+    waits: [],
     agents: [],
     queuedTurns: 0,
     waitingInputs: [],
@@ -667,8 +673,24 @@ export function keep<T>(old: Array<T>, next: Array<T>): Array<T> {
 }
 
 /**
- * Take status, approvals, client tools, questions, background agents, and
- * waiting inputs from a snapshot. Plugin state is taken only for the first
+ * The interrupt that a view item of the wait `wait` shows: a wait of a
+ * background agent run has no interrupt in the snapshot.
+ */
+function interruptOfWait(wait: Wait): Interrupt {
+  return {
+    id: wait.waitId,
+    reason: wait.kind,
+    ...(wait.message !== undefined ? { message: wait.message } : {}),
+    ...(isRecord(wait.schema) ? { responseSchema: wait.schema } : {}),
+    ...(wait.expiresAt !== undefined
+      ? { expiresAt: new Date(wait.expiresAt).toISOString() }
+      : {}),
+  }
+}
+
+/**
+ * Take status, approvals, client tools, questions, waits, background agents,
+ * and waiting inputs from a snapshot. Plugin state is taken only for the first
  * snapshot. Later changes come as `STATE_SNAPSHOT` events. Returns `state`
  * when nothing changes.
  */
@@ -678,45 +700,66 @@ export function applySnapshot(
   factory: ItemFactory,
   options: { initial?: boolean } = {},
 ): SessionViewState {
+  const pendingWaits = snapshot.pendingWaits ?? []
+  // The waits that no turn and no question holds: the waits of background
+  // agent runs. Each one is an item of its kind, answered on its own.
+  const turnIds = new Set(snapshot.pendingInterrupts.map(({ id }) => id))
+  const questionIds = new Set(
+    snapshot.pendingQuestions.map(({ questionId }) => questionId),
+  )
+  const runWaits = pendingWaits.filter(
+    ({ waitId }) => !turnIds.has(waitId) && !questionIds.has(waitId),
+  )
+  const items = [
+    ...snapshot.pendingInterrupts.map((interrupt) => ({
+      interrupt,
+      kind: waitKind(interrupt),
+    })),
+    ...runWaits.map((wait) => ({
+      interrupt: interruptOfWait(wait),
+      kind: wait.kind,
+    })),
+  ]
+  const ofKind = (...kinds: Array<Wait['kind']>) =>
+    items.flatMap(({ interrupt, kind }) =>
+      kinds.includes(kind) ? [interrupt] : [],
+    )
   const approvals = keep(
     state.approvals,
-    snapshot.pendingInterrupts
-      .filter(isApproval)
-      .map(
-        (interrupt) =>
-          state.approvals.find((item) => item.id === interrupt.id) ??
-          factory.approval(
-            interrupt,
-            findToolCall(state.messages, interrupt.toolCallId),
-          ),
-      ),
+    ofKind('approval').map(
+      (interrupt) =>
+        state.approvals.find((item) => item.id === interrupt.id) ??
+        factory.approval(
+          interrupt,
+          findToolCall(state.messages, interrupt.toolCallId),
+        ),
+    ),
   )
   const clientTools = keep(
     state.clientTools,
-    snapshot.pendingInterrupts
-      .filter((interrupt) => waitKind(interrupt) === 'client-tool')
-      .map(
-        (interrupt) =>
-          state.clientTools.find((item) => item.id === interrupt.id) ??
-          factory.clientTool(
-            interrupt,
-            findToolCall(state.messages, interrupt.toolCallId),
-          ),
-      ),
+    ofKind('client-tool').map(
+      (interrupt) =>
+        state.clientTools.find((item) => item.id === interrupt.id) ??
+        factory.clientTool(
+          interrupt,
+          findToolCall(state.messages, interrupt.toolCallId),
+        ),
+    ),
   )
   const interrupts = keep(
     state.interrupts,
-    snapshot.pendingInterrupts
-      // An interrupt that waits for an answer of its own shape.
-      .filter((interrupt) => {
-        const kind = waitKind(interrupt)
-        return kind === 'question' || kind === 'human'
-      })
-      .map(
-        (interrupt) =>
-          state.interrupts.find((item) => item.id === interrupt.id) ??
-          factory.interrupt(interrupt),
-      ),
+    // An interrupt that waits for an answer of its own shape.
+    ofKind('question', 'human').map(
+      (interrupt) =>
+        state.interrupts.find((item) => item.id === interrupt.id) ??
+        factory.interrupt(interrupt),
+    ),
+  )
+  const waits = keep(
+    state.waits,
+    pendingWaits.map(
+      (wait) => state.waits.find((item) => item.waitId === wait.waitId) ?? wait,
+    ),
   )
   // Usage changes only with a new model call.
   const usage =
@@ -740,18 +783,25 @@ export function applySnapshot(
         factory.question(question),
     ),
   )
+  // A background run with an open wait waits for its answer.
+  const waitingRuns = new Set(pendingWaits.map(({ runId }) => runId))
   const agents = keep(
     state.agents,
     snapshot.activeOperations
       .filter((operation) => operation.kind === 'agent')
-      .map(
-        (operation) =>
-          state.agents.find((item) => item.id === operation.id) ??
+      .map((operation) => {
+        const status = waitingRuns.has(operation.id) ? 'waiting' : 'running'
+        return (
+          state.agents.find(
+            (item) => item.id === operation.id && item.status === status,
+          ) ??
           factory.agent({
             id: operation.id,
             name: operation.agent ?? 'agent',
-          }),
-      ),
+            status,
+          })
+        )
+      }),
   )
   const waitingInputs = keep(
     state.waitingInputs,
@@ -779,6 +829,7 @@ export function applySnapshot(
     usage === state.usage &&
     signIns === state.signIns &&
     questions === state.questions &&
+    waits === state.waits &&
     agents === state.agents &&
     messages === state.messages &&
     plugins === state.plugins
@@ -795,6 +846,7 @@ export function applySnapshot(
     usage,
     signIns,
     questions,
+    waits,
     agents,
     messages,
     plugins,

@@ -7,6 +7,7 @@ import {
 } from '@tanstack/ai'
 import { withPersistence } from '@tanstack/ai-persistence'
 import { redactMiddleware } from '../auth'
+import { BOUNDARY_INTERRUPTS, withoutBoundaryWaits } from '../boundary-waits'
 import { mediaCapture, mediaMiddleware } from '../media'
 import { OperationImpl } from '../operation'
 import {
@@ -38,7 +39,7 @@ import {
   AGENT_STOPPED,
   SHUTDOWN_REASON,
 } from './helpers'
-import { SessionTurnParts } from './turn-parts'
+import { SessionTurnParts, stepWaitPrefix } from './turn-parts'
 import type {
   SubagentBudget,
   Interrupt,
@@ -391,7 +392,8 @@ export abstract class SessionAgents<
    * their tools read `run` as `ctx.context.run`. Their model calls count in
    * the usage of `principal`, the user of `run`. With `agents` (the
    * subagents of a turn), the agent tools can start them in the background,
-   * for `principal`.
+   * for `principal`, and a child does not stop for an approval or a
+   * question: the turn's resume does not reach it.
    */
   protected binding(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
@@ -402,6 +404,10 @@ export abstract class SessionAgents<
     agents?: ReadonlyArray<AnyAgent>,
   ) {
     const options = this.harness.media
+    const agentMiddleware = [
+      ...(this.sessionPlugins?.agentMiddleware ?? []),
+      ...(runPlugins?.agentMiddleware ?? []),
+    ]
     // The child runs as a background agent of this session, and its end
     // starts a new turn. Core does not pass `start` to nested children.
     const start: SubagentBinding['start'] =
@@ -449,8 +455,7 @@ export abstract class SessionAgents<
       chatMiddleware: [
         // First, so the plugin middleware after it reads the run too.
         runMiddleware(run),
-        ...(this.sessionPlugins?.agentMiddleware ?? []),
-        ...(runPlugins?.agentMiddleware ?? []),
+        ...(agents ? withoutBoundaryWaits(agentMiddleware) : agentMiddleware),
         // A routed root agent gets the thread too, so a reset cuts it as well.
         resetCut,
         this.usageCounter(operation, principal),
@@ -1039,6 +1044,13 @@ export abstract class SessionAgents<
             ...binding.chatMiddleware,
             ...(durable?.last ?? []),
           ],
+          // As in a turn: the approvals and questions that plugins stop the
+          // run with before its tools run, then the app's own. The run waits
+          // for them. The agent's own interrupts win on an id clash.
+          interrupts: [
+            ...BOUNDARY_INTERRUPTS,
+            ...(this.harness.interrupts ?? []),
+          ],
           budget: chain.budget,
           // No parent chat() call to take it from, so the session's retention.
           promptCache: this.promptCache.retention,
@@ -1110,6 +1122,7 @@ export abstract class SessionAgents<
     ) => {
       if (this.logFailure) return
       await runs.update(operation.id, { ...run, finishedAt: Date.now() })
+      await this.endAgentSteps(inputId)
       // A refused append stops the session. The operation still ends. The
       // steers that joined the run settle with it, in one append.
       const joined = this.joinedInputs(operation.id, inputId)
@@ -1184,6 +1197,17 @@ export abstract class SessionAgents<
       // failOperation.
       if (operation.isSettled()) this.publishFinished(operation)
     }
+  }
+
+  /**
+   * The agent run of the input `inputId` ended: delete the secret answers of
+   * its steps, before its caller sees the end. A failed delete does not fail
+   * the end of the run.
+   */
+  protected async endAgentSteps(inputId: string) {
+    await this.dropKeptAnswers(stepWaitPrefix(agentKey(inputId))).catch(
+      (error: unknown) => this.warnSession('harness:waits', error),
+    )
   }
 
   /**
@@ -1325,6 +1349,7 @@ export abstract class SessionAgents<
       finishedAt: Date.now(),
     })
     const { inputId } = waiting
+    await this.endAgentSteps(inputId)
     await this.settleWith(
       [inputId, ...this.joinedInputs(operation.id, inputId)].map((id) => ({
         inputId: id,
@@ -1560,6 +1585,7 @@ export abstract class SessionAgents<
       error,
     })
     if (inputId) {
+      await this.endAgentSteps(inputId)
       // The steers that joined the run settle with it.
       await this.settleWith(
         [inputId, ...this.joinedInputs(operationId, inputId)].map((id) => ({

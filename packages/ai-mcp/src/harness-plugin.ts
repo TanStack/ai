@@ -363,14 +363,16 @@ export function elicitFor(calling: ReadonlyArray<Caller>): OnElicit {
 }
 
 /**
- * Asks the session user for one MCP elicitation request body. With `run`,
- * the question is a live wait of that run, by the name `mcp-elicitation`.
+ * Asks the session user for one MCP elicitation request body, as a live
+ * wait of `run`, by the name `mcp-elicitation`. With no run, it declines:
+ * only a run can wait for the user.
  */
 async function ask(
   session: PluginSessionApi,
   request: unknown,
   run: RunContext | undefined,
 ) {
+  if (!run) return { action: 'decline' }
   const body = isRecord(request) ? request : {}
   const url =
     body.mode === 'url' && typeof body.url === 'string' ? body.url : undefined
@@ -383,7 +385,7 @@ async function ask(
       ? body.requestedSchema
       : undefined,
     ...(url ? { url } : {}),
-    ...(run ? { live: { name: 'mcp-elicitation' as const, run } } : {}),
+    live: { name: 'mcp-elicitation', run },
   })
   // A URL request has no content: the answer only says "done".
   return url !== undefined && !(isRecord(answer) && 'action' in answer)
