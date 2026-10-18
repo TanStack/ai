@@ -69,9 +69,11 @@ Line mode reads one message or command per line and waits for each turn. It work
 |---|---|
 | 0 | The turn finished. |
 | 1 | The turn failed. |
-| 2 | The turn waits for an approval. |
+| 3 | The turn waits for a person: an approval, an answer, or a sign-in. |
 | 130 | The turn was cancelled, or SIGINT (Ctrl+C) stopped the CLI. |
 | 143 | SIGTERM cancelled the turn or stopped the CLI. |
+
+`EXIT` from `@tanstack/ai-harness-cli` has these codes, for example `EXIT.needsAction` (3). `-p` exits 3 at the first [wait](./waits) of the turn, because nobody can answer in this mode. It writes what the turn waits for on stderr. On a durable host, the wait stays in the log, so a later run, or another server, can answer it.
 
 The codes 130 and 143 apply in every mode. See [Stop with Ctrl+C](#stop-with-ctrlc).
 
@@ -159,7 +161,14 @@ For the running work:
 - `/status`: show what runs and what waits.
 - `/exit`: quit.
 
-Plugin commands (for example `/model` or `/todos`) show up in `/help`. When a turn stops for an approval or a plugin asks a question, type your answer. For yes-or-no questions, `y` approves and `n` refuses.
+Plugin commands (for example `/model` or `/todos`) show up in `/help`.
+
+When a turn waits for you, each next line answers one wait, in order. The turn continues after the last one:
+
+- An approval: `y` approves and `n` refuses. An approval of `permissions()` also takes `once`, `always`, or `reject`.
+- A question: type the answer. The CLI reads it with the schema of the question.
+- A sign-in: sign in, then type `y` to go on, or `n` to skip it.
+- A client tool: the terminal cannot run it. Any line skips it.
 
 ## Send files and save media
 
@@ -217,6 +226,7 @@ For an Ink screen with approvals, questions, sign-ins, and child agents, copy [`
 - One entry file that runs your harness as a terminal app, a script step, an editor agent, an MCP server, or an HTTP server.
 - A CLI that uses your durable host and runs as your user.
 - A Ctrl+C that cancels the turn first, then stops with exit code 130.
+- Exit code 3 from `-p` when a turn waits for a person, and one line for each answer in line mode.
 - Your own terminal screen on the same session, with any TUI library.
 - Files that you send with `@path`, and a folder with the media that your agents make.
 

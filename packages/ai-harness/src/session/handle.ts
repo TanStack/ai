@@ -1,7 +1,7 @@
 import { AccessDeniedError } from '../access'
 import { InputRejectedError } from '../types'
 import { isSameSender } from './helpers'
-import type { AccessAction, AccessRun } from '../access'
+import type { AccessAction, AccessRun, AccessWait } from '../access'
 import type { AnyHarness } from '../define'
 import type {
   AgentSendOptions,
@@ -18,7 +18,11 @@ import type { AgentRunOptions, AgentStartOptions } from './types'
 /** What the handle of a host with access checks. */
 export interface HandleGuard {
   /** Throws `AccessDeniedError` unless `authorize` allows `action` now. */
-  authorize: (action: AccessAction, run?: AccessRun) => Promise<void>
+  authorize: (
+    action: AccessAction,
+    run?: AccessRun,
+    wait?: AccessWait,
+  ) => Promise<void>
   /** `host.revoke` took the access of the principal of the handle. */
   isRevoked: () => boolean
 }
@@ -68,6 +72,34 @@ export function finalizeHandle(handle: object) {
   releaseDropped(token)
 }
 
+/**
+ * @internal Throws `AccessDeniedError` unless `authorize` allows `input`. A `human`
+ * wait takes an operator too: a user that may not answer the run may still
+ * have the `operator` action.
+ */
+export async function authorizeInput({
+  authorize,
+  input,
+  run,
+  wait,
+}: {
+  authorize: HandleGuard['authorize']
+  input: HarnessInput
+  run: AccessRun | undefined
+  wait: AccessWait | undefined
+}) {
+  const action = actionOf(input)
+  if (action !== 'answer' || wait?.kind !== 'human') {
+    return authorize(action, run, wait)
+  }
+  try {
+    await authorize(action, run, wait)
+  } catch (error) {
+    if (!(error instanceof AccessDeniedError)) throw error
+    await authorize('operator', run, wait)
+  }
+}
+
 /** @internal The action that `authorize` gets for an input. */
 export function actionOf(input: HarnessInput): AccessAction {
   switch (input.op) {
@@ -80,7 +112,9 @@ export function actionOf(input: HarnessInput): AccessAction {
     case 'configure':
     case 'config':
       return 'configure'
+    // An operator reply answers the `human` wait of a handoff.
     case 'prompt':
+      return input.as === 'operator' ? 'operator' : 'send'
     case 'steer':
     case 'followUp':
     case 'continue':
@@ -351,8 +385,13 @@ export function sessionHandle<THarness extends AnyHarness>({
   ) =>
     guard
       ? target.checked(
-          ({ input, run: accessRun }) =>
-            guard.authorize(actionOf(input), accessRun),
+          ({ input, run: accessRun, wait }) =>
+            authorizeInput({
+              authorize: guard.authorize,
+              input,
+              run: accessRun,
+              wait,
+            }),
           () => call(target),
         )
       : call(target)

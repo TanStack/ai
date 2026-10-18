@@ -63,9 +63,24 @@ Give the editor the command that runs the script, for example `node agent.js`. T
 
 - The text and the reasoning of the main agent. Text from child agents stays out of the main message.
 - Each tool call, of the main agent and of child agents, as a tool call update.
-- Tool approvals as permission requests. The user picks **Allow** or **Reject**, and the turn continues.
-- Cancel stops the running turn, also while the editor asks for an approval. A turn that fails ends with the `error` stop reason and the message.
+- Each [wait](./waits) of a turn, by its kind (see [Waits in the editor](#waits-in-the-editor)).
+- Cancel stops the running turn, also while the editor asks for an answer. A turn that fails ends with the `error` stop reason and the message.
 - Image blocks, audio blocks, and embedded files of a prompt go to the media store of the session. A file that the harness refuses fails the prompt with an invalid params error. See [Send and show media](./media).
+
+## Waits in the editor
+
+The agent sends each wait to the editor by its kind:
+
+| Kind | What the editor shows |
+| --- | --- |
+| `approval` | A permission request. **Allow always** shows only for an approval of `permissions()`, because its answer schema takes `always`. |
+| `question`, `human` | A form elicitation of the answer schema. |
+| `sign-in` | A URL elicitation with the sign-in page. |
+| `client-tool` | Nothing. The editor cannot run it, so the agent cancels it. |
+
+- The editor must declare form and URL elicitation in `initialize`. If it does not, the agent cancels that wait, and the model continues without the answer.
+- A question that a tool asks while it runs (`step.ask`, an MCP server) is a form elicitation too. An answer that does not fit the schema asks again.
+- If the editor cancels the prompt while it asks, the turn stops. Its waits stay open until the next prompt.
 
 ## Open an old session
 
@@ -78,7 +93,7 @@ The editor lists the sessions of the harness, newest first. The user picks one, 
 ## Known limits
 
 - ACP v2 is still a draft, so this API is experimental.
-- The editor shows tool approvals only. The agent cancels a sign-in, an input form, or a client tool call, because the editor cannot answer it. The model then continues without the answer. A question from `session.ask` waits until the user cancels the turn.
+- A client tool call, and a wait that the editor did not declare it can show, are cancelled. The model then continues without the answer.
 - Each session in the list shows the same working directory: the `cwd` of the agent. If the editor asks for the sessions of another directory, the list is empty.
 - An old session opens without its earlier messages. The editor shows only the new turns. The model still gets the full thread.
 - A resource link in a prompt is only named. The harness does not read it. The model can open it with its own tools.
@@ -96,4 +111,4 @@ export const app = createAcpAgent({ host, harness: assistant })
 ## What you have now
 
 - Your harness as an agent in any ACP v2 editor.
-- Tool approvals, cancel, media, and old sessions from the editor.
+- Approvals, questions, and sign-ins in the editor, and cancel, media, and old sessions.

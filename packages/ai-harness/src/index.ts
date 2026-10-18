@@ -6,6 +6,7 @@ export type {
   HarnessDefinition,
   HarnessDurability,
   HarnessRouterContext,
+  HarnessRouterPick,
   HarnessRouting,
   HarnessSubagents,
   HarnessToolInput,
@@ -50,8 +51,6 @@ export type {
   PluginResources,
   PluginLifetime,
   PluginPrompt,
-  AgentGroup,
-  PluginAgentActions,
   PluginCommands,
   PluginSetupContext,
   PluginState,
@@ -93,13 +92,19 @@ export { AuthRequiredError, scrubSecrets } from './auth'
 export type { CredentialsAccess } from './auth'
 
 export type {
+  AgentActions,
+  AgentCall,
+  AgentGroup,
+  AgentGroupOptions,
   AgentInputOf,
   AgentRegistryView,
   AgentResultOf,
-  AgentStarter,
+  AgentSettled,
   AnyAgent,
   HarnessAgentContext,
 } from './agents'
+export type { HandoffOptions } from './handoff'
+export type { HumanTarget } from './log-records'
 
 export { createHarnessHost } from './host'
 export { createHarnessWorker } from './harness-worker'
@@ -116,6 +121,7 @@ export type {
   HostSessionEvent,
   HostSessions,
   HostStatusEvent,
+  HostTransferredEvent,
   OpenSessionOptions,
   ResumedThread,
   ResumePendingOptions,
@@ -128,6 +134,7 @@ export type {
   AccessAction,
   AccessRun,
   AccessSession,
+  AccessWait,
   Authorize,
   AuthorizeInput,
   HarnessAccess,
@@ -146,6 +153,7 @@ export type {
   HarnessSession,
   AgentHandle,
   AgentHandles,
+  AgentModelErrorContext,
   AgentRunInfo,
   AgentRunOptions,
   AgentStartOptions,
@@ -158,6 +166,15 @@ export type {
 export type { ObservedSession } from './session/observed-session'
 export type { SessionUsage, UsageCounts } from './usage'
 export type { OnHarnessEvent } from './feed'
+export type {
+  HarnessAttributeValue,
+  HarnessSpan,
+  HarnessSpanContext,
+  HarnessSpanOptions,
+  HarnessTracer,
+  ObservabilityOptions,
+  OperationReport,
+} from './observability'
 
 export type {
   FinishContext,
@@ -182,6 +199,8 @@ export type {
   Cursor,
   EventGap,
   ForkPoint,
+  HandoffEnvelope,
+  HarnessEventValues,
   HarnessInput,
   HarnessRunContext,
   InputSettlement,
@@ -196,18 +215,24 @@ export type {
   Principal,
   Receipt,
   RunContext,
+  RunNode,
   SendOptions,
   SessionEvent,
   StreamChunkOf,
   StreamChunkType,
   ThreadSettings,
   ThreadSettingsChange,
+  TransferOptions,
+  TransferResult,
   TurnInfo,
   TurnOverrides,
   UsageUpdate,
   UserInput,
   WaitingInput,
 } from './types'
+
+export { isApproval, waitKind, waitOfInterrupt, waitOfQuestion } from './waits'
+export type { Wait, WaitKind, WaitOutcome } from './waits'
 
 export { harnessText } from './harness-text'
 export type { HarnessTextOptions, RemoteHarness } from './harness-text'

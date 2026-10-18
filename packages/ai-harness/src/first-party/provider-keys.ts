@@ -139,14 +139,16 @@ export function providerKeys(options: {
        */
       const readKey = async (
         provider: KeyProvider,
-        { signal, session }: CommandContext,
+        { signal, session, step }: CommandContext,
       ) => {
         const open = (url: string) =>
           session.authRequired({ connector: provider.id, url })
         if (provider.signIn) return provider.signIn({ open, signal })
         // No sign-in for other apps: open the page to make a key, then ask.
+        // The log keeps the question, so a user on any host can answer it.
         if (provider.keyUrl) open(provider.keyUrl)
-        return session.ask({
+        return step.ask({
+          name: 'key',
           message: provider.keyUrl
             ? `Paste your ${provider.label} API key. The page to make one is open in your browser.`
             : `Paste your ${provider.label} API key`,

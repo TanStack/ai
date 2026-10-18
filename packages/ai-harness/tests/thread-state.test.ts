@@ -253,7 +253,7 @@ describe('thread state in the log', () => {
     const strong = mockAdapter([() => text('Monday: plan.')])
     const second = await openOn(shared, { models: { strong: strong.adapter } })
 
-    expect(await second.session.settled('in-1')).toMatchObject({
+    expect(await second.session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
     // The named model ran it, not the harness adapter.

@@ -45,6 +45,8 @@ function workspace(
         files.set(path, data)
       },
       stat: async () => undefined,
+      // No links: each path is its own real path.
+      realpath: async (path) => path,
       readdir: async () => [],
       exec: async (command, options) => {
         execs.push({ command, options })
@@ -158,7 +160,12 @@ describe('bash', () => {
     expect(execs).toEqual([
       {
         command: 'make',
-        options: { cwd: root, env: { AGENT: '1' }, timeoutMs: 120_000 },
+        options: {
+          cwd: root,
+          env: { AGENT: '1' },
+          timeoutMs: 120_000,
+          signal: expect.any(AbortSignal),
+        },
       },
     ])
   })

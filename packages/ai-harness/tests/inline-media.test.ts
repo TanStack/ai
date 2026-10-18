@@ -167,7 +167,7 @@ describe('applyInput with media from a client', () => {
       session,
       input: { op: 'prompt', inputId: 'in-1', message: [inlineImage()] },
     })
-    await session.settled('in-1')
+    await session.settled({ inputId: 'in-1' })
 
     expect(receipt.status).toBe('accepted')
     const [saved] = await session.transcript()

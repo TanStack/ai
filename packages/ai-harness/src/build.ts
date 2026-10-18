@@ -245,6 +245,8 @@ const FORWARDED = new Set<string>([
 interface Worker {
   send: (frame: object) => void
   frames: (listener: (frame: HostFrame) => void) => () => void
+  /** True for the `requestId` of a frame that was sent to this worker. */
+  sent: (requestId: string) => boolean
   kill: () => void
 }
 
@@ -257,10 +259,16 @@ function startWorker(
   const child = spawn(node, [bundle], { stdio: ['pipe', 'pipe', 'inherit'] })
   const listeners = new Set<(frame: HostFrame) => void>()
   // A worker that fails to start or stops fails the streams that wait on it.
+  const requestIds = new Set<string>()
   const fail = (message: string) => {
     onExit()
     for (const listener of listeners)
-      listener({ type: 'harness.error', message })
+      listener({
+        type: 'harness.error',
+        message,
+        code: 'internal',
+        requestId: 'worker',
+      })
   }
   child.on('error', (error) => fail(`The worker failed: ${error.message}`))
   child.on('exit', (code, signal) =>
@@ -275,8 +283,11 @@ function startWorker(
       // A line that is not a frame (for example a stray log) is skipped.
     }
   })
-  const send = (frame: object) =>
+  const send = (frame: object) => {
+    if ('requestId' in frame && typeof frame.requestId === 'string')
+      requestIds.add(frame.requestId)
     child.stdin.write(`${JSON.stringify(frame)}\n`)
+  }
   send({ type: 'harness.subscribe', threadId })
   return {
     send,
@@ -284,6 +295,7 @@ function startWorker(
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
+    sent: (requestId) => requestIds.has(requestId),
     kill: () => {
       child.stdin.end()
       child.kill()
@@ -394,7 +406,15 @@ export async function artifactText(
             }
             const frame = queue.shift()
             if (!frame) continue
-            if (frame.type === 'harness.error') throw new Error(frame.message)
+            if (frame.type === 'harness.error') {
+              // The error of another input of this worker, for example the
+              // cancel of an older turn, is not about this turn.
+              if (frame.requestId !== requestId && worker.sent(frame.requestId))
+                continue
+              throw new Error(frame.message, {
+                cause: { code: frame.code, requestId: frame.requestId },
+              })
+            }
             if (
               frame.type === 'harness.receipt' &&
               frame.requestId === requestId

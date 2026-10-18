@@ -5,14 +5,25 @@ import {
   OwnershipLostError,
   UNOWNED_EPOCH,
 } from '@tanstack/ai-persistence'
+import { gapEvent } from './feed'
 import { LogOwnedElsewhereError } from './ownership'
-import { HARNESS_EVENTS } from './types'
 import {
   THREAD_RECORD_TYPES,
+  applyRunNode,
   emptyThreadState,
   foldThreadRecord,
+  isHumanTarget,
+  isEnded,
+  rejectRunNode,
+  settleRunNode,
 } from './log-records'
-import { addUsage, emptyUsage, isSessionUsage } from './usage'
+import {
+  addCounts,
+  addUsage,
+  emptyCounts,
+  emptyUsage,
+  isSessionUsage,
+} from './usage'
 import { isRecord } from './utils'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type {
@@ -26,20 +37,23 @@ import type {
   OfferedInput,
   RunRecord,
 } from '@tanstack/ai-persistence'
-import type { AccessRun } from './access'
+import type { AccessRun, AccessWait } from './access'
 import type { EventFeed } from './feed'
 import type { HostOwnership } from './ownership'
 import type {
   AgentResultRecord,
   InterruptedTurnRecord,
   NamedTurnOverrides,
+  RunTreeNode,
   ScheduleRecord,
   ThreadRecord,
   ThreadStateFold,
+  TransferRecord,
+  WaitState,
+  WorkspaceBinding,
 } from './log-records'
 import type {
   Cursor,
-  EventGap,
   HarnessInput,
   InputSettlement,
   SettlementOutcome,
@@ -47,11 +61,17 @@ import type {
   ThreadSettings,
   WaitingInput,
 } from './types'
-import type { SessionUsage, UsageCall } from './usage'
+import type { SessionUsage, UsageCall, UsageCounts } from './usage'
 
 /** The records the harness writes to a session log. */
 export type HarnessRecord =
-  | { type: 'harness.event'; operationId: string; event: StreamChunk }
+  | {
+      type: 'harness.event'
+      operationId: string
+      /** The run that started the operation, for a child run. */
+      parentRunId?: string
+      event: StreamChunk
+    }
   | { type: 'harness.transcript'; keep: number; add: Array<ModelMessage> }
   | {
       type: 'harness.input'
@@ -102,8 +122,11 @@ export type HarnessRecord =
   | ({ type: 'harness.usage' } & UsageCall)
   /** A revert that stands, or `null` when it ended. */
   | { type: 'harness.revert'; revert: RevertState | null }
-  /** A background job started, or it ended. */
-  | { type: 'harness.job'; jobId: string; ended: boolean }
+  /**
+   * A background job started, or it ended. `backendId` is the id of its
+   * process in the workspace backend, so a later host can stop it.
+   */
+  | { type: 'harness.job'; jobId: string; ended: boolean; backendId?: string }
   /** A note for the transcript. `noteId` is the id of its message. */
   | { type: 'harness.note'; noteId: string; note: string }
   /** Thread state: settings, config, plugin state, and the rest. */
@@ -262,10 +285,19 @@ export interface LogState {
   steps: Map<string, unknown>
   /** The usage of every model call of the thread. */
   usage: SessionUsage
+  /**
+   * The usage of each run that did not end, by run id: its own model calls,
+   * and those of the runs below it in the run tree. A run that ends leaves
+   * it.
+   */
+  runUsage: Map<string, UsageCounts>
   /** The revert that stands, if any. */
   revert?: RevertState
-  /** Background jobs that started and did not end. */
-  jobs: Set<string>
+  /**
+   * Background jobs that started and did not end, by job id: the id of the
+   * process in the workspace backend, when the backend gave one.
+   */
+  jobs: Map<string, string | undefined>
   /** Notes that are not in the transcript yet, by message id. */
   notes: Map<string, string>
   /** The thread state that the thread-state records fold to. */
@@ -282,7 +314,8 @@ export function emptyLogState() {
     started: new Map(),
     steps: new Map(),
     usage: emptyUsage(),
-    jobs: new Set(),
+    runUsage: new Map(),
+    jobs: new Map(),
     notes: new Map(),
     thread: emptyThreadState(),
   }
@@ -371,6 +404,35 @@ function forgetCalls(state: LogState, isDone: (toolCallId: string) => boolean) {
   }
 }
 
+/**
+ * Add the model call `call` to the sum of its run, and of each run above it
+ * that did not end.
+ */
+function addRunUsage(state: LogState, call: UsageCall) {
+  const { tree } = state.thread
+  const seen = new Set<string>()
+  let runId = call.runId
+  while (runId !== undefined && !seen.has(runId)) {
+    seen.add(runId)
+    const node = tree.get(runId)
+    if (!node) return
+    if (!isEnded(node.status)) {
+      const counts = state.runUsage.get(runId) ?? emptyCounts()
+      addCounts(counts, call.usage)
+      state.runUsage.set(runId, counts)
+    }
+    runId = node.parentRunId
+  }
+}
+
+/** Drop the usage sums of the runs that ended. */
+function dropEndedUsage(state: LogState) {
+  for (const runId of state.runUsage.keys()) {
+    const node = state.thread.tree.get(runId)
+    if (!node || isEnded(node.status)) state.runUsage.delete(runId)
+  }
+}
+
 function updateInput(
   state: LogState,
   inputId: string,
@@ -436,6 +498,11 @@ export function foldEntry(
       return
     case 'harness.input.applied': {
       const appliedAt = state.messages.length
+      state.thread = applyRunNode(state.thread, {
+        inputId: record.inputId,
+        operationId: record.operationId,
+        previous: state.inputs.get(record.inputId)?.operationId,
+      })
       updateInput(state, record.inputId, (input) => ({
         ...input,
         status: 'applied',
@@ -461,6 +528,8 @@ export function foldEntry(
         status: 'rejected',
         reason: record.reason,
       }))
+      state.thread = rejectRunNode(state.thread, record)
+      dropEndedUsage(state)
       return
     case 'harness.input.abort':
       updateInput(state, record.inputId, (input) => ({
@@ -501,6 +570,8 @@ export function foldEntry(
             : { outcome: record.outcome }),
         },
       }))
+      state.thread = settleRunNode(state.thread, record)
+      dropEndedUsage(state)
       return
     }
     case 'harness.tool.result':
@@ -517,6 +588,7 @@ export function foldEntry(
       return
     case 'harness.usage':
       addUsage(state.usage, record)
+      addRunUsage(state, record)
       return
     case 'harness.revert':
       if (record.revert) state.revert = record.revert
@@ -524,7 +596,7 @@ export function foldEntry(
       return
     case 'harness.job':
       if (record.ended) state.jobs.delete(record.jobId)
-      else state.jobs.add(record.jobId)
+      else state.jobs.set(record.jobId, record.backendId)
       return
     case 'harness.note':
       state.notes.set(record.noteId, record.note)
@@ -539,9 +611,17 @@ export function foldEntry(
     case 'harness.schedule.done':
     case 'harness.run':
     case 'harness.run.update':
+    case 'harness.run.node':
     case 'harness.interrupt':
     case 'harness.interrupt.end':
+    case 'harness.wait':
+    case 'harness.wait.settled':
+    case 'harness.transferred':
+    case 'harness.handoff':
+    case 'harness.state':
+    case 'harness.workspace.bound':
       state.thread = foldThreadRecord(state.thread, record)
+      if (state.runUsage.size > 0) dropEndedUsage(state)
       return
   }
 }
@@ -706,12 +786,18 @@ function serializeThread(thread: ThreadStateFold) {
     settings: thread.settings,
     config: [...thread.config],
     plugins: [...thread.plugins],
+    shared: [...thread.shared],
     interrupted: thread.interrupted,
     agentResults: [...thread.agentResults],
     turnOverrides: [...thread.turnOverrides],
     schedules: [...thread.schedules],
     runs: [...thread.runs],
+    tree: [...thread.tree],
     interrupts: [...thread.interrupts],
+    waits: [...thread.waits],
+    transfers: [...thread.transfers],
+    activeAgent: thread.activeAgent,
+    workspace: thread.workspace,
   }
 }
 
@@ -719,7 +805,8 @@ function serializeThread(thread: ThreadStateFold) {
 function parseThread(value: unknown) {
   if (!isRecord(value) || !isRecord(value.settings)) return undefined
   const { config, plugins, agentResults, turnOverrides, schedules } = value
-  const { runs, interrupts } = value
+  const { runs, tree, interrupts } = value
+  // A snapshot with no run tree is not used: a fold from the start makes it.
   const isShaped =
     Array.isArray(config) &&
     Array.isArray(plugins) &&
@@ -727,6 +814,7 @@ function parseThread(value: unknown) {
     Array.isArray(turnOverrides) &&
     Array.isArray(schedules) &&
     Array.isArray(runs) &&
+    Array.isArray(tree) &&
     Array.isArray(interrupts)
   if (!isShaped) return undefined
   // The harness wrote these values with `serializeThread`.
@@ -734,6 +822,12 @@ function parseThread(value: unknown) {
     settings: value.settings as ThreadSettings,
     config: new Map(config as Array<[string, unknown]>),
     plugins: new Map(plugins as Array<[string, unknown]>),
+    // A state with no shared state gets an empty value.
+    shared: new Map(
+      Array.isArray(value.shared)
+        ? (value.shared as Array<[string, unknown]>)
+        : [],
+    ),
     interrupted: (value.interrupted ?? null) as InterruptedTurnRecord | null,
     agentResults: new Map(agentResults as Array<[string, AgentResultRecord]>),
     turnOverrides: new Map(
@@ -741,7 +835,29 @@ function parseThread(value: unknown) {
     ),
     schedules: new Map(schedules as Array<[string, ScheduleRecord]>),
     runs: new Map(runs as Array<[string, RunRecord]>),
+    tree: new Map(tree as Array<[string, RunTreeNode]>),
     interrupts: new Map(interrupts as Array<[string, InterruptRecord]>),
+    // A state with no waits gets an empty value.
+    waits: new Map(
+      Array.isArray(value.waits)
+        ? (value.waits as Array<[string, WaitState]>)
+        : [],
+    ),
+    // A state with no transfers gets an empty value.
+    transfers: new Map(
+      Array.isArray(value.transfers)
+        ? (value.transfers as Array<[string, TransferRecord]>)
+        : [],
+    ),
+    // A state with no active agent: the main model answers.
+    activeAgent:
+      typeof value.activeAgent === 'string' || isHumanTarget(value.activeAgent)
+        ? (value.activeAgent as ThreadStateFold['activeAgent'])
+        : null,
+    // A state with no workspace gets an empty value.
+    workspace: isRecord(value.workspace)
+      ? (value.workspace as WorkspaceBinding)
+      : null,
   }
   return thread
 }
@@ -762,8 +878,11 @@ function serialize(state: SharedLogState, versions: SnapshotVersions) {
         started: [...session.started.entries()],
         steps: [...session.steps.entries()],
         usage: session.usage,
+        runUsage: [...session.runUsage.entries()],
         revert: session.revert ?? null,
-        jobs: [...session.jobs],
+        jobs: [...session.jobs].map(([jobId, backendId]) =>
+          backendId === undefined ? jobId : [jobId, backendId],
+        ),
         notes: [...session.notes.entries()],
         thread: serializeThread(session.thread),
       },
@@ -807,11 +926,21 @@ function parseSession(value: unknown, seq: number) {
     steps: new Map(steps as Array<[string, unknown]>),
     // A state with no usage totals gets an empty value.
     usage: isSessionUsage(value.usage) ? value.usage : emptyUsage(),
+    // A state with no run sums gets an empty value.
+    runUsage: new Map(
+      Array.isArray(value.runUsage)
+        ? (value.runUsage as Array<[string, UsageCounts]>)
+        : [],
+    ),
     // A state with no reverts gets an empty value.
     ...(revert ? { revert } : {}),
-    // A state with no jobs and notes gets an empty value.
-    jobs: new Set(
-      Array.isArray(value.jobs) ? (value.jobs as Array<string>) : [],
+    // A state with no jobs and notes gets an empty value. A job with a
+    // backend id is a pair.
+    jobs: new Map(
+      (Array.isArray(value.jobs)
+        ? (value.jobs as Array<string | [string, string]>)
+        : []
+      ).map((job) => (typeof job === 'string' ? [job, undefined] : job)),
     ),
     notes: new Map(
       Array.isArray(value.notes)
@@ -916,9 +1045,21 @@ export async function loadLogState<TState = unknown>(options: {
  * once the run starts. `undefined`: the input targets no run. `null`: the
  * log does not have the run, or a cancel names no operation.
  */
-// ponytail: this reads the whole log for each such input. Fold only the
-// tail after a snapshot if a host sends many of them.
-export async function loggedRunOf({
+// ponytail: this folds the log for each such input, from its snapshot.
+export async function loggedRunOf(options: {
+  store: LogStore
+  logId: string
+  rootThread: string
+  input: HarnessInput
+}): Promise<AccessRun | null | undefined> {
+  return (await loggedTargetOf(options)).run
+}
+
+/**
+ * `loggedRunOf`, and for an answer also the wait that it answers, so a
+ * `human` wait can take the answer of an operator.
+ */
+export async function loggedTargetOf({
   store,
   logId,
   rootThread,
@@ -928,37 +1069,16 @@ export async function loggedRunOf({
   logId: string
   rootThread: string
   input: HarnessInput
-}): Promise<AccessRun | null | undefined> {
+}): Promise<{ run: AccessRun | null | undefined; wait?: AccessWait }> {
   if (
     input.op !== 'answer' &&
     input.op !== 'cancel' &&
     input.op !== 'cancelInput' &&
     input.op !== 'resolve'
   ) {
-    return undefined
+    return { run: undefined }
   }
-  const state = emptySharedLogState()
-  /** The operation of each question that the log asked, by question id. */
-  const questions = new Map<string, string>()
-  const fold = { rootThread }
-  try {
-    await readAll(store, logId, state, (entry) => {
-      foldLogEntry(state, entry, fold)
-      const { record } = entry
-      if (!isHarnessRecord(record) || record.type !== 'harness.event') return
-      const { event } = record
-      const isQuestion =
-        event.type === EventType.CUSTOM &&
-        event.name === HARNESS_EVENTS.question &&
-        isRecord(event.value) &&
-        typeof event.value.questionId === 'string'
-      if (isQuestion) questions.set(event.value.questionId, record.operationId)
-    })
-  } catch (error) {
-    // A truncated log: the snapshot has the inputs, but no question.
-    if (!(error instanceof LogTruncatedError)) throw error
-    Object.assign(state, await loadLogState({ store, logId, rootThread }))
-  }
+  const state = await loadLogState({ store, logId, rootThread })
   const root = sessionOf(state, rootThread)
   const inputs = [...state.sessions.values()].flatMap((session) => [
     ...session.inputs.values(),
@@ -973,24 +1093,36 @@ export async function loggedRunOf({
   }
   switch (input.op) {
     case 'answer': {
-      const operationId = questions.get(input.questionId)
-      if (operationId === undefined) return null
-      // A question of the session belongs to no run.
-      return operationId === 'session'
-        ? { runId: operationId }
-        : startedBy(operationId)
+      const { wait } = root.thread.waits.get(input.questionId) ?? {}
+      if (!wait) return { run: null }
+      const answered = { waitId: wait.waitId, kind: wait.kind }
+      // A wait of the session belongs to no run.
+      if (wait.principal || wait.runId === 'session') {
+        return {
+          run: { runId: wait.runId, ...by(wait.principal) },
+          wait: answered,
+        }
+      }
+      return { run: startedBy(wait.runId), wait: answered }
     }
     case 'cancel':
-      return input.operationId === undefined
-        ? null
-        : startedBy(input.operationId)
+      return {
+        run:
+          input.operationId === undefined ? null : startedBy(input.operationId),
+      }
     case 'cancelInput': {
       const logged = inputs.find((item) => item.inputId === input.inputId)
-      return logged ? { runId: input.inputId, ...by(logged.principal) } : null
+      return {
+        run: logged ? { runId: input.inputId, ...by(logged.principal) } : null,
+      }
     }
     case 'resolve': {
       const stopped = root.thread.interrupted
-      return stopped ? { runId: stopped.runId, ...by(stopped.principal) } : null
+      return {
+        run: stopped
+          ? { runId: stopped.runId, ...by(stopped.principal) }
+          : null,
+      }
     }
   }
 }
@@ -1105,6 +1237,17 @@ export interface LogWriter extends EventFeed {
    */
   own: () => Promise<boolean>
   /**
+   * The stable id of this host for pins, or `undefined` when the host has
+   * none. See `HostOwnership.affinity`.
+   */
+  readonly hostId: string | undefined
+  /**
+   * Pin the log to the host `hostId`: workers on other hosts do not take
+   * it, and other hosts cannot acquire it. `null` unpins it. It acquires the
+   * log first, like a write.
+   */
+  pin: (hostId: string | null) => Promise<void>
+  /**
    * The session has no work now. When no session of the log has work, the
    * host gives the log up, so it makes no store calls for it. Resolves after
    * that check, and never rejects.
@@ -1135,6 +1278,19 @@ export interface LogViewHooks {
    * host offered still waits.
    */
   onOffers: () => void
+  /**
+   * An event of the session that another host wrote, after this log folded
+   * it. Own events never come here: the session saw them at publish.
+   */
+  onRemoteEvent?: (entry: SessionEvent) => void
+  /**
+   * Scrub the secrets of the session from a value. Each record that the
+   * view appends, stages, commits, or offers goes through it first. It
+   * returns the same value when it changes nothing. The session's feed
+   * (`tapFeed`) scrubs the events before `publish`, so `publish` does not
+   * scrub again.
+   */
+  redact?: <T>(value: T) => T
 }
 
 /**
@@ -1252,6 +1408,8 @@ export class SharedLog<TState = unknown> {
   }> = []
   /** The sum of the sizes in `tail`. */
   private tailBytes = 0
+  /** While `catchUp` folds: the events that other writers appended. */
+  private remote: Array<{ thread: string; entry: SessionEvent }> | undefined
   private readonly eventBytes: number
   /** Every event after this position is in `tail`. */
   private tailFrom: number
@@ -1419,6 +1577,7 @@ export class SharedLog<TState = unknown> {
     }
     const own = { hooks, fenced: false }
     this.views.set(threadId, own)
+    const redact = hooks.redact ?? (<T>(value: T) => value)
     const shared = this.state
     // `this` in a getter below is the view.
     const epochOf = () => this.epoch ?? UNOWNED_EPOCH
@@ -1449,28 +1608,40 @@ export class SharedLog<TState = unknown> {
         reduce !== undefined && reduce === this.fold.reduce
           ? shared.reduced
           : undefined,
-      publish: (operationId, event) => {
-        if (!isDropped()) this.publish(threadId, operationId, event)
+      publish: (operationId, event, parentRunId) => {
+        if (!isDropped())
+          this.publish(threadId, operationId, event, parentRunId)
       },
       append: (records, appendOptions) =>
         isDropped()
           ? refused()
-          : this.append(threadId, records, appendOptions?.consumes ?? []),
-      offer: (inputId, record) => this.offer(threadId, inputId, record),
+          : this.append(
+              threadId,
+              redact(records),
+              appendOptions?.consumes ?? [],
+            ),
+      offer: (inputId, record) => this.offer(threadId, inputId, redact(record)),
       offered: () => this.offered(threadId),
       stage: (records, toolCallId) => {
-        if (!isDropped()) this.stage(threadId, records, toolCallId)
+        if (!isDropped()) this.stage(threadId, redact(records), toolCallId)
       },
       commit: (options) =>
         isDropped()
           ? refused()
-          : this.commit(options.thread ?? threadId, options),
+          : this.commit(options.thread ?? threadId, {
+              ...options,
+              messages: redact(options.messages),
+              ...(options.records ? { records: redact(options.records) } : {}),
+            }),
       flush: () => this.flush(),
       catchUp: () => this.enqueue(() => this.catchUp()),
       unfence: () => {
         own.fenced = false
       },
       own: () => this.enqueue(() => this.ownForRecovery()),
+      hostId: this.ownership.affinity,
+      pin: (hostId) =>
+        isDropped() ? refused() : this.enqueue(() => this.pin(hostId)),
       rest: () => this.releaseWhenIdle(),
       head: () => this.head(),
       read: (options) =>
@@ -1591,7 +1762,12 @@ export class SharedLog<TState = unknown> {
   // Writes
   // ===========================
 
-  private publish(thread: string, operationId: string, event: StreamChunk) {
+  private publish(
+    thread: string,
+    operationId: string,
+    event: StreamChunk,
+    parentRunId: string | undefined,
+  ) {
     const normalized = normalize(event)
     const key = deltaKey(thread, operationId, normalized)
     const last = this.pending.at(-1)
@@ -1605,7 +1781,12 @@ export class SharedLog<TState = unknown> {
     else {
       this.pending.push(
         this.stamp(
-          { type: 'harness.event', operationId, event: normalized },
+          {
+            type: 'harness.event',
+            operationId,
+            ...(parentRunId !== undefined ? { parentRunId } : {}),
+            event: normalized,
+          },
           thread,
         ),
       )
@@ -1794,6 +1975,19 @@ export class SharedLog<TState = unknown> {
     // write that acquired the log goes first.
     queueMicrotask(() => this.notifyOffers())
     return epoch
+  }
+
+  /** Pin the log to `hostId`, with the epoch of this host. */
+  private async pin(hostId: string | null) {
+    if (this.failure !== undefined) throw this.failure
+    const epoch = await this.own()
+    try {
+      await this.ownership.pin(this.logId, epoch, hostId)
+    } catch (error) {
+      // Another host took the log: this host reads on.
+      if (error instanceof OwnershipLostError) this.lose(error)
+      throw error
+    }
   }
 
   /** `own()` for recovery: `false` when another live host owns the log. */
@@ -2011,6 +2205,10 @@ export class SharedLog<TState = unknown> {
   private async catchUp() {
     if (this.failure !== undefined) return
     const before = this.state.seq
+    // Only this fold reads the records of other writers. Own records fold
+    // in `write`, so an own event never reaches `onRemoteEvent`.
+    const remote: Array<{ thread: string; entry: SessionEvent }> = []
+    this.remote = remote
     try {
       await readAll(this.store, this.logId, this.state, (entry) =>
         this.apply(entry),
@@ -2018,12 +2216,22 @@ export class SharedLog<TState = unknown> {
     } catch (error) {
       if (!(error instanceof LogTruncatedError)) throw error
       await this.foldFromSnapshot(error)
+    } finally {
+      this.remote = undefined
     }
     if (this.state.seq === before) return
     if (this.epoch !== undefined) {
       this.lose(new OwnershipLostError(this.logId, this.epoch))
     }
     this.wake()
+    // After the whole fold, so a hook reads the state after the events.
+    for (const { thread, entry } of remote) {
+      try {
+        this.views.get(thread)?.hooks.onRemoteEvent?.(entry)
+      } catch {
+        // A hook never stops the fold of the log.
+      }
+    }
   }
 
   /**
@@ -2066,8 +2274,9 @@ export class SharedLog<TState = unknown> {
         this.resulted.delete(`${thread}\u0000${message.toolCallId}`)
       }
     }
-    const event = sessionEventOf(entry)
+    const event = sessionEventOf(entry, this.rootThread)
     if (!event) return
+    this.remote?.push({ thread, entry: event })
     // The fold has JSON values only, so this cannot throw.
     const size = JSON.stringify(event.event).length
     this.tail.push({ thread, entry: event, size })
@@ -2127,14 +2336,14 @@ export class SharedLog<TState = unknown> {
           // A truncate dropped the events after `after`: say so once, then
           // go on from the first stored record.
           const resumeAt = error.firstSeq - 1
-          yield gapEvent(String(after), String(resumeAt))
+          yield gapEvent(thread, String(after), String(resumeAt), 'truncated')
           after = resumeAt
           continue
         }
         for (const entry of page) {
           if (entry.seq > upTo || signal?.aborted) break
           after = entry.seq
-          const event = sessionEventOf(entry)
+          const event = sessionEventOf(entry, this.rootThread)
           const isOwn = threadOf(entry.record, this.rootThread) === thread
           if (event && isOwn && accepts(event)) yield event
         }
@@ -2200,30 +2409,23 @@ function mergeDelta(first: StreamChunk, second: StreamChunk): StreamChunk {
   return second
 }
 
-/** The `harness.gap` event for a reader at `from`. Its cursor is `resumeAt`. */
-function gapEvent(from: Cursor, resumeAt: Cursor): SessionEvent {
-  const value: EventGap = { from, resumeAt, reason: 'truncated' }
-  return {
-    cursor: resumeAt,
-    // No operation made it. Like a session input, it belongs to the session.
-    operationId: 'session',
-    event: {
-      type: EventType.CUSTOM,
-      name: HARNESS_EVENTS.gap,
-      value,
-      timestamp: Date.now(),
-    },
-  }
-}
-
-function sessionEventOf(entry: LogEntry) {
+/**
+ * The session event of `entry`, or `undefined` when it is not an event. A
+ * record with no `thread` is an event of `rootThread`. An old record has no
+ * `parentRunId`.
+ */
+function sessionEventOf(entry: LogEntry, rootThread: string) {
   const { record } = entry
   if (!isHarnessRecord(record) || record.type !== 'harness.event') {
     return undefined
   }
   const event: SessionEvent = {
     cursor: String(entry.seq),
+    threadId: threadOf(record, rootThread),
     operationId: record.operationId,
+    ...(typeof record.parentRunId === 'string'
+      ? { parentRunId: record.parentRunId }
+      : {}),
     event: record.event,
   }
   return event

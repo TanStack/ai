@@ -60,7 +60,9 @@ function setup() {
 const threadOf = (event: HostEvent) =>
   event.type === 'session' || event.type === 'session-deleted'
     ? event.entry.threadId
-    : event.threadId
+    : event.type === 'transferred'
+      ? event.to.threadId
+      : event.threadId
 
 describe('handlers and sockets fail closed', () => {
   it('throws at the start for a host without access and without openAccess', () => {
@@ -280,11 +282,21 @@ describe('the socket on a host with access', () => {
 
     await vi.waitFor(() => expect(nobody.closed).toEqual([4401]))
     expect(nobody.sent).toEqual([
-      { type: 'harness.error', message: 'unauthorized' },
+      {
+        type: 'harness.error',
+        message: 'unauthorized',
+        code: 'unauthorized',
+        requestId: expect.any(String),
+      },
     ])
     await vi.waitFor(() => expect(stranger.closed).toEqual([4403]))
     expect(stranger.sent).toEqual([
-      { type: 'harness.error', message: 'forbidden' },
+      {
+        type: 'harness.error',
+        message: 'forbidden',
+        code: 'forbidden',
+        requestId: expect.any(String),
+      },
     ])
     await host.close()
   })
@@ -303,7 +315,12 @@ describe('the socket on a host with access', () => {
     host.revoke({ threadId: 't1', principal: bea })
 
     await vi.waitFor(() => expect(closed).toEqual([4403]))
-    expect(sent.at(-1)).toEqual({ type: 'harness.error', message: 'forbidden' })
+    expect(sent.at(-1)).toEqual({
+      type: 'harness.error',
+      message: 'forbidden',
+      code: 'forbidden',
+      requestId: expect.any(String),
+    })
     await host.close()
   })
 })

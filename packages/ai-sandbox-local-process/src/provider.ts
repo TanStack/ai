@@ -30,7 +30,10 @@ export interface LocalProcessSandboxConfig {
   /** Remove the backing dir on destroy. Defaults: true (generated), false (fixed `dir`). */
   removeOnDestroy?: boolean
   /**
-   * Env vars to remove from the inherited `process.env` before spawning. Use to
+   * Env vars to remove from the env of each command. A command gets only a
+   * few variables of this process (`PATH`, `HOME`, `LANG`, `LC_ALL`, `TMPDIR`,
+   * `TEMP`, `TMP`, and on Windows `SystemRoot`, `ComSpec`, `PATHEXT`, `WINDIR`,
+   * `USERPROFILE`), plus the env that `env.set` and the call give. Use it to
    * let a host CLI fall back to its own stored auth — e.g. scrub
    * `ANTHROPIC_API_KEY` so Claude Code uses your logged-in subscription instead
    * of billing the API.

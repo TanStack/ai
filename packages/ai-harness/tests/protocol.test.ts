@@ -4,6 +4,7 @@ import { defineAgent } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import {
+  applyInput,
   createHarnessHandler,
   handleHarnessSocket,
   parseControlFrame,
@@ -18,6 +19,11 @@ import {
   text,
   wakeMessages,
 } from './helpers'
+import {
+  HARNESS_PROTOCOL_VERSION,
+  negotiateVersion,
+  requestIdOf,
+} from '../src/protocol'
 import type { HostFrame } from '../src/server'
 import type { Reply } from './helpers'
 
@@ -162,7 +168,15 @@ describe('HTTP handler', () => {
       ),
       isTurnEnd,
     )
-    expect(first.every((frame) => frame.type === 'harness.event')).toBe(true)
+    // The hello comes first, then the events.
+    expect(first[0]).toEqual({
+      type: 'harness.hello',
+      v: 2,
+      threadId: 'user-1-t',
+    })
+    expect(
+      first.slice(1).every((frame) => frame.type === 'harness.event'),
+    ).toBe(true)
     const last = first.at(-1)
     const cursor = last?.type === 'harness.event' ? last.cursor : ''
 
@@ -176,11 +190,13 @@ describe('HTTP handler', () => {
       isTurnEnd,
     )
     expect(
-      second.every(
-        (frame) =>
-          frame.type === 'harness.event' &&
-          Number(frame.cursor) > Number(cursor),
-      ),
+      second
+        .slice(1)
+        .every(
+          (frame) =>
+            frame.type === 'harness.event' &&
+            Number(frame.cursor) > Number(cursor),
+        ),
     ).toBe(true)
     expect(JSON.stringify(second)).toContain('again')
     await host.close()
@@ -486,5 +502,97 @@ describe('parseControlFrame', () => {
     expect(() =>
       parseControlFrame('{"type":"harness.input","requestId":"1","input":{}}'),
     ).toThrow('Invalid input')
+  })
+
+  it('keeps the v of a subscribe, and refuses a v that is not a number', () => {
+    expect(
+      parseControlFrame('{"type":"harness.subscribe","threadId":"t","v":2}'),
+    ).toEqual({ type: 'harness.subscribe', threadId: 't', v: 2 })
+    expect(() =>
+      parseControlFrame('{"type":"harness.subscribe","threadId":"t","v":"2"}'),
+    ).toThrow('v must be a number')
+  })
+
+  it('keeps a valid traceparent of an input, and drops an invalid one', () => {
+    const traceparent =
+      '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
+    const frame = (value: string) =>
+      parseControlFrame(
+        JSON.stringify({
+          type: 'harness.input',
+          requestId: 'r1',
+          input: { op: 'prompt', message: 'hi' },
+          traceparent: value,
+        }),
+      )
+    expect(frame(traceparent)).toMatchObject({ traceparent })
+    expect(frame('not-a-traceparent')).not.toHaveProperty('traceparent')
+  })
+})
+
+describe('negotiateVersion', () => {
+  it('uses the current version when the client names none', () => {
+    expect(HARNESS_PROTOCOL_VERSION).toBe(2)
+    expect(negotiateVersion({})).toEqual({ v: 2 })
+    expect(negotiateVersion({ requested: 2 })).toEqual({ v: 2 })
+  })
+
+  it('refuses a version that the host does not speak, and lists the ones it does', () => {
+    expect(negotiateVersion({ requested: 1 })).toEqual({
+      error: {
+        message: 'Protocol version 1 is not supported.',
+        code: 'unsupported_version',
+        supported: [2],
+      },
+    })
+  })
+})
+
+describe('requestIdOf', () => {
+  it('reads the requestId of a frame that fails the full parse', () => {
+    const badInput = '{"type":"harness.input","requestId":"r9","input":{}}'
+    expect(() => parseControlFrame(badInput)).toThrow('Invalid input')
+    expect(requestIdOf(badInput)).toBe('r9')
+  })
+
+  it('never throws', () => {
+    expect(requestIdOf('{not json')).toBeUndefined()
+    expect(requestIdOf('null')).toBeUndefined()
+    expect(requestIdOf('{"requestId":7}')).toBeUndefined()
+  })
+})
+
+describe('traceparent on an input', () => {
+  const traceparent = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
+
+  it('applyInput passes the traceparent to the send of a message', async () => {
+    const { host, harness } = setup()
+    const session = await host.open(harness, {
+      threadId: 'user-1-trace',
+      principal: user,
+    })
+    const send = vi.spyOn(session, 'send')
+
+    await applyInput({
+      harness,
+      session,
+      input: { op: 'prompt', message: 'hi' },
+      principal: user,
+      traceparent,
+    })
+    await applyInput({
+      harness,
+      session,
+      input: { op: 'steer', message: 'more' },
+      principal: user,
+      traceparent,
+    })
+
+    expect(send.mock.calls.map(([, options]) => options?.traceparent)).toEqual([
+      traceparent,
+      traceparent,
+    ])
+    await session.close()
+    await host.close()
   })
 })

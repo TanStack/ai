@@ -417,6 +417,7 @@ describe('media bytes', () => {
       'content-security-policy': "default-src 'none'; sandbox",
       'content-type': 'text/html',
       'x-content-type-options': 'nosniff',
+      'x-request-id': expect.any(String),
     })
     await host.close()
   })

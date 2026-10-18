@@ -157,7 +157,7 @@ describe('ownership of a log by two hosts', () => {
     const b = await openOn(logB, [() => text('B done')], {
       tools: [chargeOn('B')],
     })
-    expect(await b.session.settled('in-1')).toMatchObject({
+    expect(await b.session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(charges).toBe(1)
@@ -216,7 +216,7 @@ describe('a host that lost the log and takes it back', () => {
     // The worker of A takes the log, with the session of A still open.
     await a.host.resumePending({ harnesses: [a.harness] })
     await waitFor(() => expect(a.calls).toHaveLength(2))
-    expect(await a.session.settled('in-1')).toMatchObject({
+    expect(await a.session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
     await a.host.close()
@@ -379,6 +379,39 @@ describe('renewals', () => {
     await waitFor(() => expect(lost).toHaveBeenCalledTimes(1))
     expect(ownership.epochOf(LOG)).toBeUndefined()
     await ownership.close()
+  })
+})
+
+describe('pins', () => {
+  it('gives a pinned log to the host with that affinity only', async () => {
+    const log = memoryLogStore()
+    const pinned = new HostOwnership({
+      store: log,
+      ownerId: 'host-1',
+      affinity: 'machine-a',
+    })
+    const epoch = await pinned.acquire(LOG, 'test/ownership')
+    if (epoch === null) throw new Error('Not acquired.')
+
+    await pinned.pin(LOG, epoch, 'machine-a')
+    await pinned.release(LOG)
+
+    // A host with no affinity, or another one, does not get the log.
+    expect(await canOtherHostTake(log, LOG)).toBe(false)
+    const other = new HostOwnership({
+      store: log,
+      ownerId: 'host-2',
+      affinity: 'machine-b',
+    })
+    expect(await other.acquire(LOG, 'test/ownership')).toBeNull()
+    // The next process on machine-a gets it.
+    const restarted = new HostOwnership({
+      store: log,
+      ownerId: 'host-3',
+      affinity: 'machine-a',
+    })
+    expect(await restarted.acquire(LOG, 'test/ownership')).toBe(epoch + 1)
+    await restarted.close()
   })
 })
 

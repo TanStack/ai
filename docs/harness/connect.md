@@ -330,7 +330,7 @@ The approval reaches the harness, and the tool runs on the server. What else `PO
 
 - Each turn runs as the `runId` of its request. A retry with the same `runId` runs once. The same `runId` with another message gets `409`.
 - A tool with only a `.client()` implementation runs in the browser, and the same turn gets its result.
-- A question from `ctx.session.ask` arrives on the stream of the turn that waits for it.
+- A question of `step.ask` or of an MCP server arrives on the stream of the turn that waits for it. See [Wait for a person](./waits).
 - The `forwardedProps` of the request are the input's [context](./inputs#send-context-with-a-message).
 - With `persistence: true`, `useChat` loads the thread from `GET run?threadId=`.
 - If a turn still runs after a reload, `useChat` joins it with `GET run?runId=`. The turn shows from its first event, and its answer continues to stream.

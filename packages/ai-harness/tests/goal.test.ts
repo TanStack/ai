@@ -15,7 +15,11 @@ import {
   untilAborted,
 } from './helpers'
 import type { AnyTextAdapter, AnyTool } from '@tanstack/ai'
-import type { HarnessPersistence, HarnessSession } from '../src'
+import type {
+  HarnessPersistence,
+  HarnessRunContext,
+  HarnessSession,
+} from '../src'
 import type { Goal } from '../src/first-party'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
@@ -147,6 +151,36 @@ describe('goal', () => {
     expect(met).toEqual([{ goal: 'all tests pass', reason: 'All tests pass.' }])
     await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(session.snapshot().queuedTurns).toBe(0)
+    await host.close()
+  })
+
+  it('counts each judge call under plugin:tanstack/goal', async () => {
+    const { adapter } = mockAdapter([])
+    const judge: AnyTextAdapter = {
+      ...adapter,
+      structuredOutput: async () => ({
+        data: { met: true, reason: 'Done.' },
+        rawText: '{}',
+        usage: { promptTokens: 30, completionTokens: 5, totalTokens: 35 },
+      }),
+    }
+    const { host, session } = await start({
+      replies: [() => text('done')],
+      judge,
+    })
+
+    await session.command({ name: 'goal', input: 'finish' })
+    await waitForStatus(
+      session,
+      'Goal: finish\nStatus: met, round 1 of 20.\nLast check: Done.',
+    )
+
+    expect(session.usage().bySource).toEqual({
+      'plugin:tanstack/goal': expect.objectContaining({
+        calls: 1,
+        totalTokens: 35,
+      }),
+    })
     await host.close()
   })
 
@@ -378,6 +412,31 @@ describe('goal', () => {
     expect(calls).toHaveLength(1)
     expect(read).toHaveLength(0)
     expect(session.snapshot().queuedTurns).toBe(0)
+    await host.close()
+  })
+
+  it('says the turn waits for input when it waits for something else than an approval', async () => {
+    const listIssues = toolDefinition({
+      name: 'list_issues',
+      description: 'List issues',
+    }).server(async (_args, ctx) => {
+      const { run } = ctx?.context as HarnessRunContext
+      await run.credentials.require('github', { wait: true })
+      return ['#1']
+    })
+    const { host, session, calls } = await start({
+      replies: [() => toolCall('list_issues', {})],
+      tools: [listIssues],
+    })
+
+    await session.command({ name: 'goal', input: 'triage the issues' })
+    await waitFor(() =>
+      expect(session.snapshot().status).toBe('requires_action'),
+    )
+    expect(await status(session)).toBe(
+      'Goal: triage the issues\nStatus: paused, round 1 of 20.\nThe last turn waits for input. Answer it, then run /goal resume.',
+    )
+    expect(calls).toHaveLength(1)
     await host.close()
   })
 

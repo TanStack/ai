@@ -54,7 +54,9 @@ The user who opens a new thread is its owner. Nobody else can open it until the 
 | Read the thread and see it in a list | Yes | Yes | Yes |
 | Send messages, run commands, start agents | Yes | Yes | No |
 | Answer and cancel | Every run | Only the runs they started | No |
+| Answer a `human` wait (`operator`) | Yes | Yes | No |
 | Fork | Yes | Yes | No |
+| Reply as an [operator](./handoffs#reply-as-the-operator) | Yes | Yes | No |
 | Configure, share, delete, transfer | Yes | No | No |
 
 A user who is not a member can do nothing. A child thread of a subagent uses the members of its root thread.
@@ -282,7 +284,7 @@ export async function shareKey(
 - A run reads the credential of its user first. If the user has none, the run reads the credential of the tenant.
 - A save from a run goes to its user only. This includes `connect:<id>` and `run.credentials.set`. The credential of the tenant does not change.
 - `run.credentials.list()` shows the credentials of the user and of the tenant. For the same id, the credential of the user wins.
-- Use an API key for a credential of the tenant. If a run refreshes an OAuth token of the tenant, the new token goes to its user only.
+- An OAuth token of the tenant works too. A refresh saves the new token for the tenant, so every user of the tenant gets it. See [Refresh a token](./auth#refresh-a-token).
 
 ## What you have now
 

@@ -5,8 +5,13 @@ import {
   maxIterations,
   untilFinishReason,
 } from '@tanstack/ai'
-import { credentialsFor, providerKeysFor, scrubSecrets } from '../auth'
-import { AgentRegistry } from '../agents'
+import {
+  Redactor,
+  credentialsFor,
+  providerKeysFor,
+  refreshFlights,
+} from '../auth'
+import { AgentRegistry, NO_SESSION_CONTEXT } from '../agents'
 import {
   SessionFeed,
   onAuthRequiredOf,
@@ -47,6 +52,7 @@ import type {
   SessionIndexKey,
   SessionIndexStore,
 } from '@tanstack/ai-persistence'
+import type { CredentialStore } from '@tanstack/ai/byok'
 import type { AuthRequiredError, CredentialsAccess } from '../auth'
 import type { EventListener, ListenedFeed } from '../feed'
 import type { LogWriter, RevertState, engineMessageStore } from '../log'
@@ -54,14 +60,19 @@ import type { logChatStores } from '../log-stores'
 import type { MediaStore } from '../media'
 import type { PluginSessionApi } from '../commands'
 import type { SessionUsage } from '../usage'
-import type { AgentRegistryView, AnyAgent } from '../agents'
+import type {
+  AgentActions,
+  AgentGroup,
+  AgentGroupOptions,
+  AgentRegistryView,
+  AnyAgent,
+} from '../agents'
 import type { AnyHarness } from '../define'
 import type { HarnessPersistence, SessionIndexWriter } from '../host'
 import type {
-  AgentGroup,
   HarnessPlugin,
   MountedPlugins,
-  PluginAgentActions,
+  PluginModelCall,
   PluginServices,
   PluginState,
 } from '../plugins'
@@ -83,10 +94,12 @@ import type {
 import type {
   AgentRunOptions,
   AgentRunStartOptions,
+  AgentStartFn,
   AgentStartOptions,
   AgentChild,
   AgentHandles,
   DynamicAgentHandle,
+  GroupRuns,
   SessionInspection,
   SessionDependencies,
   QueuedTurn,
@@ -95,6 +108,9 @@ import type {
   InterruptedTurn,
   AgentRunImpl,
   AgentChain,
+  ChildSessionLink,
+  HarnessChild,
+  OpenChildSession,
 } from './types'
 import type { HarnessSession } from './harness-session'
 
@@ -347,6 +363,21 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * They wait for the log, so they do not keep the thread busy here.
    */
   protected readonly remoteRuns = new Set<string>()
+  /**
+   * Agent runs of this host that wait for answers to their interrupts, by
+   * operation id. The log keeps the waits, so they do not keep the thread
+   * busy here: an answer on any host resumes the run.
+   */
+  protected readonly waitingRuns = new Map<
+    string,
+    {
+      operation: AgentRunImpl
+      chain: AgentChain
+      /** The input the run applies. */
+      inputId: string
+      subagentRunId: string
+    }
+  >()
   /** Called each time the thread goes idle. See `onIdle`. */
   protected readonly idleListeners = new Set<() => void>()
   /** Work inputs that are being stored and are not queued yet. */
@@ -380,6 +411,11 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /** Tells the host each time the thread goes idle. See `SessionDependencies`. */
   protected readonly notifyIdle: (() => void) | undefined
   protected checkpoint: AnyChatMiddleware | undefined
+  /**
+   * Writes the final result of each tool call to the log. It goes at the
+   * very end of the middleware list. See `toolResultRecorder`.
+   */
+  protected toolRecorder: AnyChatMiddleware | undefined
   protected readonly index: SessionIndexWriter
   /**
    * Why the work of this session stopped: another host took the log. Set
@@ -409,7 +445,17 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       operationId: string
       resolve: (value: unknown) => void
       reject: (error: unknown) => void
+      /** Stop the listener on the `signal` of the ask. */
+      release: () => void
     }
+  >()
+  /**
+   * The live `sign-in` waits of the OAuth logins that the commands of this
+   * host run, by wait id: the connector, and the command that waits.
+   */
+  protected readonly signIns = new Map<
+    string,
+    { connector: string; operation: OperationImpl<unknown> }
   >()
   /** Plugin state by plugin name. No prototype, so any name is a plain key. */
   protected readonly stateDoc: Record<string, unknown> = Object.create(null)
@@ -419,8 +465,14 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected readonly stateWrites = new Map<string, Promise<unknown>>()
   /** The revert that stands. See `revert`. */
   protected reverted: RevertState | undefined
-  /** Each secret value a credentials access of this session handed out. */
-  protected readonly secrets = new Set<string>()
+  /**
+   * Each secret value that a credentials access or the keys of this session
+   * handed out. Every log record, feed event, and model call of the session
+   * goes through it. Call `redactor.add` for a new secret value.
+   */
+  protected readonly redactor = new Redactor()
+  /** The credential store of the app, for secret answers. See `SessionDependencies`. */
+  protected readonly sharedCredentials: CredentialStore | undefined
   /**
    * The connectors whose sign-in the user cancelled. Their `require` with
    * `wait` fails the tool, as without `wait`, until the next new turn.
@@ -448,6 +500,18 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected readonly promptCache: ResolvedPromptCache
   /** The host checks access. See `SessionDependencies.access`. */
   protected readonly hasAccess: boolean
+  /** The root thread of the session tree: this thread, unless it is a child. */
+  protected readonly rootThreadId: string
+  /** See `SessionDependencies.openChild`. */
+  protected readonly openChild: OpenChildSession | undefined
+  /** See `SessionDependencies.child`. Set on a child session only. */
+  protected readonly childLink: ChildSessionLink | undefined
+  /**
+   * The child sessions of `harnessAgent` that runs of this session have open
+   * now, by thread. The snapshot lists their waits, and `resolve` sends an
+   * answer to the child that waits for it.
+   */
+  protected readonly harnessChildren = new Map<string, HarnessChild>()
 
   constructor(deps: SessionDependencies) {
     this.harness = deps.harness as THarness
@@ -463,6 +527,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       key: own?.key ?? shared?.key ?? deps.threadId,
     }
     this.persistence = deps.persistence
+    this.sharedCredentials = deps.sharedCredentials
     this.media = deps.media
     this.mediaStore = createMediaStore({
       persistence: deps.media,
@@ -476,14 +541,22 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     this.inputRecords = new InputRecords(deps.retention.settledOperations)
     this.notifyHost = deps.onEvent
     this.feed = tapFeed(
-      new SessionFeed({ eventBytes: deps.retention.eventBytes }),
+      new SessionFeed({
+        threadId: deps.threadId,
+        eventBytes: deps.retention.eventBytes,
+      }),
       deps.onEvent,
       this.eventListeners,
+      this.redactor,
+      (operationId) => this.parentRunOf(operationId),
     )
     this.onClose = deps.onClose
     this.notifyIdle = deps.onIdle
     this.index = deps.index
     this.log = deps.log
+    this.openChild = deps.openChild
+    this.childLink = deps.child
+    this.rootThreadId = deps.child?.rootThreadId ?? deps.threadId
     // The session gets its log view in `open()`.
     this.messages = notOpenMessages
     const onMissing = (error: AuthRequiredError) =>
@@ -494,15 +567,19 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
           ...(error.url ? { url: error.url } : {}),
         }),
       )
+    const refreshes = deps.refreshes ?? refreshFlights()
+    // A child of `harnessAgent` reads the credentials of its root thread, so
+    // it runs with the keys of the user of the run that started it.
     this.credentialsOf = (principal, canWait) =>
       credentialsFor(
         deps.credentials,
-        scopeOf(deps.threadId, principal),
+        scopeOf(this.rootThreadId, principal),
         onMissing,
         {
           ...(canWait ? { canWait } : {}),
           onSet: () => this.resumeSignIns(),
-          secrets: this.secrets,
+          secrets: this.redactor,
+          refreshes,
         },
       )
     this.hasAccess = deps.access !== undefined
@@ -510,7 +587,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     const envFallback = deps.access?.envKeys ?? true
     this.keysOf = (principal) =>
       providerKeysFor(this.credentialsOf(principal), onMissing, {
-        secrets: this.secrets,
+        secrets: this.redactor,
         envFallback,
       })
     this.services = this.pluginServices()
@@ -604,7 +681,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
 
   /** `text` without the credential values this session handed out. */
   protected scrub(text: string) {
-    return scrubSecrets(text, [...this.secrets])
+    return this.redactor.scrub(text)
   }
 
   /** {@link OnEvent} for the events of every operation of this session. */
@@ -758,7 +835,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /**
    * The run context of one run: the user who started it, and the
    * credentials and provider keys of that user. `canWait` says if a sign-in
-   * wait of a tool can stop this run now.
+   * wait of a tool can stop this run now. `handoff` is the handoff of a
+   * routed turn. Without it, `run.handoff` rejects.
    */
   protected runContext(options: {
     principal: Principal | undefined
@@ -766,6 +844,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     parentRunId?: string
     signal: AbortSignal
     canWait?: (id: string) => boolean
+    handoff?: RunContext['handoff']
   }): RunContext {
     const { principal } = storedPrincipal(options.principal)
     const { runId } = options
@@ -784,6 +863,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       signal: options.signal,
       credentials: this.credentialsOf(options.principal, options.canWait),
       keys: this.keysOf(options.principal),
+      handoff: options.handoff ?? NO_SESSION_CONTEXT.handoff,
     }
   }
 
@@ -820,6 +900,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
           'session',
           customEvent(HARNESS_EVENTS.commandsChanged, {}),
         ),
+      modelChat: (call) => this.modelChat(call),
     }
   }
 
@@ -827,24 +908,41 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * `ctx.agents` of a plugin. The runs are for `principal`, else for the
    * principal that opened the session. A `principal` option of `start` wins.
    */
-  protected pluginAgents(principal?: Principal): PluginAgentActions {
+  protected pluginAgents(principal?: Principal): AgentActions {
     const user = principal ? { principal } : {}
+    return this.agentActions((target, input, options) =>
+      this.runAgent(target, input, { ...user, ...options }),
+    )
+  }
+
+  /**
+   * `start`, `run`, and `group` over one `start` function. `run` and the
+   * children of a group start with `wake: false`, unless the options say
+   * else.
+   */
+  protected agentActions(start: AgentStartFn): AgentActions {
     return {
-      run: ((target: string | AnyAgent, input?: unknown) =>
-        this.runAgent(target, input, {
-          ...user,
-          wake: false,
-        })) as PluginAgentActions['run'],
       start: ((
         target: string | AnyAgent,
         input?: unknown,
         options?: AgentStartOptions,
+      ) => start(target, input, options ?? {})) as AgentActions['start'],
+      run: ((
+        target: string | AnyAgent,
+        input?: unknown,
+        options?: AgentRunOptions,
       ) =>
-        this.runAgent(target, input, {
-          ...user,
+        start(target, input, {
           ...options,
-        })) as PluginAgentActions['start'],
-      group: (options, body) => this.agentGroup(options, body, principal),
+          wake: false,
+        })) as AgentActions['run'],
+      group: ((
+        options: AgentGroupOptions,
+        body: (g: AgentGroup) => GroupRuns | Promise<GroupRuns>,
+      ) =>
+        this.agentGroup(options, body, (target, input, childOptions) =>
+          start(target, input, { wake: false, ...childOptions }),
+        )) as AgentActions['group'],
     }
   }
 
@@ -875,49 +973,86 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * value back, also after a restart.
    */
   protected pluginState<T>(plugin: string, initial: T): PluginState<T> {
+    return this.loggedState({ kind: 'plugins', key: plugin, initial })
+  }
+
+  /**
+   * `ctx.harness.state`: the value of `key` that the agents of this session
+   * share. The log keeps it, as it keeps plugin state.
+   */
+  protected sharedState<T>(options: {
+    key: string
+    initial: T
+  }): PluginState<T> {
+    return this.loggedState({ kind: 'shared', ...options })
+  }
+
+  /**
+   * One value of the thread state that the log keeps: the state of a plugin,
+   * or a shared key. Each update appends the deltas from the current value.
+   * The updates of one value run one at a time.
+   */
+  private loggedState<T>(options: {
+    kind: 'plugins' | 'shared'
+    key: string
+    initial: T
+  }): PluginState<T> {
+    const { kind, key, initial } = options
     const read = () => {
-      const { plugins } = this.writer.state.thread
-      // The fold holds what this plugin wrote.
-      return plugins.has(plugin) ? (plugins.get(plugin) as T) : initial
+      const values = this.writer.state.thread[kind]
+      // The fold holds what was written for this key.
+      return values.has(key) ? (values.get(key) as T) : initial
     }
     // A copy: the snapshot must not share objects with the fold.
-    this.stateLoaders.set(plugin, () => structuredClone(read()))
+    if (kind === 'plugins') {
+      this.stateLoaders.set(key, () => structuredClone(read()))
+    }
     const publish = (value: T) => {
-      this.stateDoc[plugin] = value
+      if (kind === 'plugins') this.stateDoc[key] = value
       this.feed.publish('session', {
         type: EventType.STATE_SNAPSHOT,
-        snapshot: { plugins: { ...this.stateDoc } },
+        snapshot: {
+          plugins: { ...this.stateDoc },
+          // fromEntries defines own keys, so a key named `__proto__` stays
+          // a key.
+          shared: structuredClone(
+            Object.fromEntries(this.writer.state.thread.shared),
+          ),
+        },
         timestamp: Date.now(),
       })
     }
     const write = async (change: (current: T) => T) => {
-      const { plugins } = this.writer.state.thread
+      const values = this.writer.state.thread[kind]
       // The first write sets the whole value: the log has no value to change.
-      const stored = plugins.has(plugin) ? plugins.get(plugin) : undefined
-      const next = change(structuredClone(read()))
+      const stored = values.has(key) ? values.get(key) : undefined
+      // Scrubbed here, so the log, the snapshot, and the caller get one value.
+      const next = this.redactor.redact(change(structuredClone(read())))
       // The append is a compare-and-set: it goes at the next position of
       // the log, so a write of another host makes it fail, and no update is
       // lost.
       await this.writer.append(
-        pluginStateDeltas(stored, next).map((delta) => ({
-          type: 'harness.plugin.state',
-          plugin,
-          delta,
-        })),
+        pluginStateDeltas(stored, next).map((delta) =>
+          kind === 'plugins'
+            ? { type: 'harness.plugin.state' as const, plugin: key, delta }
+            : { type: 'harness.state' as const, key, delta },
+        ),
       )
       publish(next)
       return next
     }
+    // A plugin name and a shared key can be the same string.
+    const chain = JSON.stringify([kind, key])
     return {
       get: async () => structuredClone(read()),
       update: (change) => {
         // One at a time, so each change starts from the value that the
         // update before it wrote.
-        const run = (this.stateWrites.get(plugin) ?? Promise.resolve()).then(
+        const run = (this.stateWrites.get(chain) ?? Promise.resolve()).then(
           () => write(change),
         )
         this.stateWrites.set(
-          plugin,
+          chain,
           run.catch(() => {}),
         )
         return run
@@ -950,7 +1085,9 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     )
     if (hasFollowUps) return false
     return (
-      // A question waits in this host's memory: its answer must come here.
+      // A live wait (an `ask()`) waits in this host's memory: its answer
+      // must come here, so it keeps the log. A wait that only the log keeps
+      // does not: the session is idle, and an answer reaches any host.
       this.questions.size === 0 &&
       this.inputsInFlight === 0 &&
       this.activeTurn === undefined &&
@@ -960,7 +1097,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
         (operation) =>
           (operation.kind === 'agent' || operation.kind === 'command') &&
           !operation.isSettled() &&
-          !this.remoteRuns.has(operation.id),
+          !this.remoteRuns.has(operation.id) &&
+          !this.waitingRuns.has(operation.id),
       )
     )
   }
@@ -1061,13 +1199,37 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
-   * A tree budget for a child started from code. The child counts as the
-   * first call, and its own children count against the same limits.
+   * A tree budget for a chain started from code. The chain counts as the
+   * first call, and its own children count against the same limits. Each
+   * child that the log has under the chain `chainInputId` counts too, so a
+   * chain that runs again after a restart keeps its count.
    */
-  protected codeBudget(): SubagentBudget {
+  protected codeBudget(chainInputId?: string): SubagentBudget {
     const root = SubagentBudget.root(this.limits())
-    root.reserve(0)
+    const logged =
+      chainInputId === undefined ? 0 : this.loggedCalls(chainInputId)
+    for (let call = 0; call <= logged; call += 1) root.reserve(0)
     return root.child()
+  }
+
+  /**
+   * How many chains the log has under the chain `chainInputId`, at any
+   * depth: one for each child that agent code started.
+   */
+  protected loggedCalls(chainInputId: string) {
+    const nodes = [...this.writer.state.thread.tree.values()]
+    const found = new Set<string>()
+    const parents = [chainInputId]
+    for (let parent = parents.pop(); parent !== undefined;) {
+      for (const { chainInputId: child, parentChainInputId } of nodes) {
+        if (parentChainInputId !== parent || child === undefined) continue
+        if (found.has(child)) continue
+        found.add(child)
+        parents.push(child)
+      }
+      parent = parents.pop()
+    }
+    return found.size
   }
 
   // ===========================
@@ -1097,7 +1259,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * Add an assistant note to the transcript: at once when no turn runs, else
    * before the next turn starts.
    */
-  protected async addNote(note: string) {
+  protected async addNote(text: string) {
+    const note = this.redactor.scrub(text)
     const id = createMessageId()
     this.pendingNotes.push({ id, role: 'assistant', content: note })
     // The log has the note first, so a crash does not lose it.
@@ -1125,31 +1288,50 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
 
   /**
    * Track a background job of this host. The log also has its start and
-   * end, so recovery can note a job that a crash stopped.
+   * end, so recovery can note a job that a crash stopped. The record goes
+   * to `threadId`, the thread of the workspace that runs the job.
    */
-  protected logJob(jobId: string, ended: boolean) {
+  protected logJob(
+    job: { jobId: string; backendId?: string; threadId?: string },
+    ended: boolean,
+  ) {
+    const { jobId, backendId, threadId } = job
     if (ended) this.jobs.delete(jobId)
     else this.jobs.add(jobId)
+    const isOtherThread = threadId !== undefined && threadId !== this.threadId
+    const record = {
+      type: 'harness.job',
+      jobId,
+      ended,
+      ...(!ended && backendId !== undefined ? { backendId } : {}),
+      ...(isOtherThread ? { thread: threadId } : {}),
+    }
     // No one waits for a job record. A failed log write fails the session.
-    this.writer
-      .append([{ type: 'harness.job', jobId, ended }])
-      .catch(() => undefined)
+    this.writer.append([record]).catch(() => undefined)
   }
 
   // Implemented by a later layer of the class.
   protected abstract self(): HarnessSession<THarness>
   protected abstract drain(): void
-  protected abstract agentGroup<T>(
-    options: { onFailure?: 'cancel-siblings' | 'collect' },
-    body: (group: AgentGroup) => Promise<T>,
-    principal?: Principal,
-  ): Promise<T>
+  protected abstract agentGroup(
+    options: AgentGroupOptions,
+    body: (group: AgentGroup) => GroupRuns | Promise<GroupRuns>,
+    start: AgentStartFn,
+  ): Promise<Array<unknown>>
   protected abstract pluginApi(
     principal?: Principal,
     metadataSchema?: SchemaInput,
     operationId?: string,
   ): PluginSessionApi
   protected abstract resumeSignIns(): Promise<void>
+  /** One model call of `ctx.model.chat`. See `SessionTurnParts.modelChat`. */
+  protected abstract modelChat(call: PluginModelCall): Promise<unknown>
+  /** Resume the agent runs whose waits all ended. See `SessionAgents`. */
+  protected abstract resumeWaitingRuns(): Promise<void>
+  /** The run that started an operation, for a child run. See `SessionAgents`. */
+  protected abstract parentRunOf(operationId: string): string | undefined
+  /** Set the timer of the next schedule. See `SessionImpl.armSchedules`. */
+  protected abstract armSchedules(options?: { isRetry?: boolean }): void
   /** @internal See `SessionRequests.resolveForRun`. */
   abstract resolveForRun(options: ResolveForRunOptions): Promise<Receipt>
   protected abstract recoverFromLog(writer: LogWriter): Promise<void>

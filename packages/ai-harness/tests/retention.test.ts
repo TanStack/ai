@@ -61,7 +61,7 @@ describe('retention', () => {
     // has how it ended.
     await session.send('Hi', { inputId: 't-5' })
     expect(session.operation(first.id)).toBe(undefined)
-    await expect(session.settled('t-0')).resolves.toMatchObject({
+    await expect(session.settled({ inputId: 't-0' })).resolves.toMatchObject({
       inputId: 't-0',
       outcome: 'completed',
     })

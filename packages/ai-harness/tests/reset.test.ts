@@ -55,7 +55,9 @@ describe('reset', () => {
       inputId: 'r1',
     })
     expect(receipt).toMatchObject({ status: 'accepted' })
-    expect(await session.settled('r1')).toMatchObject({ outcome: 'completed' })
+    expect(await session.settled({ inputId: 'r1' })).toMatchObject({
+      outcome: 'completed',
+    })
     await session.send('Second.')
 
     expect(messageTexts(calls[1])).toEqual(['We agreed on plan B.', 'Second.'])
@@ -213,7 +215,7 @@ describe('reset', () => {
     const { session, host } = await open([() => text('One.')])
     await session.send('First.')
     await session.reset({ note: 'Note.', inputId: 'r1' })
-    await session.settled('r1')
+    await session.settled({ inputId: 'r1' })
     expect(await session.reset({ note: 'Note.', inputId: 'r1' })).toMatchObject(
       {
         status: 'accepted',
@@ -264,7 +266,7 @@ describe('reset after a restart', () => {
     )
     await sessionA.send('First.')
     await sessionA.reset({ note: 'Note.', inputId: 'r1' })
-    await sessionA.settled('r1')
+    await sessionA.settled({ inputId: 'r1' })
     await hostA.close()
 
     const second = mockAdapter([() => text('Two.')])
@@ -312,7 +314,9 @@ describe('reset after a restart', () => {
         threadId: 't1',
       },
     )
-    expect(await session.settled('r1')).toMatchObject({ outcome: 'completed' })
+    expect(await session.settled({ inputId: 'r1' })).toMatchObject({
+      outcome: 'completed',
+    })
     await session.send('Second.')
     expect(messageTexts(calls[0])).toEqual(['Note.', 'Second.'])
     await host.close()

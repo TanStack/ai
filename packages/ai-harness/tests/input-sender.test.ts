@@ -179,7 +179,7 @@ describe('the sender of each input', () => {
     release.open()
 
     expect(await turn).toEqual({ text: 'first', media: [] })
-    expect(await session.settled('in-bob')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-bob' })).toMatchObject({
       outcome: 'completed',
     })
     expect(candidates.length).toBeGreaterThan(0)
@@ -234,11 +234,11 @@ describe('the sender of each input', () => {
     release.open()
 
     expect(await turn).toEqual({ text: 'First.Joined.', media: [] })
-    expect(await session.settled('in-alice')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-alice' })).toMatchObject({
       operationId: turn.id,
     })
     expect(await bobs).toEqual({ text: 'Bob here.', media: [] })
-    const bobSettled = await session.settled('in-bob')
+    const bobSettled = await session.settled({ inputId: 'in-bob' })
     expect(bobSettled).toMatchObject({ outcome: 'completed' })
     expect(bobSettled.operationId).not.toBe(turn.id)
     expect(seen.map((entry) => entry.principal)).toEqual(['bob'])
@@ -284,11 +284,13 @@ describe('the sender of each input', () => {
     release.open()
 
     expect(await turn).toEqual({ text: 'First.Joined.', media: [] })
-    expect(await session.settled('in-alice')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-alice' })).toMatchObject({
       operationId: turn.id,
     })
     expect(await bobs).toEqual({ text: 'Bob here.', media: [] })
-    expect((await session.settled('in-bob')).operationId).not.toBe(turn.id)
+    expect((await session.settled({ inputId: 'in-bob' })).operationId).not.toBe(
+      turn.id,
+    )
     expect(seen.map((entry) => entry.principal)).toEqual(['bob'])
     await host.close()
   })
@@ -529,7 +531,7 @@ describe('recovery keeps the sender and the context', () => {
       },
     )
 
-    expect(await session.settled('in-1')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(turns).toEqual([
@@ -592,7 +594,7 @@ describe('recovery keeps the sender and the context', () => {
       },
     )
 
-    expect(await session.settled('in-1')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(turns).toEqual([

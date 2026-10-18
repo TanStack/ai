@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { SessionFeed } from '../src/feed'
+import { Redactor } from '../src/auth'
 import { OperationImpl } from '../src/operation'
 import { tapFeed } from '../src/session/helpers'
 
@@ -12,9 +13,11 @@ const EVENT_BYTES = 1_000_000
  */
 function createOperation() {
   const feed = tapFeed(
-    new SessionFeed({ eventBytes: EVENT_BYTES }),
+    new SessionFeed({ threadId: 'thread-1', eventBytes: EVENT_BYTES }),
     () => {},
     new Set(),
+    new Redactor(),
+    () => undefined,
   )
   return new OperationImpl<string>('chat', feed, (operation) => {
     operation.fail('cancelled', new Error('Cancelled.'))

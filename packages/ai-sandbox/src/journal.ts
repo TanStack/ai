@@ -159,7 +159,7 @@ export function exitSentinelLine(
 }
 
 /** Single-quote a shell word, escaping embedded single quotes POSIX-style. */
-function shellQuote(value: string): string {
+export function shellQuote(value: string): string {
   return `'${value.replaceAll("'", `'\\''`)}'`
 }
 

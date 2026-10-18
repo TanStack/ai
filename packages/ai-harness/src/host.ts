@@ -7,20 +7,30 @@ import {
   SharedLog,
   loadLogState,
   logIdOf,
-  loggedRunOf,
+  loggedTargetOf,
   parseLogId,
 } from './log'
+import { refreshFlights } from './auth'
 import { HostPlugins } from './host-plugins'
 import { purgeThreadData } from './purge'
 import { HostOwnership } from './ownership'
 import { SessionImpl } from './session/harness-session'
-import { actionOf, sessionHandle } from './session/handle'
-import { createInputId, offeredInputRecord } from './session/helpers'
+import { authorizeInput, sessionHandle } from './session/handle'
+import {
+  createInputId,
+  createMessageId,
+  offeredInputRecord,
+  storedPrincipal,
+} from './session/helpers'
 import { observedSession } from './session/observed-session'
 import { HARNESS_EVENTS } from './types'
 import { isRecord } from './utils'
 import { changedEntry } from './session-entry'
-import type { PromptCacheOptions, StreamChunk } from '@tanstack/ai'
+import type {
+  ModelMessage,
+  PromptCacheOptions,
+  StreamChunk,
+} from '@tanstack/ai'
 import type {
   AIPersistence,
   ArtifactStore,
@@ -40,16 +50,30 @@ import type {
   AccessAction,
   AccessRun,
   AccessSession,
+  AccessWait,
   HarnessAccess,
 } from './access'
 import type { HandleGuard } from './session/handle'
+import type { OpenChildSession } from './session/types'
 import type { AnyHarness, SessionMetadataOf } from './define'
 import type { SessionEntryChange, SessionEntryUpdate } from './session-entry'
-import type { LogRecordRetention, ReduceOptions, SnapshotTiming } from './log'
+import type {
+  LogRecordRetention,
+  LogViewHooks,
+  ReduceOptions,
+  SnapshotTiming,
+} from './log'
 import type { OwnershipOptions } from './ownership'
 import type { HarnessSession } from './session/index'
 import type { ObservedSession } from './session/observed-session'
-import type { ForkPoint, HarnessInput, Principal, Receipt } from './types'
+import type {
+  ForkPoint,
+  HarnessInput,
+  Principal,
+  Receipt,
+  TransferOptions,
+  TransferResult,
+} from './types'
 
 type SharedStores = {
   artifacts?: ArtifactStore
@@ -144,8 +168,10 @@ export interface HarnessHostOptions<P extends Principal = Principal> {
    * its first write until the thread has no work. `ttlMs`: how long the
    * ownership lasts after each renewal (default 30000 ms). After it, another
    * host can take the thread. `renewMs`: how often one timer renews every
-   * thread that the host owns (default 10000 ms). Leave it out for the
-   * defaults.
+   * thread that the host owns (default 10000 ms). `hostId`: a stable id
+   * for this host, for example the machine or pod name. With it, a thread
+   * that uses a local folder is pinned to this host, and another host
+   * refuses the thread. Leave it out for the defaults: no pins.
    */
   ownership?: OwnershipOptions
   /** How the sessions of this host live. Leave it out for the defaults. */
@@ -448,12 +474,31 @@ export interface HostRevokedEvent {
   at: number
 }
 
+/**
+ * `host.transfer` moved a conversation from one thread to another. Your app
+ * can copy its own access rows for the target thread here. A retry of the
+ * same transfer yields it again, with the same `transferId`.
+ */
+export interface HostTransferredEvent {
+  type: 'transferred'
+  transferId: string
+  tenantId?: string
+  /** The source thread, and the name of its harness. */
+  from: { harness: string; threadId: string }
+  /** The target thread, and the name of its harness. */
+  to: { harness: string; threadId: string }
+  /** The id of the principal who made the transfer. */
+  principalId?: string
+  at: number
+}
+
 /** What `host.events()` yields. */
 export type HostEvent =
   | HostStatusEvent
   | HostSessionEvent
   | HostSessionDeletedEvent
   | HostRevokedEvent
+  | HostTransferredEvent
 
 export interface ForkSessionOptions<P extends Principal = Principal> {
   /** The thread to copy. */
@@ -594,9 +639,12 @@ export interface HarnessHost<P extends Principal = Principal> {
    * Start a new thread as a copy of another one, and return its open
    * session of `harness`. It copies the transcript up to and including the
    * message `at`, the media that those messages use, the stored settings,
-   * and the plugin config. It does not copy plugin state, pending
+   * the plugin config, and the state that agents share
+   * (`ctx.harness.state`). It does not copy plugin state, pending
    * interrupts, queued inputs, or running work. A `newThreadId` with
-   * messages is refused.
+   * messages is refused. A fork stays in its harness: a thread whose index
+   * entry names another harness throws. To move a conversation to another
+   * harness, use `transfer`.
    *
    * @example
    * ```ts
@@ -607,6 +655,40 @@ export interface HarnessHost<P extends Principal = Principal> {
     harness: THarness,
     options: ForkSessionOptions<P>,
   ) => Promise<HarnessSession<THarness>>
+  /**
+   * Move a conversation to another thread, maybe of another harness: a new
+   * thread by default. Only the `envelope` moves: the note, then no
+   * message, a summary, or the settled transcript with its media. Plugin
+   * state, shared state, credentials, waits, settings, and plugin config
+   * stay with the source. The source keeps running.
+   *
+   * Both threads are in the tenant of `principal`: a transfer to another
+   * tenant cannot be named. A new target has the principal as its owner and
+   * only member. Both logs get a `harness.transferred` record with the same
+   * `transferId`, and the index entries link the threads in `metadata`
+   * (`harness:transferredFrom` on the target, `harness:transferredTo` on
+   * the source). `host.events()` yields a `transferred` event. A retry with
+   * the same `transferId` makes no second thread and copies nothing again.
+   * When another host owns the source log, the source record goes to it
+   * through the input lane.
+   *
+   * With access, `principal` is required. It needs the `transfer` action on
+   * the source, and `send` on a target that exists. A refusal throws
+   * `AccessDeniedError`. Throws when a thread belongs to another harness,
+   * or when a new target has messages that are not from this transfer.
+   *
+   * @example
+   * ```ts
+   * const { threadId } = await host.transfer({
+   *   from: { harness: support, threadId: 't-1' },
+   *   to: { harness: billing },
+   *   envelope: { note: 'Refund for order 42.', messages: 'summary' },
+   *   principal,
+   * })
+   * const session = await host.open(billing, { threadId, principal })
+   * ```
+   */
+  transfer: (options: TransferOptions<P>) => Promise<TransferResult>
   /**
    * Store an input for a thread, and run nothing. The input waits in the log
    * of the thread until a host owns the log and runs it: the host that runs
@@ -846,10 +928,20 @@ function checkSessionStore(store: SessionIndexStore | undefined) {
   }
 }
 
+/** A thread id that `harnessAgent` derives for a child: `.../agent/...`. */
+const isHarnessChildThread = (threadId: string) => threadId.includes('/agent/')
+
 /**
  * The key of an open session in the host: the harness, the tenant, and the
  * thread. One thread id in two tenants is two sessions.
  */
+/**
+ * The `affinity` of a `listOrphaned` query of this host: a log pinned to
+ * another host is not listed.
+ */
+const pinOf = ({ affinity }: HostOwnership) =>
+  affinity !== undefined ? { affinity } : {}
+
 const sessionKey = (
   harness: string,
   tenantId: string | undefined,
@@ -865,26 +957,43 @@ export type SessionIndexWriter = ReturnType<typeof sessionIndex>
  * question waits. When an operation ends or a question gets its answer, the
  * session waits while a question or an interrupt still waits, runs while
  * another operation runs, and else is idle.
+ *
+ * The snapshot has only the work of this host. `seen` keeps the operations
+ * that run and the questions that wait from the events, so the events that
+ * another host wrote count too.
  */
-function statusAfter(session: HarnessSession, event: StreamChunk) {
+function statusAfter(
+  session: HarnessSession,
+  event: StreamChunk,
+  seen: { running: Set<string>; asked: Set<string> },
+) {
   if (event.type !== EventType.CUSTOM) return undefined
+  const value = isRecord(event.value) ? event.value : {}
+  const { operationId, questionId } = value
   switch (event.name) {
     case HARNESS_EVENTS.operationStarted:
+      if (typeof operationId === 'string') seen.running.add(operationId)
       return 'running'
     case HARNESS_EVENTS.question:
+      if (typeof questionId === 'string') seen.asked.add(questionId)
       return 'waiting'
     case HARNESS_EVENTS.operationFinished:
     case HARNESS_EVENTS.questionAnswered: {
+      if (typeof operationId === 'string') seen.running.delete(operationId)
+      if (typeof questionId === 'string') seen.asked.delete(questionId)
+      // An operation asks each question, so with no operation, none waits.
+      if (seen.running.size === 0) seen.asked.clear()
       const { pendingQuestions, pendingInterrupts, activeOperations } =
         session.snapshot()
-      const isInterrupted =
-        isRecord(event.value) && event.value.status === 'interrupted'
+      const isInterrupted = value.status === 'interrupted'
       const stillWaits =
         isInterrupted ||
         pendingQuestions.length > 0 ||
-        pendingInterrupts.length > 0
+        pendingInterrupts.length > 0 ||
+        seen.asked.size > 0
       if (stillWaits) return 'waiting'
-      return activeOperations.length > 0 ? 'running' : 'idle'
+      const isRunning = activeOperations.length > 0 || seen.running.size > 0
+      return isRunning ? 'running' : 'idle'
     }
     default:
       return undefined
@@ -983,6 +1092,8 @@ interface HostCounts {
   statuses: number
   /** Sessions that close now. */
   closing: number
+  /** Child sessions of `harnessAgent` that are open. */
+  children: number
 }
 
 /** How each host counts. Not public API. */
@@ -1050,6 +1161,54 @@ function forkedMembers(
   return { ownerId: forker.id, members: [owner, ...old, ...others] }
 }
 
+/**
+ * The messages of `messages` up to the last point where each tool call has
+ * its result. A running turn can have a call with no result yet: it does
+ * not move.
+ */
+function settledMessages(messages: ReadonlyArray<ModelMessage>) {
+  const open = new Set<string>()
+  let end = 0
+  messages.forEach((message, index) => {
+    for (const call of message.toolCalls ?? []) open.add(call.id)
+    if (message.role === 'tool' && message.toolCallId) {
+      open.delete(message.toolCallId)
+    }
+    if (open.size === 0) end = index + 1
+  })
+  return messages.slice(0, end)
+}
+
+/** One link of the index `metadata` of a transfer. */
+interface TransferMetadataLink {
+  transferId: string
+  harness: string
+  threadId: string
+}
+
+/**
+ * `entry` with `link` in the list `metadata[key]`, once per transfer id.
+ * `undefined` for no entry, so the index writes nothing.
+ */
+function withTransferLink(
+  entry: SessionIndexEntry | undefined,
+  key: 'harness:transferredFrom' | 'harness:transferredTo',
+  link: TransferMetadataLink,
+) {
+  if (!entry) return undefined
+  const current = entry.metadata?.[key]
+  const links = Array.isArray(current) ? current : []
+  const isKnown = links.some(
+    (known) => isRecord(known) && known.transferId === link.transferId,
+  )
+  if (isKnown) return entry
+  return {
+    ...entry,
+    metadata: { ...entry.metadata, [key]: [...links, link] },
+    updatedAt: Date.now(),
+  }
+}
+
 /** Throw a clear error for a store set that cannot work. */
 function checkDurableStores(persistence: HarnessPersistence) {
   // The type needs a log. A JavaScript caller can still leave it out.
@@ -1094,11 +1253,24 @@ export function createHarnessHost<P extends Principal = Principal>(
       'Host access needs stores.sessions: each session keeps its owner and members there.',
     )
   }
+  const affinity = options.ownership?.hostId
+  if (
+    affinity !== undefined &&
+    (typeof affinity !== 'string' || affinity.trim() === '')
+  ) {
+    throw new Error(
+      'ownership.hostId must be a non-empty string, for example the machine or pod name. Leave it out when the host has no stable id.',
+    )
+  }
   const policy = access && membersOnlyPolicyOf(access.authorize)
   const memory = memoryPersistence().stores
   // ponytail: memory credentials when none are given. Pass `credentials`
   // to keep sign-ins across restarts.
   const credentials = options.credentials ?? memoryCredentialStore()
+  // One OAuth refresh at a time per saved credential, for all sessions.
+  // `close()` aborts the refreshes that run.
+  const stopRefreshes = new AbortController()
+  const refreshes = refreshFlights(stopRefreshes)
   // ponytail: memory media stores when the stores have none. Pass
   // `stores.artifacts`, `stores.blobs`, and `stores.generationRuns` to keep
   // media across restarts.
@@ -1159,6 +1331,8 @@ export function createHarnessHost<P extends Principal = Principal>(
   const ownership = new HostOwnership({
     store: logStore,
     ownerId: hostId,
+    // With a stable host id, folder bindings pin their logs to this host.
+    ...(affinity !== undefined ? { affinity } : {}),
     ...(options.ownership ? { timing: options.ownership } : {}),
   })
   /** The shared log of each log with an open session, by its store log id. */
@@ -1416,6 +1590,73 @@ export function createHarnessHost<P extends Principal = Principal>(
     )
   }
 
+  /**
+   * The child sessions of `harnessAgent` that are open now. A run of a
+   * session opens and closes each one. `host.close()` closes them too.
+   */
+  const childSessions = new Set<SessionImpl>()
+
+  /**
+   * What every session in the log `ids` gets from the host. `harness` is
+   * the harness of the root thread: it folds the log.
+   */
+  const sessionDeps = (
+    ids: { logId: string; rootThread: string },
+    harness: AnyHarness,
+    tenantId: string | undefined,
+  ) => ({
+    storeLogId: ids.logId,
+    ...(tenantId !== undefined ? { tenantId } : {}),
+    persistence,
+    credentials,
+    ...(options.credentials ? { sharedCredentials: options.credentials } : {}),
+    refreshes,
+    media,
+    index,
+    retention,
+    hostPlugins,
+    log: {
+      store: logStore,
+      open: async (sessionThread: string, hooks: LogViewHooks) => {
+        let log = await sharedLog(logStore, ids, harness)
+        // The log closed while this open waited, and the host dropped it.
+        while (!log.isOpen) log = await sharedLog(logStore, ids, harness)
+        return log.view(sessionThread, hooks)
+      },
+    },
+    ...(access ? { access: { envKeys: access.envKeys === true } } : {}),
+    openChild: openChildIn(ids, harness, tenantId),
+  })
+
+  /**
+   * Open a child session of `harnessAgent` in the log `ids`, with no handle
+   * and no checks: the run that opens it closes it. It is not in `sessions`,
+   * so `host.open` never gives it.
+   */
+  const openChildIn =
+    (
+      ids: { logId: string; rootThread: string },
+      rootHarness: AnyHarness,
+      tenantId: string | undefined,
+    ): OpenChildSession =>
+    async (harness, { threadId, principal, child }) => {
+      if (isClosed) throw hostClosed()
+      const created: SessionImpl = new SessionImpl({
+        ...sessionDeps(ids, rootHarness, tenantId),
+        harness,
+        threadId,
+        ...(principal ? { principal } : {}),
+        child,
+        // The run that opened the child streams its events.
+        onEvent: () => {},
+        onClose: () => childSessions.delete(created),
+      })
+      childSessions.add(created)
+      // A failed open closes the session, and so leaves `children`.
+      await created.open()
+      return created
+    }
+
   /** Throw when the index entry of the thread names a parent thread. */
   const refuseChild = async (key: SessionIndexKey) => {
     const parent = (await index.get(key))?.parentThreadId
@@ -1456,37 +1697,22 @@ export function createHarnessHost<P extends Principal = Principal>(
       // The log of a session tree has the id of its root thread, in its
       // tenant. Only a root opens: its child threads write to this log.
       const storeLogId = logIdOf({ tenantId, logId: threadId })
+      // For the status rule. See `statusAfter`.
+      const seen = { running: new Set<string>(), asked: new Set<string>() }
       const created = new SessionImpl({
+        ...sessionDeps(
+          { logId: storeLogId, rootThread: threadId },
+          harness,
+          tenantId,
+        ),
         harness,
         threadId,
-        storeLogId,
-        ...(tenantId !== undefined ? { tenantId } : {}),
-        persistence,
-        credentials,
-        media,
-        index,
-        retention,
-        hostPlugins,
-        log: {
-          store: logStore,
-          open: async (sessionThread, hooks) => {
-            const ids = { logId: storeLogId, rootThread: threadId }
-            let log = await sharedLog(logStore, ids, harness)
-            // The log closed while this open waited, and the host dropped
-            // it.
-            while (!log.isOpen) {
-              log = await sharedLog(logStore, ids, harness)
-            }
-            return log.view(sessionThread, hooks)
-          },
-        },
         ...(principal ? { principal } : {}),
         ...(promptCache ? { promptCache } : {}),
-        ...(access ? { access: { envKeys: access.envKeys === true } } : {}),
         onEvent: (event) => {
           // A session that left the cache has no status any more.
           if (sessions.get(key) !== session) return
-          const status = statusAfter(created, event)
+          const status = statusAfter(created, event, seen)
           if (status === 'running') cancelIdle(key)
           if (status) setStatus(key, of, status)
         },
@@ -1651,12 +1877,14 @@ export function createHarnessHost<P extends Principal = Principal>(
     threadId,
     entry,
     run,
+    wait,
   }: {
     principal: P
     action: AccessAction
     threadId: string
     entry: SessionIndexEntry | undefined
     run?: AccessRun
+    wait?: AccessWait
   }) => {
     if (!access) return
     const { tenantId } = principal
@@ -1673,6 +1901,7 @@ export function createHarnessHost<P extends Principal = Principal>(
       action,
       session,
       ...(run ? { run } : {}),
+      ...(wait ? { wait } : {}),
     })
     if (!isAllowed) throw new AccessDeniedError({ action, threadId })
   }
@@ -1726,13 +1955,14 @@ export function createHarnessHost<P extends Principal = Principal>(
     const count = revocations.get(key) ?? 0
     return {
       isRevoked: () => (revocations.get(key) ?? 0) !== count,
-      authorize: async (action, run) =>
+      authorize: async (action, run, wait) =>
         allow({
           principal,
           action,
           threadId,
           entry: await index.get({ tenantId: principal.tenantId, threadId }),
           ...(run ? { run } : {}),
+          ...(wait ? { wait } : {}),
         }),
     }
   }
@@ -1899,6 +2129,9 @@ export function createHarnessHost<P extends Principal = Principal>(
       throw new Error('A fork needs a new thread: newThreadId is threadId.')
     }
     const tenantId = principal?.tenantId
+    // Before the open, so no plugin of `harness` mounts on a thread of
+    // another harness. A move to another harness is `host.transfer`.
+    checkHarness(await index.get({ tenantId, threadId }), harness)
     // The fork holds the source while it reads it.
     const sourceKey = sessionKey(harness.name, tenantId, threadId)
     hold(sourceKey)
@@ -1977,6 +2210,12 @@ export function createHarnessHost<P extends Principal = Principal>(
   const host: HarnessHost<P> = {
     async open(harness, openOptions) {
       if (isClosed) throw hostClosed()
+      // A child of `harnessAgent` opens only through the run that starts it.
+      if (isHarnessChildThread(openOptions.threadId)) {
+        throw new Error(
+          `${JSON.stringify(openOptions.threadId)} is the thread of a harnessAgent child. Open its root thread and read the child through it.`,
+        )
+      }
       const tenantId = openOptions.principal?.tenantId
       const key = sessionKey(harness.name, tenantId, openOptions.threadId)
       // Before the open, so the session never closes on idle under it.
@@ -2044,6 +2283,153 @@ export function createHarnessHost<P extends Principal = Principal>(
       }
       return handleOf({ harness, session: fork, openOptions, key })
     },
+    async transfer({ from, to, envelope, principal, transferId: id }) {
+      if (isClosed) throw hostClosed()
+      const transferId = id ?? crypto.randomUUID()
+      // The tenant of the principal is the tenant of both threads.
+      const tenantId = principal?.tenantId
+      const threadId = to.threadId ?? `thread-${transferId}`
+      if (threadId === from.threadId) {
+        throw new Error('A transfer needs another thread: to is from.')
+      }
+      const user = access ? need(principal, 'host.transfer') : undefined
+      const sourceEntry = await index.get({ tenantId, threadId: from.threadId })
+      const targetEntry = await index.get({ tenantId, threadId })
+      if (user) {
+        // No entry is not found: the same answer as a refusal.
+        if (!sourceEntry) {
+          throw new AccessDeniedError({
+            action: 'transfer',
+            threadId: from.threadId,
+          })
+        }
+        await allow({
+          principal: user,
+          action: 'transfer',
+          threadId: from.threadId,
+          entry: sourceEntry,
+        })
+        // A target that exists has members already: the principal must
+        // be one who may send to it. A retry finds its own new target.
+        if (targetEntry) {
+          await allow({
+            principal: user,
+            action: 'send',
+            threadId,
+            entry: targetEntry,
+          })
+        }
+      }
+      checkHarness(sourceEntry, from.harness)
+      checkHarness(targetEntry, to.harness)
+      const source = { harness: from.harness.name, threadId: from.threadId }
+      const target = { harness: to.harness.name, threadId }
+      const sourceKey = sessionKey(from.harness.name, tenantId, from.threadId)
+      hold(sourceKey)
+      try {
+        // With no principal, as `host.fork` opens its source. The open does
+        // not take the log from a host that owns it.
+        const sourceSession = await openSession(
+          from.harness,
+          { threadId: from.threadId },
+          tenantId,
+        )
+        const targetKey = sessionKey(to.harness.name, tenantId, threadId)
+        hold(targetKey)
+        try {
+          // A new target gets the principal as its owner and only member.
+          const targetSession = await openSession(
+            to.harness,
+            { threadId, ...(principal ? { principal } : {}) },
+            tenantId,
+          )
+          // First the target, then the source: a retry after a crash in
+          // between finds the target end, and writes only the source end.
+          let end = targetSession.transferOf(transferId)
+          if (!end) {
+            const isUsed =
+              to.threadId === undefined &&
+              (await targetSession.transcript()).length > 0
+            if (isUsed) {
+              throw new Error(
+                `Thread ${JSON.stringify(threadId)} is not empty, and has no transfer ${JSON.stringify(transferId)}.`,
+              )
+            }
+            const settled = settledMessages(await sourceSession.transcript())
+            const mode = envelope.messages ?? 'none'
+            const moved: Array<ModelMessage> =
+              mode === 'all'
+                ? // New ids: the target may have these messages from an
+                  // earlier transfer.
+                  settled.map((message) => ({
+                    ...message,
+                    id: createMessageId(),
+                  }))
+                : mode === 'summary'
+                  ? [
+                      {
+                        id: createMessageId(),
+                        role: 'assistant',
+                        content: `Summary of the conversation so far:\n${await sourceSession.transferSummary(principal, settled)}`,
+                      },
+                    ]
+                  : []
+            const note: ModelMessage = {
+              id: createMessageId(),
+              role: 'user',
+              content: envelope.note,
+            }
+            end = {
+              from: source,
+              ...storedPrincipal(principal),
+              at: Date.now(),
+            }
+            // One append: the messages and the record, or neither.
+            await targetSession.adoptMessages(
+              sourceSession,
+              [note, ...moved],
+              [{ type: 'harness.transferred', transferId, ...end }],
+            )
+          }
+          // The same record on each retry, so the input lane takes it as a
+          // duplicate.
+          await sourceSession.recordTransfer({
+            type: 'harness.transferred',
+            transferId,
+            to: target,
+            ...(end.principal ? { principal: end.principal } : {}),
+            at: end.at,
+          })
+          await index.update({ tenantId, threadId }, (entry) =>
+            withTransferLink(entry, 'harness:transferredFrom', {
+              transferId,
+              ...source,
+            }),
+          )
+          await index.update({ tenantId, threadId: from.threadId }, (entry) =>
+            withTransferLink(entry, 'harness:transferredTo', {
+              transferId,
+              ...target,
+            }),
+          )
+          emit({
+            type: 'transferred',
+            transferId,
+            ...(tenantId !== undefined ? { tenantId } : {}),
+            from: source,
+            to: target,
+            ...(end.principal ? { principalId: end.principal.id } : {}),
+            at: end.at,
+          })
+          return { transferId, threadId }
+        } finally {
+          // A target that only this transfer opened closes on idle.
+          await release(targetKey)
+        }
+      } finally {
+        await release(sourceKey)
+      }
+    },
     revoke: ({ threadId, principal }) =>
       revokeUser({
         tenantId: principal.tenantId,
@@ -2070,18 +2456,27 @@ export function createHarnessHost<P extends Principal = Principal>(
       if (access) {
         const user = need(principal, 'host.submit')
         const entry = await index.get(of)
-        run = await loggedRunOf({
+        const target = await loggedTargetOf({
           store: logStore,
           logId: logIdOf({ tenantId, logId: threadId }),
           rootThread: threadId,
           input,
         })
-        await allow({
-          principal: user,
-          action: actionOf(input),
-          threadId,
-          entry,
-          ...(run ? { run } : {}),
+        run = target.run
+        // The same check as on a handle: a `human` wait takes an operator.
+        await authorizeInput({
+          authorize: (action, accessRun, wait) =>
+            allow({
+              principal: user,
+              action,
+              threadId,
+              entry,
+              ...(accessRun ? { run: accessRun } : {}),
+              ...(wait ? { wait } : {}),
+            }),
+          input,
+          run: run ?? undefined,
+          wait: target.wait,
         })
       }
       await refuseChild(of)
@@ -2110,9 +2505,11 @@ export function createHarnessHost<P extends Principal = Principal>(
       const byName = new Map(
         harnesses.map((harness) => [harness.name, harness]),
       )
+      // A log pinned to another host is not listed.
       const orphaned = await logStore.listOrphaned({
         limit,
         harnesses: [...byName.keys()],
+        ...pinOf(ownership),
       })
       const opened: Array<ResumedThread> = []
       const failures: Array<unknown> = []
@@ -2169,6 +2566,7 @@ export function createHarnessHost<P extends Principal = Principal>(
     async close(closeOptions) {
       // First: no open starts while the sessions close.
       isClosed = true
+      stopRefreshes.abort(hostClosed())
       for (const key of holds.keys()) cancelIdle(key)
       // The event reads of `host.observe` views end.
       for (const { log } of resolved.values()) log.stopReaders()
@@ -2178,6 +2576,10 @@ export function createHarnessHost<P extends Principal = Principal>(
         opened
           .filter((entry) => entry.status === 'fulfilled')
           .map((entry) => entry.value.close(closeOptions)),
+      )
+      // A child that its run did not close yet.
+      await Promise.all(
+        [...childSessions].map((child) => child.close(closeOptions)),
       )
       // After the sessions: each one gave its host plugins back.
       await hostPlugins.close()
@@ -2418,7 +2820,8 @@ export function createHarnessHost<P extends Principal = Principal>(
   }
   if (access) accesses.set(host, access)
   sweeps.set(host, {
-    listOrphaned: (query) => logStore.listOrphaned(query),
+    listOrphaned: (query) =>
+      logStore.listOrphaned({ ...query, ...pinOf(ownership) }),
     takeOver,
   })
   counters.set(host, () => ({
@@ -2430,6 +2833,7 @@ export function createHarnessHost<P extends Principal = Principal>(
     holds: holds.size,
     statuses: statuses.size,
     closing: closing.size,
+    children: childSessions.size,
   }))
   turnFinders.set(host, async ({ harness, tenantId, operationId }) => {
     // The key of a session with an empty thread id is the start of the keys

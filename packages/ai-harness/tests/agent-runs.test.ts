@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { defineAgent, toolDefinition } from '@tanstack/ai'
+import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import {
   LogConflictError,
   memoryLogStore,
@@ -275,7 +275,7 @@ describe('follow-ups to an agent run', () => {
     await run
     await waitFor(() => expect(model.calls).toHaveLength(2))
     expect(messageTexts(model.calls[1]).at(-1)).toBe('Use a warmer tone.')
-    expect(await session.settled(receipt.inputId)).toMatchObject({
+    expect(await session.settled({ inputId: receipt.inputId })).toMatchObject({
       outcome: 'completed',
     })
     await host.close()
@@ -311,7 +311,7 @@ describe('steers to an agent run', () => {
     expect(receipt).toMatchObject({ status: 'accepted', operationId: run.id })
     expect(model.calls).toHaveLength(2)
     expect(messageTexts(model.calls[1]).at(-1)).toBe('Only primary sources.')
-    expect(await session.settled(receipt.inputId)).toMatchObject({
+    expect(await session.settled({ inputId: receipt.inputId })).toMatchObject({
       outcome: 'completed',
       operationId: run.id,
     })
@@ -359,12 +359,16 @@ describe('agentRuns() and agentRun(id)', () => {
     expect(session.agentRuns()).toEqual([
       {
         operationId: run.id,
+        runId: run.id,
+        kind: 'agent',
         agent: 'writer',
         status: 'running',
         principal: alice,
       },
       {
         operationId: queued.operationId,
+        runId: queued.operationId,
+        kind: 'agent',
         agent: 'writer',
         status: 'queued',
         principal: alice,
@@ -410,9 +414,12 @@ describe('agentRuns() and agentRun(id)', () => {
     expect(sessionB.agentRuns()).toEqual([
       {
         operationId: run.id,
+        runId: run.id,
+        kind: 'agent',
         agent: 'writer',
         status: 'completed',
         principal: alice,
+        result: 'Draft one.',
       },
     ])
     const again = sessionB.agentRun(run.id)
@@ -489,18 +496,73 @@ describe('agents that agent code starts', () => {
     expect(session.agentRuns()).toEqual([
       {
         operationId: run.id,
+        runId: run.id,
+        kind: 'agent',
         agent: 'lead',
         status: 'completed',
         principal: alice,
+        result: 'helped',
       },
       {
         operationId: childId,
+        runId: childId,
+        kind: 'agent',
         agent: 'helper',
         status: 'completed',
         parentRunId: run.id,
         principal: alice,
+        result: 'helped',
       },
     ])
+    // Each event of the child names its parent run. The lead has none.
+    const events = []
+    for await (const entry of session.events()) {
+      events.push(entry)
+      const { event } = entry
+      const isLeadEnd =
+        entry.operationId === run.id &&
+        event.type === EventType.CUSTOM &&
+        event.name === 'harness.operation.finished'
+      if (isLeadEnd) break
+    }
+    const ofChild = events.filter((entry) => entry.operationId === childId)
+    const ofLead = events.filter((entry) => entry.operationId === run.id)
+    expect(ofChild.length).toBeGreaterThan(0)
+    expect(ofLead.length).toBeGreaterThan(0)
+    for (const entry of ofChild) expect(entry.parentRunId).toBe(run.id)
+    for (const entry of ofLead) expect(entry).not.toHaveProperty('parentRunId')
+    await host.close()
+  })
+
+  it('runs a child and a group of children with run and group', async () => {
+    const lead = defineAgent({
+      name: 'lead',
+      description: 'Runs helpers',
+      run: async (ctx) => {
+        const one = await ctx.harness.agents.run(helper)
+        const [two, three] = await ctx.harness.agents.group({}, (g) => [
+          g.start(helper),
+          g.start('helper'),
+        ])
+        return [one, two, three].join(' ')
+      },
+    })
+    const { host, session } = await open(
+      defineHarness({
+        name: 'test/agent-runs',
+        adapter: mockAdapter([]).adapter,
+        agents: [lead, helper],
+      }),
+    )
+
+    const run = session.agents.lead.start()
+
+    await expect(run).resolves.toBe('helped helped helped')
+    const children = session
+      .agentRuns()
+      .filter((item) => item.agent === 'helper')
+    expect(children).toHaveLength(3)
+    for (const child of children) expect(child.parentRunId).toBe(run.id)
     await host.close()
   })
 
@@ -595,7 +657,7 @@ describe('agents that agent code starts', () => {
       status: 'accepted',
       operationId: queued.operationId,
     })
-    expect(await session.settled(queued.inputId)).toMatchObject({
+    expect(await session.settled({ inputId: queued.inputId })).toMatchObject({
       outcome: 'aborted',
     })
     expect(model.calls).toHaveLength(1)
@@ -651,7 +713,7 @@ describe('messages to an agent run after its host stopped', () => {
       principal: alice,
     })
 
-    expect(await sessionB.settled('steer-1')).toMatchObject({
+    expect(await sessionB.settled({ inputId: 'steer-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(messageTexts(next.calls[0])).toContain('Cite the source.')
@@ -678,7 +740,7 @@ describe('messages to an agent run after its host stopped', () => {
       principal: alice,
     })
 
-    expect(await sessionB.settled('steer-1')).toMatchObject({
+    expect(await sessionB.settled({ inputId: 'steer-1' })).toMatchObject({
       outcome: 'aborted',
     })
     expect(next.calls).toHaveLength(0)
@@ -709,7 +771,7 @@ describe('messages to an agent run after its host stopped', () => {
       principal: alice,
     })
 
-    expect(await sessionB.settled('steer-2')).toMatchObject({
+    expect(await sessionB.settled({ inputId: 'steer-2' })).toMatchObject({
       outcome: 'failed',
     })
     await hostB.close()
@@ -741,7 +803,7 @@ describe('messages to an agent run after its host stopped', () => {
       principal: alice,
     })
 
-    expect(await sessionB.settled('follow-1')).toMatchObject({
+    expect(await sessionB.settled({ inputId: 'follow-1' })).toMatchObject({
       outcome: 'completed',
     })
     const texts = messageTexts(next.calls[0])

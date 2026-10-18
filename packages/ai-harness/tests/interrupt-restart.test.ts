@@ -573,7 +573,9 @@ describe('committed approval phases', () => {
       const reopened = await next.open(config, { threadId: THREAD })
       if (kind === 'save') {
         // The failed log did not settle this applied input. Recovery retries it.
-        expect(await reopened.settled(receipt.inputId)).toMatchObject({
+        expect(
+          await reopened.settled({ inputId: receipt.inputId }),
+        ).toMatchObject({
           outcome: 'completed',
         })
       } else {

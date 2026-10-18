@@ -78,10 +78,13 @@ import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 const dev = localProcessSandbox()
 ```
 
-- **Isolation:** none. The harness runs directly on your host, inheriting your
-  host environment. Use it for trusted or dev work only. There is no boundary
-  between the agent and your machine.
-- **Auth / env:** inherits the host environment. Set `authMode` on the harness
+- **Isolation:** none. The harness runs directly on your host. Use it for
+  trusted or dev work only. There is no boundary between the agent and your
+  machine.
+- **Auth / env:** a command gets only a few variables of the host process
+  (`PATH`, `HOME`, `LANG`, `LC_ALL`, `TMPDIR`, `TEMP`, `TMP`, and on Windows
+  `SystemRoot`, `ComSpec`, `PATHEXT`, `WINDIR`, `USERPROFILE`), plus the
+  workspace secrets and the env of the call. Set `authMode` on the harness
   (`'host'` or `'api-key'`). The provider does not pick this. See
   [Harness Auth](./auth).
 - **Snapshot / resume:** no snapshots and no durable resume-by-id; each run
@@ -95,9 +98,9 @@ The provider is where the agent runs, not how it signs in. The default
 login. A local-process run can be your laptop or a GitHub runner. See
 [Harness Auth](./auth).
 
-`localProcessSandbox` inherits the host environment, including any API keys
-exported there. If you set `authMode: 'host'`, pass `scrubEnv` so those keys
-do not override the CLI login:
+An API key that the host process exports does not reach a command. A key
+that a workspace secret or the call sets does. If you set `authMode: 'host'`,
+pass `scrubEnv` so those keys do not override the CLI login:
 
 ```ts
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'

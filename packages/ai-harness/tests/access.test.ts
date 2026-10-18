@@ -510,7 +510,7 @@ const asking = definePlugin({
       ask: defineCommand({
         description: 'Ask a question',
         run: (_input, ctx) =>
-          ctx.session.ask({ message: 'Name?', schema: z.string() }),
+          ctx.step.ask({ name: 'name', message: 'Name?', schema: z.string() }),
       }),
     },
   }),

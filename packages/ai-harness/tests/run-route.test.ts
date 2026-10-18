@@ -3,7 +3,12 @@ import { z } from 'zod'
 import { readInterruptBinding, toolDefinition } from '@tanstack/ai'
 import { fakeText } from '@tanstack/ai/testing'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, definePlugin } from '../src'
+import {
+  createHarnessHost,
+  defineHarness,
+  definePlugin,
+  durableTool,
+} from '../src'
 import { createHarnessHandler } from '../src/server'
 import {
   after,
@@ -361,10 +366,11 @@ describe('questions', () => {
     })
     const plugin = definePlugin({
       name: 'test/probe',
-      setup: (ctx) => ({
+      setup: () => ({
         tools: [
-          probe.server(async () => ({
-            name: await ctx.session.ask({
+          durableTool(probe, async (_args, { step }) => ({
+            name: await step.ask({
+              name: 'name',
               message: 'What is your name?',
               schema: z.string(),
             }),
@@ -452,10 +458,11 @@ describe('join a running turn', () => {
     })
     const plugin = definePlugin({
       name: 'test/probe',
-      setup: (ctx) => ({
+      setup: () => ({
         tools: [
-          probe.server(async () => ({
-            name: await ctx.session.ask({
+          durableTool(probe, async (_args, { step }) => ({
+            name: await step.ask({
+              name: 'name',
               message: 'Name?',
               schema: z.string(),
             }),

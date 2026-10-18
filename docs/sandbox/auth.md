@@ -51,8 +51,9 @@ const stream = chat({
 })
 ```
 
-`scrubEnv` removes keys the host process inherited. If the CLI sees
-`XAI_API_KEY`, it can prefer that key over your login.
+`scrubEnv` removes keys from the env of each command, for example a key that
+a workspace secret sets. If the CLI sees `XAI_API_KEY`, it can prefer that key
+over your login. The keys of the host process never reach the command.
 
 ## API key
 

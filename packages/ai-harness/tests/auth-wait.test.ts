@@ -179,7 +179,7 @@ describe('require with wait', () => {
         },
       },
     ])
-    expect(await session.settled('ask')).toMatchObject({
+    expect(await session.settled({ inputId: 'ask' })).toMatchObject({
       outcome: 'interrupted',
     })
     expect(signIns).toEqual([{ connector: 'github' }])
@@ -260,7 +260,7 @@ describe('require with wait', () => {
       inputId: 'no',
     })
     expect(receipt.status).toBe('accepted')
-    expect(await session.settled('no')).toMatchObject({
+    expect(await session.settled({ inputId: 'no' })).toMatchObject({
       outcome: 'completed',
     })
     expect(seen).toEqual([])
@@ -292,7 +292,7 @@ describe('require with wait', () => {
     )
     const turn = await session.send('List my issues.', { inputId: 'ask' })
     expect(turn.interrupts).toBeUndefined()
-    expect(await session.settled('ask')).toMatchObject({
+    expect(await session.settled({ inputId: 'ask' })).toMatchObject({
       outcome: 'completed',
     })
     expect(JSON.stringify(calls[1]?.messages)).toContain(
@@ -441,7 +441,7 @@ describe('sign-ins in a shared thread', () => {
       op: 'prompt',
       message: 'List my issues.',
     })
-    expect(await session.settled(asked.inputId)).toMatchObject({
+    expect(await session.settled({ inputId: asked.inputId })).toMatchObject({
       outcome: 'interrupted',
     })
 

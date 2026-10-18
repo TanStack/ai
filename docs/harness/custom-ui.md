@@ -123,18 +123,20 @@ The conversation:
 - `status`: `idle`, `running`, or `requires_action`.
 - `connection`: `open`, `reconnecting`, or `closed`.
 
-What waits for the user:
+What waits for the user. Each item is a [wait](./waits) of the session:
 
 - `approvals`: tool calls that wait for a yes or a no.
 - `clientTools`: tool calls that run in your UI and wait for their output. See [Run a tool in the browser](#run-a-tool-in-the-browser).
 - `interrupts`: everything else a turn can wait for, for example a value that a tool asks for. See [Answer other interrupts](#answer-other-interrupts).
-- `questions`: questions from a command, a plugin, or an MCP server. See [Show a question](#show-a-question).
+- `questions`: questions of `step.ask` (in a command, a durable tool, or an agent run) and of an MCP server. See [Show a question](#show-a-question).
 - `signIns`: connectors that need a sign-in, with a `url` and a `userCode` when the connector gives them.
+
+`waits` lists every open wait in one array, as `snapshot().pendingWaits` does, with the `kind` of each one. Use it for a badge or a count. Answer each wait through its item in the lists above.
 
 The session:
 
 - `threadId`: the id of the conversation.
-- `agents`: the background agents that run now. Each one has an `id`, a `name`, `send`, and `cancel`.
+- `agents`: the background agents that run now. Each one has an `id`, a `name`, a `status` (`running`, or `waiting` for an answer), `send`, and `cancel`.
 - `queuedTurns` and `waitingInputs`: how many messages wait for their turn, and which ones, in the order they run.
 - `plugins`: the saved state of each plugin, by plugin name.
 
@@ -144,6 +146,8 @@ Settings and usage, for a settings panel or a status bar:
 - `models`: the model names from `defineHarness({ models })`, for a model menu.
 - `settings`: the stored settings of the thread, for example the model it uses now.
 - `usage`: the token usage of the thread. It updates after each model call.
+
+In a harness with `routing`, an assistant message also has `agent`: the name of the root agent that wrote it, or `undefined` for the main model. After a [handoff](./handoffs), the next agent writes a new message in the same turn.
 
 An assistant message has `parts`. Each part is one of these:
 
@@ -164,12 +168,11 @@ A notice has a `kind`:
 
 Send work:
 
-- `view.send(text)`: sends a prompt. While a turn runs, the text steers that turn. Text that starts with `/` runs a command, for example `/goal all tests pass`.
+- `view.send(text)`: sends a prompt. While a turn runs, the text steers that turn. Text that starts with `/` runs a command, for example `/goal all tests pass`. With `{ as: 'operator' }`, it sends the [reply of an operator](./handoffs#reply-as-the-operator), and no model runs.
 - `view.followUp(text)`: the message waits, and runs as its own turn after the current work.
 - `view.continue()`: starts a turn from the saved messages, with no new message.
 - `view.command({ name, input })`: runs a command, for example from a button.
 - `view.upload({ body, mimeType, name })`: stores a file. Send the record you get back with `view.send(text, [record])`. See [Show media](#show-media).
-
 Change the session:
 
 - `view.setConfig({ key, value })`: changes a config value, for example `view.setConfig({ key: 'mode', value: 'plan' })`.
@@ -210,6 +213,8 @@ waiting?.approve({ editedArgs: { path: 'notes/draft.md' } })
 `reject(payload)` sends data with a no, when the tool's approval schema takes some.
 
 If a turn waits for more than one approval, client tool, or interrupt, the turn continues after you answer all of them.
+
+A background agent run can wait too, for example for an approval of `permissions()`. Its waits are in the same `approvals`, `clientTools`, and `interrupts` lists. The view sends the answer to each of them at once, and the run continues. See [When a background agent waits](./subagents#when-a-background-agent-waits).
 
 Message a background agent:
 
@@ -268,7 +273,7 @@ The view calls your handler after the item is in the state, so the handler can r
 
 ## Show a question
 
-A command or a plugin can ask the user a question. Each item of `state.questions` has:
+A command, a durable tool, or an agent run can ask the user with `step.ask`. An MCP server can ask during a tool call. Each item of `state.questions` has:
 
 - `id` and `message`.
 - `schema`: the JSON Schema of the answer, when the question has one. Without a schema, the answer is text.
@@ -333,7 +338,7 @@ const extra = fieldsThatApply(question?.schema, { delivery: 'mail' })
 
 ## Answer other interrupts
 
-Some turns wait for something that is not a yes or a no. A tool can stop the turn to ask for a value, or your own code can stop it for a form. The view puts these in `state.interrupts`. Each item has:
+Some turns wait for something that is not a yes or a no. A tool can stop the turn to ask for a value, or your own code can stop it for a form. The view puts these in `state.interrupts`: the waits of kind `question` (for example a call of the `question` tool) and `human`. Each item has:
 
 - `id`, `reason`, and `message`: what the turn waits for. `reason` is the name the interrupt gave itself, for example `pick_region`.
 - `payload`: the data the interrupt sent for your UI, for example the fields of a form.
