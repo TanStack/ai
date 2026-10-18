@@ -15,6 +15,12 @@ import type { Reply } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
 import type { AnyHarness, AgentRunInfo, HarnessPersistence } from '../src'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't'
 
 /** An agent whose one model call waits until its run is aborted. */
@@ -84,7 +90,7 @@ async function runOf(
   agent: string,
 ) {
   let found: AgentRunInfo | undefined
-  await vi.waitFor(
+  await waitFor(
     () => {
       found = session.agentRuns().find((run) => run.agent === agent)
       expect(found?.status).toBe('running')
@@ -123,7 +129,7 @@ describe('turn plugins in the runs a turn starts', () => {
 
     done.open()
     await session.agentRun(worker.operationId)
-    await vi.waitFor(() => expect(disposed).toHaveBeenCalled(), {
+    await waitFor(() => expect(disposed).toHaveBeenCalled(), {
       timeout: 5000,
     })
     await host.close()
