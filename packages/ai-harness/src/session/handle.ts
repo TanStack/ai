@@ -84,7 +84,9 @@ export function actionOf(input: HarnessInput): AccessAction {
     case 'configure':
     case 'config':
       return 'configure'
+    // An operator reply answers the `human` wait of a handoff.
     case 'prompt':
+      return input.as === 'operator' ? 'operator' : 'send'
     case 'steer':
     case 'followUp':
     case 'continue':

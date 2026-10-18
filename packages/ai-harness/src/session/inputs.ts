@@ -1,5 +1,6 @@
 import { EventType } from '@tanstack/ai'
 import { isRecord } from '../utils'
+import { isHumanTarget } from '../log-records'
 import { LogOwnedElsewhereError } from '../ownership'
 import { HARNESS_EVENTS, InputRejectedError } from '../types'
 import {
@@ -170,11 +171,27 @@ export abstract class SessionInputs<
     return this.logWriter?.state.thread.waits.get(waitId)
   }
 
-  /** The wait that `input` answers, for the access check. */
+  /**
+   * The wait that `input` answers, for the access check. An operator reply
+   * goes to the `human` wait of the handoff to a person.
+   */
   protected waitOf(input: HarnessInput): AccessWait | undefined {
+    if (input.op === 'prompt' && input.as === 'operator') {
+      const paused = this.humanHandoff()
+      return paused ? { waitId: paused.waitId, kind: 'human' } : undefined
+    }
     if (input.op !== 'answer') return undefined
     const wait = this.loggedWait(input.questionId)?.wait
     return wait ? { waitId: wait.waitId, kind: wait.kind } : undefined
+  }
+
+  /**
+   * The handoff to a person that pauses the session, while its `human` wait
+   * is open. A user message then starts no model turn.
+   */
+  protected humanHandoff() {
+    const active = this.logWriter?.state.thread.activeAgent
+    return isHumanTarget(active) ? active : undefined
   }
 
   /** The operation `operationId`, with the id of who started it when known. */
@@ -764,6 +781,7 @@ export abstract class SessionInputs<
             ...sent,
             ...turn,
             ...(input.busy ? { busy: input.busy } : {}),
+            ...(input.as ? { as: input.as } : {}),
             ...run,
           }),
         )

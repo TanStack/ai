@@ -217,6 +217,8 @@ export interface HarnessAgentContext {
   /**
    * Hand the turn to another root agent, or to `'main'` (the main model).
    * The target answers next, in this turn, and the later turns go to it.
+   * `{ human: true }` hands it to a person: the turn ends `interrupted`,
+   * and the session pauses until an operator answers the `human` wait.
    * It works in a root agent that answers a turn of a harness with
    * `routing`. Anywhere else it throws. It throws for a target that is not a
    * root agent too.

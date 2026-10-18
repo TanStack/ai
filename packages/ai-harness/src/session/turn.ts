@@ -11,6 +11,8 @@ import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { withPersistence } from '@tanstack/ai-persistence'
 import { redactMiddleware } from '../auth'
 import { bindDurable } from '../durable-tool'
+import { NO_SESSION_CONTEXT } from '../agents'
+import { isHumanTarget } from '../log-records'
 import { mediaMiddleware } from '../media'
 import { OperationImpl } from '../operation'
 import { mountPlugins } from '../plugins'
@@ -68,7 +70,9 @@ import type {
   MediaRecord,
   Operation,
   Principal,
+  RunContext,
   TurnInfo,
+  UserInput,
 } from '../types'
 import type { QueuedTurn } from './types'
 
@@ -308,6 +312,59 @@ export abstract class SessionTurn<
     this.requeueWaitingSteers()
   }
 
+  /**
+   * A turn that runs no model: the reply of an operator, or a message while
+   * a person answers the thread after a handoff to a person. The message
+   * goes in the transcript once: recovery can run the same input again. An
+   * operator reply with no open handoff to a person fails with
+   * `no_human_wait`. Any other message settles `interrupted`: the session
+   * waits for the operator.
+   */
+  protected async runWithoutModel(turn: QueuedTurn): Promise<void> {
+    const { operation } = turn
+    const inputId = turn.inputId ?? operation.id
+    const isOperator = turn.operator === true
+    // A held turn that recovery runs again has its message in the
+    // transcript. An operator reply is found by its id.
+    const sent = isOperator ? (turn.message ?? turn.sentMessage) : turn.message
+    this.publishStarted(operation)
+    let error: { message: string; code?: string } | undefined
+    try {
+      const id = `${isOperator ? 'operator' : 'held'}-${inputId}`
+      const history = await this.messages.loadThread(this.threadId)
+      const isAdded = history.some((message) => message.id === id)
+      if (isOperator && !isAdded && !this.humanHandoff()) {
+        error = {
+          message: 'No handoff to a person waits for an operator.',
+          code: 'no_human_wait',
+        }
+      } else if (!isAdded && sent !== undefined) {
+        const message = isOperator
+          ? operatorMessage(id, sent, turn.principal ?? this.principal)
+          : { ...(await this.userMessage(sent, turn.wake)), id }
+        await this.addToTurn({ messages: [message] })
+      }
+    } catch (failure) {
+      error = { message: this.scrub(errorText(this.logFailure ?? failure)) }
+    }
+    if (turn.inputId !== undefined && !this.logFailure) {
+      await this.settle({
+        inputId,
+        operationId: operation.id,
+        ...(error
+          ? { outcome: 'failed', error }
+          : { outcome: isOperator ? 'completed' : 'interrupted' }),
+      }).catch((failure: unknown) => this.warnSession('harness:log', failure))
+    }
+    const text = isOperator && typeof sent === 'string' ? sent : ''
+    if (error) operation.fail('failed', new Error(error.message))
+    else if (isOperator) operation.finish('completed', { text, media: [] })
+    else operation.finish('interrupted', { text, interrupts: [], media: [] })
+    this.publishFinished(operation)
+    // A steer that came while it ran runs as its own turn.
+    this.requeueWaitingSteers()
+  }
+
   protected async runTurn(turn: QueuedTurn): Promise<void> {
     const { operation } = turn
     /**
@@ -367,6 +424,11 @@ export abstract class SessionTurn<
         return failEarly(error)
       }
     }
+    // While a person answers the thread, no model runs. A resolve and a
+    // tool turn still run: they answer work that started before.
+    const isHeld =
+      this.humanHandoff() !== undefined && !turn.answers && !turn.tool
+    if (turn.operator || isHeld) return this.runWithoutModel(turn)
     const stopTimer = this.startTimeout(turn.inputId, operation)
     this.publishStarted(operation)
 
@@ -375,6 +437,8 @@ export abstract class SessionTurn<
     let isRootPart = false
     /** chat() refused the resume of this turn, so it ran nothing. */
     let isResumeRefused = false
+    /** The turn handed off to a person: it ends `interrupted`. */
+    let isPaused = false
     /** The tool calls of this turn that got a result, and an error result. */
     const resultIds = new Set<string>()
     const errorResultIds = new Set<string>()
@@ -387,6 +451,8 @@ export abstract class SessionTurn<
     const sentMessage = turn.message ?? turn.sentMessage
     const sender = turn.principal ?? this.principal
     const runParent = turn.answers?.runId ?? turn.parentRunId
+    /** `run.handoff`: the handoff of this turn, once it has `routing`. */
+    let turnHandoff: RunContext['handoff'] = NO_SESSION_CONTEXT.handoff
     // The run of this turn: its tools, its middleware, its subagents, and
     // its turn plugins get the credentials and keys of its sender. A sign-in
     // wait of one of its tools stops this turn only.
@@ -397,6 +463,7 @@ export abstract class SessionTurn<
       signal: operation.abortController.signal,
       canWait: (id) =>
         this.activeTurn === operation && !this.declinedSignIns.has(id),
+      handoff: (options) => turnHandoff(options),
     })
     const info: TurnInfo = {
       operationId: operation.id,
@@ -478,7 +545,7 @@ export abstract class SessionTurn<
               rootAgents,
               subagents: subagentList.map((agent) => agent.name),
               append: (record) =>
-                this.writer.append([{ type: 'harness.handoff', ...record }]),
+                this.appendHandoff(record, storedPrincipal(sender).principal),
               publish: (record) =>
                 operation.publish(
                   customEvent(HARNESS_EVENTS.handoff, { ...record }),
@@ -611,7 +678,10 @@ export abstract class SessionTurn<
       let pick: SubagentRouterPick | undefined
       if (routing && handoffs && turn.resume === undefined && !turn.tool) {
         const history = await this.messages.loadThread(this.threadId)
-        const activeAgent = this.writer.state.thread.activeAgent
+        const active = this.writer.state.thread.activeAgent
+        // A tool turn and a resolve run while a person answers. They do not
+        // reach here, so this is only for the type.
+        const activeAgent = isHumanTarget(active) ? active.from : active
         const chosen = await routing.router({
           messages: resetContext([...history, ...(message ? [message] : [])]),
           agents: rootAgents,
@@ -655,6 +725,16 @@ export abstract class SessionTurn<
        * for the main model. The routed message gets its name.
        */
       let answerer = isRootPart ? answererOf(pick) : null
+      // A tool of the main model hands off as the main model. A tool of a
+      // root agent hands off as that agent.
+      if (handoffs) {
+        turnHandoff = (options) =>
+          handoffs.handoff(
+            options,
+            isRootPart ? (answerer ?? null) : null,
+            'code',
+          )
+      }
       /** The routed text of the parts before a handoff in this turn. */
       let earlier: string | undefined
       /** The subagents of the next chat() call. */
@@ -1016,7 +1096,13 @@ export abstract class SessionTurn<
           signal.aborted
         if (isFinished) break
         const handoff = handoffs?.take()
-        if (handoff) {
+        const target = handoff?.to
+        if (isHumanTarget(target)) {
+          // A person answers next. The turn ends, and the session pauses.
+          isPaused = true
+          break
+        }
+        if (target !== undefined) {
           // The target answers in this turn, with its own prompt and tools,
           // from the saved thread.
           if (routed) {
@@ -1026,13 +1112,13 @@ export abstract class SessionTurn<
               operation.id,
             )
           }
-          answerer = handoff.to
-          if (handoff.to === null) {
+          answerer = target
+          if (target === null) {
             isRootPart = false
             rootBag = undefined
             bag = subagents
           } else {
-            pick = handoff.to
+            pick = target
             isRootPart = true
             rootBag = routedBag
             bag = routedBag
@@ -1247,11 +1333,30 @@ export abstract class SessionTurn<
       // `this.interrupted` was kept at RUN_FINISHED.
       await settleTurn({ outcome: 'interrupted' })
       operation.finish('interrupted', { text, interrupts, media: captured })
+    } else if (isPaused) {
+      // The `human` wait of the handoff is in the log. An operator answers it.
+      await settleTurn({ outcome: 'interrupted' })
+      operation.finish('interrupted', { text, interrupts: [], media: captured })
     } else {
       await settleTurn({ outcome: 'completed' })
       operation.finish('completed', { text, media: captured })
     }
     this.publishFinished(operation)
     this.requeueWaitingSteers()
+  }
+}
+
+/** The reply of an operator, as the transcript keeps it. */
+function operatorMessage(
+  id: string,
+  content: UserInput,
+  principal: Principal | undefined,
+): ModelMessage {
+  return {
+    id,
+    role: 'assistant',
+    content,
+    // The id of the operator. A session with no user has none.
+    metadata: { harness: { operator: principal?.id ?? true } },
   }
 }

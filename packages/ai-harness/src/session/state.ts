@@ -12,6 +12,7 @@ import { callUsage } from '../usage'
 import { isRecord } from '../utils'
 import { changedEntry } from '../session-entry'
 import { stableJson, threadOf, visibleMessages } from '../log'
+import { isHumanTarget } from '../log-records'
 import { mediaIdOf, mediaOfMessage, mediaPart } from '../media-ref'
 import {
   BackgroundJobs,
@@ -47,7 +48,13 @@ import type {
   SessionIndexEntry,
 } from '@tanstack/ai-persistence'
 import type { RevertState } from '../log'
-import type { ThreadRecord, WaitRecord, WaitState } from '../log-records'
+import type {
+  HandoffRecord,
+  RecordPrincipal,
+  ThreadRecord,
+  WaitRecord,
+  WaitState,
+} from '../log-records'
 import type { Wait, WaitOutcome } from '../waits'
 import type { Question } from '../commands'
 import type { ConfigOption } from '../config'
@@ -941,20 +948,69 @@ export abstract class SessionState<
       logged.outcome === undefined &&
       logged.live === undefined
     if (!isOpen) return this.reject(inputId, 'unknown_question')
+    const handBack = this.humanHandoffEnd(logged.wait, value)
+    if (handBack && 'reason' in handBack) {
+      return this.reject(inputId, handBack.reason)
+    }
     // ponytail: the log has the JSON Schema of the wait, not a Standard
     // Schema, so the answer goes as it is. The run that reads it checks it.
-    await this.applied(
-      inputId,
-      'session',
-      this.waitEndRecords(
+    // The end of a handoff to a person goes in the same append.
+    await this.applied(inputId, 'session', [
+      ...this.waitEndRecords(
         waitId,
         'answered',
         logged.secret ? undefined : value,
       ),
-    )
+      ...(handBack
+        ? [{ type: 'harness.handoff' as const, ...handBack.record }]
+        : []),
+    ])
+    if (handBack) {
+      this.feed.publish(
+        'session',
+        customEvent(HARNESS_EVENTS.handoff, { ...handBack.record }),
+      )
+    }
     await this.afterWaitEnd(waitId)
     queueMicrotask(() => this.checkIdle())
     return { inputId, status: 'accepted' }
+  }
+
+  /**
+   * The handoff that ends a handoff to a person, when `wait` is its wait.
+   * `{ resume: true }` gives the thread back to the agent that answered
+   * before. `{ handBack: name }` gives it to that root agent, or to the main
+   * model with `'main'`. Another answer is refused with its reason.
+   */
+  private humanHandoffEnd(
+    wait: Wait,
+    value: unknown,
+  ): { record: HandoffRecord } | { reason: string } | undefined {
+    const active = this.writer.state.thread.activeAgent
+    if (!isHumanTarget(active) || active.waitId !== wait.waitId) {
+      return undefined
+    }
+    const answer = isRecord(value) ? value : {}
+    const { handBack } = answer
+    let to: string | null
+    if (typeof handBack === 'string') {
+      // ponytail: the agents of turn plugins are not known outside a turn.
+      const names = [
+        ...(this.harness.agents ?? []),
+        ...(this.sessionPlugins?.agents ?? []),
+      ].map((agent) => agent.name)
+      if (handBack !== 'main' && !names.includes(handBack)) {
+        return { reason: 'unknown_agent' }
+      }
+      to = handBack === 'main' ? null : handBack
+    } else if (answer.resume === true && handBack === undefined) {
+      to = active.from
+    } else {
+      return { reason: 'invalid_answer' }
+    }
+    return {
+      record: { from: { human: true }, to, runId: wait.runId, by: 'operator' },
+    }
   }
 
   /**
@@ -1119,6 +1175,36 @@ export abstract class SessionState<
     }
     await this.writeWait({ wait, at: Date.now() })
     return wait
+  }
+
+  /**
+   * @internal Append a handoff record. A handoff to a person opens its
+   * `human` wait in the same append: the wait of the run of the record, with
+   * the note as its message. `principal` started the run, so that user (or
+   * the owner, or an operator) may answer. Resolves with the record as the
+   * log keeps it.
+   */
+  protected async appendHandoff(
+    record: HandoffRecord,
+    principal: RecordPrincipal | undefined,
+  ): Promise<HandoffRecord> {
+    if (!isHumanTarget(record.to)) {
+      await this.writer.append([{ type: 'harness.handoff', ...record }])
+      return record
+    }
+    const wait: Wait = {
+      waitId: createWaitId(),
+      kind: 'human',
+      runId: record.runId,
+      ...(principal ? { principal } : {}),
+      ...(record.note !== undefined ? { message: record.note } : {}),
+    }
+    const kept = { ...record, waitId: wait.waitId }
+    await this.writer.append([
+      { type: 'harness.wait', wait, at: Date.now() },
+      { type: 'harness.handoff', ...kept },
+    ])
+    return kept
   }
 
   /**

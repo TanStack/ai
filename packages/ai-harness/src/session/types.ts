@@ -384,6 +384,11 @@ export interface QueuedTurn {
   reset?: { note?: string }
   /** A `continue()`: it runs only when the model can answer the transcript. */
   isContinue?: boolean
+  /**
+   * `send(text, { as: 'operator' })`: `message` goes in the transcript as
+   * the reply of an operator, and no model runs.
+   */
+  operator?: boolean
 }
 
 /**

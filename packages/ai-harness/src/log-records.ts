@@ -146,21 +146,44 @@ export type TransferRecord = {
   at: number
 }
 
+/** The target of a handoff to a person: an operator answers. */
+export type HumanTarget = { human: true }
+
+/** True for `{ human: true }`, the target of a handoff to a person. */
+export function isHumanTarget(value: unknown): value is HumanTarget {
+  return isRecord(value) && value.human === true
+}
+
 /**
  * A change of who answers the turns of a thread. An agent name is a root
- * agent of the harness. `null` is the main model.
+ * agent of the harness. `null` is the main model. `{ human: true }` is a
+ * person: an operator.
  */
 export type HandoffRecord = {
   /** Who answered before the handoff. */
-  from: string | null
+  from: string | null | HumanTarget
   /** Who answers from now on. */
-  to: string | null
+  to: string | null | HumanTarget
   /** A note for the target. */
   note?: string
   /** The turn that made the handoff. */
   runId: string
-  /** What made the handoff: a `handoff` tool call, agent code, or the router. */
-  by: 'tool' | 'code' | 'router'
+  /**
+   * What made the handoff: a `handoff` tool call, agent code, the router,
+   * or an operator who ended a handoff to a person.
+   */
+  by: 'tool' | 'code' | 'router' | 'operator'
+  /** The `human` wait that a handoff to a person opens. */
+  waitId?: string
+}
+
+/**
+ * A person answers the turns of a thread: the `human` wait `waitId` of a
+ * handoff is open. `from` answered before the handoff.
+ */
+export type HumanAnswerer = HumanTarget & {
+  waitId: string
+  from: string | null
 }
 
 /**
@@ -295,9 +318,10 @@ export interface ThreadStateFold {
   transfers: Map<string, TransferRecord>
   /**
    * The root agent that answers the turns of this thread, from the last
-   * `harness.handoff` record. `null`: the main model answers.
+   * `harness.handoff` record. `null`: the main model answers. A
+   * {@link HumanAnswerer}: a person answers, and the session pauses.
    */
-  activeAgent: string | null
+  activeAgent: string | null | HumanAnswerer
 }
 
 /** The thread state of a log with no thread-state records. */
@@ -508,8 +532,19 @@ export function foldThreadRecord(state: ThreadStateFold, record: LogRecord) {
         transfers: withEntry(state.transfers, transferId, transfer),
       }
     }
-    case 'harness.handoff':
-      return { ...state, activeAgent: record.to }
+    case 'harness.handoff': {
+      if (!isHumanTarget(record.to)) {
+        return { ...state, activeAgent: record.to }
+      }
+      // Who answered before stays, for an operator answer `{ resume: true }`.
+      const from = isHumanTarget(record.from) ? null : record.from
+      const human: HumanAnswerer = {
+        human: true,
+        waitId: record.waitId ?? '',
+        from,
+      }
+      return { ...state, activeAgent: human }
+    }
     default: {
       const unhandled: never = record
       return unhandled

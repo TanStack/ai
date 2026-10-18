@@ -11,6 +11,7 @@ import {
   THREAD_RECORD_TYPES,
   emptyThreadState,
   foldThreadRecord,
+  isHumanTarget,
 } from './log-records'
 import { addUsage, emptyUsage, isSessionUsage } from './usage'
 import { isRecord } from './utils'
@@ -765,7 +766,9 @@ function parseThread(value: unknown) {
     ),
     // A state with no active agent: the main model answers.
     activeAgent:
-      typeof value.activeAgent === 'string' ? value.activeAgent : null,
+      typeof value.activeAgent === 'string' || isHumanTarget(value.activeAgent)
+        ? (value.activeAgent as ThreadStateFold['activeAgent'])
+        : null,
   }
   return thread
 }

@@ -11,7 +11,7 @@ import {
   providerKeysFor,
   refreshFlights,
 } from '../auth'
-import { AgentRegistry } from '../agents'
+import { AgentRegistry, NO_SESSION_CONTEXT } from '../agents'
 import {
   SessionFeed,
   onAuthRequiredOf,
@@ -736,7 +736,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /**
    * The run context of one run: the user who started it, and the
    * credentials and provider keys of that user. `canWait` says if a sign-in
-   * wait of a tool can stop this run now.
+   * wait of a tool can stop this run now. `handoff` is the handoff of a
+   * routed turn. Without it, `run.handoff` rejects.
    */
   protected runContext(options: {
     principal: Principal | undefined
@@ -744,6 +745,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     parentRunId?: string
     signal: AbortSignal
     canWait?: (id: string) => boolean
+    handoff?: RunContext['handoff']
   }): RunContext {
     const { principal } = storedPrincipal(options.principal)
     const { runId } = options
@@ -762,6 +764,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       signal: options.signal,
       credentials: this.credentialsOf(options.principal, options.canWait),
       keys: this.keysOf(options.principal),
+      handoff: options.handoff ?? NO_SESSION_CONTEXT.handoff,
     }
   }
 

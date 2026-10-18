@@ -104,6 +104,7 @@ export type {
   HarnessAgentContext,
 } from './agents'
 export type { HandoffOptions } from './handoff'
+export type { HumanTarget } from './log-records'
 
 export { createHarnessHost } from './host'
 export { createHarnessWorker } from './harness-worker'

@@ -1,4 +1,5 @@
 import { toolDefinition } from '@tanstack/ai'
+import { isHumanTarget } from './log-records'
 import { isRecord } from './utils'
 import type {
   AnyChatMiddleware,
@@ -8,12 +9,16 @@ import type {
 import type { MessageStore } from '@tanstack/ai-persistence'
 import type { AnyAgent } from './agents'
 import type { HarnessRouterPick } from './define'
-import type { HandoffRecord } from './log-records'
+import type { HandoffRecord, HumanTarget } from './log-records'
 
 /** What `ctx.harness.handoff` takes. */
 export interface HandoffOptions {
-  /** The root agent that answers next, or `'main'` for the main model. */
-  to: string
+  /**
+   * The root agent that answers next, `'main'` for the main model, or
+   * `{ human: true }` for a person. A handoff to a person opens a `human`
+   * wait, and the session pauses until an operator answers it.
+   */
+  to: string | HumanTarget
   /** A note for the target. The log and the `harness.handoff` event keep it. */
   note?: string
 }
@@ -29,6 +34,15 @@ const MAX_HANDOFFS = 10
 
 /** A handoff without the turn that made it. */
 type Handoff = Omit<HandoffRecord, 'runId'>
+
+/** The target of a handoff to a person. */
+const HUMAN: HumanTarget = { human: true }
+
+/** How a text names the target of a handoff. */
+function targetName(to: HandoffRecord['to']) {
+  if (to === null) return 'main'
+  return isHumanTarget(to) ? 'a person' : to
+}
 
 /**
  * The handoffs of one turn of a harness with `routing`. The router, the
@@ -50,7 +64,11 @@ export class TurnHandoffs {
       rootAgents: ReadonlyArray<AnyAgent>
       /** The names of the agents that are only subagents, for the error text. */
       subagents: ReadonlyArray<string>
-      append: (record: HandoffRecord) => Promise<unknown>
+      /**
+       * Append the record. A handoff to a person opens its `human` wait in
+       * the same append. Resolves with the record as the log keeps it.
+       */
+      append: (record: HandoffRecord) => Promise<HandoffRecord>
       publish: (value: HandoffRecord) => void
     },
   ) {}
@@ -75,8 +93,9 @@ export class TurnHandoffs {
   /**
    * Hand the turn from `from` (an agent name, or `null` for the main model)
    * to `options.to`. The part of `from` ends, and the target answers next.
-   * Throws for a target that is not a root agent, and for a second handoff
-   * in the same part.
+   * A handoff to a person ends the turn, and the session pauses. Throws for
+   * a target that is not a root agent, and for a second handoff in the same
+   * part.
    */
   async handoff(
     options: HandoffOptions,
@@ -84,11 +103,14 @@ export class TurnHandoffs {
     by: 'tool' | 'code',
   ): Promise<void> {
     const { to, note } = options
-    if (typeof to !== 'string') {
-      throw new Error('A handoff needs `to`: the name of a root agent.')
+    const isHuman = isHumanTarget(to)
+    if (!isHuman && typeof to !== 'string') {
+      throw new Error(
+        'A handoff needs `to`: the name of a root agent, or { human: true }.',
+      )
     }
     const names = this.options.rootAgents.map((agent) => agent.name)
-    if (to !== 'main' && !names.includes(to)) {
+    if (!isHuman && to !== 'main' && !names.includes(to)) {
       const kind = this.options.subagents.includes(to)
         ? `Agent "${to}" is only a subagent.`
         : `Unknown agent "${to}".`
@@ -96,13 +118,15 @@ export class TurnHandoffs {
         `${kind} A handoff goes to a root agent (${[...names, "'main'"].join(', ')}).`,
       )
     }
-    const target = to === 'main' ? null : to
+    const target = isHuman ? HUMAN : to === 'main' ? null : to
     if (target === from) {
-      throw new Error(`${to} answers already. Hand off to another agent.`)
+      throw new Error(
+        `${targetName(target)} answers already. Hand off to another agent.`,
+      )
     }
     if (this.pending) {
       throw new Error(
-        `This part handed off to ${this.pending.to ?? 'main'} already.`,
+        `This part handed off to ${targetName(this.pending.to)} already.`,
       )
     }
     if (this.count >= MAX_HANDOFFS) {
@@ -116,8 +140,7 @@ export class TurnHandoffs {
       ...(typeof note === 'string' ? { note } : {}),
       by,
     }
-    await this.write(handoff)
-    this.pending = handoff
+    this.pending = await this.write(handoff)
   }
 
   /** The handoff that ended the last part, once. */
@@ -130,7 +153,7 @@ export class TurnHandoffs {
   /**
    * The `handoff` tool of `from`: the main model (`null`) or a root agent.
    * Its `to` lists the root agents, and `'main'` for an agent, but not
-   * `from`.
+   * `from`. `{ human: true }` hands the conversation to a person.
    */
   tool(from: string | null) {
     const targets = [
@@ -140,11 +163,20 @@ export class TurnHandoffs {
     return toolDefinition({
       name: HANDOFF_TOOL,
       description:
-        'Hand the conversation to another agent. That agent answers the user next, in this turn and in later turns. Stop after this call.',
+        'Hand the conversation to another agent. That agent answers the user next, in this turn and in later turns. Use { human: true } only when the user needs a person. Stop after this call.',
       inputSchema: {
         type: 'object',
         properties: {
-          to: { type: 'string', enum: targets },
+          to: {
+            anyOf: [
+              { type: 'string', enum: targets },
+              {
+                type: 'object',
+                properties: { human: { type: 'boolean', const: true } },
+                required: ['human'],
+              },
+            ],
+          },
           note: {
             type: 'string',
             description: 'What the next agent must know.',
@@ -155,15 +187,19 @@ export class TurnHandoffs {
     }).server(async (args: unknown) => {
       const to = isRecord(args) ? args.to : undefined
       const note = isRecord(args) ? args.note : undefined
-      if (typeof to !== 'string') {
+      const target = isHumanTarget(to) ? HUMAN : to
+      if (typeof target !== 'string' && !isHumanTarget(target)) {
         throw new Error('A handoff needs `to`: the name of an agent.')
       }
       await this.handoff(
-        { to, ...(typeof note === 'string' ? { note } : {}) },
+        { to: target, ...(typeof note === 'string' ? { note } : {}) },
         from,
         'tool',
       )
-      return `Handed off to ${to}. ${to} answers next.`
+      if (typeof target !== 'string') {
+        return 'Handed off to a person. The session waits for an operator.'
+      }
+      return `Handed off to ${target}. ${target} answers next.`
     })
   }
 
@@ -191,9 +227,12 @@ export class TurnHandoffs {
 
   private async write(handoff: Handoff) {
     this.count += 1
-    const record = { ...handoff, runId: this.options.runId }
-    await this.options.append(record)
+    const record = await this.options.append({
+      ...handoff,
+      runId: this.options.runId,
+    })
     this.options.publish(record)
+    return record
   }
 }
 

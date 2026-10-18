@@ -923,6 +923,19 @@ export class SessionImpl<
           })
           continue
         }
+        if (input.input.op === 'prompt' && input.input.as === 'operator') {
+          // An operator reply runs no model, as `send` does.
+          const operation = this.createTurnOperation()
+          this.bindTurn(input.inputId, operation)
+          this.enqueueTurn({
+            operation,
+            inputId: input.inputId,
+            principal: input.principal,
+            message: input.input.message,
+            operator: true,
+          })
+          continue
+        }
         const steer: WaitingSteer = {
           inputId: input.inputId,
           message: input.input.message,
@@ -1188,6 +1201,10 @@ export class SessionImpl<
         principal: input.principal,
         ...('message' in sent ? { sentMessage: sent.message } : {}),
         ...('context' in sent ? { context: sent.context } : {}),
+        // An operator reply runs no model.
+        ...(sent.op === 'prompt' && sent.as === 'operator'
+          ? { operator: true }
+          : {}),
         ...this.recoveredExtras(input.inputId, decision.overrides),
       })
     }

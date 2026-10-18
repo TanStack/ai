@@ -137,10 +137,31 @@ function isEnd({ event }: SessionEvent) {
 const URL_REFRESH_EARLY = 60_000
 
 /** The options a view gives `source.send` for a turn. */
-export interface ViewSendOptions {
-  to?: undefined
-  mode?: 'prompt' | 'steer' | 'followUp'
+export type ViewSendOptions = { to?: undefined } & (
+  | {
+      mode?: 'prompt'
+      /** `'operator'`: an operator reply. See `SendOptions.as`. */
+      as?: 'operator'
+    }
+  | { mode: 'steer' | 'followUp'; as?: never }
+)
+
+/** The options of `view.send`. */
+export interface ViewTextOptions {
+  /** Stored media files (from `upload`) that go with the text. */
+  attachments?: ReadonlyArray<MediaRecord>
+  /**
+   * `'operator'`: the reply of an operator while a handoff to a person is
+   * open. No model runs, and it is not a `/command`. The user of the view
+   * needs the `operator` access action.
+   */
+  as?: 'operator'
 }
+
+/** True when `view.send` got its attachments as a list. */
+const isAttachmentList = (
+  options: ViewTextOptions | ReadonlyArray<MediaRecord>,
+): options is ReadonlyArray<MediaRecord> => Array.isArray(options)
 
 /** The options a view gives `source.send` for a message to an agent run. */
 export interface ViewAgentSendOptions {
@@ -231,12 +252,19 @@ export interface SessionView {
   ready: Promise<void>
   /**
    * A `/command`, a prompt, or a steer while a turn runs. `attachments` are
-   * stored media files (from `upload`) that go with the text.
-   * A `/command` ignores them. Empty text with no attachments does nothing.
+   * stored media files (from `upload`) that go with the text. Pass them as
+   * a list, or as `{ attachments }`. A `/command` ignores them. Empty text
+   * with no attachments does nothing. `{ as: 'operator' }` sends the reply
+   * of an operator (see {@link ViewTextOptions}).
+   *
+   * @example
+   * ```ts
+   * await view.send('I refunded order 42.', { as: 'operator' })
+   * ```
    */
   send: (
     text: string,
-    attachments?: ReadonlyArray<MediaRecord>,
+    options?: ViewTextOptions | ReadonlyArray<MediaRecord>,
   ) => Promise<void>
   /** A message that runs as its own turn after the current work. */
   followUp: (
@@ -991,10 +1019,19 @@ export function createSessionView(source: SessionViewSource) {
   const view: SessionView = {
     store,
     ready,
-    send: async (text, attachments = []) => {
+    send: async (text, options = []) => {
       alive()
+      const { attachments = [], as } = isAttachmentList(options)
+        ? { attachments: options, as: undefined }
+        : options
       const line = text.trim()
       if (line === '' && attachments.length === 0) return
+      if (as === 'operator') {
+        // An assistant message of the operator: the transcript has it.
+        const message = userInput(line, attachments)
+        await act(() => receiptOf(source.send(message, { as })))
+        return
+      }
       if (line.startsWith('/')) {
         const [name = '', ...rest] = line.slice(1).split(' ')
         const input = rest.join(' ').trim()

@@ -14,6 +14,7 @@ import type {
 import type { LogRecord } from '@tanstack/ai-persistence'
 import type { CredentialsAccess } from './auth'
 import type { AnyHarness } from './define'
+import type { HandoffOptions } from './handoff'
 import type { UsageCounts } from './usage'
 
 /** A user message: plain text, or content parts (text, images, files). */
@@ -82,8 +83,20 @@ export type SendOptions = {
   /** @internal The AG-UI `runId` of a `POST run` request. The turn runs as it. */
   runId?: string
 } & (
-  | { mode?: 'prompt'; busy?: BusyPolicy }
-  | { mode: 'steer' | 'followUp'; busy?: never }
+  | {
+      mode?: 'prompt'
+      busy?: BusyPolicy
+      /**
+       * `'operator'`: a person who took over after a handoff to a person
+       * replies. The message goes in the transcript as an assistant message
+       * with `metadata.harness.operator` (the id of the operator), and no
+       * model turn runs. It needs the `operator` access action, and an open
+       * `human` wait of a handoff: else the receipt is rejected with
+       * `'no_human_wait'`.
+       */
+      as?: 'operator'
+    }
+  | { mode: 'steer' | 'followUp'; busy?: never; as?: never }
 )
 
 /** Options of `session.send` for a message to an agent run. See `send`. */
@@ -206,6 +219,8 @@ export type HarnessInput = (
       busy?: BusyPolicy
       context?: unknown
       ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
+      /** `'operator'`: an operator reply. See `SendOptions`. */
+      as?: 'operator'
     }
   | { op: 'steer'; message: UserInput; context?: unknown }
   | {
@@ -554,6 +569,18 @@ export interface RunContext {
   credentials: CredentialsAccess
   /** The model provider keys of the user of this run. */
   keys: ProviderKeys
+  /**
+   * Hand the turn to another root agent, `'main'`, or a person, as
+   * `ctx.harness.handoff` does. It works in a turn of a harness with
+   * `routing`, for example in a tool of the main model. Anywhere else it
+   * rejects.
+   *
+   * @example
+   * ```ts
+   * await ctx.context.run.handoff({ to: 'billing', note: 'Refund for order 42' })
+   * ```
+   */
+  handoff: (options: HandoffOptions) => Promise<void>
 }
 
 /**
@@ -756,8 +783,11 @@ export const HARNESS_EVENTS = {
   /**
    * Another agent answers the turn from here: a `handoff` tool call, agent
    * code, or the router moved it. The value has `from` and `to` (an agent
-   * name, or `null` for the main model), the `note` when there is one, `by`
-   * (`'tool'`, `'code'`, or `'router'`), and the `runId` of the turn.
+   * name, `null` for the main model, or `{ human: true }` for a person), the
+   * `note` when there is one, `by` (`'tool'`, `'code'`, `'router'`, or
+   * `'operator'`), and the `runId` of the turn. A handoff to a person has
+   * the `waitId` of its `human` wait. An operator answer to that wait hands
+   * the thread back, `by: 'operator'`.
    */
   handoff: 'harness.handoff',
   /**

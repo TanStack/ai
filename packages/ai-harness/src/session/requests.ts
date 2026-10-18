@@ -91,6 +91,19 @@ export abstract class SessionRequests<
    * harness prompts, for example memory that the host adds. They are kept
    * like `overrides`, and only server code sets them. A client input cannot
    * set them.
+   *
+   * `as: 'operator'` is the reply of a person who took over after a handoff
+   * to a person. It goes in the transcript as an assistant message, and no
+   * model turn runs. It needs the `operator` access action and an open
+   * `human` wait of a handoff, else the receipt is rejected with
+   * `'no_human_wait'`. While that wait is open, other messages go in the
+   * transcript, and no model turn runs either: the turn settles
+   * `interrupted`.
+   *
+   * @example
+   * ```ts
+   * await session.send('I refunded order 42.', { as: 'operator' })
+   * ```
    */
   send(message: UserInput, options: AgentSendOptions): Operation<unknown>
   send(message: UserInput, options?: SendOptions): Operation<ChatTurnResult>
@@ -108,6 +121,7 @@ export abstract class SessionRequests<
             message,
             busy: options?.busy ?? this.harness.busy ?? 'queue',
             ...(context !== undefined ? { context } : {}),
+            ...(options?.as ? { as: options.as } : {}),
           }
         : mode === 'steer'
           ? {
@@ -190,6 +204,29 @@ export abstract class SessionRequests<
             })
             return
           }
+          const isWaiting =
+            this.activeTurn !== undefined || this.queue.length > 0
+          if (input.op === 'prompt' && input.as === 'operator') {
+            // An operator reply runs no model. It needs an open handoff to
+            // a person.
+            if (!this.humanHandoff()) {
+              this.refuse(operation, this.reject(inputId, 'no_human_wait'))
+              return
+            }
+            this.answerTurn(operation, {
+              inputId,
+              status: isWaiting ? 'queued' : 'accepted',
+              operationId: operation.id,
+            })
+            this.enqueueTurn({
+              operation,
+              message,
+              inputId,
+              principal,
+              operator: true,
+            })
+            return
+          }
           if (this.activeTurn && busy === 'reject') {
             this.reject(inputId, 'busy')
             this.refuse(operation, {
@@ -210,8 +247,6 @@ export abstract class SessionRequests<
             })
             return
           }
-          const isWaiting =
-            this.activeTurn !== undefined || this.queue.length > 0
           this.answerTurn(operation, {
             inputId,
             status: isWaiting && !running ? 'queued' : 'accepted',
