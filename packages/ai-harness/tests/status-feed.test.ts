@@ -15,6 +15,12 @@ import {
 import { mockAdapter, text, toolCall } from './helpers'
 import type { HostEvent } from '../src'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 /** Read a stream of host events into `seen` until `stop()`. */
 function watch(read: (signal: AbortSignal) => AsyncIterable<HostEvent>) {
   const seen: Array<HostEvent> = []
@@ -79,15 +85,13 @@ describe('host.events', () => {
     const b = await host.open(plainHarness(), { threadId: 'b' })
 
     const turn = a.send('go')
-    await vi.waitFor(() =>
-      expect(a.snapshot().pendingQuestions).toHaveLength(1),
-    )
+    await waitFor(() => expect(a.snapshot().pendingQuestions).toHaveLength(1))
     await b.send('hi')
     const [question] = a.snapshot().pendingQuestions
     await a.answer({ questionId: question?.questionId ?? '', value: 'yes' })
     await turn
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(statusesOf(feed.seen, 'a')).toEqual([
         'idle',
         'running',
@@ -106,13 +110,11 @@ describe('host.events', () => {
     const a = await host.open(askingHarness(), { threadId: 'a' })
     await host.open(plainHarness(), { threadId: 'b' })
     void a.send('go')
-    await vi.waitFor(() =>
-      expect(a.snapshot().pendingQuestions).toHaveLength(1),
-    )
+    await waitFor(() => expect(a.snapshot().pendingQuestions).toHaveLength(1))
 
     const feed = watch((signal) => host.events({ signal }))
 
-    await vi.waitFor(() => expect(feed.seen).toHaveLength(2))
+    await waitFor(() => expect(feed.seen).toHaveLength(2))
     expect(feed.seen).toEqual([
       {
         type: 'status',
@@ -134,7 +136,7 @@ describe('host.events', () => {
     await host.sessions.rename({ threadId: 'b', title: 'Greetings' })
     await host.sessions.delete({ threadId: 'b' })
 
-    await vi.waitFor(() => expect(feed.seen).toHaveLength(3))
+    await waitFor(() => expect(feed.seen).toHaveLength(3))
     expect(feed.seen).toMatchObject([
       { type: 'status', threadId: 'b', status: 'idle' },
       { type: 'session', threadId: 'b', entry: { title: 'Greetings' } },
@@ -156,7 +158,7 @@ describe('host.events', () => {
     expect(await events.next()).toEqual({ done: true, value: undefined })
     // `stop` resolves only when the waiting read ends.
     const feed = watch((signal) => host.events({ signal }))
-    await vi.waitFor(() => expect(feed.seen).toHaveLength(1))
+    await waitFor(() => expect(feed.seen).toHaveLength(1))
     await feed.stop()
     await host.close()
   })
@@ -179,7 +181,7 @@ describe('host.events on a host that does not own the log', () => {
     await running.send('hi')
 
     // Coverage runs in CI are slow, so the check waits up to 5 s.
-    await vi.waitFor(
+    await waitFor(
       () =>
         expect(statusesOf(feed.seen, 'r')).toEqual(['idle', 'running', 'idle']),
       { timeout: 5_000 },

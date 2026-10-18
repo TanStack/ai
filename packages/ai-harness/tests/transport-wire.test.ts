@@ -11,6 +11,12 @@ import { after, fakeSocket, gate, mockAdapter, readSse, text } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
 import type { SessionEvent } from '../src/types'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const BASE = 'http://x/api/harness'
 
 /**
@@ -118,7 +124,7 @@ describe('every transport sends AG-UI wire chunks', () => {
       requestId: 'r1',
       input: { op: 'prompt', message: 'hi' },
     })
-    await vi.waitFor(() => expect(sent.some(isTurnEnd)).toBe(true), {
+    await waitFor(() => expect(sent.some(isTurnEnd)).toBe(true), {
       timeout: 5000,
     })
 
@@ -148,7 +154,7 @@ describe('every transport sends AG-UI wire chunks', () => {
       requestId: 'r1',
       input: { op: 'prompt', message: 'hi' },
     })
-    await vi.waitFor(() => expect(frames.some(isTurnEnd)).toBe(true), {
+    await waitFor(() => expect(frames.some(isTurnEnd)).toBe(true), {
       timeout: 5000,
     })
     input.end()
@@ -225,7 +231,7 @@ describe('request ids, versions, and heartbeats', () => {
       openAccess: true,
     })
     bad.receive({ type: 'harness.input', requestId: 'r9', input: {} })
-    await vi.waitFor(
+    await waitFor(
       () =>
         expect(bad.sent.at(-1)).toMatchObject({
           type: 'harness.error',
@@ -236,7 +242,7 @@ describe('request ids, versions, and heartbeats', () => {
     )
 
     bad.receive({ type: 'harness.subscribe', threadId: 't5', v: 1 })
-    await vi.waitFor(() => expect(bad.closed).toEqual([4400]), {
+    await waitFor(() => expect(bad.closed).toEqual([4400]), {
       timeout: 5000,
     })
     expect(bad.sent.at(-1)).toEqual({
