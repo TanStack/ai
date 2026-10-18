@@ -58,7 +58,11 @@ export type HostFrame =
   | {
       type: 'harness.event'
       cursor: Cursor
+      /** The thread of the event: the thread, or a child thread of its tree. */
+      threadId: string
       operationId: string
+      /** The run that started the operation, for a child run. */
+      parentRunId?: string
       event: StreamChunk
     }
   | { type: 'harness.snapshot'; snapshot: SessionSnapshot }

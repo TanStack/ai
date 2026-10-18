@@ -29,7 +29,7 @@ async function entriesOf(events: AsyncIterable<SessionEvent>) {
 describe('harness.gap from the in-memory feed', () => {
   it('sends one evicted gap to a cursor whose events the feed dropped, then the kept events', async () => {
     const size = JSON.stringify(custom('e1')).length
-    const feed = new SessionFeed({ eventBytes: size * 2 })
+    const feed = new SessionFeed({ threadId: 't1', eventBytes: size * 2 })
     for (const name of ['e1', 'e2', 'e3', 'e4'])
       feed.publish('op', custom(name))
     feed.close()
@@ -39,6 +39,7 @@ describe('harness.gap from the in-memory feed', () => {
     expect(entries.map((entry) => entry.cursor)).toEqual(['2', '3', '4'])
     expect(entries[0]).toEqual({
       cursor: '2',
+      threadId: 't1',
       operationId: 'session',
       event: expect.objectContaining({
         type: EventType.CUSTOM,
@@ -50,7 +51,7 @@ describe('harness.gap from the in-memory feed', () => {
 
   it('sends no gap to a cursor that the feed still has', async () => {
     const size = JSON.stringify(custom('e1')).length
-    const feed = new SessionFeed({ eventBytes: size * 2 })
+    const feed = new SessionFeed({ threadId: 't1', eventBytes: size * 2 })
     for (const name of ['e1', 'e2', 'e3', 'e4'])
       feed.publish('op', custom(name))
     feed.close()
@@ -79,7 +80,12 @@ describe('the view on an evicted gap', () => {
       // The source dropped events, and says so first.
       events: (options) =>
         (async function* () {
-          yield gapEvent('0', session.snapshot().cursor, 'evicted')
+          yield gapEvent(
+            session.threadId,
+            '0',
+            session.snapshot().cursor,
+            'evicted',
+          )
           yield* session.events({ ...options, signal: reading.signal })
         })(),
     }

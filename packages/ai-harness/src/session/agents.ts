@@ -1138,6 +1138,18 @@ export abstract class SessionAgents<
     }
   }
 
+  /**
+   * The run that started the operation `operationId`: the parent of its
+   * chain, the same as its node in the run tree. A run that this host does
+   * not run (an offered run) has its node in the log. A top-level run and an
+   * operation that is not an agent run have none.
+   */
+  protected parentRunOf(operationId: string): string | undefined {
+    const chain = this.chainOf.get(operationId)
+    if (chain) return chain.parentRunId ?? chain.turnRunId
+    return this.logWriter?.state.thread.tree.get(operationId)?.parentRunId
+  }
+
   /** A new agent run operation. `id`: a stored one, after a restart. */
   protected agentOperation(agent: string, id?: string): AgentRunImpl {
     const operation = new OperationImpl<unknown>(

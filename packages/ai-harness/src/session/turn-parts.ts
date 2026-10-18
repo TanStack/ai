@@ -1,5 +1,6 @@
 import {
   LogRecordsCapability,
+  chat,
   convertSchemaToJsonSchema,
   isStandardSchema,
   provideLogRecords,
@@ -43,7 +44,7 @@ import type { LogWriter } from '../log'
 import type { UsageCall } from '../usage'
 import type { AnyHarness } from '../define'
 import type { TurnAdditions } from '../turn'
-import type { MountedPlugins } from '../plugins'
+import type { MountedPlugins, PluginModelCall } from '../plugins'
 import type {
   ChatTurnResult,
   MediaRecord,
@@ -53,6 +54,9 @@ import type {
   UserInput,
 } from '../types'
 import type { QueuedTurn, AgentRunImpl, AgentChain } from './types'
+
+/** How long a `ctx.model.chat` call runs before it stops, by default. */
+const MODEL_CALL_TIMEOUT_MS = 120_000
 
 /**
  * A layer of {@link HarnessSession}: the tools, middleware, and joins a turn
@@ -563,10 +567,94 @@ export abstract class SessionTurnParts<
       customEvent(HARNESS_EVENTS.usage, {
         model: call.model,
         ...(call.principal ? { sender: call.principal.id } : {}),
+        ...(call.source !== undefined ? { source: call.source } : {}),
+        ...(call.label !== undefined ? { label: call.label } : {}),
         usage: call.usage,
         total: this.usage().total,
       }),
     )
+  }
+
+  /**
+   * One model call of `ctx.model.chat`, for the run `call.run`: with the
+   * keys of its user, and a signal that aborts when the run stops or after
+   * the timeout. Each model call counts under `call.source`, in the session
+   * and in the run, and the budget of the run applies. A stopped call
+   * rejects with the reason of the stop.
+   */
+  protected async modelChat(call: PluginModelCall): Promise<unknown> {
+    const { run, options } = call
+    const named = this.threadSettings.model
+    const model =
+      call.adapter ??
+      (named === undefined ? undefined : this.harness.models?.[named]) ??
+      this.harness.adapter
+    if (!model) {
+      throw new Error(
+        `ctx.model.chat needs an adapter: harness ${JSON.stringify(this.harness.name)} has no adapter.`,
+      )
+    }
+    const signal = AbortSignal.any([
+      run.signal,
+      AbortSignal.timeout(call.timeoutMs ?? MODEL_CALL_TIMEOUT_MS),
+    ])
+    const abortController = new AbortController()
+    const stop = () => abortController.abort(signal.reason)
+    if (signal.aborted) stop()
+    else signal.addEventListener('abort', stop, { once: true })
+    const counted: Array<Promise<void>> = []
+    try {
+      const result = await chat({
+        ...options,
+        adapter: await run.keys.adapter(model),
+        stream: false,
+        abortController,
+        middleware: [
+          {
+            name: 'harness:model-usage',
+            onUsage: (ctx, usage) => {
+              counted.push(
+                this.countModelCall(run.runId, {
+                  model: `${ctx.provider}/${ctx.model}`,
+                  ...storedPrincipal(run.principal),
+                  runId: run.runId,
+                  source: call.source,
+                  ...(call.label !== undefined ? { label: call.label } : {}),
+                  usage: callUsage(usage),
+                }),
+              )
+            },
+          },
+        ],
+      })
+      // chat() can end with no error when it is aborted.
+      abortController.signal.throwIfAborted()
+      return result
+    } finally {
+      signal.removeEventListener('abort', stop)
+      await Promise.all(counted)
+    }
+  }
+
+  /**
+   * Count one model call of `ctx.model.chat` for the run `runId`, then
+   * check the budgets. A run that this session no longer keeps gets the
+   * record only.
+   */
+  private async countModelCall(runId: string, call: UsageCall) {
+    const operation = this.operations.get(runId)
+    if (operation) {
+      await this.countUsage(operation, call)
+      this.checkBudget(operation)
+      return
+    }
+    try {
+      await (this.childLink
+        ? this.childLink.countUsage(call)
+        : this.writer.append([{ type: 'harness.usage', ...call }]))
+    } catch (error) {
+      this.warnSession('harness:usage', error)
+    }
   }
 
   /**

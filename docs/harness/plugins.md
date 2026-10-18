@@ -284,6 +284,44 @@ The run has these fields:
 | `signal` | Aborts when the run stops. |
 | `credentials`, `keys` | The credentials and the model provider keys of the user of the run. The session replaces their values with `[redacted]` in what it keeps and sends. To refresh an OAuth token, use `credentials.refresh`. See [Auth and connectors](./auth#refresh-a-token). |
 
+## Call a model from a plugin
+
+Your plugin needs a model call of its own: a judge, a title, or a summary. A plain `chat()` call does not count in `session.usage()`, and it keeps running after the user cancels the turn. Call the model with `ctx.model.chat` instead:
+
+```ts group=harness-plugins
+export const recap = definePlugin({
+  name: 'acme/recap',
+  setup: (ctx) => ({
+    commands: {
+      recap: defineCommand({
+        description: 'Sum up the conversation in three lines',
+        run: async (_input, { run }) => {
+          const transcript = await ctx.session.transcript()
+          const { text } = await ctx.model.chat({
+            run,
+            label: 'recap',
+            options: {
+              messages: [...transcript, { role: 'user', content: 'Sum up this conversation in three lines.' }],
+            },
+          })
+          return text
+        },
+      }),
+    },
+  }),
+})
+```
+
+The options:
+
+- `run`: the run that the call is for. The call uses the keys of its user, and the budget of the run applies. A plugin with `lifetime: 'turn'` can leave it out. Then the call uses the run of its turn.
+- `adapter`: the model. Without it, the call uses the model of the session: the thread setting `model`, else the harness `adapter`. A `keyedAdapter(...)` gets the key of the user of the run.
+- `options`: `messages`, `systemPrompts`, and `outputSchema`. With `outputSchema`, the call resolves to the checked value. Without it, the call resolves to `{ text, chunks }`.
+- `label`: a name for the call in its usage record.
+- `timeoutMs`: the time limit of the call. The default is 2 minutes.
+
+The call stops when its run stops, for example on a cancel, and when the time limit ends. Then it rejects. Its usage counts in the session under `plugin:<name>`, here `plugin:acme/recap`. See [Usage of plugins](./usage#usage-of-plugins). The `goal()`, `title()`, and `compact()` plugins call their models this way.
+
 ## Pick the model of a turn
 
 Some turns need another model: a short question does not need your strongest model, and an organization can allow only some models. Return an `adapter` picker from `setup`. When each turn starts, the session calls it with the message, context, and sender of that turn:
@@ -521,6 +559,7 @@ If a `setup` throws, the session keeps working with no plugins. The promise reje
 - A plugin that adds tools, prompts, commands, settings, and state to any harness.
 - Middleware that sees every model call, in the lead turn and in every agent.
 - Tools and commands that act as the user of their own run.
+- Model calls of your plugin that count in the session usage and stop with their run.
 - A picker that chooses the model of each turn from its message, context, and sender.
 - Plugins that share services, lists, and events without knowing each other.
 - Commands, agents, and whole plugins that change while the session runs.

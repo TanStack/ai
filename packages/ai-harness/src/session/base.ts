@@ -72,6 +72,7 @@ import type { HarnessPersistence, SessionIndexWriter } from '../host'
 import type {
   HarnessPlugin,
   MountedPlugins,
+  PluginModelCall,
   PluginServices,
   PluginState,
 } from '../plugins'
@@ -533,10 +534,14 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     this.inputRecords = new InputRecords(deps.retention.settledOperations)
     this.notifyHost = deps.onEvent
     this.feed = tapFeed(
-      new SessionFeed({ eventBytes: deps.retention.eventBytes }),
+      new SessionFeed({
+        threadId: deps.threadId,
+        eventBytes: deps.retention.eventBytes,
+      }),
       deps.onEvent,
       this.eventListeners,
       this.redactor,
+      (operationId) => this.parentRunOf(operationId),
     )
     this.onClose = deps.onClose
     this.notifyIdle = deps.onIdle
@@ -844,6 +849,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
           'session',
           customEvent(HARNESS_EVENTS.commandsChanged, {}),
         ),
+      modelChat: (call) => this.modelChat(call),
     }
   }
 
@@ -1256,8 +1262,12 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     operationId?: string,
   ): PluginSessionApi
   protected abstract resumeSignIns(): Promise<void>
+  /** One model call of `ctx.model.chat`. See `SessionTurnParts.modelChat`. */
+  protected abstract modelChat(call: PluginModelCall): Promise<unknown>
   /** Resume the agent runs whose waits all ended. See `SessionAgents`. */
   protected abstract resumeWaitingRuns(): Promise<void>
+  /** The run that started an operation, for a child run. See `SessionAgents`. */
+  protected abstract parentRunOf(operationId: string): string | undefined
   /** Set the timer of the next schedule. See `SessionImpl.armSchedules`. */
   protected abstract armSchedules(options?: { isRetry?: boolean }): void
   /** @internal See `SessionRequests.resolveForRun`. */

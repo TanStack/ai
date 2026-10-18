@@ -10,6 +10,8 @@ import type {
   AnyTool,
   Capability,
   CapabilityHandle,
+  ChatResult,
+  InferSchemaType,
   KeyedAdapter,
   MetadataStore,
   ModelMessage,
@@ -22,7 +24,7 @@ import type {
   AgentRegistryView,
   AnyAgent,
 } from './agents'
-import type { TurnInfo } from './types'
+import type { RunContext, TurnInfo } from './types'
 import type { CredentialsAccess } from './auth'
 import type { AnyCommand, PluginSessionApi } from './commands'
 import type { ConfigOption } from './config'
@@ -196,6 +198,67 @@ export interface PluginServices {
   agents: AgentActions
   /** Called after `ctx.commands` adds or removes a command. */
   commandsChanged?: () => void
+  /** One model call of `ctx.model.chat`. Resolves to what chat() gives. */
+  modelChat: (call: PluginModelCall) => Promise<unknown>
+}
+
+/** The chat() options of one `ctx.model.chat` call. */
+export interface PluginChatOptions<TSchema extends SchemaInput | undefined> {
+  messages: Array<ModelMessage>
+  systemPrompts?: Array<string>
+  /** A schema for the answer. The call then resolves to the checked value. */
+  outputSchema?: TSchema
+}
+
+/** What `ctx.model.chat` takes. */
+export interface PluginModelChatOptions<
+  TSchema extends SchemaInput | undefined = undefined,
+> {
+  /**
+   * The model. A `keyedAdapter(...)` gets the key of the user of `run`.
+   * Default: the model of the session, as the summary of `host.transfer`
+   * picks it: the thread setting `model`, else the harness `adapter`.
+   */
+  adapter?: AnyTextAdapter | KeyedAdapter<AnyTextAdapter>
+  options: PluginChatOptions<TSchema>
+  /** A name for this call in its usage record, for example `judge`. */
+  label?: string
+  /**
+   * The run that the call is for: its user's keys, its signal, and its
+   * budget. In a tool or a middleware hook, pass `ctx.context.run`. In a
+   * command, pass `run` of the command context. Default: the turn of a
+   * plugin with `lifetime: 'turn'`.
+   */
+  run?: RunContext
+  /** Stop the call after this time, in milliseconds. Default 120000 (2 minutes). */
+  timeoutMs?: number
+}
+
+/** What `ctx.model.chat` resolves to: the checked value with `outputSchema`, else the text and chunks. */
+export type PluginModelChatResult<TSchema extends SchemaInput | undefined> =
+  TSchema extends SchemaInput ? InferSchemaType<TSchema> : ChatResult
+
+/** `ctx.model` of a plugin. */
+export interface PluginModel {
+  /**
+   * Call a model, for example to judge, to name, or to summarize. The call
+   * stops when its run stops or after `timeoutMs`, and then rejects. Its
+   * usage counts in the session (`session.usage().bySource` under
+   * `plugin:<name>`) and in its run, and the budget of the run applies.
+   */
+  chat: <TSchema extends SchemaInput | undefined = undefined>(
+    options: PluginModelChatOptions<TSchema>,
+  ) => Promise<PluginModelChatResult<TSchema>>
+}
+
+/** @internal One model call of a plugin, as the session runs it. */
+export interface PluginModelCall extends Omit<
+  PluginModelChatOptions<SchemaInput | undefined>,
+  'run'
+> {
+  run: RunContext
+  /** `plugin:<name>`. */
+  source: string
 }
 
 /**
@@ -299,6 +362,8 @@ export interface PluginSetupContext<TMetadata = Record<string, unknown>> {
   session: PluginSessionApi<TMetadata>
   /** Add and remove this plugin's commands while the session runs. */
   commands: PluginCommands
+  /** Call a model, with the usage counted under `plugin:<name>`. */
+  model: PluginModel
   /**
    * The turn this plugin is set up for: its input, context, sender, and run.
    * Set only for a plugin with `lifetime: 'turn'`. A session plugin has no
@@ -620,6 +685,7 @@ const NO_SERVICES: PluginServices = {
     start: unavailable('ctx.agents.start'),
     group: unavailable('ctx.agents.group'),
   },
+  modelChat: unavailable('ctx.model'),
 }
 
 /**
@@ -940,6 +1006,21 @@ export async function mountPlugins(
             services.commandsChanged?.()
           },
           ready,
+        },
+        model: {
+          chat: async ({ run = env.turn?.run, ...call }) => {
+            if (!run) {
+              throw new Error(
+                `ctx.model.chat of ${plugin.name} needs a run. In a tool or a middleware hook, pass run: ctx.context.run. In a command, pass the run of its context.`,
+              )
+            }
+            // The session gives back what chat() gave for these options.
+            return (await services.modelChat({
+              ...call,
+              run,
+              source: `plugin:${plugin.name}`,
+            })) as never
+          },
         },
         ...(env.turn ? { turn: env.turn } : {}),
       }

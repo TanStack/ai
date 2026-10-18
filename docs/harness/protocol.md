@@ -15,10 +15,9 @@ keywords:
 <!--
 DRAFT (PR 11, node 11-F). Node 11-N checks this page against the final code and removes this comment.
 This page describes the behavior that PR 11 ships. These parts land in later nodes of the same PR:
-- 11-H: threadId and parentRunId on the harness.event frame.
 - 11-I (with PR 7, 9, 10): the publishers of harness.input.queued, harness.ownership.changed, harness.stranded, harness.handoff, harness.transferred, harness.wait.opened, and harness.wait.settled.
 - 11-L: the traceparent header on POST run and POST control, and the span link. (The traceparent field of the harness.input frame already reaches the session.)
-Already in the code: everything else on this page (11-A, 11-B, 11-D, 11-E).
+Already in the code: everything else on this page (11-A, 11-B, 11-D, 11-E, 11-H).
 -->
 
 You want a client for a harness that is not `useChat` or `createHarnessClient`: a Python service, a mobile app, or a proxy of your own. This page lists every route, frame, and `harness.*` event, so you can write that client in any language.
@@ -238,9 +237,19 @@ From the host to the client:
 
 - `event` is an AG-UI event in its wire form. It has only the keys of the AG-UI spec.
 - `operationId` is the run that made the event. It is also the AG-UI `runId`.
-- `threadId` is the thread of the run. With subagents, it can be a child thread.
-- `parentRunId` is the run that started this run, when there is one. With `operationId`, it gives the full tree of runs.
-- An event of a child agent run also has `subagentRunId` on the `event` itself.
+- `threadId` is the thread that keeps the event. On the stream of a thread, it is that thread.
+- `parentRunId` is the run that started this run. Only a child run has it: an agent run that agent code started, or that a tool of a turn started. A top-level run has no `parentRunId`.
+- An event of a subagent also has `subagentRunId` on the `event` itself.
+
+The stream of a thread has the events of every run of its tree, in one order. To rebuild the tree, keep the `parentRunId` of each `operationId`. For example, a lead agent that runs two helpers in a group gives these frames (the `event` is cut):
+
+```text
+{"type":"harness.event","cursor":"9","threadId":"thread-1","operationId":"op-lead","event":{...}}
+{"type":"harness.event","cursor":"12","threadId":"thread-1","operationId":"op-a","parentRunId":"op-lead","event":{...}}
+{"type":"harness.event","cursor":"13","threadId":"thread-1","operationId":"op-b","parentRunId":"op-lead","event":{...}}
+```
+
+`op-a` and `op-b` are children of `op-lead`. Every event of one run has the same `parentRunId`.
 
 The status of a receipt is `accepted`, `queued`, or `rejected`. A `rejected` receipt has a `reason`, for example `not_exposed`, `not_running`, or `unknown_agent`.
 
@@ -271,7 +280,7 @@ Sometimes the server no longer has the events after your cursor. A truncate of t
   "type": "harness.event",
   "cursor": "120",
   "threadId": "thread-1",
-  "operationId": "op-7",
+  "operationId": "session",
   "event": {
     "type": "CUSTOM",
     "name": "harness.gap",

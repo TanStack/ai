@@ -997,7 +997,12 @@ const entry = (
   cursor: number,
   event: StreamChunk,
   operationId = 'op-1',
-): SessionEvent => ({ cursor: String(cursor), operationId, event })
+): SessionEvent => ({
+  cursor: String(cursor),
+  threadId: 't1',
+  operationId,
+  event,
+})
 
 describe('session view reload', () => {
   it('shows a running turn from its start, without what the transcript has', async () => {

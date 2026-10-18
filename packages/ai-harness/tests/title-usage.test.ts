@@ -125,6 +125,37 @@ describe('title()', () => {
     expect(titler.calls).toHaveLength(0)
     await host.close()
   })
+
+  it('counts the title call under plugin:tanstack/title', async () => {
+    const titler = mockAdapter(() =>
+      text('Trip to Rome').map(
+        (chunk): StreamChunk =>
+          chunk.type === EventType.RUN_FINISHED
+            ? {
+                ...chunk,
+                usage: {
+                  promptTokens: 9,
+                  completionTokens: 3,
+                  totalTokens: 12,
+                },
+              }
+            : chunk,
+      ),
+    )
+    const { host, session } = await open([title({ adapter: titler.adapter })])
+
+    await session.send('Plan a trip to Rome for me')
+
+    await waitFor(() =>
+      expect(session.usage().bySource).toEqual({
+        'plugin:tanstack/title': expect.objectContaining({
+          calls: 1,
+          totalTokens: 12,
+        }),
+      }),
+    )
+    await host.close()
+  })
 })
 
 describe('usage()', () => {

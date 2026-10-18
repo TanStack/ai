@@ -266,4 +266,38 @@ describe('compact and usage', () => {
     )
     await host.close()
   })
+
+  it('counts the summary call of /compact under plugin:tanstack/compact', async () => {
+    const summarizer = mockAdapter([
+      () =>
+        text('We planned a trip.').map((chunk) =>
+          chunk.type === 'RUN_FINISHED'
+            ? {
+                ...chunk,
+                usage: {
+                  promptTokens: 40,
+                  completionTokens: 8,
+                  totalTokens: 48,
+                },
+              }
+            : chunk,
+        ),
+    ])
+    const main = mockAdapter([() => text('one'), () => text('two')])
+    const { host, session } = await open(main.adapter, [
+      compact({ adapter: summarizer.adapter }),
+    ])
+    await session.send('first')
+    await session.send('second')
+
+    await session.command({ name: 'compact' })
+
+    expect(session.usage().bySource).toEqual({
+      'plugin:tanstack/compact': expect.objectContaining({
+        calls: 1,
+        totalTokens: 48,
+      }),
+    })
+    await host.close()
+  })
 })

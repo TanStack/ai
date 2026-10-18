@@ -22,7 +22,12 @@ import type {
  * log opens, it has a {@link SessionFeed} in memory.
  */
 export interface EventFeed {
-  publish: (operationId: string, event: StreamChunk) => void
+  /** `parentRunId`: the run that started the operation, for a child run. */
+  publish: (
+    operationId: string,
+    event: StreamChunk,
+    parentRunId?: string,
+  ) => void
   /** The cursor of the newest event, or `'0'` for an empty feed. */
   head: () => Cursor
   /**
@@ -180,19 +185,30 @@ export class SessionFeed implements EventFeed {
   /** The sum of `sizes`. */
   private bytes = 0
   private readonly eventBytes: number
+  private readonly threadId: string
   private sequence = 0
   private readonly waiters = new Set<() => void>()
   private closed = false
 
-  /** `eventBytes`: how many bytes of events to keep. */
-  constructor(options: { eventBytes: number }) {
+  /**
+   * `threadId`: the thread of the session. `eventBytes`: how many bytes of
+   * events to keep.
+   */
+  constructor(options: { threadId: string; eventBytes: number }) {
+    this.threadId = options.threadId
     this.eventBytes = options.eventBytes
   }
 
-  publish(operationId: string, event: StreamChunk): void {
+  publish(operationId: string, event: StreamChunk, parentRunId?: string): void {
     this.sequence += 1
     const size = jsonLength(event)
-    this.entries.push({ cursor: String(this.sequence), operationId, event })
+    this.entries.push({
+      cursor: String(this.sequence),
+      threadId: this.threadId,
+      operationId,
+      ...(parentRunId !== undefined ? { parentRunId } : {}),
+      event,
+    })
     this.sizes.push(size)
     this.bytes += size
     // The newest event stays, so a live reader still gets it.
@@ -233,7 +249,12 @@ export class SessionFeed implements EventFeed {
       // the oldest kept event.
       const oldest = this.sequence - this.entries.length + 1
       if (this.entries.length > 0 && after < oldest - 1) {
-        yield gapEvent(String(after), String(oldest - 1), 'evicted')
+        yield gapEvent(
+          this.threadId,
+          String(after),
+          String(oldest - 1),
+          'evicted',
+        )
         after = oldest - 1
       }
       const next = this.after(after, options.filter)
@@ -283,10 +304,12 @@ export class SessionFeed implements EventFeed {
 }
 
 /**
- * The `harness.gap` event for a reader at `from`: the events after `from`
- * are gone, and the stream goes on after `resumeAt`, the cursor of this event.
+ * The `harness.gap` event of thread `threadId` for a reader at `from`: the
+ * events after `from` are gone, and the stream goes on after `resumeAt`, the
+ * cursor of this event.
  */
 export function gapEvent(
+  threadId: string,
   from: Cursor,
   resumeAt: Cursor,
   reason: EventGap['reason'],
@@ -294,6 +317,7 @@ export function gapEvent(
   const value: EventGap = { from, resumeAt, reason }
   return {
     cursor: resumeAt,
+    threadId,
     // No operation made it. Like a session input, it belongs to the session.
     operationId: 'session',
     event: {

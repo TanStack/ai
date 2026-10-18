@@ -19,9 +19,11 @@ export interface UsageCounts {
 }
 
 /**
- * The usage of a thread: every model call of its turns, their subagents, and
- * its agent runs. `bySender` has the calls of a known sender only, keyed by
- * the principal id, so its sum can be less than `total`.
+ * The usage of a thread: every model call of its turns, their subagents, its
+ * agent runs, and the model calls of plugins (`ctx.model.chat`). `bySender`
+ * has the calls of a known sender only, keyed by the principal id, and
+ * `bySource` has the calls of plugins only, so their sums can be less than
+ * `total`.
  */
 export interface SessionUsage {
   total: UsageCounts
@@ -29,6 +31,11 @@ export interface SessionUsage {
   byModel: Record<string, UsageCounts>
   /** By principal id. */
   bySender: Record<string, UsageCounts>
+  /**
+   * By the source of a plugin call, for example `plugin:tanstack/title`.
+   * Turns and agent runs have no source, so they are not in it.
+   */
+  bySource: Record<string, UsageCounts>
 }
 
 /** One model call, as the log keeps it. A type, so it is a log record field set. */
@@ -40,6 +47,13 @@ export type UsageCall = {
    * counts for each run above it in the run tree.
    */
   runId?: string
+  /**
+   * Who made a call that is not a turn or an agent run:
+   * `plugin:<name>` for `ctx.model.chat`.
+   */
+  source?: string
+  /** The `label` of a `ctx.model.chat` call, for example `judge`. */
+  label?: string
   usage: Omit<UsageCounts, 'calls'>
 }
 
@@ -56,6 +70,7 @@ export const emptyUsage = (): SessionUsage => ({
   total: emptyCounts(),
   byModel: {},
   bySender: {},
+  bySource: {},
 })
 
 /** The counts that one call adds, from what the provider reported. */
@@ -103,6 +118,11 @@ export function addUsage(totals: SessionUsage, call: UsageCall) {
   addCounts(countsOf(totals.byModel, call.model), call.usage)
   if (call.principal) {
     addCounts(countsOf(totals.bySender, call.principal.id), call.usage)
+  }
+  if (call.source !== undefined) {
+    // Totals that a log kept before `bySource` existed have no map yet.
+    totals.bySource ??= {}
+    addCounts(countsOf(totals.bySource, call.source), call.usage)
   }
 }
 

@@ -26,7 +26,7 @@ async function namesOf(events: AsyncIterable<SessionEvent>) {
 
 describe('SessionFeed', () => {
   it('delivers events published while a reader handles earlier ones', async () => {
-    const feed = new SessionFeed({ eventBytes: EVENT_BYTES })
+    const feed = new SessionFeed({ threadId: 't1', eventBytes: EVENT_BYTES })
     const controller = new AbortController()
     const seen: Array<string> = []
     const reading = (async () => {
@@ -48,7 +48,7 @@ describe('SessionFeed', () => {
   })
 
   it('skips filtered events and replays from a cursor', async () => {
-    const feed = new SessionFeed({ eventBytes: EVENT_BYTES })
+    const feed = new SessionFeed({ threadId: 't1', eventBytes: EVENT_BYTES })
     feed.publish('a', custom('one'))
     feed.publish('b', custom('two'))
     feed.publish('a', custom('three'))
@@ -62,7 +62,7 @@ describe('SessionFeed', () => {
 
   it('keeps the newest events that fit in eventBytes, and starts an older cursor with a gap at the oldest kept', async () => {
     const size = JSON.stringify(custom('e1')).length
-    const feed = new SessionFeed({ eventBytes: size * 3 })
+    const feed = new SessionFeed({ threadId: 't1', eventBytes: size * 3 })
     for (const name of ['e1', 'e2', 'e3', 'e4', 'e5']) {
       feed.publish('op', custom(name))
     }
@@ -79,7 +79,7 @@ describe('SessionFeed', () => {
   })
 
   it('keeps the newest event when it alone is larger than eventBytes', async () => {
-    const feed = new SessionFeed({ eventBytes: 1 })
+    const feed = new SessionFeed({ threadId: 't1', eventBytes: 1 })
     feed.publish('op', custom('e1'))
     feed.publish('op', custom('e2'))
     feed.close()
@@ -91,7 +91,7 @@ describe('SessionFeed', () => {
   })
 
   it('ends a read when wake() finds until() true, with no new event', async () => {
-    const feed = new SessionFeed({ eventBytes: EVENT_BYTES })
+    const feed = new SessionFeed({ threadId: 't1', eventBytes: EVENT_BYTES })
     let done = false
     const reading = (async () => {
       let count = 0

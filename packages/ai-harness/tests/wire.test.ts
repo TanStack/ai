@@ -6,6 +6,7 @@ import type { SessionEvent } from '../src/types'
 
 const entryOf = (event: Record<string, unknown>): SessionEvent => ({
   cursor: '7',
+  threadId: 't1',
   operationId: 'op-1',
   event: event as unknown as StreamChunk,
 })
@@ -25,6 +26,7 @@ describe('wireFrame', () => {
     expect(JSON.parse(wireFrame(entry))).toEqual({
       type: 'harness.event',
       cursor: '7',
+      threadId: 't1',
       operationId: 'op-1',
       event: {
         type: EventType.TEXT_MESSAGE_CONTENT,

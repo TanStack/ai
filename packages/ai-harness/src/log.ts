@@ -64,7 +64,13 @@ import type { SessionUsage, UsageCall, UsageCounts } from './usage'
 
 /** The records the harness writes to a session log. */
 export type HarnessRecord =
-  | { type: 'harness.event'; operationId: string; event: StreamChunk }
+  | {
+      type: 'harness.event'
+      operationId: string
+      /** The run that started the operation, for a child run. */
+      parentRunId?: string
+      event: StreamChunk
+    }
   | { type: 'harness.transcript'; keep: number; add: Array<ModelMessage> }
   | {
       type: 'harness.input'
@@ -1572,8 +1578,9 @@ export class SharedLog<TState = unknown> {
         reduce !== undefined && reduce === this.fold.reduce
           ? shared.reduced
           : undefined,
-      publish: (operationId, event) => {
-        if (!isDropped()) this.publish(threadId, operationId, event)
+      publish: (operationId, event, parentRunId) => {
+        if (!isDropped())
+          this.publish(threadId, operationId, event, parentRunId)
       },
       append: (records, appendOptions) =>
         isDropped()
@@ -1722,7 +1729,12 @@ export class SharedLog<TState = unknown> {
   // Writes
   // ===========================
 
-  private publish(thread: string, operationId: string, event: StreamChunk) {
+  private publish(
+    thread: string,
+    operationId: string,
+    event: StreamChunk,
+    parentRunId: string | undefined,
+  ) {
     const normalized = normalize(event)
     const key = deltaKey(thread, operationId, normalized)
     const last = this.pending.at(-1)
@@ -1736,7 +1748,12 @@ export class SharedLog<TState = unknown> {
     else {
       this.pending.push(
         this.stamp(
-          { type: 'harness.event', operationId, event: normalized },
+          {
+            type: 'harness.event',
+            operationId,
+            ...(parentRunId !== undefined ? { parentRunId } : {}),
+            event: normalized,
+          },
           thread,
         ),
       )
@@ -2211,7 +2228,7 @@ export class SharedLog<TState = unknown> {
         this.resulted.delete(`${thread}\u0000${message.toolCallId}`)
       }
     }
-    const event = sessionEventOf(entry)
+    const event = sessionEventOf(entry, this.rootThread)
     if (!event) return
     this.remote?.push({ thread, entry: event })
     // The fold has JSON values only, so this cannot throw.
@@ -2273,14 +2290,14 @@ export class SharedLog<TState = unknown> {
           // A truncate dropped the events after `after`: say so once, then
           // go on from the first stored record.
           const resumeAt = error.firstSeq - 1
-          yield gapEvent(String(after), String(resumeAt), 'truncated')
+          yield gapEvent(thread, String(after), String(resumeAt), 'truncated')
           after = resumeAt
           continue
         }
         for (const entry of page) {
           if (entry.seq > upTo || signal?.aborted) break
           after = entry.seq
-          const event = sessionEventOf(entry)
+          const event = sessionEventOf(entry, this.rootThread)
           const isOwn = threadOf(entry.record, this.rootThread) === thread
           if (event && isOwn && accepts(event)) yield event
         }
@@ -2346,14 +2363,23 @@ function mergeDelta(first: StreamChunk, second: StreamChunk): StreamChunk {
   return second
 }
 
-function sessionEventOf(entry: LogEntry) {
+/**
+ * The session event of `entry`, or `undefined` when it is not an event. A
+ * record with no `thread` is an event of `rootThread`. An old record has no
+ * `parentRunId`.
+ */
+function sessionEventOf(entry: LogEntry, rootThread: string) {
   const { record } = entry
   if (!isHarnessRecord(record) || record.type !== 'harness.event') {
     return undefined
   }
   const event: SessionEvent = {
     cursor: String(entry.seq),
+    threadId: threadOf(record, rootThread),
     operationId: record.operationId,
+    ...(typeof record.parentRunId === 'string'
+      ? { parentRunId: record.parentRunId }
+      : {}),
     event: record.event,
   }
   return event

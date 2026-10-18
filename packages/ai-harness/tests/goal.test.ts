@@ -154,6 +154,36 @@ describe('goal', () => {
     await host.close()
   })
 
+  it('counts each judge call under plugin:tanstack/goal', async () => {
+    const { adapter } = mockAdapter([])
+    const judge: AnyTextAdapter = {
+      ...adapter,
+      structuredOutput: async () => ({
+        data: { met: true, reason: 'Done.' },
+        rawText: '{}',
+        usage: { promptTokens: 30, completionTokens: 5, totalTokens: 35 },
+      }),
+    }
+    const { host, session } = await start({
+      replies: [() => text('done')],
+      judge,
+    })
+
+    await session.command({ name: 'goal', input: 'finish' })
+    await waitForStatus(
+      session,
+      'Goal: finish\nStatus: met, round 1 of 20.\nLast check: Done.',
+    )
+
+    expect(session.usage().bySource).toEqual({
+      'plugin:tanstack/goal': expect.objectContaining({
+        calls: 1,
+        totalTokens: 35,
+      }),
+    })
+    await host.close()
+  })
+
   it('keeps going on a harness that rejects prompts while busy', async () => {
     const { host, session, calls } = await start({
       replies: [() => text('try one'), () => text('done')],

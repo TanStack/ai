@@ -538,6 +538,7 @@ export class SessionImpl<
       this.notifyHost,
       this.eventListeners,
       this.redactor,
+      (operationId) => this.parentRunOf(operationId),
     )
     // The child threads (agent chains and subagent runs) are in this log.
     const view = { writer }

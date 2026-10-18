@@ -870,17 +870,20 @@ export function notifyListeners(
  * is how the host and `onEvent` see events. The caller keeps `listeners`, so
  * they survive a new tap of another feed. Each event goes through
  * `redactor` first, so no one of them gets a secret of the session.
+ * `parentOf` gives the parent run of an operation, so each event of a child
+ * run names its parent.
  */
 export function tapFeed(
   feed: EventFeed,
   notifyHost: (event: StreamChunk) => void,
   listeners: Set<EventListener>,
   redactor: Redactor,
+  parentOf: (operationId: string) => string | undefined,
 ): ListenedFeed {
   return {
-    publish: (operationId, raw) => {
+    publish: (operationId, raw, parentRunId) => {
       const event = redactor.redact(raw)
-      feed.publish(operationId, event)
+      feed.publish(operationId, event, parentRunId ?? parentOf(operationId))
       notifyListeners(notifyHost, listeners, { operationId, event })
     },
     listen: (listener) => {

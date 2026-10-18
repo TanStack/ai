@@ -1,4 +1,4 @@
-import { EventType, chat } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai'
 import { defineCommand } from '../commands'
 import { createPluginEvent } from '../extensions'
 import { definePlugin } from '../plugins'
@@ -191,21 +191,26 @@ export function goal(options: {
         const transcript = transcriptText(
           (await ctx.session.transcript()).slice(-10),
         ).slice(-8000)
-        const verdict = await chat({
-          adapter: await run.keys.adapter(options.judge),
-          messages: [
-            {
-              role: 'user',
-              content: `${JUDGE_PROMPT}\n\nGoal: ${text}\n\nThe last part of the conversation:\n${transcript}`,
+        // Counted in the session, and stopped when the turn stops.
+        const verdict = await ctx.model.chat({
+          adapter: options.judge,
+          run,
+          label: 'judge',
+          options: {
+            messages: [
+              {
+                role: 'user',
+                content: `${JUDGE_PROMPT}\n\nGoal: ${text}\n\nThe last part of the conversation:\n${transcript}`,
+              },
+            ],
+            outputSchema: {
+              type: 'object',
+              properties: {
+                met: { type: 'boolean' },
+                reason: { type: 'string' },
+              },
+              required: ['met', 'reason'],
             },
-          ],
-          outputSchema: {
-            type: 'object',
-            properties: {
-              met: { type: 'boolean' },
-              reason: { type: 'string' },
-            },
-            required: ['met', 'reason'],
           },
         })
         if (!isVerdict(verdict))

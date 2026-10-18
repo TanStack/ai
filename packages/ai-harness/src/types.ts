@@ -142,8 +142,19 @@ export type Cursor = string
 /** One event in a session's ordered stream. */
 export interface SessionEvent {
   cursor: Cursor
-  /** The operation that produced the event. */
+  /**
+   * The thread of the event: the thread of the session, or a child thread
+   * of its tree.
+   */
+  threadId: string
+  /** The operation that produced the event. It is also the AG-UI `runId`. */
   operationId: string
+  /**
+   * The run that started the operation, when the operation is a child run:
+   * an agent run that agent code or a tool of a turn started. A top-level
+   * run has none. With `operationId`, it gives the run tree.
+   */
+  parentRunId?: string
   event: StreamChunk
 }
 
@@ -789,6 +800,10 @@ export interface UsageUpdate {
   model: string
   /** The principal id of the sender, when known. */
   sender?: string
+  /** `plugin:<name>` for a call of `ctx.model.chat`. Turns and agent runs have none. */
+  source?: string
+  /** The `label` of a `ctx.model.chat` call, when it has one. */
+  label?: string
   /** The usage of this call. */
   usage: Omit<UsageCounts, 'calls'>
   /** The new totals of the thread. */
