@@ -168,6 +168,7 @@ describe('device login', () => {
     expect(onCode).toHaveBeenCalledWith({
       userCode: 'ABCD-1234',
       verificationUri: 'https://auth.example/device',
+      expiresAt: expect.any(Number),
     })
     expect(credential).toMatchObject({ accessToken: 'device-token' })
   })
