@@ -754,6 +754,13 @@ export const HARNESS_EVENTS = {
    */
   reset: 'harness.reset',
   /**
+   * Another agent answers the turn from here: a `handoff` tool call, agent
+   * code, or the router moved it. The value has `from` and `to` (an agent
+   * name, or `null` for the main model), the `note` when there is one, `by`
+   * (`'tool'`, `'code'`, or `'router'`), and the `runId` of the turn.
+   */
+  handoff: 'harness.handoff',
+  /**
    * `session.revert` or `session.unrevert` changed what the transcript
    * shows. The value has the `messageId` of the revert, or `null` when no
    * revert stands. Read the transcript again.

@@ -42,6 +42,7 @@ import type {
   RunRecord,
   StreamChunk,
   SubagentBinding,
+  SubagentRunContext,
 } from '@tanstack/ai'
 import type { InputState, LogWriter } from '../log'
 import type { AgentResultRecord } from '../log-records'
@@ -54,6 +55,7 @@ import type {
   HarnessAgentContext,
 } from '../agents'
 import type { AnyHarness } from '../define'
+import type { HandoffOptions, TurnHandoffs } from '../handoff'
 import type { MountedPlugins } from '../plugins'
 import type {
   AgentRun,
@@ -390,7 +392,8 @@ export abstract class SessionAgents<
    * their tools read `run` as `ctx.context.run`. Their model calls count in
    * the usage of `principal`, the user of `run`. With `agents` (the
    * subagents of a turn), the agent tools can start them in the background,
-   * for `principal`.
+   * for `principal`. With `handoffs` (the root agents of a routed turn), each
+   * root agent gets the `handoff` tool and `ctx.harness.handoff`.
    */
   protected binding(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
@@ -399,6 +402,7 @@ export abstract class SessionAgents<
     run: RunContext,
     runPlugins?: MountedPlugins,
     agents?: ReadonlyArray<AnyAgent>,
+    handoffs?: TurnHandoffs,
   ) {
     const options = this.harness.media
     // The child runs as a background agent of this session, and its end
@@ -463,13 +467,26 @@ export abstract class SessionAgents<
         }),
         // After the media, so the model gets no secret of the session.
         redactMiddleware(this.redactor),
+        ...(handoffs ? [handoffs.middleware({ roots: true })] : []),
       ],
       keys: run.keys,
       // No `promptCache`: a tool-mode child then uses the retention of the
       // turn's chat() call, so a turn override reaches it.
       ...(start && { start }),
-      // No `extend`: a tool-mode child gets the registered default
-      // `NO_SESSION_CONTEXT` as `ctx.harness`.
+      // Only a root agent can hand off. Its nested children, and a tool-mode
+      // child (no `extend`), get the registered default `NO_SESSION_CONTEXT`.
+      ...(handoffs && {
+        extend: (ctx: SubagentRunContext) => ({
+          harness:
+            ctx.parentSubagentRunId === undefined
+              ? {
+                  ...NO_SESSION_CONTEXT,
+                  handoff: (handoff: HandoffOptions) =>
+                    handoffs.handoff(handoff, ctx.forward.subagentName, 'code'),
+                }
+              : NO_SESSION_CONTEXT,
+        }),
+      }),
     } satisfies SubagentBinding
   }
 
@@ -974,6 +991,8 @@ export abstract class SessionAgents<
       const harnessContext: HarnessAgentContext = {
         step: durable?.step ?? NO_SESSION_CONTEXT.step,
         agents: this.agentStarter(chain),
+        // A background run does not answer a turn, so it cannot hand off.
+        handoff: NO_SESSION_CONTEXT.handoff,
       }
       const stream = runAgentStream(
         agent,

@@ -8,6 +8,7 @@ import { registerSubagentContextDefaults } from '@tanstack/ai/adapter-internals'
 import { stepRunWithoutSession } from './durable-tool'
 import { waitUntil } from './utils'
 import type { ToolStep } from './durable-tool'
+import type { HandoffOptions } from './handoff'
 import type {
   AgentRunOptions,
   AgentStartOptions,
@@ -213,6 +214,19 @@ export interface HarnessAgentContext {
   step: ToolStep
   /** Start and run agents, as children of this run. */
   agents: AgentActions
+  /**
+   * Hand the turn to another root agent, or to `'main'` (the main model).
+   * The target answers next, in this turn, and the later turns go to it.
+   * It works in a root agent that answers a turn of a harness with
+   * `routing`. Anywhere else it throws. It throws for a target that is not a
+   * root agent too.
+   *
+   * @example
+   * ```ts
+   * await ctx.harness.handoff({ to: 'billing', note: 'Refund for order 42' })
+   * ```
+   */
+  handoff: (options: HandoffOptions) => Promise<void>
 }
 
 const noSessionAgents = () => {
@@ -221,11 +235,18 @@ const noSessionAgents = () => {
   )
 }
 
+const noTurnHandoff = () =>
+  Promise.reject(
+    new Error(
+      'ctx.harness.handoff needs a root agent that answers a turn of a harness with routing.',
+    ),
+  )
+
 /**
  * `ctx.harness` outside a run that a session started from code (a tool-mode
  * child of a chat turn, or a run that a plain `chat()` starts): `step.do`
  * runs `fn` each time, `step.sleep` waits its full time, and each call of
- * `agents` throws.
+ * `agents` and `handoff` throws.
  */
 export const NO_SESSION_CONTEXT: HarnessAgentContext = {
   // `fn` runs each time, so it needs no JSON copy.
@@ -238,6 +259,7 @@ export const NO_SESSION_CONTEXT: HarnessAgentContext = {
     run: noSessionAgents,
     group: noSessionAgents,
   },
+  handoff: noTurnHandoff,
 }
 
 // A run that a plain chat() starts gets NO_SESSION_CONTEXT, so ctx.harness is
@@ -252,7 +274,8 @@ declare module '@tanstack/ai' {
    * children those runs start through `ctx.chat({ subagents })`. Any
    * other run, for example one that a plain `chat()` starts, gets
    * `NO_SESSION_CONTEXT`: `step.do` runs `fn` each time, and each call of
-   * `agents` throws.
+   * `agents` throws. `handoff` works only in a root agent that answers a
+   * turn of a harness with `routing`.
    */
   interface SubagentContextExtension {
     harness: HarnessAgentContext

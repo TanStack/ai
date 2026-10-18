@@ -103,6 +103,7 @@ export type {
   AnyAgent,
   HarnessAgentContext,
 } from './agents'
+export type { HandoffOptions } from './handoff'
 
 export { createHarnessHost } from './host'
 export { createHarnessWorker } from './harness-worker'

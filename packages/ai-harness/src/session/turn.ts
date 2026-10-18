@@ -44,6 +44,13 @@ import {
 } from './helpers'
 import { SessionAgents } from './agents'
 import { ToolTurnAdapter } from '../tool-turn'
+import {
+  HANDOFF_TOOL,
+  TurnHandoffs,
+  answererOf,
+  markRouted,
+  routedText,
+} from '../handoff'
 import type {
   AnyChatMiddleware,
   AnyTextAdapter,
@@ -52,9 +59,7 @@ import type {
   StreamChunk,
   SubagentRouterPick,
 } from '@tanstack/ai'
-import type { AnyAgent } from '../agents'
-import type { AnyHarness, HarnessRouterPick } from '../define'
-import type { HandoffRecord } from '../log-records'
+import type { AnyHarness } from '../define'
 import type { ModelErrorContext } from '../turn'
 import type { MountedPlugins } from '../plugins'
 import type {
@@ -464,6 +469,22 @@ export abstract class SessionTurn<
           ...(runPlugins?.agents ?? []),
         ]),
       ]
+      // The handoffs of this turn: the router, the `handoff` tool, and
+      // `ctx.harness.handoff` all go through it.
+      const handoffs =
+        this.harness.routing && rootAgents.length > 0
+          ? new TurnHandoffs({
+              runId: operation.id,
+              rootAgents,
+              subagents: subagentList.map((agent) => agent.name),
+              append: (record) =>
+                this.writer.append([{ type: 'harness.handoff', ...record }]),
+              publish: (record) =>
+                operation.publish(
+                  customEvent(HARNESS_EVENTS.handoff, { ...record }),
+                ),
+            })
+          : undefined
       // The settings of this turn. Every chat() call below uses them: the
       // tool loop, retries, `beforeFinish` cycles, the main part of
       // `routing.after: 'main'`, and late joins.
@@ -537,7 +558,23 @@ export abstract class SessionTurn<
       // here, so a middleware wrapper wraps the bound tool,
       // and again at each model call, for tools that a middleware returns.
       const bindTool = this.durableBinder(run)
-      const tools = prepared.map((tool) => bindDurable(tool, bindTool))
+      const clash = handoffs
+        ? prepared.find((tool) => tool.name === HANDOFF_TOOL)
+        : undefined
+      if (clash) {
+        const owner =
+          [
+            ...(session?.owners.tools ?? []),
+            ...(runPlugins?.owners.tools ?? []),
+          ].find((entry) => entry.name === HANDOFF_TOOL)?.owner ?? 'the turn'
+        throw new Error(
+          `Duplicate tool "${HANDOFF_TOOL}": first owner routing (the handoff tool), second owner ${owner}. Rename the tool.`,
+        )
+      }
+      const tools = [
+        ...prepared.map((tool) => bindDurable(tool, bindTool)),
+        ...(handoffs ? [handoffs.tool(null)] : []),
+      ]
       // The override tools as the turn has them: prepared and bound.
       const keptTools = tools.filter((tool) => turnToolNames.has(tool.name))
       const keepTools =
@@ -572,12 +609,7 @@ export abstract class SessionTurn<
       // A new turn asks the router once. A resolve does not: it continues the
       // turn it answers, the main model or the saved plan of the root agents.
       let pick: SubagentRouterPick | undefined
-      if (
-        routing &&
-        rootAgents.length > 0 &&
-        turn.resume === undefined &&
-        !turn.tool
-      ) {
+      if (routing && handoffs && turn.resume === undefined && !turn.tool) {
         const history = await this.messages.loadThread(this.threadId)
         const activeAgent = this.writer.state.thread.activeAgent
         const chosen = await routing.router({
@@ -593,41 +625,38 @@ export abstract class SessionTurn<
           adapter,
           ...(activeAgent !== null ? { activeAgent } : {}),
         })
-        const routedTo = routerTarget(chosen, activeAgent, rootAgents)
-        pick = routedTo.pick
         // Before the agent runs, so a takeover goes on with the new agent.
-        if (routedTo.handoff) {
-          await this.writer.append([
-            {
-              type: 'harness.handoff',
-              ...routedTo.handoff,
-              runId: operation.id,
-              by: 'router',
-            },
-          ])
-        }
+        pick = await handoffs.route(chosen, activeAgent)
       }
       const isRootTurn =
         turn.answers?.routed?.root === true || (pick ?? 'main') !== 'main'
       const { after, ...shared } = routing ?? {}
-      const rootBag =
-        routing && isRootTurn
-          ? {
-              ...shared,
-              agents: rootAgents,
-              router: () => {
-                // A resolve has no pick. chat() continues its saved plan.
-                if (pick === undefined) {
-                  throw new Error('The routed turn has no saved plan.')
-                }
-                return pick
-              },
-              // The harness runs the main part of `after: 'main'`, so the main
-              // model keeps its subagents.
-              strategy: 'exclusive' as const,
-            }
-          : undefined
+      const routedBag = routing
+        ? {
+            ...shared,
+            agents: rootAgents,
+            router: () => {
+              // A resolve has no pick. chat() continues its saved plan.
+              if (pick === undefined) {
+                throw new Error('The routed turn has no saved plan.')
+              }
+              return pick
+            },
+            // The harness runs the main part of `after: 'main'`, so the main
+            // model keeps its subagents.
+            strategy: 'exclusive' as const,
+          }
+        : undefined
+      /** The bag of the root agents, while a part of them runs. */
+      let rootBag = isRootTurn ? routedBag : undefined
       isRootPart = rootBag !== undefined
+      /**
+       * The agent that answers the next part, when one agent does: `null`
+       * for the main model. The routed message gets its name.
+       */
+      let answerer = isRootPart ? answererOf(pick) : null
+      /** The routed text of the parts before a handoff in this turn. */
+      let earlier: string | undefined
       /** The subagents of the next chat() call. */
       let bag = rootBag ?? subagents
       let routed = isRoutedBag(bag)
@@ -731,6 +760,7 @@ export abstract class SessionTurn<
               ...(keepTools ? [keepTools] : []),
               durableTools,
               this.detachTools(operation.id, sender),
+              ...(handoffs ? [handoffs.middleware()] : []),
               ...(rootBag ? [] : [this.syncFold()]),
               // Again: a middleware that returns `messages` (as `syncFold`
               // does) resets what the model gets to the whole transcript.
@@ -771,6 +801,7 @@ export abstract class SessionTurn<
                       run,
                       runPlugins,
                       bag.agents,
+                      isRootPart ? handoffs : undefined,
                     ),
                   },
                 }
@@ -971,12 +1002,52 @@ export abstract class SessionTurn<
           failure = runError.message
           break
         }
+        // The routed message of this part gets the name of its agent. A part
+        // that waits for an answer gets it too.
+        if (routed && failure === undefined && !signal.aborted) {
+          await markRouted(this.messages, this.threadId, operation.id, {
+            ...(answerer ? { agent: answerer } : {}),
+            ...(earlier !== undefined ? { earlier } : {}),
+          })
+        }
         const isFinished =
           failure !== undefined ||
           (interrupts?.length ?? 0) > 0 ||
           signal.aborted
         if (isFinished) break
-        if (isRootPart) {
+        const handoff = handoffs?.take()
+        if (handoff) {
+          // The target answers in this turn, with its own prompt and tools,
+          // from the saved thread.
+          if (routed) {
+            earlier = await routedText(
+              this.messages,
+              this.threadId,
+              operation.id,
+            )
+          }
+          answerer = handoff.to
+          if (handoff.to === null) {
+            isRootPart = false
+            rootBag = undefined
+            bag = subagents
+          } else {
+            pick = handoff.to
+            isRootPart = true
+            rootBag = routedBag
+            bag = routedBag
+            // The turn text is the answer of the target.
+            text = ''
+          }
+          routed = isRoutedBag(bag)
+          if (routed) {
+            await this.runStore.createOrResume({
+              runId: operation.id,
+              threadId: this.threadId,
+              startedAt: Date.now(),
+            })
+          }
+        } else if (isRootPart) {
           if (after !== 'main') break
           // The agents answered. The main model answers next, with the
           // transcript that has their answer.
@@ -1183,46 +1254,4 @@ export abstract class SessionTurn<
     this.publishFinished(operation)
     this.requeueWaitingSteers()
   }
-}
-
-/**
- * The pick that `chat()` runs for a router answer, and the handoff that the
- * log keeps, when the answer changes who answers the thread.
- */
-function routerTarget(
-  chosen: HarnessRouterPick,
-  activeAgent: string | null,
-  rootAgents: ReadonlyArray<AnyAgent>,
-): {
-  pick: SubagentRouterPick
-  handoff?: Pick<HandoffRecord, 'from' | 'to' | 'note'>
-} {
-  const isRoot = (name: string) =>
-    rootAgents.some((agent) => agent.name === name)
-  if (chosen === undefined) {
-    // An active agent that this turn does not have (a plugin went away)
-    // gives the turn to the main model.
-    return {
-      pick: activeAgent !== null && isRoot(activeAgent) ? activeAgent : 'main',
-    }
-  }
-  if (typeof chosen === 'object' && 'handoff' in chosen) {
-    const to = chosen.handoff === 'main' ? null : chosen.handoff
-    // An unknown name writes nothing. chat() fails the turn for it.
-    if (to !== null && !isRoot(to)) return { pick: to }
-    return {
-      pick: chosen.handoff,
-      handoff: {
-        from: activeAgent,
-        to,
-        ...(chosen.note !== undefined ? { note: chosen.note } : {}),
-      },
-    }
-  }
-  if (typeof chosen !== 'string') return { pick: chosen }
-  const to = chosen === 'main' ? null : chosen
-  const changes = to !== activeAgent && (to === null || isRoot(to))
-  return changes
-    ? { pick: chosen, handoff: { from: activeAgent, to } }
-    : { pick: chosen }
 }
