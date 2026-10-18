@@ -70,6 +70,14 @@ const railway = railwaySandbox() // managed Railway sandbox; reads RAILWAY_TOKEN
 > ngrok subpath, and the [Cloudflare guide](./cloudflare) for the edge-native
 > co-located model.
 
+## Community providers
+
+Community packages implement the same sandbox contract. Their maintainers handle support and releases.
+
+| Provider | Package | Notes |
+| --- | --- | --- |
+| Lizard (lizard.build) | [`@lizard-build/tanstack-ai`](https://github.com/lizard-build/integrations/tree/main/packages/tanstack-ai) | Runs commands and manages files in Lizard Sandboxes. Supports background processes and authenticated HTTP ports. Requires `LIZARD_API_KEY` and `LIZARD_PROJECT_ID`. Lizard maintains the package. See its README for setup and capability limits. |
+
 ## Local process
 
 ```ts
