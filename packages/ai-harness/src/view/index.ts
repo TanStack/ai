@@ -62,6 +62,7 @@ import type {
   ViewPart,
   ViewQuestion,
 } from './types'
+import type { WaitKind } from '../waits'
 
 export {
   MEDIA_URL_PREFIX,
@@ -71,6 +72,8 @@ export {
   mediaPart,
 } from '../media-ref'
 export type { MediaKind, MediaRecord, WaitingInput } from '../types'
+export { isApproval, waitKind, waitOfInterrupt, waitOfQuestion } from '../waits'
+export type { Wait, WaitKind, WaitOutcome } from '../waits'
 export type {
   AgentPart,
   Approval,
@@ -135,10 +138,31 @@ function isEnd({ event }: SessionEvent) {
 const URL_REFRESH_EARLY = 60_000
 
 /** The options a view gives `source.send` for a turn. */
-export interface ViewSendOptions {
-  to?: undefined
-  mode?: 'prompt' | 'steer' | 'followUp'
+export type ViewSendOptions = { to?: undefined } & (
+  | {
+      mode?: 'prompt'
+      /** `'operator'`: an operator reply. See `SendOptions.as`. */
+      as?: 'operator'
+    }
+  | { mode: 'steer' | 'followUp'; as?: never }
+)
+
+/** The options of `view.send`. */
+export interface ViewTextOptions {
+  /** Stored media files (from `upload`) that go with the text. */
+  attachments?: ReadonlyArray<MediaRecord>
+  /**
+   * `'operator'`: the reply of an operator while a handoff to a person is
+   * open. No model runs, and it is not a `/command`. The user of the view
+   * needs the `operator` access action.
+   */
+  as?: 'operator'
 }
+
+/** True when `view.send` got its attachments as a list. */
+const isAttachmentList = (
+  options: ViewTextOptions | ReadonlyArray<MediaRecord>,
+): options is ReadonlyArray<MediaRecord> => Array.isArray(options)
 
 /** The options a view gives `source.send` for a message to an agent run. */
 export interface ViewAgentSendOptions {
@@ -229,12 +253,19 @@ export interface SessionView {
   ready: Promise<void>
   /**
    * A `/command`, a prompt, or a steer while a turn runs. `attachments` are
-   * stored media files (from `upload`) that go with the text.
-   * A `/command` ignores them. Empty text with no attachments does nothing.
+   * stored media files (from `upload`) that go with the text. Pass them as
+   * a list, or as `{ attachments }`. A `/command` ignores them. Empty text
+   * with no attachments does nothing. `{ as: 'operator' }` sends the reply
+   * of an operator (see {@link ViewTextOptions}).
+   *
+   * @example
+   * ```ts
+   * await view.send('I refunded order 42.', { as: 'operator' })
+   * ```
    */
   send: (
     text: string,
-    attachments?: ReadonlyArray<MediaRecord>,
+    options?: ViewTextOptions | ReadonlyArray<MediaRecord>,
   ) => Promise<void>
   /** A message that runs as its own turn after the current work. */
   followUp: (
@@ -397,6 +428,14 @@ export function createSessionView(source: SessionViewSource) {
   const handlers = new Map<string, Set<(value: unknown) => void>>()
   /** The answer to each open approval and client tool, by interrupt id. */
   const decisions = new Map<string, RunAgentResumeItem>()
+  /**
+   * The kinds of the waits that no turn holds (the waits of background agent
+   * runs), by id, from the last snapshot. Each one is answered on its own,
+   * not with the interrupts of the turn.
+   */
+  let runWaits = new Map<string, WaitKind>()
+  /** The waits of background runs whose answer is on its way. */
+  const sending = new Set<string>()
   const chatTurns = new Set<string>()
   const agentNames = new Map<string, string>()
   const mediaParts = new Map<string, MediaPart>()
@@ -544,9 +583,30 @@ export function createSessionView(source: SessionViewSource) {
     return messages === state.messages ? state : { ...state, messages }
   }
 
+  /** `items` without the items that `drop` matches. */
+  const without = <T extends { id: string }>(
+    items: Array<T>,
+    drop: (id: string) => boolean,
+  ) =>
+    keep(
+      items,
+      items.filter((item) => !drop(item.id)),
+    )
+  /** The state without the approvals, client tools, and interrupts `drop` matches. */
+  const withoutItems = (drop: (id: string) => boolean) => {
+    const state = get()
+    return {
+      ...state,
+      approvals: without(state.approvals, drop),
+      clientTools: without(state.clientTools, drop),
+      interrupts: without(state.interrupts, drop),
+    }
+  }
   /**
    * Keep the answer to an item of `open`. One resume must answer every open
-   * interrupt, so it goes when each approval and client tool has an answer.
+   * interrupt of the turn, so it goes when each approval and client tool of
+   * the turn has an answer. A wait of a background agent run goes at once,
+   * on its own.
    */
   const answer = (
     open: ReadonlyArray<{ id: string }>,
@@ -554,17 +614,35 @@ export function createSessionView(source: SessionViewSource) {
   ) => {
     alive()
     const id = entry.interruptId
-    const isDecided =
-      resolving || decisions.has(id) || !open.some((item) => item.id === id)
-    if (isDecided) return
+    if (!open.some((item) => item.id === id)) return
+    const kind = runWaits.get(id)
+    if (kind !== undefined) {
+      if (sending.has(id)) return
+      sending.add(id)
+      commit(withoutItems((item) => item === id))
+      // A person answers a `human` wait with `answer`, which an operator
+      // may send too.
+      const sent =
+        kind === 'human' && entry.status === 'resolved'
+          ? source.answer({ questionId: id, value: entry.payload })
+          : source.resolve({ resume: [entry] })
+      void sent.then(refused, fail).finally(() => {
+        sending.delete(id)
+        refreshSnapshot()
+      })
+      return
+    }
+    if (resolving || decisions.has(id)) return
     decisions.set(id, entry)
     const { approvals, clientTools, interrupts } = get()
-    const waiting = [...approvals, ...clientTools, ...interrupts]
+    const waiting = [...approvals, ...clientTools, ...interrupts].filter(
+      (item) => !runWaits.has(item.id),
+    )
     const resume = waiting.flatMap((item) => decisions.get(item.id) ?? [])
     if (resume.length < waiting.length) return
     decisions.clear()
     resolving = true
-    commit({ ...get(), approvals: [], clientTools: [], interrupts: [] })
+    commit(withoutItems((item) => !runWaits.has(item)))
     void source
       .resolve({ resume })
       .then(undefined, fail)
@@ -683,6 +761,12 @@ export function createSessionView(source: SessionViewSource) {
   }
 
   const takeSnapshot = (snapshot: SessionSnapshot, initial = false) => {
+    const turnIds = new Set(snapshot.pendingInterrupts.map(({ id }) => id))
+    runWaits = new Map(
+      (snapshot.pendingWaits ?? []).flatMap(({ waitId, kind }) =>
+        turnIds.has(waitId) ? [] : [[waitId, kind] as const],
+      ),
+    )
     const before = get()
     const next = applySnapshot(before, snapshot, factory, { initial })
     commit(next)
@@ -989,10 +1073,19 @@ export function createSessionView(source: SessionViewSource) {
   const view: SessionView = {
     store,
     ready,
-    send: async (text, attachments = []) => {
+    send: async (text, options = []) => {
       alive()
+      const { attachments = [], as } = isAttachmentList(options)
+        ? { attachments: options, as: undefined }
+        : options
       const line = text.trim()
       if (line === '' && attachments.length === 0) return
+      if (as === 'operator') {
+        // An assistant message of the operator: the transcript has it.
+        const message = userInput(line, attachments)
+        await act(() => receiptOf(source.send(message, { as })))
+        return
+      }
       if (line.startsWith('/')) {
         const [name = '', ...rest] = line.slice(1).split(' ')
         const input = rest.join(' ').trim()

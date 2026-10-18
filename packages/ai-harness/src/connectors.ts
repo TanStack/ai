@@ -64,7 +64,7 @@ export function oauthConnector(options: OAuthConnectorOptions) {
   const { id, label, oauth } = options
   return definePlugin({
     name: `connector/${id}`,
-    setup: (ctx) => {
+    setup: () => {
       // The token of the user of the run that calls, never of another run.
       const token = async ({
         run,
@@ -77,11 +77,26 @@ export function oauthConnector(options: OAuthConnectorOptions) {
         let credential = await credentials.require(id, { wait })
         if (credential.type === 'api_key') return credential.value
         if (isExpired(credential) && credential.refreshToken) {
-          credential = await refreshCredential(oauth, credential, {
-            fetch: options.fetch,
-            signal: run.signal,
-          })
-          await credentials.set({ id, credential })
+          // `refresh` runs one refresh at a time and saves it where the
+          // credential is. The saved one can be fresh already: another call
+          // refreshed it after the read above.
+          // The request runs with the host signal: when this run stops,
+          // only this call fails, and the refresh goes on for the others.
+          const fresh = await credentials.refresh(
+            id,
+            (current, signal) =>
+              isExpired(current) &&
+              current.type === 'oauth' &&
+              current.refreshToken
+                ? refreshCredential(oauth, current, {
+                    fetch: options.fetch,
+                    signal,
+                  })
+                : Promise.resolve(current),
+            { signal: run.signal },
+          )
+          // The credential was deleted meanwhile: ask for a sign-in.
+          credential = fresh ?? (await credentials.require(id, { wait }))
         }
         if (credential.type === 'api_key') return credential.value
         return credential.accessToken
@@ -92,23 +107,25 @@ export function oauthConnector(options: OAuthConnectorOptions) {
           [`connect:${id}`]: defineCommand({
             description: `Sign in to ${label}`,
             // The sign-in belongs to the user who runs the command. A cancel
-            // or a session close stops it at once.
-            run: async (_input, { credentials, signal }) => {
+            // or a session close stops it at once. The `session` of the
+            // command makes the sign-in a wait of the command run.
+            run: async (_input, { credentials, signal, session }) => {
               const credential =
                 options.login === 'device'
                   ? await deviceLogin(oauth, {
-                      onCode: ({ userCode, verificationUri }) =>
-                        ctx.session.authRequired({
+                      onCode: ({ userCode, verificationUri, expiresAt }) =>
+                        session.authRequired({
                           connector: id,
                           url: verificationUri,
                           userCode,
+                          expiresAt,
                         }),
                       fetch: options.fetch,
                       signal,
                     })
                   : await loopbackLogin(oauth, {
                       onUrl: (url) =>
-                        ctx.session.authRequired({ connector: id, url }),
+                        session.authRequired({ connector: id, url }),
                       fetch: options.fetch,
                       signal,
                     })

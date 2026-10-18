@@ -35,10 +35,15 @@ export interface SessionUsage {
 export type UsageCall = {
   model: string
   principal?: { id: string; tenantId?: string }
+  /**
+   * The run that made the call: a turn, or an agent run. Its usage also
+   * counts for each run above it in the run tree.
+   */
+  runId?: string
   usage: Omit<UsageCounts, 'calls'>
 }
 
-const emptyCounts = (): UsageCounts => ({
+export const emptyCounts = (): UsageCounts => ({
   calls: 0,
   promptTokens: 0,
   completionTokens: 0,
@@ -65,7 +70,8 @@ export function callUsage(usage: TokenUsage): UsageCall['usage'] {
   }
 }
 
-function add(counts: UsageCounts, usage: UsageCall['usage']) {
+/** Add the counts of one call to `counts`, in place. */
+export function addCounts(counts: UsageCounts, usage: UsageCall['usage']) {
   counts.calls += 1
   counts.promptTokens += usage.promptTokens
   counts.completionTokens += usage.completionTokens
@@ -93,10 +99,10 @@ function countsOf(map: Record<string, UsageCounts>, key: string) {
 
 /** Add one call to `totals`, in place. */
 export function addUsage(totals: SessionUsage, call: UsageCall) {
-  add(totals.total, call.usage)
-  add(countsOf(totals.byModel, call.model), call.usage)
+  addCounts(totals.total, call.usage)
+  addCounts(countsOf(totals.byModel, call.model), call.usage)
   if (call.principal) {
-    add(countsOf(totals.bySender, call.principal.id), call.usage)
+    addCounts(countsOf(totals.bySender, call.principal.id), call.usage)
   }
 }
 

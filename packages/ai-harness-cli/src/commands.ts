@@ -55,23 +55,26 @@ async function runCommand(
     outcome.ok
       ? show(outcome.value)
       : `/${name} failed: ${outcome.error instanceof Error ? outcome.error.message : String(outcome.error)}`
+  const operation = session.command({ name, input })
   const settled = Promise.resolve(
-    session.command({ name, input }).then(
+    operation.then(
       (value) => ({ ok: true as const, value }),
       (error: unknown) => ({ ok: false as const, error }),
     ),
   )
   // A command that asks a question waits for the next line, so return now
   // and print its result when it is done.
-  let done = false
-  void settled.then(() => {
-    done = true
-  })
-  while (!done) {
-    if (session.snapshot().pendingQuestions.length > 0) {
-      return { type: 'notice', text: '', later: settled.then(describe) }
-    }
-    await new Promise((resolve) => setTimeout(resolve, 10))
+  const stop = new AbortController()
+  const asked = session
+    .waitFor({ runId: operation.id, signal: stop.signal })
+    .then(
+      () => true,
+      () => false,
+    )
+  const isAsking = await Promise.race([settled.then(() => false), asked])
+  stop.abort()
+  if (isAsking) {
+    return { type: 'notice', text: '', later: settled.then(describe) }
   }
   return { type: 'notice', text: describe(await settled) }
 }

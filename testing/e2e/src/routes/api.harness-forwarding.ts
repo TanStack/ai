@@ -116,7 +116,8 @@ export const Route = createFileRoute('/api/harness-forwarding')({
           }).receipt
           release()
           const first = await turn
-          const followUp = (await other.settled(receipt.inputId)).outcome
+          const followUp = (await other.settled({ inputId: receipt.inputId }))
+            .outcome
           return Response.json({
             receipt: { status: receipt.status },
             first: first.text,

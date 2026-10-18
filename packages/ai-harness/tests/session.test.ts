@@ -197,7 +197,9 @@ describe('chat turns', () => {
     await expect(a).resolves.toEqual({ text: 'onetwo', media: [] })
     await expect(joined).resolves.toEqual({ text: 'onetwo', media: [] })
     expect(messageTexts(calls[1]).at(-1)).toBe('and this')
-    expect(await session.settled((await joined.receipt).inputId)).toEqual({
+    expect(
+      await session.settled({ inputId: (await joined.receipt).inputId }),
+    ).toEqual({
       inputId: (await joined.receipt).inputId,
       outcome: 'completed',
       operationId: a.id,
@@ -522,7 +524,7 @@ describe('inputs', () => {
     const turn = session.send('Go.', { inputId: 'in-early' })
     const invalid = 'The stored interrupt descriptor is invalid.'
     await expect(turn).rejects.toThrow(invalid)
-    expect(await session.settled('in-early')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-early' })).toMatchObject({
       outcome: 'failed',
       error: { message: invalid },
     })
@@ -653,7 +655,7 @@ describe('plugins', () => {
     expect(chunks).toContainEqual(
       expect.objectContaining({ type: EventType.RUN_ERROR, message }),
     )
-    expect(await session.settled('in-1')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'failed',
       error: { message },
     })
@@ -775,7 +777,7 @@ describe('a waiting steer with an abort request', () => {
 
     expect(await turn).toEqual({ text: 'host answer', media: [] })
     expect(messageTexts(calls[1])).not.toContain('stop me')
-    expect(await session.settled('steer-1')).toMatchObject({
+    expect(await session.settled({ inputId: 'steer-1' })).toMatchObject({
       outcome: 'aborted',
     })
     expect(calls).toHaveLength(2)
@@ -865,7 +867,7 @@ describe('joins', () => {
     expect(receipt).toMatchObject({ status: 'rejected', reason: 'not_running' })
     expect(await steer).toEqual(await turn)
     expect(messageTexts(calls[1]).at(-1)).toBe('stop me')
-    expect(await session.settled('s1')).toMatchObject({
+    expect(await session.settled({ inputId: 's1' })).toMatchObject({
       outcome: 'completed',
       operationId: turn.id,
     })
@@ -1032,7 +1034,9 @@ describe('joins', () => {
     await expect(turn).rejects.toThrow('hook broke')
     expect(await steer).toEqual({ text: 'steer answer', media: [] })
     expect(messageTexts(calls[1])).toContain('more')
-    expect((await session.settled('s1')).operationId).not.toBe(turn.id)
+    expect((await session.settled({ inputId: 's1' })).operationId).not.toBe(
+      turn.id,
+    )
     await host.close()
   })
 
@@ -1067,7 +1071,9 @@ describe('joins', () => {
     expect(await steer).toEqual({ text: 'steer answer', media: [] })
     for (const call of calls) expect(messageTexts(call)).not.toContain('hook')
     expect(messageTexts(calls.at(-1))).toContain('more')
-    expect((await session.settled('s1')).operationId).not.toBe(turn.id)
+    expect((await session.settled({ inputId: 's1' })).operationId).not.toBe(
+      turn.id,
+    )
     await host.close()
   })
 
@@ -1105,7 +1111,9 @@ describe('joins', () => {
 
     expect(cancelled?.status).toBe('accepted')
     expect(messageTexts(calls[1])).not.toContain('a')
-    expect(await session.settled('a')).toMatchObject({ outcome: 'aborted' })
+    expect(await session.settled({ inputId: 'a' })).toMatchObject({
+      outcome: 'aborted',
+    })
     expect(await b).toEqual({ text: 'b answer', media: [] })
     await host.close()
   })

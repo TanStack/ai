@@ -12,7 +12,13 @@ import type {
   RunRecord,
   RunStore,
 } from '@tanstack/ai-persistence'
-import type { HarnessInput, ThreadSettings } from './types'
+import type {
+  HarnessInput,
+  RunNode,
+  SettlementOutcome,
+  ThreadSettings,
+} from './types'
+import type { Wait, WaitOutcome } from './waits'
 
 /** A change to a run record, as `RunStore.update` takes it. */
 export type RunPatch = Parameters<RunStore['update']>[1]
@@ -97,6 +103,121 @@ export type ScheduleRecord = {
   principal?: RecordPrincipal
 }
 
+/** A wait as the log keeps it, with what only a question has. */
+export type WaitRecord = {
+  wait: Wait
+  /** When the wait opened (epoch ms). */
+  at: number
+  /** The answer is a secret: the log never keeps it. */
+  secret?: true
+  /** A page the user must open before they answer. */
+  url?: string
+  /**
+   * A promise of the host that opened the wait holds it, so only that host
+   * can take the answer (an `ask()`). It ends when that host stops.
+   */
+  live?: true
+}
+
+/** A wait of the fold: its record, and how it ended once it did. */
+export type WaitState = WaitRecord & {
+  outcome?: WaitOutcome
+  /** When it ended (epoch ms). */
+  settledAt?: number
+  /** The answer of a wait that no promise holds. JSON. Never a secret. */
+  value?: unknown
+}
+
+/** The other end of a transfer: a thread of a harness, in the same tenant. */
+export type TransferLink = {
+  /** The name of the harness that runs the thread. */
+  harness: string
+  threadId: string
+}
+
+/**
+ * One end of a transfer, as the log of each thread keeps it. The log of the
+ * target has `from`, the log of the source has `to`. Both have the same
+ * `transferId`.
+ */
+export type TransferRecord = {
+  /** The thread that the conversation came from. Only in the target log. */
+  from?: TransferLink
+  /** The thread that the conversation went to. Only in the source log. */
+  to?: TransferLink
+  /** Who made the transfer. */
+  principal?: RecordPrincipal
+  /** When the transfer was made (epoch ms). */
+  at: number
+}
+
+/** The target of a handoff to a person: an operator answers. */
+export type HumanTarget = { human: true }
+
+/** True for `{ human: true }`, the target of a handoff to a person. */
+export function isHumanTarget(value: unknown): value is HumanTarget {
+  return isRecord(value) && value.human === true
+}
+
+/**
+ * A change of who answers the turns of a thread. An agent name is a root
+ * agent of the harness. `null` is the main model. `{ human: true }` is a
+ * person: an operator.
+ */
+export type HandoffRecord = {
+  /** Who answered before the handoff. */
+  from: string | null | HumanTarget
+  /** Who answers from now on. */
+  to: string | null | HumanTarget
+  /** A note for the target. */
+  note?: string
+  /** The turn that made the handoff. */
+  runId: string
+  /**
+   * What made the handoff: a `handoff` tool call, agent code, the router,
+   * or an operator who ended a handoff to a person.
+   */
+  by: 'tool' | 'code' | 'router' | 'operator'
+  /** The `human` wait that a handoff to a person opens. */
+  waitId?: string
+}
+
+/**
+ * A person answers the turns of a thread: the `human` wait `waitId` of a
+ * handoff is open. `from` answered before the handoff.
+ */
+export type HumanAnswerer = HumanTarget & {
+  waitId: string
+  from: string | null
+}
+
+/**
+ * A run of the run tree, with what the session needs to find its input: the
+ * input that the run applies, and for an agent run, the `agent` input of the
+ * first run of its chain.
+ */
+export type RunTreeNode = RunNode & {
+  inputId?: string
+  chainInputId?: string
+  /**
+   * The `agent` input of the chain whose code started this run. The tree
+   * budget of that chain counts this run, also after a restart.
+   */
+  parentChainInputId?: string
+  /**
+   * The start options that the log cannot keep: a function. A run that
+   * another host takes over runs without them.
+   */
+  liveOnly?: Array<'onModelError'>
+}
+
+/**
+ * What the log keeps of a run when the owner admits it: the fields that a
+ * run record does not have. The status, the result, and the error come from
+ * later records.
+ */
+export type RunNodeRecord = Omit<RunTreeNode, 'status' | 'result' | 'error'>
+
 /**
  * The thread-state records of a session log. Each change to what a record
  * means takes a new record type, never a new shape of one of these.
@@ -119,6 +240,8 @@ export type ThreadRecord =
     }
   /** A change to the thread state of one plugin. */
   | { type: 'harness.plugin.state'; plugin: string; delta: PluginStateDelta }
+  /** A change to one key of the state that the agents of a session share. */
+  | { type: 'harness.state'; key: string; delta: PluginStateDelta }
   /** The turn that stopped for interrupts, or `null` when none stands. */
   | { type: 'harness.interrupted'; turn: InterruptedTurnRecord | null }
   /** An agent run ended. */
@@ -135,6 +258,8 @@ export type ThreadRecord =
   | { type: 'harness.schedule.done'; scheduleId: string }
   /** A run started. A run id that the fold has already keeps its record. */
   | { type: 'harness.run'; run: RunRecord }
+  /** The owner admitted a run of the run tree. */
+  | ({ type: 'harness.run.node' } & RunNodeRecord)
   /**
    * A change to a known run. `unset` names the fields that the change
    * removes: JSON has no `undefined`.
@@ -158,6 +283,20 @@ export type ThreadRecord =
       at: number
       response?: unknown
     }
+  /** A wait opened. A wait id that the fold has already keeps its record. */
+  | ({ type: 'harness.wait' } & WaitRecord)
+  /** A known wait ended at `at` (epoch ms), with the answer when it has one. */
+  | {
+      type: 'harness.wait.settled'
+      waitId: string
+      outcome: WaitOutcome
+      at: number
+      value?: unknown
+    }
+  /** A transfer moved the conversation to or from this thread. */
+  | ({ type: 'harness.transferred'; transferId: string } & TransferRecord)
+  /** Another agent, or the main model, answers the turns from now on. */
+  | ({ type: 'harness.handoff' } & HandoffRecord)
 
 /** The record types that {@link foldThreadRecord} folds. */
 export const THREAD_RECORD_TYPES = [
@@ -171,8 +310,14 @@ export const THREAD_RECORD_TYPES = [
   'harness.schedule.done',
   'harness.run',
   'harness.run.update',
+  'harness.run.node',
   'harness.interrupt',
   'harness.interrupt.end',
+  'harness.wait',
+  'harness.wait.settled',
+  'harness.transferred',
+  'harness.handoff',
+  'harness.state',
 ] as const satisfies ReadonlyArray<ThreadRecord['type']>
 
 const THREAD_TYPES = new Set<string>(THREAD_RECORD_TYPES)
@@ -189,6 +334,8 @@ export interface ThreadStateFold {
   config: Map<string, unknown>
   /** The thread state of each plugin, by plugin name. */
   plugins: Map<string, unknown>
+  /** The state that the agents of the session share (`ctx.harness.state`), by key. */
+  shared: Map<string, unknown>
   /** The turn that stopped for interrupts, or `null`. */
   interrupted: InterruptedTurnRecord | null
   /** By run id. */
@@ -199,8 +346,28 @@ export interface ThreadStateFold {
   schedules: Map<string, ScheduleRecord>
   /** Every run of the thread and of its child runs, by run id, oldest first. */
   runs: Map<string, RunRecord>
+  /**
+   * The run tree: the turns, agent runs, and commands of the thread, by run
+   * id, in the order they were admitted. A run that runs again after a host
+   * stop takes the place of the run before it.
+   */
+  tree: Map<string, RunTreeNode>
   /** Every interrupt of the thread and of its child runs, by id, oldest first. */
   interrupts: Map<string, InterruptRecord>
+  /**
+   * Every wait that the session opened (questions, human waits), by id,
+   * oldest first. The pending ones have no `outcome`. The waits of
+   * interrupts are in `interrupts`.
+   */
+  waits: Map<string, WaitState>
+  /** The transfers to or from this thread, by transfer id, oldest first. */
+  transfers: Map<string, TransferRecord>
+  /**
+   * The root agent that answers the turns of this thread, from the last
+   * `harness.handoff` record. `null`: the main model answers. A
+   * {@link HumanAnswerer}: a person answers, and the session pauses.
+   */
+  activeAgent: string | null | HumanAnswerer
 }
 
 /** The thread state of a log with no thread-state records. */
@@ -209,12 +376,17 @@ export function emptyThreadState() {
     settings: {},
     config: new Map(),
     plugins: new Map(),
+    shared: new Map(),
     interrupted: null,
     agentResults: new Map(),
     turnOverrides: new Map(),
     schedules: new Map(),
     runs: new Map(),
+    tree: new Map(),
     interrupts: new Map(),
+    waits: new Map(),
+    transfers: new Map(),
+    activeAgent: null,
   }
   return state
 }
@@ -271,6 +443,160 @@ function withoutEntry<V>(map: Map<string, V>, key: string) {
   return next
 }
 
+/** The status of a run node for each status of a run record. */
+const NODE_STATUS: Record<RunRecord['status'], RunNode['status']> = {
+  running: 'running',
+  interrupted: 'waiting',
+  completed: 'completed',
+  failed: 'failed',
+  aborted: 'cancelled',
+}
+
+/** The kind of a run node for each kind of a run record. */
+const NODE_KIND: Record<NonNullable<RunRecord['kind']>, RunNode['kind']> = {
+  chat: 'turn',
+  agent: 'agent',
+  activity: 'tool',
+  command: 'command',
+  compact: 'command',
+}
+
+/** True for a run that ended. Its status does not change again. */
+export const isEnded = (status: RunNode['status']) =>
+  status === 'completed' || status === 'failed' || status === 'cancelled'
+
+/** `node` with `status`, and with `error` when there is one. */
+function withStatus(
+  node: RunTreeNode,
+  status: RunNode['status'],
+  error: RunNode['error'] | undefined,
+): RunTreeNode {
+  return { ...node, status, ...(error ? { error } : {}) }
+}
+
+/**
+ * The tree after the run record `run` changed. A known node takes its
+ * status, unless the node ended. A new run record makes a node only with
+ * `create` and a `kind`: the runs that core writes inside a run (a chat run
+ * of an agent, a subagent of a tool call) have no kind, so they never show
+ * as a second node.
+ */
+function treeWithRun(
+  tree: Map<string, RunTreeNode>,
+  run: RunRecord,
+  create: boolean,
+) {
+  const node = tree.get(run.runId)
+  if (node) {
+    if (isEnded(node.status)) return tree
+    return withEntry(
+      tree,
+      run.runId,
+      withStatus(node, NODE_STATUS[run.status], run.error),
+    )
+  }
+  if (!create || run.kind === undefined) return tree
+  const added: RunTreeNode = {
+    runId: run.runId,
+    kind: NODE_KIND[run.kind],
+    status: NODE_STATUS[run.status],
+    ...(run.parentRunId !== undefined ? { parentRunId: run.parentRunId } : {}),
+    ...(run.agent !== undefined ? { agent: run.agent } : {}),
+    ...(run.principal ? { principal: run.principal } : {}),
+    ...(run.error ? { error: run.error } : {}),
+  }
+  return withEntry(tree, run.runId, added)
+}
+
+/**
+ * The thread state after the input `inputId` applied as the run
+ * `operationId`. The node of that run starts. A run before it that applied
+ * the same input (a host stopped, and this run runs it again) leaves the
+ * tree: this run takes its place. `previous` is the run that applied the
+ * input before.
+ */
+export function applyRunNode(
+  state: ThreadStateFold,
+  applied: { inputId: string; operationId: string; previous?: string },
+) {
+  const { inputId, operationId, previous } = applied
+  let { tree } = state
+  if (previous !== undefined && previous !== operationId) {
+    if (tree.get(previous)?.inputId === inputId) {
+      tree = withoutEntry(tree, previous)
+    }
+  }
+  const node = tree.get(operationId)
+  if (node?.inputId === inputId && node.status === 'queued') {
+    tree = withEntry(tree, operationId, { ...node, status: 'running' })
+  }
+  return tree === state.tree ? state : { ...state, tree }
+}
+
+/**
+ * The thread state after the input `inputId` of the run `operationId`
+ * settled. Its node ends, unless it ended already. A run with no run record
+ * (a command, a turn that failed before its model call) ends here. An
+ * interrupted input does not end its node: its run record says it waits.
+ */
+export function settleRunNode(
+  state: ThreadStateFold,
+  settled: { inputId: string; operationId?: string } & SettlementOutcome,
+) {
+  const node =
+    settled.operationId === undefined
+      ? undefined
+      : state.tree.get(settled.operationId)
+  if (!node || node.inputId !== settled.inputId || isEnded(node.status)) {
+    return state
+  }
+  const ended =
+    settled.outcome === 'completed'
+      ? withStatus(node, 'completed', undefined)
+      : settled.outcome === 'failed'
+        ? withStatus(node, 'failed', settled.error)
+        : settled.outcome === 'aborted'
+          ? withStatus(node, 'cancelled', undefined)
+          : undefined
+  if (!ended) return state
+  return { ...state, tree: withEntry(state.tree, node.runId, ended) }
+}
+
+/**
+ * The thread state after the input `inputId` was refused. A queued run of
+ * that input (a start that waited for a slot) ends `failed`. ponytail: it
+ * scans the tree, because a refusal names only its input. Refusals are rare.
+ */
+export function rejectRunNode(
+  state: ThreadStateFold,
+  rejected: { inputId: string; reason: string },
+) {
+  const node = [...state.tree.values()].find(
+    (item) => item.inputId === rejected.inputId && item.status === 'queued',
+  )
+  if (!node) return state
+  const error = {
+    message: `The run was refused: ${rejected.reason}.`,
+    code: rejected.reason,
+  }
+  return {
+    ...state,
+    tree: withEntry(state.tree, node.runId, withStatus(node, 'failed', error)),
+  }
+}
+
+/** `node` as the agent result `ended` says the run ended. */
+function endedNode(node: RunTreeNode, ended: AgentResultRecord) {
+  const { result: _result, error: _error, ...rest } = node
+  const next: RunTreeNode = {
+    ...rest,
+    status: ended.status,
+    ...(ended.result !== undefined ? { result: ended.result } : {}),
+    ...(ended.error ? { error: ended.error } : {}),
+  }
+  return next
+}
+
 /**
  * Fold one log record into the thread state. It is pure: it returns a new
  * state, or `state` itself for a record type it does not fold. It never
@@ -299,6 +625,11 @@ export function foldThreadRecord(state: ThreadStateFold, record: LogRecord) {
       const value = setAt(state.plugins.get(plugin), delta.path, delta.value)
       return { ...state, plugins: withEntry(state.plugins, plugin, value) }
     }
+    case 'harness.state': {
+      const { key, delta } = record
+      const value = setAt(state.shared.get(key), delta.path, delta.value)
+      return { ...state, shared: withEntry(state.shared, key, value) }
+    }
     case 'harness.interrupted':
       return { ...state, interrupted: record.turn }
     case 'harness.agent.result': {
@@ -309,9 +640,13 @@ export function foldThreadRecord(state: ThreadStateFold, record: LogRecord) {
         ...(result !== undefined ? { result } : {}),
         ...(error ? { error } : {}),
       }
+      const node = state.tree.get(runId)
       return {
         ...state,
         agentResults: withEntry(state.agentResults, runId, ended),
+        tree: node
+          ? withEntry(state.tree, runId, endedNode(node, ended))
+          : state.tree,
       }
     }
     case 'harness.input.turn':
@@ -343,14 +678,36 @@ export function foldThreadRecord(state: ThreadStateFold, record: LogRecord) {
     case 'harness.run': {
       const { run } = record
       if (state.runs.has(run.runId)) return state
-      return { ...state, runs: withEntry(state.runs, run.runId, run) }
+      return {
+        ...state,
+        runs: withEntry(state.runs, run.runId, run),
+        tree: treeWithRun(state.tree, run, true),
+      }
     }
     case 'harness.run.update': {
       const current = state.runs.get(record.runId)
       if (!current) return state
       const next: RunRecord = { ...current, ...record.patch }
       for (const field of record.unset ?? []) delete next[field]
-      return { ...state, runs: withEntry(state.runs, record.runId, next) }
+      return {
+        ...state,
+        runs: withEntry(state.runs, record.runId, next),
+        // A change of other fields (a lease, a checkpoint) keeps the status
+        // of the node.
+        tree:
+          record.patch.status === undefined
+            ? state.tree
+            : treeWithRun(state.tree, next, false),
+      }
+    }
+    case 'harness.run.node': {
+      const { type: _type, ...fields } = record
+      const known = state.tree.get(fields.runId)
+      // A node that a run record made first keeps its status.
+      const node: RunTreeNode = known
+        ? { ...known, ...fields }
+        : { ...fields, status: 'queued' }
+      return { ...state, tree: withEntry(state.tree, fields.runId, node) }
     }
     case 'harness.interrupt': {
       const { interrupt } = record
@@ -380,6 +737,46 @@ export function foldThreadRecord(state: ThreadStateFold, record: LogRecord) {
         ...state,
         interrupts: withEntry(state.interrupts, record.interruptId, ended),
       }
+    }
+    case 'harness.wait': {
+      const { type: _type, ...opened } = record
+      if (state.waits.has(opened.wait.waitId)) return state
+      return {
+        ...state,
+        waits: withEntry(state.waits, opened.wait.waitId, opened),
+      }
+    }
+    case 'harness.wait.settled': {
+      const current = state.waits.get(record.waitId)
+      if (!current || current.outcome !== undefined) return state
+      const ended: WaitState = {
+        ...current,
+        outcome: record.outcome,
+        settledAt: record.at,
+        ...(record.value !== undefined ? { value: record.value } : {}),
+      }
+      return { ...state, waits: withEntry(state.waits, record.waitId, ended) }
+    }
+    case 'harness.transferred': {
+      const { type: _type, transferId, ...transfer } = record
+      if (state.transfers.has(transferId)) return state
+      return {
+        ...state,
+        transfers: withEntry(state.transfers, transferId, transfer),
+      }
+    }
+    case 'harness.handoff': {
+      if (!isHumanTarget(record.to)) {
+        return { ...state, activeAgent: record.to }
+      }
+      // Who answered before stays, for an operator answer `{ resume: true }`.
+      const from = isHumanTarget(record.from) ? null : record.from
+      const human: HumanAnswerer = {
+        human: true,
+        waitId: record.waitId ?? '',
+        from,
+      }
+      return { ...state, activeAgent: human }
     }
     default: {
       const unhandled: never = record

@@ -67,7 +67,8 @@ export const greeter = definePlugin({
         description: 'Greet someone',
         input: z.object({ name: z.string() }),
         run: async ({ name }, command) => {
-          const sure = await command.session.ask({
+          const sure = await command.step.ask({
+            name: 'confirm',
             message: `Greet ${name}?`,
             schema: z.boolean(),
           })
@@ -82,7 +83,9 @@ export const greeter = definePlugin({
 
 - `session.command({ name: 'greet', input: { name: 'Ada' } })` runs the command. A Standard Schema input (zod here) is checked, and the command gets the parsed value. A JSON Schema input is not checked, the same as a JSON Schema tool input.
 - `session.setConfig({ key: 'tone', value: 'warm' })` changes the setting. A value the option does not accept is rejected.
-- `ask` waits for `session.answer({ questionId, value })`. The question goes to `session.onQuestion` listeners, and it stays in `session.snapshot().pendingQuestions` until someone answers.
+- `step.ask` waits for `session.answer({ questionId, value })`. The log keeps the question as a [wait](./waits), so a user on any server can answer it. The question goes to `session.onQuestion` listeners, and it stays in `session.snapshot().pendingQuestions` until someone answers.
+- When the host stops while the command waits, the next host runs the command again from the top. Put each side effect before the ask in `command.step.do`, so it does not run twice.
+- `ctx.session.ask` is only for an MCP server that asks during a tool call. Anywhere else it throws. Use `step.ask`, the `question` tool, or a [permission rule](./permissions#rules-for-your-own-tool).
 
 ## Change commands while the session runs
 
@@ -166,6 +169,8 @@ export const helpers = definePlugin({
 - `ctx.agents.delete(name)` removes an agent of this plugin, and its subagent tool. Another owner's name does nothing.
 - `session.agent(name)`, `ctx.agents.list()`, and `routing` see the change at once.
 
+`ctx.agents` also runs agents: `start`, `run`, and `group`, with `g.start` for each child of a group. It has the same type, `AgentActions`, as `ctx.harness.agents` in agent code. See [Run agents from a plugin](./subagents#run-agents-from-a-plugin).
+
 ## Keep state
 
 `ctx.state(initial)` gives a plugin its own state for the thread. The session log keeps each change as a record, so any host that opens the thread reads the state back, also after a restart. Clients see each change as an AG-UI `STATE_SNAPSHOT` event.
@@ -188,8 +193,10 @@ export const counter = definePlugin({
 ```
 
 - The state is JSON.
+- A key or a token of the session in the state goes into the log as `[redacted]`. `update` resolves with that same value. See [Keep tokens out of the log and the model](./auth#keep-tokens-out-of-the-log-and-the-model).
 - The updates of one plugin run one at a time. Each `update` function gets the value that the update before it wrote.
 - [`host.sessions.delete`](./lifecycle#delete-a-thread-for-good) deletes the state with the log. A fork does not copy it.
+- Agents get a state with the same `get` and `update` from `ctx.harness.state({ key, initial })`. See [Share state between agents](./subagents#share-state-between-agents).
 
 ## Middleware in every agent
 
@@ -226,6 +233,8 @@ export const usageByAgent = definePlugin({
 - `ctx.subagentName` is the name of the agent. In the lead turn, it is `undefined`.
 - `ctx.subagentRunId` is different for each run of an agent. For a nested child, `ctx.parentSubagentRunId` is the id of the child that started it.
 - Each model call goes to `onUsage` one time, in the run that made the call. The lead turn does not count the usage of a child again.
+- A background run that a turn starts keeps the plugins of that turn. So the `agentMiddleware` of a plugin with `lifetime: 'turn'` runs in it too. The turn plugins are cleaned up when the turn and its runs have settled.
+- A tool result that your `onAfterToolCall` replaces is the result that the session log keeps. After a crash, the model gets that result again. See [The other tools of a cut batch](./durable-tools#the-other-tools-of-a-cut-batch).
 
 ## Act as the user of a run
 
@@ -273,7 +282,7 @@ The run has these fields:
 | `epoch` | The ownership epoch of the log when the run started. See [Fence your own side effects](./durable-sessions#fence-your-own-side-effects). |
 | `idempotencyKey(step, scope?)` | A key for one side effect of the run. A run again on any host gets the same key. |
 | `signal` | Aborts when the run stops. |
-| `credentials`, `keys` | The credentials and the model provider keys of the user of the run. |
+| `credentials`, `keys` | The credentials and the model provider keys of the user of the run. The session replaces their values with `[redacted]` in what it keeps and sends. To refresh an OAuth token, use `credentials.refresh`. See [Auth and connectors](./auth#refresh-a-token). |
 
 ## Pick the model of a turn
 
@@ -406,7 +415,7 @@ Read `ctx.collect` at run time (in a command, a tool, or a middleware hook). Dur
 
 ## Clean up resources
 
-Open resources with `ctx.resources.acquire(open, close)`. They close when the plugin is cleaned up, newest first: when the session closes, or after the turn for `lifetime: 'turn'`. If a later plugin fails in `setup`, every plugin set up so far is cleaned up, and no model request is sent.
+Open resources with `ctx.resources.acquire(open, close)`. They close when the plugin is cleaned up, newest first: when the session closes, or for `lifetime: 'turn'`, after the turn and the background runs that it started. If a later plugin fails in `setup`, every plugin set up so far is cleaned up, and no model request is sent.
 
 Set `lifetime: 'turn'` to set a plugin up again for each turn.
 

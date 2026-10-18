@@ -60,7 +60,9 @@ function setup() {
 const threadOf = (event: HostEvent) =>
   event.type === 'session' || event.type === 'session-deleted'
     ? event.entry.threadId
-    : event.threadId
+    : event.type === 'transferred'
+      ? event.to.threadId
+      : event.threadId
 
 describe('handlers and sockets fail closed', () => {
   it('throws at the start for a host without access and without openAccess', () => {

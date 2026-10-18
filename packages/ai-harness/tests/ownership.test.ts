@@ -157,7 +157,7 @@ describe('ownership of a log by two hosts', () => {
     const b = await openOn(logB, [() => text('B done')], {
       tools: [chargeOn('B')],
     })
-    expect(await b.session.settled('in-1')).toMatchObject({
+    expect(await b.session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(charges).toBe(1)
@@ -216,7 +216,7 @@ describe('a host that lost the log and takes it back', () => {
     // The worker of A takes the log, with the session of A still open.
     await a.host.resumePending({ harnesses: [a.harness] })
     await waitFor(() => expect(a.calls).toHaveLength(2))
-    expect(await a.session.settled('in-1')).toMatchObject({
+    expect(await a.session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
     await a.host.close()

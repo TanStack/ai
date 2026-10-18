@@ -102,7 +102,13 @@ The sign-in follows the MCP authorization spec:
 - A new `/connect linear` replaces them. Nothing from the old sign-in stays.
 - `/disconnect linear` deletes them.
 
-Sometimes the server no longer accepts the sign-in, for example after the user removes the app in Linear. Then the turn runs without the Linear tools, and clients get a `harness.auth_required` event. The CLI prints `Sign in to linear. Run /connect linear.`, and the model tells the user to run `/connect linear`. If the server refuses the saved refresh token, the connector deletes the saved sign-in.
+Sometimes the server no longer accepts the sign-in, for example after the user removes the app in Linear. Then the turn runs without the Linear tools, and clients get a `harness.auth_required` event. The CLI prints `Sign in to linear. Run /connect linear.`, and the model tells the user to run `/connect linear`. If the server refuses the saved refresh token, the connector deletes the saved sign-in. It keeps a newer token that another session saved after this session read its own.
+
+When a token expires, the MCP SDK of the session refreshes it. The connector saves the new token with [`credentials.refresh`](./auth#refresh-a-token):
+
+- The token goes back to the scope where the sign-in was, so a tenant sign-in stays the tenant's.
+- If the store has `getVersioned` and `setIf`, the save is a compare-and-set. When another session saved first, its token stays, and the next connect uses it.
+- Each session still sends its own refresh request. So two sessions can refresh the same token at the same time.
 
 The model never sees the token. To keep sign-ins after a restart, give the host a credential store. [Auth and connectors](./auth) shows one. With `oauth: true`, `headers` and `authProvider` do not apply.
 
@@ -119,6 +125,7 @@ An MCP server can ask the user for input in the middle of a tool call. MCP calls
 - A URL request becomes a question with a `url`. The user opens the page, then answers. The session does not open the page.
 - `mcp()` and `mcpConnector` both ask this way, for servers on MCP spec 2025 and on spec 2026-07-28.
 - One tool call can ask more than once. On spec 2026-07-28, one call can ask up to 5 times. One more request fails the tool call.
+- The question is a live [wait](./waits) of the run that made the tool call. The host that runs the call keeps the thread until the answer comes. When that run stops, the wait ends `cancelled`.
 
 Answer with `session.answer({ questionId, value })`, or from a [`HarnessClient`](./connect). The value tells the server what the user did:
 

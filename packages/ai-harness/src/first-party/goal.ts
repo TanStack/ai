@@ -2,6 +2,7 @@ import { EventType, chat } from '@tanstack/ai'
 import { defineCommand } from '../commands'
 import { createPluginEvent } from '../extensions'
 import { definePlugin } from '../plugins'
+import { isApproval } from '../waits'
 import { textOf, transcriptText } from './session-tools'
 import type { AnyTextAdapter, ChatMiddleware, KeyedAdapter } from '@tanstack/ai'
 import type { PluginSessionApi } from '../commands'
@@ -33,6 +34,8 @@ const USER_MESSAGE =
 const TURN_FAILED = 'The last turn failed. Run /goal resume to try again.'
 const WAITS_FOR_APPROVAL =
   'The last turn waits for approval. Answer it, then run /goal resume.'
+const WAITS_FOR_INPUT =
+  'The last turn waits for input. Answer it, then run /goal resume.'
 
 function isVerdict(value: unknown): value is { met: boolean; reason: string } {
   return (
@@ -294,10 +297,18 @@ export function goal(options: {
               await change(saved.text, { round: saved.round + 1, queued: '' })
             },
             onChunk: async (run, chunk) => {
-              const isApproval =
+              // The turn stopped for its waits: approvals, or other input
+              // (a question, a sign-in, a client tool).
+              if (
                 chunk.type === EventType.RUN_FINISHED &&
                 chunk.outcome?.type === 'interrupt'
-              if (isApproval) await pauseOwnTurn(run.runId, WAITS_FOR_APPROVAL)
+              ) {
+                const isApprovals = chunk.outcome.interrupts.every(isApproval)
+                await pauseOwnTurn(
+                  run.runId,
+                  isApprovals ? WAITS_FOR_APPROVAL : WAITS_FOR_INPUT,
+                )
+              }
               if (chunk.type === EventType.RUN_ERROR)
                 await pauseOwnTurn(run.runId, TURN_FAILED)
             },

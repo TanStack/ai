@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, defineAgent } from '@tanstack/ai'
 import { memoryLogBackend, memoryLogStore } from '@tanstack/ai-persistence'
+import { memoryCredentialStore } from '@tanstack/ai/byok/server'
+import { credentialsFor } from '../src/auth'
 import {
   createHarnessHost,
   defineCommand,
@@ -23,7 +25,13 @@ import {
 } from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type { LogStore } from '@tanstack/ai-persistence'
-import type { AnyAgent, AnyHarness, HarnessHostOptions } from '../src'
+import type { CredentialStore } from '@tanstack/ai/byok'
+import type {
+  AnyAgent,
+  AnyHarness,
+  HarnessHostOptions,
+  HarnessSession,
+} from '../src'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
 const waitFor = <T>(
@@ -81,7 +89,8 @@ const asking = (secret: boolean) =>
         ask: defineCommand({
           description: 'Sign in with a password',
           run: async (_input, ctx) => {
-            const password = await ctx.session.ask({
+            const password = await ctx.step.ask({
+              name: 'password',
               message: 'Password?',
               schema: z.string(),
               secret,
@@ -116,9 +125,9 @@ describe('an input that reaches a host that does not own the log', () => {
     expect(receipt.status).toBe('queued')
 
     release.open()
-    expect((await other.session.settled(receipt.inputId)).outcome).toBe(
-      'completed',
-    )
+    expect(
+      (await other.session.settled({ inputId: receipt.inputId })).outcome,
+    ).toBe('completed')
     expect(ownerModel.calls).toHaveLength(2)
     expect(otherModel.calls).toHaveLength(0)
     expect(contents(await owner.session.transcript())).toEqual([
@@ -152,7 +161,9 @@ describe('an input that reaches a host that does not own the log', () => {
     expect([first.status, retry.status]).toEqual(['queued', 'queued'])
 
     release.open()
-    expect((await other.session.settled('in-b')).outcome).toBe('completed')
+    expect((await other.session.settled({ inputId: 'in-b' })).outcome).toBe(
+      'completed',
+    )
     expect(ownerModel.calls).toHaveLength(2)
     expect(
       contents(await owner.session.transcript()).filter(
@@ -214,31 +225,184 @@ describe('an input that reaches a host that does not own the log', () => {
     await other.host.close()
   })
 
-  it('keeps a secret answer out of the log, and out of the lane once applied', async () => {
-    const { a, b } = twoStores()
+  describe('a secret answer', () => {
+    const PASSWORD = 'hunter2-long-password'
+    const asksForPassword = definePlugin({
+      name: 'test/ask-password',
+      setup: () => ({
+        commands: {
+          ask: defineCommand({
+            description: 'Sign in with a password',
+            run: async (_input, ctx) => {
+              const password = await ctx.step.ask({
+                name: 'password',
+                message: 'Password?',
+                schema: z.string(),
+                secret: true,
+              })
+              return password === PASSWORD ? 'signed in' : 'wrong'
+            },
+          }),
+        },
+      }),
+    })
     const harness = defineHarness({
       name: NAME,
       adapter: mockAdapter([]).adapter,
-      plugins: () => [asking(true)],
+      plugins: () => [asksForPassword],
     })
-    const owner = await hostOn(a, harness)
-    const other = await hostOn(b, harness)
 
-    const running = owner.session.command({ name: 'ask' })
-    await waitFor(() =>
-      expect(owner.session.snapshot().pendingQuestions).toHaveLength(1),
-    )
-    const [question] = owner.session.snapshot().pendingQuestions
-    await other.session.answer({
-      questionId: question!.questionId,
-      value: 'hunter2',
+    /** One credential store for both hosts, with the ids that it saved. */
+    function sharedCredentials() {
+      const store = memoryCredentialStore()
+      const saved: Array<string> = []
+      const credentials: CredentialStore = {
+        ...store,
+        set: async (entry) => {
+          saved.push(entry.id)
+          await store.set(entry)
+        },
+      }
+      return { credentials, saved }
+    }
+
+    /** The owner asks for the password. Resolves with its question id. */
+    async function ask(session: HarnessSession, log: LogStore) {
+      const running = session.command({ name: 'ask' })
+      await waitFor(() =>
+        expect(session.snapshot().pendingQuestions).toHaveLength(1),
+      )
+      const [question] = session.snapshot().pendingQuestions
+      // The other host reads the question from the log.
+      await waitFor(async () =>
+        expect(JSON.stringify(await log.read({ logId: LOG }))).toContain(
+          question!.questionId,
+        ),
+      )
+      return { running, questionId: question!.questionId }
+    }
+
+    it('reaches the owner through the credential store, never in clear text', async () => {
+      const { a, b } = twoStores()
+      const offers: Array<unknown> = []
+      const offering = wrapLogStore(b, {
+        offer: (input) => {
+          offers.push(input)
+          return b.offer(input)
+        },
+      })
+      const { credentials, saved } = sharedCredentials()
+      const owner = await hostOn(a, harness, { credentials })
+      const other = await hostOn(offering, harness, { credentials })
+      const events: Array<unknown> = []
+      owner.session.onEvent((entry) => events.push(entry))
+      other.session.onEvent((entry) => events.push(entry))
+
+      const { running, questionId } = await ask(owner.session, a)
+      const receipt = await other.session.answer({
+        questionId,
+        value: PASSWORD,
+      })
+      expect(receipt.status).toBe('queued')
+      expect(await running).toBe('signed in')
+
+      // The ref of the other host, and the answer that the owner keeps
+      // until the command ends, so a run again can read it.
+      expect(saved).toHaveLength(2)
+      const [ref, kept] = saved
+      expect(ref).toMatch(/^harness:answer:/)
+      expect(kept).toBe(`harness:answer:${questionId}#kept`)
+      // The lane got only the ref, and the owner consumed it.
+      expect(JSON.stringify(offers)).toContain(ref)
+      expect(JSON.stringify(offers)).not.toContain(PASSWORD)
+      expect(await waiting(a)).toEqual([])
+      expect(JSON.stringify(await a.read({ logId: LOG }))).not.toContain(
+        PASSWORD,
+      )
+      expect(JSON.stringify(events)).not.toContain(PASSWORD)
+      // The owner deleted the entry after it read it, and the kept answer
+      // when the command ended.
+      expect(await credentials.get({ scope: {}, id: ref! })).toBeNull()
+      expect(
+        await credentials.get({ scope: { threadId: THREAD }, id: kept! }),
+      ).toBeNull()
+      expect(await credentials.list({})).toEqual([])
+
+      // The same ref again, as the owner applies it from the lane, is
+      // refused: the store no longer has it.
+      const replay = await owner.session.answer({
+        questionId,
+        value: '[secret]',
+        ref,
+        inputId: 'replay',
+      })
+      expect(replay).toMatchObject({
+        status: 'rejected',
+        reason: 'unknown_secret_answer',
+      })
+      // A ref saved for another user is refused, and stays for that user.
+      const theirs = `harness:answer:${questionId}:theirs`
+      const scope = { userId: 'someone-else' }
+      const credential = { type: 'api_key' as const, value: '"theirs"' }
+      await credentials.set({ scope, id: theirs, credential })
+      const wrongUser = await owner.session.answer({
+        questionId,
+        value: '[secret]',
+        ref: theirs,
+        inputId: 'wrong-user',
+      })
+      expect(wrongUser).toMatchObject({ reason: 'unknown_secret_answer' })
+      expect(await credentials.get({ scope, id: theirs })).toEqual(credential)
+      await owner.host.close()
+      await other.host.close()
     })
-    expect(await running).toBe('signed in')
-    expect(await waiting(a)).toEqual([])
-    const log = await a.read({ logId: LOG })
-    expect(JSON.stringify(log)).not.toContain('hunter2')
-    await owner.host.close()
-    await other.host.close()
+
+    it('is refused when the host has no credential store', async () => {
+      const { a, b } = twoStores()
+      const owner = await hostOn(a, harness)
+      const other = await hostOn(b, harness)
+
+      const { running, questionId } = await ask(owner.session, a)
+      const receipt = await other.session.answer({
+        questionId,
+        value: PASSWORD,
+      })
+      expect(receipt).toMatchObject({
+        status: 'rejected',
+        reason: 'secret_answer_needs_credentials',
+      })
+      expect(await waiting(a)).toEqual([])
+      expect(owner.session.snapshot().pendingQuestions).toHaveLength(1)
+      // The owner can still take the answer itself.
+      await owner.session.answer({ questionId, value: PASSWORD })
+      expect(await running).toBe('signed in')
+      expect(JSON.stringify(await a.read({ logId: LOG }))).not.toContain(
+        PASSWORD,
+      )
+      await owner.host.close()
+      await other.host.close()
+    })
+
+    it('is not in the list of the user credentials while it waits', async () => {
+      const store = memoryCredentialStore()
+      const scope = { userId: 'u1' }
+      await store.set({
+        scope,
+        id: 'harness:answer:q-1:i-1',
+        credential: { type: 'api_key', value: '"secret"' },
+      })
+      await store.set({
+        scope,
+        id: 'openai',
+        credential: { type: 'api_key', value: 'sk-test-123456' },
+      })
+      const access = credentialsFor(
+        store,
+        { ...scope, threadId: THREAD },
+        () => {},
+      )
+      expect(await access.list()).toEqual([{ id: 'openai', type: 'api_key' }])
+    })
   })
 
   it('cancels the turn that runs on the owner', async () => {
@@ -348,7 +512,9 @@ describe('an input that reaches a host that does not own the log', () => {
     // The write fails and stops the session of the owner. The input waits
     // in the lane, and the host that offered it takes the log and runs it.
     await waitFor(() => expect(turn.status()).toBe('failed'))
-    expect((await other.session.settled('in-b')).outcome).toBe('completed')
+    expect((await other.session.settled({ inputId: 'in-b' })).outcome).toBe(
+      'completed',
+    )
     expect(otherModel.calls).toHaveLength(1)
     expect(await waiting(a)).toEqual([])
     release.open()
@@ -382,7 +548,9 @@ describe('an input that reaches a host that does not own the log', () => {
     await turn.receipt
     await other.session.send('And then?', { inputId: 'in-b' }).receipt
     release.open()
-    expect((await other.session.settled('in-b')).outcome).toBe('completed')
+    expect((await other.session.settled({ inputId: 'in-b' })).outcome).toBe(
+      'completed',
+    )
     expect(isLost).toBe(true)
 
     // A drain finds the input in the log: the offer goes, and the input
@@ -453,7 +621,9 @@ describe('host.submit', () => {
     ])
     await waitFor(() => expect(model.calls).toHaveLength(1))
     const session = await worker.open(harness, { threadId: THREAD })
-    expect((await session.settled('in-1')).outcome).toBe('completed')
+    expect((await session.settled({ inputId: 'in-1' })).outcome).toBe(
+      'completed',
+    )
     expect(await waiting(log)).toEqual([])
     await submitter.close()
     await worker.close()
@@ -524,7 +694,7 @@ describe('the input lane while idle', () => {
     await turn.receipt
     const receipt = await other.session.send('And then?').receipt
     release.open()
-    await other.session.settled(receipt.inputId)
+    await other.session.settled({ inputId: receipt.inputId })
     await owner.session.whenIdle()
     await other.session.whenIdle()
     // The writes that end the turn land, and the owner gives the log back.

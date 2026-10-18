@@ -17,13 +17,12 @@ import type {
   SchemaInput,
 } from '@tanstack/ai'
 import type {
-  AgentInputOf,
+  AgentActions,
   AgentRegistry,
   AgentRegistryView,
-  AgentResultOf,
   AnyAgent,
 } from './agents'
-import type { AgentRun, Operation, Principal, TurnInfo } from './types'
+import type { TurnInfo } from './types'
 import type { CredentialsAccess } from './auth'
 import type { AnyCommand, PluginSessionApi } from './commands'
 import type { ConfigOption } from './config'
@@ -177,69 +176,6 @@ export interface PluginState<T> {
   update: (change: (current: T) => T) => Promise<T>
 }
 
-/**
- * Run agents from a plugin: in the foreground, in the background, or as a
- * group. The runs are for the user of a turn plugin's turn. In a session
- * plugin, they are for the principal that opened the session: to start an
- * agent for the user of a tool call, pass `principal: ctx.context.run.principal`
- * to `start`.
- */
-export interface PluginAgentActions {
-  run: {
-    <TAgent extends AnyAgent>(
-      agent: TAgent,
-      input?: AgentInputOf<TAgent>,
-    ): Operation<AgentResultOf<TAgent>>
-    (name: string, input?: unknown): Operation<unknown>
-  }
-  start: {
-    <TAgent extends AnyAgent>(
-      agent: TAgent,
-      input?: AgentInputOf<TAgent>,
-      /** See `AgentStartOptions`. */
-      options?: { wake?: boolean; resume?: boolean; principal?: Principal },
-    ): AgentRun<AgentResultOf<TAgent>>
-    (
-      name: string,
-      input?: unknown,
-      /** See `AgentStartOptions`. */
-      options?: { wake?: boolean; resume?: boolean; principal?: Principal },
-    ): AgentRun<unknown>
-  }
-  /**
-   * Run children together. With `onFailure: 'cancel-siblings'` (default), one
-   * failure cancels the others. Every child settles before `group` returns.
-   */
-  group: <T>(
-    options: { onFailure?: 'cancel-siblings' | 'collect' },
-    body: (group: AgentGroup) => Promise<T>,
-  ) => Promise<T>
-}
-
-/** The children of one `ctx.agents.group` call. */
-export interface AgentGroup {
-  run: {
-    <TAgent extends AnyAgent>(
-      agent: TAgent,
-      input?: AgentInputOf<TAgent>,
-    ): Promise<AgentResultOf<TAgent>>
-    (name: string, input?: unknown): Promise<unknown>
-  }
-  /** Like `run`, but never rejects: resolves with the result or the error. */
-  runSettled: {
-    <TAgent extends AnyAgent>(
-      agent: TAgent,
-      input?: AgentInputOf<TAgent>,
-    ): Promise<
-      { ok: true; value: AgentResultOf<TAgent> } | { ok: false; error: unknown }
-    >
-    (
-      name: string,
-      input?: unknown,
-    ): Promise<{ ok: true; value: unknown } | { ok: false; error: unknown }>
-  }
-}
-
 /** What the session gives plugins. */
 export interface PluginServices {
   emit: (plugin: string, name: string, value: unknown) => void
@@ -251,7 +187,13 @@ export interface PluginServices {
   session: PluginSessionApi
   /** The session API of a plugin with a `metadataSchema`: its writes check it too. */
   sessionWith: (metadataSchema: SchemaInput) => PluginSessionApi
-  agents: PluginAgentActions
+  /**
+   * `ctx.agents` of a plugin. The runs are for the user of a turn plugin's
+   * turn. In a session plugin, they are for the principal that opened the
+   * session: to start an agent for the user of a tool call, pass
+   * `principal: ctx.context.run.principal` to `start`.
+   */
+  agents: AgentActions
   /** Called after `ctx.commands` adds or removes a command. */
   commandsChanged?: () => void
 }
@@ -301,7 +243,7 @@ export interface PluginSetupContext<TMetadata = Record<string, unknown>> {
    * like `ctx.commands`.
    */
   agents: AgentRegistryView &
-    PluginAgentActions & {
+    AgentActions & {
       /**
        * Add this plugin's agent, or replace the one with the same name. A
        * name that another plugin or the harness owns throws.
@@ -625,6 +567,7 @@ export const SESSION_PLUGIN_CREDENTIALS: CredentialsAccess = {
   get: noUser('credentials'),
   require: noUser('credentials'),
   set: noUser('credentials'),
+  refresh: noUser('credentials'),
   delete: noUser('credentials'),
   list: noUser('credentials'),
 }
@@ -661,6 +604,7 @@ const NO_SERVICES: PluginServices = {
     get: unavailable('ctx.credentials'),
     require: unavailable('ctx.credentials'),
     set: unavailable('ctx.credentials'),
+    refresh: unavailable('ctx.credentials'),
     delete: unavailable('ctx.credentials'),
     list: unavailable('ctx.credentials'),
   },
@@ -672,8 +616,8 @@ const NO_SERVICES: PluginServices = {
   session: NO_SESSION,
   sessionWith: () => NO_SESSION,
   agents: {
-    run: unavailable('ctx.agents.run') as PluginAgentActions['run'],
-    start: unavailable('ctx.agents.start') as PluginAgentActions['start'],
+    run: unavailable('ctx.agents.run'),
+    start: unavailable('ctx.agents.start'),
     group: unavailable('ctx.agents.group'),
   },
 }

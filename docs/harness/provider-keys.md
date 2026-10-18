@@ -97,6 +97,7 @@ console.log(await session.command({ name: 'connect:openai' })) // Connected to O
 stopAsking()
 ```
 
+- The command asks with `step.ask`, so the log keeps the question as a [wait](./waits), and the user can answer it on any server. The log never keeps the key.
 - With `keyUrl`, the page to make a key opens first. The session sends a `harness.auth_required` event with the URL, and your app opens it.
 - `/disconnect:openai` deletes the key.
 - `/keys` shows where each key comes from:
@@ -192,8 +193,9 @@ Outside a harness, `ctx.keys` reads the env var. See [Keys inside agents](../adv
 
 - A key shows masked only: `...` and the last 4 characters.
 - The plugin never puts a key in an event, the transcript, or a command result.
-- The session log does not keep the answer to the key question.
-- Do not log a key. For error messages, use `maskKey` from `@tanstack/ai/byok`.
+- The session replaces each key that it reads with `[redacted]` in the log, the events, the model context, and its errors. See [Keep tokens out of the log and the model](./auth#keep-tokens-out-of-the-log-and-the-model).
+- The session log keeps the answer to the key question as `[secret]`. If another host owns the thread, the answer goes to it through the credential store. See [Secret answers on another host](./durable-sessions#secret-answers-on-another-host).
+- Do not log a key. For error messages, use `maskKey` or `scrubSecrets` from `@tanstack/ai/byok`.
 
 ## What you have now
 

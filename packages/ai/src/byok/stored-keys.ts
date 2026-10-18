@@ -30,10 +30,35 @@ export async function readCredential(
   scope: CredentialScope,
   id: string,
 ): Promise<Credential | null> {
-  const own = await store.get({ scope, id })
+  return (await readCredentialEntry(store, scope, id))?.credential ?? null
+}
+
+/**
+ * Like {@link readCredential}, but also gives the scope where the credential
+ * was found (`scope` itself, or its tenant scope) and its `revision` when the
+ * store has `getVersioned`. Write a refreshed credential back to that scope,
+ * with `setIf` and that revision.
+ */
+export async function readCredentialEntry(
+  store: CredentialStore,
+  scope: CredentialScope,
+  id: string,
+): Promise<{
+  credential: Credential
+  scope: CredentialScope
+  revision?: string
+} | null> {
   const tenant = tenantScopeOf(scope)
-  if (own || !tenant) return own
-  return store.get({ scope: tenant, id })
+  for (const candidate of tenant ? [scope, tenant] : [scope]) {
+    if (store.getVersioned) {
+      const found = await store.getVersioned({ scope: candidate, id })
+      if (found) return { ...found, scope: candidate }
+    } else {
+      const credential = await store.get({ scope: candidate, id })
+      if (credential) return { credential, scope: candidate }
+    }
+  }
+  return null
 }
 
 /**

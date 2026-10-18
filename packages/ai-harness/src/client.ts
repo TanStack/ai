@@ -82,14 +82,23 @@ export type ClientSendOptions = { inputId?: string } & (
       mode?: 'prompt'
       busy?: BusyPolicy
       ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
+      /** `'operator'`: an operator reply. See `SendOptions.as`. */
+      as?: 'operator'
     }
   | {
       to?: undefined
       mode: 'steer' | 'followUp'
       busy?: never
       ephemeral?: never
+      as?: never
     }
-  | { to: string; mode?: 'steer' | 'followUp'; busy?: never; ephemeral?: never }
+  | {
+      to: string
+      mode?: 'steer' | 'followUp'
+      busy?: never
+      ephemeral?: never
+      as?: never
+    }
 )
 
 export interface HarnessClient<THarness extends AnyHarness> {
@@ -100,6 +109,8 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * run's agent in `expose.agents`. `inputId` is an id you choose: a retry
    * with the same id and message gets the first receipt and does not run
    * again. `ephemeral` are messages for the model calls of a prompt only.
+   * `as: 'operator'` is the reply of an operator while a handoff to a
+   * person is open: no model runs. The sender needs the `operator` action.
    */
   send: (message: UserInput, options?: ClientSendOptions) => Promise<Receipt>
   /**
@@ -111,7 +122,11 @@ export interface HarnessClient<THarness extends AnyHarness> {
     ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
   }) => Promise<Receipt>
   /**
-   * Answer the interrupts of the last turn, as `session.resolve` does.
+   * Answer the interrupts of the last turn, as `session.resolve` does: the
+   * approvals, the `question` tool calls, the client tools, and the
+   * sign-ins of `snapshot().pendingInterrupts`, all in one resume. A wait of
+   * a background agent run (in `pendingWaits` only) takes a resolve of its
+   * own. A `step.ask` question takes `answer`.
    *
    * @example
    * ```ts
@@ -143,7 +158,12 @@ export interface HarnessClient<THarness extends AnyHarness> {
     delivery: WaitingInput['delivery']
   }) => Promise<Receipt>
   agents: ClientAgentHandles<THarness>
-  /** Answer a question from a command or a plugin. */
+  /**
+   * Answer a question of `snapshot().pendingQuestions`, as `session.answer`
+   * does: a `step.ask` wait of a command, a durable tool, or an agent run,
+   * or an MCP question. A `human` wait that no turn holds takes it too. The
+   * other waits take `resolve`.
+   */
   answer: (answer: { questionId: string; value: unknown }) => Promise<Receipt>
   /**
    * Run the plugin command `name`. Its result arrives as a
@@ -601,6 +621,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
         message,
         ...(sendOptions?.busy ? { busy: sendOptions.busy } : {}),
         ...(sendOptions?.ephemeral ? { ephemeral: sendOptions.ephemeral } : {}),
+        ...(sendOptions?.as ? { as: sendOptions.as } : {}),
         ...inputId,
       })
     },

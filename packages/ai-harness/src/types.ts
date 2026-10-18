@@ -13,6 +13,9 @@ import type {
 } from '@tanstack/ai'
 import type { LogRecord } from '@tanstack/ai-persistence'
 import type { CredentialsAccess } from './auth'
+import type { AnyHarness } from './define'
+import type { HandoffOptions } from './handoff'
+import type { HandoffRecord } from './log-records'
 import type { UsageCounts } from './usage'
 
 /** A user message: plain text, or content parts (text, images, files). */
@@ -86,8 +89,20 @@ export type SendOptions = {
    */
   traceparent?: string
 } & (
-  | { mode?: 'prompt'; busy?: BusyPolicy }
-  | { mode: 'steer' | 'followUp'; busy?: never }
+  | {
+      mode?: 'prompt'
+      busy?: BusyPolicy
+      /**
+       * `'operator'`: a person who took over after a handoff to a person
+       * replies. The message goes in the transcript as an assistant message
+       * with `metadata.harness.operator` (the id of the operator), and no
+       * model turn runs. It needs the `operator` access action, and an open
+       * `human` wait of a handoff: else the receipt is rejected with
+       * `'no_human_wait'`.
+       */
+      as?: 'operator'
+    }
+  | { mode: 'steer' | 'followUp'; busy?: never; as?: never }
 )
 
 /** Options of `session.send` for a message to an agent run. See `send`. */
@@ -210,6 +225,8 @@ export type HarnessInput = (
       busy?: BusyPolicy
       context?: unknown
       ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
+      /** `'operator'`: an operator reply. See `SendOptions`. */
+      as?: 'operator'
     }
   | { op: 'steer'; message: UserInput; context?: unknown }
   | {
@@ -230,6 +247,11 @@ export type HarnessInput = (
       context?: unknown
       ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
     }
+  /**
+   * Answer waits by `interruptId` (the `waitId`): the interrupts of the last
+   * turn (approvals, `question` tool calls, client tools, sign-ins), all in
+   * one resume, or the waits of a background agent run.
+   */
   | { op: 'resolve'; resume: Array<RunAgentResumeItem> }
   | {
       op: 'agent'
@@ -253,7 +275,21 @@ export type HarnessInput = (
       delivery: WaitingInput['delivery']
     }
   | { op: 'command'; name: string; input?: unknown }
-  | { op: 'answer'; questionId: string; value: unknown }
+  /**
+   * Answer one wait that no turn holds, by its `waitId`: a question of
+   * `pendingQuestions` (a `step.ask` wait, a live MCP question), or a
+   * `human` wait.
+   */
+  | {
+      op: 'answer'
+      questionId: string
+      value: unknown
+      /**
+       * @internal A secret answer that another host saved in the credential
+       * store, for the owner of the log. The owner reads it once.
+       */
+      ref?: string
+    }
   | { op: 'config'; key: string; value: unknown }
   /** Run one tool in `expose.tools` with no model. See `session.tool`. */
   | { op: 'tool'; name: string; args?: unknown; meta?: Record<string, unknown> }
@@ -296,6 +332,56 @@ export interface WaitingInput {
  * messages before that message. `through` keeps that message too.
  */
 export type ForkPoint = { before: string } | { through: string }
+
+/**
+ * What `host.transfer` carries to the target thread. Nothing else moves:
+ * plugin state, shared state, credentials, waits, settings, and plugin
+ * config stay with the source.
+ */
+export interface HandoffEnvelope {
+  /** The first message of the target, for the agent that takes over. */
+  note: string
+  /**
+   * Which messages of the source go after the note. Only settled messages
+   * move: a tool call with no result yet stays behind.
+   *
+   * - `'none'` (default): no message.
+   * - `'summary'`: one summary message. The model of the source harness
+   *   writes it, with the keys of the principal. Its usage counts in the
+   *   source thread.
+   * - `'all'`: the transcript, with a copy of each media file it uses.
+   */
+  messages?: 'none' | 'summary' | 'all'
+}
+
+/** The options of `host.transfer`. */
+export interface TransferOptions<P extends Principal = Principal> {
+  /** The thread to move the conversation from, and its harness. */
+  from: { harness: AnyHarness; threadId: string }
+  /**
+   * The harness of the target, and the target thread. Without `threadId`, a
+   * new thread. A thread that exists must belong to `harness`.
+   */
+  to: { harness: AnyHarness; threadId?: string }
+  envelope: HandoffEnvelope
+  /**
+   * Who makes the transfer. Its `tenantId` is the tenant of both threads.
+   * Required when the host has `access`.
+   */
+  principal?: P
+  /**
+   * The id of the transfer, so a retry is safe: a second call with the same
+   * id makes no second thread and copies nothing again. Default: a new id.
+   */
+  transferId?: string
+}
+
+/** What `host.transfer` resolves to. */
+export interface TransferResult {
+  transferId: string
+  /** The target thread. Open it with `host.open` and the target harness. */
+  threadId: string
+}
 
 /**
  * The stored settings of one thread. They apply from the next turn, stay
@@ -367,7 +453,7 @@ export interface MediaUpload<TBody> {
   name: string
 }
 
-/** How an input ended. `session.settled(inputId)` resolves to it. */
+/** How an input ended. `session.settled({ inputId })` resolves to it. */
 export type InputSettlement = {
   inputId: string
   /** The operation that ran the input, when one started. */
@@ -499,6 +585,18 @@ export interface RunContext {
   credentials: CredentialsAccess
   /** The model provider keys of the user of this run. */
   keys: ProviderKeys
+  /**
+   * Hand the turn to another root agent, `'main'`, or a person (with
+   * `routing.humans`), as `ctx.harness.handoff` does. It works in a turn of a harness with
+   * `routing`, for example in a tool of the main model. Anywhere else it
+   * rejects.
+   *
+   * @example
+   * ```ts
+   * await ctx.context.run.handoff({ to: 'billing', note: 'Refund for order 42' })
+   * ```
+   */
+  handoff: (options: HandoffOptions) => Promise<void>
 }
 
 /**
@@ -596,6 +694,48 @@ export interface AgentRun<TResult> extends Operation<TResult> {
     message: UserInput,
     options?: { mode?: 'steer' | 'followUp'; inputId?: string },
   ) => Promise<Receipt>
+}
+
+/**
+ * One run in the run tree of a session, as the log keeps it: a chat turn, an
+ * agent run, a tool run, or a command. Each run knows the run that started
+ * it, so the runs of a session form a tree.
+ */
+export interface RunNode {
+  /** The operation id of the run. */
+  runId: string
+  kind: 'turn' | 'agent' | 'tool' | 'command'
+  /**
+   * `queued`: the run is in the log, and it did not start yet. `waiting`:
+   * the run stopped for its waits (an approval, a sign-in), and an answer
+   * resumes it.
+   */
+  status:
+    | 'queued'
+    | 'running'
+    | 'waiting'
+    | 'completed'
+    | 'failed'
+    | 'cancelled'
+  /**
+   * The run that started this run: the agent run whose code started it, or
+   * the turn whose tool started it. A top-level run has none.
+   */
+  parentRunId?: string
+  /** The agent name, for `kind: 'agent'`. */
+  agent?: string
+  /** Who the run runs for. */
+  principal?: { id: string; tenantId?: string }
+  /** The durable name of the run in its parent (`AgentStartOptions.key`). */
+  key?: string
+  /** The limits of the run (`AgentStartOptions.limits`). */
+  limits?: { timeoutMs?: number; maxAttempts?: number }
+  /** The model use the run can have (`AgentStartOptions.budget`). */
+  budget?: { maxTokens?: number; maxCost?: number }
+  /** The raw result of an agent run that completed. JSON. */
+  result?: unknown
+  /** Why the run failed. */
+  error?: { message: string; code?: string }
 }
 
 /** What a media file holds. It picks the content part a model gets. */
@@ -699,6 +839,16 @@ export const HARNESS_EVENTS = {
    */
   reset: 'harness.reset',
   /**
+   * Another agent answers the turn from here: a `handoff` tool call, agent
+   * code, or the router moved it. The value has `from` and `to` (an agent
+   * name, `null` for the main model, or `{ human: true }` for a person), the
+   * `note` when there is one, `by` (`'tool'`, `'code'`, `'router'`, or
+   * `'operator'`), and the `runId` of the turn. A handoff to a person has
+   * the `waitId` of its `human` wait. An operator answer to that wait hands
+   * the thread back, `by: 'operator'`.
+   */
+  handoff: 'harness.handoff',
+  /**
    * `session.revert` or `session.unrevert` changed what the transcript
    * shows. The value has the `messageId` of the revert, or `null` when no
    * revert stands. Read the transcript again.
@@ -715,8 +865,6 @@ export const HARNESS_EVENTS = {
   ownershipChanged: 'harness.ownership.changed',
   /** The host that holds the workspace of the session is gone. It waits. */
   stranded: 'harness.stranded',
-  /** The turn moved to another agent. */
-  handoff: 'harness.handoff',
   /** The conversation moved to another thread, or came from one. */
   transferred: 'harness.transferred',
   /** The session waits for a person: an approval, an answer, or a sign-in. */
@@ -804,14 +952,7 @@ export interface HarnessEventValues {
     reason: 'acquired' | 'taken_over'
   }
   'harness.stranded': { operationId?: string; hostId?: string }
-  'harness.handoff': {
-    /** The agent that had the turn, or `null` for the main model. */
-    from: string | null
-    to: string | { human: true }
-    note?: string
-    runId: string
-    by: 'tool' | 'code' | 'router'
-  }
+  'harness.handoff': HandoffRecord
   'harness.transferred': {
     transferId: string
     /** On the target thread: the thread it came from. */

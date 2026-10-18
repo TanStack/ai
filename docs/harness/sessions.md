@@ -131,7 +131,7 @@ await fork.send('Plan a trip to Porto.')
 - The host picks the new thread id. The new entry has the title of the old one plus ` (fork)`. A thread without a title gives a fork without a title.
 - With a `principal` and host `access`, the user who forks owns the fork. `members` picks who else is in it. See [Fork a shared thread](./shared-threads#6-fork-a-shared-thread). Without access and without `members`, the fork keeps the owner and the members of the old thread.
 - If the transcript has no message with that id, `fork` throws.
-- If the index entry of the thread names another harness, `fork` throws. One host can run more than one harness.
+- If the index entry of the thread names another harness, `fork` throws. One host can run more than one harness. To move a chat to another harness, use [`host.transfer`](./handoffs#5-move-a-conversation-to-another-harness).
 
 What a fork copies, and what it does not copy: [Fork and reset a thread](./fork-and-reset#fork-a-thread-at-a-message).
 

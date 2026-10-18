@@ -202,7 +202,7 @@ describe('turn overrides: adapter', () => {
       overrides: { adapter: turnModel.adapter },
     }).receipt
 
-    expect(await session.settled('follow-1')).toMatchObject({
+    expect(await session.settled({ inputId: 'follow-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(turnModel.calls).toHaveLength(1)
@@ -469,7 +469,7 @@ describe('turn overrides: queue, steer, and recovery', () => {
 
     const next = await open([() => text('recovered')], {}, { persistence })
 
-    expect(await next.session.settled('in-1')).toMatchObject({
+    expect(await next.session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
     // The adapter object is not in the log: the harness adapter runs it.
@@ -529,7 +529,7 @@ describe('turn overrides: queue, steer, and recovery', () => {
       { persistence },
     )
 
-    expect(await next.session.settled('in-1')).toMatchObject({
+    expect(await next.session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(next.calls).toHaveLength(0)

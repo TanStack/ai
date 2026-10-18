@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { createInterface } from 'node:readline'
 import { createHarnessHost } from './host'
+import { scrubbedBy } from './session/harness-session'
 import {
   applyInput,
   negotiateVersion,
@@ -49,18 +50,21 @@ export async function runHarnessWorker(
   })
 
   // The error frame names the request that failed, so the client can match
-  // it. A frame with no `requestId` gets one from the worker.
+  // it. A frame with no `requestId` gets one from the worker. The message
+  // has no secrets of the session once it is open.
   const fail = (
     error: unknown,
     requestId: string,
     code: HarnessErrorCode = 'internal',
-  ) =>
+  ) => {
+    const scrubbed = scrubbedBy(session, error)
     send({
       type: 'harness.error',
-      message: error instanceof Error ? error.message : String(error),
+      message: scrubbed instanceof Error ? scrubbed.message : String(scrubbed),
       code,
       requestId,
     })
+  }
 
   try {
     for await (const line of lines) {

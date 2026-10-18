@@ -83,7 +83,7 @@ function model(): AnyTextAdapter {
 
 const tools = definePlugin({
   name: 'test/tools',
-  setup: (ctx) => ({
+  setup: () => ({
     config: {
       level: configOption.select({ options: ['low', 'high'], default: 'low' }),
     },
@@ -108,8 +108,9 @@ const tools = definePlugin({
       }),
       confirm: defineCommand({
         description: 'Asks a yes or no question',
-        run: async () => {
-          const answer = await ctx.session.ask({
+        run: async (_input, { step }) => {
+          const answer = await step.ask({
+            name: 'sure',
             message: 'Sure?',
             schema: z.boolean(),
           })

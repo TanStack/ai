@@ -26,7 +26,7 @@ import {
 import { socketSender, sseStream, streamValues, withHeartbeat } from './sse'
 import { base64url, isRecord } from './utils'
 import { SessionMetadataError } from './session-entry'
-import { SessionImpl } from './session/harness-session'
+import { SessionImpl, scrubbedBy } from './session/harness-session'
 import { liveSessionOf, storedRunsOf } from './session/observed-session'
 import { wireFrame } from './wire'
 import type { ModelMessage, UIMessage, WebSocketLike } from '@tanstack/ai'
@@ -587,6 +587,9 @@ export function createHarnessHandler<P extends Principal = Principal>(
       }
     try {
       return await answer(keep)
+    } catch (error) {
+      // The answer is a frame that leaves the session: no secret of it.
+      throw scrubbedBy(session, error)
     } finally {
       if (!isKept) void session.close()
     }
@@ -775,6 +778,14 @@ export function createHarnessHandler<P extends Principal = Principal>(
         return event.principalId === principal?.id
       }
       if (!hasAccess) return true
+      // A transfer names two threads: the user must read both.
+      if (event.type === 'transferred') {
+        const reads = await Promise.all([
+          mayRead(event.from.threadId),
+          mayRead(event.to.threadId),
+        ])
+        return reads.every(Boolean)
+      }
       if (event.type === 'session') decisions.delete(event.threadId)
       if (event.type === 'session-deleted') {
         decisions.delete(event.threadId)
@@ -1425,7 +1436,7 @@ export function handleHarnessSocket<P extends Principal = Principal>(
             .catch((error: unknown) =>
               send({
                 type: 'harness.error',
-                message: errorMessage(error),
+                message: errorMessage(scrubbedBy(holding, error)),
                 code: 'internal',
                 requestId,
               }),
@@ -1468,7 +1479,9 @@ export function handleHarnessSocket<P extends Principal = Principal>(
       } catch (error) {
         const code =
           error instanceof AccessDeniedError ? 'forbidden' : 'internal'
-        fail(code, errorMessage(error), requestId)
+        // The held session scrubs its secrets. Before the first input,
+        // no session is open, so there is none to scrub.
+        fail(code, errorMessage(scrubbedBy(holding, error)), requestId)
       }
     })()
   })

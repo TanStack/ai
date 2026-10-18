@@ -14,7 +14,10 @@ import { mockAdapter } from './helpers'
 import type { AnyTextAdapter, KeyedAdapter } from '@tanstack/ai'
 import type { SessionIndexEntry } from '@tanstack/ai-persistence'
 import type {
+  AgentActions,
   AgentRun,
+  AgentSettled,
+  HarnessAgentContext,
   HarnessConfig,
   HarnessEventValues,
   HarnessHost,
@@ -30,6 +33,7 @@ import type {
   SessionMetadataOf,
 } from '../src'
 import type { InputSettlement } from '../src/types'
+import type { PluginServices, PluginSetupContext } from '../src/plugins'
 
 const pricer = defineAgent({
   name: 'pricer',
@@ -56,9 +60,9 @@ declare const input: HarnessInput
 
 it('types agent input and result from the definition', () => {
   expectTypeOf(session.agents.pricer.run({ vendor: 'a' })).toEqualTypeOf<
-    Operation<{ vendor: string; cents: number }>
+    AgentRun<{ vendor: string; cents: number }>
   >()
-  expectTypeOf(session.agents.writer.run()).toEqualTypeOf<Operation<string>>()
+  expectTypeOf(session.agents.writer.run()).toEqualTypeOf<AgentRun<string>>()
   // @ts-expect-error unknown agent
   void session.agents.missing
   // @ts-expect-error wrong input
@@ -246,4 +250,86 @@ it('has a value type for every harness event name, and no other', () => {
   expectTypeOf<keyof HarnessEventValues>().toEqualTypeOf<
     (typeof HARNESS_EVENTS)[keyof typeof HARNESS_EVENTS]
   >()
+})
+
+type Priced = { vendor: string; cents: number }
+declare const agents: AgentActions
+
+it('types start and run from the worker, subject first', () => {
+  expectTypeOf(agents.start(pricer, { vendor: 'a' })).toEqualTypeOf<
+    AgentRun<Priced>
+  >()
+  expectTypeOf(agents.run(pricer, { vendor: 'a' })).toEqualTypeOf<
+    AgentRun<Priced>
+  >()
+  expectTypeOf(agents.start(writer)).toEqualTypeOf<AgentRun<string>>()
+  // A name the session knows gives an untyped run.
+  expectTypeOf(agents.start('pricer', { vendor: 1 })).toEqualTypeOf<
+    AgentRun<unknown>
+  >()
+  // @ts-expect-error wrong input
+  void agents.start(pricer, { vendor: 1 })
+  // @ts-expect-error the input of an agent with an inputSchema is required
+  void agents.run(pricer)
+  // @ts-expect-error an agent without an inputSchema takes no input
+  void agents.start(writer, { text: 'hi' })
+})
+
+it('takes the options grouped per concern', () => {
+  void agents.start(
+    pricer,
+    { vendor: 'a' },
+    {
+      key: 'price-a',
+      wake: true,
+      limits: { timeoutMs: 1000, maxAttempts: 2 },
+      budget: { maxTokens: 500, maxCost: 0.1 },
+      onModelError: ({ retries }) => (retries < 2 ? 'retry' : 'fail'),
+    },
+  )
+  // @ts-expect-error `run` never wakes the session
+  void agents.run(pricer, { vendor: 'a' }, { wake: true })
+  // @ts-expect-error limits are in `limits`
+  void agents.start(pricer, { vendor: 'a' }, { timeoutMs: 1000 })
+})
+
+it('resolves a group to the results in order', () => {
+  expectTypeOf(
+    agents.group({ concurrency: 2 }, (g) => [
+      g.start(pricer, { vendor: 'a' }),
+      g.start(writer),
+    ]),
+  ).toEqualTypeOf<Promise<[Priced, string]>>()
+  expectTypeOf(
+    agents.group({ onFailure: 'collect' }, async (g) => [
+      g.start(pricer, { vendor: 'a' }),
+      g.start('writer'),
+    ]),
+  ).toEqualTypeOf<Promise<[AgentSettled<Priced>, AgentSettled<unknown>]>>()
+  expectTypeOf(
+    agents.group({}, (g) =>
+      ['a', 'b'].map((vendor) => g.start(pricer, { vendor })),
+    ),
+  ).toEqualTypeOf<Promise<Array<Priced>>>()
+  // @ts-expect-error wrong input in a group
+  void agents.group({}, (g) => [g.start(pricer, { vendor: 1 })])
+})
+
+it('gives plugins and agent code the same agent actions', () => {
+  expectTypeOf<PluginServices['agents']>().toEqualTypeOf<AgentActions>()
+  expectTypeOf<HarnessAgentContext['agents']>().toEqualTypeOf<AgentActions>()
+  expectTypeOf<PluginSetupContext['agents']>().toExtend<AgentActions>()
+})
+
+it('always gives agent code ctx.harness', () => {
+  defineAgent({
+    name: 'boss',
+    description: 'Starts a worker',
+    run: async (ctx) => {
+      expectTypeOf(ctx.harness).toEqualTypeOf<HarnessAgentContext>()
+      const priced = await ctx.harness.agents.run(pricer, { vendor: 'a' })
+      expectTypeOf(priced).toEqualTypeOf<Priced>()
+      return `${priced.cents}`
+    },
+  })
 })

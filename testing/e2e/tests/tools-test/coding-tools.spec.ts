@@ -12,7 +12,7 @@ import type { APIRequestContext } from '@playwright/test'
  * test checks the `TOOL_CALL_RESULT` that the client gets, and the files
  * after the turn. No `permissions()` is mounted, so no tool waits for
  * approval. Only `coding-format-ask` mounts `permissions()`: there the
- * formatter asks, and the route rejects the question.
+ * write asks before it runs, and the route rejects the approval.
  */
 
 type Chunk = {
@@ -20,7 +20,10 @@ type Chunk = {
   delta?: string
   content?: string
   name?: string
-  value?: { message?: string }
+  outcome?: {
+    type: string
+    interrupts?: Array<{ reason?: string; message?: string }>
+  }
 }
 
 /** The chunks of an SSE body. */
@@ -180,7 +183,7 @@ test.describe('Coding tools', () => {
     expect(await read('other.txt')).toBe('mine\n')
   })
 
-  test('in acceptEdits mode, the formatter asks before it runs, and a reject keeps the write', async ({
+  test('in acceptEdits mode, the write asks before it runs, with its formatter, and a reject keeps the file unwritten', async ({
     request,
     testId,
   }) => {
@@ -189,19 +192,33 @@ test.describe('Coding tools', () => {
 
     const chunks = await post(request, 'coding-format-ask', testId)
 
-    const questions = chunks
-      .filter((chunk) => chunk.name === 'harness.question')
-      .map((chunk) => chunk.value?.message)
-    expect(questions).toEqual([
-      `Allow formatter:prettier on ${file('a.ts')}? It runs code from the project. Answer once, always, or reject.`,
+    // acceptEdits allows a write. Only its formatter asks, so this one
+    // approval is for the write and prettier together, before the write runs.
+    const approvals = chunks.flatMap((chunk) =>
+      chunk.type === 'RUN_FINISHED' && chunk.outcome?.type === 'interrupt'
+        ? (chunk.outcome.interrupts ?? []).map(({ reason, message }) => ({
+            reason,
+            message,
+          }))
+        : [],
+    )
+    expect(approvals).toEqual([
+      {
+        reason: 'approval',
+        message:
+          'Allow write_file {"path":"a.ts","content":"let a=1\\n"}? Answer once, always, or reject.',
+      },
     ])
+    // The formatter does not ask again in the middle of the run.
+    expect(chunks.filter((chunk) => chunk.name === 'harness.question')).toEqual(
+      [],
+    )
+    // The reject refuses the call, so nothing is written.
     expect(
       chunks
         .filter((chunk) => chunk.type === 'TOOL_CALL_RESULT')
         .map((chunk) => chunk.content),
-    ).toEqual([
-      'Wrote a.ts.\nThe formatter prettier did not run: it is not allowed.',
-    ])
-    expect(await read('a.ts')).toBe('let a=1\n')
+    ).toEqual(['{"error":"The user denied this tool call."}'])
+    await expect(read('a.ts')).rejects.toMatchObject({ code: 'ENOENT' })
   })
 })

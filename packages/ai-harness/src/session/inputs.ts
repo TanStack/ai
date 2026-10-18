@@ -1,5 +1,6 @@
 import { EventType } from '@tanstack/ai'
 import { isRecord } from '../utils'
+import { isHumanTarget } from '../log-records'
 import { LogOwnedElsewhereError } from '../ownership'
 import { HARNESS_EVENTS, InputRejectedError } from '../types'
 import {
@@ -19,7 +20,7 @@ import {
   dropOldest,
 } from './helpers'
 import { SessionBase } from './base'
-import type { AccessRun } from '../access'
+import type { AccessRun, AccessWait } from '../access'
 import type { OperationImpl } from '../operation'
 import type { LogRecord, OfferedInput } from '@tanstack/ai-persistence'
 import type { HarnessRecord, InputState } from '../log'
@@ -52,6 +53,11 @@ interface AcceptOptions {
   runId?: string
   /** The overrides, preamble, and ephemeral messages of a turn. */
   turn?: TurnExtras
+  /**
+   * The input that goes to the owner when another host owns the log, if it
+   * is not the input that this host logs. It throws to refuse the input.
+   */
+  offer?: () => Promise<HarnessInput>
 }
 
 /** The offer that the next `accept` applies. See `applyOffer`. */
@@ -68,6 +74,8 @@ interface ApplyingOffer {
 export type InputCheck = (check: {
   input: HarnessInput
   run: AccessRun | undefined
+  /** The wait that an answer answers, when the session knows it. */
+  wait?: AccessWait
 }) => Promise<void>
 
 /**
@@ -117,11 +125,18 @@ export abstract class SessionInputs<
   protected runOf(input: HarnessInput): AccessRun | undefined {
     switch (input.op) {
       case 'resolve': {
+        // The interrupt of a background agent run: the log keeps its wait.
+        const first = input.resume[0]
+        const wait = first && this.loggedWait(first.interruptId)?.wait
+        if (wait) return { runId: wait.runId, ...idOf(wait.principal) }
         const stopped = this.interrupted
         if (!stopped) return undefined
         return { runId: stopped.runId, ...idOf(stopped.principal) }
       }
       case 'answer': {
+        // The log keeps the wait with its run, so any host knows it.
+        const wait = this.loggedWait(input.questionId)?.wait
+        if (wait) return { runId: wait.runId, ...idOf(wait.principal) }
         const operationId = this.questions.get(input.questionId)?.operationId
         return operationId === undefined
           ? undefined
@@ -155,22 +170,53 @@ export abstract class SessionInputs<
     }
   }
 
+  /** The wait `waitId` that the log keeps, or `undefined`. */
+  protected loggedWait(waitId: string) {
+    return this.logWriter?.state.thread.waits.get(waitId)
+  }
+
+  /**
+   * The wait that `input` answers, for the access check. An operator reply
+   * goes to the `human` wait of the handoff to a person.
+   */
+  protected waitOf(input: HarnessInput): AccessWait | undefined {
+    if (input.op === 'prompt' && input.as === 'operator') {
+      const paused = this.humanHandoff()
+      return paused ? { waitId: paused.waitId, kind: 'human' } : undefined
+    }
+    if (input.op !== 'answer') return undefined
+    const wait = this.loggedWait(input.questionId)?.wait
+    return wait ? { waitId: wait.waitId, kind: wait.kind } : undefined
+  }
+
+  /**
+   * The handoff to a person that pauses the session, while its `human` wait
+   * is open. A user message then starts no model turn.
+   */
+  protected humanHandoff() {
+    const active = this.logWriter?.state.thread.activeAgent
+    return isHumanTarget(active) ? active : undefined
+  }
+
   /** The operation `operationId`, with the id of who started it when known. */
   protected startedBy(operationId: string): AccessRun {
+    return { runId: operationId, ...idOf(this.principalOfRun(operationId)) }
+  }
+
+  /** Who started the operation `operationId`, when the session knows. */
+  protected principalOfRun(operationId: string) {
     const chain = this.chainOf.get(operationId)
     const agentRun = [...(chain?.runs ?? []), ...(chain?.followUps ?? [])].find(
       (run) => run.operation.id === operationId,
     )
     const inputId = this.operationInputs.get(operationId)
-    const principal =
-      this.activeTurn?.id === operationId
-        ? this.turnPrincipal
-        : agentRun
-          ? agentRun.principal
-          : inputId !== undefined
-            ? this.senderOf(inputId)
-            : undefined
-    return { runId: operationId, ...idOf(principal) }
+    if (this.activeTurn?.id === operationId) return this.turnPrincipal
+    if (agentRun) return agentRun.principal
+    if (inputId !== undefined) return this.senderOf(inputId)
+    // A command: the log has the input that it runs.
+    return [...(this.logWriter?.state.inputs.values() ?? [])].find(
+      (input) => input.operationId === operationId,
+    )?.principal
   }
 
   /** Who sent the input `inputId`: from the log, or from what waits. */
@@ -275,15 +321,25 @@ export abstract class SessionInputs<
    * agent run from the log.
    *
    * Rejects with `InputRejectedError` when the session refused the input,
-   * and with an error for an id this session does not know.
+   * with an error for an id this session does not know, and with the reason
+   * of `signal` when it aborts first.
    *
    * @example
    * ```ts
    * const turn = session.send('Summarize the report.', { inputId: 'req-42' })
-   * const { outcome } = await session.settled('req-42')
+   * const { outcome } = await session.settled({
+   *   inputId: 'req-42',
+   *   signal: AbortSignal.timeout(60_000),
+   * })
    * ```
    */
-  async settled(inputId: string): Promise<InputSettlement> {
+  async settled({
+    inputId,
+    signal,
+  }: {
+    inputId: string
+    signal?: AbortSignal
+  }): Promise<InputSettlement> {
     const known = this.knownSettlement(inputId)
     if (known) return known
     if (!this.isChatInput(inputId)) {
@@ -291,6 +347,7 @@ export abstract class SessionInputs<
         `The session knows no chat input with the id ${JSON.stringify(inputId)}.`,
       )
     }
+    signal?.throwIfAborted()
     const settledEvent = (entry: SessionEvent) =>
       entry.event.type === EventType.CUSTOM &&
       entry.event.name === HARNESS_EVENTS.inputSettled &&
@@ -299,10 +356,12 @@ export abstract class SessionInputs<
     for await (const _entry of this.feed.read({
       from: this.feed.head(),
       filter: settledEvent,
+      ...(signal ? { signal } : {}),
     })) {
       const settlement = this.knownSettlement(inputId)
       if (settlement) return settlement
     }
+    signal?.throwIfAborted()
     throw new Error('The session closed before the input ended.')
   }
 
@@ -500,7 +559,10 @@ export abstract class SessionInputs<
   }): Promise<Admission> {
     const check = this.pendingCheck
     this.pendingCheck = undefined
-    if (check) await check({ input, run: this.runOf(input) })
+    if (check) {
+      const wait = this.waitOf(input)
+      await check({ input, run: this.runOf(input), ...(wait ? { wait } : {}) })
+    }
     const sender = storedPrincipal(principal)
     const known = this.knownAdmission(
       inputId,
@@ -569,7 +631,13 @@ export abstract class SessionInputs<
     principal: Principal | undefined
     options: AcceptOptions
   }): Promise<Admission> {
-    const record = offeredInputRecord({ inputId, input, principal, ...options })
+    const { offer, ...extras } = options
+    const record = offeredInputRecord({
+      inputId,
+      input: offer ? await offer() : input,
+      principal,
+      ...extras,
+    })
     const offered = await this.writer.offer(inputId, record)
     if (offered === 'conflict') return 'conflict'
     this.offeredInputs.add(inputId)
@@ -649,7 +717,7 @@ export abstract class SessionInputs<
    * Apply one offer, and wait until `accept` stored or refused its input.
    * An offer that no `accept` takes (a record of another kind, or a call
    * that ends before `accept`, such as a duplicate prompt) goes, so the
-   * lane does not keep it.
+   * lane does not keep it. A record of `host.transfer` is appended as it is.
    */
   private async applyOffer(offer: OfferedInput) {
     const { inputId, record } = offer
@@ -672,7 +740,18 @@ export abstract class SessionInputs<
         return
       }
     }
-    await this.writer.append([], { consumes: [inputId] })
+    // `host.transfer` on a host that does not own the log offers records
+    // here: the source end of the transfer, and the usage of its summary.
+    // They go in the log as they are. A transfer that the log has already
+    // only drops its offer.
+    const isLaneRecord =
+      record.type === 'harness.usage' || record.type === 'harness.transferred'
+    const isKnown =
+      record.type === 'harness.transferred' &&
+      typeof record.transferId === 'string' &&
+      this.writer.state.thread.transfers.has(record.transferId)
+    const records = isLaneRecord && !isKnown ? [record] : []
+    await this.writer.append(records, { consumes: [inputId] })
   }
 
   /**
@@ -706,6 +785,7 @@ export abstract class SessionInputs<
             ...sent,
             ...turn,
             ...(input.busy ? { busy: input.busy } : {}),
+            ...(input.as ? { as: input.as } : {}),
             ...run,
           }),
         )
@@ -788,6 +868,7 @@ export abstract class SessionInputs<
           session.answer({
             questionId: input.questionId,
             value: input.value,
+            ...(input.ref !== undefined ? { ref: input.ref } : {}),
             inputId,
             ...user,
           }),
@@ -836,18 +917,24 @@ export abstract class SessionInputs<
   /**
    * Record that `operationId` runs the input, and count the attempt.
    * `records` go first in the same append, so a crash keeps both or neither.
+   * `deadline`: an epoch ms time limit of the run (an agent run's own limit,
+   * or its parent's). The earlier of it and `durability.timeoutMs` wins.
    */
   protected async markApplied(
     inputId: string,
     operationId: string,
     records: ReadonlyArray<LogRecord> = [],
+    deadline?: number,
   ): Promise<void> {
     const logged = this.writer.state.inputs.get(inputId)
     const timeoutMs = this.harness.durability?.timeoutMs
+    const limits = [
+      ...(timeoutMs !== undefined ? [Date.now() + timeoutMs] : []),
+      ...(deadline !== undefined ? [deadline] : []),
+    ]
     // Stamped once, at the first apply. Retries do not move it.
     const timeoutAt =
-      logged?.timeoutAt ??
-      (timeoutMs !== undefined ? Date.now() + timeoutMs : undefined)
+      logged?.timeoutAt ?? (limits.length > 0 ? Math.min(...limits) : undefined)
     await this.writer.append([
       ...records,
       {
@@ -865,8 +952,9 @@ export abstract class SessionInputs<
     inputId: string,
     operationId: string,
     records: ReadonlyArray<LogRecord> = [],
+    deadline?: number,
   ): Promise<void> {
-    await this.markApplied(inputId, operationId, records)
+    await this.markApplied(inputId, operationId, records, deadline)
     this.feed.publish(
       operationId,
       customEvent(HARNESS_EVENTS.inputApplied, { inputId, operationId }),

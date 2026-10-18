@@ -1,9 +1,21 @@
 import { createPluginEvent } from '../../extensions'
 import { definePlugin } from '../../plugins'
 import { isRecord } from '../../utils'
-import { PermissionPrompt, PermissionRules } from '../permissions'
+import {
+  PERMISSION_MODES,
+  PermissionDecisionCapability,
+  PermissionResources,
+  PermissionRules,
+} from '../permissions'
 import { WorkspaceHooks } from '../workspace-hooks'
-import { hostBackend, pathsOf, readText } from './backend'
+import {
+  hostBackend,
+  optionalString,
+  pathsOf,
+  readText,
+  stringArg,
+} from './backend'
+import { patchPaths } from './patch'
 import { quoteArg, shellPlatform } from './search'
 import type { WorkspaceBackend } from './backend'
 
@@ -135,20 +147,27 @@ const BUILTINS: ReadonlyArray<Formatter> = [
 const messageOf = (error: unknown) =>
   error instanceof Error ? error.message : String(error)
 
+/** The files that one call writes, by path, with their new text when it is known. */
+export type WrittenFiles = ReadonlyMap<string, string | undefined>
+
 /**
- * The `afterWrite` hook of {@link formatter}. It runs the first formatter
- * that the project uses for the file type. The project is checked at the
- * first write, once. A failure goes to `onFailure` and never throws.
- * `allow` says if the formatter `name` can run on `path`. When it says no,
- * the hook resolves to a note for the tool result.
+ * The formatters of a project: the `afterWrite` hook that runs them, and
+ * the names of the formatters that a call can run, for the permission
+ * rules before the call.
+ *
+ * The hook runs the first formatter that the project uses for the file
+ * type. The project is checked at the first write, once. A failure goes to
+ * `onFailure` and never throws. `allow` says if the formatter `name` can
+ * run on `path`. When it says no, the hook resolves to a note for the tool
+ * result.
  */
-export function formatOnWrite(
+export function projectFormatters(
   options: FormatterOptions,
   onFailure: (failure: FormatFailure) => void,
   allow?: (name: string, path: string) => Promise<boolean>,
 ) {
   const backend = options.backend ?? hostBackend
-  const { extname, join, resolve } = pathsOf(backend)
+  const { dirname, extname, join, resolve } = pathsOf(backend)
   const root = resolve(options.root)
   const timeoutMs = options.timeoutMs ?? 20_000
   const platform = shellPlatform(backend)
@@ -157,32 +176,57 @@ export function formatOnWrite(
     ...(options.builtins === false ? [] : BUILTINS),
   ]
 
-  /** The formatters that the project uses, in order. */
-  const detect = async () => {
+  /**
+   * The formatters that the project uses, in order. With `written`, as the
+   * project is after a call writes those files. A formatter whose check
+   * reads a written file with no known text counts as used.
+   */
+  const detect = async (written: WrittenFiles = new Map()) => {
     const entries = await backend.readdir(root)
-    const project: FormatterProject = {
-      files: entries.map((entry) => entry.name),
-      read: (name) => readText(backend, join(root, name)).catch(() => ''),
-    }
+    const top = new Map(
+      [...written]
+        .filter(([path]) => dirname(path) === root)
+        .map(([path, text]) => [path.slice(root.length + 1), text] as const),
+    )
+    const names = entries.map((entry) => entry.name)
     const used = await Promise.all(
-      candidates.map(
-        async (candidate) => (await candidate.when?.(project)) ?? true,
-      ),
+      candidates.map(async (candidate) => {
+        let readsUnknown = false
+        const project: FormatterProject = {
+          files: [...new Set([...names, ...top.keys()])],
+          read: async (name) => {
+            if (!top.has(name)) {
+              return readText(backend, join(root, name)).catch(() => '')
+            }
+            const text = top.get(name)
+            if (text === undefined) readsUnknown = true
+            return text ?? ''
+          },
+        }
+        const isUsed = (await candidate.when?.(project)) ?? true
+        return isUsed || readsUnknown
+      }),
     )
     return candidates.filter((_, index) => used[index])
   }
   let detected: ReturnType<typeof detect> | undefined
-
-  const format = async (path: string) => {
-    const extension = extname(path).toLowerCase()
-    // A failed detection is not kept, so the next write tries again.
-    const formatters = await (detected ??= detect().catch((error: unknown) => {
+  /** The project check of the first write, kept. A failed check is not kept. */
+  const known = () =>
+    (detected ??= detect().catch((error: unknown) => {
       detected = undefined
       throw error
     }))
-    const match = formatters.find((candidate) =>
+
+  /** The formatters of `formatters` for the file type of `path`. */
+  const matching = (formatters: ReadonlyArray<Formatter>, path: string) => {
+    const extension = extname(path).toLowerCase()
+    return formatters.filter((candidate) =>
       candidate.extensions.includes(extension),
     )
+  }
+
+  const format = async (path: string) => {
+    const [match] = matching(await known(), path)
     if (!match) return
     if (allow && !(await allow(match.name, path))) {
       return `The formatter ${match.name} did not run: it is not allowed.`
@@ -197,10 +241,40 @@ export function formatOnWrite(
     throw new Error(`${match.name} failed: ${reason}`)
   }
 
-  return (path: string) =>
-    format(path).catch((error: unknown) =>
-      onFailure({ path, message: messageOf(error) }),
-    )
+  return {
+    afterWrite: (path: string) =>
+      format(path).catch((error: unknown) =>
+        onFailure({ path, message: messageOf(error) }),
+      ),
+    /**
+     * The names of the formatters that can run after a call writes
+     * `written`: each one that the project uses now, or after the write,
+     * for the type of a written file. Before the first write, the project
+     * check is not kept, so that write checks the project again.
+     */
+    formattersFor: async (written: WrittenFiles) => {
+      // A project that cannot be read counts as one that uses them all, so
+      // no formatter runs that the rules did not decide.
+      const all = () => candidates
+      const before = await (detected ?? detect()).catch(all)
+      const after = await detect(written).catch(all)
+      const names = [...written.keys()].flatMap((path) =>
+        matching([...before, ...after], path).map((each) => each.name),
+      )
+      return [...new Set(names)]
+    },
+  }
+}
+
+/**
+ * The `afterWrite` hook of {@link formatter}. See {@link projectFormatters}.
+ */
+export function formatOnWrite(
+  options: FormatterOptions,
+  onFailure: (failure: FormatFailure) => void,
+  allow?: (name: string, path: string) => Promise<boolean>,
+) {
+  return projectFormatters(options, onFailure, allow).afterWrite
 }
 
 /**
@@ -227,8 +301,11 @@ export function formatOnWrite(
  * A formatter runs code from the project, like its config files. So with
  * `permissions()`, each run is a command named `formatter:<name>`, for
  * example `formatter:prettier`. It asks like `bash`, also in `acceptEdits`
- * mode. A no skips the formatter, keeps the write, and the tool result says
- * so. Without `permissions()`, the formatter runs without a question.
+ * mode. The rules decide it with the call that writes, before the call
+ * runs: one approval covers the write and its formatter, and the formatter
+ * runs after the write, when the file lock is free. A rule that denies the
+ * formatter skips it, keeps the write, and the tool result says so.
+ * Without `permissions()`, the formatter runs without a question.
  *
  * @example
  * ```ts
@@ -246,31 +323,73 @@ export function formatOnWrite(
 export function formatter(options: FormatterOptions) {
   return definePlugin({
     name: 'tanstack/formatter',
-    optionalRequires: [PermissionPrompt],
-    setup: (ctx) => ({
-      contribute: [
-        WorkspaceHooks.item({
-          afterWrite: formatOnWrite(
-            options,
-            (failure) => ctx.emit(FormatFailed, failure),
-            // Read at each write, so permissions() can come after this plugin.
-            async (name, path) => {
-              const ask = ctx.getOptional(PermissionPrompt)
-              return ask
-                ? ask(
-                    `formatter:${name}`,
-                    `Allow formatter:${name} on ${path}? It runs code from the project.`,
-                  )
-                : true
+    optionalRequires: [PermissionDecisionCapability],
+    setup: (ctx) => {
+      const paths = pathsOf(options.backend ?? hostBackend)
+      const root = paths.resolve(options.root)
+      const mode = () => {
+        const value = ctx.config.get('mode')
+        return PERMISSION_MODES.find((each) => each === value) ?? 'default'
+      }
+      const formatters = projectFormatters(
+        options,
+        (failure) => ctx.emit(FormatFailed, failure),
+        // The rules decided the call before it ran, with the formatters
+        // that it can run (see `actions` below). So only a deny stops a
+        // formatter here. Read at each write, so permissions() can come
+        // after this plugin.
+        async (name) => {
+          const decide = ctx.getOptional(PermissionDecisionCapability)
+          return decide?.(`formatter:${name}`, mode()) !== 'deny'
+        },
+      )
+      /** The working folder, as `workspaceTools` reads it. */
+      const here = () => {
+        const cwd = ctx.session.settings().cwd
+        return cwd ? paths.resolve(root, cwd) : root
+      }
+      /** The formatter actions of a call that writes `written`. */
+      const actionsOf = async (
+        written: ReadonlyArray<readonly [string, string | undefined]>,
+      ) => {
+        const files = new Map(
+          written.map(([path, text]) => [paths.resolve(here(), path), text]),
+        )
+        const names = await formatters.formattersFor(files)
+        return names.map((name) => `formatter:${name}`)
+      }
+      return {
+        contribute: [
+          WorkspaceHooks.item({ afterWrite: formatters.afterWrite }),
+          PermissionRules.item({
+            tool: 'formatter:*',
+            decision: 'ask',
+            kind: 'execute',
+          }),
+          // The rules decide the formatter with the call that writes,
+          // before the call runs, so no question waits after the write.
+          PermissionResources.item({
+            write_file: {
+              actions: (input) =>
+                actionsOf([
+                  [stringArg(input, 'path'), optionalString(input, 'content')],
+                ]),
             },
-          ),
-        }),
-        PermissionRules.item({
-          tool: 'formatter:*',
-          decision: 'ask',
-          kind: 'execute',
-        }),
-      ],
-    }),
+            edit_file: {
+              actions: (input) =>
+                actionsOf([[stringArg(input, 'path'), undefined]]),
+            },
+            patch: {
+              actions: (input) =>
+                actionsOf(
+                  patchPaths(stringArg(input, 'patch')).map(
+                    (path) => [path, undefined] as const,
+                  ),
+                ),
+            },
+          }),
+        ],
+      }
+    },
   })
 }
