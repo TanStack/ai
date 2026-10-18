@@ -2,12 +2,8 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve, sep } from 'node:path'
 import { createFileRoute } from '@tanstack/react-router'
-import { EventType, toServerSentEventsResponse } from '@tanstack/ai'
-import {
-  HARNESS_EVENTS,
-  createHarnessHost,
-  defineHarness,
-} from '@tanstack/ai-harness'
+import { toServerSentEventsResponse } from '@tanstack/ai'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
 import { permissions } from '@tanstack/ai-harness/plugins'
 import {
   formatter,
@@ -24,8 +20,8 @@ import { createTextAdapter } from '@/lib/providers'
  * as the chunks the client gets. `coding-patch` gets the `patch` tool, the
  * other scenarios get `edit_file`. No `permissions()` is mounted, so no tool
  * asks for approval. Only `coding-format-ask` mounts `formatter()` and
- * `permissions()` in `acceptEdits` mode: the write runs, the formatter asks,
- * and the route rejects the question.
+ * `permissions()` in `acceptEdits` mode: the write asks before it runs, with
+ * its formatter in the same approval, and the route rejects the approval.
  */
 async function* codingTurn(
   scenario: string,
@@ -52,17 +48,24 @@ async function* codingTurn(
       },
     )
     if (formatAsk) await session.command({ name: 'mode', input: 'acceptEdits' })
-    for await (const chunk of session.send(`[${scenario}] run test`).stream()) {
-      yield chunk
-      const asks =
-        chunk.type === EventType.CUSTOM &&
-        chunk.name === HARNESS_EVENTS.question
-      const [question] = asks ? session.snapshot().pendingQuestions : []
-      if (question)
-        await session.answer({
-          questionId: question.questionId,
-          value: 'reject',
-        })
+    yield* session.send(`[${scenario}] run test`).stream()
+    // In acceptEdits mode, the write asks before it runs, for the write and
+    // its formatter. The turn stops with one approval wait. Reject it, and
+    // give the chunks of the turn that resumes.
+    const [wait] = formatAsk ? (session.snapshot().pendingWaits ?? []) : []
+    if (wait) {
+      const inputId = `answer:${wait.waitId}`
+      const receipt = await session.resolve({
+        resume: [
+          { interruptId: wait.waitId, status: 'resolved', payload: 'reject' },
+        ],
+        inputId,
+      })
+      const resumed = receipt.operationId
+        ? session.operation(receipt.operationId)
+        : undefined
+      if (resumed) yield* resumed.stream()
+      await session.settled({ inputId })
     }
   } finally {
     await host.close()
