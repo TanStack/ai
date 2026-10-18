@@ -17,7 +17,9 @@ import {
   loopbackLogin,
   refreshCredential,
 } from '../src/oauth'
+import { credentialsFor, refreshFlights } from '../src/auth'
 import { mockAdapter, text, toolCall } from './helpers'
+import type { Credential } from '@tanstack/ai/byok'
 import type { HarnessRunContext, HarnessSession } from '../src'
 import type { OAuthConfig } from '../src/oauth'
 
@@ -93,6 +95,22 @@ describe('token requests', () => {
     expect(refreshed.type === 'oauth' && refreshed.expiresAt).toBeGreaterThan(
       Date.now(),
     )
+  })
+
+  it('keeps the client of the tokens on a refresh', async () => {
+    const { fake } = replies([{ access_token: 'a2' }])
+    const client = { clientId: 'dcr-1', clientSecret: 'shh-1', issuer: 'iss' }
+    const refreshed = await refreshCredential(
+      oauth,
+      { type: 'oauth', accessToken: 'a1', refreshToken: 'r1', client },
+      { fetch: fake },
+    )
+    expect(refreshed).toEqual({
+      type: 'oauth',
+      accessToken: 'a2',
+      refreshToken: 'r1',
+      client,
+    })
   })
 
   it('refuses a credential without a refresh token', async () => {
@@ -423,6 +441,202 @@ describe('oauthConnector edges', () => {
     expect(connecting.status()).toBe('cancelled')
     // The sign-in stopped too: nothing listens for the redirect now.
     await expect(fetch(redirect)).rejects.toThrow()
+  })
+})
+
+describe('oauthConnector refresh races', () => {
+  const expired = {
+    type: 'oauth',
+    accessToken: 'old',
+    refreshToken: 'r-0',
+    expiresAt: Date.now() - 1,
+  } as const
+
+  /**
+   * A token endpoint that holds each request until `open()`. Request `n`
+   * gives `fresh-<n>` and `r-<n>`. `used` has the refresh token of each
+   * request.
+   */
+  function heldTokenEndpoint() {
+    const used: Array<string | null> = []
+    let open = () => {}
+    const gate = new Promise<void>((resolve) => {
+      open = resolve
+    })
+    const fake: typeof fetch = async (_input, init) => {
+      used.push(
+        new URLSearchParams(String(init?.body ?? '')).get('refresh_token'),
+      )
+      const n = used.length
+      await gate
+      // A request whose signal aborted gets no answer, like a real fetch.
+      init?.signal?.throwIfAborted()
+      return new Response(
+        JSON.stringify({
+          access_token: `fresh-${n}`,
+          refresh_token: `r-${n}`,
+          expires_in: 3600,
+        }),
+      )
+    }
+    return { fake, used, open: () => open() }
+  }
+
+  /** A harness whose one tool reads the `svc` token once. */
+  function tokenHarness(
+    fetchFn: typeof fetch,
+    calls: { started: number; seen: Array<string> },
+  ) {
+    return defineHarness({
+      name: 'test/refresh-race',
+      adapter: mockAdapter([() => toolCall('whoami', {}), () => text('done')])
+        .adapter,
+      plugins: () => [
+        oauthConnector({
+          id: 'svc',
+          label: 'Service',
+          login: 'loopback',
+          oauth,
+          fetch: fetchFn,
+          tools: (token) => [
+            toolDefinition({
+              name: 'whoami',
+              description: 'Who am I',
+            }).server<HarnessRunContext>(async (_args, ctx) => {
+              calls.started++
+              calls.seen.push(await token({ run: ctx.context.run }))
+              return 'me'
+            }),
+          ],
+        }),
+      ],
+    })
+  }
+
+  it('refreshes once when two sessions of one host need a refresh at once', async () => {
+    const credentials = memoryCredentialStore()
+    await credentials.set({
+      scope: { userId: 'u1' },
+      id: 'svc',
+      credential: expired,
+    })
+    const endpoint = heldTokenEndpoint()
+    const calls = { started: 0, seen: new Array<string>() }
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      credentials,
+    })
+    const open = (threadId: string) =>
+      host.open(tokenHarness(endpoint.fake, calls), {
+        threadId,
+        principal: { id: 'u1' },
+      })
+    const [first, second] = await Promise.all([open('t1'), open('t2')])
+    const sending = Promise.all([first.send('who'), second.send('who')])
+    await vi.waitFor(() => expect(calls.started).toBe(2), { timeout: 5000 })
+    endpoint.open()
+    await sending
+    expect(endpoint.used).toEqual(['r-0'])
+    expect(calls.seen).toEqual(['fresh-1', 'fresh-1'])
+    expect(
+      await credentials.get({ scope: { userId: 'u1' }, id: 'svc' }),
+    ).toMatchObject({ accessToken: 'fresh-1', refreshToken: 'r-1' })
+    await host.close()
+  })
+
+  it('uses the token of the host that saved first when two hosts refresh at once', async () => {
+    const credentials = memoryCredentialStore()
+    await credentials.set({
+      scope: { userId: 'u1' },
+      id: 'svc',
+      credential: expired,
+    })
+    const endpoint = heldTokenEndpoint()
+    const calls = { started: 0, seen: new Array<string>() }
+    // Two hosts over one store, as two servers of one app.
+    const hosts = [1, 2].map(() =>
+      createHarnessHost({ persistence: memoryPersistence(), credentials }),
+    )
+    const sessions = await Promise.all(
+      hosts.map((host) =>
+        host.open(tokenHarness(endpoint.fake, calls), {
+          threadId: 't',
+          principal: { id: 'u1' },
+        }),
+      ),
+    )
+    const sending = Promise.all(sessions.map((session) => session.send('who')))
+    // Each host refreshes: they share no lock, only the store.
+    await vi.waitFor(() => expect(endpoint.used).toHaveLength(2), {
+      timeout: 5000,
+    })
+    endpoint.open()
+    await sending
+    const saved = await credentials.get({ scope: { userId: 'u1' }, id: 'svc' })
+    const winner = saved?.type === 'oauth' ? saved.accessToken : undefined
+    expect(['fresh-1', 'fresh-2']).toContain(winner)
+    // The host that lost the save uses the winner's token, not its own.
+    expect(calls.seen).toEqual([winner, winner])
+    await Promise.all(hosts.map((host) => host.close()))
+  })
+
+  it('goes on with the refresh for others when the caller that started it aborts', async () => {
+    const credentials = memoryCredentialStore()
+    const scope = { threadId: 't', userId: 'u1' }
+    await credentials.set({ scope, id: 'svc', credential: expired })
+    const endpoint = heldTokenEndpoint()
+    // Two accesses of one host: they share its refreshes.
+    const flights = refreshFlights()
+    const access = () =>
+      credentialsFor(credentials, scope, () => {}, { refreshes: flights })
+    const update = (current: Credential, signal: AbortSignal) =>
+      refreshCredential(oauth, current, { fetch: endpoint.fake, signal })
+    const stopFirst = new AbortController()
+    const first = access().refresh('svc', update, { signal: stopFirst.signal })
+    await vi.waitFor(() => expect(endpoint.used).toHaveLength(1), {
+      timeout: 5000,
+    })
+    const second = access().refresh('svc', update)
+    stopFirst.abort(new Error('first caller stopped'))
+    await expect(first).rejects.toThrow('first caller stopped')
+    endpoint.open()
+    expect(await second).toMatchObject({ accessToken: 'fresh-1' })
+    expect(endpoint.used).toEqual(['r-0'])
+    expect(await credentials.get({ scope, id: 'svc' })).toMatchObject({
+      accessToken: 'fresh-1',
+    })
+  })
+
+  it('saves a refreshed tenant token for the tenant, not for the user', async () => {
+    const credentials = memoryCredentialStore()
+    await credentials.set({
+      scope: { tenantId: 'acme' },
+      id: 'svc',
+      credential: expired,
+    })
+    const endpoint = heldTokenEndpoint()
+    endpoint.open()
+    const calls = { started: 0, seen: new Array<string>() }
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      credentials,
+    })
+    const session = await host.open(tokenHarness(endpoint.fake, calls), {
+      threadId: 't',
+      principal: { id: 'u1', tenantId: 'acme' },
+    })
+    await session.send('who')
+    expect(calls.seen).toEqual(['fresh-1'])
+    expect(
+      await credentials.get({ scope: { tenantId: 'acme' }, id: 'svc' }),
+    ).toMatchObject({ accessToken: 'fresh-1', refreshToken: 'r-1' })
+    expect(
+      await credentials.get({
+        scope: { tenantId: 'acme', userId: 'u1' },
+        id: 'svc',
+      }),
+    ).toBeNull()
+    await host.close()
   })
 })
 

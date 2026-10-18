@@ -201,14 +201,15 @@ describe('session.reload', () => {
         }),
       ],
     })
-    vi.spyOn(persistence.stores.metadata, 'get').mockRejectedValue(
-      new Error('metadata down'),
+    // The index entry is written after the plugins mount.
+    vi.spyOn(persistence.stores.sessions, 'upsertIf').mockRejectedValue(
+      new Error('index down'),
     )
     const host = createHarnessHost({ persistence })
     hosts.push(host)
 
     await expect(host.open(harness, { threadId: 't' })).rejects.toThrow(
-      'metadata down',
+      'index down',
     )
     expect(disposed).toBe(1)
   })

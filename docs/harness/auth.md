@@ -52,7 +52,7 @@ export const assistant = defineHarness({
 })
 ```
 
-`token({ run })` returns a fresh access token of the user of that run. It refreshes an expired token when the service gave a refresh token. Pass the `run` of the tool call, `ctx.context.run`, so each user gets their own token. See [Act as the user of a run](./plugins#act-as-the-user-of-a-run).
+`token({ run })` returns a fresh access token of the user of that run. If the token is expired and the service gave a refresh token, `token` refreshes it first, one time for all the calls that need it. See [Refresh a token](#refresh-a-token). Pass the `run` of the tool call, `ctx.context.run`, so each user gets their own token. See [Act as the user of a run](./plugins#act-as-the-user-of-a-run).
 
 ## 2. Sign in
 
@@ -129,7 +129,7 @@ When the credential is missing, the turn stops with an interrupt:
 - The sign-in belongs to the sender of the stopped turn. When that person saves the credential, the same turn continues as that person, and the tool runs again. The save can be `/connect github`, the `connect:github` command, or `run.credentials.set` in a command of your own.
 - A credential that another person saves never continues the turn.
 - To stop the wait, resolve the interrupt with `status: 'cancelled'`. Then the tool fails, the same as without `wait`.
-- On a durable host, the wait continues after a restart.
+- On a [durable host](./durable-sessions), the wait continues after a restart.
 - `wait` is for a tool of the running chat turn. Do not pass it in a command, a background agent, or a hook. The credentials of a command never wait.
 - Provider keys (`run.keys.require`) do not wait.
 
@@ -189,6 +189,7 @@ The store can be a table in your own database or a secrets manager. See the rule
 - Encrypt tokens at rest in a real store.
 - `list` returns ids and types only, never the secret values.
 - A credential saved without a `userId` belongs to the whole tenant. A user who has no credential of their own uses it. See [Share one credential with the whole organization](./shared-threads#share-one-credential-with-the-whole-organization).
+- If more than one host uses the store, add `getVersioned` and `setIf`. Then two hosts do not both save a refreshed token. See [Add compare-and-set](../advanced/server-keys#add-compare-and-set).
 
 ## Read credentials in your own plugin
 
@@ -199,6 +200,31 @@ Your plugin reads the credentials of the user of each run:
 - The `ctx.credentials` of a session plugin have no user, so each call throws.
 
 See [Act as the user of a run](./plugins#act-as-the-user-of-a-run).
+
+## Keep tokens out of the log and the model
+
+A tool can show a token by mistake: an error message with the request URL, or a debug field in its result. The session replaces each secret that it gave out with `[redacted]` before it keeps or sends anything.
+
+The secrets that the session knows:
+
+- The provider keys of `run.keys`, also a key from an env var.
+- The credentials of `run.credentials` and of the connectors: API keys, OAuth tokens, and the OAuth client secret.
+- The answer to a question with `secret: true`.
+
+Where the session replaces them:
+
+- The session log: your records, the transcript, plugin state, notes, tool results, and durable step results.
+- The events that clients get.
+- The model context, so the model never sees a secret.
+- The error frames of the HTTP handler, the WebSocket, and the stdio worker.
+
+The session finds the raw value, its JSON-escaped form, and its URL-encoded form. It does not find:
+
+- A value shorter than 6 characters. So a short value does not remove common words.
+- A secret that a stream splits across two deltas, in those two events. The message in the transcript does not have the secret.
+- A secret that is JSON-escaped two times.
+
+To scrub a text of your own, use `scrubSecrets(text, secrets)` from `@tanstack/ai/byok`. It uses the same rules.
 
 ## Write your own sign-in command
 
@@ -238,7 +264,16 @@ export const gitlabLogin = definePlugin({
 })
 ```
 
-A tool refreshes an expired token with the `signal` of its run, so the refresh stops with the run:
+- `deviceLogin`, `loopbackLogin`, `exchangeCode`, and `refreshCredential` take a `signal`. When it aborts, the call stops at once and rejects with the reason of the signal.
+- The `signal` of a command aborts on a cancel of the command and on a close of the session.
+- `loopbackLogin` takes `timeoutMs`. The default is 10 minutes. This timer does not keep the process alive.
+- When another library runs the OAuth flow, `startLoopbackReceiver({ timeoutMs, signal })` only waits for the callback. `waitForCode(state)` gives the code and the `iss` of the callback.
+
+### Refresh a token
+
+An access token expires, and several tool calls can need it at the same time. Some services rotate the refresh token: after one refresh, the old refresh token stops working. Then a second refresh at the same time fails, and the user must sign in again.
+
+`run.credentials.refresh(id, update, { signal })` runs one refresh, and every caller gets its result:
 
 ```ts group=harness-auth-own
 import { toolDefinition } from '@tanstack/ai'
@@ -251,8 +286,17 @@ export const gitlabProjects = toolDefinition({
   const { credentials, signal } = ctx.context.run
   let credential = await credentials.require('gitlab')
   if (isExpired(credential)) {
-    credential = await refreshCredential(gitlab, credential, { signal })
-    await credentials.set({ id: 'gitlab', credential })
+    const fresh = await credentials.refresh(
+      'gitlab',
+      // Another call can refresh first. Then keep its credential.
+      (current, hostSignal) =>
+        isExpired(current)
+          ? refreshCredential(gitlab, current, { signal: hostSignal })
+          : Promise.resolve(current),
+      { signal },
+    )
+    // The user disconnected meanwhile: ask for a sign-in.
+    credential = fresh ?? (await credentials.require('gitlab'))
   }
   const token = credential.type === 'api_key' ? credential.value : credential.accessToken
   const response = await fetch('https://gitlab.com/api/v4/projects?membership=true', {
@@ -263,14 +307,22 @@ export const gitlabProjects = toolDefinition({
 })
 ```
 
-- `deviceLogin`, `loopbackLogin`, `exchangeCode`, and `refreshCredential` take a `signal`. When it aborts, the call stops at once and rejects with the reason of the signal.
-- The `signal` of a command aborts on a cancel of the command and on a close of the session.
-- `loopbackLogin` takes `timeoutMs`. The default is 10 minutes. This timer does not keep the process alive.
-- When another library runs the OAuth flow, `startLoopbackReceiver({ timeoutMs, signal })` only waits for the callback. `waitForCode(state)` gives the code and the `iss` of the callback.
+`update` gets the saved credential and returns the new one. Return `current` to keep it. `refresh` resolves with the credential to use, or `null` when none is saved. `oauthConnector` refreshes with `refresh` too.
+
+What `refresh` does:
+
+- One host runs one `update` at a time for each saved credential. A call that comes while one runs waits for it, and gets the same credential.
+- It saves the new credential to the scope where it found it. A tenant token stays the tenant's, so every user of the tenant gets the new token.
+- If the store has `getVersioned` and `setIf`, the save is a compare-and-set. When another host saved first, the call uses that token and does not refresh again.
+- Without that pair, the one-at-a-time rule is per host only. Two hosts can refresh at the same time, and the last save wins.
+- `update` gets a signal of the host, which only `host.close()` aborts. An abort of your `signal` rejects only your call. The refresh goes on for the other calls.
+
+`refreshCredential` keeps the OAuth `client` of the old credential, so the next refresh has it too.
 
 ## What you have now
 
-- Browser and device-code sign-in for any OAuth service.
+- Browser and device-code sign-in for any OAuth service, and sign-ins of your own that stop at once on a cancel.
 - Tools that get a fresh token without the model seeing it.
+- One refresh for each expired token, also on many hosts.
+- A log, events, and a model context with `[redacted]` in place of each secret.
 - Turns that wait for a sign-in and then finish their work.
-- Sign-ins of your own that stop at once on a cancel.

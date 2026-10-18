@@ -1,20 +1,17 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryLogBackend, memoryLogStore } from '@tanstack/ai-persistence'
 
 /**
- * Two hosts share one set of durable stores, as two instances of a
- * serverless app do. The first host runs a turn. While it runs, the second
- * host gets a follow-up for the same thread.
+ * Two hosts on one log backend, as two instances of a serverless app on one
+ * database. Each host has its own log store and its own model. The first
+ * host runs a turn. While it runs, the second host gets a follow-up for the
+ * same thread. The follow-up waits in the log for the owner (receipt
+ * `queued`), and the owner runs it after its turn.
  *
- * - `?inbox=1`: the follow-up waits in `stores.inbox`, and the owner runs it
- *   after its turn.
- * - Without it: the second host refuses the follow-up.
- *
- * In both, the owner's turn ends normally. A custom `fetch` answers with
- * canned Anthropic streams and holds the first answer until the follow-up
- * is in, so no aimock fixture is needed.
+ * A custom `fetch` answers with canned Anthropic streams and holds the first
+ * answer until the follow-up is in, so no aimock fixture is needed.
  */
 
 const DUMMY_KEY = 'sk-ant-e2e-test-dummy-key'
@@ -63,47 +60,54 @@ const textsOf = (messages: Array<{ role: string; content: unknown }>) =>
     text: typeof message.content === 'string' ? message.content : '',
   }))
 
+/**
+ * A model whose answers are `texts`, in order. The first answer waits for
+ * `until`. `calls` counts the requests that reach it.
+ */
+function scriptedModel(texts: Array<string>, until: Promise<void>) {
+  const counter = { calls: 0 }
+  const scriptedFetch: typeof fetch = async () => {
+    counter.calls += 1
+    if (counter.calls === 1) await until
+    const text = texts[counter.calls - 1] ?? 'No more answers.'
+    return new Response(reply(`msg_forwarding_${counter.calls}`, text), {
+      headers: { 'Content-Type': 'text/event-stream' },
+    })
+  }
+  const adapter = createAnthropicChat(MODEL, DUMMY_KEY, {
+    fetch: scriptedFetch,
+  })
+  return { adapter, counter }
+}
+
 export const Route = createFileRoute('/api/harness-forwarding')({
   server: {
     handlers: {
-      POST: async ({ request }) => {
-        const withInbox = new URL(request.url).searchParams.get('inbox') === '1'
+      POST: async () => {
         let release!: () => void
         const released = new Promise<void>((resolve) => {
           release = resolve
         })
-        let calls = 0
-        const scriptedFetch: typeof fetch = async () => {
-          calls += 1
-          if (calls === 1) await released
-          const text = calls === 1 ? 'One.' : 'Two.'
-          return new Response(reply(`msg_forwarding_${calls}`, text), {
-            headers: { 'Content-Type': 'text/event-stream' },
-          })
-        }
-
-        const { runs, metadata, workClaims, inbox } = memoryPersistence().stores
-        const persistence = {
-          stores: {
-            log: memoryLogStore(),
-            runs,
-            metadata,
-            workClaims,
-            ...(withInbox ? { inbox } : {}),
-          },
-        }
-        const harness = defineHarness({
-          name: 'e2e/harness-forwarding',
-          adapter: createAnthropicChat(MODEL, DUMMY_KEY, {
-            fetch: scriptedFetch,
-          }),
+        const ownerModel = scriptedModel(['One.', 'Two.'], released)
+        const otherModel = scriptedModel(['Not on this host.'], released)
+        const backend = memoryLogBackend()
+        const name = 'e2e/harness-forwarding'
+        const ownerHost = createHarnessHost({
+          persistence: { stores: { log: memoryLogStore({ backend }) } },
         })
-        const ownerHost = createHarnessHost({ persistence })
-        const otherHost = createHarnessHost({ persistence })
+        const otherHost = createHarnessHost({
+          persistence: { stores: { log: memoryLogStore({ backend }) } },
+        })
         try {
           const threadId = 'e2e-harness-forwarding'
-          const owner = await ownerHost.open(harness, { threadId })
-          const other = await otherHost.open(harness, { threadId })
+          const owner = await ownerHost.open(
+            defineHarness({ name, adapter: ownerModel.adapter }),
+            { threadId },
+          )
+          const other = await otherHost.open(
+            defineHarness({ name, adapter: otherModel.adapter }),
+            { threadId },
+          )
 
           const turn = owner.send('[harness-forwarding] go')
           await turn.receipt
@@ -112,20 +116,14 @@ export const Route = createFileRoute('/api/harness-forwarding')({
           }).receipt
           release()
           const first = await turn
-
-          let followUp: string | undefined
-          if (receipt.status === 'queued') {
-            followUp = (await other.settled(receipt.inputId)).outcome
-          }
+          const followUp = (await other.settled({ inputId: receipt.inputId }))
+            .outcome
           return Response.json({
-            receipt: {
-              status: receipt.status,
-              reason:
-                receipt.status === 'rejected' ? receipt.reason : undefined,
-            },
+            receipt: { status: receipt.status },
             first: first.text,
             followUp,
-            calls,
+            ownerCalls: ownerModel.counter.calls,
+            otherCalls: otherModel.counter.calls,
             transcript: textsOf(await owner.transcript()),
           })
         } catch (error) {

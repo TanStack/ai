@@ -4,17 +4,31 @@ import { EventType, getLogRecords, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, durableTool, logIdOf } from '../src'
 import { INTERRUPTED_TOOL_RESULT } from '../src/resume'
-import { gate, mockAdapter, text, toolCall } from './helpers'
+import {
+  CRASHING_OWNERSHIP,
+  gate,
+  mockAdapter,
+  ownershipExpired,
+  text,
+  toolCall,
+} from './helpers'
 import type { AnyChatMiddleware, AnyTool, StreamChunk } from '@tanstack/ai'
+import type { OwnershipOptions } from '../src'
 import type { Reply } from './helpers'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
 const LOG = logIdOf({ logId: THREAD })
 
 function durablePersistence() {
-  const { runs, metadata } = memoryPersistence().stores
-  return { stores: { log: memoryLogStore(), runs, metadata } }
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log: memoryLogStore(), metadata } }
 }
 
 type Durable = ReturnType<typeof durablePersistence>
@@ -23,9 +37,13 @@ async function openDurable(
   persistence: Durable,
   replies: Array<Reply>,
   tools: Array<AnyTool>,
+  ownership?: OwnershipOptions,
 ) {
   const { adapter, calls } = mockAdapter(replies)
-  const host = createHarnessHost({ persistence })
+  const host = createHarnessHost({
+    persistence,
+    ...(ownership ? { ownership } : {}),
+  })
   const session = await host.open(
     defineHarness({ name: 'test/durable-tools', adapter, tools }),
     {
@@ -50,9 +68,12 @@ const untilAborted = (signal: AbortSignal | undefined) =>
     })
   })
 
-/** Let another host take over: the run lease of `runId` expires. */
-const expireLease = (persistence: Durable, runId: string) =>
-  persistence.stores.runs.update(runId, { leaseExpiresAt: Date.now() - 1 })
+/** `openDurable` on a host that the test lets crash: see `ownershipExpired`. */
+const openCrashing = (
+  persistence: Durable,
+  replies: Array<Reply>,
+  tools: Array<AnyTool>,
+) => openDurable(persistence, replies, tools, CRASHING_OWNERSHIP)
 
 /** One model call that calls every tool in `calls`. */
 function toolCalls(
@@ -116,25 +137,26 @@ describe('durable tools across a crash', () => {
         return `${orderId}:${reservation}:${payment}:${shipment}`
       },
     )
-    const first = await openDurable(
+    const first = await openCrashing(
       persistence,
       [() => toolCall('pay', { orderId: 'o1' }, 'call-pay')],
       [pay],
     )
     const turn = first.session.send('pay order o1', { inputId: 'pay-1' })
     await twoDone.opened
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(
         (await recordsOf(persistence, 'harness.tool.step')).map(
           (record) => record.name,
         ),
       ).toEqual(['reserve', 'charge']),
     )
-    await expireLease(persistence, turn.id)
+    // The first host stops: its ownership of the log expires.
+    await ownershipExpired()
 
     const next = await openDurable(persistence, [() => text('paid')], [pay])
 
-    expect(await next.session.settled('pay-1')).toMatchObject({
+    expect(await next.session.settled({ inputId: 'pay-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(reserve).toHaveBeenCalledTimes(1)
@@ -168,7 +190,7 @@ describe('durable tools across a crash', () => {
       ),
       toolDefinition({ name: 'mail', description: 'Send a mail' }).server(mail),
     ]
-    const first = await openDurable(
+    const first = await openCrashing(
       persistence,
       [
         () =>
@@ -179,17 +201,21 @@ describe('durable tools across a crash', () => {
       ],
       tools,
     )
-    const turn = first.session.send('charge and mail', { inputId: 'batch-1' })
+    void first.session.send('charge and mail', { inputId: 'batch-1' }).then(
+      () => {},
+      () => {},
+    )
     await mailStarted.opened
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await recordsOf(persistence, 'harness.tool.result')).toHaveLength(
         1,
       ),
     )
-    await expireLease(persistence, turn.id)
+    // The first host stops: its ownership of the log expires.
+    await ownershipExpired()
 
     const next = await openDurable(persistence, [() => text('done')], tools)
-    await next.session.settled('batch-1')
+    await next.session.settled({ inputId: 'batch-1' })
 
     const results = (await next.session.transcript()).filter(
       (message) => message.role === 'tool',
@@ -205,6 +231,91 @@ describe('durable tools across a crash', () => {
     ])
     expect(charge).toHaveBeenCalledTimes(1)
     expect(mail).toHaveBeenCalledTimes(1)
+    await first.host.close().catch(() => {})
+    await next.host.close()
+  })
+})
+
+describe('the final tool result across a crash', () => {
+  it('gives the model the result that a middleware replaced, not the raw one', async () => {
+    const persistence = durablePersistence()
+    const mailStarted = gate()
+    const tools = [
+      toolDefinition({ name: 'charge', description: 'Charge a card' }).server(
+        async () => 'charged card 4242-4242-4242-4242',
+      ),
+      toolDefinition({ name: 'mail', description: 'Send a mail' }).server(
+        (_args, context) => {
+          mailStarted.open()
+          // The first host stops while the mail runs.
+          return untilAborted(context?.abortSignal)
+        },
+      ),
+    ]
+    // A plugin-like middleware that hides the card number from the model.
+    const hideCard: AnyChatMiddleware = {
+      name: 'test:hide-card',
+      onAfterToolCall: (_ctx, info) =>
+        typeof info.result === 'string'
+          ? {
+              type: 'replaceResult',
+              result: info.result.replace(/\d{4}(-\d{4}){3}/, '[card]'),
+            }
+          : undefined,
+    }
+    const openWith = (replies: Array<Reply>, ownership?: OwnershipOptions) => {
+      const { adapter, calls } = mockAdapter(replies)
+      const host = createHarnessHost({
+        persistence,
+        ...(ownership ? { ownership } : {}),
+      })
+      const harness = defineHarness({
+        name: 'test/durable-final-result',
+        adapter,
+        tools,
+        middleware: [hideCard],
+      })
+      return { host, calls, opened: host.open(harness, { threadId: THREAD }) }
+    }
+    const first = openWith(
+      [
+        () =>
+          toolCalls([
+            { id: 'call-charge', name: 'charge' },
+            { id: 'call-mail', name: 'mail' },
+          ]),
+      ],
+      CRASHING_OWNERSHIP,
+    )
+    void (await first.opened)
+      .send('charge and mail', { inputId: 'final-1' })
+      .then(
+        () => {},
+        () => {},
+      )
+    await mailStarted.opened
+    await vi.waitFor(
+      async () =>
+        expect(
+          await recordsOf(persistence, 'harness.tool.result'),
+        ).toHaveLength(1),
+      { timeout: 5_000 },
+    )
+    // The first host stops: its ownership of the log expires.
+    await ownershipExpired()
+
+    const next = openWith([() => text('done')])
+    await (await next.opened).settled({ inputId: 'final-1' })
+
+    const charged = next.calls[0].messages.find(
+      (message: { toolCallId?: string }) =>
+        message.toolCallId === 'call-charge',
+    )
+    expect(charged?.content).toBe('charged card [card]')
+    const stored = JSON.stringify(
+      await recordsOf(persistence, 'harness.tool.result'),
+    )
+    expect(stored).not.toContain('4242')
     await first.host.close().catch(() => {})
     await next.host.close()
   })
@@ -248,18 +359,22 @@ describe('host records of a tool batch', () => {
         return untilAborted(abortSignal)
       },
     )
-    const first = await openDurable(
+    const first = await openCrashing(
       persistence,
       [() => toolCall('note', {}, 'call-note')],
       [note],
     )
-    const turn = first.session.send('note it', { inputId: 'note-1' })
+    void first.session.send('note it', { inputId: 'note-1' }).then(
+      () => {},
+      () => {},
+    )
     await appended.opened
-    await expireLease(persistence, turn.id)
+    // The first host stops: its ownership of the log expires.
+    await ownershipExpired()
 
     // The durable tool runs again on the next host, and stops again there.
     const next = await openDurable(persistence, [], [note])
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(
         await recordsOf(persistence, 'harness.input.applied'),
       ).toHaveLength(2),
@@ -301,7 +416,7 @@ describe('host records of a tool batch', () => {
     )
     const turn = session.send('note and wait', { inputId: 'result-1' })
 
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await recordsOf(persistence, 'harness.tool.result')).toHaveLength(
         1,
       ),
@@ -418,17 +533,21 @@ describe('a durable tool with replay: never', () => {
       },
       { replay: 'never' },
     )
-    const first = await openDurable(
+    const first = await openCrashing(
       persistence,
       [() => toolCall('mail', {}, 'call-mail')],
       [mail],
     )
-    const turn = first.session.send('mail it', { inputId: 'mail-1' })
+    void first.session.send('mail it', { inputId: 'mail-1' }).then(
+      () => {},
+      () => {},
+    )
     await started.opened
-    await expireLease(persistence, turn.id)
+    // The first host stops: its ownership of the log expires.
+    await ownershipExpired()
 
     const next = await openDurable(persistence, [() => text('checked')], [mail])
-    expect(await next.session.settled('mail-1')).toMatchObject({
+    expect(await next.session.settled({ inputId: 'mail-1' })).toMatchObject({
       outcome: 'completed',
     })
 
@@ -481,9 +600,15 @@ describe('durable tools that middleware returns', () => {
         return looked ? { tools: [pay] } : undefined
       },
     }
-    const open = async (replies: Array<Reply>) => {
+    const open = async (
+      replies: Array<Reply>,
+      ownership?: OwnershipOptions,
+    ) => {
       const { adapter, calls } = mockAdapter(replies)
-      const host = createHarnessHost({ persistence })
+      const host = createHarnessHost({
+        persistence,
+        ...(ownership ? { ownership } : {}),
+      })
       const session = await host.open(
         defineHarness({
           name: 'test/durable-tools',
@@ -497,19 +622,23 @@ describe('durable tools that middleware returns', () => {
       )
       return { host, session, calls }
     }
-    const first = await open([
-      () => toolCall('look', {}, 'call-look'),
-      () => toolCall('pay', {}, 'call-pay'),
-    ])
+    const first = await open(
+      [
+        () => toolCall('look', {}, 'call-look'),
+        () => toolCall('pay', {}, 'call-pay'),
+      ],
+      CRASHING_OWNERSHIP,
+    )
     const turn = first.session.send('pay', { inputId: 'pay-1' })
     await charged.opened
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(await recordsOf(persistence, 'harness.tool.step')).toHaveLength(1),
     )
-    await expireLease(persistence, turn.id)
+    // The first host stops: its ownership of the log expires.
+    await ownershipExpired()
 
     const next = await open([() => text('paid')])
-    expect(await next.session.settled('pay-1')).toMatchObject({
+    expect(await next.session.settled({ inputId: 'pay-1' })).toMatchObject({
       outcome: 'completed',
     })
 

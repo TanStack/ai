@@ -14,10 +14,15 @@ import {
   definePlugin,
   logIdOf,
 } from '../src'
-import { tenantStores } from '../src/tenant-stores'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { ModelMessage } from '@tanstack/ai'
 import type { Reply } from './helpers'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 const THREAD = 't1'
 const NAME = 'test/tenant-keys'
@@ -69,10 +74,10 @@ const contents = (messages: ReadonlyArray<ModelMessage>) =>
 
 /** A host with `stores.log`. */
 function durableHost() {
-  const { runs, interrupts, metadata, workClaims } = memoryPersistence().stores
+  const { metadata } = memoryPersistence().stores
   const log = memoryLogStore()
   const persistence = {
-    stores: { log, runs, interrupts, metadata, workClaims },
+    stores: { log, metadata },
   }
   return {
     persistence,
@@ -89,28 +94,9 @@ function durableHost() {
   }
 }
 
-/** A host that keeps the transcript in `stores.messages`. */
-function messageStoreHost() {
-  const persistence = memoryPersistence()
-  return {
-    persistence,
-    /** A prompt that a host left in the inbox of `key` before it stopped. */
-    seedInput: (key: string) =>
-      persistence.stores.inbox.append({
-        inputId: 'in-1',
-        threadId: key,
-        input: PROMPT,
-        createdAt: Date.now() - 1_000,
-      }),
-  }
-}
-
-describe.each([
-  { shape: 'a durable host', setup: durableHost },
-  { shape: 'a message-store host', setup: messageStoreHost },
-])('one thread id in two tenants on $shape', ({ setup }) => {
+describe('one thread id in two tenants', () => {
   it('keeps the settings and the config of one tenant from the other', async () => {
-    const { persistence } = setup()
+    const { persistence } = durableHost()
     const { harness } = harnessWith()
     const host = createHarnessHost({ persistence })
     const a = await host.open(harness, { threadId: THREAD, principal: acme })
@@ -134,7 +120,7 @@ describe.each([
   })
 
   it('keeps the plugin state of one tenant from the other', async () => {
-    const { persistence } = setup()
+    const { persistence } = durableHost()
     const { harness } = harnessWith()
     const host = createHarnessHost({ persistence })
     const a = await host.open(harness, { threadId: THREAD, principal: acme })
@@ -148,7 +134,7 @@ describe.each([
   })
 
   it('keeps the transcript of one tenant from the other', async () => {
-    const { persistence } = setup()
+    const { persistence } = durableHost()
     const { harness } = harnessWith([() => text('Hello, acme.')])
     const host = createHarnessHost({ persistence })
     const a = await host.open(harness, { threadId: THREAD, principal: acme })
@@ -164,7 +150,7 @@ describe.each([
   })
 
   it('keeps a pending interrupt of one tenant from the other', async () => {
-    const { persistence } = setup()
+    const { persistence } = durableHost()
     const { harness } = harnessWith([() => toolCall('deploy', { env: 'prod' })])
     const host = createHarnessHost({ persistence })
     const a = await host.open(harness, { threadId: THREAD, principal: acme })
@@ -184,38 +170,25 @@ describe.each([
     await again.close()
   })
 
-  it('refuses a client run id that the other tenant used', async () => {
-    const { persistence } = setup()
-    const { harness } = harnessWith([() => text('Hello, acme.')])
-    const host = createHarnessHost({ persistence })
-    const a = await host.open(harness, { threadId: THREAD, principal: acme })
-    expect((await a.send('Hi.', { runId: 'run-1' })).text).toBe('Hello, acme.')
-
-    const b = await host.open(harness, { threadId: THREAD, principal: globex })
-    expect(await b.send('Hi.', { runId: 'run-1' }).receipt).toMatchObject({
-      status: 'rejected',
-      reason: 'conflict',
-    })
-    await host.close()
-  })
-
-  it('resumes a claimed thread in the tenant of its claim', async () => {
-    const { persistence, seedInput } = setup()
+  it('resumes a thread in the tenant of its log', async () => {
+    const { persistence, seedInput } = durableHost()
     await seedInput(ACME_THREAD)
-    await persistence.stores.workClaims.claim({
-      threadId: ACME_THREAD,
+    // The host that logged the input stopped while it owned the log.
+    await persistence.stores.log.acquire({
+      logId: ACME_THREAD,
       harness: NAME,
       ownerId: 'host-gone',
-      until: Date.now() - 1_000,
+      ttlMs: 1,
     })
+    await new Promise((resolve) => setTimeout(resolve, 5))
     const { harness, calls } = harnessWith([() => text('Ran.')])
     const host = createHarnessHost({ persistence })
 
     expect(await host.resumePending({ harnesses: [harness] })).toEqual([
-      { threadId: THREAD, harness: NAME },
+      { threadId: THREAD, harness: NAME, tenantId: acme.tenantId },
     ])
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
-    await vi.waitFor(async () => {
+    await waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(async () => {
       const a = await host.open(harness, { threadId: THREAD, principal: acme })
       expect(contents(await a.transcript())).toEqual([
         { role: 'user', content: 'go' },
@@ -225,60 +198,5 @@ describe.each([
     const other = await host.open(harness, { threadId: THREAD })
     expect(await other.transcript()).toEqual([])
     await host.close()
-  })
-})
-
-describe('tenantStores', () => {
-  /** The run and interrupt stores of one memory persistence, seen by two tenants. */
-  function twoTenants() {
-    const { runs, interrupts } = memoryPersistence().stores
-    return {
-      runs,
-      acme: tenantStores({ runs, interrupts }, acme.tenantId),
-      globex: tenantStores({ runs, interrupts }, globex.tenantId),
-    }
-  }
-
-  it('keeps each record under its store key, and hides it from the other tenant', async () => {
-    const { runs, acme: mine, globex: theirs } = twoTenants()
-    await mine.runs?.createOrResume({
-      runId: 'run-1',
-      threadId: THREAD,
-      startedAt: 1,
-    })
-    await mine.interrupts?.create({
-      interruptId: 'i-1',
-      runId: 'run-1',
-      threadId: THREAD,
-      requestedAt: 1,
-      payload: {},
-    })
-
-    expect(await runs.get('run-1')).toMatchObject({ threadId: ACME_THREAD })
-    expect(await mine.runs?.get('run-1')).toMatchObject({ threadId: THREAD })
-    expect(await mine.interrupts?.listPending(THREAD)).toMatchObject([
-      { interruptId: 'i-1', threadId: THREAD },
-    ])
-    expect(await theirs.runs?.get('run-1')).toBeNull()
-    expect(await theirs.runs?.listByThread?.(THREAD)).toEqual([])
-    expect(await theirs.interrupts?.get('i-1')).toBeNull()
-    expect(await theirs.interrupts?.listByRun('run-1')).toEqual([])
-  })
-
-  it('refuses to go on with a run id of the other tenant', async () => {
-    const { acme: mine, globex: theirs } = twoTenants()
-    await mine.runs?.createOrResume({
-      runId: 'run-1',
-      threadId: THREAD,
-      startedAt: 1,
-    })
-
-    await expect(
-      theirs.runs?.createOrResume({
-        runId: 'run-1',
-        threadId: THREAD,
-        startedAt: 2,
-      }),
-    ).rejects.toThrow('Run run-1 is in another tenant.')
   })
 })

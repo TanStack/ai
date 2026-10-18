@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { memoryLogStore, memoryPersistence } from '../src/memory'
+import {
+  memoryLogBackend,
+  memoryLogStore,
+  memoryPersistence,
+} from '../src/memory'
 import { defineAIPersistence } from '../src/types'
 
 describe('memoryPersistence', () => {
@@ -10,6 +14,7 @@ describe('memoryPersistence', () => {
     expect(p.stores.runs).toBeDefined()
     expect(p.stores.interrupts).toBeDefined()
     expect(p.stores.metadata).toBeDefined()
+    expect(p.stores.log).toBeDefined()
   })
 
   it('exposes the complete state store set (no locks)', () => {
@@ -18,13 +23,12 @@ describe('memoryPersistence', () => {
       'artifacts',
       'blobs',
       'generationRuns',
-      'inbox',
       'interrupts',
+      'log',
       'messages',
       'metadata',
       'runs',
       'sessions',
-      'workClaims',
     ])
   })
 
@@ -276,5 +280,71 @@ describe('memoryLogStore', () => {
     expect(makeStore).toThrow(
       'memoryLogStore: this backend was not made by memoryLogBackend().',
     )
+  })
+})
+
+describe('memoryLogBackend({ now })', () => {
+  const logId = 'log-1'
+  const harness = 'test/clock'
+
+  /** A store on a backend whose clock the test moves. */
+  function clockedStore() {
+    const clock = { now: 1_000 }
+    const store = memoryLogStore({
+      backend: memoryLogBackend({ now: () => clock.now }),
+    })
+    return { clock, store }
+  }
+
+  it('expires an ownership when its clock passes the ttl', async () => {
+    const { clock, store } = clockedStore()
+    await store.acquire({ logId, harness, ownerId: 'a', ttlMs: 500 })
+
+    clock.now = 1_499
+    expect(
+      await store.acquire({ logId, harness, ownerId: 'b', ttlMs: 500 }),
+    ).toBeNull()
+    clock.now = 1_500
+    expect(
+      await store.acquire({ logId, harness, ownerId: 'b', ttlMs: 500 }),
+    ).toEqual({ epoch: 2 })
+  })
+
+  it('lists a released log for its wake only when its clock reaches the wake time', async () => {
+    const { clock, store } = clockedStore()
+    const owned = await store.acquire({
+      logId,
+      harness,
+      ownerId: 'a',
+      ttlMs: 500,
+    })
+    if (owned === null) throw new Error('The first acquire must succeed.')
+    await store.release({
+      logId,
+      ownerId: 'a',
+      epoch: owned.epoch,
+      wakeInMs: 60_000,
+    })
+
+    clock.now = 60_999
+    expect(await store.listOrphaned({ limit: 10 })).toEqual([])
+    clock.now = 61_000
+    expect(await store.listOrphaned({ limit: 10 })).toEqual([
+      { logId, harness, reason: 'wake' },
+    ])
+  })
+
+  it('stamps an offer with its clock', async () => {
+    const { store } = clockedStore()
+    await store.offer({
+      logId,
+      harness,
+      inputId: 'in-1',
+      record: { type: 'app.input' },
+    })
+
+    expect(await store.offered({ logId })).toEqual([
+      { inputId: 'in-1', record: { type: 'app.input' }, offeredAt: 1_000 },
+    ])
   })
 })

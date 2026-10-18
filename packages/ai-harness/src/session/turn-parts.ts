@@ -1,12 +1,12 @@
 import { LogRecordsCapability, provideLogRecords } from '@tanstack/ai'
 import { bindDurable, createToolStep } from '../durable-tool'
+import { waitUntil } from '../utils'
 import { commonPrefix, stepKey } from '../log'
 import { mediaIdOf, mediaOfMessage } from '../media-ref'
-import { LEASE } from '../resume'
+import { LogOwnedElsewhereError } from '../ownership'
 import { HARNESS_EVENTS } from '../types'
-import { addUsage, callUsage } from '../usage'
+import { callUsage } from '../usage'
 import {
-  USAGE,
   asUserMessage,
   createMessageId,
   customEvent,
@@ -26,6 +26,7 @@ import type {
   ToolExecutionContext,
 } from '@tanstack/ai'
 import type { LogRecord } from '@tanstack/ai-persistence'
+import type { DurableBind, ToolStep } from '../durable-tool'
 import type { LogWriter } from '../log'
 import type { UsageCall } from '../usage'
 import type { AnyHarness } from '../define'
@@ -35,25 +36,32 @@ import type {
   ChatTurnResult,
   MediaRecord,
   Principal,
+  RunContext,
   TurnInfo,
   UserInput,
 } from '../types'
 import type { QueuedTurn, AgentRunImpl, AgentChain } from './types'
 
 /**
- * A layer of {@link HarnessSession}: the tools, middleware, joins, and leases a
- * turn uses.
+ * A layer of {@link HarnessSession}: the tools, middleware, and joins a turn
+ * uses.
  */
 export abstract class SessionTurnParts<
   THarness extends AnyHarness = AnyHarness,
 > extends SessionRequests<THarness> {
   /**
-   * The `step` and `append` a durable tool call gets. A step value is in the
-   * log before `step.do` resolves. Staged records land with the call's
-   * stored result, so a call that a crash cuts leaves none of them.
+   * The `step` and `append` a durable tool call gets, in `run`. A step value
+   * is in the log before `step.do` resolves. Staged records land with the
+   * call's stored result, so a call that a crash cuts leaves none of them.
+   * A step does not start after another host took the log. A `step.sleep`
+   * keeps a wake schedule in the log while it waits (see `sleepUntil`).
    */
-  protected durableBinding(writer: LogWriter, toolCallId: string) {
-    const step = createToolStep({
+  protected durableBinding(
+    writer: LogWriter,
+    toolCallId: string,
+    run: RunContext,
+  ) {
+    const stored = createToolStep({
       recorded: (name) => {
         const key = stepKey(toolCallId, name)
         return writer.state.steps.has(key)
@@ -62,12 +70,77 @@ export abstract class SessionTurnParts<
       },
       record: (name, value) =>
         writer.append([{ type: 'harness.tool.step', toolCallId, name, value }]),
+      run: (name) => {
+        if (writer.fenced) throw new LogOwnedElsewhereError(writer.logId)
+        return {
+          idempotencyKey: run.idempotencyKey(name, toolCallId),
+          epoch: run.epoch,
+        }
+      },
+      sleep: ({ name, wakeAt }) =>
+        this.sleepUntil({
+          writer,
+          scheduleId: `sleep:${toolCallId}:${name}`,
+          wakeAt,
+          signal: run.signal,
+        }),
     })
+    // The log keeps a step value without the secrets of the session, and a
+    // replay returns that value. So the first run returns it too: a caller
+    // never gets a value that the log scrubbed.
+    const step: ToolStep = {
+      ...stored,
+      do: async (name, fn) => this.redactor.redact(await stored.do(name, fn)),
+    }
     const append = (records: ReadonlyArray<LogRecord>) => {
       checkHostRecords(records)
       writer.stage(records, toolCallId)
     }
     return { step, append }
+  }
+
+  /**
+   * Wait for a `step.sleep` until `wakeAt`. While it waits, the log keeps a
+   * wake schedule (no input) with `scheduleId`: a host that stops releases
+   * the log with that wake, so a worker takes the log at the wake time and
+   * recovery runs the call again. The schedule ends when the sleep ends.
+   *
+   * ponytail: the sleep waits in this process, and the host keeps the log
+   * while it waits. It does not end the attempt and free the host: the log
+   * view cannot drop the writes of one turn only. The wake makes it durable
+   * when the host stops.
+   */
+  /** The `step.sleep` calls that wait now. */
+  protected sleeping = 0
+
+  protected async sleepUntil({
+    writer,
+    scheduleId,
+    wakeAt,
+    signal,
+  }: {
+    writer: LogWriter
+    scheduleId: string
+    wakeAt: number
+    signal: AbortSignal
+  }) {
+    const isWaiting = () => writer.state.thread.schedules.has(scheduleId)
+    if (Date.now() < wakeAt) {
+      if (!isWaiting()) {
+        await writer.append([
+          { type: 'harness.schedule', scheduleId, at: wakeAt },
+        ])
+      }
+      this.sleeping += 1
+      try {
+        await waitUntil(wakeAt, signal)
+      } finally {
+        this.sleeping -= 1
+      }
+    }
+    if (isWaiting()) {
+      await writer.append([{ type: 'harness.schedule.done', scheduleId }])
+    }
   }
 
   /**
@@ -117,14 +190,18 @@ export abstract class SessionTurnParts<
     return prepared
   }
 
+  /** The binder of the durable tools of `run`: each call gets its steps in the log. */
+  protected durableBinder(run: RunContext): DurableBind {
+    const { writer } = this
+    return (toolCallId) => this.durableBinding(writer, toolCallId, run)
+  }
+
   /**
-   * Middleware that binds the durable tools of each model call: a
-   * middleware can return new tools from `onConfig`, and the engine runs the
-   * tools of that list.
+   * Middleware that binds the durable tools of each model call with
+   * `bindTool`: a middleware can return new tools from `onConfig`, and the
+   * engine runs the tools of that list.
    */
-  protected durableTools(): AnyChatMiddleware | undefined {
-    const { bindTool } = this
-    if (!bindTool) return undefined
+  protected durableTools(bindTool: DurableBind): AnyChatMiddleware {
     return {
       name: 'harness:durable-tools',
       onConfig: (ctx, config) => {
@@ -202,16 +279,14 @@ export abstract class SessionTurnParts<
   }
 
   /**
-   * On a durable host, each turn's chat run gets `LogRecordsCapability`. A
-   * middleware, for example a durable compaction, appends host records with
-   * it. They land in the log at once and fold, with the checks of
+   * Each turn's chat run gets `LogRecordsCapability`. A middleware, for
+   * example a durable compaction, appends host records with it. They land in the log at once and fold, with the checks of
    * `session.append`. The engine's new messages go in the same append, so a
    * record that counts the tool results of the last phase lands after them.
    * Agent runs do not get it: a child writes to its own thread.
    */
-  protected logRecords(): AnyChatMiddleware | undefined {
+  protected logRecords(): AnyChatMiddleware {
     const { engine } = this
-    if (!engine) return undefined
     return {
       name: 'harness:log-records',
       provides: [LogRecordsCapability],
@@ -250,31 +325,17 @@ export abstract class SessionTurnParts<
   }
 
   /**
-   * Add one model call to the totals, and send a `harness.usage` event. A
-   * durable host writes a `harness.usage` record, and the log fold adds it.
+   * Add one model call to the totals, and send a `harness.usage` event. The
+   * session writes a `harness.usage` record, and the log fold adds it.
    */
   protected async countUsage(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
     call: UsageCall,
   ): Promise<void> {
     try {
-      if (this.writer) {
-        await this.writer.append([{ type: 'harness.usage', ...call }])
-      } else {
-        addUsage(this.usageTotals, call)
-        const { metadata } = this.persistence.stores
-        if (metadata) {
-          const totals = structuredClone(this.usageTotals)
-          this.usageSaved = this.usageSaved.then(() =>
-            metadata.set(USAGE, this.storeThreadId, totals),
-          )
-          await this.usageSaved
-        }
-      }
+      await this.writer.append([{ type: 'harness.usage', ...call }])
     } catch (error) {
-      // A refused log append stops the session already. A failed metadata
-      // save keeps the totals in memory.
-      this.usageSaved = Promise.resolve()
+      // A refused log append stops the session already.
       this.warn(operation, 'harness:usage', error)
       return
     }
@@ -334,8 +395,8 @@ export abstract class SessionTurnParts<
   /**
    * Middleware that runs before each model call. Queued steers join the
    * running turn in admission order, as far as `claimJoins` lets them.
-   * `turn.onJoin` adds its messages after theirs. On a durable host, one
-   * append commits the engine's messages, the steer messages, the join
+   * `turn.onJoin` adds its messages after theirs. One append commits the
+   * engine's messages, the steer messages, the join
    * records, and the `onJoin` records, so a crash never splits a join. The
    * model gets the folded log when a host record changed the context. The
    * `onJoin` ephemeral messages go to `ephemeral`, for this model call. It
@@ -370,11 +431,6 @@ export abstract class SessionTurnParts<
           }
           const records = added?.records ?? []
           checkHostRecords(records)
-          if (records.length > 0 && !this.engine) {
-            throw new Error(
-              'Records from a turn hook need a durable host (a host with stores.log).',
-            )
-          }
           const hostInput = this.operationInputs.get(ctx.runId)
           const joins = hostInput
             ? steers.map((steer) => ({
@@ -398,17 +454,10 @@ export abstract class SessionTurnParts<
                 message.id ? message : { ...message, id: createMessageId() },
             ),
           ]
-          const synced = await this.engine?.beforeModel(list, [
+          const synced = await this.engine.beforeModel(list, [
             ...joins,
             ...records,
           ])
-          // A host without a log saves the transcript before each model call,
-          // as a durable host commits it. A tool result is then kept when the
-          // call fails, so a retried call, or a second resolve of a failed
-          // continuation, does not run the tool again.
-          if (!this.engine) {
-            await this.messages.saveThread(this.threadId, list)
-          }
           // Only now, so a hook or an append that fails leaves them waiting.
           this.steerQueue.splice(0, count)
           for (const steer of steers) this.join(ctx.runId, steer)
@@ -439,7 +488,7 @@ export abstract class SessionTurnParts<
       name: 'harness:sync-fold',
       onConfig: async (ctx, config) => {
         if (ctx.phase !== 'beforeModel') return undefined
-        const synced = await this.engine?.beforeModel(config.messages)
+        const synced = await this.engine.beforeModel(config.messages)
         if (!synced) return undefined
         const provider = config.providerMessages
         const isAppend =
@@ -461,7 +510,7 @@ export abstract class SessionTurnParts<
   /**
    * Middleware of one agent run. Before each model call of the run's own
    * chat, the steers that wait join as user messages, in order. The chain's
-   * thread keeps them before a durable host records the join, so a crash
+   * thread keeps them before the log records the join, so a crash
    * does not lose one, and each message id is its input id, so a run again
    * does not add a steer twice. Nested children share the binding: their
    * thread is not the chain's, so they skip it.
@@ -486,11 +535,8 @@ export abstract class SessionTurnParts<
             .filter((steer) => !known.has(steer.inputId))
             .map(asUserMessage),
         ]
-        await this.chatPersistence?.stores.messages.saveThread(
-          chain.thread,
-          messages,
-        )
-        await this.writer?.append(
+        await this.engine.saveThread(chain.thread, messages)
+        await this.writer.append(
           steers.map((steer) => ({
             type: 'harness.input.joined',
             inputId: steer.inputId,
@@ -558,7 +604,7 @@ export abstract class SessionTurnParts<
   }
 
   /**
-   * Abort `operation` when its input passes `timeoutAt` (a durable host with
+   * Abort `operation` when its input passes `timeoutAt` (a harness with
    * `durability.timeoutMs`). Returns the function that stops the timer.
    */
   protected startTimeout(
@@ -568,7 +614,7 @@ export abstract class SessionTurnParts<
     const timeoutAt =
       inputId === undefined
         ? undefined
-        : this.writer?.state.inputs.get(inputId)?.timeoutAt
+        : this.writer.state.inputs.get(inputId)?.timeoutAt
     if (timeoutAt === undefined) return () => {}
     const timer = setTimeout(
       () => operation.abortController.abort(TIMEOUT_REASON),
@@ -579,63 +625,17 @@ export abstract class SessionTurnParts<
   }
 
   /**
-   * Hold the lease of a turn or agent attempt in `stores.leases` while it
-   * runs. Returns the function that releases it. Without a lease store (or
-   * without a log), it returns nothing: the run lease decides.
+   * End work that `close({ recoverable: true })` or a lost log stopped, with
+   * no settlement. The session gives the log up when it has no work left,
+   * so the next host that opens the thread runs the work again.
    */
-  protected async holdLease(
-    inputId: string | undefined,
+  protected giveBack(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
-  ): Promise<(() => Promise<void>) | undefined> {
-    const leases = this.persistence.stores.leases
-    const attempt =
-      inputId === undefined
-        ? undefined
-        : this.writer?.state.inputs.get(inputId)?.attempt
-    if (!leases || inputId === undefined || attempt === undefined) {
-      return undefined
-    }
-    const ttlMs = this.lease?.ttlMs ?? LEASE.ttlMs
-    const renewMs = this.lease?.renewMs ?? LEASE.renewMs
-    const lease = () => ({
-      threadId: this.storeThreadId,
-      inputId,
-      operationId: operation.id,
-      attempt,
-      ownerId: this.hostId,
-      expiresAt: Date.now() + ttlMs,
-    })
-    await leases.acquire(lease())
-    const timer = setInterval(
-      () =>
-        void leases
-          .renew(lease())
-          .catch((error: unknown) => this.warnSession('harness:leases', error)),
-      renewMs,
-    )
-    // A lease timer must not keep a CLI or a test process alive.
-    if (typeof timer === 'object' && 'unref' in timer) timer.unref()
-    return async () => {
-      clearInterval(timer)
-      await leases.release(lease()).catch(() => {})
-    }
-  }
-
-  /**
-   * End work that `close({ recoverable: true })` stopped, with no settlement.
-   * Its leases end now, so the next host that opens the thread runs it again
-   * at once. Call it after the run lease renewal stopped.
-   */
-  protected async giveBack(
-    operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
-    releaseLease: (() => Promise<void>) | undefined,
   ) {
-    // An expired run lease, for a host without a lease store.
-    await this.persistence.stores.runs
-      ?.update(operation.id, { leaseExpiresAt: 0 })
-      .catch(() => {})
-    await releaseLease?.()
-    operation.fail('cancelled', new Error('Session closed.'))
+    operation.fail(
+      'cancelled',
+      this.ownershipLoss ?? new Error('Session closed.'),
+    )
   }
 
   /** The model can answer the context: it ends with a user or a tool message. */
@@ -657,7 +657,7 @@ export abstract class SessionTurnParts<
   ) {
     const { inputId } = turn
     if (inputId === undefined) return
-    this.writer?.stage([
+    this.writer.stage([
       {
         type: 'harness.turn.retry',
         inputId,
@@ -678,17 +678,6 @@ export abstract class SessionTurnParts<
         message.id ? message : { ...message, id: createMessageId() },
     )
     checkHostRecords(records)
-    if (!this.writer) {
-      if (records.length > 0) {
-        throw new Error(
-          'Records from a turn hook need a durable host (a host with stores.log).',
-        )
-      }
-      if (messages.length === 0) return false
-      const history = await this.messages.loadThread(this.threadId)
-      await this.messages.saveThread(this.threadId, [...history, ...messages])
-      return true
-    }
     const before = this.writer.state.messages
     await this.writer.commit({ messages: [...before, ...messages], records })
     const after = this.writer.state.messages

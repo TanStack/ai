@@ -13,6 +13,8 @@ import type {
 } from '@tanstack/ai'
 import type { LogRecord } from '@tanstack/ai-persistence'
 import type { CredentialsAccess } from './auth'
+import type { AnyHarness } from './define'
+import type { HandoffOptions } from './handoff'
 import type { UsageCounts } from './usage'
 
 /** A user message: plain text, or content parts (text, images, files). */
@@ -23,10 +25,13 @@ export type UserInput = string | Array<ContentPart>
  * `session.send(message, { mode: 'followUp', overrides })`. They apply to every model call
  * of the turn, retries included. The rest of the session keeps its defaults.
  *
- * They live only in memory, on the queued turn, so they are not part of the
- * input: the `inputId` duplicate check does not read them. A turn that
- * recovery runs again after a restart uses the defaults. A steer that joins
- * a running turn uses the overrides of that turn.
+ * They are not part of the input: the `inputId` duplicate check does not
+ * read them. The log keeps the JSON ones (`model`, `modelOptions`,
+ * `reasoning`, and `promptCache`), so a turn that recovery runs again after
+ * a restart uses them too. `adapter` and `tools` are objects, so they live
+ * only in memory: a turn that recovery runs again goes on without them, with
+ * a warning. Name the model with `model` to keep it. A steer that joins a
+ * running turn uses the overrides of that turn.
  *
  * @example
  * ```ts
@@ -38,6 +43,14 @@ export type UserInput = string | Array<ContentPart>
 export interface TurnOverrides {
   /** Replaces the harness adapter and every plugin pick for this turn. */
   adapter?: AnyTextAdapter | KeyedAdapter<AnyTextAdapter>
+  /**
+   * A model by name, from `defineHarness({ models })`, for this turn. It
+   * replaces the stored model, the plugin picks, and the harness adapter.
+   * `adapter` wins over it. An unknown name fails the turn.
+   */
+  model?: string
+  /** Replaces `HarnessConfig.modelOptions` for this turn. JSON. */
+  modelOptions?: Record<string, unknown>
   /** Replaces `HarnessConfig.reasoning` for this turn. */
   reasoning?: ReasoningOption
   /** Replaces the session and harness values for this turn, field by field. */
@@ -70,8 +83,20 @@ export type SendOptions = {
   /** @internal The AG-UI `runId` of a `POST run` request. The turn runs as it. */
   runId?: string
 } & (
-  | { mode?: 'prompt'; busy?: BusyPolicy }
-  | { mode: 'steer' | 'followUp'; busy?: never }
+  | {
+      mode?: 'prompt'
+      busy?: BusyPolicy
+      /**
+       * `'operator'`: a person who took over after a handoff to a person
+       * replies. The message goes in the transcript as an assistant message
+       * with `metadata.harness.operator` (the id of the operator), and no
+       * model turn runs. It needs the `operator` access action, and an open
+       * `human` wait of a handoff: else the receipt is rejected with
+       * `'no_human_wait'`.
+       */
+      as?: 'operator'
+    }
+  | { mode: 'steer' | 'followUp'; busy?: never; as?: never }
 )
 
 /** Options of `session.send` for a message to an agent run. See `send`. */
@@ -167,8 +192,8 @@ export interface OnEvent {
 }
 
 /**
- * An input a client sends to a session. Stored in the inbox, or in the log of
- * a durable host.
+ * An input a client sends to a session. Stored in the session log. While
+ * another host owns the thread, it waits in the input lane of the log.
  *
  * `inputId` is an optional id that the caller chooses. A second input with the
  * same id and the same payload gets the first input's receipt and does not run
@@ -182,9 +207,10 @@ export interface OnEvent {
  * In `cancelInput` and `setDelivery`, `inputId` is the input that waits.
  *
  * `ephemeral` of `prompt` and `continue` are messages for the model calls of
- * that turn only, as in `session.prompt`. The inbox and the log do not keep
- * them, and the duplicate check does not read them. Client data: do not
- * trust it.
+ * that turn only, as in `session.prompt`. The transcript does not keep them.
+ * The log keeps them with the turn, so a turn that runs again after a
+ * restart sees them. The duplicate check does not read them. Client data: do
+ * not trust it.
  */
 export type HarnessInput = (
   | {
@@ -193,6 +219,8 @@ export type HarnessInput = (
       busy?: BusyPolicy
       context?: unknown
       ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
+      /** `'operator'`: an operator reply. See `SendOptions`. */
+      as?: 'operator'
     }
   | { op: 'steer'; message: UserInput; context?: unknown }
   | {
@@ -236,7 +264,16 @@ export type HarnessInput = (
       delivery: WaitingInput['delivery']
     }
   | { op: 'command'; name: string; input?: unknown }
-  | { op: 'answer'; questionId: string; value: unknown }
+  | {
+      op: 'answer'
+      questionId: string
+      value: unknown
+      /**
+       * @internal A secret answer that another host saved in the credential
+       * store, for the owner of the log. The owner reads it once.
+       */
+      ref?: string
+    }
   | { op: 'config'; key: string; value: unknown }
   /** Run one tool in `expose.tools` with no model. See `session.tool`. */
   | { op: 'tool'; name: string; args?: unknown; meta?: Record<string, unknown> }
@@ -281,9 +318,59 @@ export interface WaitingInput {
 export type ForkPoint = { before: string } | { through: string }
 
 /**
+ * What `host.transfer` carries to the target thread. Nothing else moves:
+ * plugin state, shared state, credentials, waits, settings, and plugin
+ * config stay with the source.
+ */
+export interface HandoffEnvelope {
+  /** The first message of the target, for the agent that takes over. */
+  note: string
+  /**
+   * Which messages of the source go after the note. Only settled messages
+   * move: a tool call with no result yet stays behind.
+   *
+   * - `'none'` (default): no message.
+   * - `'summary'`: one summary message. The model of the source harness
+   *   writes it, with the keys of the principal. Its usage counts in the
+   *   source thread.
+   * - `'all'`: the transcript, with a copy of each media file it uses.
+   */
+  messages?: 'none' | 'summary' | 'all'
+}
+
+/** The options of `host.transfer`. */
+export interface TransferOptions<P extends Principal = Principal> {
+  /** The thread to move the conversation from, and its harness. */
+  from: { harness: AnyHarness; threadId: string }
+  /**
+   * The harness of the target, and the target thread. Without `threadId`, a
+   * new thread. A thread that exists must belong to `harness`.
+   */
+  to: { harness: AnyHarness; threadId?: string }
+  envelope: HandoffEnvelope
+  /**
+   * Who makes the transfer. Its `tenantId` is the tenant of both threads.
+   * Required when the host has `access`.
+   */
+  principal?: P
+  /**
+   * The id of the transfer, so a retry is safe: a second call with the same
+   * id makes no second thread and copies nothing again. Default: a new id.
+   */
+  transferId?: string
+}
+
+/** What `host.transfer` resolves to. */
+export interface TransferResult {
+  transferId: string
+  /** The target thread. Open it with `host.open` and the target harness. */
+  threadId: string
+}
+
+/**
  * The stored settings of one thread. They apply from the next turn, stay
- * after a restart (with `stores.metadata`), and a fork copies them. A turn's
- * `overrides` win over them.
+ * after a restart (the session log keeps them), and a fork copies them. A
+ * turn's `overrides` win over them.
  */
 export interface ThreadSettings {
   /** A name from `defineHarness({ models })`. */
@@ -350,7 +437,7 @@ export interface MediaUpload<TBody> {
   name: string
 }
 
-/** How an input ended. `session.settled(inputId)` resolves to it. */
+/** How an input ended. `session.settled({ inputId })` resolves to it. */
 export type InputSettlement = {
   inputId: string
   /** The operation that ran the input, when one started. */
@@ -444,7 +531,7 @@ export interface RunContext {
   principal: { id: string; tenantId?: string } | undefined
   /**
    * The id of the log of the session in the `LogStore`: the tenant and the
-   * `logId` of `host.open`, from `logIdOf`.
+   * root thread of the session tree, from `logIdOf`.
    */
   logId: string
   threadId: string
@@ -452,12 +539,48 @@ export interface RunContext {
   runId: string
   /** The run that this run continues or that started it, when there is one. */
   parentRunId?: string
+  /**
+   * The ownership epoch of the log when the run started. Only one host owns
+   * a log at an epoch, and a later owner has a larger one. Give it to a
+   * system that fences writes, so a host that lost the log is refused.
+   */
+  epoch: number
+  /**
+   * A key for one side effect of this run, for a system that refuses a
+   * second call with the same key:
+   * `${logId}:${scope}:${step}`. `scope` defaults to `runId`. Pass the tool
+   * call id from a tool (`ctx.toolCallId`). A run again after a host stop,
+   * on any host, gets the same key, so the other system refuses the second
+   * side effect.
+   *
+   * @example
+   * ```ts
+   * const charge = toolDefinition({ name: 'charge', description: 'Charge the card' })
+   *   .server<HarnessRunContext>(async (_args, ctx) => {
+   *     const key = ctx.context.run.idempotencyKey('charge', ctx.toolCallId)
+   *     return payments.charge({ amount: 100, idempotencyKey: key })
+   *   })
+   * ```
+   */
+  idempotencyKey: (step: string, scope?: string) => string
   /** Aborts when this run stops. */
   signal: AbortSignal
   /** The credentials of the user of this run. */
   credentials: CredentialsAccess
   /** The model provider keys of the user of this run. */
   keys: ProviderKeys
+  /**
+   * Hand the turn to another root agent, `'main'`, or a person (with
+   * `routing.humans`), as `ctx.harness.handoff` does. It works in a turn of a harness with
+   * `routing`, for example in a tool of the main model. Anywhere else it
+   * rejects.
+   *
+   * @example
+   * ```ts
+   * await ctx.context.run.handoff({ to: 'billing', note: 'Refund for order 42' })
+   * ```
+   */
+  handoff: (options: HandoffOptions) => Promise<void>
 }
 
 /**
@@ -518,8 +641,7 @@ export interface Operation<TResult> extends PromiseLike<TResult> {
   /**
    * The answer to the input of this operation. It resolves after the session
    * stored the input (`accepted` or `queued`), or refused it (`rejected`).
-   * With a durable host, a resolved receipt means that the input survives a
-   * restart.
+   * A resolved receipt means that the input survives a restart.
    */
   readonly receipt: Promise<Receipt>
   /** This operation's events, from `from` (exclusive) onward. */
@@ -659,6 +781,16 @@ export const HARNESS_EVENTS = {
    */
   reset: 'harness.reset',
   /**
+   * Another agent answers the turn from here: a `handoff` tool call, agent
+   * code, or the router moved it. The value has `from` and `to` (an agent
+   * name, `null` for the main model, or `{ human: true }` for a person), the
+   * `note` when there is one, `by` (`'tool'`, `'code'`, `'router'`, or
+   * `'operator'`), and the `runId` of the turn. A handoff to a person has
+   * the `waitId` of its `human` wait. An operator answer to that wait hands
+   * the thread back, `by: 'operator'`.
+   */
+  handoff: 'harness.handoff',
+  /**
    * `session.revert` or `session.unrevert` changed what the transcript
    * shows. The value has the `messageId` of the revert, or `null` when no
    * revert stands. Read the transcript again.
@@ -669,4 +801,24 @@ export const HARNESS_EVENTS = {
    * known), the `usage` of the call, and the new thread `total`.
    */
   usage: 'harness.usage',
+  /**
+   * The events after the reader's cursor are gone (a truncate dropped them),
+   * so the stream skips to the first event it has. The value is an
+   * `EventGap`. The cursor of this event is `resumeAt`. Load the snapshot and
+   * the transcript again.
+   */
+  gap: 'harness.gap',
 } as const
+
+/** The value of a `harness.gap` event. */
+export interface EventGap {
+  /** The cursor that the reader asked for. */
+  from: Cursor
+  /**
+   * The cursor that the stream goes on from: the events after it are
+   * stored. It is also the cursor of the gap event.
+   */
+  resumeAt: Cursor
+  /** `'truncated'`: a truncate of the log dropped the events. */
+  reason: 'truncated' | 'evicted'
+}

@@ -45,12 +45,10 @@ export const review = definePlugin({
         description: 'Review a topic',
         input: z.object({ topic: z.string() }),
         run: async ({ topic }) => {
-          const [auth, sessions] = await ctx.agents.group({ onFailure: 'cancel-siblings' }, (group) =>
-            Promise.all([
-              group.run(explorer, { task: `${topic}: auth checks` }),
-              group.run(explorer, { task: `${topic}: session expiry` }),
-            ]),
-          )
+          const [auth, sessions] = await ctx.agents.group({ onFailure: 'cancel-siblings' }, (g) => [
+            g.start(explorer, { task: `${topic}: auth checks` }),
+            g.start(explorer, { task: `${topic}: session expiry` }),
+          ])
           return `${auth}\n\n${sessions}`
         },
       }),
@@ -63,7 +61,7 @@ export const review = definePlugin({
 - `ctx.agents.start(agent, input, { wake: true })` runs it in the background and starts a turn when it finishes or fails.
 - `ctx.agents.start(agent, input, { principal })` runs it as that user. The wake turn runs as the same user.
 - Without `principal`, a plugin with `lifetime: 'turn'` starts it as the user of its turn. A session plugin starts it as the user who opened the session. To start it for the user of a tool call, pass `principal: ctx.context.run.principal`.
-- `ctx.agents.group(options, body)` runs several. With `onFailure: 'cancel-siblings'`, one failure cancels the others. With `'collect'`, use `group.runSettled` to get every result or error. Every child settles before `group` returns.
+- `ctx.agents.group(options, (g) => runs)` runs several. Start each child with `g.start` and return the runs. `group` resolves to their results, in the same order. With `onFailure: 'cancel-siblings'`, one failure cancels the others. With `'collect'`, each result is `{ ok: true, value }` or `{ ok: false, error }`. Every child settles before `group` returns.
 
 The turn that `wake: true` starts sends the model a user message from the harness, for example `Background agent pricer finished: ...`. The user did not write it. So the transcript marks it with `metadata.harness.wake: true`, and a view from `createSessionView` does not show it. In your own chat UI, skip the user messages with this mark.
 
@@ -119,7 +117,7 @@ export const migrations = definePlugin({
 })
 ```
 
-1. Give the host a session log (`stores.log`). See [Durable sessions](./durable-sessions). Without a log, `start` with `resume: true` throws.
+1. Keep the session log in a store that survives a restart. See [Durable sessions](./durable-sessions).
 2. Put each side effect in `ctx.harness.step.do(name, fn)`. The agent code runs again from its start, and a finished step returns its stored value.
 3. Give each step a name that is the same on every run, and return a JSON value from `fn`.
 
@@ -210,7 +208,7 @@ Each item of `agentRuns()` has these fields:
 - `parentRunId`: the run whose agent code started this run, if there is one.
 - `principal`: the user that the run runs for.
 
-On a durable host (a host with `stores.log`), these three methods also read the log. After a restart, they still find each run, and a follow-up continues a run that ended before the restart. See [Durable sessions](./durable-sessions).
+These three methods also read the log. After a restart, they still find each run, and a follow-up continues a run that ended before the restart. See [Durable sessions](./durable-sessions).
 
 A run and all of its follow-ups keep their messages in one thread: `<threadId>:<name>:<input id of the first run>`. So each follow-up reads the full history of the runs before it.
 
@@ -240,7 +238,7 @@ const editor = defineAgent({
 
 ### Messages after a host stop
 
-This applies only to a durable host. When the host stops during a run, the messages that wait for the run are in the log:
+When the host stops during a run, the messages that wait for the run are in the log:
 
 - If the run started with `resume: true`, the next host runs it again. The resumed run gets the messages that waited for it.
 - If the run started without `resume`, the waiting messages settle `aborted`. A steer that already joined the run settles `failed`, with the run.
@@ -375,7 +373,7 @@ You get an empty list when the id is unknown, or when the child belongs to anoth
 
 Your harness has a writer and a pricer, but the main model answers every turn. Add `routing.router` to send a turn to the agent that can answer it. The router runs at the start of each new turn: a new message, a follow-up, or the wake turn of a background agent.
 
-```ts
+```ts group=harness-routing
 import { chat, decide, defineAgent, subagentRoute } from '@tanstack/ai'
 import { defineHarness } from '@tanstack/ai-harness'
 import { openaiText } from '@tanstack/ai-openai'
@@ -433,15 +431,46 @@ export const studio = defineHarness({
 
 The router can also return a pick of its own: `'main'`, a name, a list of names, `{ names, order }`, or `{ steps }`. Anywhere a name goes, `{ name, input }` can go too, for example `{ name: 'pricer', input: { vendor: 'Acme' } }`. If a picked agent has an `inputSchema` and no input, the turn fails with `Agent "pricer" needs input. Return { name: 'pricer', input } from the router.` See [Route, or let the model pick](../chat/subagents#route-or-let-the-model-pick) for each pick.
 
-The router also gets `session`, the `input` of the turn as the user sent it, `operationId`, `inputId`, and `abortSignal`. Next to `router`, `routing` takes `order`, `strategy`, `limits`, and `sandbox`. They work the same as in `subagents`.
+The router also gets `session`, the `input` of the turn as the user sent it, `operationId`, `inputId`, `abortSignal`, and `activeAgent`. Next to `router`, `routing` takes `order`, `limits`, `sandbox`, `after`, and `humans`. The first three work the same as in `subagents`.
 
 What the turn does with the pick:
 
 - `'main'`: the main model answers, with its `subagents` as usual.
 - Agent names: only those agents run. The harness does not call the main model. The turn text is their answer as the transcript keeps it, for example `pricer:\n...`.
-- `strategy: 'handoff'`: the agents run first. Then the main model answers in the same turn. It reads their text and keeps its subagent tools.
+- `after: 'main'`: the agents run first. Then the main model answers in the same turn. It reads their text and keeps its subagent tools. With the default, `after: 'end'`, the turn ends after the agents.
 - An interrupt in a routed agent ends the turn. `session.resolve` continues the same plan, and it does not call the router again.
 - A steer that you send during a routed turn waits. It runs as its own turn, and the router picks for that turn too.
+
+### Keep the agent that answers
+
+A user works with the writer for five turns. The router does not have to pick the writer again each time. The log keeps the active agent, and the router reads it as `activeAgent`:
+
+```ts group=harness-routing
+export const desk = defineHarness({
+  name: 'acme/desk',
+  adapter: openaiText('gpt-6.1-sol'),
+  agents: [writer, pricer],
+  routing: {
+    router: ({ activeAgent, input }) => {
+      if (input === 'Thanks, that is all.') return 'main'
+      if (activeAgent === undefined && typeof input === 'string' && input.includes('blog')) {
+        return { handoff: 'writer', note: 'The user wants a blog post.' }
+      }
+      return undefined
+    },
+  },
+})
+```
+
+How each pick changes the active agent:
+
+- `undefined`: the active agent answers. With no active agent, the main model answers.
+- One agent name: that agent answers, and it becomes the active agent.
+- `'main'`: the main model answers, and no agent is active.
+- `{ handoff, note }`: the log keeps the note in a `harness.handoff` record. Then the target answers, and it becomes the active agent. `handoff: 'main'` clears it.
+- `{ name, input }`, a list, `{ names }`, or `{ steps }`: those agents answer. The active agent does not change.
+
+Agents can also hand the turn to each other, or to a person. See [Hand off a conversation](./handoffs).
 
 ## Call a harness as a child
 

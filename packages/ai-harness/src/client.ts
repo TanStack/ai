@@ -82,14 +82,23 @@ export type ClientSendOptions = { inputId?: string } & (
       mode?: 'prompt'
       busy?: BusyPolicy
       ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
+      /** `'operator'`: an operator reply. See `SendOptions.as`. */
+      as?: 'operator'
     }
   | {
       to?: undefined
       mode: 'steer' | 'followUp'
       busy?: never
       ephemeral?: never
+      as?: never
     }
-  | { to: string; mode?: 'steer' | 'followUp'; busy?: never; ephemeral?: never }
+  | {
+      to: string
+      mode?: 'steer' | 'followUp'
+      busy?: never
+      ephemeral?: never
+      as?: never
+    }
 )
 
 export interface HarnessClient<THarness extends AnyHarness> {
@@ -100,6 +109,8 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * run's agent in `expose.agents`. `inputId` is an id you choose: a retry
    * with the same id and message gets the first receipt and does not run
    * again. `ephemeral` are messages for the model calls of a prompt only.
+   * `as: 'operator'` is the reply of an operator while a handoff to a
+   * person is open: no model runs. The sender needs the `operator` action.
    */
   send: (message: UserInput, options?: ClientSendOptions) => Promise<Receipt>
   /**
@@ -208,7 +219,9 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * The session events from `from` (exclusive). Reconnects after a network
    * error and resumes from the last cursor. Ends when `signal` aborts.
    * `onConnection` reports `'open'` for each connection and `'reconnecting'`
-   * before each new try.
+   * before each new try. When the log dropped the events after `from`, the
+   * first event is a `harness.gap` (`HARNESS_EVENTS.gap`): load the snapshot
+   * and the transcript again. A session view does this itself.
    */
   events: (options?: {
     from?: Cursor
@@ -592,6 +605,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
         message,
         ...(sendOptions?.busy ? { busy: sendOptions.busy } : {}),
         ...(sendOptions?.ephemeral ? { ephemeral: sendOptions.ephemeral } : {}),
+        ...(sendOptions?.as ? { as: sendOptions.as } : {}),
         ...inputId,
       })
     },

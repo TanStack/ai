@@ -87,7 +87,7 @@ Ctrl+C works the same in every mode:
 
 - The first Ctrl+C (SIGINT) or SIGTERM cancels the running turn.
 - A second one, or one while no turn runs, stops the CLI. `runCli` resolves to 130 for SIGINT, and to 143 for SIGTERM.
-- When the CLI made the host, it closes the host with `recoverable: true`. A durable host then runs the cut work again.
+- When the CLI made the host, it closes the host with `recoverable: true`. Another host then runs the cut work again.
 - When you gave the CLI your own `host`, the CLI releases only its session handle. Your host stays open.
 
 The CLI hears the signals on `process`. To send them yourself, for example in a test, pass a `signals` source. An `EventEmitter` works:
@@ -121,12 +121,12 @@ Need per-user access, your own sign-in check, or a rule for which threads each u
 
 ## Use your own host and user
 
-By default, the CLI builds its own host in memory and opens sessions with no user. Your server already has a durable host with leases, recovery, and stores, and each person has their own credentials. Give the CLI that host and the user:
+By default, the CLI builds its own host in memory and opens sessions with no user. Your server already has a durable host with its own stores, and each person has their own credentials. Give the CLI that host and the user:
 
 ```ts group=harness-cli-host
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
 import { runCli } from '@tanstack/ai-harness-cli'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryPersistence } from '@tanstack/ai-persistence'
 import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { openaiText } from '@tanstack/ai-openai'
 
@@ -135,9 +135,8 @@ const assistant = defineHarness({
   adapter: openaiText('gpt-6.1-sol'),
 })
 
-const { runs, metadata } = memoryPersistence().stores
 const host = createHarnessHost({
-  persistence: { stores: { log: memoryLogStore(), runs, metadata } },
+  persistence: memoryPersistence(),
   credentials: memoryCredentialStore(),
 })
 

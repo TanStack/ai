@@ -18,6 +18,7 @@ export type {
   PermissionDecision,
   PermissionMode,
   PermissionRule,
+  SavedPermissionsScope,
   ToolResources,
 } from './permissions'
 export { globToRegExp } from './glob'

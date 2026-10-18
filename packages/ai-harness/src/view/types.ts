@@ -70,7 +70,16 @@ export type ViewMessage =
       /** The files the user sent, when there are any. */
       media?: Array<MediaPart>
     }
-  | { id: string; role: 'assistant'; parts: Array<ViewPart> }
+  | {
+      id: string
+      role: 'assistant'
+      parts: Array<ViewPart>
+      /**
+       * The root agent that wrote the message, in a harness with `routing`.
+       * `undefined` for the main model.
+       */
+      agent?: string
+    }
   | { id: string; role: 'notice'; kind: NoticeKind; text: string }
 
 /** What an approval sends with a yes: changed arguments, or data for the tool. */

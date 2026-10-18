@@ -48,14 +48,14 @@ export const handler = createHarnessHandler({ host, harness: assistant })
 
 [Access and tenants](./access) has the full rules.
 
-On a durable host (`stores.log`), also set `media: { secret }`. The secret signs media URLs, so every instance must use the same value. Without a log store, the default is a random key, and signed URLs stop working after a restart.
+When more than one instance serves the same URL, also set `media: { secret }`. The secret signs media URLs, so every instance must use the same value. Without it, the handler signs with a random key of its own, so a signed URL works only on this instance, until it restarts.
 
 The handler answers these paths under your route. For chat and events:
 
 - `GET capabilities`: the AG-UI capabilities, with the agents in `expose.agents`.
 - `POST run`: standard AG-UI. One request runs one prompt and streams it as SSE. The prompt keeps every content part of the last user message, for example an image. `useChat` works with it. See [Use it from useChat](#use-it-from-usechat).
 - `GET run?threadId=`: the saved messages, the running turn, and the waiting approvals, for a `useChat` that loads the thread after a reload.
-- `GET run?runId=`: the turn with that run id as SSE, from its first event. A reloaded `useChat` joins a running turn with it.
+- `GET run?runId=&threadId=`: the turn with that run id as SSE, from its first event. A reloaded `useChat` joins a running turn with it. Another instance finds the turn only with `threadId`. See [Join a turn after a reload](#join-a-turn-after-a-reload).
 - `GET events?threadId=`: every event of the session as SSE. Each event id is a cursor, so a reconnect with `Last-Event-ID` continues where it stopped.
 
 For one session:
@@ -80,10 +80,17 @@ The read paths read the thread without a session, so they set up no plugins and 
 
 Each event id of `GET events` and `GET run`, and the `cursor` of each `harness.event` frame, is an opaque string. Send it back as `Last-Event-ID` or `from`, as it is. Do not parse it.
 
-- On a durable host (`stores.log`), a cursor is a position in the log of the thread. It works on every instance and after a restart.
-- Without a log store, a cursor is a counter in the memory of one process. Another instance or a restart does not know it.
+A cursor is a position in the log of the thread. It works on every instance that reads the same log store, and after a restart when the store keeps the log. With the memory log of `memoryPersistence()`, only this process knows the log.
 
-To run more than one instance behind one URL, use `stores.log`.
+To run more than one instance behind one URL, give every instance the same log store.
+
+A host with `logRecords: 'since-snapshot'` drops old records (see [Drop the records before a snapshot](./lifecycle#drop-the-records-before-a-snapshot)). A reader whose cursor is in the dropped part gets one `CUSTOM` event first:
+
+- Its name is `harness.gap` (`HARNESS_EVENTS.gap`).
+- Its value is an `EventGap`: `{ from, resumeAt, reason: 'truncated' }`. Its cursor is `resumeAt`.
+- Then the stream goes on from `resumeAt`.
+
+The session view loads the snapshot and the transcript again when it sees this event. A custom client must do the same.
 
 ## Choose what clients can change
 
@@ -306,15 +313,17 @@ The approval reaches the harness, and the tool runs on the server. What else `PO
 - The `forwardedProps` of the request are the input's [context](./inputs#send-context-with-a-message).
 - With `persistence: true`, `useChat` loads the thread from `GET run?threadId=`.
 - If a turn still runs after a reload, `useChat` joins it with `GET run?runId=`. The turn shows from its first event, and its answer continues to stream.
-- On a durable host (`stores.log` and `stores.runs`), each event of `POST run` has its log cursor as its id. If the connection drops, `useChat` sends the request again with `Last-Event-ID`. Any server continues the stream from there, and the turn does not run again.
+- Each event of `POST run` has its log cursor as its id. If the connection drops, `useChat` sends the request again with `Last-Event-ID`. Any server continues the stream from there, and the turn does not run again.
 
-To keep the thread after a reload, set `persistence: true` in `useChat`:
+### Join a turn after a reload
+
+To keep the thread after a reload, set `persistence: true` in `useChat`. Put the `threadId` in the URL of the connection too:
 
 ```tsx group=harness-connect-tools-client
 export function ReloadableChat() {
   const { messages } = useChat({
     threadId: 'user-1-thread',
-    connection: fetchServerSentEvents('/api/harness/run'),
+    connection: fetchServerSentEvents('/api/harness/run?threadId=user-1-thread'),
     tools: [deploy.client()] as const,
     persistence: true,
   })
@@ -325,8 +334,8 @@ export function ReloadableChat() {
 The join has these rules:
 
 - The host checks that the user can read the thread, the same as for every other path.
-- On a durable host, any server can answer the join. It reads the turn from the shared log.
-- Without a log store, the turn must run on the host that answers the request. On another host, the join gets `404`.
+- The join request of `useChat` sends only the run id. With `threadId` in the URL, any instance that reads the same log store can answer the join. It reads the turn from the log of that thread.
+- Without `threadId`, only the instance that runs the turn finds it. Another instance answers `400`.
 - A turn that ended gives the events that the session still keeps, and then the stream ends.
 
 ## Use a WebSocket

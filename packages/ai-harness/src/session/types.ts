@@ -9,22 +9,27 @@ import type {
   UIMessage,
 } from '@tanstack/ai'
 import type { OperationImpl } from '../operation'
+import type { RefreshFlights } from '../auth'
 import type { ToolTurn } from '../tool-turn'
 import type {
   AIPersistence,
   ArtifactStore,
   BlobStore,
   GenerationRunStore,
-  InboxStore,
   LogStore,
 } from '@tanstack/ai-persistence'
-import type { InputState, LogWriter, ProjectOptions } from '../log'
-import type { LeaseOptions } from '../resume'
+import type { InputState, LogViewHooks, LogWriter } from '../log'
 import type { ConfigOption } from '../config'
 import type { SessionUsage } from '../usage'
 import type { AgentInputOf, AgentResultOf, AnyAgent } from '../agents'
+import type { Wait } from '../waits'
 import type { AnyHarness, HarnessAgentsOf } from '../define'
-import type { HarnessPersistence, Retention, SessionIndexWriter } from '../host'
+import type {
+  HarnessPersistence,
+  Retention,
+  SessionIndexWriter,
+  SubmitInput,
+} from '../host'
 import type { PluginLifetime } from '../plugins'
 import type { HostPlugins } from '../host-plugins'
 import type {
@@ -32,7 +37,6 @@ import type {
   ChatTurnResult,
   Cursor,
   HarnessInput,
-  Operation,
   PendingQuestion,
   Principal,
   ResolveOptions,
@@ -42,27 +46,52 @@ import type {
   WaitingInput,
 } from '../types'
 
-/** Options for running an agent from code. */
-export interface AgentRunOptions {
+/** Options for `session.schedule`. */
+export interface ScheduleOptions {
+  /** When the input runs, in epoch milliseconds. A time that passed runs at once. */
+  at: number
+  /** The input to run then. Any input that `host.submit` takes. */
+  input: SubmitInput
+  /**
+   * The id of the schedule, for `cancelSchedule`. A second call with the
+   * id of a schedule that waits writes nothing. Default: a new id.
+   */
+  scheduleId?: string
+  /** Who sends the input when it runs. Default: the principal of the open. */
+  principal?: Principal
+}
+
+/** Options for running an agent from code: the options of `start` without `wake`. */
+export type AgentRunOptions = Omit<AgentStartOptions, 'wake'>
+
+/** What the `onModelError` option of an agent run gets. */
+export interface AgentModelErrorContext {
+  /** The id of the agent run. */
+  runId: string
+  /** The name of the agent. */
+  agent: string
+  error: { message: string; code?: string; retryAfterMs?: number }
+  /** The attempts of this run that failed before this one. */
+  retries: number
+  /** Aborted when the run is cancelled. */
+  signal: AbortSignal
+}
+
+/** Options for starting an agent in the background. */
+export interface AgentStartOptions {
   /**
    * How the main model learns about the result or the error on its next
    * turn: `'reference'` (default) adds a short note to the transcript,
    * `'none'` adds nothing.
    */
   attach?: 'reference' | 'none'
-}
-
-/** Options for starting an agent in the background. */
-export interface AgentStartOptions extends AgentRunOptions {
   /**
    * When the agent finishes or fails, start a new chat turn with its result
-   * or its error. On a durable host, this also occurs when the host stopped
-   * during the run.
+   * or its error. This also occurs when the host stopped during the run.
    */
   wake?: boolean
   /**
-   * On a durable host, when the host stops during the run, the host that
-   * takes over runs the agent again with the same input, instead of failing
+   * When the host stops during the run, the host that takes over runs the agent again with the same input, instead of failing
    * it. The agent code runs again from its start: put each side effect in
    * `ctx.harness.step.do(name, fn)`, so a finished step returns its
    * stored value.
@@ -77,7 +106,52 @@ export interface AgentStartOptions extends AgentRunOptions {
    * the user of the tool call: `ctx.context.run.principal`.
    */
   principal?: Principal
+  /**
+   * The durable name of the run in a group or in a run started with
+   * `resume: true`. When the parent runs again, a start with the same key
+   * gets the run it started before.
+   */
+  key?: string
+  /**
+   * Limits of this run. `timeoutMs`: the run fails with code `timeout` after
+   * this time. It is never later than the deadline of the parent run.
+   * `maxAttempts`: replaces `durability.maxAttempts` for this run.
+   */
+  limits?: { timeoutMs?: number; maxAttempts?: number }
+  /**
+   * The model use of this run and its children. The run fails with code
+   * `budget` after the first model call over it.
+   */
+  budget?: { maxTokens?: number; maxCost?: number }
+  /**
+   * Called when a model call of this run fails. Return `'retry'` to run the
+   * call again, or `'fail'` to fail the run. A function is not stored in the
+   * log: a run that another host takes over runs without it.
+   */
+  onModelError?: (
+    ctx: AgentModelErrorContext,
+  ) => 'retry' | 'fail' | Promise<'retry' | 'fail'>
 }
+
+/**
+ * The options of an agent run inside the session. `offered`: the run starts
+ * from an input that another host offered. It keeps the input id, and the
+ * run id that the host which offered it follows in the log. A submitted
+ * input has no run id.
+ */
+export type AgentRunStartOptions = AgentStartOptions & {
+  offered?: { inputId: string; runId?: string }
+}
+
+/** Start one agent run. `start`, `run`, and `group` of `AgentActions` use it. */
+export type AgentStartFn = (
+  target: string | AnyAgent,
+  input: unknown,
+  options: AgentStartOptions,
+) => AgentRunImpl
+
+/** The runs that the body of a `group` returns. */
+export type GroupRuns = ReadonlyArray<AgentRun<unknown>>
 
 /** One agent run as a child of the session thread. */
 export interface AgentChild {
@@ -94,11 +168,14 @@ export type RunArgs<TAgent, TOptions> =
     ? [input?: undefined, options?: TOptions]
     : [input: AgentInputOf<TAgent>, options?: TOptions]
 
-/** Run one agent of a session, typed from its definition. */
+/**
+ * Run one agent of a session, typed from its definition. `run` and `start`
+ * are the calls of `AgentActions` with the agent already given.
+ */
 export interface AgentHandle<TAgent> {
   run: (
     ...args: RunArgs<TAgent, AgentRunOptions>
-  ) => Operation<AgentResultOf<TAgent>>
+  ) => AgentRun<AgentResultOf<TAgent>>
   start: (
     ...args: RunArgs<TAgent, AgentStartOptions>
   ) => AgentRun<AgentResultOf<TAgent>>
@@ -106,7 +183,7 @@ export interface AgentHandle<TAgent> {
 
 /** A handle for an agent picked by name at runtime. */
 export interface DynamicAgentHandle {
-  run: (input?: unknown, options?: AgentRunOptions) => Operation<unknown>
+  run: (input?: unknown, options?: AgentRunOptions) => AgentRun<unknown>
   start: (input?: unknown, options?: AgentStartOptions) => AgentRun<unknown>
 }
 
@@ -152,9 +229,20 @@ export interface SessionSnapshot {
    * leave it out.
    */
   waitingInputs?: Array<WaitingInput>
+  /** The interrupts of `pendingWaits`, as the last turn stopped for them. */
   pendingInterrupts: Array<Interrupt>
-  /** Questions a command or a plugin asked, waiting for `session.answer`. */
+  /**
+   * The questions of `pendingWaits` that a command or a plugin asked,
+   * waiting for `session.answer`.
+   */
   pendingQuestions: Array<PendingQuestion>
+  /**
+   * Every wait that is open: the interrupts of the last turn, then the
+   * questions and the human waits, oldest first. Read the kind with
+   * `waitKind`. A session always sets it. A snapshot built by hand (a test
+   * fixture) can leave it out.
+   */
+  pendingWaits?: Array<Wait>
   /** The state of each plugin that uses `ctx.state`, by plugin name. */
   plugins: Record<string, unknown>
   /** The token usage of the thread, the same as `session.usage()`. */
@@ -207,8 +295,18 @@ export interface SessionDependencies {
   harness: AnyHarness
   threadId: string
   persistence: HarnessPersistence
-  inbox: InboxStore
   credentials: CredentialStore
+  /**
+   * The credential store that the app gave the host, shared by every host.
+   * A secret answer goes through it to the host that owns the log. Without
+   * it, a secret answer that reaches another host is refused.
+   */
+  sharedCredentials?: CredentialStore
+  /**
+   * The OAuth refreshes that run now, shared by every session of the host,
+   * so one host refreshes a token once. Without it, the session has its own.
+   */
+  refreshes?: RefreshFlights
   /** Where media lives: file records, bytes, and generation runs. */
   media: AIPersistence<{
     artifacts: ArtifactStore
@@ -218,33 +316,24 @@ export interface SessionDependencies {
   principal?: Principal
   /** The tenant of the session. Without it, the default tenant. */
   tenantId?: string
-  /** Identifies this host on run leases. */
-  hostId: string
   /** Writes the session index entry of the thread. */
   index: SessionIndexWriter
   /** How much the session keeps in memory. */
   retention: Retention
   /** The plugins with `lifetime: 'host'` that the host shares. */
   hostPlugins: HostPlugins
-  /** The session log of a durable host. */
-  log?: {
+  /** The session log. */
+  log: {
     store: LogStore
-    project?: ProjectOptions
     /** The view of this session in its shared log. */
-    open: (
-      threadId: string,
-      onFailure: (error: unknown) => void,
-    ) => Promise<LogWriter>
+    open: (threadId: string, hooks: LogViewHooks) => Promise<LogWriter>
   }
   /**
-   * The log of the session: the `logId` of `host.open`, else the thread id.
-   * The records of that log with no `thread` field belong to the thread
-   * with this id.
+   * The id of the log of the session in the store: its tenant and its
+   * thread id (see `logIdOf`). The records of the log with no `thread`
+   * field belong to this thread. Its child threads write to it too.
    */
-  logId: string
-  /** The id of that log in the store, with the tenant. See `logIdOf`. */
   storeLogId: string
-  lease?: LeaseOptions
   /** The `promptCache` of `host.open()`. It overrides the harness value. */
   promptCache?: PromptCacheOptions
   /** Gets each event the session publishes, after the feed has it. */
@@ -276,9 +365,9 @@ export interface QueuedTurn {
   systemPreamble?: Array<string>
   /** A `tool()`: its only model call asks for this tool. */
   tool?: ToolTurn
-  /** The settings of this one turn. Kept in memory only, not in the log. */
+  /** The settings of this one turn. The log keeps the JSON ones. */
   overrides?: TurnOverrides
-  /** The `ephemeral` messages of the input. Kept in memory only, as `overrides`. */
+  /** The `ephemeral` messages of the input. The log keeps them, as `overrides`. */
   ephemeral?: ReadonlyArray<ModelMessage>
   /** Who sent the input. Its credentials and keys run the turn. */
   principal?: Principal
@@ -295,6 +384,11 @@ export interface QueuedTurn {
   reset?: { note?: string }
   /** A `continue()`: it runs only when the model can answer the transcript. */
   isContinue?: boolean
+  /**
+   * `send(text, { as: 'operator' })`: `message` goes in the transcript as
+   * the reply of an operator, and no model runs.
+   */
+  operator?: boolean
 }
 
 /**
@@ -309,6 +403,8 @@ export interface WaitingSteer {
   overrides?: TurnOverrides
   /** Used only when the steer runs as its own turn, as `overrides`. */
   ephemeral?: ReadonlyArray<ModelMessage>
+  /** Used only when the steer runs as its own turn, as `overrides`. */
+  systemPreamble?: Array<string>
   principal?: Principal
   /** Used only when the steer runs as its own turn, as `overrides`. */
   context?: unknown

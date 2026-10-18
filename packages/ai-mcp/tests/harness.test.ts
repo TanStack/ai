@@ -640,10 +640,10 @@ describe('createHarnessMcpServer', () => {
       adapter: model.adapter,
       expose: { records: ['app.signal'] },
     })
-    const { runs, metadata } = memoryPersistence().stores
+    const { metadata } = memoryPersistence().stores
     const log = memoryLogStore()
     const host = createHarnessHost({
-      persistence: { stores: { log, runs, metadata } },
+      persistence: { stores: { log, metadata } },
     })
     cleanups.push(() => host.close())
     const server = await createHarnessMcpServer({

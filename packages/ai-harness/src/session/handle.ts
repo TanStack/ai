@@ -1,6 +1,7 @@
 import { AccessDeniedError } from '../access'
+import { InputRejectedError } from '../types'
 import { isSameSender } from './helpers'
-import type { AccessAction, AccessRun } from '../access'
+import type { AccessAction, AccessRun, AccessWait } from '../access'
 import type { AnyHarness } from '../define'
 import type {
   AgentSendOptions,
@@ -17,7 +18,11 @@ import type { AgentRunOptions, AgentStartOptions } from './types'
 /** What the handle of a host with access checks. */
 export interface HandleGuard {
   /** Throws `AccessDeniedError` unless `authorize` allows `action` now. */
-  authorize: (action: AccessAction, run?: AccessRun) => Promise<void>
+  authorize: (
+    action: AccessAction,
+    run?: AccessRun,
+    wait?: AccessWait,
+  ) => Promise<void>
   /** `host.revoke` took the access of the principal of the handle. */
   isRevoked: () => boolean
 }
@@ -67,8 +72,8 @@ export function finalizeHandle(handle: object) {
   releaseDropped(token)
 }
 
-/** The action that `authorize` gets for an input. */
-function actionOf(input: HarnessInput): AccessAction {
+/** @internal The action that `authorize` gets for an input. */
+export function actionOf(input: HarnessInput): AccessAction {
   switch (input.op) {
     case 'resolve':
     case 'answer':
@@ -79,7 +84,9 @@ function actionOf(input: HarnessInput): AccessAction {
     case 'configure':
     case 'config':
       return 'configure'
+    // An operator reply answers the `human` wait of a handoff.
     case 'prompt':
+      return input.as === 'operator' ? 'operator' : 'send'
     case 'steer':
     case 'followUp':
     case 'continue':
@@ -209,6 +216,7 @@ function laterOperation<TSession, TOperation extends Operation<unknown>>({
 const REOPENING_READS: ReadonlySet<PropertyKey> = new Set([
   'transcript',
   'agentTranscript',
+  'logState',
   'entry',
   'settled',
 ])
@@ -342,6 +350,27 @@ export function sessionHandle<THarness extends AnyHarness>({
     const acting = actor(options.principal)
     return acting ? { ...options, principal: acting } : options
   }
+  /**
+   * The check of one input. A `human` wait takes an operator too: a user
+   * that may not answer the run may still have the `operator` action.
+   */
+  const checkInput = async (
+    authorize: HandleGuard['authorize'],
+    input: HarnessInput,
+    accessRun: AccessRun | undefined,
+    wait: AccessWait | undefined,
+  ) => {
+    const action = actionOf(input)
+    if (action !== 'answer' || wait?.kind !== 'human') {
+      return authorize(action, accessRun, wait)
+    }
+    try {
+      await authorize(action, accessRun, wait)
+    } catch (error) {
+      if (!(error instanceof AccessDeniedError)) throw error
+      await authorize('operator', accessRun, wait)
+    }
+  }
   /** `call` on `target`, which stores an input: the session checks it first. */
   const checkedOn = <T>(
     target: Session<THarness>,
@@ -349,8 +378,8 @@ export function sessionHandle<THarness extends AnyHarness>({
   ) =>
     guard
       ? target.checked(
-          ({ input, run: accessRun }) =>
-            guard.authorize(actionOf(input), accessRun),
+          ({ input, run: accessRun, wait }) =>
+            checkInput(guard.authorize, input, accessRun, wait),
           () => call(target),
         )
       : call(target)
@@ -371,14 +400,21 @@ export function sessionHandle<THarness extends AnyHarness>({
     live('send')
     return runOperation(kind, (target) => checkedOn(target, call), agent)
   }
-  /** A call that stores no input: it runs after `authorize` allows `action`. */
+  /**
+   * A call that stores no input: it runs after `authorize` allows `action`.
+   * With a guard, `runOf` gives the run that the call targets, when it
+   * targets one.
+   */
   const acting = <T>(
     action: AccessAction,
     call: (target: Session<THarness>) => Promise<T>,
+    runOf?: (
+      target: Session<THarness>,
+    ) => AccessRun | undefined | Promise<AccessRun | undefined>,
   ) => {
     live(action)
     return run(async (target) => {
-      await guard?.authorize(action)
+      if (guard) await guard.authorize(action, await runOf?.(target))
       return call(target)
     })
   }
@@ -486,6 +522,32 @@ export function sessionHandle<THarness extends AnyHarness>({
       updateEntry: (update: Parameters<Session<THarness>['updateEntry']>[0]) =>
         acting('configure', (target) => target.updateEntry(update)),
       reload: () => acting('configure', (target) => target.reload()),
+      // A schedule needs the action of the input it runs later. An answer or
+      // a cancel is checked with its run from the log, which must exist now.
+      schedule: (options: Parameters<Session<THarness>['schedule']>[0]) =>
+        acting(
+          actionOf(options.input),
+          (target) => target.schedule(as(options)),
+          async (target) => {
+            const found = await target.loggedRun(options.input)
+            if (found !== null) return found
+            // A user with no access to the action learns nothing of the run.
+            await guard?.authorize(actionOf(options.input))
+            throw new InputRejectedError({
+              inputId: `schedule:${options.scheduleId ?? 'new'}`,
+              status: 'rejected',
+              reason: 'unknown_run',
+            })
+          },
+        ),
+      cancelSchedule: (
+        options: Parameters<Session<THarness>['cancelSchedule']>[0],
+      ) =>
+        acting(
+          'cancel',
+          (target) => target.cancelSchedule(options),
+          (target) => target.scheduleRun(options.scheduleId),
+        ),
       events,
       close,
     }),
