@@ -642,7 +642,7 @@ export function permissions(
         if (entries.length === 0) return undefined
         const list = async (field: keyof ToolResources) => {
           const lists = await Promise.all(
-            entries.map((entry) => entry[field]?.(input) ?? []),
+            entries.map(async (entry) => (await entry[field]?.(input)) ?? []),
           )
           const values = lists.flat()
           if (!values.every((value) => typeof value === 'string')) {

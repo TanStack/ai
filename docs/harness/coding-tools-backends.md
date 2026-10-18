@@ -232,10 +232,11 @@ Clients get the same event as a `harness.plugin.event` with the name `tanstack/f
 
 ### Each run asks first
 
-A formatter runs code from the project, like `prettier.config.js`. The model can change that code with an edit. So with `permissions()`, the formatter asks before each run, also in `acceptEdits` mode. The question names the run `formatter:prettier`, `formatter:biome`, and so on.
+A formatter runs code from the project, like `prettier.config.js`. The model can change that code with an edit. So with `permissions()`, the rules decide the formatter together with the call that writes, before that call runs. The rule names the run `formatter:prettier`, `formatter:biome`, and so on.
 
+- One approval covers the write and its formatter, also in `acceptEdits` mode. The formatter runs after the write.
 - Answer `always` once, and the formatter runs without a question in this project.
-- A `reject` keeps the write. The tool result says that the formatter did not run.
+- A rule that denies the formatter keeps the write. The tool result says that the formatter did not run.
 - A rule can allow a formatter: `{ tool: 'formatter:prettier', decision: 'allow' }`.
 - Without `permissions()`, the formatter runs without a question.
 

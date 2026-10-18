@@ -94,6 +94,7 @@ Each action covers these calls:
 | `list` | See the session in `host.sessions.list`. |
 | `send` | Prompt, steer, follow up, run a command or a tool, start an agent, and upload media. |
 | `answer` | Answer a question or an approval. |
+| `operator` | Answer a `human` wait of any run, as a person who takes over from the agent. |
 | `cancel` | Stop a run, or drop an input that waits. |
 | `configure` | Change the thread settings, the plugin config, the title, and the metadata. |
 | `share` | Add or remove members. |
@@ -102,6 +103,7 @@ Each action covers these calls:
 | `transfer` | Give the session to a new owner. |
 
 - For `answer` and `cancel`, `authorize` also gets `run`: the `runId` and the `principalId` of the user who started that run.
+- For `answer` and `operator`, `authorize` also gets `wait`: the `waitId` and the `kind` of the [wait](./waits) that the input answers, when the host knows it. A `human` wait takes either action: when `answer` is refused, the host asks for `operator`.
 - For `cancelSchedule`, `run` is the schedule: the `runId` is the schedule id, and the `principalId` is the user who made it.
 - `host.submit` and `schedule` check an answer or a cancel when you send it, with `run` from the log. A run that the log does not have is refused with `unknown_run`: `submit` returns a `rejected` receipt, and `schedule` throws `InputRejectedError`.
 - A handle checks `read` once, when it opens. Each action that changes the session asks `authorize` again.

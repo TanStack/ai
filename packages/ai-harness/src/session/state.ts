@@ -3,7 +3,7 @@ import {
   convertSchemaToJsonSchema,
   validateWithStandardSchema,
 } from '@tanstack/ai'
-import { loadChildTranscript } from '@tanstack/ai-persistence'
+import { UNOWNED_EPOCH, loadChildTranscript } from '@tanstack/ai-persistence'
 import { checkConfigValue } from '../config'
 import { isRecord } from '../utils'
 import { jsonSchemaIssues } from '../json-schema'
@@ -162,11 +162,30 @@ export abstract class SessionState<
     }
   }
 
+  /**
+   * The interrupted turn that the snapshot shows. The owner of the log and a
+   * session with a running turn keep it in memory. Another session reads it
+   * from the fold of the log, so it sees the interrupts that another host
+   * opens and ends. After a failed write the fold is behind, so memory wins.
+   */
+  protected stoppedTurn(): InterruptedTurn | undefined {
+    const writer = this.logWriter
+    if (
+      !writer ||
+      this.logFailure ||
+      this.activeTurn ||
+      writer.epoch !== UNOWNED_EPOCH
+    ) {
+      return this.interrupted
+    }
+    return writer.state.thread.interrupted ?? undefined
+  }
+
   snapshot(): SessionSnapshot {
     const active = [...this.operations.values()].filter(
       (operation) => !operation.isSettled(),
     )
-    const stopped = this.interrupted
+    const stopped = this.stoppedTurn()
     const pendingInterrupts =
       this.activeResume && !this.activeTurn?.isSettled()
         ? []
@@ -175,7 +194,7 @@ export abstract class SessionState<
       threadId: this.threadId,
       status: this.activeTurn
         ? 'running'
-        : this.interrupted
+        : stopped
           ? 'requires_action'
           : 'idle',
       activeOperations: active.map((operation) => ({
