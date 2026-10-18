@@ -4,8 +4,19 @@ import type { LogStore } from '@tanstack/ai-persistence'
 /** How long a host owns a log after each renewal, and how often it renews. */
 export const OWNERSHIP = { ttlMs: 30_000, renewMs: 10_000 }
 
-/** Ownership timing for a host. A missing field uses {@link OWNERSHIP}. */
+/**
+ * Ownership timing for a host, and its stable id. A missing timing field
+ * uses {@link OWNERSHIP}.
+ */
 export interface OwnershipOptions {
+  /**
+   * A stable id for this host, for example the machine or pod name. Keep it
+   * the same after a restart. When you set it, a thread that uses a local
+   * folder is pinned to this host, and another host refuses the thread with
+   * the pinned error. When you do not set it, threads are not pinned, and
+   * every host can continue every thread.
+   */
+  hostId?: string
   /**
    * How long the host owns a log after each renewal, in milliseconds of the
    * store clock. Default 30 000.

@@ -162,8 +162,10 @@ export interface HarnessHostOptions<P extends Principal = Principal> {
    * its first write until the thread has no work. `ttlMs`: how long the
    * ownership lasts after each renewal (default 30000 ms). After it, another
    * host can take the thread. `renewMs`: how often one timer renews every
-   * thread that the host owns (default 10000 ms). Leave it out for the
-   * defaults.
+   * thread that the host owns (default 10000 ms). `hostId`: a stable id
+   * for this host, for example the machine or pod name. With it, a thread
+   * that uses a local folder is pinned to this host, and another host
+   * refuses the thread. Leave it out for the defaults: no pins.
    */
   ownership?: OwnershipOptions
   /** How the sessions of this host live. Leave it out for the defaults. */
@@ -1222,6 +1224,15 @@ export function createHarnessHost<P extends Principal = Principal>(
       'Host access needs stores.sessions: each session keeps its owner and members there.',
     )
   }
+  const affinity = options.ownership?.hostId
+  if (
+    affinity !== undefined &&
+    (typeof affinity !== 'string' || affinity.trim() === '')
+  ) {
+    throw new Error(
+      'ownership.hostId must be a non-empty string, for example the machine or pod name. Leave it out when the host has no stable id.',
+    )
+  }
   const policy = access && membersOnlyPolicyOf(access.authorize)
   const memory = memoryPersistence().stores
   // ponytail: memory credentials when none are given. Pass `credentials`
@@ -1291,6 +1302,8 @@ export function createHarnessHost<P extends Principal = Principal>(
   const ownership = new HostOwnership({
     store: logStore,
     ownerId: hostId,
+    // With a stable host id, folder bindings pin their logs to this host.
+    ...(affinity !== undefined ? { affinity } : {}),
     ...(options.ownership ? { timing: options.ownership } : {}),
   })
   /** The shared log of each log with an open session, by its store log id. */

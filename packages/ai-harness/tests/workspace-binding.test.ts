@@ -71,10 +71,15 @@ function open(options: {
   adapter: AnyTextAdapter
   plugins: Array<HarnessPlugin>
   crashes?: boolean
+  /** The stable id of the host, `ownership.hostId`. */
+  hostId?: string
 }) {
   const host = createHarnessHost({
     persistence: options.persistence,
-    ...(options.crashes ? { ownership: CRASHING_OWNERSHIP } : {}),
+    ownership: {
+      ...(options.crashes ? CRASHING_OWNERSHIP : {}),
+      ...(options.hostId !== undefined ? { hostId: options.hostId } : {}),
+    },
   })
   const opened = host.open(
     defineHarness({
@@ -124,12 +129,14 @@ async function readOnce(
   persistence: HarnessPersistence,
   options: WorkspaceToolsOptions,
   id: string,
+  hostId?: string,
 ) {
   const { adapter, calls } = readTurn(id)
   const { host, opened } = open({
     persistence,
     adapter,
     plugins: [workspaceTools({ ...options, web: false })],
+    ...(hostId !== undefined ? { hostId } : {}),
   })
   const session = await opened
   await session.send('read')
@@ -252,6 +259,97 @@ describe('the workspace binding in the session log', () => {
     )
     // Only host-a acquires the log now.
     expect(await canOtherHostTake(log, LOG)).toBe(false)
+  })
+
+  it('pins a folder thread to the host with ownership.hostId, across restarts', async () => {
+    const persistence = memoryPersistence()
+    const { log } = persistence.stores
+    const inFolder = { root: '/ws', backend: backend() }
+
+    expect(await readOnce(persistence, inFolder, 'c0', 'pod-a')).toBe(READ)
+    expect(await recordsOf(persistence, 'harness.workspace.bound')).toEqual([
+      {
+        type: 'harness.workspace.bound',
+        binding: { kind: 'host', hostId: 'pod-a', root: '/ws' },
+      },
+    ])
+    // The log is pinned to pod-a: no other host gets it.
+    expect(await canOtherHostTake(log, LOG)).toBe(false)
+
+    // Host B does not run the thread. Its input waits for pod-a.
+    const b = readTurn('b0')
+    const other = open({
+      persistence,
+      adapter: b.adapter,
+      hostId: 'pod-b',
+      plugins: [workspaceTools({ ...inFolder, web: false })],
+    })
+    const sent = (await other.opened).send('read')
+    await vi.waitFor(
+      async () => {
+        expect(await log.offered({ logId: LOG })).toHaveLength(1)
+      },
+      { timeout: 5000 },
+    )
+    expect(b.calls).toHaveLength(0)
+
+    // Host A after a restart, with the same hostId, runs the input of B.
+    const a = readTurn('c1')
+    const again = open({
+      persistence,
+      adapter: a.adapter,
+      hostId: 'pod-a',
+      plugins: [workspaceTools({ ...inFolder, web: false })],
+    })
+    await again.opened
+    await sent
+    expect(resultOf(a.calls, 'c1')).toBe(READ)
+    expect(b.calls).toHaveLength(0)
+    await other.host.close()
+    await again.host.close()
+  })
+
+  it('refuses a folder thread of another hostId with the pinned error', async () => {
+    const persistence = memoryPersistence()
+    const { log } = persistence.stores
+    const inFolder = { root: '/ws', backend: backend() }
+    // A binding to pod-a, and no pin yet: host B gets the log.
+    await appendToLog(log, { threadId: THREAD }, [
+      {
+        type: 'harness.workspace.bound',
+        binding: { kind: 'host', hostId: 'pod-a', root: '/ws' },
+      },
+    ])
+
+    expect(await readOnce(persistence, inFolder, 'c0', 'pod-b')).toContain(
+      'The workspace of this thread is /ws on the host pod-a. Only that host can continue the thread.',
+    )
+    expect(await canOtherHostTake(log, LOG)).toBe(false)
+
+    // pod-a after a restart continues the thread.
+    expect(await readOnce(persistence, inFolder, 'c1', 'pod-a')).toBe(READ)
+  })
+
+  it('does not pin a folder thread when the hosts have no hostId', async () => {
+    const persistence = memoryPersistence()
+    const inFolder = { root: '/ws', backend: backend() }
+
+    expect(await readOnce(persistence, inFolder, 'c0')).toBe(READ)
+    expect(await readOnce(persistence, inFolder, 'c1')).toBe(READ)
+
+    expect(await recordsOf(persistence, 'harness.workspace.bound')).toEqual([
+      {
+        type: 'harness.workspace.bound',
+        binding: { kind: 'host', root: '/ws' },
+      },
+    ])
+    expect(await canOtherHostTake(persistence.stores.log, LOG)).toBe(true)
+  })
+
+  it('refuses an empty ownership.hostId', () => {
+    expect(() => createHarnessHost({ ownership: { hostId: ' ' } })).toThrow(
+      'ownership.hostId must be a non-empty string',
+    )
   })
 
   it('stops a job that a crashed host left running, and notes it', async () => {
