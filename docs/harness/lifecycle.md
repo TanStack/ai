@@ -147,7 +147,7 @@ const leanHost = createHarnessHost({
 
 The log keeps what memory drops:
 
-- `session.settled(inputId)` of an old input reads the log.
+- `session.settled({ inputId })` of an old input reads the log.
 - `agentRun(id)` and `agentRuns()` also find the runs in the log.
 - `events({ from })` reads the older events from the log.
 - `eventBytes` also bounds the log tail that the host keeps in memory.

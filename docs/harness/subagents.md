@@ -206,7 +206,7 @@ if (session.agentRun(run.id)) {
 Each item of `agentRuns()` has these fields:
 
 - `operationId` and `agent`: the run and the name of its agent.
-- `status`: `running`, `queued` (a follow-up that waits for the run before it), `completed`, `failed`, or `cancelled`.
+- `status`: `running`, `queued` (a follow-up that waits for the run before it), `waiting` (the run waits for an answer, see [When a background agent waits](#when-a-background-agent-waits)), `completed`, `failed`, or `cancelled`.
 - `parentRunId`: the run whose agent code started this run, if there is one.
 - `principal`: the user that the run runs for.
 
@@ -244,6 +244,27 @@ When the host stops during a run, the messages that wait for the run are in the 
 
 - If the run started with `resume: true`, the next host runs it again. The resumed run gets the messages that waited for it.
 - If the run started without `resume`, the waiting messages settle `aborted`. A steer that already joined the run settles `failed`, with the run.
+
+### When a background agent waits
+
+A background run can need a person, for example an approval of [`permissions()`](./permissions) before it edits a file. The run then stops with status `waiting`. Its wait is in `session.snapshot().pendingWaits`, with the `runId` of the run:
+
+```ts group=harness-subagents-messages
+const [wait] = (session.snapshot().pendingWaits ?? []).filter(
+  (open) => open.runId === run.id,
+)
+if (wait) {
+  await session.resolve({
+    resume: [{ interruptId: wait.waitId, status: 'resolved', payload: 'once' }],
+  })
+}
+```
+
+- The run continues after every wait of the run has an answer.
+- The log keeps the wait, so no host stays busy. An answer on any host, also after a restart, continues the run.
+- A run that started with `resume: true` can also ask with `ctx.harness.step.ask`. See [Wait for a person](./waits).
+- The `question` tool belongs to the lead turn. Agent runs do not get it.
+- An agent that the model calls as a tool inside a turn cannot wait. A call of it that needs an approval gets a tool error.
 
 ### Known limits
 

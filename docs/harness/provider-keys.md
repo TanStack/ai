@@ -97,6 +97,7 @@ console.log(await session.command({ name: 'connect:openai' })) // Connected to O
 stopAsking()
 ```
 
+- The command asks with `step.ask`, so the log keeps the question as a [wait](./waits), and the user can answer it on any server. The log never keeps the key.
 - With `keyUrl`, the page to make a key opens first. The session sends a `harness.auth_required` event with the URL, and your app opens it.
 - `/disconnect:openai` deletes the key.
 - `/keys` shows where each key comes from:
