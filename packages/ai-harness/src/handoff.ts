@@ -15,8 +15,9 @@ import type { HandoffRecord, HumanTarget } from './log-records'
 export interface HandoffOptions {
   /**
    * The root agent that answers next, `'main'` for the main model, or
-   * `{ human: true }` for a person. A handoff to a person opens a `human`
-   * wait, and the session pauses until an operator answers it.
+   * `{ human: true }` for a person. A handoff to a person needs
+   * `routing.humans`. It opens a `human` wait, and the session pauses until
+   * an operator answers it.
    */
   to: string | HumanTarget
   /** A note for the target. The log and the `harness.handoff` event keep it. */
@@ -64,6 +65,8 @@ export class TurnHandoffs {
       rootAgents: ReadonlyArray<AnyAgent>
       /** The names of the agents that are only subagents, for the error text. */
       subagents: ReadonlyArray<string>
+      /** `routing.humans`: a handoff can go to a person. */
+      humans: boolean
       /**
        * Append the record. A handoff to a person opens its `human` wait in
        * the same append. Resolves with the record as the log keeps it.
@@ -94,8 +97,8 @@ export class TurnHandoffs {
    * Hand the turn from `from` (an agent name, or `null` for the main model)
    * to `options.to`. The part of `from` ends, and the target answers next.
    * A handoff to a person ends the turn, and the session pauses. Throws for
-   * a target that is not a root agent, and for a second handoff in the same
-   * part.
+   * a target that is not a root agent, for a person without
+   * `routing.humans`, and for a second handoff in the same part.
    */
   async handoff(
     options: HandoffOptions,
@@ -104,6 +107,11 @@ export class TurnHandoffs {
   ): Promise<void> {
     const { to, note } = options
     const isHuman = isHumanTarget(to)
+    if (isHuman && !this.options.humans) {
+      throw new Error(
+        'A handoff to a person needs `routing: { humans: true }` in the harness.',
+      )
+    }
     if (!isHuman && typeof to !== 'string') {
       throw new Error(
         'A handoff needs `to`: the name of a root agent, or { human: true }.',
@@ -153,30 +161,28 @@ export class TurnHandoffs {
   /**
    * The `handoff` tool of `from`: the main model (`null`) or a root agent.
    * Its `to` lists the root agents, and `'main'` for an agent, but not
-   * `from`. `{ human: true }` hands the conversation to a person.
+   * `from`. With `routing.humans`, `{ human: true }` hands the conversation
+   * to a person.
    */
   tool(from: string | null) {
+    const { humans } = this.options
     const targets = [
       ...this.options.rootAgents.map((agent) => agent.name),
       ...(from === null ? [] : ['main']),
     ].filter((name) => name !== from)
+    const agents = { type: 'string', enum: targets }
+    const person = {
+      type: 'object',
+      properties: { human: { type: 'boolean', const: true } },
+      required: ['human'],
+    }
     return toolDefinition({
       name: HANDOFF_TOOL,
-      description:
-        'Hand the conversation to another agent. That agent answers the user next, in this turn and in later turns. Use { human: true } only when the user needs a person. Stop after this call.',
+      description: `Hand the conversation to another agent. That agent answers the user next, in this turn and in later turns.${humans ? ' Use { human: true } only when the user needs a person.' : ''} Stop after this call.`,
       inputSchema: {
         type: 'object',
         properties: {
-          to: {
-            anyOf: [
-              { type: 'string', enum: targets },
-              {
-                type: 'object',
-                properties: { human: { type: 'boolean', const: true } },
-                required: ['human'],
-              },
-            ],
-          },
+          to: humans ? { anyOf: [agents, person] } : agents,
           note: {
             type: 'string',
             description: 'What the next agent must know.',

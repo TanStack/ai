@@ -76,6 +76,8 @@ function routingHarness(options: {
   agents: ReadonlyArray<AnyAgent>
   replies: Array<Reply>
   tools?: ReadonlyArray<AnyTool>
+  /** `routing.humans`. Default true. */
+  humans?: boolean
 }) {
   const main = mockAdapter(options.replies)
   const harness = defineHarness({
@@ -83,7 +85,7 @@ function routingHarness(options: {
     adapter: main.adapter,
     agents: options.agents,
     ...(options.tools ? { tools: options.tools } : {}),
-    routing: { router: () => undefined },
+    routing: { router: () => undefined, humans: options.humans ?? true },
   })
   return { harness, main }
 }
@@ -387,6 +389,27 @@ describe('an operator reply', () => {
     await host.close()
   })
 
+  it('shows live in an open view, with no transcript reload', async () => {
+    const { host, owner, open } = await sharedThread([toHuman])
+    await owner.send('I want a person.')
+    const view = createSessionView(owner)
+    await view.ready
+    const transcript = vi.spyOn(owner, 'transcript')
+    const member = await open(bea)
+
+    await member.send('Hi, I am Bea.', { as: 'operator' })
+
+    await waitFor(() =>
+      expect(view.store.get().messages.at(-1)).toMatchObject({
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Hi, I am Bea.' }],
+      }),
+    )
+    expect(transcript).not.toHaveBeenCalled()
+    view.dispose()
+    await host.close()
+  })
+
   it('refuses a viewer, and rejects a reply with no handoff to a person', async () => {
     const { host, owner, open } = await sharedThread([() => text('Hello.')])
     const member = await open(bea)
@@ -502,6 +525,46 @@ describe('run.handoff', () => {
         by,
       })),
     ).toEqual([{ from: null, to: 'billing', note: 'From a tool', by: 'code' }])
+    await host.close()
+  })
+
+  it('offers no person and rejects a handoff to one without routing.humans', async () => {
+    const toPerson = toolDefinition({
+      name: 'toPerson',
+      description: 'Hand the user to a person',
+      inputSchema: z.object({}),
+    }).server<HarnessRunContext>(async (_args, ctx) =>
+      ctx.context.run.handoff({ to: { human: true } }).then(
+        () => 'moved',
+        (error: unknown) => `stayed: ${String(error)}`,
+      ),
+    )
+    const billing = modelAgent('billing', [])
+    const { harness, main } = routingHarness({
+      agents: [billing.agent],
+      replies: [
+        () => toolCall('toPerson', {}, 'call_p'),
+        () => text('I stay.'),
+      ],
+      tools: [toPerson],
+      humans: false,
+    })
+    const log = memoryLogStore()
+    const { host, session } = await hostOn(log, harness)
+
+    expect((await session.send('a person please')).text).toBe('I stay.')
+    const tool = main.calls[0].tools.find(
+      (item: { name: string }) => item.name === 'handoff',
+    )
+    expect(tool.inputSchema.properties.to).toEqual({
+      type: 'string',
+      enum: ['billing'],
+    })
+    expect(JSON.stringify(main.calls[1].messages)).toContain(
+      'stayed: Error: A handoff to a person needs `routing: { humans: true }` in the harness.',
+    )
+    expect(await handoffRecords(log)).toEqual([])
+    expect(session.snapshot().pendingWaits).toEqual([])
     await host.close()
   })
 

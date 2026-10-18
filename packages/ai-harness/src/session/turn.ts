@@ -343,6 +343,8 @@ export abstract class SessionTurn<
           ? operatorMessage(id, sent, turn.principal ?? this.principal)
           : { ...(await this.userMessage(sent, turn.wake)), id }
         await this.addToTurn({ messages: [message] })
+        // A view shows the reply live, as the text of a model.
+        if (isOperator) publishText(operation, id, message.content)
       }
     } catch (failure) {
       error = { message: this.scrub(errorText(this.logFailure ?? failure)) }
@@ -544,6 +546,7 @@ export abstract class SessionTurn<
               runId: operation.id,
               rootAgents,
               subagents: subagentList.map((agent) => agent.name),
+              humans: this.harness.routing.humans === true,
               append: (record) =>
                 this.appendHandoff(record, storedPrincipal(sender).principal),
               publish: (record) =>
@@ -700,7 +703,7 @@ export abstract class SessionTurn<
       }
       const isRootTurn =
         turn.answers?.routed?.root === true || (pick ?? 'main') !== 'main'
-      const { after, ...shared } = routing ?? {}
+      const { after, humans: _humans, ...shared } = routing ?? {}
       const routedBag = routing
         ? {
             ...shared,
@@ -1344,6 +1347,38 @@ export abstract class SessionTurn<
     this.publishFinished(operation)
     this.requeueWaitingSteers()
   }
+}
+
+/**
+ * Publish the text of a message that no model wrote, as the text events of
+ * one assistant message.
+ */
+function publishText(
+  operation: Pick<OperationImpl<unknown>, 'publish'>,
+  messageId: string,
+  content: ModelMessage['content'],
+) {
+  const delta =
+    typeof content === 'string'
+      ? content
+      : (content ?? [])
+          .map((part) => (part.type === 'text' ? part.content : ''))
+          .join('')
+  if (delta === '') return
+  const timestamp = Date.now()
+  operation.publish({
+    type: EventType.TEXT_MESSAGE_START,
+    messageId,
+    role: 'assistant',
+    timestamp,
+  })
+  operation.publish({
+    type: EventType.TEXT_MESSAGE_CONTENT,
+    messageId,
+    delta,
+    timestamp,
+  })
+  operation.publish({ type: EventType.TEXT_MESSAGE_END, messageId, timestamp })
 }
 
 /** The reply of an operator, as the transcript keeps it. */

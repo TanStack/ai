@@ -117,6 +117,14 @@ export interface HarnessRouting<TMetadataSchema = any> extends Pick<
    * `'end'`.
    */
   after?: 'end' | 'main'
+  /**
+   * Let the models and your code hand the turn to a person. When true, the
+   * `to` of the `handoff` tool also takes `{ human: true }`, and
+   * `ctx.harness.handoff({ to: { human: true } })` and `run.handoff` open a
+   * `human` wait. When false, the `handoff` tool offers only the agents and
+   * `'main'`, and a handoff to a person rejects. Default `false`.
+   */
+  humans?: boolean
 }
 
 /**

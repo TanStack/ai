@@ -570,8 +570,8 @@ export interface RunContext {
   /** The model provider keys of the user of this run. */
   keys: ProviderKeys
   /**
-   * Hand the turn to another root agent, `'main'`, or a person, as
-   * `ctx.harness.handoff` does. It works in a turn of a harness with
+   * Hand the turn to another root agent, `'main'`, or a person (with
+   * `routing.humans`), as `ctx.harness.handoff` does. It works in a turn of a harness with
    * `routing`, for example in a tool of the main model. Anywhere else it
    * rejects.
    *

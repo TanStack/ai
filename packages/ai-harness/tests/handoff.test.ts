@@ -167,14 +167,15 @@ describe('handoffs', () => {
     expect(JSON.stringify(call.systemPrompts)).not.toContain(
       'You are the main model.',
     )
-    // Its handoff tool goes to the other agents, to the main model, and to
-    // a person.
+    // Its handoff tool goes to the other agents and to the main model. A
+    // person needs `routing.humans`.
     const tool = call.tools.find(
       (item: { name: string }) => item.name === 'handoff',
     )
-    const [agents, person] = tool.inputSchema.properties.to.anyOf
-    expect(agents.enum).toEqual(['main'])
-    expect(person.required).toEqual(['human'])
+    expect(tool.inputSchema.properties.to).toEqual({
+      type: 'string',
+      enum: ['main'],
+    })
     // It reads the transcript that the members see.
     expect(messageTexts(call)).toContain('refund please')
 
