@@ -61,7 +61,7 @@ export const assistant = defineHarness({
 })
 ```
 
-The name of a server is the prefix of its tools. A `search` tool of the `docs` server is `docs_search` for the model.
+The name of a server is the prefix of its tools. A `search` tool of the `docs` server is `docs_search` for the model. To choose other names, see [Rename the tools of a server](#rename-the-tools-of-a-server).
 
 - `stdio`: the server runs as a child process on this machine (Node only). The host starts it one time for each harness, and every session of that harness shares it. It stops when the last session that uses it closes, or at `host.close()`.
 - `http`: a server that speaks Streamable HTTP. Send an API key in `headers`. Each session connects on its own.
@@ -82,8 +82,21 @@ linear: failed: Not signed in. Run /connect linear.
 In your own UI, read the same list from `session.snapshot().plugins['tanstack/mcp'].servers`. Each entry is an `McpServerStatus`:
 
 - `name`: the name of the server.
-- `status`: `connecting`, `connected`, or `failed`. A `failed` entry has an `error`.
+- `status`: `connecting`, `connected`, `reconnecting`, or `failed`. A `failed` entry has an `error`.
 - `toolCount`: how many tools the server gives the model.
+
+### When a server stops
+
+A `stdio` server can crash, and a connection can close. Then `/mcp` shows `files: reconnecting`, and the turns run without the tools of that server. `mcp()` connects again:
+
+- It waits 0.5 s, then 1 s, then 2 s, and so on, up to 30 s between tries. A random part makes each wait shorter, so many sessions do not connect at the same moment.
+- It tries until the server connects, or until the session closes. For a `stdio` server, it tries until the host stops the server.
+- The next turn after the new connection has the tools again. All sessions that share a `stdio` server use the new process.
+- A server that fails its first connect stays `failed`. It does not try again.
+
+This applies to the servers without `oauth: true`.
+
+Some servers change their tools while they run. When a server sends `tools/list_changed`, the next turn lists the tools of that server again, and `/mcp` shows the new count.
 
 ## 3. Sign in to an OAuth server
 
@@ -116,6 +129,41 @@ The model never sees the token. To keep sign-ins after a restart, give the host 
 
 - A tool of an `oauth: true` server asks for approval before it runs, unless the server marks it read-only.
 - The tools of the other servers run without a question.
+
+Set `needsApproval` on a server to change this. `true` asks before every tool of the server. A function gets the MCP tool and returns `true` to ask:
+
+```ts group=harness-mcp
+export const careful = mcp({
+  servers: {
+    files: {
+      type: 'stdio',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-filesystem', '.'],
+      // Ask before each tool that the server does not mark read-only.
+      needsApproval: (tool) => tool.annotations?.readOnlyHint !== true,
+    },
+    docs: { type: 'http', url: 'https://mcp.example.com/mcp', needsApproval: true },
+  },
+})
+```
+
+## Rename the tools of a server
+
+Two servers can give a tool with the same name. Set `toolName` on a server to choose the names that the model sees. It gets the MCP tool and returns the name:
+
+```ts group=harness-mcp
+export const renamed = mcp({
+  servers: {
+    docs: {
+      type: 'http',
+      url: 'https://mcp.example.com/mcp',
+      toolName: (tool) => `docs_v2_${tool.name}`,
+    },
+  },
+})
+```
+
+When two servers still give the same tool name, the model gets the tool of the server that comes first in `servers`. The other tool is dropped, and the console shows one warning with the names of both servers.
 
 ## Answer a question from a server
 
@@ -224,7 +272,7 @@ export const lateTools = definePlugin({
 ## What you have now
 
 - Tools from local, remote, and OAuth MCP servers, with the server name as a prefix.
-- A status for each server, in `/mcp` and in your UI.
+- Servers that connect again after they stop, with a status in `/mcp` and in your UI.
 - One browser sign-in per service, kept in your credential store.
 - A question before the tools that change data.
 - Server requests for input, asked as session questions.

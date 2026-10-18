@@ -12,9 +12,14 @@ import {
   definePlugin,
 } from '@tanstack/ai-harness'
 import { skills } from '../src/harness'
+import type { FSWatcher } from 'node:fs'
 import type { TextOptions } from '@tanstack/ai'
 import type { FakeResponse } from '@tanstack/ai/testing'
-import type { HarnessHost, HarnessPlugin } from '@tanstack/ai-harness'
+import type {
+  HarnessHost,
+  HarnessPlugin,
+  HostLifecycleOptions,
+} from '@tanstack/ai-harness'
 import type { SkillsPluginOptions } from '../src/harness'
 import type { SkillSource } from '../src/types'
 
@@ -25,6 +30,8 @@ const failing = vi.hoisted(() => ({
   list: new Set<string>(),
   open: new Set<string>(),
 }))
+/** How many times each folder was read from disk. */
+const reads = vi.hoisted(() => new Map<string, number>())
 
 // Pass-through spies. The tests reach the plugin's watchers, its skill
 // source, and a failing folder through them. Everything else is unchanged.
@@ -51,10 +58,15 @@ vi.mock('../src/node', async (importOriginal) => {
       const key = String(args[0])
       if (failing.open.has(key)) throw new Error(`cannot open ${key}`)
       const source = original.skillDirectory(...args)
-      if (!failing.list.has(key)) return source
       return {
         ...source,
-        list: () => Promise.reject(new Error(`cannot read ${key}`)),
+        list: () => {
+          reads.set(key, (reads.get(key) ?? 0) + 1)
+          if (failing.list.has(key)) {
+            return Promise.reject(new Error(`cannot read ${key}`))
+          }
+          return source.list()
+        },
       }
     },
   }
@@ -72,7 +84,9 @@ afterEach(async () => {
   seen.sources.length = 0
   failing.list.clear()
   failing.open.clear()
+  reads.clear()
   vi.mocked(watch).mockClear()
+  vi.restoreAllMocks()
 })
 
 async function tempDir() {
@@ -105,14 +119,27 @@ function watchersOf(path: string) {
   )
 }
 
+/** Is `watcher` closed? Read it after {@link nextLoop}: the close event comes then. */
+function closedFlag(watcher: FSWatcher | undefined) {
+  const flag = { closed: false }
+  watcher?.on('close', () => (flag.closed = true))
+  return flag
+}
+
+/** Wait one turn of the event loop. */
+const nextLoop = () => new Promise((resolve) => setImmediate(resolve))
+
+/** Stop the warnings in the test output, and keep them. */
+const warnings = () => vi.spyOn(console, 'warn').mockImplementation(() => {})
+
 /** An answer of the fake model, or a function that makes it. */
 type Answer = FakeResponse | (() => Promise<FakeResponse>)
 
 /**
- * A session with the skills plugin and `others` after it. The model gives
+ * A harness with the skills plugin and `others` after it. The model gives
  * `answers` first and then answers "ok". It keeps each request.
  */
-async function open(
+function harnessOf(
   options: SkillsPluginOptions,
   {
     others = [],
@@ -129,23 +156,41 @@ async function open(
       return typeof answer === 'function' ? answer() : answer
     }),
   )
-  const host = createHarnessHost()
+  const harness = defineHarness({
+    name: 'test/skills',
+    adapter: fake,
+    plugins: () => [skills(options), ...others],
+  })
+  return { harness, requests }
+}
+
+/** A host that the test closes at its end. */
+function hostOf(lifecycle: HostLifecycleOptions = {}) {
+  const host = createHarnessHost({ lifecycle })
   hosts.push(host)
-  const session = await host.open(
-    defineHarness({
-      name: 'test/skills',
-      adapter: fake,
-      plugins: () => [skills(options), ...others],
-    }),
-    {
-      threadId: 't',
-    },
-  )
+  return host
+}
+
+/** Open the session `threadId` of `harness` on `host`. */
+async function openOn(
+  host: HarnessHost,
+  harness: ReturnType<typeof harnessOf>['harness'],
+  threadId = 't',
+) {
+  const session = await host.open(harness, { threadId })
   const names = () => session.commands().map((command) => command.name)
-  // `/skills` syncs the commands with the folders first, so a test needs
-  // no watch event.
+  // `/skills` syncs the commands with the folders first.
   const list = async () => String(await session.command({ name: 'skills' }))
-  return { session, names, list, requests }
+  return { session, names, list }
+}
+
+/** A session of a new host, with a harness from {@link harnessOf}. */
+async function open(
+  options: SkillsPluginOptions,
+  extra: Parameters<typeof harnessOf>[1] = {},
+) {
+  const { harness, requests } = harnessOf(options, extra)
+  return { ...(await openOn(hostOf(), harness)), requests }
 }
 
 /** The system prompt text of a model request. */
@@ -279,8 +324,13 @@ describe('skills()', () => {
     expect(await list()).toContain('No skills yet.')
     expect(names()).not.toContain('alpha')
     await addSkill(dir, 'alpha')
-    await list()
-    expect(names()).toContain('alpha')
+    await vi.waitFor(
+      async () => {
+        await list()
+        expect(names()).toContain('alpha')
+      },
+      { timeout: 5000 },
+    )
   })
 
   it('keeps the earlier folders, and the called skills, when the list is too long', async () => {
@@ -392,7 +442,12 @@ describe('skills()', () => {
     // The first folder wins a name, also for a skill made after the start.
     await addSkill(first, 'alpha')
     await addGuide(first, 'alpha', 'first guide')
-    expect(await read('alpha')).toBe('first guide')
+    await vi.waitFor(
+      async () => expect(await read('alpha')).toBe('first guide'),
+      {
+        timeout: 5000,
+      },
+    )
     await expect(read('missing')).rejects.toThrow('No skill named "missing"')
   })
 
@@ -446,6 +501,7 @@ describe('skills()', () => {
   })
 
   it('watches a folder without recursive where the platform has none', async () => {
+    const warn = warnings()
     const dir = await tempDir()
     await addSkill(dir, 'alpha')
     vi.mocked(watch).mockImplementationOnce(() => {
@@ -464,6 +520,108 @@ describe('skills()', () => {
       [dir, { recursive: false, persistent: false }],
     ])
     expect(names()).toContain('alpha')
+    expect(warn.mock.calls).toEqual([
+      [
+        `skills: cannot watch the subfolders of ${dir} on this platform. Its skills are read from disk on each use.`,
+      ],
+    ])
+    // Without a recursive watcher, an edited SKILL.md shows at the next read.
+    await addSkill(dir, 'alpha', 'an edit')
+    expect(await list()).toContain(`/alpha  ${dir}`)
+    expect(
+      seen.sources.at(-1) && (await seen.sources.at(-1)?.list())?.[0],
+    ).toMatchObject({
+      description: 'Helps with an edit. Second sentence here.',
+    })
+  })
+
+  it('watches each folder once for all the sessions of a host', async () => {
+    const dir = await tempDir()
+    await addSkill(dir, 'alpha')
+    const { harness } = harnessOf({ dirs: [dir] })
+    const host = hostOf()
+    const first = await openOn(host, harness, 't-0')
+    const second = await openOn(host, harness, 't-1')
+
+    expect(await first.list()).toBe(`/alpha  ${dir}`)
+    expect(await second.list()).toBe(`/alpha  ${dir}`)
+    expect(watchersOf(dir)).toHaveLength(1)
+    await addSkill(dir, 'gamma')
+    await vi.waitFor(
+      () => {
+        expect(first.names()).toContain('gamma')
+        expect(second.names()).toContain('gamma')
+      },
+      { timeout: 5000 },
+    )
+  })
+
+  it('reads a watched folder from disk again only after it changes', async () => {
+    const dir = await tempDir()
+    await addSkill(dir, 'alpha')
+    const { list } = await open({ dirs: [dir] })
+
+    await list()
+    // Windows reports the access time that the first read sets as a change.
+    // Wait until that event and its sync are done.
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    const settled = reads.get(dir)
+    await list()
+    await list()
+    await list()
+    expect(reads.get(dir)).toBe(settled)
+    await addSkill(dir, 'gamma')
+    await vi.waitFor(
+      async () => expect(await list()).toContain(`/gamma  ${dir}`),
+      { timeout: 5000 },
+    )
+    expect(reads.get(dir)).toBeGreaterThan(settled ?? 0)
+  })
+
+  it('warns once and reads the folder from disk when it cannot be watched', async () => {
+    const warn = warnings()
+    const dir = await tempDir()
+    await addSkill(dir, 'alpha')
+    vi.mocked(watch).mockImplementationOnce(() => {
+      throw Object.assign(new Error('too many open files'), { code: 'EMFILE' })
+    })
+    const { list } = await open({ dirs: [dir] })
+
+    expect(await list()).toBe(`/alpha  ${dir}`)
+    await addSkill(dir, 'gamma')
+    expect(await list()).toContain(`/gamma  ${dir}`)
+    await list()
+    expect(vi.mocked(watch)).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls).toEqual([
+      [
+        `skills: cannot watch ${dir} (too many open files). Its skills are read from disk on each use.`,
+      ],
+    ])
+  })
+
+  it('closes the folder watcher after the last session, and at host.close()', async () => {
+    const dir = await tempDir()
+    await addSkill(dir, 'alpha')
+    const { harness } = harnessOf({ dirs: [dir] })
+    const host = hostOf({ idleCloseMs: 0 })
+    const first = await openOn(host, harness, 't-0')
+    const second = await openOn(host, harness, 't-1')
+    const shared = closedFlag(watchersOf(dir)[0]?.value)
+
+    await first.session.close()
+    await nextLoop()
+    expect(shared.closed).toBe(false)
+    await second.session.close()
+    await nextLoop()
+    expect(shared.closed).toBe(true)
+
+    // The next session watches the folder again, until the host closes.
+    await openOn(host, harness, 't-2')
+    expect(watchersOf(dir)).toHaveLength(2)
+    const again = closedFlag(watchersOf(dir)[1]?.value)
+    await Promise.all(hosts.splice(0).map((open) => open.close()))
+    await nextLoop()
+    expect(again.closed).toBe(true)
   })
 
   it('skips a folder whose skills cannot be read', async () => {

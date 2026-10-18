@@ -267,9 +267,9 @@ describe('codeMode', () => {
       defineHarness({
         name: 'test/code-mode-include',
         adapter,
-        tools: [tools.lookup, tools.remove],
+        tools: [tools.lookup, tools.notionSearch],
         plugins: () => [
-          codeMode({ driver, include: (tool) => tool.name === 'remove' }),
+          codeMode({ driver, include: (tool) => tool.name === 'lookup' }),
         ],
       }),
       {
@@ -278,7 +278,7 @@ describe('codeMode', () => {
     )
     await picked.send('hi')
     expect(calls[0].tools.map((tool: { name: string }) => tool.name)).toEqual([
-      'lookup',
+      'notion_search',
       'execute_typescript',
     ])
 
@@ -385,6 +385,65 @@ describe('codeMode', () => {
     expect(seen[0]).toEqual(['external__2fa', 'external_web_search'])
     expect(JSON.stringify(calls[1].messages)).toContain('from web-search')
     await host.close()
+  })
+
+  it('keeps a tool that needs approval, or that a rule asks for or denies, when include picks it, and warns once', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const denyDocs = definePlugin({
+      name: 'test/deny-docs',
+      setup: () => ({
+        contribute: [
+          PermissionRules.item({ tool: 'docs_deny', decision: 'deny' }),
+          PermissionRules.item({ tool: 'docs_ask', decision: 'ask' }),
+        ],
+      }),
+    })
+    const { adapter, calls } = scripted([textTurn('one'), textTurn('two')])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/code-mode-include-guard',
+        adapter,
+        tools: [
+          tools.lookup,
+          tools.remove,
+          toolDefinition({
+            name: 'docs_deny',
+            description: 'A tool that a rule denies',
+            inputSchema: z.object({}),
+          }).server(async () => 'denied'),
+          toolDefinition({
+            name: 'docs_ask',
+            description: 'A tool that a rule asks for',
+            inputSchema: z.object({}),
+          }).server(async () => 'asked'),
+        ],
+        plugins: () => [
+          denyDocs,
+          codeMode({ driver: fakeDriver().driver, include: () => true }),
+        ],
+      }),
+      { threadId: 't' },
+    )
+    await session.send('first')
+    await session.send('second')
+    await host.close()
+
+    for (const call of calls) {
+      expect(call.tools.map((tool: { name: string }) => tool.name)).toEqual([
+        'remove',
+        'docs_deny',
+        'docs_ask',
+        'execute_typescript',
+      ])
+    }
+    // One warning for each kept tool, not one for each turn.
+    expect(warn.mock.calls.map(([message]) => message)).toEqual([
+      '[@tanstack/ai-code-mode] include picked the tool "remove", but it needs approval, or a rule asks for it or denies it. A call inside code mode skips those checks, so the tool stays a normal tool call.',
+      '[@tanstack/ai-code-mode] include picked the tool "docs_deny", but it needs approval, or a rule asks for it or denies it. A call inside code mode skips those checks, so the tool stays a normal tool call.',
+      '[@tanstack/ai-code-mode] include picked the tool "docs_ask", but it needs approval, or a rule asks for it or denies it. A call inside code mode skips those checks, so the tool stays a normal tool call.',
+    ])
+    warn.mockRestore()
   })
 
   it('moves a marked tool that include does not pick, unless a rule or an approval stops it', async () => {

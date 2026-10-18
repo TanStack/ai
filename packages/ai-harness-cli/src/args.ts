@@ -12,7 +12,6 @@ export interface CliArgs {
   hostname: string
   token?: string
   thread: string
-  dashboard?: string
   mediaDir?: string
 }
 
@@ -33,7 +32,6 @@ Options:
       --host <name>      Host name for --serve (default 127.0.0.1)
       --token <token>    Bearer token for --serve (default: HARNESS_TOKEN, or a new random token)
       --thread <id>      Conversation id (default: main)
-      --dashboard <url>  Connect to a dashboard (pairs on first use; set HARNESS_DASHBOARD_TOKEN to skip)
       --media-dir <dir>  Save the media a turn makes here (default: ./<harness name>-media)
   -h, --help             Show this help
 
@@ -55,7 +53,6 @@ export function parseCliArgs(argv: ReadonlyArray<string>): CliArgs {
       host: { type: 'string' },
       token: { type: 'string' },
       thread: { type: 'string' },
-      dashboard: { type: 'string' },
       'media-dir': { type: 'string' },
     },
     strict: true,
@@ -80,7 +77,6 @@ export function parseCliArgs(argv: ReadonlyArray<string>): CliArgs {
     hostname: values.host ?? '127.0.0.1',
     ...(values.token !== undefined ? { token: values.token } : {}),
     thread: values.thread ?? 'main',
-    ...(values.dashboard !== undefined ? { dashboard: values.dashboard } : {}),
     ...(values['media-dir'] !== undefined
       ? { mediaDir: values['media-dir'] }
       : {}),

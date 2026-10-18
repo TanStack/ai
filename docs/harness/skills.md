@@ -73,7 +73,7 @@ export const cliSkills = skills({
 
 ## Skills that change while the session runs
 
-The plugin watches the folders, and it lists them again at the start of each turn:
+The plugin watches the folders, and the commands follow them:
 
 - A new `SKILL.md` adds its command.
 - A removed skill takes its command away.
@@ -81,6 +81,10 @@ The plugin watches the folders, and it lists them again at the start of each tur
 - A broken `SKILL.md` is left out until it is fixed.
 
 Each change sends a `harness.commands.changed` event, so a UI can show the new command list at once.
+
+The plugin watches each folder once for each host. All sessions of the harness on that host share the watchers, so many open sessions still use one watcher for each folder. The plugin keeps the skills of each folder, and it reads a folder again only after the folder changes.
+
+If the plugin cannot watch a folder, it logs one warning with the folder and the reason. An example is a Linux system with no free file watchers. Then the plugin reads that folder from disk each time it needs the skills, so changes still show at the next turn.
 
 ## Many skills
 
