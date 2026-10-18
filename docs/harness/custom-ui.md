@@ -271,6 +271,11 @@ Progress:
 
 The view calls your handler after the item is in the state, so the handler can read `view.store.get()` and find the item. `view.on` returns a function that removes the handler.
 
+The view also keeps its state right on its own:
+
+- Each event from `client.events()` or `session.events()` has the `threadId` it belongs to, and a `parentRunId` when a child run sent it. Use them to show the run tree in your own UI.
+- When the server sends `harness.gap`, some events are gone. The view loads the snapshot and the transcript again, so the state is right after the gap. See [Write a client in any language](./protocol#when-events-are-missing).
+
 ## Show a question
 
 A command, a durable tool, or an agent run can ask the user with `step.ask`. An MCP server can ask during a tool call. Each item of `state.questions` has:

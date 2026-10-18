@@ -53,6 +53,8 @@ interface AcceptOptions {
   runId?: string
   /** The overrides, preamble, and ephemeral messages of a turn. */
   turn?: TurnExtras
+  /** A valid W3C `traceparent` of the caller. The input record keeps it. */
+  traceparent?: string
   /**
    * The input that goes to the owner when another host owns the log, if it
    * is not the input that this host logs. It throws to refuse the input.
@@ -564,6 +566,10 @@ export abstract class SessionInputs<
       await check({ input, run: this.runOf(input), ...(wait ? { wait } : {}) })
     }
     const sender = storedPrincipal(principal)
+    const traced =
+      options.traceparent === undefined
+        ? {}
+        : { traceparent: options.traceparent }
     const known = this.knownAdmission(
       inputId,
       inputKey(input, sender.principal),
@@ -582,7 +588,14 @@ export abstract class SessionInputs<
       const records = options.turn ? turnRecords(inputId, options.turn) : []
       await this.writer.append(
         [
-          { type: 'harness.input', inputId, input, at: Date.now(), ...sender },
+          {
+            type: 'harness.input',
+            inputId,
+            input,
+            at: Date.now(),
+            ...sender,
+            ...traced,
+          },
           ...records,
         ],
         { consumes },
@@ -752,6 +765,7 @@ export abstract class SessionInputs<
       this.writer.state.thread.transfers.has(record.transferId)
     const records = isLaneRecord && !isKnown ? [record] : []
     await this.writer.append(records, { consumes: [inputId] })
+    for (const each of records) this.publishTransferred(each)
   }
 
   /**
@@ -765,6 +779,10 @@ export abstract class SessionInputs<
     const user = principal ? { principal } : {}
     const run = record.runId !== undefined ? { runId: record.runId } : {}
     const turn = record.overrides ? loggedExtras(record.overrides) : {}
+    const traced =
+      record.traceparent !== undefined
+        ? { traceparent: record.traceparent }
+        : {}
     const sent = {
       inputId,
       ...user,
@@ -787,6 +805,7 @@ export abstract class SessionInputs<
             ...(input.busy ? { busy: input.busy } : {}),
             ...(input.as ? { as: input.as } : {}),
             ...run,
+            ...traced,
           }),
         )
         return
@@ -794,13 +813,21 @@ export abstract class SessionInputs<
         ignore(session.continue({ ...sent, ...turn }))
         return
       case 'steer':
-        ignore(session.send(input.message, { ...sent, ...turn, mode: 'steer' }))
+        ignore(
+          session.send(input.message, {
+            ...sent,
+            ...turn,
+            ...traced,
+            mode: 'steer',
+          }),
+        )
         return
       case 'followUp':
         ignore(
           this.startTurn(input, {
             ...sent,
             ...turn,
+            ...traced,
             mode: 'followUp',
             ...(input.wake ? { wake: true } : {}),
           }),
@@ -1057,6 +1084,42 @@ export abstract class SessionInputs<
     receipt: Receipt,
   ) {
     operation.resolveReceipt(this.keep(receipt))
+    // Only the owner answers a turn, so the input waits in its queue.
+    if (receipt.status === 'queued') {
+      this.publishQueued(receipt.inputId, 'queue')
+    }
+  }
+
+  /** The input `inputId` waits behind the running turn, or the turns before it. */
+  protected publishQueued(inputId: string, delivery: WaitingInput['delivery']) {
+    this.feed.publish(
+      'session',
+      customEvent(HARNESS_EVENTS.inputQueued, { inputId, delivery }),
+    )
+  }
+
+  /**
+   * Publish `harness.transferred` for the transfer end `record`, after this
+   * host appended it. Other records get no event.
+   */
+  protected publishTransferred(record: LogRecord) {
+    if (record.type !== 'harness.transferred') return
+    const { transferId, from, to } = record
+    if (typeof transferId !== 'string') return
+    const threadOf = (link: unknown) =>
+      isRecord(link) && typeof link.threadId === 'string'
+        ? { threadId: link.threadId }
+        : undefined
+    const source = threadOf(from)
+    const target = threadOf(to)
+    this.feed.publish(
+      'session',
+      customEvent(HARNESS_EVENTS.transferred, {
+        transferId,
+        ...(source ? { from: source } : {}),
+        ...(target ? { to: target } : {}),
+      }),
+    )
   }
 
   protected refuse(operation: OperationImpl<ChatTurnResult>, receipt: Receipt) {
@@ -1151,6 +1214,19 @@ export abstract class SessionInputs<
         ...(operation.agent ? { agent: operation.agent } : {}),
       }),
     )
+    if (this.tracing) {
+      // A turn has its input: its record keeps the `traceparent` of the
+      // caller, also when another host took the input.
+      const inputId = this.inputRecords.operationInputs.get(operation.id)
+      const logged =
+        inputId === undefined
+          ? undefined
+          : this.logWriter?.state.inputs.get(inputId)
+      this.tracing.started(operation, {
+        parentRunId: this.parentRunOf(operation.id),
+        traceparent: logged?.traceparent,
+      })
+    }
   }
 
   protected publishFinished(

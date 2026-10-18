@@ -1,6 +1,5 @@
 import {
   INTERRUPT_BINDING_METADATA_KEY,
-  chat,
   convertSchemaToJsonSchema,
   validateWithStandardSchema,
 } from '@tanstack/ai'
@@ -8,7 +7,6 @@ import { UNOWNED_EPOCH, loadChildTranscript } from '@tanstack/ai-persistence'
 import { checkConfigValue } from '../config'
 import { transcriptText } from '../first-party/session-tools'
 import { LogOwnedElsewhereError } from '../ownership'
-import { callUsage } from '../usage'
 import { isRecord } from '../utils'
 import { jsonSchemaIssues } from '../json-schema'
 import { changedEntry } from '../session-entry'
@@ -150,6 +148,14 @@ export abstract class SessionState<
           backendId === undefined || this.jobs.has(jobId)
             ? []
             : [{ jobId, backendId }],
+        ),
+      stranded: ({ operationId, hostId }) =>
+        this.feed.publish(
+          operationId,
+          customEvent(HARNESS_EVENTS.stranded, {
+            operationId,
+            ...(hostId !== undefined ? { hostId } : {}),
+          }),
         ),
     })
     return values
@@ -394,6 +400,7 @@ export abstract class SessionState<
       messages: [...this.writer.state.messages, ...forked],
       records,
     })
+    for (const record of records) this.publishTransferred(record)
   }
 
   /**
@@ -433,17 +440,23 @@ export abstract class SessionState<
     record: Extract<ThreadRecord, { type: 'harness.transferred' }>,
   ): Promise<void> {
     if (this.transferOf(record.transferId)) return
-    await this.appendOrOffer(record, `transfer:${record.transferId}`)
+    const isAppended = await this.appendOrOffer(
+      record,
+      `transfer:${record.transferId}`,
+    )
+    // An offered record gets its event from the owner, when it appends it.
+    if (isAppended) this.publishTransferred(record)
   }
 
   /**
    * Append `record` to the log of this thread. When another host owns the
    * log, offer it to that host as `inputId`: the owner appends it as it is.
+   * Resolves `true` when this host appended it.
    */
   private async appendOrOffer(record: LogRecord, inputId: string) {
     try {
       await this.writer.append([record])
-      return
+      return true
     } catch (error) {
       if (!(error instanceof LogOwnedElsewhereError)) throw error
     }
@@ -453,13 +466,14 @@ export abstract class SessionState<
         `The input lane has another record with id ${JSON.stringify(inputId)}.`,
       )
     }
+    return false
   }
 
   /**
    * @internal A summary of `messages` for `host.transfer`, by the model of
    * this harness, with the keys of `principal`. The usage of its model calls
-   * goes to the log of this thread at once, so it counts also when the
-   * transfer fails later.
+   * goes to the log of this thread at once, under the source `transfer` and
+   * the label `summary`, so it counts also when the transfer fails later.
    */
   async transferSummary(
     principal: Principal | undefined,
@@ -474,41 +488,40 @@ export abstract class SessionState<
         `A transfer with messages: 'summary' needs a model: harness ${JSON.stringify(this.harness.name)} has no adapter.`,
       )
     }
-    const usage: Array<LogRecord> = []
-    try {
-      const { text } = await chat({
-        adapter: await this.keysOf(principal).adapter(model),
+    // The call is part of no run. The run gives it the keys of `principal`
+    // and the signal of the session, and `count` takes its usage.
+    const run = this.runContext({
+      principal,
+      runId: 'transfer',
+      signal: this.lifetime.signal,
+    })
+    const result = await this.modelChat({
+      adapter: model,
+      options: {
         messages: [
           {
             role: 'user',
             content: `${TRANSFER_SUMMARY_PROMPT}\n\n${transcriptText(messages)}`,
           },
         ],
-        stream: false,
-        middleware: [
-          {
-            name: 'harness:transfer-usage',
-            onUsage: (ctx, counts) => {
-              usage.push({
-                type: 'harness.usage',
-                model: `${ctx.provider}/${ctx.model}`,
-                ...storedPrincipal(principal),
-                usage: callUsage(counts),
-              })
-            },
-          },
-        ],
-      })
-      if (!text.trim()) {
-        throw new Error('The summary model returned no text. Nothing moved.')
-      }
-      return text
-    } finally {
+      },
+      run,
+      source: 'transfer',
+      label: 'summary',
       // A new id for each call: a retry that calls the model again pays again.
-      for (const record of usage) {
-        await this.appendOrOffer(record, createInputId())
-      }
+      count: async (call) => {
+        await this.appendOrOffer(
+          { type: 'harness.usage', ...call },
+          createInputId(),
+        )
+      },
+    })
+    const text =
+      isRecord(result) && typeof result.text === 'string' ? result.text : ''
+    if (!text.trim()) {
+      throw new Error('The summary model returned no text. Nothing moved.')
     }
+    return text
   }
 
   // ===========================
@@ -1269,8 +1282,47 @@ export abstract class SessionState<
     ]
   }
 
+  /**
+   * Publish `harness.wait.settled` after the append that ended the wait
+   * `waitId`. An interrupt id has no wait in the log, so it gets no event.
+   */
+  protected publishWaitSettled(waitId: string) {
+    const ended = this.writer.state.thread.waits.get(waitId)
+    if (!ended || ended.outcome === undefined) return
+    this.feed.publish(
+      ended.wait.runId,
+      customEvent(HARNESS_EVENTS.waitSettled, {
+        waitId,
+        outcome: ended.outcome,
+      }),
+    )
+  }
+
+  /**
+   * The `harness.wait` span of the wait `waitId` that ended. A wait opens
+   * and ends on different hosts, so the span is written now, from the time
+   * in its log record.
+   */
+  private traceWait(waitId: string) {
+    const ended = this.tracing && this.writer.state.thread.waits.get(waitId)
+    if (!ended || ended.outcome === undefined) return
+    const span = this.tracing?.span(
+      'harness.wait',
+      {
+        'harness.run_id': ended.wait.runId,
+        'harness.wait.id': waitId,
+        'harness.wait.kind': ended.wait.kind,
+        'harness.wait.outcome': ended.outcome,
+      },
+      { runId: ended.wait.runId, startTime: ended.at },
+    )
+    span?.end(ended.settledAt)
+  }
+
   /** After the log ended the wait `waitId`: drop its secrets, and move the timer. */
   protected async afterWaitEnd(waitId: string) {
+    this.traceWait(waitId)
+    this.publishWaitSettled(waitId)
     // A `step.ask` of this host that waits for it goes on.
     this.waitEnds.get(waitId)?.()
     this.armSchedules()
@@ -1289,6 +1341,10 @@ export abstract class SessionState<
    * also when no host has the thread open.
    */
   protected async writeWait(...records: Array<WaitRecord>) {
+    // A wait that the log has already (a run again) gets no second event.
+    const fresh = records.filter(
+      ({ wait }) => !this.writer.state.thread.waits.has(wait.waitId),
+    )
     // One append: a run that waits for several opens all or none.
     await this.writer.append(
       records.flatMap((record): Array<ThreadRecord> => {
@@ -1307,9 +1363,25 @@ export abstract class SessionState<
         ]
       }),
     )
+    for (const { wait } of fresh) this.publishWaitOpened(wait)
     if (records.some((record) => record.wait.expiresAt !== undefined)) {
       this.armSchedules()
     }
+  }
+
+  /** Publish `harness.wait.opened`, after the append of the wait. */
+  private publishWaitOpened(wait: Wait) {
+    const { waitId, kind, runId, message, expiresAt } = wait
+    this.feed.publish(
+      runId,
+      customEvent(HARNESS_EVENTS.waitOpened, {
+        waitId,
+        kind,
+        runId,
+        ...(message !== undefined ? { message } : {}),
+        ...(expiresAt !== undefined ? { expiresAt } : {}),
+      }),
+    )
   }
 
   /**
@@ -1368,6 +1440,7 @@ export abstract class SessionState<
       { type: 'harness.wait', wait, at: Date.now() },
       { type: 'harness.handoff', ...kept },
     ])
+    this.publishWaitOpened(wait)
     return kept
   }
 
@@ -1908,6 +1981,7 @@ export abstract class SessionState<
           // A cancel or the close ended it before the log had it.
           this.writer
             .append(this.waitEndRecords(questionId, 'cancelled'))
+            .then(() => this.publishWaitSettled(questionId))
             .catch(() => {})
         },
         (error: unknown) => {

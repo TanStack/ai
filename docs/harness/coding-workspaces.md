@@ -193,7 +193,7 @@ export const movable = workspaceTools({
 ```
 
 - Give the workspace back to continue in the same files.
-- Give `'gone'` when the sandbox is gone. Then each tool call of the thread fails with `The workspace of this thread, /workspace in the docker sandbox <id>, is gone, so the tools cannot work on it.`, and the tools send `tanstack/workspace-tools:stranded`.
+- Give `'gone'` when the sandbox is gone. Then each tool call of the thread fails with `The workspace of this thread, /workspace in the docker sandbox <id>, is gone, so the tools cannot work on it.`, and the tools send `tanstack/workspace-tools:stranded`. The session also sends a `harness.stranded` event, for clients that do not know the plugin. See the [event catalog](./protocol#event-catalog).
 - Without `reattach`, a sandbox counts as `'gone'`.
 
 ### A folder on one server

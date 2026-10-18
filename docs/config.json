@@ -939,7 +939,12 @@
           "label": "Connect clients",
           "to": "harness/connect",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
+        },
+        {
+          "label": "Write a client in any language",
+          "to": "harness/protocol",
+          "addedAt": "2026-10-17"
         },
         {
           "label": "Access and tenants",

@@ -21,6 +21,7 @@ import {
   onUsageOf,
 } from '../feed'
 import { createMediaStore } from '../media'
+import { OperationTracing } from '../observability'
 import { pluginStateDeltas } from '../log-records'
 import { SESSION_PLUGIN_CREDENTIALS, SESSION_PLUGIN_KEYS } from '../plugins'
 import { HARNESS_EVENTS } from '../types'
@@ -505,6 +506,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * answer to the child that waits for it.
    */
   protected readonly harnessChildren = new Map<string, HarnessChild>()
+  /** Spans and `onOperation`. Without host `observability`, none. */
+  protected readonly tracing: OperationTracing | undefined
 
   constructor(deps: SessionDependencies) {
     this.harness = deps.harness as THarness
@@ -550,6 +553,14 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     this.openChild = deps.openChild
     this.childLink = deps.child
     this.rootThreadId = deps.child?.rootThreadId ?? deps.threadId
+    this.tracing = deps.observability
+      ? new OperationTracing({
+          ...deps.observability,
+          threadId: deps.threadId,
+          ...(deps.tenantId !== undefined ? { tenantId: deps.tenantId } : {}),
+          warn: (error) => this.warnSession('harness:observability', error),
+        })
+      : undefined
     // The session gets its log view in `open()`.
     this.messages = notOpenMessages
     const onMissing = (error: AuthRequiredError) =>

@@ -584,4 +584,34 @@ test.describe('harness protocol', () => {
     await reader.cancel()
     expect(statuses).toEqual(['idle', 'running', 'idle'])
   })
+
+  test('an unsupported v gets an error frame with a requestId', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const auth = headers(testId, aimockPort)
+    const threadId = `version-${testId}`
+    await openHarnessThread(request, auth, threadId)
+
+    // The host sends one error frame, then closes the stream.
+    const response = await request.get(
+      `/api/harness-protocol/events?threadId=${threadId}&v=9`,
+      { headers: { ...auth, 'x-request-id': 'e2e-version-9' } },
+    )
+    expect(response.headers()['x-request-id']).toBe('e2e-version-9')
+    const frames = (await response.text())
+      .split('\n')
+      .filter((line) => line.startsWith('data: '))
+      .map((line) => JSON.parse(line.slice('data: '.length)))
+    expect(frames).toEqual([
+      {
+        type: 'harness.error',
+        message: 'Protocol version 9 is not supported.',
+        code: 'unsupported_version',
+        supported: [2],
+        requestId: 'e2e-version-9',
+      },
+    ])
+  })
 })

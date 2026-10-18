@@ -14,6 +14,7 @@ import { refreshFlights } from './auth'
 import { HostPlugins } from './host-plugins'
 import { purgeThreadData } from './purge'
 import { HostOwnership } from './ownership'
+import { withSpan } from './observability'
 import { SessionImpl } from './session/harness-session'
 import { authorizeInput, sessionHandle } from './session/handle'
 import {
@@ -64,6 +65,7 @@ import type {
   SnapshotTiming,
 } from './log'
 import type { OwnershipOptions } from './ownership'
+import type { ObservabilityOptions } from './observability'
 import type { HarnessSession } from './session/index'
 import type { ObservedSession } from './session/observed-session'
 import type {
@@ -176,6 +178,31 @@ export interface HarnessHostOptions<P extends Principal = Principal> {
   ownership?: OwnershipOptions
   /** How the sessions of this host live. Leave it out for the defaults. */
   lifecycle?: HostLifecycleOptions
+  /**
+   * Spans and operation reports. `tracer`: an OpenTelemetry tracer, or any
+   * object with the same `startSpan`. The host writes a `harness.operation`
+   * span for each turn, agent run, and command that it runs, and
+   * `harness.recovery`, `harness.wait`, and `harness.transfer` spans. A
+   * `traceparent` of the caller becomes a link of the span of its turn.
+   * `onOperation`: called when an operation that this host runs starts and
+   * when it settles, with its status, duration, and usage. Without it, the
+   * host writes no spans and reports nothing.
+   *
+   * @example
+   * ```ts
+   * import { trace } from '@opentelemetry/api'
+   *
+   * const host = createHarnessHost({
+   *   observability: {
+   *     tracer: trace.getTracer('my-app'),
+   *     onOperation: ({ phase, operation }) => {
+   *       if (phase === 'settled') metrics.record(operation)
+   *     },
+   *   },
+   * })
+   * ```
+   */
+  observability?: ObservabilityOptions
 }
 
 /** How the sessions of a host live. */
@@ -1626,6 +1653,7 @@ export function createHarnessHost<P extends Principal = Principal>(
     },
     ...(access ? { access: { envKeys: access.envKeys === true } } : {}),
     openChild: openChildIn(ids, harness, tenantId),
+    ...(options.observability ? { observability: options.observability } : {}),
   })
 
   /**
@@ -2846,5 +2874,32 @@ export function createHarnessHost<P extends Principal = Principal>(
     }
     return undefined
   })
+  // Each transfer runs in a `harness.transfer` span.
+  const tracer = options.observability?.tracer
+  if (tracer) {
+    const transfer = host.transfer
+    host.transfer = (transferOptions) =>
+      withSpan(
+        {
+          tracer,
+          name: 'harness.transfer',
+          attributes: {
+            'harness.thread_id': transferOptions.from.threadId,
+            ...(transferOptions.to.threadId !== undefined
+              ? { 'harness.transfer.to_thread_id': transferOptions.to.threadId }
+              : {}),
+            ...(transferOptions.principal?.tenantId !== undefined
+              ? { 'harness.tenant_id': transferOptions.principal.tenantId }
+              : {}),
+          },
+        },
+        async (span) => {
+          const result = await transfer(transferOptions)
+          span.setAttribute('harness.transfer.id', result.transferId)
+          span.setAttribute('harness.transfer.to_thread_id', result.threadId)
+          return result
+        },
+      )
+  }
   return host
 }

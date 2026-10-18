@@ -800,7 +800,10 @@ export interface UsageUpdate {
   model: string
   /** The principal id of the sender, when known. */
   sender?: string
-  /** `plugin:<name>` for a call of `ctx.model.chat`. Turns and agent runs have none. */
+  /**
+   * `plugin:<name>` for a call of `ctx.model.chat`, and `router` for a call
+   * of `model.chat` in `routing.router`. Turns and agent runs have none.
+   */
   source?: string
   /** The `label` of a `ctx.model.chat` call, when it has one. */
   label?: string
@@ -878,11 +881,19 @@ export const HARNESS_EVENTS = {
   inputQueued: 'harness.input.queued',
   /** A host became the owner of the log, at its first append. */
   ownershipChanged: 'harness.ownership.changed',
-  /** The host that holds the workspace of the session is gone. It waits. */
+  /**
+   * The workspace that the log binds the thread to is gone, so the
+   * workspace tools fail. The value has the `operationId` of the run that
+   * tried it, and the `hostId` of a folder on a host.
+   */
   stranded: 'harness.stranded',
   /** The conversation moved to another thread, or came from one. */
   transferred: 'harness.transferred',
-  /** The session waits for a person: an approval, an answer, or a sign-in. */
+  /**
+   * A wait opened in the log: a question, a `step.ask`, a handoff to a
+   * person, or a wait of a background agent run. The interrupts of a turn
+   * come in its `RUN_FINISHED` instead.
+   */
   waitOpened: 'harness.wait.opened',
   /** A wait ended. */
   waitSettled: 'harness.wait.settled',
