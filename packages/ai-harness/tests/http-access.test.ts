@@ -7,6 +7,12 @@ import { isMediaRecord } from '../src/media-entry'
 import { fakeSocket, mockAdapter, readSse, text } from './helpers'
 import type { HostEvent } from '../src'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const BASE = 'http://x/api/harness'
 
 const olga = { id: 'olga', tenantId: 'acme' }
@@ -280,7 +286,7 @@ describe('the socket on a host with access', () => {
     nobody.receive({ type: 'harness.subscribe', threadId: 't1' })
     stranger.receive({ type: 'harness.subscribe', threadId: 't1' })
 
-    await vi.waitFor(() => expect(nobody.closed).toEqual([4401]))
+    await waitFor(() => expect(nobody.closed).toEqual([4401]))
     expect(nobody.sent).toEqual([
       {
         type: 'harness.error',
@@ -289,7 +295,7 @@ describe('the socket on a host with access', () => {
         requestId: expect.any(String),
       },
     ])
-    await vi.waitFor(() => expect(stranger.closed).toEqual([4403]))
+    await waitFor(() => expect(stranger.closed).toEqual([4403]))
     expect(stranger.sent).toEqual([
       {
         type: 'harness.error',
@@ -308,13 +314,13 @@ describe('the socket on a host with access', () => {
     const { socket, sent, closed, receive } = fakeSocket()
     handleHarnessSocket({ host, harness, socket, request: requestAs('bea') })
     receive({ type: 'harness.subscribe', threadId: 't1' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(sent.some((frame) => frame.type === 'harness.hello')).toBe(true),
     )
 
     host.revoke({ threadId: 't1', principal: bea })
 
-    await vi.waitFor(() => expect(closed).toEqual([4403]))
+    await waitFor(() => expect(closed).toEqual([4403]))
     expect(sent.at(-1)).toEqual({
       type: 'harness.error',
       message: 'forbidden',

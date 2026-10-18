@@ -21,6 +21,12 @@ import {
   untilAborted,
 } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const pricer = defineAgent({
   name: 'pricer',
   description: 'Prices a vendor',
@@ -173,7 +179,7 @@ describe('HTTP handler edges', () => {
     expect((await control.json()).status).toBe('accepted')
     const snapshotOf = async () =>
       (await call('snapshot?threadId=user-1-resume')).json()
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect((await snapshotOf()).status).toBe('requires_action'),
     )
     const [interrupt] = (await snapshotOf()).pendingInterrupts
@@ -215,7 +221,7 @@ describe('HTTP handler edges', () => {
         }),
       })
     await prompt('first')
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(
         (await (await call('snapshot?threadId=user-1-from')).json()).status,
       ).toBe('idle'),
@@ -249,7 +255,7 @@ describe('WebSocket edges', () => {
     const { socket, sent, closed, receive } = fakeSocket()
     handleHarnessSocket({ host, harness, socket, request: upgrade })
     receive({ type: 'harness.subscribe', threadId: 'user-2-x' })
-    await vi.waitFor(() => expect(closed).toEqual([4403]))
+    await waitFor(() => expect(closed).toEqual([4403]))
     expect(sent).toEqual([
       {
         type: 'harness.error',
@@ -271,13 +277,13 @@ describe('WebSocket edges', () => {
       request: upgrade,
     })
     first.receive({ type: 'harness.subscribe', threadId: 'user-1-ws2' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(first.sent.some((frame) => frame.type === 'harness.hello')).toBe(
         true,
       ),
     )
     first.receive({ type: 'harness.subscribe', threadId: 'user-1-ws2' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(first.sent.at(-1)).toEqual({
         type: 'harness.error',
         message: 'Already subscribed.',
@@ -286,7 +292,7 @@ describe('WebSocket edges', () => {
       }),
     )
     first.receive('[1, 2]')
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(first.sent.at(-1)).toMatchObject({ type: 'harness.error' }),
     )
     first.receive({
@@ -294,7 +300,7 @@ describe('WebSocket edges', () => {
       requestId: 'p1',
       input: { op: 'prompt', message: 'hi' },
     })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         first.sent.some(
           (frame) =>
@@ -322,7 +328,7 @@ describe('WebSocket edges', () => {
       threadId: 'user-1-ws2',
       from: cursor && 'cursor' in cursor ? cursor.cursor : undefined,
     })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(second.sent.some((frame) => frame.type === 'harness.hello')).toBe(
         true,
       ),
@@ -350,7 +356,7 @@ describe('WebSocket edges', () => {
       requestId: 'p1',
       input: { op: 'prompt', message: 'hi' },
     })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         sent.find((frame) => frame.type === 'harness.receipt'),
       ).toMatchObject({ requestId: 'p1', status: 'accepted' }),
@@ -461,7 +467,7 @@ describe('protocol parsing and inputs', () => {
       }),
     ).toHaveProperty('status')
     release.open()
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
 
     expect(
       await applyInput({
@@ -637,7 +643,7 @@ describe('an operation that waits for cancel', () => {
       principal: user,
     })
     const operation = session.send('wait')
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('running'))
+    await waitFor(() => expect(session.snapshot().status).toBe('running'))
     await applyInput({
       harness,
       session,
