@@ -2,7 +2,9 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { createCapability } from '@tanstack/ai'
 import {
   BackgroundJobs,
+  SessionScrub,
   SessionSignal,
+  ThreadEnds,
   WorkspaceLog,
   definePlugin,
 } from '../../plugins'
@@ -161,6 +163,8 @@ interface SessionAccess {
   emit?: <T>(event: PluginEvent<T>, value: T) => void
   /** The bindings, the pin, and the jobs in the session log. */
   log?: WorkspaceLogApi
+  /** Takes the secrets of the session out of a text, for a `bash` spill. */
+  scrub?: (text: string) => string
 }
 
 /** A Windows network path (`\\server\share`). Not `\\?\` or `\\.\`. */
@@ -224,6 +228,13 @@ export interface ThreadWorkspaces {
   of: (run: RunContext) => Promise<BoundWorkspace | undefined>
   /** The workspace of the thread `threadId`, when it is bound already. */
   bound: (threadId: string) => BoundWorkspace | undefined
+  /**
+   * The workspace of the thread of `run` when the thread ends: the one that
+   * is open, or the one that the log binds, opened again with `bind` or
+   * `reattach`. `undefined` when the thread has none, or it is pinned to
+   * another host or gone. The end handler of `workspaceTools()` closes it.
+   */
+  ending: (run: RunContext) => Promise<BoundWorkspace | undefined>
 }
 
 /** @internal See {@link ThreadWorkspaces}. */
@@ -516,6 +527,7 @@ function bindTools(
         ((text, principal) =>
           note(text, { wake: true, ...(principal ? { principal } : {}) })),
       spillDir: options.spillDir,
+      ...(session.scrub ? { scrub: session.scrub } : {}),
       signal: session.signal,
       jobs: session.jobs,
       emit: session.emit,
@@ -668,8 +680,7 @@ function threadTools(
   // thread, and the next host reattaches its workspace. So the close is
   // `'moved'`: a sandbox stays, and the session signal stops the jobs of
   // this host (see `bashTools`).
-  // ponytail: no close here is `'closed'`. The thread purge does not reach
-  // the plugins, so it cannot destroy an owned sandbox yet.
+  // Only the end of the thread (`end`, from the thread purge) is `'closed'`.
   session.signal?.addEventListener(
     'abort',
     () => {
@@ -761,6 +772,39 @@ function threadTools(
     },
     bash: { commands: bashResources },
   }
+  /** See `ThreadWorkspaces.ending`. */
+  const ending = async (run: RunContext) => {
+    const key = keyOf(run)
+    // A bind that runs now ends first. A failed one leaves no workspace.
+    await bindings.get(key)?.catch(() => undefined)
+    const known = opened.get(key)
+    if (known) return known
+    const { log } = session
+    const binding = log?.bound(run.threadId)
+    if (!log || !binding) return undefined
+    const hostId = log.hostId()
+    const isHere =
+      binding.kind === 'host' &&
+      (binding.hostId === undefined || binding.hostId === hostId)
+    const found = isHere
+      ? await binder.bind({ run })
+      : await (binder.reattach ?? reattachNone)({ run, binding })
+    if (found === 'pinned' || found === 'gone') return undefined
+    workspaces.add(found)
+    opened.set(key, found)
+    return found
+  }
+  /** The thread of `run` ended: close its workspace as `'closed'`. */
+  const end = async (run: RunContext) => {
+    const workspace = await ending(run)
+    if (!workspace) return
+    const key = keyOf(run)
+    workspaces.delete(workspace)
+    opened.delete(key)
+    bound.delete(key)
+    bindings.delete(key)
+    await workspace.close?.({ reason: 'closed' })
+  }
   const threads: ThreadWorkspaces = {
     perThread: true,
     of: async (run) => {
@@ -769,8 +813,9 @@ function threadTools(
     },
     bound: (threadId) =>
       [...opened].find(([key]) => key.endsWith(`\0${threadId}`))?.[1],
+    ending,
   }
-  return { tools, prompt, bind, resources, threads }
+  return { tools, prompt, bind, resources, threads, end }
 }
 
 /**
@@ -809,6 +854,7 @@ export function createWorkspaceTools(
     prompt: source.prompt,
     bind: source.bind,
     threads: source.threads,
+    end: source.end,
   }
 }
 
@@ -861,6 +907,7 @@ function fixedTools(
     perThread: false,
     of: async () => undefined,
     bound: () => undefined,
+    ending: async () => undefined,
   }
   return {
     tools,
@@ -869,6 +916,9 @@ function fixedTools(
     // The paths and the real paths, from the working folder.
     resources: own.resources,
     threads,
+    // The folder and the backend belong to the caller: the end of a thread
+    // closes nothing.
+    end: async (_run: RunContext) => {},
   }
 }
 
@@ -926,11 +976,10 @@ export function workspaceTools(options: WorkspaceToolsOptions) {
     name: 'tanstack/workspace-tools',
     optionalRequires: [PermissionDecisionCapability],
     provides: [ThreadWorkspace],
-    setup: (ctx) => {
+    setup: async (ctx) => {
       const hooks = ctx.collect(WorkspaceHooks)
-      const { tools, prompt, resources, bind, threads } = createWorkspaceTools(
-        options,
-        {
+      const { tools, prompt, resources, bind, threads, end } =
+        createWorkspaceTools(options, {
           access: {
             mode: () => ctx.config.get('mode'),
             // The working folder is the thread's `cwd` setting, read at each call.
@@ -955,12 +1004,21 @@ export function workspaceTools(options: WorkspaceToolsOptions) {
           jobs: ctx.getOptional(BackgroundJobs),
           // The binding of each thread, and the pin, go to the session log.
           log: ctx.getOptional(WorkspaceLog),
+          // A `bash` spill file gets no secret that the tool result hides.
+          scrub: ctx.getOptional(SessionScrub),
           // The events of the background jobs go to the clients.
           emit: ctx.emit,
-        },
-      )
+        })
       // `snapshots()` and `formatter()` read the workspace of each thread.
       ctx.provide(ThreadWorkspace, threads)
+      // The thread purge destroys the workspace that `bind` gave the thread.
+      const ends = ctx.getOptional(ThreadEnds)
+      if (ends) {
+        await ctx.resources.acquire(
+          () => ends.add(({ run }) => end(run)),
+          (remove) => remove(),
+        )
+      }
       return {
         tools,
         prompts: [(turn) => prompt(turn.run)],

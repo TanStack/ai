@@ -628,8 +628,8 @@ export function sessionHandle<THarness extends AnyHarness>({
       unrevert: () => acting('send', (target) => target.unrevert()),
       background: (toolCallId?: string) =>
         acting('send', (target) => target.background(toolCallId)),
-      append: (records: Parameters<Session<THarness>['append']>[0]) =>
-        acting('send', (target) => target.append(records)),
+      append: (options: Parameters<Session<THarness>['append']>[0]) =>
+        acting('send', (target) => target.append(as(options))),
       putMedia: (upload: Parameters<Session<THarness>['putMedia']>[0]) =>
         acting('send', (target) => target.putMedia(upload)),
       updateEntry: (update: Parameters<Session<THarness>['updateEntry']>[0]) =>

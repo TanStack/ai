@@ -65,6 +65,8 @@ export interface HarnessSession<
   | 'isIdle'
   | 'isClosing'
   | 'openWait'
+  | 'openToEnd'
+  | 'endThread'
   // A handle closes itself, not the session.
   | 'close'
 > {
@@ -168,6 +170,41 @@ export class SessionImpl<
       await this.close({ recoverable: true }).catch(() => {})
       throw error
     }
+  }
+
+  /**
+   * @internal For `host.sessions.delete`: open the log and the session
+   * plugins, and nothing else. No recovery, no index entry, no offers, and
+   * no schedules, so no work of the thread runs again before the purge. Call
+   * `endThread`, then close it.
+   */
+  async openToEnd(): Promise<void> {
+    await this.openLog()
+    await this.mountSessionPlugins()
+    this.loadSettings()
+  }
+
+  /**
+   * @internal The thread ends for good: each `ThreadEnds` handler of the
+   * plugins runs, the newest first, so a plugin that needs the workspace of
+   * an older plugin runs before that workspace closes. Every handler runs.
+   * Then the first error, if any, is thrown.
+   */
+  async endThread(): Promise<void> {
+    const run = this.runContext({
+      principal: undefined,
+      runId: `end:${this.threadId}`,
+      signal: this.lifetime.signal,
+    })
+    const errors: Array<unknown> = []
+    for (const handler of [...this.threadEnds].reverse()) {
+      await handler({
+        tenantId: this.tenantId,
+        threadId: this.threadId,
+        run,
+      }).catch((error: unknown) => errors.push(error))
+    }
+    if (errors.length > 0) throw errors[0]
   }
 
   /** Also waits for the last append of the log, so a reopen reads it. */

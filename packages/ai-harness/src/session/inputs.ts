@@ -240,14 +240,42 @@ export abstract class SessionInputs<
    * With `project` on the host, a record can change the model context. The
    * running turn sees the change at its next model call.
    *
+   * With `inputId`, the append is an input, as a `send` is: a second append
+   * with the same id is a duplicate and writes nothing, so a client can
+   * send it again after a lost answer. `principal` is who appends. Default:
+   * the principal that opened the session. The receipt has the input id.
+   *
    * @example
    * ```ts
-   * await session.append([{ type: 'app.signal', text: 'The build failed.' }])
+   * await session.append({
+   *   records: [{ type: 'app.signal', text: 'The build failed.' }],
+   * })
    * ```
    */
-  async append(records: ReadonlyArray<LogRecord>): Promise<void> {
+  async append({
+    records,
+    inputId,
+    principal,
+  }: {
+    records: ReadonlyArray<LogRecord>
+    inputId?: string
+    principal?: Principal
+  }): Promise<Receipt> {
     checkHostRecords(records)
-    await this.writer.append(records)
+    if (inputId === undefined) {
+      await this.writer.append(records)
+      return { inputId: createInputId(), status: 'accepted' }
+    }
+    const admission = await this.accept(
+      inputId,
+      { op: 'append', records: [...records] },
+      principal ?? this.principal,
+    )
+    if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+    // In the append of the applied record: a crash keeps both or neither.
+    await this.applied(inputId, 'session', records)
+    // Kept, so a duplicate gets the same receipt.
+    return this.keep({ inputId, status: 'accepted' })
   }
 
   /**
@@ -782,9 +810,12 @@ export abstract class SessionInputs<
     // `host.transfer` on a host that does not own the log offers records
     // here: the source end of the transfer, and the usage of its summary.
     // They go in the log as they are. A transfer that the log has already
-    // only drops its offer.
+    // only drops its offer. An unshare or a revoke offers the end of the
+    // schedules of the user, so they go from the list at once.
     const isLaneRecord =
-      record.type === 'harness.usage' || record.type === 'harness.transferred'
+      record.type === 'harness.usage' ||
+      record.type === 'harness.transferred' ||
+      record.type === 'harness.schedule.done'
     const isKnown =
       record.type === 'harness.transferred' &&
       typeof record.transferId === 'string' &&
@@ -949,10 +980,13 @@ export abstract class SessionInputs<
           }),
         )
         return
+      case 'append':
+        // Only an append with an input id is an input that a host offers.
+        ignore(session.append({ records: input.records, inputId, ...user }))
+        return
       case 'revert':
       case 'unrevert':
       case 'background':
-      case 'append':
         // These run only where they are called. No host offers them.
         return
     }

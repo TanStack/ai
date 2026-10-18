@@ -1498,7 +1498,13 @@ export abstract class SessionAgents<
     try {
       await this.runAgentOnce(operation, chain, start)
     } catch (error) {
-      // A store write threw. The run still ends.
+      // A store write threw. The run still ends. A run that had no receipt
+      // yet gets a refusal, so a reader of it does not wait.
+      operation.resolveReceipt({
+        inputId: start.inputId,
+        status: 'rejected',
+        reason: error instanceof Error ? error.message : String(error),
+      })
       this.failOperation(operation, error)
     } finally {
       // After a log failure, another host owns the thread. A closing session
@@ -1613,6 +1619,11 @@ export abstract class SessionAgents<
         // An offered run runs as this operation on the owner.
         { runId: operation.id },
       )
+      // As a turn does: a refused, offered, or known input gets its receipt
+      // now. A new one gets it below, when the run starts or waits.
+      if (admission !== 'new') {
+        operation.resolveReceipt(this.duplicateReceipt(inputId, admission))
+      }
       switch (admission) {
         case 'new':
           break
@@ -1642,6 +1653,13 @@ export abstract class SessionAgents<
       // A top-level start waits for a slot of `maxConcurrent`.
       const isTopLevel =
         chain.parentRunId === undefined && chain.turnRunId === undefined
+      if (isTopLevel && !this.hasSlot()) {
+        operation.resolveReceipt({
+          inputId,
+          status: 'queued',
+          operationId: operation.id,
+        })
+      }
       if (isTopLevel && !(await this.takeSlot(operation, chain, inputId))) {
         return
       }
@@ -1651,7 +1669,7 @@ export abstract class SessionAgents<
       typeof target === 'string' ? this.threadAgent(target) : target
     if (!agent) {
       this.releaseStart(chain)
-      this.reject(inputId, 'unknown_agent')
+      operation.resolveReceipt(this.reject(inputId, 'unknown_agent'))
       operation.fail('failed', new Error(`Unknown agent: ${name}`))
       return
     }
@@ -1666,7 +1684,7 @@ export abstract class SessionAgents<
           .map((issue) => issue.message)
           .join(', ')}`
         this.releaseStart(chain)
-        this.reject(inputId, 'invalid_input')
+        operation.resolveReceipt(this.reject(inputId, 'invalid_input'))
         operation.fail('failed', new Error(reason))
         return
       }
@@ -1674,6 +1692,12 @@ export abstract class SessionAgents<
     }
 
     operation.setStatus('running')
+    // A run that waited for a slot has its receipt already.
+    operation.resolveReceipt({
+      inputId,
+      status: 'accepted',
+      operationId: operation.id,
+    })
     // A run that goes on after its waits applied its input already. The
     // node of the run goes in the same append.
     if (!answers) {

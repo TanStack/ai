@@ -855,6 +855,44 @@ export interface WorkspaceLogApi {
   stranded: (input: { operationId: string; hostId?: string }) => void
 }
 
+/**
+ * @internal Tells first-party plugins that a thread ended for good:
+ * `host.sessions.delete` purges it. A session close is not the end of a
+ * thread (the next host reattaches it), so this is the only place to free
+ * what lives as long as the thread, like an owned sandbox or the shadow
+ * repository of the snapshots. A plugin adds its handler in its setup, also
+ * in the `session` part of a host plugin. The session provides it. The
+ * package does not export it.
+ */
+export const ThreadEnds = createCapability<ThreadEndsApi>()(
+  'tanstack/thread-ends',
+)
+
+/** @internal See {@link ThreadEnds}. */
+export interface ThreadEndsApi {
+  /** Add `handler`. Gives a function that removes it. */
+  add: (handler: ThreadEndHandler) => () => void
+}
+
+/**
+ * @internal A handler of {@link ThreadEnds}. `run` is a run of the purge in
+ * the thread, for a `reattach` that needs one.
+ */
+export type ThreadEndHandler = (thread: {
+  tenantId: string | undefined
+  threadId: string
+  run: RunContext
+}) => Promise<void>
+
+/**
+ * @internal Takes the secrets of the session out of `text`, as the session
+ * does for tool results. A plugin that writes tool output to a file uses it.
+ * The session provides it. The package does not export it.
+ */
+export const SessionScrub = createCapability<(text: string) => string>()(
+  'tanstack/session-scrub',
+)
+
 /** Capability values provided by plugins, keyed by handle. */
 export class CapabilityValues {
   readonly context = { capabilities: new CapabilityRegistry() }

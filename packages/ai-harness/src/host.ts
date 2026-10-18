@@ -1439,6 +1439,12 @@ export function createHarnessHost<P extends Principal = Principal>(
     return loaded
   }
   const sessions = new Map<string, Promise<SessionImpl>>()
+  /**
+   * The last harness definition that this host opened under each name. A
+   * thread purge reads the harness name in the index entry, and mounts the
+   * plugins of that definition to end the thread (see `endThread`).
+   */
+  const harnessesByName = new Map<string, AnyHarness>()
   /** The plugins with `lifetime: 'host'`, shared by the sessions of a harness. */
   const hostPlugins = new HostPlugins()
   /** The sessions of `sessions` that finished opening, by key. */
@@ -1691,6 +1697,7 @@ export function createHarnessHost<P extends Principal = Principal>(
     ): OpenChildSession =>
     async (harness, { threadId, principal, child }) => {
       if (isClosed) throw hostClosed()
+      harnessesByName.set(harness.name, harness)
       const created: SessionImpl = new SessionImpl({
         ...sessionDeps(ids, rootHarness, tenantId),
         harness,
@@ -1729,6 +1736,7 @@ export function createHarnessHost<P extends Principal = Principal>(
     tenantId: string | undefined,
   ) => {
     if (isClosed) return Promise.reject(hostClosed())
+    harnessesByName.set(harness.name, harness)
     const key = sessionKey(harness.name, tenantId, threadId)
     const of = { tenantId, threadId }
     touch(key)
@@ -2234,9 +2242,51 @@ export function createHarnessHost<P extends Principal = Principal>(
   }
 
   /**
+   * Tell the plugins of a thread that it ends for good (`ThreadEnds`), so
+   * they free what lives as long as the thread: an owned sandbox, a shadow
+   * repository. The sessions of the thread are closed already, so no turn
+   * runs. A short session with only the log and the session plugins runs
+   * the handlers, and closes again. It needs the harness definition that
+   * the index entry names, from an open on this host. Without it, or with
+   * no entry, there is nothing to run. A failed handler only warns: the
+   * purge of the data goes on.
+   *
+   * ponytail: a host that never opened the harness of the thread cannot
+   * reach its plugins. Open it once on the host that deletes, if that
+   * matters.
+   */
+  const endThread = async (tenantId: string | undefined, threadId: string) => {
+    const name = (await index.get({ tenantId, threadId }))?.harness
+    const harness = name === undefined ? undefined : harnessesByName.get(name)
+    if (!harness) return
+    const session = new SessionImpl({
+      ...sessionDeps(
+        { logId: logIdOf({ tenantId, logId: threadId }), rootThread: threadId },
+        harness,
+        tenantId,
+      ),
+      harness,
+      threadId,
+      onEvent: () => {},
+      onClose: () => {},
+    })
+    try {
+      await session.openToEnd()
+      await session.endThread()
+    } catch (error) {
+      console.warn(
+        `[@tanstack/ai-harness] A plugin did not end thread ${JSON.stringify(threadId)}: ${String(error)}`,
+      )
+    } finally {
+      // As on a crash: the log gets no write of this short session.
+      await session.close({ recoverable: true }).catch(() => {})
+    }
+  }
+
+  /**
    * `host.sessions.delete` after its check: close the open sessions of the
-   * thread, purge its children depth first, then delete its data and its
-   * entry. `seen` stops a loop of parent ids.
+   * thread, end it in its plugins, purge its children depth first, then
+   * delete its data and its entry. `seen` stops a loop of parent ids.
    */
   const purge = async (
     tenantId: string | undefined,
@@ -2252,6 +2302,7 @@ export function createHarnessHost<P extends Principal = Principal>(
       const session = await sessions.get(key)?.catch(() => undefined)
       if (session) await closeShared(key, session)
     }
+    await endThread(tenantId, threadId)
     const children = await childrenOf(tenantId, threadId)
     for (const child of children) await purge(tenantId, child, seen)
     const storeId = logIdOf({ tenantId, logId: threadId })

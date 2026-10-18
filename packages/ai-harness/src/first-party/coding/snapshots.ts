@@ -1,7 +1,12 @@
 import { createHash } from 'node:crypto'
 import { LogRecordsCapability, getLogRecords } from '@tanstack/ai'
 import { defineCommand } from '../../commands'
-import { RevertFiles, RevertStanding, definePlugin } from '../../plugins'
+import {
+  RevertFiles,
+  RevertStanding,
+  ThreadEnds,
+  definePlugin,
+} from '../../plugins'
 import { isRecord } from '../../utils'
 import { WorkspaceHooks } from '../workspace-hooks'
 import { hostBackend, pathsOf, runOf } from './backend'
@@ -575,6 +580,32 @@ export function snapshots(options: SnapshotsOptions) {
           throw new Error('the workspace of this thread is not bound yet.')
         }
         return placeOf(workspace, workspace.root)
+      }
+      // The thread purge removes the shadow repository of the thread. With
+      // a workspace for each thread, the repository is in that workspace.
+      // This runs before `workspaceTools()` closes it.
+      const ends = ctx.getOptional(ThreadEnds)
+      if (ends) {
+        await ctx.resources.acquire(
+          () =>
+            ends.add(async ({ tenantId, threadId, run }) => {
+              const ended = { tenantId, threadId }
+              const { dataDir } = options
+              if (!perThread) {
+                if (options.root === undefined) return
+                const { root, backend } = options
+                await purgeSnapshots({ root, dataDir, backend }, ended)
+                return
+              }
+              const workspace = await threads?.ending(run)
+              if (!workspace) return
+              await purgeSnapshots(
+                { root: workspace.root, dataDir, backend: workspace },
+                ended,
+              )
+            }),
+          (remove) => remove(),
+        )
       }
       const reverted = ctx.getOptional(RevertStanding)
       const initial: SnapshotState = { steps: [] }

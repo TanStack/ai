@@ -219,6 +219,12 @@ export function bashTools(
      * workspace, or absolute.
      */
     spillDir?: string
+    /**
+     * Takes the secrets of the session out of the output that `spillDir`
+     * gets. The model gets tool results that the session scrubs, so the file
+     * must not keep what the result does not.
+     */
+    scrub?: (text: string) => string
     /** Kills the background jobs that still run, for example on plugin cleanup. */
     signal?: AbortSignal
     /**
@@ -243,6 +249,7 @@ export function bashTools(
     timeoutMs: defaultTimeoutMs = 120_000,
     note,
     spillDir,
+    scrub = (text: string) => text,
     signal,
     maxJobs = DEFAULT_MAX_JOBS,
   } = options
@@ -257,7 +264,7 @@ export function bashTools(
     const { join, resolve } = pathsOf(env.backend)
     const path = join(resolve(env.root, dir), `bash-${crypto.randomUUID()}.txt`)
     try {
-      await env.backend.writeFile(path, output)
+      await env.backend.writeFile(path, scrub(output))
       return `[Full output saved to ${env.shown(path)}.]`
     } catch (error) {
       // The cut output is still useful, so a failed save does not fail the call.

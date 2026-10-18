@@ -457,11 +457,16 @@ export async function applyInput({
         (record) => types.includes(record.type) && !('thread' in record),
       )
       if (!isExposed) return notExposed
-      const inputId = input.inputId ?? createInputId()
+      // The client's id makes a resent append a duplicate that writes
+      // nothing.
       try {
-        await session.append(input.records)
-        return { inputId, status: 'accepted' }
+        return await session.append({
+          records: input.records,
+          ...(input.inputId !== undefined ? { inputId: input.inputId } : {}),
+          ...user,
+        })
       } catch (error) {
+        const inputId = input.inputId ?? createInputId()
         return { inputId, status: 'rejected', reason: errorText(error) }
       }
     }

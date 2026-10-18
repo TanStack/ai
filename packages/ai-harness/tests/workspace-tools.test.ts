@@ -1262,6 +1262,49 @@ describe('a workspace for each thread', () => {
     expect(closed).toEqual(['moved'])
   })
 
+  it('destroys the sandbox of a thread that host.sessions.delete purges, also when no session has the thread open', async () => {
+    const { workspace } = threadWorkspaces()
+    const closed: Array<string> = []
+    const reattached: Array<string> = []
+    const sandbox = async (input: Parameters<WorkspaceBinder['bind']>[0]) => ({
+      ...(await workspace.bind(input)),
+      binding: () => ({
+        kind: 'sandbox' as const,
+        provider: 'test',
+        sandboxId: `sb-${input.run.threadId}`,
+      }),
+      close: async ({ reason }: { reason: 'closed' | 'moved' }) => {
+        closed.push(reason)
+      },
+    })
+    const owned: WorkspaceBinder = {
+      bind: sandbox,
+      reattach: async ({ run, binding }) => {
+        reattached.push(binding.kind === 'sandbox' ? binding.sandboxId : '')
+        return sandbox({ run })
+      },
+    }
+    const { adapter } = mockAdapter([
+      () => toolCall('read_file', { path: 'mine.txt' }, 'c0'),
+      () => text('done'),
+    ])
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      lifecycle: { idleCloseMs: 0 },
+    })
+    const session = await openThread(host, owned, adapter, 'a')
+    await session.send('read')
+    await session.close()
+    await waitFor(() => expect(closed).toEqual(['moved']))
+
+    await host.sessions.delete({ threadId: 'a' })
+
+    // The purge reattached the sandbox from the log, then destroyed it.
+    expect(reattached).toEqual(['sb-a'])
+    expect(closed).toEqual(['moved', 'closed'])
+    await host.close()
+  })
+
   it('keeps a thread in its root: no path through .. or a link reaches another root', async () => {
     const { workspace } = threadWorkspaces()
     const { adapter, calls } = mockAdapter([

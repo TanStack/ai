@@ -23,7 +23,9 @@ import {
   RevertFiles,
   RevertStanding,
   SessionMetadata,
+  SessionScrub,
   SessionSignal,
+  ThreadEnds,
   WorkspaceLog,
 } from '../plugins'
 import { HARNESS_EVENTS } from '../types'
@@ -59,6 +61,7 @@ import type {
   SessionIndexEntry,
 } from '@tanstack/ai-persistence'
 import type { RevertState } from '../log'
+import type { ThreadEndHandler } from '../plugins'
 import type {
   HandoffRecord,
   RecordPrincipal,
@@ -122,6 +125,8 @@ export abstract class SessionState<
   protected readonly waitEnds = new Map<string, () => void>()
   /** The secret answers to `step.ask` waits that this host kept, by wait id. */
   protected readonly keptAnswers = new Map<string, unknown>()
+  /** The handlers that plugins added to `ThreadEnds`, oldest first. */
+  protected readonly threadEnds = new Set<ThreadEndHandler>()
 
   /** The stores that first-party plugins read as capabilities. */
   protected storeCapabilities() {
@@ -130,6 +135,13 @@ export abstract class SessionState<
     if (metadata) values.provide(SessionMetadata, metadata)
     values.provide(RevertStanding, () => this.reverted !== undefined)
     values.provide(SessionSignal, this.lifetime.signal)
+    values.provide(SessionScrub, (text) => this.scrub(text))
+    values.provide(ThreadEnds, {
+      add: (handler) => {
+        this.threadEnds.add(handler)
+        return () => this.threadEnds.delete(handler)
+      },
+    })
     values.provide(BackgroundJobs, {
       started: (job) => this.logJob(job, false),
       ended: (job) => this.logJob(job, true),

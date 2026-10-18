@@ -78,7 +78,7 @@ function accessHost() {
     host.open(harness, { threadId: THREAD, principal })
   const share = (userId: string, role: 'member' | 'viewer') =>
     host.sessions.share({ threadId: THREAD, userId, role, principal: olga })
-  return { host, harness, open, share }
+  return { host, harness, open, share, log: persistence.stores.log }
 }
 
 describe('who acts on an agent run', () => {
@@ -284,5 +284,36 @@ describe('a user that loses access', () => {
     expect(JSON.stringify(main.calls)).not.toContain('daily summary')
     await hostA.close()
     await hostB.close()
+  })
+
+  it('has their schedules removed at once by an unshare, not at their time', async () => {
+    const { host, open, share, log } = accessHost()
+    const owner = await open(olga)
+    await share('bea', 'member')
+    const member = await open(bea)
+    // A run of the owner keeps the log owned, so the owner applies offers.
+    const run = owner.agents.slow.start()
+    await running(run)
+    const { scheduleId } = await member.schedule({
+      at: Date.now() + 3_600_000,
+      input: { op: 'prompt', message: 'Write the daily summary.' },
+    })
+    const schedules = async () =>
+      (await storedThreadState(log, { threadId: THREAD, tenantId: 'acme' }))
+        .schedules
+    expect((await schedules()).has(scheduleId)).toBe(true)
+
+    await host.sessions.unshare({
+      threadId: THREAD,
+      userId: 'bea',
+      principal: olga,
+    })
+
+    await waitFor(async () =>
+      expect((await schedules()).has(scheduleId)).toBe(false),
+    )
+    await run.cancel()
+    await expect(run).rejects.toThrow()
+    await host.close()
   })
 })

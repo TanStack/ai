@@ -413,7 +413,9 @@ export abstract class SessionRequests<
    *
    * @example
    * ```ts
-   * await session.append([{ type: 'app.signal', text: 'The build failed.' }])
+   * await session.append({
+   *   records: [{ type: 'app.signal', text: 'The build failed.' }],
+   * })
    * await session.continue({ inputId: 'after-signal' })
    * ```
    */

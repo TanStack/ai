@@ -99,9 +99,9 @@ describe('ownership of a log by two hosts', () => {
       inputId: 'in-b',
       status: 'queued',
     })
-    await expect(b.session.append([{ type: 'app.from-b' }])).rejects.toThrow(
-      'Another host owns the log',
-    )
+    await expect(
+      b.session.append({ records: [{ type: 'app.from-b' }] }),
+    ).rejects.toThrow('Another host owns the log')
 
     // B still reads: it gets the answers of A.
     release.open()

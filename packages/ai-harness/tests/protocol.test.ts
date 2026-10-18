@@ -7,6 +7,7 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
+  logIdOf,
 } from '../src'
 import {
   applyInput,
@@ -279,6 +280,33 @@ describe('HTTP handler', () => {
     await settled(await applyInput({ harness, session, input: agent }))
 
     expect(runs).toEqual({ command: 1, agent: 1 })
+    await host.close()
+  })
+
+  it('writes the records of a resent append with the same inputId once', async () => {
+    const persistence = memoryPersistence()
+    const harness = defineHarness({
+      name: 'test/protocol-append',
+      adapter: mockAdapter([]).adapter,
+      expose: { records: ['app.signal'] },
+    })
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(harness, { threadId: 'append' })
+    const input = {
+      op: 'append' as const,
+      records: [{ type: 'app.signal', text: 'The build failed.' }],
+      inputId: 'ap-1',
+    }
+
+    const first = await applyInput({ harness, session, input })
+    const again = await applyInput({ harness, session, input })
+
+    expect(first).toEqual({ inputId: 'ap-1', status: 'accepted' })
+    expect(again).toEqual(first)
+    const signals = (
+      await persistence.stores.log.read({ logId: logIdOf({ logId: 'append' }) })
+    ).filter(({ record }) => record.type === 'app.signal')
+    expect(signals).toHaveLength(1)
     await host.close()
   })
 

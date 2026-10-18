@@ -236,9 +236,9 @@ describe('durable host stores', () => {
     const durable = await createHarnessHost({
       persistence: durablePersistence(),
     }).open(harness, { threadId: THREAD })
-    await expect(durable.append([{ type: 'harness.event' }])).rejects.toThrow(
-      'reserved for the harness',
-    )
+    await expect(
+      durable.append({ records: [{ type: 'harness.event' }] }),
+    ).rejects.toThrow('reserved for the harness')
   })
 })
 
@@ -340,7 +340,7 @@ describe('durable session log', () => {
       expect(JSON.stringify(batches)).toContain('TEXT_MESSAGE_START'),
     )
 
-    await session.append([{ type: 'app.note', n: 1 }])
+    await session.append({ records: [{ type: 'app.note', n: 1 }] })
 
     expect(batches.at(-1)).toEqual([
       expect.objectContaining({
@@ -361,9 +361,9 @@ describe('durable session log', () => {
       name: 'check',
       description: 'Check the build',
     }).server(async () => {
-      await session?.append([
-        { type: 'app.signal', text: '[signal] tests failed' },
-      ])
+      await session?.append({
+        records: [{ type: 'app.signal', text: '[signal] tests failed' }],
+      })
       await session?.send('more', { busy: 'steer' }).receipt
       return 'checked'
     })
@@ -405,9 +405,9 @@ describe('durable session log', () => {
       name: 'check',
       description: 'Check the build',
     }).server(async () => {
-      await session?.append([
-        { type: 'app.signal', text: '[signal] tests failed' },
-      ])
+      await session?.append({
+        records: [{ type: 'app.signal', text: '[signal] tests failed' }],
+      })
       return 'checked'
     })
     const { adapter, calls } = mockAdapter([
@@ -430,9 +430,9 @@ describe('durable session log', () => {
 
     await session.send('one')
     // Between turns: the next turn starts with it.
-    await session.append([
-      { type: 'app.signal', text: '[signal] build failed' },
-    ])
+    await session.append({
+      records: [{ type: 'app.signal', text: '[signal] build failed' }],
+    })
     await session.send('two')
 
     expect(messageTexts(calls[1])).toEqual([
@@ -486,9 +486,11 @@ describe('durable session log', () => {
     await session.send('q1')
     await session.send('q2')
 
-    await session.append([
-      { type: 'app.compact', summary: 'Earlier: q1 and a1.', firstKept: 2 },
-    ])
+    await session.append({
+      records: [
+        { type: 'app.compact', summary: 'Earlier: q1 and a1.', firstKept: 2 },
+      ],
+    })
     await session.send('q3')
 
     expect(messageTexts(calls[2])).toEqual([

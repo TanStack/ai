@@ -623,6 +623,27 @@ describe.skipIf(!hasGit)('snapshots of many runs', () => {
       purgeSnapshots({ root, dataDir }, { threadId: THREAD }),
     ).resolves.toBeUndefined()
   })
+
+  it('host.sessions.delete removes the repository of that thread, also when no session has it open', async () => {
+    const first = await open({ replies: [() => text('Hi.')] })
+    await first.session.close()
+    const second = await first.host.open(
+      defineHarness({
+        name: 'test/snapshots',
+        adapter: mockAdapter([]).adapter,
+        plugins: () => [snapshots({ root, dataDir })],
+      }),
+      { threadId: 't2' },
+    )
+    await second.close()
+    expect(await readdir(dataDir)).toHaveLength(2)
+
+    await first.host.sessions.delete({ threadId: THREAD })
+
+    // The repository of the other thread stays.
+    expect(await readdir(dataDir)).toHaveLength(1)
+    await first.host.close()
+  })
 })
 
 /** Three turns. Each one changes the files once, with its own tool call. */
