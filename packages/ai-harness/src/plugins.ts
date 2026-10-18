@@ -32,6 +32,7 @@ import type { ExtensionItem, ExtensionPoint, PluginEvent } from './extensions'
 import type { MetadataOf } from './session-entry'
 import type { SharedHostPlugin } from './host-plugins'
 import type { WorkspaceBinding } from './log-records'
+import type { UsageCall } from './usage'
 
 /**
  * How long a plugin's `setup` result and resources live:
@@ -268,8 +269,13 @@ export interface PluginModelCall extends Omit<
   'run'
 > {
   run: RunContext
-  /** `plugin:<name>`. */
+  /** `plugin:<name>`, `router`, or `transfer`. */
   source: string
+  /**
+   * Where the usage of each model call goes. Default: the session and the
+   * run `run`, and the budget of the run applies.
+   */
+  count?: (call: UsageCall) => Promise<void>
 }
 
 /**
@@ -839,6 +845,11 @@ export interface WorkspaceLogApi {
    * running, with a backend id, and that do not run on this host.
    */
   lostJobs: (threadId: string) => Array<{ jobId: string; backendId: string }>
+  /**
+   * The workspace of the run `operationId` is gone. The session sends
+   * `harness.stranded`. `hostId`: the host of a folder binding.
+   */
+  stranded: (input: { operationId: string; hostId?: string }) => void
 }
 
 /** Capability values provided by plugins, keyed by handle. */

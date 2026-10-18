@@ -2166,6 +2166,7 @@ export abstract class SessionAgents<
         ),
       ],
     )
+    for (const state of open) this.publishWaitSettled(state.wait.waitId)
     this.armSchedules()
     operation.publish({
       type: EventType.RUN_FINISHED,

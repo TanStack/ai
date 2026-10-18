@@ -595,6 +595,7 @@ export abstract class SessionTurnParts<
       this.warn(operation, 'harness:usage', error)
       return
     }
+    this.tracing?.usage(call, (runId) => this.parentRunOf(runId))
     operation.publish(
       customEvent(HARNESS_EVENTS.usage, {
         model: call.model,
@@ -645,15 +646,20 @@ export abstract class SessionTurnParts<
           {
             name: 'harness:model-usage',
             onUsage: (ctx, usage) => {
+              const made: UsageCall = {
+                model: `${ctx.provider}/${ctx.model}`,
+                ...storedPrincipal(run.principal),
+                source: call.source,
+                ...(call.label !== undefined ? { label: call.label } : {}),
+                usage: callUsage(usage),
+              }
               counted.push(
-                this.countModelCall(run.runId, {
-                  model: `${ctx.provider}/${ctx.model}`,
-                  ...storedPrincipal(run.principal),
-                  runId: run.runId,
-                  source: call.source,
-                  ...(call.label !== undefined ? { label: call.label } : {}),
-                  usage: callUsage(usage),
-                }),
+                call.count
+                  ? call.count(made)
+                  : this.countModelCall(run.runId, {
+                      ...made,
+                      runId: run.runId,
+                    }),
               )
             },
           },

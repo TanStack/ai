@@ -168,6 +168,7 @@ export type { SessionUsage, UsageCounts } from './usage'
 export type { OnHarnessEvent } from './feed'
 export type {
   HarnessAttributeValue,
+  HarnessContext,
   HarnessSpan,
   HarnessSpanContext,
   HarnessSpanOptions,

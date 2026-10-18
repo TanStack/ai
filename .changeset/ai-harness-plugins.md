@@ -13,3 +13,5 @@ Add first-party plugins. `@tanstack/ai-harness/plugins` loads no Node module. Th
 A plugin runs agents with `ctx.agents.start`, `ctx.agents.run`, and `ctx.agents.group({ concurrency }, (g) => [g.start(agent, input)])`, with the same types as `ctx.harness.agents` in agent code.
 
 `PermissionRules`, `PermissionResources`, `PermissionDecisionCapability`, and `decidePermission` are also exported from the package root. They load no Node module, so an edge-safe plugin can read the permission rules.
+
+`ctx.model.chat({ adapter, options, label, run, timeoutMs })` calls a model from a plugin, for example a judge or a title. It uses the keys of the user of the run, the budget of the run applies, and it stops when the run stops or after `timeoutMs` (default 2 minutes). Its usage counts in the session under `plugin:<name>` in `session.usage().bySource`. `goal()`, `title()`, and `compact()` call their models this way, with the labels `judge`, `title`, and `compact`.

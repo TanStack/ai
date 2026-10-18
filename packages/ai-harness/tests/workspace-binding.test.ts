@@ -24,6 +24,12 @@ import type {
   WorkspaceToolsOptions,
 } from '../src/first-party/coding/workspace'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't'
 const LOG = logIdOf({ logId: THREAD })
 const SANDBOX = {
@@ -285,7 +291,7 @@ describe('the workspace binding in the session log', () => {
       plugins: [workspaceTools({ ...inFolder, web: false })],
     })
     const sent = (await other.opened).send('read')
-    await vi.waitFor(
+    await waitFor(
       async () => {
         expect(await log.offered({ logId: LOG })).toHaveLength(1)
       },

@@ -532,6 +532,12 @@ export class SessionImpl<
           operationId,
           event,
         }),
+      // This host became the owner. The event goes in the next append.
+      onOwned: (change) =>
+        this.feed.publish(
+          'session',
+          customEvent(HARNESS_EVENTS.ownershipChanged, { ...change }),
+        ),
       redact: this.redactor.redact,
     })
     this.logWriter = writer
@@ -794,10 +800,16 @@ export class SessionImpl<
     }
     // The host keeps the log until recovery queued its work.
     this.recovering += 1
+    // A span only when inputs of a host that stopped wait for this host.
+    const span = hasWork
+      ? this.tracing?.span('harness.recovery', {})
+      : undefined
     try {
       try {
         await this.recoverInputs(writer, isTaken)
       } catch (error) {
+        span?.recordException(error instanceof Error ? error : String(error))
+        span?.setStatus({ code: 2 })
         // Not recovered, so the next `recover()` takes them again.
         for (const inputId of taken) {
           if (!this.turnOperations.has(inputId)) this.admitted.delete(inputId)
@@ -814,6 +826,7 @@ export class SessionImpl<
       await this.resumeWaitingRuns()
     } finally {
       this.recovering -= 1
+      span?.end()
       // A recovery that left no work gives the log back.
       void writer.rest()
     }

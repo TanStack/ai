@@ -30,6 +30,12 @@ import type { HarnessPersistence, HarnessSession, Principal } from '../src'
 import type { WorkspaceBackend } from '../src/first-party/coding/backend'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
 const LOG = logIdOf({ logId: THREAD })
@@ -677,7 +683,7 @@ describe.skipIf(!hasGit)('session.revert', () => {
     await session.send('Hello')
     const [message] = await session.transcript()
     const running = session.send('Again')
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('running'))
+    await waitFor(() => expect(session.snapshot().status).toBe('running'))
 
     expect(await session.revert(message?.id ?? '')).toMatchObject({
       status: 'rejected',
@@ -778,7 +784,7 @@ describe.skipIf(!hasGit)('session.revert keeps the edits of the user', () => {
     await reached.opened
 
     const prompting = session.send('Four')
-    await vi.waitFor(() => expect(session.snapshot().queuedTurns).toBe(1))
+    await waitFor(() => expect(session.snapshot().queuedTurns).toBe(1))
     expect(session.snapshot().status).toBe('idle')
     blocking = false
     wait.open()

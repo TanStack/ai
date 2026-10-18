@@ -18,7 +18,7 @@ import type {
 import type { AnyAgent } from './agents'
 import type { ProjectOptions, ReduceOptions } from './log'
 import type { MediaOptions } from './media'
-import type { HarnessPlugin, PluginMetadataCheck } from './plugins'
+import type { HarnessPlugin, PluginMetadataCheck, PluginModel } from './plugins'
 import type { HarnessSession } from './session/index'
 import type { MetadataOf } from './session-entry'
 import type { HarnessTurnOptions, RecoverHook } from './turn'
@@ -64,6 +64,28 @@ export interface HarnessRouterContext<TMetadataSchema = any> {
   context?: unknown
   /** The main text adapter of the turn, with the user's keys bound. */
   adapter: AnyTextAdapter
+  /**
+   * Call a model to pick the agent, as `ctx.model.chat` of a plugin does.
+   * The call has the keys of the sender and the signal of the turn. Its
+   * usage counts in the session (`session.usage().bySource` under
+   * `router`) and in the turn. The `run` option is ignored: the call is
+   * always for this turn.
+   *
+   * @example
+   * ```ts
+   * router: async ({ model, messages }) => {
+   *   const { text } = await model.chat({
+   *     options: {
+   *       messages,
+   *       systemPrompts: ['Answer "billing" or "support". Nothing else.'],
+   *     },
+   *     label: 'pick',
+   *   })
+   *   return text.trim() === 'billing' ? 'billing' : undefined
+   * }
+   * ```
+   */
+  model: PluginModel
   /**
    * The root agent that answers the turns of this thread since the last
    * handoff. `undefined`: the main model answers. Return `undefined` from
