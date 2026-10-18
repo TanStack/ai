@@ -546,6 +546,7 @@ export function foldEntry(
     case 'harness.wait':
     case 'harness.wait.settled':
     case 'harness.transferred':
+    case 'harness.handoff':
       state.thread = foldThreadRecord(state.thread, record)
       return
   }
@@ -719,6 +720,7 @@ function serializeThread(thread: ThreadStateFold) {
     interrupts: [...thread.interrupts],
     waits: [...thread.waits],
     transfers: [...thread.transfers],
+    activeAgent: thread.activeAgent,
   }
 }
 
@@ -761,6 +763,9 @@ function parseThread(value: unknown) {
         ? (value.transfers as Array<[string, TransferRecord]>)
         : [],
     ),
+    // A state with no active agent: the main model answers.
+    activeAgent:
+      typeof value.activeAgent === 'string' ? value.activeAgent : null,
   }
   return thread
 }

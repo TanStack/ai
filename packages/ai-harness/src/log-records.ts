@@ -147,6 +147,23 @@ export type TransferRecord = {
 }
 
 /**
+ * A change of who answers the turns of a thread. An agent name is a root
+ * agent of the harness. `null` is the main model.
+ */
+export type HandoffRecord = {
+  /** Who answered before the handoff. */
+  from: string | null
+  /** Who answers from now on. */
+  to: string | null
+  /** A note for the target. */
+  note?: string
+  /** The turn that made the handoff. */
+  runId: string
+  /** What made the handoff: a `handoff` tool call, agent code, or the router. */
+  by: 'tool' | 'code' | 'router'
+}
+
+/**
  * The thread-state records of a session log. Each change to what a record
  * means takes a new record type, never a new shape of one of these.
  */
@@ -219,6 +236,8 @@ export type ThreadRecord =
     }
   /** A transfer moved the conversation to or from this thread. */
   | ({ type: 'harness.transferred'; transferId: string } & TransferRecord)
+  /** Another agent, or the main model, answers the turns from now on. */
+  | ({ type: 'harness.handoff' } & HandoffRecord)
 
 /** The record types that {@link foldThreadRecord} folds. */
 export const THREAD_RECORD_TYPES = [
@@ -237,6 +256,7 @@ export const THREAD_RECORD_TYPES = [
   'harness.wait',
   'harness.wait.settled',
   'harness.transferred',
+  'harness.handoff',
 ] as const satisfies ReadonlyArray<ThreadRecord['type']>
 
 const THREAD_TYPES = new Set<string>(THREAD_RECORD_TYPES)
@@ -273,6 +293,11 @@ export interface ThreadStateFold {
   waits: Map<string, WaitState>
   /** The transfers to or from this thread, by transfer id, oldest first. */
   transfers: Map<string, TransferRecord>
+  /**
+   * The root agent that answers the turns of this thread, from the last
+   * `harness.handoff` record. `null`: the main model answers.
+   */
+  activeAgent: string | null
 }
 
 /** The thread state of a log with no thread-state records. */
@@ -289,6 +314,7 @@ export function emptyThreadState() {
     interrupts: new Map(),
     waits: new Map(),
     transfers: new Map(),
+    activeAgent: null,
   }
   return state
 }
@@ -482,6 +508,8 @@ export function foldThreadRecord(state: ThreadStateFold, record: LogRecord) {
         transfers: withEntry(state.transfers, transferId, transfer),
       }
     }
+    case 'harness.handoff':
+      return { ...state, activeAgent: record.to }
     default: {
       const unhandled: never = record
       return unhandled

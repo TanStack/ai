@@ -64,27 +64,59 @@ export interface HarnessRouterContext<TMetadataSchema = any> {
   context?: unknown
   /** The main text adapter of the turn, with the user's keys bound. */
   adapter: AnyTextAdapter
+  /**
+   * The root agent that answers the turns of this thread since the last
+   * handoff. `undefined`: the main model answers. Return `undefined` from
+   * the router to send the turn to it.
+   *
+   * The `agents()` plugin has its own primary agent (its `agent` config and
+   * `/agent`). That one changes the prompt and tools of the main model. It
+   * is not this value, and neither one changes the other.
+   */
+  activeAgent?: string
 }
 
 /**
+ * What `routing.router` returns: a pick of `subagents.router`, a handoff, or
+ * `undefined`.
+ * - `undefined`: the active agent answers, else the main model.
+ * - One agent name: that agent answers, and it becomes the active agent.
+ * - `'main'`: the main model answers, and no agent is active.
+ * - `{ handoff, note }`: a handoff to that root agent (or `'main'`). The log
+ *   keeps the note. Then the target answers, and it becomes the active agent.
+ * - `{ name, input }`, a list, `{ names }`, or `{ steps }`: those agents
+ *   answer. The active agent does not change.
+ */
+export type HarnessRouterPick =
+  | SubagentRouterPick
+  | { handoff: string; note?: string }
+  | undefined
+
+/**
  * The `routing` option. The other fields mean the same as in `subagents`.
- * `limits` defaults to `subagents.limits`. With `strategy: 'handoff'`, the
- * main model answers after the agents, in the same turn, and it keeps its
- * `subagents`.
+ * `limits` defaults to `subagents.limits`. The `strategy` of `subagents` is
+ * not here: use `after`.
  */
 export interface HarnessRouting<TMetadataSchema = any> extends Pick<
   SubagentsBag,
-  'order' | 'strategy' | 'limits' | 'sandbox'
+  'order' | 'limits' | 'sandbox'
 > {
   /**
-   * Pick who answers the turn, with the picks of `subagents.router`:
-   * `'main'`, an agent name, a list of names, `{ names, order }`, or
-   * `{ steps }`. Give an agent with `inputSchema` its input with
-   * `{ name, input }`. A throw fails the turn.
+   * Pick who answers the turn: `undefined` (the active agent), `'main'`, an
+   * agent name, a list of names, `{ names, order }`, `{ steps }`, or
+   * `{ handoff, note }`. Give an agent with `inputSchema` its input with
+   * `{ name, input }`. A throw fails the turn. See {@link HarnessRouterPick}.
    */
   router: (
     ctx: HarnessRouterContext<TMetadataSchema>,
-  ) => SubagentRouterPick | Promise<SubagentRouterPick>
+  ) => HarnessRouterPick | Promise<HarnessRouterPick>
+  /**
+   * What happens after the picked agents answer. `'end'`: the turn ends.
+   * `'main'`: the main model answers next, in the same turn, with their
+   * answers in the transcript, and it keeps its `subagents`. Default
+   * `'end'`.
+   */
+  after?: 'end' | 'main'
 }
 
 /**

@@ -220,7 +220,18 @@ describe('foldThreadRecord', () => {
       'harness.wait',
       'harness.wait.settled',
       'harness.transferred',
+      'harness.handoff',
     ])
+  })
+
+  it('keeps the target of the last handoff as the active agent', () => {
+    const handoff = (from: string | null, to: string | null) =>
+      ({ type: 'harness.handoff', from, to, runId: 'r', by: 'router' }) as const
+    expect(emptyThreadState().activeAgent).toBeNull()
+    expect(fold([handoff(null, 'billing')]).activeAgent).toBe('billing')
+    expect(
+      fold([handoff(null, 'billing'), handoff('billing', null)]).activeAgent,
+    ).toBeNull()
   })
 
   it('keeps each transfer by id, and its first record', () => {

@@ -52,7 +52,9 @@ import type {
   StreamChunk,
   SubagentRouterPick,
 } from '@tanstack/ai'
-import type { AnyHarness } from '../define'
+import type { AnyAgent } from '../agents'
+import type { AnyHarness, HarnessRouterPick } from '../define'
+import type { HandoffRecord } from '../log-records'
 import type { ModelErrorContext } from '../turn'
 import type { MountedPlugins } from '../plugins'
 import type {
@@ -463,7 +465,8 @@ export abstract class SessionTurn<
         ]),
       ]
       // The settings of this turn. Every chat() call below uses them: the
-      // tool loop, retries, `beforeFinish` cycles, handoffs, and late joins.
+      // tool loop, retries, `beforeFinish` cycles, the main part of
+      // `routing.after: 'main'`, and late joins.
       const { overrides } = turn
       const picked = [
         ...(session?.adapters ?? []),
@@ -576,7 +579,8 @@ export abstract class SessionTurn<
         !turn.tool
       ) {
         const history = await this.messages.loadThread(this.threadId)
-        pick = await routing.router({
+        const activeAgent = this.writer.state.thread.activeAgent
+        const chosen = await routing.router({
           messages: resetContext([...history, ...(message ? [message] : [])]),
           agents: rootAgents,
           abortSignal: signal,
@@ -587,14 +591,29 @@ export abstract class SessionTurn<
           ...(sender ? { principal: sender } : {}),
           ...(turn.context !== undefined ? { context: turn.context } : {}),
           adapter,
+          ...(activeAgent !== null ? { activeAgent } : {}),
         })
+        const routedTo = routerTarget(chosen, activeAgent, rootAgents)
+        pick = routedTo.pick
+        // Before the agent runs, so a takeover goes on with the new agent.
+        if (routedTo.handoff) {
+          await this.writer.append([
+            {
+              type: 'harness.handoff',
+              ...routedTo.handoff,
+              runId: operation.id,
+              by: 'router',
+            },
+          ])
+        }
       }
       const isRootTurn =
         turn.answers?.routed?.root === true || (pick ?? 'main') !== 'main'
+      const { after, ...shared } = routing ?? {}
       const rootBag =
         routing && isRootTurn
           ? {
-              ...routing,
+              ...shared,
               agents: rootAgents,
               router: () => {
                 // A resolve has no pick. chat() continues its saved plan.
@@ -603,8 +622,8 @@ export abstract class SessionTurn<
                 }
                 return pick
               },
-              // The harness runs the handoff, so the main model keeps its
-              // subagents.
+              // The harness runs the main part of `after: 'main'`, so the main
+              // model keeps its subagents.
               strategy: 'exclusive' as const,
             }
           : undefined
@@ -642,7 +661,7 @@ export abstract class SessionTurn<
       // runs again when `turn.beforeFinish` adds to the transcript.
       for (;;) {
         // The root agents of a routed turn run no turn hooks. The main model
-        // runs them, also in the main part of a handoff.
+        // runs them, also in the main part of `routing.after: 'main'`.
         const turnHooks = isRootPart ? undefined : this.harness.turn
         let textBefore = text
         /** Text, reasoning, or a tool call streamed since `textBefore`. */
@@ -958,7 +977,7 @@ export abstract class SessionTurn<
           signal.aborted
         if (isFinished) break
         if (isRootPart) {
-          if (routing?.strategy !== 'handoff') break
+          if (after !== 'main') break
           // The agents answered. The main model answers next, with the
           // transcript that has their answer.
           isRootPart = false
@@ -1164,4 +1183,46 @@ export abstract class SessionTurn<
     this.publishFinished(operation)
     this.requeueWaitingSteers()
   }
+}
+
+/**
+ * The pick that `chat()` runs for a router answer, and the handoff that the
+ * log keeps, when the answer changes who answers the thread.
+ */
+function routerTarget(
+  chosen: HarnessRouterPick,
+  activeAgent: string | null,
+  rootAgents: ReadonlyArray<AnyAgent>,
+): {
+  pick: SubagentRouterPick
+  handoff?: Pick<HandoffRecord, 'from' | 'to' | 'note'>
+} {
+  const isRoot = (name: string) =>
+    rootAgents.some((agent) => agent.name === name)
+  if (chosen === undefined) {
+    // An active agent that this turn does not have (a plugin went away)
+    // gives the turn to the main model.
+    return {
+      pick: activeAgent !== null && isRoot(activeAgent) ? activeAgent : 'main',
+    }
+  }
+  if (typeof chosen === 'object' && 'handoff' in chosen) {
+    const to = chosen.handoff === 'main' ? null : chosen.handoff
+    // An unknown name writes nothing. chat() fails the turn for it.
+    if (to !== null && !isRoot(to)) return { pick: to }
+    return {
+      pick: chosen.handoff,
+      handoff: {
+        from: activeAgent,
+        to,
+        ...(chosen.note !== undefined ? { note: chosen.note } : {}),
+      },
+    }
+  }
+  if (typeof chosen !== 'string') return { pick: chosen }
+  const to = chosen === 'main' ? null : chosen
+  const changes = to !== activeAgent && (to === null || isRoot(to))
+  return changes
+    ? { pick: chosen, handoff: { from: activeAgent, to } }
+    : { pick: chosen }
 }

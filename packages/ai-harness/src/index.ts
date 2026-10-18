@@ -6,6 +6,7 @@ export type {
   HarnessDefinition,
   HarnessDurability,
   HarnessRouterContext,
+  HarnessRouterPick,
   HarnessRouting,
   HarnessSubagents,
   HarnessToolInput,

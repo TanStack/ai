@@ -431,13 +431,13 @@ export const studio = defineHarness({
 
 The router can also return a pick of its own: `'main'`, a name, a list of names, `{ names, order }`, or `{ steps }`. Anywhere a name goes, `{ name, input }` can go too, for example `{ name: 'pricer', input: { vendor: 'Acme' } }`. If a picked agent has an `inputSchema` and no input, the turn fails with `Agent "pricer" needs input. Return { name: 'pricer', input } from the router.` See [Route, or let the model pick](../chat/subagents#route-or-let-the-model-pick) for each pick.
 
-The router also gets `session`, the `input` of the turn as the user sent it, `operationId`, `inputId`, and `abortSignal`. Next to `router`, `routing` takes `order`, `strategy`, `limits`, and `sandbox`. They work the same as in `subagents`.
+The router also gets `session`, the `input` of the turn as the user sent it, `operationId`, `inputId`, and `abortSignal`. Next to `router`, `routing` takes `order`, `limits`, `sandbox`, and `after`. The first three work the same as in `subagents`.
 
 What the turn does with the pick:
 
 - `'main'`: the main model answers, with its `subagents` as usual.
 - Agent names: only those agents run. The harness does not call the main model. The turn text is their answer as the transcript keeps it, for example `pricer:\n...`.
-- `strategy: 'handoff'`: the agents run first. Then the main model answers in the same turn. It reads their text and keeps its subagent tools.
+- `after: 'main'`: the agents run first. Then the main model answers in the same turn. It reads their text and keeps its subagent tools. With the default, `after: 'end'`, the turn ends after the agents.
 - An interrupt in a routed agent ends the turn. `session.resolve` continues the same plan, and it does not call the router again.
 - A steer that you send during a routed turn waits. It runs as its own turn, and the router picks for that turn too.
 
