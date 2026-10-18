@@ -4,8 +4,19 @@ import type { LogStore } from '@tanstack/ai-persistence'
 /** How long a host owns a log after each renewal, and how often it renews. */
 export const OWNERSHIP = { ttlMs: 30_000, renewMs: 10_000 }
 
-/** Ownership timing for a host. A missing field uses {@link OWNERSHIP}. */
+/**
+ * Ownership timing for a host, and its stable id. A missing timing field
+ * uses {@link OWNERSHIP}.
+ */
 export interface OwnershipOptions {
+  /**
+   * A stable id for this host, for example the machine or pod name. Keep it
+   * the same after a restart. When you set it, a thread that uses a local
+   * folder is pinned to this host, and another host refuses the thread with
+   * the pinned error. When you do not set it, threads are not pinned, and
+   * every host can continue every thread.
+   */
+  hostId?: string
   /**
    * How long the host owns a log after each renewal, in milliseconds of the
    * store clock. Default 30 000.
@@ -39,7 +50,13 @@ export class LogOwnedElsewhereError extends Error {
  */
 export class HostOwnership {
   private readonly store: LogStore
-  private readonly ownerId: string
+  /** The id of this host in the ownership records. */
+  readonly ownerId: string
+  /**
+   * The stable id of this host for pins: a log pinned to it takes only this
+   * host. `undefined` when the host has none. Then it takes no pinned log.
+   */
+  readonly affinity: string | undefined
   private readonly ttlMs: number
   private readonly renewMs: number
   /** The epoch of each log that this host owns, by store log id. */
@@ -66,10 +83,13 @@ export class HostOwnership {
     store: LogStore
     /** The id of this host in the ownership records. */
     ownerId: string
+    /** The stable id of this host for pins. */
+    affinity?: string
     timing?: OwnershipOptions
   }) {
     this.store = options.store
     this.ownerId = options.ownerId
+    this.affinity = options.affinity
     this.ttlMs = options.timing?.ttlMs ?? OWNERSHIP.ttlMs
     this.renewMs = options.timing?.renewMs ?? OWNERSHIP.renewMs
   }
@@ -91,11 +111,21 @@ export class HostOwnership {
       harness,
       ownerId: this.ownerId,
       ttlMs: this.ttlMs,
+      ...(this.affinity !== undefined ? { affinity: this.affinity } : {}),
     })
     if (got === null) return null
     this.owned.set(logId, got.epoch)
     this.startTimer()
     return got.epoch
+  }
+
+  /**
+   * Pin `logId` to the host `hostId`, so only that host acquires it, or
+   * unpin it with `null`. This host must own the log at `epoch`. Rejects
+   * with `OwnershipLostError` when it does not.
+   */
+  pin(logId: string, epoch: number, hostId: string | null) {
+    return this.store.setAffinity({ logId, epoch, affinity: hostId })
   }
 
   /** Stop owning `logId` with no store call: the store refused its epoch. */

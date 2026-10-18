@@ -135,7 +135,7 @@ These tools run without a question.
 | `list_files` | Lists the files in a folder. An optional glob, like `src/**/*.ts`, filters them. |
 | `grep` | Searches the file contents with a regular expression. Gives `file:line: text`. |
 
-- `read_file` gives images (PNG, JPEG, GIF, WebP) and PDFs up to 5 MB to the model as media.
+- `read_file` gives images (PNG, JPEG, GIF, WebP) and PDFs up to 256 KB to the model as media. For a bigger file, the model gets an error that tells it to make a smaller copy.
 - `read_file` refuses a binary file with a short note. For a missing file, it names up to 3 files with a close name.
 - `list_files` and `grep` skip the files that `.gitignore` names, the `.git` and `node_modules` folders, and links.
 - `list_files` shows at most 1000 files. `grep` shows at most 200 matches.
@@ -157,6 +157,8 @@ A model gets `edit_file` or `patch`, not both. Every model gets `write_file`. Th
 
 `edit_file` keeps the line endings and the byte order mark of the file. It also finds text that is different only in Unicode form or in the spaces at the end of a line.
 
+When a file changed after the model read it, for example by another agent, the three tools fail. The model reads the file again, then edits it.
+
 To let the user undo the changes of a turn, add [snapshots](./snapshots).
 
 ### Commands and the web
@@ -171,8 +173,13 @@ For `bash`:
 
 - The model gets the exit code and the last 1000 lines (20 KiB) of the output.
 - A command stops after 2 minutes, with exit code 124. Every process that it started stops too. Set another limit with `bashTimeoutMs`. The model can ask for up to 10 minutes.
-- With `background: true`, the call returns at once with a job id. When the job ends, the model gets a note with the output, and a new turn starts. The time limit does not apply to a background job.
 - With `spillDir`, long output goes to a file in that folder, and the model gets the path. `spillDir` is relative to `root`, or absolute.
+- A command gets only a few variables of your process, like `PATH` and `HOME`. Your provider keys stay out of it. See [Keep server secrets out of commands](./coding-workspaces#2-keep-server-secrets-out-of-commands).
+
+With `background: true`, the call returns at once with a job id. When the job ends, the model gets a note with the output, and a new turn starts.
+
+- The time limit does not apply to a background job.
+- At most 8 background jobs run at a time in a session. Set another limit with `maxJobs`. Each job keeps the newest 1 MiB of its output.
 - When the session closes, the background jobs stop.
 - The log keeps each background job until it ends. When a crash stops a job, the next host adds the note "Background job bash-1 stopped when the host restarted."
 
@@ -183,7 +190,8 @@ For `webfetch`:
 - It reads `http` and `https` URLs only, and follows at most 5 redirects.
 - It refuses `localhost`, private network addresses, and cloud metadata addresses. It checks the DNS answer of each connection.
 - HTML comes back as Markdown, or as text without `turndown`. The model can ask for `format: 'html'`. Text and JSON come back as they are.
-- It reads at most 5 MB. It stops after 30 seconds, and the model can ask for up to 120 seconds.
+- The model gets the first 256 KB of a page, with a note when there is more. It reads at most 5 MB.
+- It stops after 30 seconds, and the model can ask for up to 120 seconds.
 
 Change the web tools with the `web` option:
 
@@ -258,18 +266,21 @@ export const trustTests = permissions({
 
 ### A path outside `root`
 
-The tools refuse a path outside `root`. To ask the user instead, set `outside: 'ask'`:
+The tools refuse a path outside `root`. To let the user approve it, set `outside: 'ask'`:
 
 ```ts group=harness-coding-tools
 export const askOutside = workspaceTools({ root, outside: 'ask' })
 ```
 
-- `permissions()` decides the outside path before the call runs. It is part of the approval of that call.
+`permissions()` decides the outside path before the call runs. The path is a part of the one [approval](./permissions#answer-an-approval) of the call: the turn stops, and you answer with `resolve`. The tool never stops in the middle of a call to ask.
+
 - `once` allows this call. `always` also saves an allow rule for the path.
-- `bypass` mode allows every path without a question.
-- Without `permissions()`, nobody can approve the path, so the tool refuses it.
-- A link in `root` that leads out of `root` counts as outside.
+- `reject` stops the call. The call does not run, so nothing is read or written.
+- A link in `root` that leads out of `root` counts as outside. The rules decide its real path.
+- `bypass` mode allows every path without a question. Without `permissions()`, nobody can approve the path, so the tool refuses it.
 - With `permissions()`, `grep` skips the files outside `root`, because `read_file` asks for them. A `read_file` rule for that folder, for example `{ tool: 'read_file', resource: '/shared/**', decision: 'allow' }`, lets `grep` show them.
+
+With a [workspace for each thread](./coding-workspaces), the root is not known before the call, so no approval can cover an outside path. Then only a rule that allows the path, or `bypass` mode, lets the call use it.
 
 ### A working folder for each thread
 
@@ -295,7 +306,7 @@ await session.configure({ settings: { cwd: 'web-app' } })
 - Relative paths start in `/srv/repos/web-app`, and `bash` runs there.
 - The system prompt tells the model the working folder.
 - Permission rules still match paths from `root`, for example `web-app/src/**`.
-- `cwd` is relative to `root`. A `cwd` outside `root` counts as an outside path.
+- `cwd` is relative to `root`. The tools refuse a `cwd` outside `root`, also with `outside: 'ask'`.
 
 [Store settings per thread](./thread-settings) shows how a client sets `cwd`.
 
@@ -305,4 +316,4 @@ await session.configure({ settings: { cwd: 'web-app' } })
 - A question before each edit, command, and web fetch.
 - A working folder for each thread, and a question before a path outside `root`.
 
-Next: run the same tools in a sandbox, or format each file after a write. See [Sandbox and extend the coding tools](./coding-tools-backends).
+Next: run the same tools in a sandbox, or format each file after a write. See [Sandbox and extend the coding tools](./coding-tools-backends). To give each thread its own folder on a server, see [Run the coding tools for many threads](./coding-workspaces).

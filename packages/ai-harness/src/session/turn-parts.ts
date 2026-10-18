@@ -407,7 +407,7 @@ export abstract class SessionTurnParts<
           context.detach = (work) =>
             new Promise((moved) => {
               this.detachable.set(id, () => {
-                this.logJob(id, false)
+                this.logJob({ jobId: id }, false)
                 moved(
                   `The job moved to the background. Its id is ${id}. You get a note when it ends.`,
                 )
@@ -424,7 +424,7 @@ export abstract class SessionTurnParts<
                   .then((text) =>
                     this.pluginApi(principal).note(text, { wake: true }),
                   )
-                  .then(() => this.logJob(id, true))
+                  .then(() => this.logJob({ jobId: id }, true))
                   .catch(() => undefined)
               })
             })

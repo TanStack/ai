@@ -2407,7 +2407,9 @@ export abstract class SessionAgents<
 
   /**
    * After a crash: queue the logged notes that are not in the transcript,
-   * and note each logged job that no host runs now.
+   * and note each logged job that no host runs now. A job with a backend id
+   * can still run in its workspace, so the workspace tools stop it and note
+   * it when they bind the workspace again.
    */
   protected async recoverBackground(writer: LogWriter) {
     const queued = new Set(this.pendingNotes.map((message) => message.id))
@@ -2415,8 +2417,8 @@ export abstract class SessionAgents<
       if (queued.has(id)) continue
       this.pendingNotes.push({ id, role: 'assistant', content: note })
     }
-    for (const jobId of [...writer.state.jobs]) {
-      if (this.jobs.has(jobId)) continue
+    for (const [jobId, backendId] of [...writer.state.jobs]) {
+      if (this.jobs.has(jobId) || backendId !== undefined) continue
       const id = createMessageId()
       const note = `Background job ${jobId} stopped when the host restarted.`
       this.pendingNotes.push({ id, role: 'assistant', content: note })

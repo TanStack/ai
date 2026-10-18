@@ -1237,15 +1237,26 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
 
   /**
    * Track a background job of this host. The log also has its start and
-   * end, so recovery can note a job that a crash stopped.
+   * end, so recovery can note a job that a crash stopped. The record goes
+   * to `threadId`, the thread of the workspace that runs the job.
    */
-  protected logJob(jobId: string, ended: boolean) {
+  protected logJob(
+    job: { jobId: string; backendId?: string; threadId?: string },
+    ended: boolean,
+  ) {
+    const { jobId, backendId, threadId } = job
     if (ended) this.jobs.delete(jobId)
     else this.jobs.add(jobId)
+    const isOtherThread = threadId !== undefined && threadId !== this.threadId
+    const record = {
+      type: 'harness.job',
+      jobId,
+      ended,
+      ...(!ended && backendId !== undefined ? { backendId } : {}),
+      ...(isOtherThread ? { thread: threadId } : {}),
+    }
     // No one waits for a job record. A failed log write fails the session.
-    this.writer
-      .append([{ type: 'harness.job', jobId, ended }])
-      .catch(() => undefined)
+    this.writer.append([record]).catch(() => undefined)
   }
 
   // Implemented by a later layer of the class.

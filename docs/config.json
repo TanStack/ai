@@ -957,7 +957,7 @@
           "label": "Deploy a harness",
           "to": "harness/deploy",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Send inputs safely",
@@ -1070,10 +1070,15 @@
           "updatedAt": "2026-10-18"
         },
         {
+          "label": "Run the coding tools for many threads",
+          "to": "harness/coding-workspaces",
+          "addedAt": "2026-10-18"
+        },
+        {
           "label": "Undo a turn",
           "to": "harness/snapshots",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Build a coding agent",
@@ -1084,7 +1089,8 @@
         {
           "label": "Delegate to coding agents",
           "to": "harness/coding-agents",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Switch between agent profiles",

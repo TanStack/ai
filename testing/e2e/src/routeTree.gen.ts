@@ -78,6 +78,7 @@ import { Route as ApiChatCompletionsIncompleteStreamRouteImport } from './routes
 import { Route as ApiClientToolResumeStoreRouteImport } from './routes/api.client-tool-resume-store'
 import { Route as ApiCloudflareBindingWireRouteImport } from './routes/api.cloudflare-binding-wire'
 import { Route as ApiCodingToolsRouteImport } from './routes/api.coding-tools'
+import { Route as ApiCodingWorkspaceRouteImport } from './routes/api.coding-workspace'
 import { Route as ApiCompactionUsageWireRouteImport } from './routes/api.compaction-usage-wire'
 import { Route as ApiCompactionWireRouteImport } from './routes/api.compaction-wire'
 import { Route as ApiContextOverflowRouteImport } from './routes/api.context-overflow'
@@ -558,6 +559,11 @@ const ApiCloudflareBindingWireRoute =
 const ApiCodingToolsRoute = ApiCodingToolsRouteImport.update({
   id: '/api/coding-tools',
   path: '/api/coding-tools',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCodingWorkspaceRoute = ApiCodingWorkspaceRouteImport.update({
+  id: '/api/coding-workspace',
+  path: '/api/coding-workspace',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCompactionUsageWireRoute = ApiCompactionUsageWireRouteImport.update({
@@ -1246,6 +1252,7 @@ export interface FileRoutesByFullPath {
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
+  '/api/coding-workspace': typeof ApiCodingWorkspaceRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/context-overflow': typeof ApiContextOverflowRoute
@@ -1435,6 +1442,7 @@ export interface FileRoutesByTo {
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
+  '/api/coding-workspace': typeof ApiCodingWorkspaceRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/context-overflow': typeof ApiContextOverflowRoute
@@ -1625,6 +1633,7 @@ export interface FileRoutesById {
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
+  '/api/coding-workspace': typeof ApiCodingWorkspaceRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/context-overflow': typeof ApiContextOverflowRoute
@@ -1816,6 +1825,7 @@ export interface FileRouteTypes {
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-wire'
     | '/api/coding-tools'
+    | '/api/coding-workspace'
     | '/api/compaction-usage-wire'
     | '/api/compaction-wire'
     | '/api/context-overflow'
@@ -2005,6 +2015,7 @@ export interface FileRouteTypes {
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-wire'
     | '/api/coding-tools'
+    | '/api/coding-workspace'
     | '/api/compaction-usage-wire'
     | '/api/compaction-wire'
     | '/api/context-overflow'
@@ -2194,6 +2205,7 @@ export interface FileRouteTypes {
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-wire'
     | '/api/coding-tools'
+    | '/api/coding-workspace'
     | '/api/compaction-usage-wire'
     | '/api/compaction-wire'
     | '/api/context-overflow'
@@ -2384,6 +2396,7 @@ export interface RootRouteChildren {
   ApiClientToolResumeStoreRoute: typeof ApiClientToolResumeStoreRoute
   ApiCloudflareBindingWireRoute: typeof ApiCloudflareBindingWireRoute
   ApiCodingToolsRoute: typeof ApiCodingToolsRoute
+  ApiCodingWorkspaceRoute: typeof ApiCodingWorkspaceRoute
   ApiCompactionUsageWireRoute: typeof ApiCompactionUsageWireRoute
   ApiCompactionWireRoute: typeof ApiCompactionWireRoute
   ApiContextOverflowRoute: typeof ApiContextOverflowRoute
@@ -2983,6 +2996,13 @@ declare module '@tanstack/react-router' {
       path: '/api/coding-tools'
       fullPath: '/api/coding-tools'
       preLoaderRoute: typeof ApiCodingToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/coding-workspace': {
+      id: '/api/coding-workspace'
+      path: '/api/coding-workspace'
+      fullPath: '/api/coding-workspace'
+      preLoaderRoute: typeof ApiCodingWorkspaceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/compaction-usage-wire': {
@@ -3946,6 +3966,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiClientToolResumeStoreRoute: ApiClientToolResumeStoreRoute,
   ApiCloudflareBindingWireRoute: ApiCloudflareBindingWireRoute,
   ApiCodingToolsRoute: ApiCodingToolsRoute,
+  ApiCodingWorkspaceRoute: ApiCodingWorkspaceRoute,
   ApiCompactionUsageWireRoute: ApiCompactionUsageWireRoute,
   ApiCompactionWireRoute: ApiCompactionWireRoute,
   ApiContextOverflowRoute: ApiContextOverflowRoute,

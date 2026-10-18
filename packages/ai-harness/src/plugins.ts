@@ -31,6 +31,7 @@ import type { ConfigOption } from './config'
 import type { ExtensionItem, ExtensionPoint, PluginEvent } from './extensions'
 import type { MetadataOf } from './session-entry'
 import type { SharedHostPlugin } from './host-plugins'
+import type { WorkspaceBinding } from './log-records'
 
 /**
  * How long a plugin's `setup` result and resources live:
@@ -740,12 +741,57 @@ export const SessionSignal = createCapability<AbortSignal>()(
 /**
  * @internal Tells the session that a background job, like a `bash` job,
  * started or ended. A durable session logs it, so recovery can note a job
- * that a crash stopped. The package does not export it.
+ * that a crash stopped. `backendId` is the id of the process in the
+ * workspace backend, so a later host can stop it. `threadId` is the thread
+ * of the workspace that runs it. Default: the thread of the session. The
+ * package does not export it.
  */
-export const BackgroundJobs = createCapability<{
-  started: (jobId: string) => void
-  ended: (jobId: string) => void
-}>()('tanstack/background-jobs')
+export const BackgroundJobs = createCapability<BackgroundJobsApi>()(
+  'tanstack/background-jobs',
+)
+
+/** @internal See {@link BackgroundJobs}. */
+export interface BackgroundJobsApi {
+  started: (job: {
+    jobId: string
+    backendId?: string
+    threadId?: string
+  }) => void
+  ended: (job: { jobId: string; threadId?: string }) => void
+}
+
+/**
+ * @internal What the workspace tools keep in the session log: the binding of
+ * the workspace of each thread, the pin of the log to a host, and the jobs
+ * that no tool of this host runs. The session provides it. The package does
+ * not export it.
+ */
+export const WorkspaceLog = createCapability<WorkspaceLogApi>()(
+  'tanstack/workspace-log',
+)
+
+/** @internal See {@link WorkspaceLog}. */
+export interface WorkspaceLogApi {
+  /**
+   * The stable id of this host, for a `'host'` binding, or `undefined` when
+   * the host has none. Without it, a folder binding pins nothing.
+   */
+  hostId: () => string | undefined
+  /** The last binding of the workspace of `threadId`, or `undefined`. */
+  bound: (threadId: string) => WorkspaceBinding | undefined
+  /** Log `binding` as the workspace of `threadId`. */
+  bind: (input: {
+    threadId: string
+    binding: WorkspaceBinding
+  }) => Promise<void>
+  /** Pin the log to the host `hostId`. */
+  pin: (hostId: string) => Promise<void>
+  /**
+   * The background jobs of the workspace of `threadId` that the log has as
+   * running, with a backend id, and that do not run on this host.
+   */
+  lostJobs: (threadId: string) => Array<{ jobId: string; backendId: string }>
+}
 
 /** Capability values provided by plugins, keyed by handle. */
 export class CapabilityValues {

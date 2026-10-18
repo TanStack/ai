@@ -290,6 +290,7 @@ const ownedHost = createHarnessHost({
 
 - `ttlMs`: how long the ownership lasts after each renewal. The default is 30 000. After it, another host can take the thread.
 - `renewMs`: how often the timer renews. The default is 10 000.
+- `hostId`: a stable id for this host, for example the machine or pod name. With it, a thread whose coding tools use a folder on this host stays on this host. Other hosts refuse its tool calls. See [A folder on one server](./coding-workspaces#a-folder-on-one-server).
 
 An input that waits for the owner keeps its JSON overrides (`model`, `modelOptions`, `reasoning`, and `promptCache`). The `adapter` and `tools` overrides are objects, so the owner runs the input without them.
 

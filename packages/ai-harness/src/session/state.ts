@@ -22,6 +22,7 @@ import {
   RevertStanding,
   SessionMetadata,
   SessionSignal,
+  WorkspaceLog,
 } from '../plugins'
 import { HARNESS_EVENTS } from '../types'
 import { SECRET_ANSWER_PREFIX } from '../auth'
@@ -128,8 +129,28 @@ export abstract class SessionState<
     values.provide(RevertStanding, () => this.reverted !== undefined)
     values.provide(SessionSignal, this.lifetime.signal)
     values.provide(BackgroundJobs, {
-      started: (jobId) => this.logJob(jobId, false),
-      ended: (jobId) => this.logJob(jobId, true),
+      started: (job) => this.logJob(job, false),
+      ended: (job) => this.logJob(job, true),
+    })
+    values.provide(WorkspaceLog, {
+      hostId: () => this.writer.hostId,
+      bound: (threadId) =>
+        this.writer.stateOf(threadId).thread.workspace ?? undefined,
+      bind: ({ threadId, binding }) =>
+        this.writer.append([
+          {
+            type: 'harness.workspace.bound',
+            binding,
+            ...(threadId === this.threadId ? {} : { thread: threadId }),
+          },
+        ]),
+      pin: (hostId) => this.writer.pin(hostId),
+      lostJobs: (threadId) =>
+        [...this.writer.stateOf(threadId).jobs].flatMap(([jobId, backendId]) =>
+          backendId === undefined || this.jobs.has(jobId)
+            ? []
+            : [{ jobId, backendId }],
+        ),
     })
     return values
   }

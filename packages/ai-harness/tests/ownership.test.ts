@@ -382,6 +382,39 @@ describe('renewals', () => {
   })
 })
 
+describe('pins', () => {
+  it('gives a pinned log to the host with that affinity only', async () => {
+    const log = memoryLogStore()
+    const pinned = new HostOwnership({
+      store: log,
+      ownerId: 'host-1',
+      affinity: 'machine-a',
+    })
+    const epoch = await pinned.acquire(LOG, 'test/ownership')
+    if (epoch === null) throw new Error('Not acquired.')
+
+    await pinned.pin(LOG, epoch, 'machine-a')
+    await pinned.release(LOG)
+
+    // A host with no affinity, or another one, does not get the log.
+    expect(await canOtherHostTake(log, LOG)).toBe(false)
+    const other = new HostOwnership({
+      store: log,
+      ownerId: 'host-2',
+      affinity: 'machine-b',
+    })
+    expect(await other.acquire(LOG, 'test/ownership')).toBeNull()
+    // The next process on machine-a gets it.
+    const restarted = new HostOwnership({
+      store: log,
+      ownerId: 'host-3',
+      affinity: 'machine-a',
+    })
+    expect(await restarted.acquire(LOG, 'test/ownership')).toBe(epoch + 1)
+    await restarted.close()
+  })
+})
+
 describe('the run context', () => {
   it('gives tools the epoch of the log and an idempotency key', async () => {
     const seen: Array<{ epoch: number; key: string; scoped: string }> = []

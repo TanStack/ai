@@ -50,6 +50,7 @@ import type {
   ThreadStateFold,
   TransferRecord,
   WaitState,
+  WorkspaceBinding,
 } from './log-records'
 import type {
   Cursor,
@@ -121,8 +122,11 @@ export type HarnessRecord =
   | ({ type: 'harness.usage' } & UsageCall)
   /** A revert that stands, or `null` when it ended. */
   | { type: 'harness.revert'; revert: RevertState | null }
-  /** A background job started, or it ended. */
-  | { type: 'harness.job'; jobId: string; ended: boolean }
+  /**
+   * A background job started, or it ended. `backendId` is the id of its
+   * process in the workspace backend, so a later host can stop it.
+   */
+  | { type: 'harness.job'; jobId: string; ended: boolean; backendId?: string }
   /** A note for the transcript. `noteId` is the id of its message. */
   | { type: 'harness.note'; noteId: string; note: string }
   /** Thread state: settings, config, plugin state, and the rest. */
@@ -289,8 +293,11 @@ export interface LogState {
   runUsage: Map<string, UsageCounts>
   /** The revert that stands, if any. */
   revert?: RevertState
-  /** Background jobs that started and did not end. */
-  jobs: Set<string>
+  /**
+   * Background jobs that started and did not end, by job id: the id of the
+   * process in the workspace backend, when the backend gave one.
+   */
+  jobs: Map<string, string | undefined>
   /** Notes that are not in the transcript yet, by message id. */
   notes: Map<string, string>
   /** The thread state that the thread-state records fold to. */
@@ -308,7 +315,7 @@ export function emptyLogState() {
     steps: new Map(),
     usage: emptyUsage(),
     runUsage: new Map(),
-    jobs: new Set(),
+    jobs: new Map(),
     notes: new Map(),
     thread: emptyThreadState(),
   }
@@ -589,7 +596,7 @@ export function foldEntry(
       return
     case 'harness.job':
       if (record.ended) state.jobs.delete(record.jobId)
-      else state.jobs.add(record.jobId)
+      else state.jobs.set(record.jobId, record.backendId)
       return
     case 'harness.note':
       state.notes.set(record.noteId, record.note)
@@ -612,6 +619,7 @@ export function foldEntry(
     case 'harness.transferred':
     case 'harness.handoff':
     case 'harness.state':
+    case 'harness.workspace.bound':
       state.thread = foldThreadRecord(state.thread, record)
       if (state.runUsage.size > 0) dropEndedUsage(state)
       return
@@ -789,6 +797,7 @@ function serializeThread(thread: ThreadStateFold) {
     waits: [...thread.waits],
     transfers: [...thread.transfers],
     activeAgent: thread.activeAgent,
+    workspace: thread.workspace,
   }
 }
 
@@ -845,6 +854,10 @@ function parseThread(value: unknown) {
       typeof value.activeAgent === 'string' || isHumanTarget(value.activeAgent)
         ? (value.activeAgent as ThreadStateFold['activeAgent'])
         : null,
+    // A state with no workspace gets an empty value.
+    workspace: isRecord(value.workspace)
+      ? (value.workspace as WorkspaceBinding)
+      : null,
   }
   return thread
 }
@@ -867,7 +880,9 @@ function serialize(state: SharedLogState, versions: SnapshotVersions) {
         usage: session.usage,
         runUsage: [...session.runUsage.entries()],
         revert: session.revert ?? null,
-        jobs: [...session.jobs],
+        jobs: [...session.jobs].map(([jobId, backendId]) =>
+          backendId === undefined ? jobId : [jobId, backendId],
+        ),
         notes: [...session.notes.entries()],
         thread: serializeThread(session.thread),
       },
@@ -919,9 +934,13 @@ function parseSession(value: unknown, seq: number) {
     ),
     // A state with no reverts gets an empty value.
     ...(revert ? { revert } : {}),
-    // A state with no jobs and notes gets an empty value.
-    jobs: new Set(
-      Array.isArray(value.jobs) ? (value.jobs as Array<string>) : [],
+    // A state with no jobs and notes gets an empty value. A job with a
+    // backend id is a pair.
+    jobs: new Map(
+      (Array.isArray(value.jobs)
+        ? (value.jobs as Array<string | [string, string]>)
+        : []
+      ).map((job) => (typeof job === 'string' ? [job, undefined] : job)),
     ),
     notes: new Map(
       Array.isArray(value.notes)
@@ -1217,6 +1236,17 @@ export interface LogWriter extends EventFeed {
    * another live host owns it.
    */
   own: () => Promise<boolean>
+  /**
+   * The stable id of this host for pins, or `undefined` when the host has
+   * none. See `HostOwnership.affinity`.
+   */
+  readonly hostId: string | undefined
+  /**
+   * Pin the log to the host `hostId`: workers on other hosts do not take
+   * it, and other hosts cannot acquire it. `null` unpins it. It acquires the
+   * log first, like a write.
+   */
+  pin: (hostId: string | null) => Promise<void>
   /**
    * The session has no work now. When no session of the log has work, the
    * host gives the log up, so it makes no store calls for it. Resolves after
@@ -1609,6 +1639,9 @@ export class SharedLog<TState = unknown> {
         own.fenced = false
       },
       own: () => this.enqueue(() => this.ownForRecovery()),
+      hostId: this.ownership.affinity,
+      pin: (hostId) =>
+        isDropped() ? refused() : this.enqueue(() => this.pin(hostId)),
       rest: () => this.releaseWhenIdle(),
       head: () => this.head(),
       read: (options) =>
@@ -1942,6 +1975,19 @@ export class SharedLog<TState = unknown> {
     // write that acquired the log goes first.
     queueMicrotask(() => this.notifyOffers())
     return epoch
+  }
+
+  /** Pin the log to `hostId`, with the epoch of this host. */
+  private async pin(hostId: string | null) {
+    if (this.failure !== undefined) throw this.failure
+    const epoch = await this.own()
+    try {
+      await this.ownership.pin(this.logId, epoch, hostId)
+    } catch (error) {
+      // Another host took the log: this host reads on.
+      if (error instanceof OwnershipLostError) this.lose(error)
+      throw error
+    }
   }
 
   /** `own()` for recovery: `false` when another live host owns the log. */
