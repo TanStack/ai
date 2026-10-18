@@ -9,11 +9,21 @@ import { LogOwnedElsewhereError } from './ownership'
 import { HARNESS_EVENTS } from './types'
 import {
   THREAD_RECORD_TYPES,
+  applyRunNode,
   emptyThreadState,
   foldThreadRecord,
   isHumanTarget,
+  isEnded,
+  rejectRunNode,
+  settleRunNode,
 } from './log-records'
-import { addUsage, emptyUsage, isSessionUsage } from './usage'
+import {
+  addCounts,
+  addUsage,
+  emptyCounts,
+  emptyUsage,
+  isSessionUsage,
+} from './usage'
 import { isRecord } from './utils'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type {
@@ -27,13 +37,14 @@ import type {
   OfferedInput,
   RunRecord,
 } from '@tanstack/ai-persistence'
-import type { AccessRun } from './access'
+import type { AccessRun, AccessWait } from './access'
 import type { EventFeed } from './feed'
 import type { HostOwnership } from './ownership'
 import type {
   AgentResultRecord,
   InterruptedTurnRecord,
   NamedTurnOverrides,
+  RunTreeNode,
   ScheduleRecord,
   ThreadRecord,
   ThreadStateFold,
@@ -50,7 +61,7 @@ import type {
   ThreadSettings,
   WaitingInput,
 } from './types'
-import type { SessionUsage, UsageCall } from './usage'
+import type { SessionUsage, UsageCall, UsageCounts } from './usage'
 
 /** The records the harness writes to a session log. */
 export type HarnessRecord =
@@ -265,6 +276,12 @@ export interface LogState {
   steps: Map<string, unknown>
   /** The usage of every model call of the thread. */
   usage: SessionUsage
+  /**
+   * The usage of each run that did not end, by run id: its own model calls,
+   * and those of the runs below it in the run tree. A run that ends leaves
+   * it.
+   */
+  runUsage: Map<string, UsageCounts>
   /** The revert that stands, if any. */
   revert?: RevertState
   /** Background jobs that started and did not end. */
@@ -285,6 +302,7 @@ export function emptyLogState() {
     started: new Map(),
     steps: new Map(),
     usage: emptyUsage(),
+    runUsage: new Map(),
     jobs: new Set(),
     notes: new Map(),
     thread: emptyThreadState(),
@@ -374,6 +392,35 @@ function forgetCalls(state: LogState, isDone: (toolCallId: string) => boolean) {
   }
 }
 
+/**
+ * Add the model call `call` to the sum of its run, and of each run above it
+ * that did not end.
+ */
+function addRunUsage(state: LogState, call: UsageCall) {
+  const { tree } = state.thread
+  const seen = new Set<string>()
+  let runId = call.runId
+  while (runId !== undefined && !seen.has(runId)) {
+    seen.add(runId)
+    const node = tree.get(runId)
+    if (!node) return
+    if (!isEnded(node.status)) {
+      const counts = state.runUsage.get(runId) ?? emptyCounts()
+      addCounts(counts, call.usage)
+      state.runUsage.set(runId, counts)
+    }
+    runId = node.parentRunId
+  }
+}
+
+/** Drop the usage sums of the runs that ended. */
+function dropEndedUsage(state: LogState) {
+  for (const runId of state.runUsage.keys()) {
+    const node = state.thread.tree.get(runId)
+    if (!node || isEnded(node.status)) state.runUsage.delete(runId)
+  }
+}
+
 function updateInput(
   state: LogState,
   inputId: string,
@@ -439,6 +486,11 @@ export function foldEntry(
       return
     case 'harness.input.applied': {
       const appliedAt = state.messages.length
+      state.thread = applyRunNode(state.thread, {
+        inputId: record.inputId,
+        operationId: record.operationId,
+        previous: state.inputs.get(record.inputId)?.operationId,
+      })
       updateInput(state, record.inputId, (input) => ({
         ...input,
         status: 'applied',
@@ -464,6 +516,8 @@ export function foldEntry(
         status: 'rejected',
         reason: record.reason,
       }))
+      state.thread = rejectRunNode(state.thread, record)
+      dropEndedUsage(state)
       return
     case 'harness.input.abort':
       updateInput(state, record.inputId, (input) => ({
@@ -504,6 +558,8 @@ export function foldEntry(
             : { outcome: record.outcome }),
         },
       }))
+      state.thread = settleRunNode(state.thread, record)
+      dropEndedUsage(state)
       return
     }
     case 'harness.tool.result':
@@ -520,6 +576,7 @@ export function foldEntry(
       return
     case 'harness.usage':
       addUsage(state.usage, record)
+      addRunUsage(state, record)
       return
     case 'harness.revert':
       if (record.revert) state.revert = record.revert
@@ -542,13 +599,16 @@ export function foldEntry(
     case 'harness.schedule.done':
     case 'harness.run':
     case 'harness.run.update':
+    case 'harness.run.node':
     case 'harness.interrupt':
     case 'harness.interrupt.end':
     case 'harness.wait':
     case 'harness.wait.settled':
     case 'harness.transferred':
     case 'harness.handoff':
+    case 'harness.state':
       state.thread = foldThreadRecord(state.thread, record)
+      if (state.runUsage.size > 0) dropEndedUsage(state)
       return
   }
 }
@@ -713,11 +773,13 @@ function serializeThread(thread: ThreadStateFold) {
     settings: thread.settings,
     config: [...thread.config],
     plugins: [...thread.plugins],
+    shared: [...thread.shared],
     interrupted: thread.interrupted,
     agentResults: [...thread.agentResults],
     turnOverrides: [...thread.turnOverrides],
     schedules: [...thread.schedules],
     runs: [...thread.runs],
+    tree: [...thread.tree],
     interrupts: [...thread.interrupts],
     waits: [...thread.waits],
     transfers: [...thread.transfers],
@@ -729,7 +791,8 @@ function serializeThread(thread: ThreadStateFold) {
 function parseThread(value: unknown) {
   if (!isRecord(value) || !isRecord(value.settings)) return undefined
   const { config, plugins, agentResults, turnOverrides, schedules } = value
-  const { runs, interrupts } = value
+  const { runs, tree, interrupts } = value
+  // A snapshot with no run tree is not used: a fold from the start makes it.
   const isShaped =
     Array.isArray(config) &&
     Array.isArray(plugins) &&
@@ -737,6 +800,7 @@ function parseThread(value: unknown) {
     Array.isArray(turnOverrides) &&
     Array.isArray(schedules) &&
     Array.isArray(runs) &&
+    Array.isArray(tree) &&
     Array.isArray(interrupts)
   if (!isShaped) return undefined
   // The harness wrote these values with `serializeThread`.
@@ -744,6 +808,12 @@ function parseThread(value: unknown) {
     settings: value.settings as ThreadSettings,
     config: new Map(config as Array<[string, unknown]>),
     plugins: new Map(plugins as Array<[string, unknown]>),
+    // A state with no shared state gets an empty value.
+    shared: new Map(
+      Array.isArray(value.shared)
+        ? (value.shared as Array<[string, unknown]>)
+        : [],
+    ),
     interrupted: (value.interrupted ?? null) as InterruptedTurnRecord | null,
     agentResults: new Map(agentResults as Array<[string, AgentResultRecord]>),
     turnOverrides: new Map(
@@ -751,6 +821,7 @@ function parseThread(value: unknown) {
     ),
     schedules: new Map(schedules as Array<[string, ScheduleRecord]>),
     runs: new Map(runs as Array<[string, RunRecord]>),
+    tree: new Map(tree as Array<[string, RunTreeNode]>),
     interrupts: new Map(interrupts as Array<[string, InterruptRecord]>),
     // A state with no waits gets an empty value.
     waits: new Map(
@@ -789,6 +860,7 @@ function serialize(state: SharedLogState, versions: SnapshotVersions) {
         started: [...session.started.entries()],
         steps: [...session.steps.entries()],
         usage: session.usage,
+        runUsage: [...session.runUsage.entries()],
         revert: session.revert ?? null,
         jobs: [...session.jobs],
         notes: [...session.notes.entries()],
@@ -834,6 +906,12 @@ function parseSession(value: unknown, seq: number) {
     steps: new Map(steps as Array<[string, unknown]>),
     // A state with no usage totals gets an empty value.
     usage: isSessionUsage(value.usage) ? value.usage : emptyUsage(),
+    // A state with no run sums gets an empty value.
+    runUsage: new Map(
+      Array.isArray(value.runUsage)
+        ? (value.runUsage as Array<[string, UsageCounts]>)
+        : [],
+    ),
     // A state with no reverts gets an empty value.
     ...(revert ? { revert } : {}),
     // A state with no jobs and notes gets an empty value.
@@ -944,7 +1022,20 @@ export async function loadLogState<TState = unknown>(options: {
  * log does not have the run, or a cancel names no operation.
  */
 // ponytail: this folds the log for each such input, from its snapshot.
-export async function loggedRunOf({
+export async function loggedRunOf(options: {
+  store: LogStore
+  logId: string
+  rootThread: string
+  input: HarnessInput
+}): Promise<AccessRun | null | undefined> {
+  return (await loggedTargetOf(options)).run
+}
+
+/**
+ * `loggedRunOf`, and for an answer also the wait that it answers, so a
+ * `human` wait can take the answer of an operator.
+ */
+export async function loggedTargetOf({
   store,
   logId,
   rootThread,
@@ -954,14 +1045,14 @@ export async function loggedRunOf({
   logId: string
   rootThread: string
   input: HarnessInput
-}): Promise<AccessRun | null | undefined> {
+}): Promise<{ run: AccessRun | null | undefined; wait?: AccessWait }> {
   if (
     input.op !== 'answer' &&
     input.op !== 'cancel' &&
     input.op !== 'cancelInput' &&
     input.op !== 'resolve'
   ) {
-    return undefined
+    return { run: undefined }
   }
   const state = await loadLogState({ store, logId, rootThread })
   const root = sessionOf(state, rootThread)
@@ -979,24 +1070,35 @@ export async function loggedRunOf({
   switch (input.op) {
     case 'answer': {
       const { wait } = root.thread.waits.get(input.questionId) ?? {}
-      if (!wait) return null
+      if (!wait) return { run: null }
+      const answered = { waitId: wait.waitId, kind: wait.kind }
       // A wait of the session belongs to no run.
       if (wait.principal || wait.runId === 'session') {
-        return { runId: wait.runId, ...by(wait.principal) }
+        return {
+          run: { runId: wait.runId, ...by(wait.principal) },
+          wait: answered,
+        }
       }
-      return startedBy(wait.runId)
+      return { run: startedBy(wait.runId), wait: answered }
     }
     case 'cancel':
-      return input.operationId === undefined
-        ? null
-        : startedBy(input.operationId)
+      return {
+        run:
+          input.operationId === undefined ? null : startedBy(input.operationId),
+      }
     case 'cancelInput': {
       const logged = inputs.find((item) => item.inputId === input.inputId)
-      return logged ? { runId: input.inputId, ...by(logged.principal) } : null
+      return {
+        run: logged ? { runId: input.inputId, ...by(logged.principal) } : null,
+      }
     }
     case 'resolve': {
       const stopped = root.thread.interrupted
-      return stopped ? { runId: stopped.runId, ...by(stopped.principal) } : null
+      return {
+        run: stopped
+          ? { runId: stopped.runId, ...by(stopped.principal) }
+          : null,
+      }
     }
   }
 }

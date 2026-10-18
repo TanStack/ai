@@ -78,9 +78,9 @@ A host that stops also stops renewing its ownership of the thread. When the owne
 4. The time limit passed: the input ends `failed`, with the error code `timeout`.
 5. Else the turn runs again as the next attempt, and clients get a `harness.operation.resumed` event.
 
-An input that was stored but never ran, runs now. `session.settled(inputId)` resolves to how an input ended. See [Send inputs safely](./inputs).
+An input that was stored but never ran, runs now. `session.settled({ inputId })` resolves to how an input ended. See [Send inputs safely](./inputs).
 
-A background agent that you started with `resume: true` runs again on the next host. See [Keep a background agent going after a crash](./subagents#keep-a-background-agent-going-after-a-crash). For any other background agent whose host stopped, the next host:
+A background agent that you started with `resume: true` runs again on the next host. See [Keep a background agent going after a crash](./subagents#keep-a-background-agent-going-after-a-crash). The children and groups that it started before the stop do not start again: they give their stored results. See [Children of a run that runs again](./subagents#children-of-a-run-that-runs-again). For any other background agent whose host stopped, the next host:
 
 1. Ends the run `failed`, with the message `The host stopped during this agent run.`
 2. Adds a note about the failure to the transcript.
@@ -293,7 +293,12 @@ const ownedHost = createHarnessHost({
 
 An input that waits for the owner keeps its JSON overrides (`model`, `modelOptions`, `reasoning`, and `promptCache`). The `adapter` and `tools` overrides are objects, so the owner runs the input without them.
 
-A question from `ctx.session.ask` waits in the memory of the host that asked, so that host keeps the thread until the answer comes. An answer that reaches another host goes to the host that asked. Until then, a plain answer waits in the log store as the user typed it. The log keeps a secret answer as `[secret]`.
+A [wait](./waits) for a person does not always keep a host busy:
+
+- The approvals and the questions that a turn stopped for, and the waits of background agent runs, are only in the log. The session goes idle, and an answer on any host continues the run.
+- A `step.ask` in code that runs, an MCP server that asks during a tool call, and an OAuth sign-in wait in the memory of the host that runs them. That host keeps the thread until the answer comes.
+
+An answer that reaches another host goes to the owner through the log. Until then, a plain answer waits in the log store as the user typed it. The log keeps a secret answer as `[secret]`.
 
 ### Secret answers on another host
 

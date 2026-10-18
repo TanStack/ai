@@ -302,52 +302,32 @@ function routedIndex(messages: ReadonlyArray<ModelMessage>, runId: string) {
   })
 }
 
-/** The text of the routed message of run `runId`, when the thread has one. */
-export async function routedText(
-  store: MessageStore,
-  threadId: string,
-  runId: string,
-) {
-  const history = await store.loadThread(threadId)
-  const content = history[routedIndex(history, runId)]?.content
-  return typeof content === 'string' ? content : undefined
-}
-
 /**
  * Mark the routed message of run `runId` with the agent that wrote it, in
- * `metadata.harness.agent`. chat() writes that message again for each routed
- * part of the run, so `earlier` (the text of the parts before a handoff in
- * the same turn) goes back in front of it.
- *
- * ponytail: a resume of a later part writes the message again, and the text
- * of the earlier parts goes. Each agent keeps its own transcript all the same.
+ * `metadata.harness.agent`. A routed pass that runs again on the same run id
+ * (a handoff to another root agent, a late join, a hook) first keeps this
+ * message under its own id, so each pass keeps its own message.
  */
 export async function markRouted(
   store: MessageStore,
   threadId: string,
   runId: string,
-  mark: { agent?: string; earlier?: string },
+  mark: { agent?: string },
 ) {
-  const { agent, earlier } = mark
-  if (agent === undefined && earlier === undefined) return
+  const { agent } = mark
+  if (agent === undefined) return
   const history = await store.loadThread(threadId)
   const index = routedIndex(history, runId)
   const message = history[index]
   if (!message) return
-  const own = typeof message.content === 'string' ? message.content : ''
-  const content =
-    earlier === undefined || own.startsWith(earlier)
-      ? own
-      : [earlier, own].filter((part) => part !== '').join('\n\n')
   const harness = isRecord(message.metadata?.harness)
     ? message.metadata.harness
     : {}
   const updated: ModelMessage = {
     ...message,
-    content,
     metadata: {
       ...message.metadata,
-      harness: { ...harness, ...(agent !== undefined ? { agent } : {}) },
+      harness: { ...harness, agent },
     },
   }
   await store.saveThread(threadId, history.with(index, updated))

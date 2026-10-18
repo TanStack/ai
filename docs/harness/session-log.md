@@ -164,6 +164,25 @@ const messages = logMessageStore({ store: log, project })
 console.log(await messages.loadThread('thread-1'))
 ```
 
+## Find the runs in the log
+
+Your dashboard shows every agent run of a thread, also the runs that ended long ago. The log has one `harness.run.node` record for each run that the session admits:
+
+```ts group=harness-session-log
+const records = (await log.read({ logId: logIdOf({ logId: 'thread-1' }) })).map(
+  (entry) => entry.record,
+)
+const agentNodes = records.filter(
+  (record) => record.type === 'harness.run.node' && record.kind === 'agent',
+)
+console.log(agentNodes.map((record) => [record.runId, record.agent, record.parentRunId]))
+```
+
+- A `harness.run.node` record has `runId`, `kind` (`turn`, `agent`, or `command`), and the `principal` when it is known. An agent run also has `agent`, and `parentRunId`, `key`, `limits`, and `budget` when it has them.
+- The status, the result, and the error come from later records: `harness.run`, `harness.run.update`, and `harness.agent.result`. A session folds them into one tree. See [The run tree](./subagents#the-run-tree).
+- Each `harness.usage` record has the `runId` of the run that made the model call. See [Usage of one run](./usage#usage-of-one-run).
+- A `harness.state` record has a `key` and one change to its value. It is the shared state of [`ctx.harness.state`](./subagents#share-state-between-agents).
+
 ## Tune how text streams into the log
 
 A host merges streamed text and tool call arguments for `log.coalesceMs` milliseconds (default 100) before it appends them. A message start or end, a tool call start or end, and your own records append at once.
@@ -183,3 +202,4 @@ A larger value writes less often, and clients get text in larger parts.
 - A model context that folds them in, the same live and after a restart.
 - Records that a webhook or a browser adds, for the record types you expose.
 - A transcript that any reader can fold from the log.
+- Every run of the thread, and the shared state of its agents, in records that you can read.

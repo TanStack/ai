@@ -14,7 +14,11 @@ import { mockAdapter, text, toolCall } from './helpers'
 import type { PlatformPath } from 'node:path'
 import type { AnyTextAdapter, AnyTool } from '@tanstack/ai'
 import type { HarnessPlugin } from '../src'
-import type { PermissionRule } from '../src/first-party/permissions'
+import type {
+  CallResources,
+  PermissionDecision,
+  PermissionRule,
+} from '../src/first-party/permissions'
 import type { WorkspaceBackend } from '../src/first-party/coding/backend'
 import type {
   OutsideAccess,
@@ -309,20 +313,27 @@ describe.each(fixtures)('workspace tools on the $name backend', (fixture) => {
       await fixture.remove(outside)
     })
 
-    /** Tools that ask about outside paths. The user answers from `answers`. */
-    function asking(answers: Array<unknown>, mode = 'default') {
-      const questions: Array<string> = []
-      const set = toolsOf(
-        { root, backend, outside: 'ask' },
-        {
-          ask: async (message) => {
-            questions.push(message)
-            return answers.shift()
-          },
-          mode: () => mode,
-        },
-      )
-      return { set, questions }
+    /**
+     * Tools with `outside: 'ask'`. `decision` is what the permission rules
+     * say now about a call. A call that runs was approved before it ran.
+     */
+    function approved(
+      decision: PermissionDecision | null = 'ask',
+      mode = 'default',
+    ) {
+      const options = { root, backend, outside: 'ask' as const }
+      // `null`: no permissions(). The rules decide only the outside paths.
+      const decide = (_tool: string, resources: CallResources) =>
+        resources.outside?.length ? (decision ?? 'allow') : 'allow'
+      const access = {
+        mode: () => mode,
+        ...(decision ? { rules: () => decide } : {}),
+      }
+      const created = createWorkspaceTools(options, { access })
+      return {
+        set: new Map(created.tools.map((tool) => [tool.name, tool])),
+        resources: created.resources,
+      }
     }
 
     it('refuses outside paths without the outside option', async () => {
@@ -331,43 +342,42 @@ describe.each(fixtures)('workspace tools on the $name backend', (fixture) => {
       ).rejects.toThrow('outside the workspace')
     })
 
-    it('asks once for a folder, then allows it for the session', async () => {
-      const { set, questions } = asking([true])
+    it('tells the rules the real outside path, so the call asks before it runs', async () => {
+      const { resources } = approved()
       const docs = paths.join(outside, 'docs')
-      expect(
-        await runIn(set, 'read_file', { path: paths.join(docs, 'a.md') }),
-      ).toBe('1\talpha')
-      expect(
-        await runIn(set, 'read_file', { path: paths.join(docs, 'b.md') }),
-      ).toBe('1\tbeta')
-      expect(questions).toHaveLength(1)
-      // The question names the real folder: the temp folder can be a link.
+      // The real path: the temp folder can be a link.
       const real = (await backend.realpath?.(docs)) ?? docs
-      expect(questions[0]).toContain(`Allow ${real} `)
-    })
-
-    it('asks again for another folder, and refuses after a no', async () => {
-      const { set, questions } = asking([true, 'n'])
-      await runIn(set, 'read_file', {
-        path: paths.join(outside, 'docs', 'a.md'),
-      })
-      await expect(
-        runIn(set, 'read_file', { path: paths.join(outside, 'top.md') }),
-      ).rejects.toThrow('The user did not allow')
-      expect(questions).toHaveLength(2)
-    })
-
-    it('asks one question for calls at the same time', async () => {
-      const { set, questions } = asking([true])
-      await Promise.all([
-        runIn(set, 'read_file', { path: paths.join(outside, 'docs', 'a.md') }),
-        runIn(set, 'read_file', { path: paths.join(outside, 'docs', 'b.md') }),
+      const input = { path: paths.join(docs, 'a.md') }
+      expect(await resources.read_file?.outside?.(input)).toEqual([
+        paths.join(real, 'a.md'),
       ])
-      expect(questions).toHaveLength(1)
+      expect(
+        await resources.read_file?.outside?.({ path: 'src/a.ts' }),
+      ).toEqual([])
     })
 
-    it('lists and searches an allowed outside folder with full paths', async () => {
-      const { set } = asking([true])
+    it('runs an approved outside call, and refuses one that a rule denies', async () => {
+      const { set } = approved('ask')
+      expect(
+        await runIn(set, 'read_file', { path: paths.join(outside, 'top.md') }),
+      ).toBe('1\ttop')
+      await expect(
+        runIn(approved('deny').set, 'read_file', {
+          path: paths.join(outside, 'top.md'),
+        }),
+      ).rejects.toThrow('The permission rules do not allow read_file')
+    })
+
+    it('refuses an outside path without permissions(), because nobody can approve it', async () => {
+      await expect(
+        runIn(approved(null).set, 'read_file', {
+          path: paths.join(outside, 'top.md'),
+        }),
+      ).rejects.toThrow('outside the workspace')
+    })
+
+    it('lists and searches an approved outside folder with full paths', async () => {
+      const { set } = approved()
       const folder = paths.join(outside, 'docs')
       const shown = folder.split(paths.sep).join('/')
       expect(await runIn(set, 'list_files', { path: folder })).toBe(
@@ -378,12 +388,11 @@ describe.each(fixtures)('workspace tools on the $name backend', (fixture) => {
       )
     })
 
-    it('does not ask in bypass mode', async () => {
-      const { set, questions } = asking([], 'bypass')
+    it('runs in bypass mode, also without permissions()', async () => {
+      const { set } = approved(null, 'bypass')
       expect(
         await runIn(set, 'read_file', { path: paths.join(outside, 'top.md') }),
       ).toBe('1\ttop')
-      expect(questions).toHaveLength(0)
     })
   })
 })
@@ -483,29 +492,71 @@ describe('editStyle', () => {
   )
 })
 
+describe('the afterWrite hooks', () => {
+  it.each([
+    ['write_file', { path: 'a.ts', content: 'one' }],
+    ['edit_file', { path: 'a.ts', old: 'zero', new: 'one' }],
+  ])(
+    'run after %s gives the file lock back, so a hook (a formatter) can write the file',
+    async (name, args) => {
+      const { backend, files } = memoryBackend()
+      files.set('/workspace/a.ts', new TextEncoder().encode('zero'))
+      let isFormatted = false
+      const { tools } = createWorkspaceTools(
+        { root: '/workspace', backend },
+        {
+          hooks: () => [
+            {
+              // Writes the file again, as a formatter does. Inside the lock
+              // of the call, this write would wait for ever.
+              afterWrite: async () => {
+                if (isFormatted) return undefined
+                isFormatted = true
+                await runIn(set, 'write_file', {
+                  path: 'a.ts',
+                  content: 'formatted',
+                })
+                return 'Formatted.'
+              },
+            },
+          ],
+        },
+      )
+      const set = new Map(
+        tools.map((tool): [string, AnyTool] => [tool.name, tool]),
+      )
+
+      expect(await runIn(set, name, args)).toContain('Formatted.')
+      expect(new TextDecoder().decode(files.get('/workspace/a.ts'))).toBe(
+        'formatted',
+      )
+    },
+  )
+})
+
 describe('permission resources', () => {
   const { resources } = createWorkspaceTools({
     root: '/workspace',
     backend: memoryBackend().backend,
   })
 
-  it('gives each call its paths, from the root', () => {
-    expect(resources.read_file?.paths?.({ path: 'src/a.ts' })).toEqual([
+  it('gives each call its paths, from the root', async () => {
+    expect(await resources.read_file?.paths?.({ path: 'src/a.ts' })).toEqual([
       '/workspace/src/a.ts',
     ])
-    expect(resources.edit_file?.paths?.({ path: '/etc/hosts' })).toEqual([
+    expect(await resources.edit_file?.paths?.({ path: '/etc/hosts' })).toEqual([
       '/etc/hosts',
     ])
-    expect(resources.write_file?.paths?.({ path: '../x.txt' })).toEqual([
+    expect(await resources.write_file?.paths?.({ path: '../x.txt' })).toEqual([
       '/x.txt',
     ])
-    expect(resources.list_files?.paths?.({})).toEqual(['/workspace'])
-    expect(resources.grep?.paths?.({ pattern: 'a', path: 'src' })).toEqual([
-      '/workspace/src',
-    ])
+    expect(await resources.list_files?.paths?.({})).toEqual(['/workspace'])
+    expect(
+      await resources.grep?.paths?.({ pattern: 'a', path: 'src' }),
+    ).toEqual(['/workspace/src'])
   })
 
-  it('gives every path of a patch, also the target of a move', () => {
+  it('gives every path of a patch, also the target of a move', async () => {
     const patch = [
       '*** Begin Patch',
       '*** Add File: a.ts',
@@ -517,7 +568,7 @@ describe('permission resources', () => {
       '+y',
       '*** End Patch',
     ].join('\n')
-    expect(resources.patch?.paths?.({ patch })).toEqual([
+    expect(await resources.patch?.paths?.({ patch })).toEqual([
       '/workspace/a.ts',
       '/workspace/old.ts',
       '/workspace/lib/new.ts',
@@ -531,13 +582,15 @@ describe('permission resources', () => {
     ])
   })
 
-  it('throws, so the call is refused, when the input has no path or patch', () => {
-    expect(() => resources.read_file?.paths?.({})).toThrow(
-      'Argument "path" must be a string.',
-    )
-    expect(() => resources.patch?.paths?.({ patch: 'not a patch' })).toThrow(
-      'Patch line 1',
-    )
+  it('throws, so the call is refused, when the input has no path or patch', async () => {
+    await expect(
+      Promise.resolve().then(() => resources.read_file?.paths?.({})),
+    ).rejects.toThrow('Argument "path" must be a string.')
+    await expect(
+      Promise.resolve().then(() =>
+        resources.patch?.paths?.({ patch: 'not a patch' }),
+      ),
+    ).rejects.toThrow('Patch line 1')
   })
 
   it('reach permissions(), so an allow rule for a path skips the question', async () => {
@@ -558,7 +611,7 @@ describe('permission resources', () => {
       workspaceTools({ root: '/workspace', backend, editStyle: 'patch' }),
     ])
     await session.send('work')
-    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(session.snapshot().pendingWaits).toEqual([])
     expect([...files.keys()]).toEqual(['/workspace/src/a.ts'])
     await host.close()
   })
@@ -648,15 +701,26 @@ describe('permission rules, links, and grep', () => {
     const { host, session, seen } = await callTools(backend, [
       ['read_file', { path: 'notes' }],
     ])
-    const turn = session.send('read the notes')
-    await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
-    const [question] = session.snapshot().pendingQuestions
-    if (!question) throw new Error('No question.')
-    expect(question.message).toContain('.env')
-    await session.answer({ questionId: question.questionId, value: 'n' })
-    await turn
+    // The rules see the real path before the call, so the turn stops for
+    // an approval and the file is not read.
+    const turn = await session.send('read the notes')
+    expect(turn.interrupts).toHaveLength(1)
+    const [wait] = session.snapshot().pendingWaits ?? []
+    expect(wait?.kind).toBe('approval')
+    expect(seen()).not.toContain('hunter2')
+    if (!wait) throw new Error('No approval.')
+    await session.resolve({
+      resume: [
+        {
+          interruptId: wait.waitId,
+          status: 'resolved',
+          payload: { answer: 'reject' },
+        },
+      ],
+      inputId: 'no',
+    })
+    await session.settled({ inputId: 'no' })
+    expect(seen()).toContain('The user denied this tool call.')
     expect(seen()).not.toContain('hunter2')
     await host.close()
   })
@@ -676,8 +740,9 @@ describe('permission rules, links, and grep', () => {
       },
     )
     await session.send('read the key')
-    expect(session.snapshot().pendingQuestions).toHaveLength(0)
-    expect(result('c0')).toContain('The permission rules do not allow')
+    expect(session.snapshot().pendingWaits).toEqual([])
+    // The rules see the real path before the call, so it never runs.
+    expect(result('c0')).toContain('A permission rule denies this tool.')
     expect(seen()).not.toContain('hunter2')
     await host.close()
   })
@@ -690,7 +755,7 @@ describe('permission rules, links, and grep', () => {
       { mode: 'plan' },
     )
     await session.send('read the notes')
-    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(session.snapshot().pendingWaits).toEqual([])
     expect(seen()).not.toContain('hunter2')
     await host.close()
   })
@@ -718,7 +783,7 @@ describe('permission rules, links, and grep', () => {
         },
       )
       await session.send('search')
-      expect(session.snapshot().pendingQuestions).toHaveLength(0)
+      expect(session.snapshot().pendingWaits).toEqual([])
       for (const id of ['c0', 'c1']) {
         expect(result(id)).toBe(`"src/a.ts:1: KEY=1\\n${SKIPPED_TWO}"`)
       }
@@ -778,18 +843,23 @@ describe('webfetch approval', () => {
 
   it('asks before webfetch by default', async () => {
     const { host, session } = await fetchOnce()
-    const turn = session.send('read the page')
-    await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
-    const [question] = session.snapshot().pendingQuestions
-    if (!question) throw new Error('No question.')
-    expect(question.message).toContain('Allow webfetch')
-    await session.answer({
-      questionId: question.questionId,
-      value: { answer: 'reject' },
+    await session.send('read the page')
+    const [wait] = session.snapshot().pendingWaits ?? []
+    if (!wait) throw new Error('No approval.')
+    expect(wait.message).toContain('Allow webfetch')
+    await session.resolve({
+      resume: [
+        {
+          interruptId: wait.waitId,
+          status: 'resolved',
+          payload: { answer: 'reject' },
+        },
+      ],
+      inputId: 'no',
     })
-    await turn
+    expect(await session.settled({ inputId: 'no' })).toMatchObject({
+      outcome: 'completed',
+    })
     await host.close()
   })
 
@@ -798,7 +868,7 @@ describe('webfetch approval', () => {
       { tool: 'webfetch', decision: 'allow' },
     ])
     await session.send('read the page')
-    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(session.snapshot().pendingWaits).toEqual([])
     expect(JSON.stringify(calls[1].messages)).toContain('fetched body')
     await host.close()
   })
@@ -953,29 +1023,20 @@ describe('links on the host', () => {
     ])
     await session.send('read through the link')
     const seen = JSON.stringify(calls[1].messages)
-    expect(seen).toContain(
-      'The permission rules do not allow read_file on src/a.ts, the real path of inner/a.ts.',
-    )
+    // The rules see the real path before the call, so it never runs.
+    expect(seen).toContain('A permission rule denies this tool.')
     expect(seen).not.toContain('inside')
     await host.close()
   })
 
-  it('asks about the real folder of a linked path with outside: ask', async () => {
-    const questions: Array<string> = []
-    const set = toolsOf(
+  it('tells the rules the real folder of a linked path with outside: ask', async () => {
+    const { resources } = createWorkspaceTools(
       { root, backend: hostBackend, outside: 'ask' },
-      {
-        ask: async (message) => {
-          questions.push(message)
-          return 'n'
-        },
-        mode: () => 'default',
-      },
+      { access: { mode: () => 'default' } },
     )
-    await expect(
-      runIn(set, 'read_file', { path: 'linked/secret.txt' }),
-    ).rejects.toThrow('The user did not allow')
-    expect(questions[0]).toContain(`Allow ${await realpath(outside)} `)
+    expect(
+      await resources.read_file?.outside?.({ path: 'linked/secret.txt' }),
+    ).toEqual([nodePath.join(await realpath(outside), 'secret.txt')])
   })
 })
 

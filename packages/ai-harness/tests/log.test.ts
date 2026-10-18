@@ -936,6 +936,7 @@ describe('snapshots', () => {
     turnOverrides: [],
     schedules: [],
     runs: [],
+    tree: [],
     interrupts: [],
     ...overrides,
   })

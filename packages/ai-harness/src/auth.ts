@@ -53,14 +53,14 @@ export interface CredentialsAccess {
   get: (id: string) => Promise<Credential | null>
   /**
    * Like `get`, but throws {@link AuthRequiredError} when the credential is
-   * missing. With `wait: true`, a tool of a chat turn waits for the sign-in
-   * instead: the turn stops with an interrupt with the reason
-   * `'auth_required'`. When the credential is saved (for example by
-   * `connect:<id>`), the turn goes on and the tool runs again. Cancel the
-   * interrupt to fail the tool. `wait` is for a tool of the running chat
-   * turn. Do not pass it elsewhere (a command, a background agent, a hook):
-   * the credentials of a command never wait, and outside a chat turn `wait`
-   * does nothing.
+   * missing. With `wait: true`, a tool of a chat turn or of a background
+   * agent run waits for the sign-in instead: the run stops with an
+   * interrupt with the reason `'auth_required'`, a `sign-in` wait. When the
+   * credential is saved (for example by `connect:<id>`), the run goes on
+   * and the tool runs again. Cancel the interrupt to fail the tool. The
+   * wait expires after 15 minutes, and then the tool fails too. Do not pass
+   * `wait` elsewhere (a command, a hook): the credentials of a command never
+   * wait, and outside a run `wait` does nothing.
    */
   require: (id: string, options?: { wait?: boolean }) => Promise<Credential>
   set: (entry: { id: string; credential: Credential }) => Promise<void>

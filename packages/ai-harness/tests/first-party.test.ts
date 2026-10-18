@@ -88,17 +88,22 @@ describe('workspace tools with permissions', () => {
       workspaceTools({ root }),
     ])
 
-    const turn = session.send('work')
-    await waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
-    const [question] = session.snapshot().pendingQuestions
-    expect(question?.message).toContain('write_file')
-    await session.answer({
-      questionId: question!.questionId,
-      value: { answer: 'once' },
+    // The write asks before it runs: the turn stops with an approval wait.
+    await session.send('work')
+    const [wait] = session.snapshot().pendingWaits ?? []
+    expect(wait?.kind).toBe('approval')
+    expect(wait?.message).toContain('write_file')
+    await session.resolve({
+      resume: [
+        {
+          interruptId: wait!.waitId,
+          status: 'resolved',
+          payload: { answer: 'once' },
+        },
+      ],
+      inputId: 'approve',
     })
-    await turn
+    await session.settled({ inputId: 'approve' })
 
     expect(await readFile(join(root, 'out.txt'), 'utf8')).toBe('written')
     const toolResults = JSON.stringify(calls[3].messages)
@@ -121,7 +126,7 @@ describe('workspace tools with permissions', () => {
     )
     await session.send('write')
     await expect(readFile(join(root, 'x.txt'), 'utf8')).rejects.toThrow()
-    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(session.snapshot().pendingWaits).toEqual([])
     await host.close()
   })
 

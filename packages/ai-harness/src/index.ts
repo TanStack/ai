@@ -205,6 +205,7 @@ export type {
   Principal,
   Receipt,
   RunContext,
+  RunNode,
   SendOptions,
   SessionEvent,
   StreamChunkOf,

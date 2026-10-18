@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, logIdOf } from '../src'
+import { emptySharedLogState, foldLogEntry, sessionOf } from '../src/log'
 import { addUsage, emptyUsage } from '../src/usage'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
@@ -250,6 +251,78 @@ describe('usage totals after a restart', () => {
     await next.close()
   })
 })
+
+describe('usage of each run', () => {
+  it('names the run of each call, adds a child call to its parent, and drops the sum when the run ends', async () => {
+    const workerModel = model('worker-model', [
+      () => withUsage(text('worked'), { prompt: 6, completion: 3 }),
+    ])
+    const worker = defineAgent({
+      name: 'worker',
+      description: 'Works',
+      run: (ctx) => ctx.chat({ adapter: workerModel.adapter }),
+    })
+    const lead = defineAgent({
+      name: 'lead',
+      description: 'Runs the worker',
+      run: async (ctx) => ctx.harness.agents.run(worker),
+    })
+    const { metadata } = memoryPersistence().stores
+    const log = memoryLogStore()
+    const host = createHarnessHost({
+      persistence: { stores: { log, metadata } },
+    })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/usage-runs',
+        adapter: model('main-model', []).adapter,
+        agents: [lead, worker],
+      }),
+      { threadId: THREAD, principal: alice },
+    )
+
+    const run = session.agents.lead.start(undefined, { attach: 'none' })
+    expect(await run).toBe('worked')
+    const workerRun = session
+      .agentRuns()
+      .find((item) => item.agent === 'worker')
+
+    const entries = await log.read({ logId: LOG })
+    const usage = entries.filter(
+      (entry) => entry.record.type === 'harness.usage',
+    )
+    expect(usage.map((entry) => entry.record.runId)).toEqual([workerRun?.runId])
+    /** The run sums of the thread after the log up to `seq`. */
+    const sumsAt = (seq: number) => {
+      const state = emptySharedLogState()
+      for (const entry of entries) {
+        if (entry.seq <= seq) foldLogEntry(state, entry, { rootThread: THREAD })
+      }
+      return sessionOf(state, THREAD).runUsage
+    }
+    const afterCall = sumsAt(usage[0]?.seq ?? 0)
+    expect(afterCall.get(workerRun?.runId ?? '')?.totalTokens).toBe(9)
+    expect(afterCall.get(run.id)?.totalTokens).toBe(9)
+    expect(sumsAt(Infinity).size).toBe(0)
+    // The run record of each run keeps its final usage.
+    const finalUsage = (runId: string) =>
+      entries.find(
+        (entry) =>
+          entry.record.type === 'harness.run.update' &&
+          entry.record.runId === runId &&
+          isRecordWithUsage(entry.record.patch),
+      )?.record.patch
+    expect(finalUsage(run.id)).toMatchObject({ usage: { totalTokens: 9 } })
+    expect(finalUsage(workerRun?.runId ?? '')).toMatchObject({
+      usage: { totalTokens: 9 },
+    })
+    await host.close()
+  })
+})
+
+/** Is `value` a run record change that sets `usage`? */
+const isRecordWithUsage = (value: unknown) =>
+  typeof value === 'object' && value !== null && 'usage' in value
 
 describe('usage totals of an odd key', () => {
   it('keeps a sender with the id __proto__ as its own entry', () => {

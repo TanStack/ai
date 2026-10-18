@@ -9,6 +9,7 @@ import type {
   UIMessage,
 } from '@tanstack/ai'
 import type { OperationImpl } from '../operation'
+import type { HeldPlugins } from './helpers'
 import type { RefreshFlights } from '../auth'
 import type { ToolTurn } from '../tool-turn'
 import type {
@@ -20,7 +21,8 @@ import type {
 } from '@tanstack/ai-persistence'
 import type { InputState, LogViewHooks, LogWriter } from '../log'
 import type { ConfigOption } from '../config'
-import type { SessionUsage } from '../usage'
+import type { SessionUsage, UsageCall } from '../usage'
+import type { SessionImpl } from './harness-session'
 import type { AgentInputOf, AgentResultOf, AnyAgent } from '../agents'
 import type { Wait } from '../waits'
 import type { AnyHarness, HarnessAgentsOf } from '../define'
@@ -39,7 +41,9 @@ import type {
   HarnessInput,
   PendingQuestion,
   Principal,
+  Receipt,
   ResolveOptions,
+  RunNode,
   ThreadSettings,
   TurnOverrides,
   UserInput,
@@ -137,17 +141,22 @@ export interface AgentStartOptions {
  * The options of an agent run inside the session. `offered`: the run starts
  * from an input that another host offered. It keeps the input id, and the
  * run id that the host which offered it follows in the log. A submitted
- * input has no run id.
+ * input has no run id. `inputId`: the input id of the run, from its key in
+ * the run that starts it, so a run again finds the same child. `ready`: a
+ * child that waits for a slot of its group starts when it resolves `true`,
+ * and ends cancelled on `false`. A rejection fails the run.
  */
 export type AgentRunStartOptions = AgentStartOptions & {
   offered?: { inputId: string; runId?: string }
+  inputId?: string
+  ready?: Promise<boolean>
 }
 
 /** Start one agent run. `start`, `run`, and `group` of `AgentActions` use it. */
 export type AgentStartFn = (
   target: string | AnyAgent,
   input: unknown,
-  options: AgentStartOptions,
+  options: AgentRunStartOptions,
 ) => AgentRunImpl
 
 /** The runs that the body of a `group` returns. */
@@ -161,6 +170,15 @@ export interface AgentChild {
   parentToolCallId?: string
   /** Text for an agent without `inputSchema`: one user message at the end. */
   prompt?: string
+  /** The turn whose tool started the run. */
+  turnRunId?: string
+  /**
+   * The subagent tree budget of the turn, for a start from a tool-mode
+   * child. The start took a call of it already.
+   */
+  budget?: SubagentBudget
+  /** The plugins of the turn that started the run. */
+  plugins?: HeldPlugins
 }
 
 export type RunArgs<TAgent, TOptions> =
@@ -195,13 +213,35 @@ export type AgentHandles<THarness> = {
 /** One agent run, as `session.agentRuns()` lists it. */
 export interface AgentRunInfo {
   operationId: string
+  /** The id of the run in the run tree: the same as `operationId`. */
+  runId: string
+  kind: 'agent'
   agent: string
-  /** `queued`: a follow-up that waits for the run before it. */
-  status: 'running' | 'queued' | 'completed' | 'failed' | 'cancelled'
-  /** The run whose agent code started this run. */
+  /**
+   * `queued`: a follow-up that waits for the run before it. `waiting`: the
+   * run stopped for its waits (an approval, a sign-in), and an answer
+   * resumes it. See `pendingWaits`.
+   */
+  status:
+    | 'running'
+    | 'queued'
+    | 'waiting'
+    | 'completed'
+    | 'failed'
+    | 'cancelled'
+  /**
+   * The run that started this run: the agent run whose code started it, or
+   * the turn whose tool started it.
+   */
   parentRunId?: string
   /** Who the run runs for. */
   principal?: Principal
+  /** The model use the run can have (`AgentStartOptions.budget`). */
+  budget?: RunNode['budget']
+  /** The raw result of a run that completed, as `agentResult` gives it. JSON. */
+  result?: unknown
+  /** Why the run failed. */
+  error?: RunNode['error']
 }
 
 /** What a session looks like right now. */
@@ -350,7 +390,44 @@ export interface SessionDependencies {
    * `envKeys`.
    */
   access?: { envKeys: boolean }
+  /**
+   * Open a session of `harness` on a child thread of this log, for
+   * `harnessAgent`. The host sets it.
+   */
+  openChild?: OpenChildSession
+  /** Set on a child session only: what it takes from its parent. */
+  child?: ChildSessionLink
 }
+
+/** What a child session of `harnessAgent` takes from its parent. */
+export interface ChildSessionLink {
+  /** The root thread of the tree. The child reads the credentials of the root. */
+  rootThreadId: string
+  /** The thread of the session that started the child. Its index entry names it. */
+  parentThreadId: string
+  /**
+   * Count one model call of the child in the run that started it, and check
+   * the budget of that run. The child keeps no usage of its own.
+   */
+  countUsage: (call: UsageCall) => Promise<void>
+}
+
+/** A child session of `harnessAgent` that a run of a session has open. */
+export interface HarnessChild {
+  session: SessionImpl
+  /** Answer waits of the child. Its run goes on with the answers. */
+  answer: (options: ResolveForRunOptions) => Promise<Receipt>
+}
+
+/** See {@link SessionDependencies.openChild}. */
+export type OpenChildSession = (
+  harness: AnyHarness,
+  options: {
+    threadId: string
+    principal: Principal | undefined
+    child: ChildSessionLink
+  },
+) => Promise<SessionImpl>
 
 export interface QueuedTurn {
   operation: OperationImpl<ChatTurnResult>
@@ -472,7 +549,25 @@ export interface AgentChain {
   principal?: Principal
   /** The run whose agent code started this chain. */
   parentRunId?: string
+  /** The `agent` input of the chain whose code started this chain. */
+  parentChainInputId?: string
+  /**
+   * Gives back the call that the start of this chain took from its parent's
+   * tree budget. A start that fails before its run applies calls it once.
+   */
+  release?: () => void
+  /**
+   * The turn whose tool started this chain. Only the run tree keeps it: the
+   * run record does not, so core does not show the run as a child of the
+   * turn.
+   */
+  turnRunId?: string
   budget: SubagentBudget
+  /**
+   * The plugins of the turn that started this chain, or the chain above it.
+   * A run of the chain gets them while they are not disposed.
+   */
+  plugins?: HeldPlugins
   /** The newest run that started. */
   current: AgentRunEntry
   /**
@@ -498,6 +593,17 @@ export interface AgentRunStart {
   resumed?: boolean
   /** The agent tool call that started a first run. */
   child?: AgentChild
+  /**
+   * The answers to the interrupts that the run waited for: the run goes on
+   * from its stopped chat run `interruptedRunId`.
+   */
+  answers?: {
+    resume: Array<RunAgentResumeItem>
+    interruptedRunId: string
+    subagentRunId: string
+    /** The connectors whose sign-in the user cancelled. */
+    declined: ReadonlyArray<string>
+  }
 }
 
 /** The `agent` input of a first run, as the log keeps it. */

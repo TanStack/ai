@@ -8,8 +8,10 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
+  durableTool,
   membersOnly,
 } from '@tanstack/ai-harness'
+import { question as questionTool } from '@tanstack/ai-harness/plugins'
 import { createMCPClient } from '@tanstack/ai-mcp'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { EXIT, parseCliArgs, runCli } from '../src'
@@ -19,12 +21,13 @@ import { capture, scripted, stdinFrom, textTurn, toolTurn } from './helpers'
 /** `/connect acme` asks for a key as a secret question, then saves it. */
 const acmeKeys = definePlugin({
   name: 'test/acme-keys',
-  setup: (ctx) => ({
+  setup: () => ({
     commands: {
       'connect:acme': defineCommand({
         description: 'Save an Acme API key',
-        run: async (_input, { credentials }) => {
-          const key = await ctx.session.ask({
+        run: async (_input, { credentials, step }) => {
+          const key = await step.ask({
+            name: 'key',
             message: 'Paste your Acme API key',
             schema: z.string(),
             secret: true,
@@ -107,7 +110,7 @@ describe('print mode', () => {
     expect(events.at(-1).name).toBe('harness.operation.finished')
   })
 
-  it('exits 2 when the turn waits for an approval', async () => {
+  it('exits 3 when the turn waits for an approval', async () => {
     const { adapter } = scripted([toolTurn('remove', '{}')])
     const stderr = capture()
     const code = await runCli(
@@ -130,7 +133,39 @@ describe('print mode', () => {
       },
     )
     expect(code).toBe(EXIT.needsAction)
+    expect(EXIT.needsAction).toBe(3)
     expect(stderr.text).toContain('approval')
+  })
+
+  it('exits 3 when the turn waits for the answer to a question', async () => {
+    const { adapter } = scripted([toolTurn('greet', '{}')])
+    const greet = durableTool(
+      toolDefinition({
+        name: 'greet',
+        description: 'Ask the user for a name',
+        inputSchema: z.object({}),
+      }),
+      async (_args, { step }) => {
+        const name = await step.ask({
+          name: 'name',
+          message: 'Name?',
+          schema: z.string(),
+        })
+        return `Hello, ${name}.`
+      },
+    )
+    const stderr = capture()
+    const code = await runCli(
+      defineHarness({ name: 'test/print-question', adapter, tools: [greet] }),
+      {
+        argv: ['-p', 'greet me'],
+        stdout: capture(),
+        stderr,
+        persistence: memoryPersistence(),
+      },
+    )
+    expect(code).toBe(EXIT.needsAction)
+    expect(stderr.text).toContain('an answer: Name?')
   })
 })
 
@@ -181,11 +216,51 @@ describe('line mode', () => {
   })
 })
 
+describe('waits in line mode', () => {
+  it('answers a question of the question tool by its schema', async () => {
+    const { adapter, seen } = scripted([
+      toolTurn(
+        'question',
+        JSON.stringify({
+          questions: [
+            {
+              question: 'Which database?',
+              options: [{ label: 'Postgres' }, { label: 'SQLite' }],
+            },
+          ],
+        }),
+      ),
+      textTurn('Picked.'),
+    ])
+    const stdout = capture()
+    const code = await runCli(
+      defineHarness({
+        name: 'test/lines-question',
+        adapter,
+        plugins: () => [questionTool()],
+      }),
+      {
+        argv: [],
+        stdin: stdinFrom(['ask me\n', 'SQLite\n', '/exit\n'], {
+          isTTY: false,
+        }),
+        stdout,
+        stderr: capture(),
+        persistence: memoryPersistence(),
+      },
+    )
+    expect(code).toBe(EXIT.ok)
+    expect(stdout.text).toContain('? Which database?')
+    expect(stdout.text).toContain('Picked.')
+    expect(JSON.stringify(seen[1])).toContain('SQLite')
+  })
+})
+
 describe('plugin commands in line mode', () => {
   it('runs plugin commands, answers questions, and changes settings', async () => {
     const tools = definePlugin({
       name: 'test/tools',
-      setup: (ctx) => ({
+      setup: () => ({
         config: {
           tone: configOption.select({
             options: ['plain', 'warm'],
@@ -200,8 +275,9 @@ describe('plugin commands in line mode', () => {
           }),
           confirm: defineCommand({
             description: 'Ask first',
-            run: async () => {
-              const sure = await ctx.session.ask({
+            run: async (_input, { step }) => {
+              const sure = await step.ask({
+                name: 'sure',
                 message: 'Really?',
                 schema: { type: 'boolean' },
               })

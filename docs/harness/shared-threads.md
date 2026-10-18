@@ -54,6 +54,7 @@ The user who opens a new thread is its owner. Nobody else can open it until the 
 | Read the thread and see it in a list | Yes | Yes | Yes |
 | Send messages, run commands, start agents | Yes | Yes | No |
 | Answer and cancel | Every run | Only the runs they started | No |
+| Answer a `human` wait (`operator`) | Yes | Yes | No |
 | Fork | Yes | Yes | No |
 | Reply as an [operator](./handoffs#reply-as-the-operator) | Yes | Yes | No |
 | Configure, share, delete, transfer | Yes | No | No |
