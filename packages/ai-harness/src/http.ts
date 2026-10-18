@@ -23,7 +23,7 @@ import {
   requestIdOf,
   turnReceipt,
 } from './protocol'
-import { socketSender, sseStream, withHeartbeat } from './sse'
+import { socketSender, sseStream, streamValues, withHeartbeat } from './sse'
 import { base64url, isRecord } from './utils'
 import { SessionMetadataError } from './session-entry'
 import { SessionImpl } from './session/harness-session'
@@ -34,7 +34,7 @@ import type { SessionIndexEntry, SessionMember } from '@tanstack/ai-persistence'
 import type { AnyHarness } from './define'
 import type { HarnessHost, HostEvent } from './host'
 import type { ControlFrame, HarnessErrorCode, HostFrame } from './protocol'
-import type { SseFrame } from './sse'
+import type { HarnessStreamOptions, SseFrame, StreamValues } from './sse'
 import type { HarnessSession } from './session/index'
 import type { ObservedSession } from './session/observed-session'
 import type { Cursor, Principal, SessionEvent, UserInput } from './types'
@@ -75,6 +75,12 @@ export interface HarnessHandlerOptions<P extends Principal = Principal> {
      */
     secret: string
   }
+  /**
+   * The values of the SSE streams: the heartbeat, the slow-client close, and
+   * the queue size. A value that you do not set keeps its default. See
+   * `HarnessStreamOptions`.
+   */
+  stream?: HarnessStreamOptions
 }
 
 /** How long a signed media URL works. */
@@ -129,6 +135,7 @@ function requestIdFor(request: Request) {
 function sseResponse(
   frames: (signal: AbortSignal) => AsyncIterable<SseFrame>,
   requestId: string,
+  stream: StreamValues,
   watch?: (reader: AbortController) => void,
 ) {
   // Not `request.signal`: some servers abort it once the body is read.
@@ -142,6 +149,7 @@ function sseResponse(
     },
     requestId,
     signal: reader.signal,
+    stream,
   })
   return new Response(body, { headers: SSE_HEADERS })
 }
@@ -177,6 +185,7 @@ function versionRefused(
  */
 function cursorResponse(
   read: (signal: AbortSignal) => AsyncIterable<SessionEvent>,
+  stream: StreamValues,
   watch?: (reader: AbortController) => void,
 ) {
   // Not `request.signal`: some servers abort it once the body is read.
@@ -199,6 +208,7 @@ function cursorResponse(
       toServerSentEventsStream(chunks(), reader, (_chunk, index) =>
         cursors.at(index),
       ),
+      { heartbeatMs: stream.heartbeatMs },
     ),
     { headers: SSE_HEADERS },
   )
@@ -498,8 +508,11 @@ function watchRevoke<P extends Principal>(
  * Signed media URLs use `media.secret`. Without it, they work only on this
  * server (see `HarnessHandlerOptions.media`).
  *
+ * `stream` sets the values of the SSE streams (see `HarnessStreamOptions`).
+ *
  * Throws at the start for a host without `access` and without
- * `openAccess`, and for a host with both.
+ * `openAccess`, for a host with both, and for a `stream` value that is not
+ * a finite number above 0.
  *
  * @example
  * ```ts
@@ -517,6 +530,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
       'createHarnessHandler needs a media.secret that is not empty.',
     )
   }
+  const stream = streamValues('createHarnessHandler', options.stream)
 
   const openFor = (principal: P | undefined, threadId: string) =>
     host.open(harness, { threadId, ...(principal ? { principal } : {}) })
@@ -691,6 +705,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
       const from = resumeFrom ?? startedCursor ?? '0'
       return cursorResponse(
         (signal) => turn.events({ from, signal }),
+        stream,
         closeOnRevoke(principal, threadId),
       )
     }
@@ -725,6 +740,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
           view.events({ from: resumeFrom ?? '0', signal }),
           runId,
         ),
+      stream,
       closeOnRevoke(principal, threadId),
     )
   }
@@ -820,6 +836,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
                 }),
                 operationId,
               ),
+            stream,
             keep(watch),
           )
         }
@@ -846,6 +863,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
         const from = lastEventId || '0'
         return cursorResponse(
           (signal) => operation.events({ from, signal }),
+          stream,
           keep(watch),
         )
       })
@@ -888,6 +906,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
           }
         },
         requestId,
+        stream,
         closeOnRevoke(principal, threadId),
       )
     }
@@ -898,12 +917,16 @@ export function createHarnessHandler<P extends Principal = Principal>(
       const mayWatch = watchedEvents(principal)
       // The hello of `host-events` names no thread.
       const hello = JSON.stringify({ type: 'harness.hello', v: picked.v })
-      return sseResponse(async function* (signal) {
-        yield { data: hello }
-        for await (const event of host.events({ signal })) {
-          if (await mayWatch(event)) yield { data: JSON.stringify(event) }
-        }
-      }, requestId)
+      return sseResponse(
+        async function* (signal) {
+          yield { data: hello }
+          for await (const event of host.events({ signal })) {
+            if (await mayWatch(event)) yield { data: JSON.stringify(event) }
+          }
+        },
+        requestId,
+        stream,
+      )
     }
 
     if (request.method === 'POST' && route === 'control') {
@@ -1188,6 +1211,12 @@ export interface HarnessSocketOptions<P extends Principal = Principal> {
   request: Request
   /** For a host without `access` only. See `HarnessHandlerOptions`. */
   openAccess?: OpenAccess<P>
+  /**
+   * The values of the socket: the heartbeat, the slow-client close, and the
+   * buffer size. A value that you do not set keeps its default. See
+   * `HarnessStreamOptions`.
+   */
+  stream?: HarnessStreamOptions
 }
 
 /** The close code of a socket after an `unsupported_version` error frame. */
@@ -1213,8 +1242,11 @@ const errorMessage = (error: unknown) =>
  * session. The first input opens the session, and the socket holds it until
  * it closes.
  *
+ * `stream` sets the values of the socket (see `HarnessStreamOptions`).
+ *
  * Throws at the start for a host without `access` and without `openAccess`,
- * and for a host with both.
+ * for a host with both, and for a `stream` value that is not a finite number
+ * above 0.
  *
  * @example
  * ```ts
@@ -1226,6 +1258,7 @@ export function handleHarnessSocket<P extends Principal = Principal>(
 ) {
   const { host, harness, socket, request } = options
   const usersOf = requestUsers('handleHarnessSocket', host, options.openAccess)
+  const values = streamValues('handleHarnessSocket', options.stream)
   const reader = new AbortController()
   // The id of the upgrade request, with the rule of `requestIdFor`. An error
   // frame of the socket itself, or of a frame with no `requestId`, names it.
@@ -1234,6 +1267,7 @@ export function handleHarnessSocket<P extends Principal = Principal>(
     socket,
     requestId: socketId,
     signal: reader.signal,
+    stream: values,
   })
   const who = usersOf(request).catch(() => null)
   // Set by the first subscribe, before its awaits, so a second subscribe is

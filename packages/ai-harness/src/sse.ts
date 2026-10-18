@@ -1,22 +1,89 @@
 // The stream writers of the session tier: SSE and the socket. Each has a
 // heartbeat, backpressure, and a close for a client that does not read.
-// ponytail: the values are fixed (the protocol page lists them). Add options
-// when an app needs other values.
 import type { WebSocketLike } from '@tanstack/ai'
 import type { HostFrame } from './protocol'
 
-/** A heartbeat goes out after this long, so proxies keep the stream open. */
+/** The default of `HarnessStreamOptions.heartbeatMs`. */
 export const HEARTBEAT_MS = 20_000
-/** A client that reads nothing for this long, while events wait, is closed. */
+/** The default of `HarnessStreamOptions.slowConsumerMs`. */
 export const SLOW_CONSUMER_MS = 30_000
-/** The bytes that an SSE stream keeps ready before it stops reading the log. */
+/** The default of `HarnessStreamOptions.sseQueueBytes`. */
 export const SSE_QUEUE_BYTES = 1024 * 1024
-/** The socket buffer above which the sender stops reading the log. */
+/** The default of `HarnessStreamOptions.socketBufferBytes`. */
 export const SOCKET_BUFFER_BYTES = 8 * 1024 * 1024
 /** How often a full socket is checked again. */
 export const SOCKET_RECHECK_MS = 50
 /** The close code of a socket that was too slow. */
 export const SLOW_CONSUMER_CLOSE_CODE = 4408
+
+/**
+ * The values of the session-tier streams: the SSE routes and the socket. Each
+ * value must be a finite number above 0. A value that you do not set keeps
+ * its default.
+ */
+export interface HarnessStreamOptions {
+  /**
+   * After this many milliseconds, a stream sends a heartbeat, so proxies
+   * keep it open. Default: `20000` (20 s).
+   */
+  heartbeatMs?: number
+  /**
+   * A client that reads nothing for this many milliseconds, while events
+   * wait, is closed with a `slow_consumer` error frame. Default: `30000`
+   * (30 s).
+   */
+  slowConsumerMs?: number
+  /**
+   * The bytes that an SSE stream keeps ready for the client. When the queue
+   * is full, the stream stops reading the log. Default: `1048576` (1 MiB).
+   */
+  sseQueueBytes?: number
+  /**
+   * The socket buffer (`bufferedAmount`) in bytes above which the socket
+   * stops reading the log and waits. Default: `8388608` (8 MiB).
+   */
+  socketBufferBytes?: number
+}
+
+/** `HarnessStreamOptions` with each default filled in. */
+export type StreamValues = Required<HarnessStreamOptions>
+
+/** The default stream values. */
+export const STREAM_DEFAULTS: StreamValues = {
+  heartbeatMs: HEARTBEAT_MS,
+  slowConsumerMs: SLOW_CONSUMER_MS,
+  sseQueueBytes: SSE_QUEUE_BYTES,
+  socketBufferBytes: SOCKET_BUFFER_BYTES,
+}
+
+const STREAM_KEYS = [
+  'heartbeatMs',
+  'slowConsumerMs',
+  'sseQueueBytes',
+  'socketBufferBytes',
+] as const
+
+/**
+ * `stream` with each default filled in. Throws when a value is not a finite
+ * number above 0. `caller` names the function in the error.
+ */
+export function streamValues(
+  caller: string,
+  stream: HarnessStreamOptions = {},
+): StreamValues {
+  const values = { ...STREAM_DEFAULTS }
+  for (const key of STREAM_KEYS) {
+    const value: unknown = stream[key]
+    if (value === undefined) continue
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+      throw new Error(
+        `${caller} needs a stream.${key} that is a finite number above 0.`,
+      )
+    }
+    values[key] = value
+  }
+  return values
+}
 
 const encoder = new TextEncoder()
 const PING = encoder.encode(': ping\n\n')
@@ -38,11 +105,12 @@ const errorMessage = (error: unknown) =>
 
 /**
  * A pull-based SSE body. It reads the next frame only when the client has
- * read enough: the queue holds at most `SSE_QUEUE_BYTES`. A slow client
+ * read enough: the queue holds at most `stream.sseQueueBytes`. A slow client
  * reads later, from the log. The stream also sends a `: ping` comment every
- * `HEARTBEAT_MS`, and it closes with a `slow_consumer` error frame when the
- * queue stays full for `SLOW_CONSUMER_MS`. When `frames` throws, the stream
- * sends an `internal` error frame and closes. Aborting `signal` closes it.
+ * `stream.heartbeatMs`, and it closes with a `slow_consumer` error frame when
+ * the queue stays full for `stream.slowConsumerMs`. When `frames` throws, the
+ * stream sends an `internal` error frame and closes. Aborting `signal`
+ * closes it.
  *
  * @example
  * ```ts
@@ -56,11 +124,14 @@ export function sseStream({
   frames,
   requestId,
   signal,
+  stream = STREAM_DEFAULTS,
 }: {
   /** Gets the signal of the reader. The stream aborts it when it ends. */
   frames: (signal: AbortSignal) => AsyncIterable<SseFrame>
   requestId: string
   signal?: AbortSignal
+  /** The stream values. See `streamValues`. */
+  stream?: StreamValues
 }): ReadableStream<Uint8Array> {
   const reader = new AbortController()
   let iterator: AsyncIterator<SseFrame> | undefined
@@ -104,7 +175,7 @@ export function sseStream({
             requestId,
           ),
         ),
-      SLOW_CONSUMER_MS,
+      stream.slowConsumerMs,
     )
   }
 
@@ -115,7 +186,7 @@ export function sseStream({
         heartbeat = setInterval(() => {
           controller.enqueue(PING)
           watchQueue(controller)
-        }, HEARTBEAT_MS)
+        }, stream.heartbeatMs)
         onAbort = () => end(controller)
         if (signal?.aborted) return end(controller)
         signal?.addEventListener('abort', onAbort, { once: true })
@@ -140,7 +211,7 @@ export function sseStream({
       },
       cancel: stop,
     },
-    new ByteLengthQueuingStrategy({ highWaterMark: SSE_QUEUE_BYTES }),
+    new ByteLengthQueuingStrategy({ highWaterMark: stream.sseQueueBytes }),
   )
 }
 
@@ -149,12 +220,13 @@ function sseText({ id, data }: SseFrame) {
 }
 
 /**
- * `body` with a `: ping` comment every `HEARTBEAT_MS`, for the SSE bodies of
+ * `body` with a `: ping` comment every `heartbeatMs`, for the SSE bodies of
  * the core (`POST run`, `GET run`). A comment goes in only between two
  * events, never inside one. SSE parsers skip comments.
  */
 export function withHeartbeat(
   body: ReadableStream<Uint8Array>,
+  { heartbeatMs = HEARTBEAT_MS }: { heartbeatMs?: number } = {},
 ): ReadableStream<Uint8Array> {
   const source = body.getReader()
   let heartbeat: ReturnType<typeof setInterval> | undefined
@@ -164,7 +236,7 @@ export function withHeartbeat(
     start(controller) {
       heartbeat = setInterval(() => {
         if (isBetweenEvents) controller.enqueue(PING)
-      }, HEARTBEAT_MS)
+      }, heartbeatMs)
     },
     async pull(controller) {
       try {
@@ -192,12 +264,12 @@ export function withHeartbeat(
 
 /**
  * A sender for a session-tier socket. Frames go out in order. Before each
- * frame it reads `socket.bufferedAmount`: above `SOCKET_BUFFER_BYTES` it
- * waits, and checks again every `SOCKET_RECHECK_MS`. So the caller, which
- * awaits each send, stops reading the log. After `SLOW_CONSUMER_MS` it sends
- * a `slow_consumer` error frame and closes the socket with code 4408. It
- * also sends a `harness.ping` frame every `HEARTBEAT_MS`. Its timers stop
- * when the socket closes or fails, or when `signal` aborts.
+ * frame it reads `socket.bufferedAmount`: above `stream.socketBufferBytes`
+ * it waits, and checks again every `SOCKET_RECHECK_MS`. So the caller, which
+ * awaits each send, stops reading the log. After `stream.slowConsumerMs` it
+ * sends a `slow_consumer` error frame and closes the socket with code 4408.
+ * It also sends a `harness.ping` frame every `stream.heartbeatMs`. Its timers
+ * stop when the socket closes or fails, or when `signal` aborts.
  *
  * A socket without `bufferedAmount` gets no backpressure.
  *
@@ -211,17 +283,20 @@ export function socketSender({
   socket,
   requestId,
   signal,
+  stream = STREAM_DEFAULTS,
 }: {
   socket: WebSocketLike
   /** Named in the `slow_consumer` error frame. */
   requestId: string
   signal?: AbortSignal
+  /** The stream values. See `streamValues`. */
+  stream?: StreamValues
 }): (frame: HostFrame | string) => Promise<boolean> {
   let isClosed = false
   let recheck: ReturnType<typeof setTimeout> | undefined
   let wake: (() => void) | undefined
   let queue = Promise.resolve(true)
-  const isFull = () => (socket.bufferedAmount ?? 0) > SOCKET_BUFFER_BYTES
+  const isFull = () => (socket.bufferedAmount ?? 0) > stream.socketBufferBytes
 
   const stop = () => {
     isClosed = true
@@ -236,7 +311,7 @@ export function socketSender({
     } catch {
       stop()
     }
-  }, HEARTBEAT_MS)
+  }, stream.heartbeatMs)
   socket.addEventListener('close', stop)
   socket.addEventListener('error', stop)
   if (signal?.aborted) stop()
@@ -250,7 +325,7 @@ export function socketSender({
       const check = () => {
         if (isClosed) return resolve(false)
         if (!isFull()) return resolve(true)
-        if (waited >= SLOW_CONSUMER_MS) {
+        if (waited >= stream.slowConsumerMs) {
           const frame = errorFrame(
             'slow_consumer',
             'The client reads too slowly.',

@@ -164,7 +164,7 @@ The socket closes with these codes:
 | `4401` | `identify` refused the user. | Sign in again. |
 | `4403` | The user cannot read the thread, or lost access. | Stop. |
 | `4400` | The server does not speak the `v` of the subscribe. | Read `supported`, then subscribe again with a version from it. |
-| `4408` | The client read too slowly. See [Fixed stream values](#fixed-stream-values). | Subscribe again from the last cursor. |
+| `4408` | The client read too slowly. See [Stream values](#stream-values). | Subscribe again from the last cursor. |
 | `1011` | The event feed of the thread ended. | Subscribe again from the last cursor. |
 
 ### The stdio worker
@@ -337,20 +337,36 @@ The `requestId` connects the error to its request:
 
 Log the `requestId` with your errors. Then you can find the request in the server logs.
 
-## Fixed stream values
+## Stream values
 
-A long stream passes through proxies and slow networks. The server keeps it open and protects itself with these fixed values:
+A long stream passes through proxies and slow networks. The server keeps it open and protects itself with these values:
 
-| Value | Size | What happens |
-| --- | --- | --- |
-| Heartbeat | 20 s | SSE gets a `: ping` comment. The socket gets `{"type":"harness.ping"}`. |
-| SSE queue | 1 MB | The server stops reading the log while this much data waits for the client. |
-| Socket buffer | 8 MB | Above this `bufferedAmount`, the server stops sending. It checks again every 50 ms. |
-| Slow close | 30 s | If the client does not read for this long, the server sends `slow_consumer` and closes. |
+| Value | Option | Default | What happens |
+| --- | --- | --- | --- |
+| Heartbeat | `heartbeatMs` | 20 s | SSE gets a `: ping` comment. The socket gets `{"type":"harness.ping"}`. |
+| SSE queue | `sseQueueBytes` | 1 MiB | The server stops reading the log while this much data waits for the client. |
+| Socket buffer | `socketBufferBytes` | 8 MiB | Above this `bufferedAmount`, the server stops sending. It checks again every 50 ms. |
+| Slow close | `slowConsumerMs` | 30 s | If the client does not read for this long, the server sends `slow_consumer` and closes. |
 
 - `POST run` and `GET run` also get the `: ping` comment. SSE parsers skip comments.
 - A slow client loses no events. The server reads them from the log when the client reads again.
-- Set the idle timeout of your proxy to more than 20 s.
+- Set the idle timeout of your proxy to more than the heartbeat.
+- The stdio worker has no heartbeat and does not use these values.
+
+To change a value, pass `stream` to the handler and to the socket. A value that you do not set keeps its default:
+
+```ts group=harness-protocol-server
+// A proxy that closes idle streams after 15 s, and mobile clients that read slowly.
+const stream = { heartbeatMs: 10_000, slowConsumerMs: 60_000 }
+
+export const slowNetworkHandler = createHarnessHandler({ host, harness: assistant, stream })
+
+export function onSlowNetworkUpgrade(socket: WebSocketLike, request: Request) {
+  handleHarnessSocket({ host, harness: assistant, socket, request, stream })
+}
+```
+
+Each value must be a finite number above 0. If a value is not, `createHarnessHandler` and `handleHarnessSocket` throw at the start, and the error names the field.
 
 ## Traces
 

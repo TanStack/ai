@@ -279,42 +279,98 @@ describe('request ids, versions, and heartbeats', () => {
     await host.close()
   })
 
-  it('POST run gets a ping comment while the turn is quiet', async () => {
-    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
-    const release = gate()
-    const { adapter } = mockAdapter([after(release.opened, 'late')])
-    const harness = defineHarness({ name: 'test/transport-wire', adapter })
-    const host = createHarnessHost({ persistence: memoryPersistence() })
-    const handler = createHarnessHandler({ host, harness, openAccess: true })
+  it.each([
+    ['the default', HEARTBEAT_MS, undefined],
+    ['stream.heartbeatMs', 1000, { heartbeatMs: 1000 }],
+  ])(
+    'POST run gets a ping comment while the turn is quiet, after %s',
+    async (_name, wait, stream) => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+      const release = gate()
+      const { adapter } = mockAdapter([after(release.opened, 'late')])
+      const harness = defineHarness({ name: 'test/transport-wire', adapter })
+      const host = createHarnessHost({ persistence: memoryPersistence() })
+      const handler = createHarnessHandler({
+        host,
+        harness,
+        openAccess: true,
+        ...(stream ? { stream } : {}),
+      })
 
-    const response = await handler(
-      new Request(`${BASE}/run`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          threadId: 't7',
-          runId: 'run-7',
-          messages: [{ id: 'u1', role: 'user', content: 'hi' }],
-          tools: [],
-          context: [],
-          state: {},
-          forwardedProps: {},
+      const response = await handler(
+        new Request(`${BASE}/run`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            threadId: 't7',
+            runId: 'run-7',
+            messages: [{ id: 'u1', role: 'user', content: 'hi' }],
+            tools: [],
+            context: [],
+            state: {},
+            forwardedProps: {},
+          }),
         }),
-      }),
-    )
-    const reader = response.body!.getReader()
-    const decoder = new TextDecoder()
-    let body = ''
-    // Read the first event, then wait in a quiet turn.
-    while (!body.includes('data: ')) {
+      )
+      const reader = response.body!.getReader()
+      const decoder = new TextDecoder()
+      let body = ''
+      // Read the first event, then wait in a quiet turn.
+      while (!body.includes('data: ')) {
+        body += decoder.decode((await reader.read()).value)
+      }
+      vi.advanceTimersByTime(wait)
       body += decoder.decode((await reader.read()).value)
-    }
-    vi.advanceTimersByTime(HEARTBEAT_MS)
-    body += decoder.decode((await reader.read()).value)
 
-    expect(body).toContain(': ping\n\n')
-    release.open()
-    await reader.cancel()
+      expect(body).toContain(': ping\n\n')
+      release.open()
+      await reader.cancel()
+      await host.close()
+    },
+  )
+
+  it('the socket sends a ping after stream.heartbeatMs', async () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    const { host, harness } = setup()
+    const { socket, sent } = fakeSocket()
+    handleHarnessSocket({
+      host,
+      harness,
+      socket,
+      request: new Request(`${BASE}/socket`),
+      openAccess: true,
+      stream: { heartbeatMs: 1000 },
+    })
+    vi.advanceTimersByTime(1000)
+    expect(sent).toEqual([{ type: 'harness.ping' }])
+    socket.close()
+    await host.close()
+  })
+
+  it('the handler and the socket throw at the start for a bad stream value', async () => {
+    const { host, harness } = setup()
+    expect(() =>
+      createHarnessHandler({
+        host,
+        harness,
+        openAccess: true,
+        stream: { heartbeatMs: 0 },
+      }),
+    ).toThrow(
+      'createHarnessHandler needs a stream.heartbeatMs that is a finite number above 0.',
+    )
+    expect(() =>
+      handleHarnessSocket({
+        host,
+        harness,
+        socket: fakeSocket().socket,
+        request: new Request(`${BASE}/socket`),
+        openAccess: true,
+        stream: { socketBufferBytes: Number.NaN },
+      }),
+    ).toThrow(
+      'handleHarnessSocket needs a stream.socketBufferBytes that is a finite number above 0.',
+    )
     await host.close()
   })
 })

@@ -5,8 +5,10 @@ import {
   SLOW_CONSUMER_MS,
   SOCKET_BUFFER_BYTES,
   SOCKET_RECHECK_MS,
+  STREAM_DEFAULTS,
   socketSender,
   sseStream,
+  streamValues,
   withHeartbeat,
 } from '../src/sse'
 import type { WebSocketLike } from '@tanstack/ai'
@@ -44,6 +46,27 @@ function endless() {
   }
   return { state, frames }
 }
+
+describe('streamValues', () => {
+  it('keeps the default of each value that is not set', () => {
+    expect(streamValues('test')).toEqual(STREAM_DEFAULTS)
+    expect(streamValues('test', { heartbeatMs: 5 })).toEqual({
+      ...STREAM_DEFAULTS,
+      heartbeatMs: 5,
+    })
+  })
+
+  it.each([
+    ['heartbeatMs', 0],
+    ['slowConsumerMs', -1],
+    ['sseQueueBytes', Number.NaN],
+    ['socketBufferBytes', Number.POSITIVE_INFINITY],
+  ])('throws for a %s of %s, and names the field', (key, value) => {
+    expect(() => streamValues('caller', { [key]: value })).toThrow(
+      `caller needs a stream.${key} that is a finite number above 0.`,
+    )
+  })
+})
 
 describe('sseStream', () => {
   it('sends a ping comment every 20 s, and clears its timers on cancel', async () => {
@@ -85,6 +108,38 @@ describe('sseStream', () => {
       requestId: 'r1',
     })
     expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('uses stream.heartbeatMs for the ping', async () => {
+    const reader = sseStream({
+      frames: idle,
+      requestId: 'r1',
+      stream: streamValues('test', { heartbeatMs: 1000 }),
+    }).getReader()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(textOf((await reader.read()).value)).toBe(': ping\n\n')
+    await reader.cancel()
+  })
+
+  it('uses stream.sseQueueBytes for the queue, and stream.slowConsumerMs for the close', async () => {
+    const { state, frames } = endless()
+    const stream = sseStream({
+      frames,
+      requestId: 'r1',
+      stream: streamValues('test', {
+        sseQueueBytes: 100_000,
+        slowConsumerMs: 1000,
+      }),
+    })
+    await vi.advanceTimersByTimeAsync(0)
+    // One 100 kB frame fills the queue.
+    expect(state.pulled).toBeLessThanOrEqual(2)
+    await vi.advanceTimersByTimeAsync(999)
+    expect(state.stopped).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(state.stopped).toBe(true)
+    const text = await new Response(stream).text()
+    expect(text).toContain('"code":"slow_consumer"')
   })
 
   it('sends an internal error frame with the requestId when the frames fail', async () => {
@@ -135,6 +190,15 @@ describe('withHeartbeat', () => {
     source.close()
     expect((await reader.read()).done).toBe(true)
     expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('uses heartbeatMs for the ping', async () => {
+    const reader = withHeartbeat(new ReadableStream<Uint8Array>(), {
+      heartbeatMs: 1000,
+    }).getReader()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(textOf((await reader.read()).value)).toBe(': ping\n\n')
+    await reader.cancel()
   })
 })
 
@@ -203,6 +267,38 @@ describe('socketSender', () => {
     socket.close()
     expect(vi.getTimerCount()).toBe(0)
     await expect(send('{"n":1}')).resolves.toBe(false)
+  })
+
+  it('uses stream.socketBufferBytes for a full buffer, and stream.slowConsumerMs for the close', async () => {
+    const { socket, typed } = fakeSocket()
+    const send = socketSender({
+      socket: typed,
+      requestId: 's1',
+      stream: streamValues('test', {
+        socketBufferBytes: 1000,
+        slowConsumerMs: 1000,
+      }),
+    })
+    // Under the default of 8 MiB, but above the 1000 bytes of the option.
+    socket.bufferedAmount = 1001
+    const sent = send('{"n":1}')
+    await vi.advanceTimersByTimeAsync(SOCKET_RECHECK_MS)
+    expect(socket.sent).toEqual([])
+    await vi.advanceTimersByTimeAsync(1000)
+    await expect(sent).resolves.toBe(false)
+    expect(socket.closedWith).toBe(SLOW_CONSUMER_CLOSE_CODE)
+  })
+
+  it('uses stream.heartbeatMs for the ping', async () => {
+    const { socket, typed } = fakeSocket()
+    socketSender({
+      socket: typed,
+      requestId: 's1',
+      stream: streamValues('test', { heartbeatMs: 1000 }),
+    })
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(socket.sent).toEqual(['{"type":"harness.ping"}'])
+    socket.close()
   })
 
   it('ends a wait when the signal aborts', async () => {
