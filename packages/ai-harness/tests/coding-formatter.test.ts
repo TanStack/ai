@@ -12,6 +12,7 @@ import {
 } from '../src/first-party/coding/formatter'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { HarnessSession } from '../src'
+import type { PermissionRule } from '../src/first-party/permissions'
 import type { WorkspaceBackend } from '../src/first-party/coding/backend'
 import type {
   FormatFailure,
@@ -345,6 +346,7 @@ describe('formatter with permissions()', () => {
     paths: Array<string>,
     persistence = memoryPersistence(),
     files: Record<string, string> = {},
+    rules: Array<PermissionRule> = [],
   ) {
     const { backend, runs } = project(files)
     const { adapter, calls } = mockAdapter([
@@ -360,7 +362,7 @@ describe('formatter with permissions()', () => {
         name: 'test/formatter-permissions',
         adapter,
         plugins: () => [
-          permissions({ root }),
+          permissions({ root, rules }),
           workspaceTools({ root, backend }),
           formatter({ root, backend }),
         ],
@@ -370,34 +372,65 @@ describe('formatter with permissions()', () => {
       },
     )
     await session.command({ name: 'mode', input: mode })
-    return { host, session, runs, calls }
+    return { host, session, runs, calls, backend }
   }
 
-  /** Wait for the one open question, then answer it. Returns its message. */
+  /**
+   * Wait for the one open approval of the turn, then answer it, and wait
+   * for the turn that resumes. Returns its message.
+   */
   async function answer(session: HarnessSession, value: unknown) {
-    await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
+    await vi.waitFor(
+      () => expect(session.snapshot().pendingWaits).toHaveLength(1),
+      { timeout: 5_000 },
     )
-    const [question] = session.snapshot().pendingQuestions
-    if (!question) throw new Error('No question.')
-    await session.answer({ questionId: question.questionId, value })
-    return question.message
+    const [wait] = session.snapshot().pendingWaits ?? []
+    if (!wait) throw new Error('No approval.')
+    const inputId = `answer:${wait.waitId}`
+    await session.resolve({
+      resume: [
+        { interruptId: wait.waitId, status: 'resolved', payload: value },
+      ],
+      inputId,
+    })
+    await session.settled({ inputId })
+    return wait.message ?? ''
   }
 
-  it('in acceptEdits, asks before prettier runs after an edit of prettier.config.js', async () => {
-    const { host, session, runs, calls } = await openWith('acceptEdits', [
-      'prettier.config.js',
-    ])
+  it('in acceptEdits, asks before the write of prettier.config.js, for the write and prettier', async () => {
+    const { host, session, runs, calls, backend } = await openWith(
+      'acceptEdits',
+      ['prettier.config.js'],
+    )
 
-    const turn = session.send('change the config')
+    await session.send('change the config')
     const message = await answer(session, { answer: 'reject' })
-    await turn
 
-    expect(message).toContain('formatter:prettier')
+    // The approval came before the call: a reject refuses the write too.
+    expect(message).toContain('Allow write_file')
     expect(runs).toEqual([])
-    // The write stays, and the result says the formatter did not run.
+    expect(await backend.stat(join(root, 'prettier.config.js'))).toBe(undefined)
     expect(JSON.stringify(calls[1].messages)).toContain(
-      'Wrote prettier.config.js.\\nThe formatter prettier did not run: it is not allowed.',
+      'The user denied this tool call.',
+    )
+    await host.close()
+  })
+
+  it('keeps the write and skips the formatter that a rule denies', async () => {
+    const { host, session, runs, calls } = await openWith(
+      'acceptEdits',
+      ['a.ts'],
+      memoryPersistence(),
+      prettier,
+      [{ tool: 'formatter:prettier', decision: 'deny' }],
+    )
+
+    await session.send('write it')
+
+    expect(session.snapshot().pendingWaits).toEqual([])
+    expect(runs).toEqual([])
+    expect(JSON.stringify(calls[1].messages)).toContain(
+      'Wrote a.ts.\\nThe formatter prettier did not run: it is not allowed.',
     )
     await host.close()
   })
@@ -409,9 +442,8 @@ describe('formatter with permissions()', () => {
       ['prettier.config.js', 'a.ts'],
       persistence,
     )
-    const turn = first.session.send('write twice')
+    await first.session.send('write twice')
     await answer(first.session, { answer: 'always' })
-    await turn
     expect(first.runs.map((run) => run.command)).toEqual([
       `npx --no-install prettier --write ${quoted('prettier.config.js')}`,
       `npx --no-install prettier --write ${quoted('a.ts')}`,

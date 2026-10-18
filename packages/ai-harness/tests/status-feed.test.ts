@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, definePlugin } from '../src'
+import {
+  createHarnessHost,
+  defineHarness,
+  definePlugin,
+  durableTool,
+} from '../src'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { HostEvent } from '../src'
 
@@ -40,10 +45,10 @@ const probe = toolDefinition({
 function askingHarness() {
   const asker = definePlugin({
     name: 'test/asker',
-    setup: (ctx) => ({
+    setup: () => ({
       tools: [
-        probe.server(async () => ({
-          sure: await ctx.session.ask({ message: 'Sure?' }),
+        durableTool(probe, async (_args, { step }) => ({
+          sure: await step.ask({ name: 'sure', message: 'Sure?' }),
         })),
       ],
     }),

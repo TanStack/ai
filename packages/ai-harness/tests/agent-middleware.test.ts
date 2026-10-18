@@ -248,4 +248,46 @@ describe('plugin agentMiddleware', () => {
     )
     await host.close()
   })
+
+  it('refuses a call that asks in a tool-mode subagent, without a wait', async () => {
+    const writes: Array<unknown> = []
+    const writeFile = toolDefinition({
+      name: 'write_file',
+      description: 'Write a file',
+    }).server(async (args) => {
+      writes.push(args)
+      return 'written'
+    })
+    const writerModel = mockAdapter([
+      () => toolCall('write_file', { path: 'x.txt' }),
+      () => text('writer done'),
+    ])
+    const writer = defineAgent({
+      name: 'writer',
+      description: 'Writes files',
+      run: (ctx) =>
+        ctx.chat({ adapter: writerModel.adapter, tools: [writeFile] }),
+    })
+    const { host, session } = await open(
+      defineHarness({
+        name: 'test/agent-middleware',
+        adapter: leadCalling('writer'),
+        subagents: { agents: [writer] },
+        plugins: () => [
+          permissions({ rules: [{ tool: 'write_file', decision: 'ask' }] }),
+        ],
+      }),
+    )
+
+    // The answer to a wait of the child would not reach it when the turn
+    // resumes, so the child does not ask.
+    await session.send('write it')
+
+    expect(writes).toEqual([])
+    expect(session.snapshot().pendingWaits).toEqual([])
+    expect(JSON.stringify(writerModel.calls[1].messages)).toContain(
+      'this run cannot ask for it',
+    )
+    await host.close()
+  })
 })

@@ -26,7 +26,7 @@ import type {
   OfferedInput,
   RunRecord,
 } from '@tanstack/ai-persistence'
-import type { AccessRun } from './access'
+import type { AccessRun, AccessWait } from './access'
 import type { EventFeed } from './feed'
 import type { HostOwnership } from './ownership'
 import type {
@@ -927,7 +927,20 @@ export async function loadLogState<TState = unknown>(options: {
  * log does not have the run, or a cancel names no operation.
  */
 // ponytail: this folds the log for each such input, from its snapshot.
-export async function loggedRunOf({
+export async function loggedRunOf(options: {
+  store: LogStore
+  logId: string
+  rootThread: string
+  input: HarnessInput
+}): Promise<AccessRun | null | undefined> {
+  return (await loggedTargetOf(options)).run
+}
+
+/**
+ * `loggedRunOf`, and for an answer also the wait that it answers, so a
+ * `human` wait can take the answer of an operator.
+ */
+export async function loggedTargetOf({
   store,
   logId,
   rootThread,
@@ -937,14 +950,14 @@ export async function loggedRunOf({
   logId: string
   rootThread: string
   input: HarnessInput
-}): Promise<AccessRun | null | undefined> {
+}): Promise<{ run: AccessRun | null | undefined; wait?: AccessWait }> {
   if (
     input.op !== 'answer' &&
     input.op !== 'cancel' &&
     input.op !== 'cancelInput' &&
     input.op !== 'resolve'
   ) {
-    return undefined
+    return { run: undefined }
   }
   const state = await loadLogState({ store, logId, rootThread })
   const root = sessionOf(state, rootThread)
@@ -962,24 +975,35 @@ export async function loggedRunOf({
   switch (input.op) {
     case 'answer': {
       const { wait } = root.thread.waits.get(input.questionId) ?? {}
-      if (!wait) return null
+      if (!wait) return { run: null }
+      const answered = { waitId: wait.waitId, kind: wait.kind }
       // A wait of the session belongs to no run.
       if (wait.principal || wait.runId === 'session') {
-        return { runId: wait.runId, ...by(wait.principal) }
+        return {
+          run: { runId: wait.runId, ...by(wait.principal) },
+          wait: answered,
+        }
       }
-      return startedBy(wait.runId)
+      return { run: startedBy(wait.runId), wait: answered }
     }
     case 'cancel':
-      return input.operationId === undefined
-        ? null
-        : startedBy(input.operationId)
+      return {
+        run:
+          input.operationId === undefined ? null : startedBy(input.operationId),
+      }
     case 'cancelInput': {
       const logged = inputs.find((item) => item.inputId === input.inputId)
-      return logged ? { runId: input.inputId, ...by(logged.principal) } : null
+      return {
+        run: logged ? { runId: input.inputId, ...by(logged.principal) } : null,
+      }
     }
     case 'resolve': {
       const stopped = root.thread.interrupted
-      return stopped ? { runId: stopped.runId, ...by(stopped.principal) } : null
+      return {
+        run: stopped
+          ? { runId: stopped.runId, ...by(stopped.principal) }
+          : null,
+      }
     }
   }
 }

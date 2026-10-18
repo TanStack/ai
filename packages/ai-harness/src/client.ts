@@ -111,7 +111,11 @@ export interface HarnessClient<THarness extends AnyHarness> {
     ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
   }) => Promise<Receipt>
   /**
-   * Answer the interrupts of the last turn, as `session.resolve` does.
+   * Answer the interrupts of the last turn, as `session.resolve` does: the
+   * approvals, the `question` tool calls, the client tools, and the
+   * sign-ins of `snapshot().pendingInterrupts`, all in one resume. A wait of
+   * a background agent run (in `pendingWaits` only) takes a resolve of its
+   * own. A `step.ask` question takes `answer`.
    *
    * @example
    * ```ts
@@ -143,7 +147,12 @@ export interface HarnessClient<THarness extends AnyHarness> {
     delivery: WaitingInput['delivery']
   }) => Promise<Receipt>
   agents: ClientAgentHandles<THarness>
-  /** Answer a question from a command or a plugin. */
+  /**
+   * Answer a question of `snapshot().pendingQuestions`, as `session.answer`
+   * does: a `step.ask` wait of a command, a durable tool, or an agent run,
+   * or an MCP question. A `human` wait that no turn holds takes it too. The
+   * other waits take `resolve`.
+   */
   answer: (answer: { questionId: string; value: unknown }) => Promise<Receipt>
   /**
    * Run the plugin command `name`. Its result arrives as a

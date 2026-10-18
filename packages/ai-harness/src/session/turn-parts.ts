@@ -1,5 +1,12 @@
-import { LogRecordsCapability, provideLogRecords } from '@tanstack/ai'
+import {
+  LogRecordsCapability,
+  convertSchemaToJsonSchema,
+  isStandardSchema,
+  provideLogRecords,
+  validateWithStandardSchema,
+} from '@tanstack/ai'
 import { bindDurable, createToolStep } from '../durable-tool'
+import { expiryOf } from '../waits'
 import { waitUntil } from '../utils'
 import { commonPrefix, stepKey } from '../log'
 import { mediaIdOf, mediaOfMessage } from '../media-ref'
@@ -15,6 +22,7 @@ import {
   WAKE_METADATA,
   resetContext,
   TIMEOUT_REASON,
+  SHUTDOWN_REASON,
   checkHostRecords,
 } from './helpers'
 import { SessionRequests } from './requests'
@@ -23,10 +31,12 @@ import type {
   AnyChatMiddleware,
   AnyTool,
   ModelMessage,
+  SchemaInput,
   ToolExecutionContext,
 } from '@tanstack/ai'
 import type { LogRecord } from '@tanstack/ai-persistence'
-import type { DurableBind, ToolStep } from '../durable-tool'
+import type { DurableBind, StepQuestion, ToolStep } from '../durable-tool'
+import type { WaitState } from '../log-records'
 import type { LogWriter } from '../log'
 import type { UsageCall } from '../usage'
 import type { AnyHarness } from '../define'
@@ -84,6 +94,8 @@ export abstract class SessionTurnParts<
           wakeAt,
           signal: run.signal,
         }),
+      ask: (question) =>
+        this.stepAsk({ writer, scope: toolCallId, run, question }),
     })
     // The log keeps a step value without the secrets of the session, and a
     // replay returns that value. So the first run returns it too: a caller
@@ -96,7 +108,155 @@ export abstract class SessionTurnParts<
       checkHostRecords(records)
       writer.stage(records, toolCallId)
     }
-    return { step, append }
+    // The call ended: no run again reads its secret answers.
+    const done = () => this.dropKeptAnswers(stepWaitPrefix(toolCallId))
+    return { step, append, done }
+  }
+
+  /**
+   * `step.ask` of the run `run`, in the steps of `scope` (a tool call id, or
+   * the key of a command or an agent run). The log keeps the question as a
+   * wait that no promise holds, so any host can take the answer. Its id
+   * comes from `scope` and the name, so a run again finds the same wait:
+   * it returns the logged answer, or waits again.
+   *
+   * ponytail: the call waits in this process, and the host keeps the log
+   * while it waits, as `step.sleep` does. When the host stops, the wait
+   * stays open, and the next host runs the code again.
+   */
+  protected async stepAsk({
+    writer,
+    scope,
+    run,
+    question,
+  }: {
+    writer: LogWriter
+    scope: string
+    run: RunContext
+    question: StepQuestion<SchemaInput | undefined>
+  }): Promise<unknown> {
+    const { name, schema } = question
+    const waitId = `${stepWaitPrefix(scope)}${name}`
+    if (!writer.state.thread.waits.has(waitId)) {
+      if (writer.fenced) throw new LogOwnedElsewhereError(writer.logId)
+      run.signal.throwIfAborted()
+      question.signal?.throwIfAborted()
+      const jsonSchema =
+        schema !== undefined ? convertSchemaToJsonSchema(schema) : undefined
+      const expiresAt = expiryOf('question', question.expiresAt)
+      await this.writeWait({
+        wait: {
+          waitId,
+          kind: 'question',
+          runId: run.runId,
+          ...storedPrincipal(run.principal),
+          ...(jsonSchema !== undefined ? { schema: jsonSchema } : {}),
+          ...(expiresAt !== undefined ? { expiresAt } : {}),
+          message: question.message,
+        },
+        at: Date.now(),
+        ...(question.secret ? { secret: true as const } : {}),
+        ...(question.url ? { url: question.url } : {}),
+      })
+      this.feed.publish(
+        run.runId,
+        customEvent(HARNESS_EVENTS.question, {
+          questionId: waitId,
+          message: question.message,
+          ...(jsonSchema !== undefined ? { schema: jsonSchema } : {}),
+          ...(question.secret ? { secret: true } : {}),
+          ...(question.url ? { url: question.url } : {}),
+        }),
+      )
+    }
+    const ended = await this.untilWaitEnds(writer, waitId, [
+      run.signal,
+      question.signal,
+    ])
+    switch (ended.outcome) {
+      case 'answered': {
+        const answer = ended.secret
+          ? await this.keptAnswer(ended)
+          : { value: ended.value }
+        if (!answer) {
+          throw new Error(
+            `step.ask: the secret answer to ${JSON.stringify(name)} is gone. The host that took it stopped, and the app has no credential store.`,
+          )
+        }
+        if (!isStandardSchema(schema)) return answer.value
+        // The answer fits the JSON Schema. The Standard Schema gives its
+        // own value, for example with defaults.
+        const result = await validateWithStandardSchema(schema, answer.value)
+        if (!result.success) {
+          throw new Error(
+            `step.ask: the answer to ${JSON.stringify(name)} is invalid: ${result.issues.map((issue) => issue.message).join(', ')}`,
+          )
+        }
+        return result.data
+      }
+      case 'expired':
+        throw new Error(
+          `step.ask: the question ${JSON.stringify(name)} expired with no answer.`,
+        )
+      default:
+        throw new Error(
+          `step.ask: the question ${JSON.stringify(name)} was cancelled.`,
+        )
+    }
+  }
+
+  /**
+   * Resolves with the wait `waitId` when the log ended it. When one of
+   * `signals` aborts first, it rejects with its reason, and ends the wait
+   * `cancelled`. A host that stops or loses the log leaves the wait open:
+   * the next host runs the code again, and it waits again.
+   */
+  private untilWaitEnds(
+    writer: LogWriter,
+    waitId: string,
+    signals: ReadonlyArray<AbortSignal | undefined>,
+  ): Promise<WaitState> {
+    return new Promise<WaitState>((resolve, reject) => {
+      const stop = () => {
+        if (this.waitEnds.get(waitId) === listener) this.waitEnds.delete(waitId)
+        for (const signal of signals) {
+          signal?.removeEventListener('abort', onAbort)
+        }
+      }
+      const check = () => {
+        const state = writer.state.thread.waits.get(waitId)
+        if (state?.outcome === undefined) return false
+        stop()
+        resolve(state)
+        return true
+      }
+      const listener = () => void check()
+      const onAbort = () => {
+        stop()
+        const reason: unknown = signals.find(
+          (signal) => signal?.aborted,
+        )?.reason
+        // A cancel aborts with a code, not an error.
+        reject(reason instanceof Error ? reason : new Error('Cancelled.'))
+        const isStop =
+          reason === SHUTDOWN_REASON ||
+          this.ownershipLoss !== undefined ||
+          writer.fenced
+        if (isStop) return
+        void writer
+          .append(this.waitEndRecords(waitId, 'cancelled'))
+          .then(() => this.afterWaitEnd(waitId))
+          .catch(() => {
+            // A closed log takes no end. The wait stays open in the log.
+          })
+      }
+      if (check()) return
+      if (signals.some((signal) => signal?.aborted)) return onAbort()
+      this.waitEnds.set(waitId, listener)
+      for (const signal of signals) {
+        signal?.addEventListener('abort', onAbort, { once: true })
+      }
+    })
   }
 
   /**
@@ -726,3 +886,9 @@ export abstract class SessionTurnParts<
     return isChanged || ephemeral.length > 0
   }
 }
+
+/** The start of the ids of the `step.ask` waits in the steps of `scope`. */
+export const stepWaitPrefix = (scope: string) => `ask:${scope}:`
+
+/** The step scope of the command that applies the input `inputId`. */
+export const commandStepScope = (inputId: string) => `command:${inputId}`

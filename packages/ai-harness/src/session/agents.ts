@@ -1,11 +1,13 @@
 import {
   EventType,
   createSubagentId,
+  createSubagentSink,
   runAgentStream,
   validateWithStandardSchema,
 } from '@tanstack/ai'
 import { withPersistence } from '@tanstack/ai-persistence'
 import { redactMiddleware } from '../auth'
+import { BOUNDARY_INTERRUPTS, withoutBoundaryWaits } from '../boundary-waits'
 import { mediaCapture, mediaMiddleware } from '../media'
 import { OperationImpl } from '../operation'
 import {
@@ -16,6 +18,7 @@ import {
   truncationMiddleware,
 } from '../resume'
 import { HARNESS_EVENTS, InputRejectedError } from '../types'
+import { expiryOf, openWaits, signInOf, waitOfInterrupt } from '../waits'
 import {
   agentKey,
   agentResultRecord,
@@ -27,6 +30,7 @@ import {
   createInputId,
   createMessageId,
   customEvent,
+  inputKey,
   storedPrincipal,
   isSameSender,
   resetCut,
@@ -35,14 +39,17 @@ import {
   AGENT_STOPPED,
   SHUTDOWN_REASON,
 } from './helpers'
-import { SessionTurnParts } from './turn-parts'
+import { SessionTurnParts, stepWaitPrefix } from './turn-parts'
 import type {
   SubagentBudget,
+  Interrupt,
   ModelMessage,
+  RunAgentResumeItem,
   RunRecord,
   StreamChunk,
   SubagentBinding,
 } from '@tanstack/ai'
+import type { InterruptRecord } from '@tanstack/ai-persistence'
 import type { InputState, LogWriter } from '../log'
 import type { AgentResultRecord } from '../log-records'
 import { NO_SESSION_CONTEXT } from '../agents'
@@ -280,7 +287,10 @@ export abstract class SessionAgents<
         {
           operationId: input.operationId,
           agent: first.input.agent,
-          status: loggedStatus(input),
+          status: loggedStatus(
+            input,
+            this.writer.state.thread.runs.get(input.operationId),
+          ),
           ...(first.input.parentRunId
             ? { parentRunId: first.input.parentRunId }
             : {}),
@@ -390,7 +400,8 @@ export abstract class SessionAgents<
    * their tools read `run` as `ctx.context.run`. Their model calls count in
    * the usage of `principal`, the user of `run`. With `agents` (the
    * subagents of a turn), the agent tools can start them in the background,
-   * for `principal`.
+   * for `principal`, and a child does not stop for an approval or a
+   * question: the turn's resume does not reach it.
    */
   protected binding(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
@@ -401,6 +412,10 @@ export abstract class SessionAgents<
     agents?: ReadonlyArray<AnyAgent>,
   ) {
     const options = this.harness.media
+    const agentMiddleware = [
+      ...(this.sessionPlugins?.agentMiddleware ?? []),
+      ...(runPlugins?.agentMiddleware ?? []),
+    ]
     // The child runs as a background agent of this session, and its end
     // starts a new turn. Core does not pass `start` to nested children.
     const start: SubagentBinding['start'] =
@@ -448,8 +463,7 @@ export abstract class SessionAgents<
       chatMiddleware: [
         // First, so the plugin middleware after it reads the run too.
         runMiddleware(run),
-        ...(this.sessionPlugins?.agentMiddleware ?? []),
-        ...(runPlugins?.agentMiddleware ?? []),
+        ...(agents ? withoutBoundaryWaits(agentMiddleware) : agentMiddleware),
         // A routed root agent gets the thread too, so a reset cuts it as well.
         resetCut,
         this.usageCounter(operation, principal),
@@ -858,7 +872,8 @@ export abstract class SessionAgents<
     const { inputId } = start
     // This run is the chain's current run.
     const { principal } = chain.current
-    if (!start.resumed && !start.message) {
+    const { answers } = start
+    if (!start.resumed && !start.message && !answers) {
       const admission = await this.accept(
         inputId,
         {
@@ -922,39 +937,53 @@ export abstract class SessionAgents<
     }
 
     operation.setStatus('running')
-    await this.applied(inputId, operation.id)
+    // A run that goes on after its waits applied its input already.
+    if (!answers) await this.applied(inputId, operation.id)
+    const child = answers
+      ? { subagentRunId: answers.subagentRunId }
+      : (start.child ?? { subagentRunId: createSubagentId() })
     const runs = this.runStore
+    // The run record keeps the child id, so the run can go on after a
+    // restart with the same one.
     await runs.createOrResume({
       runId: operation.id,
       threadId: this.threadId,
       startedAt: Date.now(),
       kind: 'agent',
       agent: name,
+      subagentRunId: child.subagentRunId,
       ...storedPrincipal(principal),
     })
+    if (answers) await runs.update(operation.id, { status: 'running' })
     operation.publish({
       type: EventType.RUN_STARTED,
       runId: operation.id,
       threadId: this.threadId,
       timestamp: Date.now(),
     })
-    this.publishStarted(operation)
-    const child = start.child ?? { subagentRunId: createSubagentId() }
-    await this.indexAgent(operation, child, principal)
+    if (!answers) {
+      this.publishStarted(operation)
+      await this.indexAgent(operation, child, principal)
+    }
 
     let text = ''
     let result: unknown
     let failure: string | undefined
+    /** The run stopped for its interrupts: it waits for their answers. */
+    let isSuspended = false
+    // The interrupts of the run, when it stops for them.
+    const sink = createSubagentSink()
     const { subagentRunId, prompt } = child
     try {
       // A first run starts from the session thread. A run again after a
       // host stop continues the chain's thread. A follow-up run continues
       // the chain's thread, with its message added. The message id is its
       // input id, so a run again after a host stop does not add it twice.
+      // A run that goes on after its waits continues the chain's thread.
       const { message } = start
       const saved = start.resumed
         ? await this.continueAgentThread(chain.thread, inputId)
-        : message
+        : message || answers
           ? await this.engine.loadThread(chain.thread)
           : await this.messages.loadThread(this.threadId)
       const messages =
@@ -962,12 +991,16 @@ export abstract class SessionAgents<
           ? [...saved, asUserMessage(message)]
           : saved
       // The run of this agent: its user's credentials and keys, for its own
-      // chat calls and its tools, also while another user's turn runs.
+      // chat calls and its tools, also while another user's turn runs. A
+      // sign-in wait of one of its tools stops this run, until the user
+      // cancels that sign-in.
+      const declined = new Set(answers?.declined)
       const run = this.runContext({
         principal,
         runId: operation.id,
         ...(chain.parentRunId ? { parentRunId: chain.parentRunId } : {}),
         signal: operation.abortController.signal,
+        canWait: (id) => !declined.has(id),
       })
       const binding = this.binding(operation, [], principal, run)
       const durable = options.resume ? this.resumable(inputId, run) : undefined
@@ -988,12 +1021,17 @@ export abstract class SessionAgents<
                   { role: 'user', content: prompt } satisfies ModelMessage,
                 ],
           threadId: chain.thread,
-          runId: `${operation.id}:${subagentRunId}`,
-          parentRunId: operation.id,
+          // A run that goes on gets a new chat run, which continues the one
+          // that stopped.
+          runId: answers
+            ? `${operation.id}:${subagentRunId}:${Date.now().toString(36)}`
+            : `${operation.id}:${subagentRunId}`,
+          parentRunId: answers?.interruptedRunId ?? operation.id,
           subagentRunId,
+          ...(answers ? { resume: answers.resume } : {}),
           abortSignal: operation.abortController.signal,
         },
-        undefined,
+        sink,
         undefined,
         // ponytail: the media of a background agent is kept and published,
         // but not written to history: its messages live in its chain's
@@ -1014,6 +1052,13 @@ export abstract class SessionAgents<
             this.agentSteering(chain, inputId, operation),
             ...binding.chatMiddleware,
             ...(durable?.last ?? []),
+          ],
+          // As in a turn: the approvals and questions that plugins stop the
+          // run with before its tools run, then the app's own. The run waits
+          // for them. The agent's own interrupts win on an id clash.
+          interrupts: [
+            ...BOUNDARY_INTERRUPTS,
+            ...(this.harness.interrupts ?? []),
           ],
           budget: chain.budget,
           // No parent chat() call to take it from, so the session's retention.
@@ -1040,6 +1085,7 @@ export abstract class SessionAgents<
           chunk.subagentRunId === subagentRunId
         ) {
           result = chunk.result
+          isSuspended = chunk.outcome?.type === 'suspended'
         }
         if (
           chunk.type === EventType.SUBAGENT_ERROR &&
@@ -1052,6 +1098,24 @@ export abstract class SessionAgents<
       failure = this.scrub(
         error instanceof Error ? error.message : String(error),
       )
+    }
+
+    // The run stopped for outside input: it waits, and does not end.
+    const isWaiting =
+      isSuspended &&
+      failure === undefined &&
+      sink.interrupts.length > 0 &&
+      !operation.abortController.signal.aborted &&
+      !this.logFailure
+    if (isWaiting) {
+      await this.suspendAgent({
+        operation,
+        chain,
+        inputId,
+        subagentRunId,
+        interrupts: sink.interrupts,
+      })
+      return
     }
 
     const value = result !== undefined ? result : text
@@ -1067,6 +1131,7 @@ export abstract class SessionAgents<
     ) => {
       if (this.logFailure) return
       await runs.update(operation.id, { ...run, finishedAt: Date.now() })
+      await this.endAgentSteps(inputId)
       // A refused append stops the session. The operation still ends. The
       // steers that joined the run settle with it, in one append.
       const joined = this.joinedInputs(operation.id, inputId)
@@ -1140,6 +1205,294 @@ export abstract class SessionAgents<
       // the run still get it. A run that a store write failed gets it from
       // failOperation.
       if (operation.isSettled()) this.publishFinished(operation)
+    }
+  }
+
+  /**
+   * The agent run of the input `inputId` ended: delete the secret answers of
+   * its steps, before its caller sees the end. A failed delete does not fail
+   * the end of the run.
+   */
+  protected async endAgentSteps(inputId: string) {
+    await this.dropKeptAnswers(stepWaitPrefix(agentKey(inputId))).catch(
+      (error: unknown) => this.warnSession('harness:waits', error),
+    )
+  }
+
+  /**
+   * Keep the agent run `operation` waiting for the answers to `interrupts`.
+   * Each one is a wait of this run in the log. The run is `interrupted`, its
+   * input stays open, and it does not keep the thread busy. An answer on any
+   * host resumes it (see `resumeWaitingRuns`).
+   */
+  protected async suspendAgent({
+    operation,
+    chain,
+    inputId,
+    subagentRunId,
+    interrupts,
+  }: {
+    operation: AgentRunImpl
+    chain: AgentChain
+    inputId: string
+    subagentRunId: string
+    interrupts: ReadonlyArray<Interrupt>
+  }) {
+    const { principal } = chain.current
+    // First, so an answer that comes at once finds the run here.
+    this.holdWaitingRun({ operation, chain, inputId, subagentRunId })
+    await this.runStore.update(operation.id, { status: 'interrupted' })
+    const at = Date.now()
+    await this.writeWait(
+      ...interrupts.map((interrupt) => {
+        const wait = waitOfInterrupt({
+          interrupt,
+          runId: operation.id,
+          ...storedPrincipal(principal),
+        })
+        const expiresAt = expiryOf(wait.kind, wait.expiresAt, at)
+        return {
+          wait: { ...wait, ...(expiresAt !== undefined ? { expiresAt } : {}) },
+          at,
+        }
+      }),
+    )
+    operation.publish({
+      type: EventType.RUN_FINISHED,
+      runId: operation.id,
+      threadId: this.threadId,
+      outcome: { type: 'interrupt', interrupts: [...interrupts] },
+      timestamp: Date.now(),
+    } as StreamChunk)
+    this.checkIdle()
+  }
+
+  /**
+   * Keep the agent run `operation` as a run of this host that waits: it is
+   * `interrupted`, a cancel ends it, and an answer resumes it here. It does
+   * not keep the thread busy.
+   */
+  protected holdWaitingRun(waiting: {
+    operation: AgentRunImpl
+    chain: AgentChain
+    inputId: string
+    subagentRunId: string
+  }) {
+    const { operation, inputId } = waiting
+    this.waitingRuns.set(operation.id, waiting)
+    operation.setStatus('interrupted')
+    operation.abortController.signal.addEventListener(
+      'abort',
+      () =>
+        void this.stopWaitingRun(operation).catch((error: unknown) =>
+          this.warnSession('harness:agents', error),
+        ),
+      { once: true },
+    )
+    // Another host can resume the run: then the log says how it ended.
+    this.settled({ inputId }).then(
+      (settlement) => {
+        if (this.waitingRuns.get(operation.id)?.operation !== operation) {
+          return
+        }
+        this.waitingRuns.delete(operation.id)
+        this.endAgentRun(operation, settlement)
+      },
+      () => {},
+    )
+  }
+
+  /**
+   * Take an agent run that waits in the log (its host stopped) as a run of
+   * this host that waits, so a cancel reaches it, and an answer resumes it
+   * here. Recovery calls it.
+   */
+  protected adoptWaitingRun(
+    input: InputState,
+    first: AgentInputState,
+    run: Pick<RunRecord, 'subagentRunId'>,
+  ) {
+    const runId = input.operationId
+    if (runId === undefined || run.subagentRunId === undefined) return
+    const operation = this.agentOperation(first.input.agent, runId)
+    const sender = input.principal ? { principal: input.principal } : {}
+    const chain = this.createChain(chainFields(first), { operation, ...sender })
+    this.holdWaitingRun({
+      operation,
+      chain,
+      inputId: input.inputId,
+      subagentRunId: run.subagentRunId,
+    })
+  }
+
+  /**
+   * The abort of a run that waits. A cancel ends the run `cancelled`, with
+   * its open waits. A session close ends only the part of this host: the log
+   * keeps the run waiting, and an answer resumes it on the next host.
+   */
+  protected async stopWaitingRun(operation: AgentRunImpl) {
+    const waiting = this.waitingRuns.get(operation.id)
+    if (waiting?.operation !== operation) return
+    this.waitingRuns.delete(operation.id)
+    // `close()` sets `closing` after it aborts the runs.
+    await Promise.resolve()
+    // A host that stops or loses the log: the run waits on in the log.
+    const isShutdown =
+      operation.abortController.signal.reason === SHUTDOWN_REASON
+    if (this.closing || this.logFailure || isShutdown) {
+      operation.fail('cancelled', new Error('Session closed.'))
+      return
+    }
+    const { thread } = this.writer.state
+    const open = [...thread.waits.values()].filter(
+      (state) =>
+        state.wait.runId === operation.id && state.outcome === undefined,
+    )
+    for (const { wait } of open) {
+      if (thread.interrupts.get(wait.waitId)?.status === 'pending') {
+        await this.interruptStore.cancel(wait.waitId)
+      }
+    }
+    await this.runStore.update(operation.id, {
+      status: 'aborted',
+      finishedAt: Date.now(),
+    })
+    const { inputId } = waiting
+    await this.endAgentSteps(inputId)
+    await this.settleWith(
+      [inputId, ...this.joinedInputs(operation.id, inputId)].map((id) => ({
+        inputId: id,
+        operationId: operation.id,
+        outcome: 'aborted' as const,
+      })),
+      [
+        agentResultRecord(operation.id, { inputId, status: 'cancelled' }),
+        ...open.flatMap((state) =>
+          this.waitEndRecords(state.wait.waitId, 'cancelled'),
+        ),
+      ],
+    )
+    this.armSchedules()
+    operation.publish({
+      type: EventType.RUN_FINISHED,
+      runId: operation.id,
+      threadId: this.threadId,
+      outcome: { type: 'cancelled' },
+      timestamp: Date.now(),
+    } as StreamChunk)
+    operation.fail('cancelled', new Error('Cancelled.'))
+    this.publishFinished(operation)
+    this.nextFollowUp(waiting.chain)
+    this.checkIdle()
+  }
+
+  /**
+   * A saved credential also answers the sign-in waits of the agent runs
+   * that wait: each open wait whose connector has a credential of the
+   * run's user now ends `answered`, through the input lane, so the owner of
+   * the log takes it. The input id comes from the wait, so a second save
+   * does not answer it twice.
+   */
+  protected override async resumeSignIns(): Promise<void> {
+    await super.resumeSignIns()
+    if (this.closing || !this.logWriter) return
+    const { waits, interrupts } = this.writer.state.thread
+    for (const { wait, live } of openWaits(waits)) {
+      if (wait.kind !== 'sign-in' || live !== undefined) continue
+      const opened = interrupts.get(wait.waitId)
+      const connector = opened && signInOf(interruptOf(opened))?.connector
+      if (!connector) continue
+      // Another user's credential never answers this sign-in.
+      const principal = wait.principal ?? this.principal
+      if (!(await this.credentialsOf(principal).get(connector))) continue
+      await this.resolve({
+        resume: [
+          {
+            interruptId: wait.waitId,
+            status: 'resolved',
+            payload: { connector },
+          },
+        ],
+        inputId: `sign-in:${wait.waitId}`,
+        ...(principal ? { principal } : {}),
+      })
+    }
+  }
+
+  /**
+   * Resume each agent run whose waits all ended. The answers go to the chat
+   * run that stopped: an answer resolves its interrupt, and a cancel or an
+   * expiry cancels it. A run that waits on this host goes on here. Else
+   * (after a restart, or a run of another host) it goes on from the log, as
+   * the same operation. Only the owner of the log resumes a run.
+   */
+  protected override async resumeWaitingRuns(): Promise<void> {
+    if (this.closing || !this.logWriter) return
+    const { inputs } = this.writer.state
+    const { waits, runs, interrupts } = this.writer.state.thread
+    for (const input of [...inputs.values()]) {
+      const runId = input.operationId
+      if (runId === undefined || input.status !== 'applied') continue
+      const record = runs.get(runId)
+      if (record?.status !== 'interrupted') continue
+      const first = chainInputOf(inputs, input)
+      if (!first) continue
+      // The waits of the stopped chat run: their interrupts are pending.
+      const own = [...waits.values()].filter(
+        (state) =>
+          state.wait.runId === runId &&
+          interrupts.get(state.wait.waitId)?.status === 'pending',
+      )
+      if (own.length === 0 || own.some((state) => !state.outcome)) continue
+      const stopped = interrupts.get(own[0]!.wait.waitId)
+      const waiting = this.waitingRuns.get(runId)
+      const subagentRunId = waiting?.subagentRunId ?? record.subagentRunId
+      if (!stopped || subagentRunId === undefined) continue
+      const answers = {
+        resume: own.map(
+          ({ wait, outcome, value }): RunAgentResumeItem =>
+            outcome === 'answered'
+              ? { interruptId: wait.waitId, status: 'resolved', payload: value }
+              : { interruptId: wait.waitId, status: 'cancelled' },
+        ),
+        interruptedRunId: stopped.runId,
+        subagentRunId,
+        // A sign-in that the user cancelled fails its tool when it runs again.
+        declined: own.flatMap(({ wait, outcome }) => {
+          const opened = interrupts.get(wait.waitId)
+          const connector =
+            outcome !== 'answered' && opened
+              ? signInOf(interruptOf(opened))?.connector
+              : undefined
+          return connector ? [connector] : []
+        }),
+      }
+      if (waiting) {
+        this.waitingRuns.delete(runId)
+        void this.executeAgent(waiting.operation, waiting.chain, {
+          inputId: waiting.inputId,
+          answers,
+        })
+        continue
+      }
+      // It goes on here already.
+      const isRunning = () => this.operations.get(runId)?.isSettled() === false
+      if (isRunning()) continue
+      if (!(await this.writer.own())) return
+      // Another call started it during the wait for the log.
+      if (isRunning()) continue
+      // Recovery must not run it again.
+      this.admitted.set(input.inputId, inputKey(input.input, input.principal))
+      const operation = this.agentOperation(first.input.agent, runId)
+      const sender = input.principal ? { principal: input.principal } : {}
+      const chain = this.createChain(chainFields(first), {
+        operation,
+        ...sender,
+      })
+      void this.executeAgent(operation, chain, {
+        inputId: input.inputId,
+        answers,
+      })
     }
   }
 
@@ -1241,6 +1594,7 @@ export abstract class SessionAgents<
       error,
     })
     if (inputId) {
+      await this.endAgentSteps(inputId)
       // The steers that joined the run settle with it.
       await this.settleWith(
         [inputId, ...this.joinedInputs(operationId, inputId)].map((id) => ({
@@ -1295,5 +1649,16 @@ export abstract class SessionAgents<
       ])
     }
     if (this.canFlushNotes()) await this.flushNotes()
+  }
+}
+
+/** The interrupt that an interrupt record of the log keeps. */
+function interruptOf(record: InterruptRecord): Interrupt {
+  const { payload } = record
+  return {
+    ...payload,
+    id: record.interruptId,
+    reason: typeof payload.reason === 'string' ? payload.reason : '',
+    message: typeof payload.message === 'string' ? payload.message : '',
   }
 }

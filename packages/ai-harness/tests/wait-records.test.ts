@@ -44,8 +44,8 @@ let stopAsk = new AbortController()
 
 /**
  * Commands that ask: plainly, with a short expiry, and with a signal. Each
- * asks through its own `ctx.session`, so the question is a wait of the
- * command run.
+ * asks in a live wait of its own run, as an MCP elicitation does, so the
+ * question is a wait of the command run that a promise of this host holds.
  */
 const asker = definePlugin({
   name: 'test/asker',
@@ -54,7 +54,11 @@ const asker = definePlugin({
       ask: defineCommand({
         description: 'Ask for a name',
         run: (_input, ctx) =>
-          ctx.session.ask({ message: 'Name?', schema: z.string() }),
+          ctx.session.ask({
+            message: 'Name?',
+            schema: z.string(),
+            live: { name: 'mcp-elicitation', run: ctx.run },
+          }),
       }),
       soon: defineCommand({
         description: 'Ask for a password that expires soon',
@@ -63,12 +67,17 @@ const asker = definePlugin({
             message: 'Password?',
             secret: true,
             expiresAt: Date.now() + 150,
+            live: { name: 'mcp-elicitation', run: ctx.run },
           }),
       }),
       stoppable: defineCommand({
         description: 'Ask until the signal aborts',
         run: (_input, ctx) =>
-          ctx.session.ask({ message: 'Still there?', signal: stopAsk.signal }),
+          ctx.session.ask({
+            message: 'Still there?',
+            signal: stopAsk.signal,
+            live: { name: 'mcp-elicitation', run: ctx.run },
+          }),
       }),
     },
   }),
@@ -362,7 +371,7 @@ describe('a human wait', () => {
         principal: olga,
       })
     }
-    return { host, log: persistence.stores.log, owner, open }
+    return { host, persistence, log: persistence.stores.log, owner, open }
   }
 
   /** `openWait` of the session: no public method opens a human wait yet. */
@@ -420,6 +429,40 @@ describe('a human wait', () => {
     expect(
       await owner.answer({ questionId: wait.waitId, value: { resume: true } }),
     ).toMatchObject({ status: 'rejected', reason: 'unknown_question' })
+    await host.close()
+  })
+
+  it('takes the answer of an operator through host.submit too', async () => {
+    const { host, persistence, owner } = await sharedThread()
+    const wait = await openWait(owner, {
+      kind: 'human',
+      runId: 'run-1',
+      principal: olga,
+    })
+    // Another host that does not own the log.
+    const submitter = createHarnessHost({
+      persistence,
+      access: { identify: (): User | null => null, authorize: membersOnly() },
+    })
+    const submit = (principal: User) =>
+      submitter.submit({
+        harness: harnessWith(),
+        threadId: THREAD,
+        principal,
+        input: {
+          op: 'answer',
+          questionId: wait.waitId,
+          value: { resume: true },
+        },
+      })
+
+    await expect(submit(vic)).rejects.toBeInstanceOf(AccessDeniedError)
+    // bea did not start the run, but a member may reply as an operator.
+    expect(await submit(bea)).toMatchObject({ status: 'queued' })
+    // The wait left the log free: a sweep runs the answer.
+    await host.resumePending({ harnesses: [harnessWith()] })
+    await waitFor(() => expect(owner.snapshot().pendingWaits).toEqual([]))
+    await submitter.close()
     await host.close()
   })
 

@@ -11,6 +11,7 @@ import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { withPersistence } from '@tanstack/ai-persistence'
 import { redactMiddleware } from '../auth'
 import { bindDurable } from '../durable-tool'
+import { BOUNDARY_INTERRUPTS } from '../boundary-waits'
 import { mediaMiddleware } from '../media'
 import { OperationImpl } from '../operation'
 import { mountPlugins } from '../plugins'
@@ -43,6 +44,7 @@ import {
   keepTurnTools,
 } from './helpers'
 import { SessionAgents } from './agents'
+import { commandStepScope, stepWaitPrefix } from './turn-parts'
 import { ToolTurnAdapter } from '../tool-turn'
 import type {
   AnyChatMiddleware,
@@ -53,6 +55,7 @@ import type {
   SubagentRouterPick,
 } from '@tanstack/ai'
 import type { AnyHarness } from '../define'
+import type { AnyCommand } from '../commands'
 import type { ModelErrorContext } from '../turn'
 import type { MountedPlugins } from '../plugins'
 import type {
@@ -152,6 +155,60 @@ export abstract class SessionTurn<
       }
       checked = result.data
     }
+    await this.runCommand({
+      operation,
+      name,
+      command: entry.command,
+      input: checked,
+      principal,
+      inputId,
+    })
+  }
+
+  /**
+   * Run again a command that a host stopped during while it waited in a
+   * `step.ask`: from the top, as a new operation. Its finished steps return
+   * their values, and the ask returns the logged answer, or waits again.
+   * `false`: the session has no such command now.
+   */
+  protected replayCommand(input: {
+    inputId: string
+    name: string
+    input: unknown
+    principal: Principal | undefined
+  }): boolean {
+    const entry = this.sessionPlugins?.commands.get(input.name)
+    if (!entry) return false
+    const operation = new OperationImpl<unknown>(
+      'command',
+      this.feed,
+      (target) => this.cancel({ operationId: target.id }),
+    )
+    this.track(operation)
+    // The input was checked when it came. A store write that throws (the
+    // log) still ends the command.
+    this.runCommand({ ...input, operation, command: entry.command }).catch(
+      (error: unknown) => this.failOperation(operation, error),
+    )
+    return true
+  }
+
+  /** Apply the checked input of a command, run it, and settle the input. */
+  private async runCommand({
+    operation,
+    name,
+    command,
+    input,
+    principal,
+    inputId,
+  }: {
+    operation: OperationImpl<unknown>
+    name: string
+    command: AnyCommand
+    input: unknown
+    principal: Principal | undefined
+    inputId: string
+  }) {
     operation.setStatus('running')
     await this.applied(inputId, operation.id)
     this.publishStarted(operation)
@@ -160,18 +217,37 @@ export abstract class SessionTurn<
       runId: operation.id,
       signal: operation.abortController.signal,
     })
+    const scope = commandStepScope(inputId)
+    // The steps of the command are under the key of its input: the same on
+    // each run again.
+    const { step } = this.durableBinding(this.writer, scope, run)
+    /**
+     * The command ended: delete the secret answers of its steps, before its
+     * caller sees the end. A host that stops keeps them: the next host runs
+     * the command again, and reads them again.
+     */
+    const endSteps = async () => {
+      const isStop =
+        operation.abortController.signal.reason === SHUTDOWN_REASON ||
+        this.ownershipLoss !== undefined
+      if (isStop) return
+      await this.dropKeptAnswers(stepWaitPrefix(scope)).catch(
+        (error: unknown) => this.warnSession('harness:waits', error),
+      )
+    }
     try {
       const { signal } = operation.abortController
       // A cancel or a session close ends the command at once. A handler that
       // does not stop on its signal runs on alone, and its result is dropped.
       const result: unknown = await Promise.race([
-        entry.command.run(checked, {
+        command.run(input, {
           signal,
           // The command acts for its sender, also while another user's turn runs.
           session: this.pluginApi(principal, undefined, operation.id),
           ...(principal ? { principal } : {}),
           credentials: run.credentials,
           run,
+          step,
         }),
         new Promise<never>((_, reject) => {
           if (signal.aborted) reject(signal.reason)
@@ -194,6 +270,7 @@ export abstract class SessionTurn<
       }).catch((failure: unknown) =>
         this.warnSession('harness:commands', failure),
       )
+      await endSteps()
       operation.finish('completed', result)
     } catch (error) {
       const message = this.scrub(errorText(error))
@@ -212,6 +289,7 @@ export abstract class SessionTurn<
       }).catch((failure: unknown) =>
         this.warnSession('harness:commands', failure),
       )
+      await endSteps()
       // A lost log stopped the command: that is the reason, not the abort.
       operation.fail(
         cancelled ? 'cancelled' : 'failed',
@@ -761,9 +839,12 @@ export abstract class SessionTurn<
               ? { toolExecution: this.harness.toolExecution }
               : {}),
             ...(modelOptions !== undefined ? { modelOptions } : {}),
-            ...(this.harness.interrupts
-              ? { interrupts: this.harness.interrupts }
-              : {}),
+            // The approvals and questions that plugins stop the turn with
+            // before its tools run, then the app's own.
+            interrupts: [
+              ...BOUNDARY_INTERRUPTS,
+              ...(this.harness.interrupts ?? []),
+            ],
             // The context type narrows per harness; chat() wants it exact.
             context: context as never,
             ...(reasoning !== undefined ? { reasoning } : {}),

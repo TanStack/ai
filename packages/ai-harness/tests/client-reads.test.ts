@@ -20,7 +20,7 @@ const asker = definePlugin({
       confirm: defineCommand({
         description: 'Ask, then answer',
         run: async (_input, ctx) =>
-          `got ${String(await ctx.session.ask({ message: 'Sure?' }))}`,
+          `got ${String(await ctx.step.ask({ name: 'sure', message: 'Sure?' }))}`,
       }),
     },
   }),

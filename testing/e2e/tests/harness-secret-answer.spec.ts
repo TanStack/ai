@@ -111,9 +111,12 @@ test.describe('harness: a secret answer sent to a host that does not run the thr
       expect(read.modelBodies[1]).toContain('password was [redacted]')
 
       // The answer went through the credential store, and host A deleted
-      // it after it read it.
-      expect(read.saved).toHaveLength(1)
-      expect(read.saved[0]).toMatch(/^harness:answer:/)
+      // it after it read it. Host A kept it in the scope of the thread, for
+      // a run again of the tool call (`step.ask`).
+      expect(read.saved).toEqual([
+        expect.stringMatching(/^harness:answer:/),
+        expect.stringMatching(/^harness:answer:.*#kept$/),
+      ])
       expect(read.stored).toEqual([])
     } finally {
       await stop(request, started.runId)

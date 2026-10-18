@@ -17,7 +17,11 @@ import type {
   StreamChunk,
   SubagentsBag,
 } from '@tanstack/ai'
-import type { LogRecord, MessageStore } from '@tanstack/ai-persistence'
+import type {
+  LogRecord,
+  MessageStore,
+  RunRecord,
+} from '@tanstack/ai-persistence'
 import type { Redactor } from '../auth'
 import type { EventFeed, EventListener, ListenedFeed } from '../feed'
 import type { InputState } from '../log'
@@ -229,8 +233,9 @@ export const runStatus = (status: OperationStatus): AgentRunInfo['status'] => {
   switch (status) {
     case 'accepted':
       return 'queued'
+    // The run stopped for its waits. An answer resumes it.
     case 'interrupted':
-      return 'running'
+      return 'waiting'
     case 'running':
     case 'completed':
     case 'failed':
@@ -239,12 +244,18 @@ export const runStatus = (status: OperationStatus): AgentRunInfo['status'] => {
   }
 }
 
-/** The `agentRuns()` status of a run in the log, from how it ended. */
-export const loggedStatus = (input: InputState): AgentRunInfo['status'] => {
+/**
+ * The `agentRuns()` status of a run in the log, from how it ended, and from
+ * `run`, its run record: `interrupted` while it waits.
+ */
+export const loggedStatus = (
+  input: InputState,
+  run?: Pick<RunRecord, 'status'>,
+): AgentRunInfo['status'] => {
   const outcome = input.settlement?.outcome
   switch (outcome) {
     case undefined:
-      return 'running'
+      return run?.status === 'interrupted' ? 'waiting' : 'running'
     case 'aborted':
       return 'cancelled'
     case 'failed':

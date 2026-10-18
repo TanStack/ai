@@ -357,6 +357,21 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * They wait for the log, so they do not keep the thread busy here.
    */
   protected readonly remoteRuns = new Set<string>()
+  /**
+   * Agent runs of this host that wait for answers to their interrupts, by
+   * operation id. The log keeps the waits, so they do not keep the thread
+   * busy here: an answer on any host resumes the run.
+   */
+  protected readonly waitingRuns = new Map<
+    string,
+    {
+      operation: AgentRunImpl
+      chain: AgentChain
+      /** The input the run applies. */
+      inputId: string
+      subagentRunId: string
+    }
+  >()
   /** Called each time the thread goes idle. See `onIdle`. */
   protected readonly idleListeners = new Set<() => void>()
   /** Work inputs that are being stored and are not queued yet. */
@@ -422,6 +437,14 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       /** Stop the listener on the `signal` of the ask. */
       release: () => void
     }
+  >()
+  /**
+   * The live `sign-in` waits of the OAuth logins that the commands of this
+   * host run, by wait id: the connector, and the command that waits.
+   */
+  protected readonly signIns = new Map<
+    string,
+    { connector: string; operation: OperationImpl<unknown> }
   >()
   /** Plugin state by plugin name. No prototype, so any name is a plain key. */
   protected readonly stateDoc: Record<string, unknown> = Object.create(null)
@@ -958,7 +981,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
         (operation) =>
           (operation.kind === 'agent' || operation.kind === 'command') &&
           !operation.isSettled() &&
-          !this.remoteRuns.has(operation.id),
+          !this.remoteRuns.has(operation.id) &&
+          !this.waitingRuns.has(operation.id),
       )
     )
   }
@@ -1149,6 +1173,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     operationId?: string,
   ): PluginSessionApi
   protected abstract resumeSignIns(): Promise<void>
+  /** Resume the agent runs whose waits all ended. See `SessionAgents`. */
+  protected abstract resumeWaitingRuns(): Promise<void>
   /** Set the timer of the next schedule. See `SessionImpl.armSchedules`. */
   protected abstract armSchedules(options?: { isRetry?: boolean }): void
   /** @internal See `SessionRequests.resolveForRun`. */

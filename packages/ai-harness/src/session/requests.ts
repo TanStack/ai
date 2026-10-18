@@ -2,6 +2,7 @@ import { RUN_CANCEL_REASON } from '@tanstack/ai'
 import { changedEntry } from '../session-entry'
 import { OperationImpl } from '../operation'
 import { HARNESS_EVENTS, InputRejectedError } from '../types'
+import { timeOf } from '../waits'
 import {
   signInConnector,
   createInputId,
@@ -520,6 +521,32 @@ export abstract class SessionRequests<
         this.reject(inputId, 'conflict')
         return { inputId, status: 'rejected', reason: 'conflict' }
       }
+      // The waits of a background agent run: the log ends them, and the
+      // run goes on (see `resumeWaitingRuns`).
+      const logged = resume.map((item) => this.loggedWait(item.interruptId))
+      const isLogged = logged.every(
+        (state) =>
+          state !== undefined &&
+          state.outcome === undefined &&
+          state.live === undefined,
+      )
+      if (resume.length > 0 && isLogged) {
+        // The input ends here, in the append that ends the waits.
+        await this.settleWith(
+          [{ inputId, outcome: 'completed' }],
+          resume.flatMap((item) =>
+            item.status === 'resolved'
+              ? this.waitEndRecords(item.interruptId, 'answered', item.payload)
+              : this.waitEndRecords(item.interruptId, 'cancelled'),
+          ),
+        )
+        for (const item of resume) await this.afterWaitEnd(item.interruptId)
+        return this.keep({
+          inputId,
+          status: 'accepted',
+          ...(logged[0] ? { operationId: logged[0].wait.runId } : {}),
+        })
+      }
       const answers = this.interrupted
       if (!answers) {
         this.reject(inputId, 'no_pending_interrupts')
@@ -823,6 +850,43 @@ export abstract class SessionRequests<
   }
 
   /**
+   * End the waits of the last turn when one of them expired. A batch of
+   * interrupts resumes as one, so the first expiry ends them all: the turn
+   * goes on, and its model gets each call cancelled ("no answer"). chat()
+   * refuses any answer to an interrupt past its own `expiresAt`, so then the
+   * turn cannot go on: its interrupts end cancelled, and the thread takes
+   * new turns again. Only the owner of the log ends them.
+   */
+  // ponytail: a turn that cannot go on keeps the tool calls with no result
+  // in its transcript. chat() repairs them at the next turn.
+  protected async expireInterrupted(): Promise<void> {
+    const stopped = this.interrupted
+    if (!stopped || this.activeTurn || this.queue.length > 0) return
+    const now = Date.now()
+    const isDue = (at: number | undefined) => at !== undefined && at <= now
+    const { interrupts } = stopped
+    if (!interrupts.some((item) => isDue(this.interruptExpiry(item)))) return
+    if (!(await this.writer.own()) || this.interrupted !== stopped) return
+    const resume = interrupts.map((interrupt) => ({
+      interruptId: interrupt.id,
+      status: 'cancelled' as const,
+    }))
+    if (interrupts.some((interrupt) => isDue(timeOf(interrupt.expiresAt)))) {
+      await this.consumeResume(resume)
+      this.interrupted = undefined
+      await this.saveInterrupted(undefined)
+      this.checkIdle()
+      return
+    }
+    const principal = stopped.principal ?? this.principal
+    await this.resolve({
+      resume,
+      inputId: `expired:${interrupts.map((item) => item.id).join(',')}`,
+      ...(principal ? { principal } : {}),
+    })
+  }
+
+  /**
    * The session API of plugins. With `principal` (a command, a turn plugin),
    * it acts for that user. Without it (a session plugin), its `principal` is
    * the principal that opened the session. With `operationId` (a command, a
@@ -892,14 +956,18 @@ export abstract class SessionRequests<
           ),
         )
       },
-      // The public type narrows the answer from the schema.
+      // The public type narrows the answer from the schema. A live wait
+      // belongs to the run of its tool call, never to the run of this API.
       ask: ((question: Question<SchemaInput | undefined>) =>
-        this.ask(question, operationId)) as PluginSessionApi['ask'],
-      authRequired: (info) =>
+        this.ask(question)) as PluginSessionApi['ask'],
+      authRequired: (info) => {
         this.feed.publish(
           'session',
           customEvent(HARNESS_EVENTS.authRequired, { ...info }),
-        ),
+        )
+        // The OAuth login of a command is a live wait of that command.
+        if (operationId !== undefined) this.openSignIn(info, operationId)
+      },
       setConfig: (change) => this.setConfig({ ...change, principal: owner() }),
       settings: () => this.settings(),
     }
