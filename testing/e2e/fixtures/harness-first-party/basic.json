@@ -2,7 +2,8 @@
   "fixtures": [
     {
       "match": {
-        "userMessage": "[first-party-plan] write x.txt",
+        "userMessage": "You are in plan mode.",
+        "toolName": "writer",
         "sequenceIndex": 0
       },
       "response": {
@@ -16,7 +17,8 @@
     },
     {
       "match": {
-        "userMessage": "[first-party-plan] write x.txt",
+        "userMessage": "You are in plan mode.",
+        "toolName": "writer",
         "sequenceIndex": 1
       },
       "response": {
@@ -114,7 +116,7 @@
     },
     {
       "match": {
-        "userMessage": "Work toward this goal: [first-party-goal] finish the report",
+        "userMessage": "You work toward this goal: [first-party-goal] finish the report.",
         "model": "gpt-5.5"
       },
       "response": {
