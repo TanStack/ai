@@ -21,6 +21,12 @@ import type {
   FormatterOptions,
 } from '../src/first-party/coding/formatter'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const { join, posix, resolve } = nodePath
 const root = resolve(tmpdir(), 'harness-format')
 const encoder = new TextEncoder()
@@ -458,7 +464,7 @@ describe('formatter with permissions()', () => {
    * for the turn that resumes. Returns its message.
    */
   async function answer(session: HarnessSession, value: unknown) {
-    await vi.waitFor(
+    await waitFor(
       () => expect(session.snapshot().pendingWaits).toHaveLength(1),
       { timeout: 5_000 },
     )

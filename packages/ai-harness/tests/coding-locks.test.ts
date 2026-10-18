@@ -7,6 +7,12 @@ import { createWorkspaceTools } from '../src/first-party/coding/workspace'
 import { gate } from './helpers'
 import type { WorkspaceBackend } from '../src/first-party/coding/backend'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 let root = ''
 
 beforeEach(async () => {
@@ -95,7 +101,7 @@ describe('file locks across sessions', () => {
     )
     // `reach` resolves the path once. The lock resolves it again only when
     // the first edit is done.
-    await vi.waitFor(() => expect(second.calls.realpath).toBe(before + 1))
+    await waitFor(() => expect(second.calls.realpath).toBe(before + 1))
     await settle()
     expect(second.calls.realpath).toBe(before + 1)
     expect(secondEdit.state.settled).toBe(false)
@@ -141,7 +147,7 @@ describe('file locks across sessions', () => {
     )
     // One `stat` before the lock sees no file. The check under the lock
     // waits for the first write.
-    await vi.waitFor(() => expect(second.calls.stat).toBe(1))
+    await waitFor(() => expect(second.calls.stat).toBe(1))
     await settle()
     expect(secondWrite.state.settled).toBe(false)
 

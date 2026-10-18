@@ -1,6 +1,7 @@
 import { RUN_CANCEL_REASON } from '@tanstack/ai'
 import { changedEntry } from '../session-entry'
 import { OperationImpl } from '../operation'
+import { parseTraceparent } from '../observability'
 import { HARNESS_EVENTS, InputRejectedError } from '../types'
 import { timeOf } from '../waits'
 import {
@@ -197,11 +198,16 @@ export abstract class SessionRequests<
     }
     const operation = passed ?? this.createTurnOperation(runId)
     this.bindTurn(inputId, operation)
+    const traceparent = options?.traceparent
     void this.admitting(() =>
       this.accept(inputId, stored, principal, {
         // An offered turn runs as the operation of this host.
         runId: operation.id,
         turn: { overrides, systemPreamble, ephemeral },
+        // As the W3C rules say, an invalid `traceparent` is dropped.
+        ...(traceparent !== undefined && parseTraceparent(traceparent)
+          ? { traceparent }
+          : {}),
       }).then(
         async (admission) => {
           if (admission !== 'new') {
@@ -276,6 +282,7 @@ export abstract class SessionRequests<
               ephemeral,
               ...sent,
             })
+            this.publishQueued(inputId, 'steer')
             return
           }
           this.enqueueTurn({

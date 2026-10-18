@@ -80,7 +80,14 @@ export type ClientAgentHandles<THarness> = {
 }
 
 /** The options of `HarnessClient.send`. */
-export type ClientSendOptions = { inputId?: string } & (
+export type ClientSendOptions = {
+  inputId?: string
+  /**
+   * A W3C `traceparent` of the caller, sent as the `traceparent` header.
+   * The span of the turn on the server links it.
+   */
+  traceparent?: string
+} & (
   | {
       to?: undefined
       mode?: 'prompt'
@@ -504,7 +511,10 @@ export function createHarnessClient<THarness extends AnyHarness>(
     throw failure(action, response, refusal)
   }
 
-  const send = async (input: HarnessInput): Promise<Receipt> => {
+  const send = async (
+    input: HarnessInput,
+    traceparent?: string,
+  ): Promise<Receipt> => {
     // In `cancelInput` and `setDelivery`, `inputId` is the input to change.
     const namesOther = input.op === 'cancelInput' || input.op === 'setDelivery'
     // Each input gets an id, so a retry of the same request is the same
@@ -513,7 +523,11 @@ export function createHarnessClient<THarness extends AnyHarness>(
       namesOther || input.inputId ? input : { ...input, inputId: newInputId() }
     const response = await doFetch(`${base}/control`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...headers() },
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers(),
+        ...(traceparent ? { traceparent } : {}),
+      },
       body: JSON.stringify({ threadId: options.threadId, input: withId }),
     })
     const body: unknown = await (await checked('request', response)).json()
@@ -743,15 +757,23 @@ export function createHarnessClient<THarness extends AnyHarness>(
         })
       }
       const mode = sendOptions?.mode ?? 'prompt'
-      if (mode !== 'prompt') return send({ op: mode, message, ...inputId })
-      return send({
-        op: 'prompt',
-        message,
-        ...(sendOptions?.busy ? { busy: sendOptions.busy } : {}),
-        ...(sendOptions?.ephemeral ? { ephemeral: sendOptions.ephemeral } : {}),
-        ...(sendOptions?.as ? { as: sendOptions.as } : {}),
-        ...inputId,
-      })
+      const traceparent = sendOptions?.traceparent
+      if (mode !== 'prompt') {
+        return send({ op: mode, message, ...inputId }, traceparent)
+      }
+      return send(
+        {
+          op: 'prompt',
+          message,
+          ...(sendOptions?.busy ? { busy: sendOptions.busy } : {}),
+          ...(sendOptions?.ephemeral
+            ? { ephemeral: sendOptions.ephemeral }
+            : {}),
+          ...(sendOptions?.as ? { as: sendOptions.as } : {}),
+          ...inputId,
+        },
+        traceparent,
+      )
     },
     continue: (continueOptions) =>
       send({

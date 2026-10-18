@@ -349,7 +349,7 @@ describe('host.transfer to a new thread', () => {
   })
 
   it("adds one summary message by the source model for messages: 'summary', and counts its usage in the source", async () => {
-    const { host, support, billing, supportCalls } = accessHost({
+    const { host, log, support, billing, supportCalls } = accessHost({
       support: [
         () => text('A1'),
         () => withUsage(text('The user wants a refund.'), 7, 3),
@@ -383,6 +383,17 @@ describe('host.transfer to a new thread', () => {
         totalTokens: 10,
       }),
     )
+    // The summary call counts under the source `transfer`.
+    expect(source.usage().bySource).toEqual({
+      transfer: source.usage().bySender.olga,
+    })
+    expect(
+      (await recordsOf(log, SOURCE)).filter(
+        (record) => record.type === 'harness.usage',
+      ),
+    ).toEqual([
+      expect.objectContaining({ source: 'transfer', label: 'summary' }),
+    ])
     expect(target.usage().total.calls).toBe(0)
     await host.close()
   })

@@ -802,6 +802,15 @@ export abstract class SessionTurn<
           ...(sender ? { principal: sender } : {}),
           ...(turn.context !== undefined ? { context: turn.context } : {}),
           adapter,
+          // Its model calls are for this turn, and count under `router`.
+          model: {
+            chat: async ({ run: _run, ...call }) =>
+              (await this.modelChat({
+                ...call,
+                run,
+                source: 'router',
+              })) as never,
+          },
           ...(activeAgent !== null ? { activeAgent } : {}),
         })
         // Before the agent runs, so a takeover goes on with the new agent.

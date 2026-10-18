@@ -257,7 +257,7 @@ void watch()
 - `session-deleted`: the host removed an entry. `entry` is the removed entry.
 - `revoked`: `host.revoke` or `unshare` took the access of the user `principalId` to `threadId`. See [Use your own access tables](./access#use-your-own-access-tables).
 
-Each host reports only the sessions that are open in it. A session with no status event is not open, so show it as idle.
+Each host reports only the sessions that are open in it. For those sessions, the status also counts the turns and the questions that another host writes to the same log. A session with no status event is not open, so show it as idle.
 
 A reader that does not keep up stops. When more than 1 000 events wait for it, its loop ends. Call `host.events()` again: the current statuses come first again.
 
