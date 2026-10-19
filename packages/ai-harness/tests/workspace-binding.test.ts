@@ -321,9 +321,11 @@ describe('the workspace binding in the session log', () => {
     const persistence = memoryPersistence()
     const { log } = persistence.stores
     const { adapter } = readTurn('c0')
+    // A heartbeat each 100 ms lasts 1 s. So a slow CI run that holds the
+    // event loop for some hundred ms does not let it expire.
     const live = createHarnessHost({
       persistence,
-      ownership: { hostId: 'pod-a', ttlMs: 300, renewMs: 100 },
+      ownership: { hostId: 'pod-a', ttlMs: 1_000, renewMs: 100 },
     })
     const harness = defineHarness({
       name: 'test/workspace-binding',
@@ -334,7 +336,7 @@ describe('the workspace binding in the session log', () => {
     })
     await (await live.open(harness, { threadId: THREAD })).send('read')
     // Past the ttl: pod-a released the idle log, and it still runs.
-    await new Promise((resolve) => setTimeout(resolve, 600))
+    await new Promise((resolve) => setTimeout(resolve, 1_200))
     const asPodA = { logId: LOG, harness: 'x', ownerId: 'x', ttlMs: 1_000 }
     const released = await log.acquire({ ...asPodA, affinity: 'pod-a' })
     expect(released).not.toBeNull()
