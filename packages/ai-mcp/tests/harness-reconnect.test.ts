@@ -161,6 +161,24 @@ describe('mcp reconnect', () => {
     )
   })
 
+  it('connects again after a failed first connect, and gives its tools at a later turn', async () => {
+    refuse = 1
+    const { sessions, model } = await openSessions(1)
+    const [session] = sessions
+    if (!session) throw new Error('a session expected')
+    expect(await statusOf(session)).toMatch(/^local: failed: /)
+
+    // The first wait is 0.5 s at most.
+    await vi.waitFor(
+      async () =>
+        expect(await statusOf(session)).toBe('local: connected (1 tool)'),
+      { timeout: 5_000 },
+    )
+    expect(children).toHaveLength(2)
+    await session.send('which server?')
+    expect(lastSeen(model)).toContain('child:2')
+  })
+
   it('stops trying when the host closes', async () => {
     const { host, sessions } = await openSessions(1)
     await sessions[0]?.send('hi')

@@ -477,6 +477,40 @@ describe('codeMode', () => {
     ])
   })
 
+  it('keeps a tool that include picks and that edits as a tool call in plan mode', async () => {
+    const { adapter, calls } = scripted([textTurn('ok'), textTurn('ok')])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/code-mode-include-plan',
+        adapter,
+        tools: [tools.lookup],
+        plugins: () => [
+          permissions({
+            rules: [{ tool: 'lookup', decision: 'allow', kind: 'edit' }],
+          }),
+          codeMode({
+            driver: fakeDriver().driver,
+            include: (tool) => tool.name === 'lookup',
+          }),
+        ],
+      }),
+      { threadId: 't' },
+    )
+    const namesOf = (call: number) =>
+      calls[call].tools.map((tool: { name: string }) => tool.name)
+    await session.send('hi')
+    // In the default mode, the rule allows it, so it moves.
+    expect(namesOf(0)).toEqual(['execute_typescript'])
+
+    await session.command({ name: 'mode', input: 'plan' })
+    await session.send('plan it')
+    // Plan mode denies an edit, so a call inside the isolate must not run
+    // it. No tool moves, so code mode adds no tool.
+    expect(namesOf(1)).toEqual(['lookup'])
+    await host.close()
+  })
+
   it('keeps a tool that a rule of permissions() asks for as a tool call', async () => {
     const names = await firstToolNames({
       tools: [

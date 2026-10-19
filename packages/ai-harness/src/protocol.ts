@@ -9,6 +9,7 @@ import type { AnyAgent } from './agents'
 import type { AnyHarness } from './define'
 import type { InlineMediaContext } from './inline-media'
 import type { HarnessSession, SessionSnapshot } from './session/index'
+import type { AgentRunStartOptions } from './session/types'
 import type {
   Cursor,
   HarnessInput,
@@ -395,9 +396,11 @@ export async function applyInput({
     // It runs no new code, so it needs no `expose` entry, like `cancel`. It
     // stores no input, so there is no sender to keep.
     case 'background':
-      return session.background(input.toolCallId)
+      return session.background(
+        input.toolCallId !== undefined ? { toolCallId: input.toolCallId } : {},
+      )
     case 'cancelInput':
-      return session.cancelInput(input.inputId, user)
+      return session.cancelInput({ inputId: input.inputId, ...user })
     case 'setDelivery':
       return session.setDelivery({
         inputId: input.inputId,
@@ -409,9 +412,12 @@ export async function applyInput({
       if (!(harness.expose?.commands ?? []).includes(input.name)) {
         return notExposed
       }
+      // The client's id makes a resent command a duplicate, so it runs once.
+      const inputId = input.inputId ?? createInputId()
       const operation = session.command({
         name: input.name,
         input: input.input,
+        inputId,
         ...user,
       })
       // ponytail: a command has no receipt, so it is accepted at once. A
@@ -420,11 +426,7 @@ export async function applyInput({
         () => {},
         () => {},
       )
-      return {
-        inputId: operation.id,
-        status: 'accepted',
-        operationId: operation.id,
-      }
+      return { inputId, status: 'accepted', operationId: operation.id }
     }
     case 'answer':
       return session.answer({
@@ -457,11 +459,16 @@ export async function applyInput({
         (record) => types.includes(record.type) && !('thread' in record),
       )
       if (!isExposed) return notExposed
-      const inputId = input.inputId ?? createInputId()
+      // The client's id makes a resent append a duplicate that writes
+      // nothing.
       try {
-        await session.append(input.records)
-        return { inputId, status: 'accepted' }
+        return await session.append({
+          records: input.records,
+          ...(input.inputId !== undefined ? { inputId: input.inputId } : {}),
+          ...user,
+        })
       } catch (error) {
+        const inputId = input.inputId ?? createInputId()
         return { inputId, status: 'rejected', reason: errorText(error) }
       }
     }
@@ -481,7 +488,7 @@ export async function applyInput({
     case 'unrevert':
       if (!(harness.expose?.commands ?? []).includes('undo')) return notExposed
       return input.op === 'revert'
-        ? session.revert(input.messageId)
+        ? session.revert({ messageId: input.messageId })
         : session.unrevert()
     case 'agent': {
       const exposed = (harness.expose?.agents ?? []).includes(input.agent)
@@ -495,15 +502,16 @@ export async function applyInput({
       // The run is the client's: its credentials and keys are theirs.
       // ponytail: accepted at once, as a command. A run that the host
       // refuses fails with a `RUN_ERROR` event.
-      const operation = handle.start(input.input, {
+      // The client's id makes a resent start a duplicate, so the agent runs
+      // once.
+      const inputId = input.inputId ?? createInputId()
+      const options: AgentRunStartOptions = {
         wake: input.detached === true,
+        inputId,
         ...user,
-      })
-      return {
-        inputId: operation.id,
-        status: 'accepted',
-        operationId: operation.id,
       }
+      const operation = handle.start(input.input, options)
+      return { inputId, status: 'accepted', operationId: operation.id }
     }
     case 'agentMessage': {
       const run = session.agentRun(input.operationId)

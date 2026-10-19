@@ -4,6 +4,7 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import { mockAdapter, text } from './helpers'
 import type { HarnessPersistence, RetentionLimits } from '../src'
+import type { SessionImpl } from '../src/session/harness-session'
 
 /**
  * A session with `retention`. The model answers `done` to every call, and
@@ -109,7 +110,9 @@ describe('retention', () => {
       settledOperations: 2,
       settledAgentRuns: 1,
     })
-    await session.send('Hi', { runId: 'run-0' })
+    await (session as unknown as SessionImpl).sendForRun('Hi', {
+      runId: 'run-0',
+    })
     for (let index = 0; index < 2; index += 1) await session.send('Hi')
     expect(session.operation('run-0')).toBe(undefined)
     // Both windows keep 3 operations.
@@ -117,7 +120,9 @@ describe('retention', () => {
     expect(privateSetSize(session, 'retiredIds')).toBe(3)
 
     // The log keeps every run, so the id stays taken.
-    const reused = session.send('Hi', { runId: 'run-0' })
+    const reused = (session as unknown as SessionImpl).sendForRun('Hi', {
+      runId: 'run-0',
+    })
     expect(await reused.receipt).toMatchObject({
       status: 'rejected',
       reason: 'conflict',

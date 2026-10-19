@@ -16,7 +16,6 @@ import type {
   AgentApp,
   AgentContext,
   AgentConnection,
-  ClientCapabilities,
   ElicitationSchema,
   PermissionOption,
   SessionUpdate,
@@ -230,6 +229,19 @@ function parseArgs(raw: string | undefined): unknown {
   }
 }
 
+/**
+ * The tool call of an interrupt: its own `toolCallId`, or for an approval of
+ * `permissions()`, the `toolCallId` in its payload. Core gives such an
+ * approval no `toolCallId` of its own.
+ */
+function toolCallIdOf(interrupt: Interrupt) {
+  if (interrupt.toolCallId) return interrupt.toolCallId
+  const payload = interrupt.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY]
+  return isRecord(payload) && typeof payload.toolCallId === 'string'
+    ? payload.toolCallId
+    : undefined
+}
+
 /** The sign-in page of a sign-in interrupt, when it has one. */
 function signInUrl(interrupt: Interrupt) {
   const payload = interrupt.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY]
@@ -345,6 +357,11 @@ type WaitAnswer =
  * of the connection release the handles too. `session/resume` only checks the
  * session index: the session opens at its first prompt.
  *
+ * One app serves one connection: it keeps the session handles and prompt
+ * queues of that connection, and a second connection to it throws. For more
+ * connections, make one app for each, for example
+ * `new AcpServer({ createAgent: () => createAcpAgent(options) })`.
+ *
  * ACP v2 is a draft, so this API is experimental too.
  */
 export function createAcpAgent<P extends Principal = Principal>(
@@ -442,12 +459,17 @@ export function createAcpAgent<P extends Principal = Principal>(
     update: SessionUpdate,
   ) => client.notify('session/update', { sessionId, update }).catch(() => {})
 
-  /** What the editor can show, from its `initialize`. */
-  let capabilities: ClientCapabilities = {}
-
-  /** True when the editor can answer `wait` (see `askEditor`). */
-  const canAsk = (wait: Wait, url: string | undefined) => {
-    const elicitation = capabilities.elicitation
+  /**
+   * True when the editor can answer `wait` (see `askEditor`). What the editor
+   * can show comes from the `initialize` of its own connection.
+   */
+  const canAsk = async (
+    client: AgentContext,
+    wait: Wait,
+    url: string | undefined,
+  ) => {
+    const { request } = await client.initialized
+    const elicitation = request.capabilities?.elicitation
     switch (wait.kind) {
       case 'approval':
         return true
@@ -483,7 +505,7 @@ export function createAcpAgent<P extends Principal = Principal>(
     toolCallId?: string
     url?: string
   }): Promise<WaitAnswer> => {
-    if (!canAsk(wait, url)) return { status: 'cancelled' }
+    if (!(await canAsk(client, wait, url))) return { status: 'cancelled' }
     if (wait.kind === 'approval') {
       const { outcome } = await client.request('session/request_permission', {
         sessionId,
@@ -545,7 +567,10 @@ export function createAcpAgent<P extends Principal = Principal>(
       wait: waitOfInterrupt({ interrupt, runId: sessionId }),
       url: signInUrl(interrupt),
     }))
-    if (items.some(({ wait, url }) => canAsk(wait, url))) {
+    const askable = await Promise.all(
+      items.map(({ wait, url }) => canAsk(client, wait, url)),
+    )
+    if (askable.includes(true)) {
       await notify(client, sessionId, {
         sessionUpdate: 'state_update',
         state: 'requires_action',
@@ -553,11 +578,12 @@ export function createAcpAgent<P extends Principal = Principal>(
     }
     const resume: Array<RunAgentResumeItem> = []
     for (const { interrupt, wait, url } of items) {
+      const toolCallId = toolCallIdOf(interrupt)
       const reply = await askEditor({
         client,
         sessionId,
         wait,
-        ...(interrupt.toolCallId ? { toolCallId: interrupt.toolCallId } : {}),
+        ...(toolCallId ? { toolCallId } : {}),
         ...(url ? { url } : {}),
       })
       if (reply.status === 'stop') return { cancelled: true }
@@ -742,16 +768,30 @@ export function createAcpAgent<P extends Principal = Principal>(
     )
   }
 
+  /**
+   * True after the first connection. The SDK gives a request handler no
+   * public id of its connection, so the state above is for one connection
+   * only. The SDK way to serve many is one app for each connection.
+   */
+  let connected = false
+
   return (
     agent()
       .onConnect((connection) => {
+        // A second connection would share the handles and queues of the
+        // first, so the SDK closes it with this error.
+        if (connected) {
+          throw new Error(
+            'An ACP agent app serves one connection. Call createAcpAgent once for each connection.',
+          )
+        }
+        connected = true
         // The handles of the sessions go with the connection.
         void connection.closed.then(() =>
           Promise.all([...handles.keys()].map(release)),
         )
       })
-      .onRequest('initialize', ({ params }) => {
-        capabilities = params.capabilities ?? {}
+      .onRequest('initialize', () => {
         return {
           protocolVersion: PROTOCOL_VERSION,
           info: { name: harness.name, version: options.version ?? '0.0.0' },

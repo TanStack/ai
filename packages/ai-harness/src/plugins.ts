@@ -122,11 +122,13 @@ export interface PluginContributions {
    * `discoverTools`. Return the new list. Runs before prompts resolve, so a
    * prompt `text()` can describe the tools this returned. Code mode uses it to
    * move tools behind `execute_typescript`. `model` is the model id of the
-   * turn's adapter, so the list can differ for each model.
+   * turn's adapter, so the list can differ for each model. `run` is the run
+   * of the turn: its id and its user.
    */
   prepareTools?: (turn: {
     tools: ReadonlyArray<AnyTool>
     model: string
+    run: RunContext
   }) => ReadonlyArray<AnyTool> | Promise<ReadonlyArray<AnyTool>>
 }
 
@@ -409,6 +411,19 @@ interface PluginDefinitionBase {
   optionalRequires?: ReadonlyArray<CapabilityHandle>
   /** Agent outputs this plugin needs the session to have. */
   needs?: { produces?: ReadonlyArray<AgentProduces> }
+  /**
+   * The host records of this plugin that the log fold keeps, by record
+   * type, with how many of each: the last ones. The fold snapshot keeps
+   * them, so they stay readable after a truncate of the log. The plugins
+   * of the harness that opens the log first (its root thread) decide. With
+   * one type in two plugins, the larger count wins.
+   *
+   * @example
+   * ```ts
+   * definePlugin({ name: 'acme/steps', keepRecords: { 'acme/steps:step': 100 } })
+   * ```
+   */
+  keepRecords?: Readonly<Record<string, number>>
 }
 
 /** A plugin that is set up for each session (default) or for each turn. */
@@ -628,8 +643,9 @@ export interface MountedPlugins {
    * A copy without everything that the plugins in `names` contributed: tools,
    * prompts (also the `'context'` prompts), every kind of middleware, agents, subagents, commands, config,
    * adapter picks, discoverers, preparers, extension items, and capabilities.
-   * The copy is a snapshot: a later `ctx.agents.set` or `ctx.commands.set`
-   * changes this set only. It shares `dispose` with this set. It throws when
+   * The copy reads the commands and agents of this set at each use, so a
+   * later `ctx.agents.set` or `ctx.commands.set` of a kept plugin reaches
+   * it. It shares `dispose` with this set. It throws when
    * a kept plugin requires a capability that a removed plugin provides.
    */
   withoutOwners: (names: ReadonlyArray<string>) => MountedPlugins
@@ -706,6 +722,7 @@ const NO_SESSION: PluginSessionApi = {
   send: unavailable('ctx.session'),
   note: unavailable('ctx.session'),
   transcript: unavailable('ctx.session'),
+  keptRecords: unavailable('ctx.session'),
   replaceTranscript: unavailable('ctx.session'),
   entry: unavailable('ctx.session'),
   updateEntry: unavailable('ctx.session'),
@@ -759,15 +776,18 @@ export interface RevertFilesHandler {
   /**
    * Put back the files that the tool calls of `hidden` changed. Other files
    * stay as they are. `records` reads the host records of one type from the
-   * session log. Resolves to what `unrevert` needs (JSON), or `undefined`
-   * when no file changed.
+   * session log. `run` is a run of the revert in the thread of the session,
+   * so a workspace that is not open on this host opens again from the log.
+   * Resolves to what `unrevert` needs (JSON), or `undefined` when no file
+   * changed.
    */
   revert: (
     hidden: ReadonlyArray<ModelMessage>,
     records: (type: string) => Promise<Array<Record<string, unknown>>>,
+    run: RunContext,
   ) => Promise<unknown>
-  /** Put the files back as they were before `revert`. */
-  unrevert: (saved: unknown) => Promise<void>
+  /** Put the files back as they were before `revert`. `run` as in `revert`. */
+  unrevert: (saved: unknown, run: RunContext) => Promise<void>
 }
 
 /** @internal See {@link RevertFilesHandler}. */
@@ -851,6 +871,44 @@ export interface WorkspaceLogApi {
    */
   stranded: (input: { operationId: string; hostId?: string }) => void
 }
+
+/**
+ * @internal Tells first-party plugins that a thread ended for good:
+ * `host.sessions.delete` purges it. A session close is not the end of a
+ * thread (the next host reattaches it), so this is the only place to free
+ * what lives as long as the thread, like an owned sandbox or the shadow
+ * repository of the snapshots. A plugin adds its handler in its setup, also
+ * in the `session` part of a host plugin. The session provides it. The
+ * package does not export it.
+ */
+export const ThreadEnds = createCapability<ThreadEndsApi>()(
+  'tanstack/thread-ends',
+)
+
+/** @internal See {@link ThreadEnds}. */
+export interface ThreadEndsApi {
+  /** Add `handler`. Gives a function that removes it. */
+  add: (handler: ThreadEndHandler) => () => void
+}
+
+/**
+ * @internal A handler of {@link ThreadEnds}. `run` is a run of the purge in
+ * the thread, for a `reattach` that needs one.
+ */
+export type ThreadEndHandler = (thread: {
+  tenantId: string | undefined
+  threadId: string
+  run: RunContext
+}) => Promise<void>
+
+/**
+ * @internal Takes the secrets of the session out of `text`, as the session
+ * does for tool results. A plugin that writes tool output to a file uses it.
+ * The session provides it. The package does not export it.
+ */
+export const SessionScrub = createCapability<(text: string) => string>()(
+  'tanstack/session-scrub',
+)
 
 /** Capability values provided by plugins, keyed by handle. */
 export class CapabilityValues {
@@ -962,9 +1020,14 @@ function withoutOwnersOf(
       mounted.generationMiddleware,
       owners.generationMiddleware,
     ),
-    commands: new Map(
-      [...mounted.commands].filter(([, entry]) => isKept(entry.owner)),
-    ),
+    // Commands and agents are read at each use: a kept plugin can change
+    // them later (`ctx.commands.set`, `ctx.agents.set`), and this thread
+    // must see that.
+    get commands() {
+      return new Map(
+        [...mounted.commands].filter(([, entry]) => isKept(entry.owner)),
+      )
+    },
     config: new Map(
       [...mounted.config].filter(([, entry]) => isKept(entry.owner)),
     ),
@@ -972,8 +1035,12 @@ function withoutOwnersOf(
     adapters: keep(mounted.adapters, owners.adapters),
     discoverers: mounted.discoverers.filter((item) => isKept(item.owner)),
     preparers: mounted.preparers.filter((item) => isKept(item.owner)),
-    agents: keep(mounted.agents, owners.agents),
-    subagents: keep(mounted.subagents, owners.subagents),
+    get agents() {
+      return keep(mounted.agents, owners.agents)
+    },
+    get subagents() {
+      return keep(mounted.subagents, owners.subagents)
+    },
     owners: {
       plugins: owners.plugins.filter((plugin) => isKept(plugin.name)),
       tools: owners.tools.filter((entry) => isKept(entry.owner)),
@@ -982,8 +1049,12 @@ function withoutOwnersOf(
       adapters: owners.adapters.filter(isKept),
       agentMiddleware: owners.agentMiddleware.filter(isKept),
       generationMiddleware: owners.generationMiddleware.filter(isKept),
-      agents: owners.agents.filter(isKept),
-      subagents: owners.subagents.filter(isKept),
+      get agents() {
+        return owners.agents.filter(isKept)
+      },
+      get subagents() {
+        return owners.subagents.filter(isKept)
+      },
       capabilities: owners.capabilities.filter((entry) => isKept(entry.owner)),
     },
     capabilityBridge: capabilityBridgeOf(values),

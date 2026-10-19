@@ -173,10 +173,10 @@ For `bash`:
 
 - The model gets the exit code and the last 1000 lines (20 KiB) of the output.
 - A command stops after 2 minutes, with exit code 124. Every process that it started stops too. Set another limit with `bashTimeoutMs`. The model can ask for up to 10 minutes.
-- With `spillDir`, long output goes to a file in that folder, and the model gets the path. `spillDir` is relative to `root`, or absolute.
+- With `spillDir`, long output goes to a file in that folder, and the model gets the path. `spillDir` is relative to `root`, or absolute. The file has `[redacted]` in place of each secret of the session, the same as the tool result. See [Keep tokens out of the log and the model](./auth#keep-tokens-out-of-the-log-and-the-model).
 - A command gets only a few variables of your process, like `PATH` and `HOME`. Your provider keys stay out of it. See [Keep server secrets out of commands](./coding-workspaces#2-keep-server-secrets-out-of-commands).
 
-With `background: true`, the call returns at once with a job id. When the job ends, the model gets a note with the output, and a new turn starts.
+With `background: true`, the call returns at once with a job id. When the job ends, the model gets a note with the output, and a new turn starts. That turn runs as the user whose run started the job.
 
 - The time limit does not apply to a background job.
 - At most 8 background jobs run at a time in a session. Set another limit with `maxJobs`. Each job keeps the newest 1 MiB of its output.

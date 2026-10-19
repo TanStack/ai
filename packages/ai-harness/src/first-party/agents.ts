@@ -4,6 +4,7 @@ import {
   maxIterations,
   untilFinishReason,
 } from '@tanstack/ai'
+import { runContextOf } from '../agents'
 import { defineCommand } from '../commands'
 import { configOption } from '../config'
 import { definePlugin } from '../plugins'
@@ -116,6 +117,15 @@ const MAX_STEPS_PROMPT =
   'You reached the step limit. Do not call more tools. Answer now with what you have, and say what is left to do.'
 
 const MAX_STEPS_RESULT = 'Step limit reached. Answer without calling tools.'
+
+/** How many runs keep their lead tools and model in memory. */
+const LEAD_RUNS = 200
+
+/** The tools and the model id of the turn that started a subagent run. */
+interface Lead {
+  tools: ReadonlyArray<AnyTool>
+  model: string
+}
 
 /** The tools whose name matches one of `patterns`. Without patterns, all of them. */
 function allowedTools<TTool extends { name: string }>(
@@ -293,15 +303,43 @@ export function agents(options: {
         const name = ctx.config.get('agent')
         return visible.find((profile) => profile.name === name) ?? first
       }
-      // The tools and the model id of the last main turn. Subagents use them.
-      // ponytail: a subagent started before any turn has no tools and needs a `model`
-      let lead: { tools: ReadonlyArray<AnyTool>; model: string } | undefined
+      // The tools and the model id of each turn, by the run id of the turn,
+      // and of each subagent run, by its own run id. A subagent run uses the
+      // ones of the turn that started it, never the ones of another user's
+      // turn. The oldest go first.
+      // ponytail: in memory only. A run that goes on in another host, or
+      // after its turn left this list, fails with a clear error.
+      const leads = new Map<string, Lead>()
+      const keepLead = (runId: string, lead: Lead) => {
+        leads.delete(runId)
+        leads.set(runId, lead)
+        for (const old of leads.keys()) {
+          if (leads.size <= LEAD_RUNS) break
+          leads.delete(old)
+        }
+      }
 
       const subagentOf = (profile: AgentProfile) =>
         defineAgent({
           name: profile.name,
           description: profile.description,
           run: async (child) => {
+            // A tool-mode child gets the run of its turn. A background run
+            // gets its own run, whose parent is the turn or the agent run
+            // that started it.
+            const run = runContextOf(child.harness)
+            const lead =
+              run &&
+              (leads.get(run.runId) ??
+                (run.parentRunId === undefined
+                  ? undefined
+                  : leads.get(run.parentRunId)))
+            if (run && lead) keepLead(run.runId, lead)
+            if (run?.parentRunId !== undefined && !lead) {
+              throw new Error(
+                `Agent ${profile.name} cannot go on here: the tools and the model of the turn that started it are only in the memory of the host that ran that turn. Start it again from a turn.`,
+              )
+            }
             const model = profile.model ?? lead?.model
             if (model === undefined) {
               throw new Error(
@@ -372,8 +410,8 @@ export function agents(options: {
           const { model } = active()
           return model === undefined ? undefined : options.adapter(model)
         },
-        prepareTools: ({ tools, model }) => {
-          lead = { tools, model }
+        prepareTools: ({ tools, model, run }) => {
+          keepLead(run.runId, { tools, model })
           return tools
         },
         // In onConfig, so the subagent tools that chat() adds are filtered too.

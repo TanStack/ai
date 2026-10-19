@@ -222,14 +222,14 @@ describe('host.fork', () => {
     if (!id) throw new Error('The fork lost the media part.')
 
     expect(id).not.toBe(record.id)
-    expect(await fork.getMedia(id)).toMatchObject({
+    expect(await fork.getMedia({ id })).toMatchObject({
       threadId: FORK,
       name: 'cat.png',
     })
     expect(await fork.loadMedia({ id })).toEqual(bytes)
     // Each thread sees only its own media.
-    expect(await fork.getMedia(record.id)).toBeNull()
-    expect(await source.getMedia(id)).toBeNull()
+    expect(await fork.getMedia({ id: record.id })).toBeNull()
+    expect(await source.getMedia({ id })).toBeNull()
     await host.close()
   })
 })

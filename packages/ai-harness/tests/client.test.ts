@@ -185,7 +185,9 @@ describe('createHarnessClient', () => {
       ).toContain('billing'),
     )
     expect(calls).toHaveLength(0)
-    expect(await client.append([{ type: 'app.signal' }])).toMatchObject({
+    expect(
+      await client.append({ records: [{ type: 'app.signal' }] }),
+    ).toMatchObject({
       status: 'rejected',
       reason: 'not_exposed',
     })

@@ -126,7 +126,7 @@ describe('session view client tools', () => {
 
     approval?.approve()
     // A client tool id is not an approval, so a yes does not answer it.
-    view.approve(call?.id ?? '')
+    view.approve({ id: call?.id ?? '' })
     expect(resolve).not.toHaveBeenCalled()
     call?.resolve({ opened: true })
     call?.resolve({ opened: false })

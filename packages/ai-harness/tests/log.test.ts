@@ -12,8 +12,10 @@ import {
   SNAPSHOT_VERSION,
   SharedLog,
   commonPrefix,
+  emptyLogState,
   emptySharedLogState,
   engineMessageStore,
+  foldEntry,
   loadLogState,
   logIdOf,
   logMessageStore,
@@ -21,7 +23,7 @@ import {
   sessionOf,
 } from '../src/log'
 import { HostOwnership, LogOwnedElsewhereError } from '../src/ownership'
-import { wrapLogStore, writeAsOtherHost } from './helpers'
+import { CRASHING_OWNERSHIP, wrapLogStore, writeAsOtherHost } from './helpers'
 import { HARNESS_EVENTS } from '../src/types'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { LogRecord, LogSnapshot, LogStore } from '@tanstack/ai-persistence'
@@ -350,6 +352,27 @@ describe('fold robustness', () => {
 
     expect(state.seq).toBe(5)
     expect(state.messages).toHaveLength(5)
+  })
+})
+
+describe('kept host records', () => {
+  it('keeps the last records of each type that keep names, and no other', () => {
+    const state = emptyLogState()
+    const keep = new Map([['app.step', 2]])
+    const records = [
+      { type: 'app.step', n: 1 },
+      { type: 'app.other' },
+      { type: 'app.step', n: 2 },
+      { type: 'app.step', n: 3 },
+    ]
+    records.forEach((record, index) =>
+      foldEntry(state, { seq: index + 1, record }, undefined, keep),
+    )
+
+    expect(state.keptRecords.map((entry) => entry.record)).toEqual([
+      { type: 'app.step', n: 2 },
+      { type: 'app.step', n: 3 },
+    ])
   })
 })
 
@@ -685,7 +708,10 @@ describe('write failures', () => {
     // the test: a host that pauses.
     const first = new SharedLog({
       store,
-      ownership: hostOwnership(store, { ttlMs: 20, renewMs: 60_000 }),
+      ownership: hostOwnership(store, {
+        ...CRASHING_OWNERSHIP,
+        ttlMs: 20,
+      }),
       harness: HARNESS,
       logId: LOG,
       rootThread: THREAD,
@@ -1777,7 +1803,10 @@ describe('a log shared by sessions', () => {
     const onIdle = vi.fn()
     const log = new SharedLog({
       store,
-      ownership: hostOwnership(store, { ttlMs: 20, renewMs: 60_000 }),
+      ownership: hostOwnership(store, {
+        ...CRASHING_OWNERSHIP,
+        ttlMs: 20,
+      }),
       harness: HARNESS,
       logId: SHARED,
       rootThread: 'log-1',

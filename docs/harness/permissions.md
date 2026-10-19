@@ -163,6 +163,8 @@ Two more rules apply to each tool:
 - A tool with no rule runs without a question. To ask for each tool that has no rule, set `default: 'ask'`.
 - When the last rule of a tool is a `deny` with no `resource`, the model does not get the tool.
 
+The plugin decides each call in the guard hook, [`onGuardToolCall`](../advanced/middleware#onguardtoolcall). It runs after the input check and after every middleware that changes the arguments. So the rules see the arguments that the tool gets.
+
 ### Paths
 
 - Inside `root`, a rule matches the path from `root`, for example `src/app.ts`. Outside `root`, it matches the full path, for example `/etc/hosts`.
@@ -226,7 +228,7 @@ The rules decide the formatter as a part of the call that writes, before that ca
 | `plan` | Neither runs. No file changes in this mode. |
 
 - A `reject` stops the call. Nothing is written, and the formatter does not run.
-- An `always` answer also saves `formatter:prettier` for the project, so the user answers once.
+- An `always` answer also saves the formatter for the project, tied to a hash of its config files (`formatter:prettier@<hash>`). The user answers once, until those files change.
 - A rule that denies the formatter skips it. The write still runs, and the tool result says that the formatter did not run.
 - Without `permissions()`, the formatter runs without a question.
 

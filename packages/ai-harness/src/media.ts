@@ -74,6 +74,17 @@ export type MediaStore = ReturnType<typeof createMediaStore>
 const DEFAULT_MAX_BYTES = 100 * 1024 * 1024
 const DATA_URL_MAX_BYTES = 1024 * 1024
 const DEFAULT_ENCODED_BYTES = 32 * 1024 * 1024
+/** The base64 LRU of `createMediaStore`, one for each blob store. */
+interface EncodedCache {
+  /** The most characters it keeps. */
+  cap: number
+  /** The characters it keeps now. */
+  size: number
+  /** By `<store key of the thread>/<media id>`, the oldest first. */
+  entries: Map<string, string>
+}
+const encodedCaches = new WeakMap<BlobStore, EncodedCache>()
+
 const ALL_KINDS: ReadonlyArray<MediaKind> = [
   'image',
   'audio',
@@ -192,7 +203,10 @@ export function createMediaStore({
   /** The tenant of the thread. Without it, the default tenant. */
   tenantId?: string
   options?: MediaOptions
-  /** @internal How many characters of base64 to keep across turns. */
+  /**
+   * @internal How many characters of base64 to keep across turns, for all
+   * the media stores of this blob store. The largest value asked for wins.
+   */
   encodedBytes?: number
 }) {
   const { artifacts, blobs } = persistence.stores
@@ -234,32 +248,41 @@ export function createMediaStore({
   }
 
   // ponytail: an LRU of base64 text across turns, at most `encodedBytes`
-  // characters (default 32 MB). The key is the media id only: the bytes of an
-  // id never change, and this store sees one thread of one tenant. Above the
-  // cap, each turn encodes the oldest files again. Send adapters a URL when
-  // that gets slow.
-  const encodedCap = encodedBytes ?? DEFAULT_ENCODED_BYTES
-  const encoded = new Map<string, string>()
-  let encodedSize = 0
+  // characters (default 32 MB). The media stores of one blob store (all the
+  // sessions of a host) share it, so the cap is for the host, not for each
+  // open session. The largest `encodedBytes` asked for is the cap. The key is
+  // the store key of the thread and the media id: the bytes of an id never
+  // change. Above the cap, each turn encodes the oldest files again. Send
+  // adapters a URL when that gets slow.
+  const cap = encodedBytes ?? DEFAULT_ENCODED_BYTES
+  let encoded = encodedCaches.get(blobs)
+  if (!encoded) {
+    encoded = { cap, size: 0, entries: new Map() }
+    encodedCaches.set(blobs, encoded)
+  }
+  encoded.cap = Math.max(encoded.cap, cap)
+  const cache = encoded
 
   /** The base64 of the bytes of `id`. Call `get` first: a hit does not check the record. */
   async function base64(id: string) {
-    const hit = encoded.get(id)
+    const key = `${storeThreadId}/${id}`
+    const hit = cache.entries.get(key)
     if (hit !== undefined) {
       // Delete and set again, so the Map order puts it last (newest).
-      encoded.delete(id)
-      encoded.set(id, hit)
+      cache.entries.delete(key)
+      cache.entries.set(key, hit)
       return hit
     }
     const value = toBase64(await load(id))
-    if (value.length <= encodedCap) {
-      encoded.set(id, value)
-      encodedSize += value.length
+    // Another call stored it while this one read the bytes.
+    if (value.length <= cache.cap && !cache.entries.has(key)) {
+      cache.entries.set(key, value)
+      cache.size += value.length
       // The first keys of the Map are the oldest.
-      for (const [key, old] of encoded) {
-        if (encodedSize <= encodedCap) break
-        encoded.delete(key)
-        encodedSize -= old.length
+      for (const [oldKey, old] of cache.entries) {
+        if (cache.size <= cache.cap) break
+        cache.entries.delete(oldKey)
+        cache.size -= old.length
       }
     }
     return value

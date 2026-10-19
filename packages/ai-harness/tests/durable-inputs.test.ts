@@ -1060,7 +1060,7 @@ describe('waiting inputs', () => {
       { inputId: 'third', delivery: 'steer', message: 'third' },
       { inputId: 'second', delivery: 'queue', message: 'second' },
     ])
-    expect(await session.cancelInput('second')).toMatchObject({
+    expect(await session.cancelInput({ inputId: 'second' })).toMatchObject({
       status: 'accepted',
     })
     expect(await session.settled({ inputId: 'second' })).toMatchObject({
@@ -1093,7 +1093,7 @@ describe('waiting inputs', () => {
     const turn = session.send('first', { inputId: 'first' })
     await waitFor(() => expect(calls).toHaveLength(1))
 
-    expect(await session.cancelInput('first')).toMatchObject({
+    expect(await session.cancelInput({ inputId: 'first' })).toMatchObject({
       status: 'rejected',
       reason: 'not_waiting',
     })
@@ -1166,7 +1166,7 @@ describe('waiting inputs', () => {
       ),
     )
 
-    expect(await session.cancelInput('c-1')).toMatchObject({
+    expect(await session.cancelInput({ inputId: 'c-1' })).toMatchObject({
       status: 'accepted',
     })
     expect(await session.settled({ inputId: 'c-1' })).toMatchObject({

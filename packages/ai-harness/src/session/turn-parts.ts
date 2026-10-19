@@ -375,13 +375,19 @@ export abstract class SessionTurnParts<
    */
   protected async prepareTools(
     preparers: MountedPlugins['preparers'],
-    turn: { tools: Array<AnyTool>; model: string },
+    turn: { tools: Array<AnyTool>; model: string; run: RunContext },
     operation: OperationImpl<ChatTurnResult>,
   ): Promise<Array<AnyTool>> {
     let prepared = turn.tools
     for (const { prepare, owner } of preparers) {
       try {
-        prepared = [...(await prepare({ tools: prepared, model: turn.model }))]
+        prepared = [
+          ...(await prepare({
+            tools: prepared,
+            model: turn.model,
+            run: turn.run,
+          })),
+        ]
       } catch (error) {
         this.warn(operation, owner, error)
       }
@@ -438,8 +444,8 @@ export abstract class SessionTurnParts<
           context.runId = runId
           context.detach = (work) =>
             new Promise((moved) => {
-              this.detachable.set(id, () => {
-                this.logJob({ jobId: id }, false)
+              this.detachable.set(id, (mover) => {
+                this.logJob({ jobId: id, principal: mover }, false)
                 moved(
                   `The job moved to the background. Its id is ${id}. You get a note when it ends.`,
                 )
@@ -951,7 +957,7 @@ export abstract class SessionTurnParts<
       typeof content === 'string'
         ? []
         : content.map(mediaIdOf).filter((id) => id !== undefined)
-    const records = await Promise.all(ids.map((id) => this.getMedia(id)))
+    const records = await Promise.all(ids.map((id) => this.getMedia({ id })))
     const media = records.filter((record) => record !== null)
     const message: ModelMessage = {
       id: createMessageId(),

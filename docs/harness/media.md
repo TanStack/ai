@@ -47,13 +47,14 @@ console.log(turn.text)
 ```
 
 - The transcript keeps a `harness-media:<id>` URL for the file. Only the model call gets the bytes.
+- The host keeps up to 32 MB of base64 text in memory, for all its sessions together, so the next turn does not encode a file again. Above that, a turn encodes the oldest files again.
 - If the harness refuses the file, `putMedia` throws a `MediaError`. Its `status` is `413` for a file over the size limit, and `415` for a kind that the harness does not take.
 
 The session also has:
 
-- `getMedia(id)`: the record, or `null` when the thread has no file with this id.
+- `getMedia({ id })`: the record, or `null` when the thread has no file with this id.
 - `loadMedia({ id, range })`: the bytes, or one range of them. `range` is optional.
-- `mediaUrl(id)`: `{ url }`, with a data URL for a file up to 1 MB. A bigger file gets `{}`. Use `loadMedia` for it, and serve the bytes from your own route.
+- `mediaUrl({ id })`: `{ url }`, with a data URL for a file up to 1 MB. A bigger file gets `{}`. Use `loadMedia` for it, and serve the bytes from your own route.
 
 ## Media that agents make
 

@@ -27,12 +27,17 @@ function streamed(chunks: ReadonlyArray<string>) {
 }
 
 /** A client on `fetch`, for the thread `t`. */
-function clientOn(fetch: typeof globalThis.fetch, reconnectDelayMs?: number) {
+function clientOn(
+  fetch: typeof globalThis.fetch,
+  reconnectDelayMs?: number,
+  idleTimeoutMs?: number,
+) {
   return createHarnessClient({
     url: 'http://x/api/harness',
     threadId: 't',
     fetch,
     ...(reconnectDelayMs === undefined ? {} : { reconnectDelayMs }),
+    ...(idleTimeoutMs === undefined ? {} : { idleTimeoutMs }),
   })
 }
 
@@ -146,6 +151,64 @@ describe('events() reconnects', () => {
     ])
   })
 
+  it('waits idleTimeoutMs before it connects again, for a server with a long heartbeat', async () => {
+    vi.useFakeTimers()
+    const urls: Array<string> = []
+    // The connection sends nothing.
+    const client = clientOn(
+      async (input) => {
+        urls.push(String(input))
+        return new Response(new ReadableStream<Uint8Array>(), { status: 200 })
+      },
+      1,
+      120_000,
+    )
+    const controller = new AbortController()
+    const next = client
+      .events({ from: '0', signal: controller.signal })
+      [Symbol.asyncIterator]()
+      .next()
+
+    await vi.advanceTimersByTimeAsync(61_000)
+    expect(urls).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(urls).toHaveLength(2)
+    controller.abort()
+    await next
+  })
+
+  it('connects again from its last cursor when a connection sends nothing for 60 s', async () => {
+    vi.useFakeTimers()
+    const encoder = new TextEncoder()
+    const urls: Array<string> = []
+    // The first connection sends one event, then nothing: a half-open
+    // connection. The next ones send one event each.
+    const client = clientOn(async (input) => {
+      urls.push(String(input))
+      if (urls.length > 1) return streamed([sessionFrame(String(urls.length))])
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode(sessionFrame('1')))
+        },
+      })
+      return new Response(body, { status: 200 })
+    }, 1)
+    const controller = new AbortController()
+    const iterator = client
+      .events({ from: '0', signal: controller.signal })
+      [Symbol.asyncIterator]()
+
+    expect((await iterator.next()).value?.cursor).toBe('1')
+    const next = iterator.next()
+    await vi.advanceTimersByTimeAsync(59_000)
+    expect(urls).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(1_100)
+
+    expect((await next).value?.cursor).toBe('2')
+    expect(urls[1]).toContain('from=1')
+    controller.abort()
+  })
+
   it('stops the wait before a reconnect when the signal aborts', async () => {
     vi.useFakeTimers()
     const client = clientOn(async () => {
@@ -224,7 +287,7 @@ describe('control inputs', () => {
   it('keeps the inputId of the input to change in cancelInput', async () => {
     const { host, client, bodies } = recorded()
 
-    await client.cancelInput('waiting-1').catch(() => undefined)
+    await client.cancelInput({ inputId: 'waiting-1' }).catch(() => undefined)
     await host.close()
 
     expect(inputIdOf(bodies[0])).toBe('waiting-1')

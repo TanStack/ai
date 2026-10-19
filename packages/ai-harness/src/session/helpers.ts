@@ -29,7 +29,7 @@ import type {
 } from '../log-records'
 import type { MountedPlugins } from '../plugins'
 import type {
-  HarnessInput,
+  OfferedHarnessInput,
   MediaKind,
   OperationStatus,
   Principal,
@@ -121,7 +121,7 @@ function namedOverrides(extras: TurnExtras) {
 export interface OfferedInputRecord extends LogRecord {
   type: 'harness.input'
   inputId: string
-  input: HarnessInput
+  input: OfferedHarnessInput
   principal?: { id: string; tenantId?: string }
   /**
    * The id that the owner runs the input with: the AG-UI run id of a turn,
@@ -138,7 +138,7 @@ export interface OfferedInputRecord extends LogRecord {
 /** The offer record of `input`. See {@link OfferedInputRecord}. */
 export function offeredInputRecord(offer: {
   inputId: string
-  input: HarnessInput
+  input: OfferedHarnessInput
   principal: Principal | undefined
   runId?: string
   turn?: TurnExtras

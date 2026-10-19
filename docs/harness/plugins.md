@@ -224,6 +224,7 @@ export const counter = definePlugin({
 - A key or a token of the session in the state goes into the log as `[redacted]`. `update` resolves with that same value. See [Keep tokens out of the log and the model](./auth#keep-tokens-out-of-the-log-and-the-model).
 - The updates of one plugin run one at a time. Each `update` function gets the value that the update before it wrote.
 - [`host.sessions.delete`](./lifecycle#delete-a-thread-for-good) deletes the state with the log. A fork does not copy it.
+- For a long list of records, such as one record for each step, append records to the log and set `keepRecords`. Read them with `ctx.session.keptRecords(type)`. See [Keep records after a truncate](./session-log#keep-records-after-a-truncate).
 - Agents get a state with the same `get` and `update` from `ctx.harness.state({ key, initial })`. See [Share state between agents](./subagents#share-state-between-agents).
 
 ## Middleware in every agent
@@ -298,6 +299,10 @@ Where each part of a plugin reads the run:
 - A plugin with `lifetime: 'turn'`: `ctx.turn.run`. Its `ctx.credentials` and `ctx.keys` belong to the same user.
 - A session plugin (the default lifetime): `ctx.credentials` and `ctx.keys` have no user, so each call throws. `ctx.session.principal` is the owner of the session.
 - A plugin with `lifetime: 'host'`: its setup has no user and no session. Its tools read the user of each call from `ctx.context.run`.
+
+`prepareTools` gets `run` too: the run of the turn, with its id and its user.
+
+A plugin that starts a turn picks its user. `ctx.session.send(text, { principal })` and `ctx.session.note(text, { wake: true, principal })` run that turn as `principal`. Without it, the turn runs as `ctx.session.principal`. To continue the work of a run, pass the `principal` of that run.
 
 The run has these fields:
 

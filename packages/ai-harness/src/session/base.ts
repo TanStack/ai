@@ -90,8 +90,9 @@ import type {
   RunContext,
   SessionEvent,
   ThreadSettings,
-  SendOptions,
+  SendForRunOptions,
   TurnInfo,
+  UserInput,
 } from '../types'
 import type {
   AgentRunOptions,
@@ -365,7 +366,10 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /** Background jobs that run on this host. Recovery skips them. */
   protected readonly jobs = new Set<string>()
   /** Running tool calls that support `detach`: id to the move. */
-  protected readonly detachable = new Map<string, () => void>()
+  protected readonly detachable = new Map<
+    string,
+    (principal: Principal | undefined) => void
+  >()
   protected activeTurn: OperationImpl<ChatTurnResult> | undefined
   /** The open skipped recovery: another host owned the thread then. */
   protected recoveryDeferred = false
@@ -835,6 +839,18 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     return cache.plugins
   }
 
+  /**
+   * The agent `name` of the session registry, as this thread has it:
+   * `undefined` when a plugin that this thread removed added it.
+   */
+  protected threadAgent(name: string): AnyAgent | undefined {
+    const owner = this.agentRegistry.ownerOf(name)
+    if (owner === undefined || this.removedPlugins().has(owner)) {
+      return undefined
+    }
+    return this.agentRegistry.get(name)
+  }
+
   /** Put each plugin's saved state in the snapshot before the first read. */
   protected loadPluginState() {
     for (const [plugin, load] of this.stateLoaders) {
@@ -1096,8 +1112,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
 
   /**
    * @internal No input being stored, no queued or running turn, no waiting
-   * steer, and no running agent. The host closes an idle session that no
-   * handle holds.
+   * steer, no running agent, and no background job of this host. The host
+   * closes an idle session that no handle holds.
    */
   isIdle(): boolean {
     // A follow-up that waits for its run keeps the thread busy.
@@ -1106,6 +1122,9 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     )
     if (hasFollowUps) return false
     return (
+      // A background job of this host runs in its memory. A close stops it,
+      // and its end note is lost.
+      this.jobs.size === 0 &&
       // A live wait (an `ask()`) waits in this host's memory: its answer
       // must come here, so it keeps the log. A wait that only the log keeps
       // does not: the session is idle, and an answer reaches any host.
@@ -1175,9 +1194,10 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
-   * Resolves when the thread is idle: no input is being stored, and no turn,
-   * steer, agent run, or command runs or waits. A thread that waits for a
-   * human (an approval, a sign-in) is idle. When the thread is idle now, it
+   * Resolves when the thread is idle: no input is being stored, no turn,
+   * steer, agent run, or command runs or waits, and no background job of
+   * this host runs. A thread that waits for a human (an approval, a sign-in)
+   * is idle. When the thread is idle now, it
    * resolves at once. When `signal` aborts first, it rejects with the reason
    * of `signal`.
    *
@@ -1311,12 +1331,18 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * Track a background job of this host. The log also has its start and
    * end, so recovery can note a job that a crash stopped. The record goes
    * to `threadId`, the thread of the workspace that runs the job.
+   * `principal` is who moved the job to the background.
    */
   protected logJob(
-    job: { jobId: string; backendId?: string; threadId?: string },
+    job: {
+      jobId: string
+      backendId?: string
+      threadId?: string
+      principal?: Principal
+    },
     ended: boolean,
   ) {
-    const { jobId, backendId, threadId } = job
+    const { jobId, backendId, threadId, principal } = job
     if (ended) this.jobs.delete(jobId)
     else this.jobs.add(jobId)
     const isOtherThread = threadId !== undefined && threadId !== this.threadId
@@ -1325,10 +1351,13 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       jobId,
       ended,
       ...(!ended && backendId !== undefined ? { backendId } : {}),
+      ...storedPrincipal(principal),
       ...(isOtherThread ? { thread: threadId } : {}),
     }
     // No one waits for a job record. A failed log write fails the session.
     this.writer.append([record]).catch(() => undefined)
+    // The last job ended: the host can close the session now.
+    if (ended) queueMicrotask(() => this.checkIdle())
   }
 
   // Implemented by a later layer of the class.
@@ -1355,10 +1384,43 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected abstract armSchedules(options?: { isRetry?: boolean }): void
   /** @internal See `SessionRequests.resolveForRun`. */
   abstract resolveForRun(options: ResolveForRunOptions): Promise<Receipt>
+  /** @internal See `SessionRequests.sendForRun`. */
+  abstract sendForRun(
+    message: UserInput,
+    options?: SendForRunOptions,
+  ): Operation<ChatTurnResult>
+  /** See `SessionRequests.applyCancelInput`. */
+  protected abstract applyCancelInput(options: {
+    inputId: string
+    principal?: Principal
+    controlId?: string
+  }): Promise<Receipt>
+  /** See `SessionRequests.applySetDelivery`. */
+  protected abstract applySetDelivery(options: {
+    inputId: string
+    delivery: 'steer' | 'queue'
+    principal?: Principal
+    controlId?: string
+  }): Promise<Receipt>
+  /** See `SessionState.applyConfig`. */
+  protected abstract applyConfig(options: {
+    key: string
+    value: unknown
+    principal?: Principal
+    controlId?: string
+  }): Promise<Receipt>
+  /** See `SessionState.applyAnswer`. */
+  protected abstract applyAnswer(options: {
+    questionId: string
+    value: unknown
+    principal?: Principal
+    controlId?: string
+    ref?: string
+  }): Promise<Receipt>
   protected abstract recoverFromLog(writer: LogWriter): Promise<void>
   protected abstract startTurn(
     input: HarnessInput & { op: 'prompt' | 'steer' | 'followUp' },
-    options?: SendOptions & { wake?: boolean },
+    options?: SendForRunOptions & { wake?: boolean },
   ): Operation<ChatTurnResult>
   protected abstract runAgent(
     target: string | AnyAgent,

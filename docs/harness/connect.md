@@ -145,7 +145,7 @@ export const team = defineHarness({
 | `config` | Set these plugin config keys with `client.setConfig({ key, value })`. |
 | `commands` | Run these commands with `client.command({ name })`, or with `/name` in a [session view](./custom-ui) on a client. |
 | `tools` | Run these harness tools with no model turn, with `client.tool({ name, args })`. See [Run a tool without a model](./tool-runs). |
-| `records` | Add records of these types to the thread with `client.append(records)`. See [Let a client add records](./session-log#let-a-client-add-records). |
+| `records` | Add records of these types to the thread with `client.append({ records })`. See [Let a client add records](./session-log#let-a-client-add-records). |
 
 - Any other input of these kinds gets `{ status: 'rejected', reason: 'not_exposed' }`.
 - `GET describe` and `client.describe()` list only the exposed commands and config keys. A UI built from them shows only what a client can use.
@@ -176,7 +176,7 @@ for await (const entry of client.events({ from: cursor })) {
 }
 ```
 
-`events()` reconnects after a network error and continues from the last cursor. A second tab, a phone, or a reload all see the same session.
+`events()` reconnects after a network error and continues from the last cursor. It also reconnects when no bytes come for 60 s, so a dead connection (a laptop that slept) does not stay `open`. To change that time, pass `idleTimeoutMs` to `createHarnessClient`. Keep it larger than the [heartbeat](./protocol#stream-values) of the server, or the client reconnects again and again. A second tab, a phone, or a reload all see the same session.
 
 Without `from`, `events()` starts at the newest event, so it sends no old events. That is why the example reads the snapshot cursor before it sends. To read every event from the start of the session, pass `from: '0'`.
 
@@ -464,6 +464,7 @@ The client sends `{ type: 'harness.subscribe', threadId }` first, and the host a
 
 - The host reads the user from the upgrade request with `identify`, the same as for HTTP. Every input on the socket runs as that user.
 - A user that `identify` refuses gets an `unauthorized` error frame, and the socket closes.
+- The socket handles the frames of one connection in the order they came. So a prompt with a large image reaches the session before the frame after it.
 - A user who cannot read the thread, or who loses access later, gets a `forbidden` error frame, and the socket closes.
 - A frame over `media.maxBodyBytes` (default 32 MiB) gets an error frame, and the socket closes with code `1009`.
 - On a host with no `access`, pass `openAccess`, the same as for `createHarnessHandler`.

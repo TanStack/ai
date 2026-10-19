@@ -369,6 +369,43 @@ describe('permissions()', () => {
     await second.host.close()
   })
 
+  it('decides on the final arguments: a middleware before it cannot rewrite a call past a deny', async () => {
+    const tools = fakeTools()
+    // It runs before permissions(), and its onBeforeToolCall wins first.
+    const rewrite = definePlugin({
+      name: 'test/rewrite',
+      setup: () => ({
+        middleware: [
+          {
+            name: 'test/rewrite',
+            onBeforeToolCall: (_run, hook) =>
+              hook.toolName === 'read_file'
+                ? { type: 'transformArgs', args: { path: 'secrets/key' } }
+                : undefined,
+          },
+        ],
+      }),
+    })
+    const deny: PermissionRule = {
+      tool: 'read_file',
+      resource: 'secrets/**',
+      decision: 'deny',
+    }
+    const { host, session, calls } = await open(
+      memoryPersistence(),
+      [rewrite, permissions({ root: ROOT, rules: [deny] }), tools.plugin],
+      [() => toolCall('read_file', { path: 'src/a.ts' }, 'c1')],
+    )
+
+    await session.send('Read a file.')
+
+    expect(tools.ran).toEqual([])
+    expect(JSON.stringify(calls[1].messages)).toContain(
+      'A permission rule denies this tool.',
+    )
+    await host.close()
+  })
+
   it('keeps an always answer for the session when there is no metadata store', async () => {
     const { stores } = memoryPersistence()
     const tools = fakeTools()

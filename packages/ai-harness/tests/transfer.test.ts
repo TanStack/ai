@@ -317,12 +317,12 @@ describe('host.transfer to a new thread', () => {
     const id = parts.map(mediaIdOf).find((value) => value !== undefined)
     if (!id) throw new Error('The transfer lost the media part.')
     expect(id).not.toBe(record.id)
-    expect(await target.getMedia(id)).toMatchObject({
+    expect(await target.getMedia({ id })).toMatchObject({
       threadId,
       name: 'cat.png',
     })
     expect(await target.loadMedia({ id })).toEqual(bytes)
-    expect(await target.getMedia(record.id)).toBeNull()
+    expect(await target.getMedia({ id: record.id })).toBeNull()
     // Nothing else moved.
     expect(target.settings()).toEqual({})
     expect(target.config().tone?.value).toBe('plain')

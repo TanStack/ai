@@ -51,8 +51,9 @@ export const coder = defineHarness({
 - The `root` that `bind` gives is the boundary of every tool. A path outside it is refused. With `outside: 'ask'`, a rule that allows the path, or `bypass` mode, lets a call use it. No approval can cover it, because the root is not known before the call. The `cwd` thread setting must stay inside it.
 - The tools resolve every link with `realpath` before they read or write, while they hold the lock on the file. So a link in one thread cannot lead into the folder of another thread.
 - The session log keeps a `harness.workspace.bound` record with the place of the workspace. [Move a thread to another server](#5-move-a-thread-to-another-server) uses it.
+- Put `workspaceTools()` before [`snapshots()`](./snapshots) and [`formatter()`](./coding-tools-backends#format-each-file-after-a-write). Then they work in the workspace of each thread, and their `root` is optional.
 
-For a sandbox per thread, create it in `bind`, and give the backend `owned: true`. Then the sandbox is destroyed when the session closes:
+For a sandbox per thread, create it in `bind`, and give the backend `owned: true`. Then the thread owns the sandbox:
 
 ```ts group=harness-coding-workspaces
 import { sandboxWorkspaceBackend } from '@tanstack/ai-sandbox/harness'
@@ -69,6 +70,9 @@ export const sandboxed = workspaceTools({
   },
 })
 ```
+
+- A session close (an idle close, a deploy, or a move to another server) closes the backend with `'moved'`. The sandbox stays, so the next server can [reattach](#a-sandbox) it.
+- [`host.sessions.delete`](./lifecycle#delete-a-thread-for-good) ends the thread. The host reattaches the sandbox and closes it with `'closed'`, so it is destroyed. The host that deletes must know the harness: it opened the harness, or it has the harness in its [`harnesses`](./lifecycle#delete-a-thread-for-good) option. Else it warns, and the sandbox stays.
 
 ## 2. Keep server secrets out of commands
 
@@ -117,6 +121,8 @@ With `background: true`, `bash` returns at once with a job id like `bash-1`. Two
 
 - At most 8 background jobs run at a time in a session. One more gives the model a tool error. Set another limit with `maxJobs`.
 - Each job keeps the newest 1 MiB of its output.
+
+When a job ends, the model gets a note, and the wake turn runs as the user whose run started the job.
 
 Each job sends events. Listen for them in a plugin:
 

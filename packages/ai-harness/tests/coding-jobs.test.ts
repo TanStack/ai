@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { hostBackend } from '../src/first-party/coding/backend'
 import { bashTools } from '../src/first-party/coding/bash'
 import { createOutputTail } from '../src/first-party/coding/ring-buffer'
+import { createWorkspaceTools } from '../src/first-party/coding/workspace'
 import type { ToolExecutionContext } from '@tanstack/ai'
 import type { PluginEvent } from '../src/extensions'
 import type {
@@ -377,6 +378,39 @@ describe('bash job ids', () => {
       threadId: 'child',
     })
     expect(ended).toHaveBeenCalledWith({ jobId: 'bash-1', threadId: 'child' })
+  })
+})
+
+describe('the note of a background job', () => {
+  it('wakes the session as the user of the run that started the job', async () => {
+    const running = runningJob()
+    const { env } = workspace({ spawn: () => running.job })
+    const note = vi.fn(async () => undefined)
+    const { tools } = createWorkspaceTools(
+      { root, backend: env.backend, web: false },
+      { note },
+    )
+    const bash = tools.find((tool) => tool.name === 'bash')
+    const run = {
+      logId: 'log',
+      threadId: 't',
+      runId: 'run-a',
+      principal: { id: 'user-a' },
+    }
+
+    await bash?.execute?.(
+      { command: 'npm test', background: true },
+      { emitCustomEvent: () => undefined, context: { run } },
+    )
+    running.end(0)
+    await settle()
+
+    // Another user's turn can run when the job ends. The wake turn is
+    // still the work of user-a.
+    expect(note).toHaveBeenCalledWith(
+      expect.stringContaining('Background job bash-1 ended.'),
+      { wake: true, principal: { id: 'user-a' } },
+    )
   })
 })
 
