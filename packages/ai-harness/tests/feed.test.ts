@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import { SessionFeed } from '../src/feed'
+import { OperationImpl } from '../src/operation'
 import type { StreamChunk } from '@tanstack/ai'
 import type { SessionEvent } from '../src/types'
 
@@ -26,7 +27,7 @@ async function namesOf(events: AsyncIterable<SessionEvent>) {
 
 describe('SessionFeed', () => {
   it('delivers events published while a reader handles earlier ones', async () => {
-    const feed = new SessionFeed({ eventBytes: EVENT_BYTES })
+    const feed = new SessionFeed({ threadId: 't1', eventBytes: EVENT_BYTES })
     const controller = new AbortController()
     const seen: Array<string> = []
     const reading = (async () => {
@@ -48,7 +49,7 @@ describe('SessionFeed', () => {
   })
 
   it('skips filtered events and replays from a cursor', async () => {
-    const feed = new SessionFeed({ eventBytes: EVENT_BYTES })
+    const feed = new SessionFeed({ threadId: 't1', eventBytes: EVENT_BYTES })
     feed.publish('a', custom('one'))
     feed.publish('b', custom('two'))
     feed.publish('a', custom('three'))
@@ -60,30 +61,38 @@ describe('SessionFeed', () => {
     expect(feed.head()).toBe('3')
   })
 
-  it('keeps the newest events that fit in eventBytes, and starts an older cursor at the oldest kept', async () => {
+  it('keeps the newest events that fit in eventBytes, and starts an older cursor with a gap at the oldest kept', async () => {
     const size = JSON.stringify(custom('e1')).length
-    const feed = new SessionFeed({ eventBytes: size * 3 })
+    const feed = new SessionFeed({ threadId: 't1', eventBytes: size * 3 })
     for (const name of ['e1', 'e2', 'e3', 'e4', 'e5']) {
       feed.publish('op', custom(name))
     }
     feed.close()
 
-    expect(await namesOf(feed.read({ from: '0' }))).toEqual(['e3', 'e4', 'e5'])
+    expect(await namesOf(feed.read({ from: '0' }))).toEqual([
+      'harness.gap',
+      'e3',
+      'e4',
+      'e5',
+    ])
     expect(await namesOf(feed.read({ from: '3' }))).toEqual(['e4', 'e5'])
     expect(feed.head()).toBe('5')
   })
 
   it('keeps the newest event when it alone is larger than eventBytes', async () => {
-    const feed = new SessionFeed({ eventBytes: 1 })
+    const feed = new SessionFeed({ threadId: 't1', eventBytes: 1 })
     feed.publish('op', custom('e1'))
     feed.publish('op', custom('e2'))
     feed.close()
 
-    expect(await namesOf(feed.read({ from: '0' }))).toEqual(['e2'])
+    expect(await namesOf(feed.read({ from: '0' }))).toEqual([
+      'harness.gap',
+      'e2',
+    ])
   })
 
   it('ends a read when wake() finds until() true, with no new event', async () => {
-    const feed = new SessionFeed({ eventBytes: EVENT_BYTES })
+    const feed = new SessionFeed({ threadId: 't1', eventBytes: EVENT_BYTES })
     let done = false
     const reading = (async () => {
       let count = 0
@@ -95,5 +104,27 @@ describe('SessionFeed', () => {
     done = true
     feed.wake()
     expect(await reading).toBe(1)
+  })
+})
+
+describe('operation stream', () => {
+  it('starts at the operation start, so an older event of its id does not show', async () => {
+    const feed = new SessionFeed({ threadId: 't1', eventBytes: EVENT_BYTES })
+    // A restart builds an operation again with its stored id.
+    feed.publish('op-1', custom('before'))
+    const operation = new OperationImpl<undefined>(
+      'chat',
+      Object.assign(feed, { listen: () => () => {} }),
+      () => Promise.reject(new Error('no cancel')),
+      undefined,
+      'op-1',
+    )
+    feed.publish('op-1', custom('after'))
+    operation.finish('completed', undefined)
+
+    const names: Array<string> = []
+    for await (const event of operation.stream())
+      names.push(event.type === EventType.CUSTOM ? event.name : '')
+    expect(names).toEqual(['after'])
   })
 })

@@ -69,15 +69,17 @@ function secretTyping(input: NodeJS.ReadableStream, onCtrlC: () => void) {
 }
 
 /**
- * The line mode, for piped input: one message or command per line. Each
- * line waits for the turn it started. When a turn stops for its waits,
- * each next line answers one of them, by its kind and schema (see
- * `answerOf`: `y` approves an approval). After the last one, the turn goes
- * on. A question of a command or a durable tool takes the next line. In a
- * terminal, the answer to a secret question (a key) is not shown as the
- * user types. Line mode never prints the answer.
+ * The line mode: one message or command per line. When a turn stops for
+ * its waits, each next line answers one of them, by its kind and schema
+ * (see `answerOf`: `y` approves an approval). After the last one, the turn
+ * goes on. A question of a command or a durable tool takes the next line.
+ * In a terminal, the answer to a secret question (a key) is not shown as
+ * the user types. Line mode never prints the answer.
  *
- * `openSignIns`: open sign-in links in the browser (for an interactive terminal).
+ * `interactive`: the user types the lines (a terminal). Each line acts at
+ * once: `/cancel` cancels the running turn, and a message steers it. Sign-in
+ * links open in the browser. Without it (piped input), each line waits for
+ * the turn that the line before it started, so a script runs in order.
  * `mediaDir`: the folder for the media a turn makes. Each new file is saved
  * there, with one `[image saved: <path>]` line.
  * `signal`: stop reading lines when it aborts.
@@ -89,7 +91,7 @@ export async function runLines(
   input: NodeJS.ReadableStream,
   stdout: Output,
   options: {
-    openSignIns?: boolean
+    interactive?: boolean
     mediaDir: string
     signal: AbortSignal
     onCtrlC: () => void
@@ -109,7 +111,7 @@ export async function runLines(
   // Line mode prints only what happens from now on.
   printer.mark(view.store.get())
   const printing = view.store.subscribe((state) => printer.print(state))
-  const stopOpening = options.openSignIns
+  const stopOpening = options.interactive
     ? view.on('signIn', (signIn) => {
         if (signIn.url) openUrl(signIn.url)
       })
@@ -124,6 +126,23 @@ export async function runLines(
   const pendingLater: Array<Promise<void>> = []
   /** The answers to the waits of the stopped turn so far, by wait id. */
   const decided = new Map<string, RunAgentResumeItem>()
+  /**
+   * Wait for the turn to end. Then ask for its next wait that has no
+   * answer, and hide the typing for a secret question. In a terminal, this
+   * runs while the next lines are read. Only one runs at a time, so each
+   * wait is asked once.
+   */
+  const afterTurn = async () => {
+    await waitIdle(session)
+    const after = session.snapshot()
+    const ask =
+      after.status === 'requires_action'
+        ? turnWaits(after).find(({ waitId }) => !decided.has(waitId))
+        : undefined
+    if (ask) line(waitQuestion(ask))
+    if (after.pendingQuestions[0]?.secret) typing.hide()
+  }
+  let waiting: Promise<void> | undefined
   try {
     for await (const raw of lines) {
       // Lines that came before the stop do not run.
@@ -151,19 +170,21 @@ export async function runLines(
           pendingLater.push(result.later.then((text) => line(text)))
         }
       }
-      await waitIdle(session)
-      const after = session.snapshot()
-      const ask =
-        after.status === 'requires_action'
-          ? turnWaits(after).find(({ waitId }) => !decided.has(waitId))
-          : undefined
-      if (ask) line(waitQuestion(ask))
-      if (after.pendingQuestions[0]?.secret) typing.hide()
+      if (!options.interactive) {
+        await afterTurn()
+        continue
+      }
+      // A secret question that the line asked hides the next line at once.
+      if (session.snapshot().pendingQuestions[0]?.secret) typing.hide()
+      waiting ??= afterTurn().finally(() => {
+        waiting = undefined
+      })
     }
   } finally {
     typing.show()
   }
   lines.close()
+  await waiting
   await Promise.allSettled(pendingLater)
   await waitIdle(session)
   stopOpening()

@@ -20,7 +20,9 @@ import {
   onQuestionOf,
   onUsageOf,
 } from '../feed'
+import { runStartOf } from '../log'
 import { createMediaStore } from '../media'
+import { OperationTracing } from '../observability'
 import { pluginStateDeltas } from '../log-records'
 import { SESSION_PLUGIN_CREDENTIALS, SESSION_PLUGIN_KEYS } from '../plugins'
 import { HARNESS_EVENTS } from '../types'
@@ -72,6 +74,7 @@ import type { HarnessPersistence, SessionIndexWriter } from '../host'
 import type {
   HarnessPlugin,
   MountedPlugins,
+  PluginModelCall,
   PluginServices,
   PluginState,
 } from '../plugins'
@@ -87,8 +90,9 @@ import type {
   RunContext,
   SessionEvent,
   ThreadSettings,
-  SendOptions,
+  SendForRunOptions,
   TurnInfo,
+  UserInput,
 } from '../types'
 import type {
   AgentRunOptions,
@@ -112,6 +116,8 @@ import type {
   OpenChildSession,
 } from './types'
 import type { HarnessSession } from './harness-session'
+
+const NO_NAMES: ReadonlySet<string> = new Set()
 
 /**
  * What a session keeps for its inputs, by input id: the duplicate check, the
@@ -263,6 +269,15 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     if (!this.logWriter) throw new Error('The session log is not open yet.')
     return this.logWriter
   }
+
+  /**
+   * The cursor before the first event of the logged run `id`, for an
+   * operation that a restart rebuilds. `undefined` for a new run.
+   */
+  protected runStart(id: string | undefined) {
+    if (id === undefined || !this.logWriter) return undefined
+    return runStartOf(this.logWriter.state, id)
+  }
   protected feed: ListenedFeed
   /** The host's view of each event: its status feed. */
   protected readonly notifyHost: (event: StreamChunk) => void
@@ -351,7 +366,10 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /** Background jobs that run on this host. Recovery skips them. */
   protected readonly jobs = new Set<string>()
   /** Running tool calls that support `detach`: id to the move. */
-  protected readonly detachable = new Map<string, () => void>()
+  protected readonly detachable = new Map<
+    string,
+    (principal: Principal | undefined) => void
+  >()
   protected activeTurn: OperationImpl<ChatTurnResult> | undefined
   /** The open skipped recovery: another host owned the thread then. */
   protected recoveryDeferred = false
@@ -424,6 +442,11 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     Set<(value: unknown) => void>
   >()
   protected readonly configValues = new Map<string, unknown>()
+  /**
+   * The config values of the log when the running turn started. The turn
+   * uses them until it ends.
+   */
+  protected turnConfig: ReadonlyMap<string, unknown> | undefined
   /** The stored settings of this thread: `session.configure`. */
   protected threadSettings: ThreadSettings = {}
   protected readonly questions = new Map<
@@ -504,6 +527,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * answer to the child that waits for it.
    */
   protected readonly harnessChildren = new Map<string, HarnessChild>()
+  /** Spans and `onOperation`. Without host `observability`, none. */
+  protected readonly tracing: OperationTracing | undefined
 
   constructor(deps: SessionDependencies) {
     this.harness = deps.harness as THarness
@@ -533,7 +558,10 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     this.inputRecords = new InputRecords(deps.retention.settledOperations)
     this.notifyHost = deps.onEvent
     this.feed = tapFeed(
-      new SessionFeed({ eventBytes: deps.retention.eventBytes }),
+      new SessionFeed({
+        threadId: deps.threadId,
+        eventBytes: deps.retention.eventBytes,
+      }),
       deps.onEvent,
       this.eventListeners,
       this.redactor,
@@ -545,6 +573,14 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     this.openChild = deps.openChild
     this.childLink = deps.child
     this.rootThreadId = deps.child?.rootThreadId ?? deps.threadId
+    this.tracing = deps.observability
+      ? new OperationTracing({
+          ...deps.observability,
+          threadId: deps.threadId,
+          ...(deps.tenantId !== undefined ? { tenantId: deps.tenantId } : {}),
+          warn: (error) => this.warnSession('harness:observability', error),
+        })
+      : undefined
     // The session gets its log view in `open()`.
     this.messages = notOpenMessages
     const onMissing = (error: AuthRequiredError) =>
@@ -753,9 +789,65 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     }
   }
 
-  protected configValue(key: string): unknown {
-    if (this.configValues.has(key)) return this.configValues.get(key)
+  /** A config value. Plugins read the copy of the running turn, if any. */
+  protected configValue(
+    key: string,
+    values: ReadonlyMap<string, unknown> = this.turnConfig ?? this.configValues,
+  ): unknown {
+    if (values.has(key)) return values.get(key)
     return this.sessionPlugins?.config.get(key)?.option.default
+  }
+
+  /** The last `removedPlugins()` and `threadPlugins()` results. */
+  private threadPluginsCache:
+    | {
+        settings: ThreadSettings
+        removed: ReadonlySet<string>
+        mounted?: MountedPlugins
+        plugins?: MountedPlugins
+      }
+    | undefined
+
+  /** The plugins that the `plugins.remove` setting of this thread names. */
+  protected removedPlugins(): ReadonlySet<string> {
+    const settings = this.threadSettings
+    const remove = settings.plugins?.remove ?? []
+    if (remove.length === 0) return NO_NAMES
+    if (this.threadPluginsCache?.settings !== settings) {
+      this.threadPluginsCache = { settings, removed: new Set(remove) }
+    }
+    return this.threadPluginsCache.removed
+  }
+
+  /**
+   * The session plugins as this thread has them: without everything that
+   * the removed plugins contribute (tools, prompts, every kind of
+   * middleware, agents, subagents, commands, config, extension items, and
+   * capabilities).
+   */
+  protected threadPlugins(): MountedPlugins | undefined {
+    const mounted = this.sessionPlugins
+    const removed = this.removedPlugins()
+    if (!mounted || removed.size === 0) return mounted
+    const cache = this.threadPluginsCache
+    if (!cache) return mounted
+    if (cache.mounted !== mounted || !cache.plugins) {
+      cache.mounted = mounted
+      cache.plugins = mounted.withoutOwners([...removed])
+    }
+    return cache.plugins
+  }
+
+  /**
+   * The agent `name` of the session registry, as this thread has it:
+   * `undefined` when a plugin that this thread removed added it.
+   */
+  protected threadAgent(name: string): AnyAgent | undefined {
+    const owner = this.agentRegistry.ownerOf(name)
+    if (owner === undefined || this.removedPlugins().has(owner)) {
+      return undefined
+    }
+    return this.agentRegistry.get(name)
   }
 
   /** Put each plugin's saved state in the snapshot before the first read. */
@@ -844,6 +936,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
           'session',
           customEvent(HARNESS_EVENTS.commandsChanged, {}),
         ),
+      modelChat: (call) => this.modelChat(call),
     }
   }
 
@@ -1018,8 +1111,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
 
   /**
    * @internal No input being stored, no queued or running turn, no waiting
-   * steer, and no running agent. The host closes an idle session that no
-   * handle holds.
+   * steer, no running agent, and no background job of this host. The host
+   * closes an idle session that no handle holds.
    */
   isIdle(): boolean {
     // A follow-up that waits for its run keeps the thread busy.
@@ -1028,6 +1121,9 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     )
     if (hasFollowUps) return false
     return (
+      // A background job of this host runs in its memory. A close stops it,
+      // and its end note is lost.
+      this.jobs.size === 0 &&
       // A live wait (an `ask()`) waits in this host's memory: its answer
       // must come here, so it keeps the log. A wait that only the log keeps
       // does not: the session is idle, and an answer reaches any host.
@@ -1097,9 +1193,10 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
-   * Resolves when the thread is idle: no input is being stored, and no turn,
-   * steer, agent run, or command runs or waits. A thread that waits for a
-   * human (an approval, a sign-in) is idle. When the thread is idle now, it
+   * Resolves when the thread is idle: no input is being stored, no turn,
+   * steer, agent run, or command runs or waits, and no background job of
+   * this host runs. A thread that waits for a human (an approval, a sign-in)
+   * is idle. When the thread is idle now, it
    * resolves at once. When `signal` aborts first, it rejects with the reason
    * of `signal`.
    *
@@ -1233,12 +1330,18 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * Track a background job of this host. The log also has its start and
    * end, so recovery can note a job that a crash stopped. The record goes
    * to `threadId`, the thread of the workspace that runs the job.
+   * `principal` is who moved the job to the background.
    */
   protected logJob(
-    job: { jobId: string; backendId?: string; threadId?: string },
+    job: {
+      jobId: string
+      backendId?: string
+      threadId?: string
+      principal?: Principal
+    },
     ended: boolean,
   ) {
-    const { jobId, backendId, threadId } = job
+    const { jobId, backendId, threadId, principal } = job
     if (ended) this.jobs.delete(jobId)
     else this.jobs.add(jobId)
     const isOtherThread = threadId !== undefined && threadId !== this.threadId
@@ -1247,10 +1350,13 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       jobId,
       ended,
       ...(!ended && backendId !== undefined ? { backendId } : {}),
+      ...storedPrincipal(principal),
       ...(isOtherThread ? { thread: threadId } : {}),
     }
     // No one waits for a job record. A failed log write fails the session.
     this.writer.append([record]).catch(() => undefined)
+    // The last job ended: the host can close the session now.
+    if (ended) queueMicrotask(() => this.checkIdle())
   }
 
   // Implemented by a later layer of the class.
@@ -1267,16 +1373,53 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     operationId?: string,
   ): PluginSessionApi
   protected abstract resumeSignIns(): Promise<void>
+  /** One model call of `ctx.model.chat`. See `SessionTurnParts.modelChat`. */
+  protected abstract modelChat(call: PluginModelCall): Promise<unknown>
   /** Resume the agent runs whose waits all ended. See `SessionAgents`. */
   protected abstract resumeWaitingRuns(): Promise<void>
+  /** The run that started an operation, for a child run. See `SessionAgents`. */
+  protected abstract parentRunOf(operationId: string): string | undefined
   /** Set the timer of the next schedule. See `SessionImpl.armSchedules`. */
   protected abstract armSchedules(options?: { isRetry?: boolean }): void
   /** @internal See `SessionRequests.resolveForRun`. */
   abstract resolveForRun(options: ResolveForRunOptions): Promise<Receipt>
+  /** @internal See `SessionRequests.sendForRun`. */
+  abstract sendForRun(
+    message: UserInput,
+    options?: SendForRunOptions,
+  ): Operation<ChatTurnResult>
+  /** See `SessionRequests.applyCancelInput`. */
+  protected abstract applyCancelInput(options: {
+    inputId: string
+    principal?: Principal
+    controlId?: string
+  }): Promise<Receipt>
+  /** See `SessionRequests.applySetDelivery`. */
+  protected abstract applySetDelivery(options: {
+    inputId: string
+    delivery: 'steer' | 'queue'
+    principal?: Principal
+    controlId?: string
+  }): Promise<Receipt>
+  /** See `SessionState.applyConfig`. */
+  protected abstract applyConfig(options: {
+    key: string
+    value: unknown
+    principal?: Principal
+    controlId?: string
+  }): Promise<Receipt>
+  /** See `SessionState.applyAnswer`. */
+  protected abstract applyAnswer(options: {
+    questionId: string
+    value: unknown
+    principal?: Principal
+    controlId?: string
+    ref?: string
+  }): Promise<Receipt>
   protected abstract recoverFromLog(writer: LogWriter): Promise<void>
   protected abstract startTurn(
     input: HarnessInput & { op: 'prompt' | 'steer' | 'followUp' },
-    options?: SendOptions & { wake?: boolean },
+    options?: SendForRunOptions & { wake?: boolean },
   ): Operation<ChatTurnResult>
   protected abstract runAgent(
     target: string | AnyAgent,

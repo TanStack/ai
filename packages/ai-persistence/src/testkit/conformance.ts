@@ -1956,7 +1956,7 @@ export function runPersistenceConformance(
 
         const { taken } = await handOver(store)
 
-        expect(taken).toEqual({ epoch: 2 })
+        expect(taken).toEqual({ epoch: 2, expired: true })
       })
 
       it('fences a write from the previous owner', async (ctx) => {

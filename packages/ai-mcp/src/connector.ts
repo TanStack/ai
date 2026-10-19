@@ -227,6 +227,10 @@ interface Connection {
   connected: boolean
   client?: MCPClient
   tools?: ReadonlyArray<AnyTool>
+  /** The server sent `tools/list_changed`: the next turn lists again. */
+  stale?: boolean
+  /** Wraps a tool list of `client` for the session. */
+  wrap?: (tools: ReadonlyArray<AnyTool>) => ReadonlyArray<AnyTool>
 }
 
 /**
@@ -240,6 +244,8 @@ interface Connection {
  * - After sign-in, the next turn has the server's tools, named
  *   `<prefix>_<tool>` by default. `toolName` can change the names.
  *   Tools that can change data ask for approval.
+ * - When the connection closes, the next turn connects again. When the
+ *   server sends `tools/list_changed`, the next turn lists its tools again.
  *
  * @example
  * ```ts
@@ -313,8 +319,10 @@ export function mcpConnector(options: McpConnectorOptions) {
                 : undefined) ?? 'http://127.0.0.1/callback'
             // The tool calls of this client that run now, newest last.
             const calling: Array<Caller> = []
+            const current = connection
+            let opened: MCPClient | undefined
             try {
-              connection.client = await connectTransport(
+              opened = await connectTransport(
                 {
                   transport: {
                     type: 'http',
@@ -333,9 +341,20 @@ export function mcpConnector(options: McpConnectorOptions) {
                     options.needsApproval ??
                     ((tool) => tool.annotations?.readOnlyHint !== true),
                   clientOptions: harnessClientOptions,
+                  // A dropped connection: the next turn connects again.
+                  onClose: () => {
+                    if (current.client !== opened) return
+                    current.client = undefined
+                    current.tools = undefined
+                  },
+                  onToolListChanged: () => {
+                    if (current.client === opened) current.stale = true
+                  },
                 },
                 elicitFor(calling),
               )
+              connection.client = opened
+              connection.stale = false
             } catch (error) {
               // The server wants a new sign-in: ask the user to run /connect.
               // Other failures, for example a server that is down, stay
@@ -348,7 +367,7 @@ export function mcpConnector(options: McpConnectorOptions) {
               ctx.session.authRequired({ connector: id })
               throw error.cause
             }
-            const client = connection.client
+            const client = opened
             // A failed tool list closes the client: the next turn connects
             // again, and must not leave this one open.
             const listed = await client
@@ -358,14 +377,22 @@ export function mcpConnector(options: McpConnectorOptions) {
                 await client.close().catch(() => {})
                 throw error
               })
-            connection.tools = askForInput(
-              trackCaller(
+            const wrap = (found: ReadonlyArray<AnyTool>) =>
+              askForInput(trackCaller(found, ctx.session, calling), ctx.session)
+            connection.wrap = wrap
+            connection.tools = wrap(listed as ReadonlyArray<AnyTool>)
+          } else if (connection.stale && connection.client) {
+            // After `tools/list_changed`: list the tools again. On a
+            // failure, the old list stays, and the next turn tries again.
+            connection.stale = false
+            const client = connection.client
+            const listed = await client.tools().catch(() => undefined)
+            if (listed === undefined) connection.stale = true
+            else if (connection.client === client && connection.wrap) {
+              connection.tools = connection.wrap(
                 listed as ReadonlyArray<AnyTool>,
-                ctx.session,
-                calling,
-              ),
-              ctx.session,
-            )
+              )
+            }
           }
           return connection.tools
         },

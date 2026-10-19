@@ -6,6 +6,7 @@ export type {
   HarnessSocketOptions,
   OpenAccess,
 } from './http'
+export type { HarnessStreamOptions } from './sse'
 
 export {
   HARNESS_PROTOCOL_VERSION,

@@ -190,14 +190,16 @@ describe('subagent children of a harness session', () => {
     // A fork copies the agent result, but the child stays a child of `t`.
     const fork = await host.fork(harness, { threadId: 't', newThreadId: 'f' })
 
-    const transcript = await session.agentTranscript(id)
+    const transcript = await session.agentTranscript({ subagentRunId: id })
     expect(
       transcript.map((message) => [message.role, message.content]),
     ).toEqual([
       ['user', 'Take notes'],
       ['assistant', 'Note 1'],
     ])
-    expect(await session.agentTranscript('unknown')).toEqual([])
+    expect(await session.agentTranscript({ subagentRunId: 'unknown' })).toEqual(
+      [],
+    )
     const other = await host.open(
       defineHarness({
         name: 'test/subagent-children',
@@ -207,8 +209,8 @@ describe('subagent children of a harness session', () => {
         threadId: 'u',
       },
     )
-    expect(await other.agentTranscript(id)).toEqual([])
-    expect(await fork.agentTranscript(id)).toEqual([])
+    expect(await other.agentTranscript({ subagentRunId: id })).toEqual([])
+    expect(await fork.agentTranscript({ subagentRunId: id })).toEqual([])
     await host.close()
   })
 
@@ -287,10 +289,9 @@ describe('subagent children of a harness session', () => {
     const rootTranscript = contents(await rootView.transcript())
     expect(rootTranscript).toContain('Notes, please')
     expect(rootTranscript).not.toContain('Note 1')
-    expect(contents(await rootView.agentTranscript(id))).toEqual([
-      'Take notes',
-      'Note 1',
-    ])
+    expect(
+      contents(await rootView.agentTranscript({ subagentRunId: id })),
+    ).toEqual(['Take notes', 'Note 1'])
     await next.close()
   })
 })

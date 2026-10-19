@@ -5,8 +5,9 @@ import {
   OwnershipLostError,
   UNOWNED_EPOCH,
 } from '@tanstack/ai-persistence'
+import { gapEvent } from './feed'
 import { LogOwnedElsewhereError } from './ownership'
-import { HARNESS_EVENTS } from './types'
+import { EventRing } from './ring'
 import {
   THREAD_RECORD_TYPES,
   applyRunNode,
@@ -54,7 +55,7 @@ import type {
 } from './log-records'
 import type {
   Cursor,
-  EventGap,
+  HarnessEventValues,
   HarnessInput,
   InputSettlement,
   SettlementOutcome,
@@ -66,7 +67,11 @@ import type { SessionUsage, UsageCall, UsageCounts } from './usage'
 
 /** The records the harness writes to a session log. */
 export type HarnessRecord =
-  | { type: 'harness.event'; operationId: string; event: StreamChunk }
+  | {
+      type: 'harness.event'
+      operationId: string
+      event: StreamChunk
+    }
   | { type: 'harness.transcript'; keep: number; add: Array<ModelMessage> }
   | {
       type: 'harness.input'
@@ -74,6 +79,8 @@ export type HarnessRecord =
       input: HarnessInput
       principal?: { id: string; tenantId?: string }
       at: number
+      /** The W3C `traceparent` of the caller. */
+      traceparent?: string
     }
   | {
       type: 'harness.input.applied'
@@ -84,6 +91,12 @@ export type HarnessRecord =
     }
   | { type: 'harness.input.joined'; inputId: string; into: string }
   | { type: 'harness.input.rejected'; inputId: string; reason: string }
+  /**
+   * The owner refused an offer from the input lane, and the log has another
+   * input with its id. It does not change that input. Only the host that
+   * offered it ends its wait with the refusal.
+   */
+  | { type: 'harness.offer.rejected'; inputId: string; reason: string }
   | { type: 'harness.input.abort'; inputId: string }
   | {
       type: 'harness.turn.retry'
@@ -115,13 +128,28 @@ export type HarnessRecord =
       value: unknown
     }
   | ({ type: 'harness.usage' } & UsageCall)
-  /** A revert that stands, or `null` when it ended. */
-  | { type: 'harness.revert'; revert: RevertState | null }
+  /**
+   * A revert that stands, or `null` when it ended. `principal` is who
+   * reverted, on the record of `session.revert`.
+   */
+  | {
+      type: 'harness.revert'
+      revert: RevertState | null
+      principal?: { id: string; tenantId?: string }
+    }
   /**
    * A background job started, or it ended. `backendId` is the id of its
    * process in the workspace backend, so a later host can stop it.
+   * `principal` is who moved a running call to the background
+   * (`session.background`).
    */
-  | { type: 'harness.job'; jobId: string; ended: boolean; backendId?: string }
+  | {
+      type: 'harness.job'
+      jobId: string
+      ended: boolean
+      backendId?: string
+      principal?: { id: string; tenantId?: string }
+    }
   /** A note for the transcript. `noteId` is the id of its message. */
   | { type: 'harness.note'; noteId: string; note: string }
   /** Thread state: settings, config, plugin state, and the rest. */
@@ -168,6 +196,7 @@ const HARNESS_RECORD_TYPES = new Set<string>([
   'harness.input.applied',
   'harness.input.joined',
   'harness.input.rejected',
+  'harness.offer.rejected',
   'harness.input.abort',
   'harness.turn.retry',
   'harness.input.delivery',
@@ -244,6 +273,11 @@ export interface InputState {
   input: HarnessInput
   principal?: { id: string; tenantId?: string }
   at: number
+  /**
+   * The position of the input record. The events of its run come after it.
+   * Unknown in a fold snapshot from before this field.
+   */
+  seq?: number
   status: 'pending' | 'applied' | 'joined' | 'rejected' | 'settled'
   operationId?: string
   attempt: number
@@ -259,6 +293,8 @@ export interface InputState {
   appliedAt?: number
   settlement?: InputSettlement
   reason?: string
+  /** The W3C `traceparent` of the caller. The span of its turn links it. */
+  traceparent?: string
 }
 
 /** The fold of a session log. */
@@ -295,8 +331,71 @@ export interface LogState {
   jobs: Map<string, string | undefined>
   /** Notes that are not in the transcript yet, by message id. */
   notes: Map<string, string>
+  /**
+   * The last host records of the types that the plugins keep (their
+   * `keepRecords`), oldest first. The snapshot keeps them, so a truncate of
+   * the log does not drop what `session.revert` reads.
+   */
+  keptRecords: Array<LogEntry>
   /** The thread state that the thread-state records fold to. */
   thread: ThreadStateFold
+}
+
+/**
+ * The host records that a fold keeps, by type, with how many of each it
+ * keeps. The `keepRecords` of the plugins give it.
+ */
+export type KeptRecords = ReadonlyMap<string, number>
+
+/** The count of each type in a `keptRecords` list, made at its first use. */
+const keptCounts = new WeakMap<Array<LogEntry>, Map<string, number>>()
+
+/** Keep `entry` in `state` when `keep` keeps its type. */
+function keepHostRecord(
+  state: LogState,
+  entry: LogEntry,
+  keep: KeptRecords | undefined,
+) {
+  const { type } = entry.record
+  const limit = keep?.get(type)
+  if (limit === undefined) return
+  const kept = state.keptRecords
+  let counts = keptCounts.get(kept)
+  if (!counts) {
+    counts = new Map()
+    for (const { record } of kept) {
+      counts.set(record.type, (counts.get(record.type) ?? 0) + 1)
+    }
+    keptCounts.set(kept, counts)
+  }
+  kept.push(entry)
+  let count = (counts.get(type) ?? 0) + 1
+  // ponytail: the splice is O(n), only when a type is full. A list for
+  // each type if many types are kept.
+  for (; count > limit; count--) {
+    kept.splice(
+      kept.findIndex((each) => each.record.type === type),
+      1,
+    )
+  }
+  counts.set(type, count)
+}
+
+/**
+ * The cursor before the first event of run `operationId`: before its
+ * first input record. A run that answers go on has more inputs, so the
+ * oldest one counts. `undefined` when the fold does not know it.
+ */
+export function runStartOf(
+  state: LogState,
+  operationId: string,
+): Cursor | undefined {
+  let first: number | undefined
+  for (const input of state.inputs.values()) {
+    if (input.operationId !== operationId || input.seq === undefined) continue
+    if (first === undefined || input.seq < first) first = input.seq
+  }
+  return first === undefined ? undefined : String(first - 1)
 }
 
 export function emptyLogState() {
@@ -312,6 +411,7 @@ export function emptyLogState() {
     runUsage: new Map(),
     jobs: new Map(),
     notes: new Map(),
+    keptRecords: [],
     thread: emptyThreadState(),
   }
   return state
@@ -369,7 +469,9 @@ export function commonPrefix(
 ) {
   const length = Math.min(a.length, b.length)
   let index = 0
-  while (index < length && sameJson(a[index], b[index])) index += 1
+  // The same message object is the same JSON, so it skips the stringify.
+  const isSame = (i: number) => a[i] === b[i] || sameJson(a[i], b[i])
+  while (index < length && isSame(index)) index += 1
   return index
 }
 
@@ -442,10 +544,12 @@ export function foldEntry(
   state: LogState,
   entry: LogEntry,
   project?: ProjectRecord,
+  keep?: KeptRecords,
 ) {
   state.seq = entry.seq
   const { record } = entry
   if (!record.type.startsWith('harness.')) {
+    keepHostRecord(state, entry, keep)
     const next = project
       ? hostFold(
           entry.seq,
@@ -460,6 +564,7 @@ export function foldEntry(
   if (!isHarnessRecord(record)) return
   switch (record.type) {
     case 'harness.event':
+    case 'harness.offer.rejected':
       return
     case 'harness.transcript':
       state.messages = [
@@ -485,7 +590,9 @@ export function foldEntry(
         inputId: record.inputId,
         input: record.input,
         ...(record.principal ? { principal: record.principal } : {}),
+        ...(record.traceparent ? { traceparent: record.traceparent } : {}),
         at: record.at,
+        seq: entry.seq,
         status: 'pending',
         attempt: 0,
         abortRequested: false,
@@ -713,6 +820,7 @@ interface FoldOptions<TState> {
   rootThread: string
   project?: ProjectRecord
   reduce?: ReduceOptions<TState>
+  keep?: KeptRecords
 }
 
 /** Fold one entry of a shared log. */
@@ -739,6 +847,7 @@ export function foldLogEntry<TState>(
     sessionOf(state, threadOf(record, options.rootThread)),
     entry,
     options.project,
+    options.keep,
   )
 }
 
@@ -879,6 +988,7 @@ function serialize(state: SharedLogState, versions: SnapshotVersions) {
           backendId === undefined ? jobId : [jobId, backendId],
         ),
         notes: [...session.notes.entries()],
+        keptRecords: session.keptRecords,
         thread: serializeThread(session.thread),
       },
     ]),
@@ -919,8 +1029,11 @@ function parseSession(value: unknown, seq: number) {
         : [],
     ),
     steps: new Map(steps as Array<[string, unknown]>),
-    // A state with no usage totals gets an empty value.
-    usage: isSessionUsage(value.usage) ? value.usage : emptyUsage(),
+    // A state with no usage totals gets an empty value, and totals from
+    // before `bySource` get an empty map.
+    usage: isSessionUsage(value.usage)
+      ? { bySource: {}, ...value.usage }
+      : emptyUsage(),
     // A state with no run sums gets an empty value.
     runUsage: new Map(
       Array.isArray(value.runUsage)
@@ -942,6 +1055,10 @@ function parseSession(value: unknown, seq: number) {
         ? (value.notes as Array<[string, string]>)
         : [],
     ),
+    // A state with no kept records gets an empty value.
+    keptRecords: Array.isArray(value.keptRecords)
+      ? (value.keptRecords as Array<LogEntry>)
+      : [],
     thread,
   }
   return session
@@ -1014,8 +1131,10 @@ export async function loadLogState<TState = unknown>(options: {
   rootThread: string
   project?: ProjectOptions
   reduce?: ReduceOptions<TState>
+  /** The host records to keep. See {@link KeptRecords}. */
+  keep?: KeptRecords
 }) {
-  const { store, logId, rootThread, project, reduce } = options
+  const { store, logId, rootThread, project, reduce, keep } = options
   // A snapshot that does not load only makes the fold longer.
   const snapshot = await store.getSnapshot({ logId }).catch(() => null)
   const state =
@@ -1025,6 +1144,7 @@ export async function loadLogState<TState = unknown>(options: {
     rootThread,
     ...(project ? { project: project.record } : {}),
     ...(reduce ? { reduce } : {}),
+    ...(keep ? { keep } : {}),
   }
   await readAll(store, logId, state, (entry) =>
     foldLogEntry(state, entry, fold),
@@ -1250,6 +1370,9 @@ export interface LogWriter extends EventFeed {
   rest: () => Promise<void>
 }
 
+/** A new owner of a log. See `LogViewHooks.onOwned`. */
+export type OwnershipChange = HarnessEventValues['harness.ownership.changed']
+
 /** What a session gives its view of a shared log. */
 export interface LogViewHooks {
   /** A write failed, so the log stopped. */
@@ -1273,6 +1396,22 @@ export interface LogViewHooks {
    * host offered still waits.
    */
   onOffers: () => void
+  /**
+   * An event of the session that another host wrote, after this log folded
+   * it. Own events never come here: the session saw them at publish.
+   */
+  onRemoteEvent?: (entry: SessionEvent) => void
+  /**
+   * This log folded records that another host wrote: on a notification, or
+   * when this host acquires the log. It comes before the `onRemoteEvent`
+   * calls, so a session reads the new fold first.
+   */
+  onRemoteFold?: () => void
+  /**
+   * This host became the owner of the log, before its first append. Only
+   * one session of the log gets it: the root session when it is open.
+   */
+  onOwned?: (change: OwnershipChange) => void
   /**
    * Scrub the secrets of the session from a value. Each record that the
    * view appends, stages, commits, or offers goes through it first. It
@@ -1359,6 +1498,8 @@ export class SharedLog<TState = unknown> {
    * before its first append. `undefined` while it does not own the log.
    */
   private epoch: number | undefined
+  /** The last epoch that this host had, also after it gave the log up. */
+  private heldEpoch: number | undefined
   /** The open views, by thread. */
   private readonly views = new Map<
     string,
@@ -1388,19 +1529,13 @@ export class SharedLog<TState = unknown> {
   private chain: Promise<void> = Promise.resolve()
   private failure: unknown
   /**
-   * The newest events, like SessionFeed: at most `eventBytes` of them (the
-   * JSON length of each). Older cursors page from the store.
+   * The newest events: at most `eventBytes` of them (the JSON length of
+   * each). Older cursors page from the store.
    */
-  private readonly tail: Array<{
-    thread: string
-    entry: SessionEvent
-    size: number
-  }> = []
-  /** The sum of the sizes in `tail`. */
-  private tailBytes = 0
+  private tail: EventRing
+  /** While `catchUp` folds: the events that other writers appended. */
+  private remote: Array<{ thread: string; entry: SessionEvent }> | undefined
   private readonly eventBytes: number
-  /** Every event after this position is in `tail`. */
-  private tailFrom: number
   private readonly waiters = new Set<() => void>()
   /** The open readers. Like the views, they keep the log open. */
   private readers = 0
@@ -1413,6 +1548,13 @@ export class SharedLog<TState = unknown> {
    */
   private hasLeftWork = false
   private writing = false
+  /**
+   * The store notifications that came while this host appended. The store
+   * calls each instance once for each append, also for its own. A second
+   * call is another host's offer, so the write looks at the offers after
+   * its append.
+   */
+  private callsInWrite = 0
   private readonly unsubscribe: () => void
   private readonly stopLost: () => void
   private readonly stopWake: () => void
@@ -1433,6 +1575,8 @@ export class SharedLog<TState = unknown> {
     eventBytes: number
     project?: ProjectOptions
     reduce?: ReduceOptions<TState>
+    /** The host records to keep. See {@link KeptRecords}. */
+    keep?: KeptRecords
     /** When the owner writes a snapshot. */
     snapshot?: SnapshotTiming
     /** Which records the log keeps after a snapshot. Default `'all'`. */
@@ -1458,21 +1602,25 @@ export class SharedLog<TState = unknown> {
       rootThread: options.rootThread,
       ...(options.project ? { project: options.project.record } : {}),
       ...(options.reduce ? { reduce: options.reduce } : {}),
+      ...(options.keep ? { keep: options.keep } : {}),
     }
     this.versions = versionsOf(options.project, options.reduce)
-    this.tailFrom = options.state.seq
+    this.tail = new EventRing({
+      maxBytes: options.eventBytes,
+      from: options.state.seq,
+    })
     // Records from another writer join the fold. A call during this
-    // writer's own append is its own records.
+    // writer's own append can be its own records or another host's offer:
+    // the write looks at the offers after its append.
     this.unsubscribe = options.store.subscribe({
       logId: options.logId,
       listener: () => {
-        if (this.writing) return
-        this.catchUpLater()
-        // The call can be a new offer. The owner applies it. A host that
-        // offered applies its own offers when no live host owns the log.
-        if (this.epoch !== undefined || this.offeredHere.size > 0) {
-          this.notifyOffers()
+        if (this.writing) {
+          this.callsInWrite += 1
+          return
         }
+        this.catchUpLater()
+        this.onOffersChanged()
       },
     })
     this.stopLost = options.ownership.onLost(options.logId, (error) =>
@@ -1705,6 +1853,16 @@ export class SharedLog<TState = unknown> {
     if (epoch === undefined || isBusy || this.pending.length > 0) return
     this.epoch = undefined
     await this.ownership.release(this.logId, epoch)
+  }
+
+  /**
+   * A store notification can be a new offer. The owner applies it. A host
+   * that offered applies its own offers when no live host owns the log.
+   */
+  private onOffersChanged() {
+    if (this.epoch !== undefined || this.offeredHere.size > 0) {
+      this.notifyOffers()
+    }
   }
 
   /** Fold the records of another writer, after the queued writes. */
@@ -1951,7 +2109,32 @@ export class SharedLog<TState = unknown> {
     // The new owner applies the inputs that wait for an owner. Later, so the
     // write that acquired the log goes first.
     queueMicrotask(() => this.notifyOffers())
+    // The next epoch after the one that this host had: no other host owned
+    // the log in between, so the owner did not change.
+    const held = this.heldEpoch
+    this.heldEpoch = epoch
+    if (held === undefined || epoch > held + 1) {
+      // The store says whether the old owner stopped: its ownership expired
+      // with no release.
+      const reason = this.ownership.tookOver(this.logId)
+        ? 'taken_over'
+        : 'acquired'
+      queueMicrotask(() => this.notifyOwned({ epoch, reason }))
+    }
     return epoch
+  }
+
+  /**
+   * Call `onOwned` of the root session of the log, or of another open
+   * session when the root is not open here. One call for each change.
+   */
+  private notifyOwned(change: OwnershipChange) {
+    const root = this.views.get(this.rootThread)
+    const view =
+      root && !root.fenced
+        ? root
+        : [...this.views.values()].find((each) => !each.fenced)
+    view?.hooks.onOwned?.(change)
   }
 
   /** Pin the log to `hostId`, with the epoch of this host. */
@@ -1993,6 +2176,7 @@ export class SharedLog<TState = unknown> {
     const epoch = await this.own()
     const seq = this.state.seq + 1
     this.writing = true
+    this.callsInWrite = 0
     try {
       await this.appendOnce({ seq, epoch, batch, consumes })
     } catch (error) {
@@ -2002,6 +2186,11 @@ export class SharedLog<TState = unknown> {
       throw error
     } finally {
       this.writing = false
+      // Only the owner appends, so a call is this append or an offer.
+      // Records of a new owner reach this host when its next renewal or
+      // write fails. A store that calls after the append calls outside of
+      // the write, and the listener looks at the offers then.
+      if (this.callsInWrite > 1) this.onOffersChanged()
     }
     batch.forEach((record, index) => this.apply({ seq: seq + index, record }))
     this.wake()
@@ -2182,6 +2371,10 @@ export class SharedLog<TState = unknown> {
   private async catchUp() {
     if (this.failure !== undefined) return
     const before = this.state.seq
+    // Only this fold reads the records of other writers. Own records fold
+    // in `write`, so an own event never reaches `onRemoteEvent`.
+    const remote: Array<{ thread: string; entry: SessionEvent }> = []
+    this.remote = remote
     try {
       await readAll(this.store, this.logId, this.state, (entry) =>
         this.apply(entry),
@@ -2189,12 +2382,29 @@ export class SharedLog<TState = unknown> {
     } catch (error) {
       if (!(error instanceof LogTruncatedError)) throw error
       await this.foldFromSnapshot(error)
+    } finally {
+      this.remote = undefined
     }
     if (this.state.seq === before) return
     if (this.epoch !== undefined) {
       this.lose(new OwnershipLostError(this.logId, this.epoch))
     }
     this.wake()
+    for (const view of [...this.views.values()]) {
+      try {
+        view.hooks.onRemoteFold?.()
+      } catch {
+        // A hook never stops the fold of the log.
+      }
+    }
+    // After the whole fold, so a hook reads the state after the events.
+    for (const { thread, entry } of remote) {
+      try {
+        this.views.get(thread)?.hooks.onRemoteEvent?.(entry)
+      } catch {
+        // A hook never stops the fold of the log.
+      }
+    }
   }
 
   /**
@@ -2215,9 +2425,7 @@ export class SharedLog<TState = unknown> {
     this.state.seq = loaded.seq
     this.state.reduced = loaded.reduced
     this.snapshotSeq = loaded.seq
-    this.tail.length = 0
-    this.tailBytes = 0
-    this.tailFrom = loaded.seq
+    this.tail = new EventRing({ maxBytes: this.eventBytes, from: loaded.seq })
     await readAll(this.store, this.logId, this.state, (entry) =>
       this.apply(entry),
     )
@@ -2237,19 +2445,13 @@ export class SharedLog<TState = unknown> {
         this.resulted.delete(`${thread}\u0000${message.toolCallId}`)
       }
     }
-    const event = sessionEventOf(entry)
+    const event = sessionEventOf(entry, this.rootThread)
     if (!event) return
+    this.remote?.push({ thread, entry: event })
     // The fold has JSON values only, so this cannot throw.
     const size = JSON.stringify(event.event).length
+    // The ring keeps the newest event, so a live reader gets it from memory.
     this.tail.push({ thread, entry: event, size })
-    this.tailBytes += size
-    // The newest event stays, so a live reader gets it from memory.
-    while (this.tailBytes > this.eventBytes && this.tail.length > 1) {
-      const dropped = this.tail.shift()
-      if (!dropped) break
-      this.tailBytes -= dropped.size
-      this.tailFrom = Number(dropped.entry.cursor)
-    }
   }
 
   // ===========================
@@ -2275,17 +2477,14 @@ export class SharedLog<TState = unknown> {
     const accepts = (entry: SessionEvent) => (filter ? filter(entry) : true)
     /** The events of this session in the tail after `after`. */
     const ownAfter = (after: number) =>
-      this.tail
-        .filter((item) => item.thread === thread)
-        .map((item) => item.entry)
-        .filter((entry) => Number(entry.cursor) > after && accepts(entry))
+      this.tail.after(after, thread).entries.filter(accepts)
     let after = Number(options.from ?? '0')
     if (!Number.isFinite(after)) after = 0
     for (;;) {
       if (signal?.aborted) return
-      if (after < this.tailFrom) {
+      if (after < this.tail.from) {
         // Older than the in-memory tail: page it from the store.
-        const upTo = this.tailFrom
+        const upTo = this.tail.from
         let page: Array<LogEntry>
         try {
           page = await this.store.read({
@@ -2298,14 +2497,14 @@ export class SharedLog<TState = unknown> {
           // A truncate dropped the events after `after`: say so once, then
           // go on from the first stored record.
           const resumeAt = error.firstSeq - 1
-          yield gapEvent(String(after), String(resumeAt))
+          yield gapEvent(thread, String(after), String(resumeAt), 'truncated')
           after = resumeAt
           continue
         }
         for (const entry of page) {
           if (entry.seq > upTo || signal?.aborted) break
           after = entry.seq
-          const event = sessionEventOf(entry)
+          const event = sessionEventOf(entry, this.rootThread)
           const isOwn = threadOf(entry.record, this.rootThread) === thread
           if (event && isOwn && accepts(event)) yield event
         }
@@ -2371,29 +2570,18 @@ function mergeDelta(first: StreamChunk, second: StreamChunk): StreamChunk {
   return second
 }
 
-/** The `harness.gap` event for a reader at `from`. Its cursor is `resumeAt`. */
-function gapEvent(from: Cursor, resumeAt: Cursor): SessionEvent {
-  const value: EventGap = { from, resumeAt, reason: 'truncated' }
-  return {
-    cursor: resumeAt,
-    // No operation made it. Like a session input, it belongs to the session.
-    operationId: 'session',
-    event: {
-      type: EventType.CUSTOM,
-      name: HARNESS_EVENTS.gap,
-      value,
-      timestamp: Date.now(),
-    },
-  }
-}
-
-function sessionEventOf(entry: LogEntry) {
+/**
+ * The session event of `entry`, or `undefined` when it is not an event. A
+ * record with no `thread` is an event of `rootThread`.
+ */
+function sessionEventOf(entry: LogEntry, rootThread: string) {
   const { record } = entry
   if (!isHarnessRecord(record) || record.type !== 'harness.event') {
     return undefined
   }
   const event: SessionEvent = {
     cursor: String(entry.seq),
+    threadId: threadOf(record, rootThread),
     operationId: record.operationId,
     event: record.event,
   }
@@ -2441,6 +2629,18 @@ export function engineMessageStore(options: SessionLogView) {
   const fold = () => [...writer.state.messages]
   let held = fold()
   /**
+   * The list that the last `beforeModel` gave the model, and the fold after
+   * its commit. A second call of the same model call (`steering`, then
+   * `syncFold`) with the same message objects and the same fold has
+   * nothing to commit, so it skips the compare and the commit.
+   */
+  let committed:
+    | {
+        list: ReadonlyArray<ModelMessage>
+        fold: ReadonlyArray<ModelMessage>
+      }
+    | undefined
+  /**
    * What to write for an engine save of `list`, when the engine held `base`:
    *
    * - The fold only added host messages after `base`: the engine's new
@@ -2466,11 +2666,13 @@ export function engineMessageStore(options: SessionLogView) {
   const engine = {
     loadThread: async (threadId: string) => {
       if (threadId !== writer.threadId) return shared.loadThread(threadId)
+      committed = undefined
       held = fold()
       return [...held]
     },
     saveThread: (threadId: string, list: Array<ModelMessage>) => {
       if (threadId !== writer.threadId) return shared.saveThread(threadId, list)
+      committed = undefined
       const target = rebase(held, list)
       held = [...list]
       return writer.commit({ messages: target })
@@ -2485,13 +2687,22 @@ export function engineMessageStore(options: SessionLogView) {
       list: ReadonlyArray<ModelMessage>,
       records: ReadonlyArray<LogRecord> = [],
     ) => {
+      const isUnchanged =
+        records.length === 0 &&
+        committed !== undefined &&
+        committed.fold === writer.state.messages &&
+        committed.list.length === list.length &&
+        committed.list.every((message, index) => message === list[index])
+      if (isUnchanged) return undefined
       const target = rebase(held, [...list])
       held = [...target]
       await writer.commit({ messages: target, records })
       const isSame =
         target.length === list.length &&
         commonPrefix(target, list) === list.length
-      return isSame ? undefined : [...target]
+      const result = isSame ? undefined : [...target]
+      committed = { list: result ?? [...list], fold: writer.state.messages }
+      return result
     },
     /**
      * Host records from a middleware of the running turn. The messages that
@@ -2507,6 +2718,7 @@ export function engineMessageStore(options: SessionLogView) {
       list: ReadonlyArray<ModelMessage>,
       records: ReadonlyArray<LogRecord>,
     ) => {
+      committed = undefined
       const kept = commonPrefix(held, list)
       if (kept < held.length || list.length === held.length) {
         return writer.append(records)

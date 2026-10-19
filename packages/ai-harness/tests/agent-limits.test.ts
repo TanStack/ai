@@ -61,7 +61,9 @@ async function stopHost(
   const refuse = vi
     .spyOn(log, 'append')
     .mockRejectedValue(new Error('the host is gone'))
-  await expect(session.append([{ type: 'app.ping' }])).rejects.toThrow()
+  await expect(
+    session.append({ records: [{ type: 'app.ping' }] }),
+  ).rejects.toThrow()
   await expect(running).rejects.toThrow()
   refuse.mockRestore()
 }

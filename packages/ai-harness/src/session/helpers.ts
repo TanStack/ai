@@ -16,6 +16,7 @@ import type {
   Scope,
   StreamChunk,
   SubagentsBag,
+  SystemPrompt,
 } from '@tanstack/ai'
 import type { LogRecord, MessageStore } from '@tanstack/ai-persistence'
 import type { Redactor } from '../auth'
@@ -29,7 +30,7 @@ import type {
 } from '../log-records'
 import type { MountedPlugins } from '../plugins'
 import type {
-  HarnessInput,
+  OfferedHarnessInput,
   MediaKind,
   OperationStatus,
   Principal,
@@ -121,7 +122,7 @@ function namedOverrides(extras: TurnExtras) {
 export interface OfferedInputRecord extends LogRecord {
   type: 'harness.input'
   inputId: string
-  input: HarnessInput
+  input: OfferedHarnessInput
   principal?: { id: string; tenantId?: string }
   /**
    * The id that the owner runs the input with: the AG-UI run id of a turn,
@@ -131,15 +132,18 @@ export interface OfferedInputRecord extends LogRecord {
   runId?: string
   /** The overrides of a turn, as its `harness.input.turn` record keeps them. */
   overrides?: NamedTurnOverrides
+  /** The W3C `traceparent` of the caller. The owner keeps it on its record. */
+  traceparent?: string
 }
 
 /** The offer record of `input`. See {@link OfferedInputRecord}. */
 export function offeredInputRecord(offer: {
   inputId: string
-  input: HarnessInput
+  input: OfferedHarnessInput
   principal: Principal | undefined
   runId?: string
   turn?: TurnExtras
+  traceparent?: string
 }) {
   const named = offer.turn ? namedOverrides(offer.turn) : {}
   const record: OfferedInputRecord = {
@@ -149,6 +153,9 @@ export function offeredInputRecord(offer: {
     ...storedPrincipal(offer.principal),
     ...(offer.runId !== undefined ? { runId: offer.runId } : {}),
     ...(Object.keys(named).length > 0 ? { overrides: named } : {}),
+    ...(offer.traceparent !== undefined
+      ? { traceparent: offer.traceparent }
+      : {}),
   }
   return record
 }
@@ -499,34 +506,22 @@ export function changeSettings(
 }
 
 /**
- * `mounted` without what the `removed` plugins give a turn: their tools,
- * prompts, middleware, adapter picks, discoverers, and preparers.
+ * The owner of each tool name of `tools`: the plugin from `owners`, else
+ * `the harness` (also for the turn's own tools). The first owner of a name
+ * stays.
  */
-export function withoutPlugins(
-  mounted: MountedPlugins,
-  removed: ReadonlySet<string>,
-): MountedPlugins {
-  const { owners } = mounted
-  const toolOwners = new Map(
-    owners.tools.map((entry) => [entry.name, entry.owner]),
-  )
-  const isKept = (owner: string | undefined) =>
-    owner === undefined || !removed.has(owner)
-  return {
-    ...mounted,
-    tools: mounted.tools.filter((tool) => isKept(toolOwners.get(tool.name))),
-    prompts: mounted.prompts.filter((_prompt, index) =>
-      isKept(owners.prompts[index]?.owner),
-    ),
-    middleware: mounted.middleware.filter((_item, index) =>
-      isKept(owners.middleware[index]),
-    ),
-    adapters: mounted.adapters.filter((_pick, index) =>
-      isKept(owners.adapters[index]),
-    ),
-    discoverers: mounted.discoverers.filter((item) => isKept(item.owner)),
-    preparers: mounted.preparers.filter((item) => isKept(item.owner)),
+export function toolOwners(
+  tools: ReadonlyArray<AnyTool>,
+  owners: ReadonlyArray<{ name: string; owner: string }>,
+) {
+  const byName = new Map<string, string>()
+  for (const entry of owners) {
+    if (entry.owner === 'the harness' || byName.has(entry.name)) continue
+    byName.set(entry.name, entry.owner)
   }
+  return new Map(
+    tools.map((tool) => [tool.name, byName.get(tool.name) ?? 'the harness']),
+  )
 }
 
 /**
@@ -618,6 +613,39 @@ export function ephemeralCall(pending: Array<ModelMessage>): AnyChatMiddleware {
       if (ctx.phase !== 'beforeModel' || pending.length === 0) return undefined
       const messages = config.providerMessages ?? config.messages
       return { providerMessages: [...messages, ...pending.splice(0)] }
+    },
+  }
+}
+
+/**
+ * Gives each model call the `'context'` plugin prompts as one system prompt,
+ * after all other system prompts. The text has system authority, not user
+ * authority. Each call takes out the prompt of the call before, so a change
+ * replaces it and the stable system prompts before it stay the same.
+ *
+ * ponytail: a `ModelMessage` has no `system` role, so the prompt cannot go
+ * after the history. A change of it changes the cached prefix from the
+ * system prompts on. A system message in the history needs a core change.
+ *
+ * `texts` must be scrubbed of the session secrets already: a redacted copy
+ * is a new object, and the next call could not find it to take it out.
+ */
+export function contextPromptCall(
+  texts: () => ReadonlyArray<string>,
+): AnyChatMiddleware {
+  let last: SystemPrompt | undefined
+  return {
+    name: 'harness:context-prompts',
+    onConfig: (ctx, config) => {
+      if (ctx.phase !== 'beforeModel') return undefined
+      const text = texts()
+        .filter((item) => item !== '')
+        .join('\n\n')
+      const kept = config.systemPrompts.filter((prompt) => prompt !== last)
+      if (text === '' && kept.length === config.systemPrompts.length)
+        return undefined
+      last = text === '' ? undefined : { content: text }
+      return { systemPrompts: last ? [...kept, last] : kept }
     },
   }
 }
@@ -838,6 +866,34 @@ export const notOpenMessages: MessageStore = {
 }
 
 /**
+ * Give one event to `notifyHost` and each of `listeners`. A listener that
+ * throws, or whose promise rejects, is logged, and the others still run.
+ */
+export function notifyListeners(
+  notifyHost: (event: StreamChunk) => void,
+  listeners: Set<EventListener>,
+  entry: Parameters<EventListener>[0],
+) {
+  const report = (error: unknown) =>
+    console.error('[@tanstack/ai-harness] An onEvent listener threw.', error)
+  try {
+    notifyHost(entry.event)
+  } catch (error) {
+    report(error)
+  }
+  for (const listener of [...listeners]) {
+    // A listener that an earlier listener stopped gets nothing.
+    if (!listeners.has(listener)) continue
+    try {
+      const result: unknown = listener(entry)
+      if (result instanceof Promise) result.catch(report)
+    } catch (error) {
+      report(error)
+    }
+  }
+}
+
+/**
  * `feed`, then `notifyHost` and each of `listeners` after each publish. This
  * is how the host and `onEvent` see events. The caller keeps `listeners`, so
  * they survive a new tap of another feed. Each event goes through
@@ -852,27 +908,12 @@ export function tapFeed(
   return {
     publish: (operationId, raw) => {
       const event = redactor.redact(raw)
+      // ponytail: core sends a MESSAGES_SNAPSHOT only when a run pauses at
+      // an interrupt, so the log keeps each one. A rejoin from the log (the
+      // run route, `Last-Event-ID`) needs it: ai-client rebuilds the paused
+      // run from it. If core sends it at other times, filter here.
       feed.publish(operationId, event)
-      const report = (error: unknown) =>
-        console.error(
-          '[@tanstack/ai-harness] An onEvent listener threw.',
-          error,
-        )
-      try {
-        notifyHost(event)
-      } catch (error) {
-        report(error)
-      }
-      for (const listener of [...listeners]) {
-        // A listener that an earlier listener stopped gets nothing.
-        if (!listeners.has(listener)) continue
-        try {
-          const result: unknown = listener({ operationId, event })
-          if (result instanceof Promise) result.catch(report)
-        } catch (error) {
-          report(error)
-        }
-      }
+      notifyListeners(notifyHost, listeners, { operationId, event })
     },
     listen: (listener) => {
       // A new entry per call: a listener added twice is called twice.

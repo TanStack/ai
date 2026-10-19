@@ -2,6 +2,7 @@ import { expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { defineAgent } from '@tanstack/ai'
 import {
+  HARNESS_EVENTS,
   createHarnessHost,
   defineHarness,
   definePlugin,
@@ -18,6 +19,7 @@ import type {
   AgentSettled,
   HarnessAgentContext,
   HarnessConfig,
+  HarnessEventValues,
   HarnessHost,
   HarnessInput,
   HarnessSession,
@@ -242,6 +244,12 @@ it('types the openAccess principal by the host, and needs an explicit login mode
   // @ts-expect-error `login` is required: no implicit loopback listener.
   oauthConnector({ id: 'svc', label: 'Service', oauth })
   oauthConnector({ id: 'svc', label: 'Service', oauth, login: 'device' })
+})
+
+it('has a value type for every harness event name, and no other', () => {
+  expectTypeOf<keyof HarnessEventValues>().toEqualTypeOf<
+    (typeof HARNESS_EVENTS)[keyof typeof HARNESS_EVENTS]
+  >()
 })
 
 type Priced = { vendor: string; cents: number }

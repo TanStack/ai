@@ -59,7 +59,13 @@ To use the harness from another program:
 
 `--mcp` and `--serve` run only the commands in `expose.commands` of the harness. `--serve` also sets only the config keys in `expose.config`. Add the names to `expose` in `defineHarness`, for example `expose: { commands: ['connect:github'] }`. Line mode and `-p` run every command. See [Choose what clients can change](./connect#choose-what-clients-can-change).
 
-Line mode reads one message or command per line and waits for each turn. It works the same in a terminal and with piped input. In a terminal, it also opens sign-in links in the browser.
+Line mode reads one message or command per line. In a terminal, you can type while a turn runs:
+
+- `/cancel` cancels the running turn at once.
+- A message joins the running turn as a steer. The model reads it at its next call.
+- A message that you type when no turn runs starts a new turn.
+
+With piped input, each line waits for the turn that the line before it started. A script runs in order. In a terminal, line mode also opens sign-in links in the browser.
 
 ## 3. Use it in CI
 
@@ -111,7 +117,7 @@ console.log(await exit) // 143
 `--serve` is the quick way to put a harness on HTTP, so it makes the trust decisions for you: one bearer token, one user, every thread. Anyone with the token acts as that one user. They can open or drive any thread on the host, including the tools it runs (shell commands, file edits) on the machine the CLI runs on. Treat the token like a shell login.
 
 - It binds to `127.0.0.1:8787`, reachable only from the same machine. Change the bind with `--host` and `--port`. `--host 0.0.0.0` puts it on the network, so do that only behind TLS and a proxy you trust.
-- The CLI signs media links with the token, so rotating the token stops any link a turn already handed out.
+- The CLI signs media links with its own key, never with the token. By default it makes a new random key at each start, so media links stop working after a restart. To keep them working, pass `--media-key` or set `HARNESS_MEDIA_KEY`, with a key of at least 32 bytes. Change the key to stop every link a turn already handed out.
 
 Need per-user access, your own sign-in check, or a rule for which threads each user can open? Use [`createHarnessHandler`](./connect) on a host with [`access`](./access) instead. The host reads the user of each request and checks each action, so no thread is open by accident.
 
@@ -144,7 +150,7 @@ await host.close()
 - Give `host`, or `persistence` and `credentials`, not both. With both, `runCli` writes `Give runCli a host, or persistence and credentials, not both.` and returns code 1.
 - Line mode, `-p`, your own `ui`, `--acp`, and `--mcp` open their sessions as `principal`, so `/connect` saves keys for that user.
 - `--serve` checks the token first. On a host without `access`, each request then runs as `principal`. On a host with [`access`](./access), `identify` reads the user of each request.
-- On a host with `access`, give `principal` too. `--mcp` does not start on such a host, because stdio has no login. `--dashboard` opens its sessions without the principal.
+- On a host with `access`, give `principal` too. `--mcp` does not start on such a host, because stdio has no login.
 
 ## Commands in line mode
 
@@ -215,8 +221,9 @@ process.exitCode = await runCli(assistant, {
 })
 ```
 
-- `ui` runs only in an interactive terminal. Piped input uses line mode. `-p`, `--acp`, `--mcp`, `--serve`, and `--dashboard` do not use `ui`.
+- `ui` runs only in an interactive terminal. Piped input uses line mode. `-p`, `--acp`, `--mcp`, and `--serve` do not use `ui`.
 - When `ui` resolves, the CLI disposes the view and `runCli` returns.
+- In a reopened thread, a saved child agent shows only its card. To show what it wrote, call `view.loadAgent({ id })`, for example when the screen draws the card. See [Show subagents](./custom-ui#show-subagents).
 - To write `Screen`, read [Build your own UI](./custom-ui).
 
 For an Ink screen with approvals, questions, sign-ins, and child agents, copy [`examples/harness-cli/src/tui.tsx`](https://github.com/TanStack/ai/blob/main/examples/harness-cli/src/tui.tsx).

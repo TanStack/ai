@@ -22,6 +22,7 @@ import {
   CONTROL_OPS,
   hasFinalAnswer,
   loggedExtras,
+  notifyListeners,
   offeredInputRecord,
   SHUTDOWN_REASON,
   storedPrincipal,
@@ -58,12 +59,16 @@ export interface HarnessSession<
   | 'transferSummary'
   | 'onIdle'
   | 'resolveForRun'
+  | 'sendForRun'
   | 'checked'
+  | 'knownMessage'
   | 'cancelWorkOf'
   | 'agentHandle'
   | 'isIdle'
   | 'isClosing'
   | 'openWait'
+  | 'openToEnd'
+  | 'endThread'
   // A handle closes itself, not the session.
   | 'close'
 > {
@@ -145,6 +150,7 @@ export class SessionImpl<
 
   /** @internal Mount session plugins and recover the work in the log. */
   async open(): Promise<void> {
+    await this.tracing?.ready()
     // First: plugins publish events while they mount.
     await this.openLog()
     try {
@@ -167,6 +173,41 @@ export class SessionImpl<
       await this.close({ recoverable: true }).catch(() => {})
       throw error
     }
+  }
+
+  /**
+   * @internal For `host.sessions.delete`: open the log and the session
+   * plugins, and nothing else. No recovery, no index entry, no offers, and
+   * no schedules, so no work of the thread runs again before the purge. Call
+   * `endThread`, then close it.
+   */
+  async openToEnd(): Promise<void> {
+    await this.openLog()
+    await this.mountSessionPlugins()
+    this.loadSettings()
+  }
+
+  /**
+   * @internal The thread ends for good: each `ThreadEnds` handler of the
+   * plugins runs, the newest first, so a plugin that needs the workspace of
+   * an older plugin runs before that workspace closes. Every handler runs.
+   * Then the first error, if any, is thrown.
+   */
+  async endThread(): Promise<void> {
+    const run = this.runContext({
+      principal: undefined,
+      runId: `end:${this.threadId}`,
+      signal: this.lifetime.signal,
+    })
+    const errors: Array<unknown> = []
+    for (const handler of [...this.threadEnds].reverse()) {
+      await handler({
+        tenantId: this.tenantId,
+        threadId: this.threadId,
+        run,
+      }).catch((error: unknown) => errors.push(error))
+    }
+    if (errors.length > 0) throw errors[0]
   }
 
   /** Also waits for the last append of the log, so a reopen reads it. */
@@ -206,6 +247,8 @@ export class SessionImpl<
         ),
         services: this.services,
         inherited: this.storeCapabilities(),
+        // A plugin that this thread removed gives `collect` nothing.
+        hiddenOwners: () => this.removedPlugins(),
       },
     )
     this.loadConfig()
@@ -522,6 +565,22 @@ export class SessionImpl<
         (!this.isIdle() || this.jobs.size > 0 || this.recovering > 0) &&
         this.sleeping === 0,
       onOffers: () => void this.drainOffers(),
+      // An event that another host wrote: the host status and the `onEvent`
+      // listeners see it, as they see the events of this host at publish.
+      onRemoteEvent: ({ operationId, event }) =>
+        notifyListeners(this.notifyHost, this.eventListeners, {
+          operationId,
+          event,
+        }),
+      // Records of another host: the settings, the config, and the
+      // interrupted turn come from the new fold.
+      onRemoteFold: () => this.syncFromLog(),
+      // This host became the owner. The event goes in the next append.
+      onOwned: (change) =>
+        this.feed.publish(
+          'session',
+          customEvent(HARNESS_EVENTS.ownershipChanged, { ...change }),
+        ),
       redact: this.redactor.redact,
     })
     this.logWriter = writer
@@ -783,10 +842,18 @@ export class SessionImpl<
     }
     // The host keeps the log until recovery queued its work.
     this.recovering += 1
+    // A span only when inputs of a host that stopped wait for this host.
+    const span = hasWork
+      ? this.tracing?.span('harness.recovery', {})
+      : undefined
     try {
       try {
         await this.recoverInputs(writer, isTaken)
       } catch (error) {
+        this.tracing?.safely(() => {
+          span?.recordException(error instanceof Error ? error : String(error))
+          span?.setStatus({ code: 2 })
+        })
         // Not recovered, so the next `recover()` takes them again.
         for (const inputId of taken) {
           if (!this.turnOperations.has(inputId)) this.admitted.delete(inputId)
@@ -803,6 +870,7 @@ export class SessionImpl<
       await this.resumeWaitingRuns()
     } finally {
       this.recovering -= 1
+      this.tracing?.safely(() => span?.end())
       // A recovery that left no work gives the log back.
       void writer.rest()
     }

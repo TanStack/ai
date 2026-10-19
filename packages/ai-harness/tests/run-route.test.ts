@@ -588,6 +588,35 @@ describe('join a running turn', () => {
     await host.close()
   })
 
+  it('replays the messages snapshot of a run that paused at an interrupt', async () => {
+    const { host, call, run } = setup(
+      approvalHarness([
+        { toolCalls: [{ name: 'deploy', input: { env: 'prod' } }] },
+      ]),
+    )
+    const posted = sse(
+      await (
+        await run({
+          runId: 'run-a',
+          messages: [{ id: 'm-1', role: 'user', content: 'Deploy.' }],
+        })
+      ).text(),
+    )
+    expect(
+      posted.find((chunk) => chunk.type === 'RUN_FINISHED')?.outcome?.type,
+    ).toBe('interrupt')
+
+    // A rejoin reads the log. ai-client rebuilds the paused run from the
+    // snapshot, so the log must keep it, before the interrupt.
+    const joined = withIds(
+      await (await call('run?runId=run-a&threadId=t-1&offset=-1')).text(),
+    ).map((event) => event.chunk.type)
+    const snapshotAt = joined.indexOf('MESSAGES_SNAPSHOT')
+    expect(snapshotAt).toBeGreaterThan(-1)
+    expect(snapshotAt).toBeLessThan(joined.lastIndexOf('RUN_FINISHED'))
+    await host.close()
+  })
+
   it('refuses a join of a thread the principal may not use', async () => {
     let allowed = true
     const { host, call, answer, posted } = await startAsking(() => allowed)

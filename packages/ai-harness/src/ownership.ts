@@ -5,6 +5,12 @@ import type { LogStore } from '@tanstack/ai-persistence'
 export const OWNERSHIP = { ttlMs: 30_000, renewMs: 10_000 }
 
 /**
+ * How long a sweep waits before it tries again a log whose thread did not
+ * open. The log goes back with this wake time.
+ */
+export const OPEN_RETRY_MS = 30_000
+
+/**
  * Ownership timing for a host, and its stable id. A missing timing field
  * uses {@link OWNERSHIP}.
  */
@@ -22,8 +28,51 @@ export interface OwnershipOptions {
    * store clock. Default 30 000.
    */
   ttlMs?: number
-  /** How often the host renews every log it owns, in milliseconds. Default 10 000. */
+  /**
+   * How often the host renews every log it owns, in milliseconds. It must be
+   * less than `ttlMs`. Default 10 000, or a third of `ttlMs` when you set
+   * only `ttlMs`.
+   */
   renewMs?: number
+}
+
+/**
+ * @internal For tests only. Timing with this key is not checked, so a test
+ * host can own a log for a short time and never renew it, like a process
+ * that stopped.
+ */
+export const UNCHECKED_TIMING = Symbol('harness.uncheckedTiming')
+
+/**
+ * The `ttlMs` and `renewMs` of `timing`, with the defaults. Throws a
+ * `RangeError` for a value that is not more than 0, and when `renewMs` is
+ * not less than `ttlMs`: then each ownership expires before its renewal,
+ * and other hosts take the logs of this host while it runs.
+ */
+function ownershipTiming(timing: OwnershipOptions = {}) {
+  const ttlMs = timing.ttlMs ?? OWNERSHIP.ttlMs
+  const renewMs =
+    timing.renewMs ??
+    (timing.ttlMs === undefined
+      ? OWNERSHIP.renewMs
+      : Math.max(1, Math.floor(ttlMs / 3)))
+  if (UNCHECKED_TIMING in timing) return { ttlMs, renewMs }
+  for (const [name, value] of [
+    ['ttlMs', ttlMs],
+    ['renewMs', renewMs],
+  ] as const) {
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new RangeError(
+        `ownership.${name} must be a number more than 0, not ${String(value)}.`,
+      )
+    }
+  }
+  if (renewMs >= ttlMs) {
+    throw new RangeError(
+      `ownership.renewMs (${renewMs}) must be less than ownership.ttlMs (${ttlMs}). Else the ownership of a log expires before its renewal, and other hosts take it.`,
+    )
+  }
+  return { ttlMs, renewMs }
 }
 
 /**
@@ -61,6 +110,8 @@ export class HostOwnership {
   private readonly renewMs: number
   /** The epoch of each log that this host owns, by store log id. */
   private readonly owned = new Map<string, number>()
+  /** The owned logs that the store gave over an owner that stopped. */
+  private readonly takenOver = new Set<string>()
   private readonly lostListeners = new Map<
     string,
     Set<(error: OwnershipLostError) => void>
@@ -90,13 +141,22 @@ export class HostOwnership {
     this.store = options.store
     this.ownerId = options.ownerId
     this.affinity = options.affinity
-    this.ttlMs = options.timing?.ttlMs ?? OWNERSHIP.ttlMs
-    this.renewMs = options.timing?.renewMs ?? OWNERSHIP.renewMs
+    const { ttlMs, renewMs } = ownershipTiming(options.timing)
+    this.ttlMs = ttlMs
+    this.renewMs = renewMs
   }
 
   /** The epoch of `logId` while this host owns it. */
   epochOf(logId: string) {
     return this.owned.get(logId)
+  }
+
+  /**
+   * True when this host owns `logId` because the ownership of another
+   * owner expired: that owner stopped with no release.
+   */
+  tookOver(logId: string) {
+    return this.takenOver.has(logId)
   }
 
   /**
@@ -115,6 +175,7 @@ export class HostOwnership {
     })
     if (got === null) return null
     this.owned.set(logId, got.epoch)
+    if (got.expired) this.takenOver.add(logId)
     this.startTimer()
     return got.epoch
   }
@@ -131,19 +192,21 @@ export class HostOwnership {
   /** Stop owning `logId` with no store call: the store refused its epoch. */
   forget(logId: string) {
     this.owned.delete(logId)
+    this.takenOver.delete(logId)
     if (this.owned.size === 0) this.stopTimer()
   }
 
   /**
    * Give `logId` up. With `epoch`, only that ownership: a later acquire
    * keeps the log. A log that this host does not own does nothing. The
-   * store gets the wake time of {@link setWake}, when the log has one.
+   * store gets `wakeIn` as the wake time, else the wake time of
+   * {@link setWake}, when the log has one.
    */
-  release(logId: string, epoch = this.owned.get(logId)) {
+  release(logId: string, epoch = this.owned.get(logId), wakeIn?: number) {
     const isOwned = epoch !== undefined && this.owned.get(logId) === epoch
     if (!isOwned) return Promise.resolve()
     this.forget(logId)
-    const wakeInMs = this.wakes.get(logId)?.()
+    const wakeInMs = wakeIn ?? this.wakes.get(logId)?.()
     const released = this.store
       .release({
         logId,

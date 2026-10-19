@@ -9,6 +9,7 @@ import type {
   UIMessage,
 } from '@tanstack/ai'
 import type { OperationImpl } from '../operation'
+import type { ObservabilityOptions } from '../observability'
 import type { HeldPlugins } from './helpers'
 import type { RefreshFlights } from '../auth'
 import type { ToolTurn } from '../tool-turn'
@@ -397,6 +398,8 @@ export interface SessionDependencies {
   openChild?: OpenChildSession
   /** Set on a child session only: what it takes from its parent. */
   child?: ChildSessionLink
+  /** The `observability` option of the host: spans and `onOperation`. */
+  observability?: ObservabilityOptions
 }
 
 /** What a child session of `harnessAgent` takes from its parent. */
