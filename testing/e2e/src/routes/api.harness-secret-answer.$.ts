@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { toolDefinition } from '@tanstack/ai'
 import { memoryCredentialStore } from '@tanstack/ai/byok/server'
-import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import {
   createHarnessHost,
   defineHarness,
@@ -12,6 +11,7 @@ import {
 import { createHarnessHandler } from '@tanstack/ai-harness/server'
 import { memoryLogBackend, memoryLogStore } from '@tanstack/ai-persistence'
 import { z } from 'zod'
+import { createTextAdapter } from '@/lib/providers'
 import type { CredentialStore } from '@tanstack/ai/byok'
 import type { HarnessHost, HarnessSession } from '@tanstack/ai-harness'
 import type { LogStore } from '@tanstack/ai-persistence'
@@ -29,87 +29,17 @@ import type { LogStore } from '@tanstack/ai-persistence'
  *   share one credential store. Returns the run id.
  * - `POST .../control?runId=` goes to the handler of host B.
  * - `GET .../debug?runId=` returns what the test checks: the transcript,
- *   the session events of both hosts, the raw records of the log store, the
- *   bodies that the model got, and the entries of the credential store.
+ *   the session events of both hosts, the raw records of the log store, and
+ *   the entries of the credential store.
  * - `POST .../stop?runId=` closes the hosts.
  *
- * A custom `fetch` answers with canned Anthropic streams, so no aimock
- * fixture is needed.
+ * The models are the OpenAI adapter against aimock
+ * (`fixtures/harness/secret-answer.json`). Host A sends the `x-test-id` of
+ * the test, and host B the same id with `:b`, so the test reads the model
+ * calls of each host from the aimock journal.
  */
 
-const DUMMY_KEY = 'sk-ant-e2e-test-dummy-key'
-const MODEL = 'claude-sonnet-5-5'
 const NAME = 'e2e/harness-secret-answer'
-
-type AnthropicEvent = { type: string } & Record<string, unknown>
-
-const sseOf = (events: Array<AnthropicEvent>) =>
-  events
-    .map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
-    .join('')
-
-const messageStart = (id: string): AnthropicEvent => ({
-  type: 'message_start',
-  message: {
-    id,
-    type: 'message',
-    role: 'assistant',
-    content: [],
-    model: MODEL,
-    stop_reason: null,
-    stop_sequence: null,
-    usage: { input_tokens: 5, output_tokens: 0 },
-  },
-})
-
-const ending = (stopReason: string): Array<AnthropicEvent> => [
-  { type: 'content_block_stop', index: 0 },
-  {
-    type: 'message_delta',
-    delta: { stop_reason: stopReason, stop_sequence: null },
-    usage: { output_tokens: 1 },
-  },
-  { type: 'message_stop' },
-]
-
-/** An answer that calls the `signIn` tool. */
-const callSignIn = (id: string) =>
-  sseOf([
-    messageStart(id),
-    {
-      type: 'content_block_start',
-      index: 0,
-      content_block: {
-        type: 'tool_use',
-        id: 'toolu_sign_in',
-        name: 'signIn',
-        input: {},
-      },
-    },
-    {
-      type: 'content_block_delta',
-      index: 0,
-      delta: { type: 'input_json_delta', partial_json: '{}' },
-    },
-    ...ending('tool_use'),
-  ])
-
-/** An answer with the text `text`. */
-const reply = (id: string, text: string) =>
-  sseOf([
-    messageStart(id),
-    {
-      type: 'content_block_start',
-      index: 0,
-      content_block: { type: 'text', text: '' },
-    },
-    {
-      type: 'content_block_delta',
-      index: 0,
-      delta: { type: 'text_delta', text },
-    },
-    ...ending('end_turn'),
-  ])
 
 const signIn = toolDefinition({
   name: 'signIn',
@@ -117,23 +47,11 @@ const signIn = toolDefinition({
   inputSchema: z.object({}),
 })
 
-/**
- * A harness whose model answers with `answers`, in order. `bodies` keeps
- * the body of each request that reaches the model.
- */
-function harnessWith(answers: Array<(id: string) => string>) {
-  const bodies: Array<string> = []
-  const scriptedFetch: typeof fetch = async (_url, init) => {
-    bodies.push(typeof init?.body === 'string' ? init.body : '')
-    const answer =
-      answers[bodies.length - 1] ?? ((id) => reply(id, 'No more answers.'))
-    return new Response(answer(`msg_secret_${bodies.length}`), {
-      headers: { 'Content-Type': 'text/event-stream' },
-    })
-  }
-  const harness = defineHarness({
+/** A harness whose model calls aimock with the test id `testId`. */
+function harnessWith(testId: string) {
+  return defineHarness({
     name: NAME,
-    adapter: createAnthropicChat(MODEL, DUMMY_KEY, { fetch: scriptedFetch }),
+    adapter: createTextAdapter('openai', undefined, undefined, testId).adapter,
     plugins: () => [
       definePlugin({
         name: 'e2e/sign-in',
@@ -155,7 +73,6 @@ function harnessWith(answers: Array<(id: string) => string>) {
       }),
     ],
   })
-  return { harness, bodies }
 }
 
 /** Every record of the log of `threadId`, as the store keeps it. */
@@ -181,8 +98,6 @@ interface Run {
   /** The ids that the credential store saved. */
   saved: Array<string>
   events: Array<unknown>
-  a: ReturnType<typeof harnessWith>
-  b: ReturnType<typeof harnessWith>
   handlerB: (request: Request) => Promise<Response>
   turn: { text?: string; error?: string }
   stop: () => Promise<void>
@@ -198,6 +113,7 @@ const errorOf = (error: unknown) =>
 
 async function start(request: Request) {
   const body: { credentials?: boolean } = await request.json()
+  const testId = request.headers.get('x-test-id') ?? 'default'
   const runId = crypto.randomUUID()
   const threadId = `e2e-harness-secret-answer-${runId}`
   const backend = memoryLogBackend()
@@ -221,18 +137,17 @@ async function start(request: Request) {
     })
   const hostA = hostOn(logA)
   const hostB = hostOn(memoryLogStore({ backend }))
-  const a = harnessWith([callSignIn, (id) => reply(id, 'Signed in.')])
-  // Host B must not run the turn, so its model has another answer.
-  const b = harnessWith([(id) => reply(id, 'Not on host B.')])
+  // Host B must not run the turn: the test checks that its id has no calls.
+  const harnessB = harnessWith(`${testId}:b`)
   try {
-    const owner = await hostA.open(a.harness, { threadId })
-    const other = await hostB.open(b.harness, { threadId })
+    const owner = await hostA.open(harnessWith(testId), { threadId })
+    const other = await hostB.open(harnessB, { threadId })
     const events: Array<unknown> = []
     owner.onEvent((entry) => events.push({ host: 'A', ...entry }))
     other.onEvent((entry) => events.push({ host: 'B', ...entry }))
     const handlerB = createHarnessHandler({
       host: hostB,
-      harness: b.harness,
+      harness: harnessB,
       openAccess: true,
     })
     const turn: Run['turn'] = {}
@@ -258,8 +173,6 @@ async function start(request: Request) {
       credentials,
       saved,
       events,
-      a,
-      b,
       handlerB,
       turn,
       stop,
@@ -280,8 +193,6 @@ async function debug(run: Run) {
     transcript: await run.owner.transcript(),
     events: run.events,
     records: await rawRecords(run.logA, run.threadId),
-    modelBodies: run.a.bodies,
-    otherModelCalls: run.b.bodies.length,
     saved: run.saved,
     // The entries of the default scope, where an answer without a user goes.
     stored: run.credentials ? await run.credentials.list({}) : null,
