@@ -1807,16 +1807,17 @@ export function createHarnessHost<P extends Principal = Principal>(
     }
 
   /**
-   * Is `threadId` a thread that the host derives under `marker`: a
-   * `harnessAgent` child (`<root>/agent/<run id>`) or a `harnessText` inner
-   * session (`<outer>/inner/<harness>`)? Only when the part before a
-   * `marker` is a thread of the index, so an app id such as
-   * `org/agent/notes` opens.
+   * Is `threadId` a thread that the host derives under `marker`? A
+   * `harnessText` inner session (`<outer>/inner/<harness>`): any id with
+   * `/inner/`, which only `throughOuterThread` opens. A `harnessAgent` child
+   * (`<root>/agent/<run id>`): only when the part before a `/agent/` is a
+   * thread of the index, so an app id such as `org/agent/notes` opens.
    */
   const isDerivedThread = async (
     key: SessionIndexKey,
     marker: '/agent/' | '/inner/',
   ) => {
+    if (marker === '/inner/') return key.threadId.includes(marker)
     for (
       let at = key.threadId.indexOf(marker);
       at > 0;
@@ -1826,6 +1827,14 @@ export function createHarnessHost<P extends Principal = Principal>(
       if ((await index.get(base)) !== undefined) return true
     }
     return false
+  }
+
+  /** Throw for the thread of a `harnessText` inner session, from app code. */
+  const refuseInner = async (key: SessionIndexKey) => {
+    if (!(await isDerivedThread(key, '/inner/'))) return
+    throw new Error(
+      `${JSON.stringify(key.threadId)} is the thread of a harnessText inner session. Open its outer thread, and use the harness there.`,
+    )
   }
 
   /** Throw when the index entry of the thread names a parent thread. */
@@ -2482,6 +2491,7 @@ export function createHarnessHost<P extends Principal = Principal>(
       throw new Error('A fork needs a new thread: newThreadId is threadId.')
     }
     const tenantId = principal?.tenantId
+    await refuseInner({ tenantId, threadId: newThreadId })
     // Before the open, so no plugin of `harness` mounts on a thread of
     // another harness. A move to another harness is `host.transfer`.
     checkHarness(await index.get({ tenantId, threadId }), harness)
@@ -2576,6 +2586,7 @@ export function createHarnessHost<P extends Principal = Principal>(
     if (threadId === from.threadId) {
       throw new Error('A transfer needs another thread: to is from.')
     }
+    await refuseInner({ tenantId, threadId })
     const user = access ? need(principal, 'host.transfer') : undefined
     const sourceEntry = await index.get({ tenantId, threadId: from.threadId })
     const targetEntry = await index.get({ tenantId, threadId })
@@ -2738,11 +2749,7 @@ export function createHarnessHost<P extends Principal = Principal>(
       const isOwnInner =
         outerThread !== undefined &&
         threadId.startsWith(`${outerThread}/inner/`)
-      if (!isOwnInner && (await isDerivedThread(ids, '/inner/'))) {
-        throw new Error(
-          `${JSON.stringify(threadId)} is the thread of a harnessText inner session. Open its outer thread, and use the harness there.`,
-        )
-      }
+      if (!isOwnInner) await refuseInner(ids)
       const key = sessionKey(harness.name, tenantId, threadId)
       // Before the open, so the session never closes on idle under it.
       hold(key)
@@ -2923,6 +2930,7 @@ export function createHarnessHost<P extends Principal = Principal>(
       if (isClosed) throw hostClosed()
       const tenantId = principal?.tenantId
       const of = { tenantId, threadId }
+      await refuseInner(of)
       const id = inputId ?? createInputId()
       // An answer or a cancel is checked with the run that it targets, from
       // the log. `null`: the log does not have that run.

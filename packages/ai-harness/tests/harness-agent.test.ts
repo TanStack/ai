@@ -121,7 +121,7 @@ describe('harnessAgent in a harness session', () => {
     await host.close()
   })
 
-  it('opens an app thread id with /agent/ or /inner/ in it, when no thread is before them', async () => {
+  it('opens an app thread id with /agent/ in it, when no thread is before it', async () => {
     const harness = defineHarness({
       name: 'test/notes',
       adapter: mockAdapter([]).adapter,
@@ -131,16 +131,35 @@ describe('harnessAgent in a harness session', () => {
     await expect(
       host.open(harness, { threadId: 'org/agent/notes' }),
     ).resolves.toBeDefined()
-    await expect(
-      host.open(harness, { threadId: 'org/inner/notes' }),
-    ).resolves.toBeDefined()
     // `org/agent/notes` is a thread now, so the ids under it are reserved.
     await expect(
       host.open(harness, { threadId: 'org/agent/notes/agent/run-1' }),
     ).rejects.toThrow('harnessAgent child')
+    await host.close()
+  })
+
+  it('refuses a thread id with /inner/ from app code, also when the thread before it does not exist', async () => {
+    const harness = defineHarness({
+      name: 'test/notes',
+      adapter: mockAdapter([]).adapter,
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const refused = 'harnessText inner session'
+
+    await expect(host.open(harness, { threadId: 'X/inner/h' })).rejects.toThrow(
+      refused,
+    )
     await expect(
-      host.open(harness, { threadId: 'org/inner/notes/inner/test/x' }),
-    ).rejects.toThrow('harnessText inner session')
+      host.submit({
+        harness,
+        threadId: 'X/inner/h',
+        input: { op: 'prompt', message: 'Hi.' },
+      }),
+    ).rejects.toThrow(refused)
+    await host.open(harness, { threadId: 'X' })
+    await expect(
+      host.fork(harness, { threadId: 'X', newThreadId: 'X/inner/h' }),
+    ).rejects.toThrow(refused)
     await host.close()
   })
 
