@@ -191,10 +191,9 @@ The join stops at the first message that:
 
 That message and the ones after it wait. `canJoin` runs again before each model call and at each final answer, so it can run more than once for one message. Keep it a quick check with no side effects. What still waits when the turn ends runs as its own turn, before other queued turns. A cancelled one settles `aborted` and does not run.
 
-Two kinds of turns take no messages. A message that arrives while one runs waits, and then runs as its own turn:
+A `session.tool()` turn takes no messages. It runs no model, so nothing could answer them. A message that arrives while it runs waits, and then runs as its own turn. See [Run a tool without a model](./tool-runs).
 
-- A `session.tool()` turn. It runs no model, so nothing could answer the message. See [Run a tool without a model](./tool-runs).
-- A turn that `routing` sends to root agents.
+A turn that `routing` sends to root agents takes messages, the same as the main model. The root agents get them at each model call.
 
 A joined message runs with the credentials of the sender of the turn. So without `turn.canJoin`, a waiting message joins the running turn only when the same person sent both. A message from another person waits and runs as its own turn after the running one, as its sender. Joins are a prefix, so it also holds back the messages that wait after it. Set `canJoin` to choose your own rule. Compare `principal` with `turnPrincipal` to keep one person's message out of another person's turn. See [Keep other people out of a running turn](./shared-threads#5-keep-other-people-out-of-a-running-turn).
 
