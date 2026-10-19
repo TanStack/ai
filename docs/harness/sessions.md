@@ -259,7 +259,7 @@ void watch()
 
 Each host reports only the sessions that are open in it. For those sessions, the status also counts the turns and the questions that another host writes to the same log. A session with no status event is not open, so show it as idle.
 
-A reader that does not keep up stops. When more than 1 000 events wait for it, its loop ends. Call `host.events()` again: the current statuses come first again.
+A reader that does not keep up stops. When more than 1 000 changes wait for it, its loop ends. The first statuses do not count. Call `host.events()` again: the current statuses come first again.
 
 `host.close()` does not end the readers of `events()`. Abort the signal of each reader before you close the host. If you do not abort it, the loop waits forever:
 

@@ -1,7 +1,8 @@
 // Browser-safe: this module has type-only imports from the rest of the
-// package, plus `media-ref`, which has type-only imports itself. So no server
-// code (adapters, stores, secrets) reaches a client.
+// package, plus `media-ref` and `utils`, which have no runtime imports
+// themselves. So no server code (adapters, stores, secrets) reaches a client.
 import { isMediaRecord } from './media-ref'
+import { isRecord } from './utils'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
   LogRecord,
@@ -688,6 +689,8 @@ export function createHarnessClient<THarness extends AnyHarness>(
     })
     // The tries since the last read from the server, for the next wait.
     let attempt = 0
+    // The error of a /snapshot answer with the wrong shape. It is not retried.
+    let badSnapshot: Error | undefined
     try {
       while (!signal?.aborted) {
         try {
@@ -703,8 +706,15 @@ export function createHarnessClient<THarness extends AnyHarness>(
             else if (!head.ok) {
               throw new Error(`Harness snapshot failed (${head.status})`)
             } else {
-              // The handler answers /snapshot with a SessionSnapshot.
-              cursor = ((await head.json()) as SessionSnapshot).cursor
+              const body: unknown = await head.json()
+              if (!isRecord(body) || typeof body.cursor !== 'string') {
+                // A retry gets the same answer, so stop the read.
+                badSnapshot = new Error(
+                  `Harness snapshot has no string "cursor". Is ${base} a harness handler?`,
+                )
+                throw badSnapshot
+              }
+              cursor = body.cursor
             }
           }
           if (cursor) query.set('from', cursor)
@@ -748,6 +758,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
           }
         } catch (error) {
           if (signal?.aborted) return
+          if (error === badSnapshot) throw error
           // A 404 means that the thread has no entry yet: a new chat, before
           // its first message. Try again, the same as after a network error.
           if (error instanceof Error && /\((401|403)\)/.test(error.message))
