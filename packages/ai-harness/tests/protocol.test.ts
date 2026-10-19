@@ -27,8 +27,8 @@ import {
 } from './helpers'
 import {
   HARNESS_PROTOCOL_VERSION,
-  negotiateVersion,
   requestIdOf,
+  versionError,
 } from '../src/protocol'
 import type { Receipt } from '../src'
 import type { HostFrame } from '../src/server'
@@ -672,20 +672,18 @@ describe('parseControlFrame', () => {
   })
 })
 
-describe('negotiateVersion', () => {
-  it('uses the current version when the client names none', () => {
+describe('versionError', () => {
+  it('takes the current version, and no version', () => {
     expect(HARNESS_PROTOCOL_VERSION).toBe(2)
-    expect(negotiateVersion({})).toEqual({ v: 2 })
-    expect(negotiateVersion({ requested: 2 })).toEqual({ v: 2 })
+    expect(versionError(undefined)).toBeUndefined()
+    expect(versionError(2)).toBeUndefined()
   })
 
-  it('refuses a version that the host does not speak, and lists the ones it does', () => {
-    expect(negotiateVersion({ requested: 1 })).toEqual({
-      error: {
-        message: 'Protocol version 1 is not supported.',
-        code: 'unsupported_version',
-        supported: [2],
-      },
+  it('refuses another version', () => {
+    expect(versionError(1)).toEqual({
+      message:
+        'Protocol version 1 is not supported. This host speaks version 2.',
+      code: 'unsupported_version',
     })
   })
 })

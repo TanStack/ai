@@ -17,7 +17,6 @@ function createOperation() {
     () => {},
     new Set(),
     new Redactor(),
-    () => undefined,
   )
   return new OperationImpl<string>('chat', feed, (operation) => {
     operation.fail('cancelled', new Error('Cancelled.'))

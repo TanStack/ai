@@ -565,7 +565,6 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       deps.onEvent,
       this.eventListeners,
       this.redactor,
-      (operationId) => this.parentRunOf(operationId),
     )
     this.onClose = deps.onClose
     this.notifyIdle = deps.onIdle

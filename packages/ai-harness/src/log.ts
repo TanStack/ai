@@ -70,8 +70,6 @@ export type HarnessRecord =
   | {
       type: 'harness.event'
       operationId: string
-      /** The run that started the operation, for a child run. */
-      parentRunId?: string
       event: StreamChunk
     }
   | { type: 'harness.transcript'; keep: number; add: Array<ModelMessage> }
@@ -1743,9 +1741,8 @@ export class SharedLog<TState = unknown> {
         reduce !== undefined && reduce === this.fold.reduce
           ? shared.reduced
           : undefined,
-      publish: (operationId, event, parentRunId) => {
-        if (!isDropped())
-          this.publish(threadId, operationId, event, parentRunId)
+      publish: (operationId, event) => {
+        if (!isDropped()) this.publish(threadId, operationId, event)
       },
       append: (records, appendOptions) =>
         isDropped()
@@ -1907,12 +1904,7 @@ export class SharedLog<TState = unknown> {
   // Writes
   // ===========================
 
-  private publish(
-    thread: string,
-    operationId: string,
-    event: StreamChunk,
-    parentRunId: string | undefined,
-  ) {
+  private publish(thread: string, operationId: string, event: StreamChunk) {
     const normalized = normalize(event)
     const key = deltaKey(thread, operationId, normalized)
     const last = this.pending.at(-1)
@@ -1926,12 +1918,7 @@ export class SharedLog<TState = unknown> {
     else {
       this.pending.push(
         this.stamp(
-          {
-            type: 'harness.event',
-            operationId,
-            ...(parentRunId !== undefined ? { parentRunId } : {}),
-            event: normalized,
-          },
+          { type: 'harness.event', operationId, event: normalized },
           thread,
         ),
       )
@@ -2585,8 +2572,7 @@ function mergeDelta(first: StreamChunk, second: StreamChunk): StreamChunk {
 
 /**
  * The session event of `entry`, or `undefined` when it is not an event. A
- * record with no `thread` is an event of `rootThread`. An old record has no
- * `parentRunId`.
+ * record with no `thread` is an event of `rootThread`.
  */
 function sessionEventOf(entry: LogEntry, rootThread: string) {
   const { record } = entry
@@ -2597,9 +2583,6 @@ function sessionEventOf(entry: LogEntry, rootThread: string) {
     cursor: String(entry.seq),
     threadId: threadOf(record, rootThread),
     operationId: record.operationId,
-    ...(typeof record.parentRunId === 'string'
-      ? { parentRunId: record.parentRunId }
-      : {}),
     event: record.event,
   }
   return event

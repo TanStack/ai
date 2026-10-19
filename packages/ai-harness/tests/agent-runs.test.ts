@@ -25,6 +25,7 @@ import type {
   HarnessPersistence,
   HarnessSession,
   Operation,
+  SessionEvent,
 } from '../src'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
@@ -556,7 +557,7 @@ describe('agents that agent code starts', () => {
         result: 'helped',
       },
     ])
-    // Each event of the child names its parent run. The lead has none.
+    // The events of the lead and of its child, in one stream.
     const events = []
     for await (const entry of session.events()) {
       events.push(entry)
@@ -571,8 +572,11 @@ describe('agents that agent code starts', () => {
     const ofLead = events.filter((entry) => entry.operationId === run.id)
     expect(ofChild.length).toBeGreaterThan(0)
     expect(ofLead.length).toBeGreaterThan(0)
-    for (const entry of ofChild) expect(entry.parentRunId).toBe(run.id)
-    for (const entry of ofLead) expect(entry).not.toHaveProperty('parentRunId')
+    // The RUN_STARTED of a child run names its parent. The lead has none.
+    const startOf = (entries: Array<SessionEvent>) =>
+      entries.find((entry) => entry.event.type === EventType.RUN_STARTED)?.event
+    expect(startOf(ofChild)).toMatchObject({ parentRunId: run.id })
+    expect(startOf(ofLead)).not.toHaveProperty('parentRunId')
     await host.close()
   })
 

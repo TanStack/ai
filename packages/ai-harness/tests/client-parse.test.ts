@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import { createHarnessHandler } from '../src/server'
-import { createHarnessClient } from '../src/client'
+import { HarnessProtocolError, createHarnessClient } from '../src/client'
 import { mockAdapter, text } from './helpers'
 
 /** The part of a /control request body that these tests read. */
@@ -223,6 +223,56 @@ describe('events() reconnects', () => {
     controller.abort()
 
     expect(await next).toEqual({ done: true, value: undefined })
+  })
+})
+
+describe('harness.error frames', () => {
+  const errorFrame = (code: string) =>
+    `data: ${JSON.stringify({ type: 'harness.error', code, message: `${code} happened`, requestId: 'r' })}\n\n`
+
+  it('events() connects again from its cursor after slow_consumer, and throws any other error', async () => {
+    const urls: Array<string> = []
+    const client = clientOn(async (input) => {
+      urls.push(String(input))
+      return urls.length === 1
+        ? streamed([sessionFrame('1'), errorFrame('slow_consumer')])
+        : streamed([sessionFrame('2'), errorFrame('internal')])
+    }, 1)
+    const seen: Array<string> = []
+
+    const reading = (async () => {
+      for await (const entry of client.events({ from: '0' })) {
+        seen.push(entry.cursor)
+      }
+    })()
+
+    await expect(reading).rejects.toMatchObject({
+      name: 'HarnessProtocolError',
+      code: 'internal',
+      message: 'internal happened',
+    })
+    await expect(reading).rejects.toBeInstanceOf(HarnessProtocolError)
+    expect(seen).toEqual(['1', '2'])
+    expect(urls).toHaveLength(2)
+    expect(urls[1]).toContain('from=1')
+  })
+
+  it('hostEvents() connects again after slow_consumer, and throws any other error', async () => {
+    let calls = 0
+    const client = clientOn(async () => {
+      calls += 1
+      return calls === 1
+        ? streamed(['data: {"n":1}\n\n', errorFrame('slow_consumer')])
+        : streamed(['data: {"n":2}\n\n', errorFrame('forbidden')])
+    })
+    const frames: Array<unknown> = []
+
+    const reading = (async () => {
+      for await (const frame of client.hostEvents()) frames.push(frame)
+    })()
+
+    await expect(reading).rejects.toMatchObject({ code: 'forbidden' })
+    expect(frames).toEqual([{ n: 1 }, { n: 2 }])
   })
 })
 

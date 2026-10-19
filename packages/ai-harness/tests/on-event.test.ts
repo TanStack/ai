@@ -199,13 +199,7 @@ describe('a MESSAGES_SNAPSHOT event', () => {
       wake: () => {},
     }
     const heard: Array<string> = []
-    const tapped = tapFeed(
-      feed,
-      () => {},
-      new Set(),
-      new Redactor(),
-      () => undefined,
-    )
+    const tapped = tapFeed(feed, () => {}, new Set(), new Redactor())
     tapped.listen(({ event }) => void heard.push(event.type))
     const snapshot: StreamChunk = {
       type: EventType.MESSAGES_SNAPSHOT,

@@ -607,9 +607,9 @@ test.describe('harness protocol', () => {
     expect(frames).toEqual([
       {
         type: 'harness.error',
-        message: 'Protocol version 9 is not supported.',
+        message:
+          'Protocol version 9 is not supported. This host speaks version 2.',
         code: 'unsupported_version',
-        supported: [2],
         requestId: 'e2e-version-9',
       },
     ])

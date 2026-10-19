@@ -18,6 +18,7 @@ import type {
   SessionMetadataOf,
 } from './define'
 import type { HostEvent } from './host'
+import type { HarnessErrorCode } from './protocol'
 import type { SessionDescription, SessionSnapshot } from './session/index'
 import type { SessionEntryChange } from './session-entry'
 import type {
@@ -52,6 +53,36 @@ export type {
   HostSessionEvent,
   HostStatusEvent,
 } from './host'
+
+/**
+ * A `harness.error` frame that ended a stream of the client: `code` says
+ * what failed. `events()` and `hostEvents()` throw it. A `slow_consumer`
+ * error is not thrown: they connect again.
+ */
+export class HarnessProtocolError extends Error {
+  readonly code: HarnessErrorCode
+  constructor(code: HarnessErrorCode, message: string) {
+    super(message)
+    this.name = 'HarnessProtocolError'
+    this.code = code
+  }
+}
+
+/**
+ * The error of a `harness.error` frame. Undefined for another frame and
+ * for `slow_consumer`: the stream ends, and the client connects again.
+ */
+function protocolErrorOf(frame: unknown): HarnessProtocolError | undefined {
+  if (!isRecord(frame) || frame.type !== 'harness.error') return undefined
+  if (frame.code === 'slow_consumer') return undefined
+  const code =
+    typeof frame.code === 'string'
+      ? (frame.code as HarnessErrorCode)
+      : 'internal'
+  const message =
+    typeof frame.message === 'string' ? frame.message : 'Harness stream failed'
+  return new HarnessProtocolError(code, message)
+}
 
 export interface HarnessClientOptions {
   /** The base URL of `createHarnessHandler`, for example `/api/harness`. */
@@ -740,6 +771,8 @@ export function createHarnessClient<THarness extends AnyHarness>(
             isAlive()
           })
           for await (const frame of frames) {
+            const failure = protocolErrorOf(frame)
+            if (failure) throw failure
             if (
               typeof frame === 'object' &&
               frame !== null &&
@@ -759,6 +792,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
         } catch (error) {
           if (signal?.aborted) return
           if (error === badSnapshot) throw error
+          if (error instanceof HarnessProtocolError) throw error
           // A 404 means that the thread has no entry yet: a new chat, before
           // its first message. Try again, the same as after a network error.
           if (error instanceof Error && /\((401|403)\)/.test(error.message))
@@ -788,26 +822,33 @@ export function createHarnessClient<THarness extends AnyHarness>(
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
     const stopListening = whenAborted(signal, () => cancelReader(reader))
     try {
-      const response = await checked(
-        'host-events',
-        await doFetch(`${base}/host-events`, {
-          headers: headers(),
-          ...(signal ? { signal } : {}),
-        }),
-      )
-      if (!response.body)
-        throw new Error('Harness host-events failed: the answer has no body')
-      reader = response.body.getReader()
-      for await (const frame of sseFrames(reader)) {
-        // The handler sends `HostEvent` frames, and `harness.*` frames (the
-        // hello first, an error last) that are not host events.
-        const isHarnessFrame =
-          typeof frame === 'object' &&
-          frame !== null &&
-          'type' in frame &&
-          typeof frame.type === 'string' &&
-          frame.type.startsWith('harness.')
-        if (!isHarnessFrame) yield frame as HostEvent
+      // A `slow_consumer` error ends the stream: connect again. The current
+      // statuses come first again.
+      let isSlow = true
+      while (isSlow && !signal?.aborted) {
+        isSlow = false
+        const response = await checked(
+          'host-events',
+          await doFetch(`${base}/host-events`, {
+            headers: headers(),
+            ...(signal ? { signal } : {}),
+          }),
+        )
+        if (!response.body)
+          throw new Error('Harness host-events failed: the answer has no body')
+        reader = response.body.getReader()
+        for await (const frame of sseFrames(reader)) {
+          // The handler sends `HostEvent` frames, and `harness.*` frames
+          // (the hello first, an error last) that are not host events.
+          const type = isRecord(frame) ? frame.type : undefined
+          if (type === 'harness.error') {
+            const failure = protocolErrorOf(frame)
+            if (failure) throw failure
+            isSlow = true
+          } else if (typeof type !== 'string' || !type.startsWith('harness.')) {
+            yield frame as HostEvent
+          }
+        }
       }
     } catch (error) {
       if (signal?.aborted) return

@@ -898,24 +898,21 @@ export function notifyListeners(
  * is how the host and `onEvent` see events. The caller keeps `listeners`, so
  * they survive a new tap of another feed. Each event goes through
  * `redactor` first, so no one of them gets a secret of the session.
- * `parentOf` gives the parent run of an operation, so each event of a child
- * run names its parent.
  */
 export function tapFeed(
   feed: EventFeed,
   notifyHost: (event: StreamChunk) => void,
   listeners: Set<EventListener>,
   redactor: Redactor,
-  parentOf: (operationId: string) => string | undefined,
 ): ListenedFeed {
   return {
-    publish: (operationId, raw, parentRunId) => {
+    publish: (operationId, raw) => {
       const event = redactor.redact(raw)
       // ponytail: core sends a MESSAGES_SNAPSHOT only when a run pauses at
       // an interrupt, so the log keeps each one. A rejoin from the log (the
       // run route, `Last-Event-ID`) needs it: ai-client rebuilds the paused
       // run from it. If core sends it at other times, filter here.
-      feed.publish(operationId, event, parentRunId ?? parentOf(operationId))
+      feed.publish(operationId, event)
       notifyListeners(notifyHost, listeners, { operationId, event })
     },
     listen: (listener) => {

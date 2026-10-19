@@ -1744,10 +1744,13 @@ export abstract class SessionAgents<
       ...storedPrincipal(principal),
     })
     if (answers) await runs.update(operation.id, { status: 'running' })
+    // The run that started this one: a reader rebuilds the run tree from it.
+    const parentRunId = chain.parentRunId ?? chain.turnRunId
     operation.publish({
       type: EventType.RUN_STARTED,
       runId: operation.id,
       threadId: this.threadId,
+      ...(parentRunId !== undefined ? { parentRunId } : {}),
       timestamp: Date.now(),
     })
     if (!answers) {

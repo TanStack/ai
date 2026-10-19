@@ -154,7 +154,7 @@ The socket closes with these codes:
 | --- | --- | --- |
 | `4401` | `identify` refused the user. | Sign in again. |
 | `4403` | The user cannot read the thread, or lost access. | Stop. |
-| `4400` | The server does not speak the `v` of the subscribe. | Read `supported`, then subscribe again with a version from it. |
+| `4400` | The server does not speak the `v` of the subscribe. | Stop. Use a client of the version of the server. |
 | `4408` | The client read too slowly. See [Stream values](#stream-values). | Subscribe again from the last cursor. |
 | `1011` | The event feed of the thread ended. | Subscribe again from the last cursor. |
 
@@ -220,9 +220,9 @@ From the host to the client:
 | --- | --- | --- |
 | `harness.hello` | `v`, `threadId` | First, after a subscribe that the host accepts. On SSE, the first event of `GET events`. |
 | `harness.receipt` | `requestId`, `status`, `inputId?`, `operationId?`, `reason?` | The answer to one `harness.input`. |
-| `harness.event` | `cursor`, `threadId`, `operationId`, `parentRunId?`, `event` | One event of the session. |
+| `harness.event` | `cursor`, `threadId`, `operationId`, `event` | One event of the session. |
 | `harness.snapshot` | `snapshot` | The answer to a `harness.snapshot` frame. |
-| `harness.error` | `message`, `code`, `requestId`, `supported?` | Something failed. See [Errors](#errors). |
+| `harness.error` | `message`, `code`, `requestId` | Something failed. See [Errors](#errors). |
 | `harness.ping` | none | A heartbeat on the socket. Ignore it. |
 
 ### The event frame
@@ -230,18 +230,18 @@ From the host to the client:
 - `event` is an AG-UI event in its wire form. It has only the keys of the AG-UI spec.
 - `operationId` is the run that made the event. It is also the AG-UI `runId`.
 - `threadId` is the thread that keeps the event. On the stream of a thread, it is that thread.
-- `parentRunId` is the run that started this run. Only a child run has it: an agent run that agent code started, or that a tool of a turn started. A top-level run has no `parentRunId`.
+- The AG-UI `RUN_STARTED` event of a child run has `parentRunId`: the run that started it. A child run is an agent run that agent code started, or that a tool of a turn started. A top-level run has no `parentRunId`.
 - An event of a subagent also has `subagentRunId` on the `event` itself.
 
-The stream of a thread has the events of every run of its tree, in one order. To rebuild the tree, keep the `parentRunId` of each `operationId`. For example, a lead agent that runs two helpers in a group gives these frames (the `event` is cut):
+The stream of a thread has the events of every run of its tree, in one order. To rebuild the tree, keep the `parentRunId` of the `RUN_STARTED` of each `operationId`. For example, a lead agent that runs two helpers in a group gives these frames (the `event` is cut):
 
 ```text
-{"type":"harness.event","cursor":"9","threadId":"thread-1","operationId":"op-lead","event":{...}}
-{"type":"harness.event","cursor":"12","threadId":"thread-1","operationId":"op-a","parentRunId":"op-lead","event":{...}}
-{"type":"harness.event","cursor":"13","threadId":"thread-1","operationId":"op-b","parentRunId":"op-lead","event":{...}}
+{"type":"harness.event","cursor":"9","threadId":"thread-1","operationId":"op-lead","event":{"type":"RUN_STARTED","runId":"op-lead",...}}
+{"type":"harness.event","cursor":"12","threadId":"thread-1","operationId":"op-a","event":{"type":"RUN_STARTED","runId":"op-a","parentRunId":"op-lead",...}}
+{"type":"harness.event","cursor":"13","threadId":"thread-1","operationId":"op-b","event":{"type":"RUN_STARTED","runId":"op-b","parentRunId":"op-lead",...}}
 ```
 
-`op-a` and `op-b` are children of `op-lead`. Every event of one run has the same `parentRunId`.
+`op-a` and `op-b` are children of `op-lead`.
 
 The status of a receipt is `accepted`, `queued`, or `rejected`. A `rejected` receipt has a `reason`, for example `not_exposed`, `not_running`, or `unknown_agent`.
 
@@ -310,14 +310,13 @@ The `harness.hello` frame gives the version that the server uses. If the server 
 ```json
 {
   "type": "harness.error",
-  "message": "Protocol version 3 is not supported.",
+  "message": "Protocol version 3 is not supported. This host speaks version 2.",
   "code": "unsupported_version",
-  "supported": [2],
   "requestId": "req-1"
 }
 ```
 
-Read `supported`, then connect again with a version from that list.
+The server speaks one version. Use a client of that version.
 
 ## Errors
 
@@ -333,6 +332,8 @@ A `harness.error` frame has a `code` and a `requestId`. `message` is for people,
 | `internal` | The server failed to read the events, or failed to apply one input. | When the read failed, yes: connect again from the last cursor. When one input failed, no. |
 
 On HTTP, a refused login or action before the stream starts is the `401` or `403` status of the request, with no frame.
+
+`createHarnessClient` reads these frames for you. After `slow_consumer`, `events()` and `hostEvents()` connect again. Any other code ends the read with a `HarnessProtocolError`, which has the `code` and the `message`.
 
 The `requestId` connects the error to its request:
 

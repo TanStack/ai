@@ -154,12 +154,6 @@ export interface SessionEvent {
   threadId: string
   /** The operation that produced the event. It is also the AG-UI `runId`. */
   operationId: string
-  /**
-   * The run that started the operation, when the operation is a child run:
-   * an agent run that agent code or a tool of a turn started. A top-level
-   * run has none. With `operationId`, it gives the run tree.
-   */
-  parentRunId?: string
   event: StreamChunk
 }
 

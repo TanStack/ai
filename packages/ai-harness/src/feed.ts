@@ -22,12 +22,7 @@ import type {
  * log opens, it has a {@link SessionFeed} in memory.
  */
 export interface EventFeed {
-  /** `parentRunId`: the run that started the operation, for a child run. */
-  publish: (
-    operationId: string,
-    event: StreamChunk,
-    parentRunId?: string,
-  ) => void
+  publish: (operationId: string, event: StreamChunk) => void
   /** The cursor of the newest event, or `'0'` for an empty feed. */
   head: () => Cursor
   /**
@@ -199,14 +194,13 @@ export class SessionFeed implements EventFeed {
     this.eventBytes = options.eventBytes
   }
 
-  publish(operationId: string, event: StreamChunk, parentRunId?: string): void {
+  publish(operationId: string, event: StreamChunk): void {
     this.sequence += 1
     const size = jsonLength(event)
     this.entries.push({
       cursor: String(this.sequence),
       threadId: this.threadId,
       operationId,
-      ...(parentRunId !== undefined ? { parentRunId } : {}),
       event,
     })
     this.sizes.push(size)

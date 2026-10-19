@@ -24,11 +24,6 @@ import type {
 /** The session-tier protocol version. Sent in `subscribe` and `hello`. */
 export const HARNESS_PROTOCOL_VERSION = 2
 
-/** The protocol versions that this host speaks. */
-export const SUPPORTED_PROTOCOL_VERSIONS: ReadonlyArray<number> = [
-  HARNESS_PROTOCOL_VERSION,
-]
-
 /** What failed, in a `harness.error` frame. */
 export type HarnessErrorCode =
   | 'unauthorized'
@@ -67,8 +62,6 @@ export type HostFrame =
       /** The thread of the event: the thread, or a child thread of its tree. */
       threadId: string
       operationId: string
-      /** The run that started the operation, for a child run. */
-      parentRunId?: string
       event: StreamChunk
     }
   | { type: 'harness.snapshot'; snapshot: SessionSnapshot }
@@ -82,8 +75,6 @@ export type HostFrame =
        * a request with no id gets an id from the server.
        */
       requestId: string
-      /** With `unsupported_version`: the versions that the host speaks. */
-      supported?: ReadonlyArray<number>
     }
   /** A heartbeat. It keeps idle connections open. Ignore it. */
   | { type: 'harness.ping' }
@@ -707,34 +698,18 @@ export function capabilitiesOf(
 }
 
 /**
- * Pick the protocol version for a `harness.subscribe` frame or a `?v=`
- * query. No `requested` version means the current version. A version that
- * this host does not speak gets the parts of an `unsupported_version` error
- * frame: send it, then close the stream.
- *
- * @example
- * ```ts
- * const picked = negotiateVersion({ requested: frame.v })
- * if ('error' in picked) send({ type: 'harness.error', requestId, ...picked.error })
- * ```
+ * The `unsupported_version` error of a `harness.subscribe` frame or a
+ * `?v=` query that asks for a version other than
+ * {@link HARNESS_PROTOCOL_VERSION}. No version asks for the current one.
+ * Send the error frame, then close the stream.
  */
-export function negotiateVersion({ requested }: { requested?: number }):
-  | { v: number }
-  | {
-      error: {
-        message: string
-        code: 'unsupported_version'
-        supported: ReadonlyArray<number>
-      }
-    } {
-  if (requested === undefined) return { v: HARNESS_PROTOCOL_VERSION }
-  if (SUPPORTED_PROTOCOL_VERSIONS.includes(requested)) return { v: requested }
+export function versionError(requested: number | undefined) {
+  if (requested === undefined || requested === HARNESS_PROTOCOL_VERSION) {
+    return undefined
+  }
   return {
-    error: {
-      message: `Protocol version ${requested} is not supported.`,
-      code: 'unsupported_version',
-      supported: SUPPORTED_PROTOCOL_VERSIONS,
-    },
+    message: `Protocol version ${requested} is not supported. This host speaks version ${HARNESS_PROTOCOL_VERSION}.`,
+    code: 'unsupported_version' as const,
   }
 }
 

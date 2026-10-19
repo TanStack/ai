@@ -257,10 +257,10 @@ describe('runHarnessWorker edges', () => {
     expect(frames).toEqual([
       {
         type: 'harness.error',
-        message: 'Protocol version 1 is not supported.',
+        message:
+          'Protocol version 1 is not supported. This host speaks version 2.',
         code: 'unsupported_version',
         requestId: 's1',
-        supported: [2],
       },
     ])
   })

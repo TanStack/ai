@@ -20,7 +20,8 @@ import {
   applyInput,
   capabilitiesOf,
   describeForClient,
-  negotiateVersion,
+  HARNESS_PROTOCOL_VERSION,
+  versionError,
   parseControlFrame,
   parseHarnessInput,
   requestIdOf,
@@ -172,10 +173,10 @@ function sseResponse(
   return new Response(body, { headers: SSE_HEADERS })
 }
 
-/** The protocol version that `?v=` asks for. See `negotiateVersion`. */
+/** The error of a `?v=` that asks for another version. See `versionError`. */
 function versionOf(url: URL) {
   const v = url.searchParams.get('v')
-  return negotiateVersion(v === null ? {} : { requested: Number(v) })
+  return versionError(v === null ? undefined : Number(v))
 }
 
 /**
@@ -183,10 +184,7 @@ function versionOf(url: URL) {
  * stream with one `unsupported_version` error frame. Then it closes.
  */
 function versionRefused(
-  error: Omit<
-    Extract<HostFrame, { type: 'harness.error' }>,
-    'type' | 'requestId'
-  >,
+  error: NonNullable<ReturnType<typeof versionError>>,
   requestId: string,
 ) {
   const frame: HostFrame = { type: 'harness.error', requestId, ...error }
@@ -998,9 +996,13 @@ export function createHarnessHandler<P extends Principal = Principal>(
         request.headers.get('Last-Event-ID') ??
         url.searchParams.get('from') ??
         undefined
-      const picked = versionOf(url)
-      if ('error' in picked) return versionRefused(picked.error, requestId)
-      const hello: HostFrame = { type: 'harness.hello', v: picked.v, threadId }
+      const refused = versionOf(url)
+      if (refused) return versionRefused(refused, requestId)
+      const hello: HostFrame = {
+        type: 'harness.hello',
+        v: HARNESS_PROTOCOL_VERSION,
+        threadId,
+      }
       return sseResponse(
         async function* (signal) {
           yield { data: JSON.stringify(hello) }
@@ -1017,14 +1019,17 @@ export function createHarnessHandler<P extends Principal = Principal>(
     }
 
     if (request.method === 'GET' && route === 'host-events') {
-      const picked = versionOf(url)
-      if ('error' in picked) return versionRefused(picked.error, requestId)
+      const refused = versionOf(url)
+      if (refused) return versionRefused(refused, requestId)
       const { accepts, mayWatch } = watchedEvents(principal)
       // The events of the principal's tenant only, from the host event bus.
       // A host that `createHarnessHost` did not make has `host.events()`.
       const readTenant = tenantEventsOf(host)
       // The hello of `host-events` names no thread.
-      const hello = JSON.stringify({ type: 'harness.hello', v: picked.v })
+      const hello = JSON.stringify({
+        type: 'harness.hello',
+        v: HARNESS_PROTOCOL_VERSION,
+      })
       return sseResponse(
         async function* (signal) {
           yield { data: hello }
@@ -1538,10 +1543,10 @@ export function handleHarnessSocket<P extends Principal = Principal>(
         if (frame.type === 'harness.subscribe') {
           if (subscribed)
             return fail('invalid_frame', 'Already subscribed.', requestId)
-          const picked = negotiateVersion({ requested: frame.v })
-          if ('error' in picked) {
+          const refused = versionError(frame.v)
+          if (refused) {
             return closeWith(
-              { type: 'harness.error', requestId, ...picked.error },
+              { type: 'harness.error', requestId, ...refused },
               UNSUPPORTED_VERSION_CLOSE_CODE,
             )
           }
@@ -1563,7 +1568,11 @@ export function handleHarnessSocket<P extends Principal = Principal>(
             { principal, threadId, signal: reader.signal },
             () => refuse('forbidden', requestId),
           )
-          void send({ type: 'harness.hello', v: picked.v, threadId })
+          void send({
+            type: 'harness.hello',
+            v: HARNESS_PROTOCOL_VERSION,
+            threadId,
+          })
           void stream(subscription.view, frame.from)
             // The close waits for this frame: it goes out first.
             .catch((error: unknown) =>
