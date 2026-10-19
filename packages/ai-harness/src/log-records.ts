@@ -217,19 +217,22 @@ export type WorkspaceBinding =
 /**
  * A run of the run tree, with what the session needs to find its input: the
  * input that the run applies, and for an agent run, the `agent` input of the
- * first run of its chain.
+ * first run of its chain. The fields after `RunNode` are bookkeeping of the
+ * session, and can change.
  */
 export type RunTreeNode = RunNode & {
+  /** @internal The input that the run applies. */
   inputId?: string
+  /** @internal The `agent` input of the first run of the chain. */
   chainInputId?: string
   /**
-   * The `agent` input of the chain whose code started this run. The tree
-   * budget of that chain counts this run, also after a restart.
+   * @internal The `agent` input of the chain whose code started this run.
+   * The tree budget of that chain counts this run, also after a restart.
    */
   parentChainInputId?: string
   /**
-   * The start options that the log cannot keep: a function. A run that
-   * another host takes over runs without them.
+   * @internal The start options that the log cannot keep: a function. A run
+   * that another host takes over runs without them.
    */
   liveOnly?: Array<'onModelError'>
 }

@@ -206,6 +206,8 @@ console.log(agentNodes.map((record) => [record.runId, record.agent, record.paren
 ```
 
 - A `harness.run.node` record has `runId`, `kind` (`turn`, `agent`, or `command`), and the `principal` when it is known. An agent run also has `agent`, and `parentRunId`, `key`, `limits`, and `budget` when it has them.
+- Read only these fields. The other fields of the record are bookkeeping of the session, and they can change.
+- The tree also has `tool` runs. These come from `harness.run` records, not from `harness.run.node` records.
 - The status, the result, and the error come from later records: `harness.run`, `harness.run.update`, and `harness.agent.result`. A session folds them into one tree. See [The run tree](./subagents#the-run-tree).
 - Each `harness.usage` record has the `runId` of the run that made the model call. See [Usage of one run](./usage#usage-of-one-run).
 - A `harness.state` record has a `key` and one change to its value. It is the shared state of [`ctx.harness.state`](./subagents#share-state-between-agents).
