@@ -61,6 +61,7 @@ import { Route as ApiAnthropicMaxTokensUsageRouteImport } from './routes/api.ant
 import { Route as ApiAnthropicMultiTurnStructuredWireRouteImport } from './routes/api.anthropic-multi-turn-structured-wire'
 import { Route as ApiAnthropicOpus5CombinedWireRouteImport } from './routes/api.anthropic-opus-5-combined-wire'
 import { Route as ApiAnthropicRedactedThinkingWireRouteImport } from './routes/api.anthropic-redacted-thinking-wire'
+import { Route as ApiAnthropicRefusalRouteImport } from './routes/api.anthropic-refusal'
 import { Route as ApiAnthropicSkillsWireRouteImport } from './routes/api.anthropic-skills-wire'
 import { Route as ApiAnthropicSonnet55WireRouteImport } from './routes/api.anthropic-sonnet-5-5-wire'
 import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.anthropic-structured-usage'
@@ -457,6 +458,11 @@ const ApiAnthropicRedactedThinkingWireRoute =
     path: '/api/anthropic-redacted-thinking-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAnthropicRefusalRoute = ApiAnthropicRefusalRouteImport.update({
+  id: '/api/anthropic-refusal',
+  path: '/api/anthropic-refusal',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAnthropicSkillsWireRoute = ApiAnthropicSkillsWireRouteImport.update({
   id: '/api/anthropic-skills-wire',
   path: '/api/anthropic-skills-wire',
@@ -1171,6 +1177,7 @@ export interface FileRoutesByFullPath {
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
+  '/api/anthropic-refusal': typeof ApiAnthropicRefusalRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-sonnet-5-5-wire': typeof ApiAnthropicSonnet55WireRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
@@ -1350,6 +1357,7 @@ export interface FileRoutesByTo {
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
+  '/api/anthropic-refusal': typeof ApiAnthropicRefusalRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-sonnet-5-5-wire': typeof ApiAnthropicSonnet55WireRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
@@ -1530,6 +1538,7 @@ export interface FileRoutesById {
   '/api/anthropic-multi-turn-structured-wire': typeof ApiAnthropicMultiTurnStructuredWireRoute
   '/api/anthropic-opus-5-combined-wire': typeof ApiAnthropicOpus5CombinedWireRoute
   '/api/anthropic-redacted-thinking-wire': typeof ApiAnthropicRedactedThinkingWireRoute
+  '/api/anthropic-refusal': typeof ApiAnthropicRefusalRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
   '/api/anthropic-sonnet-5-5-wire': typeof ApiAnthropicSonnet55WireRoute
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
@@ -1711,6 +1720,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-redacted-thinking-wire'
+    | '/api/anthropic-refusal'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-sonnet-5-5-wire'
     | '/api/anthropic-structured-usage'
@@ -1890,6 +1900,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-redacted-thinking-wire'
+    | '/api/anthropic-refusal'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-sonnet-5-5-wire'
     | '/api/anthropic-structured-usage'
@@ -2069,6 +2080,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-multi-turn-structured-wire'
     | '/api/anthropic-opus-5-combined-wire'
     | '/api/anthropic-redacted-thinking-wire'
+    | '/api/anthropic-refusal'
     | '/api/anthropic-skills-wire'
     | '/api/anthropic-sonnet-5-5-wire'
     | '/api/anthropic-structured-usage'
@@ -2249,6 +2261,7 @@ export interface RootRouteChildren {
   ApiAnthropicMultiTurnStructuredWireRoute: typeof ApiAnthropicMultiTurnStructuredWireRoute
   ApiAnthropicOpus5CombinedWireRoute: typeof ApiAnthropicOpus5CombinedWireRoute
   ApiAnthropicRedactedThinkingWireRoute: typeof ApiAnthropicRedactedThinkingWireRoute
+  ApiAnthropicRefusalRoute: typeof ApiAnthropicRefusalRoute
   ApiAnthropicSkillsWireRoute: typeof ApiAnthropicSkillsWireRoute
   ApiAnthropicSonnet55WireRoute: typeof ApiAnthropicSonnet55WireRoute
   ApiAnthropicStructuredUsageRoute: typeof ApiAnthropicStructuredUsageRoute
@@ -2736,6 +2749,13 @@ declare module '@tanstack/react-router' {
       path: '/api/anthropic-redacted-thinking-wire'
       fullPath: '/api/anthropic-redacted-thinking-wire'
       preLoaderRoute: typeof ApiAnthropicRedactedThinkingWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/anthropic-refusal': {
+      id: '/api/anthropic-refusal'
+      path: '/api/anthropic-refusal'
+      fullPath: '/api/anthropic-refusal'
+      preLoaderRoute: typeof ApiAnthropicRefusalRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/anthropic-skills-wire': {
@@ -3727,6 +3747,7 @@ const rootRouteChildren: RootRouteChildren = {
     ApiAnthropicMultiTurnStructuredWireRoute,
   ApiAnthropicOpus5CombinedWireRoute: ApiAnthropicOpus5CombinedWireRoute,
   ApiAnthropicRedactedThinkingWireRoute: ApiAnthropicRedactedThinkingWireRoute,
+  ApiAnthropicRefusalRoute: ApiAnthropicRefusalRoute,
   ApiAnthropicSkillsWireRoute: ApiAnthropicSkillsWireRoute,
   ApiAnthropicSonnet55WireRoute: ApiAnthropicSonnet55WireRoute,
   ApiAnthropicStructuredUsageRoute: ApiAnthropicStructuredUsageRoute,
