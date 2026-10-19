@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, defineAgent } from '@tanstack/ai'
-import { memoryLogBackend, memoryLogStore } from '@tanstack/ai-persistence'
+import {
+  memoryLogBackend,
+  memoryLogStore,
+  memoryPersistence,
+} from '@tanstack/ai-persistence'
 import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { credentialsFor } from '../src/auth'
 import {
@@ -821,6 +825,25 @@ describe('host.submit', () => {
       status: 'rejected',
       reason: 'conflict',
     })
+    await host.close()
+  })
+
+  it('refuses a thread of another harness, and offers nothing', async () => {
+    const persistence = memoryPersistence()
+    const { adapter } = mockAdapter([() => text('Hi.')])
+    const support = defineHarness({ name: 'test/support', adapter })
+    const billing = defineHarness({ name: 'test/billing', adapter })
+    const host = createHarnessHost({ persistence })
+    await (await host.open(support, { threadId: THREAD })).close()
+
+    await expect(
+      host.submit({
+        harness: billing,
+        threadId: THREAD,
+        input: { op: 'prompt', message: 'Pay the bill.' },
+      }),
+    ).rejects.toThrow(/belongs to harness "test\/support"/)
+    expect(await waiting(persistence.stores.log)).toEqual([])
     await host.close()
   })
 })

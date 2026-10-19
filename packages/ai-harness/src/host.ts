@@ -2049,7 +2049,10 @@ export function createHarnessHost<P extends Principal = Principal>(
     return principal
   }
 
-  /** The entry of the root thread of `entry`. A child is checked through it. */
+  /**
+   * The entry of the root thread of `entry`. A child is checked through it.
+   * A parent with no entry throws: the child is not its own root.
+   */
   const rootOf = async (entry: SessionIndexEntry) => {
     let root = entry
     const seen = new Set([root.threadId])
@@ -2062,7 +2065,11 @@ export function createHarnessHost<P extends Principal = Principal>(
         tenantId: root.tenantId,
         threadId: root.parentThreadId,
       })
-      if (!parent) break
+      if (!parent) {
+        throw new Error(
+          `The session index has no entry for thread ${JSON.stringify(root.parentThreadId)}, the parent of thread ${JSON.stringify(root.threadId)}, so the host cannot find the root of ${JSON.stringify(entry.threadId)}.`,
+        )
+      }
       root = parent
     }
     return root
@@ -2783,6 +2790,13 @@ export function createHarnessHost<P extends Principal = Principal>(
     async observe(harness, { threadId, principal }) {
       if (isClosed) throw hostClosed()
       const tenantId = principal?.tenantId
+      // ponytail: without an index, a child is known only by its id
+      // (`<root>/agent/<run id>`), so an app id with `/agent/` throws too.
+      if (!sessionStore && threadId.includes('/agent/')) {
+        throw new Error(
+          `host.observe: ${JSON.stringify(threadId)} is the thread of a harnessAgent child. The host finds the root of a child thread through the session index: a child thread needs stores.sessions.`,
+        )
+      }
       const entry = await index.get({ tenantId, threadId })
       let user: P | undefined
       if (access) {
@@ -2933,9 +2947,9 @@ export function createHarnessHost<P extends Principal = Principal>(
       // An answer or a cancel is checked with the run that it targets, from
       // the log. `null`: the log does not have that run.
       let run: AccessRun | null | undefined
+      const entry = await index.get(of)
       if (access) {
         const user = need(principal, 'host.submit')
-        const entry = await index.get(of)
         const target = await loggedTargetOf({
           store: logStore,
           logId: logIdOf({ tenantId, logId: threadId }),
@@ -2959,6 +2973,9 @@ export function createHarnessHost<P extends Principal = Principal>(
           wait: target.wait,
         })
       }
+      // After the access check, so a refused user does not learn the
+      // harness. The offer names the harness of the log for the sweep.
+      checkHarness(entry, harness)
       await refuseChild(of)
       if (run === null) {
         const refused: Receipt = {

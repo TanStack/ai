@@ -219,6 +219,39 @@ describe('host.observe with access', () => {
   })
 })
 
+describe('host.observe of a child thread', () => {
+  it('throws when the parent of the child has no index entry', async () => {
+    const { host, harness, persistence } = setup()
+    await persistence.stores.sessions.upsert({
+      threadId: 'subagent:run-1',
+      parentThreadId: 't-gone',
+      harness: harness.name,
+      members: [],
+      createdAt: 1,
+      updatedAt: 1,
+    })
+
+    await expect(
+      host.observe(harness, { threadId: 'subagent:run-1' }),
+    ).rejects.toThrow(/no entry for thread "t-gone"/)
+    await host.close()
+  })
+
+  it('throws on a host without stores.sessions', async () => {
+    const { log } = memoryPersistence().stores
+    const host = createHarnessHost({ persistence: { stores: { log } } })
+    const harness = defineHarness({
+      name: 'test/observe',
+      adapter: mockAdapter([]).adapter,
+    })
+
+    await expect(
+      host.observe(harness, { threadId: `${THREAD}/agent/run-1` }),
+    ).rejects.toThrow(/a child thread needs stores.sessions/)
+    await host.close()
+  })
+})
+
 describe('the read routes', () => {
   it('mount nothing and write nothing for snapshot, transcript, and events', async () => {
     const { host, harness, setups, writes, seed, reset, isOpen } = setup()

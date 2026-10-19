@@ -15,8 +15,9 @@ export interface StepRun {
   /**
    * A key for the side effect of this step. Give it to a system that refuses
    * a second call with the same key. In a harness session it is
-   * `${logId}:${toolCallId}:${name}:${attempt}` (see
-   * `RunContext.idempotencyKey`). Outside a session it is the step name.
+   * `${logId}:${toolCallId}:${name}` (`RunContext.idempotencyKey` with the
+   * tool call id as scope). It has no attempt part: a run again of the call
+   * gets the same key. Outside a session it is the step name.
    */
   idempotencyKey: string
   /**
