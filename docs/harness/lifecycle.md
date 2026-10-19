@@ -189,7 +189,18 @@ The first-party plugins also end the thread:
 
 - [`workspaceTools()`](./coding-workspaces) reattaches an owned sandbox of the thread and closes it with `'closed'`, so it is destroyed.
 - [`snapshots()`](./snapshots#remove-the-snapshots-of-a-thread) removes the snapshot repository of the thread.
-- This needs the index entry of the thread, and a host that opened a session of this harness before.
+- This needs the index entry of the thread, and the harness of the thread on this host.
+
+A host knows a harness when it opened a session of it. After a deploy or a restart, a new host has opened nothing. Give it the harnesses that it can delete threads of:
+
+```ts group=harness-lifecycle
+const deleteHost = createHarnessHost({
+  persistence: memoryPersistence(),
+  harnesses: [assistant],
+})
+```
+
+A host that does not know the harness of a thread still deletes the data. It warns, and the plugins do not end the thread: an owned sandbox stays.
 
 - On a host with `access`, `delete` needs the `delete` action. A child thread is checked through its root thread.
 - A handle that calls again after the delete opens a new, empty thread.

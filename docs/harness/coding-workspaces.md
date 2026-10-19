@@ -72,7 +72,7 @@ export const sandboxed = workspaceTools({
 ```
 
 - A session close (an idle close, a deploy, or a move to another server) closes the backend with `'moved'`. The sandbox stays, so the next server can [reattach](#a-sandbox) it.
-- [`host.sessions.delete`](./lifecycle#delete-a-thread-for-good) ends the thread. The host reattaches the sandbox and closes it with `'closed'`, so it is destroyed.
+- [`host.sessions.delete`](./lifecycle#delete-a-thread-for-good) ends the thread. The host reattaches the sandbox and closes it with `'closed'`, so it is destroyed. The host that deletes must know the harness: it opened the harness, or it has the harness in its [`harnesses`](./lifecycle#delete-a-thread-for-good) option. Else it warns, and the sandbox stays.
 
 ## 2. Keep server secrets out of commands
 

@@ -195,6 +195,8 @@ When the promise of `host.revoke` resolves:
 - The signed media URLs of the user stop working. A signed URL names its user, and the handler checks that user again when it serves the file.
 - `host.events()` yields a `revoked` event.
 
+When the cancels cannot be sent (for example, the log store fails), the promise rejects. The access is gone already. Call `host.revoke` again to stop the work. `host.sessions.unshare` rejects the same way, after it removed the member.
+
 `host.sessions.share` and `unshare` work only with `membersOnly()`. With your own tables, change the tables, then call `host.revoke`.
 
 ## Serve with no login

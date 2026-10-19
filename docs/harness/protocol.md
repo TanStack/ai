@@ -356,7 +356,7 @@ A long stream passes through proxies and slow networks. The server keeps it open
 - `POST run` and `GET run` also get the `: ping` comment. SSE parsers skip comments.
 - A slow client loses no events. The server reads them from the log when the client reads again.
 - Set the idle timeout of your proxy to more than the heartbeat.
-- A client can use the heartbeat to find a dead connection. `createHarnessClient` connects again when no bytes come for 60 s.
+- A client can use the heartbeat to find a dead connection. `createHarnessClient` connects again when no bytes come for 60 s (its `idleTimeoutMs`). If you set `heartbeatMs` to 60 s or more, set a larger `idleTimeoutMs` on the client.
 - The stdio worker has no heartbeat and does not use these values.
 
 To change a value, pass `stream` to the handler and to the socket. A value that you do not set keeps its default:

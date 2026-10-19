@@ -172,7 +172,6 @@ Across servers and restarts:
 Users and plugins:
 
 - With an [OAuth MCP server](./mcp#3-sign-in-to-an-oauth-server), the MCP SDK sends its own refresh request for each session. Only the save of the new token is single-flight, so two sessions can use a rotating refresh token at the same time.
-- The `principal` on `revert` and `background` is checked against `access`, but the log does not keep it.
 - Plugin tools do not reach background agents. The `question` tool works only in a turn of the lead agent.
 
 ## What you have now

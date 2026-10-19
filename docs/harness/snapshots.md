@@ -149,7 +149,7 @@ The undo point and the steps are in the session log. So when another server take
 [`host.sessions.delete`](./lifecycle#delete-a-thread-for-good) removes the snapshot repository of the thread for you. This needs two things:
 
 - The thread has an index entry.
-- This host opened a session of this harness before.
+- This host knows the harness: it opened a session of it before, or it has the harness in its [`harnesses`](./lifecycle#delete-a-thread-for-good) option.
 
 In other cases, call `purgeSnapshots` with the options of the plugin and the thread:
 

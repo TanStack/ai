@@ -939,19 +939,19 @@
           "label": "Connect clients",
           "to": "harness/connect",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Write a client in any language",
           "to": "harness/protocol",
           "addedAt": "2026-10-17",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Access and tenants",
           "to": "harness/access",
           "addedAt": "2026-10-17",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Run in the terminal",
@@ -963,7 +963,7 @@
           "label": "Deploy a harness",
           "to": "harness/deploy",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Send inputs safely",
@@ -997,7 +997,7 @@
           "label": "Lifecycle and retention",
           "to": "harness/lifecycle",
           "addedAt": "2026-10-17",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Run side effects once",
@@ -1014,7 +1014,7 @@
           "label": "Build on the session log",
           "to": "harness/session-log",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Control how a turn ends",
@@ -1079,13 +1079,14 @@
         {
           "label": "Run the coding tools for many threads",
           "to": "harness/coding-workspaces",
-          "addedAt": "2026-10-18"
+          "addedAt": "2026-10-18",
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Undo a turn",
           "to": "harness/snapshots",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Build a coding agent",
