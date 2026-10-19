@@ -464,7 +464,7 @@ When you get one of these events, load the part of the session that it names aga
 | `harness.media` | A media record: `{ id, threadId, kind, mimeType, name, size, createdAt, source }`. See [Send and show media](./media). |
 | `harness.plugin.event` | `{ plugin, name, value }`. An event that a plugin sent. |
 | `harness.plugin.warning` | `{ plugin, message }`. A plugin hook, a listener, or a write that no one waits for failed. The work goes on. |
-| `harness.ownership.changed` | `{ epoch, reason }`. A new host owns the log, from its first write. `reason` is `taken_over` when the old owner stopped with inputs that did not end, else `acquired`. |
+| `harness.ownership.changed` | `{ epoch, reason }`. A new host owns the log, from its first write. `reason` is `taken_over` when the ownership of the old owner expired with no release (it stopped), else `acquired`. |
 | `harness.stranded` | `{ operationId?, hostId? }`. The workspace that the log binds the thread to is gone, so the workspace tools fail. `operationId` is the run that tried it. `hostId` is the host of a folder. |
 | `harness.transferred` | `{ transferId, from?, to? }`. `from` and `to` are `{ threadId }`. The conversation came from, or went to, another thread. |
 | `harness.gap` | `{ from, resumeAt, reason }`. See [When events are missing](#when-events-are-missing). |

@@ -2114,14 +2114,11 @@ export class SharedLog<TState = unknown> {
     const held = this.heldEpoch
     this.heldEpoch = epoch
     if (held === undefined || epoch > held + 1) {
-      // The old owner left inputs that did not end: it stopped, and this
-      // host takes over its work.
-      const isTakeover = [...this.state.sessions.values()].some((session) =>
-        [...session.inputs.values()].some(
-          (input) => input.status === 'pending' || input.status === 'applied',
-        ),
-      )
-      const reason = isTakeover ? 'taken_over' : 'acquired'
+      // The store says whether the old owner stopped: its ownership expired
+      // with no release.
+      const reason = this.ownership.tookOver(this.logId)
+        ? 'taken_over'
+        : 'acquired'
       queueMicrotask(() => this.notifyOwned({ epoch, reason }))
     }
     return epoch

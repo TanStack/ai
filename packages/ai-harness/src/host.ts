@@ -1023,39 +1023,46 @@ export type SessionIndexWriter = ReturnType<typeof sessionIndex>
  * session waits while a question or an interrupt still waits, runs while
  * another operation runs, and else is idle.
  *
- * The snapshot has only the work of this host. `seen` keeps the operations
- * that run and the questions that wait from the events, so the events that
- * another host wrote count too.
+ * The questions of the snapshot come from the folded log, so the questions
+ * of every host count. Its operations are only the work of this host:
+ * `seen.running` keeps the operations that run from the events, so the
+ * events that another host wrote count too.
  */
 function statusAfter(
   session: HarnessSession,
   event: StreamChunk,
-  seen: { running: Set<string>; asked: Set<string> },
+  seen: { running: Set<string> },
 ) {
   if (event.type !== EventType.CUSTOM) return undefined
   const value = isRecord(event.value) ? event.value : {}
-  const { operationId, questionId } = value
+  const { operationId } = value
   switch (event.name) {
     case HARNESS_EVENTS.operationStarted:
       if (typeof operationId === 'string') seen.running.add(operationId)
       return 'running'
+    case HARNESS_EVENTS.ownershipChanged:
+      // The old owner stopped: its operations never finish.
+      if (value.reason === 'taken_over') seen.running.clear()
+      return undefined
+    case HARNESS_EVENTS.operationResumed:
+      // The input of a stopped host runs again as a new operation. The old
+      // operation never finishes.
+      if (typeof value.resumedFrom === 'string') {
+        seen.running.delete(value.resumedFrom)
+      }
+      return undefined
     case HARNESS_EVENTS.question:
-      if (typeof questionId === 'string') seen.asked.add(questionId)
       return 'waiting'
     case HARNESS_EVENTS.operationFinished:
     case HARNESS_EVENTS.questionAnswered: {
       if (typeof operationId === 'string') seen.running.delete(operationId)
-      if (typeof questionId === 'string') seen.asked.delete(questionId)
-      // An operation asks each question, so with no operation, none waits.
-      if (seen.running.size === 0) seen.asked.clear()
       const { pendingQuestions, pendingInterrupts, activeOperations } =
         session.snapshot()
       const isInterrupted = value.status === 'interrupted'
       const stillWaits =
         isInterrupted ||
         pendingQuestions.length > 0 ||
-        pendingInterrupts.length > 0 ||
-        seen.asked.size > 0
+        pendingInterrupts.length > 0
       if (stillWaits) return 'waiting'
       const isRunning = activeOperations.length > 0 || seen.running.size > 0
       return isRunning ? 'running' : 'idle'
@@ -1824,7 +1831,7 @@ export function createHarnessHost<P extends Principal = Principal>(
       // tenant. Only a root opens: its child threads write to this log.
       const storeLogId = logIdOf({ tenantId, logId: threadId })
       // For the status rule. See `statusAfter`.
-      const seen = { running: new Set<string>(), asked: new Set<string>() }
+      const seen = { running: new Set<string>() }
       const created = new SessionImpl({
         ...sessionDeps(
           { logId: storeLogId, rootThread: threadId },

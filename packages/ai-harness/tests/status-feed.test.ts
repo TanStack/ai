@@ -12,7 +12,14 @@ import {
   definePlugin,
   durableTool,
 } from '../src'
-import { mockAdapter, text, toolCall } from './helpers'
+import {
+  CRASHING_OWNERSHIP,
+  mockAdapter,
+  ownershipExpired,
+  text,
+  toolCall,
+  untilAborted,
+} from './helpers'
 import type { HostEvent } from '../src'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
@@ -191,5 +198,41 @@ describe('host.events on a host that does not own the log', () => {
     await running.close()
     await other.close()
     await owner.close()
+  })
+
+  it('shows idle after it takes the log of a host that stopped in a turn', async () => {
+    const backend = memoryLogBackend()
+    const harnessOf = (replies: Parameters<typeof mockAdapter>[0]) =>
+      defineHarness({
+        name: 'test/status-takeover',
+        adapter: mockAdapter(replies).adapter,
+      })
+    const stopped = createHarnessHost({
+      persistence: { stores: { log: memoryLogStore({ backend }) } },
+      ownership: CRASHING_OWNERSHIP,
+    })
+    const other = createHarnessHost({
+      persistence: { stores: { log: memoryLogStore({ backend }) } },
+    })
+    const first = await stopped.open(harnessOf([untilAborted()]), {
+      threadId: 's',
+    })
+    const second = await other.open(harnessOf([() => text('two')]), {
+      threadId: 's',
+    })
+    const feed = watch((signal) => other.events({ signal }))
+    void Promise.resolve(first.send('one', { inputId: 'in-1' })).catch(() => {})
+    await waitFor(() => expect(statusesOf(feed.seen, 's')).toContain('running'))
+    // The first host stops: its ownership of the log expires.
+    await ownershipExpired()
+
+    // The next send takes the log from the stopped host, and runs.
+    await second.send('two')
+
+    await waitFor(() => expect(statusesOf(feed.seen, 's').at(-1)).toBe('idle'))
+    await feed.stop()
+    await second.close()
+    await stopped.close().catch(() => {})
+    await other.close()
   })
 })

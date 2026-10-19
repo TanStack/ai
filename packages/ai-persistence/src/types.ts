@@ -851,6 +851,8 @@ export interface LogStore {
    * - Else increments the epoch, stores `harness`, clears the wake time, and
    *   returns the new epoch. The epoch never goes down, also after `release`
    *   and `deleteLog`.
+   * - When the log had another owner whose ownership expired with no
+   *   `release`, the result has `expired: true`: that owner stopped.
    *
    * Rejects with a `RangeError` when `ttlMs` is not more than 0.
    */
@@ -860,7 +862,7 @@ export interface LogStore {
     ownerId: string
     ttlMs: number
     affinity?: string
-  }) => Promise<{ epoch: number } | null>
+  }) => Promise<{ epoch: number; expired?: boolean } | null>
   /**
    * Extend the ownership to `ttlMs` milliseconds from now. Returns `true` only
    * when the log is not released, `epoch` is the current epoch, and `ownerId`

@@ -991,7 +991,10 @@ export interface HarnessEventValues {
   'harness.ownership.changed': {
     /** The ownership epoch of the new owner. */
     epoch: number
-    /** `taken_over`: the old owner stopped, and this host took the log. */
+    /**
+     * `taken_over`: the ownership of the old owner expired with no release,
+     * so it stopped, and this host took the log.
+     */
     reason: 'acquired' | 'taken_over'
   }
   'harness.stranded': { operationId?: string; hostId?: string }

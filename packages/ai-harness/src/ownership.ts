@@ -110,6 +110,8 @@ export class HostOwnership {
   private readonly renewMs: number
   /** The epoch of each log that this host owns, by store log id. */
   private readonly owned = new Map<string, number>()
+  /** The owned logs that the store gave over an owner that stopped. */
+  private readonly takenOver = new Set<string>()
   private readonly lostListeners = new Map<
     string,
     Set<(error: OwnershipLostError) => void>
@@ -150,6 +152,14 @@ export class HostOwnership {
   }
 
   /**
+   * True when this host owns `logId` because the ownership of another
+   * owner expired: that owner stopped with no release.
+   */
+  tookOver(logId: string) {
+    return this.takenOver.has(logId)
+  }
+
+  /**
    * Own `logId`. Returns the epoch, or `null` when another live host owns
    * it. A log that this host owns already keeps its epoch.
    */
@@ -165,6 +175,7 @@ export class HostOwnership {
     })
     if (got === null) return null
     this.owned.set(logId, got.epoch)
+    if (got.expired) this.takenOver.add(logId)
     this.startTimer()
     return got.epoch
   }
@@ -181,6 +192,7 @@ export class HostOwnership {
   /** Stop owning `logId` with no store call: the store refused its epoch. */
   forget(logId: string) {
     this.owned.delete(logId)
+    this.takenOver.delete(logId)
     if (this.owned.size === 0) this.stopTimer()
   }
 

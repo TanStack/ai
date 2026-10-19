@@ -672,7 +672,7 @@ interface LogStore {
     ownerId: string
     ttlMs: number
     affinity?: string
-  }): Promise<{ epoch: number } | null>
+  }): Promise<{ epoch: number; expired?: boolean } | null>
   renew(claim: {
     logId: string
     ownerId: string
@@ -803,6 +803,9 @@ or a `wakeInMs` less than 0, rejects with `RangeError`.
 - For the owner of a live record, it extends the expiry and returns the same epoch.
 - Else it adds 1 to the epoch, stores `harness`, clears the wake time, and returns
   `{ epoch }`.
+- When the record had another owner that did not release, it returns
+  `{ epoch, expired: true }`. That owner stopped. The harness then sends
+  `harness.ownership.changed` with `reason: taken_over`.
 
 For the other ownership methods:
 

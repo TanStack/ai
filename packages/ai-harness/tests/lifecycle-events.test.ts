@@ -160,6 +160,28 @@ describe('harness.ownership.changed', () => {
     await first.host.close().catch(() => {})
     await next.host.close()
   })
+
+  it('says acquired when the old owner gave the log back with work left', async () => {
+    const log = memoryLogStore()
+    const first = await openOn(log, [untilAborted()])
+    void Promise.resolve(first.session.send('one', { inputId: 'in-1' })).catch(
+      () => {},
+    )
+    await waitFor(() => expect(first.session.snapshot().status).toBe('running'))
+    // A graceful stop: the host releases the log, and the input waits.
+    await first.host.close({ recoverable: true })
+
+    const next = await openOn(log, [() => text('one again')])
+    await next.session.settled({ inputId: 'in-1' })
+
+    await waitFor(async () =>
+      expect(await valuesOf(log, THREAD, 'harness.ownership.changed')).toEqual([
+        { epoch: 1, reason: 'acquired' },
+        { epoch: 2, reason: 'acquired' },
+      ]),
+    )
+    await next.host.close()
+  })
 })
 
 describe('harness.wait.opened and harness.wait.settled', () => {

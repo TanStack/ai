@@ -867,6 +867,9 @@ class MemoryLogStore implements LogStore {
       return { epoch: owner.epoch }
     }
     const epoch = (owner?.epoch ?? UNOWNED_EPOCH) + 1
+    // Another owner that did not release: its ownership expired.
+    const expired =
+      owner !== undefined && !owner.released && owner.ownerId !== ownerId
     this.backend.owners.set(logId, {
       harness,
       ownerId,
@@ -874,7 +877,7 @@ class MemoryLogStore implements LogStore {
       expiresAt: now + ttlMs,
       released: false,
     })
-    return { epoch }
+    return expired ? { epoch, expired: true } : { epoch }
   }
 
   async renew({
