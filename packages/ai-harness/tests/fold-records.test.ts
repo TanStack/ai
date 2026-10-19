@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  KEPT_ENDED,
   THREAD_RECORD_TYPES,
   emptyThreadState,
   foldThreadRecord,
   pluginStateDeltas,
 } from '../src/log-records'
+import { emptyLogState, foldEntry } from '../src/log'
 import type { LogRecord } from '@tanstack/ai-persistence'
 import type { ThreadRecord } from '../src/log-records'
 
@@ -177,16 +179,25 @@ describe('foldThreadRecord', () => {
     }
   })
 
-  it('never changes the state it gets', () => {
-    const before = fold([
-      { type: 'harness.config', key: 'tone', value: 'formal' },
-    ])
-    foldThreadRecord(before, {
-      type: 'harness.config',
-      key: 'tone',
-      value: null,
+  it('changes the maps in place, but never an entry that a caller holds', () => {
+    const run = {
+      runId: 'r-1',
+      threadId: 't-1',
+      status: 'running',
+      startedAt: 1,
+    } as const
+    const state = fold([{ type: 'harness.run', run }])
+    const { runs } = state
+    const held = runs.get('r-1')
+    const next = foldThreadRecord(state, {
+      type: 'harness.run.update',
+      runId: 'r-1',
+      patch: { status: 'completed' },
     })
-    expect([...before.config]).toEqual([['tone', 'formal']])
+
+    expect(next.runs).toBe(runs)
+    expect(runs.get('r-1')?.status).toBe('completed')
+    expect(held?.status).toBe('running')
   })
 
   it('folds the same records to equal states', () => {
@@ -407,5 +418,107 @@ describe('pluginStateDeltas', () => {
 
   it('writes nothing for the same value', () => {
     expect(pluginStateDeltas({ count: 1 }, { count: 1 })).toEqual([])
+  })
+})
+
+describe('the fold of a long thread', () => {
+  /** The records of `turns` turns: each one an agent run with an interrupt. */
+  function foldTurns(turns: number) {
+    const state = emptyLogState()
+    let seq = 0
+    const add = (record: LogRecord) => foldEntry(state, { seq: ++seq, record })
+    // A run that started first and still runs stays in the fold.
+    add({
+      type: 'harness.run',
+      run: { runId: 'live', threadId: 't', status: 'running', startedAt: 0 },
+    })
+    for (let turn = 0; turn < turns; turn++) {
+      const inputId = `in-${turn}`
+      const runId = `run-${turn}`
+      add({ type: 'harness.input', inputId, input: prompt, at: turn })
+      add({
+        type: 'harness.input.turn',
+        inputId,
+        overrides: { ephemeral: [{ role: 'user', content: 'Be short.' }] },
+      })
+      add({
+        type: 'harness.input.applied',
+        inputId,
+        operationId: runId,
+        attempt: 1,
+      })
+      add({
+        type: 'harness.run',
+        run: {
+          runId,
+          threadId: 't',
+          status: 'running',
+          startedAt: turn,
+          kind: 'agent',
+        },
+      })
+      add({
+        type: 'harness.interrupt',
+        interrupt: {
+          interruptId: `i-${turn}`,
+          runId,
+          threadId: 't',
+          requestedAt: turn,
+          payload: {},
+        },
+      })
+      add({
+        type: 'harness.interrupt.end',
+        interruptId: `i-${turn}`,
+        status: 'resolved',
+        at: turn,
+        response: { ok: true },
+      })
+      add({
+        type: 'harness.agent.result',
+        runId,
+        inputId,
+        status: 'completed',
+        result: { text: 'Done.' },
+      })
+      add({
+        type: 'harness.run.update',
+        runId,
+        patch: { status: 'completed' },
+      })
+      add({
+        type: 'harness.input.settled',
+        inputId,
+        operationId: runId,
+        outcome: 'completed',
+      })
+    }
+    return state.thread
+  }
+
+  it('drops the overrides of settled turns, and keeps a tail of ended runs', () => {
+    const thread = foldTurns(KEPT_ENDED + 50)
+
+    expect(thread.turnOverrides.size).toBe(0)
+    expect(thread.runs.size).toBe(KEPT_ENDED + 1)
+    expect(thread.runs.get('live')?.status).toBe('running')
+    expect(thread.runs.has('run-49')).toBe(false)
+    expect(thread.runs.has('run-50')).toBe(true)
+    expect(thread.tree.size).toBe(KEPT_ENDED)
+    expect(thread.interrupts.size).toBe(KEPT_ENDED)
+    expect(thread.agentResults.size).toBe(KEPT_ENDED)
+  })
+
+  it('keeps the snapshot of the thread state the same size as turns go on', () => {
+    const sizeAfter = (turns: number) =>
+      JSON.stringify(
+        Object.values(foldTurns(turns)).map((value) =>
+          value instanceof Map ? [...value] : value,
+        ),
+      ).length
+    // Only the digits of the ids grow.
+    expect(sizeAfter(4 * KEPT_ENDED)).toBeLessThan(
+      sizeAfter(2 * KEPT_ENDED) * 1.1,
+    )
   })
 })

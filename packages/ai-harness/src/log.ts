@@ -13,6 +13,7 @@ import {
   applyRunNode,
   emptyThreadState,
   foldThreadRecord,
+  pruneThreadState,
   isHumanTarget,
   isEnded,
   rejectRunNode,
@@ -653,6 +654,9 @@ export function foldEntry(
         reason: record.reason,
       }))
       state.thread = rejectRunNode(state.thread, record)
+      // A refused input never runs: its turn needs no overrides.
+      state.thread.turnOverrides.delete(record.inputId)
+      pruneThreadState(state.thread)
       dropEndedUsage(state)
       return
     case 'harness.input.abort':
@@ -697,6 +701,10 @@ export function foldEntry(
         },
       }))
       state.thread = settleRunNode(state.thread, record)
+      // A settled input never runs again: its turn needs no overrides. A
+      // resolve of an interrupted turn is a new input with its own.
+      state.thread.turnOverrides.delete(record.inputId)
+      pruneThreadState(state.thread)
       dropEndedUsage(state)
       return
     }
@@ -747,6 +755,7 @@ export function foldEntry(
     case 'harness.state':
     case 'harness.workspace.bound':
       state.thread = foldThreadRecord(state.thread, record)
+      pruneThreadState(state.thread)
       if (state.runUsage.size > 0) dropEndedUsage(state)
       return
   }
