@@ -31,7 +31,7 @@ Add it with `plugins: () => [today]` in `defineHarness`. `setup` runs once per s
 For the model:
 
 - `tools`: tools for the model, made with `toolDefinition`.
-- `prompts`: text for the system prompt. A function runs for each turn, so it can show current state. For text that changes often, see [Put changing text after the history](#put-changing-text-after-the-history).
+- `prompts`: text for the system prompt. A function runs for each turn, so it can show current state. For text that changes often, see [Put changing text last](#put-changing-text-last).
 - `middleware`: chat middleware for the lead turn, the same type as `chat({ middleware })`. `agentMiddleware` is for agent runs, see [Middleware in every agent](#middleware-in-every-agent).
 - `generationMiddleware`: middleware for the activities agents call.
 - `adapter`: a picker for the model of each turn, see [Pick the model of a turn](#pick-the-model-of-a-turn).
@@ -48,7 +48,7 @@ If two plugins add the same tool, command, setting, or prompt id, `host.open` fa
 
 Return these from `setup`, not from the top level of `definePlugin`. A key like `adapter` or `tools` at the top level is a type error, and `definePlugin` throws for it. Other keys at the top level stay on the plugin object, so a plugin can give your code its own functions.
 
-### Put changing text after the history
+### Put changing text last
 
 Set `placement: 'context'` on a prompt whose text changes often:
 
@@ -69,10 +69,11 @@ export const tickets = definePlugin({
 })
 ```
 
-A provider caches the start of each request: the system prompts, then the history. If a system prompt changes, the cache misses for the whole conversation. A `'context'` prompt does not change that start.
+A provider caches the start of each request: the system prompts, then the history. A change of a system prompt makes the cache miss from that prompt on. A `'context'` prompt is the last system prompt, so the system prompts before it stay in the cache.
 
-- The model gets `'context'` text in one user message after the history, at each model call.
-- The default is `'system'`: the text goes in the system prompts.
+- The model gets all `'context'` text as one system prompt, after the other system prompts. The harness makes it again at each model call.
+- The text has the authority of a system prompt, not of a user message.
+- The default is `'system'`: the text goes in the system prompts, in plugin order.
 - The log does not keep `'context'` text.
 - The first-party todos, goal, and plan mode prompts use `'context'`.
 

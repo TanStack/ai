@@ -229,7 +229,7 @@ export function goal(options: {
         prompts: [
           {
             id: 'tanstack/goal:active',
-            // It changes often: after the history, so the prompt cache holds.
+            // It changes often: last, so the system prompts before it stay cached.
             placement: 'context',
             text: () =>
               current?.status === 'active'

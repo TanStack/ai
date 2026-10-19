@@ -16,6 +16,7 @@ import type {
   Scope,
   StreamChunk,
   SubagentsBag,
+  SystemPrompt,
 } from '@tanstack/ai'
 import type { LogRecord, MessageStore } from '@tanstack/ai-persistence'
 import type { Redactor } from '../auth'
@@ -617,15 +618,22 @@ export function ephemeralCall(pending: Array<ModelMessage>): AnyChatMiddleware {
 }
 
 /**
- * Gives each model call the `'context'` plugin prompts after the history,
- * as one user message. It changes only what the adapter gets
- * (`providerMessages`), so no save keeps them. A change of them leaves the
- * system prompts and the history as they were, so the provider prompt
- * cache keeps its prefix.
+ * Gives each model call the `'context'` plugin prompts as one system prompt,
+ * after all other system prompts. The text has system authority, not user
+ * authority. Each call takes out the prompt of the call before, so a change
+ * replaces it and the stable system prompts before it stay the same.
+ *
+ * ponytail: a `ModelMessage` has no `system` role, so the prompt cannot go
+ * after the history. A change of it changes the cached prefix from the
+ * system prompts on. A system message in the history needs a core change.
+ *
+ * `texts` must be scrubbed of the session secrets already: a redacted copy
+ * is a new object, and the next call could not find it to take it out.
  */
 export function contextPromptCall(
   texts: () => ReadonlyArray<string>,
 ): AnyChatMiddleware {
+  let last: SystemPrompt | undefined
   return {
     name: 'harness:context-prompts',
     onConfig: (ctx, config) => {
@@ -633,10 +641,11 @@ export function contextPromptCall(
       const text = texts()
         .filter((item) => item !== '')
         .join('\n\n')
-      if (text === '') return undefined
-      const messages = config.providerMessages ?? config.messages
-      const note: ModelMessage = { role: 'user', content: text }
-      return { providerMessages: [...messages, note] }
+      const kept = config.systemPrompts.filter((prompt) => prompt !== last)
+      if (text === '' && kept.length === config.systemPrompts.length)
+        return undefined
+      last = text === '' ? undefined : { content: text }
+      return { systemPrompts: last ? [...kept, last] : kept }
     },
   }
 }

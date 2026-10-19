@@ -55,12 +55,11 @@ export interface PluginPrompt {
   text: string | ((turn: TurnInfo) => string)
   /**
    * Where the model gets the text. `'system'` (default): in the system
-   * prompts, before the history. `'context'`: in one user message after the
-   * history, at each model call. Use `'context'` for text that changes
-   * often, such as a todo list or a mode. A change of system prompts makes
-   * the provider prompt cache miss for the whole conversation. A change
-   * after the history keeps the cached prefix. The log does not keep the
-   * `'context'` text.
+   * prompts, in plugin order. `'context'`: in one system prompt after all
+   * the others, made again at each model call. Use `'context'` for text that
+   * changes often, such as a todo list or a mode: a change makes the
+   * provider prompt cache miss only from that last prompt on. The log does
+   * not keep the `'context'` text.
    */
   placement?: 'system' | 'context'
 }
@@ -594,7 +593,7 @@ export interface MountedPlugins {
   tools: Array<AnyTool>
   /** The `'system'` prompts: strings, or functions to call for each turn. */
   prompts: Array<string | ((turn: TurnInfo) => string)>
-  /** The `'context'` prompts, with their owners. They go after the history. */
+  /** The `'context'` prompts, with their owners. They go last in the system prompts. */
   contextPrompts: Array<{
     text: string | ((turn: TurnInfo) => string)
     owner: string

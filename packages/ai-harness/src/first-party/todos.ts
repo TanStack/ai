@@ -82,7 +82,7 @@ export function todos() {
         prompts: [
           {
             id: 'tanstack/todos:list',
-            // It changes often: after the history, so the prompt cache holds.
+            // It changes often: last, so the system prompts before it stay cached.
             placement: 'context',
             text: () =>
               current.length > 0
