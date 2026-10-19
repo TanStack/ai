@@ -428,11 +428,12 @@ describe('handoffs', () => {
     expect(await session.settled({ inputId: 'opened' })).toMatchObject({
       outcome: 'completed',
     })
-    // ponytail: core calls the model once more after the resumed tools (it
-    // asks onShouldContinue only after a tool phase of the loop). Then the
-    // part ends, and the target answers in the same turn.
-    expect(main.calls).toHaveLength(2)
+    // The main model handed off: it does not answer again.
+    expect(main.calls).toHaveLength(1)
     expect(billing.model.calls).toHaveLength(1)
+    expect(JSON.stringify(await session.transcript())).not.toContain(
+      'One moment.',
+    )
     expect((await transcriptTexts(session)).at(-1)).toBe(
       'billing:\nBilling here.',
     )
