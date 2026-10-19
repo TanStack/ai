@@ -30,8 +30,6 @@ const failing = vi.hoisted(() => ({
   list: new Set<string>(),
   open: new Set<string>(),
 }))
-/** How many times each folder was read from disk. */
-const reads = vi.hoisted(() => new Map<string, number>())
 
 // Pass-through spies. The tests reach the plugin's watchers, its skill
 // source, and a failing folder through them. Everything else is unchanged.
@@ -61,7 +59,6 @@ vi.mock('../src/node', async (importOriginal) => {
       return {
         ...source,
         list: () => {
-          reads.set(key, (reads.get(key) ?? 0) + 1)
           if (failing.list.has(key)) {
             return Promise.reject(new Error(`cannot read ${key}`))
           }
@@ -84,7 +81,6 @@ afterEach(async () => {
   seen.sources.length = 0
   failing.list.clear()
   failing.open.clear()
-  reads.clear()
   vi.mocked(watch).mockClear()
   vi.restoreAllMocks()
 })
@@ -522,7 +518,7 @@ describe('skills()', () => {
     expect(names()).toContain('alpha')
     expect(warn.mock.calls).toEqual([
       [
-        `skills: cannot watch the subfolders of ${dir} on this platform. Its skills are read from disk on each use.`,
+        `skills: cannot watch the subfolders of ${dir} on this platform. An edited SKILL.md shows at the next turn.`,
       ],
     ])
     // Without a recursive watcher, an edited SKILL.md shows at the next read.
@@ -556,29 +552,7 @@ describe('skills()', () => {
     )
   })
 
-  it('reads a watched folder from disk again only after it changes', async () => {
-    const dir = await tempDir()
-    await addSkill(dir, 'alpha')
-    const { list } = await open({ dirs: [dir] })
-
-    await list()
-    // Windows reports the access time that the first read sets as a change.
-    // Wait until that event and its sync are done.
-    await new Promise((resolve) => setTimeout(resolve, 400))
-    const settled = reads.get(dir)
-    await list()
-    await list()
-    await list()
-    expect(reads.get(dir)).toBe(settled)
-    await addSkill(dir, 'gamma')
-    await vi.waitFor(
-      async () => expect(await list()).toContain(`/gamma  ${dir}`),
-      { timeout: 5000 },
-    )
-    expect(reads.get(dir)).toBeGreaterThan(settled ?? 0)
-  })
-
-  it('warns once and reads the folder from disk when it cannot be watched', async () => {
+  it('warns once, and reads the folder at each turn, when it cannot be watched', async () => {
     const warn = warnings()
     const dir = await tempDir()
     await addSkill(dir, 'alpha')
@@ -594,7 +568,7 @@ describe('skills()', () => {
     expect(vi.mocked(watch)).toHaveBeenCalledTimes(1)
     expect(warn.mock.calls).toEqual([
       [
-        `skills: cannot watch ${dir} (too many open files). Its skills are read from disk on each use.`,
+        `skills: cannot watch ${dir} (too many open files). Its skills change at the next turn.`,
       ],
     ])
   })
