@@ -1,11 +1,8 @@
 import { encodeWsFrame } from '@tanstack/ai'
 import { test, expect } from './fixtures'
 import type { APIRequestContext } from '@playwright/test'
-import type {
-  HarnessAttributeValue,
-  OperationReport,
-  SessionEvent,
-} from '@tanstack/ai-harness'
+import type { AttributeValue } from '@opentelemetry/api'
+import type { OperationReport, SessionEvent } from '@tanstack/ai-harness'
 
 type Scenario = 'wire' | 'gap' | 'tree' | 'lifecycle' | 'tracing'
 
@@ -25,7 +22,7 @@ interface Read {
 
 interface RecordedSpan {
   name: string
-  attributes: Record<string, HarnessAttributeValue>
+  attributes: Record<string, AttributeValue>
   links: Array<{ context: unknown }> | null
   hasParent: boolean
   ended: boolean

@@ -103,7 +103,7 @@ Bun can build for another platform with `target`, for example `bun-darwin-arm64`
 
 A turn is slow or fails on one of your servers, and you cannot see which run or which server. Give the host a tracer and an `onOperation` listener. The host then writes a span for each run, and tells your listener when each run starts and ends.
 
-Pass an OpenTelemetry tracer as it is:
+Pass an OpenTelemetry tracer as it is. Install `@opentelemetry/api` in your app first. It is an optional peer dependency of the harness.
 
 ```ts
 import { trace } from '@opentelemetry/api'

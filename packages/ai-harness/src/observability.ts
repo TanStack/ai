@@ -1,69 +1,19 @@
-// Tracing without a dependency. These types are a subset of the
-// OpenTelemetry `Tracer`, `Span`, and `SpanContext`, so an OpenTelemetry
-// tracer fits with no cast and no `@opentelemetry/*` import here.
-import type { OperationKind, OperationStatus } from './types'
+// Tracing with the OpenTelemetry API. `@opentelemetry/api` is an optional
+// peer: the types are type-only imports, and the runtime is loaded only when a
+// host has a tracer (see `OperationTracing.ready`).
 import { addCounts, emptyCounts } from './usage'
+import type {
+  Attributes,
+  Context,
+  ContextAPI,
+  Span,
+  SpanContext,
+  SpanOptions,
+  TraceAPI,
+  Tracer,
+} from '@opentelemetry/api'
+import type { OperationKind, OperationStatus } from './types'
 import type { UsageCall, UsageCounts } from './usage'
-
-/** The ids of a span: a subset of the OpenTelemetry `SpanContext`. */
-export interface HarnessSpanContext {
-  /** 32 lowercase hex characters. */
-  traceId: string
-  /** 16 lowercase hex characters. */
-  spanId: string
-  /** Bit 1 is `sampled`. */
-  traceFlags: number
-  /** True when the context came from another process. */
-  isRemote?: boolean
-}
-
-/** A value of a span attribute. */
-export type HarnessAttributeValue = string | number | boolean
-
-/**
- * The span methods that the harness calls: a subset of the OpenTelemetry
- * `Span`. The methods return `unknown`, so a span that returns `this` fits.
- */
-export interface HarnessSpan {
-  setAttribute: (key: string, value: HarnessAttributeValue) => unknown
-  /** `code`: 0 unset, 1 ok, 2 error, as the OpenTelemetry `SpanStatusCode`. */
-  setStatus: (status: { code: 0 | 1 | 2; message?: string }) => unknown
-  recordException: (exception: Error | string) => unknown
-  /** `endTime` is in epoch milliseconds. */
-  end: (endTime?: number) => unknown
-  spanContext: () => HarnessSpanContext
-}
-
-/** What `startSpan` takes: a subset of the OpenTelemetry `SpanOptions`. */
-export interface HarnessSpanOptions {
-  attributes?: Record<string, HarnessAttributeValue>
-  /** Links to other spans, for example to the `traceparent` of a caller. */
-  links?: Array<{ context: HarnessSpanContext }>
-  /** Epoch milliseconds. */
-  startTime?: number
-}
-
-/**
- * A subset of the OpenTelemetry `Context`. The harness passes one to
- * `startSpan` to give a span a parent span on the same host.
- */
-export interface HarnessContext {
-  getValue: (key: symbol) => unknown
-  setValue: (key: symbol, value: unknown) => HarnessContext
-  deleteValue: (key: symbol) => HarnessContext
-}
-
-/**
- * The tracer that the harness calls: a subset of the OpenTelemetry `Tracer`.
- * Pass `trace.getTracer('my-app')` from `@opentelemetry/api` as it is.
- */
-export interface HarnessTracer {
-  startSpan: (
-    name: string,
-    options?: HarnessSpanOptions,
-    context?: HarnessContext,
-  ) => HarnessSpan
-}
 
 /** What `onOperation` gets, once when an operation starts and once when it settles. */
 export interface OperationReport {
@@ -85,31 +35,55 @@ export interface OperationReport {
 
 /** The `observability` option of a host. */
 export interface ObservabilityOptions {
-  /** Without a tracer, the harness writes no spans. */
-  tracer?: HarnessTracer
+  /**
+   * An OpenTelemetry tracer, for example `trace.getTracer('my-app')`.
+   * Without a tracer, the harness writes no spans.
+   */
+  tracer?: Tracer
   /** A listener that throws is logged and ignored. */
   onOperation?: (report: OperationReport) => void | Promise<void>
 }
 
+/** The `SpanStatusCode` values, without a runtime import of the enum. */
+const OK = 1
 const ERROR = 2
 
-const NOOP_CONTEXT: HarnessSpanContext = {
+const NOOP_CONTEXT: SpanContext = {
   traceId: '0'.repeat(32),
   spanId: '0'.repeat(16),
   traceFlags: 0,
 }
 
 // One shared span, so a host without a tracer allocates nothing per span.
-const noopSpan: HarnessSpan = {
+const noopSpan: Span = {
   setAttribute: () => noopSpan,
+  setAttributes: () => noopSpan,
+  addEvent: () => noopSpan,
+  addLink: () => noopSpan,
+  addLinks: () => noopSpan,
   setStatus: () => noopSpan,
-  recordException: () => {},
+  updateName: () => noopSpan,
   end: () => {},
+  isRecording: () => false,
+  recordException: () => {},
   spanContext: () => NOOP_CONTEXT,
 }
 
 /** The tracer of a host without `observability.tracer`. It does nothing. */
-export const noopTracer: HarnessTracer = { startSpan: () => noopSpan }
+export const noopTracer: Pick<Tracer, 'startSpan'> = {
+  startSpan: () => noopSpan,
+}
+
+let otel: { trace: TraceAPI; context: ContextAPI } | undefined
+
+/**
+ * Load `@opentelemetry/api` once, for a host with a tracer. The harness
+ * needs it only to make the context of a parent span. Without the package,
+ * spans have no parent on this host.
+ */
+async function loadOpenTelemetry(): Promise<void> {
+  otel ??= await import('@opentelemetry/api').catch(() => undefined)
+}
 
 /**
  * Run `fn` in a span. The span ends when `fn` settles. When `fn` throws, the
@@ -127,8 +101,8 @@ export async function withSpan<T>(
     tracer,
     name,
     ...options
-  }: { tracer: HarnessTracer; name: string } & HarnessSpanOptions,
-  fn: (span: HarnessSpan) => T | PromiseLike<T>,
+  }: { tracer: Pick<Tracer, 'startSpan'>; name: string } & SpanOptions,
+  fn: (span: Span) => T | PromiseLike<T>,
 ): Promise<T> {
   const span = tracer.startSpan(name, options)
   try {
@@ -157,9 +131,7 @@ const TRACEPARENT =
  * // { traceId: '4bf9…', spanId: '00f0…', traceFlags: 1, isRemote: true }
  * ```
  */
-export function parseTraceparent(
-  value: unknown,
-): HarnessSpanContext | undefined {
+export function parseTraceparent(value: unknown): SpanContext | undefined {
   if (typeof value !== 'string') return undefined
   const match = TRACEPARENT.exec(value)
   if (!match) return undefined
@@ -178,30 +150,14 @@ export function parseTraceparent(
 }
 
 /** The W3C `traceparent` header value of a span context. */
-export function traceparentOf(context: HarnessSpanContext): string {
+export function traceparentOf(context: SpanContext): string {
   const flags = (context.traceFlags & 0xff).toString(16).padStart(2, '0')
   return `00-${context.traceId}-${context.spanId}-${flags}`
 }
 
-// OpenTelemetry keeps the span of a context under this key
-// (`createContextKey` makes it with `Symbol.for`).
-const SPAN_KEY = Symbol.for('OpenTelemetry Context Key SPAN')
-
-function contextOf(values: ReadonlyMap<symbol, unknown>): HarnessContext {
-  return {
-    getValue: (key) => values.get(key),
-    setValue: (key, value) => contextOf(new Map(values).set(key, value)),
-    deleteValue: (key) => {
-      const next = new Map(values)
-      next.delete(key)
-      return contextOf(next)
-    },
-  }
-}
-
 /** A context whose span is `span`: a span started in it is its child. */
-export const parentContext = (span: HarnessSpan): HarnessContext =>
-  contextOf(new Map([[SPAN_KEY, span]]))
+const parentContext = (span: Span | undefined): Context | undefined =>
+  span && otel ? otel.trace.setSpan(otel.context.active(), span) : undefined
 
 /** What {@link OperationTracing} reads of an operation. */
 interface TracedOperation {
@@ -217,7 +173,7 @@ interface TracedOperation {
 
 /** An operation of this host that did not settle yet. */
 interface OpenOperation {
-  span: HarnessSpan
+  span: Span
   startedAt: number
   usage: UsageCounts
 }
@@ -241,7 +197,7 @@ function errorOf(error: unknown): { message: string; code?: string } {
  * nothing.
  */
 export class OperationTracing {
-  private readonly tracer: HarnessTracer
+  private readonly tracer: Pick<Tracer, 'startSpan'>
   private readonly open = new Map<string, OpenOperation>()
 
   constructor(
@@ -255,9 +211,35 @@ export class OperationTracing {
     this.tracer = options.tracer ?? noopTracer
   }
 
+  /** Load what the tracer needs. A session awaits it before its first span. */
+  async ready(): Promise<void> {
+    if (this.options.tracer) await loadOpenTelemetry()
+  }
+
+  /**
+   * Run the tracer or span calls `fn`. A tracer that throws is logged, so a
+   * tracing bug never fails a run or the host.
+   */
+  safely(fn: () => void): void {
+    try {
+      fn()
+    } catch (error) {
+      this.options.warn(error)
+    }
+  }
+
+  /** Start a span. A tracer that throws gives a span that does nothing. */
+  private startSpan(name: string, options: SpanOptions, parent?: Span): Span {
+    let span = noopSpan
+    this.safely(() => {
+      span = this.tracer.startSpan(name, options, parentContext(parent))
+    })
+    return span
+  }
+
   /** The attributes of every span of this session, and `extra`. */
-  private attributes(extra: Record<string, HarnessAttributeValue | undefined>) {
-    const attributes: Record<string, HarnessAttributeValue> = {
+  private attributes(extra: Attributes) {
+    const attributes: Attributes = {
       'harness.thread_id': this.options.threadId,
     }
     if (this.options.tenantId !== undefined) {
@@ -275,12 +257,12 @@ export class OperationTracing {
    */
   span(
     name: string,
-    extra: Record<string, HarnessAttributeValue | undefined>,
+    extra: Attributes,
     options: { runId?: string | undefined; startTime?: number } = {},
-  ): HarnessSpan {
+  ): Span {
     const parent =
       options.runId === undefined ? undefined : this.open.get(options.runId)
-    return this.tracer.startSpan(
+    return this.startSpan(
       name,
       {
         attributes: this.attributes(extra),
@@ -288,7 +270,7 @@ export class OperationTracing {
           ? { startTime: options.startTime }
           : {}),
       },
-      parent ? parentContext(parent.span) : undefined,
+      parent?.span,
     )
   }
 
@@ -309,7 +291,7 @@ export class OperationTracing {
       parentRunId === undefined ? undefined : this.open.get(parentRunId)
     const caller = parseTraceparent(run.traceparent)
     const startedAt = Date.now()
-    const span = this.tracer.startSpan(
+    const span = this.startSpan(
       'harness.operation',
       {
         attributes: this.attributes({
@@ -321,7 +303,7 @@ export class OperationTracing {
         ...(caller ? { links: [{ context: caller }] } : {}),
         startTime: startedAt,
       },
-      parent ? parentContext(parent.span) : undefined,
+      parent?.span,
     )
     const open: OpenOperation = { span, startedAt, usage: emptyCounts() }
     this.open.set(operation.id, open)
@@ -341,15 +323,17 @@ export class OperationTracing {
       this.open.delete(operation.id)
       const status = operation.status()
       const failure = error === undefined ? undefined : errorOf(error)
-      span.setAttribute('harness.operation.status', status)
-      if (status === 'failed' && failure) {
-        span.recordException(error instanceof Error ? error : failure.message)
-        span.setStatus({ code: 2, message: failure.message })
-      } else if (status !== 'cancelled') {
-        span.setStatus({ code: 1 })
-      }
       const endedAt = Date.now()
-      span.end(endedAt)
+      this.safely(() => {
+        span.setAttribute('harness.operation.status', status)
+        if (status === 'failed' && failure) {
+          span.recordException(error instanceof Error ? error : failure.message)
+          span.setStatus({ code: ERROR, message: failure.message })
+        } else if (status !== 'cancelled') {
+          span.setStatus({ code: OK })
+        }
+        span.end(endedAt)
+      })
       this.report({
         phase: 'settled',
         operation: {

@@ -1423,7 +1423,7 @@ export abstract class SessionState<
       },
       { runId: ended.wait.runId, startTime: ended.at },
     )
-    span?.end(ended.settledAt)
+    this.tracing?.safely(() => span?.end(ended.settledAt))
   }
 
   /** After the log ended the wait `waitId`: drop its secrets, and move the timer. */

@@ -9,19 +9,18 @@ import { createHarnessHost, defineHarness } from '../src'
 import { createHarnessClient } from '../src/client'
 import { noopTracer } from '../src/observability'
 import { createHarnessHandler } from '../src/server'
-import { after, gate, mockAdapter, text } from './helpers'
+import { trace } from '@opentelemetry/api'
+import { after, fakeSpan, gate, mockAdapter, text } from './helpers'
+import type {
+  AttributeValue,
+  Span,
+  SpanContext,
+  SpanOptions,
+  Tracer,
+} from '@opentelemetry/api'
 import type { StreamChunk } from '@tanstack/ai'
 import type { LogStore } from '@tanstack/ai-persistence'
-import type {
-  AnyHarness,
-  HarnessAttributeValue,
-  HarnessHostOptions,
-  HarnessSpan,
-  HarnessSpanContext,
-  HarnessSpanOptions,
-  HarnessTracer,
-  OperationReport,
-} from '../src'
+import type { AnyHarness, HarnessHostOptions, OperationReport } from '../src'
 import type { Reply } from './helpers'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
@@ -32,52 +31,49 @@ const THREAD = 't1'
 const TRACE_ID = '4bf92f3577b34da6a3ce929d0e0e4736'
 const CALLER = `00-${TRACE_ID}-00f067aa0ba902b7-01`
 /** The span context that `CALLER` names. */
-const CALLER_CONTEXT: HarnessSpanContext = {
+const CALLER_CONTEXT: SpanContext = {
   traceId: TRACE_ID,
   spanId: '00f067aa0ba902b7',
   traceFlags: 1,
   isRemote: true,
 }
 
-// The key of the span in an OpenTelemetry context.
-const SPAN_KEY = Symbol.for('OpenTelemetry Context Key SPAN')
-
 /** A span that the fake tracer started. */
 interface RecordedSpan {
   name: string
-  options: HarnessSpanOptions
-  attributes: Record<string, HarnessAttributeValue>
+  options: SpanOptions
+  attributes: Record<string, AttributeValue | undefined>
   /** The span of the context that `startSpan` got. */
   parent: RecordedSpan | undefined
   status?: { code: number; message?: string }
   ended: boolean
-  span: HarnessSpan
+  span: Span
 }
 
 /** A tracer that records every span, and reads the parent from the context. */
 function fakeTracer() {
   const spans: Array<RecordedSpan> = []
-  const tracer: HarnessTracer = {
+  const tracer: Tracer = {
     startSpan: (name, options = {}, context) => {
-      const parentSpan = context?.getValue(SPAN_KEY)
-      const spanContext: HarnessSpanContext = {
-        traceId: 'a'.repeat(32),
-        spanId: (spans.length + 1).toString(16).padStart(16, '0'),
-        traceFlags: 1,
-      }
-      const span: HarnessSpan = {
-        setAttribute: (key, value) => {
-          recorded.attributes[key] = value
+      const parentSpan = context && trace.getSpan(context)
+      const span = fakeSpan(
+        {
+          traceId: 'a'.repeat(32),
+          spanId: (spans.length + 1).toString(16).padStart(16, '0'),
+          traceFlags: 1,
         },
-        setStatus: (status) => {
-          recorded.status = status
+        {
+          setAttribute: (key, value) => {
+            recorded.attributes[key] = value
+          },
+          setStatus: (status) => {
+            recorded.status = status
+          },
+          end: () => {
+            recorded.ended = true
+          },
         },
-        recordException: () => {},
-        end: () => {
-          recorded.ended = true
-        },
-        spanContext: () => spanContext,
-      }
+      )
       const recorded: RecordedSpan = {
         name,
         options,
@@ -88,6 +84,9 @@ function fakeTracer() {
       }
       spans.push(recorded)
       return span
+    },
+    startActiveSpan: () => {
+      throw new Error('The harness does not call startActiveSpan.')
     },
   }
   const operations = () =>
@@ -404,6 +403,48 @@ describe('onOperation', () => {
       status: 'failed',
       error: { message: 'model down' },
     })
+    await host.close()
+  })
+
+  it('a tracer that throws fails no turn and stops no report', async () => {
+    let calls = 0
+    const reports: Array<OperationReport> = []
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      observability: {
+        tracer: {
+          // The first span does not start. The second one does not end.
+          startSpan: () => {
+            calls += 1
+            if (calls === 1) throw new Error('startSpan broke')
+            return fakeSpan(CALLER_CONTEXT, {
+              end: () => {
+                throw new Error('end broke')
+              },
+            })
+          },
+          startActiveSpan: () => {
+            throw new Error('The harness does not call startActiveSpan.')
+          },
+        },
+        onOperation: (report) => void reports.push(report),
+      },
+    })
+    const session = await host.open(
+      chatHarness([() => text('One.'), () => text('Two.')]),
+      { threadId: THREAD },
+    )
+
+    await session.send('Hi.')
+    await session.send('Again.')
+
+    await waitFor(() => expect(reports).toHaveLength(4))
+    expect(reports.map((report) => report.phase)).toEqual([
+      'started',
+      'settled',
+      'started',
+      'settled',
+    ])
     await host.close()
   })
 })

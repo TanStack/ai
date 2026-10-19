@@ -2514,6 +2514,163 @@ export function createHarnessHost<P extends Principal = Principal>(
     }
   }
 
+  /** `host.transfer` without its span. */
+  const transferThread = async ({
+    from,
+    to,
+    envelope,
+    principal,
+    transferId: id,
+  }: TransferOptions<P>): Promise<TransferResult> => {
+    if (isClosed) throw hostClosed()
+    const transferId = id ?? crypto.randomUUID()
+    // The tenant of the principal is the tenant of both threads.
+    const tenantId = principal?.tenantId
+    const threadId = to.threadId ?? `thread-${transferId}`
+    if (threadId === from.threadId) {
+      throw new Error('A transfer needs another thread: to is from.')
+    }
+    const user = access ? need(principal, 'host.transfer') : undefined
+    const sourceEntry = await index.get({ tenantId, threadId: from.threadId })
+    const targetEntry = await index.get({ tenantId, threadId })
+    if (user) {
+      // No entry is not found: the same answer as a refusal.
+      if (!sourceEntry) {
+        throw new AccessDeniedError({
+          action: 'transfer',
+          threadId: from.threadId,
+        })
+      }
+      await allow({
+        principal: user,
+        action: 'transfer',
+        threadId: from.threadId,
+        entry: sourceEntry,
+      })
+      // A target that exists has members already: the principal must
+      // be one who may send to it. A retry finds its own new target.
+      if (targetEntry) {
+        await allow({
+          principal: user,
+          action: 'send',
+          threadId,
+          entry: targetEntry,
+        })
+      }
+    }
+    checkHarness(sourceEntry, from.harness)
+    checkHarness(targetEntry, to.harness)
+    const source = { harness: from.harness.name, threadId: from.threadId }
+    const target = { harness: to.harness.name, threadId }
+    const sourceKey = sessionKey(from.harness.name, tenantId, from.threadId)
+    hold(sourceKey)
+    try {
+      // With no principal, as `host.fork` opens its source. The open does
+      // not take the log from a host that owns it.
+      const sourceSession = await openSession(
+        from.harness,
+        { threadId: from.threadId },
+        tenantId,
+      )
+      const targetKey = sessionKey(to.harness.name, tenantId, threadId)
+      hold(targetKey)
+      try {
+        // A new target gets the principal as its owner and only member.
+        const targetSession = await openSession(
+          to.harness,
+          { threadId, ...(principal ? { principal } : {}) },
+          tenantId,
+        )
+        // First the target, then the source: a retry after a crash in
+        // between finds the target end, and writes only the source end.
+        let end = targetSession.transferOf(transferId)
+        if (!end) {
+          const isUsed =
+            to.threadId === undefined &&
+            (await targetSession.transcript()).length > 0
+          if (isUsed) {
+            throw new Error(
+              `Thread ${JSON.stringify(threadId)} is not empty, and has no transfer ${JSON.stringify(transferId)}.`,
+            )
+          }
+          const settled = settledMessages(await sourceSession.transcript())
+          const mode = envelope.messages ?? 'none'
+          const moved: Array<ModelMessage> =
+            mode === 'all'
+              ? // New ids: the target may have these messages from an
+                // earlier transfer.
+                settled.map((message) => ({
+                  ...message,
+                  id: createMessageId(),
+                }))
+              : mode === 'summary'
+                ? [
+                    {
+                      id: createMessageId(),
+                      role: 'assistant',
+                      content: `Summary of the conversation so far:\n${await sourceSession.transferSummary(principal, settled)}`,
+                    },
+                  ]
+                : []
+          const note: ModelMessage = {
+            id: createMessageId(),
+            role: 'user',
+            content: envelope.note,
+          }
+          end = {
+            from: source,
+            ...storedPrincipal(principal),
+            at: Date.now(),
+          }
+          // One append: the messages and the record, or neither.
+          await targetSession.adoptMessages(
+            sourceSession,
+            [note, ...moved],
+            [{ type: 'harness.transferred', transferId, ...end }],
+          )
+        }
+        // The same record on each retry, so the input lane takes it as a
+        // duplicate.
+        await sourceSession.recordTransfer({
+          type: 'harness.transferred',
+          transferId,
+          to: target,
+          ...(end.principal ? { principal: end.principal } : {}),
+          at: end.at,
+        })
+        await index.update({ tenantId, threadId }, (entry) =>
+          withTransferLink(entry, 'harness:transferredFrom', {
+            transferId,
+            ...source,
+          }),
+        )
+        await index.update({ tenantId, threadId: from.threadId }, (entry) =>
+          withTransferLink(entry, 'harness:transferredTo', {
+            transferId,
+            ...target,
+          }),
+        )
+        emit({
+          type: 'transferred',
+          transferId,
+          ...(tenantId !== undefined ? { tenantId } : {}),
+          from: source,
+          to: target,
+          ...(end.principal ? { principalId: end.principal.id } : {}),
+          at: end.at,
+        })
+        return { transferId, threadId }
+      } finally {
+        // A target that only this transfer opened closes on idle.
+        await release(targetKey)
+      }
+    } finally {
+      await release(sourceKey)
+    }
+  }
+
+  const tracer = options.observability?.tracer
+
   const host: HarnessHost<P> = {
     async open(harness, openOptions) {
       if (isClosed) throw hostClosed()
@@ -2631,153 +2788,37 @@ export function createHarnessHost<P extends Principal = Principal>(
       }
       return handleOf({ harness, session: fork, openOptions, key })
     },
-    async transfer({ from, to, envelope, principal, transferId: id }) {
-      if (isClosed) throw hostClosed()
-      const transferId = id ?? crypto.randomUUID()
-      // The tenant of the principal is the tenant of both threads.
-      const tenantId = principal?.tenantId
-      const threadId = to.threadId ?? `thread-${transferId}`
-      if (threadId === from.threadId) {
-        throw new Error('A transfer needs another thread: to is from.')
-      }
-      const user = access ? need(principal, 'host.transfer') : undefined
-      const sourceEntry = await index.get({ tenantId, threadId: from.threadId })
-      const targetEntry = await index.get({ tenantId, threadId })
-      if (user) {
-        // No entry is not found: the same answer as a refusal.
-        if (!sourceEntry) {
-          throw new AccessDeniedError({
-            action: 'transfer',
-            threadId: from.threadId,
-          })
-        }
-        await allow({
-          principal: user,
-          action: 'transfer',
-          threadId: from.threadId,
-          entry: sourceEntry,
-        })
-        // A target that exists has members already: the principal must
-        // be one who may send to it. A retry finds its own new target.
-        if (targetEntry) {
-          await allow({
-            principal: user,
-            action: 'send',
-            threadId,
-            entry: targetEntry,
-          })
-        }
-      }
-      checkHarness(sourceEntry, from.harness)
-      checkHarness(targetEntry, to.harness)
-      const source = { harness: from.harness.name, threadId: from.threadId }
-      const target = { harness: to.harness.name, threadId }
-      const sourceKey = sessionKey(from.harness.name, tenantId, from.threadId)
-      hold(sourceKey)
-      try {
-        // With no principal, as `host.fork` opens its source. The open does
-        // not take the log from a host that owns it.
-        const sourceSession = await openSession(
-          from.harness,
-          { threadId: from.threadId },
-          tenantId,
-        )
-        const targetKey = sessionKey(to.harness.name, tenantId, threadId)
-        hold(targetKey)
-        try {
-          // A new target gets the principal as its owner and only member.
-          const targetSession = await openSession(
-            to.harness,
-            { threadId, ...(principal ? { principal } : {}) },
-            tenantId,
-          )
-          // First the target, then the source: a retry after a crash in
-          // between finds the target end, and writes only the source end.
-          let end = targetSession.transferOf(transferId)
-          if (!end) {
-            const isUsed =
-              to.threadId === undefined &&
-              (await targetSession.transcript()).length > 0
-            if (isUsed) {
-              throw new Error(
-                `Thread ${JSON.stringify(threadId)} is not empty, and has no transfer ${JSON.stringify(transferId)}.`,
+    // Each transfer runs in a `harness.transfer` span.
+    transfer: (transferOptions) =>
+      tracer
+        ? withSpan(
+            {
+              tracer,
+              name: 'harness.transfer',
+              attributes: {
+                'harness.thread_id': transferOptions.from.threadId,
+                ...(transferOptions.to.threadId !== undefined
+                  ? {
+                      'harness.transfer.to_thread_id':
+                        transferOptions.to.threadId,
+                    }
+                  : {}),
+                ...(transferOptions.principal?.tenantId !== undefined
+                  ? { 'harness.tenant_id': transferOptions.principal.tenantId }
+                  : {}),
+              },
+            },
+            async (span) => {
+              const result = await transferThread(transferOptions)
+              span.setAttribute('harness.transfer.id', result.transferId)
+              span.setAttribute(
+                'harness.transfer.to_thread_id',
+                result.threadId,
               )
-            }
-            const settled = settledMessages(await sourceSession.transcript())
-            const mode = envelope.messages ?? 'none'
-            const moved: Array<ModelMessage> =
-              mode === 'all'
-                ? // New ids: the target may have these messages from an
-                  // earlier transfer.
-                  settled.map((message) => ({
-                    ...message,
-                    id: createMessageId(),
-                  }))
-                : mode === 'summary'
-                  ? [
-                      {
-                        id: createMessageId(),
-                        role: 'assistant',
-                        content: `Summary of the conversation so far:\n${await sourceSession.transferSummary(principal, settled)}`,
-                      },
-                    ]
-                  : []
-            const note: ModelMessage = {
-              id: createMessageId(),
-              role: 'user',
-              content: envelope.note,
-            }
-            end = {
-              from: source,
-              ...storedPrincipal(principal),
-              at: Date.now(),
-            }
-            // One append: the messages and the record, or neither.
-            await targetSession.adoptMessages(
-              sourceSession,
-              [note, ...moved],
-              [{ type: 'harness.transferred', transferId, ...end }],
-            )
-          }
-          // The same record on each retry, so the input lane takes it as a
-          // duplicate.
-          await sourceSession.recordTransfer({
-            type: 'harness.transferred',
-            transferId,
-            to: target,
-            ...(end.principal ? { principal: end.principal } : {}),
-            at: end.at,
-          })
-          await index.update({ tenantId, threadId }, (entry) =>
-            withTransferLink(entry, 'harness:transferredFrom', {
-              transferId,
-              ...source,
-            }),
+              return result
+            },
           )
-          await index.update({ tenantId, threadId: from.threadId }, (entry) =>
-            withTransferLink(entry, 'harness:transferredTo', {
-              transferId,
-              ...target,
-            }),
-          )
-          emit({
-            type: 'transferred',
-            transferId,
-            ...(tenantId !== undefined ? { tenantId } : {}),
-            from: source,
-            to: target,
-            ...(end.principal ? { principalId: end.principal.id } : {}),
-            at: end.at,
-          })
-          return { transferId, threadId }
-        } finally {
-          // A target that only this transfer opened closes on idle.
-          await release(targetKey)
-        }
-      } finally {
-        await release(sourceKey)
-      }
-    },
+        : transferThread(transferOptions),
     revoke: async ({ threadId, principal }) => {
       // At once, so the handles of the user refuse each call from now on.
       revokeUser({
@@ -3190,32 +3231,5 @@ export function createHarnessHost<P extends Principal = Principal>(
     }
     return undefined
   })
-  // Each transfer runs in a `harness.transfer` span.
-  const tracer = options.observability?.tracer
-  if (tracer) {
-    const transfer = host.transfer
-    host.transfer = (transferOptions) =>
-      withSpan(
-        {
-          tracer,
-          name: 'harness.transfer',
-          attributes: {
-            'harness.thread_id': transferOptions.from.threadId,
-            ...(transferOptions.to.threadId !== undefined
-              ? { 'harness.transfer.to_thread_id': transferOptions.to.threadId }
-              : {}),
-            ...(transferOptions.principal?.tenantId !== undefined
-              ? { 'harness.tenant_id': transferOptions.principal.tenantId }
-              : {}),
-          },
-        },
-        async (span) => {
-          const result = await transfer(transferOptions)
-          span.setAttribute('harness.transfer.id', result.transferId)
-          span.setAttribute('harness.transfer.to_thread_id', result.threadId)
-          return result
-        },
-      )
-  }
   return host
 }

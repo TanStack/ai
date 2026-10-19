@@ -166,16 +166,7 @@ export type {
 export type { ObservedSession } from './session/observed-session'
 export type { SessionUsage, UsageCounts } from './usage'
 export type { OnHarnessEvent } from './feed'
-export type {
-  HarnessAttributeValue,
-  HarnessContext,
-  HarnessSpan,
-  HarnessSpanContext,
-  HarnessSpanOptions,
-  HarnessTracer,
-  ObservabilityOptions,
-  OperationReport,
-} from './observability'
+export type { ObservabilityOptions, OperationReport } from './observability'
 
 export type {
   FinishContext,

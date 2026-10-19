@@ -10,6 +10,13 @@ import type {
 } from '@tanstack/ai'
 import type { LogRecord, LogStore, RunRecord } from '@tanstack/ai-persistence'
 import type { HostFrame } from '../src/protocol'
+import type {
+  AttributeValue,
+  Exception,
+  Span,
+  SpanContext,
+  SpanStatus,
+} from '@opentelemetry/api'
 
 /**
  * A log store that calls `overrides` for the methods it has, and `inner` for
@@ -425,4 +432,36 @@ export const hideSecret: AnyChatMiddleware = {
       ),
     }
   },
+}
+
+/** An OpenTelemetry span that calls `on` for the calls that a test reads. */
+export function fakeSpan(
+  spanContext: SpanContext,
+  on: {
+    setAttribute?: (key: string, value: AttributeValue) => void
+    setStatus?: (status: SpanStatus) => void
+    recordException?: (exception: Exception) => void
+    end?: () => void
+  } = {},
+): Span {
+  const span: Span = {
+    spanContext: () => spanContext,
+    setAttribute: (key, value) => {
+      on.setAttribute?.(key, value)
+      return span
+    },
+    setAttributes: () => span,
+    addEvent: () => span,
+    addLink: () => span,
+    addLinks: () => span,
+    setStatus: (status) => {
+      on.setStatus?.(status)
+      return span
+    },
+    updateName: () => span,
+    end: () => on.end?.(),
+    isRecording: () => true,
+    recordException: (exception) => on.recordException?.(exception),
+  }
+  return span
 }

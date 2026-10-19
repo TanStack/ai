@@ -150,6 +150,7 @@ export class SessionImpl<
 
   /** @internal Mount session plugins and recover the work in the log. */
   async open(): Promise<void> {
+    await this.tracing?.ready()
     // First: plugins publish events while they mount.
     await this.openLog()
     try {
@@ -850,8 +851,10 @@ export class SessionImpl<
       try {
         await this.recoverInputs(writer, isTaken)
       } catch (error) {
-        span?.recordException(error instanceof Error ? error : String(error))
-        span?.setStatus({ code: 2 })
+        this.tracing?.safely(() => {
+          span?.recordException(error instanceof Error ? error : String(error))
+          span?.setStatus({ code: 2 })
+        })
         // Not recovered, so the next `recover()` takes them again.
         for (const inputId of taken) {
           if (!this.turnOperations.has(inputId)) this.admitted.delete(inputId)
@@ -868,7 +871,7 @@ export class SessionImpl<
       await this.resumeWaitingRuns()
     } finally {
       this.recovering -= 1
-      span?.end()
+      this.tracing?.safely(() => span?.end())
       // A recovery that left no work gives the log back.
       void writer.rest()
     }

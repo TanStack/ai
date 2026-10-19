@@ -8,14 +8,17 @@ import {
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
+import { trace } from '@opentelemetry/api'
 import type {
-  HarnessAttributeValue,
+  AttributeValue,
+  Span,
+  SpanContext,
+  SpanOptions,
+  Tracer,
+} from '@opentelemetry/api'
+import type {
   HarnessHost,
   HarnessHostOptions,
-  HarnessSpan,
-  HarnessSpanContext,
-  HarnessSpanOptions,
-  HarnessTracer,
   OperationReport,
   SessionEvent,
 } from '@tanstack/ai-harness'
@@ -142,18 +145,15 @@ async function loggedTurn(events: AsyncIterable<SessionEvent>) {
   return entries
 }
 
-// The key of the span in an OpenTelemetry context.
-const SPAN_KEY = Symbol.for('OpenTelemetry Context Key SPAN')
-
 /** A span that the fake tracer started. */
 interface RecordedSpan {
   name: string
-  options: HarnessSpanOptions
-  attributes: Record<string, HarnessAttributeValue>
+  options: SpanOptions
+  attributes: Record<string, AttributeValue | undefined>
   /** The span of the context that `startSpan` got. */
   parent: RecordedSpan | undefined
   ended: boolean
-  span: HarnessSpan
+  span: Span
 }
 
 /**
@@ -164,24 +164,31 @@ interface RecordedSpan {
 function fakeObservability() {
   const spans: Array<RecordedSpan> = []
   const reports: Array<OperationReport> = []
-  const tracer: HarnessTracer = {
+  const tracer: Tracer = {
     startSpan: (name, options = {}, context) => {
-      const parentSpan = context?.getValue(SPAN_KEY)
-      const spanContext: HarnessSpanContext = {
+      const parentSpan = context && trace.getSpan(context)
+      const spanContext: SpanContext = {
         traceId: 'a'.repeat(32),
         spanId: (spans.length + 1).toString(16).padStart(16, '0'),
         traceFlags: 1,
       }
-      const span: HarnessSpan = {
+      const span: Span = {
+        spanContext: () => spanContext,
         setAttribute: (key, value) => {
           recorded.attributes[key] = value
+          return span
         },
-        setStatus: () => {},
-        recordException: () => {},
+        setAttributes: () => span,
+        addEvent: () => span,
+        addLink: () => span,
+        addLinks: () => span,
+        setStatus: () => span,
+        updateName: () => span,
         end: () => {
           recorded.ended = true
         },
-        spanContext: () => spanContext,
+        isRecording: () => true,
+        recordException: () => {},
       }
       const recorded: RecordedSpan = {
         name,
@@ -193,6 +200,9 @@ function fakeObservability() {
       }
       spans.push(recorded)
       return span
+    },
+    startActiveSpan: () => {
+      throw new Error('The harness does not call startActiveSpan.')
     },
   }
   return {
