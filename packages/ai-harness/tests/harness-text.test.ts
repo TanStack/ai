@@ -7,6 +7,7 @@ import {
   defineHarness,
   definePlugin,
   harnessText,
+  membersOnly,
 } from '../src'
 import {
   messageTexts,
@@ -373,6 +374,38 @@ describe('harnessText', () => {
     expect(seen).toEqual([{ id: 'alice' }, { id: 'bob' }])
     await host.close()
     await innerHost.close()
+  })
+
+  it('lets every member of a shared outer thread use the inner session', async () => {
+    const inner = mockAdapter([() => text('one'), () => text('two')])
+    const studio = defineHarness({ name: 'test/inner', adapter: inner.adapter })
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      access: { identify: () => null, authorize: membersOnly() },
+    })
+    // The inner session runs on the host of the outer thread.
+    const lead = defineHarness({
+      name: 'test/lead',
+      adapter: harnessText(studio, { host }),
+    })
+    const ada = { id: 'ada' }
+    const bob = { id: 'bob' }
+    const asAda = await host.open(lead, { threadId: 'outer', principal: ada })
+    await asAda.send('hello')
+    await host.sessions.share({
+      threadId: 'outer',
+      userId: 'bob',
+      role: 'member',
+      principal: ada,
+    })
+    const asBob = await host.open(lead, { threadId: 'outer', principal: bob })
+
+    await expect(asBob.send('again')).resolves.toMatchObject({ text: 'two' })
+    // The inner thread is still Ada's: Bob gets in only through the outer one.
+    await expect(
+      host.open(studio, { threadId: 'outer:test/inner', principal: bob }),
+    ).rejects.toThrow(/access/i)
+    await host.close()
   })
 
   it('gives the outer run the usage of every inner model call', async () => {

@@ -1,5 +1,5 @@
 import { EventType, fromSpecTokenUsage, uiMessagesToWire } from '@tanstack/ai'
-import { createHarnessHost } from './host'
+import { createHarnessHost, throughOuterThread } from './host'
 import { acceptedKinds } from './session/index'
 import type {
   AnyTextAdapter,
@@ -27,7 +27,9 @@ export interface HarnessTextOptions {
   /**
    * Who opens the inner sessions, as in `host.open()`, when the call has no
    * user of its own. Inside a harness turn, the inner session opens as the
-   * user of that turn instead.
+   * user of that turn instead. On a `host` with access that has the outer
+   * thread too, the inner session is checked through the outer thread, so
+   * every user who can read the outer thread can use it.
    */
   principal?: Principal
 }
@@ -207,24 +209,28 @@ function addUsage(total: TokenUsage | undefined, next: TokenUsage) {
 }
 
 /**
- * The user of the harness turn that makes this `chatStream` call. A harness
- * puts its run on the `context` of each chat() call, and the engine gives
- * the adapter its middleware context, with that `context`, as
- * `capabilities`. `undefined` outside a harness, and for a run with no user.
+ * The user and the thread of the harness turn that makes this `chatStream`
+ * call. A harness puts its run on the `context` of each chat() call, and the
+ * engine gives the adapter its middleware context, with that `context`, as
+ * `capabilities`. `undefined` outside a harness. The principal is
+ * `undefined` for a run with no user.
  */
-function runPrincipalOf(capabilities: unknown) {
+function outerRunOf(capabilities: unknown) {
   if (!isRecord(capabilities) || !isRecord(capabilities.context)) {
     return undefined
   }
   const { run } = capabilities.context
-  if (!isRecord(run) || !isRecord(run.principal)) return undefined
-  const { id, tenantId } = run.principal
-  if (typeof id !== 'string') return undefined
-  const principal: Principal = {
-    id,
-    ...(typeof tenantId === 'string' && { tenantId }),
+  if (!isRecord(run) || typeof run.threadId !== 'string') return undefined
+  return {
+    threadId: run.threadId,
+    principal: isPrincipal(run.principal) ? run.principal : undefined,
   }
-  return principal
+}
+
+// ponytail: the harness sets `run.principal`. An id tells it apart. The
+// object passes on as is, with its `name` and the fields of a custom type.
+function isPrincipal(value: unknown): value is Principal {
+  return isRecord(value) && typeof value.id === 'string'
 }
 
 export type FinishReason = NonNullable<RunFinishedEvent['finishReason']>
@@ -446,7 +452,9 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
  * the outer run gets the token usage of the inner model calls.
  *
  * Inside a harness turn, the inner session opens as the user of that turn.
- * Else it opens as `options.principal`. An abort of the call cancels the
+ * Else it opens as `options.principal`. On a host with access that has the
+ * outer thread too, the inner session is checked through the outer thread:
+ * every user who can read the outer thread can use it. An abort of the call cancels the
  * inner turn. For a remote harness, it also sends a cancel to the remote
  * host, so the remote turn stops too.
  *
@@ -483,16 +491,22 @@ export function harnessText(
       (async function* (): AsyncGenerator<StreamChunk> {
         host ??= createHarnessHost()
         const runId = chatOptions.runId ?? `harness-${Date.now().toString(36)}`
+        // Inside a harness turn, the inner thread belongs to the outer one.
+        const outer = outerRunOf(chatOptions.capabilities)
         // No thread id: a new inner session per call, as codexText does.
-        const threadId = `${chatOptions.threadId ?? runId}:${harness.name}`
+        const outerThread = outer?.threadId ?? chatOptions.threadId ?? runId
+        const threadId = `${outerThread}:${harness.name}`
         const signal = signalOf(chatOptions.request)
         // The call releases its handle at the end. The session then closes
         // on idle, unless the caller holds it too. Inside a harness turn it
-        // opens as the user of that turn, so each call has its own user.
-        const principal =
-          runPrincipalOf(chatOptions.capabilities) ?? options.principal
-        const user = principal ? { principal } : {}
-        const session = await host.open(harness, { threadId, ...user })
+        // opens as the user of that turn, so each call has its own user, and
+        // it is checked through the outer thread (see `throughOuterThread`).
+        const principal = outer?.principal ?? options.principal
+        const openOptions = { threadId, ...(principal ? { principal } : {}) }
+        const session = await host.open(
+          harness,
+          outer ? throughOuterThread(openOptions, outer.threadId) : openOptions,
+        )
         // The outer call's tools join the inner turn. Its system prompts do
         // not: the harness owns its prompt stack.
         const tools = chatOptions.tools?.length

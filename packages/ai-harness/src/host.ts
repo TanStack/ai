@@ -1311,6 +1311,22 @@ function checkDurableStores(persistence: HarnessPersistence) {
   }
 }
 
+const accessThreads = new WeakMap<object, string>()
+
+/**
+ * @internal Mark `openOptions` for the inner session of `harnessText`: on a
+ * host with access that has an entry for `outerThread`, `host.open` with
+ * these options checks the session through that thread, as a child thread
+ * is checked through its root. So every user of the outer thread can use it.
+ */
+export function throughOuterThread(
+  openOptions: OpenSessionOptions,
+  outerThread: string,
+) {
+  accessThreads.set(openOptions, outerThread)
+  return openOptions
+}
+
 /**
  * Create a host for harness sessions. With `access`, the principal type of
  * the host is what `access.identify` returns, and each call is checked (see
@@ -2090,10 +2106,15 @@ export function createHarnessHost<P extends Principal = Principal>(
    * `openSession` with the checks of `host.open`: with access, a thread that
    * exists needs the `read` action, and a new thread is checked unless its
    * open made the principal its owner. Hold the key first.
+   *
+   * With `accessThread` (the inner session of `harnessText`), a thread of
+   * that id on this host is checked instead, as a child thread is checked
+   * through its root. Without an entry for it, the checks are the usual ones.
    */
   const openChecked = async <THarness extends AnyHarness>(
     harness: THarness,
     openOptions: OpenSessionOptions<P>,
+    accessThread?: string,
   ) => {
     if (!access) {
       return openSession(harness, openOptions, openOptions.principal?.tenantId)
@@ -2101,6 +2122,22 @@ export function createHarnessHost<P extends Principal = Principal>(
     const principal = need(openOptions.principal, 'host.open')
     const { threadId } = openOptions
     const ids = { tenantId: principal.tenantId, threadId }
+    const outer =
+      accessThread === undefined
+        ? undefined
+        : await index.get({
+            tenantId: principal.tenantId,
+            threadId: accessThread,
+          })
+    if (outer && accessThread !== undefined) {
+      await allow({
+        principal,
+        action: 'read',
+        threadId: accessThread,
+        entry: outer,
+      })
+      return openSession(harness, openOptions, principal.tenantId)
+    }
     const before = await index.get(ids)
     // The open refuses a child thread, and says why.
     const isRoot = before !== undefined && before.parentThreadId === undefined
@@ -2130,18 +2167,22 @@ export function createHarnessHost<P extends Principal = Principal>(
     session,
     openOptions,
     key,
+    accessThread,
   }: {
     harness: THarness
     session: SessionImpl<THarness>
     openOptions: OpenSessionOptions<P>
     key: string
+    /** See `openChecked`. The handle checks each action on this thread. */
+    accessThread?: string
   }) => {
     const { principal } = openOptions
     const { threadId } = session
+    const guarded = accessThread ?? threadId
     return sessionHandle({
       session,
       principal,
-      ...(access && principal ? { guard: guardOf(principal, threadId) } : {}),
+      ...(access && principal ? { guard: guardOf(principal, guarded) } : {}),
       lease: {
         current: () => {
           // After `host.close()`, a call refuses at once.
@@ -2154,7 +2195,7 @@ export function createHarnessHost<P extends Principal = Principal>(
         },
         reopen: () => {
           if (isClosed) throw hostClosed()
-          return openChecked(harness, openOptions)
+          return openChecked(harness, openOptions, accessThread)
         },
         hold: () => hold(key),
         release: (releaseOptions) => {
@@ -2471,8 +2512,15 @@ export function createHarnessHost<P extends Principal = Principal>(
       // Before the open, so the session never closes on idle under it.
       hold(key)
       try {
-        const session = await openChecked(harness, openOptions)
-        return handleOf({ harness, session, openOptions, key })
+        // See `throughOuterThread`. Only a thread with an entry checks.
+        const outerThread = accessThreads.get(openOptions)
+        const outer =
+          access && outerThread !== undefined
+            ? await index.get({ tenantId, threadId: outerThread })
+            : undefined
+        const accessThread = outer ? outerThread : undefined
+        const session = await openChecked(harness, openOptions, accessThread)
+        return handleOf({ harness, session, openOptions, key, accessThread })
       } catch (error) {
         await release(key)
         throw error
