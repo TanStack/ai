@@ -178,7 +178,7 @@ function credentialProvider(
       // token stays the tenant's). When the saved token is not the one this
       // session refreshed, another session saved first: its token stays, and
       // the next connect uses it. This connection keeps the SDK's new token.
-      await credentials.refresh(id, (current) =>
+      const saved = await credentials.refresh(id, (current) =>
         Promise.resolve(
           current.type === 'oauth' &&
             seenToken !== undefined &&
@@ -187,6 +187,9 @@ function credentialProvider(
             : credential,
         ),
       )
+      // The user signed out while the SDK refreshed. The new tokens are not
+      // saved, so the sign-out holds, and the call asks for a sign-in.
+      if (!saved) throw new AuthRequiredError(id)
       // The token this connection uses, also when another one was saved.
       seenToken = credential.accessToken
     },
