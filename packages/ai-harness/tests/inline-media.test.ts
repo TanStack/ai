@@ -132,6 +132,37 @@ describe('storeInlineMedia', () => {
       refused: 'media_url_not_allowed',
     })
   })
+
+  it('stores nothing when a later part is refused', async () => {
+    const stored: Array<string> = []
+    const checked = await storeInlineMedia(
+      [inlineImage(), urlImage('https://example.com/cat.png')],
+      {
+        options: undefined,
+        putMedia: async (upload) => {
+          stored.push(upload.mimeType)
+          throw new Error('not reached')
+        },
+      },
+    )
+
+    expect(checked).toEqual({ refused: 'media_url_not_allowed' })
+    expect(stored).toEqual([])
+  })
+
+  it('refuses a provider file handle unless media.allowProviderFiles is set', async () => {
+    const file: ContentPart = {
+      type: 'document',
+      source: { type: 'file', value: 'file-abc' },
+    }
+
+    expect(await storeWith().check([file])).toEqual({
+      refused: 'media_url_not_allowed',
+    })
+    expect(await storeWith({ allowProviderFiles: true }).check([file])).toEqual(
+      { parts: [file] },
+    )
+  })
 })
 
 describe('readBodyText', () => {

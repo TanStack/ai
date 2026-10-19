@@ -466,7 +466,7 @@ The client sends `{ type: 'harness.subscribe', threadId }` first, and the host a
 - A user that `identify` refuses gets an `unauthorized` error frame, and the socket closes.
 - The socket handles the frames of one connection in the order they came. So a prompt with a large image reaches the session before the frame after it.
 - A user who cannot read the thread, or who loses access later, gets a `forbidden` error frame, and the socket closes.
-- A frame over `media.maxBodyBytes` (default 32 MiB) gets an error frame, and the socket closes with code `1009`.
+- A frame over `media.maxBodyBytes` (default 32 MiB) gets an error frame, and the socket closes with code `1009`. Your WebSocket server reads the whole frame before this check, so the check does not cap memory. Set the frame limit of your server too, for example `maxPayload` of `ws`.
 - On a host with no `access`, pass `openAccess`, the same as for `createHarnessHandler`.
 - Pass `socket: true` to `createHarnessHandler` too. Then `GET capabilities` says `transport.websocket: true`, so clients know that they can use the socket. The default is `false`.
 

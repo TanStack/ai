@@ -1356,6 +1356,12 @@ const errorMessage = (error: unknown) =>
  *
  * `stream` sets the values of the socket (see `HarnessStreamOptions`).
  *
+ * A frame over `media.maxBodyBytes` gets an error frame, and the socket
+ * closes with 1009. Your WebSocket server has read the whole frame by then,
+ * so this check saves only the parse. The memory cap is the frame limit of
+ * your server, for example `maxPayload` of `ws`. Set it to
+ * `media.maxBodyBytes` or lower.
+ *
  * Throws at the start for a host without `access` and without `openAccess`,
  * for a host with both, and for a `stream` value that is not a finite number
  * above 0.
@@ -1495,7 +1501,8 @@ export function handleHarnessSocket<P extends Principal = Principal>(
   socket.addEventListener('message', (message) => {
     const data = String(message.data)
     // A frame over `media.maxBodyBytes` is not parsed, so its error frame
-    // names the socket. The socket closes with 1009 (message too big).
+    // names the socket. The socket closes with 1009 (message too big). The
+    // server read the frame already: its own frame limit caps the memory.
     if (isOverLimit(data, frameLimit)) {
       closeWith(
         {

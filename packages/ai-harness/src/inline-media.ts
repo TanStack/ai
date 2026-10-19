@@ -18,8 +18,9 @@ export const DEFAULT_MAX_BODY_BYTES = 32 * 1024 * 1024
  * - `media_not_allowed`: a MIME type with no media kind, or a kind not in
  *   `media.kinds`.
  * - `media_invalid`: the data is not base64.
- * - `media_url_not_allowed`: a URL that `media.externalUrls` refuses, or a
- *   URL scheme other than `http:`, `https:`, `data:`, and `harness-media:`.
+ * - `media_url_not_allowed`: a URL that `media.externalUrls` refuses, a
+ *   URL scheme other than `http:`, `https:`, `data:`, and `harness-media:`,
+ *   or a provider file handle without `media.allowProviderFiles`.
  */
 export type InlineMediaRefusal =
   | 'media_too_large'
@@ -35,6 +36,11 @@ export interface InlineMediaContext {
 }
 
 type MediaContentPart = Exclude<ContentPart, { type: 'text' }>
+
+/** A checked part, with the bytes that it must store, if any. */
+type CheckedPart =
+  | { part: ContentPart; upload?: undefined }
+  | { part: MediaContentPart; upload: MediaUpload<Uint8Array> }
 
 const BASE64 = /^[A-Za-z0-9+/]*={0,2}$/
 // `data:<type>[;params];base64,<data>`. Only base64 data URLs carry bytes.
@@ -71,13 +77,12 @@ function isUrlAllowed(url: URL, options: MediaOptions | undefined) {
   return typeof allow === 'function' ? allow(url) : allow
 }
 
-/** `part` with its bytes in the store, as a `harness-media:` reference. */
-async function storePart(
+/** `part`, checked, with the bytes it must store, or why it was refused. */
+function checkBytes(
   part: MediaContentPart,
   data: { value: string; mimeType: string },
-  context: InlineMediaContext,
+  options: MediaOptions | undefined,
 ) {
-  const { options } = context
   const kind = kindOf(data.mimeType)
   const isKindAllowed =
     kind !== undefined && (options?.kinds ?? [kind]).includes(kind)
@@ -87,40 +92,38 @@ async function storePart(
   if (isTooLarge) return refuse('media_too_large')
   const bytes = fromBase64(data.value)
   if (bytes === undefined) return refuse('media_invalid')
-  try {
-    const record = await context.putMedia({
-      body: bytes,
-      mimeType: data.mimeType,
-      name: kind,
-    })
-    // Other fields, like provider metadata, stay on the part.
-    const stored: ContentPart = { ...part, ...mediaPart(record) }
-    return stored
-  } catch (error) {
-    if (!(error instanceof MediaError)) throw error
-    return refuse(
-      error.status === 413 ? 'media_too_large' : 'media_not_allowed',
-    )
+  const checked: CheckedPart = {
+    part,
+    upload: { body: bytes, mimeType: data.mimeType, name: kind },
   }
+  return checked
 }
 
-/** One part, checked and stored, or the reason it was refused. */
-async function checkPart(part: ContentPart, context: InlineMediaContext) {
-  if (part.type === 'text') return part
+/** One part, checked, or the reason it was refused. Stores nothing. */
+function checkPart(
+  part: ContentPart,
+  options: MediaOptions | undefined,
+): CheckedPart | { refused: InlineMediaRefusal } {
+  if (part.type === 'text') return { part }
   const { source } = part
-  if (source.type === 'data') return storePart(part, source, context)
-  if (source.type !== 'url') return part
-  if (source.value.startsWith(MEDIA_URL_PREFIX)) return part
+  if (source.type === 'data') return checkBytes(part, source, options)
+  // A provider file handle is read with the server's provider key.
+  if (source.type === 'file') {
+    return options?.allowProviderFiles === true
+      ? { part }
+      : refuse('media_url_not_allowed')
+  }
+  if (source.value.startsWith(MEDIA_URL_PREFIX)) return { part }
   const dataUrl = DATA_URL.exec(source.value)
   if (dataUrl) {
     const [, mimeType = '', value = ''] = dataUrl
-    return storePart(part, { value, mimeType }, context)
+    return checkBytes(part, { value, mimeType }, options)
   }
   const url = URL.canParse(source.value) ? new URL(source.value) : undefined
-  if (url === undefined || !isUrlAllowed(url, context.options)) {
+  if (url === undefined || !isUrlAllowed(url, options)) {
     return refuse('media_url_not_allowed')
   }
-  return part
+  return { part }
 }
 
 /**
@@ -129,12 +132,13 @@ async function checkPart(part: ContentPart, context: InlineMediaContext) {
  * with `putMedia`, and the part becomes a `harness-media:` reference. So the
  * bytes are checked against `media.kinds` and `media.maxBytes`, and the model
  * check of `harness-media:` parts runs on them. An `http:` or `https:` URL
- * stays only when `media.externalUrls` allows it. Other URL schemes are
- * refused. Text, `harness-media:` parts, and provider file handles stay as
- * they are.
+ * stays only when `media.externalUrls` allows it. A provider file handle
+ * stays only when `media.allowProviderFiles` is `true`. Other URL schemes are
+ * refused. Text and `harness-media:` parts stay as they are.
  *
  * Resolves to `{ parts }`, or to `{ refused }` with the reason of the first
- * part that was refused. Parts stored before a refusal stay in the store.
+ * part that was refused. Every part is checked before any part is stored, so
+ * a refused input stores nothing.
  *
  * @example
  * ```ts
@@ -150,18 +154,40 @@ export async function storeInlineMedia(
   parts: ReadonlyArray<ContentPart>,
   context: InlineMediaContext,
 ) {
-  const checked: Array<ContentPart> = []
+  const pending: Array<CheckedPart> = []
   for (const part of parts) {
-    const result = await checkPart(part, context)
+    const result = checkPart(part, context.options)
     if ('refused' in result) return result
-    checked.push(result)
+    pending.push(result)
+  }
+  const checked: Array<ContentPart> = []
+  for (const entry of pending) {
+    if (entry.upload === undefined) {
+      checked.push(entry.part)
+      continue
+    }
+    try {
+      const record = await context.putMedia(entry.upload)
+      // Other fields, like provider metadata, stay on the part.
+      const stored: ContentPart = { ...entry.part, ...mediaPart(record) }
+      checked.push(stored)
+    } catch (error) {
+      // ponytail: the store refuses only what the checks above let through
+      // when its own limits differ (its 100 MB default `maxBytes`). Parts
+      // stored before such a refusal stay in the store.
+      if (!(error instanceof MediaError)) throw error
+      return refuse(
+        error.status === 413 ? 'media_too_large' : 'media_not_allowed',
+      )
+    }
   }
   return { parts: checked }
 }
 
 /**
  * The largest request body or socket frame, in bytes, that a transport
- * reads: `media.maxBodyBytes`, or 32 MiB.
+ * reads: `media.maxBodyBytes`, or 32 MiB. A socket checks a frame after the
+ * WebSocket server read it, so this saves only the parse.
  *
  * @example
  * ```ts
