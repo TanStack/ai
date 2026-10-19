@@ -352,6 +352,14 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected readonly agentChains = new Map<string, AgentChain>()
   /** The chain of each agent run operation, by operation id. */
   protected readonly chainOf = new Map<string, AgentChain>()
+  /**
+   * The tool calls that run now: for each chat call that runs tools, the
+   * operation of the call, and how many of its tools run.
+   */
+  protected readonly toolCalls = new Map<
+    object,
+    { id: string; count: number }
+  >()
   protected readonly queue: Array<QueuedTurn> = []
   protected readonly steerQueue: Array<WaitingSteer> = []
   /**
@@ -943,12 +951,36 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /**
    * `ctx.agents` of a plugin. The runs are for `principal`, else for the
    * principal that opened the session. A `principal` option of `start` wins.
+   * With no `parent` option, a start in a tool call of an agent run is a
+   * child of that run (see `toolCallRun`).
    */
   protected pluginAgents(principal?: Principal): AgentActions {
     const user = principal ? { principal } : {}
-    return this.agentActions((target, input, options) =>
-      this.runAgent(target, input, { ...user, ...options }),
-    )
+    return this.agentActions((target, input, options) => {
+      const runId =
+        options.parent === undefined ? this.toolCallRun() : undefined
+      return this.runAgent(target, input, {
+        ...user,
+        ...options,
+        ...(runId !== undefined ? { parent: { runId } } : {}),
+      })
+    })
+  }
+
+  /**
+   * The agent run whose tool call runs now, when it is the only operation
+   * of this session in a tool call. ponytail: plugin code has no async
+   * context here, so tool calls of two runs at once give no run. Pass
+   * `parent` then.
+   */
+  protected toolCallRun(): string | undefined {
+    const running = [
+      ...new Set([...this.toolCalls.values()].map(({ id }) => id)),
+    ].filter((id) => this.operations.get(id)?.status() === 'running')
+    const [only] = running
+    return running.length === 1 && only !== undefined && this.chainOf.has(only)
+      ? only
+      : undefined
   }
 
   /**

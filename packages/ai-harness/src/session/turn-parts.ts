@@ -549,6 +549,34 @@ export abstract class SessionTurnParts<
   }
 
   /**
+   * Middleware that keeps the tool calls of `operation` that run now in
+   * `toolCalls`, so a plugin start knows the run that calls it.
+   */
+  protected toolCallTracker(
+    operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
+  ): AnyChatMiddleware {
+    const { id } = operation
+    // One key per tracker: a turn and its tool-mode children have their own.
+    const key = {}
+    const add = (delta: number) => {
+      const count = (this.toolCalls.get(key)?.count ?? 0) + delta
+      if (count > 0) this.toolCalls.set(key, { id, count })
+      else this.toolCalls.delete(key)
+    }
+    // A skipped or waiting call has no end: the end of the batch clears it.
+    const clear = () => void this.toolCalls.delete(key)
+    return {
+      name: 'harness:tool-calls',
+      onBeforeToolCall: () => add(1),
+      onAfterToolCall: () => add(-1),
+      onToolPhaseComplete: clear,
+      onFinish: clear,
+      onAbort: clear,
+      onError: clear,
+    }
+  }
+
+  /**
    * After a model call of `operation`: stop each agent run on its path up
    * the run tree that went over its budget, with `BUDGET_REASON`. The run
    * that made the call stops too, because its budget is never more than

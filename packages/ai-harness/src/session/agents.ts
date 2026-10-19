@@ -560,6 +560,7 @@ export abstract class SessionAgents<
         // A routed root agent gets the thread too, so a reset cuts it as well.
         resetCut,
         this.usageCounter(operation, principal),
+        this.toolCallTracker(operation),
         // Last, because a later middleware that returns `messages` resets
         // what the model gets. A child's adapter is not known here, so only
         // `media.accepts` narrows what it reads.

@@ -172,6 +172,95 @@ describe('limits of agent starts', () => {
     await host.close()
   })
 
+  /**
+   * A session with maxConcurrent 1: the agent `lead` calls the plugin tool
+   * `startHelper`, which runs `body` with the `ctx.agents` of the plugin.
+   * The model of `lead` answers after `answered` opens.
+   */
+  async function pluginToolSession(
+    body: (agents: AgentActions) => PromiseLike<unknown>,
+    answered: Promise<void> = Promise.resolve(),
+  ) {
+    const helper = defineAgent({
+      name: 'helper',
+      description: 'Helps',
+      run: async () => 'helped',
+    })
+    const startHelper = toolDefinition({
+      name: 'startHelper',
+      description: 'Runs the helper',
+      inputSchema: z.object({}),
+    })
+    let tool: ReturnType<typeof startHelper.server> | undefined
+    const starter = definePlugin({
+      name: 'test/starter',
+      setup: (ctx) => {
+        tool = startHelper.server(async () => ({ got: await body(ctx.agents) }))
+      },
+    })
+    const model = mockAdapter([
+      () => toolCall('startHelper', {}),
+      () => text('done'),
+    ])
+    const lead = defineAgent({
+      name: 'lead',
+      description: 'Calls the plugin tool',
+      run: async (ctx) => {
+        const result = await ctx.chat({
+          adapter: model.adapter,
+          tools: tool ? [tool] : [],
+          stream: false,
+        })
+        await answered
+        return result
+      },
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/agent-limits',
+        adapter: mockAdapter([]).adapter,
+        agents: [lead, helper],
+        plugins: () => [starter],
+        subagents: { agents: [], limits: { maxConcurrent: 1 } },
+      }),
+      { threadId: THREAD },
+    )
+    return { host, session, helper }
+  }
+
+  it('runs a plugin start in a tool call of an agent run as its child, with no parent option, under maxConcurrent 1', async () => {
+    const { host, session } = await pluginToolSession((agents) =>
+      agents.run('helper'),
+    )
+
+    const run = session.agents.lead.start(undefined, { attach: 'none' })
+    await expect(run).resolves.toContain('done')
+    const helped = session.agentRuns().find((item) => item.agent === 'helper')
+    expect(helped).toMatchObject({ status: 'completed', parentRunId: run.id })
+    await host.close()
+  })
+
+  it('runs a plugin start with parent: null as a top-level run, which waits for a maxConcurrent slot', async () => {
+    const answered = gate()
+    const { host, session } = await pluginToolSession((agents) => {
+      void agents
+        .start('helper', undefined, { parent: null, attach: 'none' })
+        .then(undefined, () => undefined)
+      return Promise.resolve('started')
+    }, answered.opened)
+
+    const run = session.agents.lead.start(undefined, { attach: 'none' })
+    const helperRun = () =>
+      session.agentRuns().find((item) => item.agent === 'helper')
+    await waitFor(() => expect(helperRun()?.status).toBe('queued'))
+    expect(helperRun()?.parentRunId).toBeUndefined()
+    answered.open()
+    await expect(run).resolves.toContain('done')
+    await waitFor(() => expect(helperRun()?.status).toBe('completed'))
+    await host.close()
+  })
+
   it('runs a plugin start with parent: ctx.context.run as a child, so a run that awaits it under maxConcurrent 1 ends', async () => {
     const helper = defineAgent({
       name: 'helper',

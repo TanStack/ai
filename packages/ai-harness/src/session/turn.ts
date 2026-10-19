@@ -1090,6 +1090,7 @@ export abstract class SessionTurn<
               // context after a reset.
               resetCut,
               this.usageCounter(operation, sender),
+              this.toolCallTracker(operation),
               ...(this.harness.middleware ?? []),
               ...(session?.middleware ?? []),
               ...(runPlugins?.middleware ?? []),
