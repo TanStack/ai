@@ -935,8 +935,10 @@ export interface LogStore {
    * - An `inputId` that was offered before (pending or consumed) returns
    *   `'duplicate'` when the JSON of the record is equal, else `'conflict'`.
    *   Nothing changes.
-   * - A new `inputId` is stored with the store clock as `offeredAt`, records
-   *   `harness` for the log, calls the listeners, and returns `'offered'`.
+   * - A new `inputId` is stored with the store clock as `offeredAt`, calls
+   *   the listeners, and returns `'offered'`. `harness` names the harness of
+   *   the log only when the log has no owner and no earlier offer: the
+   *   harness of the owner, else of the first offer, stays.
    *
    * Rejects, and stores nothing, when the record cannot become JSON.
    */

@@ -2482,6 +2482,39 @@ export function runPersistenceConformance(
         ])
       })
 
+      it('keeps the harness of the owner or the first offer for a log', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const first = newHarness()
+        const other = newHarness()
+        const orphans = (harness: string) =>
+          store.listOrphaned({ limit: 10, harnesses: [harness] })
+        // A later offer that names another harness does not move the log.
+        const offeredLog = newLog()
+        await store.offer({ ...offerOf(offeredLog, 'i1'), harness: first })
+        await store.offer({ ...offerOf(offeredLog, 'i2'), harness: other })
+        expect(await orphans(first)).toEqual([
+          { logId: offeredLog, harness: first, reason: 'offered' },
+        ])
+        expect(await orphans(other)).toEqual([])
+        // The owner names the harness of a log that it released.
+        const ownedLog = newLog()
+        await store.acquire({
+          logId: ownedLog,
+          harness: first,
+          ownerId: 'a',
+          ttlMs: 10_000,
+        })
+        await store.release({ logId: ownedLog, ownerId: 'a', epoch: 1 })
+        await store.offer({ ...offerOf(ownedLog, 'i1'), harness: other })
+        expect(await orphans(other)).toEqual([])
+        expect(await orphans(first)).toContainEqual({
+          logId: ownedLog,
+          harness: first,
+          reason: 'offered',
+        })
+      })
+
       it('notifies subscribers of a new offer', async (ctx) => {
         const store = persistence.stores.log
         if (!store) return ctx.skip('log store not provided')

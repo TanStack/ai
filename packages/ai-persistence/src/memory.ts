@@ -659,7 +659,7 @@ interface Offer {
 
 /** The offers of one log. */
 interface Lane {
-  /** The harness of the latest offer, for `listOrphaned`. */
+  /** The harness of the first offer, for `listOrphaned`. */
   harness: string
   /** By input id, in offer order. */
   inputs: Map<string, Offer>
@@ -993,7 +993,7 @@ class MemoryLogStore implements LogStore {
     }
     if (lane !== undefined && firstPending !== undefined) {
       const [, offer] = firstPending
-      return found('offered', lane.harness, offer.offeredAt)
+      return found('offered', owner?.harness ?? lane.harness, offer.offeredAt)
     }
     const wakeAt = owner?.wakeAt
     const isWakeDue = owner !== undefined && wakeAt !== undefined
@@ -1011,8 +1011,8 @@ class MemoryLogStore implements LogStore {
   }: Parameters<LogStore['offer']>[0]) {
     // Copy first, so a record that cannot become JSON stores nothing.
     const copy = copyJson(record)
-    const inputs =
-      this.backend.lanes.get(logId)?.inputs ?? new Map<string, Offer>()
+    const lane = this.backend.lanes.get(logId)
+    const inputs = lane?.inputs ?? new Map<string, Offer>()
     // A consumed id stays taken too.
     const previous = inputs.get(inputId)
     if (previous !== undefined) {
@@ -1024,8 +1024,10 @@ class MemoryLogStore implements LogStore {
       offeredAt: this.backend.now(),
       consumed: false,
     })
-    // The latest offer names the harness of the log.
-    this.backend.lanes.set(logId, { harness, inputs })
+    // The owner or the first offer names the harness of the log. A later
+    // offer does not change it.
+    const owned = lane?.harness ?? this.backend.owners.get(logId)?.harness
+    this.backend.lanes.set(logId, { harness: owned ?? harness, inputs })
     this.backend.notify(logId)
     return 'offered'
   }
