@@ -24,6 +24,7 @@ import {
   storedThreadState,
   text,
   toolCall,
+  turnInterrupts,
   wrapLogStore,
 } from './helpers'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
@@ -287,7 +288,7 @@ describe('host.transfer to a new thread', () => {
     ])
     await source.send('Count.')
     await source.send('Deploy.')
-    expect(source.snapshot().pendingInterrupts).toHaveLength(1)
+    expect(turnInterrupts(source.snapshot())).toHaveLength(1)
 
     const { threadId } = await host.transfer({
       from: { harness: support, threadId: SOURCE },
@@ -327,7 +328,7 @@ describe('host.transfer to a new thread', () => {
     expect(target.settings()).toEqual({})
     expect(target.config().tone?.value).toBe('plain')
     expect(target.snapshot().plugins['test/counter']).toEqual({ count: 0 })
-    expect(target.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(target.snapshot())).toEqual([])
     const types = new Set(
       (
         await log.read({

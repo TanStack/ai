@@ -275,7 +275,7 @@ async function start(request: Request) {
 
 async function debug(run: Run) {
   return Response.json({
-    questionId: run.owner.snapshot().pendingQuestions[0]?.questionId ?? null,
+    questionId: run.owner.snapshot().pendingWaits[0]?.waitId ?? null,
     turn: run.turn,
     transcript: await run.owner.transcript(),
     events: run.events,

@@ -10,6 +10,7 @@ import type {
 } from '@tanstack/ai'
 import type { LogRecord, LogStore, RunRecord } from '@tanstack/ai-persistence'
 import type { HostFrame } from '../src/protocol'
+import type { PendingQuestion, SessionSnapshot } from '../src'
 import type {
   AttributeValue,
   Exception,
@@ -17,6 +18,31 @@ import type {
   SpanContext,
   SpanStatus,
 } from '@opentelemetry/api'
+
+/** The interrupts of the stopped turn: the turn waits of `pendingWaits`. */
+export const turnInterrupts = ({ pendingWaits }: SessionSnapshot) =>
+  pendingWaits.flatMap(({ interrupt, turn }) =>
+    interrupt && turn ? [interrupt] : [],
+  )
+
+/** The questions of `pendingWaits`: the question waits that no turn holds. */
+export const questionsOf = ({
+  pendingWaits,
+}: SessionSnapshot): Array<PendingQuestion> =>
+  pendingWaits.flatMap(
+    ({ turn, kind, waitId, message, schema, secret, url }) =>
+      turn || kind !== 'question'
+        ? []
+        : [
+            {
+              questionId: waitId,
+              message: message ?? '',
+              ...(schema !== undefined ? { schema } : {}),
+              ...(secret ? { secret } : {}),
+              ...(url ? { url } : {}),
+            },
+          ],
+  )
 
 /**
  * A log store that calls `overrides` for the methods it has, and `inner` for

@@ -10,6 +10,7 @@ import {
   mockAdapter,
   text,
   toolCall,
+  turnInterrupts,
 } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
 import type { Reply } from './helpers'
@@ -80,7 +81,7 @@ describe('resolve', () => {
     })
     expect(session.snapshot()).toMatchObject({
       status: 'requires_action',
-      pendingInterrupts: [{ id: interruptId }],
+      pendingWaits: [{ waitId: interruptId, turn: true }],
     })
 
     const right = await session.resolve({
@@ -92,7 +93,7 @@ describe('resolve', () => {
       outcome: 'completed',
     })
     expect(calls).toHaveLength(2)
-    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(session.snapshot())).toEqual([])
     await host.close()
   })
 
@@ -205,7 +206,7 @@ describe('resolve', () => {
       outcome: 'failed',
     })
     expect(execute).toHaveBeenCalledTimes(1)
-    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(session.snapshot())).toEqual([])
     expect(
       await session.resolve({
         resume: [{ interruptId, status: 'resolved', payload: true }],
@@ -249,7 +250,7 @@ describe('resolve', () => {
     // A new host on the same storage, like a restart.
     const second = createHarnessHost({ persistence })
     const reopened = await second.open(harness, { threadId: 't1' })
-    expect(reopened.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(reopened.snapshot())).toEqual([])
     expect(
       await reopened.resolve({
         resume: [{ interruptId, status: 'resolved', payload: true }],
@@ -313,7 +314,7 @@ describe('resolve', () => {
       }
     }
     await cleanup.opened
-    expect(session.snapshot().pendingInterrupts).toMatchObject([
+    expect(turnInterrupts(session.snapshot())).toMatchObject([
       { id: interruptId },
     ])
     const receipt = await session.resolve({
@@ -332,7 +333,7 @@ describe('resolve', () => {
     expect(calls).toHaveLength(2)
     expect(session.snapshot()).toMatchObject({
       status: 'idle',
-      pendingInterrupts: [],
+      pendingWaits: [],
     })
     await host.close()
   })
@@ -394,7 +395,7 @@ describe('a resolve and a waiting steer', () => {
     await steer.receipt
     held.open()
     await cleanup.opened
-    const interruptId = session.snapshot().pendingInterrupts[0]?.id ?? ''
+    const interruptId = turnInterrupts(session.snapshot())[0]?.id ?? ''
     await session.resolve({
       resume: [{ interruptId, status: 'resolved', payload: true }],
       inputId: 'approve',

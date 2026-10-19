@@ -81,7 +81,7 @@ console.log(wait.kind, wait.message) // question How much do we refund for A-17?
 ```
 
 - Without `runId`, it resolves with the first wait of the session.
-- `session.snapshot().pendingWaits` lists every open wait, oldest first.
+- `session.snapshot().pendingWaits` lists every open wait, oldest first. A wait that a chat run stopped for has its `interrupt`. A wait of the stopped turn has `turn: true`.
 
 Each wait has a `kind`:
 
@@ -93,29 +93,31 @@ Each wait has a `kind`:
 | `client-tool` | The output of a tool that runs in the client. |
 | `human` | A person who takes over, from an interrupt of `defineInterrupt`. |
 
-`waitKind(interrupt)` and `isApproval(interrupt)` give the kind of an item of `pendingInterrupts` too. Import them from `@tanstack/ai-harness`.
+`waitKind(interrupt)` and `isApproval(interrupt)` give the kind of the `interrupt` of a wait too. Import them from `@tanstack/ai-harness`.
 
 ## 3. Answer it
 
 ```ts group=harness-waits
-const isQuestion = session
+const hasInterrupt = session
   .snapshot()
-  .pendingQuestions.some((question) => question.questionId === wait.waitId)
+  .pendingWaits.some(
+    (open) => open.waitId === wait.waitId && open.interrupt !== undefined,
+  )
 
-if (isQuestion) {
-  await session.answer({ questionId: wait.waitId, value: 40 })
-} else {
+if (hasInterrupt) {
   await session.resolve({
     resume: [{ interruptId: wait.waitId, status: 'resolved', payload: true }],
   })
+} else {
+  await session.answer({ questionId: wait.waitId, value: 40 })
 }
 await turn
 ```
 
 The tool pays 40 and the turn finishes. Two inputs answer waits:
 
-- `answer`: a wait of `pendingQuestions` (`step.ask`, an MCP server), and a `human` wait that no turn holds.
-- `resolve`: a wait that a turn stopped for (an approval, the `question` tool, a client tool, a sign-in), and a wait of a [background agent run](./subagents#when-a-background-agent-waits). One `resolve` answers every wait of the stopped turn.
+- `answer`: a wait with no `interrupt`: a `step.ask` question, a question of an MCP server, and the `human` wait of a handoff. It checks the answer against the `schema` of the wait, and keeps a secret answer out of the log.
+- `resolve`: a wait with an `interrupt`: a wait that a turn stopped for (an approval, the `question` tool, a client tool, a sign-in), and a wait of a [background agent run](./subagents#when-a-background-agent-waits). One `resolve` answers every wait of the stopped turn, or waits of one background run. A `resolve` of a wait with no `interrupt` is refused with `use_answer`.
 
 Both are inputs. An answer that reaches another instance waits in the log until the owner takes it. `host.submit` stores an answer for a thread that has no open session.
 

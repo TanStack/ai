@@ -16,6 +16,7 @@ import {
   CRASHING_OWNERSHIP,
   mockAdapter,
   ownershipExpired,
+  questionsOf,
   text,
   toolCall,
   untilAborted,
@@ -92,9 +93,9 @@ describe('host.events', () => {
     const b = await host.open(plainHarness(), { threadId: 'b' })
 
     const turn = a.send('go')
-    await waitFor(() => expect(a.snapshot().pendingQuestions).toHaveLength(1))
+    await waitFor(() => expect(questionsOf(a.snapshot())).toHaveLength(1))
     await b.send('hi')
-    const [question] = a.snapshot().pendingQuestions
+    const [question] = questionsOf(a.snapshot())
     await a.answer({ questionId: question?.questionId ?? '', value: 'yes' })
     await turn
 
@@ -117,7 +118,7 @@ describe('host.events', () => {
     const a = await host.open(askingHarness(), { threadId: 'a' })
     await host.open(plainHarness(), { threadId: 'b' })
     void a.send('go')
-    await waitFor(() => expect(a.snapshot().pendingQuestions).toHaveLength(1))
+    await waitFor(() => expect(questionsOf(a.snapshot())).toHaveLength(1))
 
     const feed = watch((signal) => host.events({ signal }))
 

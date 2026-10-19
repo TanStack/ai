@@ -56,12 +56,11 @@ describe('the waits that another host writes', () => {
       await waitFor(() => {
         const snapshot = sessionB.snapshot()
         expect(snapshot.status).toBe('requires_action')
-        expect(snapshot.pendingInterrupts).toHaveLength(1)
         expect(snapshot.pendingWaits).toEqual([
-          expect.objectContaining({ kind: 'approval' }),
+          expect.objectContaining({ kind: 'approval', turn: true }),
         ])
       })
-      const [wait] = sessionB.snapshot().pendingWaits ?? []
+      const [wait] = sessionB.snapshot().pendingWaits
       if (!wait) throw new Error('No approval.')
 
       const inputId = `answer:${wait.waitId}`
@@ -74,7 +73,6 @@ describe('the waits that another host writes', () => {
       await sessionB.settled({ inputId })
       expect(sessionB.snapshot()).toMatchObject({
         status: 'idle',
-        pendingInterrupts: [],
         pendingWaits: [],
       })
 
@@ -82,7 +80,6 @@ describe('the waits that another host writes', () => {
       await waitFor(() =>
         expect(sessionA.snapshot()).toMatchObject({
           status: 'idle',
-          pendingInterrupts: [],
           pendingWaits: [],
         }),
       )

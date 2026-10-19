@@ -201,14 +201,14 @@ test.describe('harness: handoffs inside one session', () => {
         `${ROUTE}/snapshot?runId=${started.runId}&threadId=${started.threadId}`,
         { headers: { authorization: 'bea' } },
       )
-      const snapshot: { pendingWaits?: Debug['waits'] } = await res.json()
+      const snapshot: { pendingWaits: Debug['waits'] } = await res.json()
       expect(snapshot.pendingWaits).toEqual([
         expect.objectContaining({
           kind: 'human',
           message: 'The user asks for a person.',
         }),
       ])
-      const waitId = snapshot.pendingWaits![0]!.waitId
+      const waitId = snapshot.pendingWaits[0]!.waitId
 
       // A user message during the pause gets no model answer.
       await control(request, started, {

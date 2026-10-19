@@ -8,7 +8,13 @@ import {
   definePlugin,
   oauthConnector,
 } from '../src'
-import { mockAdapter, storedThreadState, text, toolCall } from './helpers'
+import {
+  mockAdapter,
+  storedThreadState,
+  text,
+  toolCall,
+  turnInterrupts,
+} from './helpers'
 import type { AnyChatMiddleware } from '@tanstack/ai'
 import type { HarnessRunContext, PluginSessionApi } from '../src'
 import type { OAuthConfig } from '../src/oauth'
@@ -86,7 +92,7 @@ describe('the sign-in of a command is a live wait', () => {
 
     const command = session.command({ name: 'connect:github' })
     await waitFor(() => expect(session.snapshot().pendingWaits).toHaveLength(1))
-    const [wait] = session.snapshot().pendingWaits ?? []
+    const [wait] = session.snapshot().pendingWaits
     expect(wait).toMatchObject({
       kind: 'sign-in',
       runId: command.id,
@@ -131,7 +137,7 @@ describe('the sign-in of a command is a live wait', () => {
       () => {},
     )
     await waitFor(() => expect(session.snapshot().pendingWaits).toHaveLength(1))
-    const [wait] = session.snapshot().pendingWaits ?? []
+    const [wait] = session.snapshot().pendingWaits
 
     await expect(command).rejects.toThrow()
     expect(command.status()).toBe('cancelled')
@@ -198,9 +204,7 @@ describe('an interrupt of a turn with expiresAt', () => {
       { waitId: interrupt?.id, kind: 'human' },
     ])
 
-    await waitFor(() =>
-      expect(session.snapshot().pendingInterrupts).toEqual([]),
-    )
+    await waitFor(() => expect(turnInterrupts(session.snapshot())).toEqual([]))
     expect(session.snapshot()).toMatchObject({
       status: 'idle',
       pendingWaits: [],
@@ -247,14 +251,14 @@ describe('an interrupt of a turn with expiresAt', () => {
     const before = Date.now()
     await session.send('List my issues.')
 
-    const { pendingInterrupts, pendingWaits } = session.snapshot()
+    const { pendingWaits } = session.snapshot()
     expect(pendingWaits).toMatchObject([{ kind: 'sign-in' }])
-    const expiresAt = pendingWaits?.[0]?.expiresAt ?? 0
+    const expiresAt = pendingWaits[0]?.expiresAt ?? 0
     expect(expiresAt).toBeGreaterThanOrEqual(before + 15 * 60_000)
     expect(expiresAt).toBeLessThanOrEqual(Date.now() + 15 * 60_000)
     // The interrupt that a client answers stays as chat() made it.
-    expect(pendingInterrupts[0]?.expiresAt).toBeUndefined()
-    const interruptId = pendingInterrupts[0]?.id ?? ''
+    expect(pendingWaits[0]?.interrupt?.expiresAt).toBeUndefined()
+    const interruptId = pendingWaits[0]?.waitId ?? ''
     const schedules = async () =>
       (await storedThreadState(persistence.stores.log, { threadId: THREAD }))
         .schedules

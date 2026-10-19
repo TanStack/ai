@@ -8,7 +8,7 @@ import {
   definePlugin,
   durableTool,
 } from '../src'
-import { mockAdapter, text, toolCall } from './helpers'
+import { mockAdapter, questionsOf, text, toolCall } from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type { LogStore } from '@tanstack/ai-persistence'
 import type { LiveEvent, SessionEvent } from '../src'
@@ -108,11 +108,11 @@ describe('hooks on a host that does not own the log', () => {
 
     const turn = owner.session.send('Go.')
     await waitFor(() =>
-      expect(owner.session.snapshot().pendingQuestions).toHaveLength(1),
+      expect(questionsOf(owner.session.snapshot())).toHaveLength(1),
     )
     await waitFor(() => expect(questions).toEqual(['Sure?']))
     await waitFor(() => expect(other.statuses.at(-1)).toBe('waiting'))
-    const [question] = owner.session.snapshot().pendingQuestions
+    const [question] = questionsOf(owner.session.snapshot())
     await owner.session.answer({
       questionId: question?.questionId ?? '',
       value: 'yes',

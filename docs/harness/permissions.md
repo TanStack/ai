@@ -63,7 +63,7 @@ The plugin decides each call before it runs. A call that asks opens one approval
 await session.send('Save a note with the time of the meeting.')
 
 // wait.message is, for example: Allow save_note {"path":"meeting.md","text":"..."}?
-const waits = session.snapshot().pendingWaits ?? []
+const waits = session.snapshot().pendingWaits
 await session.resolve({
   inputId: 'approve-1',
   resume: waits.map((wait) => ({

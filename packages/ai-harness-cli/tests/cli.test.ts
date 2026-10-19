@@ -608,13 +608,13 @@ describe('a host and a principal', () => {
         const snapshot = await fetch(`${server.url}/snapshot?threadId=t`, {
           headers: { authorization: 'Bearer secret' },
         })
-        const [pending] = (await snapshot.json()).pendingQuestions
+        const [pending] = (await snapshot.json()).pendingWaits
         expect(pending).toBeDefined()
         return pending
       })
       await control({
         op: 'answer',
-        questionId: question.questionId,
+        questionId: question.waitId,
         value: 'sk-ada',
       })
       await vi.waitFor(async () =>

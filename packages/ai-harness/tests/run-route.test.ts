@@ -19,6 +19,7 @@ import {
   storedRun,
   text,
   toolCall,
+  turnInterrupts,
 } from './helpers'
 import type { Interrupt } from '@tanstack/ai'
 import type { FakeResponse } from '@tanstack/ai/testing'
@@ -202,7 +203,7 @@ describe('POST run', () => {
       () => expect(session.snapshot().pendingWaits).toHaveLength(1),
       { timeout: 5_000 },
     )
-    const [wait] = session.snapshot().pendingWaits ?? []
+    const [wait] = session.snapshot().pendingWaits
 
     const second = await run({
       runId: 'run-b',
@@ -295,7 +296,7 @@ describe('POST run', () => {
       threadId: 't-1',
       principal: user,
     })
-    expect(session.snapshot().pendingInterrupts).toHaveLength(1)
+    expect(turnInterrupts(session.snapshot())).toHaveLength(1)
     await host.close()
   })
 

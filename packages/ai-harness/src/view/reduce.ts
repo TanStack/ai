@@ -5,9 +5,9 @@ import { HARNESS_EVENTS } from '../types'
 import { addUsage } from '../usage'
 import type { Interrupt, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { SessionDescription, SessionSnapshot } from '../session/index'
-import type { SessionEvent } from '../types'
+import type { PendingQuestion, SessionEvent } from '../types'
 import type { UsageCall } from '../usage'
-import type { Wait } from '../waits'
+import type { PendingWait, Wait } from '../waits'
 import type {
   AgentPart,
   Approval,
@@ -47,9 +47,7 @@ export interface ItemFactory {
     interrupt: Interrupt,
     call: ToolCallPart | undefined,
   ) => ClientToolCall
-  question: (
-    question: SessionSnapshot['pendingQuestions'][number],
-  ) => ViewQuestion
+  question: (question: PendingQuestion) => ViewQuestion
   interrupt: (interrupt: Interrupt) => ViewInterrupt
   agent: (operation: {
     id: string
@@ -787,6 +785,17 @@ export function keep<T>(old: Array<T>, next: Array<T>): Array<T> {
  * The interrupt that a view item of the wait `wait` shows: a wait of a
  * background agent run has no interrupt in the snapshot.
  */
+/** A question wait of the log, as a question item takes it. */
+function questionOfWait(wait: PendingWait): PendingQuestion {
+  return {
+    questionId: wait.waitId,
+    message: wait.message ?? '',
+    ...(wait.schema !== undefined ? { schema: wait.schema } : {}),
+    ...(wait.secret ? { secret: true } : {}),
+    ...(wait.url ? { url: wait.url } : {}),
+  }
+}
+
 function interruptOfWait(wait: Wait): Interrupt {
   return {
     id: wait.waitId,
@@ -811,18 +820,18 @@ export function applySnapshot(
   factory: ItemFactory,
   options: { initial?: boolean } = {},
 ): SessionViewState {
-  const pendingWaits = snapshot.pendingWaits ?? []
-  // The waits that no turn and no question holds: the waits of background
-  // agent runs. Each one is an item of its kind, answered on its own.
-  const turnIds = new Set(snapshot.pendingInterrupts.map(({ id }) => id))
-  const questionIds = new Set(
-    snapshot.pendingQuestions.map(({ questionId }) => questionId),
+  const { pendingWaits } = snapshot
+  const turnInterrupts = pendingWaits.flatMap(({ interrupt, turn }) =>
+    interrupt && turn ? [interrupt] : [],
   )
+  // The waits that no turn holds and that are no question: the waits of
+  // background agent runs. Each one is an item of its kind, answered on its
+  // own.
   const runWaits = pendingWaits.filter(
-    ({ waitId }) => !turnIds.has(waitId) && !questionIds.has(waitId),
+    ({ turn, kind }) => !turn && kind !== 'question',
   )
   const items = [
-    ...snapshot.pendingInterrupts.map((interrupt) => ({
+    ...turnInterrupts.map((interrupt) => ({
       interrupt,
       kind: waitKind(interrupt),
     })),
@@ -878,7 +887,7 @@ export function applySnapshot(
       ? state.usage
       : snapshot.usage
   // In the snapshot too, so a sign-in that a turn waits for shows after a reload.
-  const newSignIns = snapshot.pendingInterrupts
+  const newSignIns = turnInterrupts
     .flatMap((interrupt) => signInOf(interrupt) ?? [])
     .filter(
       (signIn) =>
@@ -888,10 +897,13 @@ export function applySnapshot(
     newSignIns.length > 0 ? [...state.signIns, ...newSignIns] : state.signIns
   const questions = keep(
     state.questions,
-    snapshot.pendingQuestions.map(
-      (question) =>
-        state.questions.find((item) => item.id === question.questionId) ??
-        factory.question(question),
+    pendingWaits.flatMap((wait) =>
+      wait.turn || wait.kind !== 'question'
+        ? []
+        : [
+            state.questions.find((item) => item.id === wait.waitId) ??
+              factory.question(questionOfWait(wait)),
+          ],
     ),
   )
   // A background run with an open wait waits for its answer.

@@ -105,7 +105,9 @@ export async function runPrint(
     first.type === 'wait' &&
     session
       .snapshot()
-      .pendingInterrupts.some(({ id }) => id === first.wait.waitId)
+      .pendingWaits.some(
+        ({ waitId, turn }) => turn && waitId === first.wait.waitId,
+      )
   if (first.type === 'wait' && !isTurnStop) {
     if (options.output === 'text') stdout.write('\n')
     stderr.write(needsActionText(first.wait))
@@ -117,7 +119,7 @@ export async function runPrint(
   const status = operation.status()
   if (status === 'completed') return EXIT.ok
   if (status === 'interrupted') {
-    const [wait] = session.snapshot().pendingWaits ?? []
+    const [wait] = session.snapshot().pendingWaits
     stderr.write(needsActionText(wait))
     return EXIT.needsAction
   }

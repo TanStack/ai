@@ -64,10 +64,10 @@ export interface ObservedSession<THarness extends AnyHarness = AnyHarness> {
    * setup:
    *
    * - `status` is `requires_action` while interrupts wait, else `idle`.
-   * - `pendingInterrupts`, `pendingQuestions`, `pendingWaits`, `usage`,
-   *   and `plugins` come from the log. `plugins` has only the plugin state
-   *   that the log keeps. The state of a plugin that never saved one is left
-   *   out, because its first value comes from the plugin setup.
+   * - `pendingWaits`, `usage`, and `plugins` come from the log. `plugins`
+   *   has only the plugin state that the log keeps. The state of a plugin
+   *   that never saved one is left out, because its first value comes from
+   *   the plugin setup.
    * - There are no active operations, queued turns, or waiting inputs:
    *   those live in an open session.
    * - `cursor` is the log position.
@@ -262,17 +262,18 @@ export function observedSession<THarness extends AnyHarness>(
       const names = new Set(
         (harness.plugins?.() ?? []).map((plugin) => plugin.name),
       )
-      const { pendingInterrupts, waits, plugins, totals } = await fromLog(
+      const { isStopped, pendingWaits, plugins, totals } = await fromLog(
         (reader) => {
           const { thread } = reader.state
           const saved = [...thread.plugins].filter(([name]) => names.has(name))
           const interrupts = thread.interrupted?.interrupts ?? []
           return structuredClone({
-            pendingInterrupts: interrupts,
-            waits: snapshotWaits({
+            isStopped: interrupts.length > 0,
+            pendingWaits: snapshotWaits({
               stopped: thread.interrupted,
               interrupts,
               waits: thread.waits,
+              records: thread.interrupts,
             }),
             // fromEntries defines own keys, so a plugin named `__proto__`
             // stays a key.
@@ -283,12 +284,11 @@ export function observedSession<THarness extends AnyHarness>(
       )
       const snapshot: SessionSnapshot = {
         threadId,
-        status: pendingInterrupts.length > 0 ? 'requires_action' : 'idle',
+        status: isStopped ? 'requires_action' : 'idle',
         activeOperations: [],
         queuedTurns: 0,
         waitingInputs: [],
-        pendingInterrupts,
-        ...waits,
+        pendingWaits,
         plugins,
         ...totals,
       }

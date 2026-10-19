@@ -213,7 +213,7 @@ export function answerWithCity(session: HarnessSession) {
 }
 ```
 
-Open questions also stay in `session.snapshot().pendingQuestions`, so a client that connects later still sees them.
+Open questions also stay in `session.snapshot().pendingWaits`, so a client that connects later still sees them.
 
 ## Set a time limit
 

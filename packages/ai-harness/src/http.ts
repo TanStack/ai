@@ -1285,7 +1285,10 @@ export function createHarnessHandler<P extends Principal = Principal>(
  * waits for. The log has the turns that other instances run.
  */
 async function hydration(view: ObservedSession) {
-  const { pendingInterrupts, activeOperations } = await view.snapshot()
+  const { pendingWaits, activeOperations } = await view.snapshot()
+  const pendingInterrupts = pendingWaits.flatMap(({ interrupt, turn }) =>
+    interrupt && turn ? [interrupt] : [],
+  )
   const [first] = pendingInterrupts
   const runId = first
     ? readInterruptBinding(first)?.interruptedRunId

@@ -1,5 +1,14 @@
 import { attach } from './attach'
-import type { HarnessSession, UserInput } from '@tanstack/ai-harness'
+import type {
+  HarnessSession,
+  SessionSnapshot,
+  UserInput,
+} from '@tanstack/ai-harness'
+
+/** The first question wait of `snapshot` that no turn holds: `answer` takes it. */
+export function firstQuestion({ pendingWaits }: SessionSnapshot) {
+  return pendingWaits.find(({ turn, kind }) => !turn && kind === 'question')
+}
 
 export const HELP_TEXT = [
   'Type a message and press Enter. While the agent works, a new message steers it.',
@@ -97,11 +106,11 @@ export async function handleLine(
 ): Promise<LineResult> {
   const text = line.trim()
   if (text === '') return { type: 'notice', text: '' }
-  const [question] = session.snapshot().pendingQuestions
+  const question = firstQuestion(session.snapshot())
   if (question) {
     // A secret (a key) is the text as typed: `123456` stays a string.
     const receipt = await session.answer({
-      questionId: question.questionId,
+      questionId: question.waitId,
       value: question.secret ? text : parseAnswer(text, question.schema),
     })
     return {

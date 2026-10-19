@@ -136,7 +136,7 @@ export const greeter = definePlugin({
 
 - `session.command({ name: 'greet', input: { name: 'Ada' } })` runs the command. A Standard Schema input (zod here) is checked, and the command gets the parsed value. A JSON Schema input is not checked, the same as a JSON Schema tool input.
 - `session.setConfig({ key: 'tone', value: 'warm' })` changes the setting. A value the option does not accept is rejected.
-- `step.ask` waits for `session.answer({ questionId, value })`. The log keeps the question as a [wait](./waits), so a user on any server can answer it. The question goes to `session.onQuestion` listeners, and it stays in `session.snapshot().pendingQuestions` until someone answers.
+- `step.ask` waits for `session.answer({ questionId, value })`. The log keeps the question as a [wait](./waits), so a user on any server can answer it. The question goes to `session.onQuestion` listeners, and it stays in `session.snapshot().pendingWaits` until someone answers.
 - When the host stops while the command waits, the next host runs the command again from the top. Put each side effect before the ask in `command.step.do`, so it does not run twice.
 - `ctx.session.ask` is only for an MCP server that asks during a tool call. Anywhere else it throws. Use `step.ask`, the `question` tool, or a [permission rule](./permissions#rules-for-your-own-tool).
 

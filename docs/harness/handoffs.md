@@ -227,7 +227,7 @@ const client = createHarnessClient<typeof desk>({
 })
 
 const snapshot = await client.snapshot()
-const wait = snapshot.pendingWaits?.find((open) => open.kind === 'human')
+const wait = snapshot.pendingWaits.find((open) => open.kind === 'human')
 if (wait) {
   await client.answer({ questionId: wait.waitId, value: { handBack: 'billing' } })
 }

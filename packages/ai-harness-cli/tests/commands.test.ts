@@ -216,7 +216,7 @@ describe('handleLine', () => {
     expect(asked).toMatchObject({ type: 'notice', text: '' })
     const later = asked.type === 'notice' ? asked.later : undefined
     expect(later).toBeDefined()
-    expect(session.snapshot().pendingQuestions).toHaveLength(1)
+    expect(session.snapshot().pendingWaits).toHaveLength(1)
     expect(await handleLine(session, 'maybe')).toMatchObject({
       text: expect.stringMatching(/^Answer again: /),
     })

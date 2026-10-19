@@ -345,14 +345,14 @@ if (process.env[childEnv] === '1') {
         )
         const turn = session.send('book a trip')
         await vi.waitFor(() =>
-          expect(session.snapshot().pendingQuestions).toHaveLength(1),
+          expect(session.snapshot().pendingWaits).toHaveLength(1),
         )
-        const [question] = session.snapshot().pendingQuestions
+        const [question] = session.snapshot().pendingWaits
 
         expect(question?.message).toBe('Which city?')
         expect(question?.schema).toMatchObject(tripForm.requestedSchema)
         expect(question?.url).toBeUndefined()
-        await session.answer({ questionId: question?.questionId ?? '', value })
+        await session.answer({ questionId: question?.waitId ?? '', value })
         await turn
         expect(trips.answers).toEqual([expected])
         expect(JSON.stringify(model.calls[1]?.messages)).toContain('booked')
@@ -372,16 +372,16 @@ if (process.env[childEnv] === '1') {
       )
       const turn = session.send('book a trip')
       await vi.waitFor(() =>
-        expect(session.snapshot().pendingQuestions).toHaveLength(1),
+        expect(session.snapshot().pendingWaits).toHaveLength(1),
       )
-      const [question] = session.snapshot().pendingQuestions
+      const [question] = session.snapshot().pendingWaits
 
       expect(question).toMatchObject({
         message: 'Pay for the trip, then come back.',
         url: 'https://pay.example.com/trip',
       })
       await session.answer({
-        questionId: question?.questionId ?? '',
+        questionId: question?.waitId ?? '',
         value: 'done',
       })
       await turn
@@ -407,13 +407,13 @@ if (process.env[childEnv] === '1') {
         )
         const turn = session.send('book a trip')
         await vi.waitFor(() =>
-          expect(session.snapshot().pendingQuestions).toHaveLength(1),
+          expect(session.snapshot().pendingWaits).toHaveLength(1),
         )
-        const [question] = session.snapshot().pendingQuestions
+        const [question] = session.snapshot().pendingWaits
 
         expect(question?.message).toBe('Which city?')
         expect(question?.schema).toMatchObject(tripForm.requestedSchema)
-        await session.answer({ questionId: question?.questionId ?? '', value })
+        await session.answer({ questionId: question?.waitId ?? '', value })
         await turn
         expect(trips.answers).toEqual([expected])
         expect(JSON.stringify(model.calls[1]?.messages)).toContain('booked')
@@ -435,16 +435,16 @@ if (process.env[childEnv] === '1') {
       )
       const turn = session.send('book a trip')
       await vi.waitFor(() =>
-        expect(session.snapshot().pendingQuestions).toHaveLength(1),
+        expect(session.snapshot().pendingWaits).toHaveLength(1),
       )
-      const [question] = session.snapshot().pendingQuestions
+      const [question] = session.snapshot().pendingWaits
 
       expect(question).toMatchObject({
         message: 'Pay for the trip, then come back.',
         url: 'https://pay.example.com/trip',
       })
       await session.answer({
-        questionId: question?.questionId ?? '',
+        questionId: question?.waitId ?? '',
         value: 'done',
       })
       await turn
@@ -475,10 +475,10 @@ if (process.env[childEnv] === '1') {
         ['Which seat?', { seat: '12A' }],
       ] as const) {
         await vi.waitFor(() =>
-          expect(session.snapshot().pendingQuestions[0]?.message).toBe(message),
+          expect(session.snapshot().pendingWaits[0]?.message).toBe(message),
         )
-        const [question] = session.snapshot().pendingQuestions
-        await session.answer({ questionId: question?.questionId ?? '', value })
+        const [question] = session.snapshot().pendingWaits
+        await session.answer({ questionId: question?.waitId ?? '', value })
       }
       await turn
       expect(trips.answers).toEqual([
@@ -500,11 +500,11 @@ if (process.env[childEnv] === '1') {
       const turn = session.send('book a trip')
       for (let round = 0; round < 5; round++) {
         await vi.waitFor(() =>
-          expect(session.snapshot().pendingQuestions).toHaveLength(1),
+          expect(session.snapshot().pendingWaits).toHaveLength(1),
         )
-        const [question] = session.snapshot().pendingQuestions
+        const [question] = session.snapshot().pendingWaits
         await session.answer({
-          questionId: question?.questionId ?? '',
+          questionId: question?.waitId ?? '',
           value: { city: 'Paris' },
         })
       }

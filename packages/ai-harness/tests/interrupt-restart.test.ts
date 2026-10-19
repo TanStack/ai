@@ -9,6 +9,7 @@ import {
   storedThreadState,
   text,
   toolCall,
+  turnInterrupts,
 } from './helpers'
 import type { AnyTool } from '@tanstack/ai'
 import type { InterruptRecord, LogStore } from '@tanstack/ai-persistence'
@@ -134,7 +135,7 @@ describe('a resolve after a restart', () => {
       replies: [() => text('Removed b.txt')],
     })
     expect(
-      next.session.snapshot().pendingInterrupts.map((item) => item.id),
+      turnInterrupts(next.session.snapshot()).map((item) => item.id),
     ).toEqual([interrupt.id])
     const receipt = await next.session.resolve({
       resume: [
@@ -182,7 +183,7 @@ describe('a resolve after a restart', () => {
       ).rejects.toThrow()
       expect(remove.execute).not.toHaveBeenCalled()
       expect(
-        first.session.snapshot().pendingInterrupts.map((item) => item.id),
+        turnInterrupts(first.session.snapshot()).map((item) => item.id),
       ).toEqual([interrupt.id])
       await first.host.close()
       const next = await open({
@@ -190,7 +191,7 @@ describe('a resolve after a restart', () => {
         replies: [() => text('Removed b.txt')],
       })
       expect(
-        next.session.snapshot().pendingInterrupts.map((item) => item.id),
+        turnInterrupts(next.session.snapshot()).map((item) => item.id),
       ).toEqual([interrupt.id])
       const receipt = await next.session.resolve({ resume: [valid] })
       expect(receipt.status).toBe('accepted')
@@ -225,7 +226,7 @@ describe('a resolve after a restart', () => {
     await first.host.close()
 
     const next = await open({ tools: [remove.tool] })
-    expect(next.session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(next.session.snapshot())).toEqual([])
     expect(
       await next.session.resolve({
         resume: [
@@ -336,9 +337,9 @@ describe('committed approval phases', () => {
       await expect(
         session.operation(receipt.operationId ?? ''),
       ).rejects.toThrow()
-      expect(
-        session.snapshot().pendingInterrupts.map((item) => item.id),
-      ).toEqual([approval.id])
+      expect(turnInterrupts(session.snapshot()).map((item) => item.id)).toEqual(
+        [approval.id],
+      )
       expect(remove.execute).not.toHaveBeenCalled()
       // The other host cancels its interrupt. Then a retry runs the tool.
       await writeAsOther(log, [
@@ -393,7 +394,7 @@ describe('committed approval phases', () => {
     )
     expect(before).toHaveBeenCalledTimes(1)
     expect(remove.execute).not.toHaveBeenCalled()
-    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(session.snapshot())).toEqual([])
     expect((await storedInterrupt(log, approval.id))?.status).toBe('resolved')
     await host.close()
   })
@@ -443,7 +444,7 @@ describe('committed approval phases', () => {
     expect(changedExecute).not.toHaveBeenCalled()
     expect(original.execute).not.toHaveBeenCalled()
     expect(
-      changedSession.snapshot().pendingInterrupts.map((item) => item.id),
+      turnInterrupts(changedSession.snapshot()).map((item) => item.id),
     ).toEqual([approval.id])
     await changed.close()
     const next = createHarnessHost({ persistence })
@@ -492,9 +493,9 @@ describe('committed approval phases', () => {
         session.operation(receipt.operationId ?? ''),
       ).rejects.toThrow()
       expect(remove.execute).not.toHaveBeenCalled()
-      expect(
-        session.snapshot().pendingInterrupts.map((item) => item.id),
-      ).toEqual([approval.id])
+      expect(turnInterrupts(session.snapshot()).map((item) => item.id)).toEqual(
+        [approval.id],
+      )
       await host.close()
       const next = createHarnessHost({ persistence })
       const reopened = await next.open(config, { threadId: THREAD })
@@ -566,7 +567,7 @@ describe('committed approval phases', () => {
       expect(remove.execute).toHaveBeenCalledTimes(1)
       // Offering the approval again would run the tool a second time, so
       // it is used up.
-      expect(session.snapshot().pendingInterrupts).toEqual([])
+      expect(turnInterrupts(session.snapshot())).toEqual([])
       logWrite.mockRestore()
       await host.close()
       const next = createHarnessHost({ persistence })
@@ -590,7 +591,7 @@ describe('committed approval phases', () => {
           reason: 'no_pending_interrupts',
         })
       }
-      expect(reopened.snapshot().pendingInterrupts).toEqual([])
+      expect(turnInterrupts(reopened.snapshot())).toEqual([])
       expect(remove.execute).toHaveBeenCalledTimes(1)
       await next.close()
     },
@@ -633,7 +634,7 @@ describe('committed approval phases', () => {
     })
     await session.operation(accepted.operationId ?? '')
     metadata.mockRestore()
-    const pending = session.snapshot().pendingInterrupts
+    const pending = turnInterrupts(session.snapshot())
     expect(pending).toHaveLength(1)
     const client = pending[0]
     if (!client) throw new Error('The client phase is missing.')
@@ -646,9 +647,9 @@ describe('committed approval phases', () => {
     await first.close()
     const next = createHarnessHost({ persistence })
     const reopened = await next.open(config, { threadId: THREAD })
-    expect(
-      reopened.snapshot().pendingInterrupts.map((item) => item.id),
-    ).toEqual([client.id])
+    expect(turnInterrupts(reopened.snapshot()).map((item) => item.id)).toEqual([
+      client.id,
+    ])
     const wrong = await reopened.resolve({
       resume: [
         {
@@ -659,9 +660,9 @@ describe('committed approval phases', () => {
       ],
     })
     await expect(reopened.operation(wrong.operationId ?? '')).rejects.toThrow()
-    expect(
-      reopened.snapshot().pendingInterrupts.map((item) => item.id),
-    ).toEqual([client.id])
+    expect(turnInterrupts(reopened.snapshot()).map((item) => item.id)).toEqual([
+      client.id,
+    ])
     const valid = await reopened.resolve({
       resume: [
         { interruptId: client.id, status: 'resolved', payload: { ok: true } },
@@ -671,7 +672,7 @@ describe('committed approval phases', () => {
       text: 'Checked.',
       media: [],
     })
-    expect(reopened.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(reopened.snapshot())).toEqual([])
     await next.close()
   })
 
@@ -707,14 +708,14 @@ describe('committed approval phases', () => {
       resume: [{ interruptId: 'unknown', status: 'resolved', payload: true }],
     })
     await expect(session.operation(wrong.operationId ?? '')).rejects.toThrow()
-    expect(session.snapshot().pendingInterrupts.map((item) => item.id)).toEqual(
-      [approval.id],
-    )
+    expect(turnInterrupts(session.snapshot()).map((item) => item.id)).toEqual([
+      approval.id,
+    ])
     const valid = await session.resolve({
       resume: [{ interruptId: approval.id, status: 'resolved', payload: true }],
     })
     await session.operation(valid.operationId ?? '')
-    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(session.snapshot())).toEqual([])
     expect((await storedInterrupt(log, 'external'))?.status).toBe('pending')
     expect(remove.execute).toHaveBeenCalledTimes(1)
     await host.close()

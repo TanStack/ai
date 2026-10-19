@@ -224,7 +224,7 @@ export type {
 } from './types'
 
 export { isApproval, waitKind, waitOfInterrupt, waitOfQuestion } from './waits'
-export type { Wait, WaitKind, WaitOutcome } from './waits'
+export type { PendingWait, Wait, WaitKind, WaitOutcome } from './waits'
 
 export { harnessText } from './harness-text'
 export type { HarnessTextOptions, RemoteHarness } from './harness-text'

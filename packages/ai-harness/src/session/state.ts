@@ -1,6 +1,7 @@
 import {
   INTERRUPT_BINDING_METADATA_KEY,
   convertSchemaToJsonSchema,
+  validateJsonSchema,
   validateWithStandardSchema,
 } from '@tanstack/ai'
 import { UNOWNED_EPOCH, loadChildTranscript } from '@tanstack/ai-persistence'
@@ -8,7 +9,6 @@ import { checkConfigValue } from '../config'
 import { transcriptText } from '../first-party/session-tools'
 import { LogOwnedElsewhereError } from '../ownership'
 import { isRecord } from '../utils'
-import { jsonSchemaIssues } from '../json-schema'
 import { changedEntry } from '../session-entry'
 import { stableJson, visibleMessages } from '../log'
 import { isHumanTarget } from '../log-records'
@@ -121,6 +121,11 @@ export abstract class SessionState<
   protected readonly waitEnds = new Map<string, () => void>()
   /** The secret answers to `step.ask` waits that this host kept, by wait id. */
   protected readonly keptAnswers = new Map<string, unknown>()
+  /**
+   * The logged waits that an answer of this host ends now, by wait id. A
+   * second answer to one of them is refused, so only one gets `accepted`.
+   */
+  protected readonly answering = new Set<string>()
   /** The handlers that plugins added to `ThreadEnds`, oldest first. */
   protected readonly threadEnds = new Set<ThreadEndHandler>()
 
@@ -250,16 +255,14 @@ export abstract class SessionState<
       this.activeResume && !this.activeTurn?.isSettled()
         ? []
         : (stopped?.interrupts ?? [])
+    const thread = this.logWriter?.state.thread
     const waits = snapshotWaits({
       stopped,
+      interrupts: pendingInterrupts,
       // With the expiry of each wait, also the default one of its kind.
-      interrupts: pendingInterrupts.map((interrupt) => {
-        const expiresAt = this.interruptExpiry(interrupt)
-        return expiresAt === undefined || interrupt.expiresAt !== undefined
-          ? interrupt
-          : { ...interrupt, expiresAt: new Date(expiresAt).toISOString() }
-      }),
-      waits: this.logWriter?.state.thread.waits,
+      expiry: (interrupt) => this.interruptExpiry(interrupt),
+      waits: thread?.waits,
+      records: thread?.interrupts,
     })
     return {
       threadId: this.threadId,
@@ -277,14 +280,15 @@ export abstract class SessionState<
       // A steer that waits to join the running turn waits too.
       queuedTurns: this.queue.length + this.steerQueue.length,
       waitingInputs: this.inputs(),
-      pendingInterrupts,
-      pendingQuestions: waits.pendingQuestions,
       // The waits of the `harnessAgent` children of the runs too: an answer
-      // here goes to the child (see `resolve`).
+      // here goes to the child (see `resolve`). No turn of this session
+      // holds them.
       pendingWaits: [
-        ...waits.pendingWaits,
-        ...[...this.harnessChildren.values()].flatMap(
-          (child) => child.session.snapshot().pendingWaits ?? [],
+        ...waits,
+        ...[...this.harnessChildren.values()].flatMap((child) =>
+          child.session
+            .snapshot()
+            .pendingWaits.map(({ turn: _turn, ...wait }) => wait),
         ),
       ],
       plugins: { ...this.stateDoc },
@@ -1147,29 +1151,42 @@ export abstract class SessionState<
       logged !== undefined &&
       logged.outcome === undefined &&
       logged.live === undefined
-    if (!isOpen) return this.reject(inputId, 'unknown_question')
+    // Claimed before the first await: a second answer is refused.
+    if (!isOpen || this.answering.has(waitId)) {
+      return this.reject(inputId, 'unknown_question')
+    }
     const handBack = this.humanHandoffEnd(logged.wait, value)
     if (handBack && 'reason' in handBack) {
       return this.reject(inputId, handBack.reason)
     }
     // The log has the JSON Schema of the wait: the answer must fit it.
-    const issues = jsonSchemaIssues(logged.wait.schema, value)
-    if (issues.length > 0) {
-      return this.reject(inputId, `Invalid answer: ${issues.join(', ')}`)
+    const { schema } = logged.wait
+    const checked =
+      isRecord(schema) || typeof schema === 'boolean'
+        ? validateJsonSchema(schema, value)
+        : undefined
+    if (checked?.issues) {
+      const reason = checked.issues.map((issue) => issue.message).join(', ')
+      return this.reject(inputId, `Invalid answer: ${reason}`)
     }
-    // A secret never goes in the log. The run reads it from the store.
-    if (logged.secret) await this.keepSecretAnswer(logged, value)
-    // The end of a handoff to a person goes in the same append.
-    await this.applied(inputId, 'session', [
-      ...this.waitEndRecords(
-        waitId,
-        'answered',
-        logged.secret ? undefined : value,
-      ),
-      ...(handBack
-        ? [{ type: 'harness.handoff' as const, ...handBack.record }]
-        : []),
-    ])
+    this.answering.add(waitId)
+    try {
+      // A secret never goes in the log. The run reads it from the store.
+      if (logged.secret) await this.keepSecretAnswer(logged, value)
+      // The end of a handoff to a person goes in the same append.
+      await this.applied(inputId, 'session', [
+        ...this.waitEndRecords(
+          waitId,
+          'answered',
+          logged.secret ? undefined : value,
+        ),
+        ...(handBack
+          ? [{ type: 'harness.handoff' as const, ...handBack.record }]
+          : []),
+      ])
+    } finally {
+      this.answering.delete(waitId)
+    }
     if (handBack) {
       this.feed.publish(
         'session',
@@ -1573,7 +1590,7 @@ export abstract class SessionState<
     signal,
   }: { runId?: string; signal?: AbortSignal } = {}): Promise<Wait> {
     const find = () =>
-      this.snapshot().pendingWaits?.find(
+      this.snapshot().pendingWaits.find(
         (wait) => runId === undefined || wait.runId === runId,
       )
     return new Promise<Wait>((resolve, reject) => {

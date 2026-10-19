@@ -171,7 +171,7 @@ const deleteFile: Interrupt = {
 const plain: Interrupt = { id: 'b', reason: 'confirm' }
 const waiting = sessionSnapshot({
   status: 'requires_action',
-  pendingInterrupts: [deleteFile, plain],
+  interrupts: [deleteFile, plain],
 })
 const confirm = {
   questionId: 'q1',
@@ -561,11 +561,9 @@ describe('session view approvals', () => {
   it('ignores a decision for an approval that is not open, also when it opens later', async () => {
     const late: Interrupt = { id: 'late', reason: 'confirm' }
     const snapshot = vi.fn(() =>
-      sessionSnapshot({ pendingInterrupts: [deleteFile, late] }),
+      sessionSnapshot({ interrupts: [deleteFile, late] }),
     )
-    snapshot.mockReturnValueOnce(
-      sessionSnapshot({ pendingInterrupts: [deleteFile] }),
-    )
+    snapshot.mockReturnValueOnce(sessionSnapshot({ interrupts: [deleteFile] }))
     const { view, stream, inputs } = await openView({ snapshot })
 
     view.approve({ id: 'late' })
@@ -696,10 +694,10 @@ describe('session view on()', () => {
   it('fires each question once, and answers it through the source', async () => {
     const named = { questionId: 'q2', message: 'Name?' }
     const snapshot = vi.fn(() =>
-      sessionSnapshot({ pendingQuestions: [confirm, named], queuedTurns: 1 }),
+      sessionSnapshot({ questions: [confirm, named], queuedTurns: 1 }),
     )
     snapshot.mockReturnValueOnce(
-      sessionSnapshot({ pendingQuestions: [confirm, named] }),
+      sessionSnapshot({ questions: [confirm, named] }),
     )
     const { view, stream, inputs } = startView({ snapshot })
     const asked: Array<string> = []
@@ -817,7 +815,7 @@ const regionInput: Interrupt = {
 }
 const stopped = sessionSnapshot({
   status: 'requires_action',
-  pendingInterrupts: [removeApproval, regionInput],
+  interrupts: [removeApproval, regionInput],
 })
 
 /** A source call that records its name and arguments in `calls`. */
@@ -1507,7 +1505,7 @@ describe('session view dispose', () => {
 
   it.each(afterDispose)('$action throws after dispose', async ({ act }) => {
     const { view, inputs } = await openView({
-      snapshot: () => sessionSnapshot({ pendingQuestions: [confirm] }),
+      snapshot: () => sessionSnapshot({ questions: [confirm] }),
     })
 
     view.dispose()

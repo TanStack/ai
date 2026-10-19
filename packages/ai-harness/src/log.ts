@@ -1257,15 +1257,35 @@ export async function loggedTargetOf({
     }
     case 'resolve': {
       const stopped = root.thread.interrupted
+      const logged = input.resume.flatMap((item) => {
+        const state = root.thread.waits.get(item.interruptId)
+        return state ? [state.wait] : []
+      })
       // A resolve that ends a `human` wait needs an operator, as an answer.
-      const human = input.resume
-        .map((item) => root.thread.waits.get(item.interruptId)?.wait)
-        .find((wait) => wait?.kind === 'human')
+      const human = logged.find((wait) => wait.kind === 'human')
+      const answered = human
+        ? { wait: { waitId: human.waitId, kind: human.kind } }
+        : {}
+      const [first] = logged
+      if (!first) {
+        return {
+          run: stopped
+            ? { runId: stopped.runId, ...by(stopped.principal) }
+            : null,
+          ...answered,
+        }
+      }
+      // The waits of a background agent run: the log keeps them with their
+      // run. One resolve answers the waits of one run.
+      const isOneRun =
+        logged.length === input.resume.length &&
+        logged.every((wait) => wait.runId === first.runId)
+      if (!isOneRun) return { run: null, ...answered }
       return {
-        run: stopped
-          ? { runId: stopped.runId, ...by(stopped.principal) }
-          : null,
-        ...(human ? { wait: { waitId: human.waitId, kind: human.kind } } : {}),
+        run: first.principal
+          ? { runId: first.runId, ...by(first.principal) }
+          : startedBy(first.runId),
+        ...answered,
       }
     }
   }

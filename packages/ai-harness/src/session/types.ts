@@ -25,7 +25,7 @@ import type { ConfigOption } from '../config'
 import type { SessionUsage, UsageCall } from '../usage'
 import type { SessionImpl } from './harness-session'
 import type { AgentInputOf, AgentResultOf, AnyAgent } from '../agents'
-import type { Wait } from '../waits'
+import type { PendingWait } from '../waits'
 import type { HandoffRecord } from '../log-records'
 import type { AnyHarness, HarnessAgentsOf } from '../define'
 import type {
@@ -41,7 +41,6 @@ import type {
   ChatTurnResult,
   Cursor,
   HarnessInput,
-  PendingQuestion,
   Principal,
   Receipt,
   ResolveOptions,
@@ -289,20 +288,13 @@ export interface SessionSnapshot {
    * leave it out.
    */
   waitingInputs?: Array<WaitingInput>
-  /** The interrupts of `pendingWaits`, as the last turn stopped for them. */
-  pendingInterrupts: Array<Interrupt>
-  /**
-   * The questions of `pendingWaits` that a command or a plugin asked,
-   * waiting for `session.answer`.
-   */
-  pendingQuestions: Array<PendingQuestion>
   /**
    * Every wait that is open: the interrupts of the last turn, then the
-   * questions and the human waits, oldest first. Read the kind with
-   * `waitKind`. A session always sets it. A snapshot built by hand (a test
-   * fixture) can leave it out.
+   * waits of the log (background agent runs, questions, human waits),
+   * oldest first. `kind` says what each one waits for. A wait with an
+   * `interrupt` takes `resolve`, the others take `answer`.
    */
-  pendingWaits?: Array<Wait>
+  pendingWaits: Array<PendingWait>
   /** The state of each plugin that uses `ctx.state`, by plugin name. */
   plugins: Record<string, unknown>
   /** The token usage of the thread, the same as `session.usage()`. */

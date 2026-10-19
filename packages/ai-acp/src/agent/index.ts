@@ -318,6 +318,11 @@ function formOf(wait: Wait) {
   }
 }
 
+/** The waits of the stopped turn of `session`. */
+function turnWaitsOf(session: HarnessSession) {
+  return session.snapshot().pendingWaits.filter(({ turn }) => turn)
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -642,9 +647,13 @@ export function createAcpAgent<P extends Principal = Principal>(
         .waitFor({ runId: operationId, signal })
         .catch(() => undefined)
       if (!wait) return
+      // A question that no turn holds takes an answer.
       const isQuestion = session
         .snapshot()
-        .pendingQuestions.some(({ questionId }) => questionId === wait.waitId)
+        .pendingWaits.some(
+          ({ waitId, kind, turn }) =>
+            !turn && kind === 'question' && waitId === wait.waitId,
+        )
       if (!isQuestion) return
       const reply = await askEditor({ client, sessionId, wait })
       if (signal.aborted) return
@@ -664,11 +673,11 @@ export function createAcpAgent<P extends Principal = Principal>(
    * when the client cancelled that turn: its interrupts stay open.
    */
   const closeInterrupts = async (session: HarnessSession) => {
-    const open = session.snapshot().pendingInterrupts
+    const open = turnWaitsOf(session)
     if (open.length === 0) return true
     const receipt = await session.resolve({
-      resume: open.map((interrupt) => ({
-        interruptId: interrupt.id,
+      resume: open.map(({ waitId }) => ({
+        interruptId: waitId,
         status: 'cancelled' as const,
       })),
     })
@@ -686,7 +695,7 @@ export function createAcpAgent<P extends Principal = Principal>(
     )
     if (turn?.status() === 'cancelled') return false
     if (turn?.status() === 'failed') throw failure
-    if (session.snapshot().pendingInterrupts.length > 0) {
+    if (turnWaitsOf(session).length > 0) {
       throw new Error(
         'The model asked again for input that the client cannot give.',
       )

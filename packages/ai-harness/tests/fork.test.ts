@@ -9,7 +9,13 @@ import {
   definePlugin,
 } from '../src'
 import { mediaIdOf, mediaPart } from '../src/media-entry'
-import { messageTexts, mockAdapter, text, toolCall } from './helpers'
+import {
+  messageTexts,
+  mockAdapter,
+  text,
+  toolCall,
+  turnInterrupts,
+} from './helpers'
 import type { ModelMessage } from '@tanstack/ai'
 import type { HarnessPersistence, HostLifecycleOptions } from '../src'
 
@@ -179,7 +185,7 @@ describe('host.fork', () => {
     await source.setConfig({ key: 'tone', value: 'warm' })
     await source.send('Count.')
     await source.send('Deploy.')
-    expect(source.snapshot().pendingInterrupts).toHaveLength(1)
+    expect(turnInterrupts(source.snapshot())).toHaveLength(1)
     expect(source.snapshot().plugins['test/counter']).toEqual({ count: 1 })
 
     const fork = await host.fork(harness, {
@@ -192,7 +198,7 @@ describe('host.fork', () => {
     })
     expect(fork.config().tone?.value).toBe('warm')
     expect(fork.snapshot().plugins['test/counter']).toEqual({ count: 0 })
-    expect(fork.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(fork.snapshot())).toEqual([])
     await host.close()
   })
 

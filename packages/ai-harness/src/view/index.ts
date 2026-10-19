@@ -62,7 +62,7 @@ import type {
   ViewPart,
   ViewQuestion,
 } from './types'
-import type { WaitKind } from '../waits'
+import type { PendingWait } from '../waits'
 
 export {
   MEDIA_URL_PREFIX,
@@ -73,7 +73,7 @@ export {
 } from '../media-ref'
 export type { MediaKind, MediaRecord, WaitingInput } from '../types'
 export { isApproval, waitKind, waitOfInterrupt, waitOfQuestion } from '../waits'
-export type { Wait, WaitKind, WaitOutcome } from '../waits'
+export type { PendingWait, Wait, WaitKind, WaitOutcome } from '../waits'
 export type {
   AgentPart,
   Approval,
@@ -504,11 +504,11 @@ export function createSessionView(source: SessionViewSource) {
   /** The answer to each open approval and client tool, by interrupt id. */
   const decisions = new Map<string, RunAgentResumeItem>()
   /**
-   * The kinds of the waits that no turn holds (the waits of background agent
-   * runs), by id, from the last snapshot. Each one is answered on its own,
-   * not with the interrupts of the turn.
+   * The waits that no turn holds (the waits of background agent runs), by
+   * id, from the last snapshot. Each one is answered on its own, not with
+   * the interrupts of the turn.
    */
-  let runWaits = new Map<string, WaitKind>()
+  let runWaits = new Map<string, PendingWait>()
   /** The waits of background runs whose answer is on its way. */
   const sending = new Set<string>()
   const chatTurns = new Set<string>()
@@ -727,15 +727,16 @@ export function createSessionView(source: SessionViewSource) {
     alive()
     const id = entry.interruptId
     if (!open.some((item) => item.id === id)) return
-    const kind = runWaits.get(id)
-    if (kind !== undefined) {
+    const wait = runWaits.get(id)
+    if (wait !== undefined) {
       if (sending.has(id)) return
       sending.add(id)
       commit(withoutItems((item) => item === id))
       // A person answers a `human` wait with `answer`, which an operator
-      // may send too.
+      // may send too. A wait with no interrupt takes only `answer`.
       const sent =
-        kind === 'human' && entry.status === 'resolved'
+        (wait.kind === 'human' || !wait.interrupt) &&
+        entry.status === 'resolved'
           ? source.answer({ questionId: id, value: entry.payload })
           : source.resolve({ resume: [entry] })
       void sent.then(refused, fail).finally(() => {
@@ -874,10 +875,9 @@ export function createSessionView(source: SessionViewSource) {
   }
 
   const takeSnapshot = (snapshot: SessionSnapshot, initial = false) => {
-    const turnIds = new Set(snapshot.pendingInterrupts.map(({ id }) => id))
     runWaits = new Map(
-      (snapshot.pendingWaits ?? []).flatMap(({ waitId, kind }) =>
-        turnIds.has(waitId) ? [] : [[waitId, kind] as const],
+      snapshot.pendingWaits.flatMap((wait) =>
+        wait.turn ? [] : [[wait.waitId, wait] as const],
       ),
     )
     const before = get()

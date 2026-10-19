@@ -272,7 +272,7 @@ describe('harnessAgent in a harness session', () => {
 
     const turn = session.send('Ship it.')
     await waitFor(() => expect(session.snapshot().pendingWaits).toHaveLength(1))
-    const [wait] = session.snapshot().pendingWaits ?? []
+    const [wait] = session.snapshot().pendingWaits
     expect(wait).toMatchObject({ kind: 'approval' })
     expect(deployed).toEqual([])
     expect(hostCountsOf(host).children).toBe(1)
@@ -348,7 +348,7 @@ describe('harnessAgent in a harness session', () => {
 
     const turn = session.send('Ship it.')
     await waitFor(() => expect(session.snapshot().pendingWaits).toHaveLength(1))
-    const [wait] = session.snapshot().pendingWaits ?? []
+    const [wait] = session.snapshot().pendingWaits
     // As an expired wait does: the child resolves its own wait.
     await childSession?.resolve({
       resume: [{ interruptId: wait?.waitId ?? '', status: 'cancelled' }],

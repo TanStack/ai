@@ -563,7 +563,7 @@ export abstract class SessionRequests<
   ): HarnessChild | undefined {
     if (waitIds.length === 0) return undefined
     for (const child of this.harnessChildren.values()) {
-      const waits = child.session.snapshot().pendingWaits ?? []
+      const waits = child.session.snapshot().pendingWaits
       const open = new Set(waits.map((wait) => wait.waitId))
       if (waitIds.every((id) => open.has(id))) return child
     }
@@ -621,27 +621,65 @@ export abstract class SessionRequests<
       // The waits of a background agent run: the log ends them, and the
       // run goes on (see `resumeWaitingRuns`).
       const logged = resume.map((item) => this.loggedWait(item.interruptId))
-      const isLogged = logged.every(
-        (state) =>
-          state !== undefined &&
-          state.outcome === undefined &&
-          state.live === undefined,
+      const open = logged.flatMap((state) =>
+        state !== undefined &&
+        state.outcome === undefined &&
+        state.live === undefined
+          ? [state]
+          : [],
       )
-      if (resume.length > 0 && isLogged) {
-        // The input ends here, in the append that ends the waits.
-        await this.settleWith(
-          [{ inputId, outcome: 'completed' }],
-          resume.flatMap((item) =>
-            item.status === 'resolved'
-              ? this.waitEndRecords(item.interruptId, 'answered', item.payload)
-              : this.waitEndRecords(item.interruptId, 'cancelled'),
-          ),
+      const interrupts = this.logWriter?.state.thread.interrupts
+      // A `step.ask` question and the `human` wait of a handoff have no
+      // interrupt: `answer` checks their schema, keeps a secret out of the
+      // log, and ends the handoff.
+      if (
+        open.some(
+          ({ wait }) => interrupts?.get(wait.waitId)?.status !== 'pending',
         )
+      ) {
+        this.reject(inputId, 'use_answer')
+        return { inputId, status: 'rejected', reason: 'use_answer' }
+      }
+      if (open.length > 0) {
+        // The access check saw the run of the first item: every item must
+        // be a wait of that run.
+        const runId = open[0]?.wait.runId
+        const isOneRun =
+          open.length === resume.length &&
+          open.every(({ wait }) => wait.runId === runId)
+        if (!isOneRun) {
+          this.reject(inputId, 'mixed_runs')
+          return { inputId, status: 'rejected', reason: 'mixed_runs' }
+        }
+        // Another answer ends one of these waits now.
+        if (open.some(({ wait }) => this.answering.has(wait.waitId))) {
+          this.reject(inputId, 'unknown_question')
+          return { inputId, status: 'rejected', reason: 'unknown_question' }
+        }
+        const ids = open.map(({ wait }) => wait.waitId)
+        for (const id of ids) this.answering.add(id)
+        try {
+          // The input ends here, in the append that ends the waits.
+          await this.settleWith(
+            [{ inputId, outcome: 'completed' }],
+            resume.flatMap((item) =>
+              item.status === 'resolved'
+                ? this.waitEndRecords(
+                    item.interruptId,
+                    'answered',
+                    item.payload,
+                  )
+                : this.waitEndRecords(item.interruptId, 'cancelled'),
+            ),
+          )
+        } finally {
+          for (const id of ids) this.answering.delete(id)
+        }
         for (const item of resume) await this.afterWaitEnd(item.interruptId)
         return this.keep({
           inputId,
           status: 'accepted',
-          ...(logged[0] ? { operationId: logged[0].wait.runId } : {}),
+          ...(runId !== undefined ? { operationId: runId } : {}),
         })
       }
       const answers = this.interrupted

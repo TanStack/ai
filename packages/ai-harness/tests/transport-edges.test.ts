@@ -182,7 +182,7 @@ describe('HTTP handler edges', () => {
     await waitFor(async () =>
       expect((await snapshotOf()).status).toBe('requires_action'),
     )
-    const [interrupt] = (await snapshotOf()).pendingInterrupts
+    const [{ interrupt }] = (await snapshotOf()).pendingWaits
 
     // A thread with no stopped turn has nothing to resume.
     const nothing = await call('run', {

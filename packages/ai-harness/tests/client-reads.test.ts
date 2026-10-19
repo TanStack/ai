@@ -10,7 +10,7 @@ import {
 } from '../src'
 import { createHarnessHandler } from '../src/server'
 import { createHarnessClient } from '../src/client'
-import { mockAdapter, text, toolCall } from './helpers'
+import { mockAdapter, questionsOf, text, toolCall } from './helpers'
 
 const asker = definePlugin({
   name: 'test/asker',
@@ -87,9 +87,9 @@ describe('client reads and actions', () => {
 
     expect((await client.command({ name: 'confirm' })).status).toBe('accepted')
     await vi.waitFor(async () =>
-      expect((await client.snapshot()).pendingQuestions).toHaveLength(1),
+      expect(questionsOf(await client.snapshot())).toHaveLength(1),
     )
-    const [question] = (await client.snapshot()).pendingQuestions
+    const [question] = questionsOf(await client.snapshot())
     expect(
       (
         await client.answer({
@@ -99,7 +99,7 @@ describe('client reads and actions', () => {
       ).status,
     ).toBe('accepted')
     await vi.waitFor(async () =>
-      expect((await client.snapshot()).pendingQuestions).toHaveLength(0),
+      expect(questionsOf(await client.snapshot())).toHaveLength(0),
     )
 
     expect(

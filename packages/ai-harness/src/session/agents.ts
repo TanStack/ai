@@ -19,7 +19,13 @@ import {
   truncationMiddleware,
 } from '../resume'
 import { HARNESS_EVENTS, InputRejectedError } from '../types'
-import { expiryOf, openWaits, signInOf, waitOfInterrupt } from '../waits'
+import {
+  expiryOf,
+  interruptOf,
+  openWaits,
+  signInOf,
+  waitOfInterrupt,
+} from '../waits'
 import {
   agentKey,
   agentResultRecord,
@@ -57,7 +63,6 @@ import type {
   SubagentBinding,
   SubagentRunContext,
 } from '@tanstack/ai'
-import type { InterruptRecord } from '@tanstack/ai-persistence'
 import type { InputState, LogWriter } from '../log'
 import type { InnerTurnEnd } from '../harness-text'
 import type { AgentResultRecord, RunTreeNode } from '../log-records'
@@ -2573,17 +2578,6 @@ function agentRunInfo(node: RunTreeNode, agent: string): AgentRunInfo {
     ...(node.budget ? { budget: node.budget } : {}),
     ...(node.result !== undefined ? { result: node.result } : {}),
     ...(node.error ? { error: node.error } : {}),
-  }
-}
-
-/** The interrupt that an interrupt record of the log keeps. */
-function interruptOf(record: InterruptRecord): Interrupt {
-  const { payload } = record
-  return {
-    ...payload,
-    id: record.interruptId,
-    reason: typeof payload.reason === 'string' ? payload.reason : '',
-    message: typeof payload.message === 'string' ? payload.message : '',
   }
 }
 

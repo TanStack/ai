@@ -78,7 +78,7 @@ const storedWaits = async (log: LogStore) =>
 /** The one open wait of `session`, once it opened. */
 async function openWait(session: HarnessSession) {
   await waitFor(() => expect(session.snapshot().pendingWaits).toHaveLength(1))
-  const [wait] = session.snapshot().pendingWaits ?? []
+  const [wait] = session.snapshot().pendingWaits
   if (!wait) throw new Error('No wait.')
   return wait
 }
@@ -140,6 +140,59 @@ describe('step.ask in a durable tool', () => {
     )
     expect(result?.content).toBe('Hello, Ada.')
     expect(session.snapshot().pendingWaits).toEqual([])
+    await host.close()
+  })
+
+  it('refuses an answer that breaks a pattern, a resolve, and a second answer', async () => {
+    const log = memoryLogStore()
+    const code = durableTool(
+      toolDefinition({
+        name: 'code',
+        description: 'Ask for a code',
+        inputSchema: z.object({}),
+      }),
+      async (_args, { step }) =>
+        step.ask({
+          name: 'code',
+          message: 'Code?',
+          schema: z.string().regex(/^key-/),
+        }),
+    )
+    const { host, session } = await hostOn(
+      log,
+      harnessWith({
+        replies: [() => toolCall('code', {}, 'call-1'), () => text('ok')],
+        tools: [code],
+      }),
+    )
+    const turn = session.send('ask me')
+    const wait = await openWait(session)
+
+    // The whole JSON Schema of the wait counts, `pattern` too.
+    expect(
+      await session.answer({ questionId: wait.waitId, value: 'secret' }),
+    ).toMatchObject({
+      status: 'rejected',
+      reason: expect.stringContaining('Invalid answer'),
+    })
+    // A question of `step.ask` takes `answer`, which checks its schema.
+    expect(
+      await session.resolve({
+        resume: [
+          { interruptId: wait.waitId, status: 'resolved', payload: 'secret' },
+        ],
+      }),
+    ).toMatchObject({ status: 'rejected', reason: 'use_answer' })
+    // Two answers at once: one ends the wait, the other is refused.
+    const receipts = await Promise.all([
+      session.answer({ questionId: wait.waitId, value: 'key-1' }),
+      session.answer({ questionId: wait.waitId, value: 'key-2' }),
+    ])
+    expect(receipts.map(({ status }) => status).sort()).toEqual([
+      'accepted',
+      'rejected',
+    ])
+    await turn
     await host.close()
   })
 

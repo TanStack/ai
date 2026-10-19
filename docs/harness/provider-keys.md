@@ -88,9 +88,9 @@ const session = await host.open(assistant, {
 ```ts group=harness-provider-keys
 const stopAsking = session.onEvent('CUSTOM', async ({ event }) => {
   if (event.name !== 'harness.question') return
-  const [question] = session.snapshot().pendingQuestions
+  const [question] = session.snapshot().pendingWaits
   // question.secret is true. Read the key without showing it.
-  if (question) await session.answer({ questionId: question.questionId, value: 'sk-proj-...' })
+  if (question) await session.answer({ questionId: question.waitId, value: 'sk-proj-...' })
 })
 
 console.log(await session.command({ name: 'connect:openai' })) // Connected to OpenAI (key ...abcd).

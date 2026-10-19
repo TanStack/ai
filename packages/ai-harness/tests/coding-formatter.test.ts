@@ -14,7 +14,7 @@ import {
   formatter,
 } from '../src/first-party/coding/formatter'
 import { FormatterRewrote } from '../src/first-party/coding/events'
-import { mockAdapter, text, toolCall } from './helpers'
+import { mockAdapter, questionsOf, text, toolCall } from './helpers'
 import type { HarnessSession } from '../src'
 import type { PermissionRule } from '../src/first-party/permissions'
 import type { WorkspaceBackend } from '../src/first-party/coding/backend'
@@ -515,7 +515,7 @@ describe('formatter with permissions()', () => {
       () => expect(session.snapshot().pendingWaits).toHaveLength(1),
       { timeout: 5_000 },
     )
-    const [wait] = session.snapshot().pendingWaits ?? []
+    const [wait] = session.snapshot().pendingWaits
     if (!wait) throw new Error('No approval.')
     const inputId = `answer:${wait.waitId}`
     await session.resolve({
@@ -579,7 +579,7 @@ describe('formatter with permissions()', () => {
       `npx --no-install prettier --write ${quoted('prettier.config.js')}`,
       `npx --no-install prettier --write ${quoted('a.ts')}`,
     ])
-    expect(first.session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(questionsOf(first.session.snapshot())).toHaveLength(0)
     await first.host.close()
 
     const second = await openWith('acceptEdits', ['b.ts'], persistence, {
@@ -669,7 +669,7 @@ describe('formatter with permissions()', () => {
     expect(runs.map((run) => run.command)).toEqual([
       `npx --no-install prettier --write ${quoted('prettier.config.js')}`,
     ])
-    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(questionsOf(session.snapshot())).toHaveLength(0)
     await host.close()
   })
 

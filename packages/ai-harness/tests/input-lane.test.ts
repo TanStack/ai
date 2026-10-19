@@ -14,12 +14,13 @@ import {
 } from '../src'
 import { createHarnessHandler } from '../src/server'
 import {
-  CRASHING_OWNERSHIP,
   after,
+  CRASHING_OWNERSHIP,
   gate,
   messageTexts,
   mockAdapter,
   ownershipExpired,
+  questionsOf,
   text,
   untilAborted,
   wrapLogStore,
@@ -303,9 +304,9 @@ describe('an input that reaches a host that does not own the log', () => {
 
     const running = owner.session.command({ name: 'ask' })
     await waitFor(() =>
-      expect(owner.session.snapshot().pendingQuestions).toHaveLength(1),
+      expect(questionsOf(owner.session.snapshot())).toHaveLength(1),
     )
-    const [question] = owner.session.snapshot().pendingQuestions
+    const [question] = questionsOf(owner.session.snapshot())
     const receipt = await other.session.answer({
       questionId: question!.questionId,
       value: 'hunter2',
@@ -381,9 +382,9 @@ describe('an input that reaches a host that does not own the log', () => {
     async function ask(session: HarnessSession, log: LogStore) {
       const running = session.command({ name: 'ask' })
       await waitFor(() =>
-        expect(session.snapshot().pendingQuestions).toHaveLength(1),
+        expect(questionsOf(session.snapshot())).toHaveLength(1),
       )
-      const [question] = session.snapshot().pendingQuestions
+      const [question] = questionsOf(session.snapshot())
       // The other host reads the question from the log.
       await waitFor(async () =>
         expect(JSON.stringify(await log.read({ logId: LOG }))).toContain(
@@ -483,7 +484,7 @@ describe('an input that reaches a host that does not own the log', () => {
         reason: 'secret_answer_needs_credentials',
       })
       expect(await waiting(a)).toEqual([])
-      expect(owner.session.snapshot().pendingQuestions).toHaveLength(1)
+      expect(questionsOf(owner.session.snapshot())).toHaveLength(1)
       // The owner can still take the answer itself.
       await owner.session.answer({ questionId, value: PASSWORD })
       expect(await running).toBe('signed in')

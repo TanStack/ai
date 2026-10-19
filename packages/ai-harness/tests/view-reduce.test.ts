@@ -407,10 +407,8 @@ describe('view reducer', () => {
     ])
     const waiting = sessionSnapshot({
       status: 'requires_action',
-      pendingInterrupts: [
-        { id: 'int-1', reason: 'tool_approval', toolCallId: 'c1' },
-      ],
-      pendingQuestions: [{ questionId: 'q1', message: 'Sure?' }],
+      interrupts: [{ id: 'int-1', reason: 'tool_approval', toolCallId: 'c1' }],
+      questions: [{ questionId: 'q1', message: 'Sure?' }],
       activeOperations: [{ id: 'op-a', kind: 'agent', agent: 'pricer' }],
       queuedTurns: 1,
       plugins: { p: 1 },
@@ -482,7 +480,7 @@ describe('view reducer', () => {
     ])
     const waiting = sessionSnapshot({
       status: 'requires_action',
-      pendingInterrupts: [
+      interrupts: [
         {
           id: 'client_tool_c1',
           reason: 'tanstack:client_tool_execution',
@@ -514,7 +512,7 @@ describe('view reducer', () => {
   it('reads a sign-in interrupt as a sign-in, not an approval', () => {
     const waiting = sessionSnapshot({
       status: 'requires_action',
-      pendingInterrupts: [
+      interrupts: [
         {
           id: 'mcp_input_c1',
           reason: 'auth_required',
@@ -912,7 +910,7 @@ describe('view reducer', () => {
     const state = applySnapshot(
       turns,
       sessionSnapshot({
-        pendingInterrupts: [
+        interrupts: [
           { id: 'i1', reason: 'tool_approval', toolCallId: 'c1' },
           { id: 'i2', reason: 'tool_approval', toolCallId: 'ghost' },
           { id: 'i3', reason: 'confirm' },
@@ -1084,7 +1082,7 @@ describe('view reducer', () => {
     ])
     const waiting = sessionSnapshot({
       status: 'requires_action',
-      pendingInterrupts: [
+      interrupts: [
         { id: 'i1', reason: 'tool_call', toolCallId: 'c2', ...child },
       ],
     })

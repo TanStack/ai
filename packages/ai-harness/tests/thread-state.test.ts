@@ -17,6 +17,7 @@ import {
   storedThreadState,
   text,
   toolCall,
+  turnInterrupts,
   untilAborted,
 } from './helpers'
 import type { ModelMessage, ReasoningRequest } from '@tanstack/ai'
@@ -206,7 +207,7 @@ describe('thread state in the log', () => {
     ])
     expect(second.session.snapshot()).toMatchObject({
       status: 'requires_action',
-      pendingInterrupts: [{ id: approval.id }],
+      pendingWaits: [{ waitId: approval.id, turn: true }],
     })
     const receipt = await second.session.resolve({
       resume: [{ interruptId: approval.id, status: 'resolved', payload: true }],
@@ -214,7 +215,7 @@ describe('thread state in the log', () => {
     await second.session.operation(receipt.operationId ?? '')
 
     expect(execute).toHaveBeenCalledOnce()
-    expect(second.session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(second.session.snapshot())).toEqual([])
     const after = await storedThreadState(shared.persistence.stores.log, {
       threadId: THREAD,
     })

@@ -286,9 +286,8 @@ export type HarnessInput = (
     }
   | { op: 'command'; name: string; input?: unknown }
   /**
-   * Answer one wait that no turn holds, by its `waitId`: a question of
-   * `pendingQuestions` (a `step.ask` wait, a live MCP question), or a
-   * `human` wait.
+   * Answer one wait of `pendingWaits` that no turn holds, by its `waitId`:
+   * a question (a `step.ask` wait, a live MCP question), or a `human` wait.
    */
   | { op: 'answer'; questionId: string; value: unknown }
   | { op: 'config'; key: string; value: unknown }

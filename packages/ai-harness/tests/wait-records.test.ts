@@ -17,11 +17,12 @@ import {
   membersOnly,
 } from '../src'
 import {
-  CRASHING_OWNERSHIP,
   canOtherHostTake,
+  CRASHING_OWNERSHIP,
   gate,
   mockAdapter,
   ownershipExpired,
+  questionsOf,
   storedThreadState,
   text,
   toolCall,
@@ -125,7 +126,7 @@ async function asked(session: HarnessSession, name: string) {
     () => {},
   )
   await waitFor(() => expect(session.snapshot().pendingWaits).toHaveLength(1))
-  const [wait] = session.snapshot().pendingWaits ?? []
+  const [wait] = session.snapshot().pendingWaits
   return { running, wait: wait! }
 }
 
@@ -136,7 +137,7 @@ describe('a question is a wait in the log', () => {
 
     const { running, wait } = await asked(session, 'ask')
     expect(wait).toEqual({
-      waitId: session.snapshot().pendingQuestions[0]?.questionId,
+      waitId: questionsOf(session.snapshot())[0]?.questionId,
       kind: 'question',
       runId: running.id,
       schema: { type: 'string' },
@@ -152,7 +153,7 @@ describe('a question is a wait in the log', () => {
     await session.answer({ questionId: wait.waitId, value: 'Ada' })
     expect(await running).toBe('Ada')
     expect(session.snapshot().pendingWaits).toEqual([])
-    expect(session.snapshot().pendingQuestions).toEqual([])
+    expect(questionsOf(session.snapshot())).toEqual([])
     await waitFor(async () =>
       expect((await storedWaits(log)).get(wait.waitId)).toMatchObject({
         outcome: 'answered',
@@ -173,7 +174,7 @@ describe('a question is a wait in the log', () => {
     await waitFor(async () =>
       expect((await view.snapshot()).pendingWaits).toEqual([wait]),
     )
-    expect((await view.snapshot()).pendingQuestions).toEqual([
+    expect(questionsOf(await view.snapshot())).toEqual([
       { questionId: wait.waitId, message: 'Name?', schema: { type: 'string' } },
     ])
 
@@ -233,7 +234,7 @@ describe('a question is a wait in the log', () => {
     // No promise of this host holds the question: no answer can reach it.
     const next = await hostOn(memoryLogStore({ backend }))
     await waitFor(() =>
-      expect(next.session.snapshot().pendingQuestions).toEqual([]),
+      expect(questionsOf(next.session.snapshot())).toEqual([]),
     )
     await waitFor(async () =>
       expect((await storedWaits(log)).get(wait.waitId)).toMatchObject({

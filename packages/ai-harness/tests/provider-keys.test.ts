@@ -10,7 +10,7 @@ import {
   logIdOf,
 } from '../src'
 import { compact, modelPicker, providerKeys } from '../src/first-party'
-import { mockAdapter, text, toolCall } from './helpers'
+import { mockAdapter, questionsOf, text, toolCall } from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type {
   AnyAgent,
@@ -115,10 +115,8 @@ function authRequired(events: ReadonlyArray<SessionEvent>) {
 /** Start `/connect acme`, and answer its question with `answer`. */
 async function connectWith(session: HarnessSession, answer: string) {
   const result = session.command({ name: 'connect:acme' })
-  await waitFor(() =>
-    expect(session.snapshot().pendingQuestions).toHaveLength(1),
-  )
-  const [question] = session.snapshot().pendingQuestions
+  await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
+  const [question] = questionsOf(session.snapshot())
   const receipt = await session.answer({
     questionId: question?.questionId ?? '',
     value: answer,
@@ -313,10 +311,8 @@ describe('providerKeys', () => {
       plugins: [plugin()],
     })
     const connecting = session.command({ name: 'connect:acme' })
-    await waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
-    const [question] = session.snapshot().pendingQuestions
+    await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
+    const [question] = questionsOf(session.snapshot())
     await connecting.cancel()
     await expect(connecting).rejects.toBeDefined()
     if (question)
@@ -430,11 +426,11 @@ describe('providerKeys', () => {
     })
     const connecting = session.command({ name: 'connect:acme' })
     await waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toMatchObject([
+      expect(questionsOf(session.snapshot())).toMatchObject([
         { message: 'Paste your Acme API key', secret: true },
       ]),
     )
-    const [question] = session.snapshot().pendingQuestions
+    const [question] = questionsOf(session.snapshot())
     if (question)
       await session.answer({
         questionId: question.questionId,

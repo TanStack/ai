@@ -1073,13 +1073,9 @@ function statusAfter(
     case HARNESS_EVENTS.operationFinished:
     case HARNESS_EVENTS.questionAnswered: {
       if (typeof operationId === 'string') seen.running.delete(operationId)
-      const { pendingQuestions, pendingInterrupts, activeOperations } =
-        session.snapshot()
+      const { pendingWaits, activeOperations } = session.snapshot()
       const isInterrupted = value.status === 'interrupted'
-      const stillWaits =
-        isInterrupted ||
-        pendingQuestions.length > 0 ||
-        pendingInterrupts.length > 0
+      const stillWaits = isInterrupted || pendingWaits.length > 0
       if (stillWaits) return 'waiting'
       const isRunning = activeOperations.length > 0 || seen.running.size > 0
       return isRunning ? 'running' : 'idle'

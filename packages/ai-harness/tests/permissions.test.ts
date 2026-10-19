@@ -11,7 +11,7 @@ import {
   listSavedPermissions,
   permissions,
 } from '../src/first-party/permissions'
-import { gate, mockAdapter, text, toolCall } from './helpers'
+import { gate, mockAdapter, questionsOf, text, toolCall } from './helpers'
 import type { MetadataStore } from '@tanstack/ai-persistence'
 import type {
   HarnessPersistence,
@@ -314,7 +314,7 @@ async function open(
  */
 async function answer(session: HarnessSession, value: unknown) {
   await waitFor(() => expect(session.snapshot().pendingWaits).toHaveLength(1))
-  const [wait] = session.snapshot().pendingWaits ?? []
+  const [wait] = session.snapshot().pendingWaits
   if (!wait) throw new Error('No approval.')
   expect(wait.kind).toBe('approval')
   const inputId = `answer:${wait.waitId}`
@@ -478,7 +478,7 @@ describe('permissions()', () => {
 
     // The next turn has bypass, so bash runs with no question.
     await session.send('list it again')
-    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(questionsOf(session.snapshot())).toHaveLength(0)
     expect(tools.ran).toEqual(['bash', 'bash'])
     await host.close()
   })
@@ -1081,7 +1081,7 @@ describe('permissions() at the turn boundary', () => {
     expect(turn.interrupts).toHaveLength(2)
     // No tool ran, and no process waits: the turn ended for the waits.
     expect(tools.ran).toEqual([])
-    const waits = session.snapshot().pendingWaits ?? []
+    const waits = session.snapshot().pendingWaits
     expect(waits.map((wait) => wait.kind)).toEqual(['approval', 'approval'])
     expect(waits.map((wait) => wait.message)).toEqual([
       expect.stringContaining('ls'),

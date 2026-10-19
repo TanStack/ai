@@ -13,19 +13,20 @@ import {
   logIdOf,
 } from '../src'
 import {
-  CRASHING_OWNERSHIP,
   after,
+  appendToLog,
+  CRASHING_OWNERSHIP,
   gate,
   messageTexts,
   mockAdapter,
-  text,
-  toolCall,
-  untilAborted,
-  appendToLog,
   ownershipExpired,
   stoppedRun,
   storedRun,
   storedThreadState,
+  text,
+  toolCall,
+  turnInterrupts,
+  untilAborted,
   wakeMessages,
   wrapLogStore,
 } from './helpers'
@@ -1653,7 +1654,7 @@ describe('durable approval recovery', () => {
     // The approved tool ran before the time limit. Offering the approval
     // again would run it a second time, so it is used up.
     expect(execute).toHaveBeenCalledTimes(1)
-    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(session.snapshot())).toEqual([])
     const { interrupts } = await storedThreadState(persistence.stores.log, {
       threadId: THREAD,
     })
@@ -1661,7 +1662,7 @@ describe('durable approval recovery', () => {
     await host.close()
     const next = createHarnessHost({ persistence })
     const reopened = await next.open(config, { threadId: THREAD })
-    expect(reopened.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(reopened.snapshot())).toEqual([])
     expect(
       await reopened.resolve({
         resume: [
@@ -1708,15 +1709,15 @@ describe('durable approval recovery', () => {
       resume: [{ interruptId: approval.id, status: 'resolved', payload: true }],
     })
     await expect(session.operation(receipt.operationId ?? '')).rejects.toThrow()
-    expect(session.snapshot().pendingInterrupts.map((item) => item.id)).toEqual(
-      [approval.id],
-    )
+    expect(turnInterrupts(session.snapshot()).map((item) => item.id)).toEqual([
+      approval.id,
+    ])
     expect(execute).not.toHaveBeenCalled()
     write.mockRestore()
     await host.close()
     const next = createHarnessHost({ persistence })
     const reopened = await next.open(config, { threadId: THREAD })
-    if (reopened.snapshot().pendingInterrupts.length > 0) {
+    if (turnInterrupts(reopened.snapshot()).length > 0) {
       const retry = await reopened.resolve({
         resume: [
           { interruptId: approval.id, status: 'resolved', payload: true },
@@ -1725,7 +1726,7 @@ describe('durable approval recovery', () => {
       await reopened.operation(retry.operationId ?? '')
     }
     expect(execute).toHaveBeenCalledTimes(1)
-    expect(reopened.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(reopened.snapshot())).toEqual([])
     await next.close()
   })
 
@@ -1798,7 +1799,7 @@ describe('durable approval recovery', () => {
       expect.anything(),
     )
     expect(nextAdapter.calls).toHaveLength(1)
-    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(session.snapshot())).toEqual([])
     await next.close()
   })
 
@@ -1833,7 +1834,7 @@ describe('durable approval recovery', () => {
       resume: [{ interruptId: approval.id, status: 'resolved', payload: true }],
     })
     await session.operation(receipt.operationId ?? '')
-    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(session.snapshot())).toEqual([])
     await host.close()
     // A stale copy of the stopped turn lands after the resolve.
     await appendToLog(log, { threadId: THREAD }, [
@@ -1841,7 +1842,7 @@ describe('durable approval recovery', () => {
     ])
     const next = createHarnessHost({ persistence })
     const reopened = await next.open(config, { threadId: THREAD })
-    expect(reopened.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(reopened.snapshot())).toEqual([])
     expect(
       await reopened.resolve({
         resume: [

@@ -23,6 +23,7 @@ import {
   appendToLog,
   gate,
   mockAdapter,
+  questionsOf,
   text,
   toolCall,
 } from './helpers'
@@ -268,10 +269,8 @@ describe('questions', () => {
       },
     )
     const picking = session.command({ name: 'pick' })
-    await waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
-    const [question] = session.snapshot().pendingQuestions
+    await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
+    const [question] = questionsOf(session.snapshot())
     expect(question).toMatchObject({
       message: 'How many?',
       schema: { type: 'object' },
@@ -302,14 +301,12 @@ describe('questions', () => {
     expect(await picking).toBe(4)
 
     const open = session.command({ name: 'open' })
-    await waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
+    await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
     await host.close()
     // The close cancels the command that waits for its answer.
     await expect(open).rejects.toBeDefined()
     expect(open.status()).toBe('cancelled')
-    expect(session.snapshot().pendingQuestions).toEqual([])
+    expect(questionsOf(session.snapshot())).toEqual([])
   })
 
   it('rejects the questions of a turn when the turn is cancelled', async () => {
@@ -340,14 +337,12 @@ describe('questions', () => {
       },
     )
     const turn = session.send('Go.')
-    await waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
+    await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
 
     await session.cancel({ operationId: turn.id })
 
     await expect(asked).rejects.toThrow('Cancelled.')
-    expect(session.snapshot().pendingQuestions).toEqual([])
+    expect(questionsOf(session.snapshot())).toEqual([])
     await host.close()
   })
 
@@ -379,14 +374,12 @@ describe('questions', () => {
       },
     )
     const command = session.command({ name: 'confirm' })
-    await waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
+    await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
 
     await session.cancel({ operationId: command.id })
 
     await expect(asked).rejects.toThrow('Cancelled.')
-    expect(session.snapshot().pendingQuestions).toEqual([])
+    expect(questionsOf(session.snapshot())).toEqual([])
     await host.close()
   })
 })
