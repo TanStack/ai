@@ -74,7 +74,7 @@ The agent sends each wait to the editor by its kind:
 
 | Kind | What the editor shows |
 | --- | --- |
-| `approval` | A permission request. **Allow always** shows only for an approval of `permissions()`, because its answer schema takes `always`. |
+| `approval` | A permission request with the id of the real tool call. **Allow always** shows only for an approval of `permissions()`, because its answer schema takes `always`. |
 | `question`, `human` | A form elicitation of the answer schema. |
 | `sign-in` | A URL elicitation with the sign-in page. |
 | `client-tool` | Nothing. The editor cannot run it, so the agent cancels it. |
@@ -108,6 +108,8 @@ import { createAcpAgent } from '@tanstack/ai-acp/agent'
 
 export const app = createAcpAgent({ host, harness: assistant })
 ```
+
+One agent app serves one connection. It reads the editor capabilities from that connection, and a second connection to it fails with an error. To serve more editors, for example over HTTP, make one app for each connection. With the `AcpServer` of `@agentclientprotocol/sdk/experimental/server`, pass `createAgent: () => createAcpAgent({ host, harness: assistant })`.
 
 ## What you have now
 

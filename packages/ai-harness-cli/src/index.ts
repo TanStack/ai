@@ -137,7 +137,7 @@ function attachingSource(session: HarnessSession) {
     snapshot: () => session.snapshot(),
     transcript: () => session.transcript(),
     describe: () => session.describe(),
-    mediaUrl: (id) => session.mediaUrl(id),
+    mediaUrl: (options) => session.mediaUrl(options),
     loadMedia: (options) => session.loadMedia(options),
   }
   return source
@@ -261,12 +261,14 @@ export async function runCli<P extends Principal = Principal>(
 
     if (args.serve) {
       const token = args.token ?? env.HARNESS_TOKEN ?? createToken()
+      const mediaKey = args.mediaKey ?? env.HARNESS_MEDIA_KEY
       const server = await serve({
         host,
         harness,
         port: args.port,
         hostname: args.hostname,
         token,
+        ...(mediaKey !== undefined ? { mediaKey } : {}),
         threadId: args.thread,
         approvals,
         ...(principal ? { principal } : {}),

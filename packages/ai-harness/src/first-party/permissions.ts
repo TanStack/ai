@@ -62,7 +62,8 @@ export interface ToolResources {
    * The other actions the call runs, by the tool name of their rules, for
    * example `formatter:prettier` after a write. Each one is decided by its
    * own rules. One that asks makes the call ask, and an `always` answer
-   * saves an allow rule for it. One that a rule denies does not refuse the
+   * saves an allow rule for it, except for an action with `@unsaved:` in
+   * it, which asks each time. One that a rule denies does not refuse the
    * call: the plugin that runs it skips it.
    */
   actions?: (input: unknown) => Listed
@@ -694,10 +695,11 @@ export function permissions(
         const forTool = [...new Set(values)]
           .filter((value) => !/[*?]/.test(value))
           .map((resource) => ({ tool, resource, decision: 'allow' as const }))
-        const forActions = (resources.actions ?? []).map((action) => ({
-          tool: action,
-          decision: 'allow' as const,
-        }))
+        // An `@unsaved:` action asks each time, so a rule for it never
+        // matches again: it is not saved.
+        const forActions = (resources.actions ?? [])
+          .filter((action) => !action.includes('@unsaved:'))
+          .map((action) => ({ tool: action, decision: 'allow' as const }))
         return [...forTool, ...forActions]
       }
       const decide = async (
@@ -780,7 +782,11 @@ export function permissions(
             )
           }
         },
-        onBeforeToolCall: async (run, hook) => {
+        // The guard tier, not the first-win `onBeforeToolCall`: it runs for
+        // every call, after every middleware that changes the args and after
+        // the input check, so it decides on the args that the tool gets. A
+        // middleware before this one cannot change a call past the rules.
+        onGuardToolCall: async (run, hook) => {
           const current = mode()
           if (current === 'bypass') return undefined
           const metadata = getMetadata(run, { optional: true })

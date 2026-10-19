@@ -568,10 +568,10 @@ describe('session view approvals', () => {
     )
     const { view, stream, inputs } = await openView({ snapshot })
 
-    view.approve('late')
+    view.approve({ id: 'late' })
     stream.push(runFinished())
     await waitFor(() => expect(view.store.get().approvals).toHaveLength(2))
-    view.approve('a')
+    view.approve({ id: 'a' })
 
     // `late` still waits for its own answer.
     expect(inputs).toEqual([])
@@ -848,11 +848,11 @@ describe('session view inputs', () => {
     await view.followUp('then the tests')
     await view.continue()
     await view.cancel({ operationId: 'op-2' })
-    await view.cancelInput('in-1')
+    await view.cancelInput({ inputId: 'in-1' })
     await view.setDelivery({ inputId: 'in-2', delivery: 'steer' })
     await view.configure({ settings: { model: 'strong' } })
     await view.reset({ note: 'Start over.' })
-    await view.revert('m1')
+    await view.revert({ messageId: 'm1' })
     await view.unrevert()
     await drain()
 
@@ -860,11 +860,11 @@ describe('session view inputs', () => {
       ['followUp', 'then the tests', { mode: 'followUp' }],
       ['continue'],
       ['cancel', { operationId: 'op-2' }],
-      ['cancelInput', 'in-1'],
+      ['cancelInput', { inputId: 'in-1' }],
       ['setDelivery', { inputId: 'in-2', delivery: 'steer' }],
       ['configure', { settings: { model: 'strong' } }],
       ['reset', { note: 'Start over.' }],
-      ['revert', 'm1'],
+      ['revert', { messageId: 'm1' }],
       ['unrevert'],
     ])
     expect(view.store.get().messages).toEqual([
@@ -902,14 +902,16 @@ describe('session view inputs', () => {
     const { view } = await openView({ putMedia })
     const bare = await openView()
 
-    expect(await view.upload({ body: new Uint8Array([1]), ...info })).toBe(file)
+    expect(await view.putMedia({ body: new Uint8Array([1]), ...info })).toBe(
+      file,
+    )
     expect(putMedia).toHaveBeenCalledWith({
       body: new Uint8Array([1]),
       name: 'a.png',
       mimeType: 'image/png',
     })
     await expect(
-      bare.view.upload({ body: new Uint8Array([1]), ...info }),
+      bare.view.putMedia({ body: new Uint8Array([1]), ...info }),
     ).rejects.toThrow('This view source cannot store media.')
   })
 })
@@ -965,7 +967,7 @@ describe('session view interrupts', () => {
     snapshot.mockReturnValueOnce(stopped)
     const { view, inputs } = await openView({ snapshot })
 
-    view.reject('ap-1', { reason: 'wrong file' })
+    view.reject({ id: 'ap-1', payload: { reason: 'wrong file' } })
     view.store.get().interrupts[0]?.cancel()
 
     expect(inputs).toEqual([
@@ -1232,7 +1234,7 @@ describe('session view reload', () => {
         started('c1', 's1'),
         started('c2', 's2'),
       ],
-      agentTranscript: async (id) => [
+      agentTranscript: async ({ subagentRunId: id }) => [
         {
           role: 'assistant',
           content: id === 's1' ? 'All done.' : '',
@@ -1347,7 +1349,7 @@ describe('session view reload', () => {
           content: JSON.stringify({ subagentRunId: 's1', result: 'Note 1' }),
         },
       ],
-      agentTranscript: async (id) => {
+      agentTranscript: async ({ subagentRunId: id }) => {
         asked.push(id)
         return [
           { role: 'user', content: 'Notes' },
@@ -1487,7 +1489,7 @@ describe('session view dispose', () => {
     action: string
     act: (view: SessionView) => unknown
   }> = [
-    { action: 'notice', act: (view) => view.notice('hi') },
+    { action: 'notice', act: (view) => view.notice({ text: 'hi' }) },
     { action: 'command', act: (view) => view.command({ name: 'ping' }) },
     {
       action: 'setConfig',

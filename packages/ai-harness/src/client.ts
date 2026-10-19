@@ -65,6 +65,14 @@ export interface HarnessClientOptions {
    * A read from the server sets the wait back to this value.
    */
   reconnectDelayMs?: number
+  /**
+   * A connection of `events()` that gets no bytes for this long is dead,
+   * for example after a laptop sleeps or a NAT drops the mapping. The
+   * client closes it and connects again from its last cursor. Default
+   * 60 000 ms. Keep it larger than the `stream.heartbeatMs` of the server
+   * (default 20 000 ms), or the client reconnects in a loop.
+   */
+  idleTimeoutMs?: number
 }
 
 type StartArgs<TAgent> =
@@ -158,8 +166,13 @@ export interface HarnessClient<THarness extends AnyHarness> {
   /**
    * Cancel an input that waits (see `snapshot().waitingInputs`). An input
    * that started is refused with `not_waiting`: use `cancel`.
+   *
+   * @example
+   * ```ts
+   * await client.cancelInput({ inputId })
+   * ```
    */
-  cancelInput: (inputId: string) => Promise<Receipt>
+  cancelInput: (options: { inputId: string }) => Promise<Receipt>
   /**
    * Move an input that waits: `'steer'` joins the running turn, `'queue'`
    * runs it as its own turn later.
@@ -204,9 +217,18 @@ export interface HarnessClient<THarness extends AnyHarness> {
   }) => Promise<Receipt>
   /**
    * Add host records to the session log, as `session.append` does. The
-   * harness must list each record type in `expose.records`.
+   * harness must list each record type in `expose.records`. With `inputId`,
+   * a second append with the same id is a duplicate and writes nothing.
+   *
+   * @example
+   * ```ts
+   * await client.append({ records: [{ type: 'app.signal', text: 'Saved.' }] })
+   * ```
    */
-  append: (records: ReadonlyArray<LogRecord>) => Promise<Receipt>
+  append: (options: {
+    records: ReadonlyArray<LogRecord>
+    inputId?: string
+  }) => Promise<Receipt>
   /** Change a session setting. */
   setConfig: (change: { key: string; value: unknown }) => Promise<Receipt>
   /**
@@ -231,8 +253,13 @@ export interface HarnessClient<THarness extends AnyHarness> {
   /**
    * Go back to the message `messageId`, as `session.revert` does. The
    * harness must list `'undo'` in `expose.commands`.
+   *
+   * @example
+   * ```ts
+   * await client.revert({ messageId })
+   * ```
    */
-  revert: (messageId: string) => Promise<Receipt>
+  revert: (options: { messageId: string }) => Promise<Receipt>
   /** End the revert that stands, as `session.unrevert` does. */
   unrevert: () => Promise<Receipt>
   /**
@@ -264,8 +291,15 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * The saved messages of a child agent run of the thread, by its
    * `subagentRunId`. Empty for an unknown id. A child with no messages has
    * one message with no content, with its card. See `session.agentTranscript`.
+   *
+   * @example
+   * ```ts
+   * const messages = await client.agentTranscript({ subagentRunId })
+   * ```
    */
-  agentTranscript: (subagentRunId: string) => Promise<Array<ModelMessage>>
+  agentTranscript: (options: {
+    subagentRunId: string
+  }) => Promise<Array<ModelMessage>>
   /**
    * The commands, settings, and tools of the session. Only the commands in
    * `expose.commands` and the config keys in `expose.config`.
@@ -278,17 +312,24 @@ export interface HarnessClient<THarness extends AnyHarness> {
    *
    * @example
    * ```ts
-   * const record = await client.upload({ body: file, mimeType: file.type, name: file.name })
+   * const record = await client.putMedia({ body: file, mimeType: file.type, name: file.name })
    * ```
    */
-  upload: (
+  putMedia: (
     file: MediaUpload<Blob | ArrayBuffer | Uint8Array>,
   ) => Promise<MediaRecord>
   /**
    * A signed URL for a media file, for `<img>`, `<audio>`, or `<video>`. It
    * stops working at `expiresAt` (epoch milliseconds). Ask again for a new one.
+   *
+   * @example
+   * ```ts
+   * const { url } = await client.mediaUrl({ id: record.id })
+   * ```
    */
-  mediaUrl: (id: string) => Promise<{ url?: string; expiresAt?: number }>
+  mediaUrl: (options: {
+    id: string
+  }) => Promise<{ url?: string; expiresAt?: number }>
   /**
    * The bytes of the media file `id`.
    *
@@ -299,13 +340,29 @@ export interface HarnessClient<THarness extends AnyHarness> {
    */
   loadMedia: (options: { id: string }) => Promise<Uint8Array>
   /**
+   * Your sessions on the server, as `host.sessions` has them for the
+   * principal of the request.
+   *
+   * @example
+   * ```ts
+   * const page = await client.sessions.list({ limit: 20 })
+   * await client.sessions.rename({ threadId: 't-1', title: 'Trip plan' })
+   * await client.sessions.delete({ threadId: 't-1' })
+   * ```
+   */
+  sessions: HarnessClientSessions<THarness>
+}
+
+/** The sessions of the user of a `HarnessClient`. See `client.sessions`. */
+export interface HarnessClientSessions<THarness extends AnyHarness> {
+  /**
    * One page of your sessions, newest first. Default: top-level sessions.
    * Pass `parentThreadId` to get the child sessions of a thread, and the
    * `cursor` of a page to get the next page. `search` keeps the sessions
    * whose title contains the text, without case. `metadata` keeps the
    * sessions with each exact metadata value.
    */
-  listSessions: (options?: {
+  list: (options?: {
     limit?: number
     cursor?: string
     parentThreadId?: string
@@ -317,7 +374,7 @@ export interface HarnessClient<THarness extends AnyHarness> {
     }
   >
   /** Set the title of one of your sessions. Resolves to the changed entry. */
-  renameSession: (change: {
+  rename: (change: {
     threadId: string
     title: string
   }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
@@ -327,7 +384,7 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * pass besides `threadId` replaces the stored one. The harness `metadataSchema` checks
    * `metadata` on the server. Resolves to the changed entry.
    */
-  updateSession: (
+  update: (
     change: { threadId: string } & SessionEntryChange<
       SessionMetadataOf<THarness>
     >,
@@ -336,12 +393,12 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * Remove one of your sessions from the session index. The transcript and
    * the other data of the thread stay on the server.
    */
-  deleteSession: (threadId: string) => Promise<void>
+  delete: (options: { threadId: string }) => Promise<void>
   /**
    * Copy one of your sessions into a new session, up to a message id.
    * Resolves to the entry of the new session.
    */
-  forkSession: (options: {
+  fork: (options: {
     threadId: string
     at: ForkPoint
   }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
@@ -356,6 +413,12 @@ type SessionChange =
 
 /** The longest wait before a reconnect of `events()`. */
 const MAX_RECONNECT_DELAY_MS = 30_000
+
+/**
+ * The default `idleTimeoutMs`: 3 times the default `stream.heartbeatMs` of
+ * the server, so a live connection always sends bytes before it.
+ */
+const IDLE_TIMEOUT_MS = 60_000
 
 /**
  * The wait before reconnect number `attempt` (0 is the first): `base`
@@ -485,6 +548,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
 ): HarnessClient<THarness> {
   const base = options.url.replace(/\/$/, '')
   const doFetch = options.fetch ?? fetch
+  const idleTimeoutMs = options.idleTimeoutMs ?? IDLE_TIMEOUT_MS
   const headers = () =>
     typeof options.headers === 'function'
       ? options.headers()
@@ -550,7 +614,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
     // that reads it. That member type sets `T`.
     (await (await get(route, params)).json()) as T
 
-  const upload = async ({
+  const putMedia = async ({
     body,
     mimeType,
     name,
@@ -574,7 +638,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
     return stored
   }
 
-  const mediaUrl = async (id: string) => {
+  const mediaUrl = async ({ id }: { id: string }) => {
     const body: unknown = await (await get('media-url', { id })).json()
     if (!isSignedPath(body))
       throw new Error('Harness media-url failed: the answer has no signed path')
@@ -614,6 +678,8 @@ export function createHarnessClient<THarness extends AnyHarness>(
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
     // Ends the wait before a reconnect.
     let wake: (() => void) | undefined
+    // Closes a connection that sends nothing for `idleTimeoutMs`.
+    let idle: ReturnType<typeof setTimeout> | undefined
     // One listener for all the connections: it stops the current read or
     // the current wait.
     const stopListening = whenAborted(signal, () => {
@@ -650,8 +716,19 @@ export function createHarnessClient<THarness extends AnyHarness>(
             throw new Error(`Harness events failed (${response.status})`)
           }
           eventOptions.onConnection?.('open')
-          reader = response.body.getReader()
-          const frames = sseFrames(reader, () => (attempt = 0))
+          const connection = response.body.getReader()
+          reader = connection
+          // Each read, a ping too, shows that the connection is alive. A
+          // cancel ends the read, and the loop below connects again.
+          const isAlive = () => {
+            clearTimeout(idle)
+            idle = setTimeout(() => cancelReader(connection), idleTimeoutMs)
+          }
+          isAlive()
+          const frames = sseFrames(reader, () => {
+            attempt = 0
+            isAlive()
+          })
           for await (const frame of frames) {
             if (
               typeof frame === 'object' &&
@@ -675,6 +752,8 @@ export function createHarnessClient<THarness extends AnyHarness>(
           // its first message. Try again, the same as after a network error.
           if (error instanceof Error && /\((401|403)\)/.test(error.message))
             throw error
+        } finally {
+          clearTimeout(idle)
         }
         if (signal?.aborted) return
         eventOptions.onConnection?.('reconnecting')
@@ -789,7 +868,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
       send({ op: 'resolve', resume, ...(inputId ? { inputId } : {}) }),
     cancel: ({ operationId } = {}) =>
       send({ op: 'cancel', ...(operationId ? { operationId } : {}) }),
-    cancelInput: (inputId) => send({ op: 'cancelInput', inputId }),
+    cancelInput: ({ inputId }) => send({ op: 'cancelInput', inputId }),
     setDelivery: ({ inputId, delivery }) =>
       send({ op: 'setDelivery', inputId, delivery }),
     agents,
@@ -804,7 +883,12 @@ export function createHarnessClient<THarness extends AnyHarness>(
         ...(meta ? { meta } : {}),
         ...(inputId ? { inputId } : {}),
       }),
-    append: (records) => send({ op: 'append', records: [...records] }),
+    append: ({ records, inputId }) =>
+      send({
+        op: 'append',
+        records: [...records],
+        ...(inputId ? { inputId } : {}),
+      }),
     setConfig: ({ key, value }) => send({ op: 'config', key, value }),
     configure: ({ settings, inputId }) =>
       send({ op: 'configure', settings, ...(inputId ? { inputId } : {}) }),
@@ -814,49 +898,50 @@ export function createHarnessClient<THarness extends AnyHarness>(
         ...(note !== undefined ? { note } : {}),
         ...(inputId ? { inputId } : {}),
       }),
-    revert: (messageId) => send({ op: 'revert', messageId }),
+    revert: ({ messageId }) => send({ op: 'revert', messageId }),
     unrevert: () => send({ op: 'unrevert' }),
     events,
     hostEvents,
     snapshot: () => read('snapshot'),
     transcript: () => read('transcript'),
-    agentTranscript: (subagentRunId) =>
+    agentTranscript: ({ subagentRunId }) =>
       read('agent-transcript', { subagentRunId }),
     describe: () => read('describe'),
-    upload,
+    putMedia,
     mediaUrl,
     loadMedia,
-    listSessions: async ({
-      limit,
-      cursor,
-      parentThreadId,
-      search,
-      metadata = {},
-    } = {}) => {
-      const query = new URLSearchParams()
-      if (limit !== undefined) query.set('limit', String(limit))
-      if (cursor) query.set('cursor', cursor)
-      if (parentThreadId) query.set('parentThreadId', parentThreadId)
-      if (search) query.set('search', search)
-      for (const [key, value] of Object.entries(metadata))
-        query.set(`metadata.${key}`, value)
-      const response = await checked(
-        'sessions',
-        await doFetch(`${base}/sessions?${query}`, { headers: headers() }),
-      )
-      // The handler answers with one page of the session index.
-      return (await response.json()) as Omit<SessionIndexPage, 'entries'> & {
-        entries: Array<SessionIndexEntry<SessionMetadataOf<THarness>>>
-      }
+    sessions: {
+      list: async ({
+        limit,
+        cursor,
+        parentThreadId,
+        search,
+        metadata = {},
+      } = {}) => {
+        const query = new URLSearchParams()
+        if (limit !== undefined) query.set('limit', String(limit))
+        if (cursor) query.set('cursor', cursor)
+        if (parentThreadId) query.set('parentThreadId', parentThreadId)
+        if (search) query.set('search', search)
+        for (const [key, value] of Object.entries(metadata))
+          query.set(`metadata.${key}`, value)
+        const response = await checked(
+          'sessions',
+          await doFetch(`${base}/sessions?${query}`, { headers: headers() }),
+        )
+        // The handler answers with one page of the session index.
+        return (await response.json()) as Omit<SessionIndexPage, 'entries'> & {
+          entries: Array<SessionIndexEntry<SessionMetadataOf<THarness>>>
+        }
+      },
+      rename: ({ threadId, title }) =>
+        sessionEntry({ op: 'rename', threadId, title }),
+      update: (change) => sessionEntry({ ...change, op: 'update' }),
+      delete: async ({ threadId }) => {
+        await changeSession({ op: 'delete', threadId })
+      },
+      fork: ({ threadId, at }) => sessionEntry({ op: 'fork', threadId, ...at }),
     },
-    renameSession: ({ threadId, title }) =>
-      sessionEntry({ op: 'rename', threadId, title }),
-    updateSession: (change) => sessionEntry({ ...change, op: 'update' }),
-    deleteSession: async (threadId) => {
-      await changeSession({ op: 'delete', threadId })
-    },
-    forkSession: ({ threadId, at }) =>
-      sessionEntry({ op: 'fork', threadId, ...at }),
   }
 }
 

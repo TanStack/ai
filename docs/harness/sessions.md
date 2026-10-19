@@ -143,7 +143,7 @@ A fork keeps the old chat. To go back in the same chat, revert it to a message:
 const [question] = await session.transcript()
 if (!question?.id) throw new Error('The chat has no messages.')
 
-await session.revert(question.id)
+await session.revert({ messageId: question.id })
 // The transcript now ends at `question`. To bring the later messages back:
 await session.unrevert()
 ```

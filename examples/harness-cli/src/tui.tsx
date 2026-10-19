@@ -104,7 +104,9 @@ function Screen({ view }: { view: SessionView }) {
           .answer(answerOf(text, question.schema))
           .then((receipt) => {
             if (receipt.status === 'rejected') {
-              view.notice(`Answer again: ${receipt.reason ?? 'not accepted'}`)
+              view.notice({
+                text: `Answer again: ${receipt.reason ?? 'not accepted'}`,
+              })
             }
           })
       }

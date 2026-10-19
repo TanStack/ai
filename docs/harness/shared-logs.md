@@ -40,7 +40,7 @@ const root = await host.open(assistant, { threadId: 'agent-1' })
 
 - The log has the id of the root thread, in its tenant: `logIdOf({ tenantId, logId: 'agent-1' })`.
 - Each thread folds only its own transcript, inputs, and events from the log. A child never sees the messages of the root.
-- A child thread does not open. Open its root, and read the child with `session.agentTranscript(subagentRunId)`. `host.open` throws for the thread id of a `harnessAgent` child.
+- A child thread does not open. Open its root, and read the child with `session.agentTranscript({ subagentRunId })`. `host.open` throws for the thread id of a `harnessAgent` child.
 - `host.observe` also reads a child thread by its own thread id. It finds the root through the session index, so it needs `stores.sessions`. `memoryPersistence()` has it.
 
 ## Write to several threads in one append
@@ -48,10 +48,12 @@ const root = await host.open(assistant, { threadId: 'agent-1' })
 `session.append` adds records to the root thread. A record with `thread: '<other threadId>'` belongs to that thread of the same log. The whole append is all or nothing:
 
 ```ts group=harness-shared-logs
-await root.append([
-  { type: 'app.child_created', thread: 'task-1', task: 'research' },
-  { type: 'app.child_linked', child: 'task-1' },
-])
+await root.append({
+  records: [
+    { type: 'app.child_created', thread: 'task-1', task: 'research' },
+    { type: 'app.child_linked', child: 'task-1' },
+  ],
+})
 ```
 
 Here the child record and the link in the root land together, or not at all.
@@ -85,9 +87,9 @@ const tracker = defineHarness({
   durability: { reduce },
 })
 const tracked = await host.open(tracker, { threadId: 'agent-2' })
-await tracked.append([
-  { type: 'app.child_created', thread: 'task-2', task: 'research' },
-])
+await tracked.append({
+  records: [{ type: 'app.child_created', thread: 'task-2', task: 'research' }],
+})
 
 console.log((await tracked.logState())?.tasks)
 ```

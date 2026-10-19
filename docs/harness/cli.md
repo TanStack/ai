@@ -117,7 +117,7 @@ console.log(await exit) // 143
 `--serve` is the quick way to put a harness on HTTP, so it makes the trust decisions for you: one bearer token, one user, every thread. Anyone with the token acts as that one user. They can open or drive any thread on the host, including the tools it runs (shell commands, file edits) on the machine the CLI runs on. Treat the token like a shell login.
 
 - It binds to `127.0.0.1:8787`, reachable only from the same machine. Change the bind with `--host` and `--port`. `--host 0.0.0.0` puts it on the network, so do that only behind TLS and a proxy you trust.
-- The CLI signs media links with the token, so rotating the token stops any link a turn already handed out.
+- The CLI signs media links with its own key, never with the token. By default it makes a new random key at each start, so media links stop working after a restart. To keep them working, pass `--media-key` or set `HARNESS_MEDIA_KEY`, with a key of at least 32 bytes. Change the key to stop every link a turn already handed out.
 
 Need per-user access, your own sign-in check, or a rule for which threads each user can open? Use [`createHarnessHandler`](./connect) on a host with [`access`](./access) instead. The host reads the user of each request and checks each action, so no thread is open by accident.
 

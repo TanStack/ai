@@ -249,6 +249,12 @@ For a follow-up, `receipt.operationId` is the id of the new run. While the run b
 
 A steer joins only a run of the same sender. A steer from another sender runs as a follow-up for that sender. As a result, no message runs with the credentials of another person.
 
+Who sends:
+
+- `run.send` and `run.cancel` act as the user of the run, not as the user who opened the session.
+- To send as another user, pass `principal`: `run.send('Add a title.', { principal })`.
+- `session.agents.drafter.run(input, { principal })` and `start` run the agent as that user.
+
 An agent written as plain code, with no `ctx.chat` call, makes no model call. It gets a steer only as a follow-up.
 
 To message a run from the browser, see [Send a message to a running agent](./connect#send-a-message-to-a-running-agent).
@@ -411,7 +417,7 @@ Known limits:
 
 ## Show what a child wrote after a reload
 
-Your UI shows each child's text and tool calls while they stream. Then the user reloads the page. The thread's transcript has only the agent tool call and its result, because each child keeps its own messages. `session.agentTranscript(subagentRunId)` gives you those messages back.
+Your UI shows each child's text and tool calls while they stream. Then the user reloads the page. The thread's transcript has only the agent tool call and its result, because each child keeps its own messages. `session.agentTranscript({ subagentRunId })` gives you those messages back.
 
 Each agent tool result names its child with `subagentRunId`. Read the result, then ask for the child:
 
@@ -444,7 +450,7 @@ for (const message of await session.transcript()) {
   if (!('subagentRunId' in result)) continue
   if (typeof result.subagentRunId !== 'string') continue
 
-  const child = await session.agentTranscript(result.subagentRunId)
+  const child = await session.agentTranscript({ subagentRunId: result.subagentRunId })
   console.log(child.map((item) => item.content))
 }
 ```
@@ -469,7 +475,7 @@ const client = createHarnessClient<typeof studio>({
 })
 
 export async function childMessages(subagentRunId: string) {
-  return client.agentTranscript(subagentRunId)
+  return client.agentTranscript({ subagentRunId })
 }
 ```
 

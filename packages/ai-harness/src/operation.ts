@@ -108,7 +108,9 @@ export class OperationImpl<TResult> implements Operation<TResult> {
     return this.ended
   }
 
+  /** Set the status. A settled operation keeps its final status. */
   setStatus(status: OperationStatus): void {
+    if (this.isSettled()) return
     this.current = status
   }
 
@@ -121,7 +123,12 @@ export class OperationImpl<TResult> implements Operation<TResult> {
     this.settleReceipt(receipt)
   }
 
+  /**
+   * Settle with `result`. The first settle wins: when the operation settled
+   * already, this call does nothing.
+   */
   finish(status: 'completed' | 'interrupted', result: TResult): void {
+    if (this.isSettled()) return
     this.current = status
     this.ended = true
     this.resolveResult(result)
@@ -129,7 +136,12 @@ export class OperationImpl<TResult> implements Operation<TResult> {
     this.feed.wake()
   }
 
+  /**
+   * Settle with `error`. The first settle wins: when the operation settled
+   * already, this call does nothing.
+   */
   fail(status: 'failed' | 'cancelled', error: unknown): void {
+    if (this.isSettled()) return
     this.current = status
     this.ended = true
     this.rejectResult(error)

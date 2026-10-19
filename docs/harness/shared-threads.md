@@ -98,9 +98,9 @@ export async function invite(userId: string, role: 'member' | 'viewer') {
 
 When `unshare` removes a user:
 
-- The queued and running work that the user started on this host stops. The log keeps who cancelled it.
-- The streams of the user on the thread close. A socket gets a `forbidden` error frame.
-- The open handles of the user throw `AccessDeniedError`.
+- The queued and running work that the user started stops, on every host. The log keeps who cancelled it. The schedules of the user on the thread are removed.
+- The streams of the user on the thread close. A socket gets a `forbidden` error frame. A running `events()` read of a handle or a view ends with `AccessDeniedError`.
+- The open handles and views of the user throw `AccessDeniedError`.
 - The signed media URLs of the user stop working.
 
 ## 3. Connect each person
