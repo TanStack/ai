@@ -16,46 +16,37 @@ export async function loadOptional<T>(
   specifier: string,
   ...names: Array<keyof T & string>
 ) {
+  // Resolve first: a resolve error is about `specifier` itself, so its code
+  // alone says "not installed". A missing package that the module imports
+  // fails the import below, and throws.
+  try {
+    import.meta.resolve(specifier)
+  } catch (error) {
+    if (isMissing(error)) return undefined
+    throw loadError(specifier, error)
+  }
   let loaded: unknown
   try {
     loaded = await import(/* @vite-ignore */ specifier)
   } catch (error) {
-    if (isMissing(error, specifier)) return undefined
-    const reason = error instanceof Error ? error.message : String(error)
-    throw new Error(`Could not load ${specifier}: ${reason}`, { cause: error })
+    throw loadError(specifier, error)
   }
   return hasFunctions<T>(loaded, names) ? loaded : undefined
 }
 
-/** The package of a bare specifier: `@scope/name` or `name`. */
-function packageName(specifier: string) {
-  const parts = specifier.split('/')
-  const count = specifier.startsWith('@') ? 2 : 1
-  return parts.slice(0, count).join('/')
+/** True when a resolve error says that the package or its export is not there. */
+function isMissing(error: unknown) {
+  if (!(error instanceof Error) || !('code' in error)) return false
+  return (
+    error.code === 'ERR_MODULE_NOT_FOUND' ||
+    error.code === 'MODULE_NOT_FOUND' ||
+    error.code === 'ERR_PACKAGE_PATH_NOT_EXPORTED'
+  )
 }
 
-/**
- * True when `error` says that `specifier` is not installed, or that its
- * package does not export it. The error must name `specifier` or its
- * package, so a missing package that the module itself imports is not this.
- */
-function isMissing(error: unknown, specifier: string) {
-  if (!(error instanceof Error) || !('code' in error)) return false
-  const name = packageName(specifier)
-  // A Windows path in the message uses backslashes.
-  const message = error.message.replaceAll('\\', '/')
-  switch (error.code) {
-    case 'ERR_MODULE_NOT_FOUND':
-    case 'MODULE_NOT_FOUND':
-      return message.includes(`'${specifier}'`) || message.includes(`'${name}'`)
-    case 'ERR_PACKAGE_PATH_NOT_EXPORTED':
-      return (
-        message.includes(`'.${specifier.slice(name.length)}'`) &&
-        message.includes(`/${name}/package.json`)
-      )
-    default:
-      return false
-  }
+function loadError(specifier: string, error: unknown) {
+  const reason = error instanceof Error ? error.message : String(error)
+  return new Error(`Could not load ${specifier}: ${reason}`, { cause: error })
 }
 
 function hasFunctions<T>(
