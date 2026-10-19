@@ -94,26 +94,26 @@ Each action covers these calls:
 | `list` | See the session in `host.sessions.list`. |
 | `send` | Prompt, steer, follow up, run a command or a tool, start an agent, and upload media. |
 | `answer` | Answer a question or an approval. |
-| `operator` | Answer a `human` wait of any run, as a person who takes over from the agent. |
+| `operator` | Reply as an operator with `send(text, { as: 'operator' })`, and answer a `human` wait of any run. See [Hand off to a person](./handoffs#4-hand-off-to-a-person). |
 | `cancel` | Stop a run, or drop an input that waits. |
 | `configure` | Change the thread settings, the plugin config, the title, and the metadata. |
 | `share` | Add or remove members. |
 | `delete` | Remove the session from the index. |
 | `fork` | Copy the session into a new session. |
-| `transfer` | Give the session to a new owner. |
+| `transfer` | Move the conversation to another thread, also of another harness, with `host.transfer`. See [Move a conversation to another harness](./handoffs#5-move-a-conversation-to-another-harness). |
 
 - For `answer` and `cancel`, `authorize` also gets `run`: the `runId` and the `principalId` of the user who started that run.
-- For `answer` and `operator`, `authorize` also gets `wait`: the `waitId` and the `kind` of the [wait](./waits) that the input answers, when the host knows it. A `human` wait takes either action: when `answer` is refused, the host asks for `operator`.
+- For `answer` and `operator`, `authorize` also gets `wait`: the `waitId` and the `kind` of the [wait](./waits) that the input answers, when the host knows it. A `human` wait takes only `operator`, also for a resolve that ends it.
 - For `cancelSchedule`, `run` is the schedule: the `runId` is the schedule id, and the `principalId` is the user who made it.
 - `host.submit` and `schedule` check an answer or a cancel when you send it, with `run` from the log. A run that the log does not have is refused with `unknown_run`: `submit` returns a `rejected` receipt, and `schedule` throws `InputRejectedError`.
-- A handle checks `read` once, when it opens. Each action that changes the session asks `authorize` again.
+- A handle checks `read` once, when it opens. Each action that changes the session asks `authorize` again. This includes `cancel` and `send` on an operation or an agent run that the handle returns.
 
 ## What the host checks for you
 
 `authorize` decides only the rule of your app. The host does these checks before it calls it:
 
 - The tenant. A user reaches only the sessions of their own tenant. `authorize` never gets a session of another tenant.
-- A user on every call. With access, `host.open`, `host.fork`, and each `host.sessions` method need a `principal`. A call without one throws.
+- A user on every call. With access, `host.open`, `host.fork`, `host.transfer`, and each `host.sessions` method need a `principal`. A call without one throws.
 - One user per handle. `host.open` returns a session that acts only as its `principal`. A call on it that passes another `principal` throws.
 - Child threads. The host checks a subagent child as its root thread, so `session` is the root session.
 - Missing threads. A read of a thread with no entry answers `404` and starts no session. `GET run?threadId=` answers an empty hydration instead, because `useChat` reads it before the first message.
@@ -181,18 +181,21 @@ export const host = createHarnessHost({
   },
 })
 
-export function removeFromTeam(threadId: string, user: { id: string; tenantId: string }) {
+export async function removeFromTeam(threadId: string, user: { id: string; tenantId: string }) {
   teams.get(threadId)?.delete(user.id)
-  host.revoke({ threadId, principal: user })
+  await host.revoke({ threadId, principal: user })
 }
 ```
 
-After `host.revoke`:
+When the promise of `host.revoke` resolves:
 
-- The streams of the user on the thread close. A socket gets a `forbidden` error frame.
-- The open handles of the user on the thread throw `AccessDeniedError`. A new `host.open` asks `authorize` again.
+- The running and queued work of the user on the thread is cancelled, on every host. The schedules of the user on the thread are removed.
+- The streams of the user on the thread close. A socket gets a `forbidden` error frame. A running `events()` read of a handle or a view ends with `AccessDeniedError`.
+- The open handles and views of the user on the thread throw `AccessDeniedError`. A new `host.open` asks `authorize` again.
 - The signed media URLs of the user stop working. A signed URL names its user, and the handler checks that user again when it serves the file.
 - `host.events()` yields a `revoked` event.
+
+When the cancels cannot be sent (for example, the log store fails), the promise rejects. The access is gone already. Call `host.revoke` again to stop the work. `host.sessions.unshare` rejects the same way, after it removed the member.
 
 `host.sessions.share` and `unshare` work only with `membersOnly()`. With your own tables, change the tables, then call `host.revoke`.
 

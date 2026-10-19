@@ -347,9 +347,13 @@ interface User {
 const olga: User = { id: 'olga', tenantId: 'acme' }
 const bea: User = { id: 'bea', tenantId: 'acme' }
 const vic: User = { id: 'vic', tenantId: 'acme' }
+const oto: User = { id: 'oto', tenantId: 'acme' }
 
 describe('a human wait', () => {
-  /** A host with access, where olga owns `THREAD`, bea is a member, and vic a viewer. */
+  /**
+   * A host with access, where olga owns `THREAD`, bea is a member, vic a
+   * viewer, and oto an operator.
+   */
   async function sharedThread() {
     const persistence = memoryPersistence()
     const host = createHarnessHost({
@@ -363,6 +367,7 @@ describe('a human wait', () => {
     for (const [userId, role] of [
       ['bea', 'member'],
       ['vic', 'viewer'],
+      ['oto', 'operator'],
     ] as const) {
       await host.sessions.share({
         threadId: THREAD,
@@ -399,23 +404,28 @@ describe('a human wait', () => {
     await host.close()
   })
 
-  it('takes the answer of a member as an operator, and refuses a viewer', async () => {
+  it('takes the answer of an operator, and refuses the owner, a member, and a viewer', async () => {
     const { host, log, owner, open } = await sharedThread()
     const wait = await openWait(owner, {
       kind: 'human',
       runId: 'run-1',
       principal: olga,
     })
-    const member = await open(bea)
-    const viewer = await open(vic)
+    const operator = await open(oto)
+    const answer = { questionId: wait.waitId, value: { resume: true } }
 
+    // The owner started the run, but waits for a person: not one by default.
+    for (const user of [olga, bea, vic]) {
+      await expect((await open(user)).answer(answer)).rejects.toBeInstanceOf(
+        AccessDeniedError,
+      )
+    }
     await expect(
-      viewer.answer({ questionId: wait.waitId, value: { resume: true } }),
+      owner.resolve({
+        resume: [{ interruptId: wait.waitId, status: 'cancelled' }],
+      }),
     ).rejects.toBeInstanceOf(AccessDeniedError)
-    // bea did not start the run, but a member may reply as an operator.
-    expect(
-      await member.answer({ questionId: wait.waitId, value: { resume: true } }),
-    ).toMatchObject({ status: 'accepted' })
+    expect(await operator.answer(answer)).toMatchObject({ status: 'accepted' })
     expect(owner.snapshot().pendingWaits).toEqual([])
     const stored = await storedThreadState(log, {
       threadId: THREAD,
@@ -426,9 +436,10 @@ describe('a human wait', () => {
       value: { resume: true },
     })
     // A wait ends once.
-    expect(
-      await owner.answer({ questionId: wait.waitId, value: { resume: true } }),
-    ).toMatchObject({ status: 'rejected', reason: 'unknown_question' })
+    expect(await operator.answer(answer)).toMatchObject({
+      status: 'rejected',
+      reason: 'unknown_question',
+    })
     await host.close()
   })
 
@@ -457,8 +468,8 @@ describe('a human wait', () => {
       })
 
     await expect(submit(vic)).rejects.toBeInstanceOf(AccessDeniedError)
-    // bea did not start the run, but a member may reply as an operator.
-    expect(await submit(bea)).toMatchObject({ status: 'queued' })
+    await expect(submit(olga)).rejects.toBeInstanceOf(AccessDeniedError)
+    expect(await submit(oto)).toMatchObject({ status: 'queued' })
     // The wait left the log free: a sweep runs the answer.
     await host.resumePending({ harnesses: [harnessWith()] })
     await waitFor(() => expect(owner.snapshot().pendingWaits).toEqual([]))

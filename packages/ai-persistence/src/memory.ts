@@ -706,6 +706,8 @@ class LogBackendState {
   // Kept apart from `owners`, because a log that no host acquired can have a
   // pin too (`setAffinity` with UNOWNED_EPOCH).
   readonly affinities = new Map<string, string>()
+  /** When the heartbeat of each host expires, by its host id. */
+  readonly hosts = new Map<string, number>()
   // Kept apart from `owners`, because any machine can offer to a log that no
   // host acquired.
   readonly lanes = new Map<string, Lane>()
@@ -859,14 +861,16 @@ class MemoryLogStore implements LogStore {
     const isLive =
       owner !== undefined && !owner.released && owner.expiresAt > now
     if (isLive && owner.ownerId !== ownerId) return null
-    const pin = this.backend.affinities.get(logId)
-    if (pin !== undefined && pin !== affinity) return null
+    if (this.isPinnedElsewhere(logId, affinity, now)) return null
     // The caller holds the log already: extend it at the same epoch.
     if (isLive) {
       owner.expiresAt = now + ttlMs
       return { epoch: owner.epoch }
     }
     const epoch = (owner?.epoch ?? UNOWNED_EPOCH) + 1
+    // Another owner that did not release: its ownership expired.
+    const expired =
+      owner !== undefined && !owner.released && owner.ownerId !== ownerId
     this.backend.owners.set(logId, {
       harness,
       ownerId,
@@ -874,7 +878,7 @@ class MemoryLogStore implements LogStore {
       expiresAt: now + ttlMs,
       released: false,
     })
-    return { epoch }
+    return expired ? { epoch, expired: true } : { epoch }
   }
 
   async renew({
@@ -906,6 +910,26 @@ class MemoryLogStore implements LogStore {
     if (wakeInMs !== undefined) owner.wakeAt = this.backend.now() + wakeInMs
   }
 
+  async heartbeat({ hostId, ttlMs }: Parameters<LogStore['heartbeat']>[0]) {
+    assertMs({ name: 'ttlMs', value: ttlMs, allowZero: false })
+    this.backend.hosts.set(hostId, this.backend.now() + ttlMs)
+  }
+
+  /**
+   * True when `logId` is pinned to a host that is not `affinity`, and that
+   * host is alive: its heartbeat did not expire. The pin of a host with no
+   * live heartbeat does not count.
+   */
+  private isPinnedElsewhere(
+    logId: string,
+    affinity: string | undefined,
+    now: number,
+  ) {
+    const pin = this.backend.affinities.get(logId)
+    if (pin === undefined || pin === affinity) return false
+    return (this.backend.hosts.get(pin) ?? 0) > now
+  }
+
   async setAffinity({
     logId,
     epoch,
@@ -933,11 +957,11 @@ class MemoryLogStore implements LogStore {
     for (const logId of logIds) {
       const found = this.orphanOf(logId, now)
       if (found === undefined) continue
-      const pin = this.backend.affinities.get(logId)
       const isOtherHarness =
         harnesses !== undefined && !harnesses.includes(found.orphan.harness)
-      const isOtherAffinity = pin !== undefined && pin !== affinity
-      if (isOtherHarness || isOtherAffinity) continue
+      if (isOtherHarness || this.isPinnedElsewhere(logId, affinity, now)) {
+        continue
+      }
       due.push(found)
     }
     // The log that is due first comes first.

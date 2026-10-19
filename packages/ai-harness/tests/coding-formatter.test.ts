@@ -4,12 +4,16 @@ import { describe, expect, it, vi } from 'vitest'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import { workspaceTools } from '../src/first-party/coding'
-import { permissions } from '../src/first-party/permissions'
+import {
+  listSavedPermissions,
+  permissions,
+} from '../src/first-party/permissions'
 import {
   FormatFailed,
   formatOnWrite,
   formatter,
 } from '../src/first-party/coding/formatter'
+import { FormatterRewrote } from '../src/first-party/coding/events'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { HarnessSession } from '../src'
 import type { PermissionRule } from '../src/first-party/permissions'
@@ -19,6 +23,12 @@ import type {
   Formatter,
   FormatterOptions,
 } from '../src/first-party/coding/formatter'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 const { join, posix, resolve } = nodePath
 const root = resolve(tmpdir(), 'harness-format')
@@ -60,6 +70,8 @@ function project(files: Record<string, string>, exec: Exec = ok, shell?: 'sh') {
       const data = store.get(path)
       return data && { type: 'file', size: data.length, mtimeMs: 0 }
     },
+    // No links: each path is its own real path.
+    realpath: async (path) => path,
     readdir: async (dir) =>
       [...store.keys()]
         .filter((path) => paths.dirname(path) === dir)
@@ -83,8 +95,9 @@ async function formatIn(
 ) {
   const { backend, runs } = project(files, exec)
   const failures: Array<FormatFailure> = []
-  const afterWrite = formatOnWrite({ root, backend, ...options }, (failure) =>
-    failures.push(failure),
+  const afterWrite = formatOnWrite(
+    { root, backend, ...options },
+    { onFailure: (failure) => failures.push(failure) },
   )
   await afterWrite(join(root, path))
   return { runs, commands: runs.map((run) => run.command), failures }
@@ -200,7 +213,7 @@ describe('formatOnWrite', () => {
     const { backend, runs } = project(prettier, ok, 'sh')
     const afterWrite = formatOnWrite(
       { root: '/workspace', backend },
-      () => undefined,
+      { onFailure: () => undefined },
     )
     await afterWrite('/workspace/src/a.ts')
     expect(runs).toEqual([
@@ -226,8 +239,9 @@ describe('formatOnWrite', () => {
       return readdir(dir)
     }
     const failures: Array<FormatFailure> = []
-    const afterWrite = formatOnWrite({ root, backend }, (failure) =>
-      failures.push(failure),
+    const afterWrite = formatOnWrite(
+      { root, backend },
+      { onFailure: (failure) => failures.push(failure) },
     )
     await afterWrite(join(root, 'a.ts'))
     fail = false
@@ -238,7 +252,10 @@ describe('formatOnWrite', () => {
 
   it('checks the config files once, at the first write', async () => {
     const { backend, runs, put } = project({})
-    const afterWrite = formatOnWrite({ root, backend }, () => undefined)
+    const afterWrite = formatOnWrite(
+      { root, backend },
+      { onFailure: () => undefined },
+    )
     await afterWrite(join(root, 'a.ts'))
     put('.prettierrc', '{}')
     await afterWrite(join(root, 'a.ts'))
@@ -271,6 +288,34 @@ describe('formatOnWrite', () => {
     expect(runs[0]?.timeoutMs).toBe(5000)
     expect(failures).toEqual([{ path: join(root, 'a.ts'), message }])
   })
+
+  it.each([
+    [
+      'changed',
+      'let a = 1\n',
+      [{ path: join(root, 'a.ts'), formatter: 'prettier' }],
+    ],
+    ['kept', 'let a=1', []],
+  ])(
+    'reports a rewrite only when the formatter changed the file (%s)',
+    async (_, formatted, expected) => {
+      // The fake prettier writes `formatted` to the file.
+      const files = project({ ...prettier, 'a.ts': 'let a=1' }, () => {
+        files.put('a.ts', formatted)
+        return { exitCode: 0, stdout: '', stderr: '' }
+      })
+      const rewrites: Array<{ path: string; formatter: string }> = []
+      const afterWrite = formatOnWrite(
+        { root, backend: files.backend },
+        {
+          onFailure: () => undefined,
+          onRewrite: (rewrite) => rewrites.push(rewrite),
+        },
+      )
+      await afterWrite(join(root, 'a.ts'))
+      expect(rewrites).toEqual(expected)
+    },
+  )
 
   it('reports a backend that throws, and does not throw', async () => {
     const { failures } = await formatIn(prettier, 'a.ts', {}, () => {
@@ -335,6 +380,90 @@ describe('formatter', () => {
   })
 })
 
+describe('formatter with a workspace for each thread', () => {
+  it('runs in the workspace that bind gave the thread, also with permissions()', async () => {
+    // A Linux sandbox at /workspace, with a prettier config.
+    const { backend, runs } = project(prettier, ok, 'sh')
+    const { adapter } = mockAdapter([
+      () => toolCall('write_file', { path: 'a.ts', content: 'let a=1' }, 'c1'),
+      () => text('done'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/formatter-bind',
+        adapter,
+        plugins: () => [
+          permissions({ rules: [{ tool: 'formatter:*', decision: 'allow' }] }),
+          workspaceTools({
+            workspace: {
+              bind: async () => ({ ...backend, root: '/workspace' }),
+            },
+          }),
+          formatter({}),
+        ],
+      }),
+      { threadId: 't' },
+    )
+    // Not bypass: the rules check the formatter of the call before it runs.
+    await session.command({ name: 'mode', input: 'acceptEdits' })
+
+    await session.send('write it')
+    expect(session.snapshot().pendingWaits).toEqual([])
+    await host.close()
+
+    expect(runs).toEqual([
+      {
+        command: `npx --no-install prettier --write '/workspace/a.ts'`,
+        cwd: '/workspace',
+        timeoutMs: 20_000,
+      },
+    ])
+  })
+})
+
+describe('formatter events', () => {
+  it('sends tanstack/formatter:rewrote when the formatter changed the written file', async () => {
+    // The fake prettier puts spaces around `=`.
+    const files = project(prettier, () => {
+      files.put('a.ts', files.read('a.ts').replace('=', ' = '))
+      return { exitCode: 0, stdout: '', stderr: '' }
+    })
+    const rewrites: Array<unknown> = []
+    const listener = definePlugin({
+      name: 'test/listener',
+      setup: (ctx) => {
+        ctx.on(FormatterRewrote, (rewrite) => rewrites.push(rewrite))
+      },
+    })
+    const { adapter } = mockAdapter([
+      () => toolCall('write_file', { path: 'a.ts', content: 'let a=1' }, 'c1'),
+      () => text('done'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/formatter-events',
+        adapter,
+        plugins: () => [
+          workspaceTools({ root, backend: files.backend }),
+          formatter({ root, backend: files.backend }),
+          listener,
+        ],
+      }),
+      { threadId: 't' },
+    )
+
+    await session.send('work')
+    await host.close()
+
+    expect(files.read('a.ts')).toBe('let a = 1')
+    expect(rewrites).toEqual([
+      { path: join(root, 'a.ts'), formatter: 'prettier' },
+    ])
+  })
+})
+
 describe('formatter with permissions()', () => {
   /**
    * A session with the workspace tools, the formatter, and `permissions()`
@@ -347,12 +476,14 @@ describe('formatter with permissions()', () => {
     persistence = memoryPersistence(),
     files: Record<string, string> = {},
     rules: Array<PermissionRule> = [],
+    /** The start of the tool call ids. A thread needs new ids on each host. */
+    ids = 'c',
   ) {
     const { backend, runs } = project(files)
     const { adapter, calls } = mockAdapter([
       ...paths.map(
         (path, index) => () =>
-          toolCall('write_file', { path, content: '' }, `c${index}`),
+          toolCall('write_file', { path, content: '' }, `${ids}${index}`),
       ),
       () => text('done'),
     ])
@@ -380,7 +511,7 @@ describe('formatter with permissions()', () => {
    * for the turn that resumes. Returns its message.
    */
   async function answer(session: HarnessSession, value: unknown) {
-    await vi.waitFor(
+    await waitFor(
       () => expect(session.snapshot().pendingWaits).toHaveLength(1),
       { timeout: 5_000 },
     )
@@ -459,6 +590,75 @@ describe('formatter with permissions()', () => {
       `npx --no-install prettier --write ${quoted('b.ts')}`,
     ])
     await second.host.close()
+  })
+
+  it('asks again after an always answer when the formatter config changed', async () => {
+    const persistence = memoryPersistence()
+    const first = await openWith('acceptEdits', ['a.ts'], persistence, {
+      'prettier.config.js': 'export default {}',
+    })
+    await first.session.send('write it')
+    await answer(first.session, { answer: 'always' })
+    expect(first.runs).toHaveLength(1)
+    await first.host.close()
+
+    // The config now loads a plugin: its code runs with the formatter.
+    const second = await openWith(
+      'acceptEdits',
+      ['b.ts'],
+      persistence,
+      { 'prettier.config.js': "export default { plugins: ['./evil.js'] }" },
+      [],
+      'second-',
+    )
+    await second.session.send('write again')
+    const message = await answer(second.session, { answer: 'once' })
+    expect(message).toContain('Allow write_file')
+    expect(second.runs.map((run) => run.command)).toEqual([
+      `npx --no-install prettier --write ${quoted('b.ts')}`,
+    ])
+    await second.host.close()
+  })
+
+  it('asks again after an always answer for a write of a config below the root', async () => {
+    const persistence = memoryPersistence()
+    const first = await openWith('acceptEdits', ['a.ts'], persistence, prettier)
+    await first.session.send('write it')
+    await answer(first.session, { answer: 'always' })
+    await first.host.close()
+
+    // Prettier loads the nested config, and runs its code. The root
+    // config did not change.
+    const second = await openWith(
+      'acceptEdits',
+      ['src/prettier.config.js'],
+      persistence,
+      prettier,
+      [],
+      'second-',
+    )
+    await second.session.send('write the nested config')
+    const message = await answer(second.session, { answer: 'once' })
+    expect(message).toContain('Allow write_file')
+    await second.host.close()
+  })
+
+  it('saves no rule for the formatter of a nested config on an always answer', async () => {
+    const persistence = memoryPersistence()
+    const { host, session } = await openWith(
+      'acceptEdits',
+      ['src/prettier.config.js'],
+      persistence,
+      prettier,
+    )
+    await session.send('write the nested config')
+
+    await answer(session, { answer: 'always' })
+
+    const saved = await listSavedPermissions(persistence.stores, root)
+    expect(saved.map((rule) => rule.tool)).toContain('formatter:prettier')
+    expect(saved.some((rule) => rule.tool.includes('@unsaved:'))).toBe(false)
+    await host.close()
   })
 
   it('runs with no question in bypass', async () => {

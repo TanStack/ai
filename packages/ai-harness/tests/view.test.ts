@@ -262,7 +262,7 @@ describe('createSessionView', () => {
 
     const second = await open([], persistence)
     const view = createSessionView(second.session)
-    view.notice('Welcome back.')
+    view.notice({ text: 'Welcome back.' })
     await view.ready
 
     expect(view.store.get().messages).toEqual([
@@ -303,7 +303,7 @@ describe('createSessionView', () => {
     expect(view.store.get()).toEqual({ ...before, connection: 'closed' })
     expect(snapshot).not.toHaveBeenCalled()
     await expect(view.send('hi')).rejects.toThrow('disposed')
-    expect(() => view.approve('x')).toThrow('disposed')
+    expect(() => view.approve({ id: 'x' })).toThrow('disposed')
     await host.close()
   })
 
@@ -489,7 +489,7 @@ describe('the agents of a session view', () => {
     expect(view.store.get().agents).toMatchObject([
       { id: run.id, status: 'waiting' },
     ])
-    view.approve(wait.waitId)
+    view.approve({ id: wait.waitId })
     await expect(run).resolves.toBe('Done.')
     expect(removed).toEqual(['old.log'])
     await waitFor(() => expect(view.store.get().waits).toEqual([]))
@@ -523,21 +523,25 @@ describe('the agents of a session view', () => {
 
     const view = createSessionView(session)
     await view.ready
+    const message = view.store.get().messages[1]
+    const card = message?.role === 'assistant' ? message.parts[1] : undefined
+    // Until it loads, the child shows only its card.
+    expect(card).toMatchObject({ type: 'agent', status: 'done', parts: [] })
 
-    await vi.waitFor(() =>
-      expect(view.store.get().messages[1]).toMatchObject({
-        role: 'assistant',
-        parts: [
-          { type: 'tool-call', id: 'call-1', status: 'done' },
-          {
-            type: 'agent',
-            name: 'writer',
-            status: 'done',
-            parts: [{ type: 'text', text: 'Note 1' }],
-          },
-        ],
-      }),
-    )
+    await view.loadAgent({ id: card?.type === 'agent' ? card.id : '' })
+
+    expect(view.store.get().messages[1]).toMatchObject({
+      role: 'assistant',
+      parts: [
+        { type: 'tool-call', id: 'call-1', status: 'done' },
+        {
+          type: 'agent',
+          name: 'writer',
+          status: 'done',
+          parts: [{ type: 'text', text: 'Note 1' }],
+        },
+      ],
+    })
     view.dispose()
     await host.close()
   })

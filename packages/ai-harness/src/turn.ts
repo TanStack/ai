@@ -207,7 +207,7 @@ export function isTransientModelError(error: {
 }
 
 /** Resolve after `ms`, or at once when `signal` aborts. */
-function wait(ms: number, signal: AbortSignal) {
+export function wait(ms: number, signal: AbortSignal) {
   return new Promise<void>((resolve) => {
     if (signal.aborted) return resolve()
     const done = () => {

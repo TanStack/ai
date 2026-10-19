@@ -1130,4 +1130,171 @@ describe('view reducer', () => {
       },
     ])
   })
+
+  it('starts a message of the target at a handoff, and names the agent on it', () => {
+    const handoff = (to: string | null) =>
+      at({
+        type: EventType.CUSTOM,
+        name: HARNESS_EVENTS.handoff,
+        value: { from: null, to, by: 'tool', runId: 'op-1' },
+      })
+    const state = fold([
+      at({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm', delta: 'Hi' }),
+      handoff('billing'),
+      at({
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'n',
+        delta: 'Billing here',
+      }),
+      handoff(null),
+      handoff(null),
+      at({
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId: 'o',
+        delta: 'Back',
+      }),
+    ])
+    expect(state.messages).toEqual([
+      {
+        id: 'turn-op-1',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Hi' }],
+      },
+      {
+        id: 'turn-op-1:1',
+        role: 'assistant',
+        agent: 'billing',
+        parts: [{ type: 'text', text: 'Billing here' }],
+      },
+      {
+        id: 'turn-op-1:2',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Back' }],
+      },
+    ])
+  })
+
+  it('names the routed agent of a turn from its start, not a tool-mode child', () => {
+    const plan = { tanstack: { subagentPlan: { steps: [] } } }
+    const state = fold([
+      at({
+        subagentRunId: 'child-1',
+        type: EventType.SUBAGENT_STARTED,
+        name: 'helper',
+      }),
+      at(
+        {
+          subagentRunId: 'child-2',
+          type: EventType.SUBAGENT_STARTED,
+          name: 'billing',
+          metadata: plan,
+        },
+        'op-2',
+      ),
+    ])
+    expect(
+      state.messages.map((message) =>
+        message.role === 'assistant' ? message.agent : message.role,
+      ),
+    ).toEqual([undefined, 'billing'])
+  })
+
+  it('reads the agent of a saved message from metadata.harness.agent', () => {
+    const messages = messagesFromTranscript([
+      { role: 'user', content: 'refund' },
+      {
+        role: 'assistant',
+        content: 'billing:\nRefunded',
+        metadata: { harness: { agent: 'billing' } },
+      },
+      { role: 'assistant', content: 'Main again' },
+    ])
+    expect(
+      messages.map((message) =>
+        message.role === 'assistant' ? message.agent : message.role,
+      ),
+    ).toEqual(['user', 'billing', undefined])
+  })
+
+  it('adds no empty message for a handoff to a person or an operator hand-back', () => {
+    const state = fold([
+      at({ type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm', delta: 'Hi' }),
+      at({
+        type: EventType.CUSTOM,
+        name: HARNESS_EVENTS.handoff,
+        value: { from: null, to: { human: true }, by: 'tool', runId: 'op-1' },
+      }),
+      at(
+        {
+          type: EventType.CUSTOM,
+          name: HARNESS_EVENTS.handoff,
+          value: { from: { human: true }, to: 'billing', by: 'operator' },
+        },
+        'session',
+      ),
+    ])
+    expect(state.messages).toEqual([
+      {
+        id: 'turn-op-1',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Hi' }],
+      },
+    ])
+  })
+
+  it('shows the files of an operator reply with the reply, not as a user message', () => {
+    const media = {
+      id: 'med-1',
+      threadId: 't1',
+      kind: 'image',
+      mimeType: 'image/png',
+      name: 'screen.png',
+      size: 3,
+      source: 'user',
+      createdAt: 1,
+    }
+    const messages = messagesFromTranscript([
+      { role: 'user', content: 'Help' },
+      {
+        id: 'operator-in-1',
+        role: 'assistant',
+        content: 'See this',
+        metadata: { harness: { operator: 'bea' } },
+      },
+      {
+        id: 'operator-in-1:media',
+        role: 'user',
+        content: [
+          { type: 'text', content: 'The operator attached these files.' },
+          {
+            type: 'image',
+            source: {
+              type: 'url',
+              value: 'harness-media:med-1',
+              mimeType: 'image/png',
+            },
+          },
+        ],
+        metadata: {
+          harness: {
+            operator: 'bea',
+            operatorAttachment: true,
+            media: [media],
+          },
+        },
+      },
+    ])
+    expect(messages).toMatchObject([
+      { role: 'user', text: 'Help' },
+      {
+        id: 'operator-in-1',
+        role: 'assistant',
+        parts: [
+          { type: 'text', text: 'See this' },
+          { type: 'media', id: 'med-1', name: 'screen.png' },
+        ],
+      },
+    ])
+    expect(messages).toHaveLength(2)
+  })
 })

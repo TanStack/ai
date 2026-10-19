@@ -1,5 +1,6 @@
 import {
   LogRecordsCapability,
+  chat,
   convertSchemaToJsonSchema,
   isStandardSchema,
   provideLogRecords,
@@ -9,6 +10,7 @@ import { bindDurable, createToolStep } from '../durable-tool'
 import { expiryOf } from '../waits'
 import { waitUntil } from '../utils'
 import { commonPrefix, stepKey } from '../log'
+import { isEnded } from '../log-records'
 import { mediaIdOf, mediaOfMessage } from '../media-ref'
 import { LogOwnedElsewhereError } from '../ownership'
 import { HARNESS_EVENTS } from '../types'
@@ -23,6 +25,7 @@ import {
   resetContext,
   TIMEOUT_REASON,
   SHUTDOWN_REASON,
+  BUDGET_REASON,
   checkHostRecords,
 } from './helpers'
 import { SessionRequests } from './requests'
@@ -41,7 +44,7 @@ import type { LogWriter } from '../log'
 import type { UsageCall } from '../usage'
 import type { AnyHarness } from '../define'
 import type { TurnAdditions } from '../turn'
-import type { MountedPlugins } from '../plugins'
+import type { MountedPlugins, PluginModelCall } from '../plugins'
 import type {
   ChatTurnResult,
   MediaRecord,
@@ -51,6 +54,9 @@ import type {
   UserInput,
 } from '../types'
 import type { QueuedTurn, AgentRunImpl, AgentChain } from './types'
+
+/** How long a `ctx.model.chat` call runs before it stops, by default. */
+const MODEL_CALL_TIMEOUT_MS = 120_000
 
 /**
  * A layer of {@link HarnessSession}: the tools, middleware, and joins a turn
@@ -305,13 +311,35 @@ export abstract class SessionTurnParts<
   }
 
   /**
+   * Run the `onTurnStart` hook of each plugin, in order, for `turn`. A hook
+   * that fails is skipped, and clients get a `harness.plugin.warning` event.
+   */
+  protected async runTurnStarts(
+    turnStarts: MountedPlugins['turnStarts'],
+    operation: OperationImpl<ChatTurnResult>,
+    turn: TurnInfo,
+  ) {
+    for (const { start, owner } of turnStarts) {
+      try {
+        await start(turn)
+      } catch (error) {
+        this.warn(operation, owner, error)
+      }
+    }
+  }
+
+  /**
    * Ask each plugin for the tools it found since the last turn, for `turn`.
    * A plugin that fails (for example an MCP server that is down) is skipped,
    * and clients get a `harness.plugin.warning` event.
+   *
+   * `taken` has the owner of each tool name. A found tool with a taken name
+   * is skipped: the earlier tool stays. The session warns once for each
+   * name and pair of owners.
    */
   protected async discoverTools(
     discoverers: MountedPlugins['discoverers'],
-    taken: Set<string>,
+    taken: Map<string, string>,
     operation: OperationImpl<ChatTurnResult>,
     turn: TurnInfo,
   ): Promise<Array<AnyTool>> {
@@ -320,8 +348,12 @@ export abstract class SessionTurnParts<
       try {
         const tools = await discover(turn)
         for (const tool of tools) {
-          if (taken.has(tool.name)) continue
-          taken.add(tool.name)
+          const first = taken.get(tool.name)
+          if (first !== undefined) {
+            this.warnToolClash(operation, tool.name, first, owner)
+            continue
+          }
+          taken.set(tool.name, owner)
           found.push(tool)
         }
       } catch (error) {
@@ -331,19 +363,49 @@ export abstract class SessionTurnParts<
     return found
   }
 
+  /** The tool clashes this session warned about: name and both owners. */
+  protected readonly toolClashes = new Set<string>()
+
+  /** Warn once that `owner` gives a tool `name` that `first` gives too. */
+  protected warnToolClash(
+    operation: OperationImpl<ChatTurnResult>,
+    name: string,
+    first: string,
+    owner: string,
+  ) {
+    // A plugin that finds the same tool again on each turn is no clash.
+    if (first === owner) return
+    const key = JSON.stringify([name, first, owner])
+    if (this.toolClashes.has(key)) return
+    this.toolClashes.add(key)
+    const label = (who: string) =>
+      who === 'the harness' ? who : `plugin ${who}`
+    this.warn(
+      operation,
+      owner,
+      `Two tools are named "${name}": the tool of ${label(first)} is used, and the tool of ${label(owner)} is not.`,
+    )
+  }
+
   /**
    * Let each plugin change the tool list of this turn, in plugin order. A
    * plugin that fails leaves the list as it was, with a warning event.
    */
   protected async prepareTools(
     preparers: MountedPlugins['preparers'],
-    turn: { tools: Array<AnyTool>; model: string },
+    turn: { tools: Array<AnyTool>; model: string; run: RunContext },
     operation: OperationImpl<ChatTurnResult>,
   ): Promise<Array<AnyTool>> {
     let prepared = turn.tools
     for (const { prepare, owner } of preparers) {
       try {
-        prepared = [...(await prepare({ tools: prepared, model: turn.model }))]
+        prepared = [
+          ...(await prepare({
+            tools: prepared,
+            model: turn.model,
+            run: turn.run,
+          })),
+        ]
       } catch (error) {
         this.warn(operation, owner, error)
       }
@@ -400,8 +462,8 @@ export abstract class SessionTurnParts<
           context.runId = runId
           context.detach = (work) =>
             new Promise((moved) => {
-              this.detachable.set(id, () => {
-                this.logJob(id, false)
+              this.detachable.set(id, (mover) => {
+                this.logJob({ jobId: id, principal: mover }, false)
                 moved(
                   `The job moved to the background. Its id is ${id}. You get a note when it ends.`,
                 )
@@ -418,7 +480,7 @@ export abstract class SessionTurnParts<
                   .then((text) =>
                     this.pluginApi(principal).note(text, { wake: true }),
                   )
-                  .then(() => this.logJob(id, true))
+                  .then(() => this.logJob({ jobId: id }, true))
                   .catch(() => undefined)
               })
             })
@@ -464,8 +526,8 @@ export abstract class SessionTurnParts<
 
   /**
    * Middleware that counts the usage of each model call of `operation` for
-   * `principal`. The count does not hold back the stream: chat() waits for it
-   * after the run.
+   * `principal`, then checks the budgets of the run tree. The count does not
+   * hold back the stream: chat() waits for it after the run.
    */
   protected usageCounter(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
@@ -478,11 +540,87 @@ export abstract class SessionTurnParts<
           this.countUsage(operation, {
             model: `${ctx.provider}/${ctx.model}`,
             ...storedPrincipal(principal),
+            runId: operation.id,
             usage: callUsage(usage),
-          }),
+          }).then(() => this.checkBudget(operation)),
         )
       },
     }
+  }
+
+  /**
+   * Middleware that keeps the tool calls of `operation` that run now in
+   * `toolCalls`, so a plugin start knows the run that calls it.
+   */
+  protected toolCallTracker(
+    operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
+  ): AnyChatMiddleware {
+    const { id } = operation
+    // One key per tracker: a turn and its tool-mode children have their own.
+    const key = {}
+    const add = (delta: number) => {
+      const count = (this.toolCalls.get(key)?.count ?? 0) + delta
+      if (count > 0) this.toolCalls.set(key, { id, count })
+      else this.toolCalls.delete(key)
+    }
+    // A skipped or waiting call has no end: the end of the batch clears it.
+    const clear = () => void this.toolCalls.delete(key)
+    return {
+      name: 'harness:tool-calls',
+      onBeforeToolCall: () => add(1),
+      onAfterToolCall: () => add(-1),
+      onToolPhaseComplete: clear,
+      onFinish: clear,
+      onAbort: clear,
+      onError: clear,
+    }
+  }
+
+  /**
+   * After a model call of `operation`: stop each agent run on its path up
+   * the run tree that went over its budget, with `BUDGET_REASON`. The run
+   * that made the call stops too, because its budget is never more than
+   * what the runs above it have left. The check comes after the call, so a
+   * run can go over by one model call.
+   */
+  protected checkBudget(
+    operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
+  ) {
+    const over = this.overBudget(operation.id, (left) => left < 0)
+    if (over.length === 0) return
+    for (const runId of new Set([operation.id, ...over])) {
+      const run = this.operations.get(runId)
+      if (run?.kind !== 'agent' || run.isSettled()) continue
+      if (!run.abortController.signal.aborted) {
+        run.abortController.abort(BUDGET_REASON)
+      }
+    }
+  }
+
+  /**
+   * The runs on the path from `runId` up the run tree, with a budget that
+   * `isOut` says is used. `isOut` gets the tokens, or the cost, that a run
+   * has left. A run that ended does not count.
+   */
+  protected overBudget(runId: string, isOut: (left: number) => boolean) {
+    const { thread, runUsage } = this.writer.state
+    const out: Array<string> = []
+    const seen = new Set<string>()
+    let id: string | undefined = runId
+    while (id !== undefined && !seen.has(id)) {
+      seen.add(id)
+      const node = thread.tree.get(id)
+      if (!node) break
+      const used = runUsage.get(id)
+      const { maxTokens, maxCost } = node.budget ?? {}
+      const isUsed =
+        (maxTokens !== undefined &&
+          isOut(maxTokens - (used?.totalTokens ?? 0))) ||
+        (maxCost !== undefined && isOut(maxCost - (used?.cost ?? 0)))
+      if (isUsed && !isEnded(node.status)) out.push(id)
+      id = node.parentRunId
+    }
+    return out
   }
 
   /**
@@ -493,6 +631,15 @@ export abstract class SessionTurnParts<
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
     call: UsageCall,
   ): Promise<void> {
+    // A child of `harnessAgent` counts in the run that started it: the
+    // usage of the parent session has it, and the budget of that run
+    // holds.
+    if (this.childLink) {
+      await this.childLink
+        .countUsage(call)
+        .catch((error: unknown) => this.warn(operation, 'harness:usage', error))
+      return
+    }
     try {
       await this.writer.append([{ type: 'harness.usage', ...call }])
     } catch (error) {
@@ -500,14 +647,106 @@ export abstract class SessionTurnParts<
       this.warn(operation, 'harness:usage', error)
       return
     }
+    this.tracing?.usage(call, (runId) => this.parentRunOf(runId))
     operation.publish(
       customEvent(HARNESS_EVENTS.usage, {
         model: call.model,
         ...(call.principal ? { sender: call.principal.id } : {}),
+        ...(call.source !== undefined ? { source: call.source } : {}),
+        ...(call.label !== undefined ? { label: call.label } : {}),
         usage: call.usage,
         total: this.usage().total,
       }),
     )
+  }
+
+  /**
+   * One model call of `ctx.model.chat`, for the run `call.run`: with the
+   * keys of its user, and a signal that aborts when the run stops or after
+   * the timeout. Each model call counts under `call.source`, in the session
+   * and in the run, and the budget of the run applies. A stopped call
+   * rejects with the reason of the stop.
+   */
+  protected async modelChat(call: PluginModelCall): Promise<unknown> {
+    const { run, options } = call
+    // The setting names a key of `harness.models`: a setting is checked
+    // when it is set, and a stored one that the harness lost is dropped.
+    const named = this.threadSettings.model
+    const model =
+      call.adapter ??
+      (named === undefined ? undefined : this.harness.models?.[named]) ??
+      this.harness.adapter
+    if (!model) {
+      throw new Error(
+        `ctx.model.chat needs an adapter: harness ${JSON.stringify(this.harness.name)} has no adapter.`,
+      )
+    }
+    const signal = AbortSignal.any([
+      run.signal,
+      AbortSignal.timeout(call.timeoutMs ?? MODEL_CALL_TIMEOUT_MS),
+    ])
+    const abortController = new AbortController()
+    const stop = () => abortController.abort(signal.reason)
+    if (signal.aborted) stop()
+    else signal.addEventListener('abort', stop, { once: true })
+    const counted: Array<Promise<void>> = []
+    try {
+      const result = await chat({
+        ...options,
+        adapter: await run.keys.adapter(model),
+        stream: false,
+        abortController,
+        middleware: [
+          {
+            name: 'harness:model-usage',
+            onUsage: (ctx, usage) => {
+              const made: UsageCall = {
+                model: `${ctx.provider}/${ctx.model}`,
+                ...storedPrincipal(run.principal),
+                source: call.source,
+                ...(call.label !== undefined ? { label: call.label } : {}),
+                usage: callUsage(usage),
+              }
+              counted.push(
+                call.count
+                  ? call.count(made)
+                  : this.countModelCall(run.runId, {
+                      ...made,
+                      runId: run.runId,
+                    }),
+              )
+            },
+          },
+        ],
+      })
+      // chat() can end with no error when it is aborted.
+      abortController.signal.throwIfAborted()
+      return result
+    } finally {
+      signal.removeEventListener('abort', stop)
+      await Promise.all(counted)
+    }
+  }
+
+  /**
+   * Count one model call of `ctx.model.chat` for the run `runId`, then
+   * check the budgets. A run that settled, or that this session no longer
+   * keeps, gets the record only: a run sends no event after RUN_FINISHED.
+   */
+  private async countModelCall(runId: string, call: UsageCall) {
+    const operation = this.operations.get(runId)
+    if (operation && !operation.isSettled()) {
+      await this.countUsage(operation, call)
+      this.checkBudget(operation)
+      return
+    }
+    try {
+      await (this.childLink
+        ? this.childLink.countUsage(call)
+        : this.writer.append([{ type: 'harness.usage', ...call }]))
+    } catch (error) {
+      this.warnSession('harness:usage', error)
+    }
   }
 
   /**
@@ -555,84 +794,126 @@ export abstract class SessionTurnParts<
 
   /**
    * Middleware that runs before each model call. Queued steers join the
-   * running turn in admission order, as far as `claimJoins` lets them.
-   * `turn.onJoin` adds its messages after theirs. One append commits the
-   * engine's messages, the steer messages, the join
-   * records, and the `onJoin` records, so a crash never splits a join. The
-   * model gets the folded log when a host record changed the context. The
-   * `onJoin` ephemeral messages go to `ephemeral`, for this model call. It
-   * runs before the harness middleware, so they get the steer messages too.
+   * running turn, as `joinSteers` says. It runs before the harness
+   * middleware, so they get the steer messages too.
+   *
+   * With `routed` (a part of the turn that root agents answer), it runs in
+   * the model calls of the root agents, and not in the calls of their own
+   * children. The steers join the turn `routed.operationId`.
    */
-  protected steering(ephemeral: Array<ModelMessage>): AnyChatMiddleware {
+  protected steering(
+    ephemeral: Array<ModelMessage>,
+    routed?: { operationId: string },
+  ): AnyChatMiddleware {
     return {
       name: 'harness:steering',
       onConfig: async (ctx, config) => {
         if (ctx.phase !== 'beforeModel') return undefined
-        const count = await this.claimJoins()
-        const steers = this.steerQueue.slice(0, count)
-        try {
-          const running =
-            this.activeTurn?.id === ctx.runId ? this.activeTurn : undefined
-          const onJoin = this.harness.turn?.onJoin
-          let added: TurnAdditions | undefined
-          if (steers.length > 0 && onJoin && running) {
-            added = await onJoin({
-              session: this.self(),
-              operationId: ctx.runId,
-              inputs: steers.map((steer) => ({
-                inputId: steer.inputId,
-                message: steer.message,
-                ...(steer.principal ? { principal: steer.principal } : {}),
-              })),
-              signal: running.abortController.signal,
-            })
-            // A cancelled turn gets nothing from the hook. Its steers run as
-            // their own turns.
-            if (running.abortController.signal.aborted) return undefined
-          }
-          const records = added?.records ?? []
-          checkHostRecords(records)
-          const hostInput = this.operationInputs.get(ctx.runId)
-          const joins = hostInput
-            ? steers.map((steer) => ({
-                type: 'harness.input.joined',
-                inputId: steer.inputId,
-                into: hostInput,
-              }))
-            : []
-          const list = [
-            ...config.messages,
-            ...steers.map(
-              (steer): ModelMessage => ({
-                id: createMessageId(),
-                role: 'user',
-                content: steer.message,
-                ...(steer.wake ? { metadata: WAKE_METADATA } : {}),
-              }),
-            ),
-            ...(added?.messages ?? []).map(
-              (message): ModelMessage =>
-                message.id ? message : { ...message, id: createMessageId() },
-            ),
-          ]
-          const synced = await this.engine.beforeModel(list, [
-            ...joins,
-            ...records,
-          ])
-          // Only now, so a hook or an append that fails leaves them waiting.
-          this.steerQueue.splice(0, count)
-          for (const steer of steers) this.join(ctx.runId, steer)
-          ephemeral.push(...(added?.ephemeral ?? []))
-          if (list.length === config.messages.length && !synced) {
-            return undefined
-          }
-          // ponytail: no middleware before this one changes what the model
-          // call gets (`providerMessages`), so there is nothing to keep.
-          return { messages: synced ?? list }
-        } finally {
-          for (const steer of steers) this.joining.delete(steer.inputId)
-        }
+        if (routed && ctx.parentSubagentRunId !== undefined) return undefined
+        const messages = await this.joinSteers({
+          operationId: routed?.operationId ?? ctx.runId,
+          messages: config.messages,
+          ephemeral,
+          isRouted: routed !== undefined,
+        })
+        // ponytail: no middleware before this one changes what the model
+        // call gets (`providerMessages`), so there is nothing to keep.
+        return messages && { messages }
       },
+    }
+  }
+
+  /**
+   * Queued steers join the running turn `operationId` in admission order, as
+   * far as `claimJoins` lets them. `turn.onJoin` adds its messages after
+   * theirs. One append commits the engine's `messages`, the steer messages,
+   * the join records, and the `onJoin` records, so a crash never splits a
+   * join. The `onJoin` ephemeral messages go to `ephemeral`, for the next
+   * model call. Returns what the model gets: the folded log when a host
+   * record changed the context, else `messages` with the joined ones.
+   * `undefined` when nothing changed.
+   *
+   * `isRouted`: a root agent answers this part of the turn. It keeps its own
+   * thread, so the steers go to the session transcript, and the returned
+   * list is the agent's `messages` with them.
+   */
+  protected async joinSteers({
+    operationId,
+    messages,
+    ephemeral,
+    isRouted,
+  }: {
+    operationId: string
+    messages: Array<ModelMessage>
+    ephemeral: Array<ModelMessage>
+    isRouted: boolean
+  }): Promise<Array<ModelMessage> | undefined> {
+    const count = await this.claimJoins()
+    const steers = this.steerQueue.slice(0, count)
+    // Nothing joins, and a root agent has no engine messages to commit.
+    if (isRouted && steers.length === 0) return undefined
+    try {
+      const running =
+        this.activeTurn?.id === operationId ? this.activeTurn : undefined
+      const onJoin = this.harness.turn?.onJoin
+      let added: TurnAdditions | undefined
+      if (steers.length > 0 && onJoin && running) {
+        added = await onJoin({
+          session: this.self(),
+          operationId,
+          inputs: steers.map((steer) => ({
+            inputId: steer.inputId,
+            message: steer.message,
+            ...(steer.principal ? { principal: steer.principal } : {}),
+          })),
+          signal: running.abortController.signal,
+        })
+        // A cancelled turn gets nothing from the hook. Its steers run as
+        // their own turns.
+        if (running.abortController.signal.aborted) return undefined
+      }
+      const records = added?.records ?? []
+      checkHostRecords(records)
+      const hostInput = this.operationInputs.get(operationId)
+      const joins = hostInput
+        ? steers.map((steer) => ({
+            type: 'harness.input.joined',
+            inputId: steer.inputId,
+            into: hostInput,
+          }))
+        : []
+      const joined = [
+        ...steers.map(
+          (steer): ModelMessage => ({
+            id: createMessageId(),
+            role: 'user',
+            content: steer.message,
+            ...(steer.wake ? { metadata: WAKE_METADATA } : {}),
+          }),
+        ),
+        ...(added?.messages ?? []).map(
+          (message): ModelMessage =>
+            message.id ? message : { ...message, id: createMessageId() },
+        ),
+      ]
+      const list = [...messages, ...joined]
+      let synced: Array<ModelMessage> | undefined
+      if (isRouted) {
+        await this.writer.commit({
+          messages: [...this.writer.state.messages, ...joined],
+          records: [...joins, ...records],
+        })
+      } else {
+        synced = await this.engine.beforeModel(list, [...joins, ...records])
+      }
+      // Only now, so a hook or an append that fails leaves them waiting.
+      this.steerQueue.splice(0, count)
+      for (const steer of steers) this.join(operationId, steer)
+      ephemeral.push(...(added?.ephemeral ?? []))
+      if (joined.length === 0 && !synced) return undefined
+      return synced ?? list
+    } finally {
+      for (const steer of steers) this.joining.delete(steer.inputId)
     }
   }
 
@@ -724,7 +1005,7 @@ export abstract class SessionTurnParts<
       typeof content === 'string'
         ? []
         : content.map(mediaIdOf).filter((id) => id !== undefined)
-    const records = await Promise.all(ids.map((id) => this.getMedia(id)))
+    const records = await Promise.all(ids.map((id) => this.getMedia({ id })))
     const media = records.filter((record) => record !== null)
     const message: ModelMessage = {
       id: createMessageId(),
@@ -766,11 +1047,12 @@ export abstract class SessionTurnParts<
 
   /**
    * Abort `operation` when its input passes `timeoutAt` (a harness with
-   * `durability.timeoutMs`). Returns the function that stops the timer.
+   * `durability.timeoutMs`, or an agent run with `limits.timeoutMs`).
+   * Returns the function that stops the timer.
    */
   protected startTimeout(
     inputId: string | undefined,
-    operation: OperationImpl<ChatTurnResult>,
+    operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
   ) {
     const timeoutAt =
       inputId === undefined

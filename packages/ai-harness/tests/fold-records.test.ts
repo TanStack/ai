@@ -215,10 +215,110 @@ describe('foldThreadRecord', () => {
       'harness.schedule.done',
       'harness.run',
       'harness.run.update',
+      'harness.run.node',
       'harness.interrupt',
       'harness.interrupt.end',
       'harness.wait',
       'harness.wait.settled',
+      'harness.transferred',
+      'harness.handoff',
+      'harness.state',
+      'harness.workspace.bound',
+    ])
+  })
+
+  it('keeps the last workspace binding', () => {
+    const bound = (root: string) =>
+      ({
+        type: 'harness.workspace.bound',
+        binding: { kind: 'host', root },
+      }) as const
+    expect(emptyThreadState().workspace).toBeNull()
+    expect(fold([bound('/a'), bound('/b')]).workspace).toEqual({
+      kind: 'host',
+      root: '/b',
+    })
+  })
+
+  it('keeps the target of the last handoff as the active agent', () => {
+    const handoff = (from: string | null, to: string | null) =>
+      ({ type: 'harness.handoff', from, to, runId: 'r', by: 'router' }) as const
+    expect(emptyThreadState().activeAgent).toBeNull()
+    expect(fold([handoff(null, 'billing')]).activeAgent).toBe('billing')
+    expect(
+      fold([handoff(null, 'billing'), handoff('billing', null)]).activeAgent,
+    ).toBeNull()
+  })
+
+  it('ends a handoff to a person when its human wait settles in any way', () => {
+    const wait = { waitId: 'w1', kind: 'human' as const, runId: 'r' }
+    const paused = [
+      { type: 'harness.wait', wait, at: 1 },
+      {
+        type: 'harness.handoff',
+        from: 'billing',
+        to: { human: true },
+        runId: 'r',
+        by: 'tool',
+        waitId: 'w1',
+      },
+    ] as const
+    for (const outcome of ['answered', 'cancelled', 'expired'] as const) {
+      const state = fold([
+        ...paused,
+        { type: 'harness.wait.settled', waitId: 'w1', outcome, at: 2 },
+      ])
+      expect(state.activeAgent).toBe('billing')
+    }
+  })
+
+  it('refuses a handoff to a person with no waitId', () => {
+    expect(() =>
+      fold([
+        {
+          type: 'harness.handoff',
+          from: null,
+          to: { human: true },
+          runId: 'r',
+          by: 'tool',
+        },
+      ]),
+    ).toThrow('has no waitId')
+  })
+
+  it('keeps each transfer by id, and its first record', () => {
+    const state = fold([
+      {
+        type: 'harness.transferred',
+        transferId: 'tr-1',
+        to: { harness: 'billing', threadId: 't2' },
+        at: 1,
+      },
+      // A retry that wrote the same transfer again keeps the first record.
+      {
+        type: 'harness.transferred',
+        transferId: 'tr-1',
+        to: { harness: 'billing', threadId: 't2' },
+        at: 2,
+      },
+      {
+        type: 'harness.transferred',
+        transferId: 'tr-2',
+        from: { harness: 'support', threadId: 't0' },
+        principal: { id: 'olga' },
+        at: 3,
+      },
+    ])
+    expect([...state.transfers]).toEqual([
+      ['tr-1', { to: { harness: 'billing', threadId: 't2' }, at: 1 }],
+      [
+        'tr-2',
+        {
+          from: { harness: 'support', threadId: 't0' },
+          principal: { id: 'olga' },
+          at: 3,
+        },
+      ],
     ])
   })
 

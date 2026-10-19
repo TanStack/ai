@@ -240,6 +240,7 @@ describe('the HTTP handler', () => {
         holds: 0,
         statuses: 0,
         closing: 0,
+        children: 0,
       }),
     )
     await host.close()

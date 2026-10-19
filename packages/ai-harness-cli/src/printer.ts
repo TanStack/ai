@@ -23,6 +23,11 @@ export function createPrinter(
 ) {
   const done = new Set<string>()
   const written = new Map<string, number>()
+  /**
+   * The messages and parts that printed. The view keeps a message or a part
+   * that did not change, so a print walks only the new ones.
+   */
+  const printed = new WeakSet<object>()
   // True while streamed text has no line break at its end yet.
   let midLine = false
   let lastStream = ''
@@ -87,19 +92,25 @@ export function createPrinter(
   }
   const print = (state: SessionViewState) => {
     for (const message of state.messages) {
+      if (printed.has(message)) continue
+      printed.add(message)
       if (message.role === 'notice') {
         if (message.kind === 'error' || message.kind === 'info')
           once(message.id, message.text)
         continue
       }
       if (message.role !== 'assistant') continue
+      const fresh: Array<ViewPart> = []
       message.parts.forEach((part, index) => {
+        if (printed.has(part)) return
+        printed.add(part)
+        fresh.push(part)
         const key = `${message.id}:${index}`
         if (part.type === 'text') stream(key, part.text)
         if (part.type === 'tool-call') once(key, `tool ${part.name}`)
         if (part.type === 'agent') agent(key, part)
       })
-      media(message.parts)
+      media(fresh)
     }
     for (const question of state.questions) {
       const isHidden = question.secret === true && options.hidesSecrets === true

@@ -249,12 +249,14 @@ describe('ACP v2 agent', () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const updates: Array<SessionUpdate> = []
     const offered: Array<Array<string>> = []
+    const subjects: Array<unknown> = []
     const editor = client()
       .onNotification('session/update', ({ params }) => {
         updates.push(params.update)
       })
       .onRequest('session/request_permission', ({ params }) => {
         offered.push(params.options.map((option) => option.kind))
+        subjects.push(params.subject)
         return { outcome: { outcome: 'selected', optionId: 'always' } }
       })
 
@@ -275,6 +277,10 @@ describe('ACP v2 agent', () => {
     })
 
     expect(offered).toEqual([['allow_once', 'allow_always', 'reject_once']])
+    // The request names the tool call that the editor already shows.
+    expect(subjects).toEqual([
+      { type: 'tool_call', toolCall: { toolCallId: 'call_1' } },
+    ])
     expect(ran).toEqual(['bash'])
     expect(agentText(updates)).toContain('Listed.')
     await host.close()
@@ -348,6 +354,82 @@ describe('ACP v2 agent', () => {
       (message) => message.role === 'tool',
     )
     expect(result?.content).toContain('Ada')
+    await host.close()
+  })
+
+  it('refuses a second connection to one app, and keeps the first', async () => {
+    const greet = durableTool(
+      toolDefinition({
+        name: 'greet',
+        description: 'Ask the user for a name',
+        inputSchema: { type: 'object', properties: {} },
+      }),
+      async (_args, { step }) => {
+        const answer = await step.ask({
+          name: 'name',
+          message: 'Name?',
+          schema: {
+            type: 'object',
+            properties: { name: { type: 'string' } },
+            required: ['name'],
+          },
+        })
+        return { greeted: answer }
+      },
+    )
+    const harness = defineHarness({
+      name: 'test/acp-connections',
+      adapter: scripted([toolTurn('greet', '{}'), textTurn('Greeted.')]),
+      tools: [greet],
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const app = createAcpAgent({ host, harness })
+    const updates: Array<SessionUpdate> = []
+    const asked: Array<unknown> = []
+    const first = client()
+      .onNotification('session/update', ({ params }) => {
+        updates.push(params.update)
+      })
+      .onRequest('elicitation/create', ({ params }) => {
+        asked.push(params)
+        return { action: 'accept', content: { name: 'Ada' } }
+      })
+    // An editor that shows no elicitation, on its own connection.
+    const second = client()
+
+    await first.connectWith(app, async (ctx) => {
+      await ctx.request('initialize', {
+        protocolVersion: 2,
+        info: { name: 'editor-a', version: '1.0.0' },
+        capabilities: { elicitation: { form: {} } },
+      })
+      const { sessionId } = await ctx.request('session/new', {
+        cwd: '/tmp',
+        mcpServers: [],
+      })
+      // A second editor on the same app would share its sessions, so the
+      // connection fails at once.
+      expect(() =>
+        second.connectWith(app, async (other) => {
+          await other.request('initialize', {
+            protocolVersion: 2,
+            info: { name: 'editor-b', version: '1.0.0' },
+          })
+        }),
+      ).toThrow(
+        'An ACP agent app serves one connection. Call createAcpAgent once for each connection.',
+      )
+      await ctx.request('session/prompt', {
+        sessionId,
+        prompt: [{ type: 'text', text: 'greet me' }],
+      })
+      await waitFor(() => expect(isIdle(updates)).toBe(true))
+    })
+
+    // The first editor still gets its question: the second one did not
+    // change what the first one can show.
+    expect(asked).toHaveLength(1)
+    expect(agentText(updates)).toContain('Greeted.')
     await host.close()
   })
 })

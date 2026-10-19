@@ -3,13 +3,22 @@ import type {
   DefinedAgent,
   InferSchemaType,
   SchemaInput,
+  StreamChunk,
+  SubagentRunContext,
 } from '@tanstack/ai'
 import { registerSubagentContextDefaults } from '@tanstack/ai/adapter-internals'
 import { askWithoutSession, stepRunWithoutSession } from './durable-tool'
 import { waitUntil } from './utils'
 import type { ToolStep } from './durable-tool'
-import type { AgentStartOptions } from './session/index'
-import type { AgentRun } from './types'
+import type { HandoffOptions } from './handoff'
+import type {
+  AgentRunOptions,
+  AgentStartOptions,
+  RunArgs,
+} from './session/types'
+import type { AgentRun, RunContext } from './types'
+import type { PluginState } from './plugins'
+import type { AnyHarness } from './define'
 
 /** Any agent made with `defineAgent`, with its types kept. */
 export type AnyAgent = DefinedAgent<any, any, any, any, any, any, any>
@@ -109,6 +118,11 @@ export class AgentRegistry implements AgentRegistryView {
     return this.agents.get(name)?.agent
   }
 
+  /** Who added the agent `name`: `'the harness'` or a plugin name. */
+  ownerOf(name: string): string | undefined {
+    return this.agents.get(name)?.owner
+  }
+
   find(query: { produces: AgentProduces }): AnyAgent | undefined {
     return this.list().find((agent) => agent.produces === query.produces)
   }
@@ -121,19 +135,81 @@ export class AgentRegistry implements AgentRegistryView {
   }
 }
 
-/** `ctx.harness.agents`: start agents in the background. */
-export interface AgentStarter {
+/**
+ * Start one agent: a definition, typed from its schemas, or a name the
+ * session knows, untyped.
+ */
+export interface AgentCall<TOptions> {
+  <TAgent extends AnyAgent>(
+    agent: TAgent,
+    ...args: RunArgs<TAgent, TOptions>
+  ): AgentRun<AgentResultOf<TAgent>>
+  (agent: string, input?: unknown, options?: TOptions): AgentRun<unknown>
+}
+
+/** How a group of agents runs. */
+export interface AgentGroupOptions {
+  /** How many children run at the same time. Default: all of them. */
+  concurrency?: number
+  /**
+   * `'cancel-siblings'` (default): the first failure cancels the other
+   * children, and `group` rejects with that error. `'collect'`: every child
+   * runs to its end, and `group` resolves to one entry per child.
+   */
+  onFailure?: 'cancel-siblings' | 'collect'
+  /**
+   * The durable name of the group in the run that starts it. Default: the
+   * order of the `group` calls in that run.
+   */
+  key?: string
+}
+
+/** One child of a `group` with `onFailure: 'collect'`. */
+export type AgentSettled<TResult> =
+  | { ok: true; value: TResult }
+  | { ok: false; error: unknown }
+
+/** The children of one `group` call. */
+export interface AgentGroup {
+  /** Start a child of the group. Its run is like the run of `start`. */
+  start: AgentCall<AgentStartOptions>
+}
+
+/**
+ * Start agents and run them: `start` in the background, `run` and `group` to
+ * get the results. `ctx.harness.agents` in agent code and `ctx.agents` in a
+ * plugin have this shape.
+ */
+export interface AgentActions {
   /**
    * Start `agent` (a definition, or a name the session knows) in the
-   * background, and return its run at once. The child counts against the
-   * subagent tree budget of the run that starts it. Over the budget, `start`
-   * throws and nothing starts.
+   * background, and return its run at once. In agent code, the child counts
+   * against the subagent tree budget of the run that starts it. Over the
+   * budget, `start` throws and nothing starts.
    */
-  start: (
-    agent: AnyAgent | string,
-    input?: unknown,
-    options?: AgentStartOptions,
-  ) => AgentRun<unknown>
+  start: AgentCall<AgentStartOptions>
+  /**
+   * `start` without a wake turn. Await the run to get the result. The run
+   * can still be cancelled and get messages.
+   */
+  run: AgentCall<AgentRunOptions>
+  /**
+   * Run children together. `body` starts them with `g.start` and returns
+   * their runs. `group` resolves to their results, in the same order. Every
+   * child that `body` started settles before `group` returns.
+   */
+  group: {
+    <const TRuns extends ReadonlyArray<AgentRun<unknown>>>(
+      options: AgentGroupOptions & { onFailure: 'collect' },
+      body: (g: AgentGroup) => TRuns | Promise<TRuns>,
+    ): Promise<{
+      -readonly [K in keyof TRuns]: AgentSettled<Awaited<TRuns[K]>>
+    }>
+    <const TRuns extends ReadonlyArray<AgentRun<unknown>>>(
+      options: AgentGroupOptions & { onFailure?: 'cancel-siblings' },
+      body: (g: AgentGroup) => TRuns | Promise<TRuns>,
+    ): Promise<{ -readonly [K in keyof TRuns]: Awaited<TRuns[K]> }>
+  }
 }
 
 /** What a harness session adds to an agent run that it starts from code. */
@@ -145,15 +221,62 @@ export interface HarnessAgentContext {
    * and `sleep` waits its full time.
    */
   step: ToolStep
-  /** Start agents in the background, as children of this run. */
-  agents: AgentStarter
+  /** Start and run agents, as children of this run. */
+  agents: AgentActions
+  /**
+   * Hand the turn to another root agent, or to `'main'` (the main model).
+   * The target answers next, in this turn, and the later turns go to it.
+   * `{ human: true }` hands it to a person, when `routing.humans` is true:
+   * the turn ends `interrupted`, and the session pauses until an operator
+   * answers the `human` wait.
+   * It works in a root agent that answers a turn of a harness with
+   * `routing`. Anywhere else it throws. It throws for a target that is not a
+   * root agent too.
+   *
+   * @example
+   * ```ts
+   * await ctx.harness.handoff({ to: 'billing', note: 'Refund for order 42' })
+   * ```
+   */
+  handoff: (options: HandoffOptions) => Promise<void>
+  /**
+   * State that the agents of one session share, by `key`. The session log
+   * keeps it, so it survives a restart, and a fork of the thread has it.
+   * Before the first update, `get` gives `initial`. The value is JSON.
+   *
+   * @example
+   * ```ts
+   * const seen = ctx.harness.state({ key: 'seen', initial: [] as Array<string> })
+   * await seen.update((list) => [...list, 'docs.md'])
+   * ```
+   */
+  state: <T>(options: { key: string; initial: T }) => PluginState<T>
 }
+
+const noSessionState = () => {
+  throw new Error(
+    'ctx.harness.state needs a run that a harness session started.',
+  )
+}
+
+const noSessionAgents = () => {
+  throw new Error(
+    'ctx.harness.agents needs a run that a harness session started.',
+  )
+}
+
+const noTurnHandoff = () =>
+  Promise.reject(
+    new Error(
+      'ctx.harness.handoff needs a root agent that answers a turn of a harness with routing.',
+    ),
+  )
 
 /**
  * `ctx.harness` outside a run that a session started from code (a tool-mode
  * child of a chat turn, or a run that a plain `chat()` starts): `step.do`
- * runs `fn` each time, `step.sleep` waits its full time, `step.ask` and
- * `agents.start` throw.
+ * runs `fn` each time, `step.sleep` waits its full time, `step.ask`
+ * throws, and each call of `agents`, `state`, and `handoff` throws.
  */
 export const NO_SESSION_CONTEXT: HarnessAgentContext = {
   // `fn` runs each time, so it needs no JSON copy.
@@ -163,12 +286,61 @@ export const NO_SESSION_CONTEXT: HarnessAgentContext = {
     ask: askWithoutSession,
   },
   agents: {
-    start: () => {
-      throw new Error(
-        'ctx.harness.agents needs a run that a harness session started.',
-      )
-    },
+    start: noSessionAgents,
+    run: noSessionAgents,
+    group: noSessionAgents,
   },
+  handoff: noTurnHandoff,
+  state: noSessionState,
+}
+
+/**
+ * Run `harness` as a child session of the run that owns a `ctx.harness`, and
+ * stream its events. See `harnessAgent`.
+ */
+export type HarnessChildRun = (
+  harness: AnyHarness,
+  ctx: SubagentRunContext,
+) => AsyncIterable<StreamChunk>
+
+/**
+ * The child hook of each `ctx.harness` that a session made. Not a field of
+ * the context, so agent code cannot call it. `NO_SESSION_CONTEXT` has none.
+ */
+const childRuns = new WeakMap<HarnessAgentContext, HarnessChildRun>()
+
+/** The run context of the run of each `ctx.harness` that a session made. */
+const runContexts = new WeakMap<HarnessAgentContext, RunContext>()
+
+/**
+ * @internal Give `context` the child hook `run`, and the run context of the
+ * run that it belongs to. Returns `context`.
+ */
+export function withHarnessChild(
+  context: HarnessAgentContext,
+  run: HarnessChildRun,
+  runContext: RunContext,
+): HarnessAgentContext {
+  childRuns.set(context, run)
+  runContexts.set(context, runContext)
+  return context
+}
+
+/**
+ * @internal The run context of the run of `context`: for an agent that runs
+ * as a tool of a turn, the run of that turn. `undefined` outside a run that
+ * a harness session started.
+ */
+export function runContextOf(context: HarnessAgentContext | undefined) {
+  return context ? runContexts.get(context) : undefined
+}
+
+/**
+ * @internal The child hook of `context`, or `undefined` outside a run that
+ * a harness session started.
+ */
+export function harnessChildOf(context: HarnessAgentContext | undefined) {
+  return context ? childRuns.get(context) : undefined
 }
 
 // A run that a plain chat() starts gets NO_SESSION_CONTEXT, so ctx.harness is
@@ -177,13 +349,15 @@ registerSubagentContextDefaults(() => ({ harness: NO_SESSION_CONTEXT }))
 
 declare module '@tanstack/ai' {
   /**
-   * `ctx.harness` in the `run` of an agent: `step` and `agents`. A harness
+   * `ctx.harness` in the `run` of an agent: `step`, `agents`, `state`, and
+   * `handoff`. A harness
    * session gives them to each agent run it starts from code (a session
    * agent, `ctx.harness.agents.start`, a background child), and to the
    * children those runs start through `ctx.chat({ subagents })`. Any
    * other run, for example one that a plain `chat()` starts, gets
-   * `NO_SESSION_CONTEXT`: `step.do` runs `fn` each time, and `agents.start`
-   * throws.
+   * `NO_SESSION_CONTEXT`: `step.do` runs `fn` each time, and each call of
+   * `agents` and `state` throws. `handoff` works only in a root agent that
+   * answers a turn of a harness with `routing`.
    */
   interface SubagentContextExtension {
     harness: HarnessAgentContext

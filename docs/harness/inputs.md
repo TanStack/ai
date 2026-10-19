@@ -63,6 +63,8 @@ console.log(receipt.operationId)
 
 Make the id once per user action (a button press), and keep it for every retry of that action.
 
+This works for every input over HTTP and the socket. A `command` or an `agent` input that the client sends again with the same `inputId` also runs once. The `inputId` of its receipt is the id that the client sent.
+
 ## Wait for the outcome
 
 On the server, `session.settled({ inputId })` waits until the input ends. It reads the log, so on a [durable host](./durable-sessions) it also works after a restart and on another host that opens the thread.
@@ -78,6 +80,8 @@ if (settlement.outcome === 'failed') {
 ```
 
 `signal` is optional. When it aborts first, `settled` rejects with its reason. The input keeps running.
+
+On a host that does not own the thread, the input waits for the owner. If the owner refuses it, `settled` rejects with `InputRejectedError`. The owner refuses an input when the thread is busy and the input has `busy: 'reject'`, or when the log has its id with another message. The log then has a `harness.offer.rejected` record.
 
 - `completed`: the turn has its answer.
 - `failed`: the turn failed. `error.code` is set for a limit.
@@ -207,7 +211,7 @@ for (const input of session.inputs()) {
   console.log(input.inputId, input.delivery, input.message)
 }
 
-await session.cancelInput('req-46')
+await session.cancelInput({ inputId: 'req-46' })
 await session.setDelivery({ inputId: 'req-47', delivery: 'steer' })
 await migration
 ```
@@ -226,7 +230,7 @@ for (const input of waitingInputs) {
   console.log(input.inputId, input.delivery)
 }
 
-await client.cancelInput('req-46')
+await client.cancelInput({ inputId: 'req-46' })
 await client.setDelivery({ inputId: 'req-47', delivery: 'steer' })
 ```
 
@@ -246,10 +250,12 @@ await build
 
 - The tool call returns at once. The model gets a short note with the job id, and the turn goes on.
 - The job keeps running. When it ends, the model gets its result as a note, and an idle session starts a new turn.
-- Without an argument, it moves every running call that supports it. Pass a `toolCallId` to move one call.
+- Without an argument, it moves every running call that supports it. Pass `{ toolCallId }` to move one call.
 - `bash` and the single `subagent` tool support it. Other tools keep running as before.
 - With no running call that supports it, the receipt has `status: 'rejected'` and `reason: 'not_running'`.
 - The log keeps each job until it ends. When a crash stops a job, the next host adds the note "Background job call-1 stopped when the host restarted."
+
+The session stays open while a job of this host runs, also when no handle holds it. A sweep with `close: 'whenIdle'` waits for these jobs too. The wake turn of a `bash` job runs as the user whose run started the job.
 
 A client sends `{ op: 'background' }` over `POST control`. It runs no new code, so it needs no `expose` entry:
 
