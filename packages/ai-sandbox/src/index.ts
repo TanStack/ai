@@ -457,6 +457,10 @@ export type {
   SandboxWatchHandle,
 } from './watch'
 
+// The env and the output tail of a command on this machine, for providers
+// that run commands as host processes.
+export { commandEnv, createOutputTail } from './command-env'
+
 // Keying
 export { computeSandboxKey, computeWorkspaceHash } from './key'
 export type { SandboxKeyInput } from './key'

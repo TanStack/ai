@@ -164,9 +164,26 @@ function fakeProcesses(
   const aborted: Array<string> = []
   const killed: Array<string> = []
   const commands: Array<{ command: string; cwd?: string }> = []
+  // The pids that run, and the start time that `ps` gives for each.
+  const starts = new Map([['7', 'Mon Oct 19 13:00:00 2026']])
   const process: SandboxHandle['process'] = {
     exec: (command, options = {}) => {
       commands.push({ command, cwd: options.cwd })
+      const ps = /^LC_ALL=C ps -o lstart= -p (\d+)$/.exec(command)
+      if (ps) {
+        const start = starts.get(ps[1] ?? '')
+        return Promise.resolve(
+          start === undefined
+            ? { exitCode: 1, stdout: '', stderr: '' }
+            : { exitCode: 0, stdout: `${start}\n`, stderr: '' },
+        )
+      }
+      if (/^kill -0 \d+$/.test(command)) {
+        return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' })
+      }
+      if (command.startsWith('kill -9 ')) {
+        return Promise.resolve({ exitCode: 0, stdout: '', stderr: '' })
+      }
       const page = PAGE_COMMAND.exec(command)
       if (page) {
         const [, quoted = '', first = '', end = ''] = page
@@ -236,7 +253,7 @@ function fakeProcesses(
       }
     },
   }
-  return { process, aborted, killed, commands }
+  return { process, aborted, killed, commands, starts }
 }
 
 /**
@@ -252,11 +269,24 @@ function fakeSandbox(
   } = {},
 ) {
   const { fs, files, dirs, links } = memoryFs(seed, options.withLstat)
-  const { process, aborted, killed, commands } = fakeProcesses(links, files)
+  const { process, aborted, killed, commands, starts } = fakeProcesses(
+    links,
+    files,
+  )
   const sandbox = makeFakeHandle('sandbox-1', 'fake', options.caps)
   const handle: SandboxHandle = { ...sandbox, fs, process }
   const backend = sandboxWorkspaceBackend(handle, { owned: options.owned })
-  return { backend, fs, files, dirs, aborted, killed, commands, sandbox }
+  return {
+    backend,
+    fs,
+    files,
+    dirs,
+    aborted,
+    killed,
+    commands,
+    starts,
+    sandbox,
+  }
 }
 
 const SEED: FsSeed = {
@@ -617,17 +647,30 @@ describe('sandboxWorkspaceBackend on another machine', () => {
     })
   })
 
-  it('gives the pid of a job as its id, and kills a job by that id', async () => {
+  it('gives the pid and the start time of a job as its id, and kills only that process', async () => {
     const { backend, commands } = fakeSandbox()
     const job = backend.spawn?.('serve')
-    expect(await job?.jobId).toBe('7')
+    const jobId = await job?.jobId
+    expect(jobId).toBe('7:Mon Oct 19 13:00:00 2026')
 
-    await backend.killJob('7')
+    // After a restart, another process can have the pid.
+    expect(await backend.killJob('7:Sun Oct 18 09:00:00 2026')).toBe(false)
+    expect(await backend.killJob(jobId ?? '')).toBe(true)
 
-    expect(commands.map(({ command }) => command)).toEqual([
-      'kill -9 -- -7 2>/dev/null || kill -9 7',
-    ])
+    const kills = commands
+      .map(({ command }) => command)
+      .filter((command) => command.startsWith('kill -9'))
+    expect(kills).toEqual(['kill -9 -- -7 2>/dev/null || kill -9 7'])
     job?.kill()
+  })
+
+  it('rejects for a job that runs when ps gives no start time', async () => {
+    const { backend, starts } = fakeSandbox()
+    // Like busybox: no `ps -o lstart`, but the process runs.
+    starts.clear()
+    await expect(backend.killJob('7:Mon Oct 19 13:00:00 2026')).rejects.toThrow(
+      'Cannot check that process 7 in the sandbox is the job',
+    )
   })
 
   it('runs no command for a job id that is not a pid', async () => {
