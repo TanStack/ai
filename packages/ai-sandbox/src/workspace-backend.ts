@@ -1,5 +1,5 @@
 import { posix } from 'node:path'
-import { createOutputTail } from './command-env'
+import { createOutputTail } from '@tanstack/ai-utils'
 import { shellQuote } from './journal'
 import type { WorkspaceBackend } from '@tanstack/ai-harness/plugins/coding'
 import type { ExecResult, SandboxFs, SandboxHandle } from './contracts'

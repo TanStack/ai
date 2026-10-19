@@ -2641,6 +2641,9 @@ importers:
 
   packages/ai-harness:
     dependencies:
+      '@tanstack/ai-utils':
+        specifier: workspace:^
+        version: link:../ai-utils
       '@tanstack/store':
         specifier: ^0.11.1
         version: 0.11.2
@@ -3218,6 +3221,9 @@ importers:
       '@tanstack/ai-skills':
         specifier: workspace:^
         version: link:../ai-skills
+      '@tanstack/ai-utils':
+        specifier: workspace:^
+        version: link:../ai-utils
     devDependencies:
       '@ngrok/ngrok':
         specifier: ^1.7.0
@@ -3335,6 +3341,10 @@ importers:
         version: 4.1.10(vitest@4.1.11)
 
   packages/ai-sandbox-local-process:
+    dependencies:
+      '@tanstack/ai-utils':
+        specifier: workspace:^
+        version: link:../ai-utils
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -3570,7 +3580,7 @@ importers:
     devDependencies:
       '@google/genai':
         specifier: ^2.10.0
-        version: 2.10.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.3.6))
+        version: 2.10.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai

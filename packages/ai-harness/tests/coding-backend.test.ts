@@ -10,7 +10,6 @@ import {
   workspaceRoot,
   workspaceTools,
 } from '../src/first-party/coding'
-import { commandEnv } from '../src/first-party/coding/backend'
 import { mockAdapter, text, toolCall } from './helpers'
 
 let dir = ''
@@ -177,32 +176,6 @@ describe('hostBackend', () => {
       const job = hostBackend.spawn(print, { cwd: dir })
       await job.wait()
       expect(job.output()).toBe('unset\n')
-    })
-  })
-
-  it('gives a command only the listed variables of this process, plus env', async () => {
-    const server = {
-      SECRET_TOKEN: 'hunter2',
-      LANG: 'C.UTF-8',
-      SystemRoot: 'C:\\Windows',
-    }
-    await withEnv(server, async () => {
-      const linux = commandEnv({ AGENT: '1' }, 'linux')
-      expect(linux).toMatchObject({ LANG: 'C.UTF-8', AGENT: '1' })
-      expect(linux).not.toHaveProperty('SECRET_TOKEN')
-      // The Windows variables and setting are for Windows only.
-      expect(linux).not.toHaveProperty('SystemRoot')
-      expect(linux).not.toHaveProperty('NoDefaultCurrentDirectoryInExePath')
-      const windows = commandEnv(
-        { AGENT: '1', NoDefaultCurrentDirectoryInExePath: '' },
-        'win32',
-      )
-      expect(windows).toMatchObject({
-        SystemRoot: 'C:\\Windows',
-        AGENT: '1',
-        NoDefaultCurrentDirectoryInExePath: '1',
-      })
-      expect(windows).not.toHaveProperty('SECRET_TOKEN')
     })
   })
 })

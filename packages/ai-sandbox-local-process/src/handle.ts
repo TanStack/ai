@@ -16,9 +16,9 @@ import * as path from 'node:path'
 import {
   DEFAULT_WORKSPACE_ROOT,
   UnsupportedCapabilityError,
-  commandEnv,
   createExecBackedGit,
 } from '@tanstack/ai-sandbox'
+import { commandEnv } from '@tanstack/ai-utils'
 import type { ChildProcess } from 'node:child_process'
 import type { Readable } from 'node:stream'
 import type {

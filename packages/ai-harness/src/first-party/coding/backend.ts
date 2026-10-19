@@ -1,8 +1,8 @@
 import * as childProcess from 'node:child_process'
 import * as fs from 'node:fs/promises'
 import * as nodePath from 'node:path'
+import { commandEnv, createOutputTail } from '@tanstack/ai-utils'
 import { isRecord } from '../../utils'
-import { createOutputTail } from './ring-buffer'
 import type { RunContext } from '../../types'
 import type { WorkspaceHooks } from '../workspace-hooks'
 
@@ -78,7 +78,7 @@ export interface WorkspaceBackend {
    * Run a shell command and wait for it to end. `env` is added to the
    * environment. A command that fails resolves with its exit code. On
    * {@link hostBackend}, a command gets only a few variables of this
-   * process (see {@link commandEnv}), plus `env`. `onStart` gets the id of
+   * process (see `commandEnv` of `@tanstack/ai-utils`), plus `env`. `onStart` gets the id of
    * the process when it started, like the `jobId` of `spawn`, for
    * {@link killJob}: the host can move a running command to the background.
    * A backend that has no id does not call it.
@@ -246,48 +246,6 @@ export function workspaceRoot(base: string, ...parts: Array<string>) {
     !path.isAbsolute(inBase)
   if (!isIn) throw new Error(`${full} is not a folder in ${base}.`)
   return full
-}
-
-/**
- * The variables of this process that a command gets. The others, like
- * provider keys and `DATABASE_URL`, stay in the server. `@tanstack/ai-sandbox`
- * has a copy of these lists and of {@link commandEnv} in `command-env.ts`,
- * for its local-process provider. This package does not depend on that
- * one. Change both.
- */
-const KEPT_ENV = ['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'TEMP', 'TMP']
-/** On Windows, a command also gets these, so programs can start. */
-const KEPT_WINDOWS_ENV = [
-  'SystemRoot',
-  'ComSpec',
-  'PATHEXT',
-  'WINDIR',
-  'USERPROFILE',
-]
-
-/**
- * The environment of a command: the variables of this process in a short
- * list (`PATH`, `HOME`, `LANG`, `LC_ALL`, `TMPDIR`, `TEMP`, `TMP`, and on
- * Windows `SystemRoot`, `ComSpec`, `PATHEXT`, `WINDIR`, `USERPROFILE`), plus
- * `env`. No other variable of this process goes to the command. On Windows
- * it sets `NoDefaultCurrentDirectoryInExePath`. Then `cmd.exe` takes a
- * program name like `rg` from the PATH only, and not from the current
- * folder, where a cloned repo can put an `rg.cmd`.
- */
-export function commandEnv(
-  env: Record<string, string> | undefined,
-  platform: NodeJS.Platform,
-) {
-  const isWindows = platform === 'win32'
-  const names = isWindows ? [...KEPT_ENV, ...KEPT_WINDOWS_ENV] : KEPT_ENV
-  const kept: Record<string, string> = {}
-  for (const name of names) {
-    // On Windows, `process.env` finds a name in any letter case.
-    const value = process.env[name]
-    if (value !== undefined) kept[name] = value
-  }
-  if (!isWindows) return { ...kept, ...env }
-  return { ...kept, ...env, NoDefaultCurrentDirectoryInExePath: '1' }
 }
 
 /** True for the error of a path that is not there. */

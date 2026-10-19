@@ -8,6 +8,4 @@ Add `@tanstack/ai-sandbox/harness` for `@tanstack/ai-harness`:
 - `codingAgents` runs agents only on the host that owns the log of the thread, so `'shared'` runs one agent at a time also with many hosts.
 - `sandboxWorkspaceBackend(sandbox, { owned? })` runs the coding tools of `@tanstack/ai-harness/plugins/coding` (`workspaceTools()`, `snapshots()`, `formatter()`) in a sandbox. It resolves links in the sandbox, reads one page of a file in the sandbox, and stops background jobs by their id (the pid and its start time), also from another host. It never stops another process that got the pid of a job. `binding()` gives the provider and the sandbox id, so another host can resume the sandbox. `close()` stops the jobs of the backend. A session close closes it with `'moved'`, so an owned sandbox stays for the next host. `host.sessions.delete` closes it with `'closed'`, and with `owned: true` that destroys the sandbox.
 
-`commandEnv` and `createOutputTail` are exported from `@tanstack/ai-sandbox`, for providers that run commands as host processes.
-
 `@tanstack/ai-harness` is an optional peer dependency.

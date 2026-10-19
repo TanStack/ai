@@ -4,7 +4,6 @@ import { resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { hostBackend } from '../src/first-party/coding/backend'
 import { bashTools } from '../src/first-party/coding/bash'
-import { createOutputTail } from '../src/first-party/coding/ring-buffer'
 import { createWorkspaceTools } from '../src/first-party/coding/workspace'
 import type { ToolExecutionContext } from '@tanstack/ai'
 import type { PluginEvent } from '../src/extensions'
@@ -106,36 +105,6 @@ async function startJobs(bash: ReturnType<typeof bashTool>, count: number) {
 
 /** Wait until the promises that are ready now have run. */
 const settle = () => new Promise((done) => setTimeout(done, 0))
-
-describe('createOutputTail', () => {
-  it('gives all output under the limit, with no note', () => {
-    const output = createOutputTail(10)
-    output.push('ab')
-    output.push(new TextEncoder().encode('cd'))
-    expect(output.text()).toBe('abcd')
-  })
-
-  it('keeps the newest bytes over the limit, and tells how many were dropped', () => {
-    const output = createOutputTail(4)
-    output.push('abc')
-    output.push('def')
-    expect(output.text()).toBe('[2 earlier bytes were dropped.]\ncdef')
-  })
-
-  it('keeps the end of one chunk that is bigger than the limit', () => {
-    const output = createOutputTail(3)
-    output.push('abcdef')
-    expect(output.text()).toBe('[3 earlier bytes were dropped.]\ndef')
-  })
-
-  it('starts at a whole character when the cut is in one', () => {
-    const output = createOutputTail(4)
-    // `é` is 2 bytes. The cut drops its first byte, so it drops all of it.
-    output.push('é')
-    output.push('abc')
-    expect(output.text()).toBe('[2 earlier bytes were dropped.]\nabc')
-  })
-})
 
 describe('bash job limit', () => {
   it('refuses a 9th background job, and names the limit', async () => {
