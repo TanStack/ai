@@ -39,7 +39,8 @@ export function commandEnv(
   const names = isWindows
     ? [...KEPT_ENV, ...KEPT_WINDOWS_ENV, ...passEnv]
     : [...KEPT_ENV, ...passEnv]
-  const own = typeof process !== 'undefined' ? process.env : {}
+  const own: Record<string, string | undefined> =
+    typeof process !== 'undefined' ? process.env : {}
   const kept: Record<string, string> = {}
   for (const name of names) {
     // On Windows, `process.env` finds a name in any letter case.
