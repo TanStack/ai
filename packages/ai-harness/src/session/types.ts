@@ -113,6 +113,14 @@ export interface AgentStartOptions {
    */
   principal?: Principal
   /**
+   * The run that starts the agent, in a tool: pass `ctx.context.run`. When
+   * it names an agent run of this session that runs, the agent is a child
+   * of that run, as `ctx.harness.agents` starts it. It then counts in the
+   * tree and the budget of that run, and runs for its user. It takes no
+   * `maxConcurrent` slot, so the run can await it.
+   */
+  parent?: { runId: string }
+  /**
    * The durable name of the run in a group or in a run started with
    * `resume: true`. When the parent runs again, a start with the same key
    * gets the run it started before.

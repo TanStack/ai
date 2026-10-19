@@ -585,7 +585,22 @@ export abstract class SessionAgents<
     child?: AgentChild,
   ): AgentRunImpl {
     const name = typeof target === 'string' ? target : target.name
-    const { offered, inputId, ready, ...startOptions } = options
+    const { offered, inputId, ready, parent: caller, ...startOptions } = options
+    // A start from a tool of an agent run that runs (`parent:
+    // ctx.context.run`) is a child of that run. It takes no `maxConcurrent`
+    // slot, so the run can await it.
+    const callerChain =
+      parent || child || !caller ? undefined : this.chainOf.get(caller.runId)
+    const isCallerRunning =
+      callerChain?.current.operation.id === caller?.runId &&
+      callerChain?.current.operation.isSettled() === false
+    if (callerChain && isCallerRunning) {
+      return this.startChild(callerChain, target, input, {
+        ...startOptions,
+        ...(inputId !== undefined ? { inputId } : {}),
+        ...(ready ? { ready } : {}),
+      })
+    }
     const operation = this.agentOperation(name, offered?.runId)
     // The agent runs for the user who starts it, also after the turn that
     // starts it ends. A child of agent code runs for its parent run's user.
@@ -924,15 +939,7 @@ export abstract class SessionAgents<
         const known = this.knownChild(chain, name, options.inputId)
         if (known) return known
       }
-      const reserved = this.reserveWhenReady(options, () =>
-        this.reserveChild(chain),
-      )
-      try {
-        return this.runAgent(target, input, reserved, chain)
-      } catch (error) {
-        if (!options.ready) chain.budget.release()
-        throw error
-      }
+      return this.startChild(chain, target, input, options)
     }
     let starts = 0
     const actions = this.agentActions((target, input, options) => {
@@ -959,6 +966,28 @@ export abstract class SessionAgents<
       )
     }
     return { ...actions, group: group as AgentActions['group'] }
+  }
+
+  /**
+   * Start a new child of `chain`. It counts against the chain's tree
+   * budget, and over it the start throws. A start that fails before its run
+   * applies gives its call back.
+   */
+  protected startChild(
+    chain: AgentChain,
+    target: string | AnyAgent,
+    input: unknown,
+    options: AgentRunStartOptions,
+  ): AgentRunImpl {
+    const reserved = this.reserveWhenReady(options, () =>
+      this.reserveChild(chain),
+    )
+    try {
+      return this.runAgent(target, input, reserved, chain)
+    } catch (error) {
+      if (!options.ready) chain.budget.release()
+      throw error
+    }
   }
 
   /**

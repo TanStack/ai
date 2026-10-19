@@ -2,12 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, defineAgent } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, logIdOf } from '../src'
+import { createHarnessHost, defineHarness, definePlugin, logIdOf } from '../src'
 import { isRecord } from '../src/utils'
 import { gate, mockAdapter, text } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
 import type { LogStore } from '@tanstack/ai-persistence'
-import type { HarnessSession } from '../src'
+import type { AgentActions, HarnessSession } from '../src'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
 const waitFor = <T>(check: () => T | Promise<T>) =>
@@ -159,6 +159,47 @@ describe('limits of agent starts', () => {
 
     for (const entry of gates) entry.open()
     await expect(Promise.all(runs)).resolves.toHaveLength(4)
+    await host.close()
+  })
+
+  it('runs a plugin start with parent: ctx.context.run as a child, so a run that awaits it under maxConcurrent 1 ends', async () => {
+    const helper = defineAgent({
+      name: 'helper',
+      description: 'Helps',
+      run: async () => 'helped',
+    })
+    let pluginAgents: AgentActions | undefined
+    const starter = definePlugin({
+      name: 'test/starter',
+      setup: (ctx) => {
+        pluginAgents = ctx.agents
+      },
+    })
+    const lead = defineAgent({
+      name: 'lead',
+      description: 'Runs the helper through the plugin, as a tool does',
+      // `parentRunId` is the run id of `ctx.context.run` in a tool.
+      run: async (ctx) =>
+        pluginAgents?.run(helper, undefined, {
+          parent: { runId: ctx.parentRunId },
+        }),
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/agent-limits',
+        adapter: mockAdapter([]).adapter,
+        agents: [lead, helper],
+        plugins: () => [starter],
+        subagents: { agents: [], limits: { maxConcurrent: 1 } },
+      }),
+      { threadId: THREAD },
+    )
+
+    const run = session.agents.lead.start(undefined, { attach: 'none' })
+    await expect(run).resolves.toBe('helped')
+    const helped = session.agentRuns().find((item) => item.agent === 'helper')
+    expect(helped?.parentRunId).toBe(run.id)
     await host.close()
   })
 

@@ -61,6 +61,7 @@ export const review = definePlugin({
 - `ctx.agents.start(agent, input, { wake: true })` runs it in the background and starts a turn when it finishes or fails.
 - `ctx.agents.start(agent, input, { principal })` runs it as that user. The wake turn runs as the same user.
 - Without `principal`, a plugin with `lifetime: 'turn'` starts it as the user of its turn. A session plugin starts it as the user who opened the session. To start it for the user of a tool call, pass `principal: ctx.context.run.principal`.
+- `ctx.agents.run(agent, input, { parent: ctx.context.run })` in a tool of an agent run makes the agent a child of that run. It runs for the user of that run, and counts in its tree and budget. It takes no `maxConcurrent` slot, so the run can await it.
 - `ctx.agents.group(options, (g) => runs)` runs several. See [Run agents in parallel or in series](#run-agents-in-parallel-or-in-series).
 
 The input type comes from the `inputSchema` of the agent, and the result type comes from its output. A wrong input is a type error. An agent name instead of a definition gives a result of type `unknown`. `ctx.agents` in a plugin and `ctx.harness.agents` in agent code have the same type, `AgentActions`.
@@ -680,7 +681,7 @@ See [Limit the tree](../chat/subagents#limit-the-tree) for what each limit does.
 
 - `maxDepth` and `maxCalls` count per tree. An agent that a session, a plugin, or a wake starts is the root of its own tree.
 - `maxConcurrent` counts the root agent runs of the whole session, and the children of each run.
-- Over `maxConcurrent`, a root start waits with the status `queued`. It starts when a slot is free. A run that waits for a person keeps its slot.
+- Over `maxConcurrent`, a root start waits with the status `queued`. It starts when a slot is free. A run that waits for a person keeps its slot. A start with `parent: ctx.context.run` in a tool of an agent run is a child of that run, not a root.
 - Over a limit, a child start throws, and no child starts. A child of a `group` with `concurrency` waits in its group instead.
 - A start that fails before its run starts, for example with an unknown agent or an input that is not valid, gives its call back.
 
