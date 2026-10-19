@@ -7,7 +7,7 @@ title: isKeyedAdapter
 function isKeyedAdapter<TAdapter>(value): value is KeyedAdapter<TAdapter>;
 ```
 
-Defined in: [packages/ai/src/byok/keyed.ts:64](https://github.com/TanStack/ai/blob/main/packages/ai/src/byok/keyed.ts#L64)
+Defined in: [packages/ai/src/byok/keyed.ts:83](https://github.com/TanStack/ai/blob/main/packages/ai/src/byok/keyed.ts#L83)
 
 True when `value` came from [keyedAdapter](keyedAdapter.md). A host uses it to decide
 if an adapter needs a key first.

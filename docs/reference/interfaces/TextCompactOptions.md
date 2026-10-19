@@ -3,7 +3,7 @@ id: TextCompactOptions
 title: TextCompactOptions
 ---
 
-Defined in: [packages/ai/src/types.ts:1498](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1498)
+Defined in: [packages/ai/src/types.ts:1534](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1534)
 
 What `TextAdapter.compact` receives.
 
@@ -18,7 +18,7 @@ messages: ModelMessage<
   | null>[];
 ```
 
-Defined in: [packages/ai/src/types.ts:1500](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1500)
+Defined in: [packages/ai/src/types.ts:1536](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1536)
 
 The history to compact.
 
@@ -30,7 +30,7 @@ The history to compact.
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1501](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1501)
+Defined in: [packages/ai/src/types.ts:1537](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1537)
 
 ***
 
@@ -40,7 +40,7 @@ Defined in: [packages/ai/src/types.ts:1501](https://github.com/TanStack/ai/blob/
 optional signal?: AbortSignal;
 ```
 
-Defined in: [packages/ai/src/types.ts:1502](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1502)
+Defined in: [packages/ai/src/types.ts:1538](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1538)
 
 ***
 
@@ -50,7 +50,7 @@ Defined in: [packages/ai/src/types.ts:1502](https://github.com/TanStack/ai/blob/
 optional systemPrompts?: SystemPrompt[];
 ```
 
-Defined in: [packages/ai/src/types.ts:1506](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1506)
+Defined in: [packages/ai/src/types.ts:1542](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1542)
 
 The system prompts of the chat call.
 
@@ -62,6 +62,6 @@ The system prompts of the chat call.
 optional wrapFetch?: FetchWrapper;
 ```
 
-Defined in: [packages/ai/src/types.ts:1504](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1504)
+Defined in: [packages/ai/src/types.ts:1540](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1540)
 
 Wraps the fetch of the compaction request.

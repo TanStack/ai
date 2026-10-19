@@ -127,7 +127,7 @@ tool so the tool-call part's `approval` field stays gated on it.
 description: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:980](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L980)
+Defined in: [packages/ai/src/types.ts:982](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L982)
 
 Clear description of what the tool does.
 
@@ -154,7 +154,7 @@ optional execute?: (args, context?) =>
 | Promise<InferSchemaType<TOutput>>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1060](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1060)
+Defined in: [packages/ai/src/types.ts:1062](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1062)
 
 Optional function to execute when the model calls this tool.
 
@@ -275,7 +275,7 @@ type({
 optional lazy?: boolean;
 ```
 
-Defined in: [packages/ai/src/types.ts:1066](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1066)
+Defined in: [packages/ai/src/types.ts:1068](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1068)
 
 If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Works with both chat() (the synthetic discovery tool) and Code Mode (kept out of the system prompt and revealed via discover_tools).
 
@@ -291,7 +291,7 @@ If true, this tool is lazy and will only be sent to the LLM after being discover
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1077](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1077)
+Defined in: [packages/ai/src/types.ts:1079](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1079)
 
 Additional metadata for adapters or custom extensions
 
@@ -307,7 +307,7 @@ Additional metadata for adapters or custom extensions
 name: TName;
 ```
 
-Defined in: [packages/ai/src/types.ts:970](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L970)
+Defined in: [packages/ai/src/types.ts:972](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L972)
 
 Unique name of the tool (used by the model to call it).
 
@@ -383,7 +383,7 @@ z.object({
 optional replay?: "safe" | "never";
 ```
 
-Defined in: [packages/ai/src/types.ts:1074](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1074)
+Defined in: [packages/ai/src/types.ts:1076](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1076)
 
 Whether a host may run this tool again after a crash cut the run
 between the call and its result. `'safe'` runs it again. Omit the

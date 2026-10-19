@@ -14,7 +14,7 @@ type ToolChoice<TName> =
 };
 ```
 
-Defined in: [packages/ai/src/types.ts:1246](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1246)
+Defined in: [packages/ai/src/types.ts:1248](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1248)
 
 How the model uses the tools of a call.
 - `'auto'`: the model decides.

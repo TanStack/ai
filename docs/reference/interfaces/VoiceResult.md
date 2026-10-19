@@ -3,7 +3,7 @@ id: VoiceResult
 title: VoiceResult
 ---
 
-Defined in: [packages/ai/src/types.ts:3151](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3151)
+Defined in: [packages/ai/src/types.ts:3187](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3187)
 
 Result of voice creation.
 
@@ -18,7 +18,7 @@ models return exactly one.
 optional artifacts?: PersistedArtifactRef[];
 ```
 
-Defined in: [packages/ai/src/types.ts:3163](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3163)
+Defined in: [packages/ai/src/types.ts:3199](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3199)
 
 Persisted artifact references for generated assets, when available
 
@@ -30,7 +30,7 @@ Persisted artifact references for generated assets, when available
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:3153](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3153)
+Defined in: [packages/ai/src/types.ts:3189](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3189)
 
 Unique identifier for the generation
 
@@ -42,7 +42,7 @@ Unique identifier for the generation
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:3155](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3155)
+Defined in: [packages/ai/src/types.ts:3191](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3191)
 
 Model used for generation
 
@@ -54,7 +54,7 @@ Model used for generation
 optional previewText?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:3159](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3159)
+Defined in: [packages/ai/src/types.ts:3195](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3195)
 
 The line spoken in the previews, when the provider generated one
 
@@ -66,7 +66,7 @@ The line spoken in the previews, when the provider generated one
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:3161](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3161)
+Defined in: [packages/ai/src/types.ts:3197](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3197)
 
 Token usage information (if provided by the adapter)
 
@@ -78,6 +78,6 @@ Token usage information (if provided by the adapter)
 voices: GeneratedVoice[];
 ```
 
-Defined in: [packages/ai/src/types.ts:3157](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3157)
+Defined in: [packages/ai/src/types.ts:3193](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3193)
 
 The voices produced, best-first when the provider ranks them

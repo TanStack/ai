@@ -11,7 +11,7 @@ type ToolExecuteFunction<TInput, TOutput, TContext> = undefined extends TContext
 | InferSchemaType<TOutput>;
 ```
 
-Defined in: [packages/ai/src/types.ts:929](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L929)
+Defined in: [packages/ai/src/types.ts:931](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L931)
 
 ## Type Parameters
 

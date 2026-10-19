@@ -3,7 +3,7 @@ id: GeneratedVoice
 title: GeneratedVoice
 ---
 
-Defined in: [packages/ai/src/types.ts:3104](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3104)
+Defined in: [packages/ai/src/types.ts:3140](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3140)
 
 A single voice produced by [VoiceGenerationOptions](VoiceGenerationOptions.md).
 
@@ -15,7 +15,7 @@ A single voice produced by [VoiceGenerationOptions](VoiceGenerationOptions.md).
 optional audio?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:3111](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3111)
+Defined in: [packages/ai/src/types.ts:3147](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3147)
 
 Base64-encoded preview audio, when the provider returns one
 
@@ -27,7 +27,7 @@ Base64-encoded preview audio, when the provider returns one
 optional contentType?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:3115](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3115)
+Defined in: [packages/ai/src/types.ts:3151](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3151)
 
 Content type of the preview (e.g. 'audio/mpeg')
 
@@ -39,7 +39,7 @@ Content type of the preview (e.g. 'audio/mpeg')
 optional duration?: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:3117](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3117)
+Defined in: [packages/ai/src/types.ts:3153](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3153)
 
 Duration of the preview in seconds, if available
 
@@ -51,7 +51,7 @@ Duration of the preview in seconds, if available
 optional format?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:3113](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3113)
+Defined in: [packages/ai/src/types.ts:3149](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3149)
 
 Audio format of the preview (e.g. 'mp3')
 
@@ -63,7 +63,7 @@ Audio format of the preview (e.g. 'mp3')
 optional language?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:3119](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3119)
+Defined in: [packages/ai/src/types.ts:3155](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3155)
 
 Language of the preview, if reported
 
@@ -75,7 +75,7 @@ Language of the preview, if reported
 saved: boolean;
 ```
 
-Defined in: [packages/ai/src/types.ts:3124](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3124)
+Defined in: [packages/ai/src/types.ts:3160](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3160)
 
 Whether the voice is persisted in the provider's voice library. Unsaved
 voices are previews and generally expire.
@@ -88,7 +88,7 @@ voices are previews and generally expire.
 status: VoiceTrainingStatus;
 ```
 
-Defined in: [packages/ai/src/types.ts:3129](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3129)
+Defined in: [packages/ai/src/types.ts:3165](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3165)
 
 Whether the voice can be used in `generateSpeech()` yet. Required so a
 caller never has to guess: every adapter states it outright.
@@ -101,7 +101,7 @@ caller never has to guess: every adapter states it outright.
 voiceId: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:3109](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3109)
+Defined in: [packages/ai/src/types.ts:3145](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L3145)
 
 The provider's voice identifier. Pass it straight back as the `voice`
 option on `generateSpeech()`.

@@ -3,7 +3,7 @@ id: Tool
 title: Tool
 ---
 
-Defined in: [packages/ai/src/types.ts:956](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L956)
+Defined in: [packages/ai/src/types.ts:958](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L958)
 
 Tool/Function definition for function calling.
 
@@ -51,7 +51,7 @@ or plain JSON Schema objects for runtime validation and type safety.
 description: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:980](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L980)
+Defined in: [packages/ai/src/types.ts:982](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L982)
 
 Clear description of what the tool does.
 
@@ -72,7 +72,7 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 optional execute?: ToolExecuteFunction<TInput, TOutput, TContext>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1060](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1060)
+Defined in: [packages/ai/src/types.ts:1062](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1062)
 
 Optional function to execute when the model calls this tool.
 
@@ -108,7 +108,7 @@ execute: async (args) => {
 optional inputSchema?: TInput;
 ```
 
-Defined in: [packages/ai/src/types.ts:1020](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1020)
+Defined in: [packages/ai/src/types.ts:1022](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1022)
 
 Schema describing the tool's input parameters.
 
@@ -162,7 +162,7 @@ type({
 optional lazy?: boolean;
 ```
 
-Defined in: [packages/ai/src/types.ts:1066](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1066)
+Defined in: [packages/ai/src/types.ts:1068](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1068)
 
 If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Works with both chat() (the synthetic discovery tool) and Code Mode (kept out of the system prompt and revealed via discover_tools).
 
@@ -174,7 +174,7 @@ If true, this tool is lazy and will only be sent to the LLM after being discover
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1077](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1077)
+Defined in: [packages/ai/src/types.ts:1079](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1079)
 
 Additional metadata for adapters or custom extensions
 
@@ -186,7 +186,7 @@ Additional metadata for adapters or custom extensions
 name: TName;
 ```
 
-Defined in: [packages/ai/src/types.ts:970](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L970)
+Defined in: [packages/ai/src/types.ts:972](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L972)
 
 Unique name of the tool (used by the model to call it).
 
@@ -207,7 +207,7 @@ Must be unique within the tools array.
 optional needsApproval?: boolean;
 ```
 
-Defined in: [packages/ai/src/types.ts:1063](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1063)
+Defined in: [packages/ai/src/types.ts:1065](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1065)
 
 If true, tool execution requires user approval before running. Works with both server and client tools.
 
@@ -219,7 +219,7 @@ If true, tool execution requires user approval before running. Works with both s
 optional outputSchema?: TOutput;
 ```
 
-Defined in: [packages/ai/src/types.ts:1041](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1041)
+Defined in: [packages/ai/src/types.ts:1043](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1043)
 
 Optional schema for validating tool output.
 
@@ -250,7 +250,7 @@ z.object({
 optional replay?: "safe" | "never";
 ```
 
-Defined in: [packages/ai/src/types.ts:1074](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1074)
+Defined in: [packages/ai/src/types.ts:1076](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1076)
 
 Whether a host may run this tool again after a crash cut the run
 between the call and its result. `'safe'` runs it again. Omit the
