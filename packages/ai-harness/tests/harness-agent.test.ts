@@ -12,6 +12,7 @@ import {
   logIdOf,
 } from '../src'
 import { hostCountsOf } from '../src/host'
+import { SessionImpl } from '../src/session/harness-session'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
 import type { AnyHarness } from '../src'
@@ -248,6 +249,46 @@ describe('harnessAgent in a harness session', () => {
     expect(hostCountsOf(host).children).toBe(0)
     expect(disposed).toHaveBeenCalledTimes(1)
     await host.close()
+  })
+
+  it('goes on when the child resumes by itself, not through an answer here', async () => {
+    // The child session that the run opens.
+    let childSession: SessionImpl | undefined
+    const open = SessionImpl.prototype.open
+    vi.spyOn(SessionImpl.prototype, 'open').mockImplementation(
+      function (this: SessionImpl) {
+        if (this.threadId.includes('/agent/')) childSession = this
+        return open.call(this)
+      },
+    )
+    const deploy = toolDefinition({
+      name: 'deploy',
+      description: 'Deploy. Needs approval.',
+      needsApproval: true,
+      inputSchema: z.object({}),
+    }).server(() => Promise.resolve({ deployed: true }))
+    const child = defineHarness({
+      name: 'test/self-resuming',
+      adapter: mockAdapter([
+        () => toolCall('deploy', {}),
+        () => text('Not deployed.'),
+      ]).adapter,
+      tools: [deploy],
+    })
+    const { harness } = lead(child)
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(harness, { threadId: 't' })
+
+    const turn = session.send('Ship it.')
+    await waitFor(() => expect(session.snapshot().pendingWaits).toHaveLength(1))
+    const [wait] = session.snapshot().pendingWaits ?? []
+    // As an expired wait does: the child resolves its own wait.
+    await childSession?.resolve({
+      resume: [{ interruptId: wait?.waitId ?? '', status: 'cancelled' }],
+    })
+    await expect(turn).resolves.toMatchObject({ text: 'Done.' })
+    await host.close()
+    vi.restoreAllMocks()
   })
 
   it('sends the child tool calls and its usage to the parent run, with parentRunId', async () => {

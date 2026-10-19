@@ -723,7 +723,9 @@ export abstract class SessionAgents<
    * The child runs for `parent.principal`, with the keys of that user. Its
    * model calls count in the usage and the budget of the parent run. While
    * a turn of the child waits, the snapshot of this session lists its waits,
-   * and an answer here continues the child. It streams every event of the
+   * and an answer here continues the child, in the parent run: its receipt
+   * names that run. The child can also go on by itself (a wait expires). It
+   * streams every event of the
    * child turns with `parentRunId`, then a RUN_FINISHED with the usage of
    * the child. A stop of the parent run cancels the child, and a recoverable
    * close stops it as on a crash. The child closes when the run ends.
@@ -758,28 +760,43 @@ export abstract class SessionAgents<
       },
     })
     let operation: Operation<unknown> | undefined
-    /** Gets the next turn of the child after an answer, or `undefined` on a stop. */
-    let next: ((operationId: string | undefined) => void) | undefined
+    /**
+     * The turns of the child, oldest first. An answer here, or the child
+     * itself (a wait that expires), starts the next one.
+     */
+    const turns: Array<string> = []
+    const forwarded = new Set<string>()
+    /** Checks for the next turn of the child, while a turn of it waits. */
+    let next: (() => void) | undefined
+    const stopListening = session.onEvent(
+      EventType.CUSTOM,
+      ({ operationId, event }) => {
+        if (event.name !== HARNESS_EVENTS.operationStarted) return
+        if (!isRecord(event.value) || event.value.kind !== 'chat') return
+        turns.push(operationId)
+        next?.()
+      },
+    )
     const signal = ctx.abortSignal ?? parent.operation.abortController.signal
     const isShutdown = () =>
       parent.operation.abortController.signal.reason === SHUTDOWN_REASON
     const onAbort = () => {
-      next?.(undefined)
+      next?.()
       // A recoverable close: the child stops as on a crash too.
       if (isShutdown()) void session.close({ recoverable: true })
       else void operation?.cancel().catch(() => {})
     }
     this.harnessChildren.set(threadId, {
       session,
+      // The answer goes on in the run that runs the child: a reader follows
+      // that operation, not the child's own.
       answer: async (options) => {
         const receipt = await session.resolveForRun(options)
-        if (receipt.status !== 'rejected' && receipt.operationId) {
-          next?.(receipt.operationId)
-        }
-        return receipt
+        return receipt.status !== 'rejected' && receipt.operationId
+          ? { ...receipt, operationId: parentRunId }
+          : receipt
       },
     })
-    signal.addEventListener('abort', onAbort, { once: true })
     try {
       operation = session.send(
         lastUserInput(convertMessagesToModelMessages(ctx.messages)),
@@ -802,10 +819,15 @@ export abstract class SessionAgents<
         }
         finished = end.finished
         if (!end.isInterrupted) break
-        // The turn waits for answers. An answer here starts the next turn.
+        // The turn waits for answers: the next turn of the child goes on.
+        forwarded.add(operation.id)
         const id = await new Promise<string | undefined>((resolve) => {
-          next = resolve
-          if (signal.aborted) resolve(undefined)
+          next = () => {
+            const found = turns.find((turn) => !forwarded.has(turn))
+            if (signal.aborted) resolve(undefined)
+            else if (found !== undefined) resolve(found)
+          }
+          next()
         })
         next = undefined
         const resumed = id === undefined ? undefined : session.operation(id)
@@ -833,6 +855,7 @@ export abstract class SessionAgents<
         metadata: { tanstack: { finishReason: finished } },
       }
     } finally {
+      stopListening()
       signal.removeEventListener('abort', onAbort)
       this.harnessChildren.delete(threadId)
       await session.close(isShutdown() ? { recoverable: true } : undefined)
