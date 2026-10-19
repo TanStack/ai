@@ -33,6 +33,7 @@ import type {
   SessionMetadataOf,
 } from '../src'
 import type { InputSettlement } from '../src/types'
+import type { ToolStep } from '../src/durable-tool'
 import type { PluginServices, PluginSetupContext } from '../src/plugins'
 
 const pricer = defineAgent({
@@ -332,4 +333,22 @@ it('always gives agent code ctx.harness', () => {
       return `${priced.cents}`
     },
   })
+})
+
+it('takes only JSON values from step.do', () => {
+  interface Invoice {
+    id: string
+    total?: number
+  }
+  const run = async (step: ToolStep, invoice: Invoice) => {
+    expectTypeOf(
+      await step.do('invoice', () => invoice),
+    ).toEqualTypeOf<Invoice>()
+    expectTypeOf(await step.do('mail', async () => {})).toEqualTypeOf<void>()
+    // @ts-expect-error JSON turns a Date into a string.
+    await step.do('now', () => new Date())
+    // @ts-expect-error JSON turns a Map into {}.
+    await step.do('seen', () => ({ ids: new Map<string, number>() }))
+  }
+  expectTypeOf(run).toBeFunction()
 })
