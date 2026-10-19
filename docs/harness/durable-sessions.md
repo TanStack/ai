@@ -317,9 +317,13 @@ If the host does not find the question in the log, it treats the answer as a sec
 Pass the same `credentials` store to every host. A secret answer can be rejected:
 
 - `secret_answer_needs_credentials`: the host has no `credentials` store, so it cannot send the answer.
-- `unknown_secret_answer`: the reference was used before, or it belongs to another user.
+- `unknown_secret_answer`: the reference was used before, it expired, or it belongs to another user.
 
-The ids of the references start with `harness:answer:`. `run.credentials.list()` does not show them. A reference that the owner never reads stays in the store.
+The store keeps each reference as a credential of the type `secret_answer`:
+
+- Its id starts with `harness:answer:`, and its `expiresAt` is 24 hours later. After that time, the harness does not read it.
+- The owner deletes it when it reads it. The references that nobody read go when the question ends.
+- `run.credentials.list()` does not show it. Leave the `secret_answer` type out of your own `store.list` results too, for example on a page of connected accounts.
 
 ### When a host loses a thread
 

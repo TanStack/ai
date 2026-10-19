@@ -92,6 +92,7 @@ import type {
 } from './types'
 import type { SettingNames } from './helpers'
 import type { HarnessSession, SessionImpl } from './harness-session'
+import type { Credential } from '@tanstack/ai/byok'
 
 /** What the model of the source gets for a `'summary'` transfer. */
 const TRANSFER_SUMMARY_PROMPT =
@@ -1062,7 +1063,7 @@ export abstract class SessionState<
     const logged = this.loggedWait(questionId)
     const isSecret = asked?.secret ?? (!logged || logged.secret === true)
     const isHidden = ref !== undefined || isSecret
-    if (asked?.secret && typeof value === 'string') this.redactor.add(value)
+    if (asked?.secret) this.redactor.add(value)
     const sender = principal ?? this.principal
     let admission
     try {
@@ -1252,12 +1253,12 @@ export abstract class SessionState<
    */
   private async keepSecretAnswer(logged: WaitState, value: unknown) {
     const { waitId, principal } = logged.wait
-    if (typeof value === 'string') this.redactor.add(value)
+    this.redactor.add(value)
     this.keptAnswers.set(waitId, value)
     await this.sharedCredentials?.set({
       scope: scopeOf(this.threadId, principal),
       id: keptAnswerId(waitId),
-      credential: { type: 'api_key', value: JSON.stringify(value) },
+      credential: secretAnswerCredential(value),
     })
   }
 
@@ -1276,16 +1277,11 @@ export abstract class SessionState<
       scope: scopeOf(this.threadId, principal),
       id: keptAnswerId(waitId),
     })
-    if (saved?.type !== 'api_key') return undefined
-    let value: unknown
-    try {
-      value = JSON.parse(saved.value)
-    } catch {
-      return undefined
-    }
-    if (typeof value === 'string') this.redactor.add(value)
-    this.keptAnswers.set(waitId, value)
-    return { value }
+    const answer = answerIn(saved)
+    if (!answer) return undefined
+    this.redactor.add(answer.value)
+    this.keptAnswers.set(waitId, answer.value)
+    return answer
   }
 
   /**
@@ -1344,7 +1340,7 @@ export abstract class SessionState<
     await store.set({
       scope: scopeOf(this.threadId, sender),
       id: ref,
-      credential: { type: 'api_key', value: JSON.stringify(value) },
+      credential: secretAnswerCredential(value),
     })
     return { op: 'answer', questionId, value: SECRET_ANSWER, ref }
   }
@@ -1370,16 +1366,11 @@ export abstract class SessionState<
     }
     const key = { scope: scopeOf(this.threadId, sender), id: ref }
     const saved = await store.get(key)
-    if (saved?.type !== 'api_key') return undefined
+    if (saved?.type !== 'secret_answer') return undefined
     await store.delete(key)
-    let value: unknown
-    try {
-      value = JSON.parse(saved.value)
-    } catch {
-      return undefined
-    }
-    if (typeof value === 'string') this.redactor.add(value)
-    return { value }
+    const answer = answerIn(saved)
+    if (answer) this.redactor.add(answer.value)
+    return answer
   }
 
   // ===========================
@@ -2171,6 +2162,36 @@ export abstract class SessionState<
  * refs that `dropAnswerRefs` deletes when the wait ends.
  */
 const keptAnswerId = (waitId: string) => `${SECRET_ANSWER_PREFIX}${waitId}#kept`
+
+/**
+ * How long a secret answer stays good in the credential store. The session
+ * deletes it once read, or when its wait or run ends. The expiry is for one
+ * that a host which stopped left there.
+ */
+// ponytail: one expiry for a ref and a kept answer. A run again after it
+// finds no answer, and its `step.ask` throws.
+const SECRET_ANSWER_TTL_MS = 24 * 60 * 60 * 1000
+
+/** A secret answer as the credential store keeps it, with its expiry. */
+const secretAnswerCredential = (value: unknown): Credential => ({
+  type: 'secret_answer',
+  value: JSON.stringify(value),
+  expiresAt: Date.now() + SECRET_ANSWER_TTL_MS,
+})
+
+/** The answer in `saved`, when it is a secret answer that did not expire. */
+function answerIn(
+  saved: Credential | null | undefined,
+): { value: unknown } | undefined {
+  if (saved?.type !== 'secret_answer' || saved.expiresAt <= Date.now()) {
+    return undefined
+  }
+  try {
+    return { value: JSON.parse(saved.value) }
+  } catch {
+    return undefined
+  }
+}
 
 /** Why `ctx.session.ask` throws outside a live wait. */
 export const ASK_OUTSIDE_WAITS =

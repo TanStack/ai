@@ -9,13 +9,14 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   createHarnessHost,
   createPluginEvent,
+  defineCommand,
   defineHarness,
   definePlugin,
   durableTool,
   logIdOf,
   scrubSecrets,
 } from '../src'
-import { Redactor, redactMiddleware } from '../src/auth'
+import { createRedactor, redactMiddleware } from '../src/auth'
 import { createHarnessHandler } from '../src/server'
 import { scrubbedBy } from '../src/session/harness-session'
 import { hostBackend } from '../src/first-party/coding/backend'
@@ -206,8 +207,8 @@ describe('the edges of a session', () => {
     },
   )
 
-  it('returns a durable step value as the log keeps it, on the first run too', async () => {
-    let returned: unknown
+  it('refuses a durable step value with a secret, and the log keeps no step', async () => {
+    let refused: unknown
     const stash = durableTool(
       toolDefinition({
         name: 'stash',
@@ -215,11 +216,13 @@ describe('the edges of a session', () => {
         inputSchema: z.object({}),
       }),
       async (_input, { step }) => {
-        returned = await step.do('keep', () => ({ value: KEY }))
+        refused = await step
+          .do('keep', () => ({ value: KEY }))
+          .catch((error: unknown) => error)
         return 'kept'
       },
     )
-    const { host, session } = await open({
+    const { host, session, log } = await open({
       fail: false,
       tools: [stash],
       // The key is a secret of the session after `leak` read it.
@@ -232,7 +235,35 @@ describe('the edges of a session', () => {
 
     await session.send('Leak it, then stash it.')
 
-    expect(returned).toEqual({ value: '[redacted]' })
+    expect(String(refused)).toContain(
+      'A step result must not hold a secret. Read it outside step.do.',
+    )
+    const steps = (await log.read({ logId: LOG })).filter(
+      (entry) => entry.record.type === 'harness.tool.step',
+    )
+    expect(steps).toEqual([])
+    await host.close()
+  })
+
+  it('takes a retry of an input with a secret in it as a duplicate, not a conflict', async () => {
+    const note = definePlugin({
+      name: 'test/note',
+      setup: () => ({
+        commands: {
+          note: defineCommand({ description: 'Note it', run: () => 'noted' }),
+        },
+      }),
+    })
+    const { host, session } = await open({ fail: false, plugins: [note] })
+    await session.send('Leak it.')
+    // The user pastes the key that the session read. The log keeps the
+    // input without it.
+    const options = { name: 'note', input: { text: KEY }, inputId: 'note-1' }
+    expect(await session.command(options)).toBe('noted')
+
+    await expect(Promise.resolve(session.command(options))).resolves.toBe(
+      undefined,
+    )
     await host.close()
   })
 
@@ -281,7 +312,7 @@ describe('the edges of a session', () => {
 
 describe('Redactor', () => {
   it('scrubs the raw, JSON-escaped, and URL-encoded forms in strings at any depth', () => {
-    const redactor = new Redactor()
+    const redactor = createRedactor()
     redactor.add(KEY)
     const value = {
       count: 3,
@@ -303,7 +334,7 @@ describe('Redactor', () => {
   })
 
   it('returns the same object when no secret is in it, and keeps the parts that did not change', () => {
-    const redactor = new Redactor()
+    const redactor = createRedactor()
     redactor.add(KEY)
     const clean = { a: { b: ['x', 1] }, c: 'text' }
     expect(redactor.redact(clean)).toBe(clean)
@@ -315,8 +346,26 @@ describe('Redactor', () => {
     expect(redacted.dirty).toEqual({ key: '[redacted]' })
   })
 
+  it('scrubs in Map and Set values, and adds each string of an object secret', () => {
+    const redactor = createRedactor()
+    redactor.add({ user: 'ada-lovelace', password: KEY, pin: 1234 })
+    const state = {
+      byId: new Map([['a', { key: KEY }]]),
+      seen: new Set([KEY, 'clean']),
+    }
+
+    const redacted = redactor.redact(state)
+
+    expect(redacted.byId.get('a')).toEqual({ key: '[redacted]' })
+    expect([...redacted.seen]).toEqual(['[redacted]', 'clean'])
+    expect(redactor.scrub('user ada-lovelace')).toBe('user [redacted]')
+    // A Map and a Set with no secret stay the same objects.
+    const clean = { byId: new Map([['a', 'x']]), seen: new Set(['x']) }
+    expect(redactor.redact(clean)).toBe(clean)
+  })
+
   it('leaves values shorter than 6 characters, and does nothing while it has no secret', () => {
-    const redactor = new Redactor()
+    const redactor = createRedactor()
     const value = { pin: '12345' }
     expect(redactor.isEmpty).toBe(true)
     expect(redactor.redact(value)).toBe(value)
@@ -327,7 +376,7 @@ describe('Redactor', () => {
   })
 
   it('scrubs like the core scrubSecrets, which the harness exports', () => {
-    const redactor = new Redactor()
+    const redactor = createRedactor()
     redactor.add('abcdef')
     redactor.add('abcdefgh')
     const textWith = 'token abcdefgh and abcdef'
@@ -348,7 +397,7 @@ describe('redactMiddleware', () => {
   })
 
   it('gives the model the messages and system prompts without the secrets', async () => {
-    const redactor = new Redactor()
+    const redactor = createRedactor()
     redactor.add(KEY)
     const config = configWith(JSON.stringify({ key: KEY }))
 
@@ -368,7 +417,7 @@ describe('redactMiddleware', () => {
   })
 
   it('changes nothing when the context has no secret', async () => {
-    const redactor = new Redactor()
+    const redactor = createRedactor()
     redactor.add(KEY)
     const change = await redactMiddleware(redactor).onConfig?.(
       {} as never,

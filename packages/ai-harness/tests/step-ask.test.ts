@@ -247,6 +247,50 @@ describe('step.ask in a durable tool', () => {
     await first.host.close()
   })
 
+  it('scrubs each field of a secret object answer from the tool result and the next model call', async () => {
+    const PASSWORD = 'hunter2-correct-horse'
+    const signIn = durableTool(
+      toolDefinition({
+        name: 'signIn',
+        description: 'Ask for a login',
+        inputSchema: z.object({}),
+      }),
+      async (_args, { step }) => {
+        const login = await step.ask({
+          name: 'login',
+          message: 'Login?',
+          schema: z.object({ user: z.string(), password: z.string() }),
+          secret: true,
+        })
+        // On purpose: a careless tool puts the password in its result.
+        return `Signed in ${login.user} with ${login.password}.`
+      },
+    )
+    const model = mockAdapter([
+      () => toolCall('signIn', {}, 'call-1'),
+      () => text('ok'),
+    ])
+    const { host, session } = await hostOn(
+      memoryLogStore(),
+      defineHarness({ name: NAME, adapter: model.adapter, tools: [signIn] }),
+    )
+
+    const turn = session.send('sign me in')
+    const wait = await openWait(session)
+    await session.answer({
+      questionId: wait.waitId,
+      value: { user: 'ada', password: PASSWORD },
+    })
+    await turn
+
+    const result = (await session.transcript()).find(
+      (message) => message.role === 'tool',
+    )
+    expect(result?.content).toBe('Signed in ada with [redacted].')
+    expect(JSON.stringify(model.calls[1]?.messages)).not.toContain(PASSWORD)
+    await host.close()
+  })
+
   it('throws outside a harness session', async () => {
     await expect(
       Promise.resolve(

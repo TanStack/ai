@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { SessionFeed } from '../src/feed'
-import { Redactor } from '../src/auth'
+import { createRedactor } from '../src/auth'
 import { OperationImpl } from '../src/operation'
 import { tapFeed } from '../src/session/helpers'
 
@@ -16,7 +16,7 @@ function createOperation() {
     new SessionFeed({ threadId: 'thread-1', eventBytes: EVENT_BYTES }),
     () => {},
     new Set(),
-    new Redactor(),
+    createRedactor(),
   )
   return new OperationImpl<string>('chat', feed, (operation) => {
     operation.fail('cancelled', new Error('Cancelled.'))

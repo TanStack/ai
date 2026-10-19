@@ -48,7 +48,7 @@ export const checkout = durableTool(
 
 Add it to `tools` in `defineHarness`, as any other tool. Each finished step is in the [session log](./durable-sessions) before `step.do` resolves.
 
-The log keeps a step value without the secrets of the session, and `step.do` returns that same value. So a token in a step value comes back as `[redacted]`, also on the first run. Return an id, not a token. See [Keep tokens out of the log and the model](./auth#keep-tokens-out-of-the-log-and-the-model).
+A step value must not hold a secret of the session, for example a key that a tool read. The log must not keep it, so `step.do` throws: on the first run, and on a run again after a crash. Read the secret outside `step.do`, and return an id, not a token. See [Keep tokens out of the log and the model](./auth#keep-tokens-out-of-the-log-and-the-model).
 
 ## Rules for steps
 

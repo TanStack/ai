@@ -75,7 +75,7 @@ export function oauthConnector(options: OAuthConnectorOptions) {
       }) => {
         const { credentials } = run
         let credential = await credentials.require(id, { wait })
-        if (credential.type === 'api_key') return credential.value
+        if (credential.type !== 'oauth') return credential.value
         if (isExpired(credential) && credential.refreshToken) {
           // `refresh` runs one refresh at a time and saves it where the
           // credential is. The saved one can be fresh already: another call
@@ -98,7 +98,7 @@ export function oauthConnector(options: OAuthConnectorOptions) {
           // The credential was deleted meanwhile: ask for a sign-in.
           credential = fresh ?? (await credentials.require(id, { wait }))
         }
-        if (credential.type === 'api_key') return credential.value
+        if (credential.type !== 'oauth') return credential.value
         return credential.accessToken
       }
       return {

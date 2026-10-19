@@ -160,7 +160,7 @@
           "label": "Subagents",
           "to": "chat/subagents",
           "addedAt": "2026-09-21",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Agentic Cycle",
@@ -1003,7 +1003,7 @@
           "label": "Run side effects once",
           "to": "harness/durable-tools",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Wait for a person",
@@ -1110,7 +1110,7 @@
           "label": "Auth and connectors",
           "to": "harness/auth",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Share a thread between people",
@@ -1397,7 +1397,7 @@
           "label": "Keep Keys on the Server",
           "to": "advanced/server-keys",
           "addedAt": "2026-10-16",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Debug Logging",

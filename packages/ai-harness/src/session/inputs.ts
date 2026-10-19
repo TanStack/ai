@@ -697,15 +697,20 @@ export abstract class SessionInputs<
     return 'new'
   }
 
-  /** `duplicate` or `conflict` for an input id that is known, else `undefined`. */
+  /**
+   * `duplicate` or `conflict` for an input id that is known, else
+   * `undefined`. The log keeps an input without the secrets of the session,
+   * so both sides are compared without them: a retry with a secret in it is
+   * a duplicate.
+   */
   private knownAdmission(inputId: string, payload: string) {
-    const local = this.admitted.get(inputId)
-    if (local !== undefined) return local === payload ? 'duplicate' : 'conflict'
     const logged = this.writer.state.inputs.get(inputId)
-    if (!logged) return undefined
-    return inputKey(logged.input, logged.principal) === payload
-      ? 'duplicate'
-      : 'conflict'
+    const known =
+      this.admitted.get(inputId) ??
+      (logged ? inputKey(logged.input, logged.principal) : undefined)
+    if (known === undefined) return undefined
+    const { scrub } = this.redactor
+    return scrub(known) === scrub(payload) ? 'duplicate' : 'conflict'
   }
 
   /**

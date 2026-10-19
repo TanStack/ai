@@ -11,7 +11,7 @@ import {
   toolCall,
   untilAborted,
 } from './helpers'
-import type { AnyTextAdapter } from '@tanstack/ai'
+import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
 import type { HarnessDurability } from '../src'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
@@ -305,5 +305,57 @@ describe('the children of a run with resume: true', () => {
     expect(effects).toEqual(['reserve'])
     await hostA.close()
     await hostB.close()
+  })
+})
+
+describe('the middleware of a resumable agent run', () => {
+  it("logs the tool result that the agent's own middleware gave the model", async () => {
+    const persistence = memoryPersistence()
+    const lookup = toolDefinition({
+      name: 'lookup',
+      description: 'Look it up',
+      inputSchema: z.object({}),
+    }).server(async () => 'the raw result')
+    // The agent's own middleware, after the host middleware of the run.
+    const trim: ChatMiddleware = {
+      name: 'test/trim',
+      onAfterToolCall: () => ({ type: 'replaceResult', result: 'trimmed' }),
+    }
+    const model = mockAdapter([
+      () => toolCall('lookup', {}, 'call-1'),
+      () => text('Done.'),
+    ])
+    const worker = defineAgent({
+      name: 'worker',
+      description: 'Works',
+      run: (ctx) =>
+        ctx.chat({
+          adapter: model.adapter,
+          tools: [lookup],
+          middleware: [trim],
+        }),
+    })
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/agent-last-middleware',
+        adapter: mockAdapter([]).adapter,
+        agents: [worker],
+      }),
+      { threadId: THREAD, principal: alice },
+    )
+
+    await session.agent('worker')?.start(undefined, { resume: true })
+
+    const stored = (await persistence.stores.log.read({ logId: LOG }))
+      .map((entry) => entry.record)
+      .filter((record) => record.type === 'harness.tool.result')
+    expect(JSON.stringify(model.calls[1]?.messages)).toContain('trimmed')
+    expect(stored).toEqual([
+      expect.objectContaining({
+        message: expect.objectContaining({ content: 'trimmed' }),
+      }),
+    ])
+    await host.close()
   })
 })

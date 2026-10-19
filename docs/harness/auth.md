@@ -188,6 +188,7 @@ The store can be a table in your own database or a secrets manager. See the rule
 
 - Encrypt tokens at rest in a real store.
 - `list` returns ids and types only, never the secret values.
+- The harness keeps a secret answer in the store for a short time, with the type `secret_answer`. Leave that type out of a list of connected accounts. See [Secret answers on another host](./durable-sessions#secret-answers-on-another-host).
 - A credential saved without a `userId` belongs to the whole tenant. A user who has no credential of their own uses it. See [Share one credential with the whole organization](./shared-threads#share-one-credential-with-the-whole-organization).
 - If more than one host uses the store, add `getVersioned` and `setIf`. Then two hosts do not both save a refreshed token. See [Add compare-and-set](../advanced/server-keys#add-compare-and-set).
 
@@ -209,20 +210,23 @@ The secrets that the session knows:
 
 - The provider keys of `run.keys`, also a key from an env var.
 - The credentials of `run.credentials` and of the connectors: API keys, OAuth tokens, and the OAuth client secret.
-- The answer to a question with `secret: true`.
+- The answer to a question with `secret: true`. For an answer with fields, each string field.
 
 Where the session replaces them:
 
-- The session log: your records, the transcript, plugin state, notes, tool results, and durable step results.
+- The session log: your records, the transcript, plugin state (also in a `Map` or a `Set`), notes, and tool results.
 - The events that clients get.
 - The model context, so the model never sees a secret.
 - The error frames of the HTTP handler, the WebSocket, and the stdio worker.
+
+A [durable step](./durable-tools) value with a secret throws, so the log never keeps it. Read the secret outside `step.do`.
 
 The session finds the raw value, its JSON-escaped form, and its URL-encoded form. It does not find:
 
 - A value shorter than 6 characters. So a short value does not remove common words.
 - A secret that a stream splits across two deltas, in those two events. The message in the transcript does not have the secret.
 - A secret that is JSON-escaped two times.
+- A secret in an instance of your own class, a `Date`, or a typed array in plugin state.
 
 To scrub a text of your own, use `scrubSecrets(text, secrets)` from `@tanstack/ai/byok`. It uses the same rules.
 

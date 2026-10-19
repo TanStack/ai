@@ -574,10 +574,11 @@ export abstract class SessionAgents<
           accepted: options?.accepts,
           transcribe: options?.transcribe,
         }),
-        // After the media, so the model gets no secret of the session.
-        redactMiddleware(this.redactor),
         ...(handoffs ? [handoffs.middleware({ roots: true })] : []),
       ],
+      // After the agent's own middleware too, so the model gets no secret
+      // of the session, also when one of them sets the messages again.
+      lastChatMiddleware: [redactMiddleware(this.redactor)],
       keys: run.keys,
       // No `promptCache`: a tool-mode child then uses the retention of the
       // turn's chat() call, so a turn override reaches it.
@@ -1391,7 +1392,8 @@ export abstract class SessionAgents<
       ],
       // As in a turn, each final tool result goes to the session log at
       // once, under a key of this run. A run again puts it back. These go
-      // at the very end of the list, after every plugin.
+      // at the very end of the list, after every plugin and the agent's
+      // own middleware.
       last: [
         scrubToolResults(this.redactor),
         toolResultRecorder(({ toolCallId, message }) =>
@@ -1901,6 +1903,11 @@ export abstract class SessionAgents<
             this.agentSteering(chain, inputId, operation),
             ...(modelErrorRetry ? [modelErrorRetry] : []),
             ...binding.chatMiddleware,
+          ],
+          // After the agent's own middleware: the scrub of the model call,
+          // then the scrub and the log of each final tool result.
+          lastChatMiddleware: [
+            ...binding.lastChatMiddleware,
             ...(durable?.last ?? []),
           ],
           // As in a turn: the approvals and questions that plugins stop the

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
-import { Redactor } from '../src/auth'
+import { createRedactor } from '../src/auth'
 import { tapFeed } from '../src/session/helpers'
 import { mockAdapter, text } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
@@ -199,7 +199,7 @@ describe('a MESSAGES_SNAPSHOT event', () => {
       wake: () => {},
     }
     const heard: Array<string> = []
-    const tapped = tapFeed(feed, () => {}, new Set(), new Redactor())
+    const tapped = tapFeed(feed, () => {}, new Set(), createRedactor())
     tapped.listen(({ event }) => void heard.push(event.type))
     const snapshot: StreamChunk = {
       type: EventType.MESSAGES_SNAPSHOT,

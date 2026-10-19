@@ -6,7 +6,7 @@ import {
   untilFinishReason,
 } from '@tanstack/ai'
 import {
-  Redactor,
+  createRedactor,
   credentialsFor,
   providerKeysFor,
   refreshFlights,
@@ -493,7 +493,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * handed out. Every log record, feed event, and model call of the session
    * goes through it. Call `redactor.add` for a new secret value.
    */
-  protected readonly redactor = new Redactor()
+  protected readonly redactor = createRedactor()
   /** The credential store of the app, for secret answers. See `SessionDependencies`. */
   protected readonly sharedCredentials: CredentialStore | undefined
   /**

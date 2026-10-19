@@ -455,7 +455,11 @@ describe('an input that reaches a host that does not own the log', () => {
       // A ref saved for another user is refused, and stays for that user.
       const theirs = `harness:answer:${questionId}:theirs`
       const scope = { userId: 'someone-else' }
-      const credential = { type: 'api_key' as const, value: '"theirs"' }
+      const credential = {
+        type: 'secret_answer' as const,
+        value: '"theirs"',
+        expiresAt: Date.now() + 60_000,
+      }
       await credentials.set({ scope, id: theirs, credential })
       const wrongUser = await laneAnswer(owner.session, {
         questionId,
@@ -465,6 +469,21 @@ describe('an input that reaches a host that does not own the log', () => {
       })
       expect(wrongUser).toMatchObject({ reason: 'unknown_secret_answer' })
       expect(await credentials.get({ scope, id: theirs })).toEqual(credential)
+      // A ref that expired is refused, and deleted.
+      const expired = `harness:answer:${questionId}:expired`
+      await credentials.set({
+        scope: {},
+        id: expired,
+        credential: { ...credential, expiresAt: Date.now() - 1 },
+      })
+      const late = await laneAnswer(owner.session, {
+        questionId,
+        value: '[secret]',
+        ref: expired,
+        controlId: 'expired',
+      })
+      expect(late).toMatchObject({ reason: 'unknown_secret_answer' })
+      expect(await credentials.get({ scope: {}, id: expired })).toBeNull()
       await owner.host.close()
       await other.host.close()
     })
@@ -501,7 +520,11 @@ describe('an input that reaches a host that does not own the log', () => {
       await store.set({
         scope,
         id: 'harness:answer:q-1:i-1',
-        credential: { type: 'api_key', value: '"secret"' },
+        credential: {
+          type: 'secret_answer',
+          value: '"secret"',
+          expiresAt: Date.now() + 60_000,
+        },
       })
       await store.set({
         scope,

@@ -38,7 +38,7 @@ import type {
   ToolExecutionContext,
 } from '@tanstack/ai'
 import type { LogRecord } from '@tanstack/ai-persistence'
-import type { DurableBind, StepQuestion, ToolStep } from '../durable-tool'
+import type { DurableBind, StepQuestion } from '../durable-tool'
 import type { WaitState } from '../log-records'
 import type { LogWriter } from '../log'
 import type { UsageCall } from '../usage'
@@ -77,15 +77,29 @@ export abstract class SessionTurnParts<
     toolCallId: string,
     run: RunContext,
   ) {
-    const stored = createToolStep({
+    // The log keeps a step value without the secrets of the session. So a
+    // value with a secret throws, before the log keeps it and on a replay
+    // alike: a tool never gets a value that the log scrubbed.
+    const noSecret = (name: string, value: unknown) => {
+      if (this.redactor.redact(value) === value) return
+      throw new Error(
+        `step.do: the value of step ${JSON.stringify(name)} holds a secret of the session. A step result must not hold a secret. Read it outside step.do.`,
+      )
+    }
+    const step = createToolStep({
       recorded: (name) => {
         const key = stepKey(toolCallId, name)
-        return writer.state.steps.has(key)
-          ? { found: true, value: writer.state.steps.get(key) }
-          : { found: false }
+        if (!writer.state.steps.has(key)) return { found: false }
+        const value = writer.state.steps.get(key)
+        noSecret(name, value)
+        return { found: true, value }
       },
-      record: (name, value) =>
-        writer.append([{ type: 'harness.tool.step', toolCallId, name, value }]),
+      record: async (name, value) => {
+        noSecret(name, value)
+        await writer.append([
+          { type: 'harness.tool.step', toolCallId, name, value },
+        ])
+      },
       run: (name) => {
         if (writer.fenced) throw new LogOwnedElsewhereError(writer.logId)
         return {
@@ -103,13 +117,6 @@ export abstract class SessionTurnParts<
       ask: (question) =>
         this.stepAsk({ writer, scope: toolCallId, run, question }),
     })
-    // The log keeps a step value without the secrets of the session, and a
-    // replay returns that value. So the first run returns it too: a caller
-    // never gets a value that the log scrubbed.
-    const step: ToolStep = {
-      ...stored,
-      do: async (name, fn) => this.redactor.redact(await stored.do(name, fn)),
-    }
     const append = (records: ReadonlyArray<LogRecord>) => {
       checkHostRecords(records)
       writer.stage(records, toolCallId)
@@ -186,7 +193,7 @@ export abstract class SessionTurnParts<
           : { value: ended.value }
         if (!answer) {
           throw new Error(
-            `step.ask: the secret answer to ${JSON.stringify(name)} is gone. The host that took it stopped, and the app has no credential store.`,
+            `step.ask: the secret answer to ${JSON.stringify(name)} is gone. It expired, or the host that took it stopped and the app has no credential store.`,
           )
         }
         if (!isStandardSchema(schema)) return answer.value

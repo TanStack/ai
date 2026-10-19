@@ -21,7 +21,7 @@ export { scrubSecrets }
 /**
  * @internal The id prefix of a secret answer in the credential store. A host
  * that does not own the log saves the answer there, and the owner reads it
- * once. `list` hides these ids.
+ * once. Its credential type is `secret_answer`, which `list` hides.
  */
 export const SECRET_ANSWER_PREFIX = 'harness:answer:'
 
@@ -165,7 +165,7 @@ function signInRequired(error: AuthRequiredError) {
 }
 
 function secretValues(credential: Credential) {
-  if (credential.type === 'api_key') return [credential.value]
+  if (credential.type !== 'oauth') return [credential.value]
   const { accessToken, refreshToken, client } = credential
   return [accessToken, refreshToken, client?.clientSecret].filter(
     (value) => value !== undefined,
@@ -270,11 +270,9 @@ export function credentialsFor(
     },
     delete: (id) => store.delete({ scope, id }),
     list: async () => {
-      // A secret answer on its way to another host is not the user's own.
+      // A secret answer that the harness keeps is not the user's own.
       const saved = async (at: CredentialScope) =>
-        (await store.list(at)).filter(
-          (item) => !item.id.startsWith(SECRET_ANSWER_PREFIX),
-        )
+        (await store.list(at)).filter((item) => item.type !== 'secret_answer')
       const tenant = tenantScopeOf(scope)
       const own = await saved(scope)
       if (!tenant) return own
@@ -332,76 +330,109 @@ export function providerKeysFor(
 /**
  * @internal The secret values that one session handed out, and the scrub of
  * them. The session sends each log record, feed event, and model call
- * through it.
+ * through it. See {@link createRedactor}.
+ */
+export type Redactor = ReturnType<typeof createRedactor>
+
+/**
+ * @internal A {@link Redactor} with no secret yet.
  *
  * `redact` never changes its input. It returns the same value when no
  * secret is in it, so a check of identity downstream stays cheap.
  */
-export class Redactor {
-  private readonly values: Array<string> = []
+export function createRedactor() {
+  const values: Array<string> = []
   /** Each form that `scrubSecrets` replaces: raw, JSON-escaped, URL-encoded. */
-  private readonly forms: Array<string> = []
+  const forms: Array<string> = []
 
-  /** No secret to scrub yet. Then `redact` and `scrub` do no work. */
-  get isEmpty(): boolean {
-    return this.forms.length === 0
-  }
-
-  /** Scrub `value` from now on. A value shorter than 6 characters is left. */
-  add(value: string): void {
-    if (value.length < 6 || this.values.includes(value)) return
-    this.values.push(value)
+  /**
+   * Scrub `value` from now on: a string, or each string in an array or a
+   * plain object (a secret answer with fields). A string shorter than 6
+   * characters is left.
+   */
+  const add = (value: unknown): void => {
+    if (typeof value === 'object' && value !== null) {
+      for (const item of Object.values(value)) add(item)
+      return
+    }
+    if (typeof value !== 'string' || value.length < 6) return
+    if (values.includes(value)) return
+    values.push(value)
     for (const form of [
       value,
       JSON.stringify(value).slice(1, -1),
       encodeURIComponent(value),
     ]) {
-      if (!this.forms.includes(form)) this.forms.push(form)
+      if (!forms.includes(form)) forms.push(form)
     }
   }
 
   /** `text` without the secrets. The same string when it has none. */
-  scrub(text: string): string {
+  const scrub = (text: string): string => {
     // A quick check first, so a text without a secret makes no copy.
-    for (const form of this.forms) {
-      if (text.includes(form)) return scrubSecrets(text, this.values)
+    for (const form of forms) {
+      if (text.includes(form)) return scrubSecrets(text, values)
     }
     return text
   }
 
-  /**
-   * `value` with each string in it scrubbed, in arrays and plain objects at
-   * any depth. A changed object or array is a copy. Other values (numbers,
-   * class instances like `Uint8Array`) stay as they are.
-   */
-  redact = <T>(value: T): T => (this.isEmpty ? value : (this.walk(value) as T))
+  /** `items` with their secrets scrubbed, or `undefined` when none changed. */
+  const walkAll = (items: Array<unknown>) => {
+    let isChanged = false
+    const next = items.map((item) => {
+      const walked = walk(item)
+      if (walked !== item) isChanged = true
+      return walked
+    })
+    return isChanged ? next : undefined
+  }
 
-  private walk(value: unknown): unknown {
-    if (typeof value === 'string') return this.scrub(value)
+  /** `value` with its secrets scrubbed. A changed container is a copy. */
+  const walk = (value: unknown): unknown => {
+    if (typeof value === 'string') return scrub(value)
     if (typeof value !== 'object' || value === null) return value
-    if (Array.isArray(value)) {
-      let copy: Array<unknown> | undefined
-      for (let i = 0; i < value.length; i++) {
-        const item: unknown = value[i]
-        const next = this.walk(item)
-        if (next === item) continue
-        copy ??= value.slice()
-        copy[i] = next
-      }
-      return copy ?? value
+    if (Array.isArray(value)) return walkAll(value) ?? value
+    // Each entry is a fresh `[key, value]` array, so an entry that did not
+    // change comes back as it is.
+    if (value instanceof Map) {
+      const entries = walkAll([...value])
+      return entries ? new Map(entries as Array<[unknown, unknown]>) : value
     }
+    if (value instanceof Set) {
+      const items = walkAll([...value])
+      return items ? new Set(items) : value
+    }
+    // ponytail: other class instances (`Uint8Array`, `Date`, an app class)
+    // stay as they are, since a copy could break them. Walk them if a
+    // plugin keeps a secret in one.
     const proto: unknown = Object.getPrototypeOf(value)
     if (proto !== Object.prototype && proto !== null) return value
     const record = value as Record<string, unknown>
     let copy: Record<string, unknown> | undefined
     for (const key of Object.keys(record)) {
       const item = record[key]
-      const next = this.walk(item)
+      const next = walk(item)
       if (next === item) continue
       copy ??= Object.assign(Object.create(proto) as object, record)
       copy[key] = next
     }
     return copy ?? value
+  }
+
+  return {
+    /** No secret to scrub yet. Then `redact` and `scrub` do no work. */
+    get isEmpty(): boolean {
+      return forms.length === 0
+    },
+    add,
+    scrub,
+    /**
+     * `value` with each string in it scrubbed, in arrays, plain objects,
+     * `Map`s, and `Set`s at any depth. A changed container is a copy. Other
+     * values (numbers, class instances like `Uint8Array`) stay as they are.
+     */
+    redact: <T>(value: T): T =>
+      forms.length === 0 ? value : (walk(value) as T),
   }
 }
 

@@ -41,6 +41,9 @@ export interface ToolStep {
    * nothing is stored. Use a name that is the same on every run (for example
    * `charge:${orderId}`). The same name twice in one call throws. A step
    * does not start after the host lost the session log to another host.
+   * In a harness session, a value that holds a secret of the session (a key
+   * it read, a secret answer) throws too, on the first run and on a replay:
+   * the log never keeps a secret. Read the secret outside `step.do`.
    *
    * @example
    * ```ts
