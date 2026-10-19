@@ -76,6 +76,19 @@ This allows you to control how Claude manages context across multiple requests, 
   context_management?: BetaContextManagementConfig | null
 }
 
+export interface AnthropicFallbackOptions {
+  /**
+   * Server-side refusal fallback (beta, Claude API only). When a safety
+   * classifier declines the request, the API retries it on another model in
+   * the same call. `'default'` uses the model Anthropic recommends for the
+   * refusal category. A list names up to three models to try in order.
+   * The adapter adds the `server-side-fallback-2026-07-01` beta header.
+   */
+  // ponytail: hand-typed; SDK 0.97.1 predates `fallbacks`. Per-entry overrides
+  // (max_tokens, thinking, output_config, speed) can join when someone needs them.
+  fallbacks?: 'default' | Array<{ model: string }>
+}
+
 export interface AnthropicMCPOptions {
   /**
    * MCP servers to be utilized in this request
@@ -153,6 +166,7 @@ Required range: x >= 0
 export type ExternalTextProviderOptions = AnthropicCacheControlOptions &
   AnthropicContainerOptions &
   AnthropicContextManagementOptions &
+  AnthropicFallbackOptions &
   AnthropicMCPOptions &
   AnthropicServiceTierOptions &
   AnthropicStopSequencesOptions &
