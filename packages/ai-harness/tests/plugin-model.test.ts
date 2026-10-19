@@ -8,7 +8,7 @@ import {
   definePlugin,
   logIdOf,
 } from '../src'
-import { mockAdapter, text, untilAborted } from './helpers'
+import { gate, mockAdapter, text, untilAborted } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
 import type { HarnessPlugin, SessionEvent } from '../src'
 import type { Reply } from './helpers'
@@ -208,6 +208,61 @@ describe('ctx.model.chat', () => {
     expect(String(failure)).toContain(
       'ctx.model.chat of test/no-run needs a run',
     )
+    await host.close()
+  })
+
+  it('records the usage of a call that ends after its run, with no event after the run finished', async () => {
+    const late = gate()
+    const checker = mockAdapter(() =>
+      (async function* () {
+        await late.opened
+        yield* answerWithUsage('late')({})
+      })(),
+    )
+    let call: Promise<unknown> | undefined
+    let runId = ''
+    const plugin = definePlugin({
+      name: 'test/late',
+      setup: (ctx) => ({
+        commands: {
+          go: defineCommand({
+            description: 'Go',
+            // Next to the run, as the title plugin does: not awaited.
+            run: async (_input, { run }) => {
+              runId = run.runId
+              call = ctx.model.chat({
+                adapter: checker.adapter,
+                run,
+                options: { messages: [{ role: 'user', content: 'Later' }] },
+              })
+            },
+          }),
+        },
+      }),
+    })
+    const { host, session } = await open([plugin], [])
+    const seen: Array<SessionEvent> = []
+    const reader = new AbortController()
+    const reading = (async () => {
+      for await (const entry of session.events({ signal: reader.signal }))
+        seen.push(entry)
+    })()
+
+    await session.command({ name: 'go' })
+    late.open()
+    await call
+
+    await waitFor(() => expect(session.usage().total.calls).toBe(1))
+    const ofRun = seen.filter((entry) => entry.operationId === runId)
+    const finished = ofRun.findIndex(
+      (entry) =>
+        entry.event.type === EventType.CUSTOM &&
+        entry.event.name === 'harness.operation.finished',
+    )
+    expect(finished).toBeGreaterThan(-1)
+    expect(ofRun.slice(finished + 1)).toEqual([])
+    reader.abort()
+    await reading.catch(() => {})
     await host.close()
   })
 })

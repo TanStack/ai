@@ -122,14 +122,14 @@ export function addUsage(totals: SessionUsage, call: UsageCall) {
     addCounts(countsOf(totals.bySender, call.principal.id), call.usage)
   }
   if (call.source !== undefined) {
-    // Totals that a log kept before `bySource` existed have no map yet.
-    totals.bySource ??= {}
     addCounts(countsOf(totals.bySource, call.source), call.usage)
   }
 }
 
-/** Is `value` usage totals that the harness wrote? */
-export function isSessionUsage(value: unknown): value is SessionUsage {
+/** Is `value` usage totals that the harness wrote? Old totals have no `bySource`. */
+export function isSessionUsage(
+  value: unknown,
+): value is Omit<SessionUsage, 'bySource'> & Partial<SessionUsage> {
   return (
     typeof value === 'object' &&
     value !== null &&

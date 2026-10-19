@@ -1062,6 +1062,31 @@ describe('snapshots', () => {
     expect([...state.thread.config]).toEqual([['level', 'high']])
   })
 
+  it('gives usage totals from a snapshot before bySource an empty bySource', async () => {
+    const snapshot = snapshotOf({})
+    const total = {
+      calls: 1,
+      promptTokens: 7,
+      completionTokens: 3,
+      totalTokens: 10,
+      cachedTokens: 0,
+      cacheWriteTokens: 0,
+    }
+    const [first] = (snapshot.state as { sessions: Array<[string, any]> })
+      .sessions
+    first![1].usage = { total, byModel: { 'mock/m': total }, bySender: {} }
+    const store = await seededStore(snapshot)
+
+    const state = await loadSession({ store, project })
+
+    expect(state.usage).toEqual({
+      total,
+      byModel: { 'mock/m': total },
+      bySender: {},
+      bySource: {},
+    })
+  })
+
   it('folds the workspace binding and the backend ids of jobs, from records and from a snapshot', async () => {
     const binding = {
       kind: 'sandbox',

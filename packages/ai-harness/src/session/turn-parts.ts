@@ -641,6 +641,8 @@ export abstract class SessionTurnParts<
    */
   protected async modelChat(call: PluginModelCall): Promise<unknown> {
     const { run, options } = call
+    // The setting names a key of `harness.models`: a setting is checked
+    // when it is set, and a stored one that the harness lost is dropped.
     const named = this.threadSettings.model
     const model =
       call.adapter ??
@@ -700,12 +702,12 @@ export abstract class SessionTurnParts<
 
   /**
    * Count one model call of `ctx.model.chat` for the run `runId`, then
-   * check the budgets. A run that this session no longer keeps gets the
-   * record only.
+   * check the budgets. A run that settled, or that this session no longer
+   * keeps, gets the record only: a run sends no event after RUN_FINISHED.
    */
   private async countModelCall(runId: string, call: UsageCall) {
     const operation = this.operations.get(runId)
-    if (operation) {
+    if (operation && !operation.isSettled()) {
       await this.countUsage(operation, call)
       this.checkBudget(operation)
       return

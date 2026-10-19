@@ -1029,8 +1029,11 @@ function parseSession(value: unknown, seq: number) {
         : [],
     ),
     steps: new Map(steps as Array<[string, unknown]>),
-    // A state with no usage totals gets an empty value.
-    usage: isSessionUsage(value.usage) ? value.usage : emptyUsage(),
+    // A state with no usage totals gets an empty value, and totals from
+    // before `bySource` get an empty map.
+    usage: isSessionUsage(value.usage)
+      ? { bySource: {}, ...value.usage }
+      : emptyUsage(),
     // A state with no run sums gets an empty value.
     runUsage: new Map(
       Array.isArray(value.runUsage)

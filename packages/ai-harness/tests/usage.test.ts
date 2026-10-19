@@ -366,15 +366,6 @@ describe('usage totals by source', () => {
       }),
     })
   })
-
-  it('adds bySource to totals that a log kept before it existed', () => {
-    const { bySource: _bySource, ...old } = emptyUsage()
-    const totals = old as ReturnType<typeof emptyUsage>
-
-    addUsage(totals, { model: 'm', source: 'plugin:p', usage: counts(1) })
-
-    expect(totals.bySource['plugin:p']?.totalTokens).toBe(1)
-  })
 })
 
 describe('usage totals of an odd key', () => {
