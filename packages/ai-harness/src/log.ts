@@ -653,9 +653,11 @@ export function foldEntry(
       return
     case 'harness.input.settled': {
       // An agent run keeps its calls under `agent:<inputId>` (agentKey). A
-      // settled run never resumes. ponytail: agent runs `x` and `x:y` share
-      // this prefix, so the settle of `x` also drops what `x:y` stored.
-      // Generated input ids have no colon.
+      // settled run never resumes. The child ids of a run are
+      // `<inputId>/...` (see `agentStarter`), so this prefix matches none of
+      // them: a child that outlives its parent keeps its calls. ponytail: an
+      // app input id `x:y` shares the prefix of `x`, so the settle of `x`
+      // also drops what `x:y` stored. Generated input ids have no colon.
       const key = `agent:${record.inputId}`
       forgetCalls(
         state,

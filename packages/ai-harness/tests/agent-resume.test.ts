@@ -4,6 +4,7 @@ import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, logIdOf } from '../src'
 import {
+  gate,
   messageTexts,
   mockAdapter,
   text,
@@ -188,5 +189,121 @@ describe('a background agent with resume: true', () => {
     })
     expect(run.agentModel.calls).toHaveLength(0)
     await run.hostB.close()
+  })
+})
+
+describe('the children of a run with resume: true', () => {
+  it('gives a keyed child and an unkeyed child their own ids, so each agent runs', async () => {
+    const a = defineAgent({
+      name: 'a',
+      description: 'A',
+      run: async () => 'from a',
+    })
+    const b = defineAgent({
+      name: 'b',
+      description: 'B',
+      run: async () => 'from b',
+    })
+    const lead = defineAgent({
+      name: 'lead',
+      description: 'Runs a with the key 1, then b with no key',
+      run: async (ctx) => [
+        await ctx.harness.agents.run(a, undefined, { key: '1' }),
+        await ctx.harness.agents.run(b),
+      ],
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/agent-resume',
+        adapter: mockAdapter([]).adapter,
+        agents: [lead, a, b],
+      }),
+      { threadId: THREAD },
+    )
+
+    await expect(
+      session.agents.lead.start(undefined, { resume: true, attach: 'none' }),
+    ).resolves.toEqual(['from a', 'from b'])
+    await host.close()
+  })
+
+  it('keeps the steps of a background child that outlives its parent, after a restart', async () => {
+    const log = memoryLogStore()
+    const { metadata } = memoryPersistence().stores
+    const persistence = { stores: { log, metadata } }
+    const effects: Array<string> = []
+    const reserved = gate()
+    const child = (adapter: AnyTextAdapter) =>
+      defineAgent({
+        name: 'child',
+        description: 'Reserves an id, then works',
+        run: async (ctx) => {
+          await ctx.harness.step.do('reserve', () => {
+            effects.push('reserve')
+            return 'R-1'
+          })
+          reserved.open()
+          return ctx.chat({ adapter })
+        },
+      })
+    const lead = defineAgent({
+      name: 'lead',
+      description:
+        'Starts the child in the background, and ends after its step',
+      run: async (ctx) => {
+        void ctx.harness.agents
+          .start('child', undefined, { resume: true, attach: 'none' })
+          .then(undefined, () => undefined)
+        await reserved.opened
+        return 'started'
+      },
+    })
+    const harness = (adapter: AnyTextAdapter) =>
+      defineHarness({
+        name: 'test/agent-resume',
+        adapter: mockAdapter([]).adapter,
+        agents: [lead, child(adapter)],
+      })
+
+    const first = mockAdapter([untilAborted()])
+    const hostA = createHarnessHost({ persistence })
+    const sessionA = await hostA.open(harness(first.adapter), {
+      threadId: THREAD,
+    })
+    await expect(
+      sessionA.agents.lead.start(undefined, { resume: true, attach: 'none' }),
+    ).resolves.toBe('started')
+    await waitFor(() => expect(first.calls).toHaveLength(1))
+    expect(effects).toEqual(['reserve'])
+
+    // Host A stops while the child runs, after its parent settled.
+    const refuse = vi
+      .spyOn(log, 'append')
+      .mockRejectedValue(new Error('the host is gone'))
+    await expect(
+      sessionA.append({ records: [{ type: 'app.ping' }] }),
+    ).rejects.toThrow()
+    refuse.mockRestore()
+    const record = (await log.read({ logId: LOG }))
+      .map((entry) => entry.record)
+      .find(
+        (entry) =>
+          entry.type === 'harness.input' &&
+          (entry.input as { agent?: string }).agent === 'child',
+      )
+
+    const hostB = createHarnessHost({ persistence })
+    const sessionB = await hostB.open(
+      harness(mockAdapter([() => text('Worked.')]).adapter),
+      { threadId: THREAD },
+    )
+    expect(
+      await sessionB.settled({ inputId: String(record?.inputId) }),
+    ).toMatchObject({ outcome: 'completed' })
+    // The step of the child did not run again.
+    expect(effects).toEqual(['reserve'])
+    await hostA.close()
+    await hostB.close()
   })
 })

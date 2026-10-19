@@ -924,12 +924,15 @@ export abstract class SessionAgents<
    * child records the run that started it, and runs for that run's sender.
    *
    * In a resumable run, `runInputId` is the input the run applies. Each
-   * child then gets an input id from it: `${runInputId}:start:${key ?? n}`
-   * for the n-th `start` or `run`, and `${runInputId}:${groupKey}:${index}`
-   * in a group (`groupKey`: its `key`, else `group-${n}` for the n-th
-   * group). A run again (after its host stopped) gets a new operation id,
-   * but the same input, so its children get the same ids. A child that the
-   * log knows then binds to the old run, and does not start again.
+   * child then gets an input id from it: `${runInputId}/start:k:${key}` for
+   * a `start` or `run` with a `key`, `${runInputId}/start:n:${n}` for the
+   * n-th one without, and `${runInputId}/group:k:${key}:${index}` or
+   * `${runInputId}/group:n:${n}:${index}` in a group. Keyed and positional
+   * ids never collide. The `/` keeps the settle of this run from dropping
+   * what a child that outlives it stored under `agent:${runInputId}:`. A
+   * run again (after its host stopped) gets a new operation id, but the
+   * same input, so its children get the same ids. A child that the log
+   * knows then binds to the old run, and does not start again.
    */
   protected agentStarter(chain: AgentChain, runInputId?: string): AgentActions {
     const keyed = chain.options.resume ? runInputId : undefined
@@ -941,27 +944,29 @@ export abstract class SessionAgents<
       }
       return this.startChild(chain, target, input, options)
     }
-    let starts = 0
+    /** The id part of a child: its key, else its place among the unkeyed. */
+    const counts = { start: 0, group: 0 }
+    const idOf = (kind: 'start' | 'group', key: string | undefined) =>
+      key === undefined
+        ? `${keyed}/${kind}:n:${counts[kind]++}`
+        : `${keyed}/${kind}:k:${encodeURIComponent(key)}`
     const actions = this.agentActions((target, input, options) => {
       if (keyed === undefined) return startChild(target, input, options)
-      const n = starts++
-      const inputId = `${keyed}:start:${options.key ?? n}`
+      const inputId = idOf('start', options.key)
       return startChild(target, input, { ...options, inputId })
     })
     if (keyed === undefined) return actions
-    let groups = 0
     const group = (
       options: AgentGroupOptions,
       body: (g: AgentGroup) => GroupRuns | Promise<GroupRuns>,
     ) => {
-      const groupKey = options.key ?? `group-${groups}`
-      groups += 1
+      const groupId = idOf('group', options.key)
       let index = 0
       return this.agentGroup(options, body, (target, input, childOptions) =>
         startChild(target, input, {
           wake: false,
           ...childOptions,
-          inputId: `${keyed}:${groupKey}:${index++}`,
+          inputId: `${groupId}:${index++}`,
         }),
       )
     }
@@ -1011,23 +1016,35 @@ export abstract class SessionAgents<
    * of `chain` started it: its chain on this host (a run again after a
    * retry, or a child that this host runs again), else a run that ends as
    * the log says. `undefined` when the log does not know the input. A known
-   * child takes no call of the tree budget: the log counts it already.
+   * child takes no call of the tree budget: the log counts it already. It
+   * throws when the known child is another agent than `name`.
    */
   protected knownChild(
     chain: AgentChain,
     name: string,
     inputId: string,
   ): AgentRunImpl | undefined {
+    // Another agent under the same id: the order or the keys of the starts
+    // changed between two runs.
+    const refuse = (agent: string | undefined) => {
+      if (agent === undefined || agent === name) return
+      throw new Error(
+        `The child ${inputId} of this run is the agent ${agent}, not ${name}. Give the starts a key that does not change.`,
+      )
+    }
     const live = this.agentChains.get(inputId)
     if (live) {
+      refuse(live.agent)
       chain.children.add(live)
       return live.runs[0]?.operation
     }
     const { inputs, thread } = this.writer.state
-    const isLogged =
-      inputs.has(inputId) ||
-      [...thread.tree.values()].some((node) => node.inputId === inputId)
-    if (!isLogged) return undefined
+    const logged = inputs.get(inputId)
+    const node = [...thread.tree.values()].find(
+      (item) => item.inputId === inputId,
+    )
+    if (!logged && !node) return undefined
+    refuse(isAgentInput(logged) ? logged.input.agent : node?.agent)
     const operation = this.agentOperation(name)
     this.followLoggedRun(operation, inputId)
     return operation

@@ -183,7 +183,9 @@ The agent code runs again from its start, so it calls `start`, `run`, and `group
 
 - A child that started before the host stopped is the same child. Its run gives the result that the log stored, or it goes on if it did not end.
 - Only the children that did not start yet start now.
-- The harness finds each child by its place in the run: the order of the `start` and `run` calls, the order of the `group` calls, and the order of the children in each group.
+- The harness finds each child by its `key`. A call with no `key` is found by its place among the calls with no `key`: the order of the `start` and `run` calls, the order of the `group` calls, and the order of the children in each group.
+- When the log has another agent at that place or key, the start throws.
+- A background child that outlives its parent keeps its steps and finished tool calls.
 
 If the order of the `start`, `run`, or `group` calls can change between runs, give each call a `key`. The children in one group always keep their order:
 
