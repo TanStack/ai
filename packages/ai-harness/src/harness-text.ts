@@ -1,5 +1,5 @@
 import { EventType, fromSpecTokenUsage, uiMessagesToWire } from '@tanstack/ai'
-import { createHarnessHost, throughOuterThread } from './host'
+import { createHarnessHost, innerThreadOf, throughOuterThread } from './host'
 import { acceptedKinds } from './session/index'
 import type {
   AnyTextAdapter,
@@ -492,20 +492,26 @@ export function harnessText(
         host ??= createHarnessHost()
         const runId = chatOptions.runId ?? `harness-${Date.now().toString(36)}`
         // Inside a harness turn, the inner thread belongs to the outer one.
+        // On a host with access, it is checked through the outer thread
+        // (see `throughOuterThread`).
         const outer = outerRunOf(chatOptions.capabilities)
+        const through = outer && host.hasAccess ? outer.threadId : undefined
         // No thread id: a new inner session per call, as codexText does.
-        const outerThread = outer?.threadId ?? chatOptions.threadId ?? runId
-        const threadId = `${outerThread}:${harness.name}`
+        const threadId =
+          through !== undefined
+            ? innerThreadOf(through, harness.name)
+            : `${outer?.threadId ?? chatOptions.threadId ?? runId}:${harness.name}`
         const signal = signalOf(chatOptions.request)
         // The call releases its handle at the end. The session then closes
         // on idle, unless the caller holds it too. Inside a harness turn it
-        // opens as the user of that turn, so each call has its own user, and
-        // it is checked through the outer thread (see `throughOuterThread`).
+        // opens as the user of that turn, so each call has its own user.
         const principal = outer?.principal ?? options.principal
         const openOptions = { threadId, ...(principal ? { principal } : {}) }
         const session = await host.open(
           harness,
-          outer ? throughOuterThread(openOptions, outer.threadId) : openOptions,
+          through !== undefined
+            ? throughOuterThread(openOptions, through)
+            : openOptions,
         )
         // The outer call's tools join the inner turn. Its system prompts do
         // not: the harness owns its prompt stack.

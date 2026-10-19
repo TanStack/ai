@@ -984,6 +984,19 @@ function checkSessionStore(store: SessionIndexStore | undefined) {
 const isHarnessChildThread = (threadId: string) => threadId.includes('/agent/')
 
 /**
+ * @internal The thread of the inner session of `harnessText` in the outer
+ * thread `outerThread`, on a host with access. Only an open marked with
+ * `throughOuterThread` for that outer thread opens it.
+ */
+export const innerThreadOf = (outerThread: string, harnessName: string) =>
+  `${outerThread}/inner/${harnessName}`
+
+const isInnerThread = (threadId: string) => threadId.includes('/inner/')
+
+/** The index `metadata` key that links an inner thread to its outer thread. */
+const OUTER_THREAD = 'harness:outerThread'
+
+/**
  * The key of an open session in the host: the harness, the tenant, and the
  * thread. One thread id in two tenants is two sessions.
  */
@@ -1314,10 +1327,13 @@ function checkDurableStores(persistence: HarnessPersistence) {
 const accessThreads = new WeakMap<object, string>()
 
 /**
- * @internal Mark `openOptions` for the inner session of `harnessText`: on a
- * host with access that has an entry for `outerThread`, `host.open` with
- * these options checks the session through that thread, as a child thread
- * is checked through its root. So every user of the outer thread can use it.
+ * @internal Mark `openOptions` for the inner session of `harnessText`, with
+ * the thread id from `innerThreadOf(outerThread, ...)`. On a host with access
+ * that has an entry for `outerThread`, `host.open` with these options checks
+ * the session through that thread, as a child thread is checked through its
+ * root, so every user of the outer thread can use it. The first open links
+ * the inner entry to `outerThread`. An inner entry with another link gets
+ * the usual checks.
  */
 export function throughOuterThread(
   openOptions: OpenSessionOptions,
@@ -2507,19 +2523,45 @@ export function createHarnessHost<P extends Principal = Principal>(
           `${JSON.stringify(openOptions.threadId)} is the thread of a harnessAgent child. Open its root thread and read the child through it.`,
         )
       }
+      // See `throughOuterThread`. An inner thread opens only through the
+      // outer thread that its id names.
+      const { threadId } = openOptions
+      const outerThread = accessThreads.get(openOptions)
+      const isOwnInner =
+        outerThread !== undefined &&
+        threadId.startsWith(`${outerThread}/inner/`)
+      if (isInnerThread(threadId) && !isOwnInner) {
+        throw new Error(
+          `${JSON.stringify(threadId)} is the thread of a harnessText inner session. Open its outer thread, and use the harness there.`,
+        )
+      }
       const tenantId = openOptions.principal?.tenantId
-      const key = sessionKey(harness.name, tenantId, openOptions.threadId)
+      const key = sessionKey(harness.name, tenantId, threadId)
       // Before the open, so the session never closes on idle under it.
       hold(key)
       try {
-        // See `throughOuterThread`. Only a thread with an entry checks.
-        const outerThread = accessThreads.get(openOptions)
-        const outer =
-          access && outerThread !== undefined
-            ? await index.get({ tenantId, threadId: outerThread })
-            : undefined
-        const accessThread = outer ? outerThread : undefined
+        const [outer, inner] =
+          access && isOwnInner
+            ? await Promise.all([
+                index.get({ tenantId, threadId: outerThread }),
+                index.get({ tenantId, threadId }),
+              ])
+            : []
+        // A new inner thread, or one linked to this outer thread.
+        const isLinked =
+          inner === undefined || inner.metadata?.[OUTER_THREAD] === outerThread
+        const accessThread = outer && isLinked ? outerThread : undefined
         const session = await openChecked(harness, openOptions, accessThread)
+        if (accessThread !== undefined && inner === undefined) {
+          await index.update({ tenantId, threadId }, (entry) =>
+            entry && entry.metadata?.[OUTER_THREAD] === undefined
+              ? {
+                  ...entry,
+                  metadata: { ...entry.metadata, [OUTER_THREAD]: accessThread },
+                }
+              : undefined,
+          )
+        }
         return handleOf({ harness, session, openOptions, key, accessThread })
       } catch (error) {
         await release(key)

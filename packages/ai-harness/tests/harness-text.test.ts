@@ -6,9 +6,11 @@ import {
   createHarnessHost,
   defineHarness,
   definePlugin,
+  AccessDeniedError,
   harnessText,
   membersOnly,
 } from '../src'
+import { innerThreadOf, throughOuterThread } from '../src/host'
 import {
   messageTexts,
   mockAdapter,
@@ -376,7 +378,7 @@ describe('harnessText', () => {
     await innerHost.close()
   })
 
-  it('lets every member of a shared outer thread use the inner session', async () => {
+  it('lets every member of a shared outer thread use the inner session, and no one else', async () => {
     const inner = mockAdapter([() => text('one'), () => text('two')])
     const studio = defineHarness({ name: 'test/inner', adapter: inner.adapter })
     const host = createHarnessHost({
@@ -390,21 +392,71 @@ describe('harnessText', () => {
     })
     const ada = { id: 'ada' }
     const bob = { id: 'bob' }
-    const asAda = await host.open(lead, { threadId: 'outer', principal: ada })
+    const cid = { id: 'cid' }
+    const asAda = await host.open(lead, { threadId: 'a', principal: ada })
     await asAda.send('hello')
     await host.sessions.share({
-      threadId: 'outer',
+      threadId: 'a',
       userId: 'bob',
       role: 'member',
       principal: ada,
     })
-    const asBob = await host.open(lead, { threadId: 'outer', principal: bob })
+    await host.open(lead, { threadId: 'c', principal: cid })
+    const asBob = await host.open(lead, { threadId: 'a', principal: bob })
 
     await expect(asBob.send('again')).resolves.toMatchObject({ text: 'two' })
-    // The inner thread is still Ada's: Bob gets in only through the outer one.
-    await expect(
-      host.open(studio, { threadId: 'outer:test/inner', principal: bob }),
-    ).rejects.toThrow(/access/i)
+    const innerOfA = innerThreadOf('a', studio.name)
+    const openInner = (outerThread?: string) => {
+      const openOptions = { threadId: innerOfA, principal: cid }
+      return host.open(
+        studio,
+        outerThread
+          ? throughOuterThread(openOptions, outerThread)
+          : openOptions,
+      )
+    }
+    // Cid reads his own thread `c`, not `a`: no path opens the inner thread of `a`.
+    await expect(openInner()).rejects.toThrow(/harnessText inner session/)
+    await expect(openInner('c')).rejects.toThrow(/harnessText inner session/)
+    await expect(openInner('a')).rejects.toBeInstanceOf(AccessDeniedError)
+    await host.close()
+  })
+
+  it('checks an inner thread linked to another outer thread on its own members', async () => {
+    const inner = mockAdapter([() => text('one'), () => text('two')])
+    const studio = defineHarness({ name: 'test/inner', adapter: inner.adapter })
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      access: { identify: () => null, authorize: membersOnly() },
+    })
+    const lead = defineHarness({
+      name: 'test/lead',
+      adapter: harnessText(studio, { host }),
+    })
+    const ada = { id: 'ada' }
+    const bob = { id: 'bob' }
+    const asAda = await host.open(lead, { threadId: 'a', principal: ada })
+    await asAda.send('hello')
+    await host.sessions.share({
+      threadId: 'a',
+      userId: 'bob',
+      role: 'member',
+      principal: ada,
+    })
+    // The link of the inner entry names another outer thread now.
+    await host.sessions.update({
+      harness: studio,
+      threadId: innerThreadOf('a', studio.name),
+      principal: ada,
+      update: (entry) => ({
+        metadata: { ...entry.metadata, 'harness:outerThread': 'other' },
+      }),
+    })
+    const asBob = await host.open(lead, { threadId: 'a', principal: bob })
+
+    await expect(asBob.send('again')).rejects.toThrow(
+      'Access denied: read on thread "a/inner/test/inner".',
+    )
     await host.close()
   })
 
