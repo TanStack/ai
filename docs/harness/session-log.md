@@ -44,18 +44,27 @@ await session.append({ records: [{ type: 'app.signal', text: 'The build failed.'
 
 ### Keep records after a truncate
 
-With [`logRecords: 'since-snapshot'`](./lifecycle#drop-the-records-before-a-snapshot), the store drops the records before each snapshot. A plugin can make the snapshot keep the last records of its own types with `keepRecords`:
+With [`logRecords: 'since-snapshot'`](./lifecycle#drop-the-records-before-a-snapshot), the store drops the records before each snapshot. A plugin can make the snapshot keep the last records of its own types with `keepRecords`, and read them back with `ctx.session.keptRecords(type)`:
 
 ```ts group=harness-session-log
-import { definePlugin } from '@tanstack/ai-harness'
+import { defineCommand, definePlugin } from '@tanstack/ai-harness'
 
 export const steps = definePlugin({
   name: 'acme/steps',
   keepRecords: { 'acme/steps:step': 100 },
+  setup: (ctx) => ({
+    commands: {
+      steps: defineCommand({
+        description: 'Count the kept steps',
+        run: async () => (await ctx.session.keptRecords('acme/steps:step')).length,
+      }),
+    },
+  }),
 })
 ```
 
 - The snapshot keeps the last 100 `acme/steps:step` records of each thread.
+- `keptRecords` gives the kept records of that type of this thread, oldest first. It works before and after a truncate.
 - [`snapshots()`](./snapshots#go-back-to-an-earlier-message) keeps its last 500 file steps this way, so `session.revert()` works after a truncate.
 - The plugins of the harness of the root thread decide, because that harness folds the log. A type in two plugins keeps the larger count.
 

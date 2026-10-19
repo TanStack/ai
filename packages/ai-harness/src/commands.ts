@@ -1,5 +1,5 @@
 import type { InferSchemaType, ModelMessage, SchemaInput } from '@tanstack/ai'
-import type { SessionIndexEntry } from '@tanstack/ai-persistence'
+import type { LogRecord, SessionIndexEntry } from '@tanstack/ai-persistence'
 import type { CredentialsAccess } from './auth'
 import type { ToolStep } from './durable-tool'
 import type { SessionSnapshot } from './session/index'
@@ -92,6 +92,17 @@ export interface PluginSessionApi<TMetadata = Record<string, unknown>> {
   ) => Promise<void>
   /** The saved transcript. */
   transcript: () => Promise<Array<ModelMessage>>
+  /**
+   * The kept records of `type` of this thread, oldest first: the last ones
+   * that the `keepRecords` of the plugins name. The log snapshot keeps
+   * them, so they stay after the store drops old records.
+   *
+   * @example
+   * ```ts
+   * const steps = await ctx.session.keptRecords('acme/steps:step')
+   * ```
+   */
+  keptRecords: (type: string) => Promise<Array<LogRecord>>
   /** Replace the saved transcript (for example after a summary). */
   replaceTranscript: (messages: Array<ModelMessage>) => Promise<void>
   /**

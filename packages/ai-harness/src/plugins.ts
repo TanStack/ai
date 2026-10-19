@@ -722,6 +722,7 @@ const NO_SESSION: PluginSessionApi = {
   send: unavailable('ctx.session'),
   note: unavailable('ctx.session'),
   transcript: unavailable('ctx.session'),
+  keptRecords: unavailable('ctx.session'),
   replaceTranscript: unavailable('ctx.session'),
   entry: unavailable('ctx.session'),
   updateEntry: unavailable('ctx.session'),

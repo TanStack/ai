@@ -17,6 +17,7 @@ import type {
   AnyHarness,
   HarnessHost,
   HarnessHostOptions,
+  PluginSessionApi,
   SessionEvent,
 } from '../src'
 
@@ -144,6 +145,53 @@ describe('log snapshots on a host', () => {
       ]),
     )
     view.dispose()
+    await host.close()
+  })
+
+  it('gives a plugin its kept records after a truncate, oldest first', async () => {
+    const persistence = memoryPersistence()
+    const records = [
+      { type: 'acme/steps:step', n: 1 },
+      { type: 'acme/other', n: 2 },
+      { type: 'acme/steps:step', n: 3 },
+    ]
+    await persistence.stores.log.append({
+      logId: LOG,
+      seq: 1,
+      epoch: UNOWNED_EPOCH,
+      records,
+    })
+    let session: PluginSessionApi | undefined
+    const steps = definePlugin({
+      name: 'acme/steps',
+      keepRecords: { 'acme/steps:step': 10 },
+      setup: (ctx) => {
+        session = ctx.session
+      },
+    })
+    const withSteps = defineHarness({
+      name: 'test/snapshots',
+      adapter: mockAdapter(() => text('Hello back.')).adapter,
+      plugins: () => [steps],
+    })
+    const options: HarnessHostOptions = {
+      persistence,
+      log: { snapshot: { afterBytes: 1 } },
+      lifecycle: { retention: { logRecords: 'since-snapshot' } },
+    }
+    await seed(options, withSteps)
+    await expect(
+      persistence.stores.log.read({ logId: LOG, after: 0 }),
+    ).rejects.toThrow()
+
+    const host = createHarnessHost(options)
+    const handle = await host.open(withSteps, { threadId: THREAD })
+
+    expect(await session?.keptRecords('acme/steps:step')).toEqual([
+      records[0],
+      records[2],
+    ])
+    await handle.close()
     await host.close()
   })
 

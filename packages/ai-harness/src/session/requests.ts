@@ -1052,6 +1052,7 @@ export abstract class SessionRequests<
         }
       },
       transcript: () => this.transcript(),
+      keptRecords: async (type) => this.keptRecords(type),
       replaceTranscript: (messages) =>
         this.messages.saveThread(this.threadId, messages),
       entry: () => this.index.get(this.indexKey),

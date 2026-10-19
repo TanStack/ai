@@ -3,18 +3,14 @@ import {
   convertSchemaToJsonSchema,
   validateWithStandardSchema,
 } from '@tanstack/ai'
-import {
-  LogTruncatedError,
-  UNOWNED_EPOCH,
-  loadChildTranscript,
-} from '@tanstack/ai-persistence'
+import { UNOWNED_EPOCH, loadChildTranscript } from '@tanstack/ai-persistence'
 import { checkConfigValue } from '../config'
 import { transcriptText } from '../first-party/session-tools'
 import { LogOwnedElsewhereError } from '../ownership'
 import { isRecord } from '../utils'
 import { jsonSchemaIssues } from '../json-schema'
 import { changedEntry } from '../session-entry'
-import { stableJson, threadOf, visibleMessages } from '../log'
+import { stableJson, visibleMessages } from '../log'
 import { isHumanTarget } from '../log-records'
 import { mediaIdOf, mediaOfMessage, mediaPart } from '../media-ref'
 import {
@@ -865,7 +861,7 @@ export abstract class SessionState<
       const handler = this.sessionPlugins?.values.get(RevertFiles)
       const files = await handler?.revert(
         messages.slice(at + 1),
-        (type) => this.hostRecords(type),
+        async (type) => this.keptRecords(type),
         this.revertRun(principal ?? this.principal),
       )
       await this.saveRevert(
@@ -971,41 +967,14 @@ export abstract class SessionState<
   }
 
   /**
-   * The host records of `type` of this thread, from the log, oldest first.
-   * When a truncate dropped the first records, the fold has the kept ones
-   * of them (see `keptRecords`), and the read goes on after the cut.
+   * The kept host records of `type` of this thread, oldest first: the last
+   * ones that the `keepRecords` of the plugins name. The log snapshot keeps
+   * them, so they stay after a truncate of the log.
    */
-  protected async hostRecords(type: string) {
-    const found: Array<Record<string, unknown>> = []
-    let after = 0
-    for (;;) {
-      let entries
-      try {
-        entries = await this.log.store.read({
-          logId: this.storeLogId,
-          after,
-          limit: 256,
-        })
-      } catch (error) {
-        const resumeAt =
-          error instanceof LogTruncatedError ? error.firstSeq - 1 : after
-        if (resumeAt <= after) throw error
-        for (const { seq, record } of this.writer.state.keptRecords) {
-          const isDropped = seq > after && seq <= resumeAt
-          if (isDropped && record.type === type) found.push(record)
-        }
-        after = resumeAt
-        continue
-      }
-      for (const { seq, record } of entries) {
-        after = seq
-        const isOwn = threadOf(record, this.threadId) === this.threadId
-        if (isOwn && record.type === type) found.push(record)
-      }
-      // A store can return fewer than `limit` before the end: stop only at
-      // an empty page.
-      if (entries.length === 0) return found
-    }
+  protected keptRecords(type: string): Array<LogRecord> {
+    return this.writer.state.keptRecords.flatMap(({ record }) =>
+      record.type === type ? [record] : [],
+    )
   }
 
   /** The commands, settings, and tools of this session, for a UI. */
