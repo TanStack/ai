@@ -1414,7 +1414,7 @@ describe('session view reload', () => {
     await waitFor(() => expect(view.store.get().usage?.total.calls).toBe(2))
   })
 
-  it('adds the next usage call from its event, with no new snapshot read', async () => {
+  it('adds the next usage call from its event, with its source, and no new snapshot read', async () => {
     const counts = (calls: number) => ({
       ...emptyUsage().total,
       calls,
@@ -1429,6 +1429,7 @@ describe('session view reload', () => {
       custom(HARNESS_EVENTS.usage, {
         model: 'fast',
         sender: 'ada',
+        source: 'plugin:tanstack/title',
         usage: call,
         total: counts(calls),
       })
@@ -1442,6 +1443,7 @@ describe('session view reload', () => {
       total: { calls: 2, totalTokens: 20 },
       byModel: { fast: { calls: 1, totalTokens: 10 } },
       bySender: { ada: { calls: 1 } },
+      bySource: { 'plugin:tanstack/title': { calls: 1 } },
     })
   })
 

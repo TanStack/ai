@@ -555,6 +555,9 @@ function withUsage(
     ...(typeof value.sender === 'string'
       ? { principal: { id: value.sender } }
       : {}),
+    // A plugin, router, or transfer call names its source; keep it so
+    // `bySource` stays correct.
+    ...(typeof value.source === 'string' ? { source: value.source } : {}),
     // The harness sends the counts of `UsageCall['usage']`.
     usage: value.usage as UsageCall['usage'],
   })
