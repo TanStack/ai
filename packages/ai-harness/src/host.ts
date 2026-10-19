@@ -836,6 +836,26 @@ export interface HarnessHost<P extends Principal = Principal> {
     principal: { id: string; tenantId?: string }
   }) => Promise<void>
   /**
+   * Unpin the thread `threadId` from the host that its folder binding pins
+   * it to, for example a host that does not come back. Then any host can
+   * take the thread. Its `workspace.reattach` gets the folder binding of the
+   * old host: give a new workspace to move the thread there, or `'pinned'`
+   * to pin it again. The ownership of the old host must have expired:
+   * while it is live, this rejects. A thread with no pin does nothing. With
+   * access, the user needs the `delete` action. The `tenantId` of
+   * `principal` picks the tenant.
+   *
+   * @example
+   * ```ts
+   * await host.unpin({ harness: coder, threadId: 't-1', principal })
+   * ```
+   */
+  unpin: (options: {
+    harness: AnyHarness
+    threadId: string
+    principal?: P
+  }) => Promise<void>
+  /**
    * The user of `request`, from `access.identify`, or `null` when
    * `identify` refuses it. Network code other than the HTTP handler (an MCP
    * server, your own route) uses it. Throws on a host with no `access`.
@@ -2840,6 +2860,32 @@ export function createHarnessHost<P extends Principal = Principal>(
         userId: principal.id,
         principal: undefined,
       })
+    },
+    async unpin({ harness, threadId, principal }) {
+      if (isClosed) throw hostClosed()
+      await checkEntry('host.unpin', 'delete', { threadId, principal })
+      const logId = logIdOf({ tenantId: principal?.tenantId, logId: threadId })
+      const state = await loadLogState({
+        store: logStore,
+        logId,
+        rootThread: threadId,
+      })
+      // The pin is the host of a folder binding of a thread of the log.
+      const pins = new Set(
+        [...state.sessions.values()].flatMap(({ thread }) =>
+          thread.workspace?.kind === 'host' && thread.workspace.hostId
+            ? [thread.workspace.hostId]
+            : [],
+        ),
+      )
+      for (const pin of pins) {
+        if (await ownership.unpin(logId, harness.name, pin)) return
+      }
+      if (pins.size > 0) {
+        throw new Error(
+          `The host of the thread ${threadId} still owns it, so it stays pinned. Try again when its ownership expired.`,
+        )
+      }
     },
     hasAccess: access !== undefined,
     async identify({ request }) {

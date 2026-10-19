@@ -196,9 +196,14 @@ export function createLock() {
 }
 
 /**
- * The file locks of this process, by the bound workspace root and the real
- * path of the file. Every session and agent on one workspace shares them, so
- * two edits of one file run one after the other.
+ * The file locks of this process, by the place of the backend (a sandbox, or
+ * this host) and the real path of the file. Every session and agent on one
+ * file shares them, also through another root or a link, so two edits of
+ * one file run one after the other. Two sandboxes with the same root do not.
+ *
+ * ponytail: a backend with no `binding` counts as this host. Two such
+ * backends of other machines with the same paths share locks: they wait
+ * when they need not, but no edit is lost.
  *
  * ponytail: a lock is for this process only. Two processes or machines on
  * one shared sandbox do not wait for each other. The unchanged check of the
@@ -242,16 +247,23 @@ export const ThreadWorkspace = createCapability<ThreadWorkspaces>()(
   'tanstack/thread-workspace',
 )
 
-/** The run of the workspace tool call that runs now. */
-const callRuns = new AsyncLocalStorage<RunContext | undefined>()
+/**
+ * The workspace tool call that runs now: its run, and its chat run (the
+ * abort signal of the call, one for each `chat()`). A tool-mode subagent
+ * shares the run of its turn, but has its own chat run.
+ */
+const calls = new AsyncLocalStorage<{ run?: RunContext; chat?: object }>()
 
 /**
  * The run of the workspace tool call that runs now, or `undefined` outside
  * a call. A `WorkspaceHooks` hook reads it to know which run wrote a file.
  */
 export function writingRun() {
-  return callRuns.getStore()
+  return calls.getStore()?.run
 }
+
+/** The chat run of the workspace tool call that runs now. See `calls`. */
+const callingChat = () => calls.getStore()?.chat
 
 /**
  * The tools for one workspace: `backend`, with the boundary `root`, and what
@@ -342,6 +354,18 @@ function bindTools(
 
   /** `full` with every link resolved, as a path in `root` when it is in it. */
   const resolved = async (full: string) => forRules(await realPath(full))
+
+  /**
+   * The lock key of `path`, a path from `reach`: the place of the backend,
+   * and the real path (`forRules` the other way).
+   */
+  const lockKey = async (path: string) => {
+    const real = within(root, path, paths.sep)
+      ? paths.join(await realRoot(), paths.relative(root, path))
+      : path
+    const place = backend.binding?.()
+    return JSON.stringify([place?.provider, place?.sandboxId, real])
+  }
 
   const shown = (full: string) =>
     (within(root, full, paths.sep) ? paths.relative(root, full) || '.' : full)
@@ -473,11 +497,10 @@ function bindTools(
     backend,
     root,
     hooks: session.hooks ?? (() => []),
-    // `path` is the real path from `reach`. The key has the root, so the
-    // fixed lock order of `patch` (by path) is the same for every session on
-    // this root.
-    lock: (path, fn) =>
-      fileLocks(`${root}\0${path}`, async () => {
+    // `path` is the path from `reach`. The fixed lock order of `patch` (by
+    // path) is the order of the real paths too: one root is one prefix.
+    lock: async (path, fn) =>
+      fileLocks(await lockKey(path), async () => {
         // `reach` checked `path` before the lock. A link made since then
         // would move the work to another file, so check it again here.
         const now = await resolved(path)
@@ -502,9 +525,9 @@ function bindTools(
         }) !== 'allow'
     },
   }
-  // What this binding read and wrote, so a write fails when the file changed
-  // since then.
-  const versions = fileVersions(env)
+  // What each chat run of this binding read and wrote, so a write fails
+  // when the file changed since its own chat run saw it.
+  const versions = fileVersions(env, callingChat)
   // `read_file` reads under the lock. Its lock also remembers the file, as
   // the read sees it.
   const readEnv: ToolEnv = {
@@ -641,9 +664,19 @@ async function openWorkspace(
     if (binding.kind === 'host' && hostId) await log.pin(hostId)
   }
   // A host before this one started these jobs. Background jobs do not move
-  // with a session, so each one is stopped and reported.
+  // with a session, so each one is stopped and reported. A backend with no
+  // `killJob`, or one that cannot check the job (it throws), cannot tell:
+  // the job may still run, so the log keeps it.
   for (const { jobId, backendId } of log.lostJobs(threadId)) {
-    const isStopped = await (found.killJob?.(backendId) ?? false)
+    const isStopped = await (
+      found.killJob?.(backendId) ?? Promise.resolve(undefined)
+    ).catch(() => undefined)
+    if (isStopped === undefined) {
+      await session.note?.(
+        `Background job ${jobId} may still run: it ran on a host before this one, and this host cannot stop it.`,
+      )
+      continue
+    }
     await session.note?.(
       isStopped
         ? `Background job ${jobId} was stopped: it ran on a host before the session moved to this one.`
@@ -838,14 +871,16 @@ export function createWorkspaceTools(
     options.workspace === undefined
       ? fixedTools(options.root, options, session)
       : threadTools(options.workspace, options, session)
-  // Each call runs with its run in `callRuns`, for `writingRun`.
+  // Each call runs with its run and its chat run in `calls`.
   const tools = source.tools.map((tool): AnyTool => {
     const { execute } = tool
     if (!execute) return tool
     return {
       ...tool,
       execute: (args: unknown, context?: ToolExecutionContext) =>
-        callRuns.run(runOf(context), () => execute(args, context)),
+        calls.run({ run: runOf(context), chat: context?.abortSignal }, () =>
+          execute(args, context),
+        ),
     }
   })
   return {
@@ -960,12 +995,13 @@ function withEditStyle(
  * @example
  * ```ts
  * workspaceTools({ root: process.cwd(), outside: 'ask' })
- * // A folder for each thread:
+ * // A folder for each thread. `workspaceRoot` keeps a thread id from a
+ * // client in its own folder:
  * workspaceTools({
  *   workspace: {
  *     bind: async ({ run }) => ({
  *       ...hostBackend,
- *       root: `/srv/work/${run.threadId}`,
+ *       root: workspaceRoot('/srv/work', run.tenantId ?? 'default', run.threadId),
  *     }),
  *   },
  * })

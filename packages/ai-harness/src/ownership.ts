@@ -189,6 +189,41 @@ export class HostOwnership {
     return this.store.setAffinity({ logId, epoch, affinity: hostId })
   }
 
+  /**
+   * Unpin `logId` from the host `hostId`. The pin lets only that host
+   * acquire the log, so this host acquires it with that affinity, clears
+   * the pin, and gives the log up with a wake time of now: a sweep then
+   * takes the work that the old host left. `false` when a live host owns
+   * the log.
+   */
+  async unpin(logId: string, harness: string, hostId: string) {
+    const owned = this.owned.get(logId)
+    if (owned !== undefined) {
+      await this.pin(logId, owned, null)
+      return true
+    }
+    await this.releasing.get(logId)?.catch(() => {})
+    const got = await this.store.acquire({
+      logId,
+      harness,
+      ownerId: this.ownerId,
+      ttlMs: this.ttlMs,
+      affinity: hostId,
+    })
+    if (got === null) return false
+    try {
+      await this.pin(logId, got.epoch, null)
+    } finally {
+      await this.store.release({
+        logId,
+        ownerId: this.ownerId,
+        epoch: got.epoch,
+        wakeInMs: 0,
+      })
+    }
+    return true
+  }
+
   /** Stop owning `logId` with no store call: the store refused its epoch. */
   forget(logId: string) {
     this.owned.delete(logId)

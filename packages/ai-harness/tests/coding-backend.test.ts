@@ -7,6 +7,7 @@ import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import {
   WorkspaceHooks,
   hostBackend,
+  workspaceRoot,
   workspaceTools,
 } from '../src/first-party/coding'
 import { commandEnv } from '../src/first-party/coding/backend'
@@ -203,6 +204,21 @@ describe('hostBackend', () => {
       })
       expect(windows).not.toHaveProperty('SECRET_TOKEN')
     })
+  })
+})
+
+describe('workspaceRoot', () => {
+  it('keeps each thread id from a client in its own folder in base', () => {
+    expect(workspaceRoot('/srv/work', 'acme', '../other-tenant/t-1')).toBe(
+      '/srv/work/acme/..%2Fother-tenant%2Ft-1',
+    )
+    // A child thread id has `/agent/` in it.
+    expect(workspaceRoot('/srv/work', 'acme', 't-1/agent/c-2')).toBe(
+      '/srv/work/acme/t-1%2Fagent%2Fc-2',
+    )
+    expect(() => workspaceRoot('/srv/work', 'acme', '..')).toThrow(
+      'cannot name a workspace folder',
+    )
   })
 })
 

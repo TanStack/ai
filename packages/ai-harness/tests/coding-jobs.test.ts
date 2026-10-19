@@ -83,7 +83,10 @@ function workspace(backend: Partial<WorkspaceBackend> = {}) {
 }
 
 /** What a call of the tool gets from the run: its signal and `detach`. */
-type CallContext = Pick<ToolExecutionContext, 'abortSignal' | 'detach'>
+type CallContext = Pick<
+  ToolExecutionContext,
+  'abortSignal' | 'detach' | 'toolCallId' | 'threadId'
+>
 
 /** The `bash` tool of one plugin setup. */
 function bashTool(env: ToolEnv, options?: BashOptions) {
@@ -228,6 +231,49 @@ describe('bash in the foreground', () => {
     expect(execs[0]?.aborted).toBe(false)
     session.abort()
     expect(execs[0]?.aborted).toBe(true)
+  })
+
+  it('cannot move a command at the job limit', async () => {
+    const { env } = workspace()
+    const bash = bashTool(env, { maxJobs: 1 })
+    await startJobs(bash, 1)
+    const run = new AbortController()
+    const detach = vi.fn(async () => 'Moved to the background.')
+
+    const result = bash(
+      { command: 'npm test' },
+      { abortSignal: run.signal, detach },
+    )
+    run.abort()
+
+    expect(await result).toBe('exit code: 1\n')
+    expect(detach).not.toHaveBeenCalled()
+  })
+
+  it('gives the session the backend id of a moved command', async () => {
+    const { env } = workspace({
+      exec: (_command, options) => {
+        options?.onStart?.('pid-3')
+        return new Promise(() => {})
+      },
+    })
+    const started = vi.fn()
+    const bash = bashTool(env, { jobs: { started, ended: vi.fn() } })
+
+    await bash(
+      { command: 'npm run dev' },
+      {
+        toolCallId: 'call-1',
+        threadId: 't',
+        detach: async () => 'Moved to the background.',
+      },
+    )
+
+    expect(started).toHaveBeenCalledWith({
+      jobId: 'call-1',
+      backendId: 'pid-3',
+      threadId: 't',
+    })
   })
 
   it('counts a moved command as a job of the session', async () => {

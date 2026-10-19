@@ -315,6 +315,29 @@ describe('the workspace binding in the session log', () => {
     await again.host.close()
   })
 
+  it('unpins a folder thread from a host that does not come back', async () => {
+    const persistence = memoryPersistence()
+    const { log } = persistence.stores
+    const inFolder = { root: '/ws', backend: backend() }
+    expect(await readOnce(persistence, inFolder, 'c0', 'pod-a')).toBe(READ)
+    expect(await canOtherHostTake(log, LOG)).toBe(false)
+
+    const other = createHarnessHost({
+      persistence,
+      ownership: { hostId: 'pod-b' },
+    })
+    await other.unpin({
+      harness: defineHarness({
+        name: 'test/workspace-binding',
+        adapter: readTurn('b0').adapter,
+      }),
+      threadId: THREAD,
+    })
+
+    expect(await canOtherHostTake(log, LOG)).toBe(true)
+    await other.close()
+  })
+
   it('refuses a folder thread of another hostId with the pinned error', async () => {
     const persistence = memoryPersistence()
     const { log } = persistence.stores
@@ -358,8 +381,11 @@ describe('the workspace binding in the session log', () => {
     )
   })
 
-  it('stops a job that a crashed host left running, and notes it', async () => {
-    const persistence = memoryPersistence()
+  /**
+   * A host that starts the background job `job-7` on `persistence`, then
+   * stops with no close, and its ownership expires.
+   */
+  async function leaveRunningJob(persistence: HarnessPersistence) {
     const spawn = () => ({
       wait: () => new Promise<{ exitCode: number }>(() => {}),
       kill: () => {},
@@ -388,6 +414,11 @@ describe('the workspace binding in the session log', () => {
     ])
     // The first host never closes, like a process that stopped.
     await ownershipExpired()
+  }
+
+  it('stops a job that a crashed host left running, and notes it', async () => {
+    const persistence = memoryPersistence()
+    await leaveRunningJob(persistence)
     const killJob = vi.fn(async () => true)
     const { adapter } = readTurn('c1')
     const next = open({
@@ -413,6 +444,38 @@ describe('the workspace binding in the session log', () => {
     const notes = await recordsOf(persistence, 'harness.note')
     expect(notes.map((record) => record.note)).toEqual([
       'Background job bash-1 was stopped: it ran on a host before the session moved to this one.',
+    ])
+    await next.host.close()
+  })
+
+  it('keeps a job that the backend cannot check, and says that it may still run', async () => {
+    const persistence = memoryPersistence()
+    await leaveRunningJob(persistence)
+    // Like `hostBackend` with no `ps`: it cannot tell if the job runs.
+    const killJob = vi.fn(async () => {
+      throw new Error('no ps')
+    })
+    const { adapter } = readTurn('c1')
+    const next = open({
+      persistence,
+      adapter,
+      plugins: [
+        workspaceTools({
+          root: '/ws',
+          backend: backend({ killJob }),
+          web: false,
+        }),
+      ],
+    })
+
+    await (await next.opened).send('read')
+
+    expect(await recordsOf(persistence, 'harness.job')).toMatchObject([
+      { jobId: 'bash-1', ended: false },
+    ])
+    const notes = await recordsOf(persistence, 'harness.note')
+    expect(notes.map((record) => record.note)).toEqual([
+      'Background job bash-1 may still run: it ran on a host before this one, and this host cannot stop it.',
     ])
     await next.host.close()
   })

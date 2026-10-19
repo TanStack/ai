@@ -165,6 +165,7 @@ describe('bash', () => {
           env: { AGENT: '1' },
           timeoutMs: 120_000,
           signal: expect.any(AbortSignal),
+          onStart: expect.any(Function),
         },
       },
     ])

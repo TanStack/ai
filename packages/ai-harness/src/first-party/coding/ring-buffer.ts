@@ -9,8 +9,8 @@ const isContinuation = (byte: number) => (byte & 0xc0) === 0x80
  * the oldest bytes are dropped. `text()` gives the output as UTF-8 text, and
  * starts with a line that tells how many bytes were dropped.
  *
- * The `ai-sandbox` package has a copy of this function in
- * `workspace-backend.ts`. Change both.
+ * `@tanstack/ai-sandbox` has a copy of this function in `command-env.ts`.
+ * This package does not depend on that one. Change both.
  *
  * @example
  * ```ts
