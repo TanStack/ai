@@ -69,6 +69,8 @@ export interface RunCliOptions<P extends Principal = Principal> {
    * a ready session view and resolves when the user quits. Piped input and
    * the other modes (`--print`, `--acp`, `--mcp`, `--serve`) do not use it.
    * `view.send(text)` sends each `@path` file in `text`, as line mode does.
+   * A saved child agent of a reopened thread shows only its card until the
+   * screen calls `view.loadAgent({ id })`.
    */
   ui?: (view: SessionView) => Promise<void> | void
   /**

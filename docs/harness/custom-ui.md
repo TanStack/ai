@@ -447,6 +447,8 @@ if (child?.type === 'agent') await view.loadAgent({ id: child.id })
 
 A nested child in that part loads the same way, with its own `loadAgent` call. A background child that still runs keeps getting its new text in the same part.
 
+A terminal screen that prints the old turns only one time (for example Ink `Static`) must load the saved children before its first render. [`examples/harness-cli/src/tui.tsx`](https://github.com/TanStack/ai/blob/main/examples/harness-cli/src/tui.tsx) does this in `loadSavedAgents`.
+
 To show a line when a child ends, listen for `'agent'`:
 
 ```ts group=harness-custom-ui

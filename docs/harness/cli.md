@@ -223,6 +223,7 @@ process.exitCode = await runCli(assistant, {
 
 - `ui` runs only in an interactive terminal. Piped input uses line mode. `-p`, `--acp`, `--mcp`, and `--serve` do not use `ui`.
 - When `ui` resolves, the CLI disposes the view and `runCli` returns.
+- In a reopened thread, a saved child agent shows only its card. To show what it wrote, call `view.loadAgent({ id })`, for example when the screen draws the card. See [Show subagents](./custom-ui#show-subagents).
 - To write `Screen`, read [Build your own UI](./custom-ui).
 
 For an Ink screen with approvals, questions, sign-ins, and child agents, copy [`examples/harness-cli/src/tui.tsx`](https://github.com/TanStack/ai/blob/main/examples/harness-cli/src/tui.tsx).
