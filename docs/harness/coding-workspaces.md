@@ -23,10 +23,13 @@ Pass `workspace` to `workspaceTools()` in place of `root`. `bind` gets the run, 
 
 ```ts group=harness-coding-workspaces
 import { mkdir } from 'node:fs/promises'
-import { join } from 'node:path'
 import { defineHarness } from '@tanstack/ai-harness'
 import { permissions } from '@tanstack/ai-harness/plugins'
-import { hostBackend, workspaceTools } from '@tanstack/ai-harness/plugins/coding'
+import {
+  hostBackend,
+  workspaceRoot,
+  workspaceTools,
+} from '@tanstack/ai-harness/plugins/coding'
 import { openaiText } from '@tanstack/ai-openai'
 
 export const coder = defineHarness({
@@ -37,7 +40,7 @@ export const coder = defineHarness({
     workspaceTools({
       workspace: {
         bind: async ({ run }) => {
-          const root = join('/srv/workspaces', run.tenantId ?? 'default', run.threadId)
+          const root = workspaceRoot('/srv/workspaces', run.tenantId ?? 'default', run.threadId)
           await mkdir(root, { recursive: true })
           return { ...hostBackend, root }
         },
@@ -48,12 +51,13 @@ export const coder = defineHarness({
 ```
 
 - The tools call `bind` once for each thread, before the first turn or at the first tool call. If `bind` throws, the next turn calls it again.
-- The `root` that `bind` gives is the boundary of every tool. A path outside it is refused. With `outside: 'ask'`, a rule that allows the path, or `bypass` mode, lets a call use it. No approval can cover it, because the root is not known before the call. The `cwd` thread setting must stay inside it.
+- A client sends the thread id. Do not put it in a path with `join` or a template string: an id like `../other-tenant/t-1` leads into another folder. `workspaceRoot` encodes each part, so each id gets its own folder in `/srv/workspaces`, and it throws for a path that leaves it.
+- The `root` that `bind` gives is the boundary of the file tools. A path outside it is refused. With `outside: 'ask'`, a rule that allows the path, or `bypass` mode, lets a call use it. No approval can cover it, because the root is not known before the call. The `cwd` thread setting must stay inside it.
 - The tools resolve every link with `realpath` before they read or write, while they hold the lock on the file. So a link in one thread cannot lead into the folder of another thread.
 - The session log keeps a `harness.workspace.bound` record with the place of the workspace. [Move a thread to another server](#5-move-a-thread-to-another-server) uses it.
 - Put `workspaceTools()` before [`snapshots()`](./snapshots) and [`formatter()`](./coding-tools-backends#format-each-file-after-a-write). Then they work in the workspace of each thread, and their `root` is optional.
 
-For a sandbox per thread, create it in `bind`, and give the backend `owned: true`. Then the thread owns the sandbox:
+A folder on the server is not isolation: `bash` runs as the user of your server (see [Keep server secrets out of commands](#2-keep-server-secrets-out-of-commands)). When many users share the server, give each thread a sandbox. Create it in `bind`, and give the backend `owned: true`. Then the thread owns the sandbox:
 
 ```ts group=harness-coding-workspaces
 import { sandboxWorkspaceBackend } from '@tanstack/ai-sandbox/harness'
@@ -82,7 +86,14 @@ A command gets only a few variables of the server process:
 - On Windows also `SystemRoot`, `ComSpec`, `PATHEXT`, `WINDIR`, and `USERPROFILE`.
 - `AGENT=1`, so a tool can see that an agent runs it.
 
-Provider keys, `DATABASE_URL`, and every other variable stay in the server. The same rule applies to `bash`, `rg`, `git`, and the formatters. Git also runs without the hooks and the `fsmonitor` of the project.
+Provider keys, `DATABASE_URL`, and the other variables of the server are not in the env of a command. The same rule applies to `bash`, `rg`, `git`, and the formatters. Git also runs without the hooks and the `fsmonitor` of the project.
+
+With `hostBackend`, and with the local-process sandbox, this short env and the `root` are defense in depth. They are not isolation:
+
+- A command runs as the user of your server. `bash` can read every file that this user can read, for example the `.env` file of the server, or the folder of another thread.
+- `bash` can also read the env of each process of that user, for example `/proc/<pid>/environ` of the server.
+
+For users that you do not trust, use [a sandbox for each thread](#1-give-each-thread-its-own-workspace).
 
 To give commands a variable, add it to the `env` of the backend calls:
 
@@ -111,15 +122,15 @@ export const withTokenTools = workspaceTools({ root: '/srv/repo', backend: withT
 
 Two agents, or two sessions, can work in the same folder. No edit is lost:
 
-- A write holds a lock on the file. The lock is shared by every session on this server, and it is keyed by the root and the real path of the file.
-- `write_file`, `edit_file`, and `patch` fail when the file changed after the tool read it. The model gets `src/app.ts changed since it was read. Read it again before you edit it.`, reads the file again, and tries again.
+- A write holds a lock on the file. The lock is shared by every session on this server, and it is keyed by the sandbox (or this server) and the real path of the file. Two roots that lead to one folder share the lock. Two sandboxes with the same root do not.
+- `write_file`, `edit_file`, and `patch` fail when the file changed after the tool read it in the same agent run. A subagent and its lead each check their own read. The model gets `src/app.ts changed since it was read. Read it again before you edit it.`, reads the file again, and tries again.
 - The check compares the size and the time of the last change. A sandbox gives no change time, so there only a change of size is seen.
 
 ## 4. Watch background jobs
 
 With `background: true`, `bash` returns at once with a job id like `bash-1`. Two limits keep jobs small:
 
-- At most 8 background jobs run at a time in a session. One more gives the model a tool error. Set another limit with `maxJobs`.
+- At most 8 background jobs run at a time in a session. One more gives the model a tool error. Set another limit with `maxJobs`. A running command that `session.background()` moves counts too, and at the limit it does not move.
 - Each job keeps the newest 1 MiB of its output.
 
 When a job ends, the model gets a note, and the wake turn runs as the user whose run started the job.
@@ -212,25 +223,32 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 
 const host = createHarnessHost({
   persistence: memoryPersistence(),
-  ownership: { hostId: process.env.HOSTNAME ?? 'web-1' },
+  ownership: { hostId: process.env.POD_NAME ?? 'web-1' },
 })
 ```
 
 - With `hostId`, a thread that uses a local folder is pinned to this server. Workers on other servers do not take it.
 - Another server that opens the thread refuses its tool calls with `The workspace of this thread is <root> on the host web-1. Only that host can continue the thread.`
-- Keep the id the same after a restart, for example the machine or pod name.
+- Keep the id the same after a restart. On Kubernetes, use the pod name of a StatefulSet. Do not use `HOSTNAME` of a Deployment pod: it changes at each restart, and the threads of the old pod stay pinned to it.
 - Without `hostId`, threads are not pinned, and every server calls `bind` again. Use this when every server sees the same folder, for example on a shared disk.
+
+When a server does not come back, unpin its threads with `host.unpin`. Its ownership must have expired first. Then the next server calls `reattach` with the old binding. Give a new workspace there, for example a fresh clone, to move the thread:
+
+```ts group=harness-coding-workspaces
+await host.unpin({ harness: coder, threadId: 'fix-login' })
+```
 
 ### After a move
 
 - Background jobs do not move. At the next tool call of the thread, the new server stops each job that the old server left running. The model gets the note `Background job bash-1 was stopped: it ran on a host before the session moved to this one.`
+- A job that the backend cannot check stays in the log, and the model gets `Background job bash-1 may still run: it ran on a host before this one, and this host cannot stop it.` For example, `hostBackend` needs `ps` to check a job.
 - `/undo`, `/redo`, and a revert work on the new server when it reaches the same snapshot repository. See [Undo a turn](./snapshots#on-more-than-one-server).
 - [Coding agents](./coding-agents) run only on the server that owns the log. So two servers never run the agents of one shared workspace at the same time.
 
 ## What you have now
 
 - A folder or a sandbox for each thread, with its root as the boundary of every tool.
-- Commands that never see the secrets of your server.
+- Commands that get only a short env, and a sandbox for users that you do not trust.
 - Agents that share a folder and never lose an edit.
 - Events for every background job, and a limit on how many run.
 - Threads that move to another server with their sandbox, or stay on the server that has their folder.

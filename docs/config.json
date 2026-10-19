@@ -1074,7 +1074,7 @@
           "label": "Sandbox and extend the coding tools",
           "to": "harness/coding-tools-backends",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Run the coding tools for many threads",
@@ -1199,7 +1199,7 @@
           "label": "Providers",
           "to": "sandbox/providers",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Harnesses",
@@ -1210,7 +1210,8 @@
         {
           "label": "Harness Auth",
           "to": "sandbox/auth",
-          "addedAt": "2026-08-18"
+          "addedAt": "2026-08-18",
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Workspace",

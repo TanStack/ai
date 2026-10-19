@@ -105,7 +105,8 @@ For background jobs and for threads that move to another server:
 | Member | What it does | Without it |
 | --- | --- | --- |
 | `spawn(command, options)` | Starts a command in the background. Gives `{ wait, kill, output, jobId? }`. `jobId` resolves with the id of the process, for `killJob`. | `background: true` gives an error. |
-| `killJob(jobId)` | Stops a job that `spawn` started, also on an earlier process or machine. | A job that a crash left running is not stopped. |
+| `killJob(jobId)` | Stops a job that `spawn` started, also on an earlier process or machine. Resolves `false` when no such job runs. Rejects when it cannot check that the process is the job: then the log keeps the job. | A job that a crash left running is not stopped. |
+| `exec` option `onStart(jobId)` | Gives the id of a foreground command when it starts, so a command that moves to the background can be stopped by a later host too. | A moved command has no id in the log. |
 | `binding()` | Gives `{ kind: 'sandbox', provider, sandboxId }` for a sandbox that another machine can resume. | The workspace is a folder on this host. |
 | `close({ reason })` | Releases the backend. `'closed'`: the session closed. `'moved'`: the session continues on another machine, so keep what it can resume. | Nothing to release. |
 

@@ -91,7 +91,7 @@ const dev = localProcessSandbox()
   re-creates and re-bootstraps under the same identity. The snapshot step is
   skipped silently (see [Capabilities](#capabilities)).
 
-### Host login vs API key (`scrubEnv`)
+### Host login vs API key (`scrubEnv`, `passEnv`)
 
 The provider is where the agent runs, not how it signs in. The default
 `authMode` is `'api-key'`. Set `'host'` when the machine already has a CLI
@@ -107,6 +107,18 @@ import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 
 const hostLogin = localProcessSandbox({
   scrubEnv: ['XAI_API_KEY', 'GROK_API_KEY'],
+})
+```
+
+A command gets only a few variables of the host process: `PATH`, `HOME`,
+`LANG`, `LC_ALL`, `TMPDIR`, `TEMP`, and `TMP` (and a few more on Windows).
+When a CLI login or the network needs more, name them in `passEnv`:
+
+```ts
+import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
+
+const behindProxy = localProcessSandbox({
+  passEnv: ['CLAUDE_CONFIG_DIR', 'HTTPS_PROXY', 'NO_PROXY', 'NODE_EXTRA_CA_CERTS'],
 })
 ```
 
