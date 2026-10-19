@@ -8,3 +8,5 @@ Add `interrupts` to `SubagentBinding`.
 - The own `interrupts` of the call win. When a host definition has the same id as one of the call, the host definition is not added.
 - A child's `ctx.chat({ subagents })` passes the definitions on to its own children.
 - A plain `chat()` call does not get them.
+
+Add `validateJsonSchema(schema, value)`. It checks a value against a JSON Schema with `@cfworker/json-schema`, as a tool input is checked, but with no repair. The result has the Standard Schema shape: `{ value }` or `{ issues }`. The root also exports the `StandardSchemaV1` and `StandardJSONSchemaV1` types.
