@@ -341,7 +341,7 @@ function handlerFor(request: Request) {
     harness,
     // Each request makes a new handler, so a fixed secret keeps a signed URL
     // working on the next request.
-    media: { secret: 'e2e-media-secret' },
+    media: { secret: 'e2e-media-secret-of-32-bytes-or-more' },
   })
 }
 

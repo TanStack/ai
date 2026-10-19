@@ -103,7 +103,7 @@ async function* revertTurns(
     await writeFile(join(root, 'other.txt'), 'mine\n')
     yield* session.send('[coding-revert-2] run test').stream()
     const [prompt] = await session.transcript()
-    if (prompt?.id) await session.revert(prompt.id)
+    if (prompt?.id) await session.revert({ messageId: prompt.id })
   } finally {
     await host.close()
     await rm(dataDir, { recursive: true, force: true })

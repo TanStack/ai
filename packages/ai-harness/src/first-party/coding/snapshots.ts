@@ -1,22 +1,34 @@
 import { createHash } from 'node:crypto'
 import { LogRecordsCapability, getLogRecords } from '@tanstack/ai'
 import { defineCommand } from '../../commands'
-import { RevertFiles, RevertStanding, definePlugin } from '../../plugins'
+import {
+  RevertFiles,
+  RevertStanding,
+  ThreadEnds,
+  definePlugin,
+} from '../../plugins'
 import { isRecord } from '../../utils'
 import { WorkspaceHooks } from '../workspace-hooks'
 import { hostBackend, pathsOf, runOf } from './backend'
 import { SnapshotFailed } from './events'
 import { parsePatch } from './patch'
 import { GIT, GIT_ENV, quoteArg, shellPlatform } from './search'
-import { createLock, writingRun } from './workspace'
+import { ThreadWorkspace, createLock, writingRun } from './workspace'
 import type { ModelMessage, ToolCall } from '@tanstack/ai'
+import type { RunContext } from '../../types'
 import type { WorkspaceBackend } from './backend'
 
 export interface SnapshotsOptions {
-  /** The workspace folder, an absolute path. */
-  root: string
   /**
-   * A folder for the shadow git repositories, an absolute path. Each
+   * The workspace folder, an absolute path. Not needed when
+   * `workspaceTools()` with `workspace.bind` comes before this plugin: then
+   * each thread uses the workspace that `bind` gave it, and `root` and
+   * `backend` are not used.
+   */
+  root?: string
+  /**
+   * A folder for the shadow git repositories, an absolute path on the
+   * backend of the workspace (in a sandbox, a path in the sandbox). Each
    * thread of each tenant gets its own repository in it. The project's own
    * `.git` is never used.
    */
@@ -148,7 +160,10 @@ const repoLocks = createLock()
  * A shadow git repository for the workspace `options.root` and `thread`. It
  * never stores `.env` files.
  */
-function shadowRepo(options: SnapshotsOptions, thread: SnapshotThread) {
+function shadowRepo(
+  options: SnapshotsOptions & { root: string },
+  thread: SnapshotThread,
+) {
   const backend = options.backend ?? hostBackend
   const platform = shellPlatform(backend)
   const quote = (value: string) => quoteArg(value, platform)
@@ -336,8 +351,28 @@ interface SnapshotState {
   redo?: (TurnBounds & { messages: Array<ModelMessage> }) | null
 }
 
+/** The shadow repository of one workspace, and where that workspace is. */
+interface Place {
+  repo: ShadowRepo
+  root: string
+  paths: ReturnType<typeof pathsOf>
+}
+
+/** `full` as a path in the workspace of `place` with `/`, or `undefined` outside it. */
+function inRoot({ root, paths }: Place, full: string) {
+  const path = paths.relative(root, full)
+  const isOutside =
+    path === '' ||
+    path === '..' ||
+    path.startsWith(`..${paths.sep}`) ||
+    paths.isAbsolute(path)
+  return isOutside ? undefined : path.split(paths.sep).join('/')
+}
+
 /** What the snapshots know of one run of a session. */
 interface RunSteps {
+  /** The repository of the workspace of the run, once it is ready. */
+  place: Place | undefined
   /** The tree at the start of the step that runs. */
   start: string | undefined
   /**
@@ -374,7 +409,7 @@ const messageOf = (error: unknown) =>
  * ```
  */
 export function purgeSnapshots(
-  options: SnapshotsOptions,
+  options: SnapshotsOptions & { root: string },
   thread: SnapshotThread,
 ) {
   return shadowRepo(options, thread).purge()
@@ -390,7 +425,7 @@ export function purgeSnapshots(
  *   as they are.
  * - `/redo`: bring back what the last `/undo` removed. A new turn clears it.
  *
- * `session.revert(messageId)` also puts back the files that the tool calls
+ * `session.revert({ messageId })` also puts back the files that the tool calls
  * after that message changed, and `session.unrevert()` brings them back.
  *
  * A step keeps only the files that its run changed. The workspace tools
@@ -408,6 +443,10 @@ export function purgeSnapshots(
  * files and a unified diff between two tree ids of an open session. Without
  * `to`, it compares with the files now.
  *
+ * With `workspaceTools()` and `workspace.bind` before it, each thread keeps
+ * its snapshots in the workspace that `bind` gave it (a sandbox, or a folder
+ * of its own), and `root` and `backend` are not used.
+ *
  * Needs the git CLI on the backend. Without git, the plugin does nothing.
  * A snapshot that fails does not fail the turn: the plugin sends a
  * `tanstack/snapshots:failed` event (`SnapshotFailed`) and goes on.
@@ -422,44 +461,35 @@ export function purgeSnapshots(
  * ```
  */
 export function snapshots(options: SnapshotsOptions) {
-  const backend = options.backend ?? hostBackend
-  const paths = pathsOf(backend)
   // The repositories of the open sessions, for `diff`.
   const repos = new Set<ShadowRepo>()
-  let found: Promise<string | undefined> | undefined
+  const probes = new WeakMap<WorkspaceBackend, Promise<string | undefined>>()
   /**
-   * Why git cannot run on the backend, or `undefined` when it can. It asks
-   * once.
+   * Why git cannot run on `backend`, or `undefined` when it can. It asks
+   * once for each backend.
    */
-  const gitMissing = () =>
-    (found ??= backend
-      .exec(`${GIT} --version`, { env: GIT_ENV, timeoutMs: TIMEOUT_MS })
-      .then(
-        (probe) =>
-          probe.exitCode === 0
-            ? undefined
-            : 'snapshots: git was not found. Snapshots are off.',
-        (error: unknown) =>
-          `snapshots: ${messageOf(error)}. Snapshots are off.`,
-      ))
-
-  /** `full` as a path in the workspace with `/`, or `undefined` outside it. */
-  const inRoot = (full: string) => {
-    const path = paths.relative(options.root, full)
-    const isOutside =
-      path === '' ||
-      path === '..' ||
-      path.startsWith(`..${paths.sep}`) ||
-      paths.isAbsolute(path)
-    return isOutside ? undefined : path.split(paths.sep).join('/')
+  const gitMissing = (backend: WorkspaceBackend) => {
+    let found = probes.get(backend)
+    if (!found) {
+      found = backend
+        .exec(`${GIT} --version`, { env: GIT_ENV, timeoutMs: TIMEOUT_MS })
+        .then(
+          (probe) => (probe.exitCode === 0 ? undefined : 'git was not found'),
+          (error: unknown) => messageOf(error),
+        )
+      probes.set(backend, found)
+    }
+    return found
   }
 
   return definePlugin({
     name: 'tanstack/snapshots',
     diff: async (from: string, to?: string) => {
-      if ((await gitMissing()) !== undefined) {
-        throw new Error('snapshots: git is not available.')
-      }
+      const isOff =
+        repos.size === 0 &&
+        options.root !== undefined &&
+        (await gitMissing(options.backend ?? hostBackend)) !== undefined
+      if (isOff) throw new Error('snapshots: git is not available.')
       // ponytail: each thread has its own repository, so `diff` asks the
       // repositories of the open sessions, one by one, which has `from`.
       const open = [...repos]
@@ -469,37 +499,129 @@ export function snapshots(options: SnapshotsOptions) {
       throw new Error(`snapshots: no open session has the snapshot ${from}.`)
     },
     provides: [RevertFiles],
+    optionalRequires: [ThreadWorkspace],
+    // The fold keeps the steps that a revert reads, also after a truncate.
+    keepRecords: { [STEP_RECORD]: MAX_STEPS },
     setup: async (ctx) => {
-      const repo = shadowRepo(options, {
+      const thread = {
         tenantId: ctx.session.principal?.tenantId,
         threadId: ctx.session.threadId,
-      })
-      // Why snapshots are off in this session, or `undefined`.
-      const off =
-        (await gitMissing()) ??
-        (await repo.init().then(
-          () => undefined,
+      }
+      // `workspaceTools()` before this plugin gives it. With `workspace.bind`,
+      // each thread has its own workspace, and the repository is there.
+      const threads = ctx.getOptional(ThreadWorkspace)
+      const perThread = threads?.perThread === true
+      if (!perThread && options.root === undefined) {
+        throw new Error(
+          'snapshots() needs root, or workspaceTools() with workspace.bind before it.',
+        )
+      }
+      // The repository of each workspace, by its backend and its root.
+      const places = new WeakMap<
+        WorkspaceBackend,
+        Map<string, Promise<Place>>
+      >()
+      /** The repository of `root` on `backend`, made once. A failure is not kept. */
+      const placeOf = (backend: WorkspaceBackend, root: string) => {
+        const byRoot = places.get(backend) ?? new Map<string, Promise<Place>>()
+        places.set(backend, byRoot)
+        const known = byRoot.get(root)
+        if (known) return known
+        const repo = shadowRepo(
+          { root, dataDir: options.dataDir, backend },
+          thread,
+        )
+        const made = (async (): Promise<Place> => {
+          const missing = await gitMissing(backend)
+          if (missing !== undefined) throw new Error(missing)
+          await repo.init()
+          await ctx.resources.acquire(
+            () => repos.add(repo),
+            () => repos.delete(repo),
+          )
+          return { repo, root, paths: pathsOf(backend) }
+        })()
+        byRoot.set(root, made)
+        made.catch(() => {
+          if (byRoot.get(root) === made) byRoot.delete(root)
+        })
+        return made
+      }
+      // One workspace for every thread: its repository is made now.
+      let fixed: Place | undefined
+      if (!perThread && options.root !== undefined) {
+        const backend = options.backend ?? hostBackend
+        const off = await placeOf(backend, options.root).then(
+          (place) => {
+            fixed = place
+            return undefined
+          },
           (error: unknown) =>
             `snapshots: ${messageOf(error)}. Snapshots are off.`,
-        ))
-      if (off !== undefined) {
-        ctx.emit(SnapshotFailed, { message: off })
-        // Without git, a revert changes only the transcript.
-        ctx.provide(RevertFiles, {
-          revert: async () => undefined,
-          unrevert: async () => {},
-        })
-        return
+        )
+        if (off !== undefined) {
+          ctx.emit(SnapshotFailed, { message: off })
+          // Without git, a revert changes only the transcript.
+          ctx.provide(RevertFiles, {
+            revert: async () => undefined,
+            unrevert: async () => {},
+          })
+          return
+        }
       }
-      await ctx.resources.acquire(
-        () => repos.add(repo),
-        () => repos.delete(repo),
-      )
+      /** The repository of the workspace of `run`. It binds the thread first. */
+      const placeFor = async (run: RunContext | undefined) => {
+        if (fixed) return fixed
+        const workspace = run && (await threads?.of(run))
+        if (!workspace) {
+          throw new Error('the workspace of this thread is not bound yet.')
+        }
+        return placeOf(workspace, workspace.root)
+      }
+      /**
+       * The repository of the thread of the session for a revert: the open
+       * workspace, or the one that the log binds, opened again (after a
+       * restart, no turn opened it on this host).
+       */
+      const revertPlaceFor = async (run: RunContext) => {
+        if (fixed) return fixed
+        const workspace = await threads?.ending(run)
+        if (!workspace) {
+          throw new Error('the workspace of this thread is not bound yet.')
+        }
+        return placeOf(workspace, workspace.root)
+      }
+      // The thread purge removes the shadow repository of the thread. With
+      // a workspace for each thread, the repository is in that workspace.
+      // This runs before `workspaceTools()` closes it.
+      const ends = ctx.getOptional(ThreadEnds)
+      if (ends) {
+        await ctx.resources.acquire(
+          () =>
+            ends.add(async ({ tenantId, threadId, run }) => {
+              const ended = { tenantId, threadId }
+              const { dataDir } = options
+              if (!perThread) {
+                if (options.root === undefined) return
+                const { root, backend } = options
+                await purgeSnapshots({ root, dataDir, backend }, ended)
+                return
+              }
+              const workspace = await threads?.ending(run)
+              if (!workspace) return
+              await purgeSnapshots(
+                { root: workspace.root, dataDir, backend: workspace },
+                ended,
+              )
+            }),
+          (remove) => remove(),
+        )
+      }
       const reverted = ctx.getOptional(RevertStanding)
       const initial: SnapshotState = { steps: [] }
       const state = ctx.state(initial)
       ctx.provide(RevertFiles, {
-        revert: async (hidden, records) => {
+        revert: async (hidden, records, run) => {
           const calls = new Set(
             hidden.flatMap((message) =>
               (message.toolCalls ?? []).map((call) => call.id),
@@ -519,6 +641,7 @@ export function snapshots(options: SnapshotsOptions) {
           // before the first of them. The edits of the user in other files
           // stay. `now` keeps all files for `unrevert`.
           const files = [...new Set(later.flatMap((step) => step.files))]
+          const { repo } = await revertPlaceFor(run)
           const now = await repo.track()
           const groups = firstTrees(later)
           for (const [tree, group] of groups) {
@@ -526,8 +649,9 @@ export function snapshots(options: SnapshotsOptions) {
           }
           return { now, files }
         },
-        unrevert: async (saved) => {
+        unrevert: async (saved, run) => {
           if (!isReverted(saved)) return
+          const { repo } = await revertPlaceFor(run)
           await repo.restore(
             saved.now,
             await repo.track(),
@@ -574,9 +698,11 @@ export function snapshots(options: SnapshotsOptions) {
        * or `/redo` goes to, and give the count of the files that changed.
        */
       const restoreTurn = async (
+        run: RunContext,
         undone: ReadonlyArray<SnapshotStep>,
         target: (start: string) => { tree: string; from: string },
       ) => {
+        const { repo } = await placeFor(run)
         let count = 0
         const groups = firstTrees(undone)
         for (const [start, files] of groups) {
@@ -592,9 +718,10 @@ export function snapshots(options: SnapshotsOptions) {
             // The write goes to the run of the tool call that wrote it.
             afterWrite: async (full) => {
               const run = writingRun()
-              const path = inRoot(full)
-              if (!run || path === undefined) return
-              active.get(run.runId)?.written.add(path)
+              const steps = run && active.get(run.runId)
+              if (!steps?.place) return
+              const path = inRoot(steps.place, full)
+              if (path !== undefined) steps.written.add(path)
             },
           }),
         ],
@@ -608,11 +735,15 @@ export function snapshots(options: SnapshotsOptions) {
               // A later step starts with the files the step before it left,
               // so it reuses that snapshot. The model call changes no file.
               if (iteration > 0 && known) {
-                known.start ??= await guard(repo.track)
+                known.place ??= await guard(() => placeFor(runOf(ctx)))
+                const repo = known.place?.repo
+                if (repo) known.start ??= await guard(repo.track)
                 return
               }
+              const place = await guard(() => placeFor(runOf(ctx)))
               const run: RunSteps = {
-                start: await guard(repo.track),
+                place,
+                start: place && (await guard(place.repo.track)),
                 written: new Set(),
                 steps: [],
               }
@@ -624,7 +755,8 @@ export function snapshots(options: SnapshotsOptions) {
             },
             onToolPhaseComplete: async (ctx, { toolCalls }) => {
               const run = active.get(runIdOf(ctx))
-              if (!run) return
+              const repo = run?.place?.repo
+              if (!run || !repo) return
               const from = run.start
               const mine = new Set(run.written)
               run.written.clear()
@@ -668,7 +800,7 @@ export function snapshots(options: SnapshotsOptions) {
           undo: defineCommand({
             description:
               'Undo the last turn: restore the files and remove it from the transcript',
-            run: async (_input, { session }) => {
+            run: async (_input, { session, run }) => {
               if (session.snapshot().status !== 'idle') return BUSY
               if (reverted?.()) return REVERTED
               const messages = await session.transcript()
@@ -684,7 +816,7 @@ export function snapshots(options: SnapshotsOptions) {
               // each to its state before the first step that changed it. A
               // later edit in one of them is lost. Other files, also the
               // files of other runs and sessions, stay as they are.
-              const count = await restoreTurn(undo.steps, (tree) => ({
+              const count = await restoreTurn(run, undo.steps, (tree) => ({
                 tree,
                 from: undo.end,
               }))
@@ -696,13 +828,13 @@ export function snapshots(options: SnapshotsOptions) {
           }),
           redo: defineCommand({
             description: 'Bring back the files and the turn of the last /undo',
-            run: async (_input, { session }) => {
+            run: async (_input, { session, run }) => {
               if (session.snapshot().status !== 'idle') return BUSY
               if (reverted?.()) return REVERTED
               const { redo } = await state.get()
               if (!redo) return 'Nothing to redo.'
               const { end, steps: undone, messages } = redo
-              await restoreTurn(undone, (from) => ({ tree: end, from }))
+              await restoreTurn(run, undone, (from) => ({ tree: end, from }))
               // The same turn can be undone again.
               const undo = { end, steps: undone }
               await state.update((saved) => ({ ...saved, undo, redo: null }))

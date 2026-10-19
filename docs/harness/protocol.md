@@ -245,6 +245,10 @@ The stream of a thread has the events of every run of its tree, in one order. To
 
 The status of a receipt is `accepted`, `queued`, or `rejected`. A `rejected` receipt has a `reason`, for example `not_exposed`, `not_running`, or `unknown_agent`.
 
+Give each input an `inputId`, and send the same id again after a lost answer. A `prompt`, `command`, `agent`, or `append` input with the same `inputId` runs once. The `inputId` of its receipt is the id that you sent.
+
+The socket handles the frames of one connection in the order they came.
+
 ## Cursors and reconnects
 
 Each `harness.event` has a `cursor`. On SSE, the `id` of each event is the same cursor. A cursor is an opaque string. Store the last one, and do not parse it.
@@ -352,6 +356,7 @@ A long stream passes through proxies and slow networks. The server keeps it open
 - `POST run` and `GET run` also get the `: ping` comment. SSE parsers skip comments.
 - A slow client loses no events. The server reads them from the log when the client reads again.
 - Set the idle timeout of your proxy to more than the heartbeat.
+- A client can use the heartbeat to find a dead connection. `createHarnessClient` connects again when no bytes come for 60 s (its `idleTimeoutMs`). If you set `heartbeatMs` to 60 s or more, set a larger `idleTimeoutMs` on the client.
 - The stdio worker has no heartbeat and does not use these values.
 
 To change a value, pass `stream` to the handler and to the socket. A value that you do not set keeps its default:

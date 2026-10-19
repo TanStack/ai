@@ -495,6 +495,87 @@ describe.skipIf(!hasGit)('snapshots', () => {
   })
 })
 
+describe.skipIf(!hasGit)('snapshots with a workspace for each thread', () => {
+  it('keeps the snapshots in the workspace that bind gave the thread', async () => {
+    // The workspace of each thread is a folder of its own, not `root`.
+    const own = join(base, 'thread-a')
+    await mkdir(own)
+    await writeFile(join(own, 'a.txt'), 'one')
+    const { adapter } = mockAdapter([
+      () => toolCall('write_file', { path: 'a.txt', content: 'two' }, 'w-1'),
+      () => text('Done.'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/snapshots-bind',
+        adapter,
+        plugins: () => [
+          workspaceTools({
+            workspace: { bind: async () => ({ ...hostBackend, root: own }) },
+            web: false,
+          }),
+          snapshots({ dataDir }),
+        ],
+      }),
+      { threadId: THREAD },
+    )
+
+    await session.send('Write a.txt')
+    expect(await readFile(join(own, 'a.txt'), 'utf8')).toBe('two')
+    expect(await session.command({ name: 'undo' })).toBe(
+      'Undid the last turn. Files restored: 1.',
+    )
+    expect(await readFile(join(own, 'a.txt'), 'utf8')).toBe('one')
+    await host.close()
+  })
+
+  it('unreverts on a new host, which opens the workspace of the thread again from the log', async () => {
+    const own = join(base, 'thread-a')
+    await mkdir(own)
+    await writeFile(join(own, 'a.txt'), 'one')
+    const persistence = memoryPersistence()
+    const openOn = (replies: Array<Reply>) => {
+      const host = createHarnessHost({ persistence })
+      const harness = defineHarness({
+        name: 'test/snapshots-bind',
+        adapter: mockAdapter(replies).adapter,
+        plugins: () => [
+          workspaceTools({
+            workspace: { bind: async () => ({ ...hostBackend, root: own }) },
+            web: false,
+          }),
+          snapshots({ dataDir }),
+        ],
+      })
+      return { host, opened: host.open(harness, { threadId: THREAD }) }
+    }
+    const first = openOn([
+      () => toolCall('write_file', { path: 'a.txt', content: 'two' }, 'w-1'),
+      () => text('First.'),
+      () => toolCall('write_file', { path: 'a.txt', content: 'three' }, 'w-2'),
+      () => text('Second.'),
+    ])
+    const session = await first.opened
+    await session.send('One')
+    await session.send('Two')
+    const answer = (await session.transcript()).find(
+      (message) => message.content === 'First.',
+    )
+    await session.revert({ messageId: answer?.id ?? '' })
+    expect(await readFile(join(own, 'a.txt'), 'utf8')).toBe('two')
+    await first.host.close()
+
+    // No turn ran on this host, so the workspace of the thread is not open.
+    const second = openOn([])
+    const again = await second.opened
+
+    expect(await again.unrevert()).toMatchObject({ status: 'accepted' })
+    expect(await readFile(join(own, 'a.txt'), 'utf8')).toBe('three')
+    await second.host.close()
+  })
+})
+
 describe.skipIf(!hasGit)('snapshots of many runs', () => {
   it("/undo of run A keeps the change that run B made during A's step", async () => {
     await put('a.txt', 'one')
@@ -587,6 +668,27 @@ describe.skipIf(!hasGit)('snapshots of many runs', () => {
       purgeSnapshots({ root, dataDir }, { threadId: THREAD }),
     ).resolves.toBeUndefined()
   })
+
+  it('host.sessions.delete removes the repository of that thread, also when no session has it open', async () => {
+    const first = await open({ replies: [() => text('Hi.')] })
+    await first.session.close()
+    const second = await first.host.open(
+      defineHarness({
+        name: 'test/snapshots',
+        adapter: mockAdapter([]).adapter,
+        plugins: () => [snapshots({ root, dataDir })],
+      }),
+      { threadId: 't2' },
+    )
+    await second.close()
+    expect(await readdir(dataDir)).toHaveLength(2)
+
+    await first.host.sessions.delete({ threadId: THREAD })
+
+    // The repository of the other thread stays.
+    expect(await readdir(dataDir)).toHaveLength(1)
+    await first.host.close()
+  })
 })
 
 /** Three turns. Each one changes the files once, with its own tool call. */
@@ -622,7 +724,9 @@ describe.skipIf(!hasGit)('session.revert', () => {
     const { transcript, firstId } = await runThreeTurns(session)
     expect(transcript).toHaveLength(12)
 
-    expect(await session.revert(firstId)).toMatchObject({ status: 'accepted' })
+    expect(await session.revert({ messageId: firstId })).toMatchObject({
+      status: 'accepted',
+    })
 
     expect(await read('a.txt')).toBe('two')
     expect(await readdir(root)).toEqual(['a.txt'])
@@ -634,7 +738,7 @@ describe.skipIf(!hasGit)('session.revert', () => {
     await put('a.txt', 'one')
     const { host, session } = await open(threeTurns())
     const { transcript, firstId } = await runThreeTurns(session)
-    await session.revert(firstId)
+    await session.revert({ messageId: firstId })
 
     expect(await session.unrevert()).toMatchObject({ status: 'accepted' })
 
@@ -652,7 +756,7 @@ describe.skipIf(!hasGit)('session.revert', () => {
       replies: [...turns.replies, () => text('Fourth.')],
     })
     const { transcript, firstId } = await runThreeTurns(session)
-    await session.revert(firstId)
+    await session.revert({ messageId: firstId })
 
     await session.send('Four')
 
@@ -685,13 +789,15 @@ describe.skipIf(!hasGit)('session.revert', () => {
     const running = session.send('Again')
     await waitFor(() => expect(session.snapshot().status).toBe('running'))
 
-    expect(await session.revert(message?.id ?? '')).toMatchObject({
+    expect(
+      await session.revert({ messageId: message?.id ?? '' }),
+    ).toMatchObject({
       status: 'rejected',
       reason: 'busy',
     })
     wait.open()
     await running
-    expect(await session.revert('no-such-id')).toMatchObject({
+    expect(await session.revert({ messageId: 'no-such-id' })).toMatchObject({
       status: 'rejected',
       reason: 'unknown_message',
     })
@@ -704,7 +810,7 @@ describe.skipIf(!hasGit)('session.revert', () => {
     const persistence = memoryPersistence()
     const first = await open({ ...threeTurns(), persistence })
     const { transcript, firstId } = await runThreeTurns(first.session)
-    await first.session.revert(firstId)
+    await first.session.revert({ messageId: firstId })
     await first.host.close()
 
     const second = await open({ replies: [], persistence })
@@ -732,7 +838,7 @@ describe.skipIf(!hasGit)('session.revert keeps the edits of the user', () => {
       (message) => message.content === 'First.',
     )
 
-    await session.revert(first?.id ?? '')
+    await session.revert({ messageId: first?.id ?? '' })
 
     expect(await read('a.txt')).toBe('two')
     expect(await read('c.txt')).toBe('mine')
@@ -747,7 +853,7 @@ describe.skipIf(!hasGit)('session.revert keeps the edits of the user', () => {
     // The user edits a file that a hidden turn changed.
     await put('a.txt', 'mine')
 
-    await session.revert(firstId)
+    await session.revert({ messageId: firstId })
     expect(await read('a.txt')).toBe('two')
     await session.unrevert()
 
@@ -780,7 +886,7 @@ describe.skipIf(!hasGit)('session.revert keeps the edits of the user', () => {
     })
     const { firstId } = await runThreeTurns(session)
     blocking = true
-    const reverting = session.revert(firstId)
+    const reverting = session.revert({ messageId: firstId })
     await reached.opened
 
     const prompting = session.send('Four')
@@ -811,7 +917,7 @@ describe.skipIf(!hasGit)('session.revert keeps the edits of the user', () => {
       replies: [...turns.replies, () => text('Fourth.')],
     })
     const { firstId } = await runThreeTurns(session)
-    await session.revert(firstId)
+    await session.revert({ messageId: firstId })
 
     await session.configure({ settings: { cwd: 'sub' } })
     await session.send('Four')
@@ -831,7 +937,7 @@ describe.skipIf(!hasGit)('session.revert keeps the edits of the user', () => {
     await mkdir(join(root, 'sub'))
     const { host, session } = await open(threeTurns())
     const { transcript, firstId } = await runThreeTurns(session)
-    await session.revert(firstId)
+    await session.revert({ messageId: firstId })
 
     await session.configure({ settings: { cwd: 'sub' } })
     await session.unrevert()
@@ -849,7 +955,7 @@ describe.skipIf(!hasGit)('session.revert keeps the edits of the user', () => {
     await put('a.txt', 'one')
     const { host, session } = await open(threeTurns())
     const { transcript, firstId } = await runThreeTurns(session)
-    await session.revert(firstId)
+    await session.revert({ messageId: firstId })
 
     const refused = 'A revert stands. Run unrevert, or send a prompt, first.'
     expect(await session.command({ name: 'undo' })).toBe(refused)
@@ -946,7 +1052,7 @@ describe('snapshots with a fake git', () => {
 
     // The steps of call-1 to call-505 come after the first answer. Of them,
     // the revert uses the last 500: from call-6 on.
-    await session.revert(first.id)
+    await session.revert({ messageId: first.id })
 
     const restores = commands.filter((command) =>
       command.includes('--name-status'),

@@ -28,10 +28,12 @@ import type { AnyHarness } from '../define'
 import type {
   ChatTurnResult,
   HarnessInput,
+  OfferedHarnessInput,
   InputSettlement,
   Principal,
   Receipt,
   SessionEvent,
+  UserInput,
   WaitingInput,
 } from '../types'
 import type { OfferedInputRecord, TurnExtras } from './helpers'
@@ -59,7 +61,7 @@ interface AcceptOptions {
    * The input that goes to the owner when another host owns the log, if it
    * is not the input that this host logs. It throws to refuse the input.
    */
-  offer?: () => Promise<HarnessInput>
+  offer?: () => Promise<OfferedHarnessInput>
 }
 
 /** The offer that the next `accept` applies. See `applyOffer`. */
@@ -118,6 +120,18 @@ export abstract class SessionInputs<
     } finally {
       this.pendingCheck = undefined
     }
+  }
+
+  /**
+   * @internal The message of the input `inputId` in the log, or `undefined`.
+   * A client that sends an input again sends this message, so its inline
+   * media is not stored again and the duplicate check matches.
+   */
+  // ponytail: reads the log only. A retry that comes while the first copy
+  // is still being stored stores its media again.
+  knownMessage(inputId: string): UserInput | undefined {
+    const input = this.writer.state.inputs.get(inputId)?.input
+    return input && 'message' in input ? input.message : undefined
   }
 
   /**
@@ -240,14 +254,39 @@ export abstract class SessionInputs<
    * With `project` on the host, a record can change the model context. The
    * running turn sees the change at its next model call.
    *
+   * With `inputId`, the append is an input, as a `send` is: a second append
+   * with the same id is a duplicate and writes nothing, so a client can
+   * send it again after a lost answer. Without it, the append gets a new
+   * input id. `principal` is who appends. Default: the principal that
+   * opened the session. The receipt has the input id, as the log keeps it.
+   *
    * @example
    * ```ts
-   * await session.append([{ type: 'app.signal', text: 'The build failed.' }])
+   * await session.append({
+   *   records: [{ type: 'app.signal', text: 'The build failed.' }],
+   * })
    * ```
    */
-  async append(records: ReadonlyArray<LogRecord>): Promise<void> {
+  async append({
+    records,
+    inputId = createInputId(),
+    principal,
+  }: {
+    records: ReadonlyArray<LogRecord>
+    inputId?: string
+    principal?: Principal
+  }): Promise<Receipt> {
     checkHostRecords(records)
-    await this.writer.append(records)
+    const admission = await this.accept(
+      inputId,
+      { op: 'append', records: [...records] },
+      principal ?? this.principal,
+    )
+    if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+    // In the append of the applied record: a crash keeps both or neither.
+    await this.applied(inputId, 'session', records)
+    // Kept, so a duplicate gets the same receipt.
+    return this.keep({ inputId, status: 'accepted' })
   }
 
   /**
@@ -261,13 +300,24 @@ export abstract class SessionInputs<
    * wakes an idle session. Without `toolCallId`, it moves every running
    * call that supports it, such as `bash` and the agent tools.
    * With no such call, the receipt is rejected with `not_running`.
+   * `principal` is who moves it. Default: the principal that opened the
+   * session. The `harness.job` record of each moved call keeps it. A handle
+   * of `host.open` checks that it is the principal of the handle. The move
+   * stores no input.
    *
    * @example
    * ```ts
    * await session.background()
+   * await session.background({ toolCallId: 'call_1' })
    * ```
    */
-  async background(toolCallId?: string): Promise<Receipt> {
+  async background({
+    toolCallId,
+    principal,
+  }: {
+    toolCallId?: string
+    principal?: Principal
+  } = {}): Promise<Receipt> {
     const inputId = createInputId()
     const ids =
       toolCallId === undefined ? [...this.detachable.keys()] : [toolCallId]
@@ -276,7 +326,7 @@ export abstract class SessionInputs<
       return { inputId, status: 'rejected', reason: 'not_running' }
     }
     for (const id of ids) this.detachable.delete(id)
-    for (const move of moves) move()
+    for (const move of moves) move(principal ?? this.principal)
     return { inputId, status: 'accepted' }
   }
 
@@ -288,7 +338,9 @@ export abstract class SessionInputs<
    * @example
    * ```ts
    * for (const input of session.inputs()) {
-   *   if (input.delivery === 'queue') await session.cancelInput(input.inputId)
+   *   if (input.delivery === 'queue') {
+   *     await session.cancelInput({ inputId: input.inputId })
+   *   }
    * }
    * ```
    */
@@ -350,16 +402,33 @@ export abstract class SessionInputs<
       )
     }
     signal?.throwIfAborted()
+    // A refused input ends too: the owner on another host writes only its
+    // rejected record, and `knownSettlement` throws for it.
     const settledEvent = (entry: SessionEvent) =>
       entry.event.type === EventType.CUSTOM &&
-      entry.event.name === HARNESS_EVENTS.inputSettled &&
+      (entry.event.name === HARNESS_EVENTS.inputSettled ||
+        entry.event.name === HARNESS_EVENTS.inputRejected) &&
       isRecord(entry.event.value) &&
       entry.event.value.inputId === inputId
-    for await (const _entry of this.feed.read({
+    for await (const entry of this.feed.read({
       from: this.feed.head(),
       filter: settledEvent,
       ...(signal ? { signal } : {}),
     })) {
+      // The owner refused the offer of this host: the log has another input
+      // with this id, and only this host ends with the refusal.
+      const value = entry.event.type === EventType.CUSTOM && entry.event.value
+      if (
+        isRecord(value) &&
+        value.offered === true &&
+        this.offeredInputs.has(inputId)
+      ) {
+        throw new InputRejectedError({
+          inputId,
+          status: 'rejected',
+          reason: typeof value.reason === 'string' ? value.reason : 'conflict',
+        })
+      }
       const settlement = this.knownSettlement(inputId)
       if (settlement) return settlement
     }
@@ -577,7 +646,9 @@ export abstract class SessionInputs<
     const consumes = offer ? [inputId] : []
     if (known) {
       // The input ran before: its offer goes, and it does not run again.
-      if (offer) await this.writer.append([], { consumes })
+      // An offer with another payload is refused, so its host stops waiting.
+      if (offer && known === 'conflict') await this.refuseOffer(inputId)
+      else if (offer) await this.writer.append([], { consumes })
       return known
     }
     // A closing session runs no new work. Nothing is stored. An offer stays
@@ -752,13 +823,23 @@ export abstract class SessionInputs<
         await done
         return
       }
+      // A prompt with a known id ends before `accept`. One with another
+      // payload is refused, so the host that offered it stops waiting.
+      const payload = inputKey(record.input, record.principal)
+      if (this.knownAdmission(inputId, payload) === 'conflict') {
+        await this.refuseOffer(inputId)
+        return
+      }
     }
     // `host.transfer` on a host that does not own the log offers records
     // here: the source end of the transfer, and the usage of its summary.
     // They go in the log as they are. A transfer that the log has already
-    // only drops its offer.
+    // only drops its offer. An unshare or a revoke offers the end of the
+    // schedules of the user, so they go from the list at once.
     const isLaneRecord =
-      record.type === 'harness.usage' || record.type === 'harness.transferred'
+      record.type === 'harness.usage' ||
+      record.type === 'harness.transferred' ||
+      record.type === 'harness.schedule.done'
     const isKnown =
       record.type === 'harness.transferred' &&
       typeof record.transferId === 'string' &&
@@ -799,7 +880,7 @@ export abstract class SessionInputs<
     switch (input.op) {
       case 'prompt':
         ignore(
-          session.send(input.message, {
+          this.sendForRun(input.message, {
             ...sent,
             ...turn,
             ...(input.busy ? { busy: input.busy } : {}),
@@ -868,11 +949,17 @@ export abstract class SessionInputs<
         )
         return
       case 'cancelInput':
-        ignore(session.cancelInput(input.inputId, { inputId, ...user }))
+        ignore(
+          this.applyCancelInput({
+            inputId: input.inputId,
+            controlId: inputId,
+            ...user,
+          }),
+        )
         return
       case 'setDelivery':
         ignore(
-          session.setDelivery({
+          this.applySetDelivery({
             inputId: input.inputId,
             delivery: input.delivery,
             controlId: inputId,
@@ -892,21 +979,21 @@ export abstract class SessionInputs<
         return
       case 'answer':
         ignore(
-          session.answer({
+          this.applyAnswer({
             questionId: input.questionId,
             value: input.value,
             ...(input.ref !== undefined ? { ref: input.ref } : {}),
-            inputId,
+            controlId: inputId,
             ...user,
           }),
         )
         return
       case 'config':
         ignore(
-          session.setConfig({
+          this.applyConfig({
             key: input.key,
             value: input.value,
-            inputId,
+            controlId: inputId,
             ...user,
           }),
         )
@@ -923,10 +1010,13 @@ export abstract class SessionInputs<
           }),
         )
         return
+      case 'append':
+        // Only an append with an input id is an input that a host offers.
+        ignore(session.append({ records: input.records, inputId, ...user }))
+        return
       case 'revert':
       case 'unrevert':
       case 'background':
-      case 'append':
         // These run only where they are called. No host offers them.
         return
     }
@@ -1000,6 +1090,28 @@ export abstract class SessionInputs<
       customEvent(HARNESS_EVENTS.inputRejected, { inputId, reason }),
     )
     return receipt
+  }
+
+  /**
+   * Refuse an offer whose id the log has with another payload. The record
+   * consumes the offer in the same append. The input in the log does not
+   * change: the event has `offered`, so only the host that offered the
+   * input ends its wait with the refusal.
+   */
+  private async refuseOffer(inputId: string) {
+    const reason = 'conflict'
+    await this.writer.append(
+      [{ type: 'harness.offer.rejected', inputId, reason }],
+      { consumes: [inputId] },
+    )
+    this.feed.publish(
+      'session',
+      customEvent(HARNESS_EVENTS.inputRejected, {
+        inputId,
+        reason,
+        offered: true,
+      }),
+    )
   }
 
   /**
@@ -1123,7 +1235,15 @@ export abstract class SessionInputs<
   }
 
   protected refuse(operation: OperationImpl<ChatTurnResult>, receipt: Receipt) {
-    this.answerTurn(operation, receipt)
+    // A conflict refuses a second payload. The id stays with the input that
+    // has it, so `settled()` of that input does not read this refusal.
+    const id = receipt.inputId
+    const isOtherInput =
+      receipt.status === 'rejected' &&
+      receipt.reason === 'conflict' &&
+      (this.admitted.has(id) || this.writer.state.inputs.has(id))
+    if (isOtherInput) operation.resolveReceipt(receipt)
+    else this.answerTurn(operation, receipt)
     operation.fail('failed', new InputRejectedError(receipt))
   }
 

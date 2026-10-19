@@ -31,7 +31,7 @@ Add it with `plugins: () => [today]` in `defineHarness`. `setup` runs once per s
 For the model:
 
 - `tools`: tools for the model, made with `toolDefinition`.
-- `prompts`: text for the system prompt. A function runs for each turn, so it can show current state.
+- `prompts`: text for the system prompt. A function runs for each turn, so it can show current state. For text that changes often, see [Put changing text last](#put-changing-text-last).
 - `middleware`: chat middleware for the lead turn, the same type as `chat({ middleware })`. `agentMiddleware` is for agent runs, see [Middleware in every agent](#middleware-in-every-agent).
 - `generationMiddleware`: middleware for the activities agents call.
 - `adapter`: a picker for the model of each turn, see [Pick the model of a turn](#pick-the-model-of-a-turn).
@@ -47,6 +47,59 @@ For agents and users:
 If two plugins add the same tool, command, setting, or prompt id, `host.open` fails and names both plugins.
 
 Return these from `setup`, not from the top level of `definePlugin`. A key like `adapter` or `tools` at the top level is a type error, and `definePlugin` throws for it. Other keys at the top level stay on the plugin object, so a plugin can give your code its own functions.
+
+### Put changing text last
+
+Set `placement: 'context'` on a prompt whose text changes often:
+
+```ts group=harness-plugins
+let openTickets = 0
+
+export const tickets = definePlugin({
+  name: 'acme/tickets',
+  setup: () => ({
+    prompts: [
+      {
+        id: 'acme/tickets:count',
+        text: () => `Open tickets: ${openTickets}.`,
+        placement: 'context',
+      },
+    ],
+  }),
+})
+```
+
+A provider caches the start of each request: the system prompts, then the history. A change of a system prompt makes the cache miss from that prompt on. A `'context'` prompt is the last system prompt, so the system prompts before it stay in the cache.
+
+- The model gets all `'context'` text as one system prompt, after the other system prompts. The harness makes it again at each model call.
+- The text has the authority of a system prompt, not of a user message.
+- The default is `'system'`: the text goes in the system prompts, in plugin order.
+- The log does not keep `'context'` text.
+- The first-party todos, goal, and plan mode prompts use `'context'`.
+
+### Refresh state at the start of a turn
+
+A prompt function must return at once, so it cannot read a file or call a server. Do that work in `onTurnStart`. The harness calls it once at the start of each turn, before it reads the prompts:
+
+```ts group=harness-plugins
+import { readFile } from 'node:fs/promises'
+
+let rules = ''
+
+export const projectRules = definePlugin({
+  name: 'acme/project-rules',
+  setup: () => ({
+    onTurnStart: async () => {
+      rules = await readFile('RULES.md', 'utf8')
+    },
+    prompts: [() => rules],
+  }),
+})
+```
+
+- `onTurnStart` gets the turn. `turn.run` has the user of the turn and the credentials of that user.
+- It runs one time for each turn, also when the turn makes many model calls.
+- If it throws, the turn continues, and clients get a `harness.plugin.warning` event.
 
 ## Add commands and settings
 
@@ -196,6 +249,7 @@ export const counter = definePlugin({
 - A key or a token of the session in the state goes into the log as `[redacted]`. `update` resolves with that same value. See [Keep tokens out of the log and the model](./auth#keep-tokens-out-of-the-log-and-the-model).
 - The updates of one plugin run one at a time. Each `update` function gets the value that the update before it wrote.
 - [`host.sessions.delete`](./lifecycle#delete-a-thread-for-good) deletes the state with the log. A fork does not copy it.
+- For a long list of records, such as one record for each step, append records to the log and set `keepRecords`. Read them with `ctx.session.keptRecords(type)`. See [Keep records after a truncate](./session-log#keep-records-after-a-truncate).
 - Agents get a state with the same `get` and `update` from `ctx.harness.state({ key, initial })`. See [Share state between agents](./subagents#share-state-between-agents).
 
 ## Middleware in every agent
@@ -270,6 +324,10 @@ Where each part of a plugin reads the run:
 - A plugin with `lifetime: 'turn'`: `ctx.turn.run`. Its `ctx.credentials` and `ctx.keys` belong to the same user.
 - A session plugin (the default lifetime): `ctx.credentials` and `ctx.keys` have no user, so each call throws. `ctx.session.principal` is the owner of the session.
 - A plugin with `lifetime: 'host'`: its setup has no user and no session. Its tools read the user of each call from `ctx.context.run`.
+
+`prepareTools` gets `run` too: the run of the turn, with its id and its user. `onTurnStart` gets the turn, with its run in `turn.run`.
+
+A plugin that starts a turn picks its user. `ctx.session.send(text, { principal })` and `ctx.session.note(text, { wake: true, principal })` run that turn as `principal`. Without it, the turn runs as `ctx.session.principal`. To continue the work of a run, pass the `principal` of that run.
 
 The run has these fields:
 

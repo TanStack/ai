@@ -155,6 +155,48 @@ describe('the thread of an agent run', () => {
   })
 })
 
+describe('the receipt of an agent run', () => {
+  it('resolves when the run starts, with the run as its operation', async () => {
+    const { host, session } = await open(
+      writing(mockAdapter([() => text('Done.')]).adapter),
+    )
+
+    const run = session.agents.writer.start()
+
+    const receipt = await run.receipt
+    expect(receipt).toMatchObject({ status: 'accepted', operationId: run.id })
+    expect(receipt.inputId).toEqual(expect.any(String))
+    await run
+    await host.close()
+  })
+
+  it('resolves rejected for an input that the schema of the agent refuses', async () => {
+    const checked = defineAgent({
+      name: 'checked',
+      description: 'Needs a topic',
+      inputSchema: z.object({ topic: z.string() }),
+      run: (ctx) => ctx.chat({ adapter: mockAdapter([]).adapter }),
+    })
+    const { host, session } = await open(
+      defineHarness({
+        name: 'test/agent-runs',
+        adapter: mockAdapter([]).adapter,
+        agents: [checked],
+      }),
+    )
+
+    const run = session.agent('checked')?.start({ topic: 7 })
+    if (!run) throw new Error('No agent checked.')
+
+    expect(await run.receipt).toMatchObject({
+      status: 'rejected',
+      reason: 'invalid_input',
+    })
+    await expect(run).rejects.toThrow('Input validation failed')
+    await host.close()
+  })
+})
+
 describe('follow-ups to an agent run', () => {
   it('runs the agent again after the run ended, on its transcript', async () => {
     const model = mockAdapter([
@@ -685,7 +727,9 @@ function durable() {
     const refuse = vi
       .spyOn(log, 'append')
       .mockRejectedValue(new Error('the host is gone'))
-    await expect(session.append([{ type: 'app.ping' }])).rejects.toThrow()
+    await expect(
+      session.append({ records: [{ type: 'app.ping' }] }),
+    ).rejects.toThrow()
     await expect(run).rejects.toThrow()
     refuse.mockRestore()
   }

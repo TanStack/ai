@@ -91,6 +91,27 @@ describe('the HarnessSession type', () => {
       runId: 'run-1',
     }
     void answers
+    // @ts-expect-error the handler sends a `POST run` as its run id.
+    void session.sendForRun
+    const sent: Parameters<typeof session.send>[1] = {
+      // @ts-expect-error `send` takes no run id.
+      runId: 'run-1',
+    }
+    void sent
+    const config: Parameters<typeof session.setConfig>[0] = {
+      key: 'model',
+      value: 'fast',
+      // @ts-expect-error only an offered input has its own control id.
+      inputId: 'in-1',
+    }
+    void config
+    const answer: Parameters<typeof session.answer>[0] = {
+      questionId: 'q-1',
+      value: 'yes',
+      // @ts-expect-error only an offered answer has a secret ref.
+      ref: 'harness:answer:q-1:in-1',
+    }
+    void answer
     await host.close()
   })
 })

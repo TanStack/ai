@@ -338,32 +338,133 @@ describe('ACP agent handlers', () => {
     close = undefined
   })
 
-  it('releases its handle at session/close, and every handle when the connection closes', async () => {
+  it('holds no handle on an idle session, and opens it again at the next prompt', async () => {
     // A session that no handle holds closes at once when it is idle.
-    const { harness, host, editor } = setup({ lifecycle: { idleCloseMs: 0 } })
+    const { harness, host, editor, running, states, textOf } = setup({
+      lifecycle: { idleCloseMs: 0 },
+    })
     close = () => host.close()
     const isOpen = (threadId: string) => host.isOpen(harness, { threadId })
-    let kept = ''
     await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
       await ctx.request('initialize', {
         protocolVersion: 2,
         info: { name: 'editor', version: '1.0.0' },
       })
-      const closed = await ctx.request('session/new', {
+      const { sessionId } = await ctx.request('session/new', {
         cwd: '/tmp',
         mcpServers: [],
       })
-      kept = (await ctx.request('session/new', { cwd: '/tmp', mcpServers: [] }))
-        .sessionId
-      expect(isOpen(closed.sessionId)).toBe(true)
+      await vi.waitFor(() => expect(isOpen(sessionId)).toBe(false))
 
-      await ctx.request('session/close', { sessionId: closed.sessionId })
+      await ctx.request('session/prompt', {
+        sessionId,
+        prompt: [{ type: 'text', text: 'wait' }],
+      })
+      await vi.waitFor(() => expect(running(sessionId)).toBe(true))
+      // A running prompt holds the session.
+      expect(isOpen(sessionId)).toBe(true)
+      await ctx.notify('session/cancel', { sessionId })
+      await vi.waitFor(() => expect(isOpen(sessionId)).toBe(false))
 
-      expect(isOpen(closed.sessionId)).toBe(false)
-      expect(isOpen(kept)).toBe(true)
+      await ctx.request('session/prompt', {
+        sessionId,
+        prompt: [{ type: 'text', text: 'hello' }],
+      })
+      await vi.waitFor(() =>
+        expect(states(sessionId)).toContain('idle:end_turn'),
+      )
+      // The session opened again and ran the prompt.
+      expect(textOf(sessionId)).toBe('echo: hello')
+      await vi.waitFor(() => expect(isOpen(sessionId)).toBe(false))
     })
-    // The connection closed when the callback ended.
-    await vi.waitFor(() => expect(isOpen(kept)).toBe(false))
+  })
+
+  it('takes the prompts of its new sessions on a host with no session index', async () => {
+    const { harness, editor, states, textOf } = setup()
+    // Only a log store: `host.sessions.get` finds no session.
+    const host = createHarnessHost({
+      persistence: { stores: { log: memoryPersistence().stores.log } },
+      lifecycle: { idleCloseMs: 0 },
+    })
+    close = () => host.close()
+    await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
+      await ctx.request('initialize', {
+        protocolVersion: 2,
+        info: { name: 'editor', version: '1.0.0' },
+      })
+      const { sessionId } = await ctx.request('session/new', {
+        cwd: '/tmp',
+        mcpServers: [],
+      })
+      await vi.waitFor(() =>
+        expect(host.isOpen(harness, { threadId: sessionId })).toBe(false),
+      )
+
+      await ctx.request('session/prompt', {
+        sessionId,
+        prompt: [{ type: 'text', text: 'hello' }],
+      })
+      await vi.waitFor(() =>
+        expect(states(sessionId)).toContain('idle:end_turn'),
+      )
+      expect(textOf(sessionId)).toBe('echo: hello')
+    })
+  })
+
+  it('keeps the order of two prompts when the first one uploads a file', async () => {
+    const { harness, host, persistence, editor, updates, states, textOf } =
+      setup()
+    close = () => host.close()
+    // The store of the first file answers only when the test lets it.
+    let upload = () => {}
+    const uploaded = new Promise<void>((resolve) => {
+      upload = resolve
+    })
+    const put = persistence.stores.blobs.put.bind(persistence.stores.blobs)
+    const slowPut = vi
+      .spyOn(persistence.stores.blobs, 'put')
+      .mockImplementation(async (...args) => {
+        await uploaded
+        return put(...args)
+      })
+    await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
+      await ctx.request('initialize', {
+        protocolVersion: 2,
+        info: { name: 'editor', version: '1.0.0' },
+      })
+      const { sessionId } = await ctx.request('session/new', {
+        cwd: '/tmp',
+        mcpServers: [],
+      })
+      const first = ctx.request('session/prompt', {
+        sessionId,
+        prompt: [
+          { type: 'text', text: 'first' },
+          { type: 'image', data: 'AQIDBA==', mimeType: 'image/png' },
+        ],
+      })
+      await vi.waitFor(() => expect(slowPut).toHaveBeenCalled())
+      const second = ctx.request('session/prompt', {
+        sessionId,
+        prompt: [{ type: 'text', text: 'second' }],
+      })
+      // The second prompt has no file, so the agent takes it at once.
+      await vi.waitFor(() =>
+        expect(
+          updates.filter(
+            (entry) => entry.update.sessionUpdate === 'user_message',
+          ),
+        ).toHaveLength(1),
+      )
+      upload()
+      await Promise.all([first, second])
+      await vi.waitFor(() =>
+        expect(
+          states(sessionId).filter((state) => state === 'idle:end_turn'),
+        ).toHaveLength(2),
+      )
+      expect(textOf(sessionId)).toBe('echo: firstecho: second')
+    })
   })
 
   it('keeps the tool from running when the editor rejects it', async () => {
@@ -823,7 +924,6 @@ describe('ACP agent handlers', () => {
       })
       await vi.waitFor(() => expect(idle('kept-session')).toBeDefined())
       expect(textOf('kept-session')).toBe('echo: hello')
-      expect(isOpen()).toBe(true)
     })
   })
 

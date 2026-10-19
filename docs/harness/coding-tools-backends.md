@@ -225,6 +225,7 @@ export const withToml = formatter({
 - `builtins: false` turns the built-in formatters off.
 - `timeoutMs` limits each run. The default is 20 seconds.
 - In a sandbox or on your own backend, give `formatter()` the same `backend` as `workspaceTools()`.
+- With [`workspaceTools({ workspace: { bind } })`](./coding-workspaces) before it, `formatter()` runs in the workspace of each thread. Leave out `root` and `backend`.
 
 A formatter that fails, stops at the time limit, or is not installed does not fail the tool call. The file stays as the tool wrote it, and the plugin sends `FormatFailed`. A formatter that changes the file sends `FormatterRewrote` with `{ path, formatter }`:
 
@@ -251,7 +252,7 @@ The rules decide before the call runs, and the formatter runs after the write. T
 
 - When the formatter asks, the call asks one time for the write and the formatter, also in `acceptEdits` mode. Answer that [approval](./permissions#answer-an-approval) with `resolve`.
 - A `reject` stops the call. Nothing is written, and the formatter does not run.
-- Answer `always` once, and the formatter runs without a question in this project.
+- Answer `always` once, and the formatter runs without a question in this project. The answer is tied to a hash of the formatter config files, like `prettier.config.js` and `package.json`. When they change, the next write asks again.
 - A rule that denies the formatter keeps the write. The tool result says that the formatter did not run.
 - A rule can allow a formatter: `{ tool: 'formatter:prettier', decision: 'allow' }`. Without `permissions()`, the formatter runs without a question.
 

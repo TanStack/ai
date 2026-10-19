@@ -45,6 +45,7 @@ const session = await host.open(coder, { threadId: 'fix-login' })
 - `dataDir` is a folder for the snapshot repositories, an absolute path. Put it outside `root`. Each thread of each tenant gets its own repository in it.
 - The plugin needs the `git` command. `/undo` and `/redo` need git 2.26 or later.
 - Your project does not need to be a git repository, and the plugin never uses the `.git` folder of your project.
+- With [`workspaceTools({ workspace: { bind } })`](./coding-workspaces) before it, each thread keeps its snapshots in its own workspace. Leave out `root`.
 
 ## 2. Undo and redo a turn
 
@@ -99,13 +100,13 @@ for (const { record } of await log.read({ logId: logIdOf({ logId: 'fix-login' })
 ```ts group=harness-snapshots
 const messages = await session.transcript()
 const firstAnswer = messages.find((message) => message.role === 'assistant')
-if (firstAnswer?.id) await session.revert(firstAnswer.id)
+if (firstAnswer?.id) await session.revert({ messageId: firstAnswer.id })
 
 // Bring back the files and the messages.
 await session.unrevert()
 ```
 
-- A revert uses the last 500 steps of the thread.
+- A revert uses the last 500 steps of the thread. The log snapshot keeps them, so a revert also works with [`logRecords: 'since-snapshot'`](./lifecycle#drop-the-records-before-a-snapshot).
 - A revert touches only the files that the tool calls after that message changed. Each file goes back to its state before the first of these calls. A file that did not exist then is removed.
 - Other files stay as they are. Your own edits between the hidden turns stay too.
 - `unrevert()` touches only the same files. It puts them back as they were when the revert started, with your edits.
@@ -114,7 +115,7 @@ await session.unrevert()
 - The next prompt drops the hidden messages for good. Then `unrevert()` does not change the files.
 - The revert is saved, so `unrevert()` still works after a restart.
 
-In your own UI, call `client.revert(messageId)` and `client.unrevert()`. The client needs `'undo'` in `expose.commands`. More about reverts: [Go back to an earlier message](./sessions#go-back-to-an-earlier-message).
+In your own UI, call `client.revert({ messageId })` and `client.unrevert()`. The client needs `'undo'` in `expose.commands`. More about reverts: [Go back to an earlier message](./sessions#go-back-to-an-earlier-message).
 
 ## In a sandbox
 
@@ -145,7 +146,12 @@ The undo point and the steps are in the session log. So when another server take
 
 ## Remove the snapshots of a thread
 
-When you delete a thread, remove its snapshot repository too. Call `purgeSnapshots` with the options of the plugin and the thread:
+[`host.sessions.delete`](./lifecycle#delete-a-thread-for-good) removes the snapshot repository of the thread for you. This needs two things:
+
+- The thread has an index entry.
+- This host knows the harness: it opened a session of it before, or it has the harness in its [`harnesses`](./lifecycle#delete-a-thread-for-good) option.
+
+In other cases, call `purgeSnapshots` with the options of the plugin and the thread:
 
 ```ts group=harness-snapshots
 import { purgeSnapshots } from '@tanstack/ai-harness/plugins/coding'

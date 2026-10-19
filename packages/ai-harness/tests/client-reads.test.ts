@@ -117,15 +117,15 @@ describe('client reads and actions', () => {
     )
     const [first] = await client.transcript()
 
-    const renamed = await client.renameSession({
+    const renamed = await client.sessions.rename({
       threadId: 'thread-r',
       title: 'Greeting',
     })
-    const pinned = await client.updateSession({
+    const pinned = await client.sessions.update({
       threadId: 'thread-r',
       pinned: true,
     })
-    const fork = await client.forkSession({
+    const fork = await client.sessions.fork({
       threadId: 'thread-r',
       at: { through: first?.id ?? '' },
     })
@@ -192,13 +192,15 @@ describe('client reads and actions', () => {
     const statusOf = async (path: string) =>
       (await handler(new Request(`http://local/api/harness/${path}`))).status
 
-    const transcript = await client.agentTranscript(childId)
+    const transcript = await client.agentTranscript({ subagentRunId: childId })
 
     expect(transcript.map((message) => message.content)).toEqual([
       'Take notes',
       'Note 1',
     ])
-    expect(await client.agentTranscript('unknown')).toEqual([])
+    expect(await client.agentTranscript({ subagentRunId: 'unknown' })).toEqual(
+      [],
+    )
     expect(await statusOf('agent-transcript?threadId=thread-a')).toBe(400)
     expect(
       await statusOf(

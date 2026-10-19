@@ -10,6 +10,7 @@ import { HostOwnership } from '../src/ownership'
 import { mockAdapter, storedThreadState, text, toolCall } from './helpers'
 import type { LogStore } from '@tanstack/ai-persistence'
 import type { Reply } from './helpers'
+import type { SessionImpl } from '../src/session/harness-session'
 
 const THREAD = 't1'
 
@@ -171,11 +172,16 @@ describe('runs and interrupts of a session', () => {
   it('refuses a client run id that a run in the log has, also on a new host', async () => {
     const log = memoryLogStore()
     const first = await openOn(log, [() => text('Hi.')])
-    await first.session.send('Hi.', { runId: 'run-1' })
+    await (first.session as unknown as SessionImpl).sendForRun('Hi.', {
+      runId: 'run-1',
+    })
     await first.host.close()
 
     const next = await openOn(log, [() => text('never')])
-    const again = next.session.send('Hi again.', { runId: 'run-1' })
+    const again = (next.session as unknown as SessionImpl).sendForRun(
+      'Hi again.',
+      { runId: 'run-1' },
+    )
     expect(await again.receipt).toMatchObject({
       status: 'rejected',
       reason: 'conflict',
@@ -195,12 +201,20 @@ describe('runs and interrupts of a session', () => {
       tenantId: 'globex',
     })
 
-    expect((await acme.session.send('Hi.', { runId: 'run-1' })).text).toBe(
-      'Hello, acme.',
-    )
-    expect((await globex.session.send('Hi.', { runId: 'run-1' })).text).toBe(
-      'Hello, globex.',
-    )
+    expect(
+      (
+        await (acme.session as unknown as SessionImpl).sendForRun('Hi.', {
+          runId: 'run-1',
+        })
+      ).text,
+    ).toBe('Hello, acme.')
+    expect(
+      (
+        await (globex.session as unknown as SessionImpl).sendForRun('Hi.', {
+          runId: 'run-1',
+        })
+      ).text,
+    ).toBe('Hello, globex.')
     await acme.host.close()
     await globex.host.close()
   })

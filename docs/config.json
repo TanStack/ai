@@ -353,7 +353,7 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Built-in Middleware",
@@ -927,42 +927,43 @@
           "label": "Build your first harness",
           "to": "harness/overview",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Send and show media",
           "to": "harness/media",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-16"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Connect clients",
           "to": "harness/connect",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Write a client in any language",
           "to": "harness/protocol",
-          "addedAt": "2026-10-17"
+          "addedAt": "2026-10-17",
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Access and tenants",
           "to": "harness/access",
           "addedAt": "2026-10-17",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Run in the terminal",
           "to": "harness/cli",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Deploy a harness",
           "to": "harness/deploy",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Send inputs safely",
@@ -995,7 +996,8 @@
         {
           "label": "Lifecycle and retention",
           "to": "harness/lifecycle",
-          "addedAt": "2026-10-17"
+          "addedAt": "2026-10-17",
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Run side effects once",
@@ -1012,7 +1014,7 @@
           "label": "Build on the session log",
           "to": "harness/session-log",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Control how a turn ends",
@@ -1024,7 +1026,7 @@
           "label": "Store settings per thread",
           "to": "harness/thread-settings",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Compact a long session",
@@ -1048,7 +1050,7 @@
           "label": "Write a plugin",
           "to": "harness/plugins",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Track usage and cost",
@@ -1077,13 +1079,14 @@
         {
           "label": "Run the coding tools for many threads",
           "to": "harness/coding-workspaces",
-          "addedAt": "2026-10-18"
+          "addedAt": "2026-10-18",
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Undo a turn",
           "to": "harness/snapshots",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Build a coding agent",
@@ -1125,17 +1128,19 @@
           "label": "Build your own UI",
           "to": "harness/custom-ui",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Code mode in a harness",
           "to": "harness/code-mode",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Work until a goal is met",
           "to": "harness/goal",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Run agents from a harness",
@@ -1151,13 +1156,14 @@
         {
           "label": "Add skills",
           "to": "harness/skills",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Use MCP servers",
           "to": "harness/mcp",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Use from any MCP client",

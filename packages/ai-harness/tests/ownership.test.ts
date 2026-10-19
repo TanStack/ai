@@ -99,9 +99,9 @@ describe('ownership of a log by two hosts', () => {
       inputId: 'in-b',
       status: 'queued',
     })
-    await expect(b.session.append([{ type: 'app.from-b' }])).rejects.toThrow(
-      'Another host owns the log',
-    )
+    await expect(
+      b.session.append({ records: [{ type: 'app.from-b' }] }),
+    ).rejects.toThrow('Another host owns the log')
 
     // B still reads: it gets the answers of A.
     release.open()
@@ -366,7 +366,7 @@ describe('renewals', () => {
     const ownership = new HostOwnership({
       store: log,
       ownerId: 'host-1',
-      timing: { ttlMs: 20, renewMs: 40 },
+      timing: { ...CRASHING_OWNERSHIP, ttlMs: 20, renewMs: 40 },
     })
     const lost = vi.fn()
     ownership.onLost(LOG, lost)
@@ -448,5 +448,42 @@ describe('the run context', () => {
       },
     ])
     await host.close()
+  })
+})
+
+describe('ownership timing', () => {
+  it('renews at a third of ttlMs when only ttlMs is set', async () => {
+    const intervals = vi.spyOn(globalThis, 'setInterval')
+    const ownership = new HostOwnership({
+      store: memoryLogStore(),
+      ownerId: 'host-1',
+      timing: { ttlMs: 6_000 },
+    })
+    await ownership.acquire(LOG, 'test/ownership')
+
+    expect(intervals.mock.calls.map(([, ms]) => ms)).toContain(2_000)
+    await ownership.close()
+    intervals.mockRestore()
+  })
+
+  it('refuses a renewMs that is not less than ttlMs', () => {
+    expect(() =>
+      createHarnessHost({
+        persistence: memoryPersistence(),
+        ownership: { ttlMs: 5_000, renewMs: 5_000 },
+      }),
+    ).toThrow(RangeError)
+    expect(() =>
+      createHarnessHost({
+        persistence: memoryPersistence(),
+        ownership: { renewMs: 30_000 },
+      }),
+    ).toThrow('must be less than ownership.ttlMs')
+    expect(() =>
+      createHarnessHost({
+        persistence: memoryPersistence(),
+        ownership: { ttlMs: 0 },
+      }),
+    ).toThrow('more than 0')
   })
 })

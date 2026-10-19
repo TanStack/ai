@@ -94,7 +94,9 @@ async function stopDuringAgent(options: {
   const refuse = vi
     .spyOn(log, 'append')
     .mockRejectedValue(new Error('the host is gone'))
-  await expect(sessionA.append([{ type: 'app.ping' }])).rejects.toThrow()
+  await expect(
+    sessionA.append({ records: [{ type: 'app.ping' }] }),
+  ).rejects.toThrow()
   await expect(operation).rejects.toThrow()
   refuse.mockRestore()
 
