@@ -8,9 +8,15 @@ import type { Scope } from '../scope'
 export type CredentialScope = Pick<Scope, 'tenantId' | 'userId'> &
   Partial<Pick<Scope, 'threadId'>>
 
-/** A secret a user or an organization saved: an API key or OAuth tokens. */
+/**
+ * A secret a user or an organization saved: an API key or OAuth tokens. A
+ * `secret_answer` is not a user credential: the harness keeps a secret
+ * answer to a question there for a short time (`value` is its JSON), and
+ * deletes it once read. Leave it out of a "connected accounts" list.
+ */
 export type Credential =
   | { type: 'api_key'; value: string }
+  | { type: 'secret_answer'; value: string; expiresAt: number }
   | {
       type: 'oauth'
       accessToken: string

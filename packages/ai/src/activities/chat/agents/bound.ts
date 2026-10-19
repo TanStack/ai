@@ -54,6 +54,13 @@ export interface SubagentBinding {
    */
   chatMiddleware?: ReadonlyArray<AnyChatMiddleware>
   /**
+   * Added after the call's own middleware on every `ctx.chat` call, so it
+   * sees the final config and tool results (for example a host middleware
+   * that scrubs secrets or logs results). A child's `ctx.chat({ subagents })`
+   * passes it down to its own children, after their own.
+   */
+  lastChatMiddleware?: ReadonlyArray<AnyChatMiddleware>
+  /**
    * Added before the call's own middleware on every generation call. A
    * child's `ctx.chat({ subagents })` passes it down to its own children.
    */
@@ -162,6 +169,7 @@ export function createBoundActivities(
   let chatCalls = 0
   const signal = abortController.signal
   const chatMiddleware = binding?.chatMiddleware ?? []
+  const lastChatMiddleware = binding?.lastChatMiddleware ?? []
   const generationMiddleware = binding?.generationMiddleware ?? []
   const interrupts = binding?.interrupts ?? []
 
@@ -214,6 +222,10 @@ export function createBoundActivities(
                     ...chatMiddleware,
                     ...(options.subagents.binding?.chatMiddleware ?? []),
                   ],
+                  lastChatMiddleware: [
+                    ...(options.subagents.binding?.lastChatMiddleware ?? []),
+                    ...lastChatMiddleware,
+                  ],
                   generationMiddleware: [
                     ...generationMiddleware,
                     ...(options.subagents.binding?.generationMiddleware ?? []),
@@ -236,7 +248,11 @@ export function createBoundActivities(
         ...(interrupts.length > 0
           ? { interrupts: mergeInterrupts(interrupts, options.interrupts) }
           : {}),
-        middleware: [...chatMiddleware, ...(options.middleware ?? [])],
+        middleware: [
+          ...chatMiddleware,
+          ...(options.middleware ?? []),
+          ...lastChatMiddleware,
+        ],
       } as never)) as typeof chat,
     summarize: ((options: LooseOptions) =>
       summarize(full('summarize', options) as never)) as typeof summarize,

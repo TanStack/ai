@@ -9,4 +9,6 @@ Add `interrupts` to `SubagentBinding`.
 - A child's `ctx.chat({ subagents })` passes the definitions on to its own children.
 - A plain `chat()` call does not get them.
 
+Add `lastChatMiddleware` to `SubagentBinding`. It runs after the own middleware of each `ctx.chat` call of an agent run, so it sees the final model context and tool results. A child's `ctx.chat({ subagents })` passes it on, after the child's own.
+
 Add `validateJsonSchema(schema, value)`. It checks a value against a JSON Schema with `@cfworker/json-schema`, as a tool input is checked, but with no repair. The result has the Standard Schema shape: `{ value }` or `{ issues }`. The root also exports the `StandardSchemaV1` and `StandardJSONSchemaV1` types.
