@@ -1220,7 +1220,8 @@ export abstract class SessionAgents<
           return
         }
         retries += 1
-        if (answer !== 'retry' || signal.aborted) return
+        // Core makes no 4th call, so a wait after the 3rd failure is lost.
+        if (answer !== 'retry' || signal.aborted || retries >= 3) return
         await backoff(
           Math.min(retryAfterMs ?? 250 * 2 ** (retries - 1), 5_000),
           signal,
