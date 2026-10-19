@@ -35,6 +35,7 @@ export function wrapLogStore(
     renew: overrides.renew ?? inner.renew.bind(inner),
     release: overrides.release ?? inner.release.bind(inner),
     setAffinity: overrides.setAffinity ?? inner.setAffinity.bind(inner),
+    heartbeat: overrides.heartbeat ?? inner.heartbeat.bind(inner),
     listOrphaned: overrides.listOrphaned ?? inner.listOrphaned.bind(inner),
     offer: overrides.offer ?? inner.offer.bind(inner),
     offered: overrides.offered ?? inner.offered.bind(inner),

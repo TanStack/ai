@@ -249,6 +249,8 @@ describe('the workspace binding in the session log', () => {
     const persistence = memoryPersistence()
     const { log } = persistence.stores
     const binding = { kind: 'host', hostId: 'host-a', root: '/ws' }
+    // host-a runs: its pins count.
+    await log.heartbeat({ hostId: 'host-a', ttlMs: 60_000 })
     await appendToLog(log, { threadId: THREAD }, [
       { type: 'harness.workspace.bound', binding },
     ])
@@ -315,6 +317,77 @@ describe('the workspace binding in the session log', () => {
     await again.host.close()
   })
 
+  it('keeps the pin of a live host on its idle thread, after its ownership expired', async () => {
+    const persistence = memoryPersistence()
+    const { log } = persistence.stores
+    const { adapter } = readTurn('c0')
+    const live = createHarnessHost({
+      persistence,
+      ownership: { hostId: 'pod-a', ttlMs: 300, renewMs: 100 },
+    })
+    const harness = defineHarness({
+      name: 'test/workspace-binding',
+      adapter,
+      plugins: () => [
+        workspaceTools({ root: '/ws', backend: backend(), web: false }),
+      ],
+    })
+    await (await live.open(harness, { threadId: THREAD })).send('read')
+    // Past the ttl: pod-a released the idle log, and it still runs.
+    await new Promise((resolve) => setTimeout(resolve, 600))
+    const asPodA = { logId: LOG, harness: 'x', ownerId: 'x', ttlMs: 1_000 }
+    const released = await log.acquire({ ...asPodA, affinity: 'pod-a' })
+    expect(released).not.toBeNull()
+    await log.release({ logId: LOG, ownerId: 'x', epoch: released?.epoch ?? 0 })
+
+    expect(await canOtherHostTake(log, LOG)).toBe(false)
+    await live.close()
+  })
+
+  it('reattaches the thread of a pinned host that stopped', async () => {
+    const persistence = memoryPersistence()
+    const workspace = { ...backend(), root: '/ws' }
+    const first = readTurn('c0')
+    const crashed = open({
+      persistence,
+      adapter: first.adapter,
+      crashes: true,
+      hostId: 'pod-a',
+      plugins: [
+        workspaceTools({
+          workspace: { bind: async () => workspace },
+          web: false,
+        }),
+      ],
+    })
+    await (await crashed.opened).send('read')
+    // pod-a never closes, and sends no more heartbeats, like a stopped host.
+    await ownershipExpired()
+    const reattach = vi.fn(async () => workspace)
+    const { adapter, calls } = readTurn('c1')
+    const next = open({
+      persistence,
+      adapter,
+      hostId: 'pod-b',
+      plugins: [
+        workspaceTools({
+          workspace: { bind: async () => workspace, reattach },
+          web: false,
+        }),
+      ],
+    })
+
+    await (await next.opened).send('read')
+
+    expect(reattach).toHaveBeenCalledWith(
+      expect.objectContaining({
+        binding: { kind: 'host', hostId: 'pod-a', root: '/ws' },
+      }),
+    )
+    expect(resultOf(calls, 'c1')).toBe(READ)
+    await next.host.close()
+  })
+
   it('unpins a folder thread from a host that does not come back', async () => {
     const persistence = memoryPersistence()
     const { log } = persistence.stores
@@ -343,6 +416,7 @@ describe('the workspace binding in the session log', () => {
     const { log } = persistence.stores
     const inFolder = { root: '/ws', backend: backend() }
     // A binding to pod-a, and no pin yet: host B gets the log.
+    await log.heartbeat({ hostId: 'pod-a', ttlMs: 60_000 })
     await appendToLog(log, { threadId: THREAD }, [
       {
         type: 'harness.workspace.bound',

@@ -21,6 +21,10 @@ export interface OwnershipOptions {
    * folder is pinned to this host, and another host refuses the thread with
    * the pinned error. When you do not set it, threads are not pinned, and
    * every host can continue every thread.
+   *
+   * A host with an id sends a heartbeat to the log store each `renewMs`,
+   * also when it owns no log. A pin counts while its host is alive: when no
+   * heartbeat came for `ttlMs`, other hosts take its threads.
    */
   hostId?: string
   /**
@@ -94,7 +98,8 @@ export class LogOwnedElsewhereError extends Error {
 /**
  * The logs that one host owns, with their epochs. The host acquires a log
  * the first time it must write to it, and releases it when it has no work
- * on it. One timer renews every owned log. With no owned log, there is no
+ * on it. One timer renews every owned log, and sends the heartbeat of a
+ * host with an `affinity`. With no owned log and no affinity, there is no
  * timer and no store call.
  */
 export class HostOwnership {
@@ -144,6 +149,20 @@ export class HostOwnership {
     const { ttlMs, renewMs } = ownershipTiming(options.timing)
     this.ttlMs = ttlMs
     this.renewMs = renewMs
+    // The pins of this host count only while it is alive.
+    if (this.affinity !== undefined) {
+      void this.beat()
+      this.startTimer()
+    }
+  }
+
+  /** Tell the store that this host is alive. Tries again at the next tick. */
+  private beat() {
+    const hostId = this.affinity
+    if (hostId === undefined) return Promise.resolve()
+    return Promise.resolve()
+      .then(() => this.store.heartbeat({ hostId, ttlMs: this.ttlMs }))
+      .catch(() => {})
   }
 
   /** The epoch of `logId` while this host owns it. */
@@ -228,7 +247,7 @@ export class HostOwnership {
   forget(logId: string) {
     this.owned.delete(logId)
     this.takenOver.delete(logId)
-    if (this.owned.size === 0) this.stopTimer()
+    if (this.owned.size === 0 && this.affinity === undefined) this.stopTimer()
   }
 
   /**
@@ -312,9 +331,10 @@ export class HostOwnership {
     this.renewing = true
     try {
       const owned = [...this.owned]
-      await Promise.all(
-        owned.map(([logId, epoch]) => this.renewOne(logId, epoch)),
-      )
+      await Promise.all([
+        this.beat(),
+        ...owned.map(([logId, epoch]) => this.renewOne(logId, epoch)),
+      ])
     } finally {
       this.renewing = false
     }

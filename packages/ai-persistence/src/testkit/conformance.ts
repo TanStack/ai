@@ -2144,6 +2144,8 @@ export function runPersistenceConformance(
         const logId = newLog()
         const harness = newHarness()
         const claim = { ...claimOf(logId, 'a'), harness }
+        // A pin counts while its host is alive.
+        await store.heartbeat({ hostId: 'host-1', ttlMs: LIVE_MS })
         await store.acquire(claim)
         await store.setAffinity({ logId, epoch: 1, affinity: 'host-1' })
         await store.release({ logId, ownerId: 'a', epoch: 1, wakeInMs: 0 })
@@ -2166,6 +2168,31 @@ export function runPersistenceConformance(
         expect(
           await store.acquire({ ...claim, ownerId: 'b', affinity: 'host-1' }),
         ).toEqual({ epoch: 2 })
+      })
+
+      it('lets other hosts take a pinned log when the heartbeat of its host expired', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        const harness = newHarness()
+        const host = `host-${logId}`
+        await store.heartbeat({ hostId: host, ttlMs: SHORT_MS })
+        await store.acquire({ ...claimOf(logId, 'a'), harness, affinity: host })
+        await store.setAffinity({ logId, epoch: 1, affinity: host })
+        await store.release({ logId, ownerId: 'a', epoch: 1, wakeInMs: 0 })
+        const other = { ...claimOf(logId, 'b'), harness }
+
+        // The host is alive: its idle log stays with it.
+        expect(
+          await store.listOrphaned({ limit: 10, harnesses: [harness] }),
+        ).toEqual([])
+        expect(await store.acquire(other)).toBeNull()
+
+        await waitPastShort()
+        expect(
+          await store.listOrphaned({ limit: 10, harnesses: [harness] }),
+        ).toEqual([{ logId, harness, reason: 'wake' }])
+        expect(await store.acquire(other)).toEqual({ epoch: 2 })
       })
 
       it('fences setAffinity', async (ctx) => {
@@ -2201,6 +2228,9 @@ export function runPersistenceConformance(
         ).rejects.toBeInstanceOf(RangeError)
         await expect(
           store.release({ logId, ownerId: 'a', epoch: 1, wakeInMs: -1 }),
+        ).rejects.toBeInstanceOf(RangeError)
+        await expect(
+          store.heartbeat({ hostId: 'host-1', ttlMs: 0 }),
         ).rejects.toBeInstanceOf(RangeError)
         // The refused release did not release the log.
         expect(await store.acquire(claimOf(logId, 'b'))).toBeNull()
@@ -2431,6 +2461,7 @@ export function runPersistenceConformance(
         // A pin applies to a log that no host acquired too.
         const pinned = newLog()
         const pinnedHarness = newHarness()
+        await store.heartbeat({ hostId: 'host-1', ttlMs: 10_000 })
         await store.setAffinity({
           logId: pinned,
           epoch: UNOWNED_EPOCH,
@@ -2642,6 +2673,7 @@ export function runPersistenceConformance(
         const harness = newHarness()
         const claim = { logId, harness, ttlMs: LIVE_MS }
         const input = { logId, harness, inputId: 'i1', record: { type: 'in' } }
+        await store.heartbeat({ hostId: 'host-1', ttlMs: LIVE_MS })
         await store.acquire({ ...claim, ownerId: 'a' })
         await store.setAffinity({ logId, epoch: 1, affinity: 'host-1' })
         await store.append({ logId, seq: 1, epoch: 1, records: recordsOf(2) })

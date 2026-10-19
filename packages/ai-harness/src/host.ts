@@ -176,7 +176,9 @@ export interface HarnessHostOptions<P extends Principal = Principal> {
    * thread that the host owns (default 10000 ms). `hostId`: a stable id
    * for this host, for example the machine or pod name. With it, a thread
    * that uses a local folder is pinned to this host, and another host
-   * refuses the thread. Leave it out for the defaults: no pins.
+   * refuses the thread. The host sends a heartbeat each `renewMs`. When no
+   * heartbeat came for `ttlMs`, the pin does not count, and another host
+   * can reattach the thread. Leave it out for the defaults: no pins.
    */
   ownership?: OwnershipOptions
   /** How the sessions of this host live. Leave it out for the defaults. */
