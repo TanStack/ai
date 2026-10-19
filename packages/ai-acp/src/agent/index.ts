@@ -385,6 +385,12 @@ export function createAcpAgent<P extends Principal = Principal>(
    * order that they came in.
    */
   const tails = new Map<string, Promise<void>>()
+  /**
+   * The sessions that this agent opened in this connection. They are known
+   * without the session index, so a host with no `stores.sessions` still
+   * takes their prompts after the agent released their handles.
+   */
+  const opened = new Set<string>()
 
   /** The handle of a session: the one that the agent holds, or a new one. */
   const live = (sessionId: string) => {
@@ -393,9 +399,12 @@ export function createAcpAgent<P extends Principal = Principal>(
     const opening = host.open(harness, { threadId: sessionId, principal })
     handles.set(sessionId, opening)
     // A failed open holds nothing, so the next request opens again.
-    opening.catch(() => {
-      if (handles.get(sessionId) === opening) handles.delete(sessionId)
-    })
+    opening.then(
+      () => opened.add(sessionId),
+      () => {
+        if (handles.get(sessionId) === opening) handles.delete(sessionId)
+      },
+    )
     return opening
   }
 
@@ -420,13 +429,14 @@ export function createAcpAgent<P extends Principal = Principal>(
   }
 
   /**
-   * Throw unless this agent or the session index knows the id. A subagent
+   * Throw unless this agent or the session index knows the id. The agent
+   * knows the sessions that it opened in this connection. A subagent
    * child is not a session of its own: ACP reaches it through its parent. A
    * session that the principal may not read gets the same answer as an
    * unknown id. It reads the index only: no session opens.
    */
   const checkKnown = async (sessionId: string) => {
-    if (handles.has(sessionId)) return
+    if (handles.has(sessionId) || opened.has(sessionId)) return
     try {
       const entry = await host.sessions.get({ threadId: sessionId, principal })
       const isOwnSession =
