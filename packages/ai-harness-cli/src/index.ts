@@ -69,6 +69,8 @@ export interface RunCliOptions<P extends Principal = Principal> {
    * a ready session view and resolves when the user quits. Piped input and
    * the other modes (`--print`, `--acp`, `--mcp`, `--serve`) do not use it.
    * `view.send(text)` sends each `@path` file in `text`, as line mode does.
+   * A saved child agent of a reopened thread shows only its card until the
+   * screen calls `view.loadAgent({ id })`.
    */
   ui?: (view: SessionView) => Promise<void> | void
   /**
@@ -137,7 +139,7 @@ function attachingSource(session: HarnessSession) {
     snapshot: () => session.snapshot(),
     transcript: () => session.transcript(),
     describe: () => session.describe(),
-    mediaUrl: (id) => session.mediaUrl(id),
+    mediaUrl: (options) => session.mediaUrl(options),
     loadMedia: (options) => session.loadMedia(options),
   }
   return source
@@ -261,12 +263,14 @@ export async function runCli<P extends Principal = Principal>(
 
     if (args.serve) {
       const token = args.token ?? env.HARNESS_TOKEN ?? createToken()
+      const mediaKey = args.mediaKey ?? env.HARNESS_MEDIA_KEY
       const server = await serve({
         host,
         harness,
         port: args.port,
         hostname: args.hostname,
         token,
+        ...(mediaKey !== undefined ? { mediaKey } : {}),
         threadId: args.thread,
         approvals,
         ...(principal ? { principal } : {}),

@@ -749,6 +749,32 @@ describe('serve mode', () => {
     }
   })
 
+  it('signs media URLs with --media-key, never with the token', async () => {
+    expect(parseCliArgs(['--serve', '--media-key', 'k'])).toMatchObject({
+      mediaKey: 'k',
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const start = (mediaKey?: string) =>
+      serve({
+        host,
+        harness: defineHarness({
+          name: 'test/serve-key',
+          adapter: scripted([]).adapter,
+        }),
+        port: 0,
+        hostname: '127.0.0.1',
+        token: 'secret',
+        ...(mediaKey !== undefined ? { mediaKey } : {}),
+      })
+
+    // The key is checked: a short one is refused at the start.
+    await expect(start('short')).rejects.toThrow('Media signing key 0 is 5')
+    // A short token is fine: it does not sign anything.
+    const server = await start()
+    await server.close()
+    await host.close()
+  })
+
   it('reads the user of each request with identify on a host with access, behind the token', async () => {
     const host = accessHost()
     const server = await serve({

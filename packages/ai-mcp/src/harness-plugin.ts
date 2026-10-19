@@ -88,7 +88,12 @@ export type McpServerStatus = {
  * - When the connection of a server closes, the server is `reconnecting`.
  *   The plugin connects again after 0.5 s, 1 s, 2 s, and so on (at most
  *   30 s), until it is connected or its session or host closes. The next
- *   turn gets the tools of the new connection.
+ *   turn gets the tools of the new connection. A server that fails its
+ *   first connect is `failed`, and connects again the same way.
+ * - A spec 2025 server that asks for input (`elicitation/create`) does not
+ *   name the tool call that asks. The user of the call is asked only when
+ *   all the calls of that server that run now belong to one run. Else the
+ *   request is declined, so a question never goes to another user.
  * - When a server sends `tools/list_changed`, the next turn lists its tools
  *   again.
  * - When two servers give a tool with the same name, the model gets the
@@ -123,9 +128,8 @@ export function mcp(options: {
     setup: (host) => {
       // The tool calls of a shared server that run now, newest last.
       const calling: Array<Caller> = []
-      // ponytail: a spec 2025 request of a shared server goes to the newest
-      // running call. Two sessions that call one stdio server at the same
-      // time can get the question of the other one.
+      // A spec 2025 request of a shared server goes to the run that calls,
+      // only when one run calls. Else it is declined (see `elicitFor`).
       const askCaller = elicitFor(calling)
       const shared = new Map<string, SharedServer>()
       for (const [name, server] of servers) {
@@ -281,11 +285,13 @@ async function sessionPart(
 type SharedServer = ReturnType<typeof openServer>
 
 /**
- * Connect one server in `resources`. Resolves to the error of a server that
- * fails its first connect, so it never rejects.
+ * Connect one server in `resources`. It never rejects: an error that stops
+ * the setup itself resolves to that error.
  *
- * When the connection closes later, the status is `reconnecting` and the
- * server connects again with backoff, until `resources` is disposed. After
+ * When the first connect fails, the status is `failed` with the error, and
+ * the server connects again with backoff. When the connection closes later,
+ * the status is `reconnecting`, with the same backoff. Both go on until a
+ * connection is open or `resources` is disposed. After
  * `tools/list_changed`, the next `tools()` lists the tools again.
  */
 function openServer(
@@ -412,7 +418,20 @@ function openServer(
   return resources
     .acquire(
       async () => {
-        await open()
+        try {
+          await open()
+        } catch (error) {
+          if (signal.aborted) throw error
+          // A server that is not up yet (a slow `npx`, a short outage) gets
+          // its tools at a later turn.
+          setStatus({
+            name,
+            status: 'failed',
+            error: errorText(error),
+            toolCount: 0,
+          })
+          void reconnect()
+        }
         return link
       },
       () => client?.close(),
@@ -487,7 +506,7 @@ export interface Caller {
 
 /**
  * Puts each call of `tools` in `calling` while it runs, with its session
- * and its run, so a spec 2025 elicitation goes to the run that calls.
+ * and its run, so a spec 2025 elicitation can find the run that calls.
  */
 export function trackCaller(
   tools: ReadonlyArray<AnyTool>,
@@ -554,14 +573,24 @@ export function askForInput(
 }
 
 /**
- * Answers the `elicitation/create` requests of a spec 2025 server: it asks
- * for the newest call of `calling`, as a live wait of its run. With no
- * call, it declines: only a tool call can wait for the user.
+ * Answers the `elicitation/create` requests of a spec 2025 server. The
+ * request does not name the tool call that it belongs to. So it asks only
+ * when the calls of `calling` all belong to one run of one session, as a
+ * live wait of that run. With no call, or with calls of more than one run
+ * (two users or tenants can share a server), it declines: a question must
+ * never go to the user of another run.
  */
 export function elicitFor(calling: ReadonlyArray<Caller>): OnElicit {
   return async (params) => {
-    const caller = calling.at(-1)
+    const [caller] = calling
     if (!caller) return { action: 'decline' }
+    const isOneRun = calling.every(
+      (other) =>
+        other.session === caller.session &&
+        other.run !== undefined &&
+        other.run.runId === caller.run?.runId,
+    )
+    if (!isOneRun) return { action: 'decline' }
     return elicitResult(await ask(caller.session, params, caller.run))
   }
 }

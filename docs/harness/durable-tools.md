@@ -127,7 +127,7 @@ The same tool works in plain `chat()`. There, `step.do` runs `fn` each time, and
 
 ## What you have now
 
-- Side effects that do not repeat after a crash.
+- Steps that keep their result after a crash. A step that a crash cuts can run again, so its idempotency key lets your system refuse the second side effect.
 - Questions to the user that any server can answer.
 - Your own records that land together with the tool batch, or not at all.
 - One tool definition for durable and plain runs.

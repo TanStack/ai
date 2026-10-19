@@ -16,7 +16,7 @@ import type {
   AgentStartOptions,
   RunArgs,
 } from './session/types'
-import type { AgentRun } from './types'
+import type { AgentRun, RunContext } from './types'
 import type { PluginState } from './plugins'
 import type { AnyHarness } from './define'
 
@@ -116,6 +116,11 @@ export class AgentRegistry implements AgentRegistryView {
 
   get(name: string): AnyAgent | undefined {
     return this.agents.get(name)?.agent
+  }
+
+  /** Who added the agent `name`: `'the harness'` or a plugin name. */
+  ownerOf(name: string): string | undefined {
+    return this.agents.get(name)?.owner
   }
 
   find(query: { produces: AgentProduces }): AnyAgent | undefined {
@@ -304,13 +309,30 @@ export type HarnessChildRun = (
  */
 const childRuns = new WeakMap<HarnessAgentContext, HarnessChildRun>()
 
-/** @internal Give `context` the child hook `run`. Returns `context`. */
+/** The run context of the run of each `ctx.harness` that a session made. */
+const runContexts = new WeakMap<HarnessAgentContext, RunContext>()
+
+/**
+ * @internal Give `context` the child hook `run`, and the run context of the
+ * run that it belongs to. Returns `context`.
+ */
 export function withHarnessChild(
   context: HarnessAgentContext,
   run: HarnessChildRun,
+  runContext: RunContext,
 ): HarnessAgentContext {
   childRuns.set(context, run)
+  runContexts.set(context, runContext)
   return context
+}
+
+/**
+ * @internal The run context of the run of `context`: for an agent that runs
+ * as a tool of a turn, the run of that turn. `undefined` outside a run that
+ * a harness session started.
+ */
+export function runContextOf(context: HarnessAgentContext | undefined) {
+  return context ? runContexts.get(context) : undefined
 }
 
 /**

@@ -213,6 +213,23 @@ describe('bash', () => {
     expect(result).toBe(`${LONG_RESULT}\n[Full output saved to ${path}.]`)
   })
 
+  it('saves the output that scrub gives, so the file keeps no secret', async () => {
+    const { env, files } = workspace({
+      ...LONG,
+      stdout: 'key=sk-secret\n'.repeat(3000),
+    })
+    await bash(
+      env,
+      { command: 'test' },
+      {
+        spillDir: '.agent/bash',
+        scrub: (text) => text.replaceAll('sk-secret', '[redacted]'),
+      },
+    )
+    const [saved] = files.values()
+    expect(saved).toBe('key=[redacted]\n'.repeat(3000))
+  })
+
   it('saves it with a POSIX path in a sandbox, also on a Windows host', async () => {
     const { env, files } = workspace(LONG, { shell: 'sh' })
     await bash(

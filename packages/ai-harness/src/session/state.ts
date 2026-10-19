@@ -10,7 +10,7 @@ import { LogOwnedElsewhereError } from '../ownership'
 import { isRecord } from '../utils'
 import { jsonSchemaIssues } from '../json-schema'
 import { changedEntry } from '../session-entry'
-import { stableJson, threadOf, visibleMessages } from '../log'
+import { stableJson, visibleMessages } from '../log'
 import { isHumanTarget } from '../log-records'
 import { mediaIdOf, mediaOfMessage, mediaPart } from '../media-ref'
 import {
@@ -19,7 +19,9 @@ import {
   RevertFiles,
   RevertStanding,
   SessionMetadata,
+  SessionScrub,
   SessionSignal,
+  ThreadEnds,
   WorkspaceLog,
 } from '../plugins'
 import { HARNESS_EVENTS } from '../types'
@@ -55,6 +57,7 @@ import type {
   SessionIndexEntry,
 } from '@tanstack/ai-persistence'
 import type { RevertState } from '../log'
+import type { ThreadEndHandler } from '../plugins'
 import type {
   HandoffRecord,
   RecordPrincipal,
@@ -74,7 +77,7 @@ import type { SessionEntryChange, SessionEntryUpdate } from '../session-entry'
 import type {
   ChatTurnResult,
   ConfigureOptions,
-  HarnessInput,
+  OfferedHarnessInput,
   MediaRecord,
   MediaUpload,
   PendingQuestion,
@@ -118,6 +121,8 @@ export abstract class SessionState<
   protected readonly waitEnds = new Map<string, () => void>()
   /** The secret answers to `step.ask` waits that this host kept, by wait id. */
   protected readonly keptAnswers = new Map<string, unknown>()
+  /** The handlers that plugins added to `ThreadEnds`, oldest first. */
+  protected readonly threadEnds = new Set<ThreadEndHandler>()
 
   /** The stores that first-party plugins read as capabilities. */
   protected storeCapabilities() {
@@ -126,6 +131,13 @@ export abstract class SessionState<
     if (metadata) values.provide(SessionMetadata, metadata)
     values.provide(RevertStanding, () => this.reverted !== undefined)
     values.provide(SessionSignal, this.lifetime.signal)
+    values.provide(SessionScrub, (text) => this.scrub(text))
+    values.provide(ThreadEnds, {
+      add: (handler) => {
+        this.threadEnds.add(handler)
+        return () => this.threadEnds.delete(handler)
+      },
+    })
     values.provide(BackgroundJobs, {
       started: (job) => this.logJob(job, false),
       ended: (job) => this.logJob(job, true),
@@ -299,7 +311,7 @@ export abstract class SessionState<
   }
 
   /** The record of a media file of this thread, or `null` when it is not found. */
-  getMedia(id: string) {
+  getMedia({ id }: { id: string }) {
     return this.mediaStore.get(id)
   }
 
@@ -319,7 +331,7 @@ export abstract class SessionState<
    * has no server, so this is a data URL for a file up to 1 MB, and `{}` for
    * a bigger file (use `loadMedia`).
    */
-  async mediaUrl(id: string) {
+  async mediaUrl({ id }: { id: string }) {
     const url = await this.mediaStore.dataUrl(id)
     const answer: { url?: string; expiresAt?: number } =
       url === undefined ? {} : { url }
@@ -347,7 +359,7 @@ export abstract class SessionState<
    * call it.
    */
   async adoptMessages(
-    source: Pick<SessionImpl, 'getMedia' | 'loadMedia'>,
+    source: SessionImpl,
     messages: ReadonlyArray<ModelMessage>,
     records: ReadonlyArray<LogRecord> = [],
   ): Promise<void> {
@@ -355,12 +367,13 @@ export abstract class SessionState<
     const copies = new Map<string, MediaRecord | null>()
     const copy = async (id: string) => {
       if (!copies.has(id)) {
-        const record = await source.getMedia(id)
+        const record = await source.getMedia({ id })
         copies.set(
           id,
           record &&
             (await this.putMedia({
-              body: await source.loadMedia({ id }),
+              // A stream, so the copy does not hold the whole file in memory.
+              body: await source.mediaStore.open(id),
               mimeType: record.mimeType,
               name: record.name,
             })),
@@ -541,7 +554,8 @@ export abstract class SessionState<
       result[key] = {
         option: entry.option,
         owner: entry.owner,
-        value: this.configValue(key),
+        // The latest value, also while a turn runs with its own copy.
+        value: this.configValue(key, this.configValues),
       }
     }
     return result
@@ -552,17 +566,28 @@ export abstract class SessionState<
    * who changes it. Default: the principal that opened the session. The log
    * keeps it.
    */
-  async setConfig({
+  setConfig(options: {
+    key: string
+    value: unknown
+    principal?: Principal
+  }): Promise<Receipt> {
+    return this.applyConfig(options)
+  }
+
+  /**
+   * `setConfig`, with `controlId`: the id of an offered input, so a replay
+   * is a duplicate.
+   */
+  protected override async applyConfig({
     key,
     value,
-    inputId = createInputId(),
+    controlId: inputId = createInputId(),
     principal,
   }: {
     key: string
     value: unknown
-    /** @internal The id of an offered input, so a replay is a duplicate. */
-    inputId?: string
     principal?: Principal
+    controlId?: string
   }): Promise<Receipt> {
     const admission = await this.accept(
       inputId,
@@ -631,15 +656,19 @@ export abstract class SessionState<
       principal,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+    // The store took the input, so this host owns the log, and its fold has
+    // the settings that other hosts wrote. The change merges into them.
+    const current = this.settingsFromLog()
     let next: ThreadSettings
     try {
-      next = changeSettings(this.threadSettings, settings, this.settingNames())
+      next = changeSettings(current, settings, this.settingNames())
+      this.checkRemovable(next)
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
       this.reject(inputId, reason)
       return this.keep({ inputId, status: 'rejected', reason })
     }
-    const movedFrom = this.threadSettings.cwd
+    const movedFrom = current.cwd
     this.threadSettings = next
     // Tell the model about a new folder, so it stops using the old paths.
     // A new thread gets no note: some providers refuse a conversation that
@@ -669,6 +698,43 @@ export abstract class SessionState<
     return this.keep({ inputId, status: 'accepted' })
   }
 
+  /**
+   * Throws when the plugins that `settings` removes provide a capability
+   * that a kept plugin (of any lifetime) or a harness middleware requires.
+   */
+  protected checkRemovable(settings: ThreadSettings) {
+    const removed = new Set(settings.plugins?.remove ?? [])
+    if (removed.size === 0) return
+    const owners = new Map(
+      this.plugins.flatMap((plugin) =>
+        (plugin.provides ?? []).map((handle) => [handle, plugin.name] as const),
+      ),
+    )
+    const needs = [
+      ...this.plugins
+        .filter((plugin) => !removed.has(plugin.name))
+        .map((plugin) => ({
+          who: `plugin ${plugin.name}`,
+          requires: plugin.requires,
+        })),
+      ...(this.harness.middleware ?? []).map((middleware) => ({
+        who: middleware.name
+          ? `harness middleware ${middleware.name}`
+          : 'a harness middleware',
+        requires: middleware.requires,
+      })),
+    ]
+    for (const { who, requires } of needs) {
+      for (const handle of requires ?? []) {
+        const owner = owners.get(handle)
+        if (owner === undefined || !removed.has(owner)) continue
+        throw new Error(
+          `Cannot remove plugin ${owner}: ${who} requires its capability "${handle.capabilityName}".`,
+        )
+      }
+    }
+  }
+
   /** The model and plugin names that a setting can use. */
   protected settingNames(): SettingNames {
     return {
@@ -684,7 +750,7 @@ export abstract class SessionState<
     owner: string
     input?: unknown
   }> {
-    return [...(this.sessionPlugins?.commands ?? [])].map(([name, entry]) => ({
+    return [...(this.threadPlugins()?.commands ?? [])].map(([name, entry]) => ({
       name,
       description: entry.command.description,
       owner: entry.owner,
@@ -747,7 +813,11 @@ export abstract class SessionState<
    * child of this thread too. Empty for an unknown id, and for a child of
    * another thread.
    */
-  async agentTranscript(subagentRunId: string): Promise<Array<ModelMessage>> {
+  async agentTranscript({
+    subagentRunId,
+  }: {
+    subagentRunId: string
+  }): Promise<Array<ModelMessage>> {
     return (
       (await loadChildTranscript(this.engine, subagentRunId, this.threadId)) ??
       []
@@ -788,9 +858,23 @@ export abstract class SessionState<
    * hidden messages for good. The revert state is saved, so it survives a
    * restart. Refused while the session is not idle, or another host runs
    * the thread (`'busy'`), and for a message that is not in the transcript
-   * (`'unknown_message'`).
+   * (`'unknown_message'`). `principal` is who reverts. Default: the
+   * principal that opened the session. The `harness.revert` record keeps
+   * it. A handle of `host.open` checks that it is the principal of the
+   * handle.
+   *
+   * @example
+   * ```ts
+   * await session.revert({ messageId: message.id })
+   * ```
    */
-  async revert(messageId: string): Promise<Receipt> {
+  async revert({
+    messageId,
+    principal,
+  }: {
+    messageId: string
+    principal?: Principal
+  }): Promise<Receipt> {
     const inputId = createInputId()
     if (!(await this.ownsIdleThread())) {
       return { inputId, status: 'rejected', reason: 'busy' }
@@ -803,13 +887,15 @@ export abstract class SessionState<
       // A revert that stands ends first, so its files come back.
       await this.endRevert()
       const handler = this.sessionPlugins?.values.get(RevertFiles)
-      const files = await handler?.revert(messages.slice(at + 1), (type) =>
-        this.hostRecords(type),
+      const files = await handler?.revert(
+        messages.slice(at + 1),
+        async (type) => this.keptRecords(type),
+        this.revertRun(principal ?? this.principal),
       )
-      await this.saveRevert({
-        messageId,
-        ...(files !== undefined ? { files } : {}),
-      })
+      await this.saveRevert(
+        { messageId, ...(files !== undefined ? { files } : {}) },
+        principal ?? this.principal,
+      )
       return { inputId, status: 'accepted' }
     })
   }
@@ -836,9 +922,22 @@ export abstract class SessionState<
     if (reverted.files !== undefined) {
       await this.sessionPlugins?.values
         .get(RevertFiles)
-        ?.unrevert(reverted.files)
+        ?.unrevert(reverted.files, this.revertRun(this.principal))
     }
     await this.saveRevert(undefined)
+  }
+
+  /**
+   * A run for the files of a revert, in the thread of this session. It is
+   * part of no turn, so a workspace that no turn opened on this host (after
+   * a restart) opens again from the log.
+   */
+  protected revertRun(principal: Principal | undefined) {
+    return this.runContext({
+      principal,
+      runId: `revert:${this.threadId}`,
+      signal: this.lifetime.signal,
+    })
   }
 
   /** Run `fn` while no new turn starts. A held turn starts after it. */
@@ -874,11 +973,18 @@ export abstract class SessionState<
     await this.saveRevert(undefined)
   }
 
-  /** Keep the revert state in the log. */
-  protected async saveRevert(revert: RevertState | undefined) {
+  /** Keep the revert state in the log, with who reverted. */
+  protected async saveRevert(
+    revert: RevertState | undefined,
+    principal?: Principal,
+  ) {
     this.reverted = revert
     await this.writer.append([
-      { type: 'harness.revert', revert: revert ?? null },
+      {
+        type: 'harness.revert',
+        revert: revert ?? null,
+        ...storedPrincipal(principal),
+      },
     ])
     this.feed.publish(
       'session',
@@ -888,25 +994,15 @@ export abstract class SessionState<
     )
   }
 
-  /** The host records of `type` of this thread, from the log, oldest first. */
-  protected async hostRecords(type: string) {
-    const found: Array<Record<string, unknown>> = []
-    let after = 0
-    for (;;) {
-      const entries = await this.log.store.read({
-        logId: this.storeLogId,
-        after,
-        limit: 256,
-      })
-      for (const { seq, record } of entries) {
-        after = seq
-        const isOwn = threadOf(record, this.threadId) === this.threadId
-        if (isOwn && record.type === type) found.push(record)
-      }
-      // A store can return fewer than `limit` before the end: stop only at
-      // an empty page.
-      if (entries.length === 0) return found
-    }
+  /**
+   * The kept host records of `type` of this thread, oldest first: the last
+   * ones that the `keepRecords` of the plugins name. The log snapshot keeps
+   * them, so they stay after a truncate of the log.
+   */
+  protected keptRecords(type: string): Array<LogRecord> {
+    return this.writer.state.keptRecords.flatMap(({ record }) =>
+      record.type === type ? [record] : [],
+    )
   }
 
   /** The commands, settings, and tools of this session, for a UI. */
@@ -928,19 +1024,30 @@ export abstract class SessionState<
    * wait, by its id. `principal` is who answers. Default: the principal that
    * opened the session. The log keeps it.
    */
-  async answer({
+  answer(options: {
+    questionId: string
+    value: unknown
+    principal?: Principal
+  }): Promise<Receipt> {
+    return this.applyAnswer(options)
+  }
+
+  /**
+   * `answer`, with `controlId` (the id of an offered input, so a replay is a
+   * duplicate) and `ref` (a secret answer that another host saved, see
+   * `answerOffer`).
+   */
+  protected override async applyAnswer({
     questionId,
     value,
-    inputId = createInputId(),
+    controlId: inputId = createInputId(),
     principal,
     ref,
   }: {
     questionId: string
     value: unknown
-    /** @internal The id of an offered input, so a replay is a duplicate. */
-    inputId?: string
     principal?: Principal
-    /** @internal A secret answer that another host saved. See `answerOffer`. */
+    controlId?: string
     ref?: string
   }): Promise<Receipt> {
     // A secret (a key or a password) stays out of the log. A restart does
@@ -1100,7 +1207,7 @@ export abstract class SessionState<
       // ponytail: the agents of turn plugins are not known outside a turn.
       const names = [
         ...(this.harness.agents ?? []),
-        ...(this.sessionPlugins?.agents ?? []),
+        ...(this.threadPlugins()?.agents ?? []),
       ].map((agent) => agent.name)
       if (handBack !== 'main' && !names.includes(handBack)) {
         return { reason: 'unknown_agent' }
@@ -1194,7 +1301,7 @@ export abstract class SessionState<
     value: unknown
     inputId: string
     sender: Principal | undefined
-  }): Promise<HarnessInput> {
+  }): Promise<OfferedHarnessInput> {
     // The wait of another host: read what that host wrote first.
     if (!this.questions.has(questionId)) await this.writer.catchUp()
     const logged = this.loggedWait(questionId)
@@ -1678,33 +1785,68 @@ export abstract class SessionState<
 
   /** Read the config values of this thread from the log. */
   protected loadConfig() {
-    const stored = this.writer.state.thread.config
-    for (const [key, value] of stored) {
+    for (const [key, value] of this.configSnapshot()) {
+      this.configValues.set(key, value)
+    }
+  }
+
+  /**
+   * The config values in the log now. A turn keeps them until it ends, so a
+   * change while it runs applies at the next turn.
+   */
+  protected configSnapshot(): Map<string, unknown> {
+    const values = new Map<string, unknown>()
+    for (const [key, value] of this.writer.state.thread.config) {
       const entry = this.sessionPlugins?.config.get(key)
       if (!entry) continue
       try {
-        this.configValues.set(key, checkConfigValue(key, entry.option, value))
+        values.set(key, checkConfigValue(key, entry.option, value))
       } catch {
         // A stored value an option no longer accepts falls back to the default.
       }
     }
+    return values
   }
 
   /** Read the stored settings of this thread from the log. */
   protected loadSettings() {
+    this.threadSettings = this.settingsFromLog(this.threadSettings)
+  }
+
+  /** The stored settings in the fold of the log, over `base`. */
+  protected settingsFromLog(base: ThreadSettings = {}): ThreadSettings {
     const stored = this.writer.state.thread.settings
     const names = this.settingNames()
+    let settings = base
     for (const [key, value] of Object.entries(stored)) {
       try {
-        this.threadSettings = changeSettings(
-          this.threadSettings,
-          { [key]: value },
-          names,
-        )
+        const next = changeSettings(settings, { [key]: value }, names)
+        this.checkRemovable(next)
+        settings = next
       } catch {
         // A value the harness no longer takes (a removed model or plugin)
         // is dropped.
       }
+    }
+    return settings
+  }
+
+  /**
+   * Another host wrote to the log, and this log folded its records. Read
+   * the settings, the config values, and the interrupted turn from the fold
+   * again, so a turn and a change on this host use what that host wrote.
+   */
+  protected syncFromLog() {
+    // While the plugins mount (an open or a reload), the open reads them.
+    if (!this.sessionPlugins) return
+    this.threadSettings = this.settingsFromLog()
+    this.configValues.clear()
+    for (const [key, value] of this.configSnapshot()) {
+      this.configValues.set(key, value)
+    }
+    const logged = this.writer.state.thread.interrupted ?? undefined
+    if (stableJson(logged ?? null) !== stableJson(this.interrupted ?? null)) {
+      this.interrupted = logged
     }
   }
 

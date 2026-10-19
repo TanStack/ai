@@ -89,7 +89,7 @@ describe('background work after a crash', () => {
     )
     const turn = crashed.send('Wait')
     await started.opened
-    expect(await crashed.background('call-1')).toMatchObject({
+    expect(await crashed.background({ toolCallId: 'call-1' })).toMatchObject({
       status: 'accepted',
     })
     await turn

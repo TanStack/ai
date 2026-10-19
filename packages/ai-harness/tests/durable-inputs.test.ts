@@ -1060,7 +1060,7 @@ describe('waiting inputs', () => {
       { inputId: 'third', delivery: 'steer', message: 'third' },
       { inputId: 'second', delivery: 'queue', message: 'second' },
     ])
-    expect(await session.cancelInput('second')).toMatchObject({
+    expect(await session.cancelInput({ inputId: 'second' })).toMatchObject({
       status: 'accepted',
     })
     expect(await session.settled({ inputId: 'second' })).toMatchObject({
@@ -1093,7 +1093,7 @@ describe('waiting inputs', () => {
     const turn = session.send('first', { inputId: 'first' })
     await waitFor(() => expect(calls).toHaveLength(1))
 
-    expect(await session.cancelInput('first')).toMatchObject({
+    expect(await session.cancelInput({ inputId: 'first' })).toMatchObject({
       status: 'rejected',
       reason: 'not_waiting',
     })
@@ -1166,7 +1166,7 @@ describe('waiting inputs', () => {
       ),
     )
 
-    expect(await session.cancelInput('c-1')).toMatchObject({
+    expect(await session.cancelInput({ inputId: 'c-1' })).toMatchObject({
       status: 'accepted',
     })
     expect(await session.settled({ inputId: 'c-1' })).toMatchObject({
@@ -1359,6 +1359,29 @@ describe('input ids', () => {
       operationId: original.id,
     })
     expect(second.calls).toHaveLength(0)
+    await second.host.close()
+  })
+
+  it('streams a duplicate after a restart from the start of its run in the log', async () => {
+    const persistence = durablePersistence()
+    const first = await openDurable({
+      persistence,
+      replies: [() => text('from the first host')],
+    })
+    await first.session.send('hi', { inputId: 'dup-1' })
+    await first.host.close()
+
+    const second = await openDurable({ persistence, replies: [] })
+    const replay = second.session.send('hi', { inputId: 'dup-1' })
+    await replay
+    const deltas: Array<string> = []
+    for await (const chunk of replay.stream()) {
+      if (chunk.type === EventType.TEXT_MESSAGE_CONTENT)
+        deltas.push(chunk.delta)
+    }
+
+    // The rebuilt operation starts before its run, not at the log head.
+    expect(deltas.join('')).toBe('from the first host')
     await second.host.close()
   })
 

@@ -11,6 +11,7 @@ export interface CliArgs {
   port: number
   hostname: string
   token?: string
+  mediaKey?: string
   thread: string
   mediaDir?: string
 }
@@ -31,6 +32,7 @@ Options:
       --port <port>      Port for --serve (default 8787)
       --host <name>      Host name for --serve (default 127.0.0.1)
       --token <token>    Bearer token for --serve (default: HARNESS_TOKEN, or a new random token)
+      --media-key <key>  Key that signs media URLs of --serve, 32+ bytes (default: HARNESS_MEDIA_KEY, or a new random key at each start)
       --thread <id>      Conversation id (default: main)
       --media-dir <dir>  Save the media a turn makes here (default: ./<harness name>-media)
   -h, --help             Show this help
@@ -52,6 +54,7 @@ export function parseCliArgs(argv: ReadonlyArray<string>): CliArgs {
       port: { type: 'string' },
       host: { type: 'string' },
       token: { type: 'string' },
+      'media-key': { type: 'string' },
       thread: { type: 'string' },
       'media-dir': { type: 'string' },
     },
@@ -76,6 +79,9 @@ export function parseCliArgs(argv: ReadonlyArray<string>): CliArgs {
     port,
     hostname: values.host ?? '127.0.0.1',
     ...(values.token !== undefined ? { token: values.token } : {}),
+    ...(values['media-key'] !== undefined
+      ? { mediaKey: values['media-key'] }
+      : {}),
     thread: values.thread ?? 'main',
     ...(values['media-dir'] !== undefined
       ? { mediaDir: values['media-dir'] }

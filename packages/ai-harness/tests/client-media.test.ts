@@ -49,7 +49,7 @@ describe('client media', () => {
     // A view on a bigger buffer: only the bytes of the view are sent.
     const bytes = new Uint8Array([0, 1, 2, 3, 9]).subarray(1, 4)
 
-    const stored = await client.upload({
+    const stored = await client.putMedia({
       body: bytes,
       name: 'cat photo.png',
       mimeType: 'image/png',
@@ -71,7 +71,7 @@ describe('client media', () => {
     )
 
     await expect(
-      client.upload({
+      client.putMedia({
         body: new Blob(['big']),
         name: 'big.mp4',
         mimeType: 'video/mp4',
@@ -89,7 +89,7 @@ describe('client media', () => {
     )
 
     await expect(
-      client.upload({
+      client.putMedia({
         body: new ArrayBuffer(3),
         name: 'a.png',
         mimeType: 'image/png',
@@ -101,7 +101,7 @@ describe('client media', () => {
     const { client } = setup(() => Response.json({ id: 'm1' }))
 
     await expect(
-      client.upload({
+      client.putMedia({
         body: new Blob(['abc']),
         name: 'a.png',
         mimeType: 'image/png',
@@ -117,7 +117,7 @@ describe('client media', () => {
       }),
     )
 
-    expect(await client.mediaUrl('m1')).toEqual({
+    expect(await client.mediaUrl({ id: 'm1' })).toEqual({
       url: 'http://local/api/harness/media?threadId=thread-m&id=m1&exp=5000&sig=abc',
       expiresAt: 5000,
     })
@@ -133,7 +133,7 @@ describe('client media', () => {
   it('throws when the media-url answer has no signed path', async () => {
     const { client } = setup(() => Response.json({ expiresAt: 5000 }))
 
-    await expect(client.mediaUrl('m1')).rejects.toThrow(
+    await expect(client.mediaUrl({ id: 'm1' })).rejects.toThrow(
       'Harness media-url failed: the answer has no signed path',
     )
   })

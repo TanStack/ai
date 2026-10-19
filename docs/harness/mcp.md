@@ -87,14 +87,14 @@ In your own UI, read the same list from `session.snapshot().plugins['tanstack/mc
 
 ### When a server stops
 
-A `stdio` server can crash, and a connection can close. Then `/mcp` shows `files: reconnecting`, and the turns run without the tools of that server. `mcp()` connects again:
+A `stdio` server can crash, and a connection can close. Then `/mcp` shows `files: reconnecting`, and the turns run without the tools of that server. `mcp()` connects a server without `oauth: true` again:
 
 - It waits 0.5 s, then 1 s, then 2 s, and so on, up to 30 s between tries. A random part makes each wait shorter, so many sessions do not connect at the same moment.
 - It tries until the server connects, or until the session closes. For a `stdio` server, it tries until the host stops the server.
 - The next turn after the new connection has the tools again. All sessions that share a `stdio` server use the new process.
-- A server that fails its first connect stays `failed`. It does not try again.
+- A server that fails its first connect shows `failed`, and tries again with the same waits. A server that is not up yet, like a slow `npx`, gets its tools at a later turn.
 
-This applies to the servers without `oauth: true`.
+An OAuth server, also one from `mcpConnector`, connects again at the next turn after its connection closes. After `tools/list_changed`, the next turn lists its tools again. If that list fails, the old list stays.
 
 Some servers change their tools while they run. When a server sends `tools/list_changed`, the next turn lists the tools of that server again, and `/mcp` shows the new count.
 
@@ -172,6 +172,7 @@ An MCP server can ask the user for input in the middle of a tool call. MCP calls
 - A form request becomes a question with the `message` and the requested `schema`.
 - A URL request becomes a question with a `url`. The user opens the page, then answers. The session does not open the page.
 - `mcp()` and `mcpConnector` both ask this way, for servers on MCP spec 2025 and on spec 2026-07-28.
+- A spec 2025 request does not name the tool call that asks. So the session asks the user only when all the running calls of that server belong to one run. Else the server gets `decline`, so a question never goes to another user.
 - One tool call can ask more than once. On spec 2026-07-28, one call can ask up to 5 times. One more request fails the tool call.
 - The question is a live [wait](./waits) of the run that made the tool call. The host that runs the call keeps the thread until the answer comes. When that run stops, the wait ends `cancelled`.
 
@@ -266,7 +267,7 @@ export const lateTools = definePlugin({
 })
 ```
 
-- A tool whose name is already taken is skipped. The first tool keeps the name.
+- A tool whose name is already taken is skipped. The first tool keeps the name. When two owners give the same name, clients get one `harness.plugin.warning` event that names both.
 - If `discoverTools` throws, the turn runs without that plugin's tools, and clients get a `harness.plugin.warning` event.
 
 ## What you have now

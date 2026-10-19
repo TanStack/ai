@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from 'node:crypto'
 import { createPluginEvent } from '../../extensions'
 import { definePlugin } from '../../plugins'
 import { isRecord } from '../../utils'
@@ -18,6 +19,8 @@ import {
 import { FormatterRewrote } from './events'
 import { patchPaths } from './patch'
 import { quoteArg, shellPlatform } from './search'
+import { ThreadWorkspace, writingRun } from './workspace'
+import type { RunContext } from '../../types'
 import type { WorkspaceBackend } from './backend'
 
 /** What a formatter can check in the project root folder. */
@@ -44,8 +47,13 @@ export interface Formatter {
 }
 
 export interface FormatterOptions {
-  /** The workspace folder. Commands run in it. */
-  root: string
+  /**
+   * The workspace folder. Commands run in it. Not needed when
+   * `workspaceTools()` with `workspace.bind` comes before this plugin: then
+   * each thread uses the workspace that `bind` gave it, and `root` and
+   * `backend` are not used.
+   */
+  root?: string
   /** Where the files are and commands run. Default: {@link hostBackend}. */
   backend?: WorkspaceBackend
   /** Your formatters. They come before the built-in formatters. */
@@ -165,7 +173,7 @@ export type WrittenFiles = ReadonlyMap<string, string | undefined>
  *   the hook resolves to a note for the tool result.
  */
 export function projectFormatters(
-  options: FormatterOptions,
+  options: FormatterOptions & { root: string },
   report: {
     onFailure: (failure: FormatFailure) => void
     onRewrite?: (rewrite: { path: string; formatter: string }) => void
@@ -183,6 +191,14 @@ export function projectFormatters(
     ...(options.builtins === false ? [] : BUILTINS),
   ]
 
+  /** The files of `written` in the root folder, by name. */
+  const topOf = (written: WrittenFiles) =>
+    new Map(
+      [...written]
+        .filter(([path]) => dirname(path) === root)
+        .map(([path, text]) => [path.slice(root.length + 1), text] as const),
+    )
+
   /**
    * The formatters that the project uses, in order. With `written`, as the
    * project is after a call writes those files. A formatter whose check
@@ -190,11 +206,7 @@ export function projectFormatters(
    */
   const detect = async (written: WrittenFiles = new Map()) => {
     const entries = await backend.readdir(root)
-    const top = new Map(
-      [...written]
-        .filter(([path]) => dirname(path) === root)
-        .map(([path, text]) => [path.slice(root.length + 1), text] as const),
-    )
+    const top = topOf(written)
     const names = entries.map((entry) => entry.name)
     const used = await Promise.all(
       candidates.map(async (candidate) => {
@@ -259,7 +271,64 @@ export function projectFormatters(
     throw new Error(`${match.name} failed: ${reason}`)
   }
 
+  /**
+   * A hash of the config of the formatter `name`: the files in the root
+   * folder with the name of the formatter in their name, like
+   * `prettier.config.js`, and the files that its check reads, like
+   * `package.json`. With `written`, as the files are after a call writes
+   * them. A written config file with no known text gives a new random value,
+   * so no saved answer matches it.
+   *
+   * A write of such a file below the root folder, or of any file under
+   * `node_modules`, gives `unsaved:<random>`: the formatter can load that
+   * code, and the root hash does not see it, so the user is asked again.
+   */
+  const configHash = async (name: string, written: WrittenFiles) => {
+    const candidate = candidates.find((each) => each.name === name)
+    const top = topOf(written)
+    const entries = await backend.readdir(root)
+    const files = [
+      ...new Set([...entries.map((each) => each.name), ...top.keys()]),
+    ]
+    const textOf = (file: string) =>
+      top.has(file)
+        ? Promise.resolve(top.get(file))
+        : readText(backend, join(root, file)).catch(() => '')
+    const read = new Set<string>()
+    await candidate?.when?.({
+      files,
+      read: async (file) => {
+        read.add(file)
+        return (await textOf(file)) ?? ''
+      },
+    })
+    const lower = name.toLowerCase()
+    const isUnsaved = [...written.keys()].some((path) => {
+      const parts = path.split(/[\\/]/)
+      const file = (parts.at(-1) ?? '').toLowerCase()
+      const isConfig = file.includes(lower) || read.has(file)
+      return (
+        parts.includes('node_modules') || (isConfig && dirname(path) !== root)
+      )
+    })
+    if (isUnsaved) return `unsaved:${randomUUID()}`
+    const config = [
+      ...new Set([
+        ...files.filter((file) => file.toLowerCase().includes(lower)),
+        ...read,
+      ]),
+    ].sort()
+    const hash = createHash('sha256')
+    for (const file of config) {
+      const text = await textOf(file)
+      if (text === undefined) return randomUUID()
+      hash.update(`${file}\0${text}\0`)
+    }
+    return hash.digest('hex').slice(0, 16)
+  }
+
   return {
+    configHash,
     afterWrite: (path: string) =>
       format(path).catch((error: unknown) =>
         onFailure({ path, message: messageOf(error) }),
@@ -288,7 +357,7 @@ export function projectFormatters(
  * The `afterWrite` hook of {@link formatter}. See {@link projectFormatters}.
  */
 export function formatOnWrite(
-  options: FormatterOptions,
+  options: FormatterOptions & { root: string },
   report: Parameters<typeof projectFormatters>[1],
 ) {
   return projectFormatters(options, report).afterWrite
@@ -309,6 +378,10 @@ export function formatOnWrite(
  * - ruff (`.py`): `ruff.toml`, or `[tool.ruff]` in `pyproject.toml`.
  * - gofmt (`.go`): `go.mod`. rustfmt (`.rs`): `Cargo.toml`.
  *
+ * With `workspaceTools()` and `workspace.bind` before it, the formatters of
+ * each thread run in the workspace that `bind` gave it, and `root` and
+ * `backend` are not used.
+ *
  * Your `formatters` come first. `builtins: false` turns the list above off.
  * Each run is a command through `backend.exec` in `root`, with a time limit
  * (`timeoutMs`, default 20 seconds). A formatter that fails, times out, or
@@ -324,6 +397,14 @@ export function formatOnWrite(
  * runs after the write, when the file lock is free. A rule that denies the
  * formatter skips it, keeps the write, and the tool result says so.
  * Without `permissions()`, the formatter runs without a question.
+ *
+ * An `always` answer is tied to the formatter config. The call also names
+ * `formatter:<name>@<hash>`, with a hash of the config files in `root`:
+ * the files with the formatter name in their name (like
+ * `prettier.config.js` or `.prettierrc`), and the files that its check
+ * reads (like `package.json`). When they change, the next write asks
+ * again. A rule for `formatter:<name>` that allows or denies still decides
+ * alone.
  *
  * @example
  * ```ts
@@ -341,44 +422,122 @@ export function formatOnWrite(
 export function formatter(options: FormatterOptions) {
   return definePlugin({
     name: 'tanstack/formatter',
-    optionalRequires: [PermissionDecisionCapability],
+    optionalRequires: [PermissionDecisionCapability, ThreadWorkspace],
     setup: (ctx) => {
-      const paths = pathsOf(options.backend ?? hostBackend)
-      const root = paths.resolve(options.root)
+      // `workspaceTools()` before this plugin gives it. With `workspace.bind`,
+      // each thread has its own workspace, and the formatters run there.
+      const threads = ctx.getOptional(ThreadWorkspace)
+      const perThread = threads?.perThread === true
+      if (!perThread && options.root === undefined) {
+        throw new Error(
+          'formatter() needs root, or workspaceTools() with workspace.bind before it.',
+        )
+      }
       const mode = () => {
         const value = ctx.config.get('mode')
         return PERMISSION_MODES.find((each) => each === value) ?? 'default'
       }
-      const formatters = projectFormatters(options, {
-        onFailure: (failure) => ctx.emit(FormatFailed, failure),
-        onRewrite: (rewrite) => ctx.emit(FormatterRewrote, rewrite),
+      const report = {
+        onFailure: (failure: FormatFailure) => ctx.emit(FormatFailed, failure),
+        onRewrite: (rewrite: { path: string; formatter: string }) =>
+          ctx.emit(FormatterRewrote, rewrite),
         // The rules decided the call before it ran, with the formatters
         // that it can run (see `actions` below). So only a deny stops a
         // formatter here. Read at each write, so permissions() can come
         // after this plugin.
-        allow: async (name) => {
+        allow: async (name: string) => {
           const decide = ctx.getOptional(PermissionDecisionCapability)
           return decide?.(`formatter:${name}`, mode()) !== 'deny'
         },
-      })
-      /** The working folder, as `workspaceTools` reads it. */
-      const here = () => {
+      }
+      /** The formatters of a workspace, by its backend and its root. */
+      const known = new WeakMap<
+        WorkspaceBackend,
+        Map<string, ReturnType<typeof projectFormatters>>
+      >()
+      const formattersOf = (backend: WorkspaceBackend, folder: string) => {
+        const paths = pathsOf(backend)
+        const root = paths.resolve(folder)
+        const byRoot =
+          known.get(backend) ??
+          new Map<string, ReturnType<typeof projectFormatters>>()
+        known.set(backend, byRoot)
+        const found =
+          byRoot.get(root) ??
+          projectFormatters({ ...options, root, backend }, report)
+        byRoot.set(root, found)
+        return { formatters: found, paths, root }
+      }
+      // One workspace for every thread: its formatters are known now.
+      const fixed =
+        !perThread && options.root !== undefined
+          ? formattersOf(options.backend ?? hostBackend, options.root)
+          : undefined
+      /**
+       * The formatters of the workspace of `run`. Without a run (the rules
+       * before a call), the workspace of the thread of the session, which
+       * is bound before its first turn.
+       */
+      const workspaceOf = async (run: RunContext | undefined) => {
+        if (fixed) return fixed
+        const workspace = run
+          ? await threads?.of(run)
+          : threads?.bound(ctx.session.threadId)
+        if (!workspace) {
+          throw new Error('The workspace of this thread is not bound yet.')
+        }
+        return formattersOf(workspace, workspace.root)
+      }
+      /** The working folder of `place`, as `workspaceTools` reads it. */
+      const here = ({ paths, root }: ReturnType<typeof formattersOf>) => {
         const cwd = ctx.session.settings().cwd
         return cwd ? paths.resolve(root, cwd) : root
       }
-      /** The formatter actions of a call that writes `written`. */
+      /**
+       * The formatter actions of a call that writes `written`. When the
+       * rules ask for a formatter, the call gets a second action with a
+       * hash of the formatter config, `formatter:<name>@<hash>`. An
+       * `always` answer saves both, so a changed config, like a new
+       * `prettier.config.js`, asks again. A write of a config below the
+       * root, or under `node_modules`, asks each time (see `configHash`).
+       */
       const actionsOf = async (
         written: ReadonlyArray<readonly [string, string | undefined]>,
       ) => {
+        const place = await workspaceOf(undefined)
+        const { formatters, paths } = place
         const files = new Map(
-          written.map(([path, text]) => [paths.resolve(here(), path), text]),
+          written.map(([path, text]) => [
+            paths.resolve(here(place), path),
+            text,
+          ]),
         )
         const names = await formatters.formattersFor(files)
-        return names.map((name) => `formatter:${name}`)
+        const decide = ctx.getOptional(PermissionDecisionCapability)
+        const actions = await Promise.all(
+          names.map(async (name) => {
+            const action = `formatter:${name}`
+            // A rule that allows or denies the formatter decides it alone.
+            if (decide?.(action, mode()) !== 'ask') return [action]
+            // A config that cannot be read matches no saved answer.
+            const hash = await formatters
+              .configHash(name, files)
+              .catch(() => randomUUID())
+            return [action, `${action}@${hash}`]
+          }),
+        )
+        return actions.flat()
       }
       return {
         contribute: [
-          WorkspaceHooks.item({ afterWrite: formatters.afterWrite }),
+          WorkspaceHooks.item({
+            // The write goes to the workspace of the run that wrote it.
+            afterWrite: async (path) => {
+              const run = writingRun()
+              const place = await workspaceOf(run).catch(() => undefined)
+              return place?.formatters.afterWrite(path)
+            },
+          }),
           PermissionRules.item({
             tool: 'formatter:*',
             decision: 'ask',

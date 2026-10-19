@@ -96,7 +96,7 @@ async function storedFiles(input: UserInput) {
   const ids = parts.flatMap((part) => mediaIdOf(part) ?? [])
   return Promise.all(
     ids.map(async (id) => ({
-      name: (await session.getMedia(id))?.name,
+      name: (await session.getMedia({ id }))?.name,
       text: new TextDecoder().decode(await session.loadMedia({ id })),
     })),
   )

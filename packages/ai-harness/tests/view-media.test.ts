@@ -154,7 +154,7 @@ async function openView(over: Partial<SessionViewSource> = {}) {
 /** A source whose URLs expire an hour after each call, and the ids it was asked for. */
 function expiringUrls() {
   const asked: Array<string> = []
-  const mediaUrl = async (id: string) => {
+  const mediaUrl = async ({ id }: { id: string }) => {
     asked.push(id)
     return {
       url: `https://media.test/${id}?v=${asked.length}`,

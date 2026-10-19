@@ -162,7 +162,7 @@ A notice has a `kind`:
 - `error`: a turn or an action failed.
 - `rejected`: the session did not accept a message.
 - `command`: the text result of a command.
-- `ui`: a line that you added with `view.notice(text)`.
+- `ui`: a line that you added with `view.notice({ text })`.
 
 ## 3. Act on the session
 
@@ -172,18 +172,18 @@ Send work:
 - `view.followUp(text)`: the message waits, and runs as its own turn after the current work.
 - `view.continue()`: starts a turn from the saved messages, with no new message.
 - `view.command({ name, input })`: runs a command, for example from a button.
-- `view.upload({ body, mimeType, name })`: stores a file. Send the record you get back with `view.send(text, [record])`. See [Show media](#show-media).
+- `view.putMedia({ body, mimeType, name })`: stores a file. Send the record you get back with `view.send(text, [record])`. See [Show media](#show-media).
 Change the session:
 
 - `view.setConfig({ key, value })`: changes a config value, for example `view.setConfig({ key: 'mode', value: 'plan' })`.
 - `view.configure({ settings })`: changes the stored settings of the thread, for example `view.configure({ settings: { model: 'strong' } })`.
 - `view.reset({ note })`: the model starts fresh from the next turn, with your `note` first. See [Reset with a handoff note](./fork-and-reset#reset-with-a-handoff-note).
-- `view.revert(messageId)` and `view.unrevert()`: go back to a message, and undo that.
+- `view.revert({ messageId })` and `view.unrevert()`: go back to a message, and undo that.
 
 Stop work:
 
 - `view.cancel()`: cancels the running turn. `view.cancel({ operationId })` cancels one operation, for example a background agent.
-- `view.cancelInput(inputId)`: drops a message from `waitingInputs` before it runs. `view.setDelivery({ inputId, delivery: 'steer' })` moves it into the running turn instead.
+- `view.cancelInput({ inputId })`: drops a message from `waitingInputs` before it runs. `view.setDelivery({ inputId, delivery: 'steer' })` moves it into the running turn instead.
 - `view.dispose()`: stops the view when your screen closes. After that, each action throws an error.
 
 On a view with a [`HarnessClient`](#a-ui-in-the-browser), two actions need `expose` in the harness:
@@ -197,7 +197,7 @@ See [Choose what clients can change](./connect#choose-what-clients-can-change).
 
 Answer what waits:
 
-- `approval.approve()` and `approval.reject()`: answer one approval. `view.approve(id)` and `view.reject(id)` do the same by id.
+- `approval.approve()` and `approval.reject()`: answer one approval. `view.approve({ id })` and `view.reject({ id })` do the same by id.
 - `view.approveAll()` and `view.rejectAll()`: answer all open approvals.
 - `call.resolve(output)` and `call.fail(message)`: answer one client tool call.
 - `request.resolve(value)` and `request.cancel()`: answer one item of `interrupts`.
@@ -210,7 +210,7 @@ const [waiting] = view.store.get().approvals
 waiting?.approve({ editedArgs: { path: 'notes/draft.md' } })
 ```
 
-`reject(payload)` sends data with a no, when the tool's approval schema takes some.
+`reject({ payload })` sends data with a no, when the tool's approval schema takes some.
 
 If a turn waits for more than one approval, client tool, or interrupt, the turn continues after you answer all of them.
 
@@ -239,9 +239,9 @@ A source must have these members:
 These members are optional:
 
 - `continue`, `cancelInput`, `setDelivery`, `configure`, `reset`, `revert`, and `unrevert`. Without one, its view action adds an `error` notice.
-- `upload` or `putMedia`. If the source has neither, `view.upload` rejects.
+- `putMedia`. Without it, `view.putMedia` rejects.
 - `mediaUrl` and `loadMedia`. Without `mediaUrl`, media parts have no `url`. Without `loadMedia`, `load()` rejects.
-- `agentTranscript`. Without it, a reload shows no child parts.
+- `agentTranscript`. Without it, `view.loadAgent` does nothing, so a saved child shows only its card.
 
 ## 4. Listen for events
 
@@ -250,7 +250,7 @@ Some items need attention when they arrive. `view.on` calls your handler for eac
 ```ts group=harness-custom-ui
 view.on('approval', (approval) => {
   process.stdout.write('\u0007')
-  view.notice(`${approval.tool} waits for your answer.`)
+  view.notice({ text: `${approval.tool} waits for your answer.` })
 })
 ```
 
@@ -274,7 +274,7 @@ The view calls your handler after the item is in the state, so the handler can r
 The view also keeps its state right on its own:
 
 - Each event from `client.events()` or `session.events()` has the `threadId` it belongs to, and a `parentRunId` when a child run sent it. Use them to show the run tree in your own UI.
-- When the server sends `harness.gap`, some events are gone. The view loads the snapshot and the transcript again, so the state is right after the gap. See [Write a client in any language](./protocol#when-events-are-missing).
+- When the server sends `harness.gap`, some events are gone. The view stops its read, loads the snapshot and the transcript again, then reads on from the new snapshot. So no turn shows twice after the gap. See [Write a client in any language](./protocol#when-events-are-missing).
 
 ## Show a question
 
@@ -290,7 +290,7 @@ When a question has a `url`, show the link. The user opens it, then answers. The
 
 ```ts group=harness-custom-ui
 view.on('question', (question) => {
-  if (question.url) view.notice(`Open ${question.url}, then answer.`)
+  if (question.url) view.notice({ text: `Open ${question.url}, then answer.` })
 })
 ```
 
@@ -355,7 +355,7 @@ This handler shows each one, and answers the region picker right away:
 
 ```ts group=harness-custom-ui
 view.on('interrupt', (request) => {
-  view.notice(request.message ?? `The turn waits for ${request.reason}.`)
+  view.notice({ text: request.message ?? `The turn waits for ${request.reason}.` })
   if (request.reason === 'pick_region') request.resolve({ region: 'eu-west-1' })
 })
 ```
@@ -425,7 +425,7 @@ const screenshot = await session.putMedia({
 await view.send('What is wrong in this screenshot?', [screenshot])
 ```
 
-In a browser, get the record from `client.upload({ body: file, mimeType: file.type, name: file.name })`. The user message then shows the file in `media`.
+In a browser, get the record from `client.putMedia({ body: file, mimeType: file.type, name: file.name })`. The user message then shows the file in `media`.
 
 ## Show subagents
 
@@ -434,13 +434,26 @@ A child agent is an `agent` part in the assistant message of the turn that start
 - `status`: `running`, `done`, or `failed`, and `error` when it failed.
 - `result`: the typed result of the agent, when it gives one.
 
-After a reload, each child shows up again with what it wrote, not only with its final result. The view reads the saved messages of each child (see [Show what a child wrote after a reload](./subagents#show-what-a-child-wrote-after-a-reload)) and fills its part. A background child that still runs keeps getting its new text in the same part.
+After a reload, each saved child shows only its card: `name`, `status`, `error`, and `result`, with no `parts`. To show what the child wrote, call `view.loadAgent({ id })`, for example when the user opens the child. The view reads the saved messages of the child (see [Show what a child wrote after a reload](./subagents#show-what-a-child-wrote-after-a-reload)) and fills its part:
+
+```ts group=harness-custom-ui
+const last = view.store.get().messages.at(-1)
+const child =
+  last?.role === 'assistant'
+    ? last.parts.find((part) => part.type === 'agent')
+    : undefined
+if (child?.type === 'agent') await view.loadAgent({ id: child.id })
+```
+
+A nested child in that part loads the same way, with its own `loadAgent` call. A background child that still runs keeps getting its new text in the same part.
+
+A terminal screen that prints the old turns only one time (for example Ink `Static`) must load the saved children before its first render. [`examples/harness-cli/src/tui.tsx`](https://github.com/TanStack/ai/blob/main/examples/harness-cli/src/tui.tsx) does this in `loadSavedAgents`.
 
 To show a line when a child ends, listen for `'agent'`:
 
 ```ts group=harness-custom-ui
 view.on('agent', (child) => {
-  if (child.status !== 'running') view.notice(`${child.name} is ${child.status}.`)
+  if (child.status !== 'running') view.notice({ text: `${child.name} is ${child.status}.` })
 })
 ```
 
@@ -455,7 +468,7 @@ import { createPluginEvent } from '@tanstack/ai-harness'
 
 const Deployed = createPluginEvent<{ env: string }>('acme/deploy:done')
 
-view.on(Deployed, (done) => view.notice(`Deployed to ${done.env}`))
+view.on(Deployed, (done) => view.notice({ text: `Deployed to ${done.env}` }))
 ```
 
 `state.plugins` is plugin data, so check its shape before you use it.

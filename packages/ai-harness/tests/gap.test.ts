@@ -4,7 +4,7 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 import { HARNESS_EVENTS, createHarnessHost, defineHarness } from '../src'
 import { SessionFeed, gapEvent } from '../src/feed'
 import { createSessionView } from '../src/view'
-import { mockAdapter, text } from './helpers'
+import { gate, mockAdapter, text } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
 import type { SessionEvent } from '../src/types'
 import type { SessionViewSource } from '../src/view'
@@ -102,6 +102,58 @@ describe('the view on an evicted gap', () => {
 
     await waitFor(() => expect(transcript).toHaveBeenCalledTimes(2))
     await waitFor(() => expect(snapshot.mock.calls.length).toBeGreaterThan(1))
+    view.dispose()
+    reading.abort()
+    await session.close()
+    await host.close()
+  })
+
+  it('applies no backlog event twice after the transcript loads again', async () => {
+    const harness = defineHarness({
+      name: 'test/gap-backlog',
+      adapter: mockAdapter([() => text('First.'), () => text('Second.')])
+        .adapter,
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(harness, { threadId: 'gap-backlog' })
+    await session.send('One.')
+    const before = session.snapshot().cursor
+    const transcript = vi.fn(() => session.transcript())
+    const turnTwo = gate()
+    const reading = new AbortController()
+    const overrides: Partial<SessionViewSource> = {
+      transcript,
+      // The stream sends a gap, then the backlog of the second turn. The
+      // backlog comes only after the transcript loaded again.
+      events: () =>
+        (async function* () {
+          await turnTwo.opened
+          yield gapEvent(session.threadId, '0', before, 'evicted')
+          await waitFor(() => expect(transcript).toHaveBeenCalledTimes(2))
+          await new Promise((resolve) => setTimeout(resolve, 20))
+          yield* session.events({ from: before, signal: reading.signal })
+        })(),
+    }
+    const source = new Proxy(session, {
+      get: (target, key) => {
+        if (key in overrides) return overrides[key as keyof SessionViewSource]
+        const value: unknown = Reflect.get(target, key, target)
+        return typeof value === 'function' ? value.bind(target) : value
+      },
+    })
+    const view = createSessionView(source)
+    await view.ready
+    await session.send('Two.')
+    turnTwo.open()
+
+    const replies = () =>
+      view.store
+        .get()
+        .messages.filter((message) => message.role === 'assistant')
+    await waitFor(() => expect(JSON.stringify(replies())).toContain('Second.'))
+    // The backlog events had time to apply.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(replies()).toHaveLength(2)
     view.dispose()
     reading.abort()
     await session.close()

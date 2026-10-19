@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineAgent } from '@tanstack/ai'
-import { UNOWNED_EPOCH, memoryLogStore } from '@tanstack/ai-persistence'
+import {
+  UNOWNED_EPOCH,
+  memoryLogBackend,
+  memoryLogStore,
+} from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin, logIdOf } from '../src'
+import { OPEN_RETRY_MS } from '../src/ownership'
 import {
   after,
   canOtherHostTake,
@@ -357,7 +362,10 @@ describe('host.resumePending', () => {
   })
 
   it('goes on after a thread that fails to open, and names the threads it opened', async () => {
-    const log = memoryLogStore()
+    let skew = 0
+    const log = memoryLogStore({
+      backend: memoryLogBackend({ now: () => Date.now() + skew }),
+    })
     // The failing thread expired first, so it comes first.
     await stopOwner(log, logIdOf({ logId: 't-bad' }))
     await seedStoppedTurn(log)
@@ -393,6 +401,15 @@ describe('host.resumePending', () => {
       }),
     )
     expect(calls).toHaveLength(1)
+    // The log of the thread that failed goes back with a wake, so a later
+    // sweep lists it again.
+    const listed = async () =>
+      (await log.listOrphaned({ limit: 10, harnesses: [NAME] })).map(
+        (orphan) => orphan.logId,
+      )
+    expect(await listed()).not.toContain(logIdOf({ logId: 't-bad' }))
+    skew = OPEN_RETRY_MS
+    expect(await listed()).toContain(logIdOf({ logId: 't-bad' }))
     await host.close()
   })
 

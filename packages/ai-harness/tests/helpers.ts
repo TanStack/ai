@@ -1,5 +1,6 @@
 import { EventType } from '@tanstack/ai'
 import { loadLogState, logIdOf, sessionOf } from '../src/log'
+import { UNCHECKED_TIMING } from '../src/ownership'
 import type {
   AnyChatMiddleware,
   AnyTextAdapter,
@@ -94,7 +95,11 @@ export async function storedRun(
  * 200 ms and never renews it in a test, like a process that stopped. After
  * `ownershipExpired()`, another host can take its logs and recover its work.
  */
-export const CRASHING_OWNERSHIP = { ttlMs: 200, renewMs: 60_000 }
+export const CRASHING_OWNERSHIP = {
+  ttlMs: 200,
+  renewMs: 60_000,
+  [UNCHECKED_TIMING]: true,
+}
 
 /** Wait until an ownership of {@link CRASHING_OWNERSHIP} expired. */
 export const ownershipExpired = () =>

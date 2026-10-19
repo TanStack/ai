@@ -5,6 +5,7 @@ import { memoryLogBackend, memoryLogStore } from '@tanstack/ai-persistence'
 import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { credentialsFor } from '../src/auth'
 import {
+  InputRejectedError,
   createHarnessHost,
   defineCommand,
   defineHarness,
@@ -31,7 +32,9 @@ import type {
   AnyHarness,
   HarnessHostOptions,
   HarnessSession,
+  Receipt,
 } from '../src'
+import type { SessionImpl } from '../src/session/harness-session'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
 const waitFor = <T>(
@@ -174,6 +177,91 @@ describe('an input that reaches a host that does not own the log', () => {
     await other.host.close()
   })
 
+  it('ends settled() with InputRejectedError when the owner refuses the offered input', async () => {
+    const { a, b } = twoStores()
+    const release = gate()
+    const owner = await hostOn(
+      a,
+      harnessWith(mockAdapter([after(release.opened, 'One.')]).adapter),
+    )
+    const other = await hostOn(b, harnessWith(mockAdapter([]).adapter))
+
+    const turn = owner.session.send('Go.')
+    await turn.receipt
+    const refused = other.session.send('Now!', {
+      inputId: 'in-b',
+      busy: 'reject',
+    })
+    refused.then(
+      () => {},
+      () => {},
+    )
+    expect((await refused.receipt).status).toBe('queued')
+    await expect(
+      other.session.settled({
+        inputId: 'in-b',
+        signal: AbortSignal.timeout(3_000),
+      }),
+    ).rejects.toBeInstanceOf(InputRejectedError)
+
+    release.open()
+    await turn
+    await owner.host.close()
+    await other.host.close()
+  })
+
+  it('refuses an offer whose id the log has with another payload, on the host that offered it', async () => {
+    const { a, b } = twoStores()
+    // The owner does not read the lane until the test lets it.
+    let isLaneOpen = false
+    const slowLane = wrapLogStore(a, {
+      offered: (scope) => (isLaneOpen ? a.offered(scope) : Promise.resolve([])),
+    })
+    const release = gate()
+    const ownerModel = mockAdapter([
+      after(release.opened, 'One.'),
+      () => text('Two.'),
+    ])
+    const owner = await hostOn(slowLane, harnessWith(ownerModel.adapter))
+    const other = await hostOn(b, harnessWith(mockAdapter([]).adapter))
+
+    const turn = owner.session.send('Go.')
+    await turn.receipt
+    const offered = other.session.send('From B.', { inputId: 'in-x' })
+    offered.then(
+      () => {},
+      () => {},
+    )
+    expect((await offered.receipt).status).toBe('queued')
+    const settled = other.session.settled({
+      inputId: 'in-x',
+      signal: AbortSignal.timeout(3_000),
+    })
+    settled.catch(() => {})
+    // The owner stores another input with the same id first.
+    const stored = owner.session.send('From A.', { inputId: 'in-x' })
+    expect((await stored.receipt).status).toBe('queued')
+    isLaneOpen = true
+    await owner.session.recover()
+
+    await expect(settled).rejects.toMatchObject({
+      name: 'InputRejectedError',
+      receipt: { reason: 'conflict' },
+    })
+    await expect(Promise.resolve(offered)).rejects.toBeInstanceOf(
+      InputRejectedError,
+    )
+    expect(await waiting(a)).toEqual([])
+    // The input that the log has is not refused: it runs.
+    release.open()
+    expect((await owner.session.settled({ inputId: 'in-x' })).outcome).toBe(
+      'completed',
+    )
+    expect(ownerModel.calls).toHaveLength(2)
+    await owner.host.close()
+    await other.host.close()
+  })
+
   it('streams an offered turn under its run id on the host that sent it', async () => {
     const { a, b } = twoStores()
     const release = gate()
@@ -187,7 +275,10 @@ describe('an input that reaches a host that does not own the log', () => {
     const first = owner.session.send('Go.')
     await first.receipt
     // A `POST run` on the other host: the turn runs on the owner as `run-2`.
-    const second = other.session.send('And then?', { runId: 'run-2' })
+    const second = (other.session as unknown as SessionImpl).sendForRun(
+      'And then?',
+      { runId: 'run-2' },
+    )
     expect(await second.receipt).toMatchObject({ status: 'queued' })
     release.open()
     const texts: Array<string> = []
@@ -266,6 +357,26 @@ describe('an input that reaches a host that does not own the log', () => {
       return { credentials, saved }
     }
 
+    /**
+     * An answer as the owner applies it from the lane: with the `ref` of a
+     * secret answer, and the input id of the offer.
+     */
+    function laneAnswer(
+      session: HarnessSession,
+      options: {
+        questionId: string
+        value: unknown
+        ref: string
+        controlId: string
+      },
+    ): Promise<Receipt> {
+      // `applyAnswer` is internal: the input lane calls it.
+      const internal = session as unknown as {
+        applyAnswer: (offered: typeof options) => Promise<Receipt>
+      }
+      return internal.applyAnswer(options)
+    }
+
     /** The owner asks for the password. Resolves with its question id. */
     async function ask(session: HarnessSession, log: LogStore) {
       const running = session.command({ name: 'ask' })
@@ -330,11 +441,11 @@ describe('an input that reaches a host that does not own the log', () => {
 
       // The same ref again, as the owner applies it from the lane, is
       // refused: the store no longer has it.
-      const replay = await owner.session.answer({
+      const replay = await laneAnswer(owner.session, {
         questionId,
         value: '[secret]',
-        ref,
-        inputId: 'replay',
+        ref: ref!,
+        controlId: 'replay',
       })
       expect(replay).toMatchObject({
         status: 'rejected',
@@ -345,11 +456,11 @@ describe('an input that reaches a host that does not own the log', () => {
       const scope = { userId: 'someone-else' }
       const credential = { type: 'api_key' as const, value: '"theirs"' }
       await credentials.set({ scope, id: theirs, credential })
-      const wrongUser = await owner.session.answer({
+      const wrongUser = await laneAnswer(owner.session, {
         questionId,
         value: '[secret]',
         ref: theirs,
-        inputId: 'wrong-user',
+        controlId: 'wrong-user',
       })
       expect(wrongUser).toMatchObject({ reason: 'unknown_secret_answer' })
       expect(await credentials.get({ scope, id: theirs })).toEqual(credential)
@@ -423,6 +534,42 @@ describe('an input that reaches a host that does not own the log', () => {
     await other.host.close()
   })
 
+  it('cancels the turn of the owner when the offer comes while the owner appends', async () => {
+    const { a, b } = twoStores()
+    let other: Awaited<ReturnType<typeof hostOn>> | undefined
+    let cancelIn: string | undefined
+    // The offer of B lands while the owner's append runs, so the store
+    // tells the owner about it during its own write.
+    const ownerLog = wrapLogStore(a, {
+      append: async (batch) => {
+        const operationId = cancelIn
+        if (operationId !== undefined && other) {
+          cancelIn = undefined
+          const receipt = await other.session.cancel({ operationId })
+          expect(receipt.status).toBe('queued')
+        }
+        return a.append(batch)
+      },
+    })
+    const ownerModel = mockAdapter([untilAborted()])
+    const owner = await hostOn(ownerLog, harnessWith(ownerModel.adapter))
+    const otherHost = await hostOn(b, harnessWith(mockAdapter([]).adapter))
+    other = otherHost
+
+    const turn = owner.session.send('Go.')
+    const { operationId } = await turn.receipt
+    await waitFor(() => expect(ownerModel.calls).toHaveLength(1))
+    cancelIn = operationId
+    // A write of the owner while its turn runs, with no write after it.
+    await owner.session.configure({ settings: { instructions: 'Be brief.' } })
+    expect(cancelIn).toBeUndefined()
+
+    await expect(Promise.resolve(turn)).rejects.toThrow()
+    expect(turn.status()).toBe('cancelled')
+    await owner.host.close()
+    await otherHost.host.close()
+  })
+
   it('starts an agent on the owner, and the run of the other host ends with it', async () => {
     const { a, b } = twoStores()
     const ran: Array<string> = []
@@ -473,7 +620,9 @@ describe('an input that reaches a host that does not own the log', () => {
     const other = await hostOn(b, harness)
 
     const [first] = await other.session.transcript()
-    expect(await other.session.revert(first?.id ?? '')).toMatchObject({
+    expect(
+      await other.session.revert({ messageId: first?.id ?? '' }),
+    ).toMatchObject({
       status: 'rejected',
       reason: 'busy',
     })

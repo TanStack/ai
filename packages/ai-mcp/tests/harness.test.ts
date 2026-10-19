@@ -1318,6 +1318,36 @@ describe('createHarnessMcpServer', () => {
     expect(answered.content).toEqual([{ type: 'text', text: 'Confirmed.' }])
   })
 
+  it('forgets a waiting question when another client answers it', async () => {
+    // The server keeps the waiting work in a Map that it does not export.
+    // Find it: the Map that gets the question id with an operation.
+    const sets = vi.spyOn(Map.prototype, 'set')
+    const { server, session } = await harnessServer([])
+    const { client } = await connect(server)
+    const waiting = await client.callTool({
+      name: 'command_confirm',
+      arguments: {},
+    })
+    const [question] = pendingShape.parse(waiting.structuredContent).questions
+    if (question === undefined) throw new Error('The command asked nothing')
+    const index = sets.mock.calls.findIndex(
+      ([key, value]) =>
+        key === question.id &&
+        typeof value === 'object' &&
+        value !== null &&
+        'stream' in value,
+    )
+    const map: unknown = sets.mock.contexts[index]
+    sets.mockRestore()
+    if (!(map instanceof Map)) throw new Error('No waiting map found')
+    expect(map.has(question.id)).toBe(true)
+
+    // Another client answers, so the MCP `answer` tool never runs.
+    const live = await session()
+    await live.answer({ questionId: question.id, value: true })
+    await waitFor(() => expect(map.has(question.id)).toBe(false))
+  })
+
   it('returns the result of its own turn when another operation asks a question', async () => {
     const held = heldTurn(textTurn('Done.'))
     const { server, session } = await harnessServer([held])

@@ -6,6 +6,7 @@ import { JobEnded, JobOutput, JobStarted } from './events'
 import { createOutputTail } from './ring-buffer'
 import type { PluginEvent } from '../../extensions'
 import type { BackgroundJobsApi } from '../../plugins'
+import type { RunContext } from '../../types'
 import type { ToolEnv } from './backend'
 
 /** The longest timeout that one call can ask for: 10 minutes. */
@@ -206,14 +207,24 @@ export function bashTools(
   options: {
     /** Stop the command after this many milliseconds. Default: 120,000. */
     timeoutMs?: number
-    /** Tells the model that a background job ended. Without it, no one is told. */
-    note?: (text: string) => Promise<void>
+    /**
+     * Tells the model that a background job ended. `principal` is the user
+     * of the run that started the job: the turn of the note runs as that
+     * user. Without it, no one is told.
+     */
+    note?: (text: string, principal: RunContext['principal']) => Promise<void>
     /**
      * When the model gets only the end of the output, the full output is
      * saved in this folder, and the model gets the path. Relative to the
      * workspace, or absolute.
      */
     spillDir?: string
+    /**
+     * Takes the secrets of the session out of the output that `spillDir`
+     * gets. The model gets tool results that the session scrubs, so the file
+     * must not keep what the result does not.
+     */
+    scrub?: (text: string) => string
     /** Kills the background jobs that still run, for example on plugin cleanup. */
     signal?: AbortSignal
     /**
@@ -238,6 +249,7 @@ export function bashTools(
     timeoutMs: defaultTimeoutMs = 120_000,
     note,
     spillDir,
+    scrub = (text: string) => text,
     signal,
     maxJobs = DEFAULT_MAX_JOBS,
   } = options
@@ -252,7 +264,7 @@ export function bashTools(
     const { join, resolve } = pathsOf(env.backend)
     const path = join(resolve(env.root, dir), `bash-${crypto.randomUUID()}.txt`)
     try {
-      await env.backend.writeFile(path, output)
+      await env.backend.writeFile(path, scrub(output))
       return `[Full output saved to ${env.shown(path)}.]`
     } catch (error) {
       // The cut output is still useful, so a failed save does not fail the call.
@@ -271,14 +283,15 @@ export function bashTools(
   }
 
   /**
-   * Start `command` in the background, for a run of `threadId`. `note`
-   * tells the model when it ends.
+   * Start `command` in the background, for `run`. `note` tells the model
+   * when it ends, in a turn of the user of `run`.
    */
   const startJob = async (
     command: string,
     cwd: string,
-    threadId: string | undefined,
+    run: RunContext | undefined,
   ) => {
+    const threadId = run?.threadId
     if (!env.backend.spawn) {
       throw new Error('This workspace cannot run commands in the background.')
     }
@@ -327,7 +340,7 @@ export function bashTools(
       try {
         if (note === undefined) return
         const result = await report(exitCode, job.output())
-        await note(`Background job ${jobId} ended.\n${result}`)
+        await note(`Background job ${jobId} ended.\n${result}`, run?.principal)
       } finally {
         options.jobs?.ended({
           jobId,
@@ -367,7 +380,7 @@ export function bashTools(
       // The shell runs in the working folder, so it must be in the workspace.
       const cwd = await env.reach('.', 'bash', 'folder')
       if (isRecord(args) && args.background === true) {
-        return startJob(command, cwd, runOf(context)?.threadId)
+        return startJob(command, cwd, runOf(context))
       }
       const requested = isRecord(args) ? args.timeoutMs : undefined
       // A timeout of 0 would mean no timeout, so it gets the default.

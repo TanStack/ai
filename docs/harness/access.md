@@ -106,7 +106,7 @@ Each action covers these calls:
 - For `answer` and `operator`, `authorize` also gets `wait`: the `waitId` and the `kind` of the [wait](./waits) that the input answers, when the host knows it. A `human` wait takes either action: when `answer` is refused, the host asks for `operator`.
 - For `cancelSchedule`, `run` is the schedule: the `runId` is the schedule id, and the `principalId` is the user who made it.
 - `host.submit` and `schedule` check an answer or a cancel when you send it, with `run` from the log. A run that the log does not have is refused with `unknown_run`: `submit` returns a `rejected` receipt, and `schedule` throws `InputRejectedError`.
-- A handle checks `read` once, when it opens. Each action that changes the session asks `authorize` again.
+- A handle checks `read` once, when it opens. Each action that changes the session asks `authorize` again. This includes `cancel` and `send` on an operation or an agent run that the handle returns.
 
 ## What the host checks for you
 
@@ -181,18 +181,21 @@ export const host = createHarnessHost({
   },
 })
 
-export function removeFromTeam(threadId: string, user: { id: string; tenantId: string }) {
+export async function removeFromTeam(threadId: string, user: { id: string; tenantId: string }) {
   teams.get(threadId)?.delete(user.id)
-  host.revoke({ threadId, principal: user })
+  await host.revoke({ threadId, principal: user })
 }
 ```
 
-After `host.revoke`:
+When the promise of `host.revoke` resolves:
 
-- The streams of the user on the thread close. A socket gets a `forbidden` error frame.
-- The open handles of the user on the thread throw `AccessDeniedError`. A new `host.open` asks `authorize` again.
+- The running and queued work of the user on the thread is cancelled, on every host. The schedules of the user on the thread are removed.
+- The streams of the user on the thread close. A socket gets a `forbidden` error frame. A running `events()` read of a handle or a view ends with `AccessDeniedError`.
+- The open handles and views of the user on the thread throw `AccessDeniedError`. A new `host.open` asks `authorize` again.
 - The signed media URLs of the user stop working. A signed URL names its user, and the handler checks that user again when it serves the file.
 - `host.events()` yields a `revoked` event.
+
+When the cancels cannot be sent (for example, the log store fails), the promise rejects. The access is gone already. Call `host.revoke` again to stop the work. `host.sessions.unshare` rejects the same way, after it removed the member.
 
 `host.sessions.share` and `unshare` work only with `membersOnly()`. With your own tables, change the tables, then call `host.revoke`.
 
