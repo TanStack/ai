@@ -340,8 +340,7 @@ export interface HostSessions<P extends Principal = Principal> {
    * Change the entry of a thread from app code, with no session open: its
    * `title`, `pinned`, or `metadata`. Each field you pass replaces the stored
    * one. Pass a function of the current entry to change part of `metadata`:
-   * with a store that has `upsertIf`, it runs again when another host wrote
-   * first, so neither change is lost. The harness `metadataSchema` checks
+   * it runs again when another host wrote first, so neither change is lost. The harness `metadataSchema` checks
    * `metadata`, and types it. Resolves to the changed entry, or `undefined`
    * for a thread that has no entry. Throws `SessionMetadataError` for
    * metadata the schema refuses, and an error when the entry names another

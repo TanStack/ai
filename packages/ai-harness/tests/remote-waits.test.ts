@@ -61,7 +61,7 @@ describe('the waits that another host writes', () => {
           expect.objectContaining({ kind: 'approval' }),
         ])
       })
-      const [wait] = sessionB.snapshot().pendingWaits ?? []
+      const [wait] = sessionB.snapshot().pendingWaits
       if (!wait) throw new Error('No approval.')
 
       const inputId = `answer:${wait.waitId}`

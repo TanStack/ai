@@ -10,7 +10,7 @@ import type { SignIn } from '@tanstack/ai-harness/view'
 /** The waits of the stopped turn, in order. One resolve answers them all. */
 export function turnWaits(snapshot: SessionSnapshot) {
   const ids = new Set(snapshot.pendingInterrupts.map(({ id }) => id))
-  return (snapshot.pendingWaits ?? []).filter(({ waitId }) => ids.has(waitId))
+  return snapshot.pendingWaits.filter(({ waitId }) => ids.has(waitId))
 }
 
 const isYes = (text: string) => /^y(es)?$/i.test(text.trim())
@@ -96,7 +96,7 @@ export function openUrl(url: string) {
 export async function waitIdle(session: HarnessSession) {
   while (true) {
     const snapshot = session.snapshot()
-    if ((snapshot.pendingWaits ?? []).length > 0) return
+    if (snapshot.pendingWaits.length > 0) return
     const chatActive = snapshot.activeOperations.some(
       (operation) => operation.kind === 'chat',
     )

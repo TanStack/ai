@@ -280,7 +280,7 @@ async function debug(run: Run) {
   return Response.json({
     turn: run.turn,
     status: snapshot.status,
-    pendingWaits: snapshot.pendingWaits ?? [],
+    pendingWaits: snapshot.pendingWaits,
     transcript: textsOf(await view.transcript()),
     records: await waitRecords(run.log, run.threadId),
     modelCallsA: run.a.counter.calls,

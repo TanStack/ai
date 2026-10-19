@@ -563,7 +563,7 @@ export abstract class SessionRequests<
   ): HarnessChild | undefined {
     if (waitIds.length === 0) return undefined
     for (const child of this.harnessChildren.values()) {
-      const waits = child.session.snapshot().pendingWaits ?? []
+      const waits = child.session.snapshot().pendingWaits
       const open = new Set(waits.map((wait) => wait.waitId))
       if (waitIds.every((id) => open.has(id))) return child
     }

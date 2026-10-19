@@ -12,9 +12,6 @@ import type { HarnessPersistence } from '../src'
 
 const encoder = new TextEncoder()
 
-/** The metadata rows of a thread that a delete removes. */
-const ROWS = ['harness:usage', 'harness:revert']
-
 const level = definePlugin({
   name: 'test/level',
   setup: () => ({
@@ -26,18 +23,16 @@ const level = definePlugin({
 
 /** The stores of a host, with or without a session index. */
 function persistenceOf(withIndex: boolean) {
-  const { log, metadata, sessions, artifacts, blobs } =
-    memoryPersistence().stores
+  const { log, sessions, artifacts, blobs } = memoryPersistence().stores
   const persistence: HarnessPersistence = {
     stores: {
       log,
-      metadata,
       artifacts,
       blobs,
       ...(withIndex ? { sessions } : {}),
     },
   }
-  return { persistence, metadata, artifacts, blobs, sessions }
+  return { persistence, artifacts, blobs, sessions }
 }
 
 function setup(withIndex = true) {
@@ -66,8 +61,7 @@ function storedTranscript(
 
 describe('host.sessions.delete', () => {
   it('purges the thread and its child', async () => {
-    const { host, harness, persistence, metadata, artifacts, blobs, sessions } =
-      setup()
+    const { host, harness, persistence, artifacts, blobs, sessions } = setup()
     const key = logIdOf({ logId: 't1' })
 
     // The child: a thread with its own transcript, then an entry under t1.
@@ -111,10 +105,6 @@ describe('host.sessions.delete', () => {
       createdAt: 1,
     })
     await session.close()
-    // Rows that a turn writes only in some cases: seed them.
-    for (const namespace of ROWS) {
-      await metadata.set(namespace, key, { seeded: true })
-    }
     expect(await storedTranscript(persistence, 't1')).not.toEqual([])
     expect(await storedTranscript(persistence, 'child-1')).not.toEqual([])
 
@@ -127,9 +117,6 @@ describe('host.sessions.delete', () => {
     expect(await artifacts.listForThread(key)).toEqual([])
     expect((await blobs.list({ prefix: 'artifacts/' })).objects).toEqual([])
     expect(await artifacts.get(upload.id)).toBeNull()
-    for (const namespace of ROWS) {
-      expect(await metadata.get(namespace, key)).toBeNull()
-    }
     // The settings and config were in the log, so they went with it.
     const reopened = await host.open(harness, { threadId: 't1' })
     expect(reopened.settings()).toEqual({})

@@ -7,8 +7,8 @@ import { workspaceTools } from '../src/first-party/coding'
 import { permissions } from '../src/first-party/permissions'
 import {
   FormatFailed,
-  formatOnWrite,
   formatter,
+  projectFormatters,
 } from '../src/first-party/coding/formatter'
 import { FormatterRewrote } from '../src/first-party/coding/events'
 import { mockAdapter, text, toolCall } from './helpers'
@@ -92,7 +92,7 @@ async function formatIn(
 ) {
   const { backend, runs } = project(files, exec)
   const failures: Array<FormatFailure> = []
-  const afterWrite = formatOnWrite(
+  const { afterWrite } = projectFormatters(
     { root, backend, ...options },
     { onFailure: (failure) => failures.push(failure) },
   )
@@ -208,7 +208,7 @@ describe('formatOnWrite', () => {
 
   it('keeps POSIX paths in a sandbox, also on a Windows host', async () => {
     const { backend, runs } = project(prettier, ok, 'sh')
-    const afterWrite = formatOnWrite(
+    const { afterWrite } = projectFormatters(
       { root: '/workspace', backend },
       { onFailure: () => undefined },
     )
@@ -236,7 +236,7 @@ describe('formatOnWrite', () => {
       return readdir(dir)
     }
     const failures: Array<FormatFailure> = []
-    const afterWrite = formatOnWrite(
+    const { afterWrite } = projectFormatters(
       { root, backend },
       { onFailure: (failure) => failures.push(failure) },
     )
@@ -249,7 +249,7 @@ describe('formatOnWrite', () => {
 
   it('checks the config files once, at the first write', async () => {
     const { backend, runs, put } = project({})
-    const afterWrite = formatOnWrite(
+    const { afterWrite } = projectFormatters(
       { root, backend },
       { onFailure: () => undefined },
     )
@@ -302,7 +302,7 @@ describe('formatOnWrite', () => {
         return { exitCode: 0, stdout: '', stderr: '' }
       })
       const rewrites: Array<{ path: string; formatter: string }> = []
-      const afterWrite = formatOnWrite(
+      const { afterWrite } = projectFormatters(
         { root, backend: files.backend },
         {
           onFailure: () => undefined,
@@ -510,7 +510,7 @@ describe('formatter with permissions()', () => {
       () => expect(session.snapshot().pendingWaits).toHaveLength(1),
       { timeout: 5_000 },
     )
-    const [wait] = session.snapshot().pendingWaits ?? []
+    const [wait] = session.snapshot().pendingWaits
     if (!wait) throw new Error('No approval.')
     const inputId = `answer:${wait.waitId}`
     await session.resolve({

@@ -170,10 +170,11 @@ for a real one:
 **The persistence stores can hold secrets too:**
 
 - `log`, the input lane: when another host owns the thread, a user's answer
-  to a secret question (a pasted key) waits here as an offer until the owner
-  applies it. The log records keep the answer as `[secret]`. Keep the offers
-  in a store you trust as much as the credentials.
-- `messages`, `log`: never put a key in a message, tool input, or metadata.
+  to a secret question (a pasted key) does not go into the offer. The host
+  keeps the value in the `credentials` store under a one-time
+  `harness:answer:*` key, and the offer has only a reference to it. The log
+  records keep the answer as `[secret]`.
+- `log`: never put a key in a message, tool input, or metadata.
   The harness scrubs known secrets from the errors it sends, but it cannot
   scrub what it never saw as a secret.
 

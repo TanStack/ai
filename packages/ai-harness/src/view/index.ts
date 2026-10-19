@@ -876,7 +876,7 @@ export function createSessionView(source: SessionViewSource) {
   const takeSnapshot = (snapshot: SessionSnapshot, initial = false) => {
     const turnIds = new Set(snapshot.pendingInterrupts.map(({ id }) => id))
     runWaits = new Map(
-      (snapshot.pendingWaits ?? []).flatMap(({ waitId, kind }) =>
+      snapshot.pendingWaits.flatMap(({ waitId, kind }) =>
         turnIds.has(waitId) ? [] : [[waitId, kind] as const],
       ),
     )

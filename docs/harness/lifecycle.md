@@ -180,10 +180,9 @@ await leanHost.sessions.delete({ threadId: 'chat-1' })
 
 First, `delete` closes the sessions of the thread and of its child threads, for every handle. The host finds the children through the `parentThreadId` of their index entries. Then it deletes this data:
 
-- The log, with everything in it: the transcripts, the settings, the plugin config and state, the runs, the interrupts, the usage, and the inputs that wait for an owner.
+- The log, with everything in it: the transcripts, the settings, the plugin config and state, the runs, the interrupts, the usage, the snapshots, and the inputs that wait for an owner.
 - The index entry of each thread.
 - The uploaded media and the generated artifacts.
-- The log checkpoint in `stores.metadata`.
 
 The first-party plugins also end the thread:
 

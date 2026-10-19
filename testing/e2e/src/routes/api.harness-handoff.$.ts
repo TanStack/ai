@@ -281,7 +281,7 @@ async function debug(run: Run) {
               .join('')
           : message.text,
     })),
-    waits: snapshot.pendingWaits ?? [],
+    waits: snapshot.pendingWaits,
     mainCalls: run.main.counter.calls,
     billingCalls: run.billing.counter.calls,
   })

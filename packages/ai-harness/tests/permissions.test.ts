@@ -314,7 +314,7 @@ async function open(
  */
 async function answer(session: HarnessSession, value: unknown) {
   await waitFor(() => expect(session.snapshot().pendingWaits).toHaveLength(1))
-  const [wait] = session.snapshot().pendingWaits ?? []
+  const [wait] = session.snapshot().pendingWaits
   if (!wait) throw new Error('No approval.')
   expect(wait.kind).toBe('approval')
   const inputId = `answer:${wait.waitId}`
@@ -1081,7 +1081,7 @@ describe('permissions() at the turn boundary', () => {
     expect(turn.interrupts).toHaveLength(2)
     // No tool ran, and no process waits: the turn ended for the waits.
     expect(tools.ran).toEqual([])
-    const waits = session.snapshot().pendingWaits ?? []
+    const waits = session.snapshot().pendingWaits
     expect(waits.map((wait) => wait.kind)).toEqual(['approval', 'approval'])
     expect(waits.map((wait) => wait.message)).toEqual([
       expect.stringContaining('ls'),

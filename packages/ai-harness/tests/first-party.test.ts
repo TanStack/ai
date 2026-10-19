@@ -90,7 +90,7 @@ describe('workspace tools with permissions', () => {
 
     // The write asks before it runs: the turn stops with an approval wait.
     await session.send('work')
-    const [wait] = session.snapshot().pendingWaits ?? []
+    const [wait] = session.snapshot().pendingWaits
     expect(wait?.kind).toBe('approval')
     expect(wait?.message).toContain('write_file')
     await session.resolve({

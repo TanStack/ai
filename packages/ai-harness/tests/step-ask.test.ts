@@ -78,7 +78,7 @@ const storedWaits = async (log: LogStore) =>
 /** The one open wait of `session`, once it opened. */
 async function openWait(session: HarnessSession) {
   await waitFor(() => expect(session.snapshot().pendingWaits).toHaveLength(1))
-  const [wait] = session.snapshot().pendingWaits ?? []
+  const [wait] = session.snapshot().pendingWaits
   if (!wait) throw new Error('No wait.')
   return wait
 }

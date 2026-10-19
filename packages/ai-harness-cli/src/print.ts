@@ -117,7 +117,7 @@ export async function runPrint(
   const status = operation.status()
   if (status === 'completed') return EXIT.ok
   if (status === 'interrupted') {
-    const [wait] = session.snapshot().pendingWaits ?? []
+    const [wait] = session.snapshot().pendingWaits
     stderr.write(needsActionText(wait))
     return EXIT.needsAction
   }

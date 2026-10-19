@@ -870,12 +870,17 @@ How it works:
   for the connections.
 - A server that fails gets the status `failed` with its error. The tools of
   the other servers still work.
-- The status of a server is `connecting`, `connected`, or `failed`. `/mcp`
-  prints it. A UI reads `snapshot().plugins['tanstack/mcp'].servers`.
-- A `stdio` server runs as a child process (Node only). It stops when the
-  session closes.
+- The status of a server is `connecting`, `connected`, `reconnecting`, or
+  `failed`. `/mcp` prints it. A UI reads
+  `snapshot().plugins['tanstack/mcp'].servers`.
+- When a server closes, `mcp()` connects again with backoff. It lists the
+  tools again on `list_changed`.
+- A `stdio` server runs as a child process (Node only). The host starts it
+  one time for each harness, and every session of that harness shares it. It
+  stops when the last session that uses it closes, or at `host.close()`.
 - A server request for input (MCP elicitation, spec 2025 and 2026) becomes
-  a session question. The tool call waits for `session.answer()`.
+  a session question. The tool call waits for
+  `session.answer({ questionId, value })`.
 
 Options for each server:
 
@@ -883,6 +888,8 @@ Options for each server:
   of that server.
 - `oauth: true` (`http` only): sign in like `mcpConnector`. The user runs
   `/connect <name>`, and the tools come after the sign-in.
+- `needsApproval`: ask the user before a tool of that server runs.
+- `toolName`: give the tools of that server other names.
 
 ## Abort signal — cancelling in-flight MCP calls
 

@@ -23,6 +23,7 @@ import {
 import { HostOwnership, LogOwnedElsewhereError } from '../src/ownership'
 import { CRASHING_OWNERSHIP, wrapLogStore, writeAsOtherHost } from './helpers'
 import { HARNESS_EVENTS } from '../src/types'
+import { emptyUsage } from '../src/usage'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { LogRecord, LogSnapshot, LogStore } from '@tanstack/ai-persistence'
 import type {
@@ -965,6 +966,29 @@ describe('snapshots', () => {
     runs: [],
     tree: [],
     interrupts: [],
+    waits: [],
+    transfers: [],
+    shared: [],
+    activeAgent: null,
+    workspace: null,
+    ...overrides,
+  })
+
+  /** One session of a snapshot, as `serialize` writes it. */
+  const snapshotSession = (overrides: Record<string, unknown> = {}) => ({
+    messages: [user('marker', 'from the snapshot')],
+    transcriptSeq: 1,
+    inputs: [],
+    toolResults: [],
+    started: [],
+    steps: [],
+    usage: emptyUsage(),
+    runUsage: [],
+    revert: null,
+    jobs: [],
+    notes: [],
+    keptRecords: [],
+    thread: threadOf(),
     ...overrides,
   })
 
@@ -978,18 +1002,7 @@ describe('snapshots', () => {
     version,
     state: {
       version: 'v1',
-      sessions: [
-        [
-          THREAD,
-          {
-            messages: [user('marker', 'from the snapshot')],
-            inputs: [],
-            toolResults: [],
-            steps: [],
-            thread,
-          },
-        ],
-      ],
+      sessions: [[THREAD, snapshotSession({ thread })]],
       reduced: null,
       ...overrides,
     },
@@ -1064,14 +1077,11 @@ describe('snapshots', () => {
       sessions: [
         [
           THREAD,
-          {
+          snapshotSession({
             messages: [],
-            inputs: [],
-            toolResults: [],
-            steps: [],
             jobs: [['bash-1', 'p9'], 'bash-2'],
             thread: threadOf({ workspace: binding }),
-          },
+          }),
         ],
       ],
     })

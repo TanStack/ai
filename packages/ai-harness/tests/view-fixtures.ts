@@ -52,6 +52,7 @@ export function sessionSnapshot(
     queuedTurns: 0,
     pendingInterrupts: [],
     pendingQuestions: [],
+    pendingWaits: [],
     plugins: {},
     usage: emptyUsage(),
     cursor: '0',

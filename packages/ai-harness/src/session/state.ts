@@ -288,7 +288,7 @@ export abstract class SessionState<
       pendingWaits: [
         ...waits.pendingWaits,
         ...[...this.harnessChildren.values()].flatMap(
-          (child) => child.session.snapshot().pendingWaits ?? [],
+          (child) => child.session.snapshot().pendingWaits,
         ),
       ],
       plugins: { ...this.stateDoc },
@@ -1547,7 +1547,7 @@ export abstract class SessionState<
     signal,
   }: { runId?: string; signal?: AbortSignal } = {}): Promise<Wait> {
     const find = () =>
-      this.snapshot().pendingWaits?.find(
+      this.snapshot().pendingWaits.find(
         (wait) => runId === undefined || wait.runId === runId,
       )
     return new Promise<Wait>((resolve, reject) => {

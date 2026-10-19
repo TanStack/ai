@@ -721,7 +721,7 @@ describe('permission rules, links, and grep', () => {
     // an approval and the file is not read.
     const turn = await session.send('read the notes')
     expect(turn.interrupts).toHaveLength(1)
-    const [wait] = session.snapshot().pendingWaits ?? []
+    const [wait] = session.snapshot().pendingWaits
     expect(wait?.kind).toBe('approval')
     expect(seen()).not.toContain('hunter2')
     if (!wait) throw new Error('No approval.')
@@ -860,7 +860,7 @@ describe('webfetch approval', () => {
   it('asks before webfetch by default', async () => {
     const { host, session } = await fetchOnce()
     await session.send('read the page')
-    const [wait] = session.snapshot().pendingWaits ?? []
+    const [wait] = session.snapshot().pendingWaits
     if (!wait) throw new Error('No approval.')
     expect(wait.message).toContain('Allow webfetch')
     await session.resolve({

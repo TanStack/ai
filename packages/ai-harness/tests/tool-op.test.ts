@@ -156,7 +156,7 @@ describe('{ op: "tool" }', () => {
       () => expect(session.snapshot().pendingWaits).toHaveLength(1),
       { timeout: 5_000 },
     )
-    const [wait] = session.snapshot().pendingWaits ?? []
+    const [wait] = session.snapshot().pendingWaits
     if (!wait) throw new Error('No approval.')
     expect(wait.kind).toBe('approval')
     const inputId = `answer:${wait.waitId}`

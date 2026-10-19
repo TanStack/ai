@@ -52,7 +52,7 @@ async function* codingTurn(
     // In acceptEdits mode, the write asks before it runs, for the write and
     // its formatter. The turn stops with one approval wait. Reject it, and
     // give the chunks of the turn that resumes.
-    const [wait] = formatAsk ? (session.snapshot().pendingWaits ?? []) : []
+    const [wait] = formatAsk ? session.snapshot().pendingWaits : []
     if (wait) {
       const inputId = `answer:${wait.waitId}`
       const receipt = await session.resolve({

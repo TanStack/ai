@@ -64,7 +64,7 @@ describe('crash recovery edges', () => {
     ).not.toContain(JSON.stringify(INTERRUPTED_TOOL_RESULT))
   })
 
-  it('releases the lease timer when a turn fails', async () => {
+  it('fails the turn and closes the host when the model throws', async () => {
     const persistence = memoryPersistence()
     const { adapter } = mockAdapter([
       () =>

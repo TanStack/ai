@@ -125,7 +125,7 @@ async function asked(session: HarnessSession, name: string) {
     () => {},
   )
   await waitFor(() => expect(session.snapshot().pendingWaits).toHaveLength(1))
-  const [wait] = session.snapshot().pendingWaits ?? []
+  const [wait] = session.snapshot().pendingWaits
   return { running, wait: wait! }
 }
 

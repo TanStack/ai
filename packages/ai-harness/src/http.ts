@@ -773,7 +773,6 @@ export function createHarnessHandler<P extends Principal = Principal>(
       return json({ error: 'unknown run' }, 404)
     }
     // Without a cursor, from the start of the run: its first input record.
-    // A fold snapshot from before input positions does not know it: from 0.
     return cursorResponse(
       (signal) =>
         followOperation(

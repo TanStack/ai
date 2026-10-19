@@ -74,6 +74,12 @@ const runIn = (
   runId: string,
 ) => storedRun(persistence.stores.log, { threadId: 't1' }, runId)
 
+/** The records in the log of thread `t1`. */
+const recordsIn = async (persistence: ReturnType<typeof memoryPersistence>) =>
+  (await persistence.stores.log.read({ logId: logIdOf({ logId: 't1' }) })).map(
+    (entry) => entry.record,
+  )
+
 /** Can another host acquire the log of thread `t1` now? */
 const isTakeable = (persistence: ReturnType<typeof memoryPersistence>) =>
   canOtherHostTake(persistence.stores.log, logIdOf({ logId: 't1' }))
@@ -99,7 +105,7 @@ describe('checkpoints and ownership', () => {
       () => text('done'),
     ])
     const session = await host.open(
-      defineHarness({ name: 'test/lease', adapter, tools: [lookup] }),
+      defineHarness({ name: 'test/resume', adapter, tools: [lookup] }),
       {
         threadId: 't1',
       },
@@ -109,18 +115,24 @@ describe('checkpoints and ownership', () => {
     await started.opened
     // Another host cannot take the thread while the turn runs.
     expect(await isTakeable(persistence)).toBe(false)
-    const running = await runIn(persistence, turn.id)
-    expect(running?.checkpoint?.pendingTools).toEqual([
-      { toolCallId: 'call-1', name: 'lookup', replay: 'safe' },
-    ])
+    expect(await recordsIn(persistence)).toContainEqual({
+      type: 'harness.tool.started',
+      toolCallId: 'call-1',
+      name: 'lookup',
+      replay: 'safe',
+    })
     // The assistant message with the tool call is saved before the tool runs.
     const saved = await session.transcript()
     expect(saved.at(-1)?.toolCalls?.[0]?.function.name).toBe('lookup')
 
     release.open()
     await turn
-    const finished = await runIn(persistence, turn.id)
-    expect(finished?.checkpoint?.pendingTools).toEqual([])
+    expect(await recordsIn(persistence)).toContainEqual(
+      expect.objectContaining({
+        type: 'harness.tool.result',
+        toolCallId: 'call-1',
+      }),
+    )
     await host.close()
   })
 
@@ -130,7 +142,7 @@ describe('checkpoints and ownership', () => {
     const { adapter } = mockAdapter([])
     const session = await host.open(
       defineHarness({
-        name: 'test/agent-lease',
+        name: 'test/agent-resume',
         adapter,
         agents: [waiter],
       }),

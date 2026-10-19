@@ -149,7 +149,7 @@ describe('a handoff to a person', () => {
     expect((await session.settled({ inputId: 'in-1' })).outcome).toBe(
       'interrupted',
     )
-    const [wait] = session.snapshot().pendingWaits ?? []
+    const [wait] = session.snapshot().pendingWaits
     expect(session.snapshot().pendingWaits).toEqual([
       {
         waitId: expect.any(String),
@@ -218,7 +218,7 @@ describe('a handoff to a person', () => {
     const { host, session } = await hostOn(log, harness)
     const turn = session.send('Refund, then a person.')
     await turn
-    const [wait] = session.snapshot().pendingWaits ?? []
+    const [wait] = session.snapshot().pendingWaits
     if (!wait) throw new Error('No human wait.')
     expect((await stored(log)).activeAgent).toEqual({
       human: true,
@@ -258,7 +258,7 @@ describe('a handoff to a person', () => {
     const log = memoryLogStore()
     const { host, session } = await hostOn(log, harness)
     await session.send('I want a person.')
-    const [wait] = session.snapshot().pendingWaits ?? []
+    const [wait] = session.snapshot().pendingWaits
     if (!wait) throw new Error('No human wait.')
 
     expect(
@@ -303,7 +303,7 @@ describe('a handoff to a person', () => {
     })
     const owner = await hostOn(memoryLogStore({ backend }), harness)
     await owner.session.send('I want a person.')
-    const [wait] = owner.session.snapshot().pendingWaits ?? []
+    const [wait] = owner.session.snapshot().pendingWaits
     if (!wait) throw new Error('No human wait.')
     // A tool turn runs while a person answers, so the owner keeps the log.
     const busy = owner.session.tool({ name: 'slow' })

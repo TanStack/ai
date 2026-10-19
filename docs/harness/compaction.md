@@ -110,7 +110,7 @@ const project: ProjectOptions = {
 }
 ```
 
-Change `version` when you change the function. A fold checkpoint with another version is ignored.
+Change `version` when you change the function. A log snapshot with another version is not used, so the host folds the log again from the first record.
 
 ## Retry after a context overflow
 

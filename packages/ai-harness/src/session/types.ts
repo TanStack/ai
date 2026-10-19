@@ -280,10 +280,9 @@ export interface SessionSnapshot {
   /**
    * Every wait that is open: the interrupts of the last turn, then the
    * questions and the human waits, oldest first. Read the kind with
-   * `waitKind`. A session always sets it. A snapshot built by hand (a test
-   * fixture) can leave it out.
+   * `waitKind`.
    */
-  pendingWaits?: Array<Wait>
+  pendingWaits: Array<Wait>
   /** The state of each plugin that uses `ctx.state`, by plugin name. */
   plugins: Record<string, unknown>
   /** The token usage of the thread, the same as `session.usage()`. */
@@ -504,7 +503,7 @@ export interface InterruptedTurn {
   routed?: { messages: Array<UIMessage>; root: boolean }
   /**
    * Who sent the input of the stopped turn. Only this principal's saved
-   * credential answers its sign-ins. A copy from an older version has none.
+   * credential answers its sign-ins.
    */
   principal?: { id: string; tenantId?: string }
   /** The `context` of the stopped turn's input, so the resume sees it too. */

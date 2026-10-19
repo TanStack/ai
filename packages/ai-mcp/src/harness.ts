@@ -390,7 +390,7 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
       const outcome = await settle(session, operation)
       if (!outcome.done) {
         const snapshot = session.snapshot()
-        for (const wait of snapshot.pendingWaits ?? []) {
+        for (const wait of snapshot.pendingWaits) {
           if (wait.runId === operation.id) keepWaiting(wait.waitId, operation)
         }
         return { status: 'waiting', ...pending(snapshot, operation.id) }
@@ -547,7 +547,7 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
       // The waits of a background agent run: the run goes on after them.
       const run = waiting.get(decisions[0]?.interruptId ?? '')
       if (run !== undefined) {
-        const waits = (snapshot.pendingWaits ?? []).filter(
+        const waits = snapshot.pendingWaits.filter(
           (wait) => wait.runId === run.id,
         )
         const answers = answersOf(
@@ -626,9 +626,7 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
             id,
             agent,
             // A run with an open wait waits for its answer.
-            status: (snapshot.pendingWaits ?? []).some(
-              (wait) => wait.runId === id,
-            )
+            status: snapshot.pendingWaits.some((wait) => wait.runId === id)
               ? 'waiting'
               : 'running',
           })),
@@ -933,7 +931,7 @@ async function settle(
  * the questions, and `waits` all of them, each with its kind.
  */
 function pending(snapshot: SessionSnapshot, runId?: string) {
-  const waits = (snapshot.pendingWaits ?? []).filter(
+  const waits = snapshot.pendingWaits.filter(
     (wait) => runId === undefined || wait.runId === runId,
   )
   const ids = new Set(waits.map(({ waitId }) => waitId))

@@ -60,7 +60,7 @@ async function reply(
   status: 'resolved' | 'cancelled' = 'resolved',
 ) {
   await turn
-  const pending = session.snapshot().pendingWaits ?? []
+  const pending = session.snapshot().pendingWaits
   expect(pending.map((wait) => wait.kind)).toEqual(values.map(() => 'question'))
   await session.resolve({
     resume: pending.map((wait, index) => ({

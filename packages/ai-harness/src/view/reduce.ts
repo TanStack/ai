@@ -802,7 +802,7 @@ export function applySnapshot(
   factory: ItemFactory,
   options: { initial?: boolean } = {},
 ): SessionViewState {
-  const pendingWaits = snapshot.pendingWaits ?? []
+  const { pendingWaits } = snapshot
   // The waits that no turn and no question holds: the waits of background
   // agent runs. Each one is an item of its kind, answered on its own.
   const turnIds = new Set(snapshot.pendingInterrupts.map(({ id }) => id))

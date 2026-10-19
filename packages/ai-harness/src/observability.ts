@@ -177,12 +177,6 @@ export function parseTraceparent(
   }
 }
 
-/** The W3C `traceparent` header value of a span context. */
-export function traceparentOf(context: HarnessSpanContext): string {
-  const flags = (context.traceFlags & 0xff).toString(16).padStart(2, '0')
-  return `00-${context.traceId}-${context.spanId}-${flags}`
-}
-
 // OpenTelemetry keeps the span of a context under this key
 // (`createContextKey` makes it with `Symbol.for`).
 const SPAN_KEY = Symbol.for('OpenTelemetry Context Key SPAN')

@@ -86,7 +86,7 @@ describe('the sign-in of a command is a live wait', () => {
 
     const command = session.command({ name: 'connect:github' })
     await waitFor(() => expect(session.snapshot().pendingWaits).toHaveLength(1))
-    const [wait] = session.snapshot().pendingWaits ?? []
+    const [wait] = session.snapshot().pendingWaits
     expect(wait).toMatchObject({
       kind: 'sign-in',
       runId: command.id,
@@ -131,7 +131,7 @@ describe('the sign-in of a command is a live wait', () => {
       () => {},
     )
     await waitFor(() => expect(session.snapshot().pendingWaits).toHaveLength(1))
-    const [wait] = session.snapshot().pendingWaits ?? []
+    const [wait] = session.snapshot().pendingWaits
 
     await expect(command).rejects.toThrow()
     expect(command.status()).toBe('cancelled')
@@ -249,7 +249,7 @@ describe('an interrupt of a turn with expiresAt', () => {
 
     const { pendingInterrupts, pendingWaits } = session.snapshot()
     expect(pendingWaits).toMatchObject([{ kind: 'sign-in' }])
-    const expiresAt = pendingWaits?.[0]?.expiresAt ?? 0
+    const expiresAt = pendingWaits[0]?.expiresAt ?? 0
     expect(expiresAt).toBeGreaterThanOrEqual(before + 15 * 60_000)
     expect(expiresAt).toBeLessThanOrEqual(Date.now() + 15 * 60_000)
     // The interrupt that a client answers stays as chat() made it.

@@ -68,7 +68,7 @@ The six fields:
 | `plugins` | `{ remove: [names] }`: the turns leave out what those plugins give. |
 | `cwd` | The working folder of the thread. See [The working folder](#the-working-folder). |
 
-An unknown field, model, or plugin, or a bad value, gets a receipt with `status: 'rejected'` and the reason. `stores.metadata` keeps the settings, so they stay after a restart. Without a metadata store, they stay in memory. A [fork](./fork-and-reset) copies them.
+An unknown field, model, or plugin, or a bad value, gets a receipt with `status: 'rejected'` and the reason. The settings are in the log, so a durable log store keeps them after a restart. A [fork](./fork-and-reset) copies them.
 
 `configure` is an input, so the log keeps who changed what. Each change sends a `harness.settings.changed` event with the new `settings`. A session on another host reads the change too, so its next turn uses the new settings.
 
