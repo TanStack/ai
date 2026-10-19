@@ -293,6 +293,30 @@ describe('harnessAgent in a harness session', () => {
     await host.close()
   })
 
+  it('cancels the child when the run stops while a turn of the child waits', async () => {
+    const deploy = toolDefinition({
+      name: 'deploy',
+      description: 'Deploy. Needs approval.',
+      needsApproval: true,
+      inputSchema: z.object({}),
+    }).server(() => Promise.resolve({ deployed: true }))
+    const child = defineHarness({
+      name: 'test/waiting-child',
+      adapter: mockAdapter([() => toolCall('deploy', {})]).adapter,
+      tools: [deploy],
+    })
+    const { harness } = lead(child)
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(harness, { threadId: 't' })
+
+    const turn = session.send('Ship it.')
+    await waitFor(() => expect(session.snapshot().pendingWaits).toHaveLength(1))
+    await turn.cancel()
+    await expect(turn).rejects.toThrow()
+    await waitFor(() => expect(hostCountsOf(host).children).toBe(0))
+    await host.close()
+  })
+
   it('goes on when the child resumes by itself, not through an answer here', async () => {
     // The child session that the run opens.
     let childSession: SessionImpl | undefined

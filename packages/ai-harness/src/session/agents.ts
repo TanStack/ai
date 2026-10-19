@@ -828,6 +828,7 @@ export abstract class SessionAgents<
           : receipt
       },
     })
+    signal.addEventListener('abort', onAbort, { once: true })
     try {
       operation = session.send(
         lastUserInput(convertMessagesToModelMessages(ctx.messages)),
