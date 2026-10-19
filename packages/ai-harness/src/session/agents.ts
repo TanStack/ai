@@ -47,6 +47,7 @@ import {
 import type { HeldPlugins } from './helpers'
 import { SessionTurnParts, stepWaitPrefix } from './turn-parts'
 import type {
+  ChatMiddleware,
   SubagentBudget,
   Interrupt,
   ModelMessage,
@@ -62,6 +63,7 @@ import type { InnerTurnEnd } from '../harness-text'
 import type { AgentResultRecord, RunTreeNode } from '../log-records'
 import { NO_SESSION_CONTEXT, withHarnessChild } from '../agents'
 import { forwardTurn, lastUserInput } from '../harness-text'
+import { wait } from '../turn'
 import { addCounts, emptyCounts } from '../usage'
 import { isRecord } from '../utils'
 import { tanstackMetadata } from '@tanstack/ai/adapter-internals'
@@ -1197,35 +1199,51 @@ export abstract class SessionAgents<
   }
 
   /**
-   * Ask the `onModelError` option of `chain` whether the run `operation`
-   * runs again after it failed with `failure`. `retries`: the attempts of
-   * this run that failed before. ponytail: any failure of the run asks, not
-   * only a failed model call, and the run starts again from its first
-   * message.
+   * The chat middleware of the `onModelError` option of `chain`, for the
+   * run `operation`: a model call that fails before it streams asks the
+   * option. On `'retry'`, it waits a short backoff and calls the model
+   * again. Only that call runs again, so no tool runs twice. Core calls one
+   * model call at most 3 times. A tool that throws, or an error of the agent
+   * code, does not ask.
    */
-  protected async isRetried(
+  protected modelErrorRetry(
     operation: AgentRunImpl,
     chain: AgentChain,
-    failure: string | undefined,
-    retries: number,
-  ) {
+  ): ChatMiddleware | undefined {
     const hook = chain.options.onModelError
+    if (!hook) return undefined
     const { signal } = operation.abortController
-    if (failure === undefined || !hook || signal.aborted || this.logFailure) {
-      return false
-    }
-    try {
-      const answer = await hook({
-        runId: operation.id,
-        agent: chain.agent,
-        error: { message: failure },
-        retries,
-        signal,
-      })
-      return answer === 'retry' && !signal.aborted
-    } catch (error) {
-      this.warnSession('harness:agents', error)
-      return false
+    let retries = 0
+    return {
+      name: 'harness:agent-model-error',
+      onModelError: async (ctx, error) => {
+        if (signal.aborted || this.logFailure) return
+        const { code, retryAfterMs } = error
+        let answer: 'retry' | 'fail'
+        try {
+          answer = await hook({
+            runId: operation.id,
+            agent: chain.agent,
+            error: {
+              message: this.scrub(error.message),
+              ...(code !== undefined ? { code } : {}),
+              ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
+            },
+            retries,
+            signal,
+          })
+        } catch (thrown) {
+          this.warnSession('harness:agents', thrown)
+          return
+        }
+        retries += 1
+        if (answer !== 'retry' || signal.aborted) return
+        await wait(
+          Math.min(retryAfterMs ?? 250 * 2 ** (retries - 1), 5_000),
+          signal,
+        )
+        if (!signal.aborted) ctx.retry()
+      },
     }
   }
 
@@ -1833,165 +1851,147 @@ export abstract class SessionAgents<
     /** The run stopped for its interrupts: it waits for their answers. */
     let isSuspended = false
     // The interrupts of the run, when it stops for them.
-    let sink = createSubagentSink()
+    const sink = createSubagentSink()
     const { subagentRunId, prompt } = child
-    // One attempt, and one more each time `onModelError` answers 'retry'.
-    for (let retries = 0; ; retries += 1) {
-      text = ''
-      result = undefined
-      failure = undefined
-      isSuspended = false
-      sink = createSubagentSink()
-      try {
-        // A first run starts from the session thread. A run again after a
-        // host stop continues the chain's thread. A follow-up run continues
-        // the chain's thread, with its message added. The message id is its
-        // input id, so a run again after a host stop does not add it twice.
-        // A run that goes on after its waits continues the chain's thread.
-        const { message } = start
-        const saved = start.resumed
-          ? await this.continueAgentThread(chain.thread, inputId)
-          : message || answers
-            ? await this.engine.loadThread(chain.thread)
-            : await this.messages.loadThread(this.threadId)
-        const messages =
-          message && !saved.some((item) => item.id === message.inputId)
-            ? [...saved, asUserMessage(message)]
-            : saved
-        // The run of this agent: its user's credentials and keys, for its own
-        // chat calls and its tools, also while another user's turn runs. A
-        // sign-in wait of one of its tools stops this run, until the user
-        // cancels that sign-in.
-        const declined = new Set(answers?.declined)
-        // The run that started this one: agent code, else a turn.
-        const parentRunId = chain.parentRunId ?? chain.turnRunId
-        const run = this.runContext({
-          principal,
-          runId: operation.id,
-          ...(parentRunId ? { parentRunId } : {}),
-          signal: operation.abortController.signal,
-          canWait: (id) => !declined.has(id),
-        })
-        // The plugins of the turn that started the chain, while they are
-        // not disposed. A follow-up after the turn and its runs gets none.
-        const { plugins } = chain
-        const runPlugins = plugins?.hold(operation)
-          ? plugins.plugins
-          : undefined
-        const binding = this.binding(operation, [], principal, run, runPlugins)
-        const durable = options.resume
-          ? this.resumable(inputId, run)
-          : undefined
-        const harnessContext: HarnessAgentContext = withHarnessChild(
-          {
-            step: durable?.step ?? NO_SESSION_CONTEXT.step,
-            agents: this.agentStarter(chain, inputId),
-            state: (options) => this.sharedState(options),
-            // A background run does not answer a turn, so it cannot hand off.
-            handoff: NO_SESSION_CONTEXT.handoff,
-          },
-          (inner, ctx) =>
-            this.runHarnessChild(inner, ctx, { operation, principal }),
-          run,
-        )
-        const stream = runAgentStream(
-          agent,
-          {
-            input: checkedInput,
-            // A prompt is one more user message at the end, as in core.
-            messages:
-              prompt === undefined
-                ? messages
-                : [
-                    ...messages,
-                    { role: 'user', content: prompt } satisfies ModelMessage,
-                  ],
-            threadId: chain.thread,
-            // A run that goes on, or runs again after a failure, gets a new
-            // chat run.
-            runId:
-              answers || retries > 0
-                ? `${operation.id}:${subagentRunId}:${Date.now().toString(36)}`
-                : `${operation.id}:${subagentRunId}`,
-            parentRunId: answers?.interruptedRunId ?? operation.id,
-            subagentRunId,
-            ...(answers ? { resume: answers.resume } : {}),
-            abortSignal: operation.abortController.signal,
-          },
-          sink,
-          undefined,
-          // ponytail: the media of a background agent is kept and published,
-          // but not written to history: its messages live in its chain's
-          // thread. Write it to the session thread if a UI must show it after
-          // a restart.
-          {
-            ...binding,
-            chatMiddleware: [
-              // Every run keeps its transcript in the chain's thread.
-              ...(this.chatPersistence
-                ? [
-                    withPersistence(this.chatPersistence, {
-                      tenantId: this.tenantId,
-                    }),
-                  ]
-                : []),
-              ...(durable?.middleware ?? []),
-              this.agentSteering(chain, inputId, operation),
-              ...binding.chatMiddleware,
-              ...(durable?.last ?? []),
-            ],
-            // As in a turn: the approvals and questions that plugins stop the
-            // run with before its tools run, then the app's own. The run waits
-            // for them. The agent's own interrupts win on an id clash.
-            interrupts: [
-              ...BOUNDARY_INTERRUPTS,
-              ...(this.harness.interrupts ?? []),
-            ],
-            budget: chain.budget,
-            // No parent chat() call to take it from, so the session's retention.
-            promptCache: this.promptCache.retention,
-            extend: () => ({ harness: harnessContext }),
-          },
-        )
-        for await (const raw of stream) {
-          const chunk =
-            raw.type === EventType.RUN_ERROR ||
-            raw.type === EventType.SUBAGENT_ERROR
-              ? { ...raw, message: this.scrub(raw.message) }
-              : raw
-          operation.publish(chunk)
-          if (
-            chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
-            'subagentRunId' in chunk &&
-            chunk.subagentRunId === subagentRunId
-          ) {
-            text += chunk.delta
-          }
-          if (
-            chunk.type === EventType.SUBAGENT_FINISHED &&
-            chunk.subagentRunId === subagentRunId
-          ) {
-            result = chunk.result
-            isSuspended = chunk.outcome?.type === 'suspended'
-          }
-          if (
-            chunk.type === EventType.SUBAGENT_ERROR &&
-            chunk.subagentRunId === subagentRunId
-          ) {
-            failure = chunk.message
-          }
-        }
-      } catch (error) {
-        failure = this.scrub(
-          error instanceof Error ? error.message : String(error),
-        )
-      }
-      // A run that goes on after its waits does not run again.
-      if (
-        answers ||
-        !(await this.isRetried(operation, chain, failure, retries))
+    const modelErrorRetry = this.modelErrorRetry(operation, chain)
+    try {
+      // A first run starts from the session thread. A run again after a
+      // host stop continues the chain's thread. A follow-up run continues
+      // the chain's thread, with its message added. The message id is its
+      // input id, so a run again after a host stop does not add it twice.
+      // A run that goes on after its waits continues the chain's thread.
+      const { message } = start
+      const saved = start.resumed
+        ? await this.continueAgentThread(chain.thread, inputId)
+        : message || answers
+          ? await this.engine.loadThread(chain.thread)
+          : await this.messages.loadThread(this.threadId)
+      const messages =
+        message && !saved.some((item) => item.id === message.inputId)
+          ? [...saved, asUserMessage(message)]
+          : saved
+      // The run of this agent: its user's credentials and keys, for its own
+      // chat calls and its tools, also while another user's turn runs. A
+      // sign-in wait of one of its tools stops this run, until the user
+      // cancels that sign-in.
+      const declined = new Set(answers?.declined)
+      // The run that started this one: agent code, else a turn.
+      const parentRunId = chain.parentRunId ?? chain.turnRunId
+      const run = this.runContext({
+        principal,
+        runId: operation.id,
+        ...(parentRunId ? { parentRunId } : {}),
+        signal: operation.abortController.signal,
+        canWait: (id) => !declined.has(id),
+      })
+      // The plugins of the turn that started the chain, while they are
+      // not disposed. A follow-up after the turn and its runs gets none.
+      const { plugins } = chain
+      const runPlugins = plugins?.hold(operation) ? plugins.plugins : undefined
+      const binding = this.binding(operation, [], principal, run, runPlugins)
+      const durable = options.resume ? this.resumable(inputId, run) : undefined
+      const harnessContext: HarnessAgentContext = withHarnessChild(
+        {
+          step: durable?.step ?? NO_SESSION_CONTEXT.step,
+          agents: this.agentStarter(chain, inputId),
+          state: (options) => this.sharedState(options),
+          // A background run does not answer a turn, so it cannot hand off.
+          handoff: NO_SESSION_CONTEXT.handoff,
+        },
+        (inner, ctx) =>
+          this.runHarnessChild(inner, ctx, { operation, principal }),
+        run,
       )
-        break
+      const stream = runAgentStream(
+        agent,
+        {
+          input: checkedInput,
+          // A prompt is one more user message at the end, as in core.
+          messages:
+            prompt === undefined
+              ? messages
+              : [
+                  ...messages,
+                  { role: 'user', content: prompt } satisfies ModelMessage,
+                ],
+          threadId: chain.thread,
+          // A run that goes on after its waits gets a new chat run.
+          runId: answers
+            ? `${operation.id}:${subagentRunId}:${Date.now().toString(36)}`
+            : `${operation.id}:${subagentRunId}`,
+          parentRunId: answers?.interruptedRunId ?? operation.id,
+          subagentRunId,
+          ...(answers ? { resume: answers.resume } : {}),
+          abortSignal: operation.abortController.signal,
+        },
+        sink,
+        undefined,
+        // ponytail: the media of a background agent is kept and published,
+        // but not written to history: its messages live in its chain's
+        // thread. Write it to the session thread if a UI must show it after
+        // a restart.
+        {
+          ...binding,
+          chatMiddleware: [
+            // Every run keeps its transcript in the chain's thread.
+            ...(this.chatPersistence
+              ? [
+                  withPersistence(this.chatPersistence, {
+                    tenantId: this.tenantId,
+                  }),
+                ]
+              : []),
+            ...(durable?.middleware ?? []),
+            this.agentSteering(chain, inputId, operation),
+            ...(modelErrorRetry ? [modelErrorRetry] : []),
+            ...binding.chatMiddleware,
+            ...(durable?.last ?? []),
+          ],
+          // As in a turn: the approvals and questions that plugins stop the
+          // run with before its tools run, then the app's own. The run waits
+          // for them. The agent's own interrupts win on an id clash.
+          interrupts: [
+            ...BOUNDARY_INTERRUPTS,
+            ...(this.harness.interrupts ?? []),
+          ],
+          budget: chain.budget,
+          // No parent chat() call to take it from, so the session's retention.
+          promptCache: this.promptCache.retention,
+          extend: () => ({ harness: harnessContext }),
+        },
+      )
+      for await (const raw of stream) {
+        const chunk =
+          raw.type === EventType.RUN_ERROR ||
+          raw.type === EventType.SUBAGENT_ERROR
+            ? { ...raw, message: this.scrub(raw.message) }
+            : raw
+        operation.publish(chunk)
+        if (
+          chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
+          'subagentRunId' in chunk &&
+          chunk.subagentRunId === subagentRunId
+        ) {
+          text += chunk.delta
+        }
+        if (
+          chunk.type === EventType.SUBAGENT_FINISHED &&
+          chunk.subagentRunId === subagentRunId
+        ) {
+          result = chunk.result
+          isSuspended = chunk.outcome?.type === 'suspended'
+        }
+        if (
+          chunk.type === EventType.SUBAGENT_ERROR &&
+          chunk.subagentRunId === subagentRunId
+        ) {
+          failure = chunk.message
+        }
+      }
+    } catch (error) {
+      failure = this.scrub(
+        error instanceof Error ? error.message : String(error),
+      )
     }
     stopTimer()
 

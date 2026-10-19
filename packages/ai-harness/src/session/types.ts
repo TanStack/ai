@@ -77,7 +77,7 @@ export interface AgentModelErrorContext {
   /** The name of the agent. */
   agent: string
   error: { message: string; code?: string; retryAfterMs?: number }
-  /** The attempts of this run that failed before this one. */
+  /** The model calls of this run that failed before this one. */
   retries: number
   /** Aborted when the run is cancelled. */
   signal: AbortSignal
@@ -138,9 +138,13 @@ export interface AgentStartOptions {
    */
   budget?: { maxTokens?: number; maxCost?: number }
   /**
-   * Called when a model call of this run fails. Return `'retry'` to run the
-   * call again, or `'fail'` to fail the run. A function is not stored in the
-   * log: a run that another host takes over runs without it.
+   * Called when a model call of this run fails before it streams output.
+   * Return `'retry'` to call the model again after a short backoff, or
+   * `'fail'` to let the error go on. Only that model call runs again, so a
+   * tool that ran before does not run twice. One model call runs at most 3
+   * times. A tool that throws, or an error of the agent code, does not call
+   * it. A function is not stored in the log: a run that another host takes
+   * over runs without it.
    */
   onModelError?: (
     ctx: AgentModelErrorContext,

@@ -38,6 +38,11 @@ function withUsage(chunks: Array<StreamChunk>, tokens: number) {
   )
 }
 
+/** One model call that fails with `message` before any output. */
+const runError = (message: string): Array<StreamChunk> => [
+  { type: EventType.RUN_ERROR, message, timestamp: Date.now() },
+]
+
 /** The text of `error`, for an agent that returns why a start failed. */
 const why = (error: unknown) =>
   error instanceof Error ? error.message : String(error)
@@ -525,29 +530,45 @@ describe('per-run limits of an agent run', () => {
     await hostB.close()
   })
 
-  it('runs a failed run again when its live onModelError answers retry', async () => {
-    let attempt = 0
-    const flaky = defineAgent({
-      name: 'flaky',
-      description: 'Fails once',
-      run: async () => {
-        attempt += 1
-        if (attempt === 1) throw new Error('model overloaded')
-        return 'worked'
+  it('calls only the failed model call again on retry, so a tool side effect does not repeat', async () => {
+    const sent: Array<string> = []
+    const sendEmail = toolDefinition({
+      name: 'sendEmail',
+      description: 'Sends an email',
+      inputSchema: z.object({}),
+    }).server(() => {
+      sent.push('email')
+      return Promise.resolve({ sent: true })
+    })
+    // The call after the tool result fails once.
+    let failed = false
+    const model = mockAdapter(
+      (options: { messages: Array<{ role: string }> }) => {
+        if (!options.messages.some((message) => message.role === 'tool')) {
+          return toolCall('sendEmail', {})
+        }
+        if (failed) return text('Sent.')
+        failed = true
+        return runError('429 rate limit')
       },
+    )
+    const mailer = defineAgent({
+      name: 'mailer',
+      description: 'Sends an email, then answers',
+      run: (ctx) => ctx.chat({ adapter: model.adapter, tools: [sendEmail] }),
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const session = await host.open(
       defineHarness({
         name: 'test/agent-model-error',
         adapter: mockAdapter([]).adapter,
-        agents: [flaky],
+        agents: [mailer],
       }),
       { threadId: THREAD },
     )
     const asked: Array<{ message: string; retries: number }> = []
 
-    const run = session.agents.flaky.start(undefined, {
+    const run = session.agents.mailer.start(undefined, {
       attach: 'none',
       onModelError: ({ error, retries }) => {
         asked.push({ message: error.message, retries })
@@ -555,10 +576,39 @@ describe('per-run limits of an agent run', () => {
       },
     })
 
-    await expect(run).resolves.toBe('worked')
-    expect(asked).toEqual([
-      { message: expect.stringContaining('model overloaded'), retries: 0 },
-    ])
+    await expect(run).resolves.toContain('Sent.')
+    expect(sent).toEqual(['email'])
+    expect(model.calls).toHaveLength(3)
+    expect(asked).toEqual([{ message: '429 rate limit', retries: 0 }])
+    await host.close()
+  })
+
+  it('stops a permanent model error after 3 calls, also when onModelError always answers retry', async () => {
+    const model = mockAdapter(() => runError('invalid api key'))
+    const worker = defineAgent({
+      name: 'worker',
+      description: 'Calls a model that always fails',
+      run: (ctx) => ctx.chat({ adapter: model.adapter }),
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/agent-model-error',
+        adapter: mockAdapter([]).adapter,
+        agents: [worker],
+      }),
+      { threadId: THREAD },
+    )
+    const onModelError = vi.fn(() => 'retry' as const)
+
+    const run = session.agents.worker.start(undefined, {
+      attach: 'none',
+      onModelError,
+    })
+
+    await expect(run).rejects.toThrow('invalid api key')
+    expect(model.calls).toHaveLength(3)
+    expect(onModelError).toHaveBeenCalledTimes(3)
     await host.close()
   })
 
