@@ -121,6 +121,29 @@ describe('harnessAgent in a harness session', () => {
     await host.close()
   })
 
+  it('opens an app thread id with /agent/ or /inner/ in it, when no thread is before them', async () => {
+    const harness = defineHarness({
+      name: 'test/notes',
+      adapter: mockAdapter([]).adapter,
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+
+    await expect(
+      host.open(harness, { threadId: 'org/agent/notes' }),
+    ).resolves.toBeDefined()
+    await expect(
+      host.open(harness, { threadId: 'org/inner/notes' }),
+    ).resolves.toBeDefined()
+    // `org/agent/notes` is a thread now, so the ids under it are reserved.
+    await expect(
+      host.open(harness, { threadId: 'org/agent/notes/agent/run-1' }),
+    ).rejects.toThrow('harnessAgent child')
+    await expect(
+      host.open(harness, { threadId: 'org/inner/notes/inner/test/x' }),
+    ).rejects.toThrow('harnessText inner session')
+    await host.close()
+  })
+
   it('runs the child for the user of the run, with the keys of that user', async () => {
     vi.stubEnv('ACME_TEST_KEY', '')
     const acme = defineByokProvider({

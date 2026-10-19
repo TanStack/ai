@@ -1002,9 +1002,6 @@ function checkSessionStore(store: SessionIndexStore | undefined) {
   }
 }
 
-/** A thread id that `harnessAgent` derives for a child: `.../agent/...`. */
-const isHarnessChildThread = (threadId: string) => threadId.includes('/agent/')
-
 /**
  * @internal The thread of the inner session of `harnessText` in the outer
  * thread `outerThread`. Only an open marked with `throughOuterThread` for
@@ -1012,8 +1009,6 @@ const isHarnessChildThread = (threadId: string) => threadId.includes('/agent/')
  */
 export const innerThreadOf = (outerThread: string, harnessName: string) =>
   `${outerThread}/inner/${harnessName}`
-
-const isInnerThread = (threadId: string) => threadId.includes('/inner/')
 
 /** The index `metadata` key that links an inner thread to its outer thread. */
 const OUTER_THREAD = 'harness:outerThread'
@@ -1810,6 +1805,28 @@ export function createHarnessHost<P extends Principal = Principal>(
       await created.open()
       return created
     }
+
+  /**
+   * Is `threadId` a thread that the host derives under `marker`: a
+   * `harnessAgent` child (`<root>/agent/<run id>`) or a `harnessText` inner
+   * session (`<outer>/inner/<harness>`)? Only when the part before a
+   * `marker` is a thread of the index, so an app id such as
+   * `org/agent/notes` opens.
+   */
+  const isDerivedThread = async (
+    key: SessionIndexKey,
+    marker: '/agent/' | '/inner/',
+  ) => {
+    for (
+      let at = key.threadId.indexOf(marker);
+      at > 0;
+      at = key.threadId.indexOf(marker, at + 1)
+    ) {
+      const base = { ...key, threadId: key.threadId.slice(0, at) }
+      if ((await index.get(base)) !== undefined) return true
+    }
+    return false
+  }
 
   /** Throw when the index entry of the thread names a parent thread. */
   const refuseChild = async (key: SessionIndexKey) => {
@@ -2706,25 +2723,26 @@ export function createHarnessHost<P extends Principal = Principal>(
   const host: HarnessHost<P> = {
     async open(harness, openOptions) {
       if (isClosed) throw hostClosed()
+      const { threadId } = openOptions
+      const tenantId = openOptions.principal?.tenantId
+      const ids = { tenantId, threadId }
       // A child of `harnessAgent` opens only through the run that starts it.
-      if (isHarnessChildThread(openOptions.threadId)) {
+      if (await isDerivedThread(ids, '/agent/')) {
         throw new Error(
-          `${JSON.stringify(openOptions.threadId)} is the thread of a harnessAgent child. Open its root thread and read the child through it.`,
+          `${JSON.stringify(threadId)} is the thread of a harnessAgent child. Open its root thread and read the child through it.`,
         )
       }
       // See `throughOuterThread`. An inner thread opens only through the
       // outer thread that its id names.
-      const { threadId } = openOptions
       const outerThread = accessThreads.get(openOptions)
       const isOwnInner =
         outerThread !== undefined &&
         threadId.startsWith(`${outerThread}/inner/`)
-      if (isInnerThread(threadId) && !isOwnInner) {
+      if (!isOwnInner && (await isDerivedThread(ids, '/inner/'))) {
         throw new Error(
           `${JSON.stringify(threadId)} is the thread of a harnessText inner session. Open its outer thread, and use the harness there.`,
         )
       }
-      const tenantId = openOptions.principal?.tenantId
       const key = sessionKey(harness.name, tenantId, threadId)
       // Before the open, so the session never closes on idle under it.
       hold(key)
