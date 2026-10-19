@@ -49,8 +49,19 @@ const plain = defineHarness({
 describe('the log of a session tree', () => {
   it('lands a child record and a root record in one append, or neither', async () => {
     const inner = memoryLogStore()
+    // The app record types of each store append.
+    const batches: Array<Array<string>> = []
     // A plain object, so the test can swap `append` below.
-    const log = wrapLogStore(inner, {})
+    const log = wrapLogStore(inner, {
+      append: async (batch) => {
+        await inner.append(batch)
+        batches.push(
+          batch.records
+            .map((record) => record.type)
+            .filter((type) => type.startsWith('app.')),
+        )
+      },
+    })
     const host = hostFor(durablePersistence(log))
     const root = await host.open(plain, { threadId: ROOT })
     const pair: Array<LogRecord> = [
@@ -59,9 +70,16 @@ describe('the log of a session tree', () => {
     ]
 
     await root.append({ records: pair })
-    const types = async () =>
-      (await inner.read({ logId: STORE_LOG })).map((entry) => entry.record.type)
-    expect(await types()).toEqual(['app.child_created', 'app.child_linked'])
+    // The append is an input, so the log has its input records too. The app
+    // records are in one store append.
+    const appTypes = async () =>
+      (await inner.read({ logId: STORE_LOG }))
+        .map((entry) => entry.record.type)
+        .filter((type) => type.startsWith('app.'))
+    expect(await appTypes()).toEqual(['app.child_created', 'app.child_linked'])
+    expect(batches.filter((types) => types.length > 0)).toEqual([
+      ['app.child_created', 'app.child_linked'],
+    ])
 
     // The writer tries twice, so both tries fail.
     const original = log.append
@@ -70,7 +88,7 @@ describe('the log of a session tree', () => {
     }
     await expect(root.append({ records: pair })).rejects.toThrow('store down')
     log.append = original
-    expect(await types()).toEqual(['app.child_created', 'app.child_linked'])
+    expect(await appTypes()).toEqual(['app.child_created', 'app.child_linked'])
     await host.close().catch(() => {})
   })
 

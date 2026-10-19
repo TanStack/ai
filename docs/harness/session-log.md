@@ -36,7 +36,7 @@ await session.append({ records: [{ type: 'app.signal', text: 'The build failed.'
 ```
 
 - A record is JSON with a `type`. Types that start with `harness.` belong to the harness, so `append` refuses them.
-- `append` resolves with a receipt when the records are in the log.
+- `append` resolves with a receipt when the records are in the log. When another host owns the thread, the receipt is `queued`, and the owner writes the records. See [One host drives a thread](./durable-sessions#one-host-drives-a-thread).
 - Pass `inputId` to make the append safe to send again: `session.append({ records, inputId: 'signal-7' })`. A second append with the same id writes nothing. Without `inputId`, the append gets a new id. The receipt has the id, as the log keeps it. `principal` sets who appends. The default is the user who opened the session.
 - A record can belong to a child thread of the same log. See [One log for a session tree](./shared-logs).
 - In a tool, use `append` from [`durableTool`](./durable-tools), so the records land with the tool batch.
