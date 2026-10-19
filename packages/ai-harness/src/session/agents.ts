@@ -63,7 +63,7 @@ import type { InnerTurnEnd } from '../harness-text'
 import type { AgentResultRecord, RunTreeNode } from '../log-records'
 import { NO_SESSION_CONTEXT, withHarnessChild } from '../agents'
 import { forwardTurn, lastUserInput } from '../harness-text'
-import { wait } from '../turn'
+import { wait as backoff } from '../turn'
 import { addCounts, emptyCounts } from '../usage'
 import { isRecord } from '../utils'
 import { tanstackMetadata } from '@tanstack/ai/adapter-internals'
@@ -1238,7 +1238,7 @@ export abstract class SessionAgents<
         }
         retries += 1
         if (answer !== 'retry' || signal.aborted) return
-        await wait(
+        await backoff(
           Math.min(retryAfterMs ?? 250 * 2 ** (retries - 1), 5_000),
           signal,
         )
