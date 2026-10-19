@@ -49,15 +49,16 @@ export const handler = createHarnessHandler({ host, harness: assistant })
 
 The user who opens a new thread is its owner. Nobody else can open it until the owner shares it. What each role can do:
 
-| Action | Owner | Member | Viewer |
-| --- | --- | --- | --- |
-| Read the thread and see it in a list | Yes | Yes | Yes |
-| Send messages, run commands, start agents | Yes | Yes | No |
-| Answer and cancel | Every run | Only the runs they started | No |
-| Answer a `human` wait (`operator`) | Yes | Yes | No |
-| Fork | Yes | Yes | No |
-| Reply as an [operator](./handoffs#reply-as-the-operator) | Yes | Yes | No |
-| Configure, share, delete, transfer | Yes | No | No |
+| Action | Owner | Member | Operator | Viewer |
+| --- | --- | --- | --- | --- |
+| Read the thread and see it in a list | Yes | Yes | Yes | Yes |
+| Send messages, run commands, start agents | Yes | Yes | No | No |
+| Answer and cancel | Every run | Only the runs they started | No | No |
+| Answer a `human` wait, and reply as an [operator](./handoffs#reply-as-the-operator) | No | No | Yes | No |
+| Fork | Yes | Yes | No | No |
+| Configure, share, delete, transfer | Yes | No | No | No |
+
+The user who waits for a person must not act as that person, so the owner does not get `operator`. To give it to other roles, pass `membersOnly({ operator: { roles: ['owner', 'operator'] } })`.
 
 A user who is not a member can do nothing. A child thread of a subagent uses the members of its root thread.
 
@@ -80,7 +81,7 @@ await host.sessions.share({
 From the browser, the owner sends the same change to `POST sessions`:
 
 ```ts group=harness-shared-threads-invite
-export async function invite(userId: string, role: 'member' | 'viewer') {
+export async function invite(userId: string, role: 'member' | 'operator' | 'viewer') {
   const response = await fetch('/api/harness/sessions', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: 'Bearer token-ada' },

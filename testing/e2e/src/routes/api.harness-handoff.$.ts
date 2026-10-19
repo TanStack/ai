@@ -20,7 +20,7 @@ import type { SessionView } from '@tanstack/ai-harness/view'
 /**
  * Handoffs inside one session, over the harness protocol. The harness has
  * `routing` and one root agent, `billing`. The host has `membersOnly()`
- * access: olga owns the thread, and bea is a member.
+ * access: olga owns the thread, and bea is an operator.
  *
  * - `POST .../start` with `{ scenario }` opens the thread for olga and
  *   shares it with bea. Returns the run id and the thread id.
@@ -222,7 +222,7 @@ async function start(request: Request) {
     await host.sessions.share({
       threadId,
       userId: 'bea',
-      role: 'member',
+      role: 'operator',
       principal: USERS.olga,
     })
     const handoffs: Array<unknown> = []

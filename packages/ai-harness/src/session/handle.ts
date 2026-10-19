@@ -114,9 +114,9 @@ export function finalizeHandle(handle: object) {
 }
 
 /**
- * @internal Throws `AccessDeniedError` unless `authorize` allows `input`. A `human`
- * wait takes an operator too: a user that may not answer the run may still
- * have the `operator` action.
+ * @internal Throws `AccessDeniedError` unless `authorize` allows `input`. An
+ * answer or a resolve of a `human` wait needs the `operator` action, not
+ * `answer`.
  */
 export async function authorizeInput({
   authorize,
@@ -130,15 +130,9 @@ export async function authorizeInput({
   wait: AccessWait | undefined
 }) {
   const action = actionOf(input)
-  if (action !== 'answer' || wait?.kind !== 'human') {
-    return authorize(action, run, wait)
-  }
-  try {
-    await authorize(action, run, wait)
-  } catch (error) {
-    if (!(error instanceof AccessDeniedError)) throw error
-    await authorize('operator', run, wait)
-  }
+  // A `human` wait takes an operator, not the user who waits for a person.
+  const isHuman = action === 'answer' && wait?.kind === 'human'
+  await authorize(isHuman ? 'operator' : action, run, wait)
 }
 
 /** @internal The action that `authorize` gets for an input. */

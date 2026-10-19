@@ -994,7 +994,7 @@ messages. The data of each thread stays in the stores that hold it.
 ```ts
 interface SessionMember {
   userId: string
-  role: 'owner' | 'member' | 'viewer'
+  role: 'owner' | 'member' | 'viewer' | 'operator'
 }
 
 interface SessionIndexKey {

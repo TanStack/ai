@@ -282,7 +282,10 @@ function lastUserInput(messages: Array<UIMessage | ModelMessage>) {
 }
 
 const isRole = (value: unknown): value is SessionMember['role'] =>
-  value === 'owner' || value === 'member' || value === 'viewer'
+  value === 'owner' ||
+  value === 'member' ||
+  value === 'viewer' ||
+  value === 'operator'
 
 /** A `POST sessions` body, or `undefined` when it is not a valid one. */
 function parseSessionOp(body: unknown) {

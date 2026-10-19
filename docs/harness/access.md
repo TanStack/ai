@@ -103,7 +103,7 @@ Each action covers these calls:
 | `transfer` | Move the conversation to another thread, also of another harness, with `host.transfer`. See [Move a conversation to another harness](./handoffs#5-move-a-conversation-to-another-harness). |
 
 - For `answer` and `cancel`, `authorize` also gets `run`: the `runId` and the `principalId` of the user who started that run.
-- For `answer` and `operator`, `authorize` also gets `wait`: the `waitId` and the `kind` of the [wait](./waits) that the input answers, when the host knows it. A `human` wait takes either action: when `answer` is refused, the host asks for `operator`.
+- For `answer` and `operator`, `authorize` also gets `wait`: the `waitId` and the `kind` of the [wait](./waits) that the input answers, when the host knows it. A `human` wait takes only `operator`, also for a resolve that ends it.
 - For `cancelSchedule`, `run` is the schedule: the `runId` is the schedule id, and the `principalId` is the user who made it.
 - `host.submit` and `schedule` check an answer or a cancel when you send it, with `run` from the log. A run that the log does not have is refused with `unknown_run`: `submit` returns a `rejected` receipt, and `schedule` throws `InputRejectedError`.
 - A handle checks `read` once, when it opens. Each action that changes the session asks `authorize` again. This includes `cancel` and `send` on an operation or an agent run that the handle returns.

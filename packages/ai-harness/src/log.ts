@@ -1233,10 +1233,15 @@ export async function loggedTargetOf({
     }
     case 'resolve': {
       const stopped = root.thread.interrupted
+      // A resolve that ends a `human` wait needs an operator, as an answer.
+      const human = input.resume
+        .map((item) => root.thread.waits.get(item.interruptId)?.wait)
+        .find((wait) => wait?.kind === 'human')
       return {
         run: stopped
           ? { runId: stopped.runId, ...by(stopped.principal) }
           : null,
+        ...(human ? { wait: { waitId: human.waitId, kind: human.kind } } : {}),
       }
     }
   }

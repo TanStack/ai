@@ -193,12 +193,20 @@ export abstract class SessionInputs<
 
   /**
    * The wait that `input` answers, for the access check. An operator reply
-   * goes to the `human` wait of the handoff to a person.
+   * goes to the `human` wait of the handoff to a person. A resolve goes to
+   * a `human` wait that it ends.
    */
   protected waitOf(input: HarnessInput): AccessWait | undefined {
     if (input.op === 'prompt' && input.as === 'operator') {
       const paused = this.humanHandoff()
       return paused ? { waitId: paused.waitId, kind: 'human' } : undefined
+    }
+    // A resolve that ends a `human` wait needs an operator too.
+    if (input.op === 'resolve') {
+      const human = input.resume
+        .map((item) => this.loggedWait(item.interruptId)?.wait)
+        .find((wait) => wait?.kind === 'human')
+      return human ? { waitId: human.waitId, kind: 'human' } : undefined
     }
     if (input.op !== 'answer') return undefined
     const wait = this.loggedWait(input.questionId)?.wait

@@ -989,11 +989,12 @@ export function defineLogStore(store: LogStore): LogStore {
 /**
  * A user who can open a session, and the role of that user in it. The
  * `owner` is the user who opened the session. The host decides what a
- * `member` and a `viewer` can do.
+ * `member`, a `viewer`, and an `operator` (a person who takes over from an
+ * agent) can do.
  */
 export interface SessionMember {
   userId: string
-  role: 'owner' | 'member' | 'viewer'
+  role: 'owner' | 'member' | 'viewer' | 'operator'
 }
 
 /**
