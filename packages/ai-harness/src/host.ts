@@ -1700,6 +1700,8 @@ export function createHarnessHost<P extends Principal = Principal>(
 
   /** The first dropped handle of a session warns. */
   const warnDropped = (key: string, threadId: string) => {
+    // `host.close()` closed every session: a dropped handle loses nothing.
+    if (isClosed) return
     const held = holds.get(key)
     if (!held || held.warned) return
     held.warned = true

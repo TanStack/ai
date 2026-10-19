@@ -231,7 +231,10 @@ describe('client reads and actions', () => {
       return fetch(input, init)
     })
     // With host access, a thread with no session has no events to read.
-    await host.open(harness, { threadId: 'thread-r', principal: user })
+    const opened = await host.open(harness, {
+      threadId: 'thread-r',
+      principal: user,
+    })
     const states: Array<string> = []
     const reader = new AbortController()
     const reading = (async () => {
@@ -246,6 +249,7 @@ describe('client reads and actions', () => {
     await vi.waitFor(() => expect(states).toEqual(['reconnecting', 'open']))
     reader.abort()
     await reading
+    await opened.close()
     await host.close()
   })
 })
