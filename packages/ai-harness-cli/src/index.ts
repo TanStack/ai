@@ -261,12 +261,14 @@ export async function runCli<P extends Principal = Principal>(
 
     if (args.serve) {
       const token = args.token ?? env.HARNESS_TOKEN ?? createToken()
+      const mediaKey = args.mediaKey ?? env.HARNESS_MEDIA_KEY
       const server = await serve({
         host,
         harness,
         port: args.port,
         hostname: args.hostname,
         token,
+        ...(mediaKey !== undefined ? { mediaKey } : {}),
         threadId: args.thread,
         approvals,
         ...(principal ? { principal } : {}),

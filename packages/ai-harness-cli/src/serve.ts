@@ -1,7 +1,7 @@
 import { createServer } from 'node:http'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
+import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { createHarnessHandler } from '@tanstack/ai-harness/server'
 import { loadOptional } from './optional'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -23,6 +23,13 @@ export interface ServeOptions<P extends Principal = Principal> {
    * media URL needs no token: its signature is its login.
    */
   token: string
+  /**
+   * The key that signs media URLs, at least 32 bytes (UTF-8). Default: a new
+   * random key at each start, so a signed URL stops working after a restart.
+   * It is never made from `token`: a signed URL is given out without the
+   * token, and must not let anyone guess it.
+   */
+  mediaKey?: string
   /** The conversation of an MCP tool call that names none. Default `'main'`. */
   threadId?: string
   /** How `/mcp` handles tool calls that need approval. Default `'ask'`. */
@@ -134,22 +141,20 @@ export async function serve<P extends Principal = Principal>(
   const isAllowed = (request: Request) =>
     sameToken(request.headers.get('authorization'), options.token)
   const withAccess = host.hasAccess
-  // ponytail: a key from the token signs media URLs, so they work as long
-  // as the token does. The hash gives the 32 bytes that signing needs, also
-  // for a short token.
-  const media = {
-    secret: createHash('sha256')
-      .update(`tanstack-ai-harness-cli media:${options.token}`)
-      .digest('hex'),
-  }
+  // Without `mediaKey`, the handler signs with a new random key, so signed
+  // media URLs stop working after a restart.
+  const media =
+    options.mediaKey !== undefined
+      ? { media: { secret: options.mediaKey } }
+      : {}
   const handler = withAccess
-    ? createHarnessHandler({ host, harness, media })
+    ? createHarnessHandler({ host, harness, ...media })
     : createHarnessHandler({
         host,
         harness,
         // One principal holds the token, so it can use every thread.
         openAccess: principal ? { principal } : true,
-        media,
+        ...media,
       })
   const mcp = await mcpServer(options, withAccess)
   const route = (request: Request) => {

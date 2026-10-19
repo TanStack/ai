@@ -957,7 +957,7 @@
           "label": "Run in the terminal",
           "to": "harness/cli",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Deploy a harness",
