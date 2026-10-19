@@ -1049,13 +1049,18 @@ export class SessionImpl<
       const run = input.operationId ? await runs.get(input.operationId) : null
       const now = Date.now()
       if (first) {
-        // A run that waits for answers waits on here.
-        if (run?.status === 'interrupted') {
+        // A run that waits for answers waits on here. A crash after the run
+        // store marked it `interrupted` and before its waits landed leaves
+        // nothing to answer: that run stopped, as a running one.
+        const hasWaits = [...writer.state.thread.waits.values()].some(
+          ({ wait }) => wait.runId === input.operationId,
+        )
+        if (run?.status === 'interrupted' && hasWaits) {
           this.adoptWaitingRun(input, first, run)
           continue
         }
         // A run that ended before its settle record landed did not stop.
-        if (!run || run.status === 'running') {
+        if (!run || run.status === 'running' || run.status === 'interrupted') {
           const isResumable = first.input.resume === true
           // `limits.maxAttempts` of the run wins over the harness's.
           const runMax =

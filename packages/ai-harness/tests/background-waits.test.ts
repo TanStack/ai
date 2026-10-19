@@ -186,6 +186,38 @@ describe('a background agent run waits', () => {
     await b.host.close()
   })
 
+  it('does not wait forever after a crash before its waits landed in the log', async () => {
+    const persistence = memoryPersistence()
+    const { log } = persistence.stores
+    const append = log.append.bind(log)
+    // The host crashes at the write of the waits: no write lands after it.
+    let crashed = false
+    const spy = vi.spyOn(log, 'append').mockImplementation((batch) => {
+      if (batch.records.some((record) => record.type === 'harness.wait'))
+        crashed = true
+      return crashed ? Promise.reject(new Error('crash')) : append(batch)
+    })
+    const first = cleaning()
+    const a = await open(first.harness, persistence)
+    const run = a.session.agents.cleaner.start()
+    run.then(
+      () => {},
+      () => {},
+    )
+    await waitFor(() => expect(crashed).toBe(true))
+    await a.host.close().catch(() => {})
+    spy.mockRestore()
+
+    const b = await open(cleaning().harness, persistence)
+    expect(b.session.snapshot().pendingWaits).toEqual([])
+    await waitFor(() =>
+      expect(b.session.agentRuns()).toMatchObject([
+        { operationId: run.id, status: 'failed' },
+      ]),
+    )
+    await b.host.close()
+  })
+
   it('goes on after a restart when the log has the answer and no host resumed it', async () => {
     const persistence = memoryPersistence()
     const first = cleaning()
