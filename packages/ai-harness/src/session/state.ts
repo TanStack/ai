@@ -700,11 +700,39 @@ export abstract class SessionState<
 
   /**
    * Throws when the plugins that `settings` removes provide a capability
-   * that a kept session plugin requires.
+   * that a kept plugin (of any lifetime) or a harness middleware requires.
    */
   protected checkRemovable(settings: ThreadSettings) {
-    const remove = settings.plugins?.remove ?? []
-    if (remove.length > 0) this.sessionPlugins?.withoutOwners(remove)
+    const removed = new Set(settings.plugins?.remove ?? [])
+    if (removed.size === 0) return
+    const owners = new Map(
+      this.plugins.flatMap((plugin) =>
+        (plugin.provides ?? []).map((handle) => [handle, plugin.name] as const),
+      ),
+    )
+    const needs = [
+      ...this.plugins
+        .filter((plugin) => !removed.has(plugin.name))
+        .map((plugin) => ({
+          who: `plugin ${plugin.name}`,
+          requires: plugin.requires,
+        })),
+      ...(this.harness.middleware ?? []).map((middleware) => ({
+        who: middleware.name
+          ? `harness middleware ${middleware.name}`
+          : 'a harness middleware',
+        requires: middleware.requires,
+      })),
+    ]
+    for (const { who, requires } of needs) {
+      for (const handle of requires ?? []) {
+        const owner = owners.get(handle)
+        if (owner === undefined || !removed.has(owner)) continue
+        throw new Error(
+          `Cannot remove plugin ${owner}: ${who} requires its capability "${handle.capabilityName}".`,
+        )
+      }
+    }
   }
 
   /** The model and plugin names that a setting can use. */

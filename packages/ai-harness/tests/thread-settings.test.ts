@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { EventType, toolDefinition } from '@tanstack/ai'
+import { EventType, createCapability, toolDefinition } from '@tanstack/ai'
 import {
   memoryLogBackend,
   memoryLogStore,
@@ -258,6 +258,40 @@ describe('thread settings', () => {
     ).toMatchObject({
       status: 'rejected',
       reason: expect.stringContaining('acme/none'),
+    })
+    expect(session.settings()).toEqual({})
+    await host.close()
+  })
+
+  it('refuses to remove a plugin whose capability a turn plugin or a harness middleware requires', async () => {
+    const Notes = createCapability<string>()('acme/notes-capability')
+    const { adapter } = mockAdapter(() => text('ok'))
+    const { host, session } = await open({
+      adapter,
+      middleware: [{ name: 'audit', requires: [Notes] }],
+      plugins: () => [
+        definePlugin({
+          name: 'acme/notes',
+          provides: [Notes],
+          setup: (ctx) => void ctx.provide(Notes, 'notes'),
+        }),
+        definePlugin({
+          name: 'acme/search',
+          lifetime: 'turn',
+          requires: [Notes],
+        }),
+      ],
+    })
+    const remove = (names: Array<string>) =>
+      session.configure({ settings: { plugins: { remove: names } } })
+
+    expect(await remove(['acme/notes'])).toMatchObject({
+      status: 'rejected',
+      reason: expect.stringContaining('plugin acme/search requires'),
+    })
+    expect(await remove(['acme/notes', 'acme/search'])).toMatchObject({
+      status: 'rejected',
+      reason: expect.stringContaining('harness middleware audit requires'),
     })
     expect(session.settings()).toEqual({})
     await host.close()
