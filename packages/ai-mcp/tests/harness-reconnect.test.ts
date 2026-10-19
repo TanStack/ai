@@ -161,6 +161,57 @@ describe('mcp reconnect', () => {
     )
   })
 
+  it('keeps the backoff when a server drops again right after it connects', async () => {
+    const { sessions } = await openSessions(1)
+    const [session] = sessions
+    if (!session) throw new Error('a session expected')
+    await session.send('hi')
+
+    const random = vi.spyOn(Math, 'random').mockReturnValue(0)
+    await stopServer()
+    await vi.advanceTimersByTimeAsync(250)
+    expect(children).toHaveLength(2)
+    await vi.waitFor(async () =>
+      expect(await statusOf(session)).toBe('local: connected (1 tool)'),
+    )
+
+    // The new start crashes at once: the next wait is 0.5 s, not 0.25 s.
+    await stopServer()
+    await vi.advanceTimersByTimeAsync(499)
+    expect(children).toHaveLength(2)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(children).toHaveLength(3)
+    random.mockRestore()
+  })
+
+  it('leaves no timer when the host closes while a connect runs', async () => {
+    const { host, sessions } = await openSessions(1)
+    await sessions[0]?.send('hi')
+
+    // The next start hangs until the test refuses it.
+    let refuseNow = () => {}
+    const hanging = new Promise<void>((_, reject) => {
+      refuseNow = () => reject(new Error('refused'))
+    })
+    const start = stdio.start
+    cleanups.push(() => {
+      stdio.start = start
+    })
+    stdio.start = () => ({
+      start: () => hanging,
+      send: async () => {},
+      close: async () => {},
+    })
+    await stopServer()
+    await vi.advanceTimersByTimeAsync(500)
+
+    const closing = host.close()
+    refuseNow()
+    await closing
+    await vi.advanceTimersByTimeAsync(0)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
   it('connects again after a failed first connect, and gives its tools at a later turn', async () => {
     refuse = 1
     const { sessions, model } = await openSessions(1)

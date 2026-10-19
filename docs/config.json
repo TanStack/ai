@@ -1163,7 +1163,7 @@
           "label": "Use MCP servers",
           "to": "harness/mcp",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Use from any MCP client",

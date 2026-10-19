@@ -90,6 +90,7 @@ In your own UI, read the same list from `session.snapshot().plugins['tanstack/mc
 A `stdio` server can crash, and a connection can close. Then `/mcp` shows `files: reconnecting`, and the turns run without the tools of that server. `mcp()` connects a server without `oauth: true` again:
 
 - It waits 0.5 s, then 1 s, then 2 s, and so on, up to 30 s between tries. A random part makes each wait shorter, so many sessions do not connect at the same moment.
+- The waits start again at 0.5 s only after a connection stays open for 30 s. A server that crashes right after it connects waits longer each time.
 - It tries until the server connects, or until the session closes. For a `stdio` server, it tries until the host stops the server.
 - The next turn after the new connection has the tools again. All sessions that share a `stdio` server use the new process.
 - A server that fails its first connect shows `failed`, and tries again with the same waits. A server that is not up yet, like a slow `npx`, gets its tools at a later turn.
@@ -164,6 +165,17 @@ export const renamed = mcp({
 ```
 
 When two servers still give the same tool name, the model gets the tool of the server that comes first in `servers`. The other tool is dropped, and the console shows one warning with the names of both servers.
+
+To treat a clash as a config error, set `onDuplicateTool: 'error'`. Then the later server shows `failed` with an error that names both servers and the tool, and the model gets none of its tools. The other servers keep working:
+
+```ts group=harness-mcp
+export const strict = mcp({
+  onDuplicateTool: 'error',
+  servers: {
+    docs: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  },
+})
+```
 
 ## Answer a question from a server
 

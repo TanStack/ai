@@ -281,6 +281,51 @@ if (process.env[childEnv] === '1') {
       ])
     })
 
+    it("fails the later server when two servers give one tool name, with onDuplicateTool 'error'", async () => {
+      const first = echoServer('First echo')
+      const second = echoServer('Second echo')
+      const third = echoServer('Third echo')
+      const model = recorder()
+      const host = createHarnessHost({ persistence: memoryPersistence() })
+      cleanups.push(() => host.close())
+      const harness = defineHarness({
+        name: 'test/mcp-plugin',
+        adapter: model.adapter,
+        plugins: () => [
+          mcp({
+            onDuplicateTool: 'error',
+            servers: {
+              first: httpServer((request) => first.fetch(request), {
+                toolName: (tool) => tool.name,
+              }),
+              second: httpServer((request) => second.fetch(request)),
+              third: httpServer((request) => third.fetch(request), {
+                toolName: (tool) => tool.name,
+              }),
+            },
+          }),
+        ],
+      })
+      const session = await host.open(harness, { threadId: 't' })
+      await session.send('hi')
+
+      const tools = (model.calls[0]?.tools ?? []).map((tool) => [
+        tool.name,
+        tool.description,
+      ])
+      expect(tools).toEqual([
+        ['echo', 'First echo'],
+        ['second_echo', 'Second echo'],
+      ])
+      await expect(session.command({ name: 'mcp' })).resolves.toBe(
+        [
+          'first: connected (1 tool)',
+          'second: connected (1 tool)',
+          'third: failed: The MCP servers "first" and "third" both give the tool "echo". Set toolName on one of the servers to rename its tools.',
+        ].join('\n'),
+      )
+    })
+
     it.each([
       [
         'accepts',
