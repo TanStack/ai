@@ -33,6 +33,7 @@ import type {
   Principal,
   Receipt,
   SessionEvent,
+  UserInput,
   WaitingInput,
 } from '../types'
 import type { OfferedInputRecord, TurnExtras } from './helpers'
@@ -119,6 +120,18 @@ export abstract class SessionInputs<
     } finally {
       this.pendingCheck = undefined
     }
+  }
+
+  /**
+   * @internal The message of the input `inputId` in the log, or `undefined`.
+   * A client that sends an input again sends this message, so its inline
+   * media is not stored again and the duplicate check matches.
+   */
+  // ponytail: reads the log only. A retry that comes while the first copy
+  // is still being stored stores its media again.
+  knownMessage(inputId: string): UserInput | undefined {
+    const input = this.writer.state.inputs.get(inputId)?.input
+    return input && 'message' in input ? input.message : undefined
   }
 
   /**

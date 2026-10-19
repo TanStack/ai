@@ -24,6 +24,7 @@ import {
   parseControlFrame,
   parseHarnessInput,
   requestIdOf,
+  retriedMessage,
   turnReceipt,
 } from './protocol'
 import { socketSender, sseStream, streamValues, withHeartbeat } from './sse'
@@ -917,13 +918,18 @@ export function createHarnessHandler<P extends Principal = Principal>(
           return json({ error: 'no user message' }, 400)
         }
         // Inline bytes go to the media store, and the message keeps a
-        // `harness-media:` reference, as `POST control` does.
-        const checked = Array.isArray(message)
-          ? await storeInlineMedia(message, {
-              options: harness.media,
-              putMedia: (upload) => session.putMedia(upload),
-            })
-          : { parts: message }
+        // `harness-media:` reference, as `POST control` does. A retried run
+        // stores no media again.
+        const retry = retriedMessage(session, params.runId, message)
+        const checked =
+          retry !== undefined
+            ? { parts: retry }
+            : Array.isArray(message)
+              ? await storeInlineMedia(message, {
+                  options: harness.media,
+                  putMedia: (upload) => session.putMedia(upload),
+                })
+              : { parts: message }
         if ('refused' in checked) {
           return json(
             { error: checked.refused },

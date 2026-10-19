@@ -61,6 +61,7 @@ export interface HarnessSession<
   | 'resolveForRun'
   | 'sendForRun'
   | 'checked'
+  | 'knownMessage'
   | 'cancelWorkOf'
   | 'agentHandle'
   | 'isIdle'
