@@ -712,7 +712,7 @@ Every way to start an agent takes these options: `start`, `run`, and `g.start`, 
 
 - `limits.timeoutMs`: the run fails with the code `timeout` after this time. A run again on another host keeps the first deadline. The deadline is never later than the deadline of the parent run, or `durability.timeoutMs`.
 - `limits.maxAttempts`: the attempts of this run. It replaces `durability.maxAttempts` for this run.
-- `budget.maxTokens` and `budget.maxCost`: the model use of the run and of all its children. The check runs after each model call, so a run stops after the first model call over the budget. Then it fails with the code `budget`.
+- `budget.maxTokens` and `budget.maxCost`: the model use of the run and of all its children. The check runs after each model call, so a run stops after the first model call over the budget. Then it fails with the code `budget`. A run with `resume: true` that runs again after a host stop also counts the model use of the runs before.
 - `onModelError`: called when a model call of the run fails. Return `'retry'` to call the model again, or `'fail'` to fail the run.
 
 A budget holds for the whole tree under the run:

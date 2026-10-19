@@ -522,11 +522,20 @@ function addRunUsage(state: LogState, call: UsageCall) {
   }
 }
 
-/** Drop the usage sums of the runs that ended. */
+/**
+ * Drop the usage sums of the runs that ended. A run whose input is still
+ * applied runs again (its host stopped): its sum stays, for the next run of
+ * that input.
+ */
 function dropEndedUsage(state: LogState) {
   for (const runId of state.runUsage.keys()) {
     const node = state.thread.tree.get(runId)
-    if (!node || isEnded(node.status)) state.runUsage.delete(runId)
+    const input =
+      node?.inputId === undefined ? undefined : state.inputs.get(node.inputId)
+    const runsAgain = input?.status === 'applied'
+    if (!node || (isEnded(node.status) && !runsAgain)) {
+      state.runUsage.delete(runId)
+    }
   }
 }
 
@@ -600,11 +609,24 @@ export function foldEntry(
       return
     case 'harness.input.applied': {
       const appliedAt = state.messages.length
+      const previous = state.inputs.get(record.inputId)?.operationId
       state.thread = applyRunNode(state.thread, {
         inputId: record.inputId,
         operationId: record.operationId,
-        previous: state.inputs.get(record.inputId)?.operationId,
+        previous,
       })
+      // A run again of the input takes the place of the run before, and its
+      // usage too: the budget of the run counts every attempt.
+      const carried =
+        previous === undefined || state.thread.tree.has(previous)
+          ? undefined
+          : state.runUsage.get(previous)
+      if (previous !== undefined && carried) {
+        state.runUsage.delete(previous)
+        const counts = state.runUsage.get(record.operationId) ?? emptyCounts()
+        addCounts(counts, carried)
+        state.runUsage.set(record.operationId, counts)
+      }
       updateInput(state, record.inputId, (input) => ({
         ...input,
         status: 'applied',

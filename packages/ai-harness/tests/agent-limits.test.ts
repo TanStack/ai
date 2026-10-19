@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { EventType, defineAgent } from '@tanstack/ai'
+import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin, logIdOf } from '../src'
 import { isRecord } from '../src/utils'
-import { gate, mockAdapter, text } from './helpers'
-import type { StreamChunk } from '@tanstack/ai'
+import { gate, mockAdapter, text, toolCall, untilAborted } from './helpers'
+import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 import type { LogStore } from '@tanstack/ai-persistence'
 import type { AgentActions, HarnessSession } from '../src'
 
@@ -19,7 +19,12 @@ const LOG = logIdOf({ logId: THREAD })
 
 /** One model call that answers `content` and reports `tokens` tokens. */
 function textWithTokens(content: string, tokens: number): Array<StreamChunk> {
-  return text(content).map((chunk) =>
+  return withUsage(text(content), tokens)
+}
+
+/** The model call `chunks`, reporting `tokens` tokens. */
+function withUsage(chunks: Array<StreamChunk>, tokens: number) {
+  return chunks.map((chunk) =>
     chunk.type === EventType.RUN_FINISHED
       ? {
           ...chunk,
@@ -383,6 +388,59 @@ describe('the budget of an agent run', () => {
       'spender',
     ])
     await host.close()
+  })
+})
+
+describe('the budget of an agent run after a restart', () => {
+  it('counts the model use of the attempt before, so maxTokens holds across a restart', async () => {
+    const persistence = durablePersistence()
+    const { log } = persistence.stores
+    const noop = toolDefinition({
+      name: 'noop',
+      description: 'Does nothing',
+      inputSchema: z.object({}),
+    }).server(() => Promise.resolve({ ok: true }))
+    const worker = (adapter: AnyTextAdapter) =>
+      defineAgent({
+        name: 'worker',
+        description: 'Calls a tool, then answers',
+        run: (ctx) => ctx.chat({ adapter, tools: [noop] }),
+      })
+    const harness = (adapter: AnyTextAdapter) =>
+      defineHarness({
+        name: 'test/agent-budget',
+        adapter: mockAdapter([]).adapter,
+        agents: [worker(adapter)],
+      })
+    // 60 tokens on host A, then 60 more on host B: over the 100 of the run.
+    const first = mockAdapter([
+      () => withUsage(toolCall('noop', {}), 60),
+      untilAborted(),
+    ])
+    const hostA = createHarnessHost({ persistence })
+    const sessionA = await hostA.open(harness(first.adapter), {
+      threadId: THREAD,
+    })
+    const running = sessionA.agents.worker.start(undefined, {
+      resume: true,
+      attach: 'none',
+      budget: { maxTokens: 100 },
+    })
+    await waitFor(() => expect(first.calls).toHaveLength(2))
+    await stopHost(log, sessionA, running)
+    const inputId = await firstAgentInput(log)
+
+    const second = mockAdapter([() => textWithTokens('done', 60)])
+    const hostB = createHarnessHost({ persistence })
+    const sessionB = await hostB.open(harness(second.adapter), {
+      threadId: THREAD,
+    })
+    await expect(sessionB.settled({ inputId })).resolves.toMatchObject({
+      outcome: 'failed',
+      error: { code: 'budget' },
+    })
+    await hostA.close().catch(() => {})
+    await hostB.close()
   })
 })
 
