@@ -189,7 +189,7 @@ describe('operation.onEvent', () => {
 })
 
 describe('a MESSAGES_SNAPSHOT event', () => {
-  it('goes to the listeners but not to the log', () => {
+  it('goes to the listeners and to the log', () => {
     const published: Array<StreamChunk> = []
     const feed: EventFeed = {
       publish: (_operationId, event) => void published.push(event),
@@ -224,6 +224,7 @@ describe('a MESSAGES_SNAPSHOT event', () => {
 
     expect(heard).toEqual([EventType.MESSAGES_SNAPSHOT, EventType.RUN_STARTED])
     expect(published.map((event) => event.type)).toEqual([
+      EventType.MESSAGES_SNAPSHOT,
       EventType.RUN_STARTED,
     ])
   })

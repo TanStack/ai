@@ -911,12 +911,11 @@ export function tapFeed(
   return {
     publish: (operationId, raw, parentRunId) => {
       const event = redactor.redact(raw)
-      // Core sends the whole transcript as a MESSAGES_SNAPSHOT at each
-      // interrupt. The log has the transcript already, so the snapshot goes
-      // to the live listeners only, and the log does not keep a copy.
-      if (event.type !== EventType.MESSAGES_SNAPSHOT) {
-        feed.publish(operationId, event, parentRunId ?? parentOf(operationId))
-      }
+      // ponytail: core sends a MESSAGES_SNAPSHOT only when a run pauses at
+      // an interrupt, so the log keeps each one. A rejoin from the log (the
+      // run route, `Last-Event-ID`) needs it: ai-client rebuilds the paused
+      // run from it. If core sends it at other times, filter here.
+      feed.publish(operationId, event, parentRunId ?? parentOf(operationId))
       notifyListeners(notifyHost, listeners, { operationId, event })
     },
     listen: (listener) => {
