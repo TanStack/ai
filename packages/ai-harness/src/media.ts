@@ -205,7 +205,7 @@ export function createMediaStore({
   options?: MediaOptions
   /**
    * @internal How many characters of base64 to keep across turns, for all
-   * the media stores of this blob store. The first store sets it.
+   * the media stores of this blob store. The largest value asked for wins.
    */
   encodedBytes?: number
 }) {
@@ -250,19 +250,17 @@ export function createMediaStore({
   // ponytail: an LRU of base64 text across turns, at most `encodedBytes`
   // characters (default 32 MB). The media stores of one blob store (all the
   // sessions of a host) share it, so the cap is for the host, not for each
-  // open session. The first store of a blob store sets the cap. The key is
+  // open session. The largest `encodedBytes` asked for is the cap. The key is
   // the store key of the thread and the media id: the bytes of an id never
   // change. Above the cap, each turn encodes the oldest files again. Send
   // adapters a URL when that gets slow.
+  const cap = encodedBytes ?? DEFAULT_ENCODED_BYTES
   let encoded = encodedCaches.get(blobs)
   if (!encoded) {
-    encoded = {
-      cap: encodedBytes ?? DEFAULT_ENCODED_BYTES,
-      size: 0,
-      entries: new Map(),
-    }
+    encoded = { cap, size: 0, entries: new Map() }
     encodedCaches.set(blobs, encoded)
   }
+  encoded.cap = Math.max(encoded.cap, cap)
   const cache = encoded
 
   /** The base64 of the bytes of `id`. Call `get` first: a hit does not check the record. */

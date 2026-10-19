@@ -35,9 +35,13 @@ export interface HandleGuard {
 /**
  * @internal The items of `read`, until `signal` aborts or `onRevoke` calls
  * its listener. A revoke ends the read with `AccessDeniedError`, so a read
- * that started before the revoke stops too.
+ * that started before the revoke stops too. The listener is added at the
+ * call, not at the first pull, so a revoke between them ends the read too.
+ *
+ * ponytail: an iterable that is never read keeps its listener until the
+ * revoke.
  */
-export async function* untilRevoked<T>({
+export function untilRevoked<T>({
   onRevoke,
   threadId,
   signal,
@@ -50,16 +54,18 @@ export async function* untilRevoked<T>({
 }): AsyncGenerator<T> {
   const revoked = new AbortController()
   const stop = onRevoke(() => revoked.abort())
-  try {
-    yield* read(
-      signal ? AbortSignal.any([signal, revoked.signal]) : revoked.signal,
-    )
-  } finally {
-    stop()
-  }
-  if (revoked.signal.aborted) {
-    throw new AccessDeniedError({ action: 'read', threadId })
-  }
+  return (async function* () {
+    try {
+      yield* read(
+        signal ? AbortSignal.any([signal, revoked.signal]) : revoked.signal,
+      )
+    } finally {
+      stop()
+    }
+    if (revoked.signal.aborted) {
+      throw new AccessDeniedError({ action: 'read', threadId })
+    }
+  })()
 }
 
 /** How a handle reaches the shared session of its thread. The host gives one. */

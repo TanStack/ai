@@ -308,7 +308,33 @@ describe('durable session log', () => {
     await next.close()
   })
 
-  it('writes host records in the same batch as the waiting events, in order', async () => {
+  it('logs an append with no inputId as an input, with the id of its receipt', async () => {
+    const persistence = durablePersistence()
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/append',
+        adapter: mockAdapter(() => text('ok')).adapter,
+      }),
+      { threadId: THREAD },
+    )
+
+    const { inputId } = await session.append({
+      records: [{ type: 'app.note' }],
+    })
+
+    const state = await loadLogState({
+      store: persistence.stores.log,
+      logId: LOG,
+      rootThread: THREAD,
+    })
+    expect(sessionOf(state, THREAD).inputs.get(inputId)?.input.op).toBe(
+      'append',
+    )
+    await host.close()
+  })
+
+  it('writes host records after the waiting events, in order', async () => {
     const inner = memoryLogStore()
     const batches: Array<Array<unknown>> = []
     const log = wrapLogStore(inner, {
@@ -342,12 +368,18 @@ describe('durable session log', () => {
 
     await session.append({ records: [{ type: 'app.note', n: 1 }] })
 
-    expect(batches.at(-1)).toEqual([
+    // The input record of the append takes the waiting events with it, and
+    // the records come after them.
+    expect(batches).toContainEqual([
       expect.objectContaining({
         type: EventType.TEXT_MESSAGE_CONTENT,
         delta: 'partial',
       }),
+      expect.objectContaining({ type: 'harness.input' }),
+    ])
+    expect(batches.at(-2)).toEqual([
       { type: 'app.note', n: 1 },
+      expect.objectContaining({ type: 'harness.input.applied' }),
     ])
     release.open()
     await Promise.resolve(turn).catch(() => {})

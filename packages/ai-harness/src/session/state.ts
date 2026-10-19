@@ -834,8 +834,10 @@ export abstract class SessionState<
    * hidden messages for good. The revert state is saved, so it survives a
    * restart. Refused while the session is not idle, or another host runs
    * the thread (`'busy'`), and for a message that is not in the transcript
-   * (`'unknown_message'`). `principal` is who reverts. A handle of
-   * `host.open` checks that it is the principal of the handle.
+   * (`'unknown_message'`). `principal` is who reverts. Default: the
+   * principal that opened the session. The `harness.revert` record keeps
+   * it. A handle of `host.open` checks that it is the principal of the
+   * handle.
    *
    * @example
    * ```ts
@@ -844,6 +846,7 @@ export abstract class SessionState<
    */
   async revert({
     messageId,
+    principal,
   }: {
     messageId: string
     principal?: Principal
@@ -860,13 +863,15 @@ export abstract class SessionState<
       // A revert that stands ends first, so its files come back.
       await this.endRevert()
       const handler = this.sessionPlugins?.values.get(RevertFiles)
-      const files = await handler?.revert(messages.slice(at + 1), (type) =>
-        this.hostRecords(type),
+      const files = await handler?.revert(
+        messages.slice(at + 1),
+        (type) => this.hostRecords(type),
+        this.revertRun(principal ?? this.principal),
       )
-      await this.saveRevert({
-        messageId,
-        ...(files !== undefined ? { files } : {}),
-      })
+      await this.saveRevert(
+        { messageId, ...(files !== undefined ? { files } : {}) },
+        principal ?? this.principal,
+      )
       return { inputId, status: 'accepted' }
     })
   }
@@ -893,9 +898,22 @@ export abstract class SessionState<
     if (reverted.files !== undefined) {
       await this.sessionPlugins?.values
         .get(RevertFiles)
-        ?.unrevert(reverted.files)
+        ?.unrevert(reverted.files, this.revertRun(this.principal))
     }
     await this.saveRevert(undefined)
+  }
+
+  /**
+   * A run for the files of a revert, in the thread of this session. It is
+   * part of no turn, so a workspace that no turn opened on this host (after
+   * a restart) opens again from the log.
+   */
+  protected revertRun(principal: Principal | undefined) {
+    return this.runContext({
+      principal,
+      runId: `revert:${this.threadId}`,
+      signal: this.lifetime.signal,
+    })
   }
 
   /** Run `fn` while no new turn starts. A held turn starts after it. */
@@ -931,11 +949,18 @@ export abstract class SessionState<
     await this.saveRevert(undefined)
   }
 
-  /** Keep the revert state in the log. */
-  protected async saveRevert(revert: RevertState | undefined) {
+  /** Keep the revert state in the log, with who reverted. */
+  protected async saveRevert(
+    revert: RevertState | undefined,
+    principal?: Principal,
+  ) {
     this.reverted = revert
     await this.writer.append([
-      { type: 'harness.revert', revert: revert ?? null },
+      {
+        type: 'harness.revert',
+        revert: revert ?? null,
+        ...storedPrincipal(principal),
+      },
     ])
     this.feed.publish(
       'session',

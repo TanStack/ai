@@ -411,6 +411,19 @@ interface PluginDefinitionBase {
   optionalRequires?: ReadonlyArray<CapabilityHandle>
   /** Agent outputs this plugin needs the session to have. */
   needs?: { produces?: ReadonlyArray<AgentProduces> }
+  /**
+   * The host records of this plugin that the log fold keeps, by record
+   * type, with how many of each: the last ones. The fold snapshot keeps
+   * them, so they stay readable after a truncate of the log. The plugins
+   * of the harness that opens the log first (its root thread) decide. With
+   * one type in two plugins, the larger count wins.
+   *
+   * @example
+   * ```ts
+   * definePlugin({ name: 'acme/steps', keepRecords: { 'acme/steps:step': 100 } })
+   * ```
+   */
+  keepRecords?: Readonly<Record<string, number>>
 }
 
 /** A plugin that is set up for each session (default) or for each turn. */
@@ -762,15 +775,18 @@ export interface RevertFilesHandler {
   /**
    * Put back the files that the tool calls of `hidden` changed. Other files
    * stay as they are. `records` reads the host records of one type from the
-   * session log. Resolves to what `unrevert` needs (JSON), or `undefined`
-   * when no file changed.
+   * session log. `run` is a run of the revert in the thread of the session,
+   * so a workspace that is not open on this host opens again from the log.
+   * Resolves to what `unrevert` needs (JSON), or `undefined` when no file
+   * changed.
    */
   revert: (
     hidden: ReadonlyArray<ModelMessage>,
     records: (type: string) => Promise<Array<Record<string, unknown>>>,
+    run: RunContext,
   ) => Promise<unknown>
-  /** Put the files back as they were before `revert`. */
-  unrevert: (saved: unknown) => Promise<void>
+  /** Put the files back as they were before `revert`. `run` as in `revert`. */
+  unrevert: (saved: unknown, run: RunContext) => Promise<void>
 }
 
 /** @internal See {@link RevertFilesHandler}. */

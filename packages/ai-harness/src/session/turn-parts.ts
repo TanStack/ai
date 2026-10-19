@@ -444,8 +444,8 @@ export abstract class SessionTurnParts<
           context.runId = runId
           context.detach = (work) =>
             new Promise((moved) => {
-              this.detachable.set(id, () => {
-                this.logJob({ jobId: id }, false)
+              this.detachable.set(id, (mover) => {
+                this.logJob({ jobId: id, principal: mover }, false)
                 moved(
                   `The job moved to the background. Its id is ${id}. You get a note when it ends.`,
                 )

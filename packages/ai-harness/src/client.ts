@@ -65,6 +65,14 @@ export interface HarnessClientOptions {
    * A read from the server sets the wait back to this value.
    */
   reconnectDelayMs?: number
+  /**
+   * A connection of `events()` that gets no bytes for this long is dead,
+   * for example after a laptop sleeps or a NAT drops the mapping. The
+   * client closes it and connects again from its last cursor. Default
+   * 60 000 ms. Keep it larger than the `stream.heartbeatMs` of the server
+   * (default 20 000 ms), or the client reconnects in a loop.
+   */
+  idleTimeoutMs?: number
 }
 
 type StartArgs<TAgent> =
@@ -407,13 +415,8 @@ type SessionChange =
 const MAX_RECONNECT_DELAY_MS = 30_000
 
 /**
- * A connection of `events()` that gets no bytes for this long is dead, for
- * example after a laptop sleeps or a NAT drops the mapping. The client
- * closes it and connects again from its last cursor. The server sends a
- * ping every `stream.heartbeatMs` (default 20 s), so a live connection
- * always sends bytes before this time.
- * ponytail: 3 times the default heartbeat. Add a client option when a
- * server sets `stream.heartbeatMs` above 20 s.
+ * The default `idleTimeoutMs`: 3 times the default `stream.heartbeatMs` of
+ * the server, so a live connection always sends bytes before it.
  */
 const IDLE_TIMEOUT_MS = 60_000
 
@@ -545,6 +548,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
 ): HarnessClient<THarness> {
   const base = options.url.replace(/\/$/, '')
   const doFetch = options.fetch ?? fetch
+  const idleTimeoutMs = options.idleTimeoutMs ?? IDLE_TIMEOUT_MS
   const headers = () =>
     typeof options.headers === 'function'
       ? options.headers()
@@ -674,7 +678,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
     // Ends the wait before a reconnect.
     let wake: (() => void) | undefined
-    // Closes a connection that sends nothing for `IDLE_TIMEOUT_MS`.
+    // Closes a connection that sends nothing for `idleTimeoutMs`.
     let idle: ReturnType<typeof setTimeout> | undefined
     // One listener for all the connections: it stops the current read or
     // the current wait.
@@ -718,7 +722,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
           // cancel ends the read, and the loop below connects again.
           const isAlive = () => {
             clearTimeout(idle)
-            idle = setTimeout(() => cancelReader(connection), IDLE_TIMEOUT_MS)
+            idle = setTimeout(() => cancelReader(connection), idleTimeoutMs)
           }
           isAlive()
           const frames = sseFrames(reader, () => {

@@ -300,6 +300,31 @@ describe('createMediaStore', () => {
     expect(await reads(one, a.id)).toBe(1)
   })
 
+  it('takes the largest base64 cap that a store of the blob store asks for', async () => {
+    const persistence = memoryPersistence()
+    const blobGet = vi.spyOn(persistence.stores.blobs, 'get')
+    const one = createMediaStore({
+      persistence,
+      threadId: 't1',
+      encodedBytes: 16,
+    })
+    // A later store asks for more: three files of 8 characters fit in 24.
+    createMediaStore({ persistence, threadId: 't2', encodedBytes: 24 })
+    const put = (body: string) =>
+      one.put(body, { mimeType: 'image/png', name: `${body}.png` })
+    const ids = [
+      (await put('aaaaa')).id,
+      (await put('bbbbb')).id,
+      (await put('ccccc')).id,
+    ]
+    for (const id of ids) await one.dataUrl(id)
+    const before = blobGet.mock.calls.length
+
+    for (const id of ids) await one.dataUrl(id)
+
+    expect(blobGet.mock.calls.length).toBe(before)
+  })
+
   it('makes a data URL up to 1 MB only', async () => {
     const { store } = setup()
     const small = await store.put(encoder.encode('hello'), {

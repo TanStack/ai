@@ -13,7 +13,13 @@ import {
   membersOnly,
 } from '../src'
 import { loadLogState, logIdOf, sessionOf } from '../src/log'
-import { mockAdapter, storedThreadState, text, untilAborted } from './helpers'
+import {
+  mockAdapter,
+  storedThreadState,
+  text,
+  untilAborted,
+  wrapLogStore,
+} from './helpers'
 import type { LogStore } from '@tanstack/ai-persistence'
 import type { AgentActions, Operation } from '../src'
 
@@ -205,6 +211,66 @@ describe('a user that loses access', () => {
     await expect(handleRead).rejects.toBeInstanceOf(AccessDeniedError)
     await expect(viewRead).rejects.toBeInstanceOf(AccessDeniedError)
     await expect(view.transcript()).rejects.toBeInstanceOf(AccessDeniedError)
+    await host.close()
+  })
+
+  it('ends an events() read that is first pulled after the revoke', async () => {
+    const { host, open, share } = accessHost()
+    await open(olga)
+    await share('bea', 'member')
+    const member = await open(bea)
+    const events = member.events()
+
+    await host.revoke({ threadId: THREAD, principal: bea })
+
+    const read = (async () => {
+      for await (const _event of events) {
+        // Read until the read ends.
+      }
+    })()
+    await expect(read).rejects.toBeInstanceOf(AccessDeniedError)
+    await host.close()
+  })
+
+  it('rejects host.revoke when the work of the user did not stop', async () => {
+    const persistence = memoryPersistence()
+    let isDown = false
+    const log = wrapLogStore(persistence.stores.log, {
+      offer: (input) =>
+        isDown
+          ? Promise.reject(new Error('The store is down.'))
+          : persistence.stores.log.offer(input),
+    })
+    const host = createHarnessHost({
+      persistence: { ...persistence, stores: { ...persistence.stores, log } },
+      access: { identify: (): User | null => null, authorize: membersOnly() },
+    })
+    const harness = defineHarness({
+      name: NAME,
+      adapter: mockAdapter(() => text('ok')).adapter,
+    })
+    await host.open(harness, { threadId: THREAD, principal: olga })
+    await host.sessions.share({
+      threadId: THREAD,
+      userId: 'bea',
+      role: 'member',
+      principal: olga,
+    })
+    const member = await host.open(harness, {
+      threadId: THREAD,
+      principal: bea,
+    })
+    await member.schedule({
+      at: Date.now() + 3_600_000,
+      input: { op: 'prompt', message: 'Write the daily summary.' },
+    })
+    isDown = true
+
+    await expect(
+      host.revoke({ threadId: THREAD, principal: bea }),
+    ).rejects.toThrow('their work did not stop')
+    // The access is gone already.
+    expect(() => member.transcript()).toThrow(AccessDeniedError)
     await host.close()
   })
 

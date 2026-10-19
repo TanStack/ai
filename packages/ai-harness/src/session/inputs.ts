@@ -243,8 +243,9 @@ export abstract class SessionInputs<
    *
    * With `inputId`, the append is an input, as a `send` is: a second append
    * with the same id is a duplicate and writes nothing, so a client can
-   * send it again after a lost answer. `principal` is who appends. Default:
-   * the principal that opened the session. The receipt has the input id.
+   * send it again after a lost answer. Without it, the append gets a new
+   * input id. `principal` is who appends. Default: the principal that
+   * opened the session. The receipt has the input id, as the log keeps it.
    *
    * @example
    * ```ts
@@ -255,7 +256,7 @@ export abstract class SessionInputs<
    */
   async append({
     records,
-    inputId,
+    inputId = createInputId(),
     principal,
   }: {
     records: ReadonlyArray<LogRecord>
@@ -263,10 +264,6 @@ export abstract class SessionInputs<
     principal?: Principal
   }): Promise<Receipt> {
     checkHostRecords(records)
-    if (inputId === undefined) {
-      await this.writer.append(records)
-      return { inputId: createInputId(), status: 'accepted' }
-    }
     const admission = await this.accept(
       inputId,
       { op: 'append', records: [...records] },
@@ -290,8 +287,10 @@ export abstract class SessionInputs<
    * wakes an idle session. Without `toolCallId`, it moves every running
    * call that supports it, such as `bash` and the agent tools.
    * With no such call, the receipt is rejected with `not_running`.
-   * `principal` is who moves it. A handle of `host.open` checks that it is
-   * the principal of the handle. The move stores no input.
+   * `principal` is who moves it. Default: the principal that opened the
+   * session. The `harness.job` record of each moved call keeps it. A handle
+   * of `host.open` checks that it is the principal of the handle. The move
+   * stores no input.
    *
    * @example
    * ```ts
@@ -301,6 +300,7 @@ export abstract class SessionInputs<
    */
   async background({
     toolCallId,
+    principal,
   }: {
     toolCallId?: string
     principal?: Principal
@@ -313,7 +313,7 @@ export abstract class SessionInputs<
       return { inputId, status: 'rejected', reason: 'not_running' }
     }
     for (const id of ids) this.detachable.delete(id)
-    for (const move of moves) move()
+    for (const move of moves) move(principal ?? this.principal)
     return { inputId, status: 'accepted' }
   }
 

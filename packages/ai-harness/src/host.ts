@@ -206,6 +206,20 @@ export interface HarnessHostOptions<P extends Principal = Principal> {
    * ```
    */
   observability?: ObservabilityOptions
+  /**
+   * The harnesses whose threads this host may delete without an open first.
+   * `host.sessions.delete` ends a thread in the plugins of its harness, so
+   * they free what lives as long as the thread (an owned sandbox, a shadow
+   * repository). It finds the harness by the name in the index entry, among
+   * these and the harnesses that this host opened. A thread whose harness
+   * it does not know skips that step, with a warning.
+   *
+   * @example
+   * ```ts
+   * const host = createHarnessHost({ harnesses: [assistant] })
+   * ```
+   */
+  harnesses?: ReadonlyArray<AnyHarness>
 }
 
 /** How the sessions of a host live. */
@@ -443,9 +457,10 @@ export interface HostSessions<P extends Principal = Principal> {
    * Remove the user `userId` from the members of a thread. Needs
    * `membersOnly()`, and the `share` action. The running and queued work
    * that the user started on the thread stops, on any host, their schedules
-   * do not run, and `host.revoke` runs for the user.
-   * The owner cannot be removed. Resolves to the changed entry, or
-   * `undefined` for a thread that has no entry.
+   * do not run, and `host.revoke` runs for the user. When that work does
+   * not stop, it rejects after the member is removed: call `host.revoke`
+   * for the user to stop it. The owner cannot be removed. Resolves to the
+   * changed entry, or `undefined` for a thread that has no entry.
    *
    * @example
    * ```ts
@@ -806,9 +821,10 @@ export interface HarnessHost<P extends Principal = Principal> {
    * `AccessDeniedError` from now on, their running `events()` reads end
    * with it, and a new `host.open` asks `authorize` again. The running and
    * queued work of the user on the thread is cancelled on any host, and
-   * their schedules do not run. Resolves when the cancels are sent. The
-   * `tenantId` of `principal` picks the tenant. Only `id` and `tenantId`
-   * are read.
+   * their schedules do not run. Resolves when the cancels are sent, and
+   * rejects when they could not be sent: the access is gone already, so
+   * call it again to stop the work. The `tenantId` of `principal` picks
+   * the tenant. Only `id` and `tenantId` are read.
    *
    * @example
    * ```ts
@@ -1223,6 +1239,20 @@ function forkedMembers(
 }
 
 /**
+ * The host records that the log fold of `harness` keeps: the `keepRecords`
+ * of its plugins, with the larger count for a type in two plugins.
+ */
+function keptRecordsOf(harness: AnyHarness) {
+  const keep = new Map<string, number>()
+  for (const plugin of harness.plugins?.() ?? []) {
+    for (const [type, count] of Object.entries(plugin.keepRecords ?? {})) {
+      keep.set(type, Math.max(keep.get(type) ?? 0, count))
+    }
+  }
+  return keep
+}
+
+/**
  * The messages of `messages` up to the last point where each tool call has
  * its result. A running turn can have a call with no result yet: it does
  * not move.
@@ -1405,12 +1435,14 @@ export function createHarnessHost<P extends Principal = Principal>(
     if (open) return open
     const project = harness.durability?.project
     const reduce = harness.durability?.reduce
+    const keep = keptRecordsOf(harness)
     const loaded = loadLogState({
       store,
       logId,
       rootThread,
       ...(project ? { project } : {}),
       ...(reduce ? { reduce } : {}),
+      keep,
     }).then((state) => {
       const log = new SharedLog({
         store,
@@ -1423,6 +1455,7 @@ export function createHarnessHost<P extends Principal = Principal>(
         eventBytes: retention.eventBytes,
         ...(project ? { project } : {}),
         ...(reduce ? { reduce } : {}),
+        keep,
         ...(options.log?.snapshot ? { snapshot: options.log.snapshot } : {}),
         logRecords: retention.logRecords,
         // The next open folds the log again.
@@ -1440,11 +1473,14 @@ export function createHarnessHost<P extends Principal = Principal>(
   }
   const sessions = new Map<string, Promise<SessionImpl>>()
   /**
-   * The last harness definition that this host opened under each name. A
-   * thread purge reads the harness name in the index entry, and mounts the
-   * plugins of that definition to end the thread (see `endThread`).
+   * The last harness definition that this host opened under each name,
+   * first from the `harnesses` option. A thread purge reads the harness
+   * name in the index entry, and mounts the plugins of that definition to
+   * end the thread (see `endThread`).
    */
-  const harnessesByName = new Map<string, AnyHarness>()
+  const harnessesByName = new Map<string, AnyHarness>(
+    (options.harnesses ?? []).map((harness) => [harness.name, harness]),
+  )
   /** The plugins with `lifetime: 'host'`, shared by the sessions of a harness. */
   const hostPlugins = new HostPlugins()
   /** The sessions of `sessions` that finished opening, by key. */
@@ -2155,8 +2191,8 @@ export function createHarnessHost<P extends Principal = Principal>(
    * through the input lane, so the owner of the log stops it, on any host.
    * Each schedule of the user takes its input id in the lane, so it never
    * runs: the store keeps each input id once. `principal` is who stops the
-   * work, and the log keeps it. A failure is a warning: the access is gone
-   * already.
+   * work, and the log keeps it. A failure rejects: the access is gone
+   * already, so the caller can stop the work again.
    */
   const stopWorkOf = async ({
     tenantId,
@@ -2218,8 +2254,9 @@ export function createHarnessHost<P extends Principal = Principal>(
         })
       }
     } catch (error) {
-      console.warn(
-        `[@tanstack/ai-harness] The work of ${JSON.stringify(userId)} on thread ${JSON.stringify(threadId)} did not stop: ${String(error)}`,
+      throw new Error(
+        `The access of ${JSON.stringify(userId)} to thread ${JSON.stringify(threadId)} is gone, but their work did not stop: ${String(error)}. Call host.revoke again to stop it.`,
+        { cause: error },
       )
     }
   }
@@ -2246,23 +2283,34 @@ export function createHarnessHost<P extends Principal = Principal>(
    * they free what lives as long as the thread: an owned sandbox, a shadow
    * repository. The sessions of the thread are closed already, so no turn
    * runs. A short session with only the log and the session plugins runs
-   * the handlers, and closes again. It needs the harness definition that
-   * the index entry names, from an open on this host. Without it, or with
-   * no entry, there is nothing to run. A failed handler only warns: the
-   * purge of the data goes on.
-   *
-   * ponytail: a host that never opened the harness of the thread cannot
-   * reach its plugins. Open it once on the host that deletes, if that
-   * matters.
+   * the handlers, and closes again. A child thread lives in the log of its
+   * root, so the session reads that log. It needs the harness definition
+   * that the index entry names, from the `harnesses` option or an open on
+   * this host. Without it, it warns and runs nothing. With no entry, there
+   * is nothing to run. A failed handler only warns: the purge of the data
+   * goes on.
    */
   const endThread = async (tenantId: string | undefined, threadId: string) => {
-    const name = (await index.get({ tenantId, threadId }))?.harness
-    const harness = name === undefined ? undefined : harnessesByName.get(name)
-    if (!harness) return
+    const entry = await index.get({ tenantId, threadId })
+    const name = entry?.harness
+    if (!entry || name === undefined) return
+    const harness = harnessesByName.get(name)
+    if (!harness) {
+      console.warn(
+        `[@tanstack/ai-harness] Thread ${JSON.stringify(threadId)} is deleted, but its plugins did not end it: this host does not know the harness ${JSON.stringify(name)}. What lives as long as the thread (an owned sandbox, a shadow repository) is not freed. Pass the harness in the \`harnesses\` option of createHarnessHost, or open it on this host first.`,
+      )
+      return
+    }
+    const root = await rootOf(entry)
+    // The harness of the root folds the log, as in `openChildIn`.
+    const rootHarness = harnessesByName.get(root.harness ?? name) ?? harness
     const session = new SessionImpl({
       ...sessionDeps(
-        { logId: logIdOf({ tenantId, logId: threadId }), rootThread: threadId },
-        harness,
+        {
+          logId: logIdOf({ tenantId, logId: root.threadId }),
+          rootThread: root.threadId,
+        },
+        rootHarness,
         tenantId,
       ),
       harness,
@@ -2997,10 +3045,11 @@ export function createHarnessHost<P extends Principal = Principal>(
             updatedAt: Date.now(),
           }
         })
-        // After the write, so no new work of the user gets through. The log
+        // After the write, so no new work of the user gets through. At
+        // once, so the reads of the user end before the work stops. The log
         // keeps who cancelled it.
-        await stopWorkOf({ tenantId, threadId, userId, principal: user })
         revokeUser({ tenantId, threadId, principalId: userId })
+        await stopWorkOf({ tenantId, threadId, userId, principal: user })
         return changed
       },
     },

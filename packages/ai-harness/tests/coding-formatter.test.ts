@@ -402,9 +402,11 @@ describe('formatter with a workspace for each thread', () => {
       }),
       { threadId: 't' },
     )
-    await session.command({ name: 'mode', input: 'bypass' })
+    // Not bypass: the rules check the formatter of the call before it runs.
+    await session.command({ name: 'mode', input: 'acceptEdits' })
 
     await session.send('write it')
+    expect(session.snapshot().pendingWaits).toEqual([])
     await host.close()
 
     expect(runs).toEqual([
@@ -612,6 +614,29 @@ describe('formatter with permissions()', () => {
     expect(second.runs.map((run) => run.command)).toEqual([
       `npx --no-install prettier --write ${quoted('b.ts')}`,
     ])
+    await second.host.close()
+  })
+
+  it('asks again after an always answer for a write of a config below the root', async () => {
+    const persistence = memoryPersistence()
+    const first = await openWith('acceptEdits', ['a.ts'], persistence, prettier)
+    await first.session.send('write it')
+    await answer(first.session, { answer: 'always' })
+    await first.host.close()
+
+    // Prettier loads the nested config, and runs its code. The root
+    // config did not change.
+    const second = await openWith(
+      'acceptEdits',
+      ['src/prettier.config.js'],
+      persistence,
+      prettier,
+      [],
+      'second-',
+    )
+    await second.session.send('write the nested config')
+    const message = await answer(second.session, { answer: 'once' })
+    expect(message).toContain('Allow write_file')
     await second.host.close()
   })
 

@@ -13,7 +13,12 @@ import { createHarnessClient } from '../src/client'
 import { createSessionView } from '../src/view'
 import { logIdOf } from '../src/log'
 import { mockAdapter, text, wrapLogStore } from './helpers'
-import type { HarnessHost, HarnessHostOptions, SessionEvent } from '../src'
+import type {
+  AnyHarness,
+  HarnessHost,
+  HarnessHostOptions,
+  SessionEvent,
+} from '../src'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
 const waitFor = <T>(
@@ -31,16 +36,16 @@ const harness = defineHarness({
 })
 
 /** One turn on `THREAD`, then the session closes. */
-async function chat(host: HarnessHost) {
-  const session = await host.open(harness, { threadId: THREAD })
+async function chat(host: HarnessHost, target: AnyHarness = harness) {
+  const session = await host.open(target, { threadId: THREAD })
   await session.send('Hello.')
   await session.close()
 }
 
 /** Write one turn on a host with `options`, which then stops. */
-async function seed(options: HarnessHostOptions) {
+async function seed(options: HarnessHostOptions, target?: AnyHarness) {
   const host = createHarnessHost(options)
-  await chat(host)
+  await chat(host, target)
   await host.close()
 }
 
@@ -158,22 +163,12 @@ describe('log snapshots on a host', () => {
       epoch: UNOWNED_EPOCH,
       records: [step],
     })
-    const options: HarnessHostOptions = {
-      persistence,
-      log: { snapshot: { afterBytes: 1 } },
-      lifecycle: { retention: { logRecords: 'since-snapshot' } },
-    }
-    await seed(options)
-    const snapshot = await snapshotOf(persistence)
-    if (!snapshot) throw new Error('The first host wrote a snapshot.')
-    await expect(
-      persistence.stores.log.read({ logId: LOG, after: 0 }),
-    ).rejects.toThrow()
-
     let steps: Array<Record<string, unknown>> = []
     const files = definePlugin({
       name: 'test/files',
       provides: [RevertFiles],
+      // The fold keeps the steps, so the snapshot has them.
+      keepRecords: { [step.type]: 10 },
       setup: ({ provide }) =>
         provide(RevertFiles, {
           revert: async (_hidden, records) => {
@@ -183,15 +178,25 @@ describe('log snapshots on a host', () => {
           unrevert: async () => {},
         }),
     })
+    const withFiles = defineHarness({
+      name: 'test/snapshots',
+      adapter: mockAdapter(() => text('Hello back.')).adapter,
+      plugins: () => [files],
+    })
+    const options: HarnessHostOptions = {
+      persistence,
+      log: { snapshot: { afterBytes: 1 } },
+      lifecycle: { retention: { logRecords: 'since-snapshot' } },
+    }
+    await seed(options, withFiles)
+    const snapshot = await snapshotOf(persistence)
+    if (!snapshot) throw new Error('The first host wrote a snapshot.')
+    await expect(
+      persistence.stores.log.read({ logId: LOG, after: 0 }),
+    ).rejects.toThrow()
+
     const host = createHarnessHost(options)
-    const session = await host.open(
-      defineHarness({
-        name: 'test/snapshots',
-        adapter: mockAdapter(() => text('Hello back.')).adapter,
-        plugins: () => [files],
-      }),
-      { threadId: THREAD },
-    )
+    const session = await host.open(withFiles, { threadId: THREAD })
     const [first] = await session.transcript()
 
     expect(await session.revert({ messageId: first?.id ?? '' })).toMatchObject({

@@ -27,12 +27,17 @@ function streamed(chunks: ReadonlyArray<string>) {
 }
 
 /** A client on `fetch`, for the thread `t`. */
-function clientOn(fetch: typeof globalThis.fetch, reconnectDelayMs?: number) {
+function clientOn(
+  fetch: typeof globalThis.fetch,
+  reconnectDelayMs?: number,
+  idleTimeoutMs?: number,
+) {
   return createHarnessClient({
     url: 'http://x/api/harness',
     threadId: 't',
     fetch,
     ...(reconnectDelayMs === undefined ? {} : { reconnectDelayMs }),
+    ...(idleTimeoutMs === undefined ? {} : { idleTimeoutMs }),
   })
 }
 
@@ -144,6 +149,32 @@ describe('events() reconnects', () => {
     expect(waits).toEqual([
       750, 1500, 3000, 6000, 12_000, 22_500, 22_500, 750, 1500,
     ])
+  })
+
+  it('waits idleTimeoutMs before it connects again, for a server with a long heartbeat', async () => {
+    vi.useFakeTimers()
+    const urls: Array<string> = []
+    // The connection sends nothing.
+    const client = clientOn(
+      async (input) => {
+        urls.push(String(input))
+        return new Response(new ReadableStream<Uint8Array>(), { status: 200 })
+      },
+      1,
+      120_000,
+    )
+    const controller = new AbortController()
+    const next = client
+      .events({ from: '0', signal: controller.signal })
+      [Symbol.asyncIterator]()
+      .next()
+
+    await vi.advanceTimersByTimeAsync(61_000)
+    expect(urls).toHaveLength(1)
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(urls).toHaveLength(2)
+    controller.abort()
+    await next
   })
 
   it('connects again from its last cursor when a connection sends nothing for 60 s', async () => {

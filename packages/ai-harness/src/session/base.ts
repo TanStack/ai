@@ -366,7 +366,10 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /** Background jobs that run on this host. Recovery skips them. */
   protected readonly jobs = new Set<string>()
   /** Running tool calls that support `detach`: id to the move. */
-  protected readonly detachable = new Map<string, () => void>()
+  protected readonly detachable = new Map<
+    string,
+    (principal: Principal | undefined) => void
+  >()
   protected activeTurn: OperationImpl<ChatTurnResult> | undefined
   /** The open skipped recovery: another host owned the thread then. */
   protected recoveryDeferred = false
@@ -1328,12 +1331,18 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * Track a background job of this host. The log also has its start and
    * end, so recovery can note a job that a crash stopped. The record goes
    * to `threadId`, the thread of the workspace that runs the job.
+   * `principal` is who moved the job to the background.
    */
   protected logJob(
-    job: { jobId: string; backendId?: string; threadId?: string },
+    job: {
+      jobId: string
+      backendId?: string
+      threadId?: string
+      principal?: Principal
+    },
     ended: boolean,
   ) {
-    const { jobId, backendId, threadId } = job
+    const { jobId, backendId, threadId, principal } = job
     if (ended) this.jobs.delete(jobId)
     else this.jobs.add(jobId)
     const isOtherThread = threadId !== undefined && threadId !== this.threadId
@@ -1342,6 +1351,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       jobId,
       ended,
       ...(!ended && backendId !== undefined ? { backendId } : {}),
+      ...storedPrincipal(principal),
       ...(isOtherThread ? { thread: threadId } : {}),
     }
     // No one waits for a job record. A failed log write fails the session.

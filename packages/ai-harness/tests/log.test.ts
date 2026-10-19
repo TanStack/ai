@@ -12,8 +12,10 @@ import {
   SNAPSHOT_VERSION,
   SharedLog,
   commonPrefix,
+  emptyLogState,
   emptySharedLogState,
   engineMessageStore,
+  foldEntry,
   loadLogState,
   logIdOf,
   logMessageStore,
@@ -350,6 +352,27 @@ describe('fold robustness', () => {
 
     expect(state.seq).toBe(5)
     expect(state.messages).toHaveLength(5)
+  })
+})
+
+describe('kept host records', () => {
+  it('keeps the last records of each type that keep names, and no other', () => {
+    const state = emptyLogState()
+    const keep = new Map([['app.step', 2]])
+    const records = [
+      { type: 'app.step', n: 1 },
+      { type: 'app.other' },
+      { type: 'app.step', n: 2 },
+      { type: 'app.step', n: 3 },
+    ]
+    records.forEach((record, index) =>
+      foldEntry(state, { seq: index + 1, record }, undefined, keep),
+    )
+
+    expect(state.keptRecords.map((entry) => entry.record)).toEqual([
+      { type: 'app.step', n: 2 },
+      { type: 'app.step', n: 3 },
+    ])
   })
 })
 

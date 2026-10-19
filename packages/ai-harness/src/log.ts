@@ -130,13 +130,28 @@ export type HarnessRecord =
       value: unknown
     }
   | ({ type: 'harness.usage' } & UsageCall)
-  /** A revert that stands, or `null` when it ended. */
-  | { type: 'harness.revert'; revert: RevertState | null }
+  /**
+   * A revert that stands, or `null` when it ended. `principal` is who
+   * reverted, on the record of `session.revert`.
+   */
+  | {
+      type: 'harness.revert'
+      revert: RevertState | null
+      principal?: { id: string; tenantId?: string }
+    }
   /**
    * A background job started, or it ended. `backendId` is the id of its
    * process in the workspace backend, so a later host can stop it.
+   * `principal` is who moved a running call to the background
+   * (`session.background`).
    */
-  | { type: 'harness.job'; jobId: string; ended: boolean; backendId?: string }
+  | {
+      type: 'harness.job'
+      jobId: string
+      ended: boolean
+      backendId?: string
+      principal?: { id: string; tenantId?: string }
+    }
   /** A note for the transcript. `noteId` is the id of its message. */
   | { type: 'harness.note'; noteId: string; note: string }
   /** Thread state: settings, config, plugin state, and the rest. */
@@ -319,9 +334,9 @@ export interface LogState {
   /** Notes that are not in the transcript yet, by message id. */
   notes: Map<string, string>
   /**
-   * The last host records of the types in {@link KEPT_HOST_RECORDS}, oldest
-   * first. The snapshot keeps them, so a truncate of the log does not drop
-   * what `session.revert` reads.
+   * The last host records of the types that the plugins keep (their
+   * `keepRecords`), oldest first. The snapshot keeps them, so a truncate of
+   * the log does not drop what `session.revert` reads.
    */
   keptRecords: Array<LogEntry>
   /** The thread state that the thread-state records fold to. */
@@ -329,24 +344,43 @@ export interface LogState {
 }
 
 /**
- * The host records that the fold keeps, by type, with how many of each it
- * keeps: the file steps that `session.revert` reads.
+ * The host records that a fold keeps, by type, with how many of each it
+ * keeps. The `keepRecords` of the plugins give it.
  */
-const KEPT_HOST_RECORDS: ReadonlyMap<string, number> = new Map([
-  ['tanstack/snapshots:step', 500],
-])
+export type KeptRecords = ReadonlyMap<string, number>
 
-/** Keep `entry` in `state` when its type is a kept host record type. */
-function keepHostRecord(state: LogState, entry: LogEntry) {
-  const limit = KEPT_HOST_RECORDS.get(entry.record.type)
+/** The count of each type in a `keptRecords` list, made at its first use. */
+const keptCounts = new WeakMap<Array<LogEntry>, Map<string, number>>()
+
+/** Keep `entry` in `state` when `keep` keeps its type. */
+function keepHostRecord(
+  state: LogState,
+  entry: LogEntry,
+  keep: KeptRecords | undefined,
+) {
+  const { type } = entry.record
+  const limit = keep?.get(type)
   if (limit === undefined) return
-  state.keptRecords.push(entry)
-  const ofType = state.keptRecords.filter(
-    (kept) => kept.record.type === entry.record.type,
-  )
-  if (ofType.length <= limit) return
-  const oldest = ofType[0]
-  state.keptRecords = state.keptRecords.filter((kept) => kept !== oldest)
+  const kept = state.keptRecords
+  let counts = keptCounts.get(kept)
+  if (!counts) {
+    counts = new Map()
+    for (const { record } of kept) {
+      counts.set(record.type, (counts.get(record.type) ?? 0) + 1)
+    }
+    keptCounts.set(kept, counts)
+  }
+  kept.push(entry)
+  let count = (counts.get(type) ?? 0) + 1
+  // ponytail: the splice is O(n), only when a type is full. A list for
+  // each type if many types are kept.
+  for (; count > limit; count--) {
+    kept.splice(
+      kept.findIndex((each) => each.record.type === type),
+      1,
+    )
+  }
+  counts.set(type, count)
 }
 
 /**
@@ -512,11 +546,12 @@ export function foldEntry(
   state: LogState,
   entry: LogEntry,
   project?: ProjectRecord,
+  keep?: KeptRecords,
 ) {
   state.seq = entry.seq
   const { record } = entry
   if (!record.type.startsWith('harness.')) {
-    keepHostRecord(state, entry)
+    keepHostRecord(state, entry, keep)
     const next = project
       ? hostFold(
           entry.seq,
@@ -787,6 +822,7 @@ interface FoldOptions<TState> {
   rootThread: string
   project?: ProjectRecord
   reduce?: ReduceOptions<TState>
+  keep?: KeptRecords
 }
 
 /** Fold one entry of a shared log. */
@@ -813,6 +849,7 @@ export function foldLogEntry<TState>(
     sessionOf(state, threadOf(record, options.rootThread)),
     entry,
     options.project,
+    options.keep,
   )
 }
 
@@ -1093,8 +1130,10 @@ export async function loadLogState<TState = unknown>(options: {
   rootThread: string
   project?: ProjectOptions
   reduce?: ReduceOptions<TState>
+  /** The host records to keep. See {@link KeptRecords}. */
+  keep?: KeptRecords
 }) {
-  const { store, logId, rootThread, project, reduce } = options
+  const { store, logId, rootThread, project, reduce, keep } = options
   // A snapshot that does not load only makes the fold longer.
   const snapshot = await store.getSnapshot({ logId }).catch(() => null)
   const state =
@@ -1104,6 +1143,7 @@ export async function loadLogState<TState = unknown>(options: {
     rootThread,
     ...(project ? { project: project.record } : {}),
     ...(reduce ? { reduce } : {}),
+    ...(keep ? { keep } : {}),
   }
   await readAll(store, logId, state, (entry) =>
     foldLogEntry(state, entry, fold),
@@ -1534,6 +1574,8 @@ export class SharedLog<TState = unknown> {
     eventBytes: number
     project?: ProjectOptions
     reduce?: ReduceOptions<TState>
+    /** The host records to keep. See {@link KeptRecords}. */
+    keep?: KeptRecords
     /** When the owner writes a snapshot. */
     snapshot?: SnapshotTiming
     /** Which records the log keeps after a snapshot. Default `'all'`. */
@@ -1559,6 +1601,7 @@ export class SharedLog<TState = unknown> {
       rootThread: options.rootThread,
       ...(options.project ? { project: options.project.record } : {}),
       ...(options.reduce ? { reduce: options.reduce } : {}),
+      ...(options.keep ? { keep: options.keep } : {}),
     }
     this.versions = versionsOf(options.project, options.reduce)
     this.tail = new EventRing({

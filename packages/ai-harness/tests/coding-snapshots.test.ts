@@ -529,6 +529,51 @@ describe.skipIf(!hasGit)('snapshots with a workspace for each thread', () => {
     expect(await readFile(join(own, 'a.txt'), 'utf8')).toBe('one')
     await host.close()
   })
+
+  it('unreverts on a new host, which opens the workspace of the thread again from the log', async () => {
+    const own = join(base, 'thread-a')
+    await mkdir(own)
+    await writeFile(join(own, 'a.txt'), 'one')
+    const persistence = memoryPersistence()
+    const openOn = (replies: Array<Reply>) => {
+      const host = createHarnessHost({ persistence })
+      const harness = defineHarness({
+        name: 'test/snapshots-bind',
+        adapter: mockAdapter(replies).adapter,
+        plugins: () => [
+          workspaceTools({
+            workspace: { bind: async () => ({ ...hostBackend, root: own }) },
+            web: false,
+          }),
+          snapshots({ dataDir }),
+        ],
+      })
+      return { host, opened: host.open(harness, { threadId: THREAD }) }
+    }
+    const first = openOn([
+      () => toolCall('write_file', { path: 'a.txt', content: 'two' }, 'w-1'),
+      () => text('First.'),
+      () => toolCall('write_file', { path: 'a.txt', content: 'three' }, 'w-2'),
+      () => text('Second.'),
+    ])
+    const session = await first.opened
+    await session.send('One')
+    await session.send('Two')
+    const answer = (await session.transcript()).find(
+      (message) => message.content === 'First.',
+    )
+    await session.revert({ messageId: answer?.id ?? '' })
+    expect(await readFile(join(own, 'a.txt'), 'utf8')).toBe('two')
+    await first.host.close()
+
+    // No turn ran on this host, so the workspace of the thread is not open.
+    const second = openOn([])
+    const again = await second.opened
+
+    expect(await again.unrevert()).toMatchObject({ status: 'accepted' })
+    expect(await readFile(join(own, 'a.txt'), 'utf8')).toBe('three')
+    await second.host.close()
+  })
 })
 
 describe.skipIf(!hasGit)('snapshots of many runs', () => {
