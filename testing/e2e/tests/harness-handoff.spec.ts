@@ -196,7 +196,7 @@ test.describe('harness: handoffs inside one session', () => {
       expect(await outcomeOf(request, started.runId, 'in-1')).toBe(
         'interrupted',
       )
-      // The member bea sees the human wait over the protocol.
+      // The operator bea sees the human wait over the protocol.
       const res = await request.get(
         `${ROUTE}/snapshot?runId=${started.runId}&threadId=${started.threadId}`,
         { headers: { authorization: 'bea' } },
@@ -220,7 +220,7 @@ test.describe('harness: handoffs inside one session', () => {
         'interrupted',
       )
 
-      // The member bea replies as an operator.
+      // The operator bea replies.
       const reply = await control(
         request,
         started,
@@ -248,6 +248,7 @@ test.describe('harness: handoffs inside one session', () => {
           by: 'tool',
           runId: expect.any(String),
           waitId,
+          agents: ['billing'],
         },
       ])
       expect(lines(paused).slice(3)).toEqual([

@@ -11,10 +11,17 @@ import {
   HARNESS_EVENTS,
   createHarnessHost,
   defineHarness,
+  definePlugin,
   logIdOf,
   membersOnly,
 } from '../src'
+import { mediaPart } from '../src/media-entry'
 import { applyInput, parseHarnessInput } from '../src/protocol'
+import {
+  applyEvent,
+  emptyState,
+  messagesFromTranscript,
+} from '../src/view/reduce'
 import { createHarnessHandler } from '../src/server'
 import { createHarnessClient } from '../src/client'
 import { createSessionView } from '../src/view'
@@ -31,12 +38,14 @@ import type { LogStore } from '@tanstack/ai-persistence'
 import type {
   AnyAgent,
   HarnessHostOptions,
+  HarnessPlugin,
   HarnessRunContext,
   HarnessSession,
   Operation,
   Principal,
 } from '../src'
 import type { Reply } from './helpers'
+import type { ViewMessage } from '../src/view/types'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
 const waitFor = <T>(check: () => T | Promise<T>) =>
@@ -78,6 +87,7 @@ function routingHarness(options: {
   tools?: ReadonlyArray<AnyTool>
   /** `routing.humans`. Default true. */
   humans?: boolean
+  plugins?: ReadonlyArray<HarnessPlugin>
 }) {
   const main = mockAdapter(options.replies)
   const harness = defineHarness({
@@ -85,6 +95,7 @@ function routingHarness(options: {
     adapter: main.adapter,
     agents: options.agents,
     ...(options.tools ? { tools: options.tools } : {}),
+    ...(options.plugins ? { plugins: () => [...(options.plugins ?? [])] } : {}),
     routing: { router: () => undefined, humans: options.humans ?? true },
   })
   return { harness, main }
@@ -166,6 +177,7 @@ describe('a handoff to a person', () => {
       runId: turn.id,
       by: 'tool',
       waitId: wait?.waitId,
+      agents: ['billing'],
     }
     expect(await handoffRecords(log)).toEqual([
       { type: 'harness.handoff', ...handoff },
@@ -175,6 +187,7 @@ describe('a handoff to a person', () => {
       human: true,
       waitId: wait?.waitId,
       from: null,
+      agents: ['billing'],
     })
     expect(main.calls).toHaveLength(1)
     expect(billing.model.calls).toHaveLength(0)
@@ -224,6 +237,7 @@ describe('a handoff to a person', () => {
       human: true,
       waitId: wait.waitId,
       from: 'billing',
+      agents: ['billing'],
     })
 
     expect(
@@ -284,6 +298,35 @@ describe('a handoff to a person', () => {
     await host.close()
   })
 
+  it('hands back to a root agent of a turn plugin', async () => {
+    const seo = modelAgent('seo', [() => text('SEO here.')])
+    const { harness } = routingHarness({
+      agents: [],
+      replies: [toHuman],
+      plugins: [
+        definePlugin({
+          name: 'test/turn-agents',
+          lifetime: 'turn',
+          setup: () => ({ agents: [seo.agent] }),
+        }),
+      ],
+    })
+    const log = memoryLogStore()
+    const { host, session } = await hostOn(log, harness)
+    await session.send('I want a person.')
+    const [wait] = session.snapshot().pendingWaits ?? []
+    if (!wait) throw new Error('No human wait.')
+
+    expect(
+      await session.answer({
+        questionId: wait.waitId,
+        value: { handBack: 'seo' },
+      }),
+    ).toMatchObject({ status: 'accepted' })
+    expect((await session.send('Hi.')).text).toBe('seo:\nSEO here.')
+    await host.close()
+  })
+
   it('takes the answer of a second host through the input lane', async () => {
     const backend = memoryLogBackend()
     const release = gate()
@@ -332,7 +375,7 @@ describe('a handoff to a person', () => {
 })
 
 describe('an operator reply', () => {
-  /** A host with access: olga owns `THREAD`, bea is a member, vic a viewer. */
+  /** A host with access: olga owns `THREAD`, bea is an operator, vic a viewer. */
   async function sharedThread(replies: Array<Reply>) {
     const billing = modelAgent('billing', [])
     const { harness, main } = routingHarness({
@@ -352,7 +395,7 @@ describe('an operator reply', () => {
       host.open(harness, { threadId: THREAD, principal })
     const owner = await open(olga)
     for (const [userId, role] of [
-      ['bea', 'member'],
+      ['bea', 'operator'],
       ['vic', 'viewer'],
     ] as const) {
       await host.sessions.share({
@@ -365,7 +408,7 @@ describe('an operator reply', () => {
     return { host, harness, main, owner, open }
   }
 
-  it('adds the message of a member as an operator, and runs no model', async () => {
+  it('adds the message of an operator, and runs no model', async () => {
     const { host, main, owner, open } = await sharedThread([toHuman])
     await owner.send('I want a person.')
     const member = await open(bea)
@@ -386,6 +429,59 @@ describe('an operator reply', () => {
     expect(main.calls).toHaveLength(1)
     // The pause goes on until the operator answers the wait.
     expect(owner.snapshot().pendingWaits).toHaveLength(1)
+    await host.close()
+  })
+
+  it('keeps the files of a reply in a note for the model, and shows them with the reply', async () => {
+    const { host, owner, open } = await sharedThread([toHuman])
+    await owner.send('I want a person.')
+    const record = await owner.putMedia({
+      body: new Uint8Array([1, 2, 3]),
+      mimeType: 'image/png',
+      name: 'screen.png',
+    })
+    const member = await open(bea)
+
+    const reply = member.send(
+      [{ type: 'text', content: 'See this.' }, mediaPart(record)],
+      { as: 'operator', inputId: 'op-1' },
+    )
+    await reply
+
+    // Providers take media only from a user, so the assistant message has
+    // only the text.
+    const saved = await owner.transcript()
+    expect(saved.slice(-2)).toMatchObject([
+      {
+        id: 'operator-op-1',
+        role: 'assistant',
+        content: 'See this.',
+        metadata: { harness: { operator: 'bea' } },
+      },
+      {
+        id: 'operator-op-1:media',
+        role: 'user',
+        metadata: {
+          harness: { operatorAttachment: true, media: [{ id: record.id }] },
+        },
+      },
+    ])
+    // The live view and a reload show one operator message with the file.
+    let live = emptyState()
+    for await (const entry of reply.events({ from: '0' })) {
+      live = applyEvent(live, entry)
+    }
+    const partsOf = (message: ViewMessage | undefined) =>
+      message?.role === 'assistant'
+        ? message.parts.map((part) =>
+            part.type === 'media' ? part.id : part.type,
+          )
+        : []
+    expect(partsOf(live.messages.at(-1))).toEqual(['text', record.id])
+    expect(partsOf(messagesFromTranscript(saved).at(-1))).toEqual([
+      'text',
+      record.id,
+    ])
     await host.close()
   })
 
@@ -425,6 +521,10 @@ describe('an operator reply', () => {
     await owner.send('Hi.')
     await expect(
       viewer.send('I am only a viewer.', { as: 'operator' }),
+    ).rejects.toBeInstanceOf(AccessDeniedError)
+    // The owner waits for a person, so the owner is not one by default.
+    await expect(
+      owner.send('I am the operator now.', { as: 'operator' }),
     ).rejects.toBeInstanceOf(AccessDeniedError)
     expect(await messageTexts({ messages: await owner.transcript() })).toEqual([
       'Hi.',

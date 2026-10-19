@@ -250,6 +250,42 @@ describe('foldThreadRecord', () => {
     ).toBeNull()
   })
 
+  it('ends a handoff to a person when its human wait settles in any way', () => {
+    const wait = { waitId: 'w1', kind: 'human' as const, runId: 'r' }
+    const paused = [
+      { type: 'harness.wait', wait, at: 1 },
+      {
+        type: 'harness.handoff',
+        from: 'billing',
+        to: { human: true },
+        runId: 'r',
+        by: 'tool',
+        waitId: 'w1',
+      },
+    ] as const
+    for (const outcome of ['answered', 'cancelled', 'expired'] as const) {
+      const state = fold([
+        ...paused,
+        { type: 'harness.wait.settled', waitId: 'w1', outcome, at: 2 },
+      ])
+      expect(state.activeAgent).toBe('billing')
+    }
+  })
+
+  it('refuses a handoff to a person with no waitId', () => {
+    expect(() =>
+      fold([
+        {
+          type: 'harness.handoff',
+          from: null,
+          to: { human: true },
+          runId: 'r',
+          by: 'tool',
+        },
+      ]),
+    ).toThrow('has no waitId')
+  })
+
   it('keeps each transfer by id, and its first record', () => {
     const state = fold([
       {

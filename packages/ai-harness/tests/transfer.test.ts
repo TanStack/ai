@@ -537,6 +537,29 @@ describe('host.transfer access', () => {
     await host.close()
   })
 
+  it('throws for a source thread that does not exist, also with no access', async () => {
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const support = defineHarness({
+      name: 'test/support',
+      adapter: mockAdapter(() => text('ok')).adapter,
+    })
+    const billing = defineHarness({
+      name: 'test/billing',
+      adapter: mockAdapter(() => text('billing here')).adapter,
+    })
+
+    await expect(
+      host.transfer({
+        from: { harness: support, threadId: 'case-42 ' },
+        to: { harness: billing, threadId: 'target' },
+        envelope: { note: NOTE, messages: 'all' },
+      }),
+    ).rejects.toThrow('Thread "case-42 " does not exist.')
+    expect(await host.sessions.get({ threadId: 'case-42 ' })).toBeUndefined()
+    expect(await host.sessions.get({ threadId: 'target' })).toBeUndefined()
+    await host.close()
+  })
+
   it('refuses an existing target of another harness, or one the principal cannot send to, and keeps the members of a target it can', async () => {
     const { host, support, billing } = accessHost()
     const source = await host.open(support, {

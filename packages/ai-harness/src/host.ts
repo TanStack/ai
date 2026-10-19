@@ -2562,14 +2562,17 @@ export function createHarnessHost<P extends Principal = Principal>(
     const user = access ? need(principal, 'host.transfer') : undefined
     const sourceEntry = await index.get({ tenantId, threadId: from.threadId })
     const targetEntry = await index.get({ tenantId, threadId })
-    if (user) {
-      // No entry is not found: the same answer as a refusal.
-      if (!sourceEntry) {
+    if (!sourceEntry) {
+      // With access, not found is the same answer as a refusal.
+      if (user) {
         throw new AccessDeniedError({
           action: 'transfer',
           threadId: from.threadId,
         })
       }
+      throw new Error(`Thread ${JSON.stringify(from.threadId)} does not exist.`)
+    }
+    if (user) {
       await allow({
         principal: user,
         action: 'transfer',

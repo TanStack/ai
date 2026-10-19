@@ -1204,11 +1204,15 @@ export abstract class SessionState<
     const { handBack } = answer
     let to: string | null
     if (typeof handBack === 'string') {
-      // ponytail: the agents of turn plugins are not known outside a turn.
+      // The agents that the turn which handed off offered (with those of
+      // its turn plugins), and the ones this session has now.
       const names = [
-        ...(this.harness.agents ?? []),
-        ...(this.threadPlugins()?.agents ?? []),
-      ].map((agent) => agent.name)
+        ...(active.agents ?? []),
+        ...[
+          ...(this.harness.agents ?? []),
+          ...(this.threadPlugins()?.agents ?? []),
+        ].map((agent) => agent.name),
+      ]
       if (handBack !== 'main' && !names.includes(handBack)) {
         return { reason: 'unknown_agent' }
       }
@@ -1942,6 +1946,11 @@ export abstract class SessionState<
             previous.runId === runId &&
             previous.routed
               ? { routed: previous.routed }
+              : {}),
+            ...(previous !== undefined &&
+            previous.runId === runId &&
+            previous.handoff
+              ? { handoff: previous.handoff }
               : {}),
             ...storedPrincipal(
               previous !== undefined && previous.runId === runId

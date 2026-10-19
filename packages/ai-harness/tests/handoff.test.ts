@@ -16,6 +16,7 @@ import {
   messagesFromTranscript,
 } from '../src/view/reduce'
 import {
+  gate,
   messageTexts,
   mockAdapter,
   storedThreadState,
@@ -44,6 +45,8 @@ async function openRouting(options: {
   tools?: ReadonlyArray<AnyTool>
   replies?: Array<Reply>
   adapter?: AnyTextAdapter
+  /** `routing.handoffs`. */
+  handoffs?: boolean
 }) {
   const { metadata } = memoryPersistence().stores
   const log = memoryLogStore()
@@ -61,7 +64,12 @@ async function openRouting(options: {
       agents: options.agents,
       ...(options.subagents ? { subagents: options.subagents } : {}),
       ...(options.tools ? { tools: options.tools } : {}),
-      routing: { router: options.router ?? (() => undefined) },
+      routing: {
+        router: options.router ?? (() => undefined),
+        ...(options.handoffs !== undefined
+          ? { handoffs: options.handoffs }
+          : {}),
+      },
     }),
     { threadId: THREAD, principal: USER },
   )
@@ -369,6 +377,113 @@ describe('handoffs', () => {
     await expect(session.send('hi')).rejects.toThrow(
       'Duplicate tool "handoff": first owner routing (the handoff tool), second owner the harness.',
     )
+    await host.close()
+  })
+
+  it('gives no handoff tool with routing.handoffs false, so an app tool can be named handoff', async () => {
+    const billing = modelAgent('billing', [() => text('Billed')])
+    const { host, session, main } = await openRouting({
+      agents: [billing.agent],
+      tools: [plainTool('handoff')],
+      handoffs: false,
+      router: ({ input }) => (input === 'bill me' ? 'billing' : undefined),
+      replies: [() => text('Main')],
+    })
+
+    expect((await session.send('hi')).text).toBe('Main')
+    // Only the app tool, once.
+    expect(toolNames(main.calls[0])).toEqual(['handoff'])
+    expect((await session.send('bill me')).text).toBe('billing:\nBilled')
+    expect(toolNames(billing.model.calls[0])).toEqual([])
+    await host.close()
+  })
+
+  it('runs the target in the resolve turn when the part that handed off also waits for a client tool', async () => {
+    // No server implementation: the turn waits for the result of the client.
+    const openScreen = toolDefinition({
+      name: 'openScreen',
+      description: 'Open a screen',
+      inputSchema: z.object({}),
+    })
+    const billing = modelAgent('billing', [() => text('Billing here.')])
+    const { host, session, main, log } = await openRouting({
+      agents: [billing.agent],
+      tools: [openScreen],
+      replies: [
+        () => [
+          ...toolCall('handoff', { to: 'billing' }, 'call_h').slice(0, -1),
+          ...toolCall('openScreen', {}, 'call_o').slice(1),
+        ],
+        () => text('One moment.'),
+      ],
+    })
+
+    const [interrupt] = (await session.send('refund please')).interrupts ?? []
+    if (!interrupt) throw new Error('No client tool interrupt.')
+    await session.resolve({
+      resume: [{ interruptId: interrupt.id, status: 'resolved', payload: {} }],
+      inputId: 'opened',
+    })
+
+    expect(await session.settled({ inputId: 'opened' })).toMatchObject({
+      outcome: 'completed',
+    })
+    // ponytail: core calls the model once more after the resumed tools (it
+    // asks onShouldContinue only after a tool phase of the loop). Then the
+    // part ends, and the target answers in the same turn.
+    expect(main.calls).toHaveLength(2)
+    expect(billing.model.calls).toHaveLength(1)
+    expect((await transcriptTexts(session)).at(-1)).toBe(
+      'billing:\nBilling here.',
+    )
+    expect(
+      (await storedThreadState(log, { threadId: THREAD })).activeAgent,
+    ).toBe('billing')
+    await host.close()
+  })
+
+  it('stops only the agent that handed off, not a sibling of a parallel pick', async () => {
+    const handedOff = gate()
+    // shipping's tool ends only after billing handed off, so shipping is
+    // between a tool result and its answer then.
+    const track = toolDefinition({
+      name: 'track',
+      description: 'Track a parcel',
+      inputSchema: z.object({}),
+    }).server(async () => {
+      await handedOff.opened
+      return 'on the way'
+    })
+    const billing = modelAgent('billing', [
+      () => toolCall('handoff', { to: 'main' }, 'call_h'),
+    ])
+    const shipping = modelAgent(
+      'shipping',
+      [() => toolCall('track', {}, 'call_t'), () => text('Shipped')],
+      [track],
+    )
+    const { host, session, main } = await openRouting({
+      agents: [billing.agent, shipping.agent],
+      router: () => ({ names: ['billing', 'shipping'], order: 'parallel' }),
+      replies: [() => text('Main here.')],
+    })
+
+    const turn = session.send('refund and track')
+    for await (const { event } of turn.events({ from: '0' })) {
+      if (
+        event.type === EventType.CUSTOM &&
+        event.name === HARNESS_EVENTS.handoff &&
+        (event.value as { by?: string }).by === 'tool'
+      ) {
+        handedOff.open()
+        break
+      }
+    }
+    await turn
+
+    expect(shipping.model.calls).toHaveLength(2)
+    expect(JSON.stringify(await session.transcript())).toContain('Shipped')
+    expect(main.calls).toHaveLength(1)
     await host.close()
   })
 

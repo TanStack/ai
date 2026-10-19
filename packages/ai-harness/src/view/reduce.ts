@@ -676,7 +676,13 @@ export function applyEvent(
     return withNotice(state, 'rejected', notAccepted(value.reason))
   if (event.name === HARNESS_EVENTS.reset)
     return withNotice(state, 'info', resetNotice(value.note))
-  if (event.name === HARNESS_EVENTS.handoff)
+  // A handoff to a person ends the turn, and the hand-back of an operator
+  // comes on the session feed: neither has a message that an agent writes.
+  if (
+    event.name === HARNESS_EVENTS.handoff &&
+    (typeof value.to === 'string' || value.to === null) &&
+    operationId !== 'session'
+  )
     return withTurnAgent(
       state,
       operationId,
@@ -1000,6 +1006,16 @@ export function messagesFromTranscript(
         kind: 'info',
         text: resetNotice(reset.note),
       })
+      return
+    }
+    // The files of an operator reply: they show with the reply.
+    if (message.role === 'user' && harness.operatorAttachment === true) {
+      const media = userMedia(message)
+      const reply = result.find(
+        (item) => `${item.id}:media` === id && item.role === 'assistant',
+      )
+      if (reply?.role === 'assistant') reply.parts.push(...media)
+      else result.push({ id, role: 'assistant', parts: media })
       return
     }
     if (message.role === 'user') {

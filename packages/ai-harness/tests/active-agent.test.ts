@@ -187,6 +187,39 @@ describe('activeAgent', () => {
     await second.host.close()
   })
 
+  it('writes the move to the main model once, when the active agent went away', async () => {
+    const billing = textAgent('billing', 'Billed')
+    const seo = textAgent('seo', 'Ranked')
+    const { persistence, log } = stores()
+    const first = await openRouting({
+      persistence,
+      router: () => 'billing',
+      agents: [billing.agent],
+    })
+    await answer(first.session, 'one')
+    await first.host.close()
+
+    // billing is gone. seo stays, so the harness still routes.
+    const { router, seen } = scriptedRouter(undefined, undefined)
+    const second = await openRouting({
+      persistence,
+      router,
+      agents: [seo.agent],
+      replies: [() => text('Main 2'), () => text('Main 3')],
+    })
+
+    expect(await answer(second.session, 'two')).toBe('Main 2')
+    expect(await answer(second.session, 'three')).toBe('Main 3')
+    expect(seen.map((ctx) => ctx.activeAgent)).toEqual(['billing', undefined])
+    expect(
+      (await handoffRecords(log)).map(({ from, to, by }) => ({ from, to, by })),
+    ).toEqual([
+      { from: null, to: 'billing', by: 'router' },
+      { from: 'billing', to: null, by: 'router' },
+    ])
+    await second.host.close()
+  })
+
   it('does not call the router to resolve a turn of the active agent', async () => {
     const execute = vi.fn(async () => ({ removed: true }))
     const remove = toolDefinition({

@@ -57,6 +57,8 @@ export interface InterruptedTurnRecord {
   interrupts: Array<Interrupt>
   /** A routed turn stopped: the messages a resolve continues from. */
   routed?: { messages: Array<UIMessage>; root: boolean }
+  /** The part that stopped handed off too: the resolve acts on it. */
+  handoff?: Omit<HandoffRecord, 'runId'>
   /** Who sent the input of the stopped turn. */
   principal?: RecordPrincipal
   /** The `context` of the stopped turn's input. JSON. */
@@ -180,15 +182,22 @@ export type HandoffRecord = {
   by: 'tool' | 'code' | 'router' | 'operator'
   /** The `human` wait that a handoff to a person opens. */
   waitId?: string
+  /**
+   * The root agents of the turn that handed off to a person. An operator
+   * can hand the thread back to one of them.
+   */
+  agents?: Array<string>
 }
 
 /**
  * A person answers the turns of a thread: the `human` wait `waitId` of a
- * handoff is open. `from` answered before the handoff.
+ * handoff is open. `from` answered before the handoff. `agents` are the
+ * root agents an operator can hand back to.
  */
 export type HumanAnswerer = HumanTarget & {
   waitId: string
   from: string | null
+  agents?: Array<string>
 }
 
 /**
@@ -775,7 +784,15 @@ export function foldThreadRecord(state: ThreadStateFold, record: LogRecord) {
         settledAt: record.at,
         ...(record.value !== undefined ? { value: record.value } : {}),
       }
-      return { ...state, waits: withEntry(state.waits, record.waitId, ended) }
+      // The `human` wait of a handoff to a person ended (answered,
+      // resolved, cancelled, expired): the agent before the handoff answers.
+      const active = state.activeAgent
+      const isPause = isHumanTarget(active) && active.waitId === record.waitId
+      return {
+        ...state,
+        waits: withEntry(state.waits, record.waitId, ended),
+        ...(isPause ? { activeAgent: active.from } : {}),
+      }
     }
     case 'harness.transferred': {
       const { type: _type, transferId, ...transfer } = record
@@ -789,12 +806,19 @@ export function foldThreadRecord(state: ThreadStateFold, record: LogRecord) {
       if (!isHumanTarget(record.to)) {
         return { ...state, activeAgent: record.to }
       }
+      // A pause on a wait that nobody can answer: the record is corrupt.
+      if (record.waitId === undefined) {
+        throw new Error(
+          `A harness.handoff record to a person (run ${JSON.stringify(record.runId)}) has no waitId.`,
+        )
+      }
       // Who answered before stays, for an operator answer `{ resume: true }`.
       const from = isHumanTarget(record.from) ? null : record.from
       const human: HumanAnswerer = {
         human: true,
-        waitId: record.waitId ?? '',
+        waitId: record.waitId,
         from,
+        ...(record.agents ? { agents: record.agents } : {}),
       }
       return { ...state, activeAgent: human }
     }

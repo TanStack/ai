@@ -67,6 +67,8 @@ export class TurnHandoffs {
       subagents: ReadonlyArray<string>
       /** `routing.humans`: a handoff can go to a person. */
       humans: boolean
+      /** `routing.handoffs`: the root agents get the `handoff` tool. */
+      tool: boolean
       /**
        * Append the record. A handoff to a person opens its `human` wait in
        * the same append. Resolves with the record as the log keeps it.
@@ -147,6 +149,8 @@ export class TurnHandoffs {
       to: target,
       ...(typeof note === 'string' ? { note } : {}),
       by,
+      // The agents an operator can hand back to: the ones this turn offers.
+      ...(isHuman ? { agents: names } : {}),
     }
     this.pending = await this.write(handoff)
   }
@@ -156,6 +160,16 @@ export class TurnHandoffs {
     const { pending } = this
     this.pending = undefined
     return pending
+  }
+
+  /**
+   * Make `handoff` pending again, with no new record: the log has it. A
+   * resolve turn gets the handoff of the part that stopped for interrupts.
+   * Its part ends after the answered tools, and the target runs.
+   */
+  restore(handoff: Handoff) {
+    this.count += 1
+    this.pending = handoff
   }
 
   /**
@@ -211,9 +225,11 @@ export class TurnHandoffs {
 
   /**
    * Middleware for the chat calls of a turn: a pending handoff stops the
-   * tool loop of the part, so the target answers next. With `roots`, it
-   * also gives each routed root agent its `handoff` tool. A nested child of
-   * a root agent gets neither, so it cannot move the whole session.
+   * tool loop of the chat that made it, so the target answers next. Other
+   * chats of the part (a sibling root agent, a tool-mode child) go on. With
+   * `roots`, it also gives each routed root agent its `handoff` tool, unless
+   * `routing.handoffs` is false. A nested child of a root agent gets no
+   * tool, so it cannot move the whole session.
    */
   middleware(options: { roots?: boolean } = {}): AnyChatMiddleware {
     return {
@@ -221,13 +237,20 @@ export class TurnHandoffs {
       onConfig: (ctx, config) => {
         const isRoot =
           options.roots === true &&
+          this.options.tool &&
           ctx.subagentName !== undefined &&
           ctx.parentSubagentRunId === undefined
         if (!isRoot) return
         if (config.tools.some((tool) => tool.name === HANDOFF_TOOL)) return
         return { tools: [...config.tools, this.tool(ctx.subagentName ?? null)] }
       },
-      onShouldContinue: () => (this.pending ? false : undefined),
+      onShouldContinue: (ctx) => {
+        const { pending } = this
+        if (!pending || ctx.parentSubagentRunId !== undefined) return undefined
+        // ponytail: a chat is known by its agent name ('main' has none). The
+        // root agents of one pick have different names.
+        return (ctx.subagentName ?? null) === pending.from ? false : undefined
+      },
     }
   }
 
@@ -257,11 +280,13 @@ function routerTarget(
   const isRoot = (name: string) =>
     rootAgents.some((agent) => agent.name === name)
   if (chosen === undefined) {
-    // An active agent that this turn does not have (a plugin went away)
-    // gives the turn to the main model.
-    return {
-      pick: activeAgent !== null && isRoot(activeAgent) ? activeAgent : 'main',
+    if (activeAgent === null || isRoot(activeAgent)) {
+      return { pick: activeAgent ?? 'main' }
     }
+    // An active agent that this turn does not have (a plugin went away)
+    // gives the turn to the main model. The log keeps that, so the next
+    // turn does not read the missing agent again.
+    return { pick: 'main', handoff: { from: activeAgent, to: null } }
   }
   if (typeof chosen === 'object' && 'handoff' in chosen) {
     const to = chosen.handoff === 'main' ? null : chosen.handoff

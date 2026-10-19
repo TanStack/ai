@@ -17,6 +17,7 @@ import { NO_SESSION_CONTEXT } from '../agents'
 import { isHumanTarget } from '../log-records'
 import { BOUNDARY_INTERRUPTS } from '../boundary-waits'
 import { mediaMiddleware } from '../media'
+import { mediaOfMessage } from '../media-ref'
 import { OperationImpl } from '../operation'
 import { mountPlugins } from '../plugins'
 import { scrubToolResults, truncationMiddleware } from '../resume'
@@ -428,19 +429,35 @@ export abstract class SessionTurn<
     try {
       const id = `${isOperator ? 'operator' : 'held'}-${inputId}`
       const history = await this.messages.loadThread(this.threadId)
-      const isAdded = history.some((message) => message.id === id)
+      const isAdded = history.some(
+        (message) => message.id === id || message.id === attachmentId(id),
+      )
       if (isOperator && !isAdded && !this.humanHandoff()) {
         error = {
           message: 'No handoff to a person waits for an operator.',
           code: 'no_human_wait',
         }
       } else if (!isAdded && sent !== undefined) {
-        const message = isOperator
-          ? operatorMessage(id, sent, turn.principal ?? this.principal)
-          : { ...(await this.userMessage(sent, turn.wake)), id }
-        await this.addToTurn({ messages: [message] })
-        // A view shows the reply live, as the text of a model.
-        if (isOperator) publishText(operation, id, message.content)
+        const messages = isOperator
+          ? await this.operatorMessages(
+              id,
+              sent,
+              turn.principal ?? this.principal,
+            )
+          : [{ ...(await this.userMessage(sent, turn.wake)), id }]
+        await this.addToTurn({ messages })
+        // A view shows the reply live, as the text of a model, with its
+        // files.
+        if (isOperator) {
+          for (const message of messages) {
+            if (message.role === 'assistant') {
+              publishText(operation, id, message.content)
+            }
+            for (const media of mediaOfMessage(message)) {
+              operation.publish(customEvent(HARNESS_EVENTS.media, { ...media }))
+            }
+          }
+        }
       }
     } catch (failure) {
       error = { message: this.scrub(errorText(this.logFailure ?? failure)) }
@@ -461,6 +478,60 @@ export abstract class SessionTurn<
     this.publishFinished(operation)
     // A steer that came while it ran runs as its own turn.
     this.requeueWaitingSteers()
+  }
+
+  /**
+   * The reply of an operator, as the transcript keeps it: its text in an
+   * assistant message, and its files in a user note after it, because a
+   * provider takes media only from a user. The note has
+   * `metadata.harness.operatorAttachment` and the media records, so a view
+   * shows the files with the reply, not as a message of the user.
+   */
+  private async operatorMessages(
+    id: string,
+    content: UserInput,
+    principal: Principal | undefined,
+  ): Promise<Array<ModelMessage>> {
+    // The id of the operator. A session with no user has none.
+    const operator = principal?.id ?? true
+    const parts = typeof content === 'string' ? [] : content
+    const files = parts.filter((part) => part.type !== 'text')
+    if (files.length === 0) {
+      return [
+        { id, role: 'assistant', content, metadata: { harness: { operator } } },
+      ]
+    }
+    const text = parts
+      .map((part) => (part.type === 'text' ? part.content : ''))
+      .join('')
+    const note = await this.userMessage([
+      { type: 'text', content: 'The operator attached these files.' },
+      ...files,
+    ])
+    return [
+      ...(text === ''
+        ? []
+        : [
+            {
+              id,
+              role: 'assistant' as const,
+              content: text,
+              metadata: { harness: { operator } },
+            },
+          ]),
+      {
+        ...note,
+        id: attachmentId(id),
+        metadata: {
+          ...note.metadata,
+          harness: {
+            ...note.metadata?.harness,
+            operator,
+            operatorAttachment: true,
+          },
+        },
+      },
+    ]
   }
 
   protected async runTurn(turn: QueuedTurn): Promise<void> {
@@ -661,6 +732,7 @@ export abstract class SessionTurn<
               rootAgents,
               subagents: subagentList.map((agent) => agent.name),
               humans: this.harness.routing.humans === true,
+              tool: this.harness.routing.handoffs !== false,
               append: (record) =>
                 this.appendHandoff(record, storedPrincipal(sender).principal),
               publish: (record) =>
@@ -669,6 +741,11 @@ export abstract class SessionTurn<
                 ),
             })
           : undefined
+      // A resolve of a part that handed off: the part ends after the
+      // answered tools, and the target runs.
+      if (handoffs && turn.answers?.handoff) {
+        handoffs.restore(turn.answers.handoff)
+      }
       // The settings of this turn. Every chat() call below uses them: the
       // tool loop, retries, `beforeFinish` cycles, the main part of
       // `routing.after: 'main'`, and late joins.
@@ -746,7 +823,12 @@ export abstract class SessionTurn<
       // here, so a middleware wrapper wraps the bound tool,
       // and again at each model call, for tools that a middleware returns.
       const bindTool = this.durableBinder(run)
-      const clash = handoffs
+      // `routing.handoffs: false` gives the models no `handoff` tool.
+      const handoffTool =
+        handoffs && this.harness.routing?.handoffs !== false
+          ? handoffs.tool(null)
+          : undefined
+      const clash = handoffTool
         ? prepared.find((tool) => tool.name === HANDOFF_TOOL)
         : undefined
       if (clash) {
@@ -761,7 +843,7 @@ export abstract class SessionTurn<
       }
       const tools = [
         ...prepared.map((tool) => bindDurable(tool, bindTool)),
-        ...(handoffs ? [handoffs.tool(null)] : []),
+        ...(handoffTool ? [handoffTool] : []),
       ]
       // The override tools as the turn has them: prepared and bound.
       const keptTools = tools.filter((tool) => turnToolNames.has(tool.name))
@@ -830,7 +912,12 @@ export abstract class SessionTurn<
       }
       const isRootTurn =
         turn.answers?.routed?.root === true || (pick ?? 'main') !== 'main'
-      const { after, humans: _humans, ...shared } = routing ?? {}
+      const {
+        after,
+        humans: _humans,
+        handoffs: _handoffs,
+        ...shared
+      } = routing ?? {}
       const routedBag = routing
         ? {
             ...shared,
@@ -1100,12 +1187,16 @@ export abstract class SessionTurn<
             ) {
               interrupts = chunk.outcome.interrupts
               const messages = cards?.getMessages()
+              // A handoff of the part waits with its interrupts: the resolve
+              // runs the target, or pauses for a person.
+              const handoff = handoffs?.take()
               // Pending before a client sees RUN_FINISHED, so a resolve sent
               // at once is accepted.
               await this.keepInterrupted(operation, {
                 runId: operation.id,
                 interrupts,
                 ...(messages ? { routed: { messages, root: isRootPart } } : {}),
+                ...(handoff ? { handoff } : {}),
                 ...storedPrincipal(sender),
                 ...(turn.context !== undefined
                   ? { context: turn.context }
@@ -1573,20 +1664,8 @@ function publishText(
   operation.publish({ type: EventType.TEXT_MESSAGE_END, messageId, timestamp })
 }
 
-/** The reply of an operator, as the transcript keeps it. */
-function operatorMessage(
-  id: string,
-  content: UserInput,
-  principal: Principal | undefined,
-): ModelMessage {
-  return {
-    id,
-    role: 'assistant',
-    content,
-    // The id of the operator. A session with no user has none.
-    metadata: { harness: { operator: principal?.id ?? true } },
-  }
-}
+/** The id of the note with the files of the operator reply `id`. */
+const attachmentId = (id: string) => `${id}:media`
 
 /**
  * The answer message of a routed run, kept under the id `${id}:${index}`.

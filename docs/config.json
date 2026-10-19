@@ -1116,7 +1116,7 @@
           "label": "Share a thread between people",
           "to": "harness/shared-threads",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Connect model providers",
@@ -1146,12 +1146,13 @@
           "label": "Run agents from a harness",
           "to": "harness/subagents",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Hand off a conversation",
           "to": "harness/handoffs",
-          "addedAt": "2026-10-18"
+          "addedAt": "2026-10-18",
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Add skills",

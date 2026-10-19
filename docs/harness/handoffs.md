@@ -61,7 +61,7 @@ What the handoff does:
 - The main model and each root agent get a `handoff` tool. Its `to` lists the root agents. A root agent can also hand back to `'main'`, the main model.
 - One turn can hand off 10 times at most.
 - An agent that is only in `subagents` cannot be a target. A child that an agent starts cannot hand off either.
-- If the app has its own tool named `handoff`, the turn fails with a duplicate tool error.
+- If the app has its own tool named `handoff`, the turn fails with a duplicate tool error. Set `routing: { router, handoffs: false }` to give no model the `handoff` tool. The router and your code can still hand off.
 
 ## 2. Hand off from code
 
@@ -188,7 +188,7 @@ When an agent hands off to a person:
 
 A person from your team replies with `as: 'operator'`:
 
-1. Make the operator a member of the thread. Ada owns the thread here. See [Share a thread between people](./shared-threads#2-share-the-thread).
+1. Share the thread with the operator, with the role `operator`. Ada owns the thread here. See [Share a thread between people](./shared-threads#2-share-the-thread).
 2. Send the reply as the operator.
 
 ```ts group=harness-handoffs
@@ -196,7 +196,7 @@ const ada = { id: 'ada', tenantId: 'acme' }
 const olga = { id: 'olga', tenantId: 'acme' }
 
 export async function addOperator(threadId: string) {
-  await deskHost.sessions.share({ threadId, userId: 'olga', role: 'member', principal: ada })
+  await deskHost.sessions.share({ threadId, userId: 'olga', role: 'operator', principal: ada })
 }
 
 export async function reply(threadId: string, text: string) {
@@ -206,7 +206,8 @@ export async function reply(threadId: string, text: string) {
 ```
 
 - The reply goes into the transcript as an assistant message, with `metadata.harness.operator` set to the id of the operator. No model runs.
-- The sender needs the `operator` access action. With `membersOnly()`, the owner and members have it. A viewer does not.
+- The sender needs the `operator` access action. With `membersOnly()`, only the role `operator` has it. The owner and members do not, so the user who waits cannot act as the person. To change this, pass `membersOnly({ operator: { roles: ['owner', 'operator'] } })`.
+- Files in the reply go into a user message after it, because a model takes files only from a user. `metadata.harness.operatorAttachment` marks it, and a view shows the files with the reply.
 - Without an open `human` wait, the receipt is `rejected` with `no_human_wait`.
 
 In the browser, the operator uses the same option: `client.send(text, { as: 'operator' })`, or `view.send(text, { as: 'operator' })` in a [session view](./custom-ui). The reply shows in each open view at once.
@@ -235,6 +236,7 @@ if (wait) {
 - `{ resume: true }` gives the thread back to the agent that answered before the handoff.
 - `{ handBack: 'billing' }` gives it to that agent. `{ handBack: 'main' }` gives it to the main model.
 - Any other value is `rejected` with `invalid_answer`. An unknown agent is `rejected` with `unknown_agent`.
+- The wait can also end with `session.resolve` or a cancel. Then the agent that answered before the handoff gets the thread back. Each of these needs the `operator` action.
 - The answer starts no turn. The held user messages wait for the next message, or for `session.continue()`.
 
 ## 5. Move a conversation to another harness

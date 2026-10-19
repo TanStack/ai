@@ -147,6 +147,13 @@ export interface HarnessRouting<TMetadataSchema = any> extends Pick<
    * `'main'`, and a handoff to a person rejects. Default `false`.
    */
   humans?: boolean
+  /**
+   * Give the main model and each root agent the `handoff` tool. When false,
+   * no model gets it, and an app tool can use the name `handoff`. The
+   * router and your code (`ctx.harness.handoff`, `run.handoff`) can still
+   * hand off. Default `true`.
+   */
+  handoffs?: boolean
 }
 
 /**
