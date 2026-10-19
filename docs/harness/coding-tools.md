@@ -82,7 +82,7 @@ const stopPrinting = session.onEvent('TEXT_MESSAGE_CONTENT', ({ event }) => {
 // A risky call stops the turn before it runs. Ask about each approval of
 // the turn, then send all the answers in one resolve.
 async function answerApprovals() {
-  let waits = session.snapshot().pendingWaits ?? []
+  let waits = session.snapshot().pendingWaits
   while (waits.length > 0) {
     const resume: Array<RunAgentResumeItem> = []
     for (const wait of waits) {
@@ -92,7 +92,7 @@ async function answerApprovals() {
     const inputId = randomUUID()
     await session.resolve({ resume, inputId })
     await session.settled({ inputId })
-    waits = session.snapshot().pendingWaits ?? []
+    waits = session.snapshot().pendingWaits
   }
 }
 

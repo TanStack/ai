@@ -339,7 +339,7 @@ When the host stops during a run, the messages that wait for the run are in the 
 A background run can need a person, for example an approval of [`permissions()`](./permissions) before it edits a file. The run then stops with status `waiting`. Its wait is in `session.snapshot().pendingWaits`, with the `runId` of the run:
 
 ```ts group=harness-subagents-messages
-const [wait] = (session.snapshot().pendingWaits ?? []).filter(
+const [wait] = session.snapshot().pendingWaits.filter(
   (open) => open.runId === run.id,
 )
 if (wait) {
