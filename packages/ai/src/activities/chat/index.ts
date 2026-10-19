@@ -3990,6 +3990,14 @@ class TextEngine<
           toolCallId: toolCall.id,
         })
       },
+      onGuardToolCall: async (toolCall, tool, args) =>
+        this.middlewareRunner.runOnGuardToolCall(this.middlewareCtx, {
+          toolCall,
+          tool,
+          args,
+          toolName: toolCall.function.name,
+          toolCallId: toolCall.id,
+        }),
       onAfterToolCall: async (info) => {
         this.logger.tools(`phase=after name=${info.toolName}`, {
           name: info.toolName,

@@ -265,6 +265,18 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
   // question, or a wait of a background agent run). `answer` or `resolve`
   // continues it.
   const waiting = new Map<string, Operation<unknown>>()
+  /**
+   * Keep `operation` for its wait `waitId`. The entry goes when the
+   * operation settles, also when the wait ended another way: answered by
+   * another client, expired, or cancelled.
+   */
+  const keepWaiting = (waitId: string, operation: Operation<unknown>) => {
+    waiting.set(waitId, operation)
+    const forget = () => {
+      if (waiting.get(waitId) === operation) waiting.delete(waitId)
+    }
+    void operation.then(forget, forget)
+  }
   // The user of each request, by the token in its context. A token that
   // this server did not make is in no map, so a context cannot name a user.
   const callers = new WeakMap<object, P>()
@@ -379,7 +391,7 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
       if (!outcome.done) {
         const snapshot = session.snapshot()
         for (const wait of snapshot.pendingWaits ?? []) {
-          if (wait.runId === operation.id) waiting.set(wait.waitId, operation)
+          if (wait.runId === operation.id) keepWaiting(wait.waitId, operation)
         }
         return { status: 'waiting', ...pending(snapshot, operation.id) }
       }
@@ -576,6 +588,9 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
   }).server<CallContext>(
     onSession(async (session, args, context) => {
       const questionId = textArg(args, 'questionId')
+      // Read before the answer: the work can settle at once after it, and
+      // then its entry is gone.
+      const operation = waiting.get(questionId)
       const receipt = await session.answer({
         questionId,
         value: isRecord(args) ? args.value : undefined,
@@ -585,7 +600,6 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
           `The harness refused the answer: ${receipt.reason ?? 'no reason'}.`,
         )
       }
-      const operation = waiting.get(questionId)
       waiting.delete(questionId)
       // A question that no tool call waits on: nothing to continue.
       if (operation === undefined) {
@@ -766,7 +780,7 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
     try {
       // A read: no session opens.
       const view = await observe(threadId, ctx.context)
-      const record = await view.getMedia(id)
+      const record = await view.getMedia({ id })
       if (record === null) {
         throw new Error(`Media ${id} was not found in thread ${threadId}.`)
       }

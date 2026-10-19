@@ -8,6 +8,7 @@ export type {
   StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   BeforeToolCallDecision,
+  GuardToolCallDecision,
   AfterToolCallDecision,
   AfterToolCallInfo,
   IterationInfo,

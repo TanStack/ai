@@ -166,6 +166,7 @@ export type {
 export type { ObservedSession } from './session/observed-session'
 export type { SessionUsage, UsageCounts } from './usage'
 export type { OnHarnessEvent } from './feed'
+export type { ObservabilityOptions, OperationReport } from './observability'
 
 export type {
   FinishContext,
@@ -191,6 +192,7 @@ export type {
   EventGap,
   ForkPoint,
   HandoffEnvelope,
+  HarnessEventValues,
   HarnessInput,
   HarnessRunContext,
   InputSettlement,

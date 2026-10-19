@@ -143,7 +143,7 @@ A fork keeps the old chat. To go back in the same chat, revert it to a message:
 const [question] = await session.transcript()
 if (!question?.id) throw new Error('The chat has no messages.')
 
-await session.revert(question.id)
+await session.revert({ messageId: question.id })
 // The transcript now ends at `question`. To bring the later messages back:
 await session.unrevert()
 ```
@@ -257,7 +257,9 @@ void watch()
 - `session-deleted`: the host removed an entry. `entry` is the removed entry.
 - `revoked`: `host.revoke` or `unshare` took the access of the user `principalId` to `threadId`. See [Use your own access tables](./access#use-your-own-access-tables).
 
-Each host reports only the sessions that are open in it. A session with no status event is not open, so show it as idle.
+Each host reports only the sessions that are open in it. For those sessions, the status also counts the turns and the questions that another host writes to the same log. A session with no status event is not open, so show it as idle.
+
+A reader that does not keep up stops. When more than 1 000 changes wait for it, its loop ends. The first statuses do not count. Call `host.events()` again: the current statuses come first again.
 
 `host.close()` does not end the readers of `events()`. Abort the signal of each reader before you close the host. If you do not abort it, the loop waits forever:
 

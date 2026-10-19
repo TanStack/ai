@@ -56,7 +56,7 @@ describe('an MCP elicitation is a live wait of the run that calls', () => {
     })
   })
 
-  it('asks a spec 2025 elicitation as a wait of the newest running call', async () => {
+  it('asks a spec 2025 elicitation as a wait of the run of the running call', async () => {
     const { session, ask } = askingSession({ city: 'Paris' })
     const calling: Parameters<typeof trackCaller>[2] = []
     const onElicit = elicitFor(calling)
@@ -88,6 +88,36 @@ describe('an MCP elicitation is a live wait of the run that calls', () => {
       payload: { action: 'decline' },
     })
     expect(ask).not.toHaveBeenCalled()
+  })
+
+  it('declines a spec 2025 elicitation while calls of two runs share the server, and asks nobody', async () => {
+    const first = askingSession({ city: 'Paris' })
+    const second = askingSession({ city: 'Rome' })
+    const calling: Parameters<typeof trackCaller>[2] = [
+      { session: first.session, run: runOf('op-user-a') },
+      { session: second.session, run: runOf('op-user-b') },
+    ]
+
+    await expect(elicitFor(calling)(form as never)).resolves.toEqual({
+      action: 'decline',
+    })
+    expect(first.ask).not.toHaveBeenCalled()
+    expect(second.ask).not.toHaveBeenCalled()
+  })
+
+  it('asks a spec 2025 elicitation when every running call is of one run', async () => {
+    const { session, ask } = askingSession({ city: 'Paris' })
+    const run = runOf('op-chat-1')
+    const calling: Parameters<typeof trackCaller>[2] = [
+      { session, run },
+      { session, run },
+    ]
+
+    await expect(elicitFor(calling)(form as never)).resolves.toEqual({
+      action: 'accept',
+      content: { city: 'Paris' },
+    })
+    expect(ask).toHaveBeenCalledTimes(1)
   })
 
   it('declines a spec 2025 elicitation that comes when no call runs', async () => {

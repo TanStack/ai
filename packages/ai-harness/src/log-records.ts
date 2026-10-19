@@ -192,6 +192,20 @@ export type HumanAnswerer = HumanTarget & {
 }
 
 /**
+ * Where the workspace of a thread is, as the session log keeps it. The root
+ * is the boundary of the workspace tools.
+ *
+ * - `'sandbox'`: a sandbox of `provider` with the id `sandboxId`. Another
+ *   host can resume it.
+ * - `'host'`: a folder on the host `hostId`. Only that host can continue
+ *   the thread, so the log is pinned to it. Without `hostId` (a host with
+ *   no stable id), every host counts as that host.
+ */
+export type WorkspaceBinding =
+  | { kind: 'sandbox'; provider: string; sandboxId: string; root: string }
+  | { kind: 'host'; hostId?: string; root: string }
+
+/**
  * A run of the run tree, with what the session needs to find its input: the
  * input that the run applies, and for an agent run, the `agent` input of the
  * first run of its chain.
@@ -297,6 +311,8 @@ export type ThreadRecord =
   | ({ type: 'harness.transferred'; transferId: string } & TransferRecord)
   /** Another agent, or the main model, answers the turns from now on. */
   | ({ type: 'harness.handoff' } & HandoffRecord)
+  /** The workspace tools bound the workspace of the thread. */
+  | { type: 'harness.workspace.bound'; binding: WorkspaceBinding }
 
 /** The record types that {@link foldThreadRecord} folds. */
 export const THREAD_RECORD_TYPES = [
@@ -318,6 +334,7 @@ export const THREAD_RECORD_TYPES = [
   'harness.transferred',
   'harness.handoff',
   'harness.state',
+  'harness.workspace.bound',
 ] as const satisfies ReadonlyArray<ThreadRecord['type']>
 
 const THREAD_TYPES = new Set<string>(THREAD_RECORD_TYPES)
@@ -368,6 +385,8 @@ export interface ThreadStateFold {
    * {@link HumanAnswerer}: a person answers, and the session pauses.
    */
   activeAgent: string | null | HumanAnswerer
+  /** The workspace of the thread, from the last `harness.workspace.bound` record. */
+  workspace: WorkspaceBinding | null
 }
 
 /** The thread state of a log with no thread-state records. */
@@ -387,6 +406,7 @@ export function emptyThreadState() {
     waits: new Map(),
     transfers: new Map(),
     activeAgent: null,
+    workspace: null,
   }
   return state
 }
@@ -778,6 +798,8 @@ export function foldThreadRecord(state: ThreadStateFold, record: LogRecord) {
       }
       return { ...state, activeAgent: human }
     }
+    case 'harness.workspace.bound':
+      return { ...state, workspace: record.binding }
     default: {
       const unhandled: never = record
       return unhandled

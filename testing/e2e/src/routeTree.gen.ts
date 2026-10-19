@@ -78,6 +78,7 @@ import { Route as ApiChatCompletionsIncompleteStreamRouteImport } from './routes
 import { Route as ApiClientToolResumeStoreRouteImport } from './routes/api.client-tool-resume-store'
 import { Route as ApiCloudflareBindingWireRouteImport } from './routes/api.cloudflare-binding-wire'
 import { Route as ApiCodingToolsRouteImport } from './routes/api.coding-tools'
+import { Route as ApiCodingWorkspaceRouteImport } from './routes/api.coding-workspace'
 import { Route as ApiCompactionUsageWireRouteImport } from './routes/api.compaction-usage-wire'
 import { Route as ApiCompactionWireRouteImport } from './routes/api.compaction-wire'
 import { Route as ApiContextOverflowRouteImport } from './routes/api.context-overflow'
@@ -191,6 +192,7 @@ import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 import { Route as ApiHarnessProtocolSplatRouteImport } from './routes/api.harness-protocol.$'
 import { Route as ApiHarnessSecretAnswerSplatRouteImport } from './routes/api.harness-secret-answer.$'
 import { Route as ApiHarnessHandoffSplatRouteImport } from './routes/api.harness-handoff.$'
+import { Route as ApiHarnessObservabilitySplatRouteImport } from './routes/api.harness-observability.$'
 import { Route as ApiHarnessWaitsSplatRouteImport } from './routes/api.harness-waits.$'
 import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
 import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcription.stream'
@@ -558,6 +560,11 @@ const ApiCloudflareBindingWireRoute =
 const ApiCodingToolsRoute = ApiCodingToolsRouteImport.update({
   id: '/api/coding-tools',
   path: '/api/coding-tools',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCodingWorkspaceRoute = ApiCodingWorkspaceRouteImport.update({
+  id: '/api/coding-workspace',
+  path: '/api/coding-workspace',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCompactionUsageWireRoute = ApiCompactionUsageWireRouteImport.update({
@@ -1151,6 +1158,12 @@ const ApiHarnessHandoffSplatRoute = ApiHarnessHandoffSplatRouteImport.update({
   path: '/api/harness-handoff/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiHarnessObservabilitySplatRoute =
+  ApiHarnessObservabilitySplatRouteImport.update({
+    id: '/api/harness-observability/$',
+    path: '/api/harness-observability/$',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiHarnessWaitsSplatRoute = ApiHarnessWaitsSplatRouteImport.update({
   id: '/api/harness-waits/$',
   path: '/api/harness-waits/$',
@@ -1246,6 +1259,7 @@ export interface FileRoutesByFullPath {
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
+  '/api/coding-workspace': typeof ApiCodingWorkspaceRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/context-overflow': typeof ApiContextOverflowRoute
@@ -1360,6 +1374,7 @@ export interface FileRoutesByFullPath {
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
   '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
   '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
+  '/api/harness-observability/$': typeof ApiHarnessObservabilitySplatRoute
   '/api/harness-waits/$': typeof ApiHarnessWaitsSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
@@ -1435,6 +1450,7 @@ export interface FileRoutesByTo {
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
+  '/api/coding-workspace': typeof ApiCodingWorkspaceRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/context-overflow': typeof ApiContextOverflowRoute
@@ -1549,6 +1565,7 @@ export interface FileRoutesByTo {
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
   '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
   '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
+  '/api/harness-observability/$': typeof ApiHarnessObservabilitySplatRoute
   '/api/harness-waits/$': typeof ApiHarnessWaitsSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
@@ -1625,6 +1642,7 @@ export interface FileRoutesById {
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
+  '/api/coding-workspace': typeof ApiCodingWorkspaceRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/context-overflow': typeof ApiContextOverflowRoute
@@ -1739,6 +1757,7 @@ export interface FileRoutesById {
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
   '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
   '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
+  '/api/harness-observability/$': typeof ApiHarnessObservabilitySplatRoute
   '/api/harness-waits/$': typeof ApiHarnessWaitsSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
@@ -1816,6 +1835,7 @@ export interface FileRouteTypes {
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-wire'
     | '/api/coding-tools'
+    | '/api/coding-workspace'
     | '/api/compaction-usage-wire'
     | '/api/compaction-wire'
     | '/api/context-overflow'
@@ -1930,6 +1950,7 @@ export interface FileRouteTypes {
     | '/api/harness-protocol/$'
     | '/api/harness-secret-answer/$'
     | '/api/harness-handoff/$'
+    | '/api/harness-observability/$'
     | '/api/harness-waits/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
@@ -2005,6 +2026,7 @@ export interface FileRouteTypes {
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-wire'
     | '/api/coding-tools'
+    | '/api/coding-workspace'
     | '/api/compaction-usage-wire'
     | '/api/compaction-wire'
     | '/api/context-overflow'
@@ -2119,6 +2141,7 @@ export interface FileRouteTypes {
     | '/api/harness-protocol/$'
     | '/api/harness-secret-answer/$'
     | '/api/harness-handoff/$'
+    | '/api/harness-observability/$'
     | '/api/harness-waits/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
@@ -2194,6 +2217,7 @@ export interface FileRouteTypes {
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-wire'
     | '/api/coding-tools'
+    | '/api/coding-workspace'
     | '/api/compaction-usage-wire'
     | '/api/compaction-wire'
     | '/api/context-overflow'
@@ -2308,6 +2332,7 @@ export interface FileRouteTypes {
     | '/api/harness-protocol/$'
     | '/api/harness-secret-answer/$'
     | '/api/harness-handoff/$'
+    | '/api/harness-observability/$'
     | '/api/harness-waits/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
@@ -2384,6 +2409,7 @@ export interface RootRouteChildren {
   ApiClientToolResumeStoreRoute: typeof ApiClientToolResumeStoreRoute
   ApiCloudflareBindingWireRoute: typeof ApiCloudflareBindingWireRoute
   ApiCodingToolsRoute: typeof ApiCodingToolsRoute
+  ApiCodingWorkspaceRoute: typeof ApiCodingWorkspaceRoute
   ApiCompactionUsageWireRoute: typeof ApiCompactionUsageWireRoute
   ApiCompactionWireRoute: typeof ApiCompactionWireRoute
   ApiContextOverflowRoute: typeof ApiContextOverflowRoute
@@ -2497,6 +2523,7 @@ export interface RootRouteChildren {
   ApiHarnessProtocolSplatRoute: typeof ApiHarnessProtocolSplatRoute
   ApiHarnessSecretAnswerSplatRoute: typeof ApiHarnessSecretAnswerSplatRoute
   ApiHarnessHandoffSplatRoute: typeof ApiHarnessHandoffSplatRoute
+  ApiHarnessObservabilitySplatRoute: typeof ApiHarnessObservabilitySplatRoute
   ApiHarnessWaitsSplatRoute: typeof ApiHarnessWaitsSplatRoute
 }
 
@@ -2983,6 +3010,13 @@ declare module '@tanstack/react-router' {
       path: '/api/coding-tools'
       fullPath: '/api/coding-tools'
       preLoaderRoute: typeof ApiCodingToolsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/coding-workspace': {
+      id: '/api/coding-workspace'
+      path: '/api/coding-workspace'
+      fullPath: '/api/coding-workspace'
+      preLoaderRoute: typeof ApiCodingWorkspaceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/compaction-usage-wire': {
@@ -3776,6 +3810,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHarnessHandoffSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/harness-observability/$': {
+      id: '/api/harness-observability/$'
+      path: '/api/harness-observability/$'
+      fullPath: '/api/harness-observability/$'
+      preLoaderRoute: typeof ApiHarnessObservabilitySplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/harness-waits/$': {
       id: '/api/harness-waits/$'
       path: '/api/harness-waits/$'
@@ -3946,6 +3987,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiClientToolResumeStoreRoute: ApiClientToolResumeStoreRoute,
   ApiCloudflareBindingWireRoute: ApiCloudflareBindingWireRoute,
   ApiCodingToolsRoute: ApiCodingToolsRoute,
+  ApiCodingWorkspaceRoute: ApiCodingWorkspaceRoute,
   ApiCompactionUsageWireRoute: ApiCompactionUsageWireRoute,
   ApiCompactionWireRoute: ApiCompactionWireRoute,
   ApiContextOverflowRoute: ApiContextOverflowRoute,
@@ -4060,6 +4102,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHarnessProtocolSplatRoute: ApiHarnessProtocolSplatRoute,
   ApiHarnessSecretAnswerSplatRoute: ApiHarnessSecretAnswerSplatRoute,
   ApiHarnessHandoffSplatRoute: ApiHarnessHandoffSplatRoute,
+  ApiHarnessObservabilitySplatRoute: ApiHarnessObservabilitySplatRoute,
   ApiHarnessWaitsSplatRoute: ApiHarnessWaitsSplatRoute,
 }
 export const routeTree = rootRouteImport

@@ -15,6 +15,7 @@ import type { LogRecord } from '@tanstack/ai-persistence'
 import type { CredentialsAccess } from './auth'
 import type { AnyHarness } from './define'
 import type { HandoffOptions } from './handoff'
+import type { HandoffRecord } from './log-records'
 import type { UsageCounts } from './usage'
 
 /** A user message: plain text, or content parts (text, images, files). */
@@ -80,8 +81,11 @@ export type SendOptions = {
   ephemeral?: ReadonlyArray<ModelMessage>
   /** System prompts ahead of the harness prompts, from server code only. */
   systemPreamble?: Array<string>
-  /** @internal The AG-UI `runId` of a `POST run` request. The turn runs as it. */
-  runId?: string
+  /**
+   * A W3C `traceparent` header value of the caller. The span of the turn gets
+   * a link to it. A value that is not a valid `traceparent` is ignored.
+   */
+  traceparent?: string
 } & (
   | {
       mode?: 'prompt'
@@ -98,6 +102,13 @@ export type SendOptions = {
     }
   | { mode: 'steer' | 'followUp'; busy?: never; as?: never }
 )
+
+/**
+ * @internal `SendOptions` with the AG-UI `runId` of a `POST run` request: the
+ * turn runs as it. The HTTP handler and an offered prompt pass it to
+ * `sendForRun`. The package index does not export it.
+ */
+export type SendForRunOptions = SendOptions & { runId?: string }
 
 /** Options of `session.send` for a message to an agent run. See `send`. */
 export interface AgentSendOptions {
@@ -136,7 +147,12 @@ export type Cursor = string
 /** One event in a session's ordered stream. */
 export interface SessionEvent {
   cursor: Cursor
-  /** The operation that produced the event. */
+  /**
+   * The thread of the event: the thread of the session, or a child thread
+   * of its tree.
+   */
+  threadId: string
+  /** The operation that produced the event. It is also the AG-UI `runId`. */
   operationId: string
   event: StreamChunk
 }
@@ -274,16 +290,7 @@ export type HarnessInput = (
    * `pendingQuestions` (a `step.ask` wait, a live MCP question), or a
    * `human` wait.
    */
-  | {
-      op: 'answer'
-      questionId: string
-      value: unknown
-      /**
-       * @internal A secret answer that another host saved in the credential
-       * store, for the owner of the log. The owner reads it once.
-       */
-      ref?: string
-    }
+  | { op: 'answer'; questionId: string; value: unknown }
   | { op: 'config'; key: string; value: unknown }
   /** Run one tool in `expose.tools` with no model. See `session.tool`. */
   | { op: 'tool'; name: string; args?: unknown; meta?: Record<string, unknown> }
@@ -304,6 +311,16 @@ export type HarnessInput = (
       run?: string
     }
 ) & { inputId?: string }
+
+/**
+ * @internal An input that a host offers to the owner of the log. An answer
+ * can carry `ref`: a secret answer that another host saved in the
+ * credential store, for the owner of the log. The owner reads it once. The
+ * package index does not export it.
+ */
+export type OfferedHarnessInput =
+  | Exclude<HarnessInput, { op: 'answer' }>
+  | (Extract<HarnessInput, { op: 'answer' }> & { ref?: string })
 
 /**
  * An input that waits to run. `session.inputs()` lists them. Change one with
@@ -654,7 +671,10 @@ export interface Operation<TResult> extends PromiseLike<TResult> {
    * A resolved receipt means that the input survives a restart.
    */
   readonly receipt: Promise<Receipt>
-  /** This operation's events, from `from` (exclusive) onward. */
+  /**
+   * This operation's events, from `from` (exclusive) onward. Default: from
+   * the start of the operation.
+   */
   events: (options?: {
     from?: Cursor
     signal?: AbortSignal
@@ -682,11 +702,17 @@ export interface AgentRun<TResult> extends Operation<TResult> {
    * runs as a follow-up. `mode: 'followUp'` runs the agent again after the
    * run ends, on the run's transcript with the message added, with its
    * first input and options. A run that ended starts again at once. The
-   * receipt names the run that gets the message.
+   * receipt names the run that gets the message. `principal` is who sends
+   * it. Default: the user of the run. On a handle of `host.open`, the
+   * principal of the handle, after its access check.
    */
   send: (
     message: UserInput,
-    options?: { mode?: 'steer' | 'followUp'; inputId?: string },
+    options?: {
+      mode?: 'steer' | 'followUp'
+      inputId?: string
+      principal?: Principal
+    },
   ) => Promise<Receipt>
 }
 
@@ -783,6 +809,13 @@ export interface UsageUpdate {
   model: string
   /** The principal id of the sender, when known. */
   sender?: string
+  /**
+   * `plugin:<name>` for a call of `ctx.model.chat`, and `router` for a call
+   * of `model.chat` in `routing.router`. Turns and agent runs have none.
+   */
+  source?: string
+  /** The `label` of a `ctx.model.chat` call, when it has one. */
+  label?: string
   /** The usage of this call. */
   usage: Omit<UsageCounts, 'calls'>
   /** The new totals of the thread. */
@@ -853,6 +886,26 @@ export const HARNESS_EVENTS = {
    * known), the `usage` of the call, and the new thread `total`.
    */
   usage: 'harness.usage',
+  /** The owner stored an input that waits behind a running turn. */
+  inputQueued: 'harness.input.queued',
+  /** A host became the owner of the log, at its first append. */
+  ownershipChanged: 'harness.ownership.changed',
+  /**
+   * The workspace that the log binds the thread to is gone, so the
+   * workspace tools fail. The value has the `operationId` of the run that
+   * tried it, and the `hostId` of a folder on a host.
+   */
+  stranded: 'harness.stranded',
+  /** The conversation moved to another thread, or came from one. */
+  transferred: 'harness.transferred',
+  /**
+   * A wait opened in the log: a question, a `step.ask`, a handoff to a
+   * person, or a wait of a background agent run. The interrupts of a turn
+   * come in its `RUN_FINISHED` instead.
+   */
+  waitOpened: 'harness.wait.opened',
+  /** A wait ended. */
+  waitSettled: 'harness.wait.settled',
   /**
    * The events after the reader's cursor are gone (a truncate dropped them),
    * so the stream skips to the first event it has. The value is an
@@ -873,4 +926,97 @@ export interface EventGap {
   resumeAt: Cursor
   /** `'truncated'`: a truncate of the log dropped the events. */
   reason: 'truncated' | 'evicted'
+}
+
+/**
+ * The `value` of each `harness.*` `CUSTOM` event, by event name. A client in
+ * another language can use it as the event catalog.
+ *
+ * @example
+ * ```ts
+ * function onGap(gap: HarnessEventValues['harness.gap']) {
+ *   console.log(`Events lost. The stream goes on from ${gap.resumeAt}.`)
+ * }
+ * ```
+ */
+export interface HarnessEventValues {
+  'harness.operation.started': {
+    operationId: string
+    kind: OperationKind
+    agent?: string
+  }
+  'harness.operation.finished': {
+    operationId: string
+    status: OperationStatus
+  }
+  'harness.operation.resumed': { operationId: string; resumedFrom?: string }
+  'harness.config.changed': { key: string; value: unknown }
+  'harness.settings.changed': { settings: ThreadSettings }
+  'harness.commands.changed': Record<string, never>
+  'harness.reloaded': { error?: string }
+  'harness.question': PendingQuestion
+  'harness.question.answered': { questionId: string }
+  'harness.plugin.event': { plugin: string; name: string; value: unknown }
+  'harness.auth_required': AuthRequest
+  'harness.input.accepted': { inputId: string; op: HarnessInput['op'] }
+  'harness.input.applied': { inputId: string; operationId: string }
+  /**
+   * `offered` is true when the owner refused an offer from another host, and
+   * the log has another input with the id. That input is not refused.
+   */
+  'harness.input.rejected': {
+    inputId: string
+    reason: string
+    offered?: true
+  }
+  'harness.input.settled': InputSettlement
+  'harness.input.delivery': {
+    inputId: string
+    delivery: WaitingInput['delivery']
+  }
+  'harness.media': MediaRecord
+  'harness.turn.retry': {
+    operationId: string
+    retries: number
+    error: { message: string; code?: string; retryAfterMs?: number }
+    continued: boolean
+  }
+  'harness.reset': { inputId: string; note?: string }
+  'harness.revert': { messageId: string | null }
+  'harness.usage': UsageUpdate
+  'harness.input.queued': {
+    inputId: string
+    delivery: WaitingInput['delivery']
+  }
+  'harness.ownership.changed': {
+    /** The ownership epoch of the new owner. */
+    epoch: number
+    /**
+     * `taken_over`: the ownership of the old owner expired with no release,
+     * so it stopped, and this host took the log.
+     */
+    reason: 'acquired' | 'taken_over'
+  }
+  'harness.stranded': { operationId?: string; hostId?: string }
+  'harness.handoff': HandoffRecord
+  'harness.transferred': {
+    transferId: string
+    /** On the target thread: the thread it came from. */
+    from?: { threadId: string }
+    /** On the source thread: the thread it went to. */
+    to?: { threadId: string }
+  }
+  'harness.wait.opened': {
+    waitId: string
+    kind: 'approval' | 'question' | 'sign-in' | 'client-tool' | 'human'
+    runId: string
+    message?: string
+    /** Epoch milliseconds. */
+    expiresAt?: number
+  }
+  'harness.wait.settled': {
+    waitId: string
+    outcome: 'answered' | 'cancelled' | 'expired'
+  }
+  'harness.gap': EventGap
 }

@@ -223,7 +223,21 @@ describe('foldThreadRecord', () => {
       'harness.transferred',
       'harness.handoff',
       'harness.state',
+      'harness.workspace.bound',
     ])
+  })
+
+  it('keeps the last workspace binding', () => {
+    const bound = (root: string) =>
+      ({
+        type: 'harness.workspace.bound',
+        binding: { kind: 'host', root },
+      }) as const
+    expect(emptyThreadState().workspace).toBeNull()
+    expect(fold([bound('/a'), bound('/b')]).workspace).toEqual({
+      kind: 'host',
+      root: '/b',
+    })
   })
 
   it('keeps the target of the last handoff as the active agent', () => {

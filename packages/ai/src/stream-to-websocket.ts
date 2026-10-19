@@ -15,6 +15,12 @@ import type { ModelMessage, StreamChunk, UIMessage } from './types'
 export interface WebSocketLike {
   send: (data: string) => void
   close: (code?: number, reason?: string) => void
+  /**
+   * Bytes that `send` queued and the socket did not write yet. A server can
+   * read it to stop sending to a slow client. A socket without it gets no
+   * backpressure.
+   */
+  readonly bufferedAmount?: number
   addEventListener: {
     (type: 'message', handler: (ev: { data: unknown }) => void): void
     (type: 'close' | 'error', handler: () => void): void

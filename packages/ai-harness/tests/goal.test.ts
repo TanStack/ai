@@ -4,6 +4,7 @@ import { toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import { GoalMet, goal, selectGoal } from '../src/first-party'
+import { loadLogState, logIdOf, sessionOf } from '../src/log'
 import {
   after,
   appendToLog,
@@ -109,6 +110,9 @@ async function waitForStatus(session: HarnessSession, expected: string) {
   await waitFor(async () => expect(await status(session)).toBe(expected))
 }
 
+/** The goal prompt: a `'context'` prompt, the last system prompt. */
+const GOAL_PROMPT = 'You work toward this goal:'
+
 /** The last message the main model got on `call`. */
 function lastMessage(call: unknown) {
   return messageTexts(call).at(-1)
@@ -142,15 +146,47 @@ describe('goal', () => {
     expect(lastMessage(calls[2])).toBe(
       'Keep working on the goal: all tests pass. Last check: One test still fails.',
     )
-    expect(JSON.stringify(calls[0].systemPrompts)).toContain(
-      'You work toward this goal: all tests pass.',
+    // The goal prompt is the last system prompt, not a message.
+    expect(JSON.stringify(calls[0].systemPrompts.at(-1))).toContain(
+      `${GOAL_PROMPT} all tests pass.`,
     )
+    expect(JSON.stringify(calls[0].messages)).not.toContain(GOAL_PROMPT)
     expect(read).toHaveLength(3)
     expect(read[0]).toContain('Goal: all tests pass')
     expect(read[0]).toContain('assistant: wrote the test')
     expect(met).toEqual([{ goal: 'all tests pass', reason: 'All tests pass.' }])
     await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(session.snapshot().queuedTurns).toBe(0)
+    await host.close()
+  })
+
+  it('counts each judge call under plugin:tanstack/goal', async () => {
+    const { adapter } = mockAdapter([])
+    const judge: AnyTextAdapter = {
+      ...adapter,
+      structuredOutput: async () => ({
+        data: { met: true, reason: 'Done.' },
+        rawText: '{}',
+        usage: { promptTokens: 30, completionTokens: 5, totalTokens: 35 },
+      }),
+    }
+    const { host, session } = await start({
+      replies: [() => text('done')],
+      judge,
+    })
+
+    await session.command({ name: 'goal', input: 'finish' })
+    await waitForStatus(
+      session,
+      'Goal: finish\nStatus: met, round 1 of 20.\nLast check: Done.',
+    )
+
+    expect(session.usage().bySource).toEqual({
+      'plugin:tanstack/goal': expect.objectContaining({
+        calls: 1,
+        totalTokens: 35,
+      }),
+    })
     await host.close()
   })
 
@@ -242,7 +278,7 @@ describe('goal', () => {
     await session.command({ name: 'goal', input: 'finish' })
     await waitFor(() => expect(session.inputs()).toHaveLength(1))
     const [waiting] = session.inputs()
-    if (waiting) await session.cancelInput(waiting.inputId)
+    if (waiting) await session.cancelInput({ inputId: waiting.inputId })
     hold.open()
     await question
     await waitFor(() => expect(session.snapshot().status).toBe('idle'))
@@ -481,5 +517,46 @@ describe('goal', () => {
     const state = { plugins: { 'tanstack/goal': { text: 'finish' } } }
 
     expect(selectGoal(state)).toBeNull()
+  })
+})
+
+describe('goal with two users', () => {
+  it('runs each round as the user who set the goal, not as the owner of the thread', async () => {
+    const main = mockAdapter([
+      () => text('Round one.'),
+      () => text('Round two.'),
+    ])
+    const { judge } = scriptedJudge([
+      { met: false, reason: 'Not yet.' },
+      { met: true, reason: 'Done.' },
+    ])
+    const persistence = memoryPersistence()
+    const host = createHarnessHost({ persistence })
+    const harness = defineHarness({
+      name: 'test/goal',
+      adapter: main.adapter,
+      plugins: () => [goal({ judge })],
+    })
+    // Olga opens the thread first, so she owns it.
+    await host.open(harness, { threadId: 't', principal: { id: 'olga' } })
+    const bea = await host.open(harness, {
+      threadId: 't',
+      principal: { id: 'bea' },
+    })
+
+    await bea.command({ name: 'goal', input: 'ship it' })
+    await waitFor(() => expect(main.calls).toHaveLength(2))
+    await bea.whenIdle()
+
+    const state = await loadLogState({
+      store: persistence.stores.log,
+      logId: logIdOf({ logId: 't' }),
+      rootThread: 't',
+    })
+    const prompts = [...sessionOf(state, 't').inputs.values()]
+      .filter((logged) => logged.input.op === 'prompt')
+      .map((logged) => logged.principal?.id)
+    expect(prompts).toEqual(['bea', 'bea'])
+    await host.close()
   })
 })

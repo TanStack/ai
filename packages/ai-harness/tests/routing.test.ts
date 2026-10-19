@@ -805,3 +805,54 @@ describe('routing and ownership', () => {
     await host.close()
   })
 })
+
+describe('routing.router model', () => {
+  it('counts the model calls of context.model.chat under router, in the turn', async () => {
+    const billing = textAgent('billing', 'Billing here')
+    const { host, session, log, main } = await openRouting({
+      router: async ({ model, messages }) => {
+        const { text: answer } = await model.chat({
+          options: { messages },
+          label: 'pick',
+        })
+        return answer === 'billing' ? 'billing' : undefined
+      },
+      agents: [billing.agent],
+      replies: [
+        () =>
+          text('billing').map((chunk) =>
+            chunk.type === EventType.RUN_FINISHED
+              ? {
+                  ...chunk,
+                  usage: {
+                    promptTokens: 7,
+                    completionTokens: 3,
+                    totalTokens: 10,
+                  },
+                }
+              : chunk,
+          ),
+      ],
+    })
+
+    const operation = session.send('my invoice is wrong')
+    const turn = await operation
+
+    expect(turn.text).toBe('billing:\nBilling here')
+    expect(messageTexts(main.calls[0])).toEqual(['my invoice is wrong'])
+    const usage = session.usage()
+    expect(usage.total).toMatchObject({ calls: 1, totalTokens: 10 })
+    expect(usage.bySource).toEqual({ router: usage.total })
+    const records = (await log.read({ logId: logIdOf({ logId: THREAD }) }))
+      .map((entry) => entry.record)
+      .filter((record) => record.type === 'harness.usage')
+    expect(records).toEqual([
+      expect.objectContaining({
+        source: 'router',
+        label: 'pick',
+        runId: operation.id,
+      }),
+    ])
+    await host.close()
+  })
+})

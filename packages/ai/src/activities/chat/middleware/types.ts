@@ -432,7 +432,8 @@ export interface StructuredOutputMiddlewareConfig extends Omit<
 // ===========================
 
 /**
- * Context provided to tool call hooks (onBeforeToolCall / onAfterToolCall).
+ * Context provided to tool call hooks (onBeforeToolCall / onGuardToolCall /
+ * onAfterToolCall).
  */
 export interface ToolCallHookContext {
   /** The tool call being executed */
@@ -441,7 +442,8 @@ export interface ToolCallHookContext {
   tool: Tool | undefined
   /**
    * Parsed arguments for the tool call, before the `inputSchema` check: no
-   * schema defaults or transforms yet, and possibly invalid.
+   * schema defaults or transforms yet, and possibly invalid. In
+   * `onGuardToolCall`, these are the final checked arguments.
    */
   args: unknown
   /** Name of the tool */
@@ -462,6 +464,20 @@ export type BeforeToolCallDecision =
   | undefined
   | null
   | { type: 'transformArgs'; args: unknown }
+  | { type: 'skip'; result: unknown }
+  | { type: 'abort'; reason?: string }
+
+/**
+ * Decision returned from onGuardToolCall. A guard cannot change the args.
+ * - undefined/void: allow the call. The next guard runs.
+ * - { type: 'skip', result }: deny the call. The tool does not run, and the
+ *   model gets `result`, as for an `onBeforeToolCall` skip.
+ * - { type: 'abort', reason }: abort the entire chat run
+ */
+export type GuardToolCallDecision =
+  | void
+  | undefined
+  | null
   | { type: 'skip'; result: unknown }
   | { type: 'abort'; reason?: string }
 
@@ -857,6 +873,24 @@ export interface ChatMiddleware<
     ctx: ChatMiddlewareContext<TContext>,
     hookCtx: ToolCallHookContext,
   ) => BeforeToolCallDecision | Promise<BeforeToolCallDecision>
+
+  /**
+   * The guard tier. Called for every tool call, just before a server tool
+   * runs and before a client tool is sent to the client. Not called while
+   * the call waits for approval.
+   *
+   * It runs after all `onBeforeToolCall` hooks and after the `inputSchema`
+   * check, so `hookCtx.args` holds the final checked args that the tool gets.
+   * It also runs for calls that `onBeforeToolCall` let through unchanged.
+   *
+   * It is not first-win. The guard of each middleware runs in order, until
+   * one returns a decision. Use it for checks that must not be skipped, such
+   * as permissions.
+   */
+  onGuardToolCall?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    hookCtx: ToolCallHookContext,
+  ) => GuardToolCallDecision | Promise<GuardToolCallDecision>
 
   /**
    * Called after a tool execution completes (success or failure).

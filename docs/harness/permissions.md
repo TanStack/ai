@@ -98,6 +98,8 @@ await session.command({ name: 'mode', input: 'plan' })
 
 `session.command({ name: 'mode' })` with no input shows the current mode. In `acceptEdits` mode, an edit outside `root` or of a `.env` file still asks.
 
+A mode change applies from the next turn. A turn that runs keeps the mode that it started with, so a switch to `bypass` does not change its later tool calls.
+
 ### Keep the mode on the server
 
 A client that can set `mode` can set `bypass`. Then every call runs with no question. So by default, a client cannot change the mode:
@@ -161,6 +163,8 @@ Two more rules apply to each tool:
 - A tool with no rule runs without a question. To ask for each tool that has no rule, set `default: 'ask'`.
 - When the last rule of a tool is a `deny` with no `resource`, the model does not get the tool.
 
+The plugin decides each call in the guard hook, [`onGuardToolCall`](../advanced/middleware#onguardtoolcall). It runs after the input check and after every middleware that changes the arguments. So the rules see the arguments that the tool gets.
+
 ### Paths
 
 - Inside `root`, a rule matches the path from `root`, for example `src/app.ts`. Outside `root`, it matches the full path, for example `/etc/hosts`.
@@ -214,16 +218,17 @@ A formatter runs code from the project, for example `prettier.config.js` or a pa
 
 It adds one rule: `{ tool: 'formatter:*', decision: 'ask', kind: 'execute' }`. Each run is named `formatter:` and the formatter name, for example `formatter:prettier`.
 
-The rules decide the formatter together with the call that writes, before that call runs. One approval covers the write and its formatter. The formatter runs after the write, so no question comes in the middle of a call.
+The rules decide the formatter as a part of the call that writes, before that call runs. The call gets one approval for the write and its formatter. The formatter runs after the write, so no question comes in the middle of a call.
 
 | Mode | What happens |
 | --- | --- |
 | `default` | The write asks, and the approval also lets the formatter run. |
-| `acceptEdits` | The write asks, because the formatter asks. |
+| `acceptEdits` | A write that a formatter formats asks, because the formatter asks. |
 | `bypass` | The write and the formatter run without a question. |
 | `plan` | Neither runs. No file changes in this mode. |
 
-- An `always` answer also saves `formatter:prettier` for the project, so the user answers once.
+- A `reject` stops the call. Nothing is written, and the formatter does not run.
+- An `always` answer also saves the formatter for the project, tied to a hash of its config files (`formatter:prettier@<hash>`). The user answers once, until those files change.
 - A rule that denies the formatter skips it. The write still runs, and the tool result says that the formatter did not run.
 - Without `permissions()`, the formatter runs without a question.
 
@@ -298,7 +303,7 @@ The same check runs in every agent run of the session:
 - A background agent run that needs an approval stops with status `waiting`. Its approval is in `pendingWaits` of the same session. Answer it with `resolve`, and the run continues. See [When a background agent waits](./subagents#when-a-background-agent-waits).
 - An agent that the model calls as a tool inside a turn cannot stop for an approval. A call of it that asks gets the tool error `This call needs the approval of the user, and this run cannot ask for it.`
 - In `plan` mode, a child cannot change a file. Its call gets the tool error `This tool is not allowed in plan mode.`
-- The `permissions` of an [agent profile](./agents) count only while that profile is the primary agent. They do not apply when the profile runs as a subagent.
+- The `permissions` of an [agent profile](./agents) count while that profile is the primary agent, in its turns and in each child run. A child run does not use the rules of its own profile.
 - [Coding agents](./coding-agents#plan-mode) such as Claude Code start read-only in `plan` mode.
 
 ## Rules for your own tool

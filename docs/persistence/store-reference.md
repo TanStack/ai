@@ -672,7 +672,7 @@ interface LogStore {
     ownerId: string
     ttlMs: number
     affinity?: string
-  }): Promise<{ epoch: number } | null>
+  }): Promise<{ epoch: number; expired?: boolean } | null>
   renew(claim: {
     logId: string
     ownerId: string
@@ -690,6 +690,7 @@ interface LogStore {
     epoch: number
     affinity: string | null
   }): Promise<void>
+  heartbeat(beat: { hostId: string; ttlMs: number }): Promise<void>
   listOrphaned(query: {
     limit: number
     harnesses?: ReadonlyArray<string>
@@ -799,10 +800,14 @@ or a `wakeInMs` less than 0, rejects with `RangeError`.
 
 - It returns `null` when another owner holds a live record: not released, and not
   expired.
-- It returns `null` when the log has an affinity that is not `claim.affinity`.
+- It returns `null` when the log has an affinity that is not `claim.affinity`, and
+  the host of that affinity is alive.
 - For the owner of a live record, it extends the expiry and returns the same epoch.
 - Else it adds 1 to the epoch, stores `harness`, clears the wake time, and returns
   `{ epoch }`.
+- When the record had another owner that did not release, it returns
+  `{ epoch, expired: true }`. That owner stopped. The harness then sends
+  `harness.ownership.changed` with `reason: taken_over`.
 
 For the other ownership methods:
 
@@ -814,6 +819,10 @@ For the other ownership methods:
   does nothing.
 - `setAffinity` pins the log to the workers with that affinity, or unpins it with
   `null`. It is fenced.
+- `heartbeat` marks the host `hostId` alive for `ttlMs` from now. `hostId` is the
+  affinity of its pins. A pin counts only while its host is alive, so the logs of a
+  host that stopped go to other hosts. A host that is alive keeps its pins, also on
+  the logs that it released.
 
 `listOrphaned` finds the logs that have work and no live owner. A worker sweep
 ([`createHarnessWorker`](../harness/workers) or `host.resumePending`) calls it, then
@@ -827,7 +836,8 @@ applies:
 Then:
 
 - With `harnesses`, the store lists only the logs with one of those harness names.
-- A log with an affinity is listed only when the query has the same `affinity`.
+- A log with an affinity is listed only when the query has the same `affinity`, or
+  when the host of the affinity is not alive.
 - The log that is due first comes first, and the store lists at most `limit` logs.
   `limit: 0` returns `[]`.
 
@@ -900,6 +910,11 @@ CREATE TABLE log_owner (
   wake_at TIMESTAMPTZ
 );
 
+CREATE TABLE log_hosts (
+  host_id TEXT PRIMARY KEY,
+  expires_at TIMESTAMPTZ NOT NULL -- the heartbeat expires
+);
+
 CREATE TABLE log_offers (
   id BIGSERIAL PRIMARY KEY, -- the offer order
   log_id TEXT NOT NULL,
@@ -942,6 +957,20 @@ For the other methods:
   only when the rules for `acquire` allow it.
 - Use the database clock (`now()`) for each expiry, wake time, and `offeredAt`. The
   clocks of the hosts can disagree.
+- `heartbeat` is one upsert into `log_hosts`. In `acquire` and `listOrphaned`, an
+  affinity counts only when its row has `expires_at > now()`:
+
+```sql
+INSERT INTO log_hosts (host_id, expires_at)
+VALUES (:host_id, now() + :ttl_ms * interval '1 millisecond')
+ON CONFLICT (host_id) DO UPDATE SET expires_at = EXCLUDED.expires_at;
+
+-- The pin of a log that `acquire` and `listOrphaned` respect.
+SELECT o.affinity FROM log_owner o
+JOIN log_hosts h ON h.host_id = o.affinity AND h.expires_at > now()
+WHERE o.log_id = :log_id;
+```
+
 - Keep the snapshot in one more table, with one row per log.
 - `deleteLog` deletes the rows of the log in the other tables, and resets its
   `log_owner` row: `head = 0`, `first_seq = 1`, `released = TRUE`, and no `wake_at`

@@ -1,4 +1,3 @@
-import { chat } from '@tanstack/ai'
 import { defineCommand } from '../commands'
 import { definePlugin } from '../plugins'
 import { emptyUsage } from '../usage'
@@ -59,12 +58,18 @@ export function compact(options: {
             if (cut < 2) return 'The conversation is already short.'
             const older = messages.slice(0, cut)
             const transcript = transcriptText(older)
-            const { text: summary } = await chat({
-              adapter: await run.keys.adapter(options.adapter),
-              messages: [
-                { role: 'user', content: `${SUMMARY_PROMPT}\n\n${transcript}` },
-              ],
-              stream: false,
+            const { text: summary } = await ctx.model.chat({
+              adapter: options.adapter,
+              run,
+              label: 'compact',
+              options: {
+                messages: [
+                  {
+                    role: 'user',
+                    content: `${SUMMARY_PROMPT}\n\n${transcript}`,
+                  },
+                ],
+              },
             })
             // An empty summary would replace the history with nothing.
             if (!summary.trim()) {

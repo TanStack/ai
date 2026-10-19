@@ -249,6 +249,12 @@ For a follow-up, `receipt.operationId` is the id of the new run. While the run b
 
 A steer joins only a run of the same sender. A steer from another sender runs as a follow-up for that sender. As a result, no message runs with the credentials of another person.
 
+Who sends:
+
+- `run.send` and `run.cancel` act as the user of the run, not as the user who opened the session.
+- To send as another user, pass `principal`: `run.send('Add a title.', { principal })`.
+- `session.agents.drafter.run(input, { principal })` and `start` run the agent as that user.
+
 An agent written as plain code, with no `ctx.chat` call, makes no model call. It gets a steer only as a follow-up.
 
 To message a run from the browser, see [Send a message to a running agent](./connect#send-a-message-to-a-running-agent).
@@ -411,7 +417,7 @@ Known limits:
 
 ## Show what a child wrote after a reload
 
-Your UI shows each child's text and tool calls while they stream. Then the user reloads the page. The thread's transcript has only the agent tool call and its result, because each child keeps its own messages. `session.agentTranscript(subagentRunId)` gives you those messages back.
+Your UI shows each child's text and tool calls while they stream. Then the user reloads the page. The thread's transcript has only the agent tool call and its result, because each child keeps its own messages. `session.agentTranscript({ subagentRunId })` gives you those messages back.
 
 Each agent tool result names its child with `subagentRunId`. Read the result, then ask for the child:
 
@@ -444,7 +450,7 @@ for (const message of await session.transcript()) {
   if (!('subagentRunId' in result)) continue
   if (typeof result.subagentRunId !== 'string') continue
 
-  const child = await session.agentTranscript(result.subagentRunId)
+  const child = await session.agentTranscript({ subagentRunId: result.subagentRunId })
   console.log(child.map((item) => item.content))
 }
 ```
@@ -469,7 +475,7 @@ const client = createHarnessClient<typeof studio>({
 })
 
 export async function childMessages(subagentRunId: string) {
-  return client.agentTranscript(subagentRunId)
+  return client.agentTranscript({ subagentRunId })
 }
 ```
 
@@ -537,7 +543,35 @@ export const studio = defineHarness({
 
 The router can also return a pick of its own: `'main'`, a name, a list of names, `{ names, order }`, or `{ steps }`. Anywhere a name goes, `{ name, input }` can go too, for example `{ name: 'pricer', input: { vendor: 'Acme' } }`. If a picked agent has an `inputSchema` and no input, the turn fails with `Agent "pricer" needs input. Return { name: 'pricer', input } from the router.` See [Route, or let the model pick](../chat/subagents#route-or-let-the-model-pick) for each pick.
 
-The router also gets `session`, the `input` of the turn as the user sent it, `operationId`, `inputId`, `abortSignal`, and `activeAgent`. Next to `router`, `routing` takes `order`, `limits`, `sandbox`, `after`, and `humans`. The first three work the same as in `subagents`.
+The router also gets `session`, the `input` of the turn as the user sent it, `operationId`, `inputId`, `abortSignal`, `activeAgent`, and `model`. Next to `router`, `routing` takes `order`, `limits`, `sandbox`, `after`, and `humans`. The first three work the same as in `subagents`.
+
+### Count the model calls of the router
+
+Your router asks a model which agent fits. A plain `chat()` call does not count in `session.usage()`, and it keeps running after the user cancels the turn. Call the model with `model.chat` instead:
+
+```ts group=harness-routing
+export const helpdesk = defineHarness({
+  name: 'acme/helpdesk',
+  adapter: openaiText('gpt-6.1-sol'),
+  agents: [writer, pricer],
+  routing: {
+    router: async ({ model, messages }) => {
+      const { text } = await model.chat({
+        label: 'pick',
+        options: {
+          messages,
+          systemPrompts: ['Answer "writer" for a blog post, else "main". Answer one word.'],
+        },
+      })
+      return text.trim() === 'writer' ? 'writer' : 'main'
+    },
+  },
+})
+```
+
+- `model.chat` takes the same options as [`ctx.model.chat`](./plugins#call-a-model-from-a-plugin) of a plugin. Without `adapter`, it uses the thread setting `model`, else the harness `adapter`.
+- The call uses the keys of the sender of the turn. A cancel of the turn stops it.
+- Its usage counts in the turn, and in the session under `router`. See [Usage of the router and transfers](./usage#usage-of-the-router-and-transfers).
 
 What the turn does with the pick:
 

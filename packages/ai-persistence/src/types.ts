@@ -845,12 +845,15 @@ export interface LogStore {
    * - Returns `null` when another owner holds the log (not released, and not
    *   expired).
    * - Returns `null` when the log has an affinity that is not
-   *   `claim.affinity`.
+   *   `claim.affinity`, and the host of that affinity is alive (see
+   *   `heartbeat`). The pin of a host with no live heartbeat does not count.
    * - When `ownerId` already holds the log, extends the expiry and returns
    *   the same epoch.
    * - Else increments the epoch, stores `harness`, clears the wake time, and
    *   returns the new epoch. The epoch never goes down, also after `release`
    *   and `deleteLog`.
+   * - When the log had another owner whose ownership expired with no
+   *   `release`, the result has `expired: true`: that owner stopped.
    *
    * Rejects with a `RangeError` when `ttlMs` is not more than 0.
    */
@@ -860,7 +863,7 @@ export interface LogStore {
     ownerId: string
     ttlMs: number
     affinity?: string
-  }) => Promise<{ epoch: number } | null>
+  }) => Promise<{ epoch: number; expired?: boolean } | null>
   /**
    * Extend the ownership to `ttlMs` milliseconds from now. Returns `true` only
    * when the log is not released, `epoch` is the current epoch, and `ownerId`
@@ -899,6 +902,14 @@ export interface LogStore {
     affinity: string | null
   }) => Promise<void>
   /**
+   * Mark the host `hostId` alive for `ttlMs` milliseconds of the store
+   * clock. `hostId` is the affinity of its pins. A pin counts only while its
+   * host is alive, so the logs of a host that stopped go to other hosts.
+   *
+   * Rejects with a `RangeError` when `ttlMs` is not more than 0.
+   */
+  heartbeat: (beat: { hostId: string; ttlMs: number }) => Promise<void>
+  /**
    * The logs that have work and no live owner, at most `limit` of them. A log
    * is listed for the first reason that applies:
    *
@@ -907,7 +918,8 @@ export interface LogStore {
    * 3. `'wake'`: released, and the wake time is due.
    *
    * Only logs of `harnesses` are listed, when `harnesses` is given. A log with
-   * an affinity is listed only when `affinity` is equal. The log that is due
+   * an affinity is listed only when `affinity` is equal, or the host of the
+   * affinity is not alive (see `heartbeat`). The log that is due
    * first comes first. `limit: 0` gives `[]`.
    */
   listOrphaned: (query: {
