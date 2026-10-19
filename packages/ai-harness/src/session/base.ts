@@ -433,6 +433,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected readonly onClose: () => void
   /** Tells the host each time the thread goes idle. See `SessionDependencies`. */
   protected readonly notifyIdle: (() => void) | undefined
+  /** See `SessionDependencies.onLongSleep`. */
+  protected readonly onLongSleep: (() => void) | undefined
   protected checkpoint: AnyChatMiddleware | undefined
   /**
    * Writes the final result of each tool call to the log. It goes at the
@@ -576,6 +578,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     )
     this.onClose = deps.onClose
     this.notifyIdle = deps.onIdle
+    this.onLongSleep = deps.onLongSleep
     this.index = deps.index
     this.log = deps.log
     this.openChild = deps.openChild

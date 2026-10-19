@@ -3,7 +3,7 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import { createHarnessHandler } from '../src/server'
 import { isMediaRecord, mediaPart } from '../src/media-entry'
-import { mockAdapter, text } from './helpers'
+import { mockAdapter, text, wrapLogStore } from './helpers'
 import type { ContentPart } from '@tanstack/ai'
 import type { MediaRecord } from '../src'
 import type { MediaOptions } from '../src/media-entry'
@@ -164,6 +164,30 @@ describe('media upload and signed URLs', () => {
         media: { secret: '' },
       }),
     ).toThrow(/at least 32 bytes/)
+  })
+
+  it('needs media at the start on a host that other instances can share', () => {
+    const { adapter } = mockAdapter(() => text('ok'))
+    const harness = defineHarness({ name: 'test/http-media-shared', adapter })
+    const persistence = memoryPersistence()
+    const handlerOn = (host: ReturnType<typeof createHarnessHost>) => () =>
+      createHarnessHandler({ host, harness, openAccess: true })
+    // A store that is not memoryLogStore: a database that servers share.
+    const sharedLog = wrapLogStore(persistence.stores.log, {})
+
+    expect(handlerOn(createHarnessHost({ persistence }))).not.toThrow()
+    expect(
+      handlerOn(
+        createHarnessHost({ persistence, ownership: { hostId: 'pod-1' } }),
+      ),
+    ).toThrow(/needs media/)
+    expect(
+      handlerOn(
+        createHarnessHost({
+          persistence: { stores: { ...persistence.stores, log: sharedLog } },
+        }),
+      ),
+    ).toThrow(/needs media/)
   })
 
   it('stores an upload, signs its URL for 1 hour, and serves the signed URL without auth', async () => {

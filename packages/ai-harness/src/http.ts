@@ -10,7 +10,7 @@ import {
 } from '@tanstack/ai'
 import { parseRangeHeader, resolveBlobRange } from '@tanstack/ai-persistence'
 import { AccessDeniedError } from './access'
-import { accessOf, sessionOfTurn, tenantEventsOf } from './host'
+import { accessOf, isSharedHost, sessionOfTurn, tenantEventsOf } from './host'
 import { tenantOfHostEvent } from './host-event-bus'
 import { activeRunIn } from './log-stores'
 import { MediaError } from './media'
@@ -79,6 +79,8 @@ export interface HarnessHandlerOptions<P extends Principal = Principal> {
    * signs with a random key of its own, so a signed URL works only on this
    * server, and only until it restarts. Set it when more than one server
    * answers the same URL, so each server verifies the URLs of the others.
+   * It is required, else the handler throws at the start, on a host with a
+   * log store that is not `memoryLogStore` or with `ownership` options.
    *
    * - `{ secret }`: one key. Use the same value on every server.
    * - `{ keys }`: to rotate keys. The first key signs, and every key
@@ -558,8 +560,8 @@ function watchRevoke<P extends Principal>(
  * access. Each chat input runs as the principal of its request.
  *
  * Signed media URLs use the keys of `media`. Without it, they work only on
- * this server (see `HarnessHandlerOptions.media`). A URL of a deleted file
- * is 404.
+ * this server (see `HarnessHandlerOptions.media`), so it is required on a
+ * host that other instances can share. A URL of a deleted file is 404.
  *
  * A request body over `media.maxBodyBytes` (default 32 MiB) is 413. Inline
  * media of `POST run` goes to the media store, as in `POST control`. A
@@ -570,8 +572,9 @@ function watchRevoke<P extends Principal>(
  * `stream` sets the values of the SSE streams (see `HarnessStreamOptions`).
  *
  * Throws at the start for a host without `access` and without
- * `openAccess`, for a host with both, and for a `stream` value that is not
- * a finite number above 0.
+ * `openAccess`, for a host with both, for a `stream` value that is not a
+ * finite number above 0, and without `media` on a host with a log store
+ * that is not `memoryLogStore` or with `ownership` options.
  *
  * @example
  * ```ts
@@ -585,6 +588,11 @@ export function createHarnessHandler<P extends Principal = Principal>(
   const usersOf = requestUsers('createHarnessHandler', host, options.openAccess)
   const hasAccess = accessOf(host) !== undefined
   const stream = streamValues('createHarnessHandler', options.stream)
+  if (media === undefined && isSharedHost(host)) {
+    throw new Error(
+      'createHarnessHandler needs media ({ secret } or { keys }) on a host that other instances can share (a log store that is not memoryLogStore, or ownership options): another instance must verify the media URLs that this one signs. Set the same keys on every instance.',
+    )
+  }
 
   const openFor = (principal: P | undefined, threadId: string) =>
     host.open(harness, { threadId, ...(principal ? { principal } : {}) })

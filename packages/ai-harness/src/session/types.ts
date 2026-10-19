@@ -397,6 +397,12 @@ export interface SessionDependencies {
    */
   onIdle?: () => void
   /**
+   * A `step.sleep` of the session started to wait longer than
+   * `LONG_SLEEP_MS`, and the session has no background job. The host ends
+   * the attempt of a session that only a worker holds (see `sleepUntil`).
+   */
+  onLongSleep?: () => void
+  /**
    * The host checks access (`access` on the host). Then an entry with no
    * owner stays without one, and provider keys read env vars only with
    * `envKeys`.

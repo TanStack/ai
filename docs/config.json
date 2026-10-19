@@ -985,7 +985,8 @@
         {
           "label": "Run background work on workers",
           "to": "harness/workers",
-          "addedAt": "2026-10-17"
+          "addedAt": "2026-10-17",
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "List, rename, and fork sessions",

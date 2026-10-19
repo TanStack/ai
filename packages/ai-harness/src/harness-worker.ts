@@ -6,6 +6,8 @@ import type { Principal } from './types'
 
 /** The longest wait between two looks for work, in milliseconds. */
 const MAX_POLL_MS = 30_000
+/** The longest time that the worker skips a log that failed, in milliseconds. */
+const MAX_FAILURE_BACKOFF_MS = 5 * 60_000
 
 /** Options for {@link createHarnessWorker}. */
 export interface HarnessWorkerPoolOptions<P extends Principal = Principal> {
@@ -67,6 +69,12 @@ export function createHarnessWorker<P extends Principal>({
   const stopped = new AbortController()
   /** The threads that the worker runs, by store log id, until they close. */
   const running = new Map<string, Promise<void>>()
+  /**
+   * The logs whose take over failed, by store log id: how many times in a
+   * row, and until when the worker skips them. So a log that always fails
+   * does not take the place of the logs that can run.
+   */
+  const failures = new Map<string, { count: number; until: number }>()
   /** Ends the wait of the loop: a thread closed, or the worker stops. */
   let wake = () => {}
 
@@ -99,6 +107,7 @@ export function createHarnessWorker<P extends Principal>({
     }
     try {
       const taken = await sweep.takeOver(orphan, harness, 'whenIdle')
+      failures.delete(orphan.logId)
       if (!taken) {
         end()
         return false
@@ -106,8 +115,11 @@ export function createHarnessWorker<P extends Principal>({
       void taken.released.finally(end)
       return true
     } catch (error) {
+      const count = (failures.get(orphan.logId)?.count ?? 0) + 1
+      const backoff = Math.min(MAX_FAILURE_BACKOFF_MS, pollMs * 2 ** count)
+      failures.set(orphan.logId, { count, until: Date.now() + backoff })
       console.error(
-        '[@tanstack/ai-harness] The worker could not take a thread over.',
+        `[@tanstack/ai-harness] The worker could not take the log ${JSON.stringify(orphan.logId)} over (failure ${count} in a row). It skips the log for ${backoff} ms.`,
         error,
       )
       end()
@@ -118,14 +130,23 @@ export function createHarnessWorker<P extends Principal>({
   /** One look for work. Resolves `true` when the worker got a thread. */
   const look = async () => {
     const free = concurrency - running.size
-    // The logs that this worker takes over now can still be listed: look
-    // past them.
+    // The logs that this worker takes over now, and the logs that failed,
+    // can still be listed: look past them.
     const orphans = await sweep.listOrphaned({
-      limit: free + running.size,
+      limit: free + running.size + failures.size,
       harnesses: names,
     })
+    const now = Date.now()
+    const listed = new Set(orphans.map((orphan) => orphan.logId))
+    // A failed log that has no work now (another host ran it) is forgotten
+    // after its backoff, so the map holds only the logs that still fail.
+    for (const [logId, { until }] of failures) {
+      if (until <= now && !listed.has(logId)) failures.delete(logId)
+    }
+    const skips = (logId: string) =>
+      running.has(logId) || (failures.get(logId)?.until ?? 0) > now
     const takes = orphans
-      .filter((orphan) => !running.has(orphan.logId))
+      .filter((orphan) => !skips(orphan.logId))
       .slice(0, free)
       .flatMap((orphan) => {
         const harness = byName.get(orphan.harness)

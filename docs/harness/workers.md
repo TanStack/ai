@@ -52,6 +52,8 @@ const worker = createHarnessWorker({ host: workerHost, harnesses: [assistant] })
 
 Run as many workers as you want, on as many machines. Each thread goes to one of them. Each thread opens in its own tenant, with no principal.
 
+If a thread fails to open, the worker logs the error and skips that thread for a time. The time doubles after each failure in a row, up to 5 minutes. The other threads still run.
+
 ## 2. Submit an input from any server
 
 A cron route or a webhook wants the agent to do a job, but it must not wait for the turn. `host.submit` stores the input in the log and runs nothing:
@@ -132,8 +134,9 @@ export const remind = durableTool(
 )
 ```
 
-- The sleep waits in the process. The host keeps the thread while it waits, so no worker takes it.
-- If the host stops, the log keeps a wake at the wake time. Then a worker runs the tool call again. The finished steps return their stored values, and the sleep waits only for the time that is left.
+- A sleep of 30 seconds or less waits in the process. The host keeps the thread while it waits.
+- A longer sleep on a thread that only a worker runs gives the thread back to the log store with a wake. The worker slot is free, and `worker.stop()` does not wait for the sleep. On a thread that your app has open, the sleep waits in the process.
+- At the wake time, or when the host stops, a worker runs the tool call again. The finished steps return their stored values, and the sleep waits only for the time that is left.
 - `name` is a step name. Use the same name on every run, and not the name of a `do` step of the same call.
 - Agent code has the same `step.sleep` on `ctx.harness.step`, in a run started with `resume: true`. See [Keep a background agent going after a crash](./subagents#keep-a-background-agent-going-after-a-crash).
 

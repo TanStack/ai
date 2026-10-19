@@ -294,6 +294,44 @@ describe('createHarnessWorker', () => {
     await hostB.close()
   })
 
+  it('skips a log that fails to open, so the other logs run', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const inner = memoryLogStore()
+    const bad = logIdOf({ logId: 't-bad' })
+    const broken = () => Promise.reject(new Error('The disk is gone.'))
+    const log = wrapLogStore(inner, {
+      read: (query) => (query.logId === bad ? broken() : inner.read(query)),
+      getSnapshot: (query) =>
+        query.logId === bad ? broken() : inner.getSnapshot(query),
+    })
+    const { adapter } = mockAdapter([() => text('Done.')])
+    const harness = harnessWith(adapter)
+    const host = hostOn(log)
+    // The broken log is due first, so it is first in each list.
+    await submitPrompt(host, harness, 't-bad', 'in-bad')
+    await pause()
+    await submitPrompt(host, harness, 't-good', 'in-good')
+
+    const worker = createHarnessWorker({
+      host,
+      harnesses: [harness],
+      concurrency: 1,
+      pollMs: 5,
+    })
+
+    await waitFor(async () =>
+      expect(await settledRecord(inner, 'in-good', 't-good')).toMatchObject({
+        outcome: 'completed',
+      }),
+    )
+    expect(errors).toHaveBeenCalledWith(
+      expect.stringContaining('(failure 1 in a row)'),
+      expect.any(Error),
+    )
+    await worker.stop()
+    await host.close()
+  })
+
   it('refuses a concurrency below 1', () => {
     const host = hostOn(memoryLogStore())
 
@@ -488,5 +526,57 @@ describe('step.sleep', () => {
     })
     await worker.stop()
     await runner.close()
+  })
+
+  it('gives a long sleep back to the store, so it does not keep a worker slot', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    const later = vi.fn(async () => 'followed up')
+    const followUp = durableTool(
+      toolDefinition({
+        name: 'follow_up',
+        description: 'Follow up in a minute',
+      }),
+      async (_args, { step }) => {
+        await step.sleep({ name: 'wait', ms: MINUTE })
+        return step.do('follow-up', later)
+      },
+    )
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('follow_up', {}, 'call-follow-up'),
+      () => text('Other done.'),
+      () => text('Followed up.'),
+    ])
+    const harness = harnessWith(adapter, [followUp])
+    const log = memoryLogStore()
+    const host = hostOn(log)
+    await submitPrompt(host, harness, 't-sleep', 'in-sleep')
+    await pause()
+    await submitPrompt(host, harness, 't-other', 'in-other')
+
+    const worker = createHarnessWorker({
+      host,
+      harnesses: [harness],
+      concurrency: 1,
+      pollMs: 5,
+    })
+    // One slot: the other thread runs while the first one sleeps.
+    await waitFor(async () =>
+      expect(await settledRecord(log, 'in-other', 't-other')).toMatchObject({
+        outcome: 'completed',
+      }),
+    )
+    expect(host.isOpen(harness, { threadId: 't-sleep' })).toBe(false)
+    expect(later).not.toHaveBeenCalled()
+
+    moveClock(MINUTE)
+    await waitFor(async () =>
+      expect(await settledRecord(log, 'in-sleep', 't-sleep')).toMatchObject({
+        outcome: 'completed',
+      }),
+    )
+    expect(later).toHaveBeenCalledTimes(1)
+    expect(calls).toHaveLength(3)
+    await worker.stop()
+    await host.close()
   })
 })

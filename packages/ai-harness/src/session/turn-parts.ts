@@ -55,6 +55,12 @@ import type {
 } from '../types'
 import type { QueuedTurn, AgentRunImpl, AgentChain } from './types'
 
+/**
+ * A `step.sleep` longer than this, in milliseconds, ends the attempt of a
+ * session that only a worker holds (see `sleepUntil`).
+ */
+const LONG_SLEEP_MS = 30_000
+
 /** How long a `ctx.model.chat` call runs before it stops, by default. */
 const MODEL_CALL_TIMEOUT_MS = 120_000
 
@@ -273,20 +279,20 @@ export abstract class SessionTurnParts<
     })
   }
 
+  /** The `step.sleep` calls that wait now. */
+  protected sleeping = 0
+
   /**
    * Wait for a `step.sleep` until `wakeAt`. While it waits, the log keeps a
    * wake schedule (no input) with `scheduleId`: a host that stops releases
    * the log with that wake, so a worker takes the log at the wake time and
    * recovery runs the call again. The schedule ends when the sleep ends.
    *
-   * ponytail: the sleep waits in this process, and the host keeps the log
-   * while it waits. It does not end the attempt and free the host: the log
-   * view cannot drop the writes of one turn only. The wake makes it durable
-   * when the host stops.
+   * A sleep longer than `LONG_SLEEP_MS` tells the host (`onLongSleep`). A
+   * session that only a worker holds then closes as on a deploy: the log
+   * goes back with the wake, and the worker slot is free. A shorter sleep,
+   * or a session that the app holds, waits in this process.
    */
-  /** The `step.sleep` calls that wait now. */
-  protected sleeping = 0
-
   protected async sleepUntil({
     writer,
     scheduleId,
@@ -306,6 +312,11 @@ export abstract class SessionTurnParts<
         ])
       }
       this.sleeping += 1
+      // ponytail: the close stops the other work of the session too, as a
+      // deploy does, and the next host runs it again. A job keeps the host.
+      if (wakeAt - Date.now() > LONG_SLEEP_MS && this.jobs.size === 0) {
+        this.onLongSleep?.()
+      }
       try {
         await waitUntil(wakeAt, signal)
       } finally {

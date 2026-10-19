@@ -1223,6 +1223,19 @@ export function hostCountsOf<P extends Principal>(host: HarnessHost<P>) {
 const accesses = new WeakMap<object, unknown>()
 
 /**
+ * The hosts that other instances can share threads with: a log store that
+ * is not `memoryLogStore`, or `ownership` options. Not public API.
+ */
+const sharedHosts = new WeakSet<object>()
+
+/**
+ * @internal Can other instances serve the threads of `host`? Then the HTTP
+ * handler needs `media.secret`, so each instance verifies the media URLs of
+ * the others.
+ */
+export const isSharedHost = (host: object) => sharedHosts.has(host)
+
+/**
  * @internal The `access` of `host`, or `undefined` for a host with no
  * checks. The HTTP handler reads `identify` from it.
  */
@@ -1901,6 +1914,24 @@ export function createHarnessHost<P extends Principal = Principal>(
         onIdle: () =>
           queueMicrotask(() => {
             if (live.get(key) === created) void armIdle(key)
+          }),
+        // A long sleep in a session that only a worker holds: the session
+        // closes as on a deploy, and the log goes back with the wake. So
+        // the sleep does not keep a worker slot or `worker.stop()`.
+        onLongSleep: () =>
+          queueMicrotask(() => {
+            const isSweptOnly =
+              live.get(key) === created &&
+              sweptOnly.has(key) &&
+              (holds.get(key)?.handles ?? 0) === 0
+            if (!isSweptOnly) return
+            closeShared(key, created, { recoverable: true }).catch(
+              (error: unknown) =>
+                console.error(
+                  '[@tanstack/ai-harness] A sleeping session did not close.',
+                  error,
+                ),
+            )
           }),
       })
       // A session under this key may still close: it lets go of the thread
@@ -3293,6 +3324,8 @@ export function createHarnessHost<P extends Principal = Principal>(
     },
   }
   if (access) accesses.set(host, access)
+  const isMemoryLog = Symbol.for('tanstack.ai.memoryLogStore') in logStore
+  if (options.ownership || !isMemoryLog) sharedHosts.add(host)
   tenantEventReaders.set(host, ({ tenantId, filter, signal }) =>
     bus.read({
       tenant: { tenantId },
