@@ -4,7 +4,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import { workspaceTools } from '../src/first-party/coding'
-import { permissions } from '../src/first-party/permissions'
+import {
+  listSavedPermissions,
+  permissions,
+} from '../src/first-party/permissions'
 import {
   FormatFailed,
   formatOnWrite,
@@ -638,6 +641,24 @@ describe('formatter with permissions()', () => {
     const message = await answer(second.session, { answer: 'once' })
     expect(message).toContain('Allow write_file')
     await second.host.close()
+  })
+
+  it('saves no rule for the formatter of a nested config on an always answer', async () => {
+    const persistence = memoryPersistence()
+    const { host, session } = await openWith(
+      'acceptEdits',
+      ['src/prettier.config.js'],
+      persistence,
+      prettier,
+    )
+    await session.send('write the nested config')
+
+    await answer(session, { answer: 'always' })
+
+    const saved = await listSavedPermissions(persistence.stores, root)
+    expect(saved.map((rule) => rule.tool)).toContain('formatter:prettier')
+    expect(saved.some((rule) => rule.tool.includes('@unsaved:'))).toBe(false)
+    await host.close()
   })
 
   it('runs with no question in bypass', async () => {
