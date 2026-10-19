@@ -30,6 +30,8 @@ function memoryBackend(shell?: 'sh') {
       if (!data) return undefined
       return { type: 'file', size: data.length, mtimeMs: 0 }
     },
+    // No links: each path is its own real path.
+    realpath: async (path) => path,
     readdir: async (path) => {
       const prefix = path + separator
       const paths = [...files.keys()].filter((file) => file.startsWith(prefix))
@@ -156,6 +158,24 @@ describe('read_file pages', () => {
     )
   })
 
+  it('says where the next page starts when the backend did not count the lines', async () => {
+    // `readLines` stopped after the page, so the number of lines is not known.
+    const paged: WorkspaceBackend = {
+      ...backend,
+      readLines: async () => ({
+        head: ascii('a\nb\n'),
+        size: 1000,
+        lines: ['a', 'b'],
+        total: undefined,
+      }),
+    }
+    const readPaged = reader({ workspace: { root, backend: paged } })
+    await put('paged.txt', 'a\nb\n')
+    expect(await readPaged('paged.txt')).toBe(
+      '1\ta\n2\tb\n\n[Showing lines 1-2. Read more with offset 3.]',
+    )
+  })
+
   it('says how many lines there are when offset is past the end', async () => {
     expect(await read('many.txt', { offset: 3000 })).toBe(
       '[No lines from line 3000. many.txt has 2500 lines.]',
@@ -218,13 +238,30 @@ describe('read_file media and binary files', () => {
     expect(await read(file)).toEqual([part])
   })
 
-  it('refuses an image over 5 MB', async () => {
-    const big = new Uint8Array(6 * 1024 * 1024)
+  it('refuses an image over 256 KB, and says how to read it', async () => {
+    const big = new Uint8Array(300 * 1024)
     big.set(PNG)
     await put('big.png', big)
     await expect(read('big.png')).rejects.toThrow(
-      'big.png is 6.0 MB. read_file sends images and PDFs up to 5 MB.',
+      'big.png is 300 KB. read_file sends images and PDFs up to 256 KB. Make a smaller copy, for example with bash, and read that.',
     )
+  })
+
+  it('sends an image of 256 KB', async () => {
+    const image = new Uint8Array(256 * 1024)
+    image.set(PNG)
+    await put('edge.png', image)
+    const result = await read('edge.png')
+    expect(result).toEqual([
+      {
+        type: 'image',
+        source: {
+          type: 'data',
+          value: Buffer.from(image).toString('base64'),
+          mimeType: 'image/png',
+        },
+      },
+    ])
   })
 
   it.each([

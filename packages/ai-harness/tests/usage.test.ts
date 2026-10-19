@@ -324,6 +324,50 @@ describe('usage of each run', () => {
 const isRecordWithUsage = (value: unknown) =>
   typeof value === 'object' && value !== null && 'usage' in value
 
+describe('usage totals by source', () => {
+  const counts = (totalTokens: number) => ({
+    promptTokens: totalTokens,
+    completionTokens: 0,
+    totalTokens,
+    cachedTokens: 0,
+    cacheWriteTokens: 0,
+  })
+
+  it('adds a call with a source under it, and keeps a turn call out of bySource', () => {
+    const totals = emptyUsage()
+
+    addUsage(totals, { model: 'm', usage: counts(5) })
+    addUsage(totals, {
+      model: 'm',
+      source: 'plugin:tanstack/title',
+      label: 'title',
+      usage: counts(2),
+    })
+    addUsage(totals, {
+      model: 'm',
+      source: 'plugin:tanstack/title',
+      usage: counts(3),
+    })
+    addUsage(totals, {
+      model: 'm',
+      source: 'plugin:tanstack/goal',
+      usage: counts(4),
+    })
+
+    expect(totals.total).toMatchObject({ calls: 4, totalTokens: 14 })
+    expect(totals.bySource).toEqual({
+      'plugin:tanstack/title': expect.objectContaining({
+        calls: 2,
+        totalTokens: 5,
+      }),
+      'plugin:tanstack/goal': expect.objectContaining({
+        calls: 1,
+        totalTokens: 4,
+      }),
+    })
+  })
+})
+
 describe('usage totals of an odd key', () => {
   it('keeps a sender with the id __proto__ as its own entry', () => {
     const totals = emptyUsage()

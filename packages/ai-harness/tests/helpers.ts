@@ -1,5 +1,6 @@
 import { EventType } from '@tanstack/ai'
 import { loadLogState, logIdOf, sessionOf } from '../src/log'
+import { UNCHECKED_TIMING } from '../src/ownership'
 import type {
   AnyChatMiddleware,
   AnyTextAdapter,
@@ -9,6 +10,13 @@ import type {
 } from '@tanstack/ai'
 import type { LogRecord, LogStore, RunRecord } from '@tanstack/ai-persistence'
 import type { HostFrame } from '../src/protocol'
+import type {
+  AttributeValue,
+  Exception,
+  Span,
+  SpanContext,
+  SpanStatus,
+} from '@opentelemetry/api'
 
 /**
  * A log store that calls `overrides` for the methods it has, and `inner` for
@@ -27,6 +35,7 @@ export function wrapLogStore(
     renew: overrides.renew ?? inner.renew.bind(inner),
     release: overrides.release ?? inner.release.bind(inner),
     setAffinity: overrides.setAffinity ?? inner.setAffinity.bind(inner),
+    heartbeat: overrides.heartbeat ?? inner.heartbeat.bind(inner),
     listOrphaned: overrides.listOrphaned ?? inner.listOrphaned.bind(inner),
     offer: overrides.offer ?? inner.offer.bind(inner),
     offered: overrides.offered ?? inner.offered.bind(inner),
@@ -94,7 +103,11 @@ export async function storedRun(
  * 200 ms and never renews it in a test, like a process that stopped. After
  * `ownershipExpired()`, another host can take its logs and recover its work.
  */
-export const CRASHING_OWNERSHIP = { ttlMs: 200, renewMs: 60_000 }
+export const CRASHING_OWNERSHIP = {
+  ttlMs: 200,
+  renewMs: 60_000,
+  [UNCHECKED_TIMING]: true,
+}
 
 /** Wait until an ownership of {@link CRASHING_OWNERSHIP} expired. */
 export const ownershipExpired = () =>
@@ -420,4 +433,36 @@ export const hideSecret: AnyChatMiddleware = {
       ),
     }
   },
+}
+
+/** An OpenTelemetry span that calls `on` for the calls that a test reads. */
+export function fakeSpan(
+  spanContext: SpanContext,
+  on: {
+    setAttribute?: (key: string, value: AttributeValue) => void
+    setStatus?: (status: SpanStatus) => void
+    recordException?: (exception: Exception) => void
+    end?: () => void
+  } = {},
+): Span {
+  const span: Span = {
+    spanContext: () => spanContext,
+    setAttribute: (key, value) => {
+      on.setAttribute?.(key, value)
+      return span
+    },
+    setAttributes: () => span,
+    addEvent: () => span,
+    addLink: () => span,
+    addLinks: () => span,
+    setStatus: (status) => {
+      on.setStatus?.(status)
+      return span
+    },
+    updateName: () => span,
+    end: () => on.end?.(),
+    isRecording: () => true,
+    recordException: (exception) => on.recordException?.(exception),
+  }
+  return span
 }

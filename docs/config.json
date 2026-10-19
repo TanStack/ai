@@ -353,7 +353,7 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-14"
+          "updatedAt": "2026-10-17"
         },
         {
           "label": "Built-in Middleware",
@@ -761,7 +761,7 @@
           "label": "Store Reference",
           "to": "persistence/store-reference",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "How Persistence Works",
@@ -927,37 +927,43 @@
           "label": "Build your first harness",
           "to": "harness/overview",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Send and show media",
           "to": "harness/media",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-16"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Connect clients",
           "to": "harness/connect",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-19"
+        },
+        {
+          "label": "Write a client in any language",
+          "to": "harness/protocol",
+          "addedAt": "2026-10-17",
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Access and tenants",
           "to": "harness/access",
           "addedAt": "2026-10-17",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Run in the terminal",
           "to": "harness/cli",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Deploy a harness",
           "to": "harness/deploy",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Send inputs safely",
@@ -974,7 +980,7 @@
           "label": "Durable sessions",
           "to": "harness/durable-sessions",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Run background work on workers",
@@ -985,12 +991,13 @@
           "label": "List, rename, and fork sessions",
           "to": "harness/sessions",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Lifecycle and retention",
           "to": "harness/lifecycle",
-          "addedAt": "2026-10-17"
+          "addedAt": "2026-10-17",
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Run side effects once",
@@ -1007,7 +1014,7 @@
           "label": "Build on the session log",
           "to": "harness/session-log",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Control how a turn ends",
@@ -1019,7 +1026,7 @@
           "label": "Store settings per thread",
           "to": "harness/thread-settings",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Compact a long session",
@@ -1031,7 +1038,7 @@
           "label": "Fork and reset a thread",
           "to": "harness/fork-and-reset",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "One log for a session tree",
@@ -1043,7 +1050,7 @@
           "label": "Write a plugin",
           "to": "harness/plugins",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Track usage and cost",
@@ -1067,13 +1074,19 @@
           "label": "Sandbox and extend the coding tools",
           "to": "harness/coding-tools-backends",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
+        },
+        {
+          "label": "Run the coding tools for many threads",
+          "to": "harness/coding-workspaces",
+          "addedAt": "2026-10-18",
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Undo a turn",
           "to": "harness/snapshots",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-17"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Build a coding agent",
@@ -1084,7 +1097,8 @@
         {
           "label": "Delegate to coding agents",
           "to": "harness/coding-agents",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Switch between agent profiles",
@@ -1102,7 +1116,7 @@
           "label": "Share a thread between people",
           "to": "harness/shared-threads",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Connect model providers",
@@ -1114,34 +1128,43 @@
           "label": "Build your own UI",
           "to": "harness/custom-ui",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Code mode in a harness",
           "to": "harness/code-mode",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Work until a goal is met",
           "to": "harness/goal",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-18"
         },
         {
           "label": "Run agents from a harness",
           "to": "harness/subagents",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
+        },
+        {
+          "label": "Hand off a conversation",
+          "to": "harness/handoffs",
+          "addedAt": "2026-10-18",
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Add skills",
           "to": "harness/skills",
-          "addedAt": "2026-10-13"
+          "addedAt": "2026-10-13",
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Use MCP servers",
           "to": "harness/mcp",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Use from any MCP client",
@@ -1177,7 +1200,7 @@
           "label": "Providers",
           "to": "sandbox/providers",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-10-07"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Harnesses",
@@ -1188,7 +1211,8 @@
         {
           "label": "Harness Auth",
           "to": "sandbox/auth",
-          "addedAt": "2026-08-18"
+          "addedAt": "2026-08-18",
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Workspace",

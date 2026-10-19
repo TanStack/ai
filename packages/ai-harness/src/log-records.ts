@@ -57,6 +57,8 @@ export interface InterruptedTurnRecord {
   interrupts: Array<Interrupt>
   /** A routed turn stopped: the messages a resolve continues from. */
   routed?: { messages: Array<UIMessage>; root: boolean }
+  /** The part that stopped handed off too: the resolve acts on it. */
+  handoff?: Omit<HandoffRecord, 'runId'>
   /** Who sent the input of the stopped turn. */
   principal?: RecordPrincipal
   /** The `context` of the stopped turn's input. JSON. */
@@ -127,6 +129,90 @@ export type WaitState = WaitRecord & {
   /** The answer of a wait that no promise holds. JSON. Never a secret. */
   value?: unknown
 }
+
+/** The other end of a transfer: a thread of a harness, in the same tenant. */
+export type TransferLink = {
+  /** The name of the harness that runs the thread. */
+  harness: string
+  threadId: string
+}
+
+/**
+ * One end of a transfer, as the log of each thread keeps it. The log of the
+ * target has `from`, the log of the source has `to`. Both have the same
+ * `transferId`.
+ */
+export type TransferRecord = {
+  /** The thread that the conversation came from. Only in the target log. */
+  from?: TransferLink
+  /** The thread that the conversation went to. Only in the source log. */
+  to?: TransferLink
+  /** Who made the transfer. */
+  principal?: RecordPrincipal
+  /** When the transfer was made (epoch ms). */
+  at: number
+}
+
+/** The target of a handoff to a person: an operator answers. */
+export type HumanTarget = { human: true }
+
+/** True for `{ human: true }`, the target of a handoff to a person. */
+export function isHumanTarget(value: unknown): value is HumanTarget {
+  return isRecord(value) && value.human === true
+}
+
+/**
+ * A change of who answers the turns of a thread. An agent name is a root
+ * agent of the harness. `null` is the main model. `{ human: true }` is a
+ * person: an operator.
+ */
+export type HandoffRecord = {
+  /** Who answered before the handoff. */
+  from: string | null | HumanTarget
+  /** Who answers from now on. */
+  to: string | null | HumanTarget
+  /** A note for the target. */
+  note?: string
+  /** The turn that made the handoff. */
+  runId: string
+  /**
+   * What made the handoff: a `handoff` tool call, agent code, the router,
+   * or an operator who ended a handoff to a person.
+   */
+  by: 'tool' | 'code' | 'router' | 'operator'
+  /** The `human` wait that a handoff to a person opens. */
+  waitId?: string
+  /**
+   * The root agents of the turn that handed off to a person. An operator
+   * can hand the thread back to one of them.
+   */
+  agents?: Array<string>
+}
+
+/**
+ * A person answers the turns of a thread: the `human` wait `waitId` of a
+ * handoff is open. `from` answered before the handoff. `agents` are the
+ * root agents an operator can hand back to.
+ */
+export type HumanAnswerer = HumanTarget & {
+  waitId: string
+  from: string | null
+  agents?: Array<string>
+}
+
+/**
+ * Where the workspace of a thread is, as the session log keeps it. The root
+ * is the boundary of the workspace tools.
+ *
+ * - `'sandbox'`: a sandbox of `provider` with the id `sandboxId`. Another
+ *   host can resume it.
+ * - `'host'`: a folder on the host `hostId`. Only that host can continue
+ *   the thread, so the log is pinned to it. Without `hostId` (a host with
+ *   no stable id), every host counts as that host.
+ */
+export type WorkspaceBinding =
+  | { kind: 'sandbox'; provider: string; sandboxId: string; root: string }
+  | { kind: 'host'; hostId?: string; root: string }
 
 /**
  * A run of the run tree, with what the session needs to find its input: the
@@ -230,6 +316,12 @@ export type ThreadRecord =
       at: number
       value?: unknown
     }
+  /** A transfer moved the conversation to or from this thread. */
+  | ({ type: 'harness.transferred'; transferId: string } & TransferRecord)
+  /** Another agent, or the main model, answers the turns from now on. */
+  | ({ type: 'harness.handoff' } & HandoffRecord)
+  /** The workspace tools bound the workspace of the thread. */
+  | { type: 'harness.workspace.bound'; binding: WorkspaceBinding }
 
 /** The record types that {@link foldThreadRecord} folds. */
 export const THREAD_RECORD_TYPES = [
@@ -248,7 +340,10 @@ export const THREAD_RECORD_TYPES = [
   'harness.interrupt.end',
   'harness.wait',
   'harness.wait.settled',
+  'harness.transferred',
+  'harness.handoff',
   'harness.state',
+  'harness.workspace.bound',
 ] as const satisfies ReadonlyArray<ThreadRecord['type']>
 
 const THREAD_TYPES = new Set<string>(THREAD_RECORD_TYPES)
@@ -291,6 +386,16 @@ export interface ThreadStateFold {
    * interrupts are in `interrupts`.
    */
   waits: Map<string, WaitState>
+  /** The transfers to or from this thread, by transfer id, oldest first. */
+  transfers: Map<string, TransferRecord>
+  /**
+   * The root agent that answers the turns of this thread, from the last
+   * `harness.handoff` record. `null`: the main model answers. A
+   * {@link HumanAnswerer}: a person answers, and the session pauses.
+   */
+  activeAgent: string | null | HumanAnswerer
+  /** The workspace of the thread, from the last `harness.workspace.bound` record. */
+  workspace: WorkspaceBinding | null
 }
 
 /** The thread state of a log with no thread-state records. */
@@ -308,6 +413,9 @@ export function emptyThreadState() {
     tree: new Map(),
     interrupts: new Map(),
     waits: new Map(),
+    transfers: new Map(),
+    activeAgent: null,
+    workspace: null,
   }
   return state
 }
@@ -676,8 +784,46 @@ export function foldThreadRecord(state: ThreadStateFold, record: LogRecord) {
         settledAt: record.at,
         ...(record.value !== undefined ? { value: record.value } : {}),
       }
-      return { ...state, waits: withEntry(state.waits, record.waitId, ended) }
+      // The `human` wait of a handoff to a person ended (answered,
+      // resolved, cancelled, expired): the agent before the handoff answers.
+      const active = state.activeAgent
+      const isPause = isHumanTarget(active) && active.waitId === record.waitId
+      return {
+        ...state,
+        waits: withEntry(state.waits, record.waitId, ended),
+        ...(isPause ? { activeAgent: active.from } : {}),
+      }
     }
+    case 'harness.transferred': {
+      const { type: _type, transferId, ...transfer } = record
+      if (state.transfers.has(transferId)) return state
+      return {
+        ...state,
+        transfers: withEntry(state.transfers, transferId, transfer),
+      }
+    }
+    case 'harness.handoff': {
+      if (!isHumanTarget(record.to)) {
+        return { ...state, activeAgent: record.to }
+      }
+      // A pause on a wait that nobody can answer: the record is corrupt.
+      if (record.waitId === undefined) {
+        throw new Error(
+          `A harness.handoff record to a person (run ${JSON.stringify(record.runId)}) has no waitId.`,
+        )
+      }
+      // Who answered before stays, for an operator answer `{ resume: true }`.
+      const from = isHumanTarget(record.from) ? null : record.from
+      const human: HumanAnswerer = {
+        human: true,
+        waitId: record.waitId,
+        from,
+        ...(record.agents ? { agents: record.agents } : {}),
+      }
+      return { ...state, activeAgent: human }
+    }
+    case 'harness.workspace.bound':
+      return { ...state, workspace: record.binding }
     default: {
       const unhandled: never = record
       return unhandled

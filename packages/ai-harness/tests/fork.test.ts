@@ -222,14 +222,48 @@ describe('host.fork', () => {
     if (!id) throw new Error('The fork lost the media part.')
 
     expect(id).not.toBe(record.id)
-    expect(await fork.getMedia(id)).toMatchObject({
+    expect(await fork.getMedia({ id })).toMatchObject({
       threadId: FORK,
       name: 'cat.png',
     })
     expect(await fork.loadMedia({ id })).toEqual(bytes)
     // Each thread sees only its own media.
-    expect(await fork.getMedia(record.id)).toBeNull()
-    expect(await source.getMedia(id)).toBeNull()
+    expect(await fork.getMedia({ id: record.id })).toBeNull()
+    expect(await source.getMedia({ id })).toBeNull()
+    await host.close()
+  })
+})
+
+describe('a fork stays in its harness', () => {
+  it('refuses host.fork and host.sessions.fork of a thread of another harness', async () => {
+    const support = defineHarness({
+      name: 'test/support',
+      adapter: mockAdapter(() => text('ok')).adapter,
+    })
+    const billing = defineHarness({
+      name: 'test/billing',
+      adapter: mockAdapter(() => text('billing here')).adapter,
+      plugins: () => [counter],
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const source = await host.open(support, { threadId: SOURCE })
+    await source.send('one')
+
+    await expect(
+      host.fork(billing, { threadId: SOURCE, newThreadId: FORK }),
+    ).rejects.toThrow(
+      `Thread "${SOURCE}" belongs to harness "test/support", not "test/billing".`,
+    )
+    await expect(
+      host.sessions.fork({
+        harness: billing,
+        threadId: SOURCE,
+        at: { through: 'any' },
+      }),
+    ).rejects.toThrow('belongs to harness "test/support"')
+    // Nothing opened the source under the other harness, and no fork exists.
+    expect(host.isOpen(billing, { threadId: SOURCE })).toBe(false)
+    expect(await host.sessions.get({ threadId: FORK })).toBeUndefined()
     await host.close()
   })
 })

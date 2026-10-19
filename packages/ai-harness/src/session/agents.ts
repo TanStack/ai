@@ -73,11 +73,13 @@ import type {
   HarnessAgentContext,
 } from '../agents'
 import type { AnyHarness } from '../define'
+import type { HandoffOptions, TurnHandoffs } from '../handoff'
 import type { MountedPlugins } from '../plugins'
 import type {
   AgentRun,
   AgentSendOptions,
   ChatTurnResult,
+  Cursor,
   InputSettlement,
   SettlementOutcome,
   MediaRecord,
@@ -122,7 +124,8 @@ export abstract class SessionAgents<
    * command, a protocol input). `undefined` when no such agent exists.
    */
   agent(name: string): DynamicAgentHandle | undefined {
-    if (!this.agentRegistry.get(name)) return undefined
+    // An agent of a plugin that this thread removed does not exist here.
+    if (!this.threadAgent(name)) return undefined
     return this.agentHandle(name)
   }
 
@@ -139,7 +142,14 @@ export abstract class SessionAgents<
     const follower = new OperationImpl<unknown>(
       'agent',
       this.feed,
-      () => this.cancel({ operationId: target }),
+      () => {
+        // It acts as the user of the run, as a cancel of the run does.
+        const principal = this.principalOfRun(target)
+        return this.cancel({
+          operationId: target,
+          ...(principal ? { principal } : {}),
+        })
+      },
       chain?.agent,
     )
     void this.sendToAgent({
@@ -396,7 +406,11 @@ export abstract class SessionAgents<
       return undefined
     }
     const entries = logged.map(({ node, settlement }) => {
-      const operation = this.agentOperation(first.input.agent, node.runId)
+      const operation = this.agentOperation(
+        first.input.agent,
+        node.runId,
+        this.runStart(node.runId),
+      )
       this.endAgentRun(operation, settlement)
       return {
         operation,
@@ -426,7 +440,9 @@ export abstract class SessionAgents<
    * `principal`, and a child does not stop for an approval or a question:
    * the turn's resume does not reach it. A run that the turn starts keeps
    * its plugins until it settles. A tool-mode child gets `ctx.harness`, and
-   * its starts count against the turn's tree budget `turn.budget`.
+   * its starts count against the turn's tree budget `turn.budget`. With
+   * `handoffs` (the root agents of a routed turn), each root agent gets the
+   * `handoff` tool and `ctx.harness.handoff`.
    */
   protected binding(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
@@ -439,10 +455,12 @@ export abstract class SessionAgents<
       budget: SubagentBudget
       plugins?: HeldPlugins
     },
+    handoffs?: TurnHandoffs,
   ) {
     const options = this.harness.media
     const agentMiddleware = [
-      ...(this.sessionPlugins?.agentMiddleware ?? []),
+      // A plugin that this thread removed gives its agents no middleware.
+      ...(this.threadPlugins()?.agentMiddleware ?? []),
       ...(runPlugins?.agentMiddleware ?? []),
     ]
     const agents = turn?.agents
@@ -479,10 +497,22 @@ export abstract class SessionAgents<
         )
         return { subagentRunId, done }
       })
-    // `ctx.harness` of a tool-mode child, one per child run.
+    // `ctx.harness` of a tool-mode child, one per child run. Only a root
+    // agent of a routed turn can hand off. Its nested children get the
+    // `handoff` of `NO_SESSION_CONTEXT`, which throws.
     const extend: SubagentBinding['extend'] =
-      turn &&
-      (() => {
+      (turn || handoffs) &&
+      ((child: SubagentRunContext) => {
+        const handoff =
+          handoffs && child.parentSubagentRunId === undefined
+            ? (handoffOptions: HandoffOptions) =>
+                handoffs.handoff(
+                  handoffOptions,
+                  child.forward.subagentName,
+                  'code',
+                )
+            : NO_SESSION_CONTEXT.handoff
+        if (!turn) return { harness: { ...NO_SESSION_CONTEXT, handoff } }
         const harness: HarnessAgentContext = withHarnessChild(
           {
             // ponytail: not durable. A tool-mode child runs again from its
@@ -490,15 +520,17 @@ export abstract class SessionAgents<
             step: NO_SESSION_CONTEXT.step,
             agents: this.turnChildAgents(operation, principal, turn),
             state: (stateOptions) => this.sharedState(stateOptions),
+            handoff,
           },
           (inner, ctx) =>
             this.runHarnessChild(inner, ctx, { operation, principal }),
+          run,
         )
         return { harness }
       })
     return {
       generationMiddleware: [
-        ...(this.sessionPlugins?.generationMiddleware ?? []),
+        ...(this.threadPlugins()?.generationMiddleware ?? []),
         ...(runPlugins?.generationMiddleware ?? []),
         ...mediaCapture({
           persistence: this.media,
@@ -534,6 +566,7 @@ export abstract class SessionAgents<
         }),
         // After the media, so the model gets no secret of the session.
         redactMiddleware(this.redactor),
+        ...(handoffs ? [handoffs.middleware({ roots: true })] : []),
       ],
       keys: run.keys,
       // No `promptCache`: a tool-mode child then uses the retention of the
@@ -1070,7 +1103,14 @@ export abstract class SessionAgents<
     for (const item of this.writer.state.thread.tree.values()) {
       if (item.chainInputId === first.inputId) node = item
     }
-    return chainFields(first, node)
+    const fields = chainFields(first, node)
+    // The input keeps only a parent run of agent code. The tree keeps the
+    // turn that started the chain too, so a run of the chain on any host
+    // knows that turn.
+    const parent = node?.parentRunId
+    return parent !== undefined && fields.parentRunId === undefined
+      ? { ...fields, turnRunId: parent }
+      : fields
   }
 
   /**
@@ -1120,14 +1160,41 @@ export abstract class SessionAgents<
     }
   }
 
-  /** A new agent run operation. `id`: a stored one, after a restart. */
-  protected agentOperation(agent: string, id?: string): AgentRunImpl {
+  /**
+   * The run that started the operation `operationId`: the parent of its
+   * chain, the same as its node in the run tree. A run that this host does
+   * not run (an offered run) has its node in the log. A top-level run and an
+   * operation that is not an agent run have none.
+   */
+  protected parentRunOf(operationId: string): string | undefined {
+    const chain = this.chainOf.get(operationId)
+    if (chain) return chain.parentRunId ?? chain.turnRunId
+    return this.logWriter?.state.thread.tree.get(operationId)?.parentRunId
+  }
+
+  /**
+   * A new agent run operation. `id`: a stored one, after a restart.
+   * `startedCursor`: the start of a run that the log rebuilds.
+   */
+  protected agentOperation(
+    agent: string,
+    id?: string,
+    startedCursor?: Cursor,
+  ): AgentRunImpl {
+    // A call on the run itself acts as the user of the run, not as the
+    // principal that opened the session. A handle passes its own principal.
+    const user = (running: string) => {
+      const principal = this.principalOfRun(running)
+      return principal ? { principal } : {}
+    }
     const operation = new OperationImpl<unknown>(
       'agent',
       this.feed,
-      (running) => this.cancel({ operationId: running.id }),
+      (running) =>
+        this.cancel({ operationId: running.id, ...user(running.id) }),
       agent,
       id,
+      startedCursor,
     )
     const run = Object.assign(
       // `kind` and `agent` are fixed by the constructor call above.
@@ -1135,9 +1202,18 @@ export abstract class SessionAgents<
       {
         send: (
           message: UserInput,
-          options?: { mode?: 'steer' | 'followUp'; inputId?: string },
+          options?: {
+            mode?: 'steer' | 'followUp'
+            inputId?: string
+            principal?: Principal
+          },
         ) =>
-          this.sendToAgent({ ...options, operationId: operation.id, message }),
+          this.sendToAgent({
+            ...user(operation.id),
+            ...options,
+            operationId: operation.id,
+            message,
+          }),
       },
     )
     this.track(run)
@@ -1422,7 +1498,13 @@ export abstract class SessionAgents<
     try {
       await this.runAgentOnce(operation, chain, start)
     } catch (error) {
-      // A store write threw. The run still ends.
+      // A store write threw. The run still ends. A run that had no receipt
+      // yet gets a refusal, so a reader of it does not wait.
+      operation.resolveReceipt({
+        inputId: start.inputId,
+        status: 'rejected',
+        reason: error instanceof Error ? error.message : String(error),
+      })
       this.failOperation(operation, error)
     } finally {
       // After a log failure, another host owns the thread. A closing session
@@ -1537,6 +1619,11 @@ export abstract class SessionAgents<
         // An offered run runs as this operation on the owner.
         { runId: operation.id },
       )
+      // As a turn does: a refused, offered, or known input gets its receipt
+      // now. A new one gets it below, when the run starts or waits.
+      if (admission !== 'new') {
+        operation.resolveReceipt(this.duplicateReceipt(inputId, admission))
+      }
       switch (admission) {
         case 'new':
           break
@@ -1566,15 +1653,23 @@ export abstract class SessionAgents<
       // A top-level start waits for a slot of `maxConcurrent`.
       const isTopLevel =
         chain.parentRunId === undefined && chain.turnRunId === undefined
+      if (isTopLevel && !this.hasSlot()) {
+        operation.resolveReceipt({
+          inputId,
+          status: 'queued',
+          operationId: operation.id,
+        })
+      }
       if (isTopLevel && !(await this.takeSlot(operation, chain, inputId))) {
         return
       }
     }
+    // By name, an agent of a plugin that this thread removed is unknown.
     const agent: AnyAgent | undefined =
-      typeof target === 'string' ? this.agentRegistry.get(target) : target
+      typeof target === 'string' ? this.threadAgent(target) : target
     if (!agent) {
       this.releaseStart(chain)
-      this.reject(inputId, 'unknown_agent')
+      operation.resolveReceipt(this.reject(inputId, 'unknown_agent'))
       operation.fail('failed', new Error(`Unknown agent: ${name}`))
       return
     }
@@ -1589,7 +1684,7 @@ export abstract class SessionAgents<
           .map((issue) => issue.message)
           .join(', ')}`
         this.releaseStart(chain)
-        this.reject(inputId, 'invalid_input')
+        operation.resolveReceipt(this.reject(inputId, 'invalid_input'))
         operation.fail('failed', new Error(reason))
         return
       }
@@ -1597,6 +1692,12 @@ export abstract class SessionAgents<
     }
 
     operation.setStatus('running')
+    // A run that waited for a slot has its receipt already.
+    operation.resolveReceipt({
+      inputId,
+      status: 'accepted',
+      operationId: operation.id,
+    })
     // A run that goes on after its waits applied its input already. The
     // node of the run goes in the same append.
     if (!answers) {
@@ -1643,10 +1744,13 @@ export abstract class SessionAgents<
       ...storedPrincipal(principal),
     })
     if (answers) await runs.update(operation.id, { status: 'running' })
+    // The run that started this one: a reader rebuilds the run tree from it.
+    const parentRunId = chain.parentRunId ?? chain.turnRunId
     operation.publish({
       type: EventType.RUN_STARTED,
       runId: operation.id,
       threadId: this.threadId,
+      ...(parentRunId !== undefined ? { parentRunId } : {}),
       timestamp: Date.now(),
     })
     if (!answers) {
@@ -1714,9 +1818,12 @@ export abstract class SessionAgents<
             step: durable?.step ?? NO_SESSION_CONTEXT.step,
             agents: this.agentStarter(chain, inputId),
             state: (options) => this.sharedState(options),
+            // A background run does not answer a turn, so it cannot hand off.
+            handoff: NO_SESSION_CONTEXT.handoff,
           },
           (inner, ctx) =>
             this.runHarnessChild(inner, ctx, { operation, principal }),
+          run,
         )
         const stream = runAgentStream(
           agent,
@@ -2055,7 +2162,11 @@ export abstract class SessionAgents<
     const runId = input.operationId
     if (runId === undefined || run.subagentRunId === undefined) return
     this.warnLiveOnly(runId)
-    const operation = this.agentOperation(first.input.agent, runId)
+    const operation = this.agentOperation(
+      first.input.agent,
+      runId,
+      this.runStart(runId),
+    )
     const sender = input.principal ? { principal: input.principal } : {}
     const chain = this.createChain(this.loggedFields(first), {
       operation,
@@ -2116,6 +2227,7 @@ export abstract class SessionAgents<
         ),
       ],
     )
+    for (const state of open) this.publishWaitSettled(state.wait.waitId)
     this.armSchedules()
     operation.publish({
       type: EventType.RUN_FINISHED,
@@ -2229,7 +2341,11 @@ export abstract class SessionAgents<
       // Recovery must not run it again.
       this.admitted.set(input.inputId, inputKey(input.input, input.principal))
       this.warnLiveOnly(runId)
-      const operation = this.agentOperation(first.input.agent, runId)
+      const operation = this.agentOperation(
+        first.input.agent,
+        runId,
+        this.runStart(runId),
+      )
       const sender = input.principal ? { principal: input.principal } : {}
       const chain = this.createChain(this.loggedFields(first), {
         operation,
@@ -2375,7 +2491,9 @@ export abstract class SessionAgents<
 
   /**
    * After a crash: queue the logged notes that are not in the transcript,
-   * and note each logged job that no host runs now.
+   * and note each logged job that no host runs now. A job with a backend id
+   * can still run in its workspace, so the workspace tools stop it and note
+   * it when they bind the workspace again.
    */
   protected async recoverBackground(writer: LogWriter) {
     const queued = new Set(this.pendingNotes.map((message) => message.id))
@@ -2383,8 +2501,16 @@ export abstract class SessionAgents<
       if (queued.has(id)) continue
       this.pendingNotes.push({ id, role: 'assistant', content: note })
     }
-    for (const jobId of [...writer.state.jobs]) {
-      if (this.jobs.has(jobId)) continue
+    const lost = [...writer.state.jobs]
+      .filter(
+        ([jobId, backendId]) =>
+          !this.jobs.has(jobId) && backendId === undefined,
+      )
+      .map(([jobId]) => jobId)
+    // Only the owner notes them. While another live host owns the log, the
+    // job runs there.
+    if (lost.length > 0 && !(await writer.own())) return
+    for (const jobId of lost) {
       const id = createMessageId()
       const note = `Background job ${jobId} stopped when the host restarted.`
       this.pendingNotes.push({ id, role: 'assistant', content: note })

@@ -49,8 +49,19 @@ const plain = defineHarness({
 describe('the log of a session tree', () => {
   it('lands a child record and a root record in one append, or neither', async () => {
     const inner = memoryLogStore()
+    // The app record types of each store append.
+    const batches: Array<Array<string>> = []
     // A plain object, so the test can swap `append` below.
-    const log = wrapLogStore(inner, {})
+    const log = wrapLogStore(inner, {
+      append: async (batch) => {
+        await inner.append(batch)
+        batches.push(
+          batch.records
+            .map((record) => record.type)
+            .filter((type) => type.startsWith('app.')),
+        )
+      },
+    })
     const host = hostFor(durablePersistence(log))
     const root = await host.open(plain, { threadId: ROOT })
     const pair: Array<LogRecord> = [
@@ -58,19 +69,26 @@ describe('the log of a session tree', () => {
       { type: 'app.child_linked', child: 'task-1' },
     ]
 
-    await root.append(pair)
-    const types = async () =>
-      (await inner.read({ logId: STORE_LOG })).map((entry) => entry.record.type)
-    expect(await types()).toEqual(['app.child_created', 'app.child_linked'])
+    await root.append({ records: pair })
+    // The append is an input, so the log has its input records too. The app
+    // records are in one store append.
+    const appTypes = async () =>
+      (await inner.read({ logId: STORE_LOG }))
+        .map((entry) => entry.record.type)
+        .filter((type) => type.startsWith('app.'))
+    expect(await appTypes()).toEqual(['app.child_created', 'app.child_linked'])
+    expect(batches.filter((types) => types.length > 0)).toEqual([
+      ['app.child_created', 'app.child_linked'],
+    ])
 
     // The writer tries twice, so both tries fail.
     const original = log.append
     log.append = async () => {
       throw new Error('store down')
     }
-    await expect(root.append(pair)).rejects.toThrow('store down')
+    await expect(root.append({ records: pair })).rejects.toThrow('store down')
     log.append = original
-    expect(await types()).toEqual(['app.child_created', 'app.child_linked'])
+    expect(await appTypes()).toEqual(['app.child_created', 'app.child_linked'])
     await host.close().catch(() => {})
   })
 
@@ -79,11 +97,17 @@ describe('the log of a session tree', () => {
     const host = hostFor(persistence)
     const root = await host.open(tracked, { threadId: ROOT })
 
-    await root.append([{ type: 'app.state_write', name: 'plan', value: 'a' }])
-    await root.append([
-      { type: 'app.state_write', thread: 'task-1', name: 'plan', value: 'b' },
-    ])
-    await root.append([{ type: 'app.state_write', name: 'done', value: true }])
+    await root.append({
+      records: [{ type: 'app.state_write', name: 'plan', value: 'a' }],
+    })
+    await root.append({
+      records: [
+        { type: 'app.state_write', thread: 'task-1', name: 'plan', value: 'b' },
+      ],
+    })
+    await root.append({
+      records: [{ type: 'app.state_write', name: 'done', value: true }],
+    })
 
     const folded = { plan: 'b', done: true }
     expect(await root.logState()).toEqual(folded)
@@ -104,7 +128,9 @@ describe('the log of a session tree', () => {
   it('gives undefined from session.logState() for a harness without reduce', async () => {
     const host = hostFor(durablePersistence())
     const root = await host.open(plain, { threadId: ROOT })
-    await root.append([{ type: 'app.state_write', name: 'plan', value: 'a' }])
+    await root.append({
+      records: [{ type: 'app.state_write', name: 'plan', value: 'a' }],
+    })
 
     expect(await root.logState()).toBeUndefined()
     expectTypeOf(root.logState).returns.resolves.toEqualTypeOf<undefined>()
@@ -126,10 +152,12 @@ describe('the log of a session tree', () => {
       },
     })
     const root = await host.open(harness, { threadId: ROOT })
-    await root.append([
-      { type: 'app.signal', thread: 'task-1', text: 'for the child' },
-      { type: 'app.signal', text: 'for the root' },
-    ])
+    await root.append({
+      records: [
+        { type: 'app.signal', thread: 'task-1', text: 'for the child' },
+        { type: 'app.signal', text: 'for the root' },
+      ],
+    })
 
     expect((await root.transcript()).map((m) => m.content)).toEqual([
       'for the root',
@@ -141,7 +169,7 @@ describe('the log of a session tree', () => {
     const persistence = durablePersistence()
     const host = hostFor(persistence)
     const root = await host.open(plain, { threadId: ROOT })
-    await root.append([{ type: 'app.signal' }])
+    await root.append({ records: [{ type: 'app.signal' }] })
 
     // The session has no work, so the host gave the log up. Another host
     // takes it and writes.
@@ -154,7 +182,7 @@ describe('the log of a session tree', () => {
     expect(host.isOpen(plain, { threadId: ROOT })).toBe(true)
     // The next write acquires the log again, after the record of the other
     // host.
-    await root.append([{ type: 'app.root' }])
+    await root.append({ records: [{ type: 'app.root' }] })
     const records = await persistence.stores.log.read({ logId: STORE_LOG })
     const types = records
       .map((entry) => entry.record.type)
@@ -168,7 +196,7 @@ describe('the log of a session tree', () => {
     const root = await host.open(plain, { threadId: ROOT })
 
     await expect(
-      root.append([{ type: 'app.signal', thread: 7 }]),
+      root.append({ records: [{ type: 'app.signal', thread: 7 }] }),
     ).rejects.toThrow('thread')
     await host.close()
   })

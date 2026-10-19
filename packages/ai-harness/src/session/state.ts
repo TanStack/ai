@@ -5,10 +5,13 @@ import {
 } from '@tanstack/ai'
 import { UNOWNED_EPOCH, loadChildTranscript } from '@tanstack/ai-persistence'
 import { checkConfigValue } from '../config'
+import { transcriptText } from '../first-party/session-tools'
+import { LogOwnedElsewhereError } from '../ownership'
 import { isRecord } from '../utils'
 import { jsonSchemaIssues } from '../json-schema'
 import { changedEntry } from '../session-entry'
-import { stableJson, threadOf, visibleMessages } from '../log'
+import { stableJson, visibleMessages } from '../log'
+import { isHumanTarget } from '../log-records'
 import { mediaIdOf, mediaOfMessage, mediaPart } from '../media-ref'
 import {
   BackgroundJobs,
@@ -16,7 +19,10 @@ import {
   RevertFiles,
   RevertStanding,
   SessionMetadata,
+  SessionScrub,
   SessionSignal,
+  ThreadEnds,
+  WorkspaceLog,
 } from '../plugins'
 import { HARNESS_EVENTS } from '../types'
 import { SECRET_ANSWER_PREFIX } from '../auth'
@@ -47,10 +53,18 @@ import type {
 import type {
   BlobBody,
   BlobRange,
+  LogRecord,
   SessionIndexEntry,
 } from '@tanstack/ai-persistence'
 import type { RevertState } from '../log'
-import type { ThreadRecord, WaitRecord, WaitState } from '../log-records'
+import type { ThreadEndHandler } from '../plugins'
+import type {
+  HandoffRecord,
+  RecordPrincipal,
+  ThreadRecord,
+  WaitRecord,
+  WaitState,
+} from '../log-records'
 import type { Wait, WaitOutcome } from '../waits'
 import type { Question } from '../commands'
 import type { ConfigOption } from '../config'
@@ -63,7 +77,7 @@ import type { SessionEntryChange, SessionEntryUpdate } from '../session-entry'
 import type {
   ChatTurnResult,
   ConfigureOptions,
-  HarnessInput,
+  OfferedHarnessInput,
   MediaRecord,
   MediaUpload,
   PendingQuestion,
@@ -78,6 +92,10 @@ import type {
 } from './types'
 import type { SettingNames } from './helpers'
 import type { HarnessSession, SessionImpl } from './harness-session'
+
+/** What the model of the source gets for a `'summary'` transfer. */
+const TRANSFER_SUMMARY_PROMPT =
+  'Summarize this conversation for the agent that takes it over. Keep the request, decisions, open tasks, and facts it needs. Leave out small talk.'
 
 /** What the log keeps in place of a secret answer. */
 const SECRET_ANSWER = '[secret]'
@@ -103,6 +121,8 @@ export abstract class SessionState<
   protected readonly waitEnds = new Map<string, () => void>()
   /** The secret answers to `step.ask` waits that this host kept, by wait id. */
   protected readonly keptAnswers = new Map<string, unknown>()
+  /** The handlers that plugins added to `ThreadEnds`, oldest first. */
+  protected readonly threadEnds = new Set<ThreadEndHandler>()
 
   /** The stores that first-party plugins read as capabilities. */
   protected storeCapabilities() {
@@ -111,9 +131,44 @@ export abstract class SessionState<
     if (metadata) values.provide(SessionMetadata, metadata)
     values.provide(RevertStanding, () => this.reverted !== undefined)
     values.provide(SessionSignal, this.lifetime.signal)
+    values.provide(SessionScrub, (text) => this.scrub(text))
+    values.provide(ThreadEnds, {
+      add: (handler) => {
+        this.threadEnds.add(handler)
+        return () => this.threadEnds.delete(handler)
+      },
+    })
     values.provide(BackgroundJobs, {
-      started: (jobId) => this.logJob(jobId, false),
-      ended: (jobId) => this.logJob(jobId, true),
+      started: (job) => this.logJob(job, false),
+      ended: (job) => this.logJob(job, true),
+    })
+    values.provide(WorkspaceLog, {
+      hostId: () => this.writer.hostId,
+      bound: (threadId) =>
+        this.writer.stateOf(threadId).thread.workspace ?? undefined,
+      bind: ({ threadId, binding }) =>
+        this.writer.append([
+          {
+            type: 'harness.workspace.bound',
+            binding,
+            ...(threadId === this.threadId ? {} : { thread: threadId }),
+          },
+        ]),
+      pin: (hostId) => this.writer.pin(hostId),
+      lostJobs: (threadId) =>
+        [...this.writer.stateOf(threadId).jobs].flatMap(([jobId, backendId]) =>
+          backendId === undefined || this.jobs.has(jobId)
+            ? []
+            : [{ jobId, backendId }],
+        ),
+      stranded: ({ operationId, hostId }) =>
+        this.feed.publish(
+          operationId,
+          customEvent(HARNESS_EVENTS.stranded, {
+            operationId,
+            ...(hostId !== undefined ? { hostId } : {}),
+          }),
+        ),
     })
     return values
   }
@@ -256,7 +311,7 @@ export abstract class SessionState<
   }
 
   /** The record of a media file of this thread, or `null` when it is not found. */
-  getMedia(id: string) {
+  getMedia({ id }: { id: string }) {
     return this.mediaStore.get(id)
   }
 
@@ -276,7 +331,7 @@ export abstract class SessionState<
    * has no server, so this is a data URL for a file up to 1 MB, and `{}` for
    * a bigger file (use `loadMedia`).
    */
-  async mediaUrl(id: string) {
+  async mediaUrl({ id }: { id: string }) {
     const url = await this.mediaStore.dataUrl(id)
     const answer: { url?: string; expiresAt?: number } =
       url === undefined ? {} : { url }
@@ -293,16 +348,32 @@ export abstract class SessionState<
     source: SessionImpl,
     messages: ReadonlyArray<ModelMessage>,
   ): Promise<void> {
+    await this.adoptMessages(source, messages)
+    await this.adoptSettings(source)
+  }
+
+  /**
+   * @internal Add `messages` after the transcript of this thread, with their
+   * media copied from `source` to this thread. `records` go in the same
+   * append, so a crash keeps both or neither. A fork and `host.transfer`
+   * call it.
+   */
+  async adoptMessages(
+    source: SessionImpl,
+    messages: ReadonlyArray<ModelMessage>,
+    records: ReadonlyArray<LogRecord> = [],
+  ): Promise<void> {
     // A media id belongs to one thread, so each file gets a copy here.
     const copies = new Map<string, MediaRecord | null>()
     const copy = async (id: string) => {
       if (!copies.has(id)) {
-        const record = await source.getMedia(id)
+        const record = await source.getMedia({ id })
         copies.set(
           id,
           record &&
             (await this.putMedia({
-              body: await source.loadMedia({ id }),
+              // A stream, so the copy does not hold the whole file in memory.
+              body: await source.mediaStore.open(id),
               mimeType: record.mimeType,
               name: record.name,
             })),
@@ -338,7 +409,18 @@ export abstract class SessionState<
         metadata: { ...message.metadata, harness },
       })
     }
-    await this.messages.saveThread(this.threadId, forked)
+    await this.writer.commit({
+      messages: [...this.writer.state.messages, ...forked],
+      records,
+    })
+    for (const record of records) this.publishTransferred(record)
+  }
+
+  /**
+   * @internal Copy the stored settings and plugin config of `source` to
+   * this thread. Only a fork calls it: a transfer never moves them.
+   */
+  private async adoptSettings(source: SessionImpl): Promise<void> {
     this.threadSettings = source.settings()
     const records: Array<ThreadRecord> = []
     if (Object.keys(this.threadSettings).length > 0) {
@@ -354,6 +436,105 @@ export abstract class SessionState<
       records.push({ type: 'harness.state', key, delta: { path: [], value } })
     }
     if (records.length > 0) await this.writer.append(records)
+  }
+
+  /** @internal The end of the transfer `transferId` in the log of this thread. */
+  transferOf(transferId: string) {
+    return this.writer.state.thread.transfers.get(transferId)
+  }
+
+  /**
+   * @internal Write the source end of a transfer: its `harness.transferred`
+   * record. When another host owns the log, the record goes to that host
+   * through the input lane, with an id from the transfer, so a retry offers
+   * the same record again. A log that has the transfer already gets nothing.
+   */
+  async recordTransfer(
+    record: Extract<ThreadRecord, { type: 'harness.transferred' }>,
+  ): Promise<void> {
+    if (this.transferOf(record.transferId)) return
+    const isAppended = await this.appendOrOffer(
+      record,
+      `transfer:${record.transferId}`,
+    )
+    // An offered record gets its event from the owner, when it appends it.
+    if (isAppended) this.publishTransferred(record)
+  }
+
+  /**
+   * Append `record` to the log of this thread. When another host owns the
+   * log, offer it to that host as `inputId`: the owner appends it as it is.
+   * Resolves `true` when this host appended it.
+   */
+  private async appendOrOffer(record: LogRecord, inputId: string) {
+    try {
+      await this.writer.append([record])
+      return true
+    } catch (error) {
+      if (!(error instanceof LogOwnedElsewhereError)) throw error
+    }
+    const offered = await this.writer.offer(inputId, record)
+    if (offered === 'conflict') {
+      throw new Error(
+        `The input lane has another record with id ${JSON.stringify(inputId)}.`,
+      )
+    }
+    return false
+  }
+
+  /**
+   * @internal A summary of `messages` for `host.transfer`, by the model of
+   * this harness, with the keys of `principal`. The usage of its model calls
+   * goes to the log of this thread at once, under the source `transfer` and
+   * the label `summary`, so it counts also when the transfer fails later.
+   */
+  async transferSummary(
+    principal: Principal | undefined,
+    messages: ReadonlyArray<ModelMessage>,
+  ): Promise<string> {
+    const named = this.threadSettings.model
+    const model =
+      (named === undefined ? undefined : this.harness.models?.[named]) ??
+      this.harness.adapter
+    if (!model) {
+      throw new Error(
+        `A transfer with messages: 'summary' needs a model: harness ${JSON.stringify(this.harness.name)} has no adapter.`,
+      )
+    }
+    // The call is part of no run. The run gives it the keys of `principal`
+    // and the signal of the session, and `count` takes its usage.
+    const run = this.runContext({
+      principal,
+      runId: 'transfer',
+      signal: this.lifetime.signal,
+    })
+    const result = await this.modelChat({
+      adapter: model,
+      options: {
+        messages: [
+          {
+            role: 'user',
+            content: `${TRANSFER_SUMMARY_PROMPT}\n\n${transcriptText(messages)}`,
+          },
+        ],
+      },
+      run,
+      source: 'transfer',
+      label: 'summary',
+      // A new id for each call: a retry that calls the model again pays again.
+      count: async (call) => {
+        await this.appendOrOffer(
+          { type: 'harness.usage', ...call },
+          createInputId(),
+        )
+      },
+    })
+    const text =
+      isRecord(result) && typeof result.text === 'string' ? result.text : ''
+    if (!text.trim()) {
+      throw new Error('The summary model returned no text. Nothing moved.')
+    }
+    return text
   }
 
   // ===========================
@@ -373,7 +554,8 @@ export abstract class SessionState<
       result[key] = {
         option: entry.option,
         owner: entry.owner,
-        value: this.configValue(key),
+        // The latest value, also while a turn runs with its own copy.
+        value: this.configValue(key, this.configValues),
       }
     }
     return result
@@ -384,17 +566,28 @@ export abstract class SessionState<
    * who changes it. Default: the principal that opened the session. The log
    * keeps it.
    */
-  async setConfig({
+  setConfig(options: {
+    key: string
+    value: unknown
+    principal?: Principal
+  }): Promise<Receipt> {
+    return this.applyConfig(options)
+  }
+
+  /**
+   * `setConfig`, with `controlId`: the id of an offered input, so a replay
+   * is a duplicate.
+   */
+  protected override async applyConfig({
     key,
     value,
-    inputId = createInputId(),
+    controlId: inputId = createInputId(),
     principal,
   }: {
     key: string
     value: unknown
-    /** @internal The id of an offered input, so a replay is a duplicate. */
-    inputId?: string
     principal?: Principal
+    controlId?: string
   }): Promise<Receipt> {
     const admission = await this.accept(
       inputId,
@@ -463,15 +656,19 @@ export abstract class SessionState<
       principal,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
+    // The store took the input, so this host owns the log, and its fold has
+    // the settings that other hosts wrote. The change merges into them.
+    const current = this.settingsFromLog()
     let next: ThreadSettings
     try {
-      next = changeSettings(this.threadSettings, settings, this.settingNames())
+      next = changeSettings(current, settings, this.settingNames())
+      this.checkRemovable(next)
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
       this.reject(inputId, reason)
       return this.keep({ inputId, status: 'rejected', reason })
     }
-    const movedFrom = this.threadSettings.cwd
+    const movedFrom = current.cwd
     this.threadSettings = next
     // Tell the model about a new folder, so it stops using the old paths.
     // A new thread gets no note: some providers refuse a conversation that
@@ -501,6 +698,43 @@ export abstract class SessionState<
     return this.keep({ inputId, status: 'accepted' })
   }
 
+  /**
+   * Throws when the plugins that `settings` removes provide a capability
+   * that a kept plugin (of any lifetime) or a harness middleware requires.
+   */
+  protected checkRemovable(settings: ThreadSettings) {
+    const removed = new Set(settings.plugins?.remove ?? [])
+    if (removed.size === 0) return
+    const owners = new Map(
+      this.plugins.flatMap((plugin) =>
+        (plugin.provides ?? []).map((handle) => [handle, plugin.name] as const),
+      ),
+    )
+    const needs = [
+      ...this.plugins
+        .filter((plugin) => !removed.has(plugin.name))
+        .map((plugin) => ({
+          who: `plugin ${plugin.name}`,
+          requires: plugin.requires,
+        })),
+      ...(this.harness.middleware ?? []).map((middleware) => ({
+        who: middleware.name
+          ? `harness middleware ${middleware.name}`
+          : 'a harness middleware',
+        requires: middleware.requires,
+      })),
+    ]
+    for (const { who, requires } of needs) {
+      for (const handle of requires ?? []) {
+        const owner = owners.get(handle)
+        if (owner === undefined || !removed.has(owner)) continue
+        throw new Error(
+          `Cannot remove plugin ${owner}: ${who} requires its capability "${handle.capabilityName}".`,
+        )
+      }
+    }
+  }
+
   /** The model and plugin names that a setting can use. */
   protected settingNames(): SettingNames {
     return {
@@ -516,7 +750,7 @@ export abstract class SessionState<
     owner: string
     input?: unknown
   }> {
-    return [...(this.sessionPlugins?.commands ?? [])].map(([name, entry]) => ({
+    return [...(this.threadPlugins()?.commands ?? [])].map(([name, entry]) => ({
       name,
       description: entry.command.description,
       owner: entry.owner,
@@ -579,7 +813,11 @@ export abstract class SessionState<
    * child of this thread too. Empty for an unknown id, and for a child of
    * another thread.
    */
-  async agentTranscript(subagentRunId: string): Promise<Array<ModelMessage>> {
+  async agentTranscript({
+    subagentRunId,
+  }: {
+    subagentRunId: string
+  }): Promise<Array<ModelMessage>> {
     return (
       (await loadChildTranscript(this.engine, subagentRunId, this.threadId)) ??
       []
@@ -620,9 +858,23 @@ export abstract class SessionState<
    * hidden messages for good. The revert state is saved, so it survives a
    * restart. Refused while the session is not idle, or another host runs
    * the thread (`'busy'`), and for a message that is not in the transcript
-   * (`'unknown_message'`).
+   * (`'unknown_message'`). `principal` is who reverts. Default: the
+   * principal that opened the session. The `harness.revert` record keeps
+   * it. A handle of `host.open` checks that it is the principal of the
+   * handle.
+   *
+   * @example
+   * ```ts
+   * await session.revert({ messageId: message.id })
+   * ```
    */
-  async revert(messageId: string): Promise<Receipt> {
+  async revert({
+    messageId,
+    principal,
+  }: {
+    messageId: string
+    principal?: Principal
+  }): Promise<Receipt> {
     const inputId = createInputId()
     if (!(await this.ownsIdleThread())) {
       return { inputId, status: 'rejected', reason: 'busy' }
@@ -635,13 +887,15 @@ export abstract class SessionState<
       // A revert that stands ends first, so its files come back.
       await this.endRevert()
       const handler = this.sessionPlugins?.values.get(RevertFiles)
-      const files = await handler?.revert(messages.slice(at + 1), (type) =>
-        this.hostRecords(type),
+      const files = await handler?.revert(
+        messages.slice(at + 1),
+        async (type) => this.keptRecords(type),
+        this.revertRun(principal ?? this.principal),
       )
-      await this.saveRevert({
-        messageId,
-        ...(files !== undefined ? { files } : {}),
-      })
+      await this.saveRevert(
+        { messageId, ...(files !== undefined ? { files } : {}) },
+        principal ?? this.principal,
+      )
       return { inputId, status: 'accepted' }
     })
   }
@@ -668,9 +922,22 @@ export abstract class SessionState<
     if (reverted.files !== undefined) {
       await this.sessionPlugins?.values
         .get(RevertFiles)
-        ?.unrevert(reverted.files)
+        ?.unrevert(reverted.files, this.revertRun(this.principal))
     }
     await this.saveRevert(undefined)
+  }
+
+  /**
+   * A run for the files of a revert, in the thread of this session. It is
+   * part of no turn, so a workspace that no turn opened on this host (after
+   * a restart) opens again from the log.
+   */
+  protected revertRun(principal: Principal | undefined) {
+    return this.runContext({
+      principal,
+      runId: `revert:${this.threadId}`,
+      signal: this.lifetime.signal,
+    })
   }
 
   /** Run `fn` while no new turn starts. A held turn starts after it. */
@@ -706,11 +973,18 @@ export abstract class SessionState<
     await this.saveRevert(undefined)
   }
 
-  /** Keep the revert state in the log. */
-  protected async saveRevert(revert: RevertState | undefined) {
+  /** Keep the revert state in the log, with who reverted. */
+  protected async saveRevert(
+    revert: RevertState | undefined,
+    principal?: Principal,
+  ) {
     this.reverted = revert
     await this.writer.append([
-      { type: 'harness.revert', revert: revert ?? null },
+      {
+        type: 'harness.revert',
+        revert: revert ?? null,
+        ...storedPrincipal(principal),
+      },
     ])
     this.feed.publish(
       'session',
@@ -720,25 +994,15 @@ export abstract class SessionState<
     )
   }
 
-  /** The host records of `type` of this thread, from the log, oldest first. */
-  protected async hostRecords(type: string) {
-    const found: Array<Record<string, unknown>> = []
-    let after = 0
-    for (;;) {
-      const entries = await this.log.store.read({
-        logId: this.storeLogId,
-        after,
-        limit: 256,
-      })
-      for (const { seq, record } of entries) {
-        after = seq
-        const isOwn = threadOf(record, this.threadId) === this.threadId
-        if (isOwn && record.type === type) found.push(record)
-      }
-      // A store can return fewer than `limit` before the end: stop only at
-      // an empty page.
-      if (entries.length === 0) return found
-    }
+  /**
+   * The kept host records of `type` of this thread, oldest first: the last
+   * ones that the `keepRecords` of the plugins name. The log snapshot keeps
+   * them, so they stay after a truncate of the log.
+   */
+  protected keptRecords(type: string): Array<LogRecord> {
+    return this.writer.state.keptRecords.flatMap(({ record }) =>
+      record.type === type ? [record] : [],
+    )
   }
 
   /** The commands, settings, and tools of this session, for a UI. */
@@ -760,19 +1024,30 @@ export abstract class SessionState<
    * wait, by its id. `principal` is who answers. Default: the principal that
    * opened the session. The log keeps it.
    */
-  async answer({
+  answer(options: {
+    questionId: string
+    value: unknown
+    principal?: Principal
+  }): Promise<Receipt> {
+    return this.applyAnswer(options)
+  }
+
+  /**
+   * `answer`, with `controlId` (the id of an offered input, so a replay is a
+   * duplicate) and `ref` (a secret answer that another host saved, see
+   * `answerOffer`).
+   */
+  protected override async applyAnswer({
     questionId,
     value,
-    inputId = createInputId(),
+    controlId: inputId = createInputId(),
     principal,
     ref,
   }: {
     questionId: string
     value: unknown
-    /** @internal The id of an offered input, so a replay is a duplicate. */
-    inputId?: string
     principal?: Principal
-    /** @internal A secret answer that another host saved. See `answerOffer`. */
+    controlId?: string
     ref?: string
   }): Promise<Receipt> {
     // A secret (a key or a password) stays out of the log. A restart does
@@ -873,6 +1148,10 @@ export abstract class SessionState<
       logged.outcome === undefined &&
       logged.live === undefined
     if (!isOpen) return this.reject(inputId, 'unknown_question')
+    const handBack = this.humanHandoffEnd(logged.wait, value)
+    if (handBack && 'reason' in handBack) {
+      return this.reject(inputId, handBack.reason)
+    }
     // The log has the JSON Schema of the wait: the answer must fit it.
     const issues = jsonSchemaIssues(logged.wait.schema, value)
     if (issues.length > 0) {
@@ -880,15 +1159,23 @@ export abstract class SessionState<
     }
     // A secret never goes in the log. The run reads it from the store.
     if (logged.secret) await this.keepSecretAnswer(logged, value)
-    await this.applied(
-      inputId,
-      'session',
-      this.waitEndRecords(
+    // The end of a handoff to a person goes in the same append.
+    await this.applied(inputId, 'session', [
+      ...this.waitEndRecords(
         waitId,
         'answered',
         logged.secret ? undefined : value,
       ),
-    )
+      ...(handBack
+        ? [{ type: 'harness.handoff' as const, ...handBack.record }]
+        : []),
+    ])
+    if (handBack) {
+      this.feed.publish(
+        'session',
+        customEvent(HARNESS_EVENTS.handoff, { ...handBack.record }),
+      )
+    }
     // A client that streams the run that waits sees the answer.
     this.feed.publish(
       logged.wait.runId,
@@ -897,6 +1184,47 @@ export abstract class SessionState<
     await this.afterWaitEnd(waitId)
     queueMicrotask(() => this.checkIdle())
     return { inputId, status: 'accepted' }
+  }
+
+  /**
+   * The handoff that ends a handoff to a person, when `wait` is its wait.
+   * `{ resume: true }` gives the thread back to the agent that answered
+   * before. `{ handBack: name }` gives it to that root agent, or to the main
+   * model with `'main'`. Another answer is refused with its reason.
+   */
+  private humanHandoffEnd(
+    wait: Wait,
+    value: unknown,
+  ): { record: HandoffRecord } | { reason: string } | undefined {
+    const active = this.writer.state.thread.activeAgent
+    if (!isHumanTarget(active) || active.waitId !== wait.waitId) {
+      return undefined
+    }
+    const answer = isRecord(value) ? value : {}
+    const { handBack } = answer
+    let to: string | null
+    if (typeof handBack === 'string') {
+      // The agents that the turn which handed off offered (with those of
+      // its turn plugins), and the ones this session has now.
+      const names = [
+        ...(active.agents ?? []),
+        ...[
+          ...(this.harness.agents ?? []),
+          ...(this.threadPlugins()?.agents ?? []),
+        ].map((agent) => agent.name),
+      ]
+      if (handBack !== 'main' && !names.includes(handBack)) {
+        return { reason: 'unknown_agent' }
+      }
+      to = handBack === 'main' ? null : handBack
+    } else if (answer.resume === true && handBack === undefined) {
+      to = active.from
+    } else {
+      return { reason: 'invalid_answer' }
+    }
+    return {
+      record: { from: { human: true }, to, runId: wait.runId, by: 'operator' },
+    }
   }
 
   /**
@@ -977,7 +1305,7 @@ export abstract class SessionState<
     value: unknown
     inputId: string
     sender: Principal | undefined
-  }): Promise<HarnessInput> {
+  }): Promise<OfferedHarnessInput> {
     // The wait of another host: read what that host wrote first.
     if (!this.questions.has(questionId)) await this.writer.catchUp()
     const logged = this.loggedWait(questionId)
@@ -1065,8 +1393,47 @@ export abstract class SessionState<
     ]
   }
 
+  /**
+   * Publish `harness.wait.settled` after the append that ended the wait
+   * `waitId`. An interrupt id has no wait in the log, so it gets no event.
+   */
+  protected publishWaitSettled(waitId: string) {
+    const ended = this.writer.state.thread.waits.get(waitId)
+    if (!ended || ended.outcome === undefined) return
+    this.feed.publish(
+      ended.wait.runId,
+      customEvent(HARNESS_EVENTS.waitSettled, {
+        waitId,
+        outcome: ended.outcome,
+      }),
+    )
+  }
+
+  /**
+   * The `harness.wait` span of the wait `waitId` that ended. A wait opens
+   * and ends on different hosts, so the span is written now, from the time
+   * in its log record.
+   */
+  private traceWait(waitId: string) {
+    const ended = this.tracing && this.writer.state.thread.waits.get(waitId)
+    if (!ended || ended.outcome === undefined) return
+    const span = this.tracing?.span(
+      'harness.wait',
+      {
+        'harness.run_id': ended.wait.runId,
+        'harness.wait.id': waitId,
+        'harness.wait.kind': ended.wait.kind,
+        'harness.wait.outcome': ended.outcome,
+      },
+      { runId: ended.wait.runId, startTime: ended.at },
+    )
+    this.tracing?.safely(() => span?.end(ended.settledAt))
+  }
+
   /** After the log ended the wait `waitId`: drop its secrets, and move the timer. */
   protected async afterWaitEnd(waitId: string) {
+    this.traceWait(waitId)
+    this.publishWaitSettled(waitId)
     // A `step.ask` of this host that waits for it goes on.
     this.waitEnds.get(waitId)?.()
     this.armSchedules()
@@ -1085,6 +1452,10 @@ export abstract class SessionState<
    * also when no host has the thread open.
    */
   protected async writeWait(...records: Array<WaitRecord>) {
+    // A wait that the log has already (a run again) gets no second event.
+    const fresh = records.filter(
+      ({ wait }) => !this.writer.state.thread.waits.has(wait.waitId),
+    )
     // One append: a run that waits for several opens all or none.
     await this.writer.append(
       records.flatMap((record): Array<ThreadRecord> => {
@@ -1103,9 +1474,25 @@ export abstract class SessionState<
         ]
       }),
     )
+    for (const { wait } of fresh) this.publishWaitOpened(wait)
     if (records.some((record) => record.wait.expiresAt !== undefined)) {
       this.armSchedules()
     }
+  }
+
+  /** Publish `harness.wait.opened`, after the append of the wait. */
+  private publishWaitOpened(wait: Wait) {
+    const { waitId, kind, runId, message, expiresAt } = wait
+    this.feed.publish(
+      runId,
+      customEvent(HARNESS_EVENTS.waitOpened, {
+        waitId,
+        kind,
+        runId,
+        ...(message !== undefined ? { message } : {}),
+        ...(expiresAt !== undefined ? { expiresAt } : {}),
+      }),
+    )
   }
 
   /**
@@ -1135,6 +1522,37 @@ export abstract class SessionState<
     }
     await this.writeWait({ wait, at: Date.now() })
     return wait
+  }
+
+  /**
+   * @internal Append a handoff record. A handoff to a person opens its
+   * `human` wait in the same append: the wait of the run of the record, with
+   * the note as its message. `principal` started the run, so that user (or
+   * the owner, or an operator) may answer. Resolves with the record as the
+   * log keeps it.
+   */
+  protected async appendHandoff(
+    record: HandoffRecord,
+    principal: RecordPrincipal | undefined,
+  ): Promise<HandoffRecord> {
+    if (!isHumanTarget(record.to)) {
+      await this.writer.append([{ type: 'harness.handoff', ...record }])
+      return record
+    }
+    const wait: Wait = {
+      waitId: createWaitId(),
+      kind: 'human',
+      runId: record.runId,
+      ...(principal ? { principal } : {}),
+      ...(record.note !== undefined ? { message: record.note } : {}),
+    }
+    const kept = { ...record, waitId: wait.waitId }
+    await this.writer.append([
+      { type: 'harness.wait', wait, at: Date.now() },
+      { type: 'harness.handoff', ...kept },
+    ])
+    this.publishWaitOpened(wait)
+    return kept
   }
 
   /**
@@ -1371,33 +1789,68 @@ export abstract class SessionState<
 
   /** Read the config values of this thread from the log. */
   protected loadConfig() {
-    const stored = this.writer.state.thread.config
-    for (const [key, value] of stored) {
+    for (const [key, value] of this.configSnapshot()) {
+      this.configValues.set(key, value)
+    }
+  }
+
+  /**
+   * The config values in the log now. A turn keeps them until it ends, so a
+   * change while it runs applies at the next turn.
+   */
+  protected configSnapshot(): Map<string, unknown> {
+    const values = new Map<string, unknown>()
+    for (const [key, value] of this.writer.state.thread.config) {
       const entry = this.sessionPlugins?.config.get(key)
       if (!entry) continue
       try {
-        this.configValues.set(key, checkConfigValue(key, entry.option, value))
+        values.set(key, checkConfigValue(key, entry.option, value))
       } catch {
         // A stored value an option no longer accepts falls back to the default.
       }
     }
+    return values
   }
 
   /** Read the stored settings of this thread from the log. */
   protected loadSettings() {
+    this.threadSettings = this.settingsFromLog(this.threadSettings)
+  }
+
+  /** The stored settings in the fold of the log, over `base`. */
+  protected settingsFromLog(base: ThreadSettings = {}): ThreadSettings {
     const stored = this.writer.state.thread.settings
     const names = this.settingNames()
+    let settings = base
     for (const [key, value] of Object.entries(stored)) {
       try {
-        this.threadSettings = changeSettings(
-          this.threadSettings,
-          { [key]: value },
-          names,
-        )
+        const next = changeSettings(settings, { [key]: value }, names)
+        this.checkRemovable(next)
+        settings = next
       } catch {
         // A value the harness no longer takes (a removed model or plugin)
         // is dropped.
       }
+    }
+    return settings
+  }
+
+  /**
+   * Another host wrote to the log, and this log folded its records. Read
+   * the settings, the config values, and the interrupted turn from the fold
+   * again, so a turn and a change on this host use what that host wrote.
+   */
+  protected syncFromLog() {
+    // While the plugins mount (an open or a reload), the open reads them.
+    if (!this.sessionPlugins) return
+    this.threadSettings = this.settingsFromLog()
+    this.configValues.clear()
+    for (const [key, value] of this.configSnapshot()) {
+      this.configValues.set(key, value)
+    }
+    const logged = this.writer.state.thread.interrupted ?? undefined
+    if (stableJson(logged ?? null) !== stableJson(this.interrupted ?? null)) {
+      this.interrupted = logged
     }
   }
 
@@ -1493,6 +1946,11 @@ export abstract class SessionState<
             previous.runId === runId &&
             previous.routed
               ? { routed: previous.routed }
+              : {}),
+            ...(previous !== undefined &&
+            previous.runId === runId &&
+            previous.handoff
+              ? { handoff: previous.handoff }
               : {}),
             ...storedPrincipal(
               previous !== undefined && previous.runId === runId
@@ -1674,6 +2132,7 @@ export abstract class SessionState<
           // A cancel or the close ended it before the log had it.
           this.writer
             .append(this.waitEndRecords(questionId, 'cancelled'))
+            .then(() => this.publishWaitSettled(questionId))
             .catch(() => {})
         },
         (error: unknown) => {

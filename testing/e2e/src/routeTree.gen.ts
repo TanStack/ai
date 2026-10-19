@@ -78,6 +78,7 @@ import { Route as ApiChatCompletionsIncompleteStreamRouteImport } from './routes
 import { Route as ApiClientToolResumeStoreRouteImport } from './routes/api.client-tool-resume-store'
 import { Route as ApiCloudflareBindingWireRouteImport } from './routes/api.cloudflare-binding-wire'
 import { Route as ApiCodingToolsRouteImport } from './routes/api.coding-tools'
+import { Route as ApiCodingWorkspaceRouteImport } from './routes/api.coding-workspace'
 import { Route as ApiCompactionUsageWireRouteImport } from './routes/api.compaction-usage-wire'
 import { Route as ApiCompactionWireRouteImport } from './routes/api.compaction-wire'
 import { Route as ApiContextOverflowRouteImport } from './routes/api.context-overflow'
@@ -102,6 +103,7 @@ import { Route as ApiHarnessContinueRouteImport } from './routes/api.harness-con
 import { Route as ApiHarnessFirstPartyRouteImport } from './routes/api.harness-first-party'
 import { Route as ApiHarnessForwardingRouteImport } from './routes/api.harness-forwarding'
 import { Route as ApiHarnessRetryAfterRouteImport } from './routes/api.harness-retry-after'
+import { Route as ApiHarnessTransferRouteImport } from './routes/api.harness-transfer'
 import { Route as ApiHarnessWorkerRouteImport } from './routes/api.harness-worker'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-test'
@@ -189,6 +191,8 @@ import { Route as ApiWrapFetchWireRouteImport } from './routes/api.wrap-fetch-wi
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 import { Route as ApiHarnessProtocolSplatRouteImport } from './routes/api.harness-protocol.$'
 import { Route as ApiHarnessSecretAnswerSplatRouteImport } from './routes/api.harness-secret-answer.$'
+import { Route as ApiHarnessHandoffSplatRouteImport } from './routes/api.harness-handoff.$'
+import { Route as ApiHarnessObservabilitySplatRouteImport } from './routes/api.harness-observability.$'
 import { Route as ApiHarnessWaitsSplatRouteImport } from './routes/api.harness-waits.$'
 import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
 import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcription.stream'
@@ -558,6 +562,11 @@ const ApiCodingToolsRoute = ApiCodingToolsRouteImport.update({
   path: '/api/coding-tools',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCodingWorkspaceRoute = ApiCodingWorkspaceRouteImport.update({
+  id: '/api/coding-workspace',
+  path: '/api/coding-workspace',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCompactionUsageWireRoute = ApiCompactionUsageWireRouteImport.update({
   id: '/api/compaction-usage-wire',
   path: '/api/compaction-usage-wire',
@@ -680,6 +689,11 @@ const ApiHarnessForwardingRoute = ApiHarnessForwardingRouteImport.update({
 const ApiHarnessRetryAfterRoute = ApiHarnessRetryAfterRouteImport.update({
   id: '/api/harness-retry-after',
   path: '/api/harness-retry-after',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHarnessTransferRoute = ApiHarnessTransferRouteImport.update({
+  id: '/api/harness-transfer',
+  path: '/api/harness-transfer',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHarnessWorkerRoute = ApiHarnessWorkerRouteImport.update({
@@ -1139,6 +1153,17 @@ const ApiHarnessSecretAnswerSplatRoute =
     path: '/api/harness-secret-answer/$',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiHarnessHandoffSplatRoute = ApiHarnessHandoffSplatRouteImport.update({
+  id: '/api/harness-handoff/$',
+  path: '/api/harness-handoff/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHarnessObservabilitySplatRoute =
+  ApiHarnessObservabilitySplatRouteImport.update({
+    id: '/api/harness-observability/$',
+    path: '/api/harness-observability/$',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiHarnessWaitsSplatRoute = ApiHarnessWaitsSplatRouteImport.update({
   id: '/api/harness-waits/$',
   path: '/api/harness-waits/$',
@@ -1234,6 +1259,7 @@ export interface FileRoutesByFullPath {
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
+  '/api/coding-workspace': typeof ApiCodingWorkspaceRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/context-overflow': typeof ApiContextOverflowRoute
@@ -1258,6 +1284,7 @@ export interface FileRoutesByFullPath {
   '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
   '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
   '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
+  '/api/harness-transfer': typeof ApiHarnessTransferRoute
   '/api/harness-worker': typeof ApiHarnessWorkerRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
@@ -1346,6 +1373,8 @@ export interface FileRoutesByFullPath {
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
   '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
+  '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
+  '/api/harness-observability/$': typeof ApiHarnessObservabilitySplatRoute
   '/api/harness-waits/$': typeof ApiHarnessWaitsSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
@@ -1421,6 +1450,7 @@ export interface FileRoutesByTo {
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
+  '/api/coding-workspace': typeof ApiCodingWorkspaceRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/context-overflow': typeof ApiContextOverflowRoute
@@ -1445,6 +1475,7 @@ export interface FileRoutesByTo {
   '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
   '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
   '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
+  '/api/harness-transfer': typeof ApiHarnessTransferRoute
   '/api/harness-worker': typeof ApiHarnessWorkerRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
@@ -1533,6 +1564,8 @@ export interface FileRoutesByTo {
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
   '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
+  '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
+  '/api/harness-observability/$': typeof ApiHarnessObservabilitySplatRoute
   '/api/harness-waits/$': typeof ApiHarnessWaitsSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
@@ -1609,6 +1642,7 @@ export interface FileRoutesById {
   '/api/client-tool-resume-store': typeof ApiClientToolResumeStoreRoute
   '/api/cloudflare-binding-wire': typeof ApiCloudflareBindingWireRoute
   '/api/coding-tools': typeof ApiCodingToolsRoute
+  '/api/coding-workspace': typeof ApiCodingWorkspaceRoute
   '/api/compaction-usage-wire': typeof ApiCompactionUsageWireRoute
   '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/context-overflow': typeof ApiContextOverflowRoute
@@ -1633,6 +1667,7 @@ export interface FileRoutesById {
   '/api/harness-first-party': typeof ApiHarnessFirstPartyRoute
   '/api/harness-forwarding': typeof ApiHarnessForwardingRoute
   '/api/harness-retry-after': typeof ApiHarnessRetryAfterRoute
+  '/api/harness-transfer': typeof ApiHarnessTransferRoute
   '/api/harness-worker': typeof ApiHarnessWorkerRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
@@ -1721,6 +1756,8 @@ export interface FileRoutesById {
   '/api/audio/stream': typeof ApiAudioStreamRoute
   '/api/harness-protocol/$': typeof ApiHarnessProtocolSplatRoute
   '/api/harness-secret-answer/$': typeof ApiHarnessSecretAnswerSplatRoute
+  '/api/harness-handoff/$': typeof ApiHarnessHandoffSplatRoute
+  '/api/harness-observability/$': typeof ApiHarnessObservabilitySplatRoute
   '/api/harness-waits/$': typeof ApiHarnessWaitsSplatRoute
   '/api/image/stream': typeof ApiImageStreamRoute
   '/api/transcription/stream': typeof ApiTranscriptionStreamRoute
@@ -1798,6 +1835,7 @@ export interface FileRouteTypes {
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-wire'
     | '/api/coding-tools'
+    | '/api/coding-workspace'
     | '/api/compaction-usage-wire'
     | '/api/compaction-wire'
     | '/api/context-overflow'
@@ -1822,6 +1860,7 @@ export interface FileRouteTypes {
     | '/api/harness-first-party'
     | '/api/harness-forwarding'
     | '/api/harness-retry-after'
+    | '/api/harness-transfer'
     | '/api/harness-worker'
     | '/api/image'
     | '/api/interrupts-test'
@@ -1910,6 +1949,8 @@ export interface FileRouteTypes {
     | '/api/audio/stream'
     | '/api/harness-protocol/$'
     | '/api/harness-secret-answer/$'
+    | '/api/harness-handoff/$'
+    | '/api/harness-observability/$'
     | '/api/harness-waits/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
@@ -1985,6 +2026,7 @@ export interface FileRouteTypes {
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-wire'
     | '/api/coding-tools'
+    | '/api/coding-workspace'
     | '/api/compaction-usage-wire'
     | '/api/compaction-wire'
     | '/api/context-overflow'
@@ -2009,6 +2051,7 @@ export interface FileRouteTypes {
     | '/api/harness-first-party'
     | '/api/harness-forwarding'
     | '/api/harness-retry-after'
+    | '/api/harness-transfer'
     | '/api/harness-worker'
     | '/api/image'
     | '/api/interrupts-test'
@@ -2097,6 +2140,8 @@ export interface FileRouteTypes {
     | '/api/audio/stream'
     | '/api/harness-protocol/$'
     | '/api/harness-secret-answer/$'
+    | '/api/harness-handoff/$'
+    | '/api/harness-observability/$'
     | '/api/harness-waits/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
@@ -2172,6 +2217,7 @@ export interface FileRouteTypes {
     | '/api/client-tool-resume-store'
     | '/api/cloudflare-binding-wire'
     | '/api/coding-tools'
+    | '/api/coding-workspace'
     | '/api/compaction-usage-wire'
     | '/api/compaction-wire'
     | '/api/context-overflow'
@@ -2196,6 +2242,7 @@ export interface FileRouteTypes {
     | '/api/harness-first-party'
     | '/api/harness-forwarding'
     | '/api/harness-retry-after'
+    | '/api/harness-transfer'
     | '/api/harness-worker'
     | '/api/image'
     | '/api/interrupts-test'
@@ -2284,6 +2331,8 @@ export interface FileRouteTypes {
     | '/api/audio/stream'
     | '/api/harness-protocol/$'
     | '/api/harness-secret-answer/$'
+    | '/api/harness-handoff/$'
+    | '/api/harness-observability/$'
     | '/api/harness-waits/$'
     | '/api/image/stream'
     | '/api/transcription/stream'
@@ -2360,6 +2409,7 @@ export interface RootRouteChildren {
   ApiClientToolResumeStoreRoute: typeof ApiClientToolResumeStoreRoute
   ApiCloudflareBindingWireRoute: typeof ApiCloudflareBindingWireRoute
   ApiCodingToolsRoute: typeof ApiCodingToolsRoute
+  ApiCodingWorkspaceRoute: typeof ApiCodingWorkspaceRoute
   ApiCompactionUsageWireRoute: typeof ApiCompactionUsageWireRoute
   ApiCompactionWireRoute: typeof ApiCompactionWireRoute
   ApiContextOverflowRoute: typeof ApiContextOverflowRoute
@@ -2384,6 +2434,7 @@ export interface RootRouteChildren {
   ApiHarnessFirstPartyRoute: typeof ApiHarnessFirstPartyRoute
   ApiHarnessForwardingRoute: typeof ApiHarnessForwardingRoute
   ApiHarnessRetryAfterRoute: typeof ApiHarnessRetryAfterRoute
+  ApiHarnessTransferRoute: typeof ApiHarnessTransferRoute
   ApiHarnessWorkerRoute: typeof ApiHarnessWorkerRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiInterruptsTestRoute: typeof ApiInterruptsTestRoute
@@ -2471,6 +2522,8 @@ export interface RootRouteChildren {
   ProviderIndexRoute: typeof ProviderIndexRoute
   ApiHarnessProtocolSplatRoute: typeof ApiHarnessProtocolSplatRoute
   ApiHarnessSecretAnswerSplatRoute: typeof ApiHarnessSecretAnswerSplatRoute
+  ApiHarnessHandoffSplatRoute: typeof ApiHarnessHandoffSplatRoute
+  ApiHarnessObservabilitySplatRoute: typeof ApiHarnessObservabilitySplatRoute
   ApiHarnessWaitsSplatRoute: typeof ApiHarnessWaitsSplatRoute
 }
 
@@ -2959,6 +3012,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCodingToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/coding-workspace': {
+      id: '/api/coding-workspace'
+      path: '/api/coding-workspace'
+      fullPath: '/api/coding-workspace'
+      preLoaderRoute: typeof ApiCodingWorkspaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/compaction-usage-wire': {
       id: '/api/compaction-usage-wire'
       path: '/api/compaction-usage-wire'
@@ -3125,6 +3185,13 @@ declare module '@tanstack/react-router' {
       path: '/api/harness-retry-after'
       fullPath: '/api/harness-retry-after'
       preLoaderRoute: typeof ApiHarnessRetryAfterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/harness-transfer': {
+      id: '/api/harness-transfer'
+      path: '/api/harness-transfer'
+      fullPath: '/api/harness-transfer'
+      preLoaderRoute: typeof ApiHarnessTransferRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/harness-worker': {
@@ -3736,6 +3803,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHarnessSecretAnswerSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/harness-handoff/$': {
+      id: '/api/harness-handoff/$'
+      path: '/api/harness-handoff/$'
+      fullPath: '/api/harness-handoff/$'
+      preLoaderRoute: typeof ApiHarnessHandoffSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/harness-observability/$': {
+      id: '/api/harness-observability/$'
+      path: '/api/harness-observability/$'
+      fullPath: '/api/harness-observability/$'
+      preLoaderRoute: typeof ApiHarnessObservabilitySplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/harness-waits/$': {
       id: '/api/harness-waits/$'
       path: '/api/harness-waits/$'
@@ -3906,6 +3987,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiClientToolResumeStoreRoute: ApiClientToolResumeStoreRoute,
   ApiCloudflareBindingWireRoute: ApiCloudflareBindingWireRoute,
   ApiCodingToolsRoute: ApiCodingToolsRoute,
+  ApiCodingWorkspaceRoute: ApiCodingWorkspaceRoute,
   ApiCompactionUsageWireRoute: ApiCompactionUsageWireRoute,
   ApiCompactionWireRoute: ApiCompactionWireRoute,
   ApiContextOverflowRoute: ApiContextOverflowRoute,
@@ -3930,6 +4012,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHarnessFirstPartyRoute: ApiHarnessFirstPartyRoute,
   ApiHarnessForwardingRoute: ApiHarnessForwardingRoute,
   ApiHarnessRetryAfterRoute: ApiHarnessRetryAfterRoute,
+  ApiHarnessTransferRoute: ApiHarnessTransferRoute,
   ApiHarnessWorkerRoute: ApiHarnessWorkerRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiInterruptsTestRoute: ApiInterruptsTestRoute,
@@ -4018,6 +4101,8 @@ const rootRouteChildren: RootRouteChildren = {
   ProviderIndexRoute: ProviderIndexRoute,
   ApiHarnessProtocolSplatRoute: ApiHarnessProtocolSplatRoute,
   ApiHarnessSecretAnswerSplatRoute: ApiHarnessSecretAnswerSplatRoute,
+  ApiHarnessHandoffSplatRoute: ApiHarnessHandoffSplatRoute,
+  ApiHarnessObservabilitySplatRoute: ApiHarnessObservabilitySplatRoute,
   ApiHarnessWaitsSplatRoute: ApiHarnessWaitsSplatRoute,
 }
 export const routeTree = rootRouteImport

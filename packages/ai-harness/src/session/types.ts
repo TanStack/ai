@@ -9,6 +9,7 @@ import type {
   UIMessage,
 } from '@tanstack/ai'
 import type { OperationImpl } from '../operation'
+import type { ObservabilityOptions } from '../observability'
 import type { HeldPlugins } from './helpers'
 import type { RefreshFlights } from '../auth'
 import type { ToolTurn } from '../tool-turn'
@@ -25,6 +26,7 @@ import type { SessionUsage, UsageCall } from '../usage'
 import type { SessionImpl } from './harness-session'
 import type { AgentInputOf, AgentResultOf, AnyAgent } from '../agents'
 import type { Wait } from '../waits'
+import type { HandoffRecord } from '../log-records'
 import type { AnyHarness, HarnessAgentsOf } from '../define'
 import type {
   HarnessPersistence,
@@ -397,6 +399,8 @@ export interface SessionDependencies {
   openChild?: OpenChildSession
   /** Set on a child session only: what it takes from its parent. */
   child?: ChildSessionLink
+  /** The `observability` option of the host: spans and `onOperation`. */
+  observability?: ObservabilityOptions
 }
 
 /** What a child session of `harnessAgent` takes from its parent. */
@@ -461,6 +465,11 @@ export interface QueuedTurn {
   reset?: { note?: string }
   /** A `continue()`: it runs only when the model can answer the transcript. */
   isContinue?: boolean
+  /**
+   * `send(text, { as: 'operator' })`: `message` goes in the transcript as
+   * the reply of an operator, and no model runs.
+   */
+  operator?: boolean
 }
 
 /**
@@ -494,6 +503,12 @@ export interface InterruptedTurn {
    * agents, and false for `subagents.router`.
    */
   routed?: { messages: Array<UIMessage>; root: boolean }
+  /**
+   * The part that stopped also handed off. Its record is in the log. The
+   * resolve ends the part after the answered tools, and the target runs (or
+   * the session pauses, for a person).
+   */
+  handoff?: Omit<HandoffRecord, 'runId'>
   /**
    * Who sent the input of the stopped turn. Only this principal's saved
    * credential answers its sign-ins. A copy from an older version has none.

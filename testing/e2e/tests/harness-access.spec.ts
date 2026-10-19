@@ -30,8 +30,10 @@ const refusalOf = async (response: APIResponse) => ({
 })
 
 /**
- * Open the session stream of a thread, read its first frame, and close the
- * stream. A refused request answers with JSON, not with a stream.
+ * Open the session stream of a thread, read its first frame after the
+ * `harness.hello`, and close the stream. `: ping` comments have no `data:`
+ * line, so they are skipped. A refused request answers with JSON, not with
+ * a stream.
  */
 async function firstEvent(url: string, headers: Record<string, string>) {
   const response = await fetch(url, { headers })
@@ -40,17 +42,24 @@ async function firstEvent(url: string, headers: Record<string, string>) {
   }
   const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
   let buffer = ''
-  while (!buffer.includes('\n\n')) {
+  let body: { type?: string } | null = null
+  while (body === null) {
     const read = await reader.read()
     if (read.done) break
     buffer += read.value
+    const blocks = buffer.split('\n\n')
+    buffer = blocks.pop() ?? ''
+    for (const block of blocks) {
+      const data = block.split('\n').find((line) => line.startsWith('data: '))
+      if (!data) continue
+      const frame: { type?: string } = JSON.parse(data.slice('data: '.length))
+      if (frame.type === 'harness.hello') continue
+      body = frame
+      break
+    }
   }
   await reader.cancel()
-  const data = buffer.split('\n').find((line) => line.startsWith('data: '))
-  return {
-    status: response.status,
-    body: data ? JSON.parse(data.slice('data: '.length)) : null,
-  }
+  return { status: response.status, body }
 }
 
 /** One user of the `membersOnly()` host, by the token of the route. */

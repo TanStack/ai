@@ -8,7 +8,7 @@ let cursor = 0
 /** A session event with the next cursor. */
 export function at(event: StreamChunk, operationId = 'op-1'): SessionEvent {
   cursor += 1
-  return { cursor: String(cursor), operationId, event }
+  return { cursor: String(cursor), threadId: 't1', operationId, event }
 }
 
 /** A `CUSTOM` event that the session itself sends. */

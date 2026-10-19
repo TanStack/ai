@@ -187,6 +187,33 @@ const toolBadArgsMiddleware: ChatMiddleware = {
   },
 }
 
+// `tool-guard` mode: the first middleware rewrites the city, so
+// onBeforeToolCall is done. The guard still runs, sees the rewritten city,
+// and denies the call.
+const toolRewriteMiddleware: ChatMiddleware = {
+  name: 'tool-rewrite',
+  onBeforeToolCall(_ctx, hookCtx) {
+    if (hookCtx.toolName !== 'get_weather') return undefined
+    return { type: 'transformArgs' as const, args: { city: 'Blocked City' } }
+  },
+}
+
+const toolGuardMiddleware: ChatMiddleware = {
+  name: 'tool-guard',
+  onGuardToolCall(_ctx, hookCtx) {
+    const args = hookCtx.args
+    const city =
+      typeof args === 'object' && args !== null && 'city' in args
+        ? args.city
+        : undefined
+    if (hookCtx.toolName !== 'get_weather' || city !== 'Blocked City') return
+    return {
+      type: 'skip' as const,
+      result: JSON.stringify({ guarded: true, city }),
+    }
+  },
+}
+
 /**
  * Capability provide/consume flow (`capability` mode).
  *
@@ -591,6 +618,8 @@ export const Route = createFileRoute('/api/middleware-test')({
             middleware.push(toolReplaceMiddleware)
           if (middlewareMode === 'tool-bad-args')
             middleware.push(toolBadArgsMiddleware)
+          if (middlewareMode === 'tool-guard')
+            middleware.push(toolRewriteMiddleware, toolGuardMiddleware)
           if (middlewareMode === 'capability') {
             // Order matters: the provider's setup() must run before the
             // consumer reads the capability. Array order is preserved.

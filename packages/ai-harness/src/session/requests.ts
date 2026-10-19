@@ -1,6 +1,7 @@
 import { RUN_CANCEL_REASON } from '@tanstack/ai'
 import { changedEntry } from '../session-entry'
 import { OperationImpl } from '../operation'
+import { parseTraceparent } from '../observability'
 import { HARNESS_EVENTS, InputRejectedError } from '../types'
 import { timeOf } from '../waits'
 import {
@@ -20,12 +21,14 @@ import type {
   AgentSendOptions,
   CancelOptions,
   ChatTurnResult,
+  Cursor,
   HarnessInput,
   Operation,
   Principal,
   Receipt,
   ResetOptions,
   ResolveOptions,
+  SendForRunOptions,
   SendOptions,
   TurnOverrides,
   UserInput,
@@ -104,6 +107,19 @@ export abstract class SessionRequests<
    * harness prompts, for example memory that the host adds. They are kept
    * like `overrides`, and only server code sets them. A client input cannot
    * set them.
+   *
+   * `as: 'operator'` is the reply of a person who took over after a handoff
+   * to a person. It goes in the transcript as an assistant message, and no
+   * model turn runs. It needs the `operator` access action and an open
+   * `human` wait of a handoff, else the receipt is rejected with
+   * `'no_human_wait'`. While that wait is open, other messages go in the
+   * transcript, and no model turn runs either: the turn settles
+   * `interrupted`.
+   *
+   * @example
+   * ```ts
+   * await session.send('I refunded order 42.', { as: 'operator' })
+   * ```
    */
   send(message: UserInput, options: AgentSendOptions): Operation<unknown>
   send(message: UserInput, options?: SendOptions): Operation<ChatTurnResult>
@@ -112,6 +128,18 @@ export abstract class SessionRequests<
     options?: SendOptions | AgentSendOptions,
   ): Operation<unknown> {
     if (options?.to !== undefined) return this.sendToRun(message, options)
+    return this.sendForRun(message, options)
+  }
+
+  /**
+   * @internal `send` of a message to the session, with the AG-UI `runId` of
+   * a `POST run` request: the turn runs as it. The HTTP handler and an
+   * offered prompt call it.
+   */
+  override sendForRun(
+    message: UserInput,
+    options?: SendForRunOptions,
+  ): Operation<ChatTurnResult> {
     const context = options?.context
     const mode = options?.mode ?? 'prompt'
     const input: HarnessInput =
@@ -121,6 +149,7 @@ export abstract class SessionRequests<
             message,
             busy: options?.busy ?? this.harness.busy ?? 'queue',
             ...(context !== undefined ? { context } : {}),
+            ...(options?.as ? { as: options.as } : {}),
           }
         : mode === 'steer'
           ? {
@@ -144,7 +173,7 @@ export abstract class SessionRequests<
    */
   protected startTurn(
     input: HarnessInput & { op: 'prompt' | 'steer' | 'followUp' },
-    options?: SendOptions & { wake?: boolean },
+    options?: SendForRunOptions & { wake?: boolean },
   ): Operation<ChatTurnResult> {
     const { message } = input
     const inputId = options?.inputId ?? createInputId()
@@ -182,11 +211,16 @@ export abstract class SessionRequests<
     }
     const operation = passed ?? this.createTurnOperation(runId)
     this.bindTurn(inputId, operation)
+    const traceparent = options?.traceparent
     void this.admitting(() =>
       this.accept(inputId, stored, principal, {
         // An offered turn runs as the operation of this host.
         runId: operation.id,
         turn: { overrides, systemPreamble, ephemeral },
+        // As the W3C rules say, an invalid `traceparent` is dropped.
+        ...(traceparent !== undefined && parseTraceparent(traceparent)
+          ? { traceparent }
+          : {}),
       }).then(
         async (admission) => {
           if (admission !== 'new') {
@@ -200,6 +234,29 @@ export abstract class SessionRequests<
               inputId,
               status: 'rejected',
               reason: 'conflict',
+            })
+            return
+          }
+          const isWaiting =
+            this.activeTurn !== undefined || this.queue.length > 0
+          if (input.op === 'prompt' && input.as === 'operator') {
+            // An operator reply runs no model. It needs an open handoff to
+            // a person.
+            if (!this.humanHandoff()) {
+              this.refuse(operation, this.reject(inputId, 'no_human_wait'))
+              return
+            }
+            this.answerTurn(operation, {
+              inputId,
+              status: isWaiting ? 'queued' : 'accepted',
+              operationId: operation.id,
+            })
+            this.enqueueTurn({
+              operation,
+              message,
+              inputId,
+              principal,
+              operator: true,
             })
             return
           }
@@ -223,8 +280,6 @@ export abstract class SessionRequests<
             })
             return
           }
-          const isWaiting =
-            this.activeTurn !== undefined || this.queue.length > 0
           this.answerTurn(operation, {
             inputId,
             status: isWaiting && !running ? 'queued' : 'accepted',
@@ -240,6 +295,7 @@ export abstract class SessionRequests<
               ephemeral,
               ...sent,
             })
+            this.publishQueued(inputId, 'steer')
             return
           }
           this.enqueueTurn({
@@ -370,7 +426,9 @@ export abstract class SessionRequests<
    *
    * @example
    * ```ts
-   * await session.append([{ type: 'app.signal', text: 'The build failed.' }])
+   * await session.append({
+   *   records: [{ type: 'app.signal', text: 'The build failed.' }],
+   * })
    * await session.continue({ inputId: 'after-signal' })
    * ```
    */
@@ -738,15 +796,15 @@ export abstract class SessionRequests<
 
   /**
    * @internal Cancel the queued and running work that the user `userId`
-   * started: `host.sessions.unshare` stops it. `principal` is who cancels,
-   * and the log keeps it.
+   * started: `host.sessions.unshare` and `host.revoke` stop it. `principal`
+   * is who cancels, and the log keeps it.
    */
   async cancelWorkOf({
     userId,
     principal,
   }: {
     userId: string
-    principal: Principal
+    principal: Principal | undefined
   }): Promise<void> {
     const theirs = [...this.operations.values()].filter(
       (operation) =>
@@ -754,7 +812,10 @@ export abstract class SessionRequests<
         this.startedBy(operation.id).principalId === userId,
     )
     for (const operation of theirs) {
-      await this.cancel({ operationId: operation.id, principal })
+      await this.cancel({
+        operationId: operation.id,
+        ...(principal ? { principal } : {}),
+      })
     }
   }
 
@@ -768,22 +829,34 @@ export abstract class SessionRequests<
    * @example
    * ```ts
    * await session.send('Then write the tests.', { mode: 'followUp', inputId: 'tests' })
-   * await session.cancelInput('tests')
+   * await session.cancelInput({ inputId: 'tests' })
    * ```
    */
-  async cancelInput(
-    target: string,
-    options?: {
-      principal?: Principal
-      /** @internal The id of an offered input, so a replay is a duplicate. */
-      inputId?: string
-    },
-  ): Promise<Receipt> {
-    const inputId = options?.inputId ?? createInputId()
+  cancelInput(options: {
+    inputId: string
+    principal?: Principal
+  }): Promise<Receipt> {
+    return this.applyCancelInput(options)
+  }
+
+  /**
+   * `cancelInput`, with `controlId`: the id of an offered input, so a replay
+   * is a duplicate.
+   */
+  protected override async applyCancelInput({
+    inputId: target,
+    principal,
+    controlId,
+  }: {
+    inputId: string
+    principal?: Principal
+    controlId?: string
+  }): Promise<Receipt> {
+    const inputId = controlId ?? createInputId()
     const admission = await this.accept(
       inputId,
       { op: 'cancelInput', inputId: target },
-      options?.principal,
+      principal,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const taken = this.takeWaiting(target) ?? this.takeQueuedContinue(target)
@@ -820,7 +893,19 @@ export abstract class SessionRequests<
    * await session.setDelivery({ inputId: 'style', delivery: 'steer' })
    * ```
    */
-  async setDelivery({
+  setDelivery(options: {
+    inputId: string
+    delivery: WaitingInput['delivery']
+    principal?: Principal
+  }): Promise<Receipt> {
+    return this.applySetDelivery(options)
+  }
+
+  /**
+   * `setDelivery`, with `controlId`: the id of an offered input, so a replay
+   * is a duplicate.
+   */
+  protected override async applySetDelivery({
     inputId: target,
     delivery,
     principal,
@@ -829,7 +914,6 @@ export abstract class SessionRequests<
     inputId: string
     delivery: WaitingInput['delivery']
     principal?: Principal
-    /** @internal The id of an offered input, so a replay is a duplicate. */
     controlId?: string
   }): Promise<Receipt> {
     const inputId = controlId ?? createInputId()
@@ -927,8 +1011,10 @@ export abstract class SessionRequests<
 
   /**
    * The session API of plugins. With `principal` (a command, a turn plugin),
-   * it acts for that user. Without it (a session plugin), its `principal` is
-   * the principal that opened the session. With `operationId` (a command, a
+   * it acts for that user. Without it (a session plugin), it acts for the
+   * owner of the session entry, else for the principal that opened the
+   * session. A `principal` option of `send` and `note` wins: a plugin passes
+   * the user whose work the turn continues. With `operationId` (a command, a
    * turn plugin), its questions belong to that operation.
    */
   protected override pluginApi(
@@ -936,13 +1022,11 @@ export abstract class SessionRequests<
     metadataSchema?: SchemaInput,
     operationId?: string,
   ): PluginSessionApi {
-    // ponytail: D9. Without `principal`, `send`, `note`, and `ask` follow the
-    // running turn: its sender, and its operation for a question. PR 7
-    // rebuilds them on the run that calls.
-    const sender = () => principal ?? this.sender()
     // A session plugin acts for the owner of the entry, not for whoever
     // opened the session first on this host. The owner is known only after
-    // the session read its entry, so it is read at each call.
+    // the session read its entry, so it is read at each call. A turn of
+    // `send` or `note` never follows the sender of the running turn: that
+    // user did not start the work of the plugin.
     const owner = () => principal ?? this.owner ?? this.principal
     return {
       threadId: this.threadId,
@@ -951,23 +1035,24 @@ export abstract class SessionRequests<
       },
       snapshot: () => this.snapshot(),
       // A plugin turn always waits its turn. It cannot see a busy rejection.
-      send: (text) =>
+      send: (text, options) =>
         this.startTurn(
           { op: 'prompt', message: text, busy: 'queue' },
-          { principal: sender() },
+          { principal: options?.principal ?? owner() },
         ),
       note: async (text, options) => {
         await this.addNote(text)
         if (options?.wake) {
           const receipt = await this.startTurn(
             { op: 'followUp', message: text },
-            { principal: sender(), wake: true },
+            { principal: options.principal ?? owner(), wake: true },
           ).receipt
           if (receipt.status === 'rejected')
             throw new InputRejectedError(receipt)
         }
       },
       transcript: () => this.transcript(),
+      keptRecords: async (type) => this.keptRecords(type),
       replaceTranscript: (messages) =>
         this.messages.saveThread(this.threadId, messages),
       entry: () => this.index.get(this.indexKey),
@@ -1093,13 +1178,29 @@ export abstract class SessionRequests<
   // Chat turns
   // ===========================
 
-  protected createTurnOperation(id?: string): OperationImpl<ChatTurnResult> {
+  /**
+   * `id`: a stored or chosen run id. `startedCursor`: the start of a run
+   * that a restart rebuilds from the log.
+   */
+  protected createTurnOperation(
+    id?: string,
+    startedCursor?: Cursor,
+  ): OperationImpl<ChatTurnResult> {
     const operation = new OperationImpl<ChatTurnResult>(
       'chat',
       this.feed,
-      (target) => this.cancel({ operationId: target.id }),
+      (target) => {
+        // A cancel on the turn itself acts as its sender, not as the
+        // principal that opened the session. A handle passes its own.
+        const principal = this.principalOfRun(target.id)
+        return this.cancel({
+          operationId: target.id,
+          ...(principal ? { principal } : {}),
+        })
+      },
       undefined,
       id,
+      startedCursor,
     )
     this.track(operation as OperationImpl<unknown>)
     return operation
@@ -1178,7 +1279,11 @@ export abstract class SessionRequests<
     }
     const live = this.turnOperations.get(inputId)
     if (live) return live
-    const replay = this.createTurnOperation(logged?.operationId)
+    // A join of the replayed turn reads its events from its run start.
+    const replay = this.createTurnOperation(
+      logged?.operationId,
+      this.runStart(logged?.operationId),
+    )
     this.answerDuplicate(replay, inputId, 'duplicate')
     return replay
   }

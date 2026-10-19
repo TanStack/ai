@@ -249,6 +249,12 @@ For a follow-up, `receipt.operationId` is the id of the new run. While the run b
 
 A steer joins only a run of the same sender. A steer from another sender runs as a follow-up for that sender. As a result, no message runs with the credentials of another person.
 
+Who sends:
+
+- `run.send` and `run.cancel` act as the user of the run, not as the user who opened the session.
+- To send as another user, pass `principal`: `run.send('Add a title.', { principal })`.
+- `session.agents.drafter.run(input, { principal })` and `start` run the agent as that user.
+
 An agent written as plain code, with no `ctx.chat` call, makes no model call. It gets a steer only as a follow-up.
 
 To message a run from the browser, see [Send a message to a running agent](./connect#send-a-message-to-a-running-agent).
@@ -411,7 +417,7 @@ Known limits:
 
 ## Show what a child wrote after a reload
 
-Your UI shows each child's text and tool calls while they stream. Then the user reloads the page. The thread's transcript has only the agent tool call and its result, because each child keeps its own messages. `session.agentTranscript(subagentRunId)` gives you those messages back.
+Your UI shows each child's text and tool calls while they stream. Then the user reloads the page. The thread's transcript has only the agent tool call and its result, because each child keeps its own messages. `session.agentTranscript({ subagentRunId })` gives you those messages back.
 
 Each agent tool result names its child with `subagentRunId`. Read the result, then ask for the child:
 
@@ -444,7 +450,7 @@ for (const message of await session.transcript()) {
   if (!('subagentRunId' in result)) continue
   if (typeof result.subagentRunId !== 'string') continue
 
-  const child = await session.agentTranscript(result.subagentRunId)
+  const child = await session.agentTranscript({ subagentRunId: result.subagentRunId })
   console.log(child.map((item) => item.content))
 }
 ```
@@ -469,7 +475,7 @@ const client = createHarnessClient<typeof studio>({
 })
 
 export async function childMessages(subagentRunId: string) {
-  return client.agentTranscript(subagentRunId)
+  return client.agentTranscript({ subagentRunId })
 }
 ```
 
@@ -479,7 +485,7 @@ You get an empty list when the id is unknown, or when the child belongs to anoth
 
 Your harness has a writer and a pricer, but the main model answers every turn. Add `routing.router` to send a turn to the agent that can answer it. The router runs at the start of each new turn: a new message, a follow-up, or the wake turn of a background agent.
 
-```ts
+```ts group=harness-routing
 import { chat, decide, defineAgent, subagentRoute } from '@tanstack/ai'
 import { defineHarness } from '@tanstack/ai-harness'
 import { openaiText } from '@tanstack/ai-openai'
@@ -537,13 +543,41 @@ export const studio = defineHarness({
 
 The router can also return a pick of its own: `'main'`, a name, a list of names, `{ names, order }`, or `{ steps }`. Anywhere a name goes, `{ name, input }` can go too, for example `{ name: 'pricer', input: { vendor: 'Acme' } }`. If a picked agent has an `inputSchema` and no input, the turn fails with `Agent "pricer" needs input. Return { name: 'pricer', input } from the router.` See [Route, or let the model pick](../chat/subagents#route-or-let-the-model-pick) for each pick.
 
-The router also gets `session`, the `input` of the turn as the user sent it, `operationId`, `inputId`, and `abortSignal`. Next to `router`, `routing` takes `order`, `strategy`, `limits`, and `sandbox`. They work the same as in `subagents`.
+The router also gets `session`, the `input` of the turn as the user sent it, `operationId`, `inputId`, `abortSignal`, `activeAgent`, and `model`. Next to `router`, `routing` takes `order`, `limits`, `sandbox`, `after`, `humans`, and `handoffs`. The first three work the same as in `subagents`. `handoffs: false` gives no model the `handoff` tool. See [Hand off a conversation](./handoffs).
+
+### Count the model calls of the router
+
+Your router asks a model which agent fits. A plain `chat()` call does not count in `session.usage()`, and it keeps running after the user cancels the turn. Call the model with `model.chat` instead:
+
+```ts group=harness-routing
+export const helpdesk = defineHarness({
+  name: 'acme/helpdesk',
+  adapter: openaiText('gpt-6.1-sol'),
+  agents: [writer, pricer],
+  routing: {
+    router: async ({ model, messages }) => {
+      const { text } = await model.chat({
+        label: 'pick',
+        options: {
+          messages,
+          systemPrompts: ['Answer "writer" for a blog post, else "main". Answer one word.'],
+        },
+      })
+      return text.trim() === 'writer' ? 'writer' : 'main'
+    },
+  },
+})
+```
+
+- `model.chat` takes the same options as [`ctx.model.chat`](./plugins#call-a-model-from-a-plugin) of a plugin. Without `adapter`, it uses the thread setting `model`, else the harness `adapter`.
+- The call uses the keys of the sender of the turn. A cancel of the turn stops it.
+- Its usage counts in the turn, and in the session under `router`. See [Usage of the router and transfers](./usage#usage-of-the-router-and-transfers).
 
 What the turn does with the pick:
 
 - `'main'`: the main model answers, with its `subagents` as usual.
 - Agent names: only those agents run. The harness does not call the main model. The turn text is their answer as the transcript keeps it, for example `pricer:\n...`.
-- `strategy: 'handoff'`: the agents run first. Then the main model answers in the same turn. It reads their text and keeps its subagent tools.
+- `after: 'main'`: the agents run first. Then the main model answers in the same turn. It reads their text and keeps its subagent tools. With the default, `after: 'end'`, the turn ends after the agents.
 - An interrupt in a routed agent ends the turn. `session.resolve` continues the same plan, and it does not call the router again.
 
 A routed agent works like the main model in a turn:
@@ -551,14 +585,45 @@ A routed agent works like the main model in a turn:
 - A steer that you send during the turn joins the next model call of the picked agent.
 - If the agents already made their last model call, they run again with the steer, in the same turn. This late join does not call the router.
 - `turn.beforeFinish` and `turn.onModelError` run for the routed agents too.
-- Each answer of an agent stays in the transcript, also when the agent runs again.
+- Each answer of an agent stays in the transcript as its own message, also when the agent runs again or hands off to another agent.
 
 Some limits:
 
 - An agent that makes no model call, for example plain code in `run`, gets a steer only as a late join.
 - When several agents run in parallel, the first one takes the steer.
-- With `strategy: 'handoff'`, the main model takes no steer. A steer sent during its part runs as its own turn, and the router picks for that turn too.
+- With `after: 'main'`, the main model takes no steer. A steer sent during its part runs as its own turn, and the router picks for that turn too.
 - After `session.resolve` continues a plan, the agents do not run again for a late join or a turn hook.
+
+### Keep the agent that answers
+
+A user works with the writer for five turns. The router does not have to pick the writer again each time. The log keeps the active agent, and the router reads it as `activeAgent`:
+
+```ts group=harness-routing
+export const desk = defineHarness({
+  name: 'acme/desk',
+  adapter: openaiText('gpt-6.1-sol'),
+  agents: [writer, pricer],
+  routing: {
+    router: ({ activeAgent, input }) => {
+      if (input === 'Thanks, that is all.') return 'main'
+      if (activeAgent === undefined && typeof input === 'string' && input.includes('blog')) {
+        return { handoff: 'writer', note: 'The user wants a blog post.' }
+      }
+      return undefined
+    },
+  },
+})
+```
+
+How each pick changes the active agent:
+
+- `undefined`: the active agent answers. With no active agent, the main model answers.
+- One agent name: that agent answers, and it becomes the active agent.
+- `'main'`: the main model answers, and no agent is active.
+- `{ handoff, note }`: the log keeps the note in a `harness.handoff` record. Then the target answers, and it becomes the active agent. `handoff: 'main'` clears it.
+- `{ name, input }`, a list, `{ names }`, or `{ steps }`: those agents answer. The active agent does not change.
+
+Agents can also hand the turn to each other, or to a person. See [Hand off a conversation](./handoffs).
 
 ## Call a harness as a child
 

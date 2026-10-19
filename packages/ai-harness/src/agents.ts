@@ -10,12 +10,13 @@ import { registerSubagentContextDefaults } from '@tanstack/ai/adapter-internals'
 import { askWithoutSession, stepRunWithoutSession } from './durable-tool'
 import { waitUntil } from './utils'
 import type { ToolStep } from './durable-tool'
+import type { HandoffOptions } from './handoff'
 import type {
   AgentRunOptions,
   AgentStartOptions,
   RunArgs,
 } from './session/types'
-import type { AgentRun } from './types'
+import type { AgentRun, RunContext } from './types'
 import type { PluginState } from './plugins'
 import type { AnyHarness } from './define'
 
@@ -115,6 +116,11 @@ export class AgentRegistry implements AgentRegistryView {
 
   get(name: string): AnyAgent | undefined {
     return this.agents.get(name)?.agent
+  }
+
+  /** Who added the agent `name`: `'the harness'` or a plugin name. */
+  ownerOf(name: string): string | undefined {
+    return this.agents.get(name)?.owner
   }
 
   find(query: { produces: AgentProduces }): AnyAgent | undefined {
@@ -218,6 +224,22 @@ export interface HarnessAgentContext {
   /** Start and run agents, as children of this run. */
   agents: AgentActions
   /**
+   * Hand the turn to another root agent, or to `'main'` (the main model).
+   * The target answers next, in this turn, and the later turns go to it.
+   * `{ human: true }` hands it to a person, when `routing.humans` is true:
+   * the turn ends `interrupted`, and the session pauses until an operator
+   * answers the `human` wait.
+   * It works in a root agent that answers a turn of a harness with
+   * `routing`. Anywhere else it throws. It throws for a target that is not a
+   * root agent too.
+   *
+   * @example
+   * ```ts
+   * await ctx.harness.handoff({ to: 'billing', note: 'Refund for order 42' })
+   * ```
+   */
+  handoff: (options: HandoffOptions) => Promise<void>
+  /**
    * State that the agents of one session share, by `key`. The session log
    * keeps it, so it survives a restart, and a fork of the thread has it.
    * Before the first update, `get` gives `initial`. The value is JSON.
@@ -243,11 +265,18 @@ const noSessionAgents = () => {
   )
 }
 
+const noTurnHandoff = () =>
+  Promise.reject(
+    new Error(
+      'ctx.harness.handoff needs a root agent that answers a turn of a harness with routing.',
+    ),
+  )
+
 /**
  * `ctx.harness` outside a run that a session started from code (a tool-mode
  * child of a chat turn, or a run that a plain `chat()` starts): `step.do`
  * runs `fn` each time, `step.sleep` waits its full time, `step.ask`
- * throws, and each call of `agents` and `state` throws.
+ * throws, and each call of `agents`, `state`, and `handoff` throws.
  */
 export const NO_SESSION_CONTEXT: HarnessAgentContext = {
   // `fn` runs each time, so it needs no JSON copy.
@@ -261,6 +290,7 @@ export const NO_SESSION_CONTEXT: HarnessAgentContext = {
     run: noSessionAgents,
     group: noSessionAgents,
   },
+  handoff: noTurnHandoff,
   state: noSessionState,
 }
 
@@ -279,13 +309,30 @@ export type HarnessChildRun = (
  */
 const childRuns = new WeakMap<HarnessAgentContext, HarnessChildRun>()
 
-/** @internal Give `context` the child hook `run`. Returns `context`. */
+/** The run context of the run of each `ctx.harness` that a session made. */
+const runContexts = new WeakMap<HarnessAgentContext, RunContext>()
+
+/**
+ * @internal Give `context` the child hook `run`, and the run context of the
+ * run that it belongs to. Returns `context`.
+ */
 export function withHarnessChild(
   context: HarnessAgentContext,
   run: HarnessChildRun,
+  runContext: RunContext,
 ): HarnessAgentContext {
   childRuns.set(context, run)
+  runContexts.set(context, runContext)
   return context
+}
+
+/**
+ * @internal The run context of the run of `context`: for an agent that runs
+ * as a tool of a turn, the run of that turn. `undefined` outside a run that
+ * a harness session started.
+ */
+export function runContextOf(context: HarnessAgentContext | undefined) {
+  return context ? runContexts.get(context) : undefined
 }
 
 /**
@@ -302,13 +349,15 @@ registerSubagentContextDefaults(() => ({ harness: NO_SESSION_CONTEXT }))
 
 declare module '@tanstack/ai' {
   /**
-   * `ctx.harness` in the `run` of an agent: `step`, `agents`, and `state`. A harness
+   * `ctx.harness` in the `run` of an agent: `step`, `agents`, `state`, and
+   * `handoff`. A harness
    * session gives them to each agent run it starts from code (a session
    * agent, `ctx.harness.agents.start`, a background child), and to the
    * children those runs start through `ctx.chat({ subagents })`. Any
    * other run, for example one that a plain `chat()` starts, gets
    * `NO_SESSION_CONTEXT`: `step.do` runs `fn` each time, and each call of
-   * `agents` and `state` throws.
+   * `agents` and `state` throws. `handoff` works only in a root agent that
+   * answers a turn of a harness with `routing`.
    */
   interface SubagentContextExtension {
     harness: HarnessAgentContext

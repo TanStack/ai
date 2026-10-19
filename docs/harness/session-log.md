@@ -32,14 +32,41 @@ const assistant = defineHarness({
 const host = createHarnessHost({ persistence })
 const session = await host.open(assistant, { threadId: 'thread-1' })
 
-await session.append([{ type: 'app.signal', text: 'The build failed.' }])
+await session.append({ records: [{ type: 'app.signal', text: 'The build failed.' }] })
 ```
 
 - A record is JSON with a `type`. Types that start with `harness.` belong to the harness, so `append` refuses them.
-- `append` resolves when the records are in the log.
+- `append` resolves with a receipt when the records are in the log. When another host owns the thread, the receipt is `queued`, and the owner writes the records. See [One host drives a thread](./durable-sessions#one-host-drives-a-thread).
+- Pass `inputId` to make the append safe to send again: `session.append({ records, inputId: 'signal-7' })`. A second append with the same id writes nothing. Without `inputId`, the append gets a new id. The receipt has the id, as the log keeps it. `principal` sets who appends. The default is the user who opened the session.
 - A record can belong to a child thread of the same log. See [One log for a session tree](./shared-logs).
 - In a tool, use `append` from [`durableTool`](./durable-tools), so the records land with the tool batch.
 - A key or a token of the session in a record goes into the log as `[redacted]`. See [Keep tokens out of the log and the model](./auth#keep-tokens-out-of-the-log-and-the-model).
+
+### Keep records after a truncate
+
+With [`logRecords: 'since-snapshot'`](./lifecycle#drop-the-records-before-a-snapshot), the store drops the records before each snapshot. A plugin can make the snapshot keep the last records of its own types with `keepRecords`, and read them back with `ctx.session.keptRecords(type)`:
+
+```ts group=harness-session-log
+import { defineCommand, definePlugin } from '@tanstack/ai-harness'
+
+export const steps = definePlugin({
+  name: 'acme/steps',
+  keepRecords: { 'acme/steps:step': 100 },
+  setup: (ctx) => ({
+    commands: {
+      steps: defineCommand({
+        description: 'Count the kept steps',
+        run: async () => (await ctx.session.keptRecords('acme/steps:step')).length,
+      }),
+    },
+  }),
+})
+```
+
+- The snapshot keeps the last 100 `acme/steps:step` records of each thread.
+- `keptRecords` gives the kept records of that type of this thread, oldest first. It works before and after a truncate.
+- [`snapshots()`](./snapshots#go-back-to-an-earlier-message) keeps its last 500 file steps this way, so `session.revert()` works after a truncate.
+- The plugins of the harness of the root thread decide, because that harness folds the log. A type in two plugins keeps the larger count.
 
 ## Fold records into the model context
 
@@ -122,7 +149,7 @@ const client = createHarnessClient<typeof watcher>({
   headers: { authorization: 'Bearer my-token' },
 })
 
-await client.append([{ type: 'app.signal', text: 'The build failed.' }])
+await client.append({ records: [{ type: 'app.signal', text: 'The build failed.' }] })
 await client.continue()
 ```
 
@@ -144,6 +171,16 @@ console.log(signals.map((entry) => entry.seq))
 ```
 
 Each `harness.input` record has the `principal` of its sender: its `id` and `tenantId`. Every kind of input has it when the sender is known, also a cancel, an answer, a delivery change, and a change of settings.
+
+Two harness records tell who answers a thread and where a conversation went. See [Hand off a conversation](./handoffs).
+
+- `harness.handoff`: another agent answers from now on. It has `from` and `to` (an agent name, `null` for the main model, or `{ human: true }` for a person), the `note`, the `runId`, and `by` (`'tool'`, `'code'`, `'router'`, or `'operator'`). A handoff to a person also has the `waitId` of its `human` wait. The last one is the active agent of the thread.
+- `harness.transferred`: `host.transfer` moved the conversation. The log of the target has `from`, and the log of the source has `to`. Each is `{ harness, threadId }`. Both records have the same `transferId`, the `principal`, and `at`.
+
+```ts group=harness-session-log
+const handoffs = entries.filter((entry) => entry.record.type === 'harness.handoff')
+console.log(handoffs.at(-1)?.record.to)
+```
 
 A reader outside a session that needs a `MessageStore`, for example `reconstructChat`, uses `logMessageStore`. It folds the log with the same `project`. Pass `tenantId` to read the threads of a tenant:
 

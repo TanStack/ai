@@ -106,7 +106,7 @@ function scriptedRouter(...picks: Array<SubagentRouterPick>) {
 /** A session whose harness has `routing`. */
 async function openRouting(options: {
   router: HarnessRouting['router']
-  strategy?: HarnessRouting['strategy']
+  after?: HarnessRouting['after']
   agents?: ReadonlyArray<AnyAgent>
   subagents?: HarnessSubagents<ReadonlyArray<AnyAgent>>
   plugins?: () => ReadonlyArray<HarnessPlugin>
@@ -130,7 +130,7 @@ async function openRouting(options: {
       ...(options.turn ? { turn: options.turn } : {}),
       routing: {
         router: options.router,
-        ...(options.strategy ? { strategy: options.strategy } : {}),
+        ...(options.after ? { after: options.after } : {}),
       },
     }),
     {
@@ -329,12 +329,12 @@ describe('routing.router', () => {
     await host.close()
   })
 
-  it('hands off to the main model after the agents, with its subagent tools', async () => {
+  it("runs the main model after the agents with after: 'main', with its subagent tools", async () => {
     const writer = textAgent('writer', 'Draft')
     const checker = textAgent('checker', 'Checked')
     const { host, session, main } = await openRouting({
       router: () => 'writer',
-      strategy: 'handoff',
+      after: 'main',
       agents: [writer.agent],
       subagents: { agents: [checker.agent] },
       replies: [() => text('Edited draft')],
@@ -352,7 +352,7 @@ describe('routing.router', () => {
     await host.close()
   })
 
-  it('retries a model error in the main part of a handoff with turn.onModelError', async () => {
+  it("retries a model error in the main part of after: 'main' with turn.onModelError", async () => {
     const writer = textAgent('writer', 'Draft')
     const onModelError = vi.fn(
       ({ retries }: { retries: number }): 'retry' | undefined =>
@@ -360,7 +360,7 @@ describe('routing.router', () => {
     )
     const { host, session, main } = await openRouting({
       router: () => 'writer',
-      strategy: 'handoff',
+      after: 'main',
       agents: [writer.agent],
       turn: { onModelError },
       replies: [
@@ -379,7 +379,7 @@ describe('routing.router', () => {
     await host.close()
   })
 
-  it('runs turn.beforeFinish in the main part of a handoff', async () => {
+  it("runs turn.beforeFinish in the main part of after: 'main'", async () => {
     const writer = textAgent('writer', 'Draft')
     const beforeFinish = vi.fn(({ cycle }: { cycle: number }) =>
       cycle === 0
@@ -388,7 +388,7 @@ describe('routing.router', () => {
     )
     const { host, session, main } = await openRouting({
       router: () => 'writer',
-      strategy: 'handoff',
+      after: 'main',
       agents: [writer.agent],
       turn: { beforeFinish },
       replies: [() => text('Edited draft'), () => text('Edited again')],
@@ -403,7 +403,7 @@ describe('routing.router', () => {
     await host.close()
   })
 
-  it('runs a steer sent during a handoff routed turn as its own routed turn', async () => {
+  it("runs a steer sent during a routed turn with after: 'main' as its own routed turn", async () => {
     const started = gate()
     const release = gate()
     const answers: Array<Array<string>> = []
@@ -420,7 +420,7 @@ describe('routing.router', () => {
     const { router, seen } = scriptedRouter('writer', 'writer')
     const { host, session, main } = await openRouting({
       router,
-      strategy: 'handoff',
+      after: 'main',
       agents: [writer],
       replies: [() => text('Main 1'), () => text('Main 2')],
     })
@@ -436,7 +436,7 @@ describe('routing.router', () => {
     expect(settled.operationId).not.toBe(turn.id)
     expect(seen.map((ctx) => ctx.input)).toEqual(['first', 'second'])
     expect(answers[1]?.at(-1)).toBe('second')
-    // The main model of a handoff does not get the steer in the first turn.
+    // The main model of after: 'main' does not get the steer in the first turn.
     expect(main.calls.slice(0, 1).flatMap(messageTexts)).not.toContain('second')
     await host.close()
   })
@@ -802,6 +802,57 @@ describe('routing and ownership', () => {
     expect(settled.outcome).toBe('failed')
     expect(settled.error?.message).toContain(error)
     expect(writer.runs).toEqual([])
+    await host.close()
+  })
+})
+
+describe('routing.router model', () => {
+  it('counts the model calls of context.model.chat under router, in the turn', async () => {
+    const billing = textAgent('billing', 'Billing here')
+    const { host, session, log, main } = await openRouting({
+      router: async ({ model, messages }) => {
+        const { text: answer } = await model.chat({
+          options: { messages },
+          label: 'pick',
+        })
+        return answer === 'billing' ? 'billing' : undefined
+      },
+      agents: [billing.agent],
+      replies: [
+        () =>
+          text('billing').map((chunk) =>
+            chunk.type === EventType.RUN_FINISHED
+              ? {
+                  ...chunk,
+                  usage: {
+                    promptTokens: 7,
+                    completionTokens: 3,
+                    totalTokens: 10,
+                  },
+                }
+              : chunk,
+          ),
+      ],
+    })
+
+    const operation = session.send('my invoice is wrong')
+    const turn = await operation
+
+    expect(turn.text).toBe('billing:\nBilling here')
+    expect(messageTexts(main.calls[0])).toEqual(['my invoice is wrong'])
+    const usage = session.usage()
+    expect(usage.total).toMatchObject({ calls: 1, totalTokens: 10 })
+    expect(usage.bySource).toEqual({ router: usage.total })
+    const records = (await log.read({ logId: logIdOf({ logId: THREAD }) }))
+      .map((entry) => entry.record)
+      .filter((record) => record.type === 'harness.usage')
+    expect(records).toEqual([
+      expect.objectContaining({
+        source: 'router',
+        label: 'pick',
+        runId: operation.id,
+      }),
+    ])
     await host.close()
   })
 })

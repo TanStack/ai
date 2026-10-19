@@ -1,5 +1,6 @@
 import {
   LogRecordsCapability,
+  chat,
   convertSchemaToJsonSchema,
   isStandardSchema,
   provideLogRecords,
@@ -43,7 +44,7 @@ import type { LogWriter } from '../log'
 import type { UsageCall } from '../usage'
 import type { AnyHarness } from '../define'
 import type { TurnAdditions } from '../turn'
-import type { MountedPlugins } from '../plugins'
+import type { MountedPlugins, PluginModelCall } from '../plugins'
 import type {
   ChatTurnResult,
   MediaRecord,
@@ -53,6 +54,9 @@ import type {
   UserInput,
 } from '../types'
 import type { QueuedTurn, AgentRunImpl, AgentChain } from './types'
+
+/** How long a `ctx.model.chat` call runs before it stops, by default. */
+const MODEL_CALL_TIMEOUT_MS = 120_000
 
 /**
  * A layer of {@link HarnessSession}: the tools, middleware, and joins a turn
@@ -307,13 +311,35 @@ export abstract class SessionTurnParts<
   }
 
   /**
+   * Run the `onTurnStart` hook of each plugin, in order, for `turn`. A hook
+   * that fails is skipped, and clients get a `harness.plugin.warning` event.
+   */
+  protected async runTurnStarts(
+    turnStarts: MountedPlugins['turnStarts'],
+    operation: OperationImpl<ChatTurnResult>,
+    turn: TurnInfo,
+  ) {
+    for (const { start, owner } of turnStarts) {
+      try {
+        await start(turn)
+      } catch (error) {
+        this.warn(operation, owner, error)
+      }
+    }
+  }
+
+  /**
    * Ask each plugin for the tools it found since the last turn, for `turn`.
    * A plugin that fails (for example an MCP server that is down) is skipped,
    * and clients get a `harness.plugin.warning` event.
+   *
+   * `taken` has the owner of each tool name. A found tool with a taken name
+   * is skipped: the earlier tool stays. The session warns once for each
+   * name and pair of owners.
    */
   protected async discoverTools(
     discoverers: MountedPlugins['discoverers'],
-    taken: Set<string>,
+    taken: Map<string, string>,
     operation: OperationImpl<ChatTurnResult>,
     turn: TurnInfo,
   ): Promise<Array<AnyTool>> {
@@ -322,8 +348,12 @@ export abstract class SessionTurnParts<
       try {
         const tools = await discover(turn)
         for (const tool of tools) {
-          if (taken.has(tool.name)) continue
-          taken.add(tool.name)
+          const first = taken.get(tool.name)
+          if (first !== undefined) {
+            this.warnToolClash(operation, tool.name, first, owner)
+            continue
+          }
+          taken.set(tool.name, owner)
           found.push(tool)
         }
       } catch (error) {
@@ -333,19 +363,49 @@ export abstract class SessionTurnParts<
     return found
   }
 
+  /** The tool clashes this session warned about: name and both owners. */
+  protected readonly toolClashes = new Set<string>()
+
+  /** Warn once that `owner` gives a tool `name` that `first` gives too. */
+  protected warnToolClash(
+    operation: OperationImpl<ChatTurnResult>,
+    name: string,
+    first: string,
+    owner: string,
+  ) {
+    // A plugin that finds the same tool again on each turn is no clash.
+    if (first === owner) return
+    const key = JSON.stringify([name, first, owner])
+    if (this.toolClashes.has(key)) return
+    this.toolClashes.add(key)
+    const label = (who: string) =>
+      who === 'the harness' ? who : `plugin ${who}`
+    this.warn(
+      operation,
+      owner,
+      `Two tools are named "${name}": the tool of ${label(first)} is used, and the tool of ${label(owner)} is not.`,
+    )
+  }
+
   /**
    * Let each plugin change the tool list of this turn, in plugin order. A
    * plugin that fails leaves the list as it was, with a warning event.
    */
   protected async prepareTools(
     preparers: MountedPlugins['preparers'],
-    turn: { tools: Array<AnyTool>; model: string },
+    turn: { tools: Array<AnyTool>; model: string; run: RunContext },
     operation: OperationImpl<ChatTurnResult>,
   ): Promise<Array<AnyTool>> {
     let prepared = turn.tools
     for (const { prepare, owner } of preparers) {
       try {
-        prepared = [...(await prepare({ tools: prepared, model: turn.model }))]
+        prepared = [
+          ...(await prepare({
+            tools: prepared,
+            model: turn.model,
+            run: turn.run,
+          })),
+        ]
       } catch (error) {
         this.warn(operation, owner, error)
       }
@@ -402,8 +462,8 @@ export abstract class SessionTurnParts<
           context.runId = runId
           context.detach = (work) =>
             new Promise((moved) => {
-              this.detachable.set(id, () => {
-                this.logJob(id, false)
+              this.detachable.set(id, (mover) => {
+                this.logJob({ jobId: id, principal: mover }, false)
                 moved(
                   `The job moved to the background. Its id is ${id}. You get a note when it ends.`,
                 )
@@ -420,7 +480,7 @@ export abstract class SessionTurnParts<
                   .then((text) =>
                     this.pluginApi(principal).note(text, { wake: true }),
                   )
-                  .then(() => this.logJob(id, true))
+                  .then(() => this.logJob({ jobId: id }, true))
                   .catch(() => undefined)
               })
             })
@@ -559,14 +619,106 @@ export abstract class SessionTurnParts<
       this.warn(operation, 'harness:usage', error)
       return
     }
+    this.tracing?.usage(call, (runId) => this.parentRunOf(runId))
     operation.publish(
       customEvent(HARNESS_EVENTS.usage, {
         model: call.model,
         ...(call.principal ? { sender: call.principal.id } : {}),
+        ...(call.source !== undefined ? { source: call.source } : {}),
+        ...(call.label !== undefined ? { label: call.label } : {}),
         usage: call.usage,
         total: this.usage().total,
       }),
     )
+  }
+
+  /**
+   * One model call of `ctx.model.chat`, for the run `call.run`: with the
+   * keys of its user, and a signal that aborts when the run stops or after
+   * the timeout. Each model call counts under `call.source`, in the session
+   * and in the run, and the budget of the run applies. A stopped call
+   * rejects with the reason of the stop.
+   */
+  protected async modelChat(call: PluginModelCall): Promise<unknown> {
+    const { run, options } = call
+    // The setting names a key of `harness.models`: a setting is checked
+    // when it is set, and a stored one that the harness lost is dropped.
+    const named = this.threadSettings.model
+    const model =
+      call.adapter ??
+      (named === undefined ? undefined : this.harness.models?.[named]) ??
+      this.harness.adapter
+    if (!model) {
+      throw new Error(
+        `ctx.model.chat needs an adapter: harness ${JSON.stringify(this.harness.name)} has no adapter.`,
+      )
+    }
+    const signal = AbortSignal.any([
+      run.signal,
+      AbortSignal.timeout(call.timeoutMs ?? MODEL_CALL_TIMEOUT_MS),
+    ])
+    const abortController = new AbortController()
+    const stop = () => abortController.abort(signal.reason)
+    if (signal.aborted) stop()
+    else signal.addEventListener('abort', stop, { once: true })
+    const counted: Array<Promise<void>> = []
+    try {
+      const result = await chat({
+        ...options,
+        adapter: await run.keys.adapter(model),
+        stream: false,
+        abortController,
+        middleware: [
+          {
+            name: 'harness:model-usage',
+            onUsage: (ctx, usage) => {
+              const made: UsageCall = {
+                model: `${ctx.provider}/${ctx.model}`,
+                ...storedPrincipal(run.principal),
+                source: call.source,
+                ...(call.label !== undefined ? { label: call.label } : {}),
+                usage: callUsage(usage),
+              }
+              counted.push(
+                call.count
+                  ? call.count(made)
+                  : this.countModelCall(run.runId, {
+                      ...made,
+                      runId: run.runId,
+                    }),
+              )
+            },
+          },
+        ],
+      })
+      // chat() can end with no error when it is aborted.
+      abortController.signal.throwIfAborted()
+      return result
+    } finally {
+      signal.removeEventListener('abort', stop)
+      await Promise.all(counted)
+    }
+  }
+
+  /**
+   * Count one model call of `ctx.model.chat` for the run `runId`, then
+   * check the budgets. A run that settled, or that this session no longer
+   * keeps, gets the record only: a run sends no event after RUN_FINISHED.
+   */
+  private async countModelCall(runId: string, call: UsageCall) {
+    const operation = this.operations.get(runId)
+    if (operation && !operation.isSettled()) {
+      await this.countUsage(operation, call)
+      this.checkBudget(operation)
+      return
+    }
+    try {
+      await (this.childLink
+        ? this.childLink.countUsage(call)
+        : this.writer.append([{ type: 'harness.usage', ...call }]))
+    } catch (error) {
+      this.warnSession('harness:usage', error)
+    }
   }
 
   /**
@@ -825,7 +977,7 @@ export abstract class SessionTurnParts<
       typeof content === 'string'
         ? []
         : content.map(mediaIdOf).filter((id) => id !== undefined)
-    const records = await Promise.all(ids.map((id) => this.getMedia(id)))
+    const records = await Promise.all(ids.map((id) => this.getMedia({ id })))
     const media = records.filter((record) => record !== null)
     const message: ModelMessage = {
       id: createMessageId(),

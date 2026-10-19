@@ -3,9 +3,19 @@ import { tmpdir } from 'node:os'
 import * as nodePath from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
+import {
+  createHarnessHost,
+  defineHarness,
+  definePlugin,
+  harnessAgent,
+} from '../src'
 import { permissions } from '../src/first-party/permissions'
 import { hostBackend } from '../src/first-party/coding/backend'
+import {
+  JobEnded,
+  JobOutput,
+  JobStarted,
+} from '../src/first-party/coding/events'
 import {
   createWorkspaceTools,
   workspaceTools,
@@ -22,8 +32,15 @@ import type {
 import type { WorkspaceBackend } from '../src/first-party/coding/backend'
 import type {
   OutsideAccess,
+  WorkspaceBinder,
   WorkspaceToolsOptions,
 } from '../src/first-party/coding/workspace'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 const { posix } = nodePath
 
@@ -52,6 +69,8 @@ function memoryBackend(extra: Partial<WorkspaceBackend> = {}) {
       if (!data) return undefined
       return { type: 'file', size: data.length, mtimeMs: 0 }
     },
+    // No links: each path is its own real path.
+    realpath: async (path) => path,
     readdir: async (path) => {
       const prefix = path.endsWith('/') ? path : `${path}/`
       const entries = new Map<string, 'file' | 'dir'>()
@@ -346,7 +365,7 @@ describe.each(fixtures)('workspace tools on the $name backend', (fixture) => {
       const { resources } = approved()
       const docs = paths.join(outside, 'docs')
       // The real path: the temp folder can be a link.
-      const real = (await backend.realpath?.(docs)) ?? docs
+      const real = (await backend.realpath(docs)) ?? docs
       const input = { path: paths.join(docs, 'a.md') }
       expect(await resources.read_file?.outside?.(input)).toEqual([
         paths.join(real, 'a.md'),
@@ -379,7 +398,9 @@ describe.each(fixtures)('workspace tools on the $name backend', (fixture) => {
     it('lists and searches an approved outside folder with full paths', async () => {
       const { set } = approved()
       const folder = paths.join(outside, 'docs')
-      const shown = folder.split(paths.sep).join('/')
+      // The tools show the real path: the temp folder can be a link.
+      const real = (await backend.realpath(folder)) ?? folder
+      const shown = real.split(paths.sep).join('/')
       expect(await runIn(set, 'list_files', { path: folder })).toBe(
         `${shown}/a.md\n${shown}/b.md`,
       )
@@ -416,7 +437,7 @@ describe('a sandbox backend with POSIX paths', () => {
 })
 
 describe('the tools of workspaceTools', () => {
-  const names = (options: Partial<WorkspaceToolsOptions> = {}) =>
+  const names = (options: Pick<WorkspaceToolsOptions, 'web'> = {}) =>
     createWorkspaceTools({
       root: '/workspace',
       backend: memoryBackend().backend,
@@ -892,10 +913,48 @@ describe('background bash in a session', () => {
       workspaceTools({ root: '/workspace', backend }),
     ])
     await session.send('build')
-    await vi.waitFor(() => expect(calls).toHaveLength(3))
+    await waitFor(() => expect(calls).toHaveLength(3))
     expect(JSON.stringify(calls[2].messages)).toContain(
       'Background job bash-1 ended.\\nexit code: 0\\nbuilt',
     )
+    await host.close()
+  })
+
+  it('sends the start, the output, and the end of a job as plugin events', async () => {
+    const { backend } = memoryBackend({
+      spawn: (_command, options) => {
+        options?.onOutput?.('built\n')
+        return {
+          wait: async () => ({ exitCode: 0 }),
+          kill: () => undefined,
+          output: () => 'built\n',
+        }
+      },
+    })
+    const events: Array<unknown> = []
+    const listener = definePlugin({
+      name: 'test/job-events',
+      setup: (ctx) => {
+        ctx.on(JobStarted, (value) => events.push(['started', value]))
+        ctx.on(JobOutput, (value) => events.push(['output', value]))
+        ctx.on(JobEnded, (value) => events.push(['ended', value]))
+      },
+    })
+    const { adapter } = mockAdapter([
+      () => toolCall('bash', { command: 'make', background: true }, 'c1'),
+      () => text('started'),
+    ])
+    const { host, session } = await openSession(adapter, [
+      workspaceTools({ root: '/workspace', backend }),
+      listener,
+    ])
+    await session.send('build')
+    await waitFor(() => expect(events).toHaveLength(3))
+    expect(events).toEqual([
+      ['started', { jobId: 'bash-1', command: 'make' }],
+      ['output', { jobId: 'bash-1', output: 'built\n' }],
+      ['ended', { jobId: 'bash-1', exitCode: 0 }],
+    ])
     await host.close()
   })
 
@@ -1093,7 +1152,7 @@ describe('bash', () => {
         const pid = Number(
           await readFile(nodePath.join(cwd, 'child.pid'), 'utf8'),
         )
-        await vi.waitFor(() => expect(isRunning(pid)).toBe(false), {
+        await waitFor(() => expect(isRunning(pid)).toBe(false), {
           timeout: 5000,
         })
       } finally {
@@ -1120,5 +1179,356 @@ describe('a network path', () => {
       runIn(tools, 'read_file', { path: '//attacker/share/a.txt' }),
     ).rejects.toThrow('outside the workspace')
     expect(realpath.mock.calls.flat().join()).not.toContain('attacker')
+  })
+})
+
+/** The result of the tool call `id`, as the model saw it in its last call. */
+function resultOf(calls: ReturnType<typeof mockAdapter>['calls'], id: string) {
+  return JSON.stringify(
+    calls
+      .at(-1)
+      ?.messages.find(
+        (message: { toolCallId?: string }) => message.toolCallId === id,
+      )?.content,
+  )
+}
+
+describe('a workspace for each thread', () => {
+  const encoder = new TextEncoder()
+
+  /**
+   * Workspaces in memory at `/ws/<thread>`. Thread `a` has `mine.txt` and a
+   * link `peek` to the folder of thread `b`, which has `secret.txt`. `binds`
+   * lists the thread of each `bind` call. With `failFirst`, the first bind
+   * throws.
+   */
+  function threadWorkspaces(failFirst = false) {
+    const { backend, files } = memoryBackend()
+    files.set('/ws/a/mine.txt', encoder.encode('mine'))
+    files.set('/ws/b/secret.txt', encoder.encode('hunter2'))
+    const real = (path: string) =>
+      path.replace(/^\/ws\/a\/peek(?=\/|$)/, '/ws/b')
+    const linked: WorkspaceBackend = {
+      ...backend,
+      realpath: async (path) => real(path),
+      readFile: (path) => backend.readFile(real(path)),
+    }
+    const binds: Array<string> = []
+    const workspace: WorkspaceBinder = {
+      bind: async ({ run }) => {
+        binds.push(run.threadId)
+        if (failFirst && binds.length === 1) throw new Error('No sandbox yet.')
+        return { ...linked, root: `/ws/${run.threadId}` }
+      },
+    }
+    return { files, workspace, binds }
+  }
+
+  /** Open thread `threadId` on `host`, with the tools of `workspace`. */
+  function openThread(
+    host: ReturnType<typeof createHarnessHost>,
+    workspace: WorkspaceBinder,
+    adapter: AnyTextAdapter,
+    threadId: string,
+  ) {
+    return host.open(
+      defineHarness({
+        name: 'test/workspace-bind',
+        adapter,
+        plugins: () => [workspaceTools({ workspace, web: false })],
+      }),
+      { threadId },
+    )
+  }
+
+  it('closes the workspace that bind gave as moved when the session closes, so the thread can reattach it', async () => {
+    const { workspace } = threadWorkspaces()
+    const closed: Array<string> = []
+    const closing: WorkspaceBinder = {
+      bind: async (input) => ({
+        ...(await workspace.bind(input)),
+        close: async ({ reason }) => {
+          closed.push(reason)
+        },
+      }),
+    }
+    const { adapter } = mockAdapter([
+      () => toolCall('read_file', { path: 'mine.txt' }, 'c0'),
+      () => text('done'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await openThread(host, closing, adapter, 'a')
+    await session.send('read')
+    expect(closed).toEqual([])
+
+    await host.close()
+
+    // A session close does not end the thread: a sandbox stays.
+    expect(closed).toEqual(['moved'])
+  })
+
+  it('destroys the sandbox of a thread that host.sessions.delete purges, also when no session has the thread open', async () => {
+    const { workspace } = threadWorkspaces()
+    const closed: Array<string> = []
+    const reattached: Array<string> = []
+    const sandbox = async (input: Parameters<WorkspaceBinder['bind']>[0]) => ({
+      ...(await workspace.bind(input)),
+      binding: () => ({
+        kind: 'sandbox' as const,
+        provider: 'test',
+        sandboxId: `sb-${input.run.threadId}`,
+      }),
+      close: async ({ reason }: { reason: 'closed' | 'moved' }) => {
+        closed.push(reason)
+      },
+    })
+    const owned: WorkspaceBinder = {
+      bind: sandbox,
+      reattach: async ({ run, binding }) => {
+        reattached.push(binding.kind === 'sandbox' ? binding.sandboxId : '')
+        return sandbox({ run })
+      },
+    }
+    const { adapter } = mockAdapter([
+      () => toolCall('read_file', { path: 'mine.txt' }, 'c0'),
+      () => text('done'),
+    ])
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      lifecycle: { idleCloseMs: 0 },
+    })
+    const session = await openThread(host, owned, adapter, 'a')
+    await session.send('read')
+    await session.close()
+    await waitFor(() => expect(closed).toEqual(['moved']))
+
+    await host.sessions.delete({ threadId: 'a' })
+
+    // The purge reattached the sandbox from the log, then destroyed it.
+    expect(reattached).toEqual(['sb-a'])
+    expect(closed).toEqual(['moved', 'closed'])
+    await host.close()
+  })
+
+  it('destroys the sandbox on a host that never opened the harness, when its harnesses option has it, and warns when not', async () => {
+    const { workspace } = threadWorkspaces()
+    const closed: Array<string> = []
+    const sandbox = async (input: Parameters<WorkspaceBinder['bind']>[0]) => ({
+      ...(await workspace.bind(input)),
+      binding: () => ({
+        kind: 'sandbox' as const,
+        provider: 'test',
+        sandboxId: `sb-${input.run.threadId}`,
+      }),
+      close: async ({ reason }: { reason: 'closed' | 'moved' }) => {
+        closed.push(`${input.run.threadId}:${reason}`)
+      },
+    })
+    const owned: WorkspaceBinder = {
+      bind: sandbox,
+      reattach: async ({ run }) => sandbox({ run }),
+    }
+    const { adapter } = mockAdapter([
+      () => toolCall('read_file', { path: 'mine.txt' }, 'c0'),
+      () => text('done'),
+      () => toolCall('read_file', { path: 'mine.txt' }, 'c1'),
+      () => text('done'),
+    ])
+    const harness = defineHarness({
+      name: 'test/workspace-delete',
+      adapter,
+      plugins: () => [workspaceTools({ workspace: owned, web: false })],
+    })
+    const persistence = memoryPersistence()
+    const first = createHarnessHost({ persistence })
+    for (const threadId of ['a', 'b']) {
+      const session = await first.open(harness, { threadId })
+      await session.send('read')
+    }
+    await first.close()
+    closed.length = 0
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    // A new host, after a deploy: it never opened the harness.
+    const knows = createHarnessHost({ persistence, harnesses: [harness] })
+    await knows.sessions.delete({ threadId: 'a' })
+    const blind = createHarnessHost({ persistence })
+    await blind.sessions.delete({ threadId: 'b' })
+
+    expect(closed).toEqual(['a:closed'])
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('does not know the harness'),
+    )
+    warn.mockRestore()
+    await knows.close()
+    await blind.close()
+  })
+
+  it('destroys the sandbox of a harness child thread when host.sessions.delete purges its root', async () => {
+    const { workspace } = threadWorkspaces()
+    const closed: Array<string> = []
+    const sandbox = async (input: Parameters<WorkspaceBinder['bind']>[0]) => ({
+      ...(await workspace.bind(input)),
+      binding: () => ({
+        kind: 'sandbox' as const,
+        provider: 'test',
+        sandboxId: `sb-${input.run.threadId}`,
+      }),
+      close: async ({ reason }: { reason: 'closed' | 'moved' }) => {
+        closed.push(reason)
+      },
+    })
+    const child = defineHarness({
+      name: 'test/workspace-child',
+      adapter: mockAdapter([
+        () => toolCall('read_file', { path: 'mine.txt' }, 'c0'),
+        () => text('Child done.'),
+      ]).adapter,
+      plugins: () => [
+        workspaceTools({
+          workspace: { bind: sandbox, reattach: ({ run }) => sandbox({ run }) },
+          web: false,
+        }),
+      ],
+    })
+    const agent = harnessAgent(child)
+    const lead = defineHarness({
+      name: 'test/workspace-lead',
+      adapter: mockAdapter([
+        () => toolCall(agent.name, { prompt: 'Read it.' }),
+        () => text('Done.'),
+      ]).adapter,
+      subagents: { agents: [agent] },
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(lead, { threadId: 't' })
+    await session.send('Go.')
+    await waitFor(() => expect(closed).toEqual(['moved']))
+
+    await host.sessions.delete({ threadId: 't' })
+
+    // The child lives in the log of its root: the purge reads it there.
+    expect(closed).toEqual(['moved', 'closed'])
+    await host.close()
+  })
+
+  it('keeps a thread in its root: no path through .. or a link reaches another root', async () => {
+    const { workspace } = threadWorkspaces()
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('read_file', { path: 'mine.txt' }, 'c0'),
+      () => toolCall('read_file', { path: '../b/secret.txt' }, 'c1'),
+      () => toolCall('read_file', { path: 'peek/secret.txt' }, 'c2'),
+      () => toolCall('read_file', { path: '/ws/b/secret.txt' }, 'c3'),
+      () => text('done'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await openThread(host, workspace, adapter, 'a')
+    await session.send('read')
+    expect(resultOf(calls, 'c0')).toBe('"1\\tmine"')
+    for (const id of ['c1', 'c2', 'c3']) {
+      expect(resultOf(calls, id)).toContain('outside the workspace')
+    }
+    expect(JSON.stringify(calls.at(-1)?.messages)).not.toContain('hunter2')
+    await host.close()
+  })
+
+  it('binds each thread once, names its root in the prompt, and works there', async () => {
+    const { files, workspace, binds } = threadWorkspaces()
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('write_file', { path: 'a.txt', content: 'A' }, 'c0'),
+      () => toolCall('write_file', { path: 'a2.txt', content: 'A' }, 'c1'),
+      () => text('done'),
+      () => toolCall('write_file', { path: 'b.txt', content: 'B' }, 'c2'),
+      () => text('done'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const a = await openThread(host, workspace, adapter, 'a')
+    await a.send('write twice')
+    expect(JSON.stringify(calls[0].systemPrompts)).toContain(
+      'Your workspace is /ws/a.',
+    )
+    const b = await openThread(host, workspace, adapter, 'b')
+    await b.send('write once')
+    expect(JSON.stringify(calls[3].systemPrompts)).toContain(
+      'Your workspace is /ws/b.',
+    )
+    expect(binds).toEqual(['a', 'b'])
+    expect(files.has('/ws/a/a.txt')).toBe(true)
+    expect(files.has('/ws/a/a2.txt')).toBe(true)
+    expect(files.has('/ws/b/b.txt')).toBe(true)
+    await host.close()
+  })
+
+  it('binds again at the tool call when the bind before the turn failed', async () => {
+    const { workspace, binds } = threadWorkspaces(true)
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('read_file', { path: 'mine.txt' }, 'c0'),
+      () => text('done'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await openThread(host, workspace, adapter, 'a')
+    await session.send('read')
+    expect(binds).toEqual(['a', 'a'])
+    expect(resultOf(calls, 'c0')).toBe('"1\\tmine"')
+    await host.close()
+  })
+})
+
+describe('real paths', () => {
+  it('writes to the resolved path of a link', async () => {
+    const { backend, files } = memoryBackend()
+    files.set('/workspace/real.txt', new TextEncoder().encode('real'))
+    // `alias.txt` is a link to `real.txt`.
+    const linked: WorkspaceBackend = {
+      ...backend,
+      realpath: async (path) =>
+        path === '/workspace/alias.txt' ? '/workspace/real.txt' : path,
+    }
+    const set = toolsOf({ root: '/workspace', backend: linked })
+    expect(
+      await runIn(set, 'write_file', { path: 'alias.txt', content: 'new' }),
+    ).toBe('Wrote real.txt.')
+    expect(decoder.decode(files.get('/workspace/real.txt'))).toBe('new')
+    expect(files.has('/workspace/alias.txt')).toBe(false)
+  })
+
+  it('refuses a write when a link appears between the check and the write', async () => {
+    const { backend, files } = memoryBackend()
+    let checks = 0
+    // The first check sees a file. Then a link to a folder outside takes
+    // its place, before the write.
+    const swapping: WorkspaceBackend = {
+      ...backend,
+      realpath: async (path) => {
+        if (path !== '/workspace/swap.txt') return path
+        checks += 1
+        return checks === 1 ? path : '/elsewhere/swap.txt'
+      },
+    }
+    const set = toolsOf({ root: '/workspace', backend: swapping })
+    await expect(
+      runIn(set, 'write_file', { path: 'swap.txt', content: 'x' }),
+    ).rejects.toThrow('swap.txt changed while the tool ran')
+    expect([...files.keys()]).toEqual([])
+  })
+
+  it('refuses every path when the backend has no realpath', async () => {
+    const { backend } = memoryBackend()
+    // A backend from JavaScript, where the type cannot ask for realpath.
+    Reflect.deleteProperty(backend, 'realpath')
+    const set = toolsOf({ root: '/workspace', backend })
+    await expect(runIn(set, 'read_file', { path: 'a.txt' })).rejects.toThrow(
+      'The workspace backend has no realpath',
+    )
+  })
+
+  it('refuses a working folder outside the workspace', async () => {
+    const set = toolsOf(
+      { root: '/workspace', backend: memoryBackend().backend },
+      { mode: () => 'default', cwd: () => '../other' },
+    )
+    await expect(runIn(set, 'read_file', { path: 'a.txt' })).rejects.toThrow(
+      'The working folder ../other is outside the workspace.',
+    )
   })
 })

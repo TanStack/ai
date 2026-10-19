@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { defineAgent, toolDefinition } from '@tanstack/ai'
+import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import {
   LogConflictError,
   memoryLogStore,
@@ -25,6 +25,7 @@ import type {
   HarnessPersistence,
   HarnessSession,
   Operation,
+  SessionEvent,
 } from '../src'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
@@ -151,6 +152,48 @@ describe('the thread of an agent run', () => {
     expect(JSON.stringify(await session.transcript())).not.toContain(
       'Draft it.',
     )
+    await host.close()
+  })
+})
+
+describe('the receipt of an agent run', () => {
+  it('resolves when the run starts, with the run as its operation', async () => {
+    const { host, session } = await open(
+      writing(mockAdapter([() => text('Done.')]).adapter),
+    )
+
+    const run = session.agents.writer.start()
+
+    const receipt = await run.receipt
+    expect(receipt).toMatchObject({ status: 'accepted', operationId: run.id })
+    expect(receipt.inputId).toEqual(expect.any(String))
+    await run
+    await host.close()
+  })
+
+  it('resolves rejected for an input that the schema of the agent refuses', async () => {
+    const checked = defineAgent({
+      name: 'checked',
+      description: 'Needs a topic',
+      inputSchema: z.object({ topic: z.string() }),
+      run: (ctx) => ctx.chat({ adapter: mockAdapter([]).adapter }),
+    })
+    const { host, session } = await open(
+      defineHarness({
+        name: 'test/agent-runs',
+        adapter: mockAdapter([]).adapter,
+        agents: [checked],
+      }),
+    )
+
+    const run = session.agent('checked')?.start({ topic: 7 })
+    if (!run) throw new Error('No agent checked.')
+
+    expect(await run.receipt).toMatchObject({
+      status: 'rejected',
+      reason: 'invalid_input',
+    })
+    await expect(run).rejects.toThrow('Input validation failed')
     await host.close()
   })
 })
@@ -514,6 +557,26 @@ describe('agents that agent code starts', () => {
         result: 'helped',
       },
     ])
+    // The events of the lead and of its child, in one stream.
+    const events = []
+    for await (const entry of session.events()) {
+      events.push(entry)
+      const { event } = entry
+      const isLeadEnd =
+        entry.operationId === run.id &&
+        event.type === EventType.CUSTOM &&
+        event.name === 'harness.operation.finished'
+      if (isLeadEnd) break
+    }
+    const ofChild = events.filter((entry) => entry.operationId === childId)
+    const ofLead = events.filter((entry) => entry.operationId === run.id)
+    expect(ofChild.length).toBeGreaterThan(0)
+    expect(ofLead.length).toBeGreaterThan(0)
+    // The RUN_STARTED of a child run names its parent. The lead has none.
+    const startOf = (entries: Array<SessionEvent>) =>
+      entries.find((entry) => entry.event.type === EventType.RUN_STARTED)?.event
+    expect(startOf(ofChild)).toMatchObject({ parentRunId: run.id })
+    expect(startOf(ofLead)).not.toHaveProperty('parentRunId')
     await host.close()
   })
 
@@ -668,7 +731,9 @@ function durable() {
     const refuse = vi
       .spyOn(log, 'append')
       .mockRejectedValue(new Error('the host is gone'))
-    await expect(session.append([{ type: 'app.ping' }])).rejects.toThrow()
+    await expect(
+      session.append({ records: [{ type: 'app.ping' }] }),
+    ).rejects.toThrow()
     await expect(run).rejects.toThrow()
     refuse.mockRestore()
   }

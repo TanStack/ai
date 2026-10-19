@@ -6,6 +6,7 @@ export type {
   HarnessDefinition,
   HarnessDurability,
   HarnessRouterContext,
+  HarnessRouterPick,
   HarnessRouting,
   HarnessSubagents,
   HarnessToolInput,
@@ -102,6 +103,8 @@ export type {
   AnyAgent,
   HarnessAgentContext,
 } from './agents'
+export type { HandoffOptions } from './handoff'
+export type { HumanTarget } from './log-records'
 
 export { createHarnessHost } from './host'
 export { createHarnessWorker } from './harness-worker'
@@ -118,6 +121,7 @@ export type {
   HostSessionEvent,
   HostSessions,
   HostStatusEvent,
+  HostTransferredEvent,
   OpenSessionOptions,
   ResumedThread,
   ResumePendingOptions,
@@ -162,6 +166,7 @@ export type {
 export type { ObservedSession } from './session/observed-session'
 export type { SessionUsage, UsageCounts } from './usage'
 export type { OnHarnessEvent } from './feed'
+export type { ObservabilityOptions, OperationReport } from './observability'
 
 export type {
   FinishContext,
@@ -186,6 +191,8 @@ export type {
   Cursor,
   EventGap,
   ForkPoint,
+  HandoffEnvelope,
+  HarnessEventValues,
   HarnessInput,
   HarnessRunContext,
   InputSettlement,
@@ -207,6 +214,8 @@ export type {
   StreamChunkType,
   ThreadSettings,
   ThreadSettingsChange,
+  TransferOptions,
+  TransferResult,
   TurnInfo,
   TurnOverrides,
   UsageUpdate,

@@ -7,7 +7,16 @@ import {
 } from '@tanstack/ai-harness'
 import { createCodeMode } from './create-code-mode'
 import type { AnyTool } from '@tanstack/ai'
+import type { PermissionMode } from '@tanstack/ai-harness'
 import type { CodeModeTool, CodeModeToolConfig } from './types'
+
+/** The permission modes of `permissions()`, for the `mode` setting. */
+const MODES: ReadonlyArray<PermissionMode> = [
+  'default',
+  'plan',
+  'acceptEdits',
+  'bypass',
+]
 
 export interface CodeModePluginOptions extends Omit<
   CodeModeToolConfig,
@@ -20,6 +29,12 @@ export interface CodeModePluginOptions extends Omit<
    * the rules of tool plugins decide. A safe tool with
    * `metadata.codeMode: true`, for example a tool of an `mcp()` server with
    * `codeMode: true`, moves even when `include` does not pick it.
+   *
+   * `include` cannot move a tool with `needsApproval`, or a tool that a rule
+   * asks for or denies: such a tool stays a normal tool call, with its
+   * approval and its checks. Code mode warns once for each such tool that `include`
+   * picks. The rules decide in the permission mode of the session at each
+   * turn, so in plan mode a tool that edits stays a normal tool call.
    */
   include?: (tool: CodeModeTool) => boolean
   /**
@@ -58,8 +73,10 @@ function isServerTool(tool: AnyTool): tool is CodeModeTool {
  * tools that are safe to run without a question move into code mode. The
  * other tools stay normal tool calls. A tool with `metadata.codeMode: true`
  * moves even when `include` does not pick it, but only when it is safe in
- * the same way. Calls inside the isolate also skip the permission checks,
- * so a tool that declares `PermissionResources` never moves. With
+ * the same way. `include` can pick more tools, but never a tool with
+ * `needsApproval` or a tool that a rule asks for or denies. Calls inside the
+ * isolate also skip the permission checks, so a tool that declares
+ * `PermissionResources` never moves. With
  * `lazy: true`, the model gets only the names of the moved tools and asks
  * `discover_tools` for the signatures.
  *
@@ -77,6 +94,15 @@ function isServerTool(tool: AnyTool): tool is CodeModeTool {
  */
 export function codeMode(options: CodeModePluginOptions) {
   const { include, lazy = false, ...config } = options
+  /** The tools that `include` picked but cannot move, warned once each. */
+  const warned = new Set<string>()
+  const warnKept = (name: string) => {
+    if (warned.has(name)) return
+    warned.add(name)
+    console.warn(
+      `[@tanstack/ai-code-mode] include picked the tool ${JSON.stringify(name)}, but it needs approval, or a rule asks for it or denies it. A call inside code mode skips those checks, so the tool stays a normal tool call.`,
+    )
+  }
   return definePlugin({
     name: 'tanstack/code-mode',
     optionalRequires: [PermissionDecisionCapability],
@@ -104,10 +130,20 @@ export function codeMode(options: CodeModePluginOptions) {
           // Ask permissions() when it is mounted: it knows all rules in its
           // order and its default. Read here, so it can come after code mode.
           const decide = ctx.getOptional(PermissionDecisionCapability)
+          const decisionOf = (tool: CodeModeTool, mode: PermissionMode) =>
+            decide?.(tool.name, mode) ??
+            decidePermission(rules, tool.name, mode)
           const safe = (tool: CodeModeTool) =>
-            !tool.needsApproval &&
-            (decide?.(tool.name, 'plan') ??
-              decidePermission(rules, tool.name, 'plan')) === 'allow'
+            !tool.needsApproval && decisionOf(tool, 'plan') === 'allow'
+          // The permission mode of the session now, read at each turn. In
+          // plan mode, a tool that edits must stay a tool call, where the
+          // rules deny it.
+          const value = ctx.config.get('mode')
+          const mode = MODES.find((each) => each === value) ?? 'default'
+          // `include` widens the pick past plan mode, but a call inside the
+          // isolate must not skip an approval, an `ask` rule, or a deny rule.
+          const canInclude = (tool: CodeModeTool) =>
+            !tool.needsApproval && decisionOf(tool, mode) === 'allow'
           const moves = (tool: CodeModeTool) => {
             // The permission checks run on tool calls of the model. A call
             // inside the isolate skips them, so such a tool stays a tool call.
@@ -118,7 +154,11 @@ export function codeMode(options: CodeModePluginOptions) {
             // A marked tool still needs the checks of the default pick.
             const isMarked = tool.metadata?.codeMode === true
             if (isMarked && safe(tool)) return true
-            return include ? include(tool) : safe(tool)
+            if (!include) return safe(tool)
+            if (!include(tool)) return false
+            if (canInclude(tool)) return true
+            warnKept(tool.name)
+            return false
           }
           // Two tools that map to the same identifier: the first one moves.
           const byIdentifier = new Map<string, CodeModeTool>()

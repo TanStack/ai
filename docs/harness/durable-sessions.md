@@ -125,6 +125,8 @@ console.log(`Resumed ${resumed.length} threads`, resumed)
 
 It resolves with the threads that it took, as `{ threadId, harness, tenantId }` entries. Each thread opens in its own tenant, with no principal.
 
+If a thread that the sweep took does not open, the host gives it back with a wake in 30 seconds. The next sweep or worker tries it again.
+
 The `close` option sets what happens to a session that the sweep opened:
 
 - `'whenIdle'` (default): the session closes when its work ends. If the app opened the same thread too, the session stays open.
@@ -276,8 +278,9 @@ On a serverless platform, two requests for one thread often reach two instances.
 
 - The first write of a host takes the log. From then on, this host owns the thread.
 - One timer renews every thread that the host owns. The host gives a thread back when it has no work.
-- An input that reaches another instance waits in the log for the owner. The receipt is `queued`, and the owner runs it within a second.
-- Every instance reads the thread. A client gets the events from the log, on any instance. A `POST run` on the second instance streams the turn that the owner runs.
+- An input that reaches another instance waits in the log for the owner. The receipt is `queued`, and the owner runs it within a second. If the owner refuses it, `session.settled({ inputId })` on that instance rejects with `InputRejectedError`. See [Send inputs safely](./inputs).
+- Every instance reads the thread, also while the owner runs a background job. A client gets the events from the log, on any instance. A `POST run` on the second instance streams the turn that the owner runs.
+- The thread settings, the config values, and the state of an interrupted turn follow the changes that other hosts write.
 
 Set the timing with the `ownership` option of the host:
 
@@ -289,7 +292,8 @@ const ownedHost = createHarnessHost({
 ```
 
 - `ttlMs`: how long the ownership lasts after each renewal. The default is 30 000. After it, another host can take the thread.
-- `renewMs`: how often the timer renews. The default is 10 000.
+- `renewMs`: how often the timer renews. The default is 10 000. When you set only `ttlMs`, the default is a third of `ttlMs`. It must be less than `ttlMs`, else `createHarnessHost` throws a `RangeError`.
+- `hostId`: a stable id for this host, for example the machine or pod name. With it, a thread whose coding tools use a folder on this host stays on this host. Other hosts refuse its tool calls. The host sends a heartbeat to the log store each `renewMs`. When no heartbeat came for `ttlMs`, other hosts can take its threads. See [A folder on one server](./coding-workspaces#a-folder-on-one-server).
 
 An input that waits for the owner keeps its JSON overrides (`model`, `modelOptions`, `reasoning`, and `promptCache`). The `adapter` and `tools` overrides are objects, so the owner runs the input without them.
 

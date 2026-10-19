@@ -267,9 +267,9 @@ describe('codeMode', () => {
       defineHarness({
         name: 'test/code-mode-include',
         adapter,
-        tools: [tools.lookup, tools.remove],
+        tools: [tools.lookup, tools.notionSearch],
         plugins: () => [
-          codeMode({ driver, include: (tool) => tool.name === 'remove' }),
+          codeMode({ driver, include: (tool) => tool.name === 'lookup' }),
         ],
       }),
       {
@@ -278,7 +278,7 @@ describe('codeMode', () => {
     )
     await picked.send('hi')
     expect(calls[0].tools.map((tool: { name: string }) => tool.name)).toEqual([
-      'lookup',
+      'notion_search',
       'execute_typescript',
     ])
 
@@ -387,6 +387,65 @@ describe('codeMode', () => {
     await host.close()
   })
 
+  it('keeps a tool that needs approval, or that a rule asks for or denies, when include picks it, and warns once', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const denyDocs = definePlugin({
+      name: 'test/deny-docs',
+      setup: () => ({
+        contribute: [
+          PermissionRules.item({ tool: 'docs_deny', decision: 'deny' }),
+          PermissionRules.item({ tool: 'docs_ask', decision: 'ask' }),
+        ],
+      }),
+    })
+    const { adapter, calls } = scripted([textTurn('one'), textTurn('two')])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/code-mode-include-guard',
+        adapter,
+        tools: [
+          tools.lookup,
+          tools.remove,
+          toolDefinition({
+            name: 'docs_deny',
+            description: 'A tool that a rule denies',
+            inputSchema: z.object({}),
+          }).server(async () => 'denied'),
+          toolDefinition({
+            name: 'docs_ask',
+            description: 'A tool that a rule asks for',
+            inputSchema: z.object({}),
+          }).server(async () => 'asked'),
+        ],
+        plugins: () => [
+          denyDocs,
+          codeMode({ driver: fakeDriver().driver, include: () => true }),
+        ],
+      }),
+      { threadId: 't' },
+    )
+    await session.send('first')
+    await session.send('second')
+    await host.close()
+
+    for (const call of calls) {
+      expect(call.tools.map((tool: { name: string }) => tool.name)).toEqual([
+        'remove',
+        'docs_deny',
+        'docs_ask',
+        'execute_typescript',
+      ])
+    }
+    // One warning for each kept tool, not one for each turn.
+    expect(warn.mock.calls.map(([message]) => message)).toEqual([
+      '[@tanstack/ai-code-mode] include picked the tool "remove", but it needs approval, or a rule asks for it or denies it. A call inside code mode skips those checks, so the tool stays a normal tool call.',
+      '[@tanstack/ai-code-mode] include picked the tool "docs_deny", but it needs approval, or a rule asks for it or denies it. A call inside code mode skips those checks, so the tool stays a normal tool call.',
+      '[@tanstack/ai-code-mode] include picked the tool "docs_ask", but it needs approval, or a rule asks for it or denies it. A call inside code mode skips those checks, so the tool stays a normal tool call.',
+    ])
+    warn.mockRestore()
+  })
+
   it('moves a marked tool that include does not pick, unless a rule or an approval stops it', async () => {
     const rules = definePlugin({
       name: 'test/marked-rules',
@@ -416,6 +475,40 @@ describe('codeMode', () => {
       'docs_write',
       'execute_typescript',
     ])
+  })
+
+  it('keeps a tool that include picks and that edits as a tool call in plan mode', async () => {
+    const { adapter, calls } = scripted([textTurn('ok'), textTurn('ok')])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/code-mode-include-plan',
+        adapter,
+        tools: [tools.lookup],
+        plugins: () => [
+          permissions({
+            rules: [{ tool: 'lookup', decision: 'allow', kind: 'edit' }],
+          }),
+          codeMode({
+            driver: fakeDriver().driver,
+            include: (tool) => tool.name === 'lookup',
+          }),
+        ],
+      }),
+      { threadId: 't' },
+    )
+    const namesOf = (call: number) =>
+      calls[call].tools.map((tool: { name: string }) => tool.name)
+    await session.send('hi')
+    // In the default mode, the rule allows it, so it moves.
+    expect(namesOf(0)).toEqual(['execute_typescript'])
+
+    await session.command({ name: 'mode', input: 'plan' })
+    await session.send('plan it')
+    // Plan mode denies an edit, so a call inside the isolate must not run
+    // it. No tool moves, so code mode adds no tool.
+    expect(namesOf(1)).toEqual(['lookup'])
+    await host.close()
   })
 
   it('keeps a tool that a rule of permissions() asks for as a tool call', async () => {
