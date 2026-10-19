@@ -77,6 +77,30 @@ A provider caches the start of each request: the system prompts, then the histor
 - The log does not keep `'context'` text.
 - The first-party todos, goal, and plan mode prompts use `'context'`.
 
+### Refresh state at the start of a turn
+
+A prompt function must return at once, so it cannot read a file or call a server. Do that work in `onTurnStart`. The harness calls it once at the start of each turn, before it reads the prompts:
+
+```ts group=harness-plugins
+import { readFile } from 'node:fs/promises'
+
+let rules = ''
+
+export const projectRules = definePlugin({
+  name: 'acme/project-rules',
+  setup: () => ({
+    onTurnStart: async () => {
+      rules = await readFile('RULES.md', 'utf8')
+    },
+    prompts: [() => rules],
+  }),
+})
+```
+
+- `onTurnStart` gets the turn. `turn.run` has the user of the turn and the credentials of that user.
+- It runs one time for each turn, also when the turn makes many model calls.
+- If it throws, the turn continues, and clients get a `harness.plugin.warning` event.
+
 ## Add commands and settings
 
 Commands are actions for the user, not the model: slash commands and buttons in your app. Settings are typed, saved per session, and apply at the next turn.
@@ -301,7 +325,7 @@ Where each part of a plugin reads the run:
 - A session plugin (the default lifetime): `ctx.credentials` and `ctx.keys` have no user, so each call throws. `ctx.session.principal` is the owner of the session.
 - A plugin with `lifetime: 'host'`: its setup has no user and no session. Its tools read the user of each call from `ctx.context.run`.
 
-`prepareTools` gets `run` too: the run of the turn, with its id and its user.
+`prepareTools` gets `run` too: the run of the turn, with its id and its user. `onTurnStart` gets the turn, with its run in `turn.run`.
 
 A plugin that starts a turn picks its user. `ctx.session.send(text, { principal })` and `ctx.session.note(text, { wake: true, principal })` run that turn as `principal`. Without it, the turn runs as `ctx.session.principal`. To continue the work of a run, pass the `principal` of that run.
 

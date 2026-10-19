@@ -622,6 +622,12 @@ export abstract class SessionTurn<
         )
         this.turnPlugins.add(heldPlugins)
       }
+      // Once per turn, before the adapter pick, the tools, and the prompts.
+      await this.runTurnStarts(
+        [...(session?.turnStarts ?? []), ...(runPlugins?.turnStarts ?? [])],
+        operation,
+        info,
+      )
       const bridges = [
         session?.capabilityBridge,
         runPlugins?.capabilityBridge,

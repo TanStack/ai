@@ -1023,12 +1023,11 @@ export function workspaceTools(options: WorkspaceToolsOptions) {
         tools,
         prompts: [(turn) => prompt(turn.run)],
         // Bind the workspace of the thread before the turn, so the prompt
-        // names its root. It adds no tools.
+        // names its root.
         ...(options.workspace
           ? {
-              discoverTools: async (turn) => {
+              onTurnStart: async (turn) => {
                 await bind(turn.run)
-                return []
               },
             }
           : {}),

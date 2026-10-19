@@ -311,6 +311,24 @@ export abstract class SessionTurnParts<
   }
 
   /**
+   * Run the `onTurnStart` hook of each plugin, in order, for `turn`. A hook
+   * that fails is skipped, and clients get a `harness.plugin.warning` event.
+   */
+  protected async runTurnStarts(
+    turnStarts: MountedPlugins['turnStarts'],
+    operation: OperationImpl<ChatTurnResult>,
+    turn: TurnInfo,
+  ) {
+    for (const { start, owner } of turnStarts) {
+      try {
+        await start(turn)
+      } catch (error) {
+        this.warn(operation, owner, error)
+      }
+    }
+  }
+
+  /**
    * Ask each plugin for the tools it found since the last turn, for `turn`.
    * A plugin that fails (for example an MCP server that is down) is skipped,
    * and clients get a `harness.plugin.warning` event.

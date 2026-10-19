@@ -108,6 +108,13 @@ export interface PluginContributions {
     turn: TurnInfo,
   ) => AnyTextAdapter | KeyedAdapter<AnyTextAdapter> | undefined
   /**
+   * Runs once at the start of each turn, before the adapter pick, the tools,
+   * and the prompts. `turn.run` has the turn's user and that user's
+   * credentials. Use it to refresh state that a prompt reads. A hook that
+   * throws is skipped, and clients get a `harness.plugin.warning` event.
+   */
+  onTurnStart?: (turn: TurnInfo) => void | Promise<void>
+  /**
    * Tools found at run time, for example the tools of an MCP server the user
    * signed in to after the session opened. Called before each chat turn,
    * with that turn: `turn.run` has the turn's user and that user's
@@ -480,6 +487,7 @@ const SETUP_KEYS: ReadonlySet<string> = new Set<
   'commands',
   'config',
   'contribute',
+  'onTurnStart',
   'discoverTools',
   'prepareTools',
   'session',
@@ -603,6 +611,10 @@ export interface MountedPlugins {
   /** Contributions to extension points, by point name. */
   extensions: Map<string, Array<{ value: unknown; owner: string }>>
   adapters: Array<NonNullable<PluginContributions['adapter']>>
+  turnStarts: Array<{
+    start: NonNullable<PluginContributions['onTurnStart']>
+    owner: string
+  }>
   discoverers: Array<{
     discover: NonNullable<PluginContributions['discoverTools']>
     owner: string
@@ -1037,6 +1049,7 @@ function withoutOwnersOf(
     ),
     extensions,
     adapters: valuesIn(kept.adapters),
+    turnStarts: mounted.turnStarts.filter(isKeptEntry),
     discoverers: mounted.discoverers.filter(isKeptEntry),
     preparers: mounted.preparers.filter(isKeptEntry),
     get agents() {
@@ -1170,6 +1183,7 @@ export async function mountPlugins(
   for (const [point, items] of env.inheritedExtensions ?? []) {
     extensions.set(point, [...items])
   }
+  const turnStarts: MountedPlugins['turnStarts'] = []
   const discoverers: MountedPlugins['discoverers'] = []
   const preparers: MountedPlugins['preparers'] = []
   const services = env.services ?? NO_SERVICES
@@ -1441,6 +1455,12 @@ export async function mountPlugins(
         }
         if (contributions.adapter)
           owned.adapters.push(own(contributions.adapter))
+        if (contributions.onTurnStart) {
+          turnStarts.push({
+            start: contributions.onTurnStart,
+            owner: plugin.name,
+          })
+        }
         if (contributions.discoverTools) {
           discoverers.push({
             discover: contributions.discoverTools,
@@ -1507,6 +1527,7 @@ export async function mountPlugins(
     config,
     extensions,
     adapters: valuesIn(owned.adapters),
+    turnStarts,
     discoverers,
     preparers,
     // Read at each use: `ctx.agents.set` and `delete` change them later.
