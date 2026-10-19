@@ -452,10 +452,11 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
  * the outer run gets the token usage of the inner model calls.
  *
  * Inside a harness turn, the inner session opens as the user of that turn.
- * Else it opens as `options.principal`. On a host with access that has the
+ * Else it opens as `options.principal`. The inner thread is
+ * `<outer thread>/inner/<harness name>`. On a host with access that has the
  * outer thread too, the inner session is checked through the outer thread:
- * every user who can read the outer thread can use it. An abort of the call cancels the
- * inner turn. For a remote harness, it also sends a cancel to the remote
+ * every user who can read the outer thread can use it. An abort of the call
+ * cancels the inner turn. For a remote harness, it also sends a cancel to the remote
  * host, so the remote turn stops too.
  *
  * `inputModalities` is what the harness reads: the `inputModalities`
@@ -491,27 +492,23 @@ export function harnessText(
       (async function* (): AsyncGenerator<StreamChunk> {
         host ??= createHarnessHost()
         const runId = chatOptions.runId ?? `harness-${Date.now().toString(36)}`
-        // Inside a harness turn, the inner thread belongs to the outer one.
-        // On a host with access, it is checked through the outer thread
-        // (see `throughOuterThread`).
+        // The inner thread belongs to the outer one. On a host with access,
+        // it is checked through the outer thread (see `throughOuterThread`).
         const outer = outerRunOf(chatOptions.capabilities)
-        const through = outer && host.hasAccess ? outer.threadId : undefined
         // No thread id: a new inner session per call, as codexText does.
-        const threadId =
-          through !== undefined
-            ? innerThreadOf(through, harness.name)
-            : `${outer?.threadId ?? chatOptions.threadId ?? runId}:${harness.name}`
+        const outerThread = outer?.threadId ?? chatOptions.threadId ?? runId
+        const threadId = innerThreadOf(outerThread, harness.name)
         const signal = signalOf(chatOptions.request)
         // The call releases its handle at the end. The session then closes
-        // on idle, unless the caller holds it too. Inside a harness turn it
-        // opens as the user of that turn, so each call has its own user.
+        // on idle, unless another handle holds it too. Inside a harness turn
+        // it opens as the user of that turn, so each call has its own user.
         const principal = outer?.principal ?? options.principal
-        const openOptions = { threadId, ...(principal ? { principal } : {}) }
         const session = await host.open(
           harness,
-          through !== undefined
-            ? throughOuterThread(openOptions, through)
-            : openOptions,
+          throughOuterThread(
+            { threadId, ...(principal ? { principal } : {}) },
+            outerThread,
+          ),
         )
         // The outer call's tools join the inner turn. Its system prompts do
         // not: the harness owns its prompt stack.

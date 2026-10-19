@@ -187,8 +187,11 @@ describe('harnessText', () => {
       persistence: memoryPersistence(),
       lifecycle: { idleCloseMs: 0 },
     })
-    const threadId = 'outer-kept:test/inner'
-    const held = await host.open(studio, { threadId })
+    const threadId = innerThreadOf('outer-kept', studio.name)
+    const held = await host.open(
+      studio,
+      throughOuterThread({ threadId }, 'outer-kept'),
+    )
 
     for await (const _chunk of chat({
       adapter: harnessText(studio, { host }),

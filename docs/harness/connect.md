@@ -491,7 +491,7 @@ const stream = chat({
 Each outer thread gets its own inner session, so the harness keeps its own history. The inner session gets every content part of the last user message, so images and files go through too.
 
 - Who runs the inner turn: when the outer `chat()` runs inside a harness turn, the inner session opens as the user of that turn. Else it opens as `principal`, for example `harnessText(assistant, { host, principal: { id: 'ada' } })`.
-- Access: when `host` has `access`, the inner thread is `<outer thread id>/inner/<harness name>`. If the host also runs the outer thread, the inner session is checked through the outer thread, so every user who can read a shared outer thread can use its inner session. `host.open` refuses a thread id with `/inner/` from app code.
+- Access: the inner thread is `<outer thread id>/inner/<harness name>`. When `host` has `access` and also runs the outer thread, the inner session is checked through the outer thread, so every user who can read a shared outer thread can use its inner session. `host.open` refuses a thread id with `/inner/` from app code.
 - Usage: the outer run gets the token usage of every inner model call, so the usage totals of the outer session count them.
 - Cancel: an abort of the outer call cancels the inner turn. For a remote harness, `harnessText({ url, token })` also tells the remote host to cancel the turn.
 

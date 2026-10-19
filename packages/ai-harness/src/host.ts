@@ -985,8 +985,8 @@ const isHarnessChildThread = (threadId: string) => threadId.includes('/agent/')
 
 /**
  * @internal The thread of the inner session of `harnessText` in the outer
- * thread `outerThread`, on a host with access. Only an open marked with
- * `throughOuterThread` for that outer thread opens it.
+ * thread `outerThread`. Only an open marked with `throughOuterThread` for
+ * that outer thread opens it.
  */
 export const innerThreadOf = (outerThread: string, harnessName: string) =>
   `${outerThread}/inner/${harnessName}`
