@@ -527,7 +527,7 @@ export interface InterruptedTurn {
   handoff?: Omit<HandoffRecord, 'runId'>
   /**
    * Who sent the input of the stopped turn. Only this principal's saved
-   * credential answers its sign-ins. A copy from an older version has none.
+   * credential answers its sign-ins.
    */
   principal?: { id: string; tenantId?: string }
   /** The `context` of the stopped turn's input, so the resume sees it too. */

@@ -107,9 +107,6 @@ export function snapshotFrom({
   }
 }
 
-/** A metadata row of usage totals that `host.sessions.delete` still deletes. */
-export const USAGE = 'harness:usage'
-
 /**
  * The log record of how the agent run `runId` ended. Its result is a JSON
  * copy. A result that is not JSON (a cycle) is left out.
@@ -862,7 +859,7 @@ export function lastAssistantText(messages: ReadonlyArray<ModelMessage>) {
 /**
  * True when chat() runs its routed path for this bag: the router picks, and
  * the engine does not run. So the middleware that gives the engine its
- * history and its run lease does not run, and the turn does that work.
+ * history and its run record does not run, and the turn does that work.
  */
 export function isRoutedBag(
   bag: Pick<SubagentsBag, 'agents' | 'router'> | undefined,

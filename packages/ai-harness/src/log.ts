@@ -274,11 +274,8 @@ export interface InputState {
   input: HarnessInput
   principal?: { id: string; tenantId?: string }
   at: number
-  /**
-   * The position of the input record. The events of its run come after it.
-   * Unknown in a fold snapshot from before this field.
-   */
-  seq?: number
+  /** The position of the input record. The events of its run come after it. */
+  seq: number
   status: 'pending' | 'applied' | 'joined' | 'rejected' | 'settled'
   operationId?: string
   attempt: number
@@ -305,9 +302,9 @@ export interface LogState {
   messages: Array<ModelMessage>
   /**
    * The position of the last transcript record. The events after it are not
-   * in the transcript. Unknown after a fold snapshot with no value for this field.
+   * in the transcript.
    */
-  transcriptSeq?: number
+  transcriptSeq: number
   /** In admission order. */
   inputs: Map<string, InputState>
   toolResults: Map<string, ModelMessage>
@@ -393,7 +390,7 @@ export function runStartOf(
 ): Cursor | undefined {
   let first: number | undefined
   for (const input of state.inputs.values()) {
-    if (input.operationId !== operationId || input.seq === undefined) continue
+    if (input.operationId !== operationId) continue
     if (first === undefined || input.seq < first) first = input.seq
   }
   return first === undefined ? undefined : String(first - 1)
@@ -812,8 +809,7 @@ export function sessionOf(state: SharedLogState<unknown>, thread: string) {
  * thread id of the root session: one log keeps the root and all of its child
  * threads (agent chains and subagent runs).
  *
- * The other stores that the harness keys by thread (metadata and media) use
- * the same key, with the thread id as `logId`.
+ * The media stores use the same key, with the thread id as `logId`.
  *
  * @example
  * ```ts
@@ -912,8 +908,7 @@ interface SnapshotVersions {
 
 /**
  * The version of the snapshot state shape. A snapshot of another version is
- * not used: the fold starts at the first record. Version 4 was the metadata
- * checkpoint, which a host does not read any more.
+ * not used: the fold starts at the first record.
  */
 export const SNAPSHOT_VERSION = '5'
 
@@ -942,9 +937,12 @@ function serializeThread(thread: ThreadStateFold) {
 function parseThread(value: unknown) {
   if (!isRecord(value) || !isRecord(value.settings)) return undefined
   const { config, plugins, agentResults, turnOverrides, schedules } = value
-  const { runs, tree, interrupts } = value
-  // A snapshot with no run tree is not used: a fold from the start makes it.
+  const { runs, tree, interrupts, shared, waits, transfers } = value
+  // A snapshot with a missing field is not used: a fold from the start makes it.
   const isShaped =
+    Array.isArray(shared) &&
+    Array.isArray(waits) &&
+    Array.isArray(transfers) &&
     Array.isArray(config) &&
     Array.isArray(plugins) &&
     Array.isArray(agentResults) &&
@@ -959,12 +957,7 @@ function parseThread(value: unknown) {
     settings: value.settings as ThreadSettings,
     config: new Map(config as Array<[string, unknown]>),
     plugins: new Map(plugins as Array<[string, unknown]>),
-    // A state with no shared state gets an empty value.
-    shared: new Map(
-      Array.isArray(value.shared)
-        ? (value.shared as Array<[string, unknown]>)
-        : [],
-    ),
+    shared: new Map(shared as Array<[string, unknown]>),
     interrupted: (value.interrupted ?? null) as InterruptedTurnRecord | null,
     agentResults: new Map(agentResults as Array<[string, AgentResultRecord]>),
     turnOverrides: new Map(
@@ -974,24 +967,14 @@ function parseThread(value: unknown) {
     runs: new Map(runs as Array<[string, RunRecord]>),
     tree: new Map(tree as Array<[string, RunTreeNode]>),
     interrupts: new Map(interrupts as Array<[string, InterruptRecord]>),
-    // A state with no waits gets an empty value.
-    waits: new Map(
-      Array.isArray(value.waits)
-        ? (value.waits as Array<[string, WaitState]>)
-        : [],
-    ),
-    // A state with no transfers gets an empty value.
-    transfers: new Map(
-      Array.isArray(value.transfers)
-        ? (value.transfers as Array<[string, TransferRecord]>)
-        : [],
-    ),
+    waits: new Map(waits as Array<[string, WaitState]>),
+    transfers: new Map(transfers as Array<[string, TransferRecord]>),
     // A state with no active agent: the main model answers.
     activeAgent:
       typeof value.activeAgent === 'string' || isHumanTarget(value.activeAgent)
         ? (value.activeAgent as ThreadStateFold['activeAgent'])
         : null,
-    // A state with no workspace gets an empty value.
+    // A thread with no workspace binding has null.
     workspace: isRecord(value.workspace)
       ? (value.workspace as WorkspaceBinding)
       : null,
@@ -1032,12 +1015,20 @@ function serialize(state: SharedLogState, versions: SnapshotVersions) {
 /** One session of a snapshot at `seq`, or `undefined` when it is not shaped. */
 function parseSession(value: unknown, seq: number) {
   if (!isRecord(value)) return undefined
-  const { messages, inputs, toolResults, steps } = value
+  const { messages, inputs, toolResults, steps, started, runUsage } = value
+  const { jobs, notes, keptRecords, transcriptSeq, usage } = value
   const isShaped =
     Array.isArray(messages) &&
     Array.isArray(inputs) &&
     Array.isArray(toolResults) &&
-    Array.isArray(steps)
+    Array.isArray(steps) &&
+    Array.isArray(started) &&
+    Array.isArray(runUsage) &&
+    Array.isArray(jobs) &&
+    Array.isArray(notes) &&
+    Array.isArray(keptRecords) &&
+    typeof transcriptSeq === 'number' &&
+    isSessionUsage(usage)
   const thread = parseThread(value.thread)
   if (!isShaped || !thread) return undefined
   const revert = revertOf(value.revert)
@@ -1045,53 +1036,27 @@ function parseSession(value: unknown, seq: number) {
   const session: LogState = {
     seq,
     messages: (messages as Array<ModelMessage>).map(revive),
-    // A state with no `transcriptSeq` gets an empty value.
-    ...(typeof value.transcriptSeq === 'number'
-      ? { transcriptSeq: value.transcriptSeq }
-      : {}),
+    transcriptSeq,
     inputs: new Map(
       (inputs as Array<InputState>).map((input) => [input.inputId, input]),
     ),
     toolResults: new Map(toolResults as Array<[string, ModelMessage]>),
-    // A state with no `started` gets an empty value.
     started: new Map(
-      Array.isArray(value.started)
-        ? (value.started as Array<
-            [string, { name: string; replay: 'safe' | 'never' }]
-          >)
-        : [],
+      started as Array<[string, { name: string; replay: 'safe' | 'never' }]>,
     ),
     steps: new Map(steps as Array<[string, unknown]>),
-    // A state with no usage totals gets an empty value, and totals from
-    // before `bySource` get an empty map.
-    usage: isSessionUsage(value.usage)
-      ? { bySource: {}, ...value.usage }
-      : emptyUsage(),
-    // A state with no run sums gets an empty value.
-    runUsage: new Map(
-      Array.isArray(value.runUsage)
-        ? (value.runUsage as Array<[string, UsageCounts]>)
-        : [],
-    ),
-    // A state with no reverts gets an empty value.
+    usage,
+    runUsage: new Map(runUsage as Array<[string, UsageCounts]>),
+    // A thread with no revert data has null.
     ...(revert ? { revert } : {}),
-    // A state with no jobs and notes gets an empty value. A job with a
-    // backend id is a pair.
+    // A job with a backend id is a pair.
     jobs: new Map(
-      (Array.isArray(value.jobs)
-        ? (value.jobs as Array<string | [string, string]>)
-        : []
-      ).map((job) => (typeof job === 'string' ? [job, undefined] : job)),
+      (jobs as Array<string | [string, string]>).map((job) =>
+        typeof job === 'string' ? [job, undefined] : job,
+      ),
     ),
-    notes: new Map(
-      Array.isArray(value.notes)
-        ? (value.notes as Array<[string, string]>)
-        : [],
-    ),
-    // A state with no kept records gets an empty value.
-    keptRecords: Array.isArray(value.keptRecords)
-      ? (value.keptRecords as Array<LogEntry>)
-      : [],
+    notes: new Map(notes as Array<[string, string]>),
+    keptRecords: keptRecords as Array<LogEntry>,
     thread,
   }
   return session

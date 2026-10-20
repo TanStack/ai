@@ -64,11 +64,7 @@ A call that fails before it ends does not count. Each message runs as its sender
 
 ## Where the totals live
 
-The totals stay with the thread:
-
-- The host keeps one `harness.usage` record per call in the log. The log keeps the totals after a restart.
-- Another host with `stores.metadata` keeps the totals there.
-- A host with neither keeps them in memory.
+The totals stay with the thread. The host keeps one `harness.usage` record per call in the log, so a durable log store keeps the totals after a restart.
 
 A [fork of a thread](./fork-and-reset) starts at zero.
 

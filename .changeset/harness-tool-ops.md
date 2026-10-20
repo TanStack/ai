@@ -25,7 +25,7 @@ Run a harness tool with no model turn, add host records from a client, and add a
   `not_exposed`. The session log keeps the records.
 - `createHarnessMcpServer` adds a `tool_<name>` tool for each tool in
   `expose.tools`, and an `append` tool when `expose.records` has types. A tool
-  input with its own `threadId` field now throws when the server is created,
+  input with its own `threadId` field throws when the server is created,
   because MCP uses `threadId` to pick the thread.
 - `session.send(message, { systemPreamble })` prepends per-run, server-only
   system prompts ahead of the harness's own system prompts (for example

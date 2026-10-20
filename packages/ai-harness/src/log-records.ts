@@ -771,8 +771,8 @@ export function foldThreadRecord(state: ThreadStateFold, record: LogRecord) {
       return {
         ...state,
         runs: withEntry(state.runs, record.runId, next),
-        // A change of other fields (a lease, a checkpoint) keeps the status
-        // of the node.
+        // A change of other fields (a checkpoint) keeps the status of the
+        // node.
         tree:
           record.patch.status === undefined
             ? state.tree

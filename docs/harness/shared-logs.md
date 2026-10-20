@@ -97,7 +97,7 @@ console.log((await tracked.logState())?.tasks)
 - `record` must be pure. It returns the next state, or the same state for no change.
 - The type of the state flows from `initial` and `record`. Here `logState()` resolves to `Children | undefined`. A harness without `reduce` gets `undefined`.
 - The fold comes from the log, so a session on another machine gets the same state.
-- Change `version` when you change `record`. A fold checkpoint with another version is ignored.
+- Change `version` when you change `record`. A log snapshot with another version is not used, so the host folds the log again from the first record.
 - `durability.project` also works with `reduce`. It folds a host record into the messages of its own thread only.
 - Every harness that opens the same log must pass the same `project` and `reduce` objects. When a harness with other ones opens a log that is open, `host.open` throws, and so do the reads of `host.observe`.
 

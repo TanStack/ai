@@ -94,7 +94,7 @@ export const projected = defineHarness({
 
 - `record` must be pure: the same log always folds to the same context, live and after a restart.
 - The model sees the change at its next model call. A message that arrives during a tool call comes after the tool result.
-- Change `version` when you change `record`. A fold checkpoint with another version is ignored.
+- Change `version` when you change `record`. A log snapshot with another version is not used, so the host folds the log again from the first record.
 - For compaction, use `projectCompaction` from `@tanstack/ai-compaction`. See [Compact a harness session](./compaction).
 - A chat middleware in a harness turn can append records itself with `getLogRecords(ctx).append([...])` from `@tanstack/ai`. The records land in the log at once. A plugin's middleware reads the writer with `getLogRecords(ctx, { optional: true })`. A plugin cannot list `LogRecordsCapability` in `requires`.
 

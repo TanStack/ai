@@ -25,6 +25,7 @@ import {
 import { HostOwnership, LogOwnedElsewhereError } from '../src/ownership'
 import { CRASHING_OWNERSHIP, wrapLogStore, writeAsOtherHost } from './helpers'
 import { HARNESS_EVENTS } from '../src/types'
+import { emptyUsage } from '../src/usage'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { LogRecord, LogSnapshot, LogStore } from '@tanstack/ai-persistence'
 import type {
@@ -988,6 +989,29 @@ describe('snapshots', () => {
     runs: [],
     tree: [],
     interrupts: [],
+    waits: [],
+    transfers: [],
+    shared: [],
+    activeAgent: null,
+    workspace: null,
+    ...overrides,
+  })
+
+  /** One session of a snapshot, as `serialize` writes it. */
+  const snapshotSession = (overrides: Record<string, unknown> = {}) => ({
+    messages: [user('marker', 'from the snapshot')],
+    transcriptSeq: 1,
+    inputs: [],
+    toolResults: [],
+    started: [],
+    steps: [],
+    usage: emptyUsage(),
+    runUsage: [],
+    revert: null,
+    jobs: [],
+    notes: [],
+    keptRecords: [],
+    thread: threadOf(),
     ...overrides,
   })
 
@@ -1001,18 +1025,7 @@ describe('snapshots', () => {
     version,
     state: {
       version: 'v1',
-      sessions: [
-        [
-          THREAD,
-          {
-            messages: [user('marker', 'from the snapshot')],
-            inputs: [],
-            toolResults: [],
-            steps: [],
-            thread,
-          },
-        ],
-      ],
+      sessions: [[THREAD, snapshotSession({ thread })]],
       reduced: null,
       ...overrides,
     },
@@ -1062,31 +1075,6 @@ describe('snapshots', () => {
     expect([...state.thread.config]).toEqual([['level', 'high']])
   })
 
-  it('gives usage totals from a snapshot before bySource an empty bySource', async () => {
-    const snapshot = snapshotOf({})
-    const total = {
-      calls: 1,
-      promptTokens: 7,
-      completionTokens: 3,
-      totalTokens: 10,
-      cachedTokens: 0,
-      cacheWriteTokens: 0,
-    }
-    const [first] = (snapshot.state as { sessions: Array<[string, any]> })
-      .sessions
-    first![1].usage = { total, byModel: { 'mock/m': total }, bySender: {} }
-    const store = await seededStore(snapshot)
-
-    const state = await loadSession({ store, project })
-
-    expect(state.usage).toEqual({
-      total,
-      byModel: { 'mock/m': total },
-      bySender: {},
-      bySource: {},
-    })
-  })
-
   it('folds the workspace binding and the backend ids of jobs, from records and from a snapshot', async () => {
     const binding = {
       kind: 'sandbox',
@@ -1112,14 +1100,11 @@ describe('snapshots', () => {
       sessions: [
         [
           THREAD,
-          {
+          snapshotSession({
             messages: [],
-            inputs: [],
-            toolResults: [],
-            steps: [],
             jobs: [['bash-1', 'p9'], 'bash-2'],
             thread: threadOf({ workspace: binding }),
-          },
+          }),
         ],
       ],
     })
@@ -1144,6 +1129,19 @@ describe('snapshots', () => {
     ],
     ['another projection version', snapshotOf({ version: 'v0' })],
     ['sessions that are not shaped', snapshotOf({ sessions: 'x' })],
+    [
+      'usage totals with no bySource',
+      snapshotOf({
+        sessions: [
+          [
+            THREAD,
+            snapshotSession({
+              usage: { total: emptyUsage().total, byModel: {}, bySender: {} },
+            }),
+          ],
+        ],
+      }),
+    ],
     [
       'a record type from a newer harness',
       snapshotOf({ recordTypes: ['harness.transcript', 'harness.later'] }),

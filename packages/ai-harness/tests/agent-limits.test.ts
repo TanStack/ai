@@ -672,8 +672,7 @@ describe('per-run limits of an agent run', () => {
     await host.close()
   })
 
-  // flaky: fails in CI under load (Nx hides which test), skipped until it is made deterministic.
-  it.skip('stops a permanent model error after 3 calls, also when onModelError always answers retry', async () => {
+  it('stops a permanent model error after 3 calls, also when onModelError always answers retry', async () => {
     const model = mockAdapter(() => runError('invalid api key'))
     const worker = defineAgent({
       name: 'worker',

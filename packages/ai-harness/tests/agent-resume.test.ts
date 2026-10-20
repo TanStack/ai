@@ -28,7 +28,7 @@ const alice = { id: 'alice' }
 /**
  * Host A starts the background agent `worker`. It reserves an id in a step,
  * and its model calls `lookup`, then waits in its second model call. Then
- * host A stops: its log refuses writes, and its run lease expires. Host B
+ * host A stops: its log refuses writes, and its ownership expires. Host B
  * opens the thread on the same stores.
  */
 async function stopDuringAgent(options: {

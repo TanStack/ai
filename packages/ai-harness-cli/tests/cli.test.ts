@@ -15,7 +15,7 @@ import {
 import { question as questionTool } from '@tanstack/ai-harness/plugins'
 import { createMCPClient } from '@tanstack/ai-mcp'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { EXIT, USAGE, parseCliArgs, runCli } from '../src'
+import { EXIT, parseCliArgs, runCli } from '../src'
 import { serve } from '../src/serve'
 import {
   asStdin,
@@ -87,13 +87,6 @@ describe('parseCliArgs', () => {
       yes: true,
     })
     expect(parseCliArgs([])).toMatchObject({ mcp: false, yes: false })
-  })
-
-  it('refuses --dashboard as an unknown flag', () => {
-    expect(() => parseCliArgs(['--dashboard', 'http://127.0.0.1:1'])).toThrow(
-      "Unknown option '--dashboard'",
-    )
-    expect(USAGE).not.toContain('--dashboard')
   })
 })
 

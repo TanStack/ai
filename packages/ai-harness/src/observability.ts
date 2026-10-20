@@ -149,12 +149,6 @@ export function parseTraceparent(value: unknown): SpanContext | undefined {
   }
 }
 
-/** The W3C `traceparent` header value of a span context. */
-export function traceparentOf(context: SpanContext): string {
-  const flags = (context.traceFlags & 0xff).toString(16).padStart(2, '0')
-  return `00-${context.traceId}-${context.spanId}-${flags}`
-}
-
 /** A context whose span is `span`: a span started in it is its child. */
 const parentContext = (span: Span | undefined): Context | undefined =>
   span && otel ? otel.trace.setSpan(otel.context.active(), span) : undefined

@@ -169,8 +169,7 @@ describe('POST run', () => {
     await host.close()
   })
 
-  // flaky: fails in CI under load (Nx hides which test), skipped until it is made deterministic.
-  it.skip('streams the parent run to its end when a resume answers a wait of a harnessAgent child', async () => {
+  it('streams the parent run to its end when a resume answers a wait of a harnessAgent child', async () => {
     deployed.length = 0
     const child = defineHarness({
       name: 'test/deploy-child',

@@ -354,16 +354,6 @@ export function projectFormatters(
 }
 
 /**
- * The `afterWrite` hook of {@link formatter}. See {@link projectFormatters}.
- */
-export function formatOnWrite(
-  options: FormatterOptions & { root: string },
-  report: Parameters<typeof projectFormatters>[1],
-) {
-  return projectFormatters(options, report).afterWrite
-}
-
-/**
  * Format each file that `write_file`, `edit_file`, and `patch` write, with
  * the formatter that the project uses for its file type. Use it with
  * `workspaceTools`.

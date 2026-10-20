@@ -177,7 +177,7 @@ export interface HarnessDurability<
   timeoutMs?: number
   /**
    * Decide how an input that a crashed host left recovers: an input that
-   * never ran, and a turn whose lease expired. The context has the decision
+   * never ran, and a turn whose host stopped. The context has the decision
    * the harness takes by default. Return `undefined` to keep it. Return
    * `{ action: 'run', overrides }` to run the turn with `TurnOverrides`.
    */

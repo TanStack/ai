@@ -201,7 +201,7 @@ Each host keeps every thread in a session log: the transcript, the inputs, the r
 
 - `log`: the session log. Required.
 - `sessions`: one index entry per thread, for a list of sessions. See [List, rename, and fork sessions](./sessions).
-- `metadata`: data wider than one thread, for example the saved rules of `permissions()`, and a fold checkpoint so a long thread opens faster.
+- `metadata`: data wider than one thread, for example the saved rules of `permissions()`.
 
 `memoryPersistence()` has every store, but it keeps them in memory only. To keep the log in your database, implement the [`LogStore` contract](../persistence/store-reference#logstore). Then a turn continues after a crash or a deploy. See [Durable sessions](./durable-sessions).
 

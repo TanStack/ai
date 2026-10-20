@@ -645,8 +645,8 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
         ...(stores.sessions ? { sessions: stores.sessions } : {}),
       },
     }
+    // The `harness.tool.started` records are the running tools of a turn.
     this.checkpoint = checkpointMiddleware({
-      runs,
       messages: engineMessages,
       onToolStart: ({ toolCallId, name, replay }) =>
         writer.append([
@@ -775,7 +775,6 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
    */
   protected async cutOffAnswer(writer: LogWriter, operationId: string) {
     const from = writer.state.transcriptSeq
-    if (from === undefined) return { text: '', thinking: [] }
     let text = ''
     // By reasoning message id, in stream order.
     const blocks = new Map<string, { content: string; signature?: string }>()
@@ -1182,12 +1181,9 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
                   },
                 }
               : { action: 'run' }
-      const pending = [
-        ...(run?.checkpoint?.pendingTools ?? []),
-        ...[...writer.state.started]
-          .filter(([toolCallId]) => !writer.state.toolResults.has(toolCallId))
-          .map(([toolCallId, tool]) => ({ toolCallId, ...tool })),
-      ]
+      const pending = [...writer.state.started]
+        .filter(([toolCallId]) => !writer.state.toolResults.has(toolCallId))
+        .map(([toolCallId, tool]) => ({ toolCallId, ...tool }))
       // Before the decision, so the hook has it when it settles the input. A
       // resolve repairs nothing.
       const interruptedTools =

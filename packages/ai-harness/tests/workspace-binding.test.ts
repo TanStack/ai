@@ -317,8 +317,7 @@ describe('the workspace binding in the session log', () => {
     await again.host.close()
   })
 
-  // flaky: fails in CI under load (Nx hides which test), skipped until it is made deterministic.
-  it.skip('keeps the pin of a live host on its idle thread, after its ownership expired', async () => {
+  it('keeps the pin of a live host on its idle thread, after its ownership expired', async () => {
     const persistence = memoryPersistence()
     const { log } = persistence.stores
     const { adapter } = readTurn('c0')

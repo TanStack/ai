@@ -41,7 +41,7 @@ const waiter = defineAgent({
     ),
 })
 
-/** The stores of a durable host with no run store: only a log. */
+/** The stores of a durable host: only a log. */
 function logOnlyPersistence(log: LogStore = memoryLogStore()) {
   return { stores: { log } }
 }
@@ -60,7 +60,7 @@ async function openHost(
     ...(ownership ? { ownership } : {}),
   })
   const session = await host.open(
-    defineHarness({ name: 'test/leases', adapter, tools }),
+    defineHarness({ name: 'test/recovery', adapter, tools }),
     {
       threadId: THREAD,
     },
@@ -114,7 +114,7 @@ async function openCutOff(
     ...(ownership ? { ownership } : {}),
   })
   const session = await host.open(
-    defineHarness({ name: 'test/leases', adapter, ...options }),
+    defineHarness({ name: 'test/recovery', adapter, ...options }),
     {
       threadId: THREAD,
     },
@@ -126,7 +126,7 @@ async function openCutOff(
 const roles = (messages: ReadonlyArray<{ role: string; content: unknown }>) =>
   messages.map((message) => [message.role, message.content])
 
-describe('a durable host with no run store', () => {
+describe('a durable host with only a log', () => {
   it('lets the caller answer an interrupted turn as soon as it ends', async () => {
     const log = memoryLogStore()
     // A store that releases after a timer, like one over the network.
@@ -201,7 +201,7 @@ describe('a durable host with no run store', () => {
     })
     const session = await first.open(
       defineHarness({
-        name: 'test/leases',
+        name: 'test/recovery',
         adapter: mockAdapter([]).adapter,
         agents: [pricer, waiter],
       }),
@@ -338,7 +338,7 @@ describe('the runs in the log of a durable host', () => {
     const log = memoryLogStore()
     const persistence = { stores: { log } }
     const harness = defineHarness({
-      name: 'test/leases',
+      name: 'test/recovery',
       adapter: mockAdapter([]).adapter,
       agents: [waiter],
     })
@@ -386,7 +386,7 @@ describe('close({ recoverable: true })', () => {
     const { adapter, calls } = mockAdapter(replies)
     const host = createHarnessHost({ persistence })
     const session = await host.open(
-      defineHarness({ name: 'test/leases', adapter, ...options }),
+      defineHarness({ name: 'test/recovery', adapter, ...options }),
       {
         threadId: THREAD,
       },

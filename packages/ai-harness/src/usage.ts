@@ -126,15 +126,14 @@ export function addUsage(totals: SessionUsage, call: UsageCall) {
   }
 }
 
-/** Is `value` usage totals that the harness wrote? Old totals have no `bySource`. */
-export function isSessionUsage(
-  value: unknown,
-): value is Omit<SessionUsage, 'bySource'> & Partial<SessionUsage> {
+/** Is `value` usage totals that the harness wrote? */
+export function isSessionUsage(value: unknown): value is SessionUsage {
   return (
     typeof value === 'object' &&
     value !== null &&
     'total' in value &&
     'byModel' in value &&
-    'bySender' in value
+    'bySender' in value &&
+    'bySource' in value
   )
 }

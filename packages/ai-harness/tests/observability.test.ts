@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  noopTracer,
-  parseTraceparent,
-  traceparentOf,
-  withSpan,
-} from '../src/observability'
+import { noopTracer, parseTraceparent, withSpan } from '../src/observability'
 import { fakeSpan } from './helpers'
 import type { Tracer } from '@opentelemetry/api'
 
@@ -35,7 +30,7 @@ function recordingTracer() {
 }
 
 describe('traceparent', () => {
-  it('reads a valid value and writes it back the same', () => {
+  it('reads a valid value', () => {
     const context = parseTraceparent(TRACEPARENT)
     expect(context).toEqual({
       traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
@@ -43,7 +38,6 @@ describe('traceparent', () => {
       traceFlags: 1,
       isRemote: true,
     })
-    expect(traceparentOf(context!)).toBe(TRACEPARENT)
   })
 
   it.each([
@@ -65,16 +59,6 @@ describe('traceparent', () => {
     expect(
       parseTraceparent(`${TRACEPARENT.replace(/^00/, '01')}-extra`),
     ).toMatchObject({ spanId: '00f067aa0ba902b7' })
-  })
-
-  it('writes the flags as two hex characters', () => {
-    expect(
-      traceparentOf({
-        traceId: 'a'.repeat(32),
-        spanId: 'b'.repeat(16),
-        traceFlags: 0,
-      }),
-    ).toBe(`00-${'a'.repeat(32)}-${'b'.repeat(16)}-00`)
   })
 })
 

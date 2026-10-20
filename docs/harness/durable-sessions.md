@@ -29,7 +29,7 @@ const host = createHarnessHost({ persistence: memoryPersistence() })
 
 - `memoryPersistence()` has a memory `log`. A host with no `persistence` uses it too.
 - To keep the log in your database, implement the [`LogStore` contract](../persistence/store-reference#logstore). A host whose log store survives a restart is a durable host.
-- `metadata` is optional. With it, the host keeps a fold checkpoint of each log, so a long thread opens faster.
+- `metadata` is optional. It keeps data wider than one thread, for example the saved rules of `permissions()`.
 
 ### Keep a long log fast to open
 
