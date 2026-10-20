@@ -228,6 +228,16 @@ export interface HarnessDurability<
    */
   resumeBackgroundAgents?: boolean
   /**
+   * The waits of an agent that the main model calls as a tool: an approval,
+   * a question, a sign-in, an app interrupt, a client tool, and `step.ask`.
+   * `true`: each one is a wait of the turn, in `snapshot().pendingWaits`.
+   * After the answer, the agent goes on from where it stopped, and its
+   * result goes to the main model. `false`: the agent does not wait. A call
+   * that needs an approval gets a tool error, and `step.ask` throws.
+   * Default `true`.
+   */
+  agentToolWaits?: boolean
+  /**
    * How a durable host folds your own log records into the model context of
    * each session.
    */

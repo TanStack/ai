@@ -119,6 +119,7 @@ After a crash, the harness looks at each call of the batch:
 - A call that finished keeps its result. It does not run again.
 - A `durableTool` call, or another tool with `replay: 'safe'`, runs again.
 - Any other call gets a tool error: nobody knows if the tool ran, so the model checks before it tries again.
+- A call of an agent tool gets a tool error too. An agent tool that waits for a person keeps its place in the log, and it goes on after the answer. See [When an agent tool waits](./subagents#when-an-agent-tool-waits).
 
 The kept result is the one that the model saw before the crash. The log keeps it after every `onAfterToolCall` hook, without the secrets of the session. If a hook replaced the result, the replacement wins, also on an error.
 

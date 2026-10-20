@@ -1,8 +1,10 @@
 import {
   EventType,
   compactForModel,
+  genericInterruptContinuationFromDescriptor,
   provideDetachableRun,
   readInterruptBinding,
+  wrapGenericInterruptContinuation,
 } from '@tanstack/ai'
 import { isRecord, jsonCopy } from '../utils'
 import { interruptExpiry, signInOf, snapshotWaits } from '../waits'
@@ -13,6 +15,7 @@ import type {
   Modality,
   ModelMessage,
   PromptCacheOptions,
+  RunAgentResumeItem,
   Scope,
   StreamChunk,
   SubagentsBag,
@@ -415,6 +418,33 @@ export const scopeOf = (
 export const toolCallOf = (interrupt: Interrupt) => {
   const binding = readInterruptBinding(interrupt)
   return binding && 'toolCallId' in binding ? binding.toolCallId : undefined
+}
+
+/**
+ * `resume` with the request of each generic interrupt of an agent tool on
+ * its answer. That agent goes on in its own chat() call, without the store,
+ * so it rebuilds the request from the answer, as a client sends it.
+ */
+export function withChildRequests(
+  resume: ReadonlyArray<RunAgentResumeItem> | undefined,
+  interrupts: ReadonlyArray<Interrupt>,
+) {
+  return resume?.map((item) => {
+    const interrupt = interrupts.find((entry) => entry.id === item.interruptId)
+    const continuation =
+      interrupt?.subagentRunId === undefined
+        ? undefined
+        : genericInterruptContinuationFromDescriptor(interrupt)
+    return continuation
+      ? {
+          ...item,
+          metadata: {
+            ...item.metadata,
+            ...wrapGenericInterruptContinuation(continuation),
+          },
+        }
+      : item
+  })
 }
 
 export const storedPrincipal = (principal: Principal | undefined) =>

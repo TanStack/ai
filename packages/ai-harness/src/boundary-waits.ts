@@ -121,9 +121,9 @@ const BOUNDARY_IDS = new Set<string>(
 
 /**
  * `middleware` that does not stop the run for an approval or a question.
- * For a tool-mode child of a turn: the answer to its wait does not reach it
- * when the turn resumes. So it does not ask, and a call that needs an
- * approval is refused. Other interrupts stay.
+ * For a tool-mode child of a turn with `durability.agentToolWaits: false`:
+ * it does not ask, and a call that needs an approval is refused. Other
+ * interrupts stay.
  */
 export function withoutBoundaryWaits(
   middleware: ReadonlyArray<AnyChatMiddleware>,

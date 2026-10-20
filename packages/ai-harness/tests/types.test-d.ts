@@ -121,6 +121,7 @@ it('takes attempt and time limits, and the log folds, on the harness', () => {
           | ((call: { toolCallId: string; toolName: string }) => string)
         continueCutOff?: boolean | { note?: string | ReadonlyArray<string> }
         resumeBackgroundAgents?: boolean
+        agentToolWaits?: boolean
         project?: ProjectOptions
         reduce?: ReduceOptions<undefined>
       }

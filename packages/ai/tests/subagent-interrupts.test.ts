@@ -495,6 +495,86 @@ describe('subagent interrupts', () => {
     expect(second.at(-1)).not.toHaveProperty('outcome.type', 'interrupt')
   })
 
+  it('suspends a child whose run throws an input request, then runs it again with the answer', async () => {
+    const contexts: Array<SubagentRunContext> = []
+    const agent = defineAgent({
+      name: 'cleaner',
+      description: 'Deletes files',
+      run: async (ctx) => {
+        contexts.push(ctx)
+        const answer = ctx.resume?.find(
+          (entry) => entry.interruptId === 'ask-1',
+        )
+        if (!answer) {
+          throw Object.assign(new Error('Which folder?'), {
+            name: 'MCPInputRequiredError',
+            kind: 'form',
+            request: { requestedSchema: { type: 'string' } },
+            interruptId: 'ask-1',
+          })
+        }
+        return `Cleaned ${String(answer.payload)}`
+      },
+    })
+    const parent = toolParent('{}')
+    const subagents = { agents: [agent] }
+
+    const first = await collectChunks(
+      chat({
+        adapter: parent,
+        threadId: 't',
+        runId: 'run-1',
+        messages: [user],
+        subagents,
+      }) as AsyncIterable<StreamChunk>,
+    )
+    expect(
+      first.find((chunk) => chunk.type === EventType.SUBAGENT_FINISHED),
+    ).toMatchObject({ outcome: { type: 'suspended', interruptIds: ['ask-1'] } })
+    expect(first.at(-1)).toMatchObject({
+      type: EventType.RUN_FINISHED,
+      outcome: {
+        type: 'interrupt',
+        interrupts: [
+          expect.objectContaining({
+            id: 'ask-1',
+            message: 'Which folder?',
+            metadata: expect.objectContaining({
+              [INTERRUPT_BINDING_METADATA_KEY]: expect.objectContaining({
+                kind: 'generic',
+              }),
+            }),
+          }),
+        ],
+      },
+    })
+
+    const processor = new StreamProcessor({ initialMessages: [user] })
+    replay(processor, first)
+    const second = await collectChunks(
+      chat({
+        adapter: parent,
+        threadId: 't',
+        runId: 'run-2',
+        parentRunId: 'run-1',
+        messages: requestMessages(processor.getMessages()),
+        resume: [{ interruptId: 'ask-1', status: 'resolved', payload: 'old' }],
+        subagents,
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(contexts[1]?.resume).toEqual([
+      { interruptId: 'ask-1', status: 'resolved', payload: 'old' },
+    ])
+    const toolResult = second.find(
+      (chunk) =>
+        chunk.type === EventType.TOOL_CALL_RESULT &&
+        chunk.toolCallId === 'call_p',
+    )
+    expect(JSON.stringify(toolResult)).toContain('Cleaned old')
+    expect(second.at(-1)).not.toHaveProperty('outcome.type', 'interrupt')
+  })
+
   it('keeps the child interrupt next to an afterTools boundary interrupt', async () => {
     const { agent } = cleanerAgent()
     const review = defineInterrupt({

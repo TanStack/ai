@@ -173,7 +173,7 @@ export const migrations = definePlugin({
 `ctx.harness` gives the agent `step`, `agents`, and `state`. A harness gives it to every agent run in a session:
 
 - A run that a session starts from code gets the full context. A background child that the model starts gets it too.
-- An agent that the model calls as a tool, and an agent that a router picks, get `agents` and `state`. Their `step.do` runs `fn` each time.
+- An agent that the model calls as a tool, and an agent that a router picks, get `step`, `agents`, and `state`. Their steps keep their values while the turn waits for the agent. See [When an agent tool waits](#when-an-agent-tool-waits).
 - An agent in a plain `chat()` has no harness, so `ctx.harness` is `undefined`. Check it before you use it, as the samples on this page do.
 
 What the next host does:
@@ -372,7 +372,7 @@ if (wait) {
 - The log keeps the wait, so no host stays busy. An answer on any host, also after a restart, continues the run.
 - A run that started with `resume: true` can also ask with `ctx.harness.step.ask`. See [Wait for a person](./waits).
 - The `question` tool belongs to the lead turn. Agent runs do not get it.
-- An agent that the model calls as a tool inside a turn cannot wait. A call of it that needs an approval gets a tool error.
+- An agent that the model calls as a tool inside a turn waits with the turn. See [When an agent tool waits](#when-an-agent-tool-waits).
 
 ### Known limits
 
@@ -442,6 +442,93 @@ Known limits:
 - A background child cannot be continued by its `sessionId`. If the model needs follow-ups, start the child without `background`.
 - Only the turns of the session can start a background child. A child that calls an agent tool with `background` gets the tool error `background needs a host that runs children in the background.`
 - A call with `background` and `sessionId` gets the tool error `background cannot continue a sessionId.`
+
+## When an agent tool waits
+
+The main model calls a `writer` agent as a tool, and the writer wants to save a file. [`permissions()`](./permissions) asks the user first. The turn stops for that approval, and the writer goes on after the answer:
+
+```ts group=harness-subagents-waits
+import { writeFile } from 'node:fs/promises'
+import { defineAgent, toolDefinition } from '@tanstack/ai'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { permissions } from '@tanstack/ai-harness/plugins'
+import { openaiText } from '@tanstack/ai-openai'
+import { memoryPersistence } from '@tanstack/ai-persistence'
+import { z } from 'zod'
+
+const saveFile = toolDefinition({
+  name: 'save_file',
+  description: 'Write a file',
+  inputSchema: z.object({ path: z.string(), text: z.string() }),
+}).server(async ({ path, text }) => {
+  await writeFile(path, text)
+  return `Saved ${path}.`
+})
+
+const writer = defineAgent({
+  name: 'writer',
+  description: 'Writes files',
+  run: (ctx) =>
+    ctx.chat({ adapter: openaiText('gpt-6.1-sol'), tools: [saveFile], stream: false }),
+})
+
+export const studio = defineHarness({
+  name: 'acme/studio',
+  adapter: openaiText('gpt-6.1-sol'),
+  subagents: { agents: [writer] },
+  plugins: () => [permissions({ rules: [{ tool: 'save_file', decision: 'ask' }] })],
+})
+
+const host = createHarnessHost({ persistence: memoryPersistence() })
+const session = await host.open(studio, { threadId: 'user-1-thread' })
+await session.send('Write a short README.')
+
+const waits = session.snapshot().pendingWaits
+for (const wait of waits) console.log(wait.kind, wait.agent) // approval writer
+
+await session.resolve({
+  resume: waits.map((wait) => ({
+    interruptId: wait.waitId,
+    status: 'resolved',
+    payload: 'once',
+  })),
+})
+```
+
+- Each wait of the agent has `turn: true`, the `agent` name, and the `subagentRunId` of the agent run. For a nested agent, `agent` is the agent that waits.
+- One `resolve` answers every wait of the turn. The agent goes on from where it stopped, and the main model gets its result as the tool result.
+- The other waits of the agent work the same way: a sign-in, an interrupt of `defineInterrupt`, a client tool, and `ctx.harness.step.ask`.
+- The log keeps the stopped agent. An answer on any host, also after a restart, continues it.
+- With `durability: { agentToolWaits: false }`, an agent tool does not wait. A call of it that needs an approval gets a tool error, and `step.ask` throws.
+
+### Ask from agent code
+
+Agent code asks the user with `ctx.harness.step.ask`. The question is a wait of the turn, and you answer it with `resolve`:
+
+```ts group=harness-subagents-waits
+const namer = defineAgent({
+  name: 'namer',
+  description: 'Names a project',
+  run: async (ctx) => {
+    if (!ctx.harness) throw new Error('This agent must run in a harness.')
+    const { step } = ctx.harness
+    const audience = await step.ask({
+      name: 'audience',
+      message: 'Who reads the project?',
+      schema: z.string(),
+    })
+    return step.do('name', () => `A name for ${audience}`)
+  },
+})
+```
+
+The `resolve` runs the agent code again from its start. An answered `step.ask` returns its answer, and a finished `step.do` returns its stored value.
+
+Known limits:
+
+- A `step.ask` with `secret: true` throws here. Ask for a secret in a [durable tool](./durable-tools) or a background run.
+- `expiresAt` of a `step.ask` has no effect here.
+- A crash while the agent runs (not while it waits) gives the main model a tool error. The agent does not run again.
 
 ## Show what a child wrote after a reload
 
