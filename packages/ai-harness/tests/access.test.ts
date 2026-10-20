@@ -81,8 +81,8 @@ function accessHost({
     name: 'test/access',
     adapter: adapter ?? mockAdapter(replies).adapter,
   })
-  const open = (principal: User, threadId = THREAD) =>
-    host.open(harness, { threadId, principal })
+  const open = (user: User, threadId = THREAD) =>
+    host.open(harness, { threadId, user })
   return { host, harness, sessions, open, log: persistence.stores.log }
 }
 
@@ -99,7 +99,7 @@ function whoami() {
     setup: () => ({
       tools: [
         tool.server<HarnessRunContext>((_input, { context }) => {
-          seen.push(context.run.principal?.id)
+          seen.push(context.run.user?.id)
           return Promise.resolve({})
         }),
       ],
@@ -151,7 +151,7 @@ describe('host access with membersOnly()', () => {
       threadId: THREAD,
       userId: 'bea',
       role: 'member',
-      principal: olga,
+      user: olga,
     })
 
     const member = await open(bea)
@@ -159,17 +159,15 @@ describe('host access with membersOnly()', () => {
     expect(await member.send('Me too.')).toEqual({ text: 'two', media: [] })
     await expect(open(cid)).rejects.toBeInstanceOf(AccessDeniedError)
     await expect(
-      host.sessions.get({ threadId: THREAD, principal: cid }),
+      host.sessions.get({ threadId: THREAD, user: cid }),
     ).rejects.toBeInstanceOf(AccessDeniedError)
-    const listed = async (principal: User) =>
-      (await host.sessions.list({ principal })).entries.map(
+    const listed = async (user: User) =>
+      (await host.sessions.list({ user })).entries.map(
         (entry) => entry.threadId,
       )
     expect(await listed(bea)).toEqual([THREAD])
     expect(await listed(cid)).toEqual([])
-    expect(host.isOpen(harness, { threadId: THREAD, principal: bea })).toBe(
-      true,
-    )
+    expect(host.isOpen(harness, { threadId: THREAD, user: bea })).toBe(true)
     await host.close()
   })
 
@@ -182,13 +180,13 @@ describe('host access with membersOnly()', () => {
 
     expect(await other.transcript()).toEqual([])
     expect(
-      await host.sessions.get({ threadId: THREAD, principal: gus }),
+      await host.sessions.get({ threadId: THREAD, user: gus }),
     ).toMatchObject({
       tenantId: 'globex',
       members: [{ userId: 'gus', role: 'owner' }],
     })
     expect(
-      await host.sessions.get({ threadId: THREAD, principal: olga }),
+      await host.sessions.get({ threadId: THREAD, user: olga }),
     ).toMatchObject({
       tenantId: 'acme',
       members: [{ userId: 'olga', role: 'owner' }],
@@ -207,7 +205,7 @@ describe('host access with membersOnly()', () => {
         threadId: THREAD,
         userId,
         role,
-        principal: olga,
+        user: olga,
       })
     }
     const viewer = await open(vic)
@@ -232,7 +230,7 @@ describe('host access with membersOnly()', () => {
       threadId: THREAD,
       userId: 'bea',
       role: 'member',
-      principal: olga,
+      user: olga,
     })
     const member = await open(bea)
     const ownerTurn = owner.send('A long task.')
@@ -263,7 +261,7 @@ describe('host access with membersOnly()', () => {
       threadId: THREAD,
       userId: 'bea',
       role: 'member',
-      principal: olga,
+      user: olga,
     })
     const member = await open(bea)
     const ownerTurn = owner.send('A long task.')
@@ -274,7 +272,7 @@ describe('host access with membersOnly()', () => {
     const changed = await host.sessions.unshare({
       threadId: THREAD,
       userId: 'bea',
-      principal: olga,
+      user: olga,
     })
 
     expect(changed?.members).toEqual([{ userId: 'olga', role: 'owner' }])
@@ -286,7 +284,7 @@ describe('host access with membersOnly()', () => {
       host.sessions.unshare({
         threadId: THREAD,
         userId: 'olga',
-        principal: olga,
+        user: olga,
       }),
     ).rejects.toThrow('the owner cannot be removed')
     release.open()
@@ -308,7 +306,7 @@ describe('host access with membersOnly()', () => {
         threadId: THREAD,
         userId,
         role,
-        principal: olga,
+        user: olga,
       })
     }
     const last = (await owner.transcript()).at(-1)?.id ?? ''
@@ -318,7 +316,7 @@ describe('host access with membersOnly()', () => {
         threadId: THREAD,
         at: { through: last },
         ...(members ? { members } : {}),
-        principal: bea,
+        user: bea,
       })
 
     expect(await fork()).toMatchObject({
@@ -344,7 +342,7 @@ describe('host access with membersOnly()', () => {
       threadId: THREAD,
       userId: 'bea',
       role: 'member',
-      principal: olga,
+      user: olga,
     })
     const last = (await owner.transcript()).at(-1)?.id ?? ''
 
@@ -352,7 +350,7 @@ describe('host access with membersOnly()', () => {
       harness,
       threadId: THREAD,
       at: { through: last },
-      principal: olga,
+      user: olga,
     })
 
     expect(entry).toMatchObject({
@@ -397,7 +395,7 @@ describe('host access with membersOnly()', () => {
       threadId: THREAD,
       userId: 'bea',
       role: 'viewer',
-      principal: olga,
+      user: olga,
     })
     const child = {
       tenantId: 'acme',
@@ -410,14 +408,13 @@ describe('host access with membersOnly()', () => {
     await sessions.upsert(child)
 
     expect(
-      (await host.sessions.list({ parentThreadId: THREAD, principal: bea }))
-        .entries,
+      (await host.sessions.list({ parentThreadId: THREAD, user: bea })).entries,
     ).toEqual([child])
     expect(
-      await host.sessions.get({ threadId: child.threadId, principal: bea }),
+      await host.sessions.get({ threadId: child.threadId, user: bea }),
     ).toEqual(child)
     await expect(
-      host.sessions.list({ parentThreadId: THREAD, principal: cid }),
+      host.sessions.list({ parentThreadId: THREAD, user: cid }),
     ).rejects.toBeInstanceOf(AccessDeniedError)
     await host.close()
   })
@@ -460,8 +457,7 @@ describe('host access with your own access tables', () => {
   /** An authorize that allows the users in `allowed`, for every action. */
   function tableAccess(...users: Array<string>) {
     const allowed = new Set(users)
-    const authorize: Authorize<User> = ({ principal }) =>
-      allowed.has(principal.id)
+    const authorize: Authorize<User> = ({ user }) => allowed.has(user.id)
     return { allowed, authorize }
   }
 
@@ -475,7 +471,7 @@ describe('host access with your own access tables', () => {
     const reader = readEvents(host)
 
     table.allowed.delete('bea')
-    host.revoke({ threadId: THREAD, principal: bea })
+    host.revoke({ threadId: THREAD, user: bea })
 
     expect(() => member.snapshot()).toThrow(AccessDeniedError)
     expect(() => member.logState()).toThrow(AccessDeniedError)
@@ -486,7 +482,7 @@ describe('host access with your own access tables', () => {
             type: 'revoked',
             tenantId: 'acme',
             threadId: THREAD,
-            principalId: 'bea',
+            userId: 'bea',
             at: expect.any(Number),
           },
         ],
@@ -510,7 +506,7 @@ describe('host access with your own access tables', () => {
         threadId: THREAD,
         userId: 'bea',
         role: 'member',
-        principal: olga,
+        user: olga,
       }),
     ).rejects.toThrow(
       'host.sessions.share needs access.policy.members (membersOnly() has it). With your own access tables, change them and call host.revoke.',
@@ -520,10 +516,10 @@ describe('host access with your own access tables', () => {
 })
 
 /** Each user may do all, but answer or cancel only for a run or a schedule of their own. */
-const ownRunsOnly: Authorize<User> = ({ principal, action, run }) =>
+const ownRunsOnly: Authorize<User> = ({ user, action, run }) =>
   (action !== 'cancel' && action !== 'answer') ||
   run === undefined ||
-  run.principalId === principal.id
+  run.userId === user.id
 
 /** Does the log of `THREAD` in tenant `acme` have a record of `type`? */
 async function hasRecord(
@@ -582,18 +578,18 @@ describe('access to the inputs of the input lane', () => {
     ])
     const member = await owner.open(harness, {
       threadId: THREAD,
-      principal: bea,
+      user: bea,
     })
     const turn = member.send('A long task.')
     // The run starts: the log has it.
     await waitFor(async () =>
       expect(await hasRecord(log, 'harness.input.applied')).toBe(true),
     )
-    const submit = (principal: User, operationId: string) =>
+    const submit = (user: User, operationId: string) =>
       submitter.submit({
         harness,
         threadId: THREAD,
-        principal,
+        user,
         input: { op: 'cancel', operationId },
       })
 
@@ -618,16 +614,16 @@ describe('access to the inputs of the input lane', () => {
     const { owner, submitter, harness } = twoAccessHosts([])
     const member = await owner.open(harness, {
       threadId: THREAD,
-      principal: bea,
+      user: bea,
     })
     const running = member.command({ name: 'ask' })
     await waitFor(() => expect(questionsOf(member.snapshot())).toHaveLength(1))
     const [question] = questionsOf(member.snapshot())
-    const answer = (principal: User, value: string) =>
+    const answer = (user: User, value: string) =>
       submitter.submit({
         harness,
         threadId: THREAD,
-        principal,
+        user,
         input: { op: 'answer', questionId: question!.questionId, value },
       })
 
@@ -734,8 +730,8 @@ describe('a resolve of the waits of background agent runs', () => {
   /** bea and olga each start a run that waits for an approval. */
   async function twoWaitingRuns() {
     const hosts = cleaningHosts()
-    const open = (principal: User) =>
-      hosts.owner.open(hosts.harness, { threadId: THREAD, principal })
+    const open = (user: User) =>
+      hosts.owner.open(hosts.harness, { threadId: THREAD, user })
     const mine = await open(bea)
     const theirs = await open(olga)
     const runs = [mine.agents.cleaner.start(), theirs.agents.cleaner.start()]
@@ -776,11 +772,11 @@ describe('a resolve of the waits of background agent runs', () => {
 
   it('checks a resolve from host.submit against the run of the wait', async () => {
     const { owner, submitter, harness, olgaWait } = await twoWaitingRuns()
-    const submit = (principal: User) =>
+    const submit = (user: User) =>
       submitter.submit({
         harness,
         threadId: THREAD,
-        principal,
+        user,
         input: {
           op: 'resolve',
           resume: [
@@ -796,27 +792,27 @@ describe('a resolve of the waits of background agent runs', () => {
   })
 })
 
-describe('host access and principals', () => {
-  it('needs a principal on each public host call', async () => {
+describe('host access and users', () => {
+  it('needs a user on each public host call', async () => {
     const { host, harness } = accessHost()
 
     await expect(host.open(harness, { threadId: THREAD })).rejects.toThrow(
-      'host.open needs a principal: the host has access.',
+      'host.open needs a user: the host has access.',
     )
     await expect(host.sessions.list()).rejects.toThrow(
-      'host.sessions.list needs a principal: the host has access.',
+      'host.sessions.list needs a user: the host has access.',
     )
     expect(() => host.isOpen(harness, { threadId: THREAD })).toThrow(
-      'host.isOpen needs a principal: the host has access.',
+      'host.isOpen needs a user: the host has access.',
     )
     await host.close()
   })
 
-  it('refuses a call that acts as another principal than the handle', async () => {
+  it('refuses a call that acts as another user than the handle', async () => {
     const { host, open } = accessHost()
     const owner = await open(olga)
 
-    expect(() => owner.send('Hi.', { principal: bea })).toThrow(
+    expect(() => owner.send('Hi.', { user: bea })).toThrow(
       'This handle acts as "olga". Open another handle for "bea".',
     )
     await host.close()
@@ -837,11 +833,11 @@ describe('host access and principals', () => {
     })
     const alice = await host.open(harness, {
       threadId: THREAD,
-      principal: { id: 'alice' },
+      user: { id: 'alice' },
     })
     const bob = await host.open(harness, {
       threadId: THREAD,
-      principal: { id: 'bob' },
+      user: { id: 'bob' },
     })
 
     await bob.send('Who am I?')
@@ -859,7 +855,7 @@ describe('host access and principals', () => {
       needsApproval: true,
       inputSchema: z.object({}),
     }).server<HarnessRunContext>((_input, { context }) => {
-      seen.push(context.run.principal?.id)
+      seen.push(context.run.user?.id)
       return Promise.resolve({ ok: true })
     })
     const host = createHarnessHost({
@@ -878,17 +874,17 @@ describe('host access and principals', () => {
     })
     const owner = await host.open(harness, {
       threadId: THREAD,
-      principal: olga,
+      user: olga,
     })
     await host.sessions.share({
       threadId: THREAD,
       userId: 'bea',
       role: 'member',
-      principal: olga,
+      user: olga,
     })
     const member = await host.open(harness, {
       threadId: THREAD,
-      principal: bea,
+      user: bea,
     })
     const turn = await member.send('Deploy, then tell me who I am.')
     const interruptId = turn.interrupts?.[0]?.id

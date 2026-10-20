@@ -20,7 +20,7 @@ import {
   asUserMessage,
   createMessageId,
   customEvent,
-  storedPrincipal,
+  storedUser,
   isSameSender,
   WAKE_METADATA,
   resetContext,
@@ -50,7 +50,7 @@ import type { MountedPlugins, PluginModelCall } from '../plugins'
 import type {
   ChatTurnResult,
   MediaRecord,
-  Principal,
+  HarnessUser,
   RunContext,
   TurnInfo,
   UserInput,
@@ -190,7 +190,7 @@ export abstract class SessionTurnParts<
           waitId,
           kind: 'question',
           runId: run.runId,
-          ...storedPrincipal(run.principal),
+          ...storedUser(run.user),
           ...(jsonSchema !== undefined ? { schema: jsonSchema } : {}),
           ...(expiresAt !== undefined ? { expiresAt } : {}),
           message: question.message,
@@ -540,11 +540,11 @@ export abstract class SessionTurnParts<
    * Middleware that gives each tool call of a turn `threadId`, `runId`, and
    * `detach` in its context. `detach` lets `background()` move the call to
    * the background. A tool that calls `detach` supports it. The wake turn of
-   * a detached job runs as `principal`, the sender of the turn.
+   * a detached job runs as `user`, the sender of the turn.
    */
   protected detachTools(
     runId: string,
-    principal: Principal | undefined,
+    user: HarnessUser | undefined,
   ): AnyChatMiddleware {
     // Each model call gets the tools of the last one. Wrap each tool once.
     const wrapped = new WeakSet<AnyTool>()
@@ -561,10 +561,7 @@ export abstract class SessionTurnParts<
           context.detach = (work) =>
             new Promise((moved) => {
               this.detachable.set(id, (mover) => {
-                this.logJob(
-                  { jobId: id, principal: mover, label: tool.name },
-                  false,
-                )
+                this.logJob({ jobId: id, user: mover, label: tool.name }, false)
                 moved(
                   `The job moved to the background. Its id is ${id}. You get a note when it ends.`,
                 )
@@ -579,7 +576,7 @@ export abstract class SessionTurnParts<
                       ),
                   )
                   .then((text) =>
-                    this.pluginApi(principal).note(text, { wake: true }),
+                    this.pluginApi(user).note(text, { wake: true }),
                   )
                   .then(() => this.logJob({ jobId: id }, true))
                   .catch(() => undefined)
@@ -627,12 +624,12 @@ export abstract class SessionTurnParts<
 
   /**
    * Middleware that counts the usage of each model call of `operation` for
-   * `principal`, then checks the budgets of the run tree. The count does not
+   * `user`, then checks the budgets of the run tree. The count does not
    * hold back the stream: chat() waits for it after the run.
    */
   protected usageCounter(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
-    principal: Principal | undefined,
+    user: HarnessUser | undefined,
   ): AnyChatMiddleware {
     return {
       name: 'harness:usage',
@@ -640,7 +637,7 @@ export abstract class SessionTurnParts<
         ctx.defer(
           this.countUsage(operation, {
             model: `${ctx.provider}/${ctx.model}`,
-            ...storedPrincipal(principal),
+            ...storedUser(user),
             runId: operation.id,
             usage: callUsage(usage),
           }).then(() => this.checkBudget(operation)),
@@ -752,7 +749,7 @@ export abstract class SessionTurnParts<
     operation.publish(
       customEvent(HARNESS_EVENTS.usage, {
         model: call.model,
-        ...(call.principal ? { sender: call.principal.id } : {}),
+        ...(call.user ? { sender: call.user.id } : {}),
         ...(call.source !== undefined ? { source: call.source } : {}),
         ...(call.label !== undefined ? { label: call.label } : {}),
         usage: call.usage,
@@ -803,7 +800,7 @@ export abstract class SessionTurnParts<
             onUsage: (ctx, usage) => {
               const made: UsageCall = {
                 model: `${ctx.provider}/${ctx.model}`,
-                ...storedPrincipal(run.principal),
+                ...storedUser(run.user),
                 source: call.source,
                 ...(call.label !== undefined ? { label: call.label } : {}),
                 usage: callUsage(usage),
@@ -859,7 +856,7 @@ export abstract class SessionTurnParts<
    */
   protected async claimJoins() {
     const canJoin = this.harness.turn?.canJoin
-    const turnPrincipal = this.sender()
+    const turnUser = this.sender()
     let count = 0
     const checked = [...this.steerQueue]
     for (const steer of checked) {
@@ -868,12 +865,12 @@ export abstract class SessionTurnParts<
         const candidate = {
           inputId: steer.inputId,
           message: steer.message,
-          ...(steer.principal ? { principal: steer.principal } : {}),
-          ...(turnPrincipal ? { turnPrincipal } : {}),
+          ...(steer.user ? { user: steer.user } : {}),
+          ...(turnUser ? { turnUser } : {}),
         }
         const isAllowed = canJoin
           ? await canJoin(candidate)
-          : isSameSender(steer.principal, turnPrincipal)
+          : isSameSender(steer.user, turnUser)
         if (!isAllowed) break
       }
       count += 1
@@ -965,7 +962,7 @@ export abstract class SessionTurnParts<
           inputs: steers.map((steer) => ({
             inputId: steer.inputId,
             message: steer.message,
-            ...(steer.principal ? { principal: steer.principal } : {}),
+            ...(steer.user ? { user: steer.user } : {}),
           })),
           signal: running.abortController.signal,
         })

@@ -262,7 +262,7 @@ function harnessFor(request: Request) {
         setup: () => ({
           tools: [
             whoami.server<HarnessRunContext>(async (_input, toolContext) => ({
-              id: toolContext.context.run.principal?.id ?? null,
+              id: toolContext.context.run.user?.id ?? null,
             })),
           ],
         }),
@@ -351,14 +351,13 @@ function handlerFor(request: Request) {
  * Here the test picks it, so a test can fork onto a thread that has messages.
  */
 async function forkThread(request: Request) {
-  const principal = identify({ request })
-  if (!principal)
-    return Response.json({ error: 'unauthorized' }, { status: 401 })
+  const user = identify({ request })
+  if (!user) return Response.json({ error: 'unauthorized' }, { status: 401 })
   const { harness, host: hostOf } = harnessFor(request)
   const body: { threadId: string; newThreadId: string; at?: string } =
     await request.json()
   try {
-    const forked = await hostOf.fork(harness, { ...body, principal })
+    const forked = await hostOf.fork(harness, { ...body, user })
     return Response.json({ transcript: await forked.transcript() })
   } catch (error) {
     return Response.json(

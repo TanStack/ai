@@ -49,7 +49,7 @@ serveAcp({ host, harness: assistant, version: '1.0.0' })
 ```
 
 - Each ACP session is one harness session. The ACP session id is the thread id.
-- `principal` is the user of the editor, for example `serveAcp({ host, harness: assistant, principal: { id: 'ada' } })`. Every session opens as that user, so `/connect` saves keys for them. On a host with [`access`](./access), `principal` is required.
+- `user` is the user of the editor, for example `serveAcp({ host, harness: assistant, user: { id: 'ada' } })`. Every session opens as that user, so `/connect` saves keys for them. On a host with [`access`](./access), `user` is required.
 - The prompts of a session run one after another, in the order that the editor sent them. A prompt with a large file keeps its place while the file uploads. The harness `busy` setting does not apply.
 - The agent holds a session only while a prompt runs or waits. An idle session closes after the host `lifecycle.idleCloseMs`, and the next prompt opens it again.
 - `version` is the version that `initialize` reports. Default: `'0.0.0'`.
@@ -87,9 +87,9 @@ The agent sends each wait to the editor by its kind:
 
 The editor lists the sessions of the harness, newest first. The user picks one, and the next prompt continues that thread.
 
-- The list shows the top-level sessions of the harness that `principal` can list. Sessions of child agents stay out.
+- The list shows the top-level sessions of the harness that `user` can list. Sessions of child agents stay out.
 - The list comes from the session index of the host. Use a persistent store, so that the list keeps the sessions after the process stops.
-- A session id that the session index does not know, or that `principal` cannot read, fails with a not found error.
+- A session id that the session index does not know, or that `user` cannot read, fails with a not found error.
 
 ## Known limits
 

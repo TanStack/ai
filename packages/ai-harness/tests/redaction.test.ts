@@ -93,7 +93,7 @@ async function open({
   })
   const session = await host.open(harness, {
     threadId: THREAD,
-    principal: ada,
+    user: ada,
   })
   const events: Array<unknown> = []
   session.onEvent((entry) => events.push(entry))
@@ -273,7 +273,7 @@ describe('the edges of a session', () => {
     const handler = createHarnessHandler({
       host,
       harness,
-      openAccess: { principal: ada },
+      openAccess: { user: ada },
     })
 
     // The media type is in the error text of the upload.

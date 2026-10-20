@@ -490,8 +490,8 @@ describe('secret answers in line mode', () => {
   })
 })
 
-describe('a host and a principal', () => {
-  it('uses the given host, leaves it open, and saves keys for the principal', async () => {
+describe('a host and a user', () => {
+  it('uses the given host, leaves it open, and saves keys for the user', async () => {
     const persistence = memoryPersistence()
     const credentials = memoryCredentialStore()
     const host = createHarnessHost({ persistence, credentials })
@@ -510,7 +510,7 @@ describe('a host and a principal', () => {
         stdout: capture(),
         stderr: capture(),
         host,
-        principal: { id: 'ada' },
+        user: { id: 'ada' },
       },
     )
     expect(code).toBe(EXIT.ok)
@@ -525,17 +525,17 @@ describe('a host and a principal', () => {
     await host.close()
   })
 
-  it('opens the session as the principal', async () => {
+  it('opens the session as the user', async () => {
     const { adapter } = scripted([textTurn('ok')])
     const seen: Array<string | undefined> = []
     const code = await runCli(
       defineHarness({
-        name: 'test/principal',
+        name: 'test/user',
         adapter,
         plugins: () => [
           definePlugin({
             name: 'test/whoami',
-            setup: (ctx) => void seen.push(ctx.session.principal?.id),
+            setup: (ctx) => void seen.push(ctx.session.user?.id),
           }),
         ],
       }),
@@ -544,7 +544,7 @@ describe('a host and a principal', () => {
         stdout: capture(),
         stderr: capture(),
         persistence: memoryPersistence(),
-        principal: { id: 'ada' },
+        user: { id: 'ada' },
       },
     )
     expect(code).toBe(EXIT.ok)
@@ -569,14 +569,14 @@ describe('a host and a principal', () => {
     await host.close()
   })
 
-  it('serves as the principal', async () => {
+  it('serves as the user', async () => {
     const persistence = memoryPersistence()
     const credentials = memoryCredentialStore()
     const host = createHarnessHost({ persistence, credentials })
     const server = await serve({
       host,
       harness: defineHarness({
-        name: 'test/serve-principal',
+        name: 'test/serve-user',
         adapter: scripted([]).adapter,
         plugins: () => [acmeKeys],
         expose: { commands: ['connect:acme'] },
@@ -584,7 +584,7 @@ describe('a host and a principal', () => {
       port: 0,
       hostname: '127.0.0.1',
       token: 'secret',
-      principal: { id: 'ada' },
+      user: { id: 'ada' },
     })
     try {
       const control = (input: unknown) =>
@@ -624,7 +624,7 @@ describe('a host and a principal', () => {
     }
   })
 
-  it('serves /mcp as the principal', async () => {
+  it('serves /mcp as the user', async () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const server = await serve({
       host,
@@ -635,7 +635,7 @@ describe('a host and a principal', () => {
       port: 0,
       hostname: '127.0.0.1',
       token: 'secret',
-      principal: { id: 'ada' },
+      user: { id: 'ada' },
     })
     const client = await createMCPClient({
       transport: {
@@ -657,7 +657,7 @@ describe('a host and a principal', () => {
     }
   })
 
-  it('passes the principal to --acp, so a host with access starts', async () => {
+  it('passes the user to --acp, so a host with access starts', async () => {
     const host = accessHost()
     // The agent reads process.stdin. Ending it ends the agent.
     const ends: Array<() => void> = []
@@ -671,7 +671,7 @@ describe('a host and a principal', () => {
     try {
       const running = runCli(
         defineHarness({ name: 'test/acp', adapter: scripted([]).adapter }),
-        { argv: ['--acp'], stdout: capture(), stderr, host, principal: olga },
+        { argv: ['--acp'], stdout: capture(), stderr, host, user: olga },
       )
       await vi.waitFor(() => expect(ends).toHaveLength(1))
       for (const end of ends) end()
@@ -690,12 +690,12 @@ describe('a host and a principal', () => {
 
     const code = await runCli(
       defineHarness({ name: 'test/mcp', adapter: scripted([]).adapter }),
-      { argv: ['--mcp'], stdout: capture(), stderr, host, principal: olga },
+      { argv: ['--mcp'], stdout: capture(), stderr, host, user: olga },
     )
 
     expect(code).toBe(EXIT.failed)
     expect(stderr.text).toBe(
-      '--mcp serves over stdio, which has no login, so it cannot use a host with access. Give runCli a host without access, and the local user as principal.\n',
+      '--mcp serves over stdio, which has no login, so it cannot use a host with access. Give runCli a host without access, and the local user as the user option.\n',
     )
     await host.close()
   })
@@ -805,7 +805,7 @@ describe('serve mode', () => {
       })
       expect(stranger.status).toBe(403)
       expect(
-        await host.sessions.get({ threadId: 't1', principal: olga }),
+        await host.sessions.get({ threadId: 't1', user: olga }),
       ).toMatchObject({ members: [{ userId: 'olga', role: 'owner' }] })
     } finally {
       await server.close()

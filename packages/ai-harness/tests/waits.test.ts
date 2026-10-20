@@ -131,14 +131,14 @@ describe('isApproval', () => {
 
 describe('waitOfInterrupt', () => {
   it('keeps the id, the kind, the schema, the message, and the expiry', () => {
-    const principal = { id: 'u1', tenantId: 'acme' }
+    const user = { id: 'u1', tenantId: 'acme' }
     expect(
-      waitOfInterrupt({ interrupt: handoff, runId: 'run-1', principal }),
+      waitOfInterrupt({ interrupt: handoff, runId: 'run-1', user }),
     ).toEqual({
       waitId: 'int-5',
       kind: 'human',
       runId: 'run-1',
-      principal,
+      user,
       schema: { type: 'object' },
       expiresAt: Date.parse('2030-01-02T03:04:05.000Z'),
       message: 'A person takes over.',
@@ -166,14 +166,14 @@ describe('waitOfQuestion', () => {
           secret: true,
         },
         runId: 'cmd-1',
-        principal: { id: 'u1' },
+        user: { id: 'u1' },
         expiresAt: 1234,
       }),
     ).toEqual({
       waitId: 'q1',
       kind: 'question',
       runId: 'cmd-1',
-      principal: { id: 'u1' },
+      user: { id: 'u1' },
       schema: { type: 'number' },
       expiresAt: 1234,
       message: 'How many?',

@@ -376,7 +376,7 @@ export interface HarnessClient<THarness extends AnyHarness> {
   loadMedia: (options: { id: string }) => Promise<Uint8Array>
   /**
    * Your sessions on the server, as `host.sessions` has them for the
-   * principal of the request.
+   * user of the request.
    *
    * @example
    * ```ts

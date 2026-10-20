@@ -37,7 +37,7 @@ await session.append({ records: [{ type: 'app.signal', text: 'The build failed.'
 
 - A record is JSON with a `type`. Types that start with `harness.` belong to the harness, so `append` refuses them.
 - `append` resolves with a receipt when the records are in the log. When another host owns the thread, the receipt is `queued`, and the owner writes the records. See [One host drives a thread](./durable-sessions#one-host-drives-a-thread).
-- Pass `inputId` to make the append safe to send again: `session.append({ records, inputId: 'signal-7' })`. A second append with the same id writes nothing. Without `inputId`, the append gets a new id. The receipt has the id, as the log keeps it. `principal` sets who appends. The default is the user who opened the session.
+- Pass `inputId` to make the append safe to send again: `session.append({ records, inputId: 'signal-7' })`. A second append with the same id writes nothing. Without `inputId`, the append gets a new id. The receipt has the id, as the log keeps it. `user` sets who appends. The default is the user who opened the session.
 - A record can belong to a child thread of the same log. See [One log for a session tree](./shared-logs).
 - In a tool, use `append` from [`durableTool`](./durable-tools), so the records land with the tool batch.
 - A key or a token of the session in a record goes into the log as `[redacted]`. See [Keep tokens out of the log and the model](./auth#keep-tokens-out-of-the-log-and-the-model).
@@ -122,7 +122,7 @@ const watcherHost = createHarnessHost({
         ? { id: 'ci-bot' }
         : null,
     // The CI bot is the only user, so it can use every thread.
-    policy: { authorize: ({ principal }) => principal.id === 'ci-bot' },
+    policy: { authorize: ({ user }) => user.id === 'ci-bot' },
   },
 })
 
@@ -170,12 +170,12 @@ const signals = entries.filter((entry) => entry.record.type === 'app.signal')
 console.log(signals.map((entry) => entry.seq))
 ```
 
-Each `harness.input` record has the `principal` of its sender: its `id` and `tenantId`. Every kind of input has it when the sender is known, also a cancel, an answer, a delivery change, and a change of settings.
+Each `harness.input` record has the `user` of its sender: its `id` and `tenantId`. Every kind of input has it when the sender is known, also a cancel, an answer, a delivery change, and a change of settings.
 
 Two harness records tell who answers a thread and where a conversation went. See [Hand off a conversation](./handoffs).
 
 - `harness.handoff`: another agent answers from now on. It has `from` and `to` (an agent name, `null` for the main model, or `{ human: true }` for a person), the `note`, the `runId`, and `by` (`'tool'`, `'code'`, `'router'`, or `'operator'`). A handoff to a person also has the `waitId` of its `human` wait. The last one is the active agent of the thread.
-- `harness.transferred`: `host.transfer` moved the conversation. The log of the target has `from`, and the log of the source has `to`. Each is `{ harness, threadId }`. Both records have the same `transferId`, the `principal`, and `at`.
+- `harness.transferred`: `host.transfer` moved the conversation. The log of the target has `from`, and the log of the source has `to`. Each is `{ harness, threadId }`. Both records have the same `transferId`, the `user`, and `at`.
 
 ```ts group=harness-session-log
 const handoffs = entries.filter((entry) => entry.record.type === 'harness.handoff')
@@ -205,7 +205,7 @@ const agentNodes = records.filter(
 console.log(agentNodes.map((record) => [record.runId, record.agent, record.parentRunId]))
 ```
 
-- A `harness.run.node` record has `runId`, `kind` (`turn`, `agent`, or `command`), and the `principal` when it is known. An agent run also has `agent`, and `parentRunId`, `key`, `limits`, and `budget` when it has them.
+- A `harness.run.node` record has `runId`, `kind` (`turn`, `agent`, or `command`), and the `user` when it is known. An agent run also has `agent`, and `parentRunId`, `key`, `limits`, and `budget` when it has them.
 - Read only these fields. The other fields of the record are bookkeeping of the session, and they can change.
 - The tree also has `tool` runs. These come from `harness.run` records, not from `harness.run.node` records.
 - The status, the result, and the error come from later records: `harness.run`, `harness.run.update`, and `harness.agent.result`. A session folds them into one tree. See [The run tree](./subagents#the-run-tree).

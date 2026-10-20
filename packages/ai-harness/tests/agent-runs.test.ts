@@ -45,7 +45,7 @@ async function open<THarness extends AnyHarness>(
   const host = createHarnessHost({ persistence })
   const session = await host.open(harness, {
     threadId: THREAD,
-    principal: alice,
+    user: alice,
   })
   return { host, session }
 }
@@ -183,7 +183,7 @@ describe('the thread of an agent run', () => {
     const next = createHarnessHost({ persistence })
     const view = await next.observe(writing(mockAdapter([]).adapter), {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
     expect(await view.agentTranscript({ runId: run.id })).toEqual(byRun)
     expect(
@@ -358,7 +358,7 @@ describe('follow-ups to an agent run', () => {
     })
     const session = await host.open(writing(model.adapter), {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
     const run = session.agents.writer.start()
     await waitFor(() => expect(model.calls).toHaveLength(1))
@@ -445,7 +445,7 @@ describe('steers to an agent run', () => {
 
     const receipt = await session.send('Ignore the brief.', {
       to: run.id,
-      principal: { id: 'bob' },
+      user: { id: 'bob' },
     }).receipt
     release.open()
     await run
@@ -479,7 +479,7 @@ describe('agentRuns() and agentRun(id)', () => {
         agent: 'writer',
         subagentRunId: run.subagentRunId,
         status: 'running',
-        principal: alice,
+        user: alice,
       },
       {
         operationId: queued.operationId,
@@ -488,7 +488,7 @@ describe('agentRuns() and agentRun(id)', () => {
         agent: 'writer',
         subagentRunId: queued.operationId,
         status: 'queued',
-        principal: alice,
+        user: alice,
       },
     ])
     expect(session.agentRun(run.id)).toBe(run)
@@ -515,7 +515,7 @@ describe('agentRuns() and agentRun(id)', () => {
     const hostA = createHarnessHost({ persistence })
     const sessionA = await hostA.open(writing(first.adapter), {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
     const run = sessionA.agents.writer.start()
     await run
@@ -525,7 +525,7 @@ describe('agentRuns() and agentRun(id)', () => {
     const hostB = createHarnessHost({ persistence })
     const sessionB = await hostB.open(writing(second.adapter), {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
 
     expect(sessionB.agentRuns()).toEqual([
@@ -536,7 +536,7 @@ describe('agentRuns() and agentRun(id)', () => {
         agent: 'writer',
         subagentRunId: run.subagentRunId,
         status: 'completed',
-        principal: alice,
+        user: alice,
         result: 'Draft one.',
       },
     ])
@@ -564,18 +564,18 @@ describe('agentRuns() and agentRun(id)', () => {
 
     const receipt = await session.send('Ignore the brief.', {
       to: run.id,
-      principal: { id: 'bob' },
+      user: { id: 'bob' },
     }).receipt
     release.open()
     await run
     await waitFor(() => expect(model.calls).toHaveLength(3))
 
     expect(session.agentRuns()).toMatchObject([
-      { operationId: run.id, agent: 'researcher', principal: alice },
+      { operationId: run.id, agent: 'researcher', user: alice },
       {
         operationId: receipt.operationId,
         agent: 'researcher',
-        principal: { id: 'bob' },
+        user: { id: 'bob' },
       },
     ])
     await host.close()
@@ -619,7 +619,7 @@ describe('agents that agent code starts', () => {
         agent: 'lead',
         subagentRunId: run.subagentRunId,
         status: 'completed',
-        principal: alice,
+        user: alice,
         result: 'helped',
       },
       {
@@ -630,7 +630,7 @@ describe('agents that agent code starts', () => {
         subagentRunId: childId,
         status: 'completed',
         parentRunId: run.id,
-        principal: alice,
+        user: alice,
         result: 'helped',
       },
     ])
@@ -824,7 +824,7 @@ describe('messages to an agent run after its host stopped', () => {
     const hostA = createHarnessHost({ persistence })
     const sessionA = await hostA.open(writing(first.adapter), {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
     const run = sessionA.agents.writer.start(undefined, { resume: true })
     await waitFor(() => expect(first.calls).toHaveLength(1))
@@ -835,7 +835,7 @@ describe('messages to an agent run after its host stopped', () => {
     const hostB = createHarnessHost({ persistence })
     const sessionB = await hostB.open(writing(next.adapter), {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
 
     expect(await sessionB.settled({ inputId: 'steer-1' })).toMatchObject({
@@ -851,7 +851,7 @@ describe('messages to an agent run after its host stopped', () => {
     const hostA = createHarnessHost({ persistence })
     const sessionA = await hostA.open(writing(first.adapter), {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
     const run = sessionA.agents.writer.start()
     await waitFor(() => expect(first.calls).toHaveLength(1))
@@ -862,7 +862,7 @@ describe('messages to an agent run after its host stopped', () => {
     const hostB = createHarnessHost({ persistence })
     const sessionB = await hostB.open(writing(next.adapter), {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
 
     expect(await sessionB.settled({ inputId: 'steer-1' })).toMatchObject({
@@ -881,7 +881,7 @@ describe('messages to an agent run after its host stopped', () => {
     const hostA = createHarnessHost({ persistence })
     const sessionA = await hostA.open(harness, {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
     const run = sessionA.agents.researcher.start()
     await waitFor(() => expect(model.calls).toHaveLength(1))
@@ -893,7 +893,7 @@ describe('messages to an agent run after its host stopped', () => {
     const hostB = createHarnessHost({ persistence })
     const sessionB = await hostB.open(harness, {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
 
     expect(await sessionB.settled({ inputId: 'steer-2' })).toMatchObject({
@@ -908,7 +908,7 @@ describe('messages to an agent run after its host stopped', () => {
     const hostA = createHarnessHost({ persistence })
     const sessionA = await hostA.open(writing(first.adapter), {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
     const run = sessionA.agents.writer.start(undefined, { resume: true })
     await run
@@ -925,7 +925,7 @@ describe('messages to an agent run after its host stopped', () => {
     const hostB = createHarnessHost({ persistence })
     const sessionB = await hostB.open(writing(next.adapter), {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
 
     expect(await sessionB.settled({ inputId: 'follow-1' })).toMatchObject({

@@ -69,8 +69,7 @@ function setup(
         request.headers.get('authorization') === 'Bearer good' ? user : null,
       // A user may use the threads whose id starts with the user id.
       policy: {
-        authorize: ({ principal, session }) =>
-          session.threadId.startsWith(principal.id),
+        authorize: ({ user, session }) => session.threadId.startsWith(user.id),
       },
     },
   })
@@ -112,11 +111,11 @@ describe('HTTP handler', () => {
     await host.close()
   })
 
-  it('refuses threads the principal cannot access', async () => {
+  it('refuses threads the user cannot access', async () => {
     const { handler, host, harness } = setup()
     await host.open(harness, {
       threadId: 'other-thread',
-      principal: { id: 'user-2' },
+      user: { id: 'user-2' },
     })
     const response = await handler(
       new Request('http://x/api/harness/snapshot?threadId=other-thread', {
@@ -366,7 +365,7 @@ describe('HTTP handler', () => {
 
     const session = await host.open(harness, {
       threadId: 'user-1-m',
-      principal: user,
+      user,
     })
     const hidden = session.agent('secret')?.start()
     expect(
@@ -433,7 +432,7 @@ describe('HTTP handler', () => {
     await waitFor(() => expect(calls).toHaveLength(1))
     const session = await host.open(harness, {
       threadId: 'user-1-wake',
-      principal: user,
+      user,
     })
     await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(wakeMessages(await session.transcript())).toEqual([])
@@ -711,7 +710,7 @@ describe('traceparent on an input', () => {
     const { host, harness } = setup()
     const session = await host.open(harness, {
       threadId: 'user-1-trace',
-      principal: user,
+      user,
     })
     const send = vi.spyOn(session, 'send')
 
@@ -719,14 +718,14 @@ describe('traceparent on an input', () => {
       harness,
       session,
       input: { op: 'prompt', message: 'hi' },
-      principal: user,
+      user,
       traceparent,
     })
     await applyInput({
       harness,
       session,
       input: { op: 'steer', message: 'more' },
-      principal: user,
+      user,
       traceparent,
     })
 

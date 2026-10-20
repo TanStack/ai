@@ -59,8 +59,8 @@ export const review = definePlugin({
 
 - `ctx.agents.run(agent, input, options?)` runs one agent. Await it to get the result. It is an `AgentRun`, so you can also cancel it or send it a message.
 - `ctx.agents.start(agent, input, { wake: true })` runs it in the background and starts a turn when it finishes or fails.
-- `ctx.agents.start(agent, input, { principal })` runs it as that user. The wake turn runs as the same user.
-- Without `principal`, a plugin with `lifetime: 'turn'` starts it as the user of its turn. A session plugin starts it as the user who opened the session. To start it for the user of a tool call, pass `principal: ctx.context.run.principal`.
+- `ctx.agents.start(agent, input, { user })` runs it as that user. The wake turn runs as the same user.
+- Without `user`, a plugin with `lifetime: 'turn'` starts it as the user of its turn. A session plugin starts it as the user who opened the session. To start it for the user of a tool call, pass `user: ctx.context.run.user`.
 - In a tool that an agent run calls, `ctx.agents` starts the agent as a child of that run. It runs for the user of that run, and counts in its tree and budget. It takes no `maxConcurrent` slot, so the run can await it.
 - When tools of two runs run at the same time, the plugin cannot tell which run calls it. Then pass `parent: ctx.context.run` to name the run.
 - A `parent` that names no running agent run of this session throws: an unknown id, a run that ended, an older run of a chain, or a run that another host runs. A running turn is fine: in a tool of the main model, `parent: ctx.context.run` starts a root run.
@@ -262,8 +262,8 @@ A steer joins only a run of the same sender. A steer from another sender runs as
 Who sends:
 
 - `run.send` and `run.cancel` act as the user of the run, not as the user who opened the session.
-- To send as another user, pass `principal`: `run.send('Add a title.', { principal })`.
-- `session.agents.drafter.run(input, { principal })` and `start` run the agent as that user.
+- To send as another user, pass `user`: `run.send('Add a title.', { user })`.
+- `session.agents.drafter.run(input, { user })` and `start` run the agent as that user.
 
 An agent written as plain code, with no `ctx.chat` call, makes no model call. It gets a steer only as a follow-up.
 
@@ -293,7 +293,7 @@ Each item of `agentRuns()` has these fields:
 - `subagentRunId`: the id of the run as a child of the thread, the same as `run.subagentRunId`. A run that runs again after a host stop keeps it. A run in the log that did not start yet has none.
 - `status`: `running`, `queued`, `waiting`, `completed`, `failed`, or `cancelled`. A `queued` run did not start yet: it waits for a free slot, or it is a follow-up that waits for the run before it. A `waiting` run waits for an answer, see [When a background agent waits](#when-a-background-agent-waits).
 - `parentRunId`: the run that started this run, if there is one. That is the agent run whose code started it, or the turn whose tool started it.
-- `principal`: the user that the run runs for. `budget`: the budget of the run, if it has one.
+- `user`: the user that the run runs for. `budget`: the budget of the run, if it has one.
 - `result` of a run that completed, and `error` (`{ message, code? }`) of a run that failed.
 
 `agentRuns()` reads the run tree of the session. See [The run tree](#the-run-tree).
@@ -848,7 +848,7 @@ The log keeps every run of a session as a node of one tree. A node has the type 
 - `runId` and `kind`: `turn`, `agent`, `tool`, or `command`.
 - `status`: `queued`, `running`, `waiting`, `completed`, `failed`, or `cancelled`.
 - `parentRunId`: the run that started it. A root run has none.
-- `agent`, `principal`, `key`, `limits`, and `budget`: what the run was started with.
+- `agent`, `user`, `key`, `limits`, and `budget`: what the run was started with.
 - `result` and `error`: how the run ended.
 
 `session.agentRuns()` lists the agent nodes. The tree comes from the log, so a second host lists the same runs, also after a restart. To read every node yourself, see [Find the runs in the log](./session-log#find-the-runs-in-the-log).

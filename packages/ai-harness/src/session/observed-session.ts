@@ -35,7 +35,7 @@ import type { JobInfo, SessionSnapshot } from './types'
  *
  * @example
  * ```ts
- * const view = await host.observe(assistant, { threadId, principal })
+ * const view = await host.observe(assistant, { threadId, user })
  * const messages = await view.transcript()
  * ```
  */

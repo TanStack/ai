@@ -44,7 +44,7 @@ import type {
   ObservedSession,
   Operation,
   PendingWait,
-  Principal,
+  HarnessUser,
   SessionSnapshot,
   Wait,
   WaitKind,
@@ -58,23 +58,23 @@ export { mcp } from './harness-plugin'
 export type { McpServerConfig, McpServerStatus } from './harness-plugin'
 
 /** Options for {@link createHarnessMcpServer}. */
-export interface HarnessMcpServerOptions<P extends Principal = Principal> {
+export interface HarnessMcpServerOptions<U extends HarnessUser = HarnessUser> {
   /**
    * The host that runs the sessions, from `createHarnessHost`. With
    * `access`, `access.identify` reads the user of each HTTP request, and the
    * host checks each tool call of that user.
    */
-  host: HarnessHost<P>
+  host: HarnessHost<U>
   /** The harness to serve. */
   harness: AnyHarness
   /**
    * For a host without `access` only: who the tool calls run as. `true`:
-   * with no principal (one user). `{ principal }`: as that principal, for
+   * with no user (one user). `{ user }`: as that user, for
    * example the one local user of a stdio server. Without host access and
    * without this option, the server throws at the start, so it never serves
    * every thread to everyone by mistake.
    */
-  openAccess?: OpenAccess<P>
+  openAccess?: OpenAccess<U>
   /** The conversation of a tool call that names no `threadId`. Default `'main'`. */
   threadId?: string
   /**
@@ -199,7 +199,7 @@ const attachmentsSchema: JSONSchema = {
  * `harness.expose.commands`, and `tool_<name>` for each tool in
  * `harness.expose.tools`.
  * Every tool takes an optional `threadId`. Sessions open with
- * `host.open(harness, { threadId, principal })`, so the host checks each
+ * `host.open(harness, { threadId, user })`, so the host checks each
  * call. The `status` tool and the media resource only read: they use
  * `host.observe`, so they open no session and mount no plugins.
  *
@@ -211,7 +211,7 @@ const attachmentsSchema: JSONSchema = {
  *   `authInfo` of its options for that. Such a server needs HTTP: over stdio
  *   it throws. The server lists the agents of the harness definition, and
  *   no commands or agents of plugins, as it opens no session at the start.
- * - A host without `access`: the `openAccess` principal, or no principal
+ * - A host without `access`: the `openAccess` user, or no user
  *   with `openAccess: true`.
  *
  * The server throws at the start for a host without `access` and without
@@ -242,14 +242,14 @@ const attachmentsSchema: JSONSchema = {
  * const server = await createHarnessMcpServer({
  *   host,
  *   harness: assistant,
- *   openAccess: { principal: { id: 'local-user' } },
+ *   openAccess: { user: { id: 'local-user' } },
  * })
  * serveMCPStdio(server)
  * ```
  */
-export async function createHarnessMcpServer<P extends Principal = Principal>(
-  options: HarnessMcpServerOptions<P>,
-) {
+export async function createHarnessMcpServer<
+  U extends HarnessUser = HarnessUser,
+>(options: HarnessMcpServerOptions<U>) {
   const { host, harness, openAccess } = options
   const access = host.hasAccess
   // The same fail-closed rule as the HTTP handler of the harness.
@@ -276,29 +276,29 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
   }
   // The user of each request, by the token in its context. A token that
   // this server did not make is in no map, so a context cannot name a user.
-  const callers = new WeakMap<object, P>()
+  const callers = new WeakMap<object, U>()
 
   /**
    * Who makes a tool call or a resource read: on a host with access, the
    * user that `identify` found for its request. Else the `openAccess` one.
    */
-  const principalOf = (context: Record<string, unknown>) => {
+  const userOf = (context: Record<string, unknown>) => {
     if (!access) return fixed
     const token = context[CALLER_KEY]
-    const principal = isRecord(token) ? callers.get(token) : undefined
-    if (principal === undefined) {
+    const user = isRecord(token) ? callers.get(token) : undefined
+    if (user === undefined) {
       throw new Error(
         'This MCP server reads the user of each HTTP request. Call it with server.fetch or server.handle.',
       )
     }
-    return principal
+    return user
   }
 
   const open = (threadId: string, context: Record<string, unknown>) =>
-    host.open(harness, { threadId, principal: principalOf(context) })
+    host.open(harness, { threadId, user: userOf(context) })
 
   const observe = (threadId: string, context: Record<string, unknown>) =>
-    host.observe(harness, { threadId, principal: principalOf(context) })
+    host.observe(harness, { threadId, user: userOf(context) })
 
   /**
    * The execute of a tool that works on the session of its thread. The
@@ -653,7 +653,7 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
   // no plugin commands.
   const session = access
     ? undefined
-    : await host.open(harness, { threadId: defaultThread, principal: fixed })
+    : await host.open(harness, { threadId: defaultThread, user: fixed })
   const defined = [
     ...(harness.agents ?? []),
     ...(harness.subagents?.agents ?? []),
@@ -836,20 +836,20 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
     // stdio has no request with a login, so `identify` cannot find a user.
     if (isServedOverStdio(served)) {
       throw new Error(
-        'createHarnessMcpServer: a host with access reads the user of each HTTP request, so it cannot serve over stdio. For one local user, use a host without access and openAccess: { principal }.',
+        'createHarnessMcpServer: a host with access reads the user of each HTTP request, so it cannot serve over stdio. For one local user, use a host without access and openAccess: { user }.',
       )
     }
-    const principal = (await users.of(request))?.principal
-    if (principal === undefined) {
+    const user = (await users.of(request))?.user
+    if (user === undefined) {
       return bearerAuthChallengeResponse(
         new OAuthError(OAuthErrorCode.InvalidToken, 'The request has no user.'),
       )
     }
     const token = {}
-    callers.set(token, principal)
+    callers.set(token, user)
     return server.handle(request, {
       ...handleOptions,
-      authInfo: authInfoOf(principal),
+      authInfo: authInfoOf(user),
       context: { ...handleOptions?.context, [CALLER_KEY]: token },
     })
   }
@@ -862,11 +862,11 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
 }
 
 /**
- * The `authInfo` of a request of `principal`. The MCP server keeps each spec
+ * The `authInfo` of a request of `user`. The MCP server keeps each spec
  * 2025 session for the client of its token, so no other user can use it.
  */
-function authInfoOf(principal: Principal) {
-  const clientId = JSON.stringify([principal.tenantId ?? null, principal.id])
+function authInfoOf(user: HarnessUser) {
+  const clientId = JSON.stringify([user.tenantId ?? null, user.id])
   return { token: '', clientId, scopes: [] }
 }
 
@@ -989,7 +989,7 @@ function turnInterruptsOf({
  * `interrupts`), and the fields of its question (in `questions`) stay out.
  */
 function waitForClient({
-  principal: _principal,
+  user: _user,
   interrupt: _interrupt,
   turn: _turn,
   secret: _secret,

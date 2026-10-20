@@ -181,7 +181,7 @@ describe('host.sessions.delete', () => {
     const ann = { id: 'ann', tenantId: 'acme' }
 
     await expect(
-      host.sessions.delete({ threadId: 't-new', principal: ann }),
+      host.sessions.delete({ threadId: 't-new', user: ann }),
     ).rejects.toBeInstanceOf(AccessDeniedError)
     await host.close()
   })
@@ -189,7 +189,7 @@ describe('host.sessions.delete', () => {
   it('leaves the thread with the same id in another tenant', async () => {
     const { host, harness, persistence } = setup()
     const other = { id: 'u2', tenantId: 'acme' }
-    const kept = await host.open(harness, { threadId: 't1', principal: other })
+    const kept = await host.open(harness, { threadId: 't1', user: other })
     await kept.send('keep me')
     await kept.configure({ settings: { instructions: 'Stay.' } })
     await kept.close()
@@ -202,12 +202,12 @@ describe('host.sessions.delete', () => {
     expect(await storedTranscript(persistence, 't1', 'acme')).not.toEqual([])
     const reopened = await host.open(harness, {
       threadId: 't1',
-      principal: other,
+      user: other,
     })
     expect(reopened.settings()).toEqual({ instructions: 'Stay.' })
     await reopened.close()
     expect(
-      await host.sessions.get({ threadId: 't1', principal: other }),
+      await host.sessions.get({ threadId: 't1', user: other }),
     ).toMatchObject({ threadId: 't1', tenantId: 'acme' })
     await host.close()
   })

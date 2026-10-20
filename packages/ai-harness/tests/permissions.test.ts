@@ -17,7 +17,7 @@ import type {
   HarnessPersistence,
   HarnessPlugin,
   HarnessSession,
-  Principal,
+  HarnessUser,
 } from '../src'
 import type {
   CallResources,
@@ -290,7 +290,7 @@ async function open(
   plugins: Array<HarnessPlugin>,
   replies: Array<Reply>,
   threadId = 't',
-  principal?: Principal,
+  user?: HarnessUser,
 ) {
   const { adapter, calls } = mockAdapter([...replies, () => text('done')])
   const host = createHarnessHost({ persistence })
@@ -302,7 +302,7 @@ async function open(
     }),
     {
       threadId,
-      ...(principal ? { principal } : {}),
+      ...(user ? { user } : {}),
     },
   )
   return { host, session, calls }

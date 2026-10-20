@@ -26,7 +26,7 @@ import type {
   HarnessSession,
   Operation,
   PluginLifetime,
-  Principal,
+  HarnessUser,
   ProjectOptions,
   Receipt,
   RecoverHook,
@@ -200,7 +200,7 @@ it('refuses a plugin whose metadata the harness does not have', () => {
   })
 })
 
-it('types the principal of the host from what access.identify returns', () => {
+it('types the user of the host from what access.identify returns', () => {
   type User = { id: string; tenantId: string; role: 'admin' | 'user' }
   // The app's own login check, as `verifySession(request)` in an app.
   const userOf = async (request: Request): Promise<User | null> =>
@@ -211,38 +211,38 @@ it('types the principal of the host from what access.identify returns', () => {
     access: {
       identify: ({ request }) => userOf(request),
       policy: {
-        authorize: ({ principal }) => {
-          expectTypeOf(principal).toEqualTypeOf<User>()
-          return principal.role === 'admin'
+        authorize: ({ user }) => {
+          expectTypeOf(user).toEqualTypeOf<User>()
+          return user.role === 'admin'
         },
       },
     },
   })
   expectTypeOf(host).toEqualTypeOf<HarnessHost<User>>()
-  expectTypeOf<Parameters<typeof host.open>[1]['principal']>().toEqualTypeOf<
+  expectTypeOf<Parameters<typeof host.open>[1]['user']>().toEqualTypeOf<
     User | undefined
   >()
   const user: User = { id: 'u2', tenantId: 'acme', role: 'user' }
-  void host.open(harness, { threadId: 't1', principal: user })
-  // @ts-expect-error The principal of this host has a role.
-  void host.open(harness, { threadId: 't1', principal: { id: 'u3' } })
-  // membersOnly() fits any principal type.
+  void host.open(harness, { threadId: 't1', user })
+  // @ts-expect-error The user of this host has a role.
+  void host.open(harness, { threadId: 't1', user: { id: 'u3' } })
+  // membersOnly() fits any user type.
   expectTypeOf(
     createHarnessHost({
       access: { identify: () => user, policy: membersOnly() },
     }),
   ).toEqualTypeOf<HarnessHost<User>>()
-  // Without access, the principal is the plain one.
-  expectTypeOf(createHarnessHost()).toEqualTypeOf<HarnessHost<Principal>>()
+  // Without access, the user is the plain one.
+  expectTypeOf(createHarnessHost()).toEqualTypeOf<HarnessHost<HarnessUser>>()
 })
 
-it('types the openAccess principal by the host, and needs an explicit login mode', () => {
+it('types the openAccess user by the host, and needs an explicit login mode', () => {
   const host = createHarnessHost()
   createHarnessHandler({ host, harness, openAccess: true })
   createHarnessHandler({
     host,
     harness,
-    openAccess: { principal: { id: 'u' } },
+    openAccess: { user: { id: 'u' } },
   })
   createHarnessHandler({
     host,

@@ -64,7 +64,7 @@ async function loggedInputs(log: LogStore, tenantId?: string) {
   })
   return [...sessionOf(state, THREAD).inputs.values()].map((logged) => ({
     op: logged.input.op,
-    by: logged.principal?.id,
+    by: logged.user?.id,
   }))
 }
 
@@ -80,10 +80,9 @@ function accessHost() {
     adapter: mockAdapter(() => text('ok')).adapter,
     agents: [slow],
   })
-  const open = (principal: User) =>
-    host.open(harness, { threadId: THREAD, principal })
+  const open = (user: User) => host.open(harness, { threadId: THREAD, user })
   const share = (userId: string, role: 'member' | 'viewer') =>
-    host.sessions.share({ threadId: THREAD, userId, role, principal: olga })
+    host.sessions.share({ threadId: THREAD, userId, role, user: olga })
   return { host, harness, open, share, log: persistence.stores.log }
 }
 
@@ -105,9 +104,9 @@ describe('who acts on an agent run', () => {
       plugins: () => [starter],
     })
     // Olga opens the session first.
-    await host.open(harness, { threadId: THREAD, principal: olga })
+    await host.open(harness, { threadId: THREAD, user: olga })
     if (!agents) throw new Error('No plugin context.')
-    const run = agents.start('slow', undefined, { principal: bea })
+    const run = agents.start('slow', undefined, { user: bea })
     await running(run)
 
     await run.send('Look at the tests first.')
@@ -126,7 +125,7 @@ describe('who acts on an agent run', () => {
     await host.close()
   })
 
-  it('runs handle.agents.<name>.run as the principal that it passes, as start does', async () => {
+  it('runs handle.agents.<name>.run as the user that it passes, as start does', async () => {
     const persistence = memoryPersistence()
     const host = createHarnessHost({ persistence })
     const harness = defineHarness({
@@ -136,10 +135,10 @@ describe('who acts on an agent run', () => {
     })
     const system = await host.open(harness, {
       threadId: THREAD,
-      principal: { id: 'system' },
+      user: { id: 'system' },
     })
 
-    const run = system.agents.slow.run(undefined, { principal: bea })
+    const run = system.agents.slow.run(undefined, { user: bea })
     await running(run)
 
     const inputs = await loggedInputs(persistence.stores.log)
@@ -192,7 +191,7 @@ describe('operations that a handle returns', () => {
     const found = member.agentRun(own.id)
     if (!found) throw new Error('The member does not see the run.')
 
-    await host.revoke({ threadId: THREAD, principal: bea })
+    await host.revoke({ threadId: THREAD, user: bea })
 
     await expect(found.cancel()).rejects.toBeInstanceOf(AccessDeniedError)
     await expect(own.cancel()).rejects.toBeInstanceOf(AccessDeniedError)
@@ -208,7 +207,7 @@ describe('a user that loses access', () => {
     const member = await open(bea)
     const view = await host.observe(harness, {
       threadId: THREAD,
-      principal: bea,
+      user: bea,
     })
     const readAll = async (events: AsyncIterable<unknown>) => {
       for await (const _event of events) {
@@ -222,7 +221,7 @@ describe('a user that loses access', () => {
     await host.sessions.unshare({
       threadId: THREAD,
       userId: 'bea',
-      principal: olga,
+      user: olga,
     })
 
     await expect(handleRead).rejects.toBeInstanceOf(AccessDeniedError)
@@ -238,7 +237,7 @@ describe('a user that loses access', () => {
     const member = await open(bea)
     const events = member.events()
 
-    await host.revoke({ threadId: THREAD, principal: bea })
+    await host.revoke({ threadId: THREAD, user: bea })
 
     const read = (async () => {
       for await (const _event of events) {
@@ -266,16 +265,16 @@ describe('a user that loses access', () => {
       name: NAME,
       adapter: mockAdapter(() => text('ok')).adapter,
     })
-    await host.open(harness, { threadId: THREAD, principal: olga })
+    await host.open(harness, { threadId: THREAD, user: olga })
     await host.sessions.share({
       threadId: THREAD,
       userId: 'bea',
       role: 'member',
-      principal: olga,
+      user: olga,
     })
     const member = await host.open(harness, {
       threadId: THREAD,
-      principal: bea,
+      user: bea,
     })
     await member.schedule({
       at: Date.now() + 3_600_000,
@@ -283,9 +282,9 @@ describe('a user that loses access', () => {
     })
     isDown = true
 
-    await expect(
-      host.revoke({ threadId: THREAD, principal: bea }),
-    ).rejects.toThrow('their work did not stop')
+    await expect(host.revoke({ threadId: THREAD, user: bea })).rejects.toThrow(
+      'their work did not stop',
+    )
     // The access is gone already.
     expect(() => member.transcript()).toThrow(AccessDeniedError)
     await host.close()
@@ -299,7 +298,7 @@ describe('a user that loses access', () => {
     const run = member.agents.slow.start()
     await running(run)
 
-    await host.revoke({ threadId: THREAD, principal: bea })
+    await host.revoke({ threadId: THREAD, user: bea })
 
     await expect(run).rejects.toThrow()
     expect(run.status()).toBe('cancelled')
@@ -329,16 +328,16 @@ describe('a user that loses access', () => {
       persistence: on(memoryLogStore({ state: logState })),
       access,
     })
-    await hostA.open(harness, { threadId: THREAD, principal: olga })
+    await hostA.open(harness, { threadId: THREAD, user: olga })
     await hostA.sessions.share({
       threadId: THREAD,
       userId: 'bea',
       role: 'member',
-      principal: olga,
+      user: olga,
     })
     const member = await hostA.open(harness, {
       threadId: THREAD,
-      principal: bea,
+      user: bea,
     })
     const run = member.agents.slow.start()
     await running(run)
@@ -351,7 +350,7 @@ describe('a user that loses access', () => {
     await hostB.sessions.unshare({
       threadId: THREAD,
       userId: 'bea',
-      principal: olga,
+      user: olga,
     })
 
     await expect(run).rejects.toThrow()
@@ -389,7 +388,7 @@ describe('a user that loses access', () => {
     await host.sessions.unshare({
       threadId: THREAD,
       userId: 'bea',
-      principal: olga,
+      user: olga,
     })
 
     await waitFor(async () =>

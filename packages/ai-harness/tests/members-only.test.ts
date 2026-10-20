@@ -8,7 +8,7 @@ import type {
   HarnessAccess,
   MembersOnlyOptions,
 } from '../src/access'
-import type { Principal } from '../src/types'
+import type { HarnessUser } from '../src/types'
 
 const { authorize } = membersOnly()
 
@@ -144,9 +144,9 @@ describe('membersOnly roles', () => {
   it.each(cases)(
     '$who: $action is $allowed',
     async ({ id, target, action, allowed }) => {
-      const run = { runId: 'run-1', principalId: id }
+      const run = { runId: 'run-1', userId: id }
       const decision = await authorize({
-        principal: { id },
+        user: { id },
         action,
         session: target,
         run,
@@ -168,13 +168,13 @@ describe('membersOnly runs for answer and cancel', () => {
       who: 'member',
       id: 'mia',
       target: 'a run of another user',
-      run: { runId: 'run-2', principalId: 'olga' },
+      run: { runId: 'run-2', userId: 'olga' },
       allowed: false,
     },
     {
       who: 'member',
       id: 'mia',
-      target: 'a run with no principal',
+      target: 'a run with no user',
       run: { runId: 'run-3' },
       allowed: false,
     },
@@ -189,7 +189,7 @@ describe('membersOnly runs for answer and cancel', () => {
       who: 'owner',
       id: 'olga',
       target: 'a run of another user',
-      run: { runId: 'run-4', principalId: 'mia' },
+      run: { runId: 'run-4', userId: 'mia' },
       allowed: true,
     },
     {
@@ -209,7 +209,7 @@ describe('membersOnly runs for answer and cancel', () => {
     '$who: $action on $target is $allowed',
     async ({ id, action, run, allowed }) => {
       const decision = await authorize({
-        principal: { id },
+        user: { id },
         action,
         session,
         run,
@@ -223,7 +223,7 @@ describe('membersOnly operator roles', () => {
   it('gives the operator action to the roles in operator.roles', async () => {
     const owners = membersOnly({ operator: { roles: ['owner', 'operator'] } })
     const can = (id: string) =>
-      owners.authorize({ principal: { id }, action: 'operator', session })
+      owners.authorize({ user: { id }, action: 'operator', session })
     expect(await can('olga')).toBe(true)
     expect(await can('oto')).toBe(true)
     expect(await can('mia')).toBe(false)
@@ -258,19 +258,19 @@ describe('membersOnly list filter and members', () => {
   })
 })
 
-interface AppUser extends Principal {
+interface AppUser extends HarnessUser {
   plan: 'free' | 'pro'
 }
 
-describe('membersOnly with a wider principal type', () => {
+describe('membersOnly with a wider user type', () => {
   it('works as the authorize of an access object', async () => {
     const access: HarnessAccess<AppUser> = {
       identify: () => null,
       policy: membersOnly(),
     }
-    const principal: AppUser = { id: 'mia', plan: 'pro' }
+    const user: AppUser = { id: 'mia', plan: 'pro' }
     const decision = await access.policy.authorize({
-      principal,
+      user,
       action: 'send',
       session,
     })

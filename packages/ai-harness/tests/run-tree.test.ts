@@ -257,7 +257,7 @@ async function runLead(
   const host = createHarnessHost(options)
   const session = await host.open(leading(), {
     threadId: THREAD,
-    principal: alice,
+    user: alice,
   })
   const run = session.agents.lead.start()
   await run
@@ -273,7 +273,7 @@ describe('the run tree of a session', () => {
     const host = createHarnessHost({ persistence })
     const session = await host.open(harness, {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
 
     await session.send('Scout, please')
@@ -295,20 +295,20 @@ describe('the run tree of a session', () => {
     const [turn, wake] = nodes.filter((item) => item.kind === 'turn')
     const scout = nodes.find((item) => item.agent === 'scout')
     const helper = nodes.find((item) => item.agent === 'helper')
-    expect(turn).toMatchObject({ status: 'completed', principal: alice })
+    expect(turn).toMatchObject({ status: 'completed', user: alice })
     expect(turn?.parentRunId).toBeUndefined()
     expect(wake?.parentRunId).toBeUndefined()
     expect(scout).toMatchObject({
       kind: 'agent',
       status: 'completed',
       parentRunId: turn?.runId,
-      principal: alice,
+      user: alice,
     })
     expect(helper).toMatchObject({
       kind: 'agent',
       status: 'completed',
       parentRunId: scout?.runId,
-      principal: alice,
+      user: alice,
       result: 'helped',
     })
     expect(nodes).toHaveLength(4)
@@ -360,7 +360,7 @@ describe('the run tree of a session', () => {
     const host = createHarnessHost({ persistence })
     const session = await host.open(leading(), {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
     const { inputs } = (session as unknown as { writer: LogWriter }).writer
       .state

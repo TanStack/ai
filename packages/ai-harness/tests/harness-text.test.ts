@@ -131,15 +131,15 @@ describe('harnessText', () => {
     await host.close()
   })
 
-  it('opens one session per call without a thread id, as the principal, and closes it', async () => {
+  it('opens one session per call without a thread id, as the user, and closes it', async () => {
     const inner = mockAdapter([() => text('one'), () => text('two')])
-    const seen: Array<{ threadId: string; principal: unknown }> = []
+    const seen: Array<{ threadId: string; user: unknown }> = []
     const watch = definePlugin({
       name: 'test/watch',
       setup: (ctx) => {
         seen.push({
           threadId: ctx.session.threadId,
-          principal: ctx.session.principal,
+          user: ctx.session.user,
         })
         return {}
       },
@@ -156,7 +156,7 @@ describe('harnessText', () => {
     })
     const adapter = harnessText(studio, {
       host,
-      principal: { id: 'u-1' },
+      user: { id: 'u-1' },
     })
 
     for (const content of ['hello', 'again']) {
@@ -169,7 +169,7 @@ describe('harnessText', () => {
     }
     expect(seen).toHaveLength(2)
     expect(seen[0]?.threadId).not.toBe(seen[1]?.threadId)
-    expect(seen.map((entry) => entry.principal)).toEqual([
+    expect(seen.map((entry) => entry.user)).toEqual([
       { id: 'u-1' },
       { id: 'u-1' },
     ])
@@ -346,7 +346,7 @@ describe('harnessText', () => {
     const watch = definePlugin({
       name: 'test/watch',
       setup: (ctx) => {
-        seen.push(ctx.session.principal)
+        seen.push(ctx.session.user)
         return {}
       },
     })
@@ -364,17 +364,17 @@ describe('harnessText', () => {
       name: 'test/lead',
       adapter: harnessText(studio, {
         host: innerHost,
-        principal: { id: 'fallback' },
+        user: { id: 'fallback' },
       }),
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const session = await host.open(lead, {
       threadId: 'outer',
-      principal: { id: 'alice' },
+      user: { id: 'alice' },
     })
 
     await session.send('hello')
-    await session.send('again', { principal: { id: 'bob' } })
+    await session.send('again', { user: { id: 'bob' } })
 
     expect(seen).toEqual([{ id: 'alice' }, { id: 'bob' }])
     await host.close()
@@ -396,21 +396,21 @@ describe('harnessText', () => {
     const ada = { id: 'ada' }
     const bob = { id: 'bob' }
     const cid = { id: 'cid' }
-    const asAda = await host.open(lead, { threadId: 'a', principal: ada })
+    const asAda = await host.open(lead, { threadId: 'a', user: ada })
     await asAda.send('hello')
     await host.sessions.share({
       threadId: 'a',
       userId: 'bob',
       role: 'member',
-      principal: ada,
+      user: ada,
     })
-    await host.open(lead, { threadId: 'c', principal: cid })
-    const asBob = await host.open(lead, { threadId: 'a', principal: bob })
+    await host.open(lead, { threadId: 'c', user: cid })
+    const asBob = await host.open(lead, { threadId: 'a', user: bob })
 
     await expect(asBob.send('again')).resolves.toMatchObject({ text: 'two' })
     const innerOfA = innerThreadOf('a', studio.name)
     const openInner = (outerThread?: string) => {
-      const openOptions = { threadId: innerOfA, principal: cid }
+      const openOptions = { threadId: innerOfA, user: cid }
       return host.open(
         studio,
         outerThread
@@ -438,24 +438,24 @@ describe('harnessText', () => {
     })
     const ada = { id: 'ada' }
     const bob = { id: 'bob' }
-    const asAda = await host.open(lead, { threadId: 'a', principal: ada })
+    const asAda = await host.open(lead, { threadId: 'a', user: ada })
     await asAda.send('hello')
     await host.sessions.share({
       threadId: 'a',
       userId: 'bob',
       role: 'member',
-      principal: ada,
+      user: ada,
     })
     // The link of the inner entry names another outer thread now.
     await host.sessions.update({
       harness: studio,
       threadId: innerThreadOf('a', studio.name),
-      principal: ada,
+      user: ada,
       update: (entry) => ({
         metadata: { ...entry.metadata, 'harness:outerThread': 'other' },
       }),
     })
-    const asBob = await host.open(lead, { threadId: 'a', principal: bob })
+    const asBob = await host.open(lead, { threadId: 'a', user: bob })
 
     await expect(asBob.send('again')).rejects.toThrow(
       'Access denied: read on thread "a/inner/test/inner".',

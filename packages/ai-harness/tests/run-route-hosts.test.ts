@@ -57,8 +57,8 @@ function twoHosts(options: { snapshot?: SnapshotTiming } = {}) {
         }),
         // A user may use the threads whose id starts with the user id.
         policy: {
-          authorize: ({ principal, session }) =>
-            session.threadId.startsWith(principal.id),
+          authorize: ({ user, session }) =>
+            session.threadId.startsWith(user.id),
         },
       },
     })
@@ -223,7 +223,7 @@ describe('a run on a durable host, across instances', () => {
     await close()
   })
 
-  it('refuses a join on host B of a thread the principal may not use, and 404s an unknown run', async () => {
+  it('refuses a join on host B of a thread the user may not use, and 404s an unknown run', async () => {
     const { a, b, post, release, close } = twoHosts()
     await readThenCut(await post(a))
     const refused = await b.call('run?runId=run-a&threadId=user-1-t', {

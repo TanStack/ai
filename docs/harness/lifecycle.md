@@ -109,7 +109,7 @@ const response = await fetch('/api/preview?threadId=chat-1')
 console.log(await response.json())
 ```
 
-On a host with `access`, pass the `principal` of the request. The thread needs the `read` action, else `observe` throws `AccessDeniedError`. A thread with no index entry gets the same error, so a read creates no thread.
+On a host with `access`, pass the `user` of the request. The thread needs the `read` action, else `observe` throws `AccessDeniedError`. A thread with no index entry gets the same error, so a read creates no thread.
 
 What the view reads for the chat:
 

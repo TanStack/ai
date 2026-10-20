@@ -27,7 +27,7 @@ export type RunPatch = Parameters<RunStore['update']>[1]
 export type ClearableRunField = Exclude<keyof RunPatch, 'status'>
 
 /** Who sent an input, as the log keeps it. */
-export interface RecordPrincipal {
+export interface RecordUser {
   id: string
   tenantId?: string
 }
@@ -60,7 +60,7 @@ export interface InterruptedTurnRecord {
   /** The part that stopped handed off too: the resolve acts on it. */
   handoff?: Omit<HandoffRecord, 'runId'>
   /** Who sent the input of the stopped turn. */
-  principal?: RecordPrincipal
+  user?: RecordUser
   /** The `context` of the stopped turn's input. JSON. */
   context?: unknown
 }
@@ -95,14 +95,14 @@ export interface NamedTurnOverrides {
 
 /**
  * Work that the session does at `at` (epoch ms). With `input`, the session
- * runs the input then, as `principal`. With no `input`, it is a wake: a
+ * runs the input then, as `user`. With no `input`, it is a wake: a
  * `step.sleep` waits for it, and the host that owns the log then recovers
  * the run.
  */
 export type ScheduleRecord = {
   at: number
   input?: HarnessInput
-  principal?: RecordPrincipal
+  user?: RecordUser
 }
 
 /** A wait as the log keeps it, with what only a question has. */
@@ -148,7 +148,7 @@ export type TransferRecord = {
   /** The thread that the conversation went to. Only in the source log. */
   to?: TransferLink
   /** Who made the transfer. */
-  principal?: RecordPrincipal
+  user?: RecordUser
   /** When the transfer was made (epoch ms). */
   at: number
 }
@@ -261,7 +261,7 @@ export type ThreadRecord =
       type: 'harness.settings'
       settings: ThreadSettings
       inputId?: string
-      principal?: RecordPrincipal
+      user?: RecordUser
     }
   /** One config value. `null` unsets the key. */
   | {
@@ -269,7 +269,7 @@ export type ThreadRecord =
       key: string
       value: unknown
       inputId?: string
-      principal?: RecordPrincipal
+      user?: RecordUser
     }
   /** A change to the thread state of one plugin. */
   | { type: 'harness.plugin.state'; plugin: string; delta: PluginStateDelta }
@@ -609,7 +609,8 @@ function treeWithRun(
     status: NODE_STATUS[run.status],
     ...(run.parentRunId !== undefined ? { parentRunId: run.parentRunId } : {}),
     ...(run.agent !== undefined ? { agent: run.agent } : {}),
-    ...(run.principal ? { principal: run.principal } : {}),
+    // `RunRecord` is a published type: it keeps the user as `principal`.
+    ...(run.principal ? { user: run.principal } : {}),
     ...(run.error ? { error: run.error } : {}),
   }
   return withEntry(tree, run.runId, added)
@@ -767,11 +768,11 @@ export function foldThreadRecord(state: ThreadStateFold, record: LogRecord) {
         ),
       }
     case 'harness.schedule': {
-      const { scheduleId, at, input, principal } = record
+      const { scheduleId, at, input, user } = record
       const schedule: ScheduleRecord = {
         at,
         ...(input ? { input } : {}),
-        ...(principal ? { principal } : {}),
+        ...(user ? { user } : {}),
       }
       return {
         ...state,

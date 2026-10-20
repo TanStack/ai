@@ -550,9 +550,7 @@ function withUsage(
   const next = structuredClone(usage)
   addUsage(next, {
     model: value.model,
-    ...(typeof value.sender === 'string'
-      ? { principal: { id: value.sender } }
-      : {}),
+    ...(typeof value.sender === 'string' ? { user: { id: value.sender } } : {}),
     // A plugin, router, or transfer call names its source; keep it so
     // `bySource` stays correct.
     ...(typeof value.source === 'string' ? { source: value.source } : {}),

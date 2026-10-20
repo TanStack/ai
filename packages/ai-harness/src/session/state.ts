@@ -35,7 +35,7 @@ import {
   scopeOf,
   loggedChildWaits,
   snapshotFrom,
-  storedPrincipal,
+  storedUser,
   changeSettings,
 } from './helpers'
 import { SessionInputs } from './inputs'
@@ -56,7 +56,7 @@ import type { RevertState } from '../log'
 import type { ThreadEndHandler } from '../plugins'
 import type {
   HandoffRecord,
-  RecordPrincipal,
+  RecordUser,
   ThreadRecord,
   WaitRecord,
   WaitState,
@@ -77,7 +77,7 @@ import type {
   MediaRecord,
   MediaUpload,
   PendingQuestion,
-  Principal,
+  HarnessUser,
   Receipt,
   ThreadSettings,
 } from '../types'
@@ -184,7 +184,7 @@ export abstract class SessionState<
    */
   protected async openEntry() {
     const now = Date.now()
-    const { principal, tenantId, threadId } = this
+    const { user, tenantId, threadId } = this
     // A child of `harnessAgent` names its parent thread and has no owner:
     // access is checked on its root thread.
     const parent = this.childLink?.parentThreadId
@@ -198,11 +198,11 @@ export abstract class SessionState<
         updatedAt: now,
       }
       // A new entry belongs to its opener. Without access, an entry with no
-      // owner goes to the next opener with a principal too. With access, it
+      // owner goes to the next opener with a user too. With access, it
       // stays without an owner: `authorize` decides who may open it.
       const isClaim =
         parent === undefined &&
-        principal !== undefined &&
+        user !== undefined &&
         (entry === undefined ||
           (ownerOf(current) === undefined && !this.hasAccess))
       return {
@@ -210,7 +210,7 @@ export abstract class SessionState<
         harness: current.harness ?? this.harness.name,
         updatedAt: now,
         ...(isClaim
-          ? { members: [{ userId: principal.id, role: 'owner' as const }] }
+          ? { members: [{ userId: user.id, role: 'owner' as const }] }
           : {}),
       }
     })
@@ -482,12 +482,12 @@ export abstract class SessionState<
 
   /**
    * @internal A summary of `messages` for `host.transfer`, by the model of
-   * this harness, with the keys of `principal`. The usage of its model calls
+   * this harness, with the keys of `user`. The usage of its model calls
    * goes to the log of this thread at once, under the source `transfer` and
    * the label `summary`, so it counts also when the transfer fails later.
    */
   async transferSummary(
-    principal: Principal | undefined,
+    user: HarnessUser | undefined,
     messages: ReadonlyArray<ModelMessage>,
   ): Promise<string> {
     const named = this.threadSettings.model
@@ -499,10 +499,10 @@ export abstract class SessionState<
         `A transfer with messages: 'summary' needs a model: harness ${JSON.stringify(this.harness.name)} has no adapter.`,
       )
     }
-    // The call is part of no run. The run gives it the keys of `principal`
+    // The call is part of no run. The run gives it the keys of `user`
     // and the signal of the session, and `count` takes its usage.
     const run = this.runContext({
-      principal,
+      user,
       runId: 'transfer',
       signal: this.lifetime.signal,
     })
@@ -560,14 +560,14 @@ export abstract class SessionState<
   }
 
   /**
-   * Change a session setting. It applies at the next turn. `principal` is
-   * who changes it. Default: the principal that opened the session. The log
+   * Change a session setting. It applies at the next turn. `user` is
+   * who changes it. Default: the user that opened the session. The log
    * keeps it.
    */
   setConfig(options: {
     key: string
     value: unknown
-    principal?: Principal
+    user?: HarnessUser
   }): Promise<Receipt> {
     return this.applyConfig(options)
   }
@@ -580,17 +580,17 @@ export abstract class SessionState<
     key,
     value,
     controlId: inputId = createInputId(),
-    principal,
+    user,
   }: {
     key: string
     value: unknown
-    principal?: Principal
+    user?: HarnessUser
     controlId?: string
   }): Promise<Receipt> {
     const admission = await this.accept(
       inputId,
       { op: 'config', key, value },
-      principal,
+      user,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const entry = this.sessionPlugins?.config.get(key)
@@ -610,7 +610,7 @@ export abstract class SessionState<
         key,
         value: checked,
         inputId,
-        ...storedPrincipal(principal ?? this.principal),
+        ...storedUser(user ?? this.user),
       },
     ])
     this.feed.publish(
@@ -632,7 +632,7 @@ export abstract class SessionState<
    * cleared, and a missing field stays. They apply from the next turn, and
    * the turn's `overrides` win over them. The log keeps them.
    *
-   * It is an input, so the log keeps who changed what (`principal`). An
+   * It is an input, so the log keeps who changed what (`user`). An
    * unknown field, model, or plugin, or a bad value, is rejected.
    *
    * @example
@@ -643,15 +643,15 @@ export abstract class SessionState<
    * ```
    */
   async configure(
-    options: ConfigureOptions & { principal?: Principal },
+    options: ConfigureOptions & { user?: HarnessUser },
   ): Promise<Receipt> {
     const { settings } = options
     const inputId = options.inputId ?? createInputId()
-    const principal = options.principal ?? this.principal
+    const user = options.user ?? this.user
     const admission = await this.accept(
       inputId,
       { op: 'configure', settings },
-      principal,
+      user,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     // The store took the input, so this host owns the log, and its fold has
@@ -686,7 +686,7 @@ export abstract class SessionState<
         type: 'harness.settings',
         settings: next,
         inputId,
-        ...storedPrincipal(principal),
+        ...storedUser(user),
       },
     ])
     this.feed.publish(
@@ -866,9 +866,9 @@ export abstract class SessionState<
    * hidden messages for good. The revert state is saved, so it survives a
    * restart. Refused while the session is not idle, or another host runs
    * the thread (`'busy'`), and for a message that is not in the transcript
-   * (`'unknown_message'`). `principal` is who reverts. Default: the
-   * principal that opened the session. The `harness.revert` record keeps
-   * it. A handle of `host.open` checks that it is the principal of the
+   * (`'unknown_message'`). `user` is who reverts. Default: the
+   * user that opened the session. The `harness.revert` record keeps
+   * it. A handle of `host.open` checks that it is the user of the
    * handle.
    *
    * @example
@@ -878,10 +878,10 @@ export abstract class SessionState<
    */
   async revert({
     messageId,
-    principal,
+    user,
   }: {
     messageId: string
-    principal?: Principal
+    user?: HarnessUser
   }): Promise<Receipt> {
     const inputId = createInputId()
     if (!(await this.ownsIdleThread())) {
@@ -898,11 +898,11 @@ export abstract class SessionState<
       const files = await handler?.revert(
         messages.slice(at + 1),
         async (type) => this.keptRecords(type),
-        this.revertRun(principal ?? this.principal),
+        this.revertRun(user ?? this.user),
       )
       await this.saveRevert(
         { messageId, ...(files !== undefined ? { files } : {}) },
-        principal ?? this.principal,
+        user ?? this.user,
       )
       return { inputId, status: 'accepted' }
     })
@@ -930,7 +930,7 @@ export abstract class SessionState<
     if (reverted.files !== undefined) {
       await this.sessionPlugins?.values
         .get(RevertFiles)
-        ?.unrevert(reverted.files, this.revertRun(this.principal))
+        ?.unrevert(reverted.files, this.revertRun(this.user))
     }
     await this.saveRevert(undefined)
   }
@@ -940,9 +940,9 @@ export abstract class SessionState<
    * part of no turn, so a workspace that no turn opened on this host (after
    * a restart) opens again from the log.
    */
-  protected revertRun(principal: Principal | undefined) {
+  protected revertRun(user: HarnessUser | undefined) {
     return this.runContext({
-      principal,
+      user,
       runId: `revert:${this.threadId}`,
       signal: this.lifetime.signal,
     })
@@ -984,14 +984,14 @@ export abstract class SessionState<
   /** Keep the revert state in the log, with who reverted. */
   protected async saveRevert(
     revert: RevertState | undefined,
-    principal?: Principal,
+    user?: HarnessUser,
   ) {
     this.reverted = revert
     await this.writer.append([
       {
         type: 'harness.revert',
         revert: revert ?? null,
-        ...storedPrincipal(principal),
+        ...storedUser(user),
       },
     ])
     this.feed.publish(
@@ -1029,13 +1029,13 @@ export abstract class SessionState<
 
   /**
    * Answer an open wait: a question from `ctx.session.ask`, or a `human`
-   * wait, by its id. `principal` is who answers. Default: the principal that
+   * wait, by its id. `user` is who answers. Default: the user that
    * opened the session. The log keeps it.
    */
   answer(options: {
     questionId: string
     value: unknown
-    principal?: Principal
+    user?: HarnessUser
   }): Promise<Receipt> {
     return this.applyAnswer(options)
   }
@@ -1049,12 +1049,12 @@ export abstract class SessionState<
     questionId,
     value,
     controlId: inputId = createInputId(),
-    principal,
+    user,
     ref,
   }: {
     questionId: string
     value: unknown
-    principal?: Principal
+    user?: HarnessUser
     controlId?: string
     ref?: string
   }): Promise<Receipt> {
@@ -1067,13 +1067,13 @@ export abstract class SessionState<
     const isSecret = asked?.secret ?? (!logged || logged.secret === true)
     const isHidden = ref !== undefined || isSecret
     if (asked?.secret) this.redactor.add(value)
-    const sender = principal ?? this.principal
+    const sender = user ?? this.user
     let admission
     try {
       admission = await this.accept(
         inputId,
         { op: 'answer', questionId, value: isHidden ? SECRET_ANSWER : value },
-        principal,
+        user,
         isHidden && ref === undefined
           ? {
               offer: () =>
@@ -1255,11 +1255,11 @@ export abstract class SessionState<
    * of the user of the run. The session scrubs it from now on.
    */
   private async keepSecretAnswer(logged: WaitState, value: unknown) {
-    const { waitId, principal } = logged.wait
+    const { waitId, user } = logged.wait
     this.redactor.add(value)
     this.keptAnswers.set(waitId, value)
     await this.sharedCredentials?.set({
-      scope: scopeOf(this.threadId, principal),
+      scope: scopeOf(this.threadId, user),
       id: keptAnswerId(waitId),
       credential: secretAnswerCredential(value),
     })
@@ -1272,12 +1272,12 @@ export abstract class SessionState<
   protected async keptAnswer(
     logged: WaitState,
   ): Promise<{ value: unknown } | undefined> {
-    const { waitId, principal } = logged.wait
+    const { waitId, user } = logged.wait
     if (this.keptAnswers.has(waitId)) {
       return { value: this.keptAnswers.get(waitId) }
     }
     const saved = await this.sharedCredentials?.get({
-      scope: scopeOf(this.threadId, principal),
+      scope: scopeOf(this.threadId, user),
       id: keptAnswerId(waitId),
     })
     const answer = answerIn(saved)
@@ -1298,7 +1298,7 @@ export abstract class SessionState<
     for (const { wait } of ended) {
       this.keptAnswers.delete(wait.waitId)
       await this.sharedCredentials?.delete({
-        scope: scopeOf(this.threadId, wait.principal),
+        scope: scopeOf(this.threadId, wait.user),
         id: keptAnswerId(wait.waitId),
       })
     }
@@ -1320,7 +1320,7 @@ export abstract class SessionState<
     questionId: string
     value: unknown
     inputId: string
-    sender: Principal | undefined
+    sender: HarnessUser | undefined
   }): Promise<OfferedHarnessInput> {
     // The wait of another host: read what that host wrote first.
     if (!this.questions.has(questionId)) await this.writer.catchUp()
@@ -1361,7 +1361,7 @@ export abstract class SessionState<
   }: {
     ref: string
     questionId: string
-    sender: Principal | undefined
+    sender: HarnessUser | undefined
   }): Promise<{ value: unknown } | undefined> {
     const store = this.sharedCredentials
     if (!store || !ref.startsWith(`${SECRET_ANSWER_PREFIX}${questionId}:`)) {
@@ -1516,7 +1516,7 @@ export abstract class SessionState<
   async openWait({
     kind,
     runId,
-    principal,
+    user,
     schema,
     message,
     expiresAt,
@@ -1526,7 +1526,7 @@ export abstract class SessionState<
       waitId: createWaitId(),
       kind,
       runId,
-      ...(principal ? { principal } : {}),
+      ...(user ? { user } : {}),
       ...(schema !== undefined ? { schema } : {}),
       ...(expiry !== undefined ? { expiresAt: expiry } : {}),
       ...(message !== undefined ? { message } : {}),
@@ -1538,13 +1538,13 @@ export abstract class SessionState<
   /**
    * @internal Append a handoff record. A handoff to a person opens its
    * `human` wait in the same append: the wait of the run of the record, with
-   * the note as its message. `principal` started the run, so that user (or
+   * the note as its message. `user` started the run, so that user (or
    * the owner, or an operator) may answer. Resolves with the record as the
    * log keeps it.
    */
   protected async appendHandoff(
     record: HandoffRecord,
-    principal: RecordPrincipal | undefined,
+    user: RecordUser | undefined,
   ): Promise<HandoffRecord> {
     if (!isHumanTarget(record.to)) {
       await this.writer.append([{ type: 'harness.handoff', ...record }])
@@ -1554,7 +1554,7 @@ export abstract class SessionState<
       waitId: createWaitId(),
       kind: 'human',
       runId: record.runId,
-      ...(principal ? { principal } : {}),
+      ...(user ? { user } : {}),
       ...(record.note !== undefined ? { message: record.note } : {}),
     }
     const kept = { ...record, waitId: wait.waitId }
@@ -1771,7 +1771,7 @@ export abstract class SessionState<
       waitId: createWaitId(),
       kind: 'sign-in',
       runId: operationId,
-      ...storedPrincipal(this.principalOfRun(operationId)),
+      ...storedUser(this.userOfRun(operationId)),
       ...(expiresAt !== undefined ? { expiresAt } : {}),
       message: userCode
         ? `Sign in to ${connector} with the code ${userCode}.`
@@ -1829,10 +1829,10 @@ export abstract class SessionState<
       isOfferedInputRecord(record) &&
       record.input.op === 'answer' &&
       record.input.questionId === waitId
-        ? [record.principal]
+        ? [record.user]
         : [],
     )
-    const senders = [logged.wait.principal, this.owner, this.principal]
+    const senders = [logged.wait.user, this.owner, this.user]
     const scopes = new Map(
       [...senders, ...offered].map((sender) => {
         const scope = scopeOf(this.threadId, sender)
@@ -2011,10 +2011,10 @@ export abstract class SessionState<
             previous.handoff
               ? { handoff: previous.handoff }
               : {}),
-            ...storedPrincipal(
+            ...storedUser(
               previous !== undefined && previous.runId === runId
-                ? previous.principal
-                : savedInput?.principal,
+                ? previous.user
+                : savedInput?.user,
             ),
             ...(context !== undefined ? { context } : {}),
           }
@@ -2136,12 +2136,12 @@ export abstract class SessionState<
       ...(question.secret ? { secret: true } : {}),
       ...(question.url ? { url: question.url } : {}),
     }
-    const { principal } = run
+    const { user } = run
     const expiresAt = expiryOf('question', question.expiresAt)
     const wait = waitOfQuestion({
       question: pending,
       runId: operationId,
-      ...storedPrincipal(principal),
+      ...storedUser(user),
       ...(expiresAt !== undefined ? { expiresAt } : {}),
     })
     // The question is a live wait: it keeps the thread busy, so this host

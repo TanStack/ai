@@ -161,29 +161,29 @@ function readEvents(host: HarnessHost<User>) {
 }
 
 describe('host.transfer to a new thread', () => {
-  it('makes a thread of the target harness in the source tenant, with the principal as its only member', async () => {
+  it('makes a thread of the target harness in the source tenant, with the user as its only member', async () => {
     const { host, support, billing, billingCalls } = accessHost()
     const reader = readEvents(host)
     const source = await host.open(support, {
       threadId: SOURCE,
-      principal: olga,
+      user: olga,
     })
     await source.send('one')
     await host.sessions.share({
       threadId: SOURCE,
       userId: bea.id,
       role: 'member',
-      principal: olga,
+      user: olga,
     })
 
     const { transferId, threadId } = await host.transfer({
       from: { harness: support, threadId: SOURCE },
       to: { harness: billing },
       envelope: { note: NOTE },
-      principal: olga,
+      user: olga,
     })
 
-    const entry = await host.sessions.get({ threadId, principal: olga })
+    const entry = await host.sessions.get({ threadId, user: olga })
     expect(entry).toMatchObject({
       tenantId: 'acme',
       harness: 'test/billing',
@@ -197,7 +197,7 @@ describe('host.transfer to a new thread', () => {
     expect(entry?.parentThreadId).toBeUndefined()
     const sourceEntry = await host.sessions.get({
       threadId: SOURCE,
-      principal: olga,
+      user: olga,
     })
     expect(sourceEntry?.metadata).toMatchObject({
       'harness:transferredTo': [
@@ -205,11 +205,11 @@ describe('host.transfer to a new thread', () => {
       ],
     })
     // The target is a root thread: the list has it, and it opens alone.
-    const listed = await host.sessions.list({ principal: olga })
+    const listed = await host.sessions.list({ user: olga })
     expect(listed.entries.map((listedEntry) => listedEntry.threadId)).toContain(
       threadId,
     )
-    const target = await host.open(billing, { threadId, principal: olga })
+    const target = await host.open(billing, { threadId, user: olga })
     // `messages` defaults to 'none': the note alone.
     expect(contents(await target.transcript())).toEqual([
       `user:${JSON.stringify(NOTE)}`,
@@ -218,7 +218,7 @@ describe('host.transfer to a new thread', () => {
     expect(messageTexts(billingCalls[0])).toEqual([NOTE, 'Hi.'])
     // The members of the source do not come along.
     await expect(
-      host.open(billing, { threadId, principal: bea }),
+      host.open(billing, { threadId, user: bea }),
     ).rejects.toBeInstanceOf(AccessDeniedError)
     // The source goes on.
     await source.send('two')
@@ -231,7 +231,7 @@ describe('host.transfer to a new thread', () => {
         tenantId: 'acme',
         from: { harness: 'test/support', threadId: SOURCE },
         to: { harness: 'test/billing', threadId },
-        principalId: 'olga',
+        userId: 'olga',
         at: expect.any(Number),
       }),
     )
@@ -269,7 +269,7 @@ describe('host.transfer to a new thread', () => {
     })
     const source = await host.open(support, {
       threadId: SOURCE,
-      principal: olga,
+      user: olga,
     })
     await source.configure({
       settings: { model: 'main', instructions: 'Be brief.' },
@@ -293,10 +293,10 @@ describe('host.transfer to a new thread', () => {
       from: { harness: support, threadId: SOURCE },
       to: { harness: billing },
       envelope: { note: NOTE, messages: 'all' },
-      principal: olga,
+      user: olga,
     })
 
-    const target = await host.open(billing, { threadId, principal: olga })
+    const target = await host.open(billing, { threadId, user: olga })
     const transcript = await target.transcript()
     const sourceTranscript = await source.transcript()
     // The note, then the transcript up to the deploy call, which has no
@@ -357,7 +357,7 @@ describe('host.transfer to a new thread', () => {
     })
     const source = await host.open(support, {
       threadId: SOURCE,
-      principal: olga,
+      user: olga,
     })
     await source.send('I want my money back.')
 
@@ -365,10 +365,10 @@ describe('host.transfer to a new thread', () => {
       from: { harness: support, threadId: SOURCE },
       to: { harness: billing },
       envelope: { note: NOTE, messages: 'summary' },
-      principal: olga,
+      user: olga,
     })
 
-    const target = await host.open(billing, { threadId, principal: olga })
+    const target = await host.open(billing, { threadId, user: olga })
     expect(contents(await target.transcript())).toEqual([
       `user:${JSON.stringify(NOTE)}`,
       `assistant:${JSON.stringify('Summary of the conversation so far:\nThe user wants a refund.')}`,
@@ -404,14 +404,14 @@ describe('host.transfer retries', () => {
     const { host, log, support, billing } = accessHost()
     const source = await host.open(support, {
       threadId: SOURCE,
-      principal: olga,
+      user: olga,
     })
     await source.send('one')
     const options = {
       from: { harness: support, threadId: SOURCE },
       to: { harness: billing },
       envelope: { note: NOTE, messages: 'all' as const },
-      principal: olga,
+      user: olga,
       transferId: 'tr-1',
     }
 
@@ -420,11 +420,11 @@ describe('host.transfer retries', () => {
 
     expect(second).toEqual(first)
     expect(first.transferId).toBe('tr-1')
-    const listed = await host.sessions.list({ principal: olga })
+    const listed = await host.sessions.list({ user: olga })
     expect(listed.entries).toHaveLength(2)
     const target = await host.open(billing, {
       threadId: first.threadId,
-      principal: olga,
+      user: olga,
     })
     expect(contents(await target.transcript())).toEqual([
       `user:${JSON.stringify(NOTE)}`,
@@ -434,7 +434,7 @@ describe('host.transfer retries', () => {
       expect.objectContaining({
         transferId: 'tr-1',
         from: { harness: 'test/support', threadId: SOURCE },
-        principal: { id: 'olga', tenantId: 'acme' },
+        user: { id: 'olga', tenantId: 'acme' },
       }),
     ])
     expect(await transfersIn(log, SOURCE)).toEqual([
@@ -445,7 +445,7 @@ describe('host.transfer retries', () => {
     ])
     const entry = await host.sessions.get({
       threadId: first.threadId,
-      principal: olga,
+      user: olga,
     })
     expect(entry?.metadata?.['harness:transferredFrom']).toHaveLength(1)
     await host.close()
@@ -509,31 +509,29 @@ describe('host.transfer access', () => {
     const { host, support, billing } = accessHost()
     const source = await host.open(support, {
       threadId: SOURCE,
-      principal: olga,
+      user: olga,
     })
     await source.send('one')
     await host.sessions.share({
       threadId: SOURCE,
       userId: cid.id,
       role: 'member',
-      principal: olga,
+      user: olga,
     })
-    const transfer = (principal: User) =>
+    const transfer = (user: User) =>
       host.transfer({
         from: { harness: support, threadId: SOURCE },
         to: { harness: billing },
         envelope: { note: NOTE },
-        principal,
+        user,
       })
 
     for (const user of [gus, bea, cid]) {
       await expect(transfer(user)).rejects.toBeInstanceOf(AccessDeniedError)
     }
     // No target thread was made, in any tenant.
-    expect(
-      (await host.sessions.list({ principal: olga })).entries,
-    ).toHaveLength(1)
-    expect((await host.sessions.list({ principal: gus })).entries).toEqual([])
+    expect((await host.sessions.list({ user: olga })).entries).toHaveLength(1)
+    expect((await host.sessions.list({ user: gus })).entries).toEqual([])
     await host.close()
   })
 
@@ -560,27 +558,27 @@ describe('host.transfer access', () => {
     await host.close()
   })
 
-  it('refuses an existing target of another harness, or one the principal cannot send to, and keeps the members of a target it can', async () => {
+  it('refuses an existing target of another harness, or one the user cannot send to, and keeps the members of a target it can', async () => {
     const { host, support, billing } = accessHost()
     const source = await host.open(support, {
       threadId: SOURCE,
-      principal: olga,
+      user: olga,
     })
     await source.send('one')
-    await host.open(support, { threadId: 'other', principal: olga })
-    await host.open(billing, { threadId: 'bea-billing', principal: bea })
+    await host.open(support, { threadId: 'other', user: olga })
+    await host.open(billing, { threadId: 'bea-billing', user: bea })
     await host.sessions.share({
       threadId: 'bea-billing',
       userId: olga.id,
       role: 'viewer',
-      principal: bea,
+      user: bea,
     })
     const transfer = (threadId: string) =>
       host.transfer({
         from: { harness: support, threadId: SOURCE },
         to: { harness: billing, threadId },
         envelope: { note: NOTE },
-        principal: olga,
+        user: olga,
       })
 
     await expect(transfer('other')).rejects.toThrow(
@@ -593,12 +591,12 @@ describe('host.transfer access', () => {
       threadId: 'bea-billing',
       userId: olga.id,
       role: 'member',
-      principal: bea,
+      user: bea,
     })
     await transfer('bea-billing')
     const entry = await host.sessions.get({
       threadId: 'bea-billing',
-      principal: bea,
+      user: bea,
     })
     expect(entry?.members).toEqual([
       { userId: 'bea', role: 'owner' },

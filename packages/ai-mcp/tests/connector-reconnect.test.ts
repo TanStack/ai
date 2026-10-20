@@ -75,7 +75,7 @@ describe('mcpConnector connection events', () => {
           mcpConnector({ id: 'demo', label: 'Demo', url: 'http://mcp.test' }),
         ],
       }),
-      { threadId: 't', principal: { id: 'user-1' } },
+      { threadId: 't', user: { id: 'user-1' } },
     )
 
     await session.send('one')

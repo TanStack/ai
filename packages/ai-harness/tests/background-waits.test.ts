@@ -62,7 +62,7 @@ async function open<THarness extends AnyHarness>(
   const host = createHarnessHost({ persistence })
   const session = await host.open(harness, {
     threadId: THREAD,
-    principal: alice,
+    user: alice,
   })
   return { host, session }
 }
@@ -78,7 +78,7 @@ describe('a background agent run waits', () => {
       signal: AbortSignal.timeout(5_000),
     })
     expect(isApproval(wait)).toBe(true)
-    expect(wait).toMatchObject({ runId: run.id, principal: alice })
+    expect(wait).toMatchObject({ runId: run.id, user: alice })
     expect(session.snapshot().pendingWaits).toEqual([wait])
     expect(session.agentRuns()).toMatchObject([
       { operationId: run.id, status: 'waiting' },
@@ -295,7 +295,7 @@ function triaging() {
               id: 'github',
               credential: {
                 type: 'api_key',
-                value: `${command.principal?.id}-key`,
+                value: `${command.user?.id}-key`,
               },
             }),
         }),
@@ -317,7 +317,7 @@ describe('a background agent run waits for a sign-in', () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const session = await host.open(harness, {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
 
     const before = Date.now()
@@ -342,7 +342,7 @@ describe('a background agent run waits for a sign-in', () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const session = await host.open(harness, {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
     const run = session.agents.triager.start()
     const wait = await session.waitFor({ runId: run.id })
@@ -408,7 +408,7 @@ describe('a wait with expiresAt', () => {
         adapter: mockAdapter([]).adapter,
         agents: [reviewer],
       }),
-      { threadId: THREAD, principal: alice },
+      { threadId: THREAD, user: alice },
     )
     const run = session.agents.reviewer.start()
     run.then(
@@ -468,7 +468,7 @@ describe('a background agent run asks through permissions()', () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const session = await host.open(harness, {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
 
     const run = session.agents.deployer.start()

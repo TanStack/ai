@@ -322,18 +322,18 @@ Where each part of a plugin reads the run:
 - A tool or a middleware hook: `ctx.context.run`. Type it with `HarnessRunContext`, for example `.server<HarnessRunContext>(...)` or `ChatMiddleware<HarnessRunContext>`.
 - A command: `run` of the command context. Its `credentials` is the same as `run.credentials`.
 - A plugin with `lifetime: 'turn'`: `ctx.turn.run`. Its `ctx.credentials` and `ctx.keys` belong to the same user.
-- A session plugin (the default lifetime): `ctx.credentials` and `ctx.keys` have no user, so each call throws. `ctx.session.principal` is the owner of the session.
+- A session plugin (the default lifetime): `ctx.credentials` and `ctx.keys` have no user, so each call throws. `ctx.session.user` is the owner of the session.
 - A plugin with `lifetime: 'host'`: its setup has no user and no session. Its tools read the user of each call from `ctx.context.run`.
 
 `prepareTools` gets `run` too: the run of the turn, with its id and its user. `onTurnStart` gets the turn, with its run in `turn.run`.
 
-A plugin that starts a turn picks its user. `ctx.session.send(text, { principal })` and `ctx.session.note(text, { wake: true, principal })` run that turn as `principal`. Without it, the turn runs as `ctx.session.principal`. To continue the work of a run, pass the `principal` of that run.
+A plugin that starts a turn picks its user. `ctx.session.send(text, { user })` and `ctx.session.note(text, { wake: true, user })` run that turn as `user`. Without it, the turn runs as `ctx.session.user`. To continue the work of a run, pass the `user` of that run.
 
 The run has these fields:
 
 | Field | What it is |
 | --- | --- |
-| `principal` | The user who started the run: `{ id, tenantId }`. `undefined` in a session with no user. |
+| `user` | The user who started the run: `{ id, tenantId }`. `undefined` in a session with no user. |
 | `tenantId` | The tenant of the session. `undefined` in the default tenant. |
 | `threadId`, `runId`, `parentRunId` | The thread, this run, and the run that started this one. |
 | `logId` | The id of the log of the session tree in the store, with its tenant. |
@@ -408,7 +408,7 @@ The `turn` has these fields:
 | `inputId` | The id of the input, when the turn has one. |
 | `message` | The user message of the input. `undefined` for a resolve and a continue. |
 | `context` | The [context of the input](./inputs#send-context-with-a-message). It is client data, so do not trust it. |
-| `principal` | Who sent the input. Default: the principal that opened the session. See [Share a thread](./shared-threads). |
+| `user` | Who sent the input. Default: the user that opened the session. See [Share a thread](./shared-threads). |
 | `overrides` | The [overrides of the prompt](./turn-control#give-one-prompt-its-own-settings), when it has some. |
 | `run` | The run of the turn: its user, and that user's credentials and keys. See [Act as the user of a run](#act-as-the-user-of-a-run). |
 
@@ -436,7 +436,7 @@ export const modelOfTheOrg = definePlugin({
   name: 'acme/model-of-the-org',
   lifetime: 'turn',
   setup: async (ctx) => {
-    const plan = await planOf(ctx.turn?.principal?.tenantId)
+    const plan = await planOf(ctx.turn?.user?.tenantId)
     const adapter =
       plan === 'strong'
         ? anthropicText('claude-sonnet-5-5')

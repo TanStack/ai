@@ -285,7 +285,7 @@ describe('control inputs', () => {
     const handler = createHarnessHandler({
       host,
       harness,
-      openAccess: { principal: { id: 'u' } },
+      openAccess: { user: { id: 'u' } },
     })
     const bodies: Array<string> = []
     const client = createHarnessClient({

@@ -24,7 +24,7 @@ function runOf(runId: string) {
   return {
     runId,
     signal: new AbortController().signal,
-    principal: { id: 'user-1' },
+    user: { id: 'user-1' },
   } as unknown as RunContext
 }
 

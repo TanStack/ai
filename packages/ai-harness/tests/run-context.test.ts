@@ -55,7 +55,7 @@ function tokenReader() {
     inputSchema: z.object({}),
   }).server<HarnessRunContext>(async (_input, { context }) => {
     const credential = await context.run.credentials.get('github')
-    seen.push({ user: context.run.principal?.id, token: valueOf(credential) })
+    seen.push({ user: context.run.user?.id, token: valueOf(credential) })
     return {}
   })
   return { tool, seen }
@@ -77,7 +77,7 @@ async function open(options: {
   })
   const session = await host.open(harness, {
     threadId: THREAD,
-    principal: olga,
+    user: olga,
   })
   return { host, harness, session }
 }
@@ -116,7 +116,7 @@ describe('the run context of each run', () => {
             inputSchema: z.object({}),
           }).server<HarnessRunContext>((_input, { context }) => {
             started = ctx.agents.start(worker, undefined, {
-              principal: context.run.principal,
+              user: context.run.user,
             })
             return Promise.resolve({})
           }),
@@ -134,8 +134,8 @@ describe('the run context of each run', () => {
     ])
     const { host, session } = await open({ adapter, plugins: () => [starter] })
 
-    await session.send('Start the worker.', { principal: alice })
-    const bobTurn = session.send('Hi.', { principal: bob })
+    await session.send('Start the worker.', { user: alice })
+    const bobTurn = session.send('Hi.', { user: bob })
     expect(await started).toBe('agent done')
     agentFinished.open()
 
@@ -156,15 +156,15 @@ describe('the run context of each run', () => {
     ])
     const { host, session } = await open({ adapter, plugins: () => [tools] })
 
-    await session.send('Read it.', { principal: bob })
+    await session.send('Read it.', { user: bob })
 
     expect(reader.seen).toEqual([{ user: 'bob', token: 'bob-token' }])
     await host.close()
   })
 
-  it("throws for a session plugin's credentials and keys, and its session principal is the opener", async () => {
+  it("throws for a session plugin's credentials and keys, and its session user is the opener", async () => {
     const seen: Array<{
-      principal: string | undefined
+      user: string | undefined
       errors: Array<string>
     }> = []
     const errorOf = (error: unknown) =>
@@ -182,7 +182,7 @@ describe('the run context of each run', () => {
               ctx.credentials.get('github').then(() => 'read', errorOf),
               ctx.keys.require('acme').then(() => 'read', errorOf),
             ])
-            seen.push({ principal: ctx.session.principal?.id, errors })
+            seen.push({ user: ctx.session.user?.id, errors })
             return {}
           }),
         ],
@@ -194,15 +194,15 @@ describe('the run context of each run', () => {
     ])
     const { host, session } = await open({ adapter, plugins: () => [probe] })
 
-    await session.send('Probe.', { principal: bob })
+    await session.send('Probe.', { user: bob })
 
     expect(seen).toEqual([
-      { principal: 'olga', errors: [SESSION_CREDENTIALS, SESSION_KEYS] },
+      { user: 'olga', errors: [SESSION_CREDENTIALS, SESSION_KEYS] },
     ])
     await host.close()
   })
 
-  it('gives a session plugin the owner of the entry as its session principal, also when another user opens the session first', async () => {
+  it('gives a session plugin the owner of the entry as its session user, also when another user opens the session first', async () => {
     const seen: Array<string | undefined> = []
     const probe = definePlugin({
       name: 'test/owner-probe',
@@ -210,10 +210,10 @@ describe('the run context of each run', () => {
         tools: [
           toolDefinition({
             name: 'probe',
-            description: 'Read the session principal',
+            description: 'Read the session user',
             inputSchema: z.object({}),
           }).server(() => {
-            seen.push(ctx.session.principal?.id)
+            seen.push(ctx.session.user?.id)
             return {}
           }),
         ],
@@ -234,7 +234,7 @@ describe('the run context of each run', () => {
     // Bob opens the thread first on this host now. Olga still owns it.
     const reopened = await host.open(harness, {
       threadId: THREAD,
-      principal: bob,
+      user: bob,
     })
     await reopened.send('Probe.')
 
@@ -243,8 +243,7 @@ describe('the run context of each run', () => {
   })
 
   it("binds a turn plugin's credentials and session to the sender of its turn", async () => {
-    const seen: Array<{ principal: string | undefined; token: string | null }> =
-      []
+    const seen: Array<{ user: string | undefined; token: string | null }> = []
     const perTurn = definePlugin({
       name: 'test/per-turn',
       lifetime: 'turn',
@@ -257,7 +256,7 @@ describe('the run context of each run', () => {
           }).server(async () => {
             const credential = await ctx.credentials.get('github')
             seen.push({
-              principal: ctx.session.principal?.id,
+              user: ctx.session.user?.id,
               token: valueOf(credential),
             })
             return {}
@@ -273,12 +272,12 @@ describe('the run context of each run', () => {
     ])
     const { host, session } = await open({ adapter, plugins: () => [perTurn] })
 
-    await session.send('Read it.', { principal: bob })
-    await session.send('Read it.', { principal: alice })
+    await session.send('Read it.', { user: bob })
+    await session.send('Read it.', { user: alice })
 
     expect(seen).toEqual([
-      { principal: 'bob', token: 'bob-token' },
-      { principal: 'alice', token: 'alice-token' },
+      { user: 'bob', token: 'bob-token' },
+      { user: 'alice', token: 'alice-token' },
     ])
     await host.close()
   })
@@ -301,7 +300,7 @@ describe('the run context of each run', () => {
             async (_input, { context }) => {
               const credential = await context.run.credentials.get('github')
               seen.push({
-                user: context.run.principal,
+                user: context.run.user,
                 token: valueOf(credential),
                 screen: context.screen,
               })
@@ -327,9 +326,9 @@ describe('the run context of each run', () => {
         op: 'prompt',
         message: 'Peek.',
         inputId: 'in-1',
-        context: { screen: 'settings', run: { principal: { id: 'mallory' } } },
+        context: { screen: 'settings', run: { user: { id: 'mallory' } } },
       },
-      principal: bob,
+      user: bob,
     })
     expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
@@ -351,7 +350,7 @@ describe('the sender of each control input', () => {
       : undefined
   }
 
-  it('logs the principal that sent a cancel, an answer, a delivery change, a config change, and an agent run', async () => {
+  it('logs the user that sent a cancel, an answer, a delivery change, a config change, and an agent run', async () => {
     const log = memoryLogStore()
     const { metadata } = memoryPersistence().stores
     const host = createHarnessHost({
@@ -370,7 +369,7 @@ describe('the sender of each control input', () => {
     })
     const session = await host.open(harness, {
       threadId: THREAD,
-      principal: olga,
+      user: olga,
     })
     const inputs: Array<HarnessInput> = [
       { op: 'cancel' },
@@ -382,14 +381,14 @@ describe('the sender of each control input', () => {
     ]
 
     for (const input of inputs) {
-      await applyInput({ harness, session, input, principal: bob })
+      await applyInput({ harness, session, input, user: bob })
     }
     await session.whenIdle()
 
     const logged = (await log.read({ logId: LOG }))
       .map((entry) => entry.record)
       .filter((record) => record.type === 'harness.input')
-      .map((record) => [opOf(record), record['principal']])
+      .map((record) => [opOf(record), record['user']])
     expect(logged).toEqual([
       ['cancel', { id: 'bob' }],
       ['cancelInput', { id: 'bob' }],
@@ -424,7 +423,7 @@ describe('the tenant of a run', () => {
     })
     const session = await host.open(harness, {
       threadId: THREAD,
-      principal: { id: 'ada', tenantId: 'org-a' },
+      user: { id: 'ada', tenantId: 'org-a' },
     })
 
     await session.send('Read the run.')

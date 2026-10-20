@@ -151,11 +151,11 @@ interface SessionAccess {
   hooks?: () => ReadonlyArray<WorkspaceHooks>
   /**
    * Add a note to the transcript. With `wake`, the model acts on it, in a
-   * turn of `principal`.
+   * turn of `user`.
    */
   note?: (
     text: string,
-    options?: { wake?: boolean; principal?: RunContext['principal'] },
+    options?: { wake?: boolean; user?: RunContext['user'] },
   ) => Promise<void>
   signal?: AbortSignal
   jobs?: BackgroundJobsApi
@@ -547,8 +547,7 @@ function bindTools(
       timeoutMs: options.bashTimeoutMs,
       note:
         note &&
-        ((text, principal) =>
-          note(text, { wake: true, ...(principal ? { principal } : {}) })),
+        ((text, user) => note(text, { wake: true, ...(user ? { user } : {}) })),
       spillDir: options.spillDir,
       ...(session.scrub ? { scrub: session.scrub } : {}),
       signal: session.signal,

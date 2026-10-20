@@ -80,7 +80,7 @@ async function stopDuringAgent(options: {
     harness(mockAdapter([]).adapter, first.adapter),
     {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     },
   )
   const operation = sessionA.agent('worker')?.start(undefined, {
@@ -115,7 +115,7 @@ async function stopDuringAgent(options: {
   const hostB = createHarnessHost({ persistence })
   const sessionB = await hostB.open(harness(main.adapter, agentModel.adapter), {
     threadId: THREAD,
-    principal: alice,
+    user: alice,
   })
   return { sessionB, hostB, inputId, effects, agentModel, main, stores, log }
 }
@@ -345,7 +345,7 @@ describe('the middleware of a resumable agent run', () => {
         adapter: mockAdapter([]).adapter,
         agents: [worker],
       }),
-      { threadId: THREAD, principal: alice },
+      { threadId: THREAD, user: alice },
     )
 
     await session.agent('worker')?.start(undefined, { resume: true })

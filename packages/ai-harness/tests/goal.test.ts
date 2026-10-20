@@ -538,10 +538,10 @@ describe('goal with two users', () => {
       plugins: () => [goal({ judge })],
     })
     // Olga opens the thread first, so she owns it.
-    await host.open(harness, { threadId: 't', principal: { id: 'olga' } })
+    await host.open(harness, { threadId: 't', user: { id: 'olga' } })
     const bea = await host.open(harness, {
       threadId: 't',
-      principal: { id: 'bea' },
+      user: { id: 'bea' },
     })
 
     await bea.command({ name: 'goal', input: 'ship it' })
@@ -555,7 +555,7 @@ describe('goal with two users', () => {
     })
     const prompts = [...sessionOf(state, 't').inputs.values()]
       .filter((logged) => logged.input.op === 'prompt')
-      .map((logged) => logged.principal?.id)
+      .map((logged) => logged.user?.id)
     expect(prompts).toEqual(['bea', 'bea'])
     await host.close()
   })

@@ -10,7 +10,7 @@ import type {
   ChatTurnResult,
   HarnessRunContext,
   Operation,
-  Principal,
+  HarnessUser,
 } from '../types'
 
 /** The goal of a session. It is plugin state, so it survives restarts. */
@@ -137,9 +137,9 @@ export function goal(options: {
       const queue = (
         message: string,
         session = ctx.session,
-        principal?: Principal,
+        user?: HarnessUser,
       ) => {
-        queuedTurn = session.send(message, principal ? { principal } : {})
+        queuedTurn = session.send(message, user ? { user } : {})
       }
 
       /** Cancel the queued turn if it has not started. */
@@ -375,7 +375,7 @@ export function goal(options: {
               }
               const message = keepWorking(text, reason)
               if (await change(text, { reason, queued: message })) {
-                queue(message, ctx.session, run.context.run.principal)
+                queue(message, ctx.session, run.context.run.user)
               }
             },
           } satisfies ChatMiddleware<HarnessRunContext>,

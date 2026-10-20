@@ -233,7 +233,7 @@ async function connectedKey(host: HarnessHost, testId: string | undefined) {
     }),
     {
       threadId: 'e2e-keys',
-      principal: { id: 'ada' },
+      user: { id: 'ada' },
     },
   )
   const connecting = session.command({ name: 'connect:openai' })

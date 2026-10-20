@@ -210,11 +210,11 @@ export function bashTools(
     /** Stop the command after this many milliseconds. Default: 120,000. */
     timeoutMs?: number
     /**
-     * Tells the model that a background job ended. `principal` is the user
+     * Tells the model that a background job ended. `user` is the user
      * of the run that started the job: the turn of the note runs as that
      * user. Without it, no one is told.
      */
-    note?: (text: string, principal: RunContext['principal']) => Promise<void>
+    note?: (text: string, user: RunContext['user']) => Promise<void>
     /**
      * When the model gets only the end of the output, the full output is
      * saved in this folder, and the model gets the path. Relative to the
@@ -343,7 +343,7 @@ export function bashTools(
       try {
         if (note === undefined) return
         const result = await report(exitCode, job.output())
-        await note(`Background job ${jobId} ended.\n${result}`, run?.principal)
+        await note(`Background job ${jobId} ended.\n${result}`, run?.user)
       } finally {
         options.jobs?.ended({
           jobId,

@@ -12,7 +12,7 @@ import type {
 import { isHarnessDefinition } from './define'
 import type { AnyHarness } from './define'
 import type { HarnessHost } from './host'
-import type { Operation, Principal, UserInput } from './types'
+import type { Operation, HarnessUser, UserInput } from './types'
 
 export interface HarnessTextOptions {
   /** The host that runs the inner sessions. Default: a memory host. */
@@ -31,7 +31,7 @@ export interface HarnessTextOptions {
    * thread too, the inner session is checked through the outer thread, so
    * every user who can read the outer thread can use it.
    */
-  principal?: Principal
+  user?: HarnessUser
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -212,7 +212,7 @@ function addUsage(total: TokenUsage | undefined, next: TokenUsage) {
  * The user and the thread of the harness turn that makes this `chatStream`
  * call. A harness puts its run on the `context` of each chat() call, and the
  * engine gives the adapter its middleware context, with that `context`, as
- * `capabilities`. `undefined` outside a harness. The principal is
+ * `capabilities`. `undefined` outside a harness. The user is
  * `undefined` for a run with no user.
  */
 function outerRunOf(capabilities: unknown) {
@@ -223,13 +223,13 @@ function outerRunOf(capabilities: unknown) {
   if (!isRecord(run) || typeof run.threadId !== 'string') return undefined
   return {
     threadId: run.threadId,
-    principal: isPrincipal(run.principal) ? run.principal : undefined,
+    user: isUser(run.user) ? run.user : undefined,
   }
 }
 
-// ponytail: the harness sets `run.principal`. An id tells it apart. The
+// ponytail: the harness sets `run.user`. An id tells it apart. The
 // object passes on as is, with its `name` and the fields of a custom type.
-function isPrincipal(value: unknown): value is Principal {
+function isUser(value: unknown): value is HarnessUser {
   return isRecord(value) && typeof value.id === 'string'
 }
 
@@ -452,7 +452,7 @@ function remoteHarnessText(remote: RemoteHarness): AnyTextAdapter {
  * the outer run gets the token usage of the inner model calls.
  *
  * Inside a harness turn, the inner session opens as the user of that turn.
- * Else it opens as `options.principal`. The inner thread is
+ * Else it opens as `options.user`. The inner thread is
  * `<outer thread>/inner/<harness name>`. On a host with access that has the
  * outer thread too, the inner session is checked through the outer thread:
  * every user who can read the outer thread can use it. An abort of the call
@@ -502,11 +502,11 @@ export function harnessText(
         // The call releases its handle at the end. The session then closes
         // on idle, unless another handle holds it too. Inside a harness turn
         // it opens as the user of that turn, so each call has its own user.
-        const principal = outer?.principal ?? options.principal
+        const user = outer?.user ?? options.user
         const session = await host.open(
           harness,
           throughOuterThread(
-            { threadId, ...(principal ? { principal } : {}) },
+            { threadId, ...(user ? { user } : {}) },
             outerThread,
           ),
         )

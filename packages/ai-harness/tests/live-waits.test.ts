@@ -65,7 +65,7 @@ async function openWith(
       adapter: mockAdapter([]).adapter,
       plugins: () => [plugins],
     }),
-    { threadId: THREAD, principal: alice },
+    { threadId: THREAD, user: alice },
   )
   return { host, session, persistence }
 }
@@ -96,7 +96,7 @@ describe('the sign-in of a command is a live wait', () => {
     expect(wait).toMatchObject({
       kind: 'sign-in',
       runId: command.id,
-      principal: alice,
+      user: alice,
       message: 'Sign in to github with the code WXYZ.',
     })
     expect(wait?.expiresAt).toBeGreaterThanOrEqual(before + 600_000)
@@ -195,7 +195,7 @@ describe('an interrupt of a turn with expiresAt', () => {
         interrupts: [review],
         middleware: [asker],
       }),
-      { threadId: THREAD, principal: alice },
+      { threadId: THREAD, user: alice },
     )
 
     const turn = await session.send('Clean up.')
@@ -246,7 +246,7 @@ describe('an interrupt of a turn with expiresAt', () => {
         ]).adapter,
         tools: [listIssues],
       }),
-      { threadId: THREAD, principal: alice },
+      { threadId: THREAD, user: alice },
     )
     const before = Date.now()
     await session.send('List my issues.')
@@ -328,7 +328,7 @@ describe('a live wait of a tool call', () => {
     const host = createHarnessHost({ persistence })
     const session = await host.open(booking(), {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
     const run = session.agents.booker.start()
     const wait = await session.waitFor({
@@ -338,7 +338,7 @@ describe('a live wait of a tool call', () => {
     expect(wait).toMatchObject({
       kind: 'question',
       runId: run.id,
-      principal: alice,
+      user: alice,
       message: 'Which city?',
     })
 
@@ -359,7 +359,7 @@ describe('a live wait of a tool call', () => {
     const host = createHarnessHost({ persistence })
     const session = await host.open(booking(), {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
     const run = session.agents.booker.start()
     run.then(

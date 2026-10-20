@@ -1091,7 +1091,7 @@ describe('snapshots', () => {
           type: 'harness.job',
           jobId: 'call-1',
           ended: false,
-          principal: { id: 'u1' },
+          user: { id: 'u1' },
           at: 100,
           label: 'bash',
         },
@@ -1114,7 +1114,7 @@ describe('snapshots', () => {
       [
         'call-1',
         {
-          principal: { id: 'u1' },
+          user: { id: 'u1' },
           at: 100,
           backendId: 'p3',
           label: 'npm run dev',

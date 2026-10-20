@@ -57,7 +57,7 @@ export const server = await createHarnessMcpServer({
 serveMCPStdio(server)
 ```
 
-The host has no `access`, so the server needs `openAccess`. `true` opens each session with no user. `{ principal }` opens each session as that one user.
+The host has no `access`, so the server needs `openAccess`. `true` opens each session with no user. `{ user }` opens each session as that one user.
 
 For Claude Code, run this command one time:
 
@@ -288,7 +288,7 @@ claude mcp add --transport http assistant https://your-app.example.com/mcp --hea
 - `threadId`: the conversation of a tool call without a `threadId`. Default `main`.
 - `approvals`: `'ask'` (default) asks in the client, or returns the approvals when the client cannot ask. `'auto'` approves every tool call. Both answer approvals only.
 - `filePaths`: the folders that a `path` attachment can read from. The real path of the file, after every symlink, must be inside one of them. Default: none, so the server refuses every `path` attachment.
-- `openAccess`: for a host with no `access` only. `true` opens each session with no user, and `{ principal }` opens each session as that user.
+- `openAccess`: for a host with no `access` only. `true` opens each session with no user, and `{ user }` opens each session as that user.
 - `name` and `version`: the MCP server name and version. Default: the harness name and `1.0.0`.
 
 ## What you have now

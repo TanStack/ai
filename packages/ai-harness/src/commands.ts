@@ -7,7 +7,7 @@ import type { SessionEntryChange, SessionEntryUpdate } from './session-entry'
 import type {
   ChatTurnResult,
   Operation,
-  Principal,
+  HarnessUser,
   Receipt,
   RunContext,
   ThreadSettings,
@@ -60,23 +60,23 @@ export interface PluginSessionApi<TMetadata = Record<string, unknown>> {
   threadId: string
   /**
    * The user this API acts for. In a command: who runs the command. In a
-   * turn plugin: the sender of its turn. In a session plugin: the principal
+   * turn plugin: the sender of its turn. In a session plugin: the user
    * that opened the session, never the sender of a running turn. For the
-   * user of a tool call, read `ctx.context.run.principal`.
+   * user of a tool call, read `ctx.context.run.user`.
    */
-  principal: Principal | undefined
+  user: HarnessUser | undefined
   snapshot: () => SessionSnapshot
   /**
    * Start a chat turn, as if the user typed `text`. While a turn runs, the new
    * turn waits in the queue. Cancel the returned turn to drop it before it starts.
-   * The turn runs as `options.principal`: pass the user whose work it
-   * continues, for example `ctx.context.run.principal` of the run that
-   * started the work. Default: `principal` of this API. It never runs as
+   * The turn runs as `options.user`: pass the user whose work it
+   * continues, for example `ctx.context.run.user` of the run that
+   * started the work. Default: `user` of this API. It never runs as
    * the sender of another running turn.
    */
   send: (
     text: string,
-    options?: { principal?: Principal },
+    options?: { user?: HarnessUser },
   ) => Operation<ChatTurnResult>
   /**
    * Add `text` to the transcript as an assistant note, not as a user prompt.
@@ -84,11 +84,11 @@ export interface PluginSessionApi<TMetadata = Record<string, unknown>> {
    * the next turn starts. With `wake: true`, a new turn that sends `text` is
    * also queued, so the model can act on the note. Resolves when the note is
    * written or queued and the wake turn is queued, not when that turn ends.
-   * The wake turn runs as `options.principal`, as `send` does.
+   * The wake turn runs as `options.user`, as `send` does.
    */
   note: (
     text: string,
-    options?: { wake?: boolean; principal?: Principal },
+    options?: { wake?: boolean; user?: HarnessUser },
   ) => Promise<void>
   /** The saved transcript. */
   transcript: () => Promise<Array<ModelMessage>>
@@ -179,8 +179,8 @@ export interface CommandContext {
   signal: AbortSignal
   /** The session, for the user who runs the command: `session.prompt` runs as that user. */
   session: PluginSessionApi
-  /** Who runs the command. Default: the principal that opened the session. */
-  principal?: Principal
+  /** Who runs the command. Default: the user that opened the session. */
+  user?: HarnessUser
   /**
    * The credentials of the user who runs the command. Save a sign-in here,
    * so it belongs to that user. The same as `run.credentials`.

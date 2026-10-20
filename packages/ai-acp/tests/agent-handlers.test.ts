@@ -135,7 +135,7 @@ function model(): AnyTextAdapter {
   }
 }
 
-/** With `access`, the host checks each action of each principal. */
+/** With `access`, the host checks each action of each user. */
 function setup({
   access,
   lifecycle,
@@ -936,20 +936,20 @@ describe('ACP agent handlers', () => {
       policy: membersOnly(),
     }
 
-    it('throws at the start without a principal', () => {
+    it('throws at the start without a user', () => {
       const { harness, host } = setup({ access })
       close = () => host.close()
 
       expect(() => createAcpAgent({ host, harness })).toThrow(
-        'createAcpAgent needs a principal: the host has access. Pass the local user as principal.',
+        'createAcpAgent needs a user: the host has access. Pass the local user as the user option.',
       )
     })
 
-    it('opens and lists only the sessions of its principal', async () => {
+    it('opens and lists only the sessions of its user', async () => {
       const { harness, host, editor, idle, textOf } = setup({ access })
       close = () => host.close()
-      await host.open(harness, { threadId: 'bea-thread', principal: bea })
-      const agentApp = createAcpAgent({ host, harness, principal: olga })
+      await host.open(harness, { threadId: 'bea-thread', user: bea })
+      const agentApp = createAcpAgent({ host, harness, user: olga })
       await editor.connectWith(agentApp, async (ctx) => {
         await ctx.request('initialize', {
           protocolVersion: 2,
@@ -967,7 +967,7 @@ describe('ACP agent handlers', () => {
 
         expect(textOf(sessionId)).toBe('echo: hello')
         expect(
-          await host.sessions.get({ threadId: sessionId, principal: olga }),
+          await host.sessions.get({ threadId: sessionId, user: olga }),
         ).toMatchObject({ members: [{ userId: 'olga', role: 'owner' }] })
         const listed = await ctx.request('session/list', {})
         expect(listed.sessions.map((session) => session.sessionId)).toEqual([

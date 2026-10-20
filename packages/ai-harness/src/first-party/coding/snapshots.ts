@@ -504,7 +504,7 @@ export function snapshots(options: SnapshotsOptions) {
     keepRecords: { [STEP_RECORD]: MAX_STEPS },
     setup: async (ctx) => {
       const thread = {
-        tenantId: ctx.session.principal?.tenantId,
+        tenantId: ctx.session.user?.tenantId,
         threadId: ctx.session.threadId,
       }
       // `workspaceTools()` before this plugin gives it. With `workspace.bind`,

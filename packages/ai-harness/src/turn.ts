@@ -3,7 +3,7 @@ import type { LogRecord } from '@tanstack/ai-persistence'
 import type { SessionWithMetadata } from './define'
 import type {
   HarnessInput,
-  Principal,
+  HarnessUser,
   SettlementOutcome,
   TurnOverrides,
   UserInput,
@@ -121,12 +121,12 @@ export interface JoinCandidate {
    * Who sent the input. A joined input runs with the credentials of the
    * turn's sender, so refuse a join from another person when that matters.
    */
-  principal?: Principal
+  user?: HarnessUser
   /**
-   * Who sent the running turn. Compare it with `principal` to keep one
+   * Who sent the running turn. Compare it with `user` to keep one
    * person's message out of another person's turn.
    */
-  turnPrincipal?: Principal
+  turnUser?: HarnessUser
 }
 
 /** What `turn.onJoin` gets. */

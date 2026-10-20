@@ -22,7 +22,12 @@ import type { HarnessPlugin, PluginMetadataCheck, PluginModel } from './plugins'
 import type { HarnessSession } from './session/index'
 import type { MetadataOf } from './session-entry'
 import type { HarnessTurnOptions, RecoverHook } from './turn'
-import type { BusyPolicy, Principal, ThreadSettings, UserInput } from './types'
+import type {
+  BusyPolicy,
+  HarnessUser,
+  ThreadSettings,
+  UserInput,
+} from './types'
 
 /**
  * The `subagents` option: the same as `chat({ subagents })`, without
@@ -58,8 +63,8 @@ export interface HarnessRouterContext<TMetadataSchema = any> {
   operationId: string
   /** The id of the turn input, when the turn has one. */
   inputId?: string
-  /** Who sent the turn input. Default: the principal that opened the session. */
-  principal?: Principal
+  /** Who sent the turn input. Default: the user that opened the session. */
+  user?: HarnessUser
   /** The `context` of the turn input. Client data: do not trust it. */
   context?: unknown
   /** The main text adapter of the turn, with the user's keys bound. */

@@ -22,14 +22,14 @@ export interface UsageCounts {
  * The usage of a thread: every model call of its turns, their subagents, its
  * agent runs, the model calls of plugins (`ctx.model.chat`), of the router,
  * and of a transfer summary. `bySender` has the calls of a known sender
- * only, keyed by the principal id, and `bySource` has only the calls that
+ * only, keyed by the user id, and `bySource` has only the calls that
  * have a source, so their sums can be less than `total`.
  */
 export interface SessionUsage {
   total: UsageCounts
   /** By `provider/model`, for example `anthropic/claude-sonnet-5-5`. */
   byModel: Record<string, UsageCounts>
-  /** By principal id. */
+  /** By user id. */
   bySender: Record<string, UsageCounts>
   /**
    * By the source of a call: `plugin:<name>` (for example
@@ -42,7 +42,7 @@ export interface SessionUsage {
 /** One model call, as the log keeps it. A type, so it is a log record field set. */
 export type UsageCall = {
   model: string
-  principal?: { id: string; tenantId?: string }
+  user?: { id: string; tenantId?: string }
   /**
    * The run that made the call: a turn, or an agent run. Its usage also
    * counts for each run above it in the run tree.
@@ -100,7 +100,7 @@ export function addCounts(counts: UsageCounts, usage: UsageCall['usage']) {
 
 /**
  * The counts under `key`, added when missing. An own property, so a key like
- * `__proto__` (a principal id) never reaches the prototype.
+ * `__proto__` (a user id) never reaches the prototype.
  */
 function countsOf(map: Record<string, UsageCounts>, key: string) {
   if (!Object.hasOwn(map, key)) {
@@ -118,8 +118,8 @@ function countsOf(map: Record<string, UsageCounts>, key: string) {
 export function addUsage(totals: SessionUsage, call: UsageCall) {
   addCounts(totals.total, call.usage)
   addCounts(countsOf(totals.byModel, call.model), call.usage)
-  if (call.principal) {
-    addCounts(countsOf(totals.bySender, call.principal.id), call.usage)
+  if (call.user) {
+    addCounts(countsOf(totals.bySender, call.user.id), call.usage)
   }
   if (call.source !== undefined) {
     addCounts(countsOf(totals.bySource, call.source), call.usage)

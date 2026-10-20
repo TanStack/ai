@@ -7,7 +7,7 @@ import {
   createInputId,
   customEvent,
   errorText,
-  storedPrincipal,
+  storedUser,
   inputKey,
   isOfferedInputRecord,
   loggedExtras,
@@ -30,7 +30,7 @@ import type {
   HarnessInput,
   OfferedHarnessInput,
   InputSettlement,
-  Principal,
+  HarnessUser,
   Receipt,
   SessionEvent,
   UserInput,
@@ -152,15 +152,15 @@ export abstract class SessionInputs<
         // The interrupt of a background agent run: the log keeps its wait.
         const first = input.resume[0]
         const wait = first && this.loggedWait(first.interruptId)?.wait
-        if (wait) return { runId: wait.runId, ...idOf(wait.principal) }
+        if (wait) return { runId: wait.runId, ...idOf(wait.user) }
         const stopped = this.interrupted
         if (!stopped) return undefined
-        return { runId: stopped.runId, ...idOf(stopped.principal) }
+        return { runId: stopped.runId, ...idOf(stopped.user) }
       }
       case 'answer': {
         // The log keeps the wait with its run, so any host knows it.
         const wait = this.loggedWait(input.questionId)?.wait
-        if (wait) return { runId: wait.runId, ...idOf(wait.principal) }
+        if (wait) return { runId: wait.runId, ...idOf(wait.user) }
         const operationId = this.questions.get(input.questionId)?.operationId
         return operationId === undefined
           ? undefined
@@ -232,31 +232,31 @@ export abstract class SessionInputs<
 
   /** The operation `operationId`, with the id of who started it when known. */
   protected startedBy(operationId: string): AccessRun {
-    return { runId: operationId, ...idOf(this.principalOfRun(operationId)) }
+    return { runId: operationId, ...idOf(this.userOfRun(operationId)) }
   }
 
   /** Who started the operation `operationId`, when the session knows. */
-  protected principalOfRun(operationId: string) {
+  protected userOfRun(operationId: string) {
     const chain = this.chainOf.get(operationId)
     const agentRun = [...(chain?.runs ?? []), ...(chain?.followUps ?? [])].find(
       (run) => run.operation.id === operationId,
     )
     const inputId = this.operationInputs.get(operationId)
-    if (this.activeTurn?.id === operationId) return this.turnPrincipal
-    if (agentRun) return agentRun.principal
+    if (this.activeTurn?.id === operationId) return this.turnUser
+    if (agentRun) return agentRun.user
     if (inputId !== undefined) return this.senderOf(inputId)
     // A command: the log has the input that it runs.
     return [...(this.logWriter?.state.inputs.values() ?? [])].find(
       (input) => input.operationId === operationId,
-    )?.principal
+    )?.user
   }
 
   /** Who sent the input `inputId`: from the log, or from what waits. */
   protected senderOf(inputId: string) {
     return (
-      this.writer.state.inputs.get(inputId)?.principal ??
-      this.steerQueue.find((steer) => steer.inputId === inputId)?.principal ??
-      this.queue.find((turn) => turn.inputId === inputId)?.principal
+      this.writer.state.inputs.get(inputId)?.user ??
+      this.steerQueue.find((steer) => steer.inputId === inputId)?.user ??
+      this.queue.find((turn) => turn.inputId === inputId)?.user
     )
   }
 
@@ -273,7 +273,7 @@ export abstract class SessionInputs<
    * With `inputId`, the append is an input, as a `send` is: a second append
    * with the same id is a duplicate and writes nothing, so a client can
    * send it again after a lost answer. Without it, the append gets a new
-   * input id. `principal` is who appends. Default: the principal that
+   * input id. `user` is who appends. Default: the user that
    * opened the session. The receipt has the input id, as the log keeps it.
    *
    * @example
@@ -286,17 +286,17 @@ export abstract class SessionInputs<
   async append({
     records,
     inputId = createInputId(),
-    principal,
+    user,
   }: {
     records: ReadonlyArray<LogRecord>
     inputId?: string
-    principal?: Principal
+    user?: HarnessUser
   }): Promise<Receipt> {
     checkHostRecords(records)
     const admission = await this.accept(
       inputId,
       { op: 'append', records: [...records] },
-      principal ?? this.principal,
+      user ?? this.user,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     // In the append of the applied record: a crash keeps both or neither.
@@ -316,9 +316,9 @@ export abstract class SessionInputs<
    * wakes an idle session. Without `toolCallId`, it moves every running
    * call that supports it, such as `bash` and the agent tools.
    * With no such call, the receipt is rejected with `not_running`.
-   * `principal` is who moves it. Default: the principal that opened the
+   * `user` is who moves it. Default: the user that opened the
    * session. The `harness.job` record of each moved call keeps it. A handle
-   * of `host.open` checks that it is the principal of the handle. The move
+   * of `host.open` checks that it is the user of the handle. The move
    * stores no input.
    *
    * @example
@@ -329,10 +329,10 @@ export abstract class SessionInputs<
    */
   async background({
     toolCallId,
-    principal,
+    user,
   }: {
     toolCallId?: string
-    principal?: Principal
+    user?: HarnessUser
   } = {}): Promise<Receipt> {
     const inputId = createInputId()
     const ids =
@@ -342,7 +342,7 @@ export abstract class SessionInputs<
       return { inputId, status: 'rejected', reason: 'not_running' }
     }
     for (const id of ids) this.detachable.delete(id)
-    for (const move of moves) move(principal ?? this.principal)
+    for (const move of moves) move(user ?? this.user)
     return { inputId, status: 'accepted' }
   }
 
@@ -550,7 +550,7 @@ export abstract class SessionInputs<
       operation: turn.operation,
       overrides: turn.overrides,
       ephemeral: turn.ephemeral,
-      principal: turn.principal,
+      user: turn.user,
       context: turn.context,
       ...(turn.wake ? { wake: true } : {}),
     }
@@ -606,7 +606,7 @@ export abstract class SessionInputs<
   /**
    * Store an input, unless its id is known. The check before the first
    * `await` is synchronous, so a second call with the same id in the same
-   * tick is a duplicate too. `principal` is who sent it. The access check of
+   * tick is a duplicate too. `user` is who sent it. The access check of
    * a `checked` call runs first: a refused input is not stored, and the
    * error rejects this call. The `turn` record goes in the append of the
    * input, so a crash keeps both or neither.
@@ -618,14 +618,14 @@ export abstract class SessionInputs<
   protected async accept(
     inputId: string,
     input: HarnessInput,
-    principal = this.principal,
+    user = this.user,
     options: AcceptOptions = {},
   ): Promise<Admission> {
     // Before the first `await`, as the check: only this call takes it.
     const offer = this.applying?.inputId === inputId ? this.applying : undefined
     if (offer) this.applying = undefined
     try {
-      return await this.admit({ inputId, input, principal, options, offer })
+      return await this.admit({ inputId, input, user, options, offer })
     } finally {
       offer?.stored()
     }
@@ -634,13 +634,13 @@ export abstract class SessionInputs<
   private async admit({
     inputId,
     input,
-    principal,
+    user,
     options,
     offer,
   }: {
     inputId: string
     input: HarnessInput
-    principal: Principal | undefined
+    user: HarnessUser | undefined
     options: AcceptOptions
     offer: ApplyingOffer | undefined
   }): Promise<Admission> {
@@ -650,15 +650,12 @@ export abstract class SessionInputs<
       const wait = this.waitOf(input)
       await check({ input, run: this.runOf(input), ...(wait ? { wait } : {}) })
     }
-    const sender = storedPrincipal(principal)
+    const sender = storedUser(user)
     const traced =
       options.traceparent === undefined
         ? {}
         : { traceparent: options.traceparent }
-    const known = this.knownAdmission(
-      inputId,
-      inputKey(input, sender.principal),
-    )
+    const known = this.knownAdmission(inputId, inputKey(input, sender.user))
     const consumes = offer ? [inputId] : []
     if (known) {
       // The input ran before: its offer goes, and it does not run again.
@@ -670,7 +667,7 @@ export abstract class SessionInputs<
     // A closing session runs no new work. Nothing is stored. An offer stays
     // for the next owner.
     if (this.closing && WORK_OPS.has(input.op)) return 'closed'
-    this.admitted.set(inputId, inputKey(input, sender.principal))
+    this.admitted.set(inputId, inputKey(input, sender.user))
     try {
       const records = [
         ...(options.turn ? turnRecords(inputId, options.turn) : []),
@@ -697,7 +694,7 @@ export abstract class SessionInputs<
       // Another host owns the log. An offer stays for it. Else the input
       // goes to it.
       if (offer) return 'offered'
-      return await this.offerInput({ inputId, input, principal, options })
+      return await this.offerInput({ inputId, input, user, options })
     }
     // An input with no work to run (a cancel, a setting) ends once stored.
     if (!WORK_OPS.has(input.op)) this.inputRecords.end(inputId)
@@ -718,7 +715,7 @@ export abstract class SessionInputs<
     const logged = this.writer.state.inputs.get(inputId)
     const known =
       this.admitted.get(inputId) ??
-      (logged ? inputKey(logged.input, logged.principal) : undefined)
+      (logged ? inputKey(logged.input, logged.user) : undefined)
     if (known === undefined) return undefined
     const { scrub } = this.redactor
     return scrub(known) === scrub(payload) ? 'duplicate' : 'conflict'
@@ -731,19 +728,19 @@ export abstract class SessionInputs<
   private async offerInput({
     inputId,
     input,
-    principal,
+    user,
     options,
   }: {
     inputId: string
     input: HarnessInput
-    principal: Principal | undefined
+    user: HarnessUser | undefined
     options: AcceptOptions
   }): Promise<Admission> {
     const { offer, ...extras } = options
     const record = offeredInputRecord({
       inputId,
       input: offer ? await offer() : input,
-      principal,
+      user,
       ...extras,
     })
     const offered = await this.writer.offer(inputId, record)
@@ -850,7 +847,7 @@ export abstract class SessionInputs<
       }
       // A prompt with a known id ends before `accept`. One with another
       // payload is refused, so the host that offered it stops waiting.
-      const payload = inputKey(record.input, record.principal)
+      const payload = inputKey(record.input, record.user)
       if (this.knownAdmission(inputId, payload) === 'conflict') {
         await this.refuseOffer(inputId)
         return
@@ -881,8 +878,8 @@ export abstract class SessionInputs<
    */
   private applyOffered(record: OfferedInputRecord): void {
     const session = this.self()
-    const { input, inputId, principal } = record
-    const user = principal ? { principal } : {}
+    const { input, inputId, user } = record
+    const asUser = user ? { user } : {}
     const run = record.runId !== undefined ? { runId: record.runId } : {}
     const turn = record.overrides ? loggedExtras(record.overrides) : {}
     const traced =
@@ -891,7 +888,7 @@ export abstract class SessionInputs<
         : {}
     const sent = {
       inputId,
-      ...user,
+      ...asUser,
       ...('context' in input && input.context !== undefined
         ? { context: input.context }
         : {}),
@@ -960,7 +957,7 @@ export abstract class SessionInputs<
       case 'agent':
         ignore(
           this.runAgent(input.agent, input.input, {
-            ...user,
+            ...asUser,
             ...(input.detached ? { wake: true } : {}),
             ...(input.resume ? { resume: true } : {}),
             ...(input.attach ? { attach: input.attach } : {}),
@@ -970,7 +967,11 @@ export abstract class SessionInputs<
         return
       case 'cancel':
         ignore(
-          session.cancel({ operationId: input.operationId, inputId, ...user }),
+          session.cancel({
+            operationId: input.operationId,
+            inputId,
+            ...asUser,
+          }),
         )
         return
       case 'cancelInput':
@@ -978,7 +979,7 @@ export abstract class SessionInputs<
           this.applyCancelInput({
             inputId: input.inputId,
             controlId: inputId,
-            ...user,
+            ...asUser,
           }),
         )
         return
@@ -988,7 +989,7 @@ export abstract class SessionInputs<
             inputId: input.inputId,
             delivery: input.delivery,
             controlId: inputId,
-            ...user,
+            ...asUser,
           }),
         )
         return
@@ -998,7 +999,7 @@ export abstract class SessionInputs<
             name: input.name,
             input: input.input,
             inputId,
-            ...user,
+            ...asUser,
           }),
         )
         return
@@ -1009,7 +1010,7 @@ export abstract class SessionInputs<
             value: input.value,
             ...(input.ref !== undefined ? { ref: input.ref } : {}),
             controlId: inputId,
-            ...user,
+            ...asUser,
           }),
         )
         return
@@ -1019,7 +1020,7 @@ export abstract class SessionInputs<
             key: input.key,
             value: input.value,
             controlId: inputId,
-            ...user,
+            ...asUser,
           }),
         )
         return
@@ -1030,14 +1031,14 @@ export abstract class SessionInputs<
             // Wire args are unknown here. The tool's input schema checks them.
             args: input.args as never,
             inputId,
-            ...user,
+            ...asUser,
             ...(input.meta ? { meta: input.meta } : {}),
           }),
         )
         return
       case 'append':
         // Only an append with an input id is an input that a host offers.
-        ignore(session.append({ records: input.records, inputId, ...user }))
+        ignore(session.append({ records: input.records, inputId, ...asUser }))
         return
       case 'revert':
       case 'unrevert':
@@ -1410,9 +1411,9 @@ export abstract class SessionInputs<
   }
 }
 
-/** The `principalId` field of an {@link AccessRun}, when the run has a user. */
-const idOf = (principal: { id: string } | undefined) =>
-  principal ? { principalId: principal.id } : {}
+/** The `userId` field of an {@link AccessRun}, when the run has a user. */
+const idOf = (user: { id: string } | undefined) =>
+  user ? { userId: user.id } : {}
 
 /** The reason of a rejected input record. A rejected record always has one. */
 function rejectedReason(logged: InputState): string {

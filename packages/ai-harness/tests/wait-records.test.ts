@@ -362,8 +362,7 @@ describe('a human wait', () => {
       access: { identify: (): User | null => null, policy: membersOnly() },
     })
     const harness = harnessWith()
-    const open = (principal: User) =>
-      host.open(harness, { threadId: THREAD, principal })
+    const open = (user: User) => host.open(harness, { threadId: THREAD, user })
     const owner = await open(olga)
     for (const [userId, role] of [
       ['bea', 'member'],
@@ -374,7 +373,7 @@ describe('a human wait', () => {
         threadId: THREAD,
         userId,
         role,
-        principal: olga,
+        user: olga,
       })
     }
     return { host, persistence, log: persistence.stores.log, owner, open }
@@ -389,7 +388,7 @@ describe('a human wait', () => {
     const wait = await openWait(owner, {
       kind: 'human',
       runId: 'run-1',
-      principal: olga,
+      user: olga,
       message: 'A person takes over.',
     })
     expect(owner.snapshot().pendingWaits).toEqual([wait])
@@ -410,7 +409,7 @@ describe('a human wait', () => {
     const wait = await openWait(owner, {
       kind: 'human',
       runId: 'run-1',
-      principal: olga,
+      user: olga,
     })
     const operator = await open(oto)
     const answer = { questionId: wait.waitId, value: { resume: true } }
@@ -449,18 +448,18 @@ describe('a human wait', () => {
     const wait = await openWait(owner, {
       kind: 'human',
       runId: 'run-1',
-      principal: olga,
+      user: olga,
     })
     // Another host that does not own the log.
     const submitter = createHarnessHost({
       persistence,
       access: { identify: (): User | null => null, policy: membersOnly() },
     })
-    const submit = (principal: User) =>
+    const submit = (user: User) =>
       submitter.submit({
         harness: harnessWith(),
         threadId: THREAD,
-        principal,
+        user,
         input: {
           op: 'answer',
           questionId: wait.waitId,
@@ -483,7 +482,7 @@ describe('a human wait', () => {
     const wait = await openWait(owner, {
       kind: 'question',
       runId: 'run-1',
-      principal: olga,
+      user: olga,
     })
     const member = await open(bea)
     await expect(

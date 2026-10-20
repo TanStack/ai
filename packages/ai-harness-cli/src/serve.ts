@@ -6,15 +6,15 @@ import { createHarnessHandler } from '@tanstack/ai-harness/server'
 import { loadOptional } from './optional'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web'
-import type { AnyHarness, HarnessHost, Principal } from '@tanstack/ai-harness'
+import type { AnyHarness, HarnessHost, HarnessUser } from '@tanstack/ai-harness'
 import type { McpHarnessModule } from './optional'
 
-export interface ServeOptions<P extends Principal = Principal> {
+export interface ServeOptions<U extends HarnessUser = HarnessUser> {
   /**
    * The host. With `access`, `access.identify` reads the user of each
    * request that has the token.
    */
-  host: HarnessHost<P>
+  host: HarnessHost<U>
   harness: AnyHarness
   port: number
   hostname: string
@@ -37,17 +37,17 @@ export interface ServeOptions<P extends Principal = Principal> {
   approvals?: 'ask' | 'auto'
   /**
    * On a host without access: who a request with the token is. Without it,
-   * each request runs with no principal (one user).
+   * each request runs with no user (one user).
    */
-  principal?: P
+  user?: U
 }
 
 /**
  * The MCP server for `/mcp`, or `undefined` without `@tanstack/ai-mcp`. It
  * runs each call as the same user as the session protocol routes.
  */
-async function mcpServer<P extends Principal>(
-  options: ServeOptions<P>,
+async function mcpServer<U extends HarnessUser>(
+  options: ServeOptions<U>,
   withAccess: boolean,
 ) {
   const mcp = await loadOptional<McpHarnessModule>(
@@ -55,7 +55,7 @@ async function mcpServer<P extends Principal>(
     'createHarnessMcpServer',
   )
   if (mcp === undefined) return undefined
-  const { host, harness, principal } = options
+  const { host, harness, user } = options
   const shared = {
     host,
     harness,
@@ -66,7 +66,7 @@ async function mcpServer<P extends Principal>(
   if (withAccess) return mcp.createHarnessMcpServer(shared)
   return mcp.createHarnessMcpServer({
     ...shared,
-    openAccess: principal ? { principal } : true,
+    openAccess: user ? { user } : true,
   })
 }
 
@@ -133,12 +133,12 @@ async function send(res: ServerResponse, response: Response): Promise<void> {
  * harness as an MCP server. Every request needs the bearer token, except a
  * signed media URL. Then on a host with access, `identify` reads the user of
  * the request, and the host checks each action. Without access, each
- * request runs as `principal`.
+ * request runs as `user`.
  */
-export async function serve<P extends Principal = Principal>(
-  options: ServeOptions<P>,
+export async function serve<U extends HarnessUser = HarnessUser>(
+  options: ServeOptions<U>,
 ): Promise<{ url: string; close: () => Promise<void> }> {
-  const { host, harness, principal } = options
+  const { host, harness, user } = options
   const isAllowed = (request: Request) =>
     sameToken(request.headers.get('authorization'), options.token)
   const withAccess = host.hasAccess
@@ -153,8 +153,8 @@ export async function serve<P extends Principal = Principal>(
     : createHarnessHandler({
         host,
         harness,
-        // One principal holds the token, so it can use every thread.
-        openAccess: principal ? { principal } : true,
+        // One user holds the token, so it can use every thread.
+        openAccess: user ? { user } : true,
         ...media,
       })
   const mcp = await mcpServer(options, withAccess)

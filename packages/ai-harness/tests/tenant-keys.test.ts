@@ -99,11 +99,11 @@ describe('one thread id in two tenants', () => {
     const { persistence } = durableHost()
     const { harness } = harnessWith()
     const host = createHarnessHost({ persistence })
-    const a = await host.open(harness, { threadId: THREAD, principal: acme })
+    const a = await host.open(harness, { threadId: THREAD, user: acme })
     await a.configure({ settings: { instructions: 'Answer as acme.' } })
     await a.setConfig({ key: 'tone', value: 'warm' })
 
-    const b = await host.open(harness, { threadId: THREAD, principal: globex })
+    const b = await host.open(harness, { threadId: THREAD, user: globex })
     expect(b.settings()).toEqual({})
     expect(b.config().tone?.value).toBe('plain')
     await host.close()
@@ -112,7 +112,7 @@ describe('one thread id in two tenants', () => {
     const again = createHarnessHost({ persistence })
     const reopened = await again.open(harness, {
       threadId: THREAD,
-      principal: acme,
+      user: acme,
     })
     expect(reopened.settings()).toEqual({ instructions: 'Answer as acme.' })
     expect(reopened.config().tone?.value).toBe('warm')
@@ -123,10 +123,10 @@ describe('one thread id in two tenants', () => {
     const { persistence } = durableHost()
     const { harness } = harnessWith()
     const host = createHarnessHost({ persistence })
-    const a = await host.open(harness, { threadId: THREAD, principal: acme })
+    const a = await host.open(harness, { threadId: THREAD, user: acme })
     expect(await a.command({ name: 'bump' })).toBe(1)
 
-    const b = await host.open(harness, { threadId: THREAD, principal: globex })
+    const b = await host.open(harness, { threadId: THREAD, user: globex })
     expect(b.snapshot().plugins).toEqual({ 'test/counter': { count: 0 } })
     expect(await b.command({ name: 'bump' })).toBe(1)
     expect(await a.command({ name: 'bump' })).toBe(2)
@@ -137,10 +137,10 @@ describe('one thread id in two tenants', () => {
     const { persistence } = durableHost()
     const { harness } = harnessWith([() => text('Hello, acme.')])
     const host = createHarnessHost({ persistence })
-    const a = await host.open(harness, { threadId: THREAD, principal: acme })
+    const a = await host.open(harness, { threadId: THREAD, user: acme })
     expect((await a.send('Hi.')).text).toBe('Hello, acme.')
 
-    const b = await host.open(harness, { threadId: THREAD, principal: globex })
+    const b = await host.open(harness, { threadId: THREAD, user: globex })
     expect(await b.transcript()).toEqual([])
     expect(contents(await a.transcript())).toEqual([
       { role: 'user', content: 'Hi.' },
@@ -153,10 +153,10 @@ describe('one thread id in two tenants', () => {
     const { persistence } = durableHost()
     const { harness } = harnessWith([() => toolCall('deploy', { env: 'prod' })])
     const host = createHarnessHost({ persistence })
-    const a = await host.open(harness, { threadId: THREAD, principal: acme })
+    const a = await host.open(harness, { threadId: THREAD, user: acme })
     expect((await a.send('Deploy.')).interrupts).toHaveLength(1)
 
-    const b = await host.open(harness, { threadId: THREAD, principal: globex })
+    const b = await host.open(harness, { threadId: THREAD, user: globex })
     expect(turnInterrupts(b.snapshot())).toEqual([])
     await host.close()
 
@@ -164,7 +164,7 @@ describe('one thread id in two tenants', () => {
     const again = createHarnessHost({ persistence })
     const reopened = await again.open(harness, {
       threadId: THREAD,
-      principal: acme,
+      user: acme,
     })
     expect(turnInterrupts(reopened.snapshot())).toHaveLength(1)
     await again.close()
@@ -189,7 +189,7 @@ describe('one thread id in two tenants', () => {
     ])
     await waitFor(() => expect(calls).toHaveLength(1))
     await waitFor(async () => {
-      const a = await host.open(harness, { threadId: THREAD, principal: acme })
+      const a = await host.open(harness, { threadId: THREAD, user: acme })
       expect(contents(await a.transcript())).toEqual([
         { role: 'user', content: 'go' },
         { role: 'assistant', content: 'Ran.' },

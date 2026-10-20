@@ -41,7 +41,7 @@ export interface Wait {
   /** The run that waits. */
   runId: string
   /** Who started the run. That user (or the owner of the session) may answer. */
-  principal?: { id: string; tenantId?: string }
+  user?: { id: string; tenantId?: string }
   /** The shape of the answer, as JSON Schema. */
   schema?: unknown
   /** When the wait expires with no answer, in epoch milliseconds. */
@@ -178,11 +178,11 @@ export function timeOf(iso: string | undefined) {
 export function waitOfInterrupt({
   interrupt,
   runId,
-  principal,
+  user,
 }: {
   interrupt: Interrupt
   runId: string
-  principal?: Wait['principal']
+  user?: Wait['user']
 }): Wait {
   const expiresAt = timeOf(interrupt.expiresAt)
   // A question of the `question` tool has its own answer shape in its
@@ -206,7 +206,7 @@ export function waitOfInterrupt({
     waitId: interrupt.id,
     kind: waitKind(interrupt),
     runId,
-    ...(principal ? { principal } : {}),
+    ...(user ? { user } : {}),
     ...(schema !== undefined ? { schema } : {}),
     ...(expiresAt !== undefined ? { expiresAt } : {}),
     ...(interrupt.message ? { message: interrupt.message } : {}),
@@ -217,19 +217,19 @@ export function waitOfInterrupt({
 export function waitOfQuestion({
   question,
   runId,
-  principal,
+  user,
   expiresAt,
 }: {
   question: PendingQuestion
   runId: string
-  principal?: Wait['principal']
+  user?: Wait['user']
   expiresAt?: number
 }): Wait {
   return {
     waitId: question.questionId,
     kind: 'question',
     runId,
-    ...(principal ? { principal } : {}),
+    ...(user ? { user } : {}),
     ...(question.schema !== undefined ? { schema: question.schema } : {}),
     ...(expiresAt !== undefined ? { expiresAt } : {}),
     message: question.message,
@@ -324,7 +324,7 @@ export function snapshotWaits({
   stopped:
     | {
         runId: string
-        principal?: Wait['principal']
+        user?: Wait['user']
         routed?: { messages: ReadonlyArray<UIMessage> }
       }
     | null
@@ -335,13 +335,13 @@ export function snapshotWaits({
   expiry?: (interrupt: Interrupt) => number | undefined
 }): Array<PendingWait> {
   const runId = stopped?.runId ?? 'session'
-  const principal = stopped?.principal
+  const user = stopped?.user
   return [
     ...interrupts.map((interrupt) => {
       const wait = waitOfInterrupt({
         interrupt,
         runId,
-        ...(principal ? { principal } : {}),
+        ...(user ? { user } : {}),
       })
       const expiresAt = wait.expiresAt ?? expiry?.(interrupt)
       const { subagentRunId } = interrupt

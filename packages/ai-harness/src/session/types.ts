@@ -41,7 +41,7 @@ import type {
   ChatTurnResult,
   Cursor,
   HarnessInput,
-  Principal,
+  HarnessUser,
   Receipt,
   ResolveOptions,
   RunNode,
@@ -62,8 +62,8 @@ export interface ScheduleOptions {
    * id of a schedule that waits writes nothing. Default: a new id.
    */
   scheduleId?: string
-  /** Who sends the input when it runs. Default: the principal of the open. */
-  principal?: Principal
+  /** Who sends the input when it runs. Default: the user of the open. */
+  user?: HarnessUser
 }
 
 /** Options for running an agent from code: the options of `start` without `wake`. */
@@ -107,10 +107,10 @@ export interface AgentStartOptions {
   resume?: boolean
   /**
    * Who starts the agent. The run, its credentials, and its wake turn are
-   * theirs. Default: the principal that opened the session. In a tool, pass
-   * the user of the tool call: `ctx.context.run.principal`.
+   * theirs. Default: the user that opened the session. In a tool, pass
+   * the user of the tool call: `ctx.context.run.user`.
    */
-  principal?: Principal
+  user?: HarnessUser
   /**
    * The run that starts the agent, in a tool: `ctx.context.run`. When it
    * names an agent run of this session that runs, the agent is a child of
@@ -270,7 +270,7 @@ export interface AgentRunInfo {
    */
   parentRunId?: string
   /** Who the run runs for. */
-  principal?: Principal
+  user?: HarnessUser
   /** The model use the run can have (`AgentStartOptions.budget`). */
   budget?: RunNode['budget']
   /** The raw result of a run that completed, as `agentResult` gives it. JSON. */
@@ -290,7 +290,7 @@ export interface JobInfo {
   /** The id of its process in the workspace backend, when it has one. */
   backendId?: string
   /** Who moved the call to the background. */
-  principal?: Principal
+  user?: HarnessUser
   /** When the job started, in epoch ms. */
   startedAt?: number
   /** The command, or the name of the tool. */
@@ -401,7 +401,7 @@ export interface SessionDependencies {
     blobs: BlobStore
     generationRuns: GenerationRunStore
   }>
-  principal?: Principal
+  user?: HarnessUser
   /** The tenant of the session. Without it, the default tenant. */
   tenantId?: string
   /** Writes the session index entry of the thread. */
@@ -480,7 +480,7 @@ export type OpenChildSession = (
   harness: AnyHarness,
   options: {
     threadId: string
-    principal: Principal | undefined
+    user: HarnessUser | undefined
     child: ChildSessionLink
   },
 ) => Promise<SessionImpl>
@@ -503,7 +503,7 @@ export interface QueuedTurn {
   /** The `ephemeral` messages of the input. The log keeps them, as `overrides`. */
   ephemeral?: ReadonlyArray<ModelMessage>
   /** Who sent the input. Its credentials and keys run the turn. */
-  principal?: Principal
+  user?: HarnessUser
   /** The `context` of the input. */
   context?: unknown
   /** A wake input of the harness: its user message gets `metadata.harness.wake`. */
@@ -538,7 +538,7 @@ export interface WaitingSteer {
   ephemeral?: ReadonlyArray<ModelMessage>
   /** Used only when the steer runs as its own turn, as `overrides`. */
   systemPreamble?: Array<string>
-  principal?: Principal
+  user?: HarnessUser
   /** Used only when the steer runs as its own turn, as `overrides`. */
   context?: unknown
   /** A wake input of the harness, as in `QueuedTurn`. */
@@ -562,17 +562,17 @@ export interface InterruptedTurn {
    */
   handoff?: Omit<HandoffRecord, 'runId'>
   /**
-   * Who sent the input of the stopped turn. Only this principal's saved
+   * Who sent the input of the stopped turn. Only this user's saved
    * credential answers its sign-ins.
    */
-  principal?: { id: string; tenantId?: string }
+  user?: { id: string; tenantId?: string }
   /** The `context` of the stopped turn's input, so the resume sees it too. */
   context?: unknown
 }
 
 /** What `resolveForRun` takes: the `resolve` options, plus the run id. */
 export interface ResolveForRunOptions extends ResolveOptions {
-  principal?: Principal
+  user?: HarnessUser
   /** The AG-UI `runId` of a `POST run` request. The turn runs as it. */
   runId?: string
 }
@@ -584,13 +584,13 @@ export type AgentRunImpl = OperationImpl<unknown> & AgentRun<unknown>
 export interface AgentMessage {
   inputId: string
   message: UserInput
-  principal?: Principal
+  user?: HarnessUser
 }
 
 /** One run of an agent chain, and who it runs for. */
 export interface AgentRunEntry {
   operation: AgentRunImpl
-  principal?: Principal
+  user?: HarnessUser
 }
 
 /**
@@ -608,7 +608,7 @@ export interface AgentChain {
   input: unknown
   options: AgentStartOptions
   /** Who started the chain. */
-  principal?: Principal
+  user?: HarnessUser
   /** The run whose agent code started this chain. */
   parentRunId?: string
   /** The `agent` input of the chain whose code started this chain. */

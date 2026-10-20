@@ -210,7 +210,7 @@ export type {
   OperationKind,
   OperationStatus,
   PendingQuestion,
-  Principal,
+  HarnessUser,
   Receipt,
   RunContext,
   RunNode,
