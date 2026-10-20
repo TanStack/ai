@@ -115,6 +115,10 @@ export type HarnessPersistence = AIPersistence<
   } & SharedStores
 >
 
+/**
+ * The options of `createHarnessHost`. Leave out an option to get its
+ * default. See https://tanstack.com/ai/latest/docs/harness/host-options.
+ */
 export interface HarnessHostOptions<U extends HarnessUser = HarnessUser> {
   /** Where sessions keep their state. Default: in memory, lost on restart. */
   persistence?: HarnessPersistence
@@ -1466,10 +1470,14 @@ export function throughOuterThread(
 }
 
 /**
- * Create a host for harness sessions. With `access`, the user type of
+ * Create a host for harness sessions. Every option is optional: a local app
+ * with one user needs none. With `access`, the user type of
  * the host is what `access.identify` returns, and each call is checked (see
  * `HarnessHostOptions.access`). Throws when `access` has no
  * `stores.sessions` to keep the owner and members in.
+ *
+ * See https://tanstack.com/ai/latest/docs/harness/host-options for every
+ * option, its default, and when you need it.
  *
  * @example
  * ```ts
