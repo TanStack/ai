@@ -268,8 +268,8 @@ export interface DurableToolOptions {
  * finished steps return their stored values. The tool has `replay: 'safe'`
  * unless `options.replay` says `'never'`.
  *
- * Outside a durable harness session (plain `chat()`, or a host without
- * `stores.log`), `step.do` runs `fn` each time and `append` throws.
+ * Outside a harness session (plain `chat()`), `step.do` runs `fn` each
+ * time and `append` throws.
  *
  * @example
  * ```ts

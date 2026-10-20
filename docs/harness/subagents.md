@@ -367,7 +367,7 @@ if (wait) {
 
 ### Known limits
 
-- A run that another host runs is in `agentRuns()`, but it takes no message. `send` with `to` gets `not_running`.
+- A run that another host runs is in `agentRuns()`. `send` with `to` gives the message to that host's run. A run that no host runs gets `not_running`.
 - A follow-up waits for its run. If that run had already ended when the host stopped, the follow-up settles `aborted`.
 
 ## Let the model run agents in the background

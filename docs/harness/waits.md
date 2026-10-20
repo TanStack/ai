@@ -146,10 +146,10 @@ A run waits for a person only at these points:
 
 ## Who can answer
 
-On a host with [`access`](./access), `authorize` decides each answer:
+On a host with [`access`](./access), its `policy` decides each answer:
 
 - An answer is the `answer` action. With [`membersOnly()`](./shared-threads), the owner of the session and the user who started the run have it.
-- A `human` wait also takes the `operator` action. With `membersOnly()`, the owner and every member have it, so a teammate can take over.
+- A `human` wait takes only the `operator` action. With `membersOnly()`, only members with the role `operator` have it. The owner does not. To change that, pass `membersOnly({ operator: { roles } })`. See [Shared threads](./shared-threads).
 
 ## What you have now
 

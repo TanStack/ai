@@ -102,7 +102,7 @@ export interface AgentStartOptions {
    * stored value.
    * Its `ctx.chat` calls continue from their saved transcript. After
    * `durability.maxAttempts` runs (default 10), the run fails with
-   * `attempts_exhausted`. A host without `stores.log` throws at start.
+   * `attempts_exhausted`.
    */
   resume?: boolean
   /**
