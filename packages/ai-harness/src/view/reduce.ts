@@ -1,13 +1,13 @@
-import {
-  EventType,
-  INTERRUPT_PAYLOAD_METADATA_KEY,
-  readUnopenedInterruptBinding,
-} from '@tanstack/ai'
+import { EventType } from '@tanstack/ai'
 import { isMediaRecord, mediaIdOf, mediaOfMessage } from '../media-ref'
+import { signInOf, waitKind } from '../waits'
 import { HARNESS_EVENTS } from '../types'
+import { addUsage } from '../usage'
 import type { Interrupt, ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { SessionDescription, SessionSnapshot } from '../session/index'
-import type { SessionEvent } from '../types'
+import type { PendingQuestion, SessionEvent } from '../types'
+import type { UsageCall } from '../usage'
+import type { PendingWait, Wait } from '../waits'
 import type {
   AgentPart,
   Approval,
@@ -47,11 +47,13 @@ export interface ItemFactory {
     interrupt: Interrupt,
     call: ToolCallPart | undefined,
   ) => ClientToolCall
-  question: (
-    question: SessionSnapshot['pendingQuestions'][number],
-  ) => ViewQuestion
+  question: (question: PendingQuestion) => ViewQuestion
   interrupt: (interrupt: Interrupt) => ViewInterrupt
-  agent: (operation: { id: string; name: string }) => ViewAgent
+  agent: (operation: {
+    id: string
+    name: string
+    status: ViewAgent['status']
+  }) => ViewAgent
 }
 
 /** The state of a view before it reads anything from its session. */
@@ -66,6 +68,7 @@ export function emptyState(): SessionViewState {
     interrupts: [],
     questions: [],
     signIns: [],
+    waits: [],
     agents: [],
     queuedTurns: 0,
     waitingInputs: [],
@@ -203,7 +206,10 @@ function appendText(
   if (delta === '') return parts
   const last = parts.at(-1)
   if (last?.type === type) {
-    return [...parts.slice(0, -1), { type, text: last.text + delta }]
+    // One copy of the parts: the last part changes, the others stay.
+    const next = [...parts]
+    next[next.length - 1] = { type, text: last.text + delta }
+    return next
   }
   return [...parts, { type, text: delta }]
 }
@@ -389,23 +395,67 @@ function applyToShownChild(
   return messages === state.messages ? state : { ...state, messages }
 }
 
+/**
+ * The index of the last assistant message of one turn: `turn-<id>`, or a
+ * message that a handoff in the turn started (`turn-<id>:<n>`).
+ */
+function turnIndex(state: SessionViewState, operationId: string) {
+  const id = `turn-${operationId}`
+  return state.messages.findLastIndex(
+    (message) => message.id === id || message.id.startsWith(`${id}:`),
+  )
+}
+
 /** Change the assistant message of one turn. It is created on its first part. */
 function updateTurn(
   state: SessionViewState,
   operationId: string,
   change: (parts: Array<ViewPart>) => Array<ViewPart>,
 ): SessionViewState {
-  const id = `turn-${operationId}`
-  const index = state.messages.findLastIndex((message) => message.id === id)
+  const index = turnIndex(state, operationId)
   const current = state.messages[index]
   const parts = current?.role === 'assistant' ? current.parts : []
   const next = change(parts)
   if (next === parts) return state
-  const message: ViewMessage = { id, role: 'assistant', parts: next }
+  const message: ViewMessage =
+    current?.role === 'assistant'
+      ? { ...current, parts: next }
+      : { id: `turn-${operationId}`, role: 'assistant', parts: next }
   if (index < 0) return { ...state, messages: [...state.messages, message] }
   const messages = [...state.messages]
   messages[index] = message
   return { ...state, messages }
+}
+
+/**
+ * Name the agent that writes the rest of one turn. A turn message with parts
+ * keeps its agent, and a new message starts. `agent` is `undefined` for the
+ * main model.
+ */
+function withTurnAgent(
+  state: SessionViewState,
+  operationId: string,
+  agent: string | undefined,
+): SessionViewState {
+  const index = turnIndex(state, operationId)
+  const current = state.messages[index]
+  const named = agent !== undefined ? { agent } : {}
+  if (current?.role === 'assistant' && current.parts.length === 0) {
+    if (current.agent === agent) return state
+    const message: ViewMessage = {
+      id: current.id,
+      role: 'assistant',
+      parts: [],
+      ...named,
+    }
+    return { ...state, messages: state.messages.with(index, message) }
+  }
+  const id =
+    index < 0
+      ? `turn-${operationId}`
+      : `turn-${operationId}:${state.messages.length}`
+  const message: ViewMessage = { id, role: 'assistant', parts: [], ...named }
+  return { ...state, messages: [...state.messages, message] }
 }
 
 /**
@@ -483,6 +533,35 @@ function failRunning(
   )
 }
 
+/**
+ * Add the call of a `harness.usage` event to the usage. Only the next call
+ * adds: a replayed call is in the usage already. The view reads the usage
+ * again when a call was missed.
+ */
+function withUsage(
+  state: SessionViewState,
+  value: Record<string, unknown>,
+): SessionViewState {
+  const { usage } = state
+  const total = recordOf(value.total)
+  const isNext = usage !== undefined && total.calls === usage.total.calls + 1
+  if (!isNext || typeof value.model !== 'string' || !isRecord(value.usage))
+    return state
+  const next = structuredClone(usage)
+  addUsage(next, {
+    model: value.model,
+    ...(typeof value.sender === 'string'
+      ? { principal: { id: value.sender } }
+      : {}),
+    // A plugin, router, or transfer call names its source; keep it so
+    // `bySource` stays correct.
+    ...(typeof value.source === 'string' ? { source: value.source } : {}),
+    // The harness sends the counts of `UsageCall['usage']`.
+    usage: value.usage as UsageCall['usage'],
+  })
+  return { ...state, usage: next }
+}
+
 function withSignIn(state: SessionViewState, signIn: SignIn): SessionViewState {
   return {
     ...state,
@@ -519,9 +598,29 @@ export function applyEvent(
   )
     return applyToolResult(state, event)
   if (TURN_EVENTS.has(event.type)) {
-    const next = updateTurn(state, operationId, (parts) =>
+    const updated = updateTurn(state, operationId, (parts) =>
       applyToParts(parts, event),
     )
+    // The start of a root agent that the router picked carries the plan of
+    // the router. That agent writes the message of the turn.
+    const isRouted =
+      event.type === EventType.SUBAGENT_STARTED &&
+      event.parentSubagentRunId === undefined &&
+      recordOf(recordOf(event.metadata).tanstack).subagentPlan !== undefined
+    const turnMessage = updated.messages[turnIndex(updated, operationId)]
+    const next =
+      isRouted &&
+      turnMessage?.role === 'assistant' &&
+      turnMessage.agent === undefined
+        ? {
+            ...updated,
+            messages: updated.messages.map((message) =>
+              message === turnMessage
+                ? { ...turnMessage, agent: event.name }
+                : message,
+            ),
+          }
+        : updated
     const child = subagentOf(event)
     const isElsewhere =
       next === state &&
@@ -548,6 +647,7 @@ export function applyEvent(
     return isMediaRecord(value)
       ? withMedia(state, operationId, value, value.subagentRunId)
       : state
+  if (event.name === HARNESS_EVENTS.usage) return withUsage(state, value)
   if (event.name === HARNESS_EVENTS.operationResumed)
     return withNotice(state, 'info', 'Resumed a turn that a crash stopped.')
   // A retry that does not continue the partial answer starts the model call
@@ -574,6 +674,18 @@ export function applyEvent(
     return withNotice(state, 'rejected', notAccepted(value.reason))
   if (event.name === HARNESS_EVENTS.reset)
     return withNotice(state, 'info', resetNotice(value.note))
+  // A handoff to a person ends the turn, and the hand-back of an operator
+  // comes on the session feed: neither has a message that an agent writes.
+  if (
+    event.name === HARNESS_EVENTS.handoff &&
+    (typeof value.to === 'string' || value.to === null) &&
+    operationId !== 'session'
+  )
+    return withTurnAgent(
+      state,
+      operationId,
+      typeof value.to === 'string' ? value.to : undefined,
+    )
   if (
     event.name === HARNESS_EVENTS.authRequired &&
     typeof value.connector === 'string'
@@ -669,33 +781,36 @@ export function keep<T>(old: Array<T>, next: Array<T>): Array<T> {
     : next
 }
 
-/** The turn waits for the output of a client tool, not for a yes or no. */
-const isClientTool = (interrupt: Interrupt) =>
-  readUnopenedInterruptBinding(interrupt)?.kind === 'client-tool-execution'
-
-/** The turn waits for an answer of the interrupt's own shape. */
-const isGeneric = (interrupt: Interrupt) =>
-  readUnopenedInterruptBinding(interrupt)?.kind === 'generic' &&
-  !signInOf(interrupt)
-
 /**
- * The sign-in a turn waits for, from `credentials.require(id, { wait: true })`.
- * The connector's `connect:<id>` command answers it, not a yes or no.
+ * The interrupt that a view item of the wait `wait` shows: a wait of a
+ * background agent run has no interrupt in the snapshot.
  */
-function signInOf(interrupt: Interrupt): SignIn | undefined {
-  if (interrupt.reason !== 'auth_required') return undefined
-  const payload = recordOf(interrupt.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY])
-  const request = recordOf(payload.request)
-  if (typeof request.connector !== 'string') return undefined
+/** A question wait of the log, as a question item takes it. */
+function questionOfWait(wait: PendingWait): PendingQuestion {
   return {
-    connector: request.connector,
-    ...(typeof request.url === 'string' ? { url: request.url } : {}),
+    questionId: wait.waitId,
+    message: wait.message ?? '',
+    ...(wait.schema !== undefined ? { schema: wait.schema } : {}),
+    ...(wait.secret ? { secret: true } : {}),
+    ...(wait.url ? { url: wait.url } : {}),
+  }
+}
+
+function interruptOfWait(wait: Wait): Interrupt {
+  return {
+    id: wait.waitId,
+    reason: wait.kind,
+    ...(wait.message !== undefined ? { message: wait.message } : {}),
+    ...(isRecord(wait.schema) ? { responseSchema: wait.schema } : {}),
+    ...(wait.expiresAt !== undefined
+      ? { expiresAt: new Date(wait.expiresAt).toISOString() }
+      : {}),
   }
 }
 
 /**
- * Take status, approvals, client tools, questions, background agents, and
- * waiting inputs from a snapshot. Plugin state is taken only for the first
+ * Take status, approvals, client tools, questions, waits, background agents,
+ * and waiting inputs from a snapshot. Plugin state is taken only for the first
  * snapshot. Later changes come as `STATE_SNAPSHOT` events. Returns `state`
  * when nothing changes.
  */
@@ -705,46 +820,66 @@ export function applySnapshot(
   factory: ItemFactory,
   options: { initial?: boolean } = {},
 ): SessionViewState {
+  const { pendingWaits } = snapshot
+  const turnInterrupts = pendingWaits.flatMap(({ interrupt, turn }) =>
+    interrupt && turn ? [interrupt] : [],
+  )
+  // The waits that no turn holds and that are no question: the waits of
+  // background agent runs. Each one is an item of its kind, answered on its
+  // own.
+  const runWaits = pendingWaits.filter(
+    ({ turn, kind }) => !turn && kind !== 'question',
+  )
+  const items = [
+    ...turnInterrupts.map((interrupt) => ({
+      interrupt,
+      kind: waitKind(interrupt),
+    })),
+    ...runWaits.map((wait) => ({
+      interrupt: interruptOfWait(wait),
+      kind: wait.kind,
+    })),
+  ]
+  const ofKind = (...kinds: Array<Wait['kind']>) =>
+    items.flatMap(({ interrupt, kind }) =>
+      kinds.includes(kind) ? [interrupt] : [],
+    )
   const approvals = keep(
     state.approvals,
-    snapshot.pendingInterrupts
-      .filter(
-        (interrupt) =>
-          !isClientTool(interrupt) &&
-          !isGeneric(interrupt) &&
-          !signInOf(interrupt),
-      )
-      .map(
-        (interrupt) =>
-          state.approvals.find((item) => item.id === interrupt.id) ??
-          factory.approval(
-            interrupt,
-            findToolCall(state.messages, interrupt.toolCallId),
-          ),
-      ),
+    ofKind('approval').map(
+      (interrupt) =>
+        state.approvals.find((item) => item.id === interrupt.id) ??
+        factory.approval(
+          interrupt,
+          findToolCall(state.messages, interrupt.toolCallId),
+        ),
+    ),
   )
   const clientTools = keep(
     state.clientTools,
-    snapshot.pendingInterrupts
-      .filter(isClientTool)
-      .map(
-        (interrupt) =>
-          state.clientTools.find((item) => item.id === interrupt.id) ??
-          factory.clientTool(
-            interrupt,
-            findToolCall(state.messages, interrupt.toolCallId),
-          ),
-      ),
+    ofKind('client-tool').map(
+      (interrupt) =>
+        state.clientTools.find((item) => item.id === interrupt.id) ??
+        factory.clientTool(
+          interrupt,
+          findToolCall(state.messages, interrupt.toolCallId),
+        ),
+    ),
   )
   const interrupts = keep(
     state.interrupts,
-    snapshot.pendingInterrupts
-      .filter(isGeneric)
-      .map(
-        (interrupt) =>
-          state.interrupts.find((item) => item.id === interrupt.id) ??
-          factory.interrupt(interrupt),
-      ),
+    // An interrupt that waits for an answer of its own shape.
+    ofKind('question', 'human').map(
+      (interrupt) =>
+        state.interrupts.find((item) => item.id === interrupt.id) ??
+        factory.interrupt(interrupt),
+    ),
+  )
+  const waits = keep(
+    state.waits,
+    pendingWaits.map(
+      (wait) => state.waits.find((item) => item.waitId === wait.waitId) ?? wait,
+    ),
   )
   // Usage changes only with a new model call.
   const usage =
@@ -752,7 +887,7 @@ export function applySnapshot(
       ? state.usage
       : snapshot.usage
   // In the snapshot too, so a sign-in that a turn waits for shows after a reload.
-  const newSignIns = snapshot.pendingInterrupts
+  const newSignIns = turnInterrupts
     .flatMap((interrupt) => signInOf(interrupt) ?? [])
     .filter(
       (signIn) =>
@@ -762,24 +897,34 @@ export function applySnapshot(
     newSignIns.length > 0 ? [...state.signIns, ...newSignIns] : state.signIns
   const questions = keep(
     state.questions,
-    snapshot.pendingQuestions.map(
-      (question) =>
-        state.questions.find((item) => item.id === question.questionId) ??
-        factory.question(question),
+    pendingWaits.flatMap((wait) =>
+      wait.turn || wait.kind !== 'question'
+        ? []
+        : [
+            state.questions.find((item) => item.id === wait.waitId) ??
+              factory.question(questionOfWait(wait)),
+          ],
     ),
   )
+  // A background run with an open wait waits for its answer.
+  const waitingRuns = new Set(pendingWaits.map(({ runId }) => runId))
   const agents = keep(
     state.agents,
     snapshot.activeOperations
       .filter((operation) => operation.kind === 'agent')
-      .map(
-        (operation) =>
-          state.agents.find((item) => item.id === operation.id) ??
+      .map((operation) => {
+        const status = waitingRuns.has(operation.id) ? 'waiting' : 'running'
+        return (
+          state.agents.find(
+            (item) => item.id === operation.id && item.status === status,
+          ) ??
           factory.agent({
             id: operation.id,
             name: operation.agent ?? 'agent',
-          }),
-      ),
+            status,
+          })
+        )
+      }),
   )
   const waitingInputs = keep(
     state.waitingInputs,
@@ -807,6 +952,7 @@ export function applySnapshot(
     usage === state.usage &&
     signIns === state.signIns &&
     questions === state.questions &&
+    waits === state.waits &&
     agents === state.agents &&
     messages === state.messages &&
     plugins === state.plugins
@@ -823,6 +969,7 @@ export function applySnapshot(
     usage,
     signIns,
     questions,
+    waits,
     agents,
     messages,
     plugins,
@@ -847,7 +994,7 @@ export function applyDescription(
 /**
  * Messages for a saved transcript. Tool results fill in their tool calls.
  * The media a turn made (`metadata.harness.media`) goes at the end of its
- * assistant message.
+ * assistant message. `metadata.harness.agent` is its `agent`.
  */
 export function messagesFromTranscript(
   messages: ReadonlyArray<ModelMessage>,
@@ -871,6 +1018,16 @@ export function messagesFromTranscript(
         kind: 'info',
         text: resetNotice(reset.note),
       })
+      return
+    }
+    // The files of an operator reply: they show with the reply.
+    if (message.role === 'user' && harness.operatorAttachment === true) {
+      const media = userMedia(message)
+      const reply = result.find(
+        (item) => `${item.id}:media` === id && item.role === 'assistant',
+      )
+      if (reply?.role === 'assistant') reply.parts.push(...media)
+      else result.push({ id, role: 'assistant', parts: media })
       return
     }
     if (message.role === 'user') {
@@ -903,7 +1060,15 @@ export function messagesFromTranscript(
       }
       const media = mediaOfMessage(message)
       for (const record of media) parts.push(mediaView(record))
-      result.push({ id, role: 'assistant', parts })
+      // The root agent that wrote it, in a harness with `routing`.
+      const agent =
+        typeof harness.agent === 'string' ? harness.agent : undefined
+      result.push({
+        id,
+        role: 'assistant',
+        parts,
+        ...(agent !== undefined ? { agent } : {}),
+      })
       return
     }
     // A tool message holds the result of an earlier tool call. The list is

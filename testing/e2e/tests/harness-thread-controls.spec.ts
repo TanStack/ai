@@ -23,11 +23,12 @@ type Message = {
   metadata?: { harness?: { reset?: unknown } }
 }
 
+// Each event has an `id:` line (its log cursor) before its `data:` line.
 const textOf = (sse: string) =>
   sse
-    .split('\n\n')
-    .filter((block) => block.startsWith('data: '))
-    .map((block) => JSON.parse(block.slice('data: '.length)))
+    .split('\n')
+    .filter((line) => line.startsWith('data: '))
+    .map((line) => JSON.parse(line.slice('data: '.length)))
     .filter((chunk) => chunk.type === 'TEXT_MESSAGE_CONTENT')
     .map((chunk) => chunk.delta)
     .join('')

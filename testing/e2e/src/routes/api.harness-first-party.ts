@@ -199,10 +199,10 @@ async function sessionTitle(
   )
   const turn = await session.send('[first-party-title] plan a trip to Rome')
   const deadline = Date.now() + 5_000
-  let entry = await host.sessions.get('e2e-title')
+  let entry = await host.sessions.get({ threadId: 'e2e-title' })
   while (!entry?.title && failures.length === 0 && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 50))
-    entry = await host.sessions.get('e2e-title')
+    entry = await host.sessions.get({ threadId: 'e2e-title' })
   }
   return { text: turn.text, title: entry?.title, failures }
 }
@@ -239,15 +239,15 @@ async function connectedKey(host: HarnessHost, testId: string | undefined) {
   const connecting = session.command({ name: 'connect:openai' })
   const deadline = Date.now() + 5_000
   while (
-    session.snapshot().pendingQuestions.length === 0 &&
+    session.snapshot().pendingWaits.length === 0 &&
     Date.now() < deadline
   ) {
     await new Promise((resolve) => setTimeout(resolve, 20))
   }
-  const [question] = session.snapshot().pendingQuestions
+  const [question] = session.snapshot().pendingWaits
   // Without a question, `connecting` never settles: fail now.
   if (!question) throw new Error('/connect:openai asked no question.')
-  await session.answer({ questionId: question.questionId, value: USER_KEY })
+  await session.answer({ questionId: question.waitId, value: USER_KEY })
   const connected = await connecting
   const turn = await session.send('[first-party-keys] hello')
   return {

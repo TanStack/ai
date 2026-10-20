@@ -83,7 +83,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@tanstack/ai-skills": "workspace:^"
+    "@tanstack/ai-skills": "workspace:^",
+    "@tanstack/ai-utils": "workspace:^"
   },
   "peerDependencies": {
     "@ngrok/ngrok": "^1.0.0",

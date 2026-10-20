@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness, logIdOf } from '../src'
+import { emptySharedLogState, foldLogEntry, sessionOf } from '../src/log'
 import { addUsage, emptyUsage } from '../src/usage'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
@@ -10,6 +11,8 @@ import type { SessionEvent } from '../src'
 import type { Reply } from './helpers'
 
 const THREAD = 't1'
+/** The id of the log of `THREAD` in the store. */
+const LOG = logIdOf({ logId: THREAD })
 const alice = { id: 'alice' }
 const bob = { id: 'bob' }
 
@@ -217,10 +220,10 @@ describe('session usage totals', () => {
 })
 
 describe('usage totals after a restart', () => {
-  it('keeps the totals in the log of a durable host', async () => {
-    const { runs, metadata } = memoryPersistence().stores
+  it('keeps the totals in the log', async () => {
+    const { metadata } = memoryPersistence().stores
     const log = memoryLogStore()
-    const persistence = { stores: { log, runs, metadata } }
+    const persistence = { stores: { log, metadata } }
     const first = model('main-model', lookupThenAnswer([0.01, 0.02]))
     const harness = (adapter: typeof first.adapter) =>
       defineHarness({ name: 'test/usage-durable', adapter, tools: [lookup] })
@@ -233,7 +236,7 @@ describe('usage totals after a restart', () => {
     const before = session.usage()
     await host.close()
 
-    const records = (await log.read({ logId: THREAD })).filter(
+    const records = (await log.read({ logId: LOG })).filter(
       (entry) => entry.record.type === 'harness.usage',
     )
     expect(records).toHaveLength(2)
@@ -247,25 +250,121 @@ describe('usage totals after a restart', () => {
     expect(reopened.usage().total.totalTokens).toBe(45)
     await next.close()
   })
+})
 
-  it('keeps the totals in the metadata store of a host without a log', async () => {
-    const persistence = memoryPersistence()
-    const first = model('main-model', lookupThenAnswer())
-    const harness = (adapter: typeof first.adapter) =>
-      defineHarness({ name: 'test/usage-metadata', adapter, tools: [lookup] })
-    const host = createHarnessHost({ persistence })
-    const session = await host.open(harness(first.adapter), {
-      threadId: THREAD,
+describe('usage of each run', () => {
+  it('names the run of each call, adds a child call to its parent, and drops the sum when the run ends', async () => {
+    const workerModel = model('worker-model', [
+      () => withUsage(text('worked'), { prompt: 6, completion: 3 }),
+    ])
+    const worker = defineAgent({
+      name: 'worker',
+      description: 'Works',
+      run: (ctx) => ctx.chat({ adapter: workerModel.adapter }),
     })
-    await session.send('Find it.')
+    const lead = defineAgent({
+      name: 'lead',
+      description: 'Runs the worker',
+      run: async (ctx) => ctx.harness.agents.run(worker),
+    })
+    const { metadata } = memoryPersistence().stores
+    const log = memoryLogStore()
+    const host = createHarnessHost({
+      persistence: { stores: { log, metadata } },
+    })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/usage-runs',
+        adapter: model('main-model', []).adapter,
+        agents: [lead, worker],
+      }),
+      { threadId: THREAD, principal: alice },
+    )
+
+    const run = session.agents.lead.start(undefined, { attach: 'none' })
+    expect(await run).toBe('worked')
+    const workerRun = session
+      .agentRuns()
+      .find((item) => item.agent === 'worker')
+
+    const entries = await log.read({ logId: LOG })
+    const usage = entries.filter(
+      (entry) => entry.record.type === 'harness.usage',
+    )
+    expect(usage.map((entry) => entry.record.runId)).toEqual([workerRun?.runId])
+    /** The run sums of the thread after the log up to `seq`. */
+    const sumsAt = (seq: number) => {
+      const state = emptySharedLogState()
+      for (const entry of entries) {
+        if (entry.seq <= seq) foldLogEntry(state, entry, { rootThread: THREAD })
+      }
+      return sessionOf(state, THREAD).runUsage
+    }
+    const afterCall = sumsAt(usage[0]?.seq ?? 0)
+    expect(afterCall.get(workerRun?.runId ?? '')?.totalTokens).toBe(9)
+    expect(afterCall.get(run.id)?.totalTokens).toBe(9)
+    expect(sumsAt(Infinity).size).toBe(0)
+    // The run record of each run keeps its final usage.
+    const finalUsage = (runId: string) =>
+      entries.find(
+        (entry) =>
+          entry.record.type === 'harness.run.update' &&
+          entry.record.runId === runId &&
+          isRecordWithUsage(entry.record.patch),
+      )?.record.patch
+    expect(finalUsage(run.id)).toMatchObject({ usage: { totalTokens: 9 } })
+    expect(finalUsage(workerRun?.runId ?? '')).toMatchObject({
+      usage: { totalTokens: 9 },
+    })
     await host.close()
+  })
+})
 
-    const next = createHarnessHost({ persistence })
-    const reopened = await next.open(harness(model('main-model', []).adapter), {
-      threadId: THREAD,
+/** Is `value` a run record change that sets `usage`? */
+const isRecordWithUsage = (value: unknown) =>
+  typeof value === 'object' && value !== null && 'usage' in value
+
+describe('usage totals by source', () => {
+  const counts = (totalTokens: number) => ({
+    promptTokens: totalTokens,
+    completionTokens: 0,
+    totalTokens,
+    cachedTokens: 0,
+    cacheWriteTokens: 0,
+  })
+
+  it('adds a call with a source under it, and keeps a turn call out of bySource', () => {
+    const totals = emptyUsage()
+
+    addUsage(totals, { model: 'm', usage: counts(5) })
+    addUsage(totals, {
+      model: 'm',
+      source: 'plugin:tanstack/title',
+      label: 'title',
+      usage: counts(2),
     })
-    expect(reopened.usage().total).toMatchObject({ calls: 2, totalTokens: 45 })
-    await next.close()
+    addUsage(totals, {
+      model: 'm',
+      source: 'plugin:tanstack/title',
+      usage: counts(3),
+    })
+    addUsage(totals, {
+      model: 'm',
+      source: 'plugin:tanstack/goal',
+      usage: counts(4),
+    })
+
+    expect(totals.total).toMatchObject({ calls: 4, totalTokens: 14 })
+    expect(totals.bySource).toEqual({
+      'plugin:tanstack/title': expect.objectContaining({
+        calls: 2,
+        totalTokens: 5,
+      }),
+      'plugin:tanstack/goal': expect.objectContaining({
+        calls: 1,
+        totalTokens: 4,
+      }),
+    })
   })
 })
 

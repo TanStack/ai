@@ -2,9 +2,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EventType, toolDefinition } from '@tanstack/ai'
 import { client, ndJsonStream } from '@agentclientprotocol/sdk/experimental/v2'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import {
+  createHarnessHost,
+  defineHarness,
+  membersOnly,
+} from '@tanstack/ai-harness'
 import { createAcpAgent, serveAcp, toSessionUpdate } from '../src/agent'
 import type { AnyTextAdapter, ModelMessage, StreamChunk } from '@tanstack/ai'
+import type { HarnessAccess, HostLifecycleOptions } from '@tanstack/ai-harness'
 import type {
   ClientApp,
   RequestPermissionOutcome,
@@ -130,7 +135,11 @@ function model(): AnyTextAdapter {
   }
 }
 
-function setup() {
+/** With `access`, the host checks each action of each principal. */
+function setup({
+  access,
+  lifecycle,
+}: { access?: HarnessAccess; lifecycle?: HostLifecycleOptions } = {}) {
   const remove = vi.fn(async () => ({ removed: true }))
   const harness = defineHarness({
     name: 'test/acp-handlers',
@@ -154,7 +163,8 @@ function setup() {
       }),
     ],
   })
-  const host = createHarnessHost({ persistence: memoryPersistence() })
+  const persistence = memoryPersistence()
+  const host = createHarnessHost({ persistence, access, lifecycle })
   const updates: Array<{ sessionId: string; update: SessionUpdate }> = []
   const permissions: Array<{ title: string; toolCallId: string }> = []
   // The answer of the editor to each permission request. Default: Reject.
@@ -216,6 +226,7 @@ function setup() {
     )
   return {
     harness,
+    persistence,
     host,
     editor,
     updates,
@@ -325,6 +336,135 @@ describe('ACP agent handlers', () => {
   afterEach(async () => {
     await close?.()
     close = undefined
+  })
+
+  it('holds no handle on an idle session, and opens it again at the next prompt', async () => {
+    // A session that no handle holds closes at once when it is idle.
+    const { harness, host, editor, running, states, textOf } = setup({
+      lifecycle: { idleCloseMs: 0 },
+    })
+    close = () => host.close()
+    const isOpen = (threadId: string) => host.isOpen(harness, { threadId })
+    await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
+      await ctx.request('initialize', {
+        protocolVersion: 2,
+        info: { name: 'editor', version: '1.0.0' },
+      })
+      const { sessionId } = await ctx.request('session/new', {
+        cwd: '/tmp',
+        mcpServers: [],
+      })
+      await vi.waitFor(() => expect(isOpen(sessionId)).toBe(false))
+
+      await ctx.request('session/prompt', {
+        sessionId,
+        prompt: [{ type: 'text', text: 'wait' }],
+      })
+      await vi.waitFor(() => expect(running(sessionId)).toBe(true))
+      // A running prompt holds the session.
+      expect(isOpen(sessionId)).toBe(true)
+      await ctx.notify('session/cancel', { sessionId })
+      await vi.waitFor(() => expect(isOpen(sessionId)).toBe(false))
+
+      await ctx.request('session/prompt', {
+        sessionId,
+        prompt: [{ type: 'text', text: 'hello' }],
+      })
+      await vi.waitFor(() =>
+        expect(states(sessionId)).toContain('idle:end_turn'),
+      )
+      // The session opened again and ran the prompt.
+      expect(textOf(sessionId)).toBe('echo: hello')
+      await vi.waitFor(() => expect(isOpen(sessionId)).toBe(false))
+    })
+  })
+
+  it('takes the prompts of its new sessions on a host with no session index', async () => {
+    const { harness, editor, states, textOf } = setup()
+    // Only a log store: `host.sessions.get` finds no session.
+    const host = createHarnessHost({
+      persistence: { stores: { log: memoryPersistence().stores.log } },
+      lifecycle: { idleCloseMs: 0 },
+    })
+    close = () => host.close()
+    await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
+      await ctx.request('initialize', {
+        protocolVersion: 2,
+        info: { name: 'editor', version: '1.0.0' },
+      })
+      const { sessionId } = await ctx.request('session/new', {
+        cwd: '/tmp',
+        mcpServers: [],
+      })
+      await vi.waitFor(() =>
+        expect(host.isOpen(harness, { threadId: sessionId })).toBe(false),
+      )
+
+      await ctx.request('session/prompt', {
+        sessionId,
+        prompt: [{ type: 'text', text: 'hello' }],
+      })
+      await vi.waitFor(() =>
+        expect(states(sessionId)).toContain('idle:end_turn'),
+      )
+      expect(textOf(sessionId)).toBe('echo: hello')
+    })
+  })
+
+  it('keeps the order of two prompts when the first one uploads a file', async () => {
+    const { harness, host, persistence, editor, updates, states, textOf } =
+      setup()
+    close = () => host.close()
+    // The store of the first file answers only when the test lets it.
+    let upload = () => {}
+    const uploaded = new Promise<void>((resolve) => {
+      upload = resolve
+    })
+    const put = persistence.stores.blobs.put.bind(persistence.stores.blobs)
+    const slowPut = vi
+      .spyOn(persistence.stores.blobs, 'put')
+      .mockImplementation(async (...args) => {
+        await uploaded
+        return put(...args)
+      })
+    await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
+      await ctx.request('initialize', {
+        protocolVersion: 2,
+        info: { name: 'editor', version: '1.0.0' },
+      })
+      const { sessionId } = await ctx.request('session/new', {
+        cwd: '/tmp',
+        mcpServers: [],
+      })
+      const first = ctx.request('session/prompt', {
+        sessionId,
+        prompt: [
+          { type: 'text', text: 'first' },
+          { type: 'image', data: 'AQIDBA==', mimeType: 'image/png' },
+        ],
+      })
+      await vi.waitFor(() => expect(slowPut).toHaveBeenCalled())
+      const second = ctx.request('session/prompt', {
+        sessionId,
+        prompt: [{ type: 'text', text: 'second' }],
+      })
+      // The second prompt has no file, so the agent takes it at once.
+      await vi.waitFor(() =>
+        expect(
+          updates.filter(
+            (entry) => entry.update.sessionUpdate === 'user_message',
+          ),
+        ).toHaveLength(1),
+      )
+      upload()
+      await Promise.all([first, second])
+      await vi.waitFor(() =>
+        expect(
+          states(sessionId).filter((state) => state === 'idle:end_turn'),
+        ).toHaveLength(2),
+      )
+      expect(textOf(sessionId)).toBe('echo: firstecho: second')
+    })
   })
 
   it('keeps the tool from running when the editor rejects it', async () => {
@@ -696,6 +836,31 @@ describe('ACP agent handlers', () => {
     })
   })
 
+  it('refuses a subagent child: the editor reaches it through its parent', async () => {
+    const { harness, persistence, host, editor } = setup()
+    close = () => host.close()
+    await persistence.stores.sessions.upsert({
+      threadId: 'subagent:run-1',
+      parentThreadId: 'lead',
+      harness: harness.name,
+      members: [],
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
+      await ctx.request('initialize', {
+        protocolVersion: 2,
+        info: { name: 'editor', version: '1.0.0' },
+      })
+      await expect(
+        ctx.request('session/resume', {
+          sessionId: 'subagent:run-1',
+          cwd: '/tmp',
+        }),
+      ).rejects.toMatchObject({ code: -32002 })
+    })
+  })
+
   it('resumes a session by id, cancels a running turn, and closes it', async () => {
     const { harness, host, editor, idle, running, textOf } = setup()
     close = () => host.close()
@@ -731,6 +896,91 @@ describe('ACP agent handlers', () => {
       // Closing an unknown session and cancelling one are both quiet.
       await ctx.request('session/close', { sessionId: 'never-opened' })
       await ctx.notify('session/cancel', { sessionId: 'never-opened' })
+    })
+  })
+
+  it('resumes a session without opening it: it opens at its first prompt', async () => {
+    const { harness, host, editor, idle, textOf } = setup({
+      lifecycle: { idleCloseMs: 0 },
+    })
+    close = () => host.close()
+    await (await host.open(harness, { threadId: 'kept-session' })).close()
+    const isOpen = () => host.isOpen(harness, { threadId: 'kept-session' })
+    await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
+      await ctx.request('initialize', {
+        protocolVersion: 2,
+        info: { name: 'editor', version: '1.0.0' },
+      })
+
+      await ctx.request('session/resume', {
+        sessionId: 'kept-session',
+        cwd: '/tmp',
+      })
+      expect(isOpen()).toBe(false)
+
+      await ctx.request('session/prompt', {
+        sessionId: 'kept-session',
+        prompt: [{ type: 'text', text: 'hello' }],
+      })
+      await vi.waitFor(() => expect(idle('kept-session')).toBeDefined())
+      expect(textOf('kept-session')).toBe('echo: hello')
+    })
+  })
+
+  describe('on a host with access', () => {
+    const olga = { id: 'olga', tenantId: 'acme' }
+    const bea = { id: 'bea', tenantId: 'acme' }
+    // The agent runs for one local user, so no request is identified.
+    const access: HarnessAccess = {
+      identify: () => null,
+      policy: membersOnly(),
+    }
+
+    it('throws at the start without a principal', () => {
+      const { harness, host } = setup({ access })
+      close = () => host.close()
+
+      expect(() => createAcpAgent({ host, harness })).toThrow(
+        'createAcpAgent needs a principal: the host has access. Pass the local user as principal.',
+      )
+    })
+
+    it('opens and lists only the sessions of its principal', async () => {
+      const { harness, host, editor, idle, textOf } = setup({ access })
+      close = () => host.close()
+      await host.open(harness, { threadId: 'bea-thread', principal: bea })
+      const agentApp = createAcpAgent({ host, harness, principal: olga })
+      await editor.connectWith(agentApp, async (ctx) => {
+        await ctx.request('initialize', {
+          protocolVersion: 2,
+          info: { name: 'editor', version: '1.0.0' },
+        })
+        const { sessionId } = await ctx.request('session/new', {
+          cwd: '/tmp',
+          mcpServers: [],
+        })
+        await ctx.request('session/prompt', {
+          sessionId,
+          prompt: [{ type: 'text', text: 'hello' }],
+        })
+        await vi.waitFor(() => expect(idle(sessionId)).toBeDefined())
+
+        expect(textOf(sessionId)).toBe('echo: hello')
+        expect(
+          await host.sessions.get({ threadId: sessionId, principal: olga }),
+        ).toMatchObject({ members: [{ userId: 'olga', role: 'owner' }] })
+        const listed = await ctx.request('session/list', {})
+        expect(listed.sessions.map((session) => session.sessionId)).toEqual([
+          sessionId,
+        ])
+        // A session of another user gets the answer of an unknown id.
+        await expect(
+          ctx.request('session/resume', {
+            sessionId: 'bea-thread',
+            cwd: '/tmp',
+          }),
+        ).rejects.toMatchObject({ code: -32002 })
+      })
     })
   })
 })

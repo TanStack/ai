@@ -23,14 +23,13 @@ import type {
   ChatTranscriptPersistence,
   ChatTranscriptStores,
   GenerationRunStore,
-  InboxStore,
   InterruptStore,
+  LogStore,
   MessagePage,
   MessageStore,
   MetadataStore,
   RunStore,
   SessionIndexStore,
-  WorkClaimStore,
 } from '../src'
 
 declare const messages: MessageStore
@@ -135,7 +134,7 @@ const uncertainInherited = composePersistence(base, {
 })
 expectTypeOf(uncertainInherited.stores.messages).toEqualTypeOf<MessageStore>()
 
-// Named shapes — memoryPersistence now includes generation stores too
+// Named shapes: memoryPersistence includes the generation stores and the log
 expectTypeOf(memoryPersistence()).toEqualTypeOf<
   AIPersistence<{
     messages: MessageStore
@@ -146,11 +145,20 @@ expectTypeOf(memoryPersistence()).toEqualTypeOf<
     metadata: MetadataStore
     artifacts: ArtifactStore
     blobs: BlobStore
-    inbox: InboxStore
-    workClaims: WorkClaimStore
     sessions: SessionIndexStore
+    log: LogStore
   }>
 >()
+// The session index is keyed by tenant and thread, and compare-and-set is part
+// of the contract: a store without it is not a session index store.
+expectTypeOf<Parameters<SessionIndexStore['get']>[0]>().toEqualTypeOf<{
+  tenantId?: string
+  threadId: string
+}>()
+expectTypeOf<
+  Omit<SessionIndexStore, 'getVersioned' | 'upsertIf'>
+>().not.toExtend<SessionIndexStore>()
+
 const transcript: ChatTranscriptPersistence = messagesOnly
 void transcript
 declare const fullChat: ChatPersistence

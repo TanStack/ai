@@ -64,15 +64,19 @@ describe('worker mode', () => {
 describe('harnessText({ url })', () => {
   it('uses a harness served over HTTP as a model', async () => {
     const { adapter } = mockAdapter([() => text('from far away')])
-    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      access: {
+        identify: ({ request }) =>
+          request.headers.get('authorization') === 'Bearer t'
+            ? { id: 'u' }
+            : null,
+        policy: { authorize: () => true },
+      },
+    })
     const handler = createHarnessHandler({
       host,
       harness: defineHarness({ name: 'test/remote', adapter }),
-      canAccess: () => true,
-      authorize: (request) =>
-        request.headers.get('authorization') === 'Bearer t'
-          ? { id: 'u' }
-          : null,
     })
     const remote = harnessText({
       url: 'http://remote.test/api',

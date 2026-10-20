@@ -2,7 +2,7 @@
 title: Track usage and cost
 id: harness-usage
 order: 7
-description: "Read the tokens and the cost of a thread, in total, by model, and by sender. Show a live total, stop a person who is over budget, and add /usage with your own prices."
+description: "Read the tokens and the cost of a thread, in total, by model, by sender, by run, and by plugin. Show a live total, stop a person who is over budget, and add /usage with your own prices."
 keywords:
   - tanstack ai
   - harness
@@ -39,11 +39,12 @@ console.log(total.calls, total.totalTokens, total.cost)
 console.log(byModel['openai/gpt-6.1-sol']?.totalTokens, bySender.ada?.cost)
 ```
 
-The totals have three groups. `snapshot().usage` has the same data:
+The totals have four groups. `snapshot().usage` has the same data:
 
 - `total`: every model call of the thread.
 - `byModel`: the calls of each model, keyed by `provider/model`, for example `openai/gpt-6.1-sol`.
 - `bySender`: the calls of each person, keyed by the principal id. It has only the calls of a known sender, so its sum can be less than `total`.
+- `bySource`: the model calls that are not a turn or an agent run, keyed by their source: `plugin:<name>`, `router`, or `transfer`. See [Usage of plugins](#usage-of-plugins).
 
 Each entry has `calls`, `promptTokens`, `completionTokens`, `totalTokens`, `cachedTokens`, and `cacheWriteTokens`. If a provider reported a cost, the entry also has `cost`. The harness adds the costs that the providers report, in their currency. It uses no price list of its own.
 
@@ -54,6 +55,10 @@ At the end of each call, the provider reports its usage. These calls count:
 - The model calls of each turn, for the sender of that turn.
 - The subagents that a turn starts, for the same sender.
 - Background agents, for the person who started the agent.
+- A harness that runs as a child with [`harnessAgent`](./subagents#call-a-harness-as-a-child), for the same person.
+- The model calls of plugins with `ctx.model.chat`, for the user of their run.
+- The model calls of the router with `model.chat`, for the sender of the turn.
+- The summary of a transfer with `messages: 'summary'`, for the person who made the transfer, in the source thread.
 
 A call that fails before it ends does not count. Each message runs as its sender, so in a [shared thread](./shared-threads), `bySender` shows what each person used.
 
@@ -61,11 +66,74 @@ A call that fails before it ends does not count. Each message runs as its sender
 
 The totals stay with the thread:
 
-- A durable host (with `stores.log`) keeps one `harness.usage` record per call in the log. The log keeps the totals after a restart.
+- The host keeps one `harness.usage` record per call in the log. The log keeps the totals after a restart.
 - Another host with `stores.metadata` keeps the totals there.
 - A host with neither keeps them in memory.
 
 A [fork of a thread](./fork-and-reset) starts at zero.
+
+## Usage of one run
+
+One agent run used much more than the others, and you want to know which one. Each `harness.usage` record in the log has the `runId` of the run that made the call: a turn, or an agent run. Add them up per run:
+
+```ts group=harness-usage
+import { logIdOf } from '@tanstack/ai-harness'
+import type { LogStore } from '@tanstack/ai-persistence'
+
+// The tokens of the model calls that each run made itself.
+export async function tokensByRun(log: LogStore, threadId: string) {
+  const tokens = new Map<string, number>()
+  for (const { record } of await log.read({ logId: logIdOf({ logId: threadId }) })) {
+    if (record.type !== 'harness.usage' || typeof record.runId !== 'string') continue
+    const { usage } = record
+    if (typeof usage !== 'object' || usage === null || !('totalTokens' in usage)) continue
+    if (typeof usage.totalTokens !== 'number') continue
+    tokens.set(record.runId, (tokens.get(record.runId) ?? 0) + usage.totalTokens)
+  }
+  return tokens
+}
+```
+
+- A call also counts for each run above its run in the [run tree](./subagents#the-run-tree). So the use of a run includes the use of its children.
+- When an agent run ends, its run record gets `usage`: the tokens of the run and of all its children. It is in the `harness.run.update` record of the end.
+- To stop a run that uses too much, give it a `budget`. See [Give one run a budget and a time limit](./subagents#give-one-run-a-budget-and-a-time-limit).
+
+## Usage of plugins
+
+A goal judge or a title writer calls a model next to the turn, and you want to see what these calls cost. A plugin that calls its model with [`ctx.model.chat`](./plugins#call-a-model-from-a-plugin) counts each call under its own name:
+
+```ts group=harness-usage
+import { title } from '@tanstack/ai-harness/plugins'
+
+export const titled = defineHarness({
+  name: 'acme/titled',
+  adapter: openaiText('gpt-6.1-sol'),
+  plugins: () => [title({ adapter: openaiText('gpt-6-luna') })],
+})
+
+const titledSession = await host.open(titled, { threadId: 'titled-thread' })
+await titledSession.send('Plan a trip to Rome.')
+
+const { bySource } = titledSession.usage()
+console.log(bySource['plugin:tanstack/title']?.totalTokens)
+```
+
+- The title call runs next to the turn, so its usage can arrive a moment after the turn ends.
+- The calls of a plugin also count in `total`, `byModel`, and `bySender`, and in the use of their run.
+- The calls of turns and agent runs have no source, so they are not in `bySource`.
+- Each `harness.usage` record of a plugin call has `source`, and the `label` of the call when it has one. The `goal()` judge has the label `judge`, `title()` has `title`, and `/compact` has `compact`.
+
+## Usage of the router and transfers
+
+Two more kinds of calls run outside a turn model call. Each one has its own source in `bySource`:
+
+- `router`: the calls of [`model.chat` in the router](./subagents#count-the-model-calls-of-the-router). They also count in the use of the turn.
+- `transfer`: the summary call of a [transfer](./handoffs) with `messages: 'summary'`. Its record has the label `summary`. It counts in the source thread, also when the transfer fails later.
+
+```ts group=harness-usage
+const { router, transfer } = session.usage().bySource
+console.log(router?.totalTokens, transfer?.totalTokens)
+```
 
 ## Show a live total
 
@@ -80,7 +148,7 @@ const stopCounting = session.onUsage(({ total }) => {
 stopCounting()
 ```
 
-You also get the `model`, the `sender` when it is known, and the `usage` of that one call. Reading raw events? Each call is a `harness.usage` event (`HARNESS_EVENTS.usage`).
+You also get the `model`, the `sender` when it is known, and the `usage` of that one call. A call of a plugin or of the router also has its `source`, and its `label` when it has one. Reading raw events? Each call is a `harness.usage` event (`HARNESS_EVENTS.usage`).
 
 ## Stop a person who is over budget
 
@@ -90,12 +158,12 @@ Read the totals of the sender before you send a prompt. This route refuses a pro
 const BUDGET_USD = 5
 
 export async function send(threadId: string, userId: string, text: string) {
-  const thread = await host.open(assistant, { threadId })
+  const thread = await host.open(assistant, { threadId, principal: { id: userId } })
   const spent = thread.usage().bySender[userId]?.cost ?? 0
   if (spent >= BUDGET_USD) {
     return { error: 'You used your budget for this thread.' }
   }
-  return thread.send(text, { principal: { id: userId } }).receipt
+  return thread.send(text).receipt
 }
 ```
 
@@ -106,7 +174,7 @@ Many providers report no cost, so `cost` can stay empty. For those, compare the 
 With `stores.sessions`, each [session index](./sessions) entry has a `usage` field. The host writes the token counts of `session.usage()` at the end of each turn. `turns` is the number of model calls.
 
 ```ts group=harness-usage
-const page = await host.sessions.list({ principal: { id: 'ada' }, limit: 20 })
+const page = await host.sessions.list({ limit: 20 })
 for (const entry of page.entries) {
   console.log(entry.title ?? 'New chat', entry.usage?.totalTokens ?? 0)
 }
@@ -166,7 +234,8 @@ Limits of the plugin:
 
 ## What you have now
 
-- The tokens and the cost of a thread, in total, by model, and by sender.
+- The tokens and the cost of a thread, in total, by model, by sender, and by plugin.
+- The tokens of each run, with the use of its children in the run above them.
 - Totals that stay after a restart.
 - A live total from the `harness.usage` event.
 - A budget check before each prompt.

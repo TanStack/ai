@@ -18,6 +18,7 @@ import {
   UnsupportedCapabilityError,
   createExecBackedGit,
 } from '@tanstack/ai-sandbox'
+import { commandEnv } from '@tanstack/ai-utils'
 import type { ChildProcess } from 'node:child_process'
 import type { Readable } from 'node:stream'
 import type {
@@ -581,8 +582,10 @@ export interface LocalProcessHandleOptions {
   removeOnDestroy: boolean
   /** Create a fork by copying this sandbox's dir to a new root. */
   forkFactory: (sourceRoot: string) => Promise<SandboxHandle>
-  /** Env vars to delete from the inherited `process.env` before spawning. */
+  /** Env vars to delete from the env of each command (see `commandEnv`). */
   scrubEnv?: Array<string>
+  /** Env vars of this process that each command also gets (see `commandEnv`). */
+  passEnv?: Array<string>
   /**
    * Sink for non-fatal teardown diagnostics — currently a `killTree` that could
    * not confirm the process tree is gone. Teardown never throws, so without a
@@ -842,7 +845,13 @@ export class LocalProcessHandle implements SandboxHandle {
   }
 
   private mergedEnv(extra?: Record<string, string>): NodeJS.ProcessEnv {
-    const env: NodeJS.ProcessEnv = { ...process.env, ...this.envVars, ...extra }
+    // Only a few variables of the server, plus the env that was given. A
+    // provider key or `DATABASE_URL` of the server does not reach a command.
+    const env: NodeJS.ProcessEnv = commandEnv(
+      { ...this.envVars, ...extra },
+      process.platform,
+      this.options.passEnv,
+    )
     // Drop scrubbed vars so a host CLI falls back to its own stored auth
     // (e.g. remove ANTHROPIC_API_KEY → Claude Code uses the logged-in
     // subscription instead of billing the API). Delete (not blank) so the var

@@ -12,23 +12,36 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
+  logIdOf,
 } from '../src'
 import { credentialsFor } from '../src/auth'
-import { after, gate, mockAdapter, text, toolCall } from './helpers'
+import { after, gate, mockAdapter, stoppedRun, text, toolCall } from './helpers'
 import type { LogRecord } from '@tanstack/ai-persistence'
 import type {
   HarnessPlugin,
   HarnessRouterContext,
+  HarnessRunContext,
   JoinCandidate,
   Operation,
   TurnInfo,
 } from '../src'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
+/** The id of the log of `THREAD` in the store, and its key in the other stores. */
+const LOG = logIdOf({ logId: THREAD })
 const alice = { id: 'alice' }
 const bob = { id: 'bob' }
 
-/** A tool that keeps who runs it and the context it gets. */
+/**
+ * A tool that keeps the user of its run, and the context it gets without
+ * the run.
+ */
 function whoami() {
   const seen: Array<{ principal: string | undefined; context: unknown }> = []
   const tool = toolDefinition({
@@ -38,13 +51,11 @@ function whoami() {
   })
   const plugin = definePlugin({
     name: 'test/whoami',
-    setup: (ctx) => ({
+    setup: () => ({
       tools: [
-        tool.server((_input, toolContext) => {
-          seen.push({
-            principal: ctx.session.principal?.id,
-            context: toolContext?.context,
-          })
+        tool.server<HarnessRunContext>((_input, toolContext) => {
+          const { run, ...context } = toolContext.context
+          seen.push({ principal: run.principal?.id, context })
           return Promise.resolve({})
         }),
       ],
@@ -54,8 +65,8 @@ function whoami() {
 }
 
 function durablePersistence() {
-  const { runs, metadata } = memoryPersistence().stores
-  return { stores: { log: memoryLogStore(), runs, metadata } }
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log: memoryLogStore(), metadata } }
 }
 
 describe('the sender of each input', () => {
@@ -78,16 +89,16 @@ describe('the sender of each input', () => {
       threadId: THREAD,
       principal: alice,
     })
-    expect(await host.open(harness, { threadId: THREAD, principal: bob })).toBe(
-      session,
-    )
+    // Bob's open reaches the same live session. Without host access, a call
+    // may name another sender.
+    await host.open(harness, { threadId: THREAD, principal: bob })
 
     await session.send('Who am I?', { inputId: 'in-bob', principal: bob })
     // Without a principal, the input is the opener's.
     await session.send('And now?', { inputId: 'in-default' })
 
     expect(seen.map((entry) => entry.principal)).toEqual(['bob', 'alice'])
-    const inputs = (await persistence.stores.log.read({ logId: THREAD }))
+    const inputs = (await persistence.stores.log.read({ logId: LOG }))
       .map((entry): LogRecord => entry.record)
       .filter((record) => record.type === 'harness.input')
       .map((record) => [record['inputId'], record['principal']])
@@ -168,7 +179,7 @@ describe('the sender of each input', () => {
     release.open()
 
     expect(await turn).toEqual({ text: 'first', media: [] })
-    expect(await session.settled('in-bob')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-bob' })).toMatchObject({
       outcome: 'completed',
     })
     expect(candidates.length).toBeGreaterThan(0)
@@ -223,11 +234,11 @@ describe('the sender of each input', () => {
     release.open()
 
     expect(await turn).toEqual({ text: 'First.Joined.', media: [] })
-    expect(await session.settled('in-alice')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-alice' })).toMatchObject({
       operationId: turn.id,
     })
     expect(await bobs).toEqual({ text: 'Bob here.', media: [] })
-    const bobSettled = await session.settled('in-bob')
+    const bobSettled = await session.settled({ inputId: 'in-bob' })
     expect(bobSettled).toMatchObject({ outcome: 'completed' })
     expect(bobSettled.operationId).not.toBe(turn.id)
     expect(seen.map((entry) => entry.principal)).toEqual(['bob'])
@@ -273,11 +284,13 @@ describe('the sender of each input', () => {
     release.open()
 
     expect(await turn).toEqual({ text: 'First.Joined.', media: [] })
-    expect(await session.settled('in-alice')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-alice' })).toMatchObject({
       operationId: turn.id,
     })
     expect(await bobs).toEqual({ text: 'Bob here.', media: [] })
-    expect((await session.settled('in-bob')).operationId).not.toBe(turn.id)
+    expect((await session.settled({ inputId: 'in-bob' })).operationId).not.toBe(
+      turn.id,
+    )
     expect(seen.map((entry) => entry.principal)).toEqual(['bob'])
     await host.close()
   })
@@ -350,8 +363,11 @@ describe('the sender of each input', () => {
       name: 'test/starter',
       setup: (ctx) => ({
         tools: [
-          startWriter.server(() => {
-            ctx.agents.start(writer, undefined, { wake: true })
+          startWriter.server<HarnessRunContext>((_input, toolContext) => {
+            ctx.agents.start(writer, undefined, {
+              wake: true,
+              principal: toolContext.context.run.principal,
+            })
             return Promise.resolve({})
           }),
         ],
@@ -378,7 +394,7 @@ describe('the sender of each input', () => {
     )
 
     await session.send('Start the writer.', { principal: bob })
-    await vi.waitFor(() => expect(seen).toHaveLength(1))
+    await waitFor(() => expect(seen).toHaveLength(1))
     expect(seen.map((entry) => entry.principal)).toEqual(['bob'])
     await host.close()
   })
@@ -411,8 +427,10 @@ describe('the sender of each input', () => {
       name: 'test/starter',
       setup: (ctx) => ({
         tools: [
-          startWriter.server(() => {
-            started = ctx.agents.start(writer)
+          startWriter.server<HarnessRunContext>((_input, toolContext) => {
+            started = ctx.agents.start(writer, undefined, {
+              principal: toolContext.context.run.principal,
+            })
             return Promise.resolve({})
           }),
         ],
@@ -482,7 +500,7 @@ describe('recovery keeps the sender and the context', () => {
   it('runs an input that never ran with its sender and context', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
-      logId: THREAD,
+      logId: LOG,
       seq: 1,
       epoch: UNOWNED_EPOCH,
       records: [
@@ -513,7 +531,7 @@ describe('recovery keeps the sender and the context', () => {
       },
     )
 
-    expect(await session.settled('in-1')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(turns).toEqual([
@@ -531,7 +549,7 @@ describe('recovery keeps the sender and the context', () => {
   it('runs a turn whose host stopped again with its message, sender, and context', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
-      logId: THREAD,
+      logId: LOG,
       seq: 1,
       epoch: UNOWNED_EPOCH,
       records: [
@@ -553,17 +571,10 @@ describe('recovery keeps the sender and the context', () => {
           keep: 0,
           add: [{ id: 'u1', role: 'user', content: 'go' }],
         },
+        stoppedRun('op-stopped', THREAD, {
+          checkpoint: { at: 1, pendingTools: [] },
+        }),
       ],
-    })
-    await persistence.stores.runs.createOrResume({
-      runId: 'op-stopped',
-      threadId: THREAD,
-      startedAt: Date.now() - 60_000,
-    })
-    await persistence.stores.runs.update('op-stopped', {
-      leaseOwner: 'host-gone',
-      leaseExpiresAt: Date.now() - 1_000,
-      checkpoint: { at: 1, pendingTools: [] },
     })
     const { plugins, turns, seen } = recorder()
     const { adapter } = mockAdapter([
@@ -583,7 +594,7 @@ describe('recovery keeps the sender and the context', () => {
       },
     )
 
-    expect(await session.settled('in-1')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(turns).toEqual([
@@ -650,6 +661,11 @@ describe('the turn where the model is picked', () => {
       message: 'Pick for me.',
       context: { plan: 'pro' },
       principal: bob,
+      run: expect.objectContaining({
+        principal: { id: 'bob' },
+        runId: turn.id,
+        threadId: THREAD,
+      }),
     }
     expect(setups).toEqual([expected])
     expect(picks).toEqual([expected])
@@ -710,10 +726,11 @@ describe('the tenant of a principal', () => {
     })
     const plugin = definePlugin({
       name: 'test/token',
-      setup: (ctx) => ({
+      setup: () => ({
         tools: [
-          read.server(async () => {
-            const credential = await ctx.credentials.get('github')
+          read.server<HarnessRunContext>(async (_input, toolContext) => {
+            const credential =
+              await toolContext.context.run.credentials.get('github')
             seen.push(credential?.type === 'api_key' ? credential.value : null)
             return {}
           }),

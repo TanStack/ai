@@ -8,6 +8,12 @@ import { runHarnessWorker } from '../src/worker'
 import { mockAdapter, text } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 async function collect(stream: AsyncIterable<StreamChunk>) {
   const chunks: Array<StreamChunk> = []
   for await (const chunk of stream) chunks.push(chunk)
@@ -24,15 +30,19 @@ const textOf = (chunks: Array<StreamChunk>) =>
 describe('harnessText for a remote harness', () => {
   it('sends the token and the last user message, and streams the answer', async () => {
     const { adapter, calls } = mockAdapter([() => text('remote answer')])
-    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      access: {
+        identify: ({ request }) =>
+          request.headers.get('authorization') === 'Bearer secret'
+            ? { id: 'u' }
+            : null,
+        policy: { authorize: () => true },
+      },
+    })
     const handler = createHarnessHandler({
       host,
       harness: defineHarness({ name: 'test/remote', adapter }),
-      canAccess: () => true,
-      authorize: (request) =>
-        request.headers.get('authorization') === 'Bearer secret'
-          ? { id: 'u' }
-          : null,
     })
     const remote = harnessText({
       url: 'http://remote.test/api/harness/',
@@ -159,29 +169,37 @@ describe('runHarnessWorker edges', () => {
 
     send('')
     send({ type: 'harness.snapshot' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(frames.at(-1)).toEqual({
         type: 'harness.error',
         message: 'Send harness.subscribe first.',
+        code: 'invalid_frame',
+        requestId: expect.any(String),
       }),
     )
     send('{not json')
-    await vi.waitFor(() => expect(frames).toHaveLength(2))
-    expect(frames[1].type).toBe('harness.error')
+    await waitFor(() => expect(frames).toHaveLength(2))
+    expect(frames[1]).toMatchObject({
+      type: 'harness.error',
+      code: 'invalid_frame',
+      requestId: expect.any(String),
+    })
 
     send({ type: 'harness.subscribe', threadId: 'w', from: '0' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(frames.some((frame) => frame.type === 'harness.hello')).toBe(true),
     )
     send({ type: 'harness.subscribe', threadId: 'w' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(frames.at(-1)).toEqual({
         type: 'harness.error',
         message: 'Already subscribed.',
+        code: 'invalid_frame',
+        requestId: expect.any(String),
       }),
     )
     send({ type: 'harness.snapshot' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(frames.at(-1)).toMatchObject({
         type: 'harness.snapshot',
         snapshot: { threadId: 'w', status: 'idle' },
@@ -189,5 +207,61 @@ describe('runHarnessWorker edges', () => {
     )
     input.end()
     await running
+  })
+
+  it('names the requestId of a frame with a bad input', async () => {
+    const { adapter } = mockAdapter([])
+    const input = new PassThrough()
+    const frames: Array<any> = []
+    const running = runHarnessWorker(
+      defineHarness({ name: 'test/worker-request-id', adapter }),
+      {
+        input,
+        output: { write: (line: string) => frames.push(JSON.parse(line)) },
+        persistence: memoryPersistence(),
+      },
+    )
+    input.write(
+      `${JSON.stringify({ type: 'harness.input', requestId: 'r7', input: {} })}
+`,
+    )
+    await waitFor(() =>
+      expect(frames.at(-1)).toMatchObject({
+        type: 'harness.error',
+        code: 'invalid_frame',
+        requestId: 'r7',
+      }),
+    )
+    input.end()
+    await running
+  })
+
+  it('refuses a protocol version that it does not speak, and stops', async () => {
+    const { adapter } = mockAdapter([])
+    const input = new PassThrough()
+    const frames: Array<any> = []
+    const running = runHarnessWorker(
+      defineHarness({ name: 'test/worker-version', adapter }),
+      {
+        input,
+        output: { write: (line: string) => frames.push(JSON.parse(line)) },
+        persistence: memoryPersistence(),
+      },
+    )
+    input.write(
+      `${JSON.stringify({ type: 'harness.subscribe', threadId: 'w', v: 1, requestId: 's1' })}
+`,
+    )
+    // The worker ends without stdin closing.
+    await running
+    expect(frames).toEqual([
+      {
+        type: 'harness.error',
+        message:
+          'Protocol version 1 is not supported. This host speaks version 2.',
+        code: 'unsupported_version',
+        requestId: 's1',
+      },
+    ])
   })
 })

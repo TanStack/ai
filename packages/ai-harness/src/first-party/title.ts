@@ -1,13 +1,13 @@
-import { chat } from '@tanstack/ai'
 import { createPluginEvent } from '../extensions'
 import { definePlugin } from '../plugins'
 import { textOf } from './session-tools'
 import type {
-  AnyChatMiddleware,
   AnyTextAdapter,
+  ChatMiddleware,
   KeyedAdapter,
   ModelMessage,
 } from '@tanstack/ai'
+import type { HarnessRunContext } from '../types'
 
 const TITLE_PROMPT =
   'Write a short title for a conversation that starts with the message below. Use at most 60 characters on one line, with no quotes. Answer with the title only.'
@@ -46,19 +46,26 @@ export function title(options: {
     name: 'tanstack/title',
     setup: (ctx) => {
       let isNaming = false
-      const name = async (messages: ReadonlyArray<ModelMessage>) => {
+      /** Name the session with the keys of the user of the turn. */
+      const name = async (
+        messages: ReadonlyArray<ModelMessage>,
+        { run }: HarnessRunContext,
+      ) => {
         const first = messages.find((message) => message.role === 'user')
         const entry = await ctx.session.entry()
         // No sessions store, or the session has a title (also after a restart).
         if (!first || !entry || entry.title) return
         // ponytail: the first 2000 characters are enough for a title.
         const message = textOf(first).slice(0, 2000)
-        const answer = await chat({
-          adapter: await ctx.keys.adapter(options.adapter),
-          messages: [
-            { role: 'user', content: `${TITLE_PROMPT}\n\n${message}` },
-          ],
-          stream: false,
+        const answer = await ctx.model.chat({
+          adapter: options.adapter,
+          run,
+          label: 'title',
+          options: {
+            messages: [
+              { role: 'user', content: `${TITLE_PROMPT}\n\n${message}` },
+            ],
+          },
         })
         const text = cleanTitle(answer.text)
         if (text) await ctx.session.updateEntry({ title: text })
@@ -71,7 +78,7 @@ export function title(options: {
               if (run.phase !== 'init' || isNaming) return
               isNaming = true
               // Not awaited: the title call never slows or fails the turn.
-              void name(config.messages)
+              void name(config.messages, run.context)
                 .catch((error: unknown) =>
                   ctx.emit(TitleFailed, {
                     message:
@@ -82,7 +89,7 @@ export function title(options: {
                   isNaming = false
                 })
             },
-          } satisfies AnyChatMiddleware,
+          } satisfies ChatMiddleware<HarnessRunContext>,
         ],
       }
     },

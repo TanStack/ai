@@ -37,7 +37,7 @@ const claude = keyedAdapter(anthropicByok, (key) =>
 - Each provider package exports one from its `/byok` subpath, for example `anthropicByok`, `grokByok`, `falByok`, and `openrouterByok`.
 - `keyedAdapter` works for every adapter kind: text, image, speech, audio, and video.
 
-Before each turn, the session calls your function with the key of the user of that session.
+Before each turn, the session calls your function with the key of the user who sent that turn.
 
 ## 2. Add the providerKeys plugin
 
@@ -88,15 +88,16 @@ const session = await host.open(assistant, {
 ```ts group=harness-provider-keys
 const stopAsking = session.onEvent('CUSTOM', async ({ event }) => {
   if (event.name !== 'harness.question') return
-  const [question] = session.snapshot().pendingQuestions
+  const [question] = session.snapshot().pendingWaits
   // question.secret is true. Read the key without showing it.
-  if (question) await session.answer({ questionId: question.questionId, value: 'sk-proj-...' })
+  if (question) await session.answer({ questionId: question.waitId, value: 'sk-proj-...' })
 })
 
 console.log(await session.command({ name: 'connect:openai' })) // Connected to OpenAI (key ...abcd).
 stopAsking()
 ```
 
+- The command asks with `step.ask`, so the log keeps the question as a [wait](./waits), and the user can answer it on any server. The log never keeps the key.
 - With `keyUrl`, the page to make a key opens first. The session sends a `harness.auth_required` event with the URL, and your app opens it.
 - `/disconnect:openai` deletes the key.
 - `/keys` shows where each key comes from:
@@ -109,7 +110,7 @@ fal.ai: missing. Run /connect fal.
 OpenRouter: missing. Run /connect openrouter.
 ```
 
-In your own UI, read the same list from `session.snapshot().plugins['tanstack/provider-keys'].providers`. Each entry has an `id`, a `label`, and a `state`: `connected`, `env`, or `missing`.
+In your own UI, read the providers from `session.snapshot().plugins['tanstack/provider-keys'].providers`. Each entry has an `id`, a `label`, and a `state`: `env` or `missing`. Every member of a thread reads this list, so it shows only the env vars that the session reads, not the keys of one user. A host with access reads no env vars without `envKeys: true`. To show the keys of the user, run `/keys`.
 
 ### Sign in with OpenRouter
 
@@ -137,7 +138,7 @@ After `/connect:openai`, send the message again.
 
 ## Where the keys are stored
 
-`/connect:<id>` saves the key in the credential store of the host, as an `api_key` credential with the provider id. The store keeps it for the principal of the session:
+`/connect:<id>` saves the key in the credential store of the host, as an `api_key` credential with the provider id. The store keeps it for the user who runs the command:
 
 - CLI: pass the store to `runCli(harness, { credentials })`.
 - Hosted app: your database or your secrets manager. Each signed-in user is a principal, so each user has their own keys. Pass the store to `createHarnessHost({ credentials })`.
@@ -153,9 +154,11 @@ The key that a user pastes can be a Claude OAuth token (`sk-ant-oat...`). `creat
 
 If the user has no saved key, the session reads the env var of the provider, for example `OPENAI_API_KEY`. A saved key wins over the env var. So you can develop with a `.env` file, and your users connect in the app.
 
+On a host with [`access`](./access), the session does not read the env vars. Each user must connect their own key, so no user spends the key of your server. To let users fall back to the env var, set `envKeys: true` in `access`.
+
 ## Use the key of the user in an agent
 
-Your agent makes images with fal, so it needs the fal key of the user. Every agent gets `ctx.keys`. In a harness, `ctx.keys` reads the same keys as the turn:
+Your agent makes images with fal, so it needs the fal key of the user. Every agent gets `ctx.keys`. In a harness, `ctx.keys` reads the keys of the user who started the agent:
 
 ```ts group=harness-provider-keys
 import { defineAgent } from '@tanstack/ai'
@@ -182,7 +185,7 @@ Put the agent in `subagents.agents` of the harness, and the model calls it as a 
 - `ctx.keys.get(provider)`: the key, or `null`.
 - `ctx.keys.require(provider)`: the key. If it is missing, the run stops with `harness.auth_required`, the same as a turn.
 - The children of the agent get the same keys.
-- Plugins get the same keys as `ctx.keys` in `setup`.
+- In a plugin, a tool reads the keys of its run as `ctx.context.run.keys`, and a command reads `run.keys`. See [Act as the user of a run](./plugins#act-as-the-user-of-a-run).
 
 Outside a harness, `ctx.keys` reads the env var. See [Keys inside agents](../advanced/byok#keys-inside-agents).
 
@@ -190,12 +193,13 @@ Outside a harness, `ctx.keys` reads the env var. See [Keys inside agents](../adv
 
 - A key shows masked only: `...` and the last 4 characters.
 - The plugin never puts a key in an event, the transcript, or a command result.
-- The answer to the key question does not go into the inbox of the session.
-- Do not log a key. For error messages, use `maskKey` from `@tanstack/ai/byok`.
+- The session replaces each key that it reads with `[redacted]` in the log, the events, the model context, and its errors. See [Keep tokens out of the log and the model](./auth#keep-tokens-out-of-the-log-and-the-model).
+- The session log keeps the answer to the key question as `[secret]`. If another host owns the thread, the answer goes to it through the credential store. See [Secret answers on another host](./durable-sessions#secret-answers-on-another-host).
+- Do not log a key. For error messages, use `maskKey` or `scrubSecrets` from `@tanstack/ai/byok`.
 
 ## What you have now
 
 - `/connect:<id>` for OpenAI, Anthropic, xAI, fal, and OpenRouter in the harness that you ship, with no `.env` file.
 - One key for each user, in your credential store.
-- The env var as a fallback while you develop.
-- Agents and plugins that use the key of the user through `ctx.keys`.
+- The env var as a fallback while you develop, and no fallback on a host with access unless you set `envKeys`.
+- Agents and plugins that use the key of the user of each run.

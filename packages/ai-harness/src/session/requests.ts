@@ -1,7 +1,9 @@
 import { RUN_CANCEL_REASON } from '@tanstack/ai'
 import { changedEntry } from '../session-entry'
 import { OperationImpl } from '../operation'
+import { parseTraceparent } from '../observability'
 import { HARNESS_EVENTS, InputRejectedError } from '../types'
+import { timeOf } from '../waits'
 import {
   signInConnector,
   createInputId,
@@ -9,7 +11,6 @@ import {
   errorText,
   inputKey,
   SHUTDOWN_REASON,
-  isElsewhere,
 } from './helpers'
 import { SessionState } from './state'
 import type { ModelMessage, SchemaInput } from '@tanstack/ai'
@@ -20,19 +21,27 @@ import type {
   AgentSendOptions,
   CancelOptions,
   ChatTurnResult,
+  Cursor,
   HarnessInput,
   Operation,
   Principal,
   Receipt,
   ResetOptions,
   ResolveOptions,
+  SendForRunOptions,
   SendOptions,
   TurnOverrides,
   UserInput,
   WaitingInput,
 } from '../types'
-import type { QueuedTurn, ResolveForRunOptions, WaitingSteer } from './types'
+import type {
+  HarnessChild,
+  QueuedTurn,
+  ResolveForRunOptions,
+  WaitingSteer,
+} from './types'
 import type { Admission } from './inputs'
+import type { HeldPlugins } from './helpers'
 
 /**
  * A layer of {@link HarnessSession}: prompt, steer, follow-up, continue, reset,
@@ -41,6 +50,12 @@ import type { Admission } from './inputs'
 export abstract class SessionRequests<
   THarness extends AnyHarness = AnyHarness,
 > extends SessionState<THarness> {
+  /**
+   * The plugins of turns that are not disposed yet: a turn, or a run that it
+   * started, still runs. `close()` disposes them.
+   */
+  protected readonly turnPlugins = new Set<HeldPlugins>()
+
   // ===========================
   // Inputs
   // ===========================
@@ -65,9 +80,11 @@ export abstract class SessionRequests<
    * The same id with another message is rejected with `'conflict'`.
    * `await operation.receipt` resolves when the input is stored.
    *
-   * `overrides` changes the adapter, reasoning, prompt cache, or tools of
-   * this turn only (see `TurnOverrides`). A steer that joins the running
-   * turn uses the overrides of that turn, and its own are ignored.
+   * `overrides` changes the adapter or model, model options, reasoning,
+   * prompt cache, or tools of this turn only (see `TurnOverrides`). The log
+   * keeps the JSON ones, so a turn that recovery runs again uses them. A
+   * steer that joins the running turn uses the overrides of that turn, and
+   * its own are ignored.
    *
    * `principal` is who sent the message. Default: the principal that opened
    * the session. The log keeps it, and the turn runs with its credentials
@@ -79,17 +96,30 @@ export abstract class SessionRequests<
    *
    * `ephemeral` are messages that each model call of this turn gets, after
    * the transcript and the new user message, before the messages that the
-   * turn adds (answers, tool results, steers). No store keeps them: not the
-   * transcript, and not the log. Like `overrides`, they are not part of the
+   * turn adds (answers, tool results, steers). The transcript does not
+   * keep them. The log keeps them with the input, so a turn that recovery
+   * runs again has them too. Like `overrides`, they are not part of the
    * input: the `inputId` duplicate check does not read them, so a retry with
    * other ephemeral messages gets the first input's operation and its own
-   * are dropped. A turn that recovery runs again has none. A steer that joins
-   * the running turn ignores them.
+   * are dropped. A steer that joins the running turn ignores them.
    *
    * `systemPreamble` are system prompts that this turn gets ahead of the
    * harness prompts, for example memory that the host adds. They are kept
-   * like `overrides`: in memory only, and only from server code. A client
-   * input cannot set them.
+   * like `overrides`, and only server code sets them. A client input cannot
+   * set them.
+   *
+   * `as: 'operator'` is the reply of a person who took over after a handoff
+   * to a person. It goes in the transcript as an assistant message, and no
+   * model turn runs. It needs the `operator` access action and an open
+   * `human` wait of a handoff, else the receipt is rejected with
+   * `'no_human_wait'`. While that wait is open, other messages go in the
+   * transcript, and no model turn runs either: the turn settles
+   * `interrupted`.
+   *
+   * @example
+   * ```ts
+   * await session.send('I refunded order 42.', { as: 'operator' })
+   * ```
    */
   send(message: UserInput, options: AgentSendOptions): Operation<unknown>
   send(message: UserInput, options?: SendOptions): Operation<ChatTurnResult>
@@ -98,6 +128,18 @@ export abstract class SessionRequests<
     options?: SendOptions | AgentSendOptions,
   ): Operation<unknown> {
     if (options?.to !== undefined) return this.sendToRun(message, options)
+    return this.sendForRun(message, options)
+  }
+
+  /**
+   * @internal `send` of a message to the session, with the AG-UI `runId` of
+   * a `POST run` request: the turn runs as it. The HTTP handler and an
+   * offered prompt call it.
+   */
+  override sendForRun(
+    message: UserInput,
+    options?: SendForRunOptions,
+  ): Operation<ChatTurnResult> {
     const context = options?.context
     const mode = options?.mode ?? 'prompt'
     const input: HarnessInput =
@@ -107,6 +149,7 @@ export abstract class SessionRequests<
             message,
             busy: options?.busy ?? this.harness.busy ?? 'queue',
             ...(context !== undefined ? { context } : {}),
+            ...(options?.as ? { as: options.as } : {}),
           }
         : mode === 'steer'
           ? {
@@ -130,7 +173,7 @@ export abstract class SessionRequests<
    */
   protected startTurn(
     input: HarnessInput & { op: 'prompt' | 'steer' | 'followUp' },
-    options?: SendOptions & { wake?: boolean },
+    options?: SendForRunOptions & { wake?: boolean },
   ): Operation<ChatTurnResult> {
     const { message } = input
     const inputId = options?.inputId ?? createInputId()
@@ -151,9 +194,9 @@ export abstract class SessionRequests<
     const known = this.knownTurn(inputId, stored, principal)
     if (known) return known
     const runId = options?.runId
-    // A prompt that this host passed on comes back from the inbox when its
-    // owner stopped. It runs on the operation that its caller holds.
-    const passed = this.forwarded.has(inputId)
+    // A prompt that this host offered comes back from the lane when no live
+    // host owns the log. It runs on the operation that its caller holds.
+    const passed = this.offeredInputs.has(inputId)
       ? this.turnOperations.get(inputId)
       : undefined
     // A run id must not take the id of another operation.
@@ -168,20 +211,52 @@ export abstract class SessionRequests<
     }
     const operation = passed ?? this.createTurnOperation(runId)
     this.bindTurn(inputId, operation)
+    const traceparent = options?.traceparent
     void this.admitting(() =>
-      this.accept(inputId, stored, principal, runId).then(
+      this.accept(inputId, stored, principal, {
+        // An offered turn runs as the operation of this host.
+        runId: operation.id,
+        turn: { overrides, systemPreamble, ephemeral },
+        // As the W3C rules say, an invalid `traceparent` is dropped.
+        ...(traceparent !== undefined && parseTraceparent(traceparent)
+          ? { traceparent }
+          : {}),
+      }).then(
         async (admission) => {
           if (admission !== 'new') {
             this.answerDuplicate(operation, inputId, admission)
             return
           }
-          // Awaited only for a client run id, so other prompts keep their order.
-          if (runId !== undefined && (await this.isRunTaken(runId))) {
+          // A client run id must be new in the log of this thread.
+          if (runId !== undefined && this.isRunTaken(runId)) {
             this.reject(inputId, 'conflict')
             this.refuse(operation, {
               inputId,
               status: 'rejected',
               reason: 'conflict',
+            })
+            return
+          }
+          const isWaiting =
+            this.activeTurn !== undefined || this.queue.length > 0
+          if (input.op === 'prompt' && input.as === 'operator') {
+            // An operator reply runs no model. It needs an open handoff to
+            // a person.
+            if (!this.humanHandoff()) {
+              this.refuse(operation, this.reject(inputId, 'no_human_wait'))
+              return
+            }
+            this.answerTurn(operation, {
+              inputId,
+              status: isWaiting ? 'queued' : 'accepted',
+              operationId: operation.id,
+            })
+            this.enqueueTurn({
+              operation,
+              message,
+              inputId,
+              principal,
+              operator: true,
             })
             return
           }
@@ -205,8 +280,6 @@ export abstract class SessionRequests<
             })
             return
           }
-          const isWaiting =
-            this.activeTurn !== undefined || this.queue.length > 0
           this.answerTurn(operation, {
             inputId,
             status: isWaiting && !running ? 'queued' : 'accepted',
@@ -222,6 +295,7 @@ export abstract class SessionRequests<
               ephemeral,
               ...sent,
             })
+            this.publishQueued(inputId, 'steer')
             return
           }
           this.enqueueTurn({
@@ -352,7 +426,9 @@ export abstract class SessionRequests<
    *
    * @example
    * ```ts
-   * await session.append([{ type: 'app.signal', text: 'The build failed.' }])
+   * await session.append({
+   *   records: [{ type: 'app.signal', text: 'The build failed.' }],
+   * })
    * await session.continue({ inputId: 'after-signal' })
    * ```
    */
@@ -374,8 +450,12 @@ export abstract class SessionRequests<
     if (known) return known
     const operation = this.createTurnOperation()
     this.bindTurn(inputId, operation)
+    const turn = {
+      ...(options?.overrides ? { overrides: options.overrides } : {}),
+      ...(options?.ephemeral ? { ephemeral: options.ephemeral } : {}),
+    }
     void this.admitting(() =>
-      this.accept(inputId, input, principal).then(
+      this.accept(inputId, input, principal, { turn }).then(
         (admission) => {
           if (admission !== 'new') {
             this.answerDuplicate(operation, inputId, admission)
@@ -458,8 +538,9 @@ export abstract class SessionRequests<
 
   /**
    * Answer the interrupts of the last turn. One resume must answer every open
-   * interrupt of that turn (the AG-UI rule). `principal` means the same as in
-   * `prompt`: the turn that continues runs with its credentials.
+   * interrupt of that turn (the AG-UI rule). `principal` is who answers: the
+   * log keeps it. The turn that continues still runs as the user who sent
+   * it, with that user's credentials.
    *
    * @example
    * ```ts
@@ -475,13 +556,40 @@ export abstract class SessionRequests<
   }
 
   /**
+   * The `harnessAgent` child that waits for every id of `waitIds`, or
+   * `undefined`. A child lists the waits of its own children too.
+   */
+  protected childOfWaits(
+    waitIds: ReadonlyArray<string>,
+  ): HarnessChild | undefined {
+    if (waitIds.length === 0) return undefined
+    for (const child of this.harnessChildren.values()) {
+      const waits = child.session.snapshot().pendingWaits
+      const open = new Set(waits.map((wait) => wait.waitId))
+      if (waitIds.every((id) => open.has(id))) return child
+    }
+    return undefined
+  }
+
+  /**
    * @internal `resolve`, with the AG-UI `runId` of a `POST run` request: the
-   * turn runs as it. The HTTP handler and a forwarded resolve call it.
+   * turn runs as it. The HTTP handler and an offered resolve call it.
    */
   override async resolveForRun(
     options: ResolveForRunOptions,
   ): Promise<Receipt> {
     const { resume } = options
+    // The waits of a `harnessAgent` child: the child takes the answers, and
+    // its run goes on, still for the user of the run that started it. The
+    // AG-UI run id names a run of this session only.
+    const child = this.childOfWaits(resume.map((item) => item.interruptId))
+    if (child) {
+      const { inputId } = options
+      return child.answer({
+        resume,
+        ...(inputId !== undefined ? { inputId } : {}),
+      })
+    }
     return this.admitting(async () => {
       const inputId = options.inputId ?? createInputId()
       const principal = options.principal ?? this.principal
@@ -490,12 +598,12 @@ export abstract class SessionRequests<
         inputId,
         { op: 'resolve', resume },
         principal,
-        runId,
+        runId !== undefined ? { runId } : {},
       )
       if (admission !== 'new') {
         const receipt = this.duplicateReceipt(inputId, admission)
-        // The owner runs a forwarded resume as `runId`.
-        return admission === 'forwarded' &&
+        // The owner runs an offered resume as `runId`.
+        return admission === 'offered' &&
           runId !== undefined &&
           receipt.status !== 'rejected'
           ? { ...receipt, operationId: runId }
@@ -506,10 +614,74 @@ export abstract class SessionRequests<
         runId !== undefined &&
         (this.operations.has(runId) ||
           this.retiredIds.has(runId) ||
-          (await this.isRunTaken(runId)))
+          this.isRunTaken(runId))
       if (isTaken) {
         this.reject(inputId, 'conflict')
         return { inputId, status: 'rejected', reason: 'conflict' }
+      }
+      // The waits of a background agent run: the log ends them, and the
+      // run goes on (see `resumeWaitingRuns`).
+      const logged = resume.map((item) => this.loggedWait(item.interruptId))
+      const open = logged.flatMap((state) =>
+        state !== undefined &&
+        state.outcome === undefined &&
+        state.live === undefined
+          ? [state]
+          : [],
+      )
+      const interrupts = this.logWriter?.state.thread.interrupts
+      // A `step.ask` question and the `human` wait of a handoff have no
+      // interrupt: `answer` checks their schema, keeps a secret out of the
+      // log, and ends the handoff.
+      if (
+        open.some(
+          ({ wait }) => interrupts?.get(wait.waitId)?.status !== 'pending',
+        )
+      ) {
+        this.reject(inputId, 'use_answer')
+        return { inputId, status: 'rejected', reason: 'use_answer' }
+      }
+      if (open.length > 0) {
+        // The access check saw the run of the first item: every item must
+        // be a wait of that run.
+        const runId = open[0]?.wait.runId
+        const isOneRun =
+          open.length === resume.length &&
+          open.every(({ wait }) => wait.runId === runId)
+        if (!isOneRun) {
+          this.reject(inputId, 'mixed_runs')
+          return { inputId, status: 'rejected', reason: 'mixed_runs' }
+        }
+        // Another answer ends one of these waits now.
+        if (open.some(({ wait }) => this.answering.has(wait.waitId))) {
+          this.reject(inputId, 'unknown_question')
+          return { inputId, status: 'rejected', reason: 'unknown_question' }
+        }
+        const ids = open.map(({ wait }) => wait.waitId)
+        for (const id of ids) this.answering.add(id)
+        try {
+          // The input ends here, in the append that ends the waits.
+          await this.settleWith(
+            [{ inputId, outcome: 'completed' }],
+            resume.flatMap((item) =>
+              item.status === 'resolved'
+                ? this.waitEndRecords(
+                    item.interruptId,
+                    'answered',
+                    item.payload,
+                  )
+                : this.waitEndRecords(item.interruptId, 'cancelled'),
+            ),
+          )
+        } finally {
+          for (const id of ids) this.answering.delete(id)
+        }
+        for (const item of resume) await this.afterWaitEnd(item.interruptId)
+        return this.keep({
+          inputId,
+          status: 'accepted',
+          ...(runId !== undefined ? { operationId: runId } : {}),
+        })
       }
       const answers = this.interrupted
       if (!answers) {
@@ -536,13 +708,15 @@ export abstract class SessionRequests<
       }
       const operation = this.createTurnOperation(runId)
       this.bindTurn(inputId, operation)
-      // The turn goes on with the context its input sent.
+      // The turn goes on as its sender, with the context its input sent:
+      // an owner who answers the turn of a member does not lend the member
+      // the owner's keys. A copy from an older version has no sender.
       const turn: QueuedTurn = {
         operation,
         resume,
         inputId,
         answers,
-        principal,
+        principal: answers.principal ?? principal,
         context: answers.context,
       }
       if (isEnding) this.queue.unshift(turn)
@@ -559,7 +733,9 @@ export abstract class SessionRequests<
    * Stop the operation `operationId`, or the running turn without it. A turn
    * that waits in the queue never runs. Refused with `'not_running'` when
    * nothing runs or the operation ended. `inputId` means the same as in
-   * `send`: a second cancel with the same id is a duplicate.
+   * `send`: a second cancel with the same id is a duplicate. `principal` is
+   * who cancels. Default: the principal that opened the session. The log
+   * keeps it.
    *
    * @example
    * ```ts
@@ -567,11 +743,15 @@ export abstract class SessionRequests<
    * ```
    */
   async cancel(
-    options?: CancelOptions & { inputId?: string },
+    options?: CancelOptions & { inputId?: string; principal?: Principal },
   ): Promise<Receipt> {
     const operationId = options?.operationId
     const inputId = options?.inputId ?? createInputId()
-    const admission = await this.accept(inputId, { op: 'cancel', operationId })
+    const admission = await this.accept(
+      inputId,
+      { op: 'cancel', operationId },
+      options?.principal,
+    )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const target = operationId
       ? this.operations.get(operationId)
@@ -596,7 +776,7 @@ export abstract class SessionRequests<
     if (hasJoined) return this.reject(inputId, 'not_running')
     // It never joins now, and settles when the running turn ends.
     if (waitingSteer) this.abortedSteers.add(waitingSteer.inputId)
-    if (this.writer && targetInput) {
+    if (targetInput) {
       await this.writer.append([
         { type: 'harness.input.abort', inputId: targetInput },
       ])
@@ -645,10 +825,9 @@ export abstract class SessionRequests<
       this.publishFinished(target)
     } else {
       // A question of this turn gets no answer now.
-      for (const [questionId, question] of this.questions) {
+      for (const [questionId, question] of [...this.questions]) {
         if (question.operationId !== target.id) continue
-        this.questions.delete(questionId)
-        question.reject(new Error('Cancelled.'))
+        await this.endQuestion(questionId, 'cancelled', new Error('Cancelled.'))
       }
       target.abortController.abort(RUN_CANCEL_REASON)
     }
@@ -657,38 +836,76 @@ export abstract class SessionRequests<
   }
 
   /**
+   * @internal Cancel the queued and running work that the user `userId`
+   * started: `host.sessions.unshare` and `host.revoke` stop it. `principal`
+   * is who cancels, and the log keeps it.
+   */
+  async cancelWorkOf({
+    userId,
+    principal,
+  }: {
+    userId: string
+    principal: Principal | undefined
+  }): Promise<void> {
+    const theirs = [...this.operations.values()].filter(
+      (operation) =>
+        !operation.isSettled() &&
+        this.startedBy(operation.id).principalId === userId,
+    )
+    for (const operation of theirs) {
+      await this.cancel({
+        operationId: operation.id,
+        ...(principal ? { principal } : {}),
+      })
+    }
+  }
+
+  /**
    * Cancel an input that waits, so it never runs, also after a restart. It
    * settles `aborted`. An input that started, or that joins the running
    * turn now, is refused with `not_waiting`: stop it with
-   * `cancel({ operationId })`.
+   * `cancel({ operationId })`. `principal` is who cancels. Default: the
+   * principal that opened the session. The log keeps it.
    *
    * @example
    * ```ts
    * await session.send('Then write the tests.', { mode: 'followUp', inputId: 'tests' })
-   * await session.cancelInput('tests')
+   * await session.cancelInput({ inputId: 'tests' })
    * ```
    */
-  async cancelInput(target: string): Promise<Receipt> {
-    const inputId = createInputId()
-    const admission = await this.accept(inputId, {
-      op: 'cancelInput',
-      inputId: target,
-    })
-    if (isElsewhere(admission)) return this.duplicateReceipt(inputId, admission)
+  cancelInput(options: {
+    inputId: string
+    principal?: Principal
+  }): Promise<Receipt> {
+    return this.applyCancelInput(options)
+  }
+
+  /**
+   * `cancelInput`, with `controlId`: the id of an offered input, so a replay
+   * is a duplicate.
+   */
+  protected override async applyCancelInput({
+    inputId: target,
+    principal,
+    controlId,
+  }: {
+    inputId: string
+    principal?: Principal
+    controlId?: string
+  }): Promise<Receipt> {
+    const inputId = controlId ?? createInputId()
+    const admission = await this.accept(
+      inputId,
+      { op: 'cancelInput', inputId: target },
+      principal,
+    )
+    if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const taken = this.takeWaiting(target) ?? this.takeQueuedContinue(target)
     if (!taken) return this.reject(inputId, 'not_waiting')
     await this.applyControl(inputId, {
       type: 'harness.input.abort',
       inputId: target,
     })
-    // Without a log, the inbox entry must not stay pending: a restart runs
-    // pending entries.
-    if (!this.writer)
-      await this.inbox.markRejected({
-        threadId: this.threadId,
-        inputId: target,
-        reason: 'cancelled',
-      })
     const { operation } = taken
     await this.settle({
       inputId: target,
@@ -706,8 +923,10 @@ export abstract class SessionRequests<
    * Move an input that waits. `'steer'` joins it to the running turn at the
    * next model call. `'queue'` runs it as its own turn, after the queued
    * turns. An input that started, or that joins the running turn now, is
-   * refused with `not_waiting`. On a durable host the log keeps the
-   * delivery, and a restart honors it. Without a log, it is kept in memory.
+   * refused with `not_waiting`. The log keeps the delivery, and a restart
+   * honors it.
+   * `principal` is who moves it. Default: the principal that opened the
+   * session. The log keeps it.
    *
    * @example
    * ```ts
@@ -715,20 +934,36 @@ export abstract class SessionRequests<
    * await session.setDelivery({ inputId: 'style', delivery: 'steer' })
    * ```
    */
-  async setDelivery({
+  setDelivery(options: {
+    inputId: string
+    delivery: WaitingInput['delivery']
+    principal?: Principal
+  }): Promise<Receipt> {
+    return this.applySetDelivery(options)
+  }
+
+  /**
+   * `setDelivery`, with `controlId`: the id of an offered input, so a replay
+   * is a duplicate.
+   */
+  protected override async applySetDelivery({
     inputId: target,
     delivery,
+    principal,
+    controlId,
   }: {
     inputId: string
     delivery: WaitingInput['delivery']
+    principal?: Principal
+    controlId?: string
   }): Promise<Receipt> {
-    const inputId = createInputId()
-    const admission = await this.accept(inputId, {
-      op: 'setDelivery',
-      inputId: target,
-      delivery,
-    })
-    if (isElsewhere(admission)) return this.duplicateReceipt(inputId, admission)
+    const inputId = controlId ?? createInputId()
+    const admission = await this.accept(
+      inputId,
+      { op: 'setDelivery', inputId: target, delivery },
+      principal,
+    )
+    if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const current = this.inputs().find((input) => input.inputId === target)
     if (current?.delivery !== delivery) {
       const taken = this.takeWaiting(target)
@@ -779,43 +1014,89 @@ export abstract class SessionRequests<
   }
 
   /**
-   * The session API of plugins. With `principal` (a command), it acts for
-   * that user. Without it, it follows the sender of the running turn. With
-   * `operationId` (a command), its questions belong to that operation.
+   * End the waits of the last turn when one of them expired. A batch of
+   * interrupts resumes as one, so the first expiry ends them all: the turn
+   * goes on, and its model gets each call cancelled ("no answer"). chat()
+   * refuses any answer to an interrupt past its own `expiresAt`, so then the
+   * turn cannot go on: its interrupts end cancelled, and the thread takes
+   * new turns again. Only the owner of the log ends them.
+   */
+  // ponytail: a turn that cannot go on keeps the tool calls with no result
+  // in its transcript. chat() repairs them at the next turn.
+  protected async expireInterrupted(): Promise<void> {
+    const stopped = this.interrupted
+    if (!stopped || this.activeTurn || this.queue.length > 0) return
+    const now = Date.now()
+    const isDue = (at: number | undefined) => at !== undefined && at <= now
+    const { interrupts } = stopped
+    if (!interrupts.some((item) => isDue(this.interruptExpiry(item)))) return
+    if (!(await this.writer.own()) || this.interrupted !== stopped) return
+    const resume = interrupts.map((interrupt) => ({
+      interruptId: interrupt.id,
+      status: 'cancelled' as const,
+    }))
+    if (interrupts.some((interrupt) => isDue(timeOf(interrupt.expiresAt)))) {
+      await this.consumeResume(resume)
+      this.interrupted = undefined
+      await this.saveInterrupted(undefined)
+      this.checkIdle()
+      return
+    }
+    const principal = stopped.principal ?? this.principal
+    await this.resolve({
+      resume,
+      inputId: `expired:${interrupts.map((item) => item.id).join(',')}`,
+      ...(principal ? { principal } : {}),
+    })
+  }
+
+  /**
+   * The session API of plugins. With `principal` (a command, a turn plugin),
+   * it acts for that user. Without it (a session plugin), it acts for the
+   * owner of the session entry, else for the principal that opened the
+   * session. A `principal` option of `send` and `note` wins: a plugin passes
+   * the user whose work the turn continues. With `operationId` (a command, a
+   * turn plugin), its questions belong to that operation.
    */
   protected override pluginApi(
     principal?: Principal,
     metadataSchema?: SchemaInput,
     operationId?: string,
   ): PluginSessionApi {
-    const sender = () => principal ?? this.sender()
+    // A session plugin acts for the owner of the entry, not for whoever
+    // opened the session first on this host. The owner is known only after
+    // the session read its entry, so it is read at each call. A turn of
+    // `send` or `note` never follows the sender of the running turn: that
+    // user did not start the work of the plugin.
+    const owner = () => principal ?? this.owner ?? this.principal
     return {
       threadId: this.threadId,
       get principal() {
-        return sender()
+        return owner()
       },
       snapshot: () => this.snapshot(),
       // A plugin turn always waits its turn. It cannot see a busy rejection.
-      send: (text) =>
+      send: (text, options) =>
         this.startTurn(
           { op: 'prompt', message: text, busy: 'queue' },
-          { principal: sender() },
+          { principal: options?.principal ?? owner() },
         ),
       note: async (text, options) => {
         await this.addNote(text)
         if (options?.wake) {
           const receipt = await this.startTurn(
             { op: 'followUp', message: text },
-            { principal: sender(), wake: true },
+            { principal: options.principal ?? owner(), wake: true },
           ).receipt
           if (receipt.status === 'rejected')
             throw new InputRejectedError(receipt)
         }
       },
       transcript: () => this.transcript(),
+      keptRecords: async (type) => this.keptRecords(type),
       replaceTranscript: (messages) =>
         this.messages.saveThread(this.threadId, messages),
-      entry: () => this.index.get(this.threadId),
+      entry: () => this.index.get(this.indexKey),
       updateEntry: (update) => {
         // Only these fields: a plugin cannot change the owner, the parent,
         // or the pin.
@@ -829,7 +1110,7 @@ export abstract class SessionRequests<
             metadata: change.metadata,
             usage: change.usage,
           }
-        return this.index.update(this.threadId, (entry) =>
+        return this.index.update(this.indexKey, (entry) =>
           changedEntry(
             entry,
             typeof update === 'function'
@@ -840,15 +1121,19 @@ export abstract class SessionRequests<
           ),
         )
       },
-      // The public type narrows the answer from the schema.
+      // The public type narrows the answer from the schema. A live wait
+      // belongs to the run of its tool call, never to the run of this API.
       ask: ((question: Question<SchemaInput | undefined>) =>
-        this.ask(question, operationId)) as PluginSessionApi['ask'],
-      authRequired: (info) =>
+        this.ask(question)) as PluginSessionApi['ask'],
+      authRequired: (info) => {
         this.feed.publish(
           'session',
           customEvent(HARNESS_EVENTS.authRequired, { ...info }),
-        ),
-      setConfig: (change) => this.setConfig(change),
+        )
+        // The OAuth login of a command is a live wait of that command.
+        if (operationId !== undefined) this.openSignIn(info, operationId)
+      },
+      setConfig: (change) => this.setConfig({ ...change, principal: owner() }),
       settings: () => this.settings(),
     }
   }
@@ -857,29 +1142,23 @@ export abstract class SessionRequests<
   private readonly followers = new Set<OperationImpl<ChatTurnResult>>()
 
   /**
-   * Stop every running operation, wait for them, then dispose session plugins.
-   * Safe to call twice.
+   * @internal Close the session for every handle: stop every running
+   * operation, wait for them, then dispose session plugins. Safe to call
+   * twice. The host calls it (`host.close`, the idle close, and
+   * `host.sessions.delete`). The `close()` of a handle releases only that
+   * handle.
    *
    * With `recoverable`, the running turns and agent runs stop as on a host
-   * crash: the log gets none of their later writes, they do not settle, and
-   * the run store gets no aborted state. They give their leases back, so the
-   * next host that opens the thread runs them again at once. Use it when a
-   * durable host shuts down, for example for a deploy.
-   *
-   * @example
-   * ```ts
-   * await session.close({ recoverable: true })
-   * ```
+   * crash: the log gets none of their later writes, so they do not settle
+   * and their runs get no aborted state. The host gives the log up, so the
+   * next host that opens the thread runs them again at once. `host.close`
+   * passes it when a host shuts down, for example for a deploy.
    */
   close(options?: { recoverable?: boolean }): Promise<void> {
     this.closing ??= (async () => {
-      // A thread with work keeps its claim, so a sweep finds that work after
-      // the claim expires. An idle thread gives it back.
-      const wasIdle = this.isIdle()
-      this.stopClaimTimer()
-      if (wasIdle) await this.releaseClaim()
       // Before the stop, so no write of the stopped work lands.
-      if (options?.recoverable) this.writer?.close()
+      // A session whose open failed before the log opened has no writer.
+      if (options?.recoverable) this.logWriter?.close()
       for (const turn of this.queue.splice(0)) {
         await this.refreshTurnInterrupts(turn.operation)
         turn.operation.fail('cancelled', new Error('Session closed.'))
@@ -899,17 +1178,26 @@ export abstract class SessionRequests<
           options?.recoverable ? SHUTDOWN_REASON : RUN_CANCEL_REASON,
         )
       }
-      for (const question of this.questions.values()) {
-        question.reject(new Error('Session closed.'))
-      }
-      this.questions.clear()
+      // Nobody can answer a live question now. The log gets the end, when
+      // it still takes writes.
+      await Promise.all(
+        [...this.questions.keys()].map((questionId) =>
+          this.endQuestion(
+            questionId,
+            'cancelled',
+            new Error('Session closed.'),
+          ),
+        ),
+      )
       await Promise.allSettled(
         running.map((operation) => Promise.resolve(operation)),
       )
+      // The turn plugins that a run still held, before the feed closes.
+      await Promise.all([...this.turnPlugins].map((held) => held.dispose()))
       // The events from before the close land first, so the next host has
       // the text of a cut answer.
       if (options?.recoverable)
-        await this.writer
+        await this.logWriter
           ?.flush()
           .catch((error: unknown) => this.warnSession('harness:log', error))
       // A reload that mounts plugins now ends first, so its plugins are
@@ -931,13 +1219,29 @@ export abstract class SessionRequests<
   // Chat turns
   // ===========================
 
-  protected createTurnOperation(id?: string): OperationImpl<ChatTurnResult> {
+  /**
+   * `id`: a stored or chosen run id. `startedCursor`: the start of a run
+   * that a restart rebuilds from the log.
+   */
+  protected createTurnOperation(
+    id?: string,
+    startedCursor?: Cursor,
+  ): OperationImpl<ChatTurnResult> {
     const operation = new OperationImpl<ChatTurnResult>(
       'chat',
       this.feed,
-      (target) => this.cancel({ operationId: target.id }),
+      (target) => {
+        // A cancel on the turn itself acts as its sender, not as the
+        // principal that opened the session. A handle passes its own.
+        const principal = this.principalOfRun(target.id)
+        return this.cancel({
+          operationId: target.id,
+          ...(principal ? { principal } : {}),
+        })
+      },
       undefined,
       id,
+      startedCursor,
     )
     this.track(operation as OperationImpl<unknown>)
     return operation
@@ -1005,7 +1309,7 @@ export abstract class SessionRequests<
   ) {
     const payload = inputKey(input, principal)
     const local = this.admitted.get(inputId)
-    const logged = this.writer?.state.inputs.get(inputId)
+    const logged = this.writer.state.inputs.get(inputId)
     const stored =
       local ?? (logged ? inputKey(logged.input, logged.principal) : undefined)
     if (stored === undefined) return undefined
@@ -1016,7 +1320,11 @@ export abstract class SessionRequests<
     }
     const live = this.turnOperations.get(inputId)
     if (live) return live
-    const replay = this.createTurnOperation(logged?.operationId)
+    // A join of the replayed turn reads its events from its run start.
+    const replay = this.createTurnOperation(
+      logged?.operationId,
+      this.runStart(logged?.operationId),
+    )
     this.answerDuplicate(replay, inputId, 'duplicate')
     return replay
   }
@@ -1034,18 +1342,7 @@ export abstract class SessionRequests<
     }
     operation.resolveReceipt(receipt)
     this.followers.add(operation)
-    if (!this.writer) {
-      // Without a log, the result of an input from before a restart, or of
-      // one the session no longer keeps, is gone.
-      operation.fail(
-        'failed',
-        new Error(
-          'This input ran earlier, and its result is gone. Keep results with a durable host (stores.log).',
-        ),
-      )
-      return
-    }
-    void this.settled(inputId)
+    void this.settled({ inputId })
       .then(
         (settlement) => this.settleOperation(operation, settlement),
         (error: unknown) => operation.fail('failed', error),

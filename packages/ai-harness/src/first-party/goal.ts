@@ -1,10 +1,17 @@
-import { EventType, chat } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai'
 import { defineCommand } from '../commands'
 import { createPluginEvent } from '../extensions'
 import { definePlugin } from '../plugins'
+import { isApproval } from '../waits'
 import { textOf, transcriptText } from './session-tools'
-import type { AnyTextAdapter, KeyedAdapter } from '@tanstack/ai'
-import type { ChatTurnResult, Operation } from '../types'
+import type { AnyTextAdapter, ChatMiddleware, KeyedAdapter } from '@tanstack/ai'
+import type { PluginSessionApi } from '../commands'
+import type {
+  ChatTurnResult,
+  HarnessRunContext,
+  Operation,
+  Principal,
+} from '../types'
 
 /** The goal of a session. It is plugin state, so it survives restarts. */
 export interface Goal {
@@ -32,6 +39,8 @@ const USER_MESSAGE =
 const TURN_FAILED = 'The last turn failed. Run /goal resume to try again.'
 const WAITS_FOR_APPROVAL =
   'The last turn waits for approval. Answer it, then run /goal resume.'
+const WAITS_FOR_INPUT =
+  'The last turn waits for input. Answer it, then run /goal resume.'
 
 function isVerdict(value: unknown): value is { met: boolean; reason: string } {
   return (
@@ -120,8 +129,17 @@ export function goal(options: {
       // The turn the plugin queued, until it starts.
       let queuedTurn: Operation<ChatTurnResult> | undefined
 
-      const queue = (message: string) => {
-        queuedTurn = ctx.session.send(message)
+      /**
+       * Queue the next turn of the goal. `/goal` passes its own session, so
+       * the turn runs as the user who runs it. `onFinish` passes the user of
+       * the goal's last turn, so the goal goes on as that user.
+       */
+      const queue = (
+        message: string,
+        session = ctx.session,
+        principal?: Principal,
+      ) => {
+        queuedTurn = session.send(message, principal ? { principal } : {})
       }
 
       /** Cancel the queued turn if it has not started. */
@@ -144,7 +162,11 @@ export function goal(options: {
       }
 
       /** Make `text` the active goal with a new round count, and start a turn. */
-      const begin = async (text: string, reason: string) => {
+      const begin = async (
+        text: string,
+        reason: string,
+        session: PluginSessionApi,
+      ) => {
         const message =
           reason === ''
             ? `Work toward this goal: ${text}`
@@ -160,7 +182,7 @@ export function goal(options: {
           note: '',
           queued: message,
         }))
-        queue(message)
+        queue(message, session)
       }
 
       /** Pause the goal when the plugin's own turn ends early. */
@@ -170,26 +192,32 @@ export function goal(options: {
         await change(current.text, { status: 'paused', note })
       }
 
-      const judge = async (text: string) => {
+      /** Check the goal with the keys of the user of the turn. */
+      const judge = async (text: string, { run }: HarnessRunContext) => {
         // ponytail: the last 10 messages, clipped. Summarize first if a judge needs more.
         const transcript = transcriptText(
           (await ctx.session.transcript()).slice(-10),
         ).slice(-8000)
-        const verdict = await chat({
-          adapter: await ctx.keys.adapter(options.judge),
-          messages: [
-            {
-              role: 'user',
-              content: `${JUDGE_PROMPT}\n\nGoal: ${text}\n\nThe last part of the conversation:\n${transcript}`,
+        // Counted in the session, and stopped when the turn stops.
+        const verdict = await ctx.model.chat({
+          adapter: options.judge,
+          run,
+          label: 'judge',
+          options: {
+            messages: [
+              {
+                role: 'user',
+                content: `${JUDGE_PROMPT}\n\nGoal: ${text}\n\nThe last part of the conversation:\n${transcript}`,
+              },
+            ],
+            outputSchema: {
+              type: 'object',
+              properties: {
+                met: { type: 'boolean' },
+                reason: { type: 'string' },
+              },
+              required: ['met', 'reason'],
             },
-          ],
-          outputSchema: {
-            type: 'object',
-            properties: {
-              met: { type: 'boolean' },
-              reason: { type: 'string' },
-            },
-            required: ['met', 'reason'],
           },
         })
         if (!isVerdict(verdict))
@@ -201,6 +229,8 @@ export function goal(options: {
         prompts: [
           {
             id: 'tanstack/goal:active',
+            // It changes often: last, so the system prompts before it stay cached.
+            placement: 'context',
             text: () =>
               current?.status === 'active'
                 ? `You work toward this goal: ${current.text}. Keep going until it is done.`
@@ -211,7 +241,7 @@ export function goal(options: {
           goal: defineCommand({
             description:
               'Work until a goal is met: /goal <goal>. Also /goal, /goal stop, /goal resume',
-            run: async (input: unknown) => {
+            run: async (input: unknown, { session }) => {
               const arg = typeof input === 'string' ? input.trim() : ''
               switch (arg) {
                 case '':
@@ -245,11 +275,11 @@ export function goal(options: {
                     current?.status === 'stopped'
                   if (!current || !canResume)
                     return describe(current, maxRounds)
-                  await begin(current.text, current.reason)
+                  await begin(current.text, current.reason, session)
                   return describe(current, maxRounds)
                 }
                 default:
-                  await begin(arg, '')
+                  await begin(arg, '', session)
                   return describe(current, maxRounds)
               }
             },
@@ -281,10 +311,18 @@ export function goal(options: {
               await change(saved.text, { round: saved.round + 1, queued: '' })
             },
             onChunk: async (run, chunk) => {
-              const isApproval =
+              // The turn stopped for its waits: approvals, or other input
+              // (a question, a sign-in, a client tool).
+              if (
                 chunk.type === EventType.RUN_FINISHED &&
                 chunk.outcome?.type === 'interrupt'
-              if (isApproval) await pauseOwnTurn(run.runId, WAITS_FOR_APPROVAL)
+              ) {
+                const isApprovals = chunk.outcome.interrupts.every(isApproval)
+                await pauseOwnTurn(
+                  run.runId,
+                  isApprovals ? WAITS_FOR_APPROVAL : WAITS_FOR_INPUT,
+                )
+              }
               if (chunk.type === EventType.RUN_ERROR)
                 await pauseOwnTurn(run.runId, TURN_FAILED)
             },
@@ -301,8 +339,9 @@ export function goal(options: {
               if (run.runId !== ownRun || saved?.status !== 'active') return
               ownRun = undefined
               const { text, round } = saved
-              const verdict = await judge(text).catch((error: unknown) =>
-                error instanceof Error ? error.message : String(error),
+              const verdict = await judge(text, run.context).catch(
+                (error: unknown) =>
+                  error instanceof Error ? error.message : String(error),
               )
               if (typeof verdict === 'string') {
                 await change(text, {
@@ -335,10 +374,11 @@ export function goal(options: {
                 return
               }
               const message = keepWorking(text, reason)
-              if (await change(text, { reason, queued: message }))
-                queue(message)
+              if (await change(text, { reason, queued: message })) {
+                queue(message, ctx.session, run.context.run.principal)
+              }
             },
-          },
+          } satisfies ChatMiddleware<HarnessRunContext>,
         ],
       }
     },

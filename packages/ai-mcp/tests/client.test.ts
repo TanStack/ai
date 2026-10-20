@@ -486,6 +486,44 @@ describe('createMCPClient', () => {
     })
   })
 
+  it('calls onToolListChanged on a tools/list_changed notification', async () => {
+    const { server, clientTransport } = await makeServerWithChangingTools()
+    const onToolListChanged = vi.fn()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      onToolListChanged,
+    })
+    expect(onToolListChanged).not.toHaveBeenCalled()
+    await server.sendToolListChanged()
+    await vi.waitFor(() => expect(onToolListChanged).toHaveBeenCalledTimes(1))
+    // The hook only reports. The next tools() call lists again.
+    expect((await client.tools()).map((tool) => tool.name)).toEqual(['tool_a'])
+  })
+
+  it('calls onClose when the server closes the connection', async () => {
+    const { server, clientTransport } = await makeServerWithChangingTools()
+    const onClose = vi.fn()
+    const client = await createMCPClient({
+      transport: clientTransport,
+      onClose,
+    })
+    await server.close()
+    await vi.waitFor(() => expect(onClose).toHaveBeenCalledTimes(1))
+    await client.close()
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not call onClose for its own close()', async () => {
+    const { clientTransport } = await makeServerWithChangingTools()
+    const onClose = vi.fn()
+    const client = await createMCPClient({
+      transport: clientTransport,
+      onClose,
+    })
+    await client.close()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('opens subscriptions/listen on a spec 2026 server that reports tool list changes', async () => {
     const { clientTransport, sawListen } = await makeModernChangingServer()
     await using client = await createMCPClientFromTransport(clientTransport)

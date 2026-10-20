@@ -4,7 +4,10 @@ import { chat } from '../src/activities/chat/index'
 import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
 import { defineInterrupt } from '../src/interrupt-definition'
 import { executeToolCalls } from '../src/activities/chat/tools/tool-calls'
-import { validateToolInput } from '../src/activities/chat/tools/input-validation'
+import {
+  validateJsonSchema,
+  validateToolInput,
+} from '../src/activities/chat/tools/input-validation'
 import { otelMiddleware } from '../src/middlewares/otel'
 import { EventType } from '../src/types'
 import { collectChunks, createMockAdapter, ev } from './test-utils'
@@ -1577,5 +1580,18 @@ describe('an approved edit in the transcript', () => {
     ])
     expect(execute).not.toHaveBeenCalled()
     expect(args).toBe('{"count":1}')
+  })
+})
+
+describe('validateJsonSchema', () => {
+  it('checks every keyword of the schema, and never repairs the value', () => {
+    const schema = { type: 'string', pattern: '^key-' }
+    expect(validateJsonSchema(schema, 'key-1')).toEqual({ value: 'key-1' })
+    const refused = validateJsonSchema(schema, 'secret')
+    expect(refused.issues?.length).toBeGreaterThan(0)
+    // A tool input would be repaired to `5`. This check does not repair.
+    expect(
+      validateJsonSchema({ type: 'number' }, '5').issues?.length,
+    ).toBeGreaterThan(0)
   })
 })

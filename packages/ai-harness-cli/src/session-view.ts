@@ -1,19 +1,72 @@
-import type { Interrupt, RunAgentResumeItem } from '@tanstack/ai'
-import type { HarnessSession } from '@tanstack/ai-harness'
+import { parseAnswer } from './commands'
+import type { RunAgentResumeItem } from '@tanstack/ai'
+import type {
+  HarnessSession,
+  SessionSnapshot,
+  Wait,
+} from '@tanstack/ai-harness'
 import type { SignIn } from '@tanstack/ai-harness/view'
 
-/** Answer every open interrupt of the last turn with one decision. */
-export function resolveAll(
-  session: HarnessSession,
-  interrupts: ReadonlyArray<Interrupt>,
-  approved: boolean,
-) {
-  const resume: Array<RunAgentResumeItem> = interrupts.map((interrupt) => ({
-    interruptId: interrupt.id,
+/** The waits of the stopped turn, in order. One resolve answers them all. */
+export function turnWaits(snapshot: SessionSnapshot) {
+  return snapshot.pendingWaits.filter(({ turn }) => turn)
+}
+
+const isYes = (text: string) => /^y(es)?$/i.test(text.trim())
+
+/**
+ * The answer of the reply `text` to `wait`, by its kind and schema:
+ *
+ * - `approval`: `y` approves and `n` rejects. Any other reply is read with
+ *   the schema of the wait (for example `always` for an approval of
+ *   `permissions()`), and an approval with no schema rejects it.
+ * - `question` and `human`: the reply, read with the schema.
+ * - `sign-in`: `y` goes on after the sign-in. Any other reply skips it.
+ * - `client-tool`: a terminal cannot run it, so any reply skips it.
+ */
+export function answerOf(wait: Wait, text: string): RunAgentResumeItem {
+  const resolved = (payload: unknown): RunAgentResumeItem => ({
+    interruptId: wait.waitId,
     status: 'resolved',
-    payload: approved,
-  }))
-  return session.resolve({ resume })
+    payload,
+  })
+  const skipped: RunAgentResumeItem = {
+    interruptId: wait.waitId,
+    status: 'cancelled',
+  }
+  switch (wait.kind) {
+    case 'approval': {
+      const reply = text.trim()
+      if (isYes(reply)) return resolved(true)
+      if (/^no?$/i.test(reply) || wait.schema === undefined) {
+        return resolved(false)
+      }
+      return resolved(parseAnswer(reply, wait.schema))
+    }
+    case 'question':
+    case 'human':
+      return resolved(parseAnswer(text, wait.schema))
+    case 'sign-in':
+      return isYes(text) ? resolved(true) : skipped
+    case 'client-tool':
+      return skipped
+  }
+}
+
+/** The line that asks the user for the answer to `wait`. */
+export function waitQuestion(wait: Wait) {
+  const message = wait.message ?? wait.waitId
+  switch (wait.kind) {
+    case 'approval':
+      return `Approve ${message}? [y/n]`
+    case 'question':
+    case 'human':
+      return `? ${message}`
+    case 'sign-in':
+      return `${message} Sign in, then answer y to go on, or n to skip. [y/n]`
+    case 'client-tool':
+      return `${message}: this tool runs in a client, not here. Send any line to skip it.`
+  }
 }
 
 /** Open an http(s) URL in the default browser. No shell is involved. */
@@ -35,22 +88,14 @@ export function openUrl(url: string) {
   })
 }
 
-/** A short question for the open interrupts. */
-export function approvalQuestion(interrupts: ReadonlyArray<Interrupt>) {
-  const names = interrupts.map(
-    (interrupt) => interrupt.message ?? interrupt.toolCallId ?? interrupt.id,
-  )
-  return `Approve ${names.join(', ')}? [y/n]`
-}
-
 /**
- * Resolves when no chat turn runs or waits in the queue, or when the
- * session waits for an answer to a question.
+ * Resolves when no chat turn runs or waits in the queue, or when a wait is
+ * open (see `session.waitFor`): the user answers it on the next line.
  */
 export async function waitIdle(session: HarnessSession) {
   while (true) {
     const snapshot = session.snapshot()
-    if (snapshot.pendingQuestions.length > 0) return
+    if (snapshot.pendingWaits.length > 0) return
     const chatActive = snapshot.activeOperations.some(
       (operation) => operation.kind === 'chat',
     )

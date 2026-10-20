@@ -1,7 +1,7 @@
+import { PassThrough } from 'node:stream'
 import { memoryCredentialStore } from '@tanstack/ai/byok/server'
-import { Readable } from 'node:stream'
 import { describe, expect, it, vi } from 'vitest'
-import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
+import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import {
   configOption,
@@ -9,104 +9,36 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
+  durableTool,
+  membersOnly,
 } from '@tanstack/ai-harness'
+import { question as questionTool } from '@tanstack/ai-harness/plugins'
+import { createMCPClient } from '@tanstack/ai-mcp'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { EXIT, parseCliArgs, runCli } from '../src'
+import { EXIT, USAGE, parseCliArgs, runCli } from '../src'
 import { serve } from '../src/serve'
-import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
-
-const now = () => Date.now()
-const textTurn = (text: string): Array<StreamChunk> => [
-  { type: EventType.RUN_STARTED, runId: 'r', threadId: 't', timestamp: now() },
-  {
-    type: EventType.TEXT_MESSAGE_START,
-    messageId: 'm',
-    role: 'assistant',
-    timestamp: now(),
-  },
-  {
-    type: EventType.TEXT_MESSAGE_CONTENT,
-    messageId: 'm',
-    delta: text,
-    timestamp: now(),
-  },
-  { type: EventType.TEXT_MESSAGE_END, messageId: 'm', timestamp: now() },
-  {
-    type: EventType.RUN_FINISHED,
-    runId: 'r',
-    threadId: 't',
-    timestamp: now(),
-    metadata: { tanstack: { finishReason: 'stop' } },
-  },
-]
-const toolTurn = (name: string, args: string): Array<StreamChunk> => [
-  { type: EventType.RUN_STARTED, runId: 'r', threadId: 't', timestamp: now() },
-  {
-    type: EventType.TOOL_CALL_START,
-    toolCallId: 'call_1',
-    toolCallName: name,
-    timestamp: now(),
-  },
-  {
-    type: EventType.TOOL_CALL_ARGS,
-    toolCallId: 'call_1',
-    delta: args,
-    timestamp: now(),
-  },
-  { type: EventType.TOOL_CALL_END, toolCallId: 'call_1', timestamp: now() },
-  {
-    type: EventType.RUN_FINISHED,
-    runId: 'r',
-    threadId: 't',
-    timestamp: now(),
-    metadata: { tanstack: { finishReason: 'tool_calls' } },
-  },
-]
-
-function scripted(turns: Array<Array<StreamChunk>>) {
-  let call = 0
-  const seen: Array<Array<{ role: string; content: unknown }>> = []
-  const adapter: AnyTextAdapter = {
-    kind: 'text',
-    name: 'mock',
-    model: 'test-model',
-    // `~types` holds types only. Its values are never read, so they are casts.
-    '~types': {
-      providerOptions: {} as Record<string, unknown>,
-      inputModalities: ['text'] as readonly ['text'],
-      messageMetadataByModality: {
-        text: undefined as unknown,
-        image: undefined as unknown,
-        audio: undefined as unknown,
-        video: undefined as unknown,
-        document: undefined as unknown,
-      },
-      toolCapabilities: [] as ReadonlyArray<string>,
-      toolCallMetadata: undefined as unknown,
-      systemPromptMetadata: undefined as never,
-    },
-    chatStream: (options) => {
-      seen.push(options.messages)
-      const chunks = turns[call] ?? textTurn('')
-      call += 1
-      return (async function* () {
-        yield* chunks
-      })()
-    },
-    structuredOutput: async () => ({ data: {}, rawText: '{}' }),
-  }
-  return { adapter, seen }
-}
+import {
+  asStdin,
+  capture,
+  gate,
+  heldTurn,
+  scripted,
+  stdinFrom,
+  textTurn,
+  toolTurn,
+} from './helpers'
+import type { AnyHarness } from '@tanstack/ai-harness'
 
 /** `/connect acme` asks for a key as a secret question, then saves it. */
 const acmeKeys = definePlugin({
   name: 'test/acme-keys',
-  setup: (ctx) => ({
+  setup: () => ({
     commands: {
       'connect:acme': defineCommand({
         description: 'Save an Acme API key',
-        run: async (_input, { credentials }) => {
-          const key = await ctx.session.ask({
+        run: async (_input, { credentials, step }) => {
+          const key = await step.ask({
+            name: 'key',
             message: 'Paste your Acme API key',
             schema: z.string(),
             secret: true,
@@ -122,23 +54,20 @@ const acmeKeys = definePlugin({
   }),
 })
 
-function capture() {
-  let text = ''
-  return {
-    write: (chunk: string) => (text += chunk),
-    get text() {
-      return text
-    },
-  }
-}
+const olga = { id: 'olga' }
+const cid = { id: 'cid' }
+const users = new Map([olga, cid].map((user) => [user.id, user]))
 
-/** A stdin that reads `lines`, as a terminal or as a pipe. */
-function stdinFrom(lines: Array<string>, { isTTY }: { isTTY: boolean }) {
-  // NodeJS.ReadStream is a TTY socket. A test cannot make one without a real
-  // terminal, and runCli only reads the lines and `isTTY`, so this casts.
-  return Object.assign(Readable.from(lines), {
-    isTTY,
-  }) as unknown as NodeJS.ReadStream
+/** A membersOnly() host whose users come from the `x-user` header. */
+function accessHost() {
+  return createHarnessHost({
+    persistence: memoryPersistence(),
+    access: {
+      identify: ({ request }) =>
+        users.get(request.headers.get('x-user') ?? '') ?? null,
+      policy: membersOnly(),
+    },
+  })
 }
 
 describe('parseCliArgs', () => {
@@ -158,6 +87,13 @@ describe('parseCliArgs', () => {
       yes: true,
     })
     expect(parseCliArgs([])).toMatchObject({ mcp: false, yes: false })
+  })
+
+  it('refuses --dashboard as an unknown flag', () => {
+    expect(() => parseCliArgs(['--dashboard', 'http://127.0.0.1:1'])).toThrow(
+      "Unknown option '--dashboard'",
+    )
+    expect(USAGE).not.toContain('--dashboard')
   })
 })
 
@@ -192,7 +128,7 @@ describe('print mode', () => {
     expect(events.at(-1).name).toBe('harness.operation.finished')
   })
 
-  it('exits 2 when the turn waits for an approval', async () => {
+  it('exits 3 when the turn waits for an approval', async () => {
     const { adapter } = scripted([toolTurn('remove', '{}')])
     const stderr = capture()
     const code = await runCli(
@@ -215,7 +151,39 @@ describe('print mode', () => {
       },
     )
     expect(code).toBe(EXIT.needsAction)
+    expect(EXIT.needsAction).toBe(3)
     expect(stderr.text).toContain('approval')
+  })
+
+  it('exits 3 when the turn waits for the answer to a question', async () => {
+    const { adapter } = scripted([toolTurn('greet', '{}')])
+    const greet = durableTool(
+      toolDefinition({
+        name: 'greet',
+        description: 'Ask the user for a name',
+        inputSchema: z.object({}),
+      }),
+      async (_args, { step }) => {
+        const name = await step.ask({
+          name: 'name',
+          message: 'Name?',
+          schema: z.string(),
+        })
+        return `Hello, ${name}.`
+      },
+    )
+    const stderr = capture()
+    const code = await runCli(
+      defineHarness({ name: 'test/print-question', adapter, tools: [greet] }),
+      {
+        argv: ['-p', 'greet me'],
+        stdout: capture(),
+        stderr,
+        persistence: memoryPersistence(),
+      },
+    )
+    expect(code).toBe(EXIT.needsAction)
+    expect(stderr.text).toContain('an answer: Name?')
   })
 })
 
@@ -266,11 +234,151 @@ describe('line mode', () => {
   })
 })
 
+describe('line mode in a terminal', () => {
+  /** Line mode on a terminal that the test types into. */
+  function terminal(harness: AnyHarness) {
+    const input = new PassThrough()
+    const stdout = capture()
+    const exit = runCli(harness, {
+      argv: [],
+      stdin: asStdin(input, { isTTY: true }),
+      stdout,
+      stderr: capture(),
+      persistence: memoryPersistence(),
+    })
+    return {
+      stdout,
+      type: (text: string) => input.write(`${text}\n`),
+      shows: (text: string) =>
+        vi.waitFor(() => expect(stdout.text).toContain(text)),
+      quit: () => {
+        input.end('/exit\n')
+        return exit
+      },
+    }
+  }
+
+  it('cancels the running turn at once with /cancel', async () => {
+    // Never opened: only the cancel can end this turn.
+    const release = gate()
+    const { adapter } = scripted([heldTurn('Working on it.', release.opened)])
+    const cli = terminal(defineHarness({ name: 'test/cancel', adapter }))
+    cli.type('write a long story')
+    await cli.shows('Working on it.')
+    cli.type('/cancel')
+    await cli.shows('Cancelled.')
+    expect(await cli.quit()).toBe(EXIT.ok)
+  })
+
+  it('sends a line typed while a turn runs as a steer that the turn sees', async () => {
+    const release = gate()
+    const { adapter, seen } = scripted([
+      heldTurn('Working on it.', release.opened),
+      textTurn('Checked the logs too.'),
+    ])
+    const joined: Array<unknown> = []
+    const cli = terminal(
+      defineHarness({
+        name: 'test/steer',
+        adapter,
+        turn: {
+          canJoin: (candidate) => {
+            joined.push(candidate.message)
+            return true
+          },
+        },
+      }),
+    )
+    cli.type('fix the bug')
+    await cli.shows('Working on it.')
+    cli.type('also check the logs')
+    // The steer waits for the next model call of the running turn.
+    cli.type('/status')
+    await cli.shows('Queued turns: 1.')
+    release.open()
+    await cli.shows('Checked the logs too.')
+    expect(await cli.quit()).toBe(EXIT.ok)
+    expect(joined).toEqual(['also check the logs'])
+    expect(seen[1]?.at(-1)).toMatchObject({
+      role: 'user',
+      content: 'also check the logs',
+    })
+  })
+
+  it('asks for an approval once, and the next line answers it', async () => {
+    const remove = vi.fn(async () => 'removed')
+    const { adapter } = scripted([
+      toolTurn('remove', '{}'),
+      textTurn('Done removing.'),
+    ])
+    const cli = terminal(
+      defineHarness({
+        name: 'test/approve',
+        adapter,
+        tools: [
+          toolDefinition({
+            name: 'remove',
+            description: 'Remove',
+            needsApproval: true,
+          }).server(remove),
+        ],
+      }),
+    )
+    cli.type('remove the file')
+    await cli.shows('[y/n]')
+    cli.type('y')
+    await cli.shows('Done removing.')
+    expect(await cli.quit()).toBe(EXIT.ok)
+    expect(remove).toHaveBeenCalledTimes(1)
+    expect(cli.stdout.text.split('[y/n]')).toHaveLength(2)
+  })
+})
+
+describe('waits in line mode', () => {
+  it('answers a question of the question tool by its schema', async () => {
+    const { adapter, seen } = scripted([
+      toolTurn(
+        'question',
+        JSON.stringify({
+          questions: [
+            {
+              question: 'Which database?',
+              options: [{ label: 'Postgres' }, { label: 'SQLite' }],
+            },
+          ],
+        }),
+      ),
+      textTurn('Picked.'),
+    ])
+    const stdout = capture()
+    const code = await runCli(
+      defineHarness({
+        name: 'test/lines-question',
+        adapter,
+        plugins: () => [questionTool()],
+      }),
+      {
+        argv: [],
+        stdin: stdinFrom(['ask me\n', 'SQLite\n', '/exit\n'], {
+          isTTY: false,
+        }),
+        stdout,
+        stderr: capture(),
+        persistence: memoryPersistence(),
+      },
+    )
+    expect(code).toBe(EXIT.ok)
+    expect(stdout.text).toContain('? Which database?')
+    expect(stdout.text).toContain('Picked.')
+    expect(JSON.stringify(seen[1])).toContain('SQLite')
+  })
+})
+
 describe('plugin commands in line mode', () => {
   it('runs plugin commands, answers questions, and changes settings', async () => {
     const tools = definePlugin({
       name: 'test/tools',
-      setup: (ctx) => ({
+      setup: () => ({
         config: {
           tone: configOption.select({
             options: ['plain', 'warm'],
@@ -285,8 +393,9 @@ describe('plugin commands in line mode', () => {
           }),
           confirm: defineCommand({
             description: 'Ask first',
-            run: async () => {
-              const sure = await ctx.session.ask({
+            run: async (_input, { step }) => {
+              const sure = await step.ask({
+                name: 'sure',
                 message: 'Really?',
                 schema: { type: 'boolean' },
               })
@@ -499,13 +608,13 @@ describe('a host and a principal', () => {
         const snapshot = await fetch(`${server.url}/snapshot?threadId=t`, {
           headers: { authorization: 'Bearer secret' },
         })
-        const [pending] = (await snapshot.json()).pendingQuestions
+        const [pending] = (await snapshot.json()).pendingWaits
         expect(pending).toBeDefined()
         return pending
       })
       await control({
         op: 'answer',
-        questionId: question.questionId,
+        questionId: question.waitId,
         value: 'sk-ada',
       })
       await vi.waitFor(async () =>
@@ -520,6 +629,82 @@ describe('a host and a principal', () => {
       await server.close()
       await host.close()
     }
+  })
+
+  it('serves /mcp as the principal', async () => {
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const server = await serve({
+      host,
+      harness: defineHarness({
+        name: 'test/serve-mcp',
+        adapter: scripted([textTurn('ok')]).adapter,
+      }),
+      port: 0,
+      hostname: '127.0.0.1',
+      token: 'secret',
+      principal: { id: 'ada' },
+    })
+    const client = await createMCPClient({
+      transport: {
+        type: 'http',
+        url: `${server.url}/mcp`,
+        headers: { authorization: 'Bearer secret' },
+      },
+    })
+    try {
+      await client.callTool('chat', { threadId: 't-mcp', message: 'hi' })
+
+      expect(await host.sessions.get({ threadId: 't-mcp' })).toMatchObject({
+        members: [{ userId: 'ada', role: 'owner' }],
+      })
+    } finally {
+      await client.close()
+      await server.close()
+      await host.close()
+    }
+  })
+
+  it('passes the principal to --acp, so a host with access starts', async () => {
+    const host = accessHost()
+    // The agent reads process.stdin. Ending it ends the agent.
+    const ends: Array<() => void> = []
+    const on = vi
+      .spyOn(process.stdin, 'on')
+      .mockImplementation((event: string | symbol, listener: () => void) => {
+        if (event === 'end') ends.push(listener)
+        return process.stdin
+      })
+    const stderr = capture()
+    try {
+      const running = runCli(
+        defineHarness({ name: 'test/acp', adapter: scripted([]).adapter }),
+        { argv: ['--acp'], stdout: capture(), stderr, host, principal: olga },
+      )
+      await vi.waitFor(() => expect(ends).toHaveLength(1))
+      for (const end of ends) end()
+
+      expect(await running).toBe(EXIT.ok)
+      expect(stderr.text).toBe('')
+    } finally {
+      on.mockRestore()
+      await host.close()
+    }
+  })
+
+  it('refuses --mcp on a host with access, as stdio has no login', async () => {
+    const host = accessHost()
+    const stderr = capture()
+
+    const code = await runCli(
+      defineHarness({ name: 'test/mcp', adapter: scripted([]).adapter }),
+      { argv: ['--mcp'], stdout: capture(), stderr, host, principal: olga },
+    )
+
+    expect(code).toBe(EXIT.failed)
+    expect(stderr.text).toBe(
+      '--mcp serves over stdio, which has no login, so it cannot use a host with access. Give runCli a host without access, and the local user as principal.\n',
+    )
+    await host.close()
   })
 })
 
@@ -558,6 +743,77 @@ describe('serve mode', () => {
         }),
       })
       expect((await receipt.json()).status).toBe('accepted')
+    } finally {
+      await server.close()
+      await host.close()
+    }
+  })
+
+  it('signs media URLs with --media-key, never with the token', async () => {
+    expect(parseCliArgs(['--serve', '--media-key', 'k'])).toMatchObject({
+      mediaKey: 'k',
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const start = (mediaKey?: string) =>
+      serve({
+        host,
+        harness: defineHarness({
+          name: 'test/serve-key',
+          adapter: scripted([]).adapter,
+        }),
+        port: 0,
+        hostname: '127.0.0.1',
+        token: 'secret',
+        ...(mediaKey !== undefined ? { mediaKey } : {}),
+      })
+
+    // The key is checked: a short one is refused at the start.
+    await expect(start('short')).rejects.toThrow('Media signing key 0 is 5')
+    // A short token is fine: it does not sign anything.
+    const server = await start()
+    await server.close()
+    await host.close()
+  })
+
+  it('reads the user of each request with identify on a host with access, behind the token', async () => {
+    const host = accessHost()
+    const server = await serve({
+      host,
+      harness: defineHarness({
+        name: 'test/serve-access',
+        adapter: scripted([textTurn('ok')]).adapter,
+      }),
+      port: 0,
+      hostname: '127.0.0.1',
+      token: 'secret',
+    })
+    const call = (path: string, headers: Record<string, string>) =>
+      fetch(`${server.url}/${path}`, { headers })
+    const prompt = (headers: Record<string, string>) =>
+      fetch(`${server.url}/control`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...headers },
+        body: JSON.stringify({
+          threadId: 't1',
+          input: { op: 'prompt', message: 'hi' },
+        }),
+      })
+    const token = { authorization: 'Bearer secret' }
+    try {
+      expect((await prompt({ ...token, 'x-user': 'olga' })).status).toBe(200)
+
+      const noToken = await call('transcript?threadId=t1', { 'x-user': 'olga' })
+      expect(noToken.status).toBe(401)
+      const noUser = await call('transcript?threadId=t1', token)
+      expect(noUser.status).toBe(401)
+      const stranger = await call('transcript?threadId=t1', {
+        ...token,
+        'x-user': 'cid',
+      })
+      expect(stranger.status).toBe(403)
+      expect(
+        await host.sessions.get({ threadId: 't1', principal: olga }),
+      ).toMatchObject({ members: [{ userId: 'olga', role: 'owner' }] })
     } finally {
       await server.close()
       await host.close()

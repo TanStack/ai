@@ -59,7 +59,13 @@ To use the harness from another program:
 
 `--mcp` and `--serve` run only the commands in `expose.commands` of the harness. `--serve` also sets only the config keys in `expose.config`. Add the names to `expose` in `defineHarness`, for example `expose: { commands: ['connect:github'] }`. Line mode and `-p` run every command. See [Choose what clients can change](./connect#choose-what-clients-can-change).
 
-Line mode reads one message or command per line and waits for each turn. It works the same in a terminal and with piped input. In a terminal, it also opens sign-in links in the browser.
+Line mode reads one message or command per line. In a terminal, you can type while a turn runs:
+
+- `/cancel` cancels the running turn at once.
+- A message joins the running turn as a steer. The model reads it at its next call.
+- A message that you type when no turn runs starts a new turn.
+
+With piped input, each line waits for the turn that the line before it started. A script runs in order. In a terminal, line mode also opens sign-in links in the browser.
 
 ## 3. Use it in CI
 
@@ -69,26 +75,60 @@ Line mode reads one message or command per line and waits for each turn. It work
 |---|---|
 | 0 | The turn finished. |
 | 1 | The turn failed. |
-| 2 | The turn waits for an approval. |
-| 130 | The turn was cancelled. |
+| 3 | The turn waits for a person: an approval, an answer, or a sign-in. |
+| 130 | The turn was cancelled, or SIGINT (Ctrl+C) stopped the CLI. |
+| 143 | SIGTERM cancelled the turn or stopped the CLI. |
+
+`EXIT` from `@tanstack/ai-harness-cli` has these codes, for example `EXIT.needsAction` (3). `-p` exits 3 at the first [wait](./waits) of the turn, because nobody can answer in this mode. It writes what the turn waits for on stderr. On a durable host, the wait stays in the log, so a later run, or another server, can answer it.
+
+The codes 130 and 143 apply in every mode. See [Stop with Ctrl+C](#stop-with-ctrlc).
+
+## Stop with Ctrl+C
+
+Ctrl+C works the same in every mode:
+
+- The first Ctrl+C (SIGINT) or SIGTERM cancels the running turn.
+- A second one, or one while no turn runs, stops the CLI. `runCli` resolves to 130 for SIGINT, and to 143 for SIGTERM.
+- When the CLI made the host, it closes the host with `recoverable: true`. Another host then runs the cut work again.
+- When you gave the CLI your own `host`, the CLI releases only its session handle. Your host stays open.
+
+The CLI hears the signals on `process`. To send them yourself, for example in a test, pass a `signals` source. An `EventEmitter` works:
+
+```ts group=harness-cli-signals
+import { EventEmitter } from 'node:events'
+import { defineHarness } from '@tanstack/ai-harness'
+import { runCli } from '@tanstack/ai-harness-cli'
+import { openaiText } from '@tanstack/ai-openai'
+
+const assistant = defineHarness({
+  name: 'acme/assistant',
+  adapter: openaiText('gpt-6.1-sol'),
+})
+
+const signals = new EventEmitter()
+const exit = runCli(assistant, { argv: ['-p', 'Write a long story.'], signals })
+// No turn runs yet, so this stops the CLI.
+signals.emit('SIGTERM')
+console.log(await exit) // 143
+```
 
 ## Serve over HTTP safely
 
 `--serve` is the quick way to put a harness on HTTP, so it makes the trust decisions for you: one bearer token, one user, every thread. Anyone with the token acts as that one user. They can open or drive any thread on the host, including the tools it runs (shell commands, file edits) on the machine the CLI runs on. Treat the token like a shell login.
 
 - It binds to `127.0.0.1:8787`, reachable only from the same machine. Change the bind with `--host` and `--port`. `--host 0.0.0.0` puts it on the network, so do that only behind TLS and a proxy you trust.
-- The CLI signs media links with the token, so rotating the token stops any link a turn already handed out.
+- The CLI signs media links with its own key, never with the token. By default it makes a new random key at each start, so media links stop working after a restart. To keep them working, pass `--media-key` or set `HARNESS_MEDIA_KEY`, with a key of at least 32 bytes. Change the key to stop every link a turn already handed out.
 
-Need per-user access, your own sign-in check, or a rule for which threads each user can open? Use [`createHarnessHandler`](./connect) instead. It requires `authorize` and `canAccess`, so no thread is open by accident.
+Need per-user access, your own sign-in check, or a rule for which threads each user can open? Use [`createHarnessHandler`](./connect) on a host with [`access`](./access) instead. The host reads the user of each request and checks each action, so no thread is open by accident.
 
 ## Use your own host and user
 
-By default, the CLI builds its own host in memory and opens sessions with no user. Your server already has a durable host with leases, recovery, and stores, and each person has their own credentials. Give the CLI that host and the user:
+By default, the CLI builds its own host in memory and opens sessions with no user. Your server already has a durable host with its own stores, and each person has their own credentials. Give the CLI that host and the user:
 
 ```ts group=harness-cli-host
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
 import { runCli } from '@tanstack/ai-harness-cli'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryPersistence } from '@tanstack/ai-persistence'
 import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { openaiText } from '@tanstack/ai-openai'
 
@@ -97,9 +137,8 @@ const assistant = defineHarness({
   adapter: openaiText('gpt-6.1-sol'),
 })
 
-const { runs, metadata } = memoryPersistence().stores
 const host = createHarnessHost({
-  persistence: { stores: { log: memoryLogStore(), runs, metadata } },
+  persistence: memoryPersistence(),
   credentials: memoryCredentialStore(),
 })
 
@@ -108,10 +147,10 @@ await host.close()
 ```
 
 - You own the host, so the CLI does not close it. Close it yourself when `runCli` returns. Without `host`, the CLI builds a host and closes it.
-- Give `host` or `persistence`, not both. With both, `runCli` writes `Give runCli a host or persistence, not both.` and returns code 1.
-- Line mode, `-p`, and your own `ui` open the session as `principal`, so `/connect` saves keys for that user.
-- `--serve` gives the same principal to each request with the token.
-- `--acp`, `--mcp`, and `--dashboard` open their sessions without the principal.
+- Give `host`, or `persistence` and `credentials`, not both. With both, `runCli` writes `Give runCli a host, or persistence and credentials, not both.` and returns code 1.
+- Line mode, `-p`, your own `ui`, `--acp`, and `--mcp` open their sessions as `principal`, so `/connect` saves keys for that user.
+- `--serve` checks the token first. On a host without `access`, each request then runs as `principal`. On a host with [`access`](./access), `identify` reads the user of each request.
+- On a host with `access`, give `principal` too. `--mcp` does not start on such a host, because stdio has no login.
 
 ## Commands in line mode
 
@@ -128,7 +167,14 @@ For the running work:
 - `/status`: show what runs and what waits.
 - `/exit`: quit.
 
-Plugin commands (for example `/model` or `/todos`) show up in `/help`. When a turn stops for an approval or a plugin asks a question, type your answer. For yes-or-no questions, `y` approves and `n` refuses.
+Plugin commands (for example `/model` or `/todos`) show up in `/help`.
+
+When a turn waits for you, each next line answers one wait, in order. The turn continues after the last one:
+
+- An approval: `y` approves and `n` refuses. An approval of `permissions()` also takes `once`, `always`, or `reject`.
+- A question: type the answer. The CLI reads it with the schema of the question.
+- A sign-in: sign in, then type `y` to go on, or `n` to skip it.
+- A client tool: the terminal cannot run it. Any line skips it.
 
 ## Send files and save media
 
@@ -175,8 +221,9 @@ process.exitCode = await runCli(assistant, {
 })
 ```
 
-- `ui` runs only in an interactive terminal. Piped input uses line mode. `-p`, `--acp`, `--mcp`, `--serve`, and `--dashboard` do not use `ui`.
+- `ui` runs only in an interactive terminal. Piped input uses line mode. `-p`, `--acp`, `--mcp`, and `--serve` do not use `ui`.
 - When `ui` resolves, the CLI disposes the view and `runCli` returns.
+- In a reopened thread, a saved child agent shows only its card. To show what it wrote, call `view.loadAgent({ id })`, for example when the screen draws the card. See [Show subagents](./custom-ui#show-subagents).
 - To write `Screen`, read [Build your own UI](./custom-ui).
 
 For an Ink screen with approvals, questions, sign-ins, and child agents, copy [`examples/harness-cli/src/tui.tsx`](https://github.com/TanStack/ai/blob/main/examples/harness-cli/src/tui.tsx).
@@ -185,6 +232,8 @@ For an Ink screen with approvals, questions, sign-ins, and child agents, copy [`
 
 - One entry file that runs your harness as a terminal app, a script step, an editor agent, an MCP server, or an HTTP server.
 - A CLI that uses your durable host and runs as your user.
+- A Ctrl+C that cancels the turn first, then stops with exit code 130.
+- Exit code 3 from `-p` when a turn waits for a person, and one line for each answer in line mode.
 - Your own terminal screen on the same session, with any TUI library.
 - Files that you send with `@path`, and a folder with the media that your agents make.
 

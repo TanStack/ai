@@ -11,18 +11,26 @@ import type {
 } from '@tanstack/ai'
 import { memoryPersistence, reconstructChat, withPersistence } from '../src'
 import { createSubagentRunRecorder } from '../src/subagent-runs'
+import type { SessionIndexStore } from '../src'
 
 const t = 1
 
 /** A model that plays one script per call. */
-function scriptedAdapter(scripts: Array<Array<StreamChunk>>): AnyTextAdapter {
+function scriptedAdapter(scripts: Array<Array<StreamChunk>>) {
   let call = 0
   return {
     kind: 'text',
     name: 'scripted',
     model: 'test-model',
-    '~types': {},
-    chatStream() {
+    '~types': {
+      providerOptions: undefined,
+      inputModalities: undefined,
+      messageMetadataByModality: undefined,
+      toolCapabilities: undefined,
+      toolCallMetadata: undefined,
+      systemPromptMetadata: undefined,
+    },
+    chatStream: () => {
       const script = scripts[call++]
       if (!script) throw new Error('no script for this model call')
       return (async function* () {
@@ -30,7 +38,8 @@ function scriptedAdapter(scripts: Array<Array<StreamChunk>>): AnyTextAdapter {
         yield* script
       })()
     },
-  } as unknown as AnyTextAdapter
+    structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+  } satisfies AnyTextAdapter
 }
 
 /** A child that thinks, asks approval to delete a file, then reports. */
@@ -100,7 +109,7 @@ function cleaner(
         timestamp: t,
       },
     ],
-  ] as Array<Array<StreamChunk>>)
+  ])
   return defineAgent({
     name: 'cleaner',
     description: 'Deletes files',
@@ -191,6 +200,32 @@ function childStarted(
     ...links,
     timestamp: t,
   } satisfies StreamChunk
+}
+
+/**
+ * `store`, where another host runs `write` between the read and the write of
+ * the first `times` compare-and-set writes.
+ */
+function racingSessions(
+  store: SessionIndexStore,
+  write: () => Promise<void>,
+  times: number,
+) {
+  let raced = 0
+  return {
+    get: (key) => store.get(key),
+    getVersioned: (key) => store.getVersioned(key),
+    upsert: (entry) => store.upsert(entry),
+    upsertIf: async (input) => {
+      if (raced < times) {
+        raced += 1
+        await write()
+      }
+      return store.upsertIf(input)
+    },
+    list: (options) => store.list(options),
+    delete: (key) => store.delete(key),
+  } satisfies SessionIndexStore
 }
 
 /** Feed one parent run's chunks on thread `desk` to a recorder. */
@@ -663,7 +698,9 @@ describe('subagent run recorder', () => {
       ...textMessage('m1', 'Inner notes', { subagentRunId: 'inner' }),
     ])
 
-    expect(await stores.sessions.get('subagent:inner')).toMatchObject({
+    expect(
+      await stores.sessions.get({ threadId: 'subagent:inner' }),
+    ).toMatchObject({
       parentThreadId: 'subagent:outer',
       parentToolCallId: 'call_n',
     })
@@ -677,17 +714,19 @@ describe('subagent run recorder', () => {
     ).toBeUndefined()
   })
 
-  it('gives each child the owner of its parent thread', async () => {
+  it('writes each child in the tenant of the recorder, with no members', async () => {
     const { stores } = memoryPersistence()
     await stores.sessions.upsert({
+      tenantId: 'org-1',
       threadId: 'desk',
-      principal: { id: 'alice' },
+      members: [{ userId: 'alice', role: 'owner' }],
       createdAt: t,
       updatedAt: t,
     })
     const recorder = createSubagentRunRecorder({
       messages: stores.messages,
       sessions: stores.sessions,
+      tenantId: 'org-1',
       intervalMs: 0,
     })
     await feed(recorder, 'run-1', [
@@ -698,12 +737,89 @@ describe('subagent run recorder', () => {
       }),
     ])
 
-    const owners = await Promise.all(
-      ['subagent:outer', 'subagent:inner'].map(
-        async (threadId) => (await stores.sessions.get(threadId))?.principal,
+    const children = await Promise.all(
+      ['subagent:outer', 'subagent:inner'].map((threadId) =>
+        stores.sessions.get({ tenantId: 'org-1', threadId }),
       ),
     )
-    expect(owners).toEqual([{ id: 'alice' }, { id: 'alice' }])
+    // No members: access to a child goes through its top-level thread.
+    const child = { tenantId: 'org-1', members: [] }
+    expect(children).toEqual([
+      expect.objectContaining(child),
+      expect.objectContaining(child),
+    ])
+    // Nothing went to the default tenant.
+    expect(await stores.sessions.list()).toEqual({ entries: [] })
+  })
+
+  it('keeps a change that another host makes to a child entry while it writes', async () => {
+    const { stores } = memoryPersistence()
+    const named = {
+      threadId: 'subagent:child',
+      members: [],
+      title: 'Named elsewhere',
+      createdAt: 5,
+      updatedAt: 5,
+    }
+    const recorder = createSubagentRunRecorder({
+      messages: stores.messages,
+      sessions: racingSessions(
+        stores.sessions,
+        () => stores.sessions.upsert(named),
+        1,
+      ),
+      intervalMs: 0,
+    })
+
+    await feed(recorder, 'run-1', [
+      childStarted('child', { parentToolCallId: 'call_1' }),
+    ])
+
+    expect(await stores.sessions.get({ threadId: 'subagent:child' })).toEqual({
+      ...named,
+      parentThreadId: 'desk',
+      parentToolCallId: 'call_1',
+      updatedAt: expect.any(Number),
+    })
+  })
+
+  it('warns and goes on when another host changes a child entry on every try', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const { stores } = memoryPersistence()
+      let writes = 0
+      const elsewhere = () =>
+        stores.sessions.upsert({
+          threadId: 'subagent:child',
+          members: [],
+          createdAt: 5,
+          updatedAt: (writes += 1),
+        })
+      const recorder = createSubagentRunRecorder({
+        messages: stores.messages,
+        sessions: racingSessions(stores.sessions, elsewhere, 5),
+        intervalMs: 0,
+      })
+
+      await feed(recorder, 'run-1', [
+        childStarted('child', { parentToolCallId: 'call_1' }),
+      ])
+
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('changed on another host 5 times'),
+      )
+      // The recorder wrote nothing over the other host's entry.
+      expect(await stores.sessions.get({ threadId: 'subagent:child' })).toEqual(
+        {
+          threadId: 'subagent:child',
+          members: [],
+          createdAt: 5,
+          updatedAt: 5,
+        },
+      )
+    } finally {
+      warn.mockRestore()
+    }
   })
 
   it('loads a waiting continued child without the messages of the call it waits in', async () => {
@@ -882,9 +998,10 @@ describe('agent tools with persistence', () => {
       args: { prompt: 'Take notes' },
     })
     const threadId = `subagent:${startedId(first)}`
-    const entry = await sessions.get(threadId)
+    const entry = await sessions.get({ threadId })
     expect(entry).toEqual({
       threadId,
+      members: [],
       parentThreadId: 'desk',
       parentToolCallId: 'call_1',
       createdAt: expect.any(Number),
@@ -899,8 +1016,9 @@ describe('agent tools with persistence', () => {
       toolCallId: 'call_2',
       args: { sessionId: startedId(first), prompt: 'More' },
     })
-    expect(await sessions.get(threadId)).toEqual({
+    expect(await sessions.get({ threadId })).toEqual({
       threadId,
+      members: [],
       title: 'Tide notes',
       parentThreadId: 'desk',
       parentToolCallId: 'call_2',
@@ -909,26 +1027,31 @@ describe('agent tools with persistence', () => {
     })
   })
 
-  it('gives a child entry the harness and owner of its parent entry', async () => {
+  it('gives a child entry the tenant and harness of its parent entry', async () => {
     const persistence = memoryPersistence()
     const sessions = persistence.stores.sessions
     await sessions.upsert({
+      tenantId: 'org-1',
       threadId: 'desk',
       harness: 'notes/desk',
-      principal: { id: 'alice' },
+      members: [{ userId: 'alice', role: 'owner' }],
       createdAt: 1,
       updatedAt: 1,
     })
     const { agent } = noteTaker()
-    const chunks = await subagentTurn(withPersistence(persistence), agent, {
+    const middleware = withPersistence(persistence, { tenantId: 'org-1' })
+    const chunks = await subagentTurn(middleware, agent, {
       runId: 'run-1',
       toolCallId: 'call_1',
       args: { prompt: 'Take notes' },
     })
 
-    const entry = await sessions.get(`subagent:${startedId(chunks)}`)
-    expect(entry?.harness).toBe('notes/desk')
-    expect(entry?.principal).toEqual({ id: 'alice' })
+    const threadId = `subagent:${startedId(chunks)}`
+    expect(await sessions.get({ tenantId: 'org-1', threadId })).toMatchObject({
+      tenantId: 'org-1',
+      harness: 'notes/desk',
+      members: [],
+    })
   })
 
   it('continues a stored child by sessionId', async () => {

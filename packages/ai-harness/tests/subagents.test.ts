@@ -83,29 +83,26 @@ describe('ctx.agents in plugins', () => {
           both: defineCommand({
             description: 'Run two echoes',
             run: () =>
-              ctx.agents.group({}, (group) =>
-                Promise.all([
-                  group.run(echo, { text: 'a' }),
-                  group.run('echo', { text: 'b' }),
-                ]),
-              ),
+              ctx.agents.group({}, (group) => [
+                group.start(echo, { text: 'a' }),
+                group.start('echo', { text: 'b' }),
+              ]),
           }),
           failFast: defineCommand({
             description: 'One fails, the other is cancelled',
             run: () =>
-              ctx.agents.group({ onFailure: 'cancel-siblings' }, (group) =>
-                Promise.all([group.run(slow), group.run(failing)]),
-              ),
+              ctx.agents.group({ onFailure: 'cancel-siblings' }, (group) => [
+                group.start(slow),
+                group.start(failing),
+              ]),
           }),
           collect: defineCommand({
             description: 'Collect every outcome',
             run: () =>
-              ctx.agents.group({ onFailure: 'collect' }, (group) =>
-                Promise.all([
-                  group.runSettled(echo, { text: 'ok' }),
-                  group.runSettled(failing),
-                ]),
-              ),
+              ctx.agents.group({ onFailure: 'collect' }, (group) => [
+                group.start(echo, { text: 'ok' }),
+                group.start(failing),
+              ]),
           }),
         },
       }),

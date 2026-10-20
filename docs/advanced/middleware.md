@@ -734,6 +734,38 @@ The `hookCtx` provides:
 | `toolName` | `string` | Tool name |
 | `toolCallId` | `string` | Tool call ID |
 
+### onGuardToolCall
+
+A permission check in `onBeforeToolCall` can miss calls. An earlier middleware can return a decision first, and then your hook does not run. Put checks that must always run in `onGuardToolCall`:
+
+```typescript
+import { type ChatMiddleware } from "@tanstack/ai";
+
+const noDeletes: ChatMiddleware = {
+  name: "no-deletes",
+  onGuardToolCall: (ctx, hookCtx) => {
+    if (hookCtx.toolName === "deleteFile") {
+      return { type: "skip", result: { error: "Deleting files is not allowed." } };
+    }
+  },
+};
+```
+
+When the guard runs:
+
+- It runs for every tool call, after all `onBeforeToolCall` hooks and after the `inputSchema` check.
+- `hookCtx.args` holds the final checked arguments. The tool gets these same arguments.
+- The guard of every middleware runs, in array order, until one returns a decision.
+- It runs just before a server tool runs, and before a client tool goes to the client. A call that waits for approval does not run it.
+
+| Decision | Effect |
+|----------|--------|
+| `void` / `undefined` | Allow the call. The next guard runs. |
+| `{ type: 'skip', result }` | Deny the call. The tool does not run, and the model gets `result`, the same as an `onBeforeToolCall` skip. |
+| `{ type: 'abort', reason? }` | Abort the entire chat run |
+
+A guard cannot change the arguments. To change them, use `onBeforeToolCall`.
+
 ### onAfterToolCall
 
 Called after each tool execution (or skip). Every middleware runs, in array order.
@@ -1025,6 +1057,7 @@ const stream = chat({
 | `onStart` | Sequential | All run in order |
 | `onChunk` | **Piped** — chunks flow through each middleware | If first drops a chunk, later middleware never see it |
 | `onBeforeToolCall` | **First-win** — first non-void decision wins | Earlier middleware has priority |
+| `onGuardToolCall` | Sequential. Every guard runs until one returns a decision | An earlier `onBeforeToolCall` decision never skips a guard |
 | `onShouldContinue` | **AND** — any explicit `false` stops the loop | Order only affects which middleware runs first when short-circuiting |
 | `onModelError` | Sequential. If any middleware calls `ctx.retry()` and the call has retries left, the model is called again | All run in order, so each one sees the error |
 | `onAfterToolCall` | **Piped**: each gets the result of the previous `replaceResult` | The last replacement wins |

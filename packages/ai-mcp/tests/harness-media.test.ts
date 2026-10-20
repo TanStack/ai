@@ -6,7 +6,11 @@ import {
   StreamableHTTPClientTransport,
 } from '@modelcontextprotocol/client'
 import { EventType, defineAgent } from '@tanstack/ai'
-import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import {
+  createHarnessHost,
+  defineHarness,
+  membersOnly,
+} from '@tanstack/ai-harness'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
@@ -173,21 +177,40 @@ afterEach(async () => {
 
 type ServerOptions = Omit<HarnessMcpServerOptions, 'host' | 'harness'>
 
-/** A real MCP client (spec 2026) on a harness MCP server. */
-async function serve(harness: AnyHarness, options: ServerOptions = {}) {
-  const host = createHarnessHost({ persistence: memoryPersistence() })
-  cleanups.push(() => host.close())
-  const server = await createHarnessMcpServer({ host, harness, ...options })
+/**
+ * A real MCP client (spec 2026) on `server`. `user` goes in the `x-user`
+ * header of each request.
+ */
+async function connect(
+  server: { fetch: (request: Request) => Promise<Response> },
+  user?: string,
+) {
   const client = new Client(
     { name: 'tester', version: '1.0.0' },
     { versionNegotiation: { mode: { pin: '2026-07-28' } } },
   )
   const transport = new StreamableHTTPClientTransport(serverUrl, {
     fetch: async (input, init) => server.fetch(new Request(input, init)),
+    ...(user === undefined
+      ? {}
+      : { requestInit: { headers: { 'x-user': user } } }),
   })
   await client.connect(transport)
   cleanups.push(() => client.close())
   return client
+}
+
+/** A real MCP client (spec 2026) on a harness MCP server. */
+async function serve(harness: AnyHarness, options: ServerOptions = {}) {
+  const host = createHarnessHost({ persistence: memoryPersistence() })
+  cleanups.push(() => host.close())
+  const server = await createHarnessMcpServer({
+    host,
+    harness,
+    openAccess: true,
+    ...options,
+  })
+  return connect(server)
 }
 
 /** A chat harness on an MCP server. `calls` has the messages of each model call. */
@@ -404,6 +427,7 @@ describe('media in results', () => {
       text: 'Here it is.',
       interrupts: [],
       questions: [],
+      waits: [],
       media: [
         {
           id: expect.any(String),
@@ -423,22 +447,27 @@ describe('media in results', () => {
     ])
   })
 
+  /** A harness whose agent `painter` paints an image over 5 MB. */
+  const bigPainter = () =>
+    defineHarness({
+      name: 'test/mcp-media',
+      adapter: scripted().adapter,
+      agents: [painter(bigImage)],
+      expose: { agents: ['painter'] },
+    })
+
+  /** The media link that a result of `agent_painter` has. */
+  const linkOf = (reply: { content?: unknown }) =>
+    linkShape.parse(z.array(z.unknown()).parse(reply.content)[1]).uri
+
   /** Runs `agent_painter` with an image over 5 MB. `uri` is its media link. */
   async function paintBig() {
-    const client = await serve(
-      defineHarness({
-        name: 'test/mcp-media',
-        adapter: scripted().adapter,
-        agents: [painter(bigImage)],
-        expose: { agents: ['painter'] },
-      }),
-    )
+    const client = await serve(bigPainter())
     const reply = await client.callTool({
       name: 'agent_painter',
       arguments: {},
     })
-    const link = z.array(z.unknown()).parse(reply.content)[1]
-    return { client, reply, uri: linkShape.parse(link).uri }
+    return { client, reply, uri: linkOf(reply) }
   }
 
   it('returns an image over 5 MB as a resource link', async () => {
@@ -474,6 +503,40 @@ describe('media in results', () => {
 
     await expect(read).rejects.toThrow(
       `Media ${id} was not found in thread other.`,
+    )
+  })
+
+  it('reads a media link on a host with access only for a user who may read the thread', async () => {
+    const olga = { id: 'olga', tenantId: 'acme' }
+    const cid = { id: 'cid', tenantId: 'acme' }
+    const users = new Map([olga, cid].map((user) => [user.id, user]))
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      access: {
+        identify: ({ request }) =>
+          users.get(request.headers.get('x-user') ?? '') ?? null,
+        policy: membersOnly(),
+      },
+    })
+    cleanups.push(() => host.close())
+    const server = await createHarnessMcpServer({
+      host,
+      harness: bigPainter(),
+    })
+    const asOlga = await connect(server, 'olga')
+    const asCid = await connect(server, 'cid')
+    const reply = await asOlga.callTool({
+      name: 'agent_painter',
+      arguments: { threadId: 't1' },
+    })
+    const uri = linkOf(reply)
+
+    const read = await asOlga.readResource({ uri })
+    expect(read.contents).toEqual([
+      expect.objectContaining({ uri, mimeType: 'image/png' }),
+    ])
+    await expect(asCid.readResource({ uri })).rejects.toThrow(
+      'Access denied: the user of this call may not read on thread "t1".',
     )
   })
 })

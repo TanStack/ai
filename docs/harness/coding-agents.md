@@ -108,6 +108,8 @@ To start over, run `/fresh claude_code`, or `/fresh` for every agent.
 
 Use `'shared'` when the agents build on each other's changes. Use `'per-agent'` when they work on separate copies and you merge the results.
 
+Only the host that owns the log of the thread runs its agents. So with many servers, `'shared'` still runs one agent at a time.
+
 ## Plan mode
 
 When the `permissions()` plugin is in [`plan` mode](./permissions#pick-a-mode), the agents start read-only:

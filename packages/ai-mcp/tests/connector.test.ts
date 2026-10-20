@@ -151,9 +151,7 @@ describe('mcpConnector', () => {
     const turn = await session.send('echo hello')
     expect(turn.text).toContain('echo: hello')
     // The model never sees the token.
-    expect(
-      JSON.stringify(await persistence.stores.messages.loadThread('t')),
-    ).not.toContain('access-1')
+    expect(JSON.stringify(await session.transcript())).not.toContain('access-1')
 
     await session.command({ name: 'disconnect:demo' })
     expect(
@@ -400,16 +398,16 @@ describe('mcpConnector', () => {
       )
       const turn = session.send('book a trip')
       await vi.waitFor(() =>
-        expect(session.snapshot().pendingQuestions).toHaveLength(1),
+        expect(session.snapshot().pendingWaits).toHaveLength(1),
       )
-      const [question] = session.snapshot().pendingQuestions
+      const [question] = session.snapshot().pendingWaits
 
       expect(question).toMatchObject({
         message: 'Which city?',
         schema: tripForm.requestedSchema,
       })
       await session.answer({
-        questionId: question?.questionId ?? '',
+        questionId: question?.waitId ?? '',
         value: { city: 'Rome' },
       })
       await turn

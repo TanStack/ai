@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process'
-import { existsSync, readFileSync, statSync } from 'node:fs'
-import { readFile, readdir } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { readFile, readdir, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import {
   basename,
@@ -21,18 +21,18 @@ import type { AnyCommand } from '../commands'
 const SPARE_SLOTS = 8
 
 /** The mtime of the file at `path`, or `undefined` when there is none. */
-function mtimeOf(path: string) {
+async function mtimeOf(path: string) {
   try {
-    return statSync(path).mtimeMs
+    return (await stat(path)).mtimeMs
   } catch {
     return undefined
   }
 }
 
 /** The trimmed text of the file at `path`, or `''` when there is none. */
-function textOf(path: string) {
+async function textOf(path: string) {
   try {
-    return readFileSync(path, 'utf8').trim()
+    return (await readFile(path, 'utf8')).trim()
   } catch {
     return ''
   }
@@ -139,11 +139,13 @@ export function projectInstructions(options: {
           title: `Project instructions from ${shownPath(join(dir, name))}`,
         })),
       )
-      const files = [...globals, ...projects].map((file) => ({
-        ...file,
-        mtimeMs: mtimeOf(file.path),
-        text: textOf(file.path),
-      }))
+      const files = await Promise.all(
+        [...globals, ...projects].map(async (file) => ({
+          ...file,
+          mtimeMs: await mtimeOf(file.path),
+          text: await textOf(file.path),
+        })),
+      )
       const envBlock = env ? [await environment(root, isRepo)] : []
       /** The prompt with each file as it is now. */
       const current = () => [
@@ -156,14 +158,17 @@ export function projectInstructions(options: {
       const slots = files.length + envBlock.length + SPARE_SLOTS
 
       /** Add a note for each file that changed since the last check. */
-      const refresh = () => {
+      const check = async () => {
+        const mtimes = await Promise.all(
+          files.map((file) => mtimeOf(file.path)),
+        )
         const notes: Array<string> = []
-        for (const file of files) {
-          const mtimeMs = mtimeOf(file.path)
+        for (const [index, file] of files.entries()) {
+          const mtimeMs = mtimes[index]
           if (mtimeMs === file.mtimeMs) continue
           const before = file.text
           file.mtimeMs = mtimeMs
-          file.text = textOf(file.path)
+          file.text = await textOf(file.path)
           if (file.text !== before)
             notes.push(changeNote(file.title, before, file.text))
         }
@@ -175,6 +180,10 @@ export function projectInstructions(options: {
           sections.push(...notes)
         }
       }
+      // Turns that start at the same time share one check.
+      let checking: Promise<void> | undefined
+      const refresh = () =>
+        (checking ??= check().finally(() => (checking = undefined)))
 
       /** Nested instruction files the model already got. */
       const given = new Set<string>()
@@ -192,7 +201,7 @@ export function projectInstructions(options: {
           for (const name of names) {
             const file = join(dir, name)
             if (given.has(file)) continue
-            const text = textOf(file)
+            const text = await textOf(file)
             if (text === '') continue
             given.add(file)
             // The model just read this file, so it has the text.
@@ -205,12 +214,13 @@ export function projectInstructions(options: {
       }
 
       return {
-        // One prompt per slot. Empty slots are left out. The harness reads
-        // the prompts in order each turn, so slot 0 checks the files first.
-        prompts: Array.from({ length: slots }, (_, index) => () => {
-          if (index === 0) refresh()
-          return sections[index] ?? ''
-        }),
+        // At the start of each turn, before the harness reads the prompts.
+        onTurnStart: refresh,
+        // One prompt per slot. Empty slots are left out.
+        prompts: Array.from(
+          { length: slots },
+          (_, index) => () => sections[index] ?? '',
+        ),
         contribute: [WorkspaceHooks.item({ afterRead })],
       }
     },
@@ -291,7 +301,7 @@ export async function readMarkdownFiles(dir: string) {
 export function fileCommands(options: { dir: string }) {
   return definePlugin({
     name: 'tanstack/file-commands',
-    setup: async (ctx) => {
+    setup: async () => {
       const files = await readMarkdownFiles(options.dir)
       const commands: Record<string, AnyCommand> = {}
       for (const { name, fields, body } of files) {
@@ -301,14 +311,15 @@ export function fileCommands(options: { dir: string }) {
             typeof description === 'string' && description !== ''
               ? description
               : `Run ${name}.md`,
-          run: (input: unknown) => {
+          // The prompt runs as the user who runs the command.
+          run: (input: unknown, { session }) => {
             const args =
               typeof input === 'string'
                 ? input
                 : input === undefined
                   ? ''
                   : JSON.stringify(input)
-            ctx.session.send(body.split('$ARGUMENTS').join(args).trim())
+            session.send(body.split('$ARGUMENTS').join(args).trim())
             return `Sent /${name}.`
           },
         })

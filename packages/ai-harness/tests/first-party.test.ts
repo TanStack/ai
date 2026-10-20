@@ -15,9 +15,23 @@ import {
 } from '../src/first-party'
 import { fileCommands, projectInstructions } from '../src/first-party/node'
 import { workspaceTools } from '../src/first-party/coding'
-import { messageTexts, mockAdapter, text, toolCall } from './helpers'
+import {
+  messageTexts,
+  mockAdapter,
+  storedThreadState,
+  text,
+  toolCall,
+} from './helpers'
 import type { HarnessPlugin } from '../src'
 import type { AnyTextAdapter } from '@tanstack/ai'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
+/** The key of the thread `t` in the stores, in the default tenant. */
 
 let root = ''
 beforeEach(async () => {
@@ -74,17 +88,22 @@ describe('workspace tools with permissions', () => {
       workspaceTools({ root }),
     ])
 
-    const turn = session.send('work')
-    await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
-    const [question] = session.snapshot().pendingQuestions
-    expect(question?.message).toContain('write_file')
-    await session.answer({
-      questionId: question!.questionId,
-      value: { answer: 'once' },
+    // The write asks before it runs: the turn stops with an approval wait.
+    await session.send('work')
+    const [wait] = session.snapshot().pendingWaits
+    expect(wait?.kind).toBe('approval')
+    expect(wait?.message).toContain('write_file')
+    await session.resolve({
+      resume: [
+        {
+          interruptId: wait!.waitId,
+          status: 'resolved',
+          payload: { answer: 'once' },
+        },
+      ],
+      inputId: 'approve',
     })
-    await turn
+    await session.settled({ inputId: 'approve' })
 
     expect(await readFile(join(root, 'out.txt'), 'utf8')).toBe('written')
     const toolResults = JSON.stringify(calls[3].messages)
@@ -107,7 +126,7 @@ describe('workspace tools with permissions', () => {
     )
     await session.send('write')
     await expect(readFile(join(root, 'x.txt'), 'utf8')).rejects.toThrow()
-    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(session.snapshot().pendingWaits).toEqual([])
     await host.close()
   })
 
@@ -168,10 +187,15 @@ describe('todos', () => {
     await session.send('plan it')
     expect(await session.command({ name: 'todos' })).toBe('[~] write tests')
     await session.send('continue')
-    expect(JSON.stringify(calls[2].systemPrompts)).toContain('[~] write tests')
-    expect(
-      await persistence.stores.metadata.get('plugin:tanstack/todos', 't'),
-    ).toEqual({
+    // A `'context'` prompt: the last system prompt, not a message.
+    expect(JSON.stringify(calls[2].systemPrompts.at(-1))).toContain(
+      '[~] write tests',
+    )
+    expect(messageTexts(calls[2]).at(-1)).toBe('continue')
+    const stored = await storedThreadState(persistence.stores.log, {
+      threadId: 't',
+    })
+    expect(stored.plugins.get('tanstack/todos')).toEqual({
       items: [{ text: 'write tests', status: 'in_progress' }],
     })
     await host.close()
@@ -199,10 +223,10 @@ describe('project files', () => {
       },
     ])
     await session.command({ name: 'review', input: 'src/app.ts' })
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     expect(messageTexts(calls[0])).toEqual(['Review src/app.ts carefully.'])
     expect(JSON.stringify(calls[0].systemPrompts)).toContain('Use tabs.')
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     await host.close()
   })
 })
@@ -229,7 +253,7 @@ describe('compact and usage', () => {
           : chunk,
       )
     const main = mockAdapter([withUsage('one'), withUsage('two')])
-    const { host, session, persistence } = await open(main.adapter, [
+    const { host, session } = await open(main.adapter, [
       compact({ adapter: summarizer.adapter }),
       usage(),
     ])
@@ -238,12 +262,46 @@ describe('compact and usage', () => {
     expect(await session.command({ name: 'compact' })).toBe(
       'Compacted 4 messages into a summary.',
     )
-    const transcript = await persistence.stores.messages.loadThread('t')
+    const transcript = await session.transcript()
     expect(transcript).toHaveLength(2)
     expect(transcript[0]?.content).toContain('We planned a trip.')
     expect(await session.command({ name: 'usage' })).toBe(
       '2 model calls, 20 input tokens (12 cache read, 4 cache write), 10 output tokens, 30 total.',
     )
+    await host.close()
+  })
+
+  it('counts the summary call of /compact under plugin:tanstack/compact', async () => {
+    const summarizer = mockAdapter([
+      () =>
+        text('We planned a trip.').map((chunk) =>
+          chunk.type === 'RUN_FINISHED'
+            ? {
+                ...chunk,
+                usage: {
+                  promptTokens: 40,
+                  completionTokens: 8,
+                  totalTokens: 48,
+                },
+              }
+            : chunk,
+        ),
+    ])
+    const main = mockAdapter([() => text('one'), () => text('two')])
+    const { host, session } = await open(main.adapter, [
+      compact({ adapter: summarizer.adapter }),
+    ])
+    await session.send('first')
+    await session.send('second')
+
+    await session.command({ name: 'compact' })
+
+    expect(session.usage().bySource).toEqual({
+      'plugin:tanstack/compact': expect.objectContaining({
+        calls: 1,
+        totalTokens: 48,
+      }),
+    })
     await host.close()
   })
 })

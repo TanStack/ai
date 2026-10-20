@@ -9,16 +9,22 @@ import {
   definePlugin,
 } from '../src'
 import { mediaIdOf, mediaPart } from '../src/media-entry'
-import { messageTexts, mockAdapter, text, toolCall } from './helpers'
+import {
+  messageTexts,
+  mockAdapter,
+  text,
+  toolCall,
+  turnInterrupts,
+} from './helpers'
 import type { ModelMessage } from '@tanstack/ai'
-import type { HarnessPersistence } from '../src'
+import type { HarnessPersistence, HostLifecycleOptions } from '../src'
 
 const SOURCE = 'source'
 const FORK = 'fork'
 
 function durablePersistence() {
-  const { runs, metadata } = memoryPersistence().stores
-  return { stores: { log: memoryLogStore(), runs, metadata } }
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log: memoryLogStore(), metadata } }
 }
 
 /** A plugin with a config option and a counter in its saved state. */
@@ -52,23 +58,23 @@ const contents = (messages: ReadonlyArray<ModelMessage>) =>
     (message) => `${message.role}:${JSON.stringify(message.content)}`,
   )
 
-describe.each([
-  { name: 'a host with a message store', durable: false },
-  { name: 'a durable host', durable: true },
-])('host.fork on $name', ({ durable }) => {
-  const setup = (persistence: HarnessPersistence) => {
+describe('host.fork of the transcript', () => {
+  const setup = (
+    persistence: HarnessPersistence,
+    lifecycle: HostLifecycleOptions = {},
+  ) => {
     const { adapter, calls } = mockAdapter([
       () => text('A1'),
       () => text('A2'),
       () => text('A3'),
     ])
     const harness = defineHarness({ name: 'test/fork', adapter })
-    const host = createHarnessHost({ persistence })
+    const host = createHarnessHost({ persistence, lifecycle })
     return { harness, host, calls }
   }
 
   it('copies the transcript up to a message, and the fork goes on alone', async () => {
-    const persistence = durable ? durablePersistence() : memoryPersistence()
+    const persistence = durablePersistence()
     const { harness, host, calls } = setup(persistence)
     const source = await host.open(harness, { threadId: SOURCE })
     await source.send('one')
@@ -92,38 +98,37 @@ describe.each([
     expect(contents(await source.transcript())).toEqual(contents(before))
     await host.close()
 
-    if (durable) {
-      // A later host folds the fork from its log.
-      const later = createHarnessHost({ persistence })
-      const reopened = await later.open(harness, { threadId: FORK })
-      expect((await reopened.transcript()).map((m) => m.role)).toEqual([
-        'user',
-        'assistant',
-        'user',
-        'assistant',
-      ])
-      await later.close()
-    }
+    // A later host folds the fork from its log.
+    const later = createHarnessHost({ persistence })
+    const reopened = await later.open(harness, { threadId: FORK })
+    expect((await reopened.transcript()).map((m) => m.role)).toEqual([
+      'user',
+      'assistant',
+      'user',
+      'assistant',
+    ])
+    await later.close()
   })
 
   it('closes a source that only the fork opened, and keeps one the app has open', async () => {
-    const persistence = durable ? durablePersistence() : memoryPersistence()
-    const { harness, host } = setup(persistence)
+    const persistence = durablePersistence()
+    // A session that no handle holds closes at once when it is idle.
+    const { harness, host } = setup(persistence, { idleCloseMs: 0 })
     const source = await host.open(harness, { threadId: SOURCE })
     await source.send('one')
     await host.fork(harness, { threadId: SOURCE, newThreadId: FORK })
     // The app opened the source: the fork left it open.
-    expect(await host.open(harness, { threadId: SOURCE })).toBe(source)
+    expect(host.isOpen(harness, { threadId: SOURCE })).toBe(true)
     await source.close()
+    expect(host.isOpen(harness, { threadId: SOURCE })).toBe(false)
     await host.fork(harness, { threadId: SOURCE, newThreadId: 'other' })
-    // The fork opened the source itself, so it closed it again.
-    const reopened = await host.open(harness, { threadId: SOURCE })
-    expect(reopened).not.toBe(source)
+    // The fork opened the source itself, and released it at the end.
+    expect(host.isOpen(harness, { threadId: SOURCE })).toBe(false)
     await host.close()
   })
 
   it('copies the whole transcript by default, no messages for a null at, and refuses an unknown message or a used thread', async () => {
-    const persistence = durable ? durablePersistence() : memoryPersistence()
+    const persistence = durablePersistence()
     const { harness, host } = setup(persistence)
     const source = await host.open(harness, { threadId: SOURCE })
     await source.send('one')
@@ -180,7 +185,7 @@ describe('host.fork', () => {
     await source.setConfig({ key: 'tone', value: 'warm' })
     await source.send('Count.')
     await source.send('Deploy.')
-    expect(source.snapshot().pendingInterrupts).toHaveLength(1)
+    expect(turnInterrupts(source.snapshot())).toHaveLength(1)
     expect(source.snapshot().plugins['test/counter']).toEqual({ count: 1 })
 
     const fork = await host.fork(harness, {
@@ -193,7 +198,7 @@ describe('host.fork', () => {
     })
     expect(fork.config().tone?.value).toBe('warm')
     expect(fork.snapshot().plugins['test/counter']).toEqual({ count: 0 })
-    expect(fork.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(fork.snapshot())).toEqual([])
     await host.close()
   })
 
@@ -223,14 +228,48 @@ describe('host.fork', () => {
     if (!id) throw new Error('The fork lost the media part.')
 
     expect(id).not.toBe(record.id)
-    expect(await fork.getMedia(id)).toMatchObject({
+    expect(await fork.getMedia({ id })).toMatchObject({
       threadId: FORK,
       name: 'cat.png',
     })
     expect(await fork.loadMedia({ id })).toEqual(bytes)
     // Each thread sees only its own media.
-    expect(await fork.getMedia(record.id)).toBeNull()
-    expect(await source.getMedia(id)).toBeNull()
+    expect(await fork.getMedia({ id: record.id })).toBeNull()
+    expect(await source.getMedia({ id })).toBeNull()
+    await host.close()
+  })
+})
+
+describe('a fork stays in its harness', () => {
+  it('refuses host.fork and host.sessions.fork of a thread of another harness', async () => {
+    const support = defineHarness({
+      name: 'test/support',
+      adapter: mockAdapter(() => text('ok')).adapter,
+    })
+    const billing = defineHarness({
+      name: 'test/billing',
+      adapter: mockAdapter(() => text('billing here')).adapter,
+      plugins: () => [counter],
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const source = await host.open(support, { threadId: SOURCE })
+    await source.send('one')
+
+    await expect(
+      host.fork(billing, { threadId: SOURCE, newThreadId: FORK }),
+    ).rejects.toThrow(
+      `Thread "${SOURCE}" belongs to harness "test/support", not "test/billing".`,
+    )
+    await expect(
+      host.sessions.fork({
+        harness: billing,
+        threadId: SOURCE,
+        at: { through: 'any' },
+      }),
+    ).rejects.toThrow('belongs to harness "test/support"')
+    // Nothing opened the source under the other harness, and no fork exists.
+    expect(host.isOpen(billing, { threadId: SOURCE })).toBe(false)
+    expect(await host.sessions.get({ threadId: FORK })).toBeUndefined()
     await host.close()
   })
 })

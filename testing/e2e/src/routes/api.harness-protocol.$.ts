@@ -2,14 +2,14 @@ import { createFileRoute } from '@tanstack/react-router'
 import { defineAgent } from '@tanstack/ai'
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import {
-  type FinishContext,
-  type ProjectOptions,
   retryTransientErrors,
   configOption,
   createHarnessHost,
   defineCommand,
   defineHarness,
   definePlugin,
+  durableTool,
+  membersOnly,
 } from '@tanstack/ai-harness'
 import { createHarnessHandler } from '@tanstack/ai-harness/server'
 import { mcp } from '@tanstack/ai-mcp/harness'
@@ -24,6 +24,11 @@ import {
 } from '@/lib/harness-protocol-tools'
 import { createImageAdapter } from '@/lib/media-providers'
 import { createTextAdapter } from '@/lib/providers'
+import type {
+  FinishContext,
+  HarnessRunContext,
+  ProjectOptions,
+} from '@tanstack/ai-harness'
 
 /**
  * The harness session protocol behind `createHarnessHandler`. The main
@@ -32,15 +37,46 @@ import { createTextAdapter } from '@/lib/providers'
  * `painter`, which makes one image with the OpenAI image adapter. The
  * harness keeps that image, and the uploads, in memory.
  */
-// One host for every test. Each test uses its own thread ids, and a signed
-// media URL comes without the test headers.
-const host = createHarnessHost({ persistence: memoryPersistence() })
-// A durable host: a session log and run leases. A request picks it with the
-// `x-harness-durable: 1` header.
+// The users of the specs, by bearer token. `e2e`, `bob`, and `carol` are in
+// one tenant, so a spec can share a thread between them. `mallory` is in
+// another tenant.
+const users = new Map([
+  ['Bearer e2e-token', { id: 'e2e', tenantId: 'e2e' }],
+  ['Bearer e2e-token-bob', { id: 'bob', tenantId: 'e2e' }],
+  ['Bearer e2e-token-carol', { id: 'carol', tenantId: 'e2e' }],
+  ['Bearer e2e-token-mallory', { id: 'mallory', tenantId: 'other' }],
+])
+const identify = ({ request }: { request: Request }) =>
+  users.get(request.headers.get('authorization') ?? '') ?? null
+// Test only: each user may do each action on each thread of their tenant.
+// The host checks the tenant before it calls `authorize`.
+const tenantAccess = { identify, policy: { authorize: () => true } }
+// One host for every test. Each test uses its own thread ids.
+const host = createHarnessHost({
+  persistence: memoryPersistence(),
+  access: tenantAccess,
+})
+// A durable host: a session log. A request picks it with the
+// `x-harness-durable: 1` header. Host access keeps the owner and the members
+// of each thread in `stores.sessions`.
+const { sessions } = memoryPersistence().stores
 const durableHost = createHarnessHost({
-  persistence: {
-    stores: { log: memoryLogStore(), runs: memoryPersistence().stores.runs },
-  },
+  persistence: { stores: { log: memoryLogStore(), sessions } },
+  access: tenantAccess,
+})
+// Only the members of a thread may use it. A request picks this host with
+// the `x-harness-access: members` header.
+const membersHost = createHarnessHost({
+  persistence: memoryPersistence(),
+  access: { identify, policy: membersOnly() },
+})
+// A host that closes a session as soon as no handle holds it and it is idle.
+// A request picks it with the `x-harness-idle: close` header, so a read
+// after a turn finds a closed session.
+const idleHost = createHarnessHost({
+  persistence: memoryPersistence(),
+  access: tenantAccess,
+  lifecycle: { idleCloseMs: 0 },
 })
 // On the durable host, an `app.signal` record that a client appends becomes
 // a user message. The host without a log does not read it.
@@ -49,14 +85,6 @@ const signalProject: ProjectOptions = {
     record.type === 'app.signal' && typeof record.text === 'string'
       ? [...messages, { role: 'user', content: record.text }]
       : [...messages],
-}
-
-// Two users, so a test can share one thread between them.
-const authorize = (req: Request) => {
-  const token = req.headers.get('authorization')
-  if (token === 'Bearer e2e-token') return { id: 'e2e' }
-  if (token === 'Bearer e2e-token-bob') return { id: 'bob' }
-  return null
 }
 
 // The `drafter` and `slowBuild` of each test wait until the test sends the
@@ -228,24 +256,26 @@ function harnessFor(request: Request) {
     },
     plugins: () => [
       ...servers,
-      // The sender of the running turn, as plugins see it.
+      // The user who started the run, as its tools see it.
       definePlugin({
         name: 'e2e/whoami',
-        setup: (ctx) => ({
+        setup: () => ({
           tools: [
-            whoami.server(async () => ({
-              id: ctx.session.principal?.id ?? null,
+            whoami.server<HarnessRunContext>(async (_input, toolContext) => ({
+              id: toolContext.context.run.principal?.id ?? null,
             })),
           ],
         }),
       }),
-      // A tool that waits for an answer, so a turn stays running.
+      // A tool that waits for an answer, so a turn stays running. The log
+      // keeps the question, so any server takes the answer.
       definePlugin({
         name: 'e2e/ask',
-        setup: (ctx) => ({
+        setup: () => ({
           tools: [
-            askName.server(async () => ({
-              name: await ctx.session.ask({
+            durableTool(askName, async (_args, { step }) => ({
+              name: await step.ask({
+                name: 'name',
                 message: 'What is your name?',
                 schema: z.string(),
               }),
@@ -287,23 +317,30 @@ function harnessFor(request: Request) {
       }),
     ],
   })
+  const isMembersOnly = request.headers.get('x-harness-access') === 'members'
+  const isDurable = request.headers.get('x-harness-durable') === '1'
+  const isIdleClose = request.headers.get('x-harness-idle') === 'close'
   return {
     harness,
-    host: request.headers.get('x-harness-durable') === '1' ? durableHost : host,
+    host: isMembersOnly
+      ? membersHost
+      : isDurable
+        ? durableHost
+        : isIdleClose
+          ? idleHost
+          : host,
   }
 }
 
 function handlerFor(request: Request) {
   const { harness, host: hostOf } = harnessFor(request)
+  // The `access.identify` of the host reads the user of each request.
   return createHarnessHandler({
     host: hostOf,
     harness,
-    authorize,
-    // Test only: every principal may use every thread.
-    canAccess: () => true,
     // Each request makes a new handler, so a fixed secret keeps a signed URL
     // working on the next request.
-    media: { secret: 'e2e-media-secret' },
+    media: { secret: 'e2e-media-secret-of-32-bytes-or-more' },
   })
 }
 
@@ -314,15 +351,12 @@ function handlerFor(request: Request) {
  * Here the test picks it, so a test can fork onto a thread that has messages.
  */
 async function forkThread(request: Request) {
-  const principal = authorize(request)
+  const principal = identify({ request })
   if (!principal)
     return Response.json({ error: 'unauthorized' }, { status: 401 })
   const { harness, host: hostOf } = harnessFor(request)
-  const body = (await request.json()) as {
-    threadId: string
-    newThreadId: string
-    at?: string
-  }
+  const body: { threadId: string; newThreadId: string; at?: string } =
+    await request.json()
   try {
     const forked = await hostOf.fork(harness, { ...body, principal })
     return Response.json({ transcript: await forked.transcript() })

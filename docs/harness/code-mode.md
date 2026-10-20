@@ -99,7 +99,8 @@ export const onlyIssues = codeMode({
 })
 ```
 
-- A tool that `include` picks moves even when it needs approval, and its calls inside the program do not ask. Pick only tools that are safe to run without a question.
+- `include` never moves a tool with `needsApproval`, or a tool that an `ask` or `deny` rule matches. That tool stays a normal tool call with its approval, and code mode warns once. The rules decide in the permission mode of the session, again at each turn. So in `plan` mode, a tool that edits stays a normal tool call.
+- Any other tool that `include` picks moves, also when a rule asks for it. Its calls inside the program do not ask, so pick only tools that are safe to run without a question.
 - With `include`, a call of `execute_typescript` gets the permission rules like any tool, for example a question with `default: 'ask'`.
 - A safe tool with `metadata.codeMode: true` moves even when `include` does not pick it.
 

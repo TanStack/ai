@@ -20,7 +20,7 @@ import {
   refreshCredential,
 } from '../src/oauth'
 import { mockAdapter, text, toolCall } from './helpers'
-import type { SessionEvent } from '../src'
+import type { HarnessRunContext, SessionEvent } from '../src'
 import type { OAuthConfig } from '../src/oauth'
 
 const oauth: OAuthConfig = {
@@ -95,7 +95,7 @@ describe('token exchange', () => {
     })
     expect(bodies[0]?.get('code_verifier')).toBe('v1')
 
-    const refreshed = await refreshCredential(oauth, first, fake)
+    const refreshed = await refreshCredential(oauth, first, { fetch: fake })
     // The old refresh token stays when the server sends no new one.
     expect(refreshed).toMatchObject({ accessToken: 'a2', refreshToken: 'r1' })
     expect(bodies[1]?.get('grant_type')).toBe('refresh_token')
@@ -168,6 +168,7 @@ describe('device login', () => {
     expect(onCode).toHaveBeenCalledWith({
       userCode: 'ABCD-1234',
       verificationUri: 'https://auth.example/device',
+      expiresAt: expect.any(Number),
     })
     expect(credential).toMatchObject({ accessToken: 'device-token' })
   })
@@ -199,8 +200,8 @@ describe('oauthConnector', () => {
         toolDefinition({
           name: 'list_issues',
           description: 'List issues',
-        }).server(async () => {
-          seenTokens.push(await token())
+        }).server<HarnessRunContext>(async (_args, ctx) => {
+          seenTokens.push(await token({ run: ctx.context.run }))
           return ['#1']
         }),
       ],
@@ -256,9 +257,8 @@ describe('oauthConnector', () => {
     await session.send('list my issues again')
     expect(seenTokens).toEqual(['gh-token'])
     // The model never sees the token.
-    const transcript = JSON.stringify(
-      await persistence.stores.messages.loadThread('t'),
-    )
+    const transcript = JSON.stringify(await session.transcript())
+    expect(transcript).toContain('list my issues again')
     expect(transcript).not.toContain('gh-token')
 
     await session.command({ name: 'disconnect:github' })
@@ -271,6 +271,45 @@ describe('oauthConnector', () => {
     reader.abort()
     await reading
     await host.close()
+  })
+})
+
+describe('commands on close', () => {
+  it('ends a command that ignores its signal when the session closes', async () => {
+    let started: () => void = () => {}
+    const running = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    const plugin = definePlugin({
+      name: 'test/stuck',
+      setup: () => ({
+        commands: {
+          stuck: defineCommand({
+            description: 'Waits for ever',
+            run: () => {
+              started()
+              return new Promise(() => {})
+            },
+          }),
+        },
+      }),
+    })
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      credentials: memoryCredentialStore(),
+    })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/stuck',
+        adapter: mockAdapter(() => text('ok')).adapter,
+        plugins: () => [plugin],
+      }),
+      { threadId: 't1' },
+    )
+    const command = session.command({ name: 'stuck' })
+    await running
+    await host.close()
+    expect(command.status()).toBe('cancelled')
   })
 })
 
