@@ -123,6 +123,7 @@ export type {
   HostStatusEvent,
   HostTransferredEvent,
   OpenSessionOptions,
+  PresenceEvent,
   ResumedThread,
   ResumePendingOptions,
   RetentionLimits,

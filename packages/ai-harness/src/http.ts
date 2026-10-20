@@ -10,7 +10,13 @@ import {
 } from '@tanstack/ai'
 import { parseRangeHeader, resolveBlobRange } from '@tanstack/ai-persistence'
 import { AccessDeniedError } from './access'
-import { accessOf, isSharedHost, sessionOfTurn, tenantEventsOf } from './host'
+import {
+  accessOf,
+  isSharedHost,
+  presenceOf,
+  sessionOfTurn,
+  tenantEventsOf,
+} from './host'
 import { tenantOfHostEvent } from './host-event-bus'
 import { activeRunIn } from './log-stores'
 import { MediaError } from './media'
@@ -1053,18 +1059,42 @@ export function createHarnessHandler<P extends Principal = Principal>(
         v: HARNESS_PROTOCOL_VERSION,
         threadId,
       }
+      let isRevoked = false
       return sseResponse(
         async function* (signal) {
-          yield { data: JSON.stringify(hello) }
-          const events = view.events({ ...(from ? { from } : {}), signal })
-          // Each event goes out as an AG-UI wire chunk.
-          for await (const entry of events) {
-            yield { id: entry.cursor, data: wireFrame(entry) }
+          const left = presenceOf(host)?.connect({
+            ...connectionOf(principal, threadId, harness),
+            transport: 'sse',
+            resumed: from !== undefined,
+          })
+          let isFailed = false
+          try {
+            yield { data: JSON.stringify(hello) }
+            const events = view.events({ ...(from ? { from } : {}), signal })
+            // Each event goes out as an AG-UI wire chunk.
+            for await (const entry of events) {
+              yield { id: entry.cursor, data: wireFrame(entry) }
+            }
+          } catch (error) {
+            // The view ends its read on a revoke too.
+            if (error instanceof AccessDeniedError) isRevoked = true
+            else isFailed = true
+            throw error
+          } finally {
+            left?.(isRevoked ? 'revoked' : isFailed ? 'error' : 'closed')
           }
         },
         requestId,
         stream,
-        closeOnRevoke(principal, threadId),
+        (reader) =>
+          watchRevoke(
+            host,
+            { principal, threadId, signal: reader.signal },
+            () => {
+              isRevoked = true
+              reader.abort()
+            },
+          ),
       )
     }
 
@@ -1397,6 +1427,20 @@ export interface HarnessSocketOptions<P extends Principal = Principal> {
 /** The close code of a socket after an `unsupported_version` error frame. */
 const UNSUPPORTED_VERSION_CLOSE_CODE = 4400
 
+/** What the presence hooks get of a stream of `principal` on `threadId`. */
+const connectionOf = <P extends Principal>(
+  principal: P | undefined,
+  threadId: string,
+  harness: AnyHarness,
+) => ({
+  ...(principal ? { principal } : {}),
+  threadId,
+  ...(principal?.tenantId !== undefined
+    ? { tenantId: principal.tenantId }
+    : {}),
+  harness: harness.name,
+})
+
 /** The text of an error frame: a refused action is `forbidden`. */
 const errorMessage = (error: unknown) =>
   error instanceof AccessDeniedError
@@ -1558,8 +1602,13 @@ export function handleHarnessSocket<P extends Principal = Principal>(
       message === 'unauthorized' ? 4401 : 4403,
     )
 
+  /** Why the socket ends, for `presence.onDisconnect`. */
+  let endReason: 'closed' | 'revoked' | 'error' = 'closed'
   socket.addEventListener('close', () => reader.abort())
-  socket.addEventListener('error', () => reader.abort())
+  socket.addEventListener('error', () => {
+    if (endReason === 'closed') endReason = 'error'
+    reader.abort()
+  })
   const frameLimit = maxBodyBytesOf(harness.media)
   // The frames of the socket run one after another, as the stdio worker
   // runs them: an input with media to store does not let a later input
@@ -1622,8 +1671,22 @@ export function handleHarnessSocket<P extends Principal = Principal>(
           watchRevoke(
             host,
             { principal, threadId, signal: reader.signal },
-            () => refuse('forbidden', requestId),
+            () => {
+              endReason = 'revoked'
+              refuse('forbidden', requestId)
+            },
           )
+          const left = reader.signal.aborted
+            ? undefined
+            : presenceOf(host)?.connect({
+                ...connectionOf(principal, threadId, harness),
+                transport: 'websocket',
+                resumed: frame.from !== undefined,
+              })
+          if (left)
+            reader.signal.addEventListener('abort', () => left(endReason), {
+              once: true,
+            })
           void send({
             type: 'harness.hello',
             v: HARNESS_PROTOCOL_VERSION,
@@ -1631,14 +1694,18 @@ export function handleHarnessSocket<P extends Principal = Principal>(
           })
           void stream(subscription.view, frame.from)
             // The close waits for this frame: it goes out first.
-            .catch((error: unknown) =>
-              send({
+            .catch((error: unknown) => {
+              // The view ends its read on a revoke too.
+              if (endReason === 'closed')
+                endReason =
+                  error instanceof AccessDeniedError ? 'revoked' : 'error'
+              return send({
                 type: 'harness.error',
                 message: errorMessage(scrubbedBy(holding, error)),
                 code: 'internal',
                 requestId,
-              }),
-            )
+              })
+            })
             // The feed ended while the socket is open: close it, so the
             // client subscribes again.
             .finally(() => {

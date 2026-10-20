@@ -123,6 +123,7 @@ Every transport sends the same frames: each event is an AG-UI wire chunk in a `h
 - When the stream is idle, the server sends a heartbeat every 20 s. Set the idle timeout of your proxy to more than that.
 - A client that does not read for 30 s gets a `slow_consumer` error frame, and the stream closes. Connect again from the last cursor.
 - Every answer of the handler has an `X-Request-Id` header, and every error frame has a `code` and a `requestId`. Log the id, to find the request in the server logs.
+- To know who has a stream open, pass `presence: { onConnect, onDisconnect }` to `createHarnessHost`. See [Show who is here](./shared-threads#8-show-who-is-here).
 
 To change the heartbeat or the limits, pass `stream` to `createHarnessHandler` and `handleHarnessSocket`. [The harness wire protocol](./protocol) lists every frame, the error codes, and the `stream` values, for a client in any language.
 

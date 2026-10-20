@@ -292,6 +292,68 @@ export async function shareKey(
 - `run.credentials.list()` shows the credentials of the user and of the tenant. For the same id, the credential of the user wins.
 - An OAuth token of the tenant works too. A refresh saves the new token for the tenant, so every user of the tenant gets it. See [Refresh a token](./auth#refresh-a-token).
 
+## 8. Show who is here
+
+Ada and Bob work in one thread. Each of them wants to see who else has the thread open now. The `presence` hooks of the host tell you when a client stream starts and when it ends.
+
+On the server, keep the open streams of each thread, and serve the list:
+
+```ts group=harness-shared-threads
+// The open streams on this server: thread id, then connection id, then user id.
+const online = new Map<string, Map<string, string>>()
+
+export const presenceHost = createHarnessHost({
+  persistence: memoryPersistence(),
+  access: {
+    identify: ({ request }) => users.get(request.headers.get('authorization') ?? '') ?? null,
+    policy: membersOnly(),
+  },
+  presence: {
+    onConnect: ({ threadId, connectionId, principal }) => {
+      const streams = online.get(threadId) ?? new Map<string, string>()
+      streams.set(connectionId, principal?.id ?? 'guest')
+      online.set(threadId, streams)
+    },
+    onDisconnect: ({ threadId, connectionId }) => {
+      online.get(threadId)?.delete(connectionId)
+    },
+  },
+})
+
+// GET /api/who?threadId=team-thread: the users who have the thread open.
+export async function whoIsHere(request: Request) {
+  const principal = users.get(request.headers.get('authorization') ?? '')
+  const threadId = new URL(request.url).searchParams.get('threadId') ?? ''
+  // Only a user who can read the thread sees the list. Another user gets AccessDeniedError.
+  const entry = principal && (await presenceHost.sessions.get({ threadId, principal }))
+  if (!entry) return new Response('Not found', { status: 404 })
+  return Response.json([...new Set(online.get(threadId)?.values())])
+}
+```
+
+In the browser, show the list:
+
+```ts group=harness-shared-threads-presence-client
+export async function showWhoIsHere(list: HTMLElement) {
+  const response = await fetch('/api/who?threadId=team-thread', {
+    headers: { authorization: 'Bearer token-ada' },
+  })
+  if (!response.ok) return
+  const userIds: unknown = await response.json()
+  if (Array.isArray(userIds)) list.textContent = `Here now: ${userIds.join(', ')}`
+}
+```
+
+Call `showWhoIsHere` when the page opens. To update it at once, publish a change from the hooks with your own pub/sub, and call it again when the change comes.
+
+- Each stream is one connection with its own `connectionId`. Two tabs of Bob are two connections, so the route counts users, not streams.
+- `GET events` and the socket of `handleHarnessSocket` count. `POST run` streams and reads from your own code do not.
+- `resumed` is `true` for a stream that goes on from a cursor, for example a reconnect.
+- `onDisconnect` runs once for each `onConnect`. Its `reason` is `closed`, `revoked` (a revoke or `unshare`), or `error`.
+- Each server reports only its own streams. When more than one server runs, keep the streams in a shared store, for example Redis, in place of the `Map`.
+
+The host does not wait for a hook. A hook that throws or rejects only logs a warning, and the stream goes on.
+
 ## What you have now
 
 - Threads that only their members can see, with an owner, members, and viewers.
@@ -300,3 +362,4 @@ export async function shareKey(
 - A message from another person waits for its own turn.
 - Forks that the forker owns, with the members you pick.
 - The threads and credentials of two organizations stay apart.
+- A list of who has the thread open now.
