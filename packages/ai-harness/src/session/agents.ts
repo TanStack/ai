@@ -1451,17 +1451,23 @@ export abstract class SessionAgents<
   }
 
   /**
-   * Start a top-level agent run whose start waited in the log when its host
-   * stopped: it waited for a slot, or the host stopped before it started.
-   * It never ran, so nothing runs twice, also without `resume`. It keeps the
-   * run id of its queued node, so the `operationId` of its receipt stays
-   * valid. It waits for a slot again.
+   * Start an agent run whose start waited in the log when its host stopped:
+   * a top-level run waited for a slot, or the host stopped before it
+   * started. It never ran, so nothing runs twice, also without `resume`. It
+   * keeps the run id of its queued node, so the `operationId` of its receipt
+   * stays valid. A top-level run waits for a slot again. A child of a turn
+   * keeps its turn as its parent, and the child id that the model got.
    */
   protected startQueuedAgent(input: AgentInputState) {
     const node = [...this.writer.state.thread.tree.values()].find(
       (item) => item.inputId === input.inputId && item.status === 'queued',
     )
-    const operation = this.agentOperation(input.input.agent, node?.runId)
+    const operation = this.agentOperation(
+      input.input.agent,
+      node?.runId,
+      undefined,
+      node?.subagentRunId,
+    )
     const sender = input.principal ? { principal: input.principal } : {}
     const chain = this.createChain(this.loggedFields(input), {
       operation,
@@ -1766,8 +1772,30 @@ export abstract class SessionAgents<
               ...(chain.parentRunId ? { parentRunId: chain.parentRunId } : {}),
             },
             principal,
-            // An offered run runs as this operation on the owner.
-            { runId: operation.id },
+            {
+              // An offered run runs as this operation on the owner.
+              runId: operation.id,
+              // A child of a turn has its node from the start, with the child
+              // id that the model got. Recovery of a start that never ran
+              // reads both: the input keeps no turn.
+              ...(chain.turnRunId !== undefined && start.child
+                ? {
+                    records: [
+                      runNodeRecord({
+                        runId: operation.id,
+                        kind: 'agent',
+                        inputId,
+                        principal,
+                        agent: name,
+                        chainInputId: chain.runInputId,
+                        options,
+                        parentRunId: chain.turnRunId,
+                        subagentRunId: start.child.subagentRunId,
+                      }),
+                    ],
+                  }
+                : {}),
+            },
           )
       // As a turn does: a refused, offered, or known input gets its receipt
       // now. A new one gets it below, when the run starts or waits.

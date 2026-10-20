@@ -963,7 +963,7 @@
           "label": "Deploy a harness",
           "to": "harness/deploy",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-19"
+          "updatedAt": "2026-10-20"
         },
         {
           "label": "Send inputs safely",

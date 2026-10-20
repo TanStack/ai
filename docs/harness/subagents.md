@@ -424,7 +424,7 @@ For the tool input in plain `chat()`, see [The tool input](../chat/subagents#the
 
 When a background child ends, the session starts a new turn. Its message starts with `Background agent researcher finished:` or `Background agent researcher failed:`. While the child runs, it is in `session.agentRuns()`.
 
-When the host stops while a background child runs, the next host continues the child with the same `subagentRunId`, as a start with `resume: true` does:
+When the host stops while a background child runs, or before the child starts, the next host continues the child with the same `subagentRunId`, as a start with `resume: true` does:
 
 - The agent code runs again from its start.
 - `ctx.chat` continues from the saved transcript. A tool call that finished does not run again. A tool call that ran at the stop runs again.
@@ -774,7 +774,7 @@ In a session, the child is a run of the session tree. It opens a session of the 
 What you see in the parent session:
 
 - The model calls of the child count in `session.usage()` and in the budget of the parent.
-- A wait of the child, for example a sign-in or an approval, is in `snapshot().pendingWaits` of the root session. Answer it there, and the child goes on in the parent run. The receipt names the parent run, so a `POST run` resume streams that run to its end. A wait that expires lets the child go on by itself. Every host sees the wait, and so does `host.observe`, because it is in the log of the root thread. An answer on another host goes to the host that runs the child. A child that waits keeps its parent run running.
+- A wait of the child, for example a sign-in or an approval, is in `snapshot().pendingWaits` of the root session. Answer it there, and the child goes on in the parent run. The receipt names the parent run, so a `POST run` resume streams that run to its end. A wait that expires lets the child go on by itself. Every host sees the wait, and so does `host.observe`, because it is in the log of the root thread. An answer on another host goes to the host that runs the child. A child that waits keeps its parent run running. If the host of the child stops, no host runs the child again. The next host that owns the log ends the waits of that child as `cancelled`.
 - The events of the child (text, reasoning, tool calls, and custom events) reach the parent stream with `parentRunId` in `metadata.tanstack`. A last `RUN_FINISHED` has the total usage of the child.
 - The child session closes, and its plugins are cleaned up, when the run settles.
 

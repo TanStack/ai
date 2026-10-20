@@ -165,7 +165,7 @@ Check these before you run many servers or long threads.
 
 Across servers and restarts:
 
-- A [`harnessAgent`](./subagents#call-a-harness-as-a-child) child waits only in memory. Its parent run waits on the same host. Another host, or a crash, does not resume it.
+- A [`harnessAgent`](./subagents#call-a-harness-as-a-child) child waits only in memory. Its parent run waits on the same host. Another host, or a crash, does not resume it. After a crash, the next owner of the log ends the waits of the child.
 - A [log snapshot](./durable-sessions#keep-a-long-log-fast-to-open) holds the full fold of the thread, so it grows with the thread. To keep the log small, drop the old records with [`logRecords: 'since-snapshot'`](./lifecycle#drop-the-records-before-a-snapshot).
 - `host.resumePending` opens the threads that it takes one at a time. A `GET run` by run id looks through the open sessions one at a time too.
 

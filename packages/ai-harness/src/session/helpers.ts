@@ -413,12 +413,14 @@ export function runNodeRecord(node: {
   agent?: string
   chainInputId?: string
   parentChainInputId?: string
+  subagentRunId?: string
   options?: Pick<
     AgentStartOptions,
     'key' | 'limits' | 'budget' | 'onModelError'
   >
 }) {
   const { parentRunId, agent, chainInputId, parentChainInputId, options } = node
+  const { subagentRunId } = node
   const record: ThreadRecord = {
     type: 'harness.run.node',
     runId: node.runId,
@@ -426,6 +428,7 @@ export function runNodeRecord(node: {
     inputId: node.inputId,
     ...storedPrincipal(node.principal),
     ...(parentRunId !== undefined ? { parentRunId } : {}),
+    ...(subagentRunId !== undefined ? { subagentRunId } : {}),
     ...(agent !== undefined ? { agent } : {}),
     ...(chainInputId !== undefined ? { chainInputId } : {}),
     ...(parentChainInputId !== undefined ? { parentChainInputId } : {}),

@@ -68,6 +68,8 @@ interface AcceptOptions {
    * is not the input that this host logs. It throws to refuse the input.
    */
   offer?: () => Promise<OfferedHarnessInput>
+  /** More records for the append of a new input. */
+  records?: Array<HarnessRecord>
 }
 
 /** The offer that the next `accept` applies. See `applyOffer`. */
@@ -670,7 +672,10 @@ export abstract class SessionInputs<
     if (this.closing && WORK_OPS.has(input.op)) return 'closed'
     this.admitted.set(inputId, inputKey(input, sender.principal))
     try {
-      const records = options.turn ? turnRecords(inputId, options.turn) : []
+      const records = [
+        ...(options.turn ? turnRecords(inputId, options.turn) : []),
+        ...(options.records ?? []),
+      ]
       await this.writer.append(
         [
           {

@@ -906,6 +906,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
       await this.recoverBackground(writer)
       // The waits that expired, and the live waits of a host that stopped.
       await this.endStaleWaits()
+      await this.endOrphanChildWaits()
       await this.expireInterrupted()
       // The agent runs whose waits ended while no host could resume them.
       await this.resumeWaitingRuns()
@@ -1000,19 +1001,30 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
           }
           continue
         }
-        // A top-level agent start never ran: it waited for a slot, or the
-        // host stopped first. It runs now, in log order. A cancel that was
-        // asked before settles it aborted.
+        // An agent start that no agent code made never ran: a top-level
+        // start waited for a slot, or the host stopped first. It runs now, in
+        // log order. A child of a turn runs as that child, if it can run
+        // again. A cancel that was asked before settles it aborted.
         if (isAgentInput(input) && input.input.parentRunId === undefined) {
+          const queued = [...writer.state.thread.tree.values()].find(
+            (node) =>
+              node.inputId === input.inputId && node.status === 'queued',
+          )
           if (input.abortRequested) {
-            const queued = [...writer.state.thread.tree.values()].find(
-              (node) =>
-                node.inputId === input.inputId && node.status === 'queued',
-            )
             await this.settle({
               inputId: input.inputId,
               ...(queued ? { operationId: queued.runId } : {}),
               outcome: 'aborted',
+            })
+          } else if (queued?.parentRunId !== undefined && !input.input.resume) {
+            // With `resumeBackgroundAgents: false`, it fails, as a child of a
+            // turn that ran does.
+            await this.failStoppedAgent({
+              operationId: queued.runId,
+              agent: input.input.agent,
+              inputId: input.inputId,
+              wake: input.input.detached,
+              ...(input.principal ? { principal: input.principal } : {}),
             })
           } else {
             this.startQueuedAgent(input)
@@ -1137,7 +1149,14 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
                 },
               })
             }
-            this.resumeAgent(input, first, run?.subagentRunId)
+            // A stop before the run record leaves the child id in the node.
+            this.resumeAgent(
+              input,
+              first,
+              run?.subagentRunId ??
+                writer.state.thread.tree.get(input.operationId ?? '')
+                  ?.subagentRunId,
+            )
             continue
           }
           await this.failStoppedAgent({

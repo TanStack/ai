@@ -237,6 +237,11 @@ export type RunTreeNode = RunNode & {
   liveOnly?: Array<'onModelError'>
   /** @internal The `onModelError` start option as data. */
   onModelError?: { retries: 1 | 2; transientOnly?: boolean }
+  /**
+   * @internal The child id that the model got for a background child of a
+   * turn. The node keeps it from the start, before the run record does.
+   */
+  subagentRunId?: string
 }
 
 /**
