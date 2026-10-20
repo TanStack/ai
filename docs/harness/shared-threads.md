@@ -17,7 +17,7 @@ Several people work in one thread: a team in one chat, or a customer and a suppo
 
 ## 1. Turn on members
 
-Use `membersOnly()` as the `authorize` of the host. [Access and tenants](./access) explains `identify`:
+Spread `membersOnly()` into the `access` of the host. [Access and tenants](./access) explains `identify`:
 
 ```ts group=harness-shared-threads
 import { createHarnessHost, defineHarness, membersOnly } from '@tanstack/ai-harness'
@@ -40,7 +40,7 @@ export const host = createHarnessHost({
   persistence: memoryPersistence(),
   access: {
     identify: ({ request }) => users.get(request.headers.get('authorization') ?? '') ?? null,
-    authorize: membersOnly(),
+    ...membersOnly(),
   },
 })
 
@@ -145,6 +145,7 @@ Each message, command, and agent runs as the person who started it:
 - The log keeps the sender of each input, also of a cancel, an answer, and a change of settings. After a restart, a message runs again as its sender.
 - Tools and middleware read the run as `ctx.context.run`. It has the user, the credentials, and the provider keys of the sender.
 - The model call uses the provider key of the sender. So the sender pays for the call.
+- An answer does not change the sender. When the owner approves a tool in the turn of Bob, the rest of that turn still runs as Bob.
 - A command runs as the person who runs it. So a sign-in, for example `connect:github`, belongs to the person who signed in.
 - A background agent runs as the person who started it, also after the turn ends. The wake turn after the agent runs as that person too.
 
@@ -236,7 +237,7 @@ const fork = await host.sessions.fork({
   members: 'all',
   principal: bob,
 })
-console.log(fork.ownerId) // 'bob'
+console.log(fork.members[0]) // { userId: 'bob', role: 'owner' }
 ```
 
 `members` picks who else is in the fork:

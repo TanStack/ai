@@ -40,7 +40,7 @@ export const host = createHarnessHost({
   persistence: memoryPersistence(),
   access: {
     identify: ({ request }) => users.get(request.headers.get('authorization') ?? '') ?? null,
-    authorize: membersOnly(),
+    ...membersOnly(),
   },
 })
 
@@ -48,14 +48,14 @@ export const handler = createHarnessHandler({ host, harness: assistant })
 ```
 
 - `identify` reads the user of a request with your own login check. Return `null` to refuse the request with `401`.
-- `authorize` decides each action. `membersOnly()` lets only the members of a session use it. See [Share a thread between people](./shared-threads).
+- `membersOnly()` gives the rules: only the members of a session can use it. Spread it into `access`. See [Share a thread between people](./shared-threads).
 - `memoryPersistence()` has a `sessions` store. Without `stores.sessions`, `createHarnessHost` throws.
 
 The handler gets the user from `identify`, so it needs no login option of its own. A new thread belongs to the user who opens it first.
 
 ## 2. Write your own rule
 
-`authorize` gets the user, the action, and the session. Return `false` to refuse. The user has the type that `identify` returns, so your own fields are typed too:
+Give `access` your own `authorize` instead of `membersOnly()`. `authorize` gets the user, the action, and the session. Return `false` to refuse. The user has the type that `identify` returns, so your own fields are typed too:
 
 ```ts group=harness-access-rule
 import { createHarnessHost } from '@tanstack/ai-harness'
@@ -77,7 +77,9 @@ export const host = createHarnessHost({
   access: {
     identify: ({ request }) => users.get(request.headers.get('authorization') ?? '') ?? null,
     authorize: ({ principal, action, session }) => {
-      const isOwner = session.ownerId === principal.id
+      const isOwner = session.members.some(
+        (member) => member.userId === principal.id && member.role === 'owner',
+      )
       if (isOwner || principal.isAdmin) return true
       // Everyone in the organization can read every thread of it.
       return action === 'read' || action === 'list'
@@ -108,6 +110,11 @@ Each action covers these calls:
 - `host.submit` and `schedule` check an answer or a cancel when you send it, with `run` from the log. A run that the log does not have is refused with `unknown_run`: `submit` returns a `rejected` receipt, and `schedule` throws `InputRejectedError`.
 - A handle checks `read` once, when it opens. Each action that changes the session asks `authorize` again. This includes `cancel` and `send` on an operation or an agent run that the handle returns.
 
+`membersOnly()` also gives `access` two keys that your own rules can leave out, or take from it with `...membersOnly()`:
+
+- `listFilter`: the filter that `host.sessions.list` gives the store, for example `{ memberId }`. Without it, the store reads every session of the tenant, and `authorize` drops the others, so a page can have fewer entries than `limit`.
+- `members`: turns on `host.sessions.share` and `unshare`, and `members.fork` sets the members of a fork. Without it, `share` and `unshare` throw.
+
 ## What the host checks for you
 
 `authorize` decides only the rule of your app. The host does these checks before it calls it:
@@ -115,12 +122,14 @@ Each action covers these calls:
 - The tenant. A user reaches only the sessions of their own tenant. `authorize` never gets a session of another tenant.
 - A user on every call. With access, `host.open`, `host.fork`, `host.transfer`, and each `host.sessions` method need a `principal`. A call without one throws.
 - One user per handle. `host.open` returns a session that acts only as its `principal`. A call on it that passes another `principal` throws.
-- Child threads. The host checks a subagent child as its root thread, so `session` is the root session.
+- Child threads. The host checks a subagent child as its root thread, so `session` is the root session. A user who cannot read the root gets `403` for the child, and does not learn its root.
 - Missing threads. A read of a thread with no entry answers `404` and starts no session. `GET run?threadId=` answers an empty hydration instead, because `useChat` reads it before the first message.
 
 A refused action throws `AccessDeniedError`, with `code: 'forbidden'`, the `action`, and the `threadId`. The handler answers it with `403`.
 
-The host keeps only the `id` and the `tenantId` of a user, in the log and in signed media URLs. So `authorize` can get a user with only these two fields, for example when the handler serves a signed media URL. A rule that reads another field, such as `isAdmin` above, must refuse when the field is missing.
+The host keeps only the `id` and the `tenantId` of a user in the log. So `authorize` can get a user with only these two fields. A rule that reads another field, such as `isAdmin` above, must refuse when the field is missing.
+
+A signed media URL is no login. The handler runs `identify` for it too, and checks `read` for that user, in the tenant of the URL. A request with no user gets `401`. So load the file with a request that sends the login, for example an `<img>` on the same site, which sends its cookies.
 
 ## Keep tenants apart
 
@@ -177,7 +186,8 @@ export const host = createHarnessHost({
   access: {
     identify: ({ request }) => users.get(request.headers.get('authorization') ?? '') ?? null,
     authorize: ({ principal, session }) =>
-      session.ownerId === principal.id || (teams.get(session.threadId)?.has(principal.id) ?? false),
+      session.members.some((member) => member.userId === principal.id) ||
+      (teams.get(session.threadId)?.has(principal.id) ?? false),
   },
 })
 
@@ -192,12 +202,12 @@ When the promise of `host.revoke` resolves:
 - The running and queued work of the user on the thread is cancelled, on every host. The schedules of the user on the thread are removed.
 - The streams of the user on the thread close. A socket gets a `forbidden` error frame. A running `events()` read of a handle or a view ends with `AccessDeniedError`.
 - The open handles and views of the user on the thread throw `AccessDeniedError`. A new `host.open` asks `authorize` again.
-- The signed media URLs of the user stop working. A signed URL names its user, and the handler checks that user again when it serves the file.
+- The signed media URLs stop working for the user. The handler checks the user of each request again when it serves the file.
 - `host.events()` yields a `revoked` event.
 
 When the cancels cannot be sent (for example, the log store fails), the promise rejects. The access is gone already. Call `host.revoke` again to stop the work. `host.sessions.unshare` rejects the same way, after it removed the member.
 
-`host.sessions.share` and `unshare` work only with `membersOnly()`. With your own tables, change the tables, then call `host.revoke`.
+`host.sessions.share` and `unshare` need `access.members`, which `membersOnly()` has. With your own tables, change the tables, then call `host.revoke`.
 
 ## Serve with no login
 

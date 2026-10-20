@@ -1005,8 +1005,7 @@ interface SessionIndexKey {
 interface SessionIndexEntry {
   tenantId?: string // with `threadId`, the key of the entry
   threadId: string
-  ownerId?: string // the user id of the owner. Without it, the thread has no owner
-  members: Array<SessionMember> // the users who can open the thread. Empty for a subagent child
+  members: Array<SessionMember> // the users who can open the thread. The owner has the role `owner`. Empty for a subagent child
   harness?: string // the name of the setup that runs the thread
   title?: string
   parentThreadId?: string // the parent thread. A subagent child's own threadId is `subagent:<runId>`
@@ -1069,8 +1068,7 @@ Rules for `get`, `upsert`, and `delete`:
 - `upsert` replaces the whole entry for the key of `entry`. A field that the new
   entry does not have is gone. Do not merge. To change one field, read the entry and
   write a changed copy with `upsertIf`.
-- Keep `ownerId` and `members` as they are written. The host decides what each role
-  can do.
+- Keep `members` as they are written. The host decides what each role can do.
 - `delete` is a hard delete. After it, `get` and `getVersioned` return `undefined`,
   and `upsertIf` with revision `null` writes a new entry. The messages, the log, and
   the other data of the thread stay. For an unknown key, `delete` does nothing.
@@ -1092,8 +1090,8 @@ Rules for `list`:
 
 With `stores.sessions`, `withPersistence` writes an entry for each subagent child, in
 the tenant of its `tenantId` option. The entry has the parent thread, the tool call
-that started the child, and the `ownerId` and `harness` of the parent entry. It has no
-members: access to a child goes through its top-level thread.
+that started the child, and the `harness` of the parent entry. It has no members:
+access to a child goes through its top-level thread.
 
 ### Keep the writes of several hosts
 

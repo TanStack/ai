@@ -40,7 +40,7 @@ const session = await host.open(assistant, {
   principal: { id: 'ada' },
 })
 await session.send('Plan a trip to Lisbon.')
-console.log((await host.sessions.get({ threadId: 'chat-1' }))?.ownerId) // 'ada'
+console.log((await host.sessions.get({ threadId: 'chat-1' }))?.members) // [{ userId: 'ada', role: 'owner' }]
 ```
 
 `host.open` gives you a handle. When you are done with it, release it with `await session.close()`. Or open it with `await using`, which releases it at the end of the block. Then the session can close when it goes idle. See [Lifecycle and retention](./lifecycle#open-and-release-a-session).
@@ -49,7 +49,7 @@ What an entry holds:
 
 - `title`: the name of the chat. Set it with `host.sessions.rename`, or from a plugin with `ctx.session.updateEntry({ title })`.
 - `updatedAt`: the time of the last change. The list sorts by it.
-- `ownerId` and `members`: the user who opened the thread first, and the users who can open it, each with a role. The owner is a member with the role `owner`.
+- `members`: the users who can open the thread, each with a role. The user who opened the thread first is the member with the role `owner`.
 - `tenantId`: the tenant of the thread. Without it, the thread is in the default tenant. See [Access and tenants](./access).
 - `usage` and `parentThreadId`: the token totals of the thread, and the parent thread of a child session, for example a subagent run.
 

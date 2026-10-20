@@ -56,6 +56,8 @@ The session also has:
 - `loadMedia({ id, range })`: the bytes, or one range of them. `range` is optional.
 - `mediaUrl({ id })`: `{ url }`, with a data URL for a file up to 1 MB. A bigger file gets `{}`. Use `loadMedia` for it, and serve the bytes from your own route.
 
+Over HTTP, `createHarnessClient` gets a signed URL from the handler instead. The request for that URL still needs the login of the user, for example the cookies that an `<img>` on the same site sends. A request with no user gets `401`. See [Access and tenants](./access#what-the-host-checks-for-you).
+
 ## Media that agents make
 
 The harness saves the result of each of these calls in an agent. You do not change the agent code:

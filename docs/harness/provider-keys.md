@@ -110,7 +110,7 @@ fal.ai: missing. Run /connect fal.
 OpenRouter: missing. Run /connect openrouter.
 ```
 
-In your own UI, read the same list from `session.snapshot().plugins['tanstack/provider-keys'].providers`. Each entry has an `id`, a `label`, and a `state`: `connected`, `env`, or `missing`.
+In your own UI, read the providers from `session.snapshot().plugins['tanstack/provider-keys'].providers`. Each entry has an `id`, a `label`, and a `state`: `env` or `missing`. Every member of a thread reads this list, so it shows only the env vars that the session reads, not the keys of one user. A host with access reads no env vars without `envKeys: true`. To show the keys of the user, run `/keys`.
 
 ### Sign in with OpenRouter
 

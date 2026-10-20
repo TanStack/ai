@@ -35,7 +35,7 @@ const host = createHarnessHost({
       request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
         ? { id: 'user-1' }
         : null,
-    authorize: membersOnly(),
+    ...membersOnly(),
   },
 })
 
@@ -69,7 +69,7 @@ export const rotatingHandler = createHarnessHandler({
 
 - Each key must be at least 32 bytes. A shorter key throws at the start.
 - To change the key, put the new key first in `keys` and keep the old key after it. A URL that the old key signed works until it expires (1 hour). Then remove the old key.
-- A signed URL works only for this harness and for the user that it was signed for. When the thread is deleted, its URLs answer `404`.
+- A signed URL works only for this harness, in the tenant of the user who got it. Each request still needs a user from `identify` that can read the thread, so send the login with it. When the thread is deleted, its URLs answer `404`.
 
 A request body over `media.maxBodyBytes` (default 32 MiB) answers `413`. See [Files inside a client message](./media#files-inside-a-client-message).
 
@@ -87,7 +87,7 @@ For one session:
 - `GET snapshot?threadId=`: the status, running operations, and waiting approvals.
 - `GET transcript?threadId=` and `GET describe?threadId=`: the saved messages, and the commands and settings that a client can use.
 - `GET agent-transcript?threadId=&subagentRunId=`: the saved messages of one child agent of the thread. See [Show what a child wrote after a reload](./subagents#show-what-a-child-wrote-after-a-reload).
-- `POST media`, `GET media-url`, and `GET media`: upload a file, get a signed URL, and read the bytes. A signed URL works for 1 hour, and only for the user it was signed for. See [Send and show media](./media).
+- `POST media`, `GET media-url`, and `GET media`: upload a file, get a signed URL, and read the bytes. A signed URL works for 1 hour, and only for a user who can read the thread. See [Send and show media](./media).
 
 For a list of sessions:
 
@@ -220,7 +220,7 @@ const host = createHarnessHost({
       request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
         ? { id: 'user-1' }
         : null,
-    authorize: membersOnly(),
+    ...membersOnly(),
   },
 })
 
@@ -402,7 +402,7 @@ const host = createHarnessHost({
       request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
         ? { id: 'user-1' }
         : null,
-    authorize: membersOnly(),
+    ...membersOnly(),
   },
 })
 
