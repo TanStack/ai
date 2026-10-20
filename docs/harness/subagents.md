@@ -431,7 +431,7 @@ When the host stops while a background child runs, or before the child starts, t
 - `ctx.harness.step.do` keeps its values, so a finished step does not run again.
 - The plugins with `lifetime: 'turn'` of the turn that started the child are gone.
 
-To fail the child instead, set `durability: { resumeBackgroundAgents: false }` in `defineHarness`.
+To fail a child that ran at the stop instead, set `durability: { resumeBackgroundAgents: false }` in `defineHarness`. A child that did not start yet still starts, because none of its code ran.
 
 With a session index, each child gets an entry with its `parentThreadId` and `parentToolCallId`. See [Turn on the session index](./sessions#turn-on-the-session-index).
 

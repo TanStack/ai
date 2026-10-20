@@ -224,7 +224,8 @@ export interface HarnessDurability<
    * and `ctx.harness.step` keeps its values. A tool call that finished does
    * not run again. A tool call that ran at the stop runs again. The turn
    * plugins of the turn that started it are gone. `false`: the run fails, as
-   * a start without `resume`. Default `true`.
+   * a start without `resume`. A child that did not start yet still starts.
+   * Default `true`.
    */
   resumeBackgroundAgents?: boolean
   /**
