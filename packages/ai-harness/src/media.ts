@@ -132,9 +132,9 @@ function toMediaRecord(
   const isUpload = record.runId === uploadRunId(record.threadId)
   const segments = isUpload ? [] : record.runId.split(':')
   const [runId] = segments
-  const subagentRunId = segments.findLast((segment) =>
-    segment.startsWith('subagent-'),
-  )
+  // The segments between the operation and the activity are child ids. A
+  // run that code starts uses its run id as its child id.
+  const subagentRunId = segments.slice(1, -1).at(-1)
   const base = {
     id: record.artifactId,
     threadId,
