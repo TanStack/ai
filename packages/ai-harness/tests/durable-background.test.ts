@@ -293,7 +293,7 @@ describe('background work after a crash', () => {
     await host.close()
   })
 
-  it('fails a background agent of the model that never ran on the next host with resumeBackgroundAgents false', async () => {
+  it('starts a background agent of the model that never ran on the next host, also with resumeBackgroundAgents false', async () => {
     const persistence = durablePersistence()
     const { harness, runs } = await startScoutThatNeverRan(persistence, {
       resumeBackgroundAgents: false,
@@ -307,10 +307,10 @@ describe('background work after a crash', () => {
 
     await waitFor(() =>
       expect(recovered.agentRuns().map((run) => run.status)).toEqual([
-        'failed',
+        'completed',
       ]),
     )
-    expect(runs()).toBe(0)
+    expect(runs()).toBe(1)
     await host.close()
   })
 

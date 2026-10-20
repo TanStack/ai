@@ -1003,8 +1003,9 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
         }
         // An agent start that no agent code made never ran: a top-level
         // start waited for a slot, or the host stopped first. It runs now, in
-        // log order. A child of a turn runs as that child, if it can run
-        // again. A cancel that was asked before settles it aborted.
+        // log order. A child of a turn runs as that child, also with
+        // `resumeBackgroundAgents: false`: it never ran, so nothing runs
+        // twice. A cancel that was asked before settles it aborted.
         if (isAgentInput(input) && input.input.parentRunId === undefined) {
           const queued = [...writer.state.thread.tree.values()].find(
             (node) =>
@@ -1015,16 +1016,6 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
               inputId: input.inputId,
               ...(queued ? { operationId: queued.runId } : {}),
               outcome: 'aborted',
-            })
-          } else if (queued?.parentRunId !== undefined && !input.input.resume) {
-            // With `resumeBackgroundAgents: false`, it fails, as a child of a
-            // turn that ran does.
-            await this.failStoppedAgent({
-              operationId: queued.runId,
-              agent: input.input.agent,
-              inputId: input.inputId,
-              wake: input.input.detached,
-              ...(input.principal ? { principal: input.principal } : {}),
             })
           } else {
             this.startQueuedAgent(input)
