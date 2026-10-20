@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { EventType } from '@tanstack/ai'
+import { z } from 'zod'
+import { EventType, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   AccessDeniedError,
@@ -10,7 +11,7 @@ import {
 } from '../src'
 import { createHarnessHandler, handleHarnessSocket } from '../src/server'
 import { hostCountsOf } from '../src/host'
-import { fakeSocket, mockAdapter, readSse, text } from './helpers'
+import { fakeSocket, mockAdapter, readSse, text, toolCall } from './helpers'
 import type { HarnessHostOptions, Principal, SessionEvent } from '../src'
 
 /**
@@ -119,6 +120,45 @@ describe('host.observe of an idle thread', () => {
     expect(setups.count).toBe(0)
     expect(writes()).toBe(0)
     expect(isOpen()).toBe(false)
+    await host.close()
+  })
+})
+
+describe('host.observe snapshot', () => {
+  it('matches session.snapshot() of the same thread state', async () => {
+    const deploy = toolDefinition({
+      name: 'deploy',
+      description: 'Deploy',
+      inputSchema: z.object({}),
+      needsApproval: true,
+    }).server(async () => 'deployed')
+    const { plugin } = stdioLikePlugin()
+    const harness = defineHarness({
+      name: 'test/observe-snapshot',
+      adapter: mockAdapter([() => toolCall('deploy', {}, 'c1')]).adapter,
+      tools: [deploy],
+      plugins: () => [plugin],
+    })
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      log: { coalesceMs: 0 },
+      lifecycle: { idleCloseMs: 0 },
+    })
+    const session = await host.open(harness, { threadId: THREAD })
+    await session.send('Deploy.')
+    const live = session.snapshot()
+    expect(live.status).toBe('requires_action')
+    expect(live.pendingWaits).toHaveLength(1)
+    await session.close()
+    expect(host.isOpen(harness, { threadId: THREAD })).toBe(false)
+
+    const view = await host.observe(harness, { threadId: THREAD })
+
+    // The close appends to the log, so only the cursor moved on.
+    expect(await view.snapshot()).toEqual({
+      ...live,
+      cursor: expect.any(String),
+    })
     await host.close()
   })
 })

@@ -26,19 +26,13 @@ import {
 } from '../plugins'
 import { HARNESS_EVENTS } from '../types'
 import { SECRET_ANSWER_PREFIX } from '../auth'
-import {
-  expiryOf,
-  openWaits,
-  snapshotWaits,
-  timeOf,
-  waitKind,
-  waitOfQuestion,
-} from '../waits'
+import { expiryOf, interruptExpiry, openWaits, waitOfQuestion } from '../waits'
 import {
   createInputId,
   customEvent,
   isOfferedInputRecord,
   scopeOf,
+  snapshotFrom,
   storedPrincipal,
   changeSettings,
 } from './helpers'
@@ -256,46 +250,35 @@ export abstract class SessionState<
       this.activeResume && !this.activeTurn?.isSettled()
         ? []
         : (stopped?.interrupts ?? [])
-    const thread = this.logWriter?.state.thread
-    const waits = snapshotWaits({
+    return snapshotFrom({
+      threadId: this.threadId,
+      thread: this.logWriter?.state.thread,
       stopped,
       interrupts: pendingInterrupts,
-      // With the expiry of each wait, also the default one of its kind.
-      expiry: (interrupt) => this.interruptExpiry(interrupt),
-      waits: thread?.waits,
-      records: thread?.interrupts,
-    })
-    return {
-      threadId: this.threadId,
-      status: this.activeTurn
-        ? 'running'
-        : stopped
-          ? 'requires_action'
-          : 'idle',
-      activeOperations: active.map((operation) => ({
-        id: operation.id,
-        kind: operation.kind,
-        ...(operation.agent ? { agent: operation.agent } : {}),
-        startedCursor: operation.startedCursor,
-      })),
-      // A steer that waits to join the running turn waits too.
-      queuedTurns: this.queue.length + this.steerQueue.length,
-      waitingInputs: this.inputs(),
-      // The waits of the `harnessAgent` children of the runs too: an answer
-      // here goes to the child (see `resolve`). No turn of this session
-      // holds them.
-      pendingWaits: [
-        ...waits,
-        ...[...this.harnessChildren.values()].flatMap((child) =>
+      plugins: { ...this.stateDoc },
+      usage: this.usage(),
+      cursor: this.feed.head(),
+      live: {
+        isRunning: this.activeTurn !== undefined,
+        activeOperations: active.map((operation) => ({
+          id: operation.id,
+          kind: operation.kind,
+          ...(operation.agent ? { agent: operation.agent } : {}),
+          startedCursor: operation.startedCursor,
+        })),
+        // A steer that waits to join the running turn waits too.
+        queuedTurns: this.queue.length + this.steerQueue.length,
+        waitingInputs: this.inputs(),
+        // The waits of the `harnessAgent` children of the runs: an answer
+        // here goes to the child (see `resolve`). No turn of this session
+        // holds them.
+        childWaits: [...this.harnessChildren.values()].flatMap((child) =>
           child.session
             .snapshot()
             .pendingWaits.map(({ turn: _turn, ...wait }) => wait),
         ),
-      ],
-      plugins: { ...this.stateDoc },
-      usage: this.usage(),
-      cursor: this.feed.head(),
-    }
+      },
+    })
   }
 
   // ===========================
@@ -2037,12 +2020,7 @@ export abstract class SessionState<
    * `undefined`: never.
    */
   protected interruptExpiry(interrupt: Interrupt): number | undefined {
-    const own = timeOf(interrupt.expiresAt)
-    if (own !== undefined) return own
-    const opened = this.logWriter?.state.thread.interrupts.get(interrupt.id)
-    return (
-      opened && expiryOf(waitKind(interrupt), undefined, opened.requestedAt)
-    )
+    return interruptExpiry(interrupt, this.logWriter?.state.thread.interrupts)
   }
 
   /**

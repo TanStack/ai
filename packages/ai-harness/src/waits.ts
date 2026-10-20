@@ -245,6 +245,21 @@ export function expiryOf(
   return ms === undefined ? undefined : now + ms
 }
 
+/**
+ * When the interrupt `interrupt` expires: its `expiresAt`, else the default
+ * of its kind (a sign-in: 15 minutes) from when `records` say it opened.
+ * `undefined`: never.
+ */
+export function interruptExpiry(
+  interrupt: Interrupt,
+  records: ReadonlyMap<string, InterruptRecord> | undefined,
+) {
+  const own = timeOf(interrupt.expiresAt)
+  if (own !== undefined) return own
+  const opened = records?.get(interrupt.id)
+  return opened && expiryOf(waitKind(interrupt), undefined, opened.requestedAt)
+}
+
 /** The waits of `waits` that did not end, oldest first. */
 export function openWaits(waits: ReadonlyMap<string, WaitState> | undefined) {
   return [...(waits?.values() ?? [])].filter(

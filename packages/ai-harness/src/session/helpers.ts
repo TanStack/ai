@@ -5,7 +5,7 @@ import {
   readInterruptBinding,
 } from '@tanstack/ai'
 import { isRecord, jsonCopy } from '../utils'
-import { signInOf } from '../waits'
+import { interruptExpiry, signInOf, snapshotWaits } from '../waits'
 import type {
   AnyChatMiddleware,
   AnyTool,
@@ -27,6 +27,7 @@ import type {
   NamedTurnOverrides,
   RunTreeNode,
   ThreadRecord,
+  ThreadStateFold,
 } from '../log-records'
 import type { MountedPlugins } from '../plugins'
 import type {
@@ -44,7 +45,67 @@ import type {
   AgentMessage,
   AgentInputState,
   AgentStartOptions,
+  SessionSnapshot,
 } from './types'
+
+/**
+ * @internal The snapshot of a thread. An open session and a `host.observe`
+ * view both build it here, so they give one shape with one status rule.
+ * `thread` is the fold of the log, and `stopped` the turn that waits for
+ * `interrupts`. `live` is what only an open session knows: its running
+ * turn, its operations, its queues, and the waits of its `harnessAgent`
+ * children. A view has none of these.
+ */
+export function snapshotFrom({
+  threadId,
+  thread,
+  stopped,
+  interrupts = stopped?.interrupts ?? [],
+  plugins,
+  usage,
+  cursor,
+  live,
+}: {
+  threadId: string
+  thread: ThreadStateFold | undefined
+  stopped:
+    | (Parameters<typeof snapshotWaits>[0]['stopped'] & {
+        interrupts: ReadonlyArray<Interrupt>
+      })
+    | null
+    | undefined
+  interrupts?: ReadonlyArray<Interrupt>
+  plugins: SessionSnapshot['plugins']
+  usage: SessionSnapshot['usage']
+  cursor: SessionSnapshot['cursor']
+  live?: {
+    isRunning: boolean
+    activeOperations: SessionSnapshot['activeOperations']
+    queuedTurns: number
+    waitingInputs: NonNullable<SessionSnapshot['waitingInputs']>
+    childWaits: SessionSnapshot['pendingWaits']
+  }
+}): SessionSnapshot {
+  const waits = snapshotWaits({
+    stopped,
+    interrupts,
+    // With the expiry of each wait, also the default one of its kind.
+    expiry: (interrupt) => interruptExpiry(interrupt, thread?.interrupts),
+    waits: thread?.waits,
+    records: thread?.interrupts,
+  })
+  return {
+    threadId,
+    status: live?.isRunning ? 'running' : stopped ? 'requires_action' : 'idle',
+    activeOperations: live?.activeOperations ?? [],
+    queuedTurns: live?.queuedTurns ?? 0,
+    waitingInputs: live?.waitingInputs ?? [],
+    pendingWaits: [...waits, ...(live?.childWaits ?? [])],
+    plugins,
+    usage,
+    cursor,
+  }
+}
 
 /** A metadata row of usage totals that `host.sessions.delete` still deletes. */
 export const USAGE = 'harness:usage'

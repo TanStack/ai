@@ -1,8 +1,8 @@
 import { loadChildTranscript } from '@tanstack/ai-persistence'
 import { runStartOf, visibleMessages } from '../log'
-import { snapshotWaits } from '../waits'
 import { createMediaStore } from '../media'
 import { untilRevoked } from './handle'
+import { snapshotFrom } from './helpers'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
   BlobRange,
@@ -60,16 +60,18 @@ export interface ObservedSession<THarness extends AnyHarness = AnyHarness> {
   transcript: () => Promise<Array<ModelMessage>>
   /**
    * The snapshot of the thread. When the session is open on this host, it is
-   * `session.snapshot()`. Else it is built from the stores, with no plugin
-   * setup:
+   * `session.snapshot()`. Else the same builder makes it from the log, with
+   * no plugin setup, so the status rule and the shape are the same. What
+   * only an open session knows is not there:
    *
-   * - `status` is `requires_action` while interrupts wait, else `idle`.
-   * - `pendingWaits`, `usage`, and `plugins` come from the log. `plugins`
-   *   has only the plugin state that the log keeps. The state of a plugin
-   *   that never saved one is left out, because its first value comes from
-   *   the plugin setup.
-   * - There are no active operations, queued turns, or waiting inputs:
-   *   those live in an open session.
+   * - `status` is never `running`: a turn runs in memory. It is
+   *   `requires_action` while the last turn waits for interrupts, else
+   *   `idle`.
+   * - There are no active operations, queued turns, or waiting inputs, and
+   *   no waits of `harnessAgent` children.
+   * - `plugins` has only the plugin state that the log keeps. The state of
+   *   a plugin that never saved one is left out, because its first value
+   *   comes from the plugin setup.
    * - `cursor` is the log position.
    */
   snapshot: () => Promise<SessionSnapshot>
@@ -262,37 +264,23 @@ export function observedSession<THarness extends AnyHarness>(
       const names = new Set(
         (harness.plugins?.() ?? []).map((plugin) => plugin.name),
       )
-      const { isStopped, pendingWaits, plugins, totals } = await fromLog(
-        (reader) => {
-          const { thread } = reader.state
-          const saved = [...thread.plugins].filter(([name]) => names.has(name))
-          const interrupts = thread.interrupted?.interrupts ?? []
-          return structuredClone({
-            isStopped: interrupts.length > 0,
-            pendingWaits: snapshotWaits({
-              stopped: thread.interrupted,
-              interrupts,
-              waits: thread.waits,
-              records: thread.interrupts,
-            }),
+      return fromLog((reader) => {
+        const { thread } = reader.state
+        const saved = [...thread.plugins].filter(([name]) => names.has(name))
+        // The same builder as `session.snapshot()`, with no live part.
+        return structuredClone(
+          snapshotFrom({
+            threadId,
+            thread,
+            stopped: thread.interrupted,
             // fromEntries defines own keys, so a plugin named `__proto__`
             // stays a key.
             plugins: Object.fromEntries(saved),
-            totals: { usage: reader.state.usage, cursor: reader.head() },
-          })
-        },
-      )
-      const snapshot: SessionSnapshot = {
-        threadId,
-        status: isStopped ? 'requires_action' : 'idle',
-        activeOperations: [],
-        queuedTurns: 0,
-        waitingInputs: [],
-        pendingWaits,
-        plugins,
-        ...totals,
-      }
-      return snapshot
+            usage: reader.state.usage,
+            cursor: reader.head(),
+          }),
+        )
+      })
     },
     async agentTranscript({ subagentRunId }) {
       check()
