@@ -82,7 +82,7 @@ export interface RunCliOptions<P extends Principal = Principal> {
    * resolves to 130 (SIGINT) or 143 (SIGTERM). A host that the CLI made
    * closes with `recoverable: true`, so a durable host runs the cut work
    * again. Your own `host` stays open: the CLI releases only its handle of
-   * the session.
+   * the session, and does not wait for a turn that ignores the cancel.
    */
   signals?: SignalSource
 }
@@ -313,11 +313,15 @@ export async function runCli<P extends Principal = Principal>(
     }
     // A host that the CLI made closes now, so the mode ends with its
     // session, and its running work stops as on a crash: a durable host runs
-    // it again. On your own host, the CLI releases its handle, and the mode
-    // ends with the cancelled turn. Work that the close cuts can fail, and
-    // the signal gives the exit code.
-    if (options.host) await session.close()
-    else await host.close({ recoverable: true })
+    // it again. On your own host, the CLI releases its handle and does not
+    // wait: a turn that ignores the cancel runs on in your host. Work that
+    // the close cuts can fail, and the signal gives the exit code.
+    if (options.host) {
+      await session.close()
+      running.catch(() => {})
+      return await stop.stopped
+    }
+    await host.close({ recoverable: true })
     await running.catch(() => {})
     return await stop.stopped
   } catch (error) {

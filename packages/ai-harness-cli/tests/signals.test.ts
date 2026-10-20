@@ -162,10 +162,11 @@ describe('signals in print mode', () => {
     await waitFor(() => expect(calls[0]?.aborted).toBe(true))
 
     cli.signals.emit('SIGINT')
-    release()
 
+    // runCli does not wait for the turn that ignores the cancel.
     expect(await cli.running).toBe(EXIT.cancelled)
     expect(close).not.toHaveBeenCalled()
+    release()
     await waitFor(() =>
       expect(host.isOpen(harness, { threadId: 'main' })).toBe(false),
     )
