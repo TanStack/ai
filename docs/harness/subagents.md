@@ -528,6 +528,7 @@ Known limits:
 
 - A `step.ask` with `secret: true` throws here. Ask for a secret in a [durable tool](./durable-tools) or a background run.
 - `expiresAt` of a `step.ask` has no effect here.
+- The wait does not get the `url` of a `step.ask`. Put the link in `message`.
 - A crash while the agent runs (not while it waits) gives the main model a tool error. The agent does not run again.
 
 ## Show what a child wrote after a reload

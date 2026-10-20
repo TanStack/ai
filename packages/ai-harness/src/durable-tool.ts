@@ -119,6 +119,9 @@ export interface ToolStep {
    * again can read it. `ask` rejects when the wait is cancelled or
    * expires, and when the run stops. Outside a harness session it throws.
    *
+   * In an agent that the main model calls as a tool, a `secret` question
+   * throws, `expiresAt` has no effect, and the wait does not get `url`.
+   *
    * @example
    * ```ts
    * const key = await step.ask({ name: 'api-key', message: 'Paste your key', secret: true })
