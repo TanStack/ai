@@ -451,7 +451,7 @@ describe('session view actions', () => {
     act: (view: SessionView) => Promise<void>
   }> = [
     {
-      action: 'setConfig',
+      action: 'setPluginSetting',
       overrides: { setPluginSetting: down },
       act: (view) => view.setPluginSetting({ key: 'mode', value: 'plan' }),
     },
@@ -1490,9 +1490,9 @@ describe('session view dispose', () => {
     act: (view: SessionView) => unknown
   }> = [
     { action: 'notice', act: (view) => view.notice({ text: 'hi' }) },
-    { action: 'command', act: (view) => view.runCommand({ name: 'ping' }) },
+    { action: 'runCommand', act: (view) => view.runCommand({ name: 'ping' }) },
     {
-      action: 'setConfig',
+      action: 'setPluginSetting',
       act: (view) => view.setPluginSetting({ key: 'mode', value: 'plan' }),
     },
     { action: 'cancel', act: (view) => view.cancel() },
