@@ -1,11 +1,11 @@
 import {
   EventType,
-  INTERRUPT_PAYLOAD_METADATA_KEY,
   compactForModel,
   provideDetachableRun,
   readInterruptBinding,
 } from '@tanstack/ai'
-import { isRecord } from '../utils'
+import { isRecord, jsonCopy } from '../utils'
+import { signInOf } from '../waits'
 import type {
   AnyChatMiddleware,
   AnyTool,
@@ -16,30 +16,178 @@ import type {
   Scope,
   StreamChunk,
   SubagentsBag,
+  SystemPrompt,
 } from '@tanstack/ai'
 import type { LogRecord, MessageStore } from '@tanstack/ai-persistence'
+import type { Redactor } from '../auth'
 import type { EventFeed, EventListener, ListenedFeed } from '../feed'
 import type { InputState } from '../log'
+import type {
+  AgentResultRecord,
+  NamedTurnOverrides,
+  RunTreeNode,
+  ThreadRecord,
+} from '../log-records'
 import type { MountedPlugins } from '../plugins'
 import type {
+  OfferedHarnessInput,
   MediaKind,
   OperationStatus,
   Principal,
   RunContext,
+  RunNode,
   ThreadSettings,
+  TurnOverrides,
 } from '../types'
 import type {
   AgentRunInfo,
-  InterruptedTurn,
   AgentMessage,
   AgentInputState,
+  AgentStartOptions,
 } from './types'
 
-/** Where `stores.metadata` keeps the interrupted turn of each thread. */
-export const INTERRUPTED = 'harness:interrupted'
-
-/** Where `stores.metadata` keeps the usage totals of a host without a log. */
+/** A metadata row of usage totals that `host.sessions.delete` still deletes. */
 export const USAGE = 'harness:usage'
+
+/**
+ * The log record of how the agent run `runId` ended. Its result is a JSON
+ * copy. A result that is not JSON (a cycle) is left out.
+ */
+export function agentResultRecord(runId: string, ended: AgentResultRecord) {
+  const { result, ...rest } = ended
+  const raw = jsonCopy(result)
+  const record: ThreadRecord = {
+    type: 'harness.agent.result',
+    runId,
+    ...rest,
+    ...(raw !== undefined ? { result: raw } : {}),
+  }
+  return record
+}
+
+/** What a turn gets besides its message: its overrides, preamble, and ephemeral messages. */
+export interface TurnExtras {
+  overrides?: TurnOverrides
+  systemPreamble?: Array<string>
+  ephemeral?: ReadonlyArray<ModelMessage>
+}
+
+/**
+ * The `harness.input.turn` record of input `inputId`: the JSON parts of
+ * `extras`, and the names of the overrides that are not JSON. No record for
+ * a turn with no extras.
+ */
+export function turnRecords(inputId: string, extras: TurnExtras) {
+  const named = namedOverrides(extras)
+  const records: Array<ThreadRecord> =
+    Object.keys(named).length === 0
+      ? []
+      : [{ type: 'harness.input.turn', inputId, overrides: named }]
+  return records
+}
+
+/**
+ * The JSON parts of `extras`, and the names of the overrides that are not
+ * JSON.
+ */
+function namedOverrides(extras: TurnExtras) {
+  const { overrides, systemPreamble, ephemeral } = extras
+  const liveOnly = [
+    ...(overrides?.adapter !== undefined ? ['adapter' as const] : []),
+    ...(overrides?.tools?.length ? ['tools' as const] : []),
+  ]
+  const named: NamedTurnOverrides = {
+    ...(overrides?.model !== undefined ? { model: overrides.model } : {}),
+    ...(overrides?.modelOptions !== undefined
+      ? { modelOptions: overrides.modelOptions }
+      : {}),
+    ...(overrides?.reasoning !== undefined
+      ? { reasoning: overrides.reasoning }
+      : {}),
+    ...(overrides?.promptCache !== undefined
+      ? { promptCache: overrides.promptCache }
+      : {}),
+    ...(systemPreamble?.length ? { systemPreamble } : {}),
+    ...(ephemeral?.length ? { ephemeral: [...ephemeral] } : {}),
+    ...(liveOnly.length > 0 ? { liveOnly } : {}),
+  }
+  return named
+}
+
+/**
+ * An input that a host offers to the owner of a log: the input lane. The
+ * owner applies it as if the input came to it, and appends its own
+ * `harness.input` record in the same write that consumes the offer.
+ */
+export interface OfferedInputRecord extends LogRecord {
+  type: 'harness.input'
+  inputId: string
+  input: OfferedHarnessInput
+  principal?: { id: string; tenantId?: string }
+  /**
+   * The id that the owner runs the input with: the AG-UI run id of a turn,
+   * or the operation id of an agent run. The host that offered it follows
+   * that id in the log.
+   */
+  runId?: string
+  /** The overrides of a turn, as its `harness.input.turn` record keeps them. */
+  overrides?: NamedTurnOverrides
+  /** The W3C `traceparent` of the caller. The owner keeps it on its record. */
+  traceparent?: string
+}
+
+/** The offer record of `input`. See {@link OfferedInputRecord}. */
+export function offeredInputRecord(offer: {
+  inputId: string
+  input: OfferedHarnessInput
+  principal: Principal | undefined
+  runId?: string
+  turn?: TurnExtras
+  traceparent?: string
+}) {
+  const named = offer.turn ? namedOverrides(offer.turn) : {}
+  const record: OfferedInputRecord = {
+    type: 'harness.input',
+    inputId: offer.inputId,
+    input: offer.input,
+    ...storedPrincipal(offer.principal),
+    ...(offer.runId !== undefined ? { runId: offer.runId } : {}),
+    ...(Object.keys(named).length > 0 ? { overrides: named } : {}),
+    ...(offer.traceparent !== undefined
+      ? { traceparent: offer.traceparent }
+      : {}),
+  }
+  return record
+}
+
+/**
+ * True for a record from {@link offeredInputRecord}. The host that offered
+ * the input checked it against `HarnessInput`.
+ */
+export const isOfferedInputRecord = (
+  record: LogRecord,
+): record is OfferedInputRecord =>
+  record.type === 'harness.input' &&
+  typeof record.inputId === 'string' &&
+  isRecord(record.input) &&
+  typeof record.input.op === 'string'
+
+/** The extras of a turn from its `harness.input.turn` record. */
+export function loggedExtras(named: NamedTurnOverrides) {
+  const { model, modelOptions, reasoning, promptCache } = named
+  const overrides: TurnOverrides = {
+    ...(model !== undefined ? { model } : {}),
+    ...(modelOptions !== undefined ? { modelOptions } : {}),
+    ...(reasoning !== undefined ? { reasoning } : {}),
+    ...(promptCache !== undefined ? { promptCache } : {}),
+  }
+  const extras: TurnExtras = {
+    ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
+    ...(named.systemPreamble ? { systemPreamble: named.systemPreamble } : {}),
+    ...(named.ephemeral ? { ephemeral: named.ephemeral } : {}),
+  }
+  return extras
+}
 
 /**
  * The key of a resumable agent run in the session log: its steps, and the
@@ -47,8 +195,14 @@ export const USAGE = 'harness:usage'
  */
 export const agentKey = (inputId: string) => `agent:${inputId}`
 
-/** The chain fields that the `agent` input of a first run keeps. */
-export const chainFields = (first: AgentInputState) => ({
+/**
+ * The chain fields that the `agent` input of a first run keeps, and the
+ * start options that `node`, a run node of the chain, keeps.
+ */
+export const chainFields = (
+  first: AgentInputState,
+  node?: Pick<RunTreeNode, 'key' | 'limits' | 'budget'>,
+) => ({
   runInputId: first.inputId,
   target: first.input.agent,
   input: first.input.input,
@@ -56,6 +210,10 @@ export const chainFields = (first: AgentInputState) => ({
     wake: first.input.detached === true,
     ...(first.input.resume ? { resume: true } : {}),
     ...(first.input.attach ? { attach: first.input.attach } : {}),
+    // The run tree keeps the start options that the input does not.
+    ...(node?.key !== undefined ? { key: node.key } : {}),
+    ...(node?.limits ? { limits: node.limits } : {}),
+    ...(node?.budget ? { budget: node.budget } : {}),
   },
   ...(first.principal ? { principal: first.principal } : {}),
   ...(first.input.parentRunId ? { parentRunId: first.input.parentRunId } : {}),
@@ -95,8 +253,9 @@ export const runStatus = (status: OperationStatus): AgentRunInfo['status'] => {
   switch (status) {
     case 'accepted':
       return 'queued'
+    // The run stopped for its waits. An answer resumes it.
     case 'interrupted':
-      return 'running'
+      return 'waiting'
     case 'running':
     case 'completed':
     case 'failed':
@@ -105,48 +264,48 @@ export const runStatus = (status: OperationStatus): AgentRunInfo['status'] => {
   }
 }
 
-/** The `agentRuns()` status of a run in the log, from how it ended. */
-export const loggedStatus = (input: InputState): AgentRunInfo['status'] => {
-  const outcome = input.settlement?.outcome
-  switch (outcome) {
-    case undefined:
-      return 'running'
-    case 'aborted':
-      return 'cancelled'
-    case 'failed':
-      return 'failed'
-    case 'completed':
-    case 'interrupted':
-      return 'completed'
+/**
+ * The `harness.run.node` record of a run that applies the input `inputId`:
+ * a turn, an agent run, or a command. It goes in the append of the applied
+ * record, so the run tree has the run once it starts. `options`: the
+ * options of an agent run that the tree keeps.
+ */
+export function runNodeRecord(node: {
+  runId: string
+  kind: RunNode['kind']
+  inputId: string
+  principal: Principal | undefined
+  parentRunId?: string
+  agent?: string
+  chainInputId?: string
+  parentChainInputId?: string
+  options?: Pick<
+    AgentStartOptions,
+    'key' | 'limits' | 'budget' | 'onModelError'
+  >
+}) {
+  const { parentRunId, agent, chainInputId, parentChainInputId, options } = node
+  const record: ThreadRecord = {
+    type: 'harness.run.node',
+    runId: node.runId,
+    kind: node.kind,
+    inputId: node.inputId,
+    ...storedPrincipal(node.principal),
+    ...(parentRunId !== undefined ? { parentRunId } : {}),
+    ...(agent !== undefined ? { agent } : {}),
+    ...(chainInputId !== undefined ? { chainInputId } : {}),
+    ...(parentChainInputId !== undefined ? { parentChainInputId } : {}),
+    ...(options?.key !== undefined ? { key: options.key } : {}),
+    ...(options?.limits ? { limits: options.limits } : {}),
+    ...(options?.budget ? { budget: options.budget } : {}),
+    ...(options?.onModelError ? { liveOnly: ['onModelError' as const] } : {}),
   }
-}
-
-/** True for an interrupted turn as `stores.metadata` gives it back. */
-export function isInterruptedTurn(value: unknown): value is InterruptedTurn {
-  if (!isRecord(value) || typeof value.runId !== 'string') return false
-  if (!Array.isArray(value.interrupts)) return false
-  if (!value.interrupts.every((item) => isRecord(item))) return false
-  const { routed, principal } = value
-  const isPrincipal =
-    principal === undefined ||
-    (isRecord(principal) && typeof principal.id === 'string')
-  return (
-    isPrincipal &&
-    (routed === undefined ||
-      (isRecord(routed) &&
-        Array.isArray(routed.messages) &&
-        typeof routed.root === 'boolean'))
-  )
+  return record
 }
 
 /** The connector a sign-in interrupt (`require` with `wait`) waits for. */
 export function signInConnector(interrupt: Interrupt | undefined) {
-  if (interrupt?.reason !== 'auth_required') return undefined
-  const payload = interrupt.metadata?.[INTERRUPT_PAYLOAD_METADATA_KEY]
-  const request = isRecord(payload) ? payload.request : undefined
-  return isRecord(request) && typeof request.connector === 'string'
-    ? request.connector
-    : undefined
+  return interrupt && signInOf(interrupt)?.connector
 }
 
 /** Limits for a harness's children when `subagents.limits` is not set. */
@@ -187,13 +346,6 @@ export const scopeOf = (
   ...(principal ? { userId: principal.id } : {}),
   ...(principal?.tenantId ? { tenantId: principal.tenantId } : {}),
 })
-
-/** What the log and the inbox keep of a principal: its id and tenant. */
-/** The `metadata.tanstack` of a logged event, if it has one. */
-export const tanstackOf = (event: Record<string, unknown>) =>
-  isRecord(event.metadata) && isRecord(event.metadata.tanstack)
-    ? event.metadata.tanstack
-    : undefined
 
 /** The tool call an interrupt waits on: an approval or a client tool. */
 export const toolCallOf = (interrupt: Interrupt) => {
@@ -268,9 +420,6 @@ export const runMiddleware = (run: RunContext): AnyChatMiddleware => ({
     ctx.context = withRun(ctx.context, run)
   },
 })
-
-/** Where `stores.metadata` keeps the stored settings of each thread. */
-export const SETTINGS = 'harness:settings'
 
 export const SETTING_KEYS = new Set<string>([
   'model',
@@ -357,34 +506,22 @@ export function changeSettings(
 }
 
 /**
- * `mounted` without what the `removed` plugins give a turn: their tools,
- * prompts, middleware, adapter picks, discoverers, and preparers.
+ * The owner of each tool name of `tools`: the plugin from `owners`, else
+ * `the harness` (also for the turn's own tools). The first owner of a name
+ * stays.
  */
-export function withoutPlugins(
-  mounted: MountedPlugins,
-  removed: ReadonlySet<string>,
-): MountedPlugins {
-  const { owners } = mounted
-  const toolOwners = new Map(
-    owners.tools.map((entry) => [entry.name, entry.owner]),
-  )
-  const isKept = (owner: string | undefined) =>
-    owner === undefined || !removed.has(owner)
-  return {
-    ...mounted,
-    tools: mounted.tools.filter((tool) => isKept(toolOwners.get(tool.name))),
-    prompts: mounted.prompts.filter((_prompt, index) =>
-      isKept(owners.prompts[index]?.owner),
-    ),
-    middleware: mounted.middleware.filter((_item, index) =>
-      isKept(owners.middleware[index]),
-    ),
-    adapters: mounted.adapters.filter((_pick, index) =>
-      isKept(owners.adapters[index]),
-    ),
-    discoverers: mounted.discoverers.filter((item) => isKept(item.owner)),
-    preparers: mounted.preparers.filter((item) => isKept(item.owner)),
+export function toolOwners(
+  tools: ReadonlyArray<AnyTool>,
+  owners: ReadonlyArray<{ name: string; owner: string }>,
+) {
+  const byName = new Map<string, string>()
+  for (const entry of owners) {
+    if (entry.owner === 'the harness' || byName.has(entry.name)) continue
+    byName.set(entry.name, entry.owner)
   }
+  return new Map(
+    tools.map((tool) => [tool.name, byName.get(tool.name) ?? 'the harness']),
+  )
 }
 
 /**
@@ -476,6 +613,39 @@ export function ephemeralCall(pending: Array<ModelMessage>): AnyChatMiddleware {
       if (ctx.phase !== 'beforeModel' || pending.length === 0) return undefined
       const messages = config.providerMessages ?? config.messages
       return { providerMessages: [...messages, ...pending.splice(0)] }
+    },
+  }
+}
+
+/**
+ * Gives each model call the `'context'` plugin prompts as one system prompt,
+ * after all other system prompts. The text has system authority, not user
+ * authority. Each call takes out the prompt of the call before, so a change
+ * replaces it and the stable system prompts before it stay the same.
+ *
+ * ponytail: a `ModelMessage` has no `system` role, so the prompt cannot go
+ * after the history. A change of it changes the cached prefix from the
+ * system prompts on. A system message in the history needs a core change.
+ *
+ * `texts` must be scrubbed of the session secrets already: a redacted copy
+ * is a new object, and the next call could not find it to take it out.
+ */
+export function contextPromptCall(
+  texts: () => ReadonlyArray<string>,
+): AnyChatMiddleware {
+  let last: SystemPrompt | undefined
+  return {
+    name: 'harness:context-prompts',
+    onConfig: (ctx, config) => {
+      if (ctx.phase !== 'beforeModel') return undefined
+      const text = texts()
+        .filter((item) => item !== '')
+        .join('\n\n')
+      const kept = config.systemPrompts.filter((prompt) => prompt !== last)
+      if (text === '' && kept.length === config.systemPrompts.length)
+        return undefined
+      last = text === '' ? undefined : { content: text }
+      return { systemPrompts: last ? [...kept, last] : kept }
     },
   }
 }
@@ -587,8 +757,11 @@ export function dropOldest<T>(set: Set<T>, limit: number) {
   return dropped
 }
 
-/** Why a turn stops when its input passes its time limit. */
+/** Why a turn or an agent run stops when its input passes its time limit. */
 export const TIMEOUT_REASON = 'harness:input-timeout'
+
+/** Why an agent run stops when it, or a run above it, used its budget. */
+export const BUDGET_REASON = 'harness:budget'
 
 /** What the model gets after its partial answer, on a `'continue'`. */
 export const CONTINUE_NOTE =
@@ -686,45 +859,61 @@ export function checkHostRecords(records: ReadonlyArray<LogRecord>) {
 export const notOpen = () =>
   Promise.reject(new Error('The session is not open yet.'))
 
-/** The message store of a durable session before `open()` reads its log. */
+/** The message store of a session before `open()` reads its log. */
 export const notOpenMessages: MessageStore = {
   loadThread: notOpen,
   saveThread: notOpen,
 }
 
 /**
+ * Give one event to `notifyHost` and each of `listeners`. A listener that
+ * throws, or whose promise rejects, is logged, and the others still run.
+ */
+export function notifyListeners(
+  notifyHost: (event: StreamChunk) => void,
+  listeners: Set<EventListener>,
+  entry: Parameters<EventListener>[0],
+) {
+  const report = (error: unknown) =>
+    console.error('[@tanstack/ai-harness] An onEvent listener threw.', error)
+  try {
+    notifyHost(entry.event)
+  } catch (error) {
+    report(error)
+  }
+  for (const listener of [...listeners]) {
+    // A listener that an earlier listener stopped gets nothing.
+    if (!listeners.has(listener)) continue
+    try {
+      const result: unknown = listener(entry)
+      if (result instanceof Promise) result.catch(report)
+    } catch (error) {
+      report(error)
+    }
+  }
+}
+
+/**
  * `feed`, then `notifyHost` and each of `listeners` after each publish. This
  * is how the host and `onEvent` see events. The caller keeps `listeners`, so
- * they survive a new tap of another feed.
+ * they survive a new tap of another feed. Each event goes through
+ * `redactor` first, so no one of them gets a secret of the session.
  */
 export function tapFeed(
   feed: EventFeed,
   notifyHost: (event: StreamChunk) => void,
   listeners: Set<EventListener>,
+  redactor: Redactor,
 ): ListenedFeed {
   return {
-    publish: (operationId, event) => {
+    publish: (operationId, raw) => {
+      const event = redactor.redact(raw)
+      // ponytail: core sends a MESSAGES_SNAPSHOT only when a run pauses at
+      // an interrupt, so the log keeps each one. A rejoin from the log (the
+      // run route, `Last-Event-ID`) needs it: ai-client rebuilds the paused
+      // run from it. If core sends it at other times, filter here.
       feed.publish(operationId, event)
-      const report = (error: unknown) =>
-        console.error(
-          '[@tanstack/ai-harness] An onEvent listener threw.',
-          error,
-        )
-      try {
-        notifyHost(event)
-      } catch (error) {
-        report(error)
-      }
-      for (const listener of [...listeners]) {
-        // A listener that an earlier listener stopped gets nothing.
-        if (!listeners.has(listener)) continue
-        try {
-          const result: unknown = listener({ operationId, event })
-          if (result instanceof Promise) result.catch(report)
-        } catch (error) {
-          report(error)
-        }
-      }
+      notifyListeners(notifyHost, listeners, { operationId, event })
     },
     listen: (listener) => {
       // A new entry per call: a listener added twice is called twice.
@@ -741,8 +930,82 @@ export function tapFeed(
   }
 }
 
-/** `accept` passed the input to the host that owns the thread, or refused it for that. */
-export const isElsewhere = (
-  admission: string,
-): admission is 'forwarded' | 'owned_elsewhere' =>
-  admission === 'forwarded' || admission === 'owned_elsewhere'
+/**
+ * The plugins of one turn, with a count of the runs that still use them. The
+ * turn holds them first. Each run that the turn starts takes a hold until it
+ * settles. The plugins dispose once, when the last hold ends, or at
+ * `dispose()` (a session close).
+ */
+export interface HeldPlugins {
+  plugins: MountedPlugins
+  /**
+   * Keep the plugins for `run` until it settles. True when `run` holds them
+   * now. False when they are disposed already.
+   */
+  hold: (run: PromiseLike<unknown>) => boolean
+  /** End the hold of the turn. Resolves when a dispose that it starts ends. */
+  release: () => Promise<void>
+  /** Dispose the plugins now, once. */
+  dispose: () => Promise<void>
+}
+
+/** Hold `plugins` for the turn that mounted them. See {@link HeldPlugins}. */
+export function holdPlugins(
+  plugins: MountedPlugins,
+  onDisposed: (held: HeldPlugins) => void,
+): HeldPlugins {
+  let holds = 1
+  let disposing: Promise<void> | undefined
+  const runs = new WeakSet<PromiseLike<unknown>>()
+  const held: HeldPlugins = {
+    plugins,
+    hold: (run) => {
+      if (runs.has(run)) return true
+      if (disposing) return false
+      runs.add(run)
+      holds += 1
+      const end = () => void held.release()
+      run.then(end, end)
+      return true
+    },
+    release: () => {
+      holds -= 1
+      return holds <= 0 ? held.dispose() : Promise.resolve()
+    },
+    dispose: () => {
+      // A failed dispose does not fail the turn or the close.
+      disposing ??= plugins
+        .dispose()
+        .catch(() => {})
+        .finally(() => onDisposed(held))
+      return disposing
+    },
+  }
+  return held
+}
+
+/**
+ * Abort `child` with the reason of `parent` when `parent` aborts: a cancel,
+ * a time limit, a budget, or a shutdown, with the same reason, so a shutdown
+ * stays a shutdown. The link ends when either run settles. A parent that ends
+ * normally does not stop the child.
+ */
+export function linkSignal(parent: LinkedRun, child: LinkedRun) {
+  const parentSignal = parent.abortController.signal
+  if (parent.isSettled()) return
+  const stop = () => child.abortController.abort(parentSignal.reason)
+  if (parentSignal.aborted) {
+    stop()
+    return
+  }
+  parentSignal.addEventListener('abort', stop, { once: true })
+  const unlink = () => parentSignal.removeEventListener('abort', stop)
+  child.then(unlink, unlink)
+  parent.then(unlink, unlink)
+}
+
+/** A run that {@link linkSignal} links: an operation of the session. */
+type LinkedRun = PromiseLike<unknown> & {
+  abortController: AbortController
+  isSettled: () => boolean
+}

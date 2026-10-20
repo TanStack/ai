@@ -31,7 +31,7 @@ Add it with `plugins: () => [today]` in `defineHarness`. `setup` runs once per s
 For the model:
 
 - `tools`: tools for the model, made with `toolDefinition`.
-- `prompts`: text for the system prompt. A function runs for each turn, so it can show current state.
+- `prompts`: text for the system prompt. A function runs for each turn, so it can show current state. For text that changes often, see [Put changing text last](#put-changing-text-last).
 - `middleware`: chat middleware for the lead turn, the same type as `chat({ middleware })`. `agentMiddleware` is for agent runs, see [Middleware in every agent](#middleware-in-every-agent).
 - `generationMiddleware`: middleware for the activities agents call.
 - `adapter`: a picker for the model of each turn, see [Pick the model of a turn](#pick-the-model-of-a-turn).
@@ -47,6 +47,59 @@ For agents and users:
 If two plugins add the same tool, command, setting, or prompt id, `host.open` fails and names both plugins.
 
 Return these from `setup`, not from the top level of `definePlugin`. A key like `adapter` or `tools` at the top level is a type error, and `definePlugin` throws for it. Other keys at the top level stay on the plugin object, so a plugin can give your code its own functions.
+
+### Put changing text last
+
+Set `placement: 'context'` on a prompt whose text changes often:
+
+```ts group=harness-plugins
+let openTickets = 0
+
+export const tickets = definePlugin({
+  name: 'acme/tickets',
+  setup: () => ({
+    prompts: [
+      {
+        id: 'acme/tickets:count',
+        text: () => `Open tickets: ${openTickets}.`,
+        placement: 'context',
+      },
+    ],
+  }),
+})
+```
+
+A provider caches the start of each request: the system prompts, then the history. A change of a system prompt makes the cache miss from that prompt on. A `'context'` prompt is the last system prompt, so the system prompts before it stay in the cache.
+
+- The model gets all `'context'` text as one system prompt, after the other system prompts. The harness makes it again at each model call.
+- The text has the authority of a system prompt, not of a user message.
+- The default is `'system'`: the text goes in the system prompts, in plugin order.
+- The log does not keep `'context'` text.
+- The first-party todos, goal, and plan mode prompts use `'context'`.
+
+### Refresh state at the start of a turn
+
+A prompt function must return at once, so it cannot read a file or call a server. Do that work in `onTurnStart`. The harness calls it once at the start of each turn, before it reads the prompts:
+
+```ts group=harness-plugins
+import { readFile } from 'node:fs/promises'
+
+let rules = ''
+
+export const projectRules = definePlugin({
+  name: 'acme/project-rules',
+  setup: () => ({
+    onTurnStart: async () => {
+      rules = await readFile('RULES.md', 'utf8')
+    },
+    prompts: [() => rules],
+  }),
+})
+```
+
+- `onTurnStart` gets the turn. `turn.run` has the user of the turn and the credentials of that user.
+- It runs one time for each turn, also when the turn makes many model calls.
+- If it throws, the turn continues, and clients get a `harness.plugin.warning` event.
 
 ## Add commands and settings
 
@@ -67,7 +120,8 @@ export const greeter = definePlugin({
         description: 'Greet someone',
         input: z.object({ name: z.string() }),
         run: async ({ name }, command) => {
-          const sure = await command.session.ask({
+          const sure = await command.step.ask({
+            name: 'confirm',
             message: `Greet ${name}?`,
             schema: z.boolean(),
           })
@@ -82,7 +136,9 @@ export const greeter = definePlugin({
 
 - `session.command({ name: 'greet', input: { name: 'Ada' } })` runs the command. A Standard Schema input (zod here) is checked, and the command gets the parsed value. A JSON Schema input is not checked, the same as a JSON Schema tool input.
 - `session.setConfig({ key: 'tone', value: 'warm' })` changes the setting. A value the option does not accept is rejected.
-- `ask` waits for `session.answer({ questionId, value })`. The question goes to `session.onQuestion` listeners, and it stays in `session.snapshot().pendingQuestions` until someone answers.
+- `step.ask` waits for `session.answer({ questionId, value })`. The log keeps the question as a [wait](./waits), so a user on any server can answer it. The question goes to `session.onQuestion` listeners, and it stays in `session.snapshot().pendingWaits` until someone answers.
+- When the host stops while the command waits, the next host runs the command again from the top. Put each side effect before the ask in `command.step.do`, so it does not run twice.
+- `ctx.session.ask` is only for an MCP server that asks during a tool call. Anywhere else it throws. Use `step.ask`, the `question` tool, or a [permission rule](./permissions#rules-for-your-own-tool).
 
 ## Change commands while the session runs
 
@@ -166,9 +222,11 @@ export const helpers = definePlugin({
 - `ctx.agents.delete(name)` removes an agent of this plugin, and its subagent tool. Another owner's name does nothing.
 - `session.agent(name)`, `ctx.agents.list()`, and `routing` see the change at once.
 
+`ctx.agents` also runs agents: `start`, `run`, and `group`, with `g.start` for each child of a group. It has the same type, `AgentActions`, as `ctx.harness.agents` in agent code. See [Run agents from a plugin](./subagents#run-agents-from-a-plugin).
+
 ## Keep state
 
-`ctx.state(initial)` gives a plugin its own state, saved in the metadata store. Without a metadata store, the state stays in memory, and a restart loses it. Clients see each change as an AG-UI `STATE_SNAPSHOT` event.
+`ctx.state(initial)` gives a plugin its own state for the thread. The session log keeps each change as a record, so any host that opens the thread reads the state back, also after a restart. Clients see each change as an AG-UI `STATE_SNAPSHOT` event.
 
 ```ts group=harness-plugins
 export const counter = definePlugin({
@@ -187,7 +245,12 @@ export const counter = definePlugin({
 })
 ```
 
-When two writers race, `update` runs your function again with fresh state.
+- The state is JSON.
+- A key or a token of the session in the state goes into the log as `[redacted]`. `update` resolves with that same value. See [Keep tokens out of the log and the model](./auth#keep-tokens-out-of-the-log-and-the-model).
+- The updates of one plugin run one at a time. Each `update` function gets the value that the update before it wrote.
+- [`host.sessions.delete`](./lifecycle#delete-a-thread-for-good) deletes the state with the log. A fork does not copy it.
+- For a long list of records, such as one record for each step, append records to the log and set `keepRecords`. Read them with `ctx.session.keptRecords(type)`. See [Keep records after a truncate](./session-log#keep-records-after-a-truncate).
+- Agents get a state with the same `get` and `update` from `ctx.harness.state({ key, initial })`. See [Share state between agents](./subagents#share-state-between-agents).
 
 ## Middleware in every agent
 
@@ -224,6 +287,8 @@ export const usageByAgent = definePlugin({
 - `ctx.subagentName` is the name of the agent. In the lead turn, it is `undefined`.
 - `ctx.subagentRunId` is different for each run of an agent. For a nested child, `ctx.parentSubagentRunId` is the id of the child that started it.
 - Each model call goes to `onUsage` one time, in the run that made the call. The lead turn does not count the usage of a child again.
+- A background run that a turn starts keeps the plugins of that turn. So the `agentMiddleware` of a plugin with `lifetime: 'turn'` runs in it too. The turn plugins are cleaned up when the turn and its runs have settled.
+- A tool result that your `onAfterToolCall` replaces is the result that the session log keeps. After a crash, the model gets that result again. See [The other tools of a cut batch](./durable-tools#the-other-tools-of-a-cut-batch).
 
 ## Act as the user of a run
 
@@ -240,7 +305,7 @@ export const github = definePlugin({
       toolDefinition({ name: 'my_repos', description: 'List my GitHub repos' }).server<HarnessRunContext>(
         async (_args, ctx) => {
           const credential = await ctx.context.run.credentials.require('github')
-          const token = credential.type === 'api_key' ? credential.value : credential.accessToken
+          const token = credential.type === 'oauth' ? credential.accessToken : credential.value
           const response = await fetch('https://api.github.com/user/repos', {
             headers: { authorization: `Bearer ${token}` },
           })
@@ -260,6 +325,10 @@ Where each part of a plugin reads the run:
 - A session plugin (the default lifetime): `ctx.credentials` and `ctx.keys` have no user, so each call throws. `ctx.session.principal` is the owner of the session.
 - A plugin with `lifetime: 'host'`: its setup has no user and no session. Its tools read the user of each call from `ctx.context.run`.
 
+`prepareTools` gets `run` too: the run of the turn, with its id and its user. `onTurnStart` gets the turn, with its run in `turn.run`.
+
+A plugin that starts a turn picks its user. `ctx.session.send(text, { principal })` and `ctx.session.note(text, { wake: true, principal })` run that turn as `principal`. Without it, the turn runs as `ctx.session.principal`. To continue the work of a run, pass the `principal` of that run.
+
 The run has these fields:
 
 | Field | What it is |
@@ -267,9 +336,49 @@ The run has these fields:
 | `principal` | The user who started the run: `{ id, tenantId }`. `undefined` in a session with no user. |
 | `tenantId` | The tenant of the session. `undefined` in the default tenant. |
 | `threadId`, `runId`, `parentRunId` | The thread, this run, and the run that started this one. |
-| `logId` | The id of the log of the session in the store, with its tenant. |
+| `logId` | The id of the log of the session tree in the store, with its tenant. |
+| `epoch` | The ownership epoch of the log when the run started. See [Fence your own side effects](./durable-sessions#fence-your-own-side-effects). |
+| `idempotencyKey(step, scope?)` | A key for one side effect of the run. A run again on any host gets the same key. |
 | `signal` | Aborts when the run stops. |
-| `credentials`, `keys` | The credentials and the model provider keys of the user of the run. |
+| `credentials`, `keys` | The credentials and the model provider keys of the user of the run. The session replaces their values with `[redacted]` in what it keeps and sends. To refresh an OAuth token, use `credentials.refresh`. See [Auth and connectors](./auth#refresh-a-token). |
+
+## Call a model from a plugin
+
+Your plugin needs a model call of its own: a judge, a title, or a summary. A plain `chat()` call does not count in `session.usage()`, and it keeps running after the user cancels the turn. Call the model with `ctx.model.chat` instead:
+
+```ts group=harness-plugins
+export const recap = definePlugin({
+  name: 'acme/recap',
+  setup: (ctx) => ({
+    commands: {
+      recap: defineCommand({
+        description: 'Sum up the conversation in three lines',
+        run: async (_input, { run }) => {
+          const transcript = await ctx.session.transcript()
+          const { text } = await ctx.model.chat({
+            run,
+            label: 'recap',
+            options: {
+              messages: [...transcript, { role: 'user', content: 'Sum up this conversation in three lines.' }],
+            },
+          })
+          return text
+        },
+      }),
+    },
+  }),
+})
+```
+
+The options:
+
+- `run`: the run that the call is for. The call uses the keys of its user, and the budget of the run applies. A plugin with `lifetime: 'turn'` can leave it out. Then the call uses the run of its turn.
+- `adapter`: the model. Without it, the call uses the model of the session: the thread setting `model`, else the harness `adapter`. A `keyedAdapter(...)` gets the key of the user of the run.
+- `options`: `messages`, `systemPrompts`, and `outputSchema`. With `outputSchema`, the call resolves to the checked value. Without it, the call resolves to `{ text, chunks }`.
+- `label`: a name for the call in its usage record.
+- `timeoutMs`: the time limit of the call. The default is 2 minutes.
+
+The call stops when its run stops, for example on a cancel, and when the time limit ends. Then it rejects. Its usage counts in the session under `plugin:<name>`, here `plugin:acme/recap`. See [Usage of plugins](./usage#usage-of-plugins). The `goal()`, `title()`, and `compact()` plugins call their models this way.
 
 ## Pick the model of a turn
 
@@ -402,7 +511,7 @@ Read `ctx.collect` at run time (in a command, a tool, or a middleware hook). Dur
 
 ## Clean up resources
 
-Open resources with `ctx.resources.acquire(open, close)`. They close when the plugin is cleaned up, newest first: when the session closes, or after the turn for `lifetime: 'turn'`. If a later plugin fails in `setup`, every plugin set up so far is cleaned up, and no model request is sent.
+Open resources with `ctx.resources.acquire(open, close)`. They close when the plugin is cleaned up, newest first: when the session closes, or for `lifetime: 'turn'`, after the turn and the background runs that it started. If a later plugin fails in `setup`, every plugin set up so far is cleaned up, and no model request is sent.
 
 Set `lifetime: 'turn'` to set a plugin up again for each turn.
 
@@ -493,7 +602,7 @@ A reload works like this:
 3. It calls `plugins()` again and runs `setup` of each session plugin.
 4. Clients get a `harness.reloaded` event. Read the commands, the settings, and the agents again.
 
-The transcript, the log, the thread settings, and the inbox stay. The next turn gets the new tools, prompts, and middleware. The `ctx.on` listeners of the old plugins stop.
+The transcript, the log, the thread settings, and the inputs that wait stay. The next turn gets the new tools, prompts, and middleware. The `ctx.on` listeners of the old plugins stop.
 
 The harness does not watch files. Your host decides when to reload, as the `watch` call above does.
 
@@ -508,6 +617,7 @@ If a `setup` throws, the session keeps working with no plugins. The promise reje
 - A plugin that adds tools, prompts, commands, settings, and state to any harness.
 - Middleware that sees every model call, in the lead turn and in every agent.
 - Tools and commands that act as the user of their own run.
+- Model calls of your plugin that count in the session usage and stop with their run.
 - A picker that chooses the model of each turn from its message, context, and sender.
 - Plugins that share services, lists, and events without knowing each other.
 - Commands, agents, and whole plugins that change while the session runs.

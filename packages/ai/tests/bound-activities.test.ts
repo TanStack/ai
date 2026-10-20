@@ -64,11 +64,13 @@ describe('createBoundActivities', () => {
     { name: 'host-generation' },
   ]
   const chatMiddleware: Array<ChatMiddleware> = [{ name: 'host-chat' }]
+  const lastChatMiddleware: Array<ChatMiddleware> = [{ name: 'host-last' }]
 
   function bound() {
     const controller = new AbortController()
     const activities = createBoundActivities('helper', input, controller, {
       chatMiddleware,
+      lastChatMiddleware,
       generationMiddleware,
     })
     return { activities, controller }
@@ -139,18 +141,23 @@ describe('createBoundActivities', () => {
       subagentRunId: 'child-1',
       subagentName: 'helper',
       abortController: controller,
-      middleware: chatMiddleware,
+      middleware: [...chatMiddleware, ...lastChatMiddleware],
     })
+    // The host's last middleware runs after the call's own.
+    const own = { name: 'own' }
+    expect(
+      chat({ adapter: 'a', middleware: [own] }).options.middleware,
+    ).toEqual([...chatMiddleware, own, ...lastChatMiddleware])
     const custom = chat({ adapter: 'a', messages: [], threadId: 'mine' })
     expect(custom.options).toMatchObject({
       messages: [],
       threadId: 'mine',
       // A second chat call is its own run.
-      runId: 'run-1:chat-2',
+      runId: 'run-1:chat-3',
     })
   })
 
-  it('gives nested children the host middleware first, then their own', () => {
+  it('gives nested children the host middleware first, then their own, and the host last middleware at the end', () => {
     const { activities } = bound()
     const chat = activities.chat as unknown as (options: object) => Recorded
     const own = { name: 'own' }
@@ -158,13 +165,50 @@ describe('createBoundActivities', () => {
       adapter: 'a',
       subagents: {
         agents: [],
-        binding: { chatMiddleware: [own], generationMiddleware: [own] },
+        binding: {
+          chatMiddleware: [own],
+          lastChatMiddleware: [own],
+          generationMiddleware: [own],
+        },
       },
     })
     expect(nested.options.subagents.binding).toEqual({
       chatMiddleware: [...chatMiddleware, own],
+      lastChatMiddleware: [own, ...lastChatMiddleware],
       generationMiddleware: [...generationMiddleware, own],
     })
+  })
+
+  it('adds the host interrupts to chat, and the own interrupts of the call win on an id clash', () => {
+    const approval = { id: 'host:approval', from: 'host' }
+    const question = { id: 'host:question', from: 'host' }
+    const ownQuestion = { id: 'host:question', from: 'own' }
+    const review = { id: 'own:review', from: 'own' }
+    const activities = createBoundActivities(
+      'helper',
+      input,
+      new AbortController(),
+      { interrupts: [approval, question] as never },
+    )
+    const chat = activities.chat as unknown as (options: object) => Recorded
+    expect(chat({ adapter: 'a' }).options.interrupts).toEqual([
+      approval,
+      question,
+    ])
+    expect(
+      chat({ adapter: 'a', interrupts: [ownQuestion, review] }).options
+        .interrupts,
+    ).toEqual([approval, ownQuestion, review])
+    // Nested children get them too, after the same rule.
+    const nested = chat({
+      adapter: 'a',
+      subagents: { agents: [], binding: { interrupts: [review] } },
+    })
+    expect(nested.options.subagents.binding.interrupts).toEqual([
+      approval,
+      question,
+      review,
+    ])
   })
 
   it('works without a binding', () => {

@@ -47,6 +47,8 @@ The first turn starts. Each new turn tells the model the reason of the last chec
 Keep working on the goal: all tests pass. Last check: The date parser test still fails.
 ```
 
+Each new turn runs as the user who set the goal. In a [shared thread](./shared-threads), the goal uses that user's credentials and keys, not the ones of the last person who wrote.
+
 Run `session.command({ name: 'goal' })` to see the result:
 
 ```text

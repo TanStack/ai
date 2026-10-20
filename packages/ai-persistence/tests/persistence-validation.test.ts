@@ -3,7 +3,7 @@ import { memoryLogStore, memoryPersistence } from '../src/memory'
 import { withGenerationPersistence, withPersistence } from '../src/middleware'
 import { reconstructChat } from '../src/reconstruct'
 import { defineAIPersistence } from '../src/types'
-import type { ChatTranscriptPersistence, LeaseStore } from '../src/types'
+import type { ChatTranscriptPersistence } from '../src/types'
 import {
   createGenerationRunStore,
   createInterruptStore,
@@ -99,18 +99,12 @@ describe('persistence store dependency validation', () => {
   })
 
   it('accepts every session store key', () => {
-    const leases: LeaseStore = {
-      acquire: async () => {},
-      renew: async () => {},
-      release: async () => {},
-      isAlive: async () => false,
-    }
-    const { inbox, workClaims, sessions } = memoryPersistence().stores
+    const { sessions } = memoryPersistence().stores
     const log = memoryLogStore()
 
     expect(() =>
       defineAIPersistence({
-        stores: { inbox, log, leases, workClaims, sessions },
+        stores: { log, sessions },
       }),
     ).not.toThrow()
   })

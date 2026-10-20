@@ -71,12 +71,13 @@ function startCli(harness: AnyHarness, options: RunCliOptions) {
 /** `/connect acme` asks for a key as a secret question. */
 const acmeKeys = definePlugin({
   name: 'test/acme-keys',
-  setup: (ctx) => ({
+  setup: () => ({
     commands: {
       'connect:acme': defineCommand({
         description: 'Save an Acme API key',
-        run: () =>
-          ctx.session.ask({
+        run: (_input, { step }) =>
+          step.ask({
+            name: 'key',
             message: 'Paste your Acme API key',
             schema: z.string(),
             secret: true,
@@ -206,9 +207,7 @@ describe('signals in a custom ui', () => {
 
 describe('signals in --serve', () => {
   it('stops on SIGTERM with 143, and the next host runs the cut turn again', async () => {
-    const persistence = {
-      stores: { log: memoryLogStore(), runs: memoryPersistence().stores.runs },
-    }
+    const persistence = { stores: { log: memoryLogStore() } }
     const { model, calls } = waitingModel()
     const cli = startCli(
       defineHarness({ name: 'test/signal-serve', adapter: model }),
@@ -244,7 +243,7 @@ describe('signals in --serve', () => {
       defineHarness({ name: 'test/signal-serve', adapter: recovered }),
       { threadId: 't' },
     )
-    expect(await session.settled(inputId)).toMatchObject({
+    expect(await session.settled({ inputId })).toMatchObject({
       outcome: 'completed',
     })
     await next.close()

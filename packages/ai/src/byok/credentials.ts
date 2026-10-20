@@ -8,9 +8,15 @@ import type { Scope } from '../scope'
 export type CredentialScope = Pick<Scope, 'tenantId' | 'userId'> &
   Partial<Pick<Scope, 'threadId'>>
 
-/** A secret a user or an organization saved: an API key or OAuth tokens. */
+/**
+ * A secret a user or an organization saved: an API key or OAuth tokens. A
+ * `secret_answer` is not a user credential: the harness keeps a secret
+ * answer to a question there for a short time (`value` is its JSON), and
+ * deletes it once read. Leave it out of a "connected accounts" list.
+ */
 export type Credential =
   | { type: 'api_key'; value: string }
+  | { type: 'secret_answer'; value: string; expiresAt: number }
   | {
       type: 'oauth'
       accessToken: string
@@ -53,6 +59,29 @@ export interface CredentialStore {
     scope: CredentialScope,
   ) => Promise<
     Array<{ id: string; type: Credential['type']; expiresAt?: number }>
+  >
+  /**
+   * Optional. The credential with a revision, or `null` when it is absent.
+   * Pair it with `setIf` for compare-and-set writes: implement both or
+   * neither. Every write (also a plain `set`) gives the key a new revision,
+   * and a revision does not come back after a `delete`.
+   */
+  getVersioned?: (key: {
+    scope: CredentialScope
+    id: string
+  }) => Promise<{ credential: Credential; revision: string } | null>
+  /**
+   * Optional. Write only when the current revision is `expectedRevision`
+   * (`null` means the key is absent). Success is `{ ok: true, revision }`.
+   * A different revision returns `{ ok: false, reason: 'conflict' }`.
+   */
+  setIf?: (entry: {
+    scope: CredentialScope
+    id: string
+    credential: Credential
+    expectedRevision: string | null
+  }) => Promise<
+    { ok: true; revision: string } | { ok: false; reason: 'conflict' }
   >
 }
 

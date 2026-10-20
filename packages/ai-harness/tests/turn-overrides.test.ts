@@ -15,14 +15,17 @@ import {
   logIdOf,
 } from '../src'
 import {
+  CRASHING_OWNERSHIP,
   after,
   gate,
   messageTexts,
   mockAdapter,
+  ownershipExpired,
   text,
   toolCall,
   untilAborted,
 } from './helpers'
+import { isRecord } from '../src/utils'
 import type {
   AnyChatMiddleware,
   AnyTool,
@@ -30,8 +33,18 @@ import type {
   PromptCacheOptions,
   ReasoningRequest,
 } from '@tanstack/ai'
-import type { HarnessConfig, PluginContributions } from '../src'
+import type {
+  HarnessConfig,
+  OwnershipOptions,
+  PluginContributions,
+} from '../src'
 import type { Reply } from './helpers'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store. */
@@ -44,21 +57,37 @@ afterEach(() => {
 })
 
 function durablePersistence() {
-  const { runs, metadata } = memoryPersistence().stores
-  return { stores: { log: memoryLogStore(), runs, metadata } }
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log: memoryLogStore(), metadata } }
 }
 
 type Durable = ReturnType<typeof durablePersistence>
+
+/** The ephemeral messages that the overrides record of the log keeps. */
+async function loggedEphemeral(persistence: Durable) {
+  // The fold drops the overrides of a settled turn, so read the records.
+  const entries = await persistence.stores.log.read({ logId: LOG })
+  return entries.flatMap(({ record }) =>
+    record.type === 'harness.input.turn' && isRecord(record.overrides)
+      ? ((record.overrides.ephemeral as Array<ModelMessage> | undefined) ?? [])
+      : [],
+  )
+}
 
 /** Open a session whose default adapter answers with `replies`. */
 async function open(
   replies: Array<Reply>,
   extras: Omit<HarnessConfig, 'name' | 'adapter'> = {},
-  options: { persistence?: Durable; promptCache?: PromptCacheOptions } = {},
+  options: {
+    persistence?: Durable
+    promptCache?: PromptCacheOptions
+    ownership?: OwnershipOptions
+  } = {},
 ) {
   const { adapter, calls } = mockAdapter(replies)
   const host = createHarnessHost({
     persistence: options.persistence ?? memoryPersistence(),
+    ...(options.ownership ? { ownership: options.ownership } : {}),
   })
   const session = await host.open(
     defineHarness({ name: 'test/turn-overrides', adapter, ...extras }),
@@ -175,7 +204,7 @@ describe('turn overrides: adapter', () => {
       overrides: { adapter: turnModel.adapter },
     }).receipt
 
-    expect(await session.settled('follow-1')).toMatchObject({
+    expect(await session.settled({ inputId: 'follow-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(turnModel.calls).toHaveLength(1)
@@ -399,7 +428,7 @@ describe('turn overrides: queue, steer, and recovery', () => {
     const turn = session.send('one', {
       overrides: { adapter: hostModel.adapter },
     })
-    await vi.waitFor(() => expect(hostModel.calls).toHaveLength(1))
+    await waitFor(() => expect(hostModel.calls).toHaveLength(1))
     const steer = session.send('two', {
       busy: 'steer',
       overrides: { adapter: steerModel.adapter },
@@ -415,36 +444,54 @@ describe('turn overrides: queue, steer, and recovery', () => {
     await host.close()
   })
 
-  it('runs a recovered turn after a restart with the defaults', async () => {
+  it('runs a recovered turn after a restart with its JSON overrides, without its adapter', async () => {
     const persistence = durablePersistence()
     const stopped = mockAdapter([untilAborted()])
-    const first = await open([], {}, { persistence })
-    const turn = first.session.send('go', {
-      inputId: 'in-1',
-      overrides: {
-        adapter: stopped.adapter,
-        reasoning: HIGH,
-        promptCache: { key: 'turn-key' },
-      },
-    })
-    await vi.waitFor(() => expect(stopped.calls).toHaveLength(1))
-    // The first host stops: its run lease expires.
-    await persistence.stores.runs.update(turn.id, {
-      leaseExpiresAt: Date.now() - 1,
-    })
+    const first = await open(
+      [],
+      {},
+      { persistence, ownership: CRASHING_OWNERSHIP },
+    )
+    void first.session
+      .send('go', {
+        inputId: 'in-1',
+        overrides: {
+          adapter: stopped.adapter,
+          reasoning: HIGH,
+          promptCache: { key: 'turn-key' },
+        },
+      })
+      .then(
+        () => {},
+        () => {},
+      )
+    await waitFor(() => expect(stopped.calls).toHaveLength(1))
+    // The first host stops: its ownership of the log expires.
+    await ownershipExpired()
 
     const next = await open([() => text('recovered')], {}, { persistence })
 
-    expect(await next.session.settled('in-1')).toMatchObject({
+    expect(await next.session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
+    // The adapter object is not in the log: the harness adapter runs it.
     expect(stopped.calls).toHaveLength(1)
     expect(next.calls).toHaveLength(1)
-    expect(next.calls[0].reasoning).toBeUndefined()
+    expect(next.calls[0].reasoning).toEqual(HIGH)
     expect(next.calls[0].promptCache).toEqual({
       retention: 'short',
-      key: THREAD,
+      key: 'turn-key',
     })
+    const warnings = (await persistence.stores.log.read({ logId: LOG }))
+      .map(({ record }) => record.event)
+      .filter(
+        (event) =>
+          isRecord(event) &&
+          event.name === 'harness.plugin.warning' &&
+          isRecord(event.value) &&
+          event.value.plugin === 'harness:overrides',
+      )
+    expect(warnings).toHaveLength(1)
     await first.host.close().catch(() => {})
     await next.host.close()
   })
@@ -452,16 +499,23 @@ describe('turn overrides: queue, steer, and recovery', () => {
   it('runs a recovered turn with the overrides that the recover hook returns', async () => {
     const persistence = durablePersistence()
     const stopped = mockAdapter([untilAborted()])
-    const first = await open([], {}, { persistence })
-    const turn = first.session.send('go', {
-      inputId: 'in-1',
-      overrides: { adapter: stopped.adapter },
-    })
-    await vi.waitFor(() => expect(stopped.calls).toHaveLength(1))
-    // The first host stops: its run lease expires.
-    await persistence.stores.runs.update(turn.id, {
-      leaseExpiresAt: Date.now() - 1,
-    })
+    const first = await open(
+      [],
+      {},
+      { persistence, ownership: CRASHING_OWNERSHIP },
+    )
+    void first.session
+      .send('go', {
+        inputId: 'in-1',
+        overrides: { adapter: stopped.adapter },
+      })
+      .then(
+        () => {},
+        () => {},
+      )
+    await waitFor(() => expect(stopped.calls).toHaveLength(1))
+    // The first host stops: its ownership of the log expires.
+    await ownershipExpired()
     const recovered = mockAdapter([() => text('recovered')])
 
     const next = await open(
@@ -477,7 +531,7 @@ describe('turn overrides: queue, steer, and recovery', () => {
       { persistence },
     )
 
-    expect(await next.session.settled('in-1')).toMatchObject({
+    expect(await next.session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(next.calls).toHaveLength(0)
@@ -530,7 +584,7 @@ describe('ephemeral input', () => {
   const NOTE = 'Answer in one word.'
   const note: Array<ModelMessage> = [{ role: 'user', content: NOTE }]
 
-  it('gives the ephemeral messages of a prompt to the model, and no store keeps them', async () => {
+  it('gives the ephemeral messages of a prompt to the model, and only the log keeps them', async () => {
     const persistence = durablePersistence()
     const { host, session, calls } = await open(
       [() => text('done')],
@@ -545,13 +599,11 @@ describe('ephemeral input', () => {
 
     expect(messageTexts(calls[0])).toEqual(['go', NOTE])
     expect(JSON.stringify(await session.transcript())).not.toContain(NOTE)
-    expect(
-      JSON.stringify(await persistence.stores.log.read({ logId: LOG })),
-    ).not.toContain(NOTE)
+    expect(await loggedEphemeral(persistence)).toEqual(note)
     await host.close()
   })
 
-  it('gives the ephemeral messages of continue to the model, and no store keeps them', async () => {
+  it('gives the ephemeral messages of continue to the model, and only the log keeps them', async () => {
     const persistence = durablePersistence()
     await persistence.stores.log.append({
       logId: LOG,
@@ -578,9 +630,7 @@ describe('ephemeral input', () => {
 
     expect(messageTexts(calls[0])).toEqual(['go', NOTE])
     expect(JSON.stringify(await session.transcript())).not.toContain(NOTE)
-    expect(
-      JSON.stringify(await persistence.stores.log.read({ logId: LOG })),
-    ).not.toContain(NOTE)
+    expect(await loggedEphemeral(persistence)).toEqual(note)
     await host.close()
   })
 

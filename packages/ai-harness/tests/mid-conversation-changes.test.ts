@@ -25,10 +25,10 @@ function channelAdapter(replies: Array<Reply>) {
   return { adapter: withChannels, calls }
 }
 
-/** The stores of a durable host: a log, runs, and metadata. */
+/** The stores of a durable host: a log and metadata. */
 function durablePersistence() {
-  const { runs, metadata } = memoryPersistence().stores
-  return { stores: { log: memoryLogStore(), runs, metadata } }
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log: memoryLogStore(), metadata } }
 }
 
 const lookup = toolDefinition({

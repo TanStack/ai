@@ -203,7 +203,7 @@ test.describe('harness lifecycle', () => {
         threadId,
         status: 'idle',
         activeOperations: [],
-        pendingInterrupts: [],
+        pendingWaits: [],
       },
     })
     expect(await api.transcript(threadId)).toEqual({

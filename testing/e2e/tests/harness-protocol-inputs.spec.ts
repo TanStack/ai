@@ -16,11 +16,12 @@ type Chunk = {
   }
 }
 
+// Each event has an `id:` line (its log cursor) before its `data:` line.
 const sse = (text: string): Array<Chunk> =>
   text
-    .split('\n\n')
-    .filter((block) => block.startsWith('data: '))
-    .map((block) => JSON.parse(block.slice('data: '.length)))
+    .split('\n')
+    .filter((line) => line.startsWith('data: '))
+    .map((line) => JSON.parse(line.slice('data: '.length)))
 
 const textOf = (chunks: Array<Chunk>) =>
   chunks
@@ -42,7 +43,7 @@ const interruptOf = (chunks: Array<Chunk>) => {
 }
 
 type Snapshot = {
-  pendingQuestions: Array<{ questionId: string; message: string }>
+  pendingWaits: Array<{ waitId: string; message?: string }>
   waitingInputs: Array<{ inputId: string; delivery: string }>
 }
 
@@ -132,7 +133,7 @@ function asUser(
     read('snapshot', threadId)
   /** The question that the thread waits for, or `undefined`. */
   const question = async (threadId: string) =>
-    (await snapshot(threadId)).pendingQuestions[0]
+    (await snapshot(threadId)).pendingWaits[0]
   return {
     headers,
     json,
@@ -253,8 +254,9 @@ test.describe('harness protocol inputs', () => {
         const block = buffer.slice(0, end)
         buffer = buffer.slice(end + 2)
         end = buffer.indexOf('\n\n')
-        if (!block.startsWith('data: ')) continue
-        const chunk: Chunk = JSON.parse(block.slice('data: '.length))
+        const data = block.split('\n').find((line) => line.startsWith('data: '))
+        if (!data) continue
+        const chunk: Chunk = JSON.parse(data.slice('data: '.length))
         if (chunk.type !== 'RUN_FINISHED') continue
         receipt = await user.control(threadId, {
           op: 'resolve',
@@ -441,9 +443,9 @@ test.describe('harness protocol inputs', () => {
       )
       // 404 until the turn of the first tab opens the thread.
       if (response.status() === 404) return undefined
-      const snapshot: { pendingQuestions: Array<{ questionId: string }> } =
+      const snapshot: { pendingWaits: Array<{ waitId: string }> } =
         await response.json()
-      return snapshot.pendingQuestions[0]?.questionId
+      return snapshot.pendingWaits[0]?.waitId
     }
 
     // The first tab starts a turn. Its tool waits for an answer.
@@ -547,7 +549,7 @@ test.describe('harness protocol inputs', () => {
     expect(
       await user.control(threadId, {
         op: 'answer',
-        questionId: asked?.questionId,
+        questionId: asked?.waitId,
         value: 'Otto',
       }),
     ).toMatchObject({ status: 'accepted' })
@@ -631,7 +633,7 @@ test.describe('harness protocol inputs', () => {
     expect(
       await user.control(threadId, {
         op: 'answer',
-        questionId: asked?.questionId,
+        questionId: asked?.waitId,
         value: { value: 'Paris' },
       }),
     ).toMatchObject({ status: 'accepted' })
@@ -672,7 +674,7 @@ test.describe('harness protocol inputs', () => {
       expect(
         await user.control(threadId, {
           op: 'answer',
-          questionId: asked?.questionId,
+          questionId: asked?.waitId,
           value: { value },
         }),
       ).toMatchObject({ status: 'accepted' })

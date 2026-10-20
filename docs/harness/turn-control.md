@@ -55,7 +55,7 @@ const assistant = defineHarness({
 - When the return changes the transcript, the model runs again. The hook runs again at the next stop.
 - Always check `messages`. A hook that returns the same reminder every time never stops.
 - `maxFinishCycles` (default 32) is the limit. A hook that still asks for more at the limit fails the turn.
-- `records` are host records in the same append. They need a durable host. See [Append your own records](./session-log#append-your-own-records).
+- `records` are host records in the same append. See [Append your own records](./session-log#append-your-own-records).
 
 ### Remind the model without saving the reminder
 
@@ -191,9 +191,13 @@ The join stops at the first message that:
 
 That message and the ones after it wait. `canJoin` runs again before each model call and at each final answer, so it can run more than once for one message. Keep it a quick check with no side effects. What still waits when the turn ends runs as its own turn, before other queued turns. A cancelled one settles `aborted` and does not run.
 
+A `session.tool()` turn takes no messages. It runs no model, so nothing could answer them. A message that arrives while it runs waits, and then runs as its own turn. See [Run a tool without a model](./tool-runs).
+
+A turn that `routing` sends to root agents takes messages, the same as the main model. The root agents get them at each model call.
+
 A joined message runs with the credentials of the sender of the turn. So without `turn.canJoin`, a waiting message joins the running turn only when the same person sent both. A message from another person waits and runs as its own turn after the running one, as its sender. Joins are a prefix, so it also holds back the messages that wait after it. Set `canJoin` to choose your own rule. Compare `principal` with `turnPrincipal` to keep one person's message out of another person's turn. See [Keep other people out of a running turn](./shared-threads#5-keep-other-people-out-of-a-running-turn).
 
-`onJoin` runs before the model call that the joined messages reach. It can return messages, which come after the joined ones, and records, which land in the same append as the join. Records need a durable host.
+`onJoin` runs before the model call that the joined messages reach. It can return messages, which come after the joined ones, and records, which land in the same append as the join.
 
 - If `onJoin` throws, the turn fails, and those messages run as their own turns.
 - If you cancel the turn while `onJoin` runs, the hook adds nothing to it, and those messages run as their own turns.
@@ -308,7 +312,7 @@ Every model call of the turn uses the overrides:
 - each step of the tool loop
 - each `onModelError` retry
 - each `beforeFinish` cycle
-- the main model after a [`routing`](./subagents#route-a-turn-to-an-agent) handoff
+- the main model after the routed agents, with [`routing.after: 'main'`](./subagents#route-a-turn-to-an-agent)
 - the extra model call for steer messages that arrive at the final answer
 
 The `promptCache` of the overrides also reaches the agents that the model calls as tools in this turn.
@@ -316,17 +320,17 @@ The `promptCache` of the overrides also reaches the agents that the model calls 
 ### Tools for one turn
 
 - A tool name that the turn already has fails the turn, the same as two tools with one name.
-- A [durable tool](./durable-tools) gets `step` and `append` on a durable host.
+- A [durable tool](./durable-tools) gets `step` and `append`.
 - A middleware `onConfig` that returns a new tool list does not drop these tools. The harness adds them back.
 
 ### Where the overrides live
 
-The session keeps the overrides in memory only. The session log does not store them.
+The session log keeps the JSON overrides: `model`, `modelOptions`, `reasoning`, and `promptCache`. `adapter` and `tools` are objects, so they stay in memory only.
 
 - A queued prompt keeps its overrides until its turn runs.
 - A steer that joins a running turn uses the overrides of that turn. The session ignores the overrides of the steer.
 - A `send(text, { mode: 'steer', overrides })` that does not join runs as its own turn, with its own overrides.
-- After a restart, recovery runs an unfinished turn with the harness settings. To give it overrides again, return them from `durability.recover`. See [Decide recovery yourself](./durable-sessions#decide-recovery-yourself).
+- After a restart, recovery runs an unfinished turn with its JSON overrides. It runs without `adapter` and `tools`, with a warning. To give them again, return them from `durability.recover`. See [Decide recovery yourself](./durable-sessions#decide-recovery-yourself).
 - A second prompt with the same `inputId` and message is a duplicate, also when its overrides are different.
 
 To keep a model or instructions for every turn of a thread, also after a restart, store them with `session.configure`. See [Store settings per thread](./thread-settings).

@@ -15,6 +15,7 @@ const authorize = membersOnly()
 const members: ReadonlyArray<SessionMember> = [
   { userId: 'mia', role: 'member' },
   { userId: 'vic', role: 'viewer' },
+  { userId: 'oto', role: 'operator' },
 ]
 
 /** `olga` owns it through `ownerId` only: `members` has no entry for her. */
@@ -30,18 +31,40 @@ const sessionOwnedByMembers: AccessSession = {
   members: [{ userId: 'otto', role: 'owner' }, ...members],
 }
 
-type Column = 'owner' | 'member' | 'viewer' | 'stranger'
+type Column = 'owner' | 'member' | 'viewer' | 'operator' | 'stranger'
 
 /** The roles table of the design. */
 const table: Array<{ action: AccessAction } & Record<Column, boolean>> = [
-  { action: 'read', owner: true, member: true, viewer: true, stranger: false },
-  { action: 'list', owner: true, member: true, viewer: true, stranger: false },
-  { action: 'send', owner: true, member: true, viewer: false, stranger: false },
+  {
+    action: 'read',
+    owner: true,
+    member: true,
+    viewer: true,
+    operator: true,
+    stranger: false,
+  },
+  {
+    action: 'list',
+    owner: true,
+    member: true,
+    viewer: true,
+    operator: true,
+    stranger: false,
+  },
+  {
+    action: 'send',
+    owner: true,
+    member: true,
+    viewer: false,
+    operator: false,
+    stranger: false,
+  },
   {
     action: 'answer',
     owner: true,
     member: true,
     viewer: false,
+    operator: false,
     stranger: false,
   },
   {
@@ -49,6 +72,7 @@ const table: Array<{ action: AccessAction } & Record<Column, boolean>> = [
     owner: true,
     member: true,
     viewer: false,
+    operator: false,
     stranger: false,
   },
   {
@@ -56,6 +80,7 @@ const table: Array<{ action: AccessAction } & Record<Column, boolean>> = [
     owner: true,
     member: false,
     viewer: false,
+    operator: false,
     stranger: false,
   },
   {
@@ -63,6 +88,7 @@ const table: Array<{ action: AccessAction } & Record<Column, boolean>> = [
     owner: true,
     member: false,
     viewer: false,
+    operator: false,
     stranger: false,
   },
   {
@@ -70,14 +96,31 @@ const table: Array<{ action: AccessAction } & Record<Column, boolean>> = [
     owner: true,
     member: false,
     viewer: false,
+    operator: false,
     stranger: false,
   },
-  { action: 'fork', owner: true, member: true, viewer: false, stranger: false },
+  {
+    action: 'fork',
+    owner: true,
+    member: true,
+    viewer: false,
+    operator: false,
+    stranger: false,
+  },
   {
     action: 'transfer',
     owner: true,
     member: false,
     viewer: false,
+    operator: false,
+    stranger: false,
+  },
+  {
+    action: 'operator',
+    owner: false,
+    member: false,
+    viewer: false,
+    operator: true,
     stranger: false,
   },
 ]
@@ -97,6 +140,7 @@ const callers: Array<{
   },
   { who: 'member', id: 'mia', target: session, column: 'member' },
   { who: 'viewer', id: 'vic', target: session, column: 'viewer' },
+  { who: 'operator', id: 'oto', target: session, column: 'operator' },
   { who: 'stranger', id: 'sam', target: session, column: 'stranger' },
 ]
 
@@ -187,6 +231,18 @@ describe('membersOnly runs for answer and cancel', () => {
       expect(decision).toBe(allowed)
     },
   )
+})
+
+describe('membersOnly operator roles', () => {
+  it('gives the operator action to the roles in operator.roles', async () => {
+    const owners = membersOnly({ operator: { roles: ['owner', 'operator'] } })
+    const can = (id: string) =>
+      owners({ principal: { id }, action: 'operator', session })
+    expect(await can('olga')).toBe(true)
+    expect(await can('oto')).toBe(true)
+    expect(await can('mia')).toBe(false)
+    expect(await can('sam')).toBe(false)
+  })
 })
 
 describe('membersOnly marker', () => {

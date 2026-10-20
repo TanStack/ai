@@ -2,38 +2,51 @@
 title: Durable sessions
 id: harness-durable-sessions
 order: 4
-description: "Keep a harness turn alive through a crash or a deploy. The next host continues it from the session log, and a turn that keeps failing stops after a limit."
+description: "Keep a harness turn alive through a crash or a deploy. The next host continues it from the session log, one host owns a thread at a time, and a turn that keeps failing stops after a limit."
 keywords:
   - tanstack ai
   - harness
   - durability
   - resume
   - session log
+  - ownership
   - retries
 ---
 
-A long agent turn can outlive the process that started it: a deploy restarts the server, or the machine crashes in the middle of a tool call. Give the host a session log, and the next host that opens the thread continues the turn. A turn that crashes the host every time stops after a limit.
+A long agent turn can outlive the process that started it: a deploy restarts the server, or the machine crashes in the middle of a tool call. Every host keeps each thread in a session log. Put that log in a store that survives a restart, and the next host continues the turn. A turn that crashes the host every time stops after a limit.
 
 ## Give the host a session log
 
-A durable host takes two stores:
-
-- `log`: one append-only log per thread. It keeps the events, the transcript, the inputs, and the tool steps.
-- `runs` or `leases`: a lease tells the next host that the last one stopped. `runs` keeps run records with leases. `leases` is a store that you wire to your own lease system. See [Use your own leases](#use-your-own-leases).
+The host needs one store: `log`. It keeps the events, the transcript, the inputs, the runs, the interrupts, the tool steps, and the state of each thread. It also records which host owns each thread.
 
 ```ts group=harness-durable
 import { createHarnessHost } from '@tanstack/ai-harness'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { memoryPersistence } from '@tanstack/ai-persistence'
 
 // Swap in your own stores. Memory stores do not survive a restart.
-const { runs, metadata } = memoryPersistence().stores
+const host = createHarnessHost({ persistence: memoryPersistence() })
+```
 
-const host = createHarnessHost({
-  persistence: { stores: { log: memoryLogStore(), runs, metadata } },
+- `memoryPersistence()` has a memory `log`. A host with no `persistence` uses it too.
+- To keep the log in your database, implement the [`LogStore` contract](../persistence/store-reference#logstore). A host whose log store survives a restart is a durable host.
+- `metadata` is optional. With it, the host keeps a fold checkpoint of each log, so a long thread opens faster.
+
+### Keep a long log fast to open
+
+A thread that runs for weeks has a long log, and a new host reads all of it to open the thread. The owner of the log writes a snapshot of the folded log to the log store. A new host opens from the snapshot and reads only the records after it. Set when the owner writes one:
+
+```ts group=harness-durable
+const snapshotHost = createHarnessHost({
+  persistence: memoryPersistence(),
+  log: { snapshot: { afterBytes: 500_000, afterMs: 60_000 } },
 })
 ```
 
-`metadata` is optional. With it, the host keeps a fold checkpoint of each log, so a long thread opens faster. It also keeps the interrupts that the last turn waits on, so `session.resolve` continues that turn on the next host. To store the log in your database, implement the [`LogStore` contract](../persistence/store-reference#logstore).
+- `afterBytes`: after this many bytes of new records, as the JSON length of the records. The default is 1 000 000.
+- `afterMs`: this long after the first record that no snapshot has. The default is 300 000 (5 minutes).
+- The first limit that the log reaches wins. Only the owner writes snapshots. The type is `SnapshotTiming`.
+
+To also drop the old records, set `lifecycle.retention.logRecords` to `'since-snapshot'`. See [Drop the records before a snapshot](./lifecycle#drop-the-records-before-a-snapshot).
 
 ## Limit attempts and time
 
@@ -57,7 +70,7 @@ A turn that passes its time limit is stopped. It ends with the error code `timeo
 
 ## What happens after a crash
 
-When a host opens the thread and finds a turn whose lease expired, it checks these, in order:
+A host that stops also stops renewing its ownership of the thread. When the ownership expires, the next host that takes the thread finds the turn that did not end. It checks these, in order:
 
 1. The log already has the final answer: the input ends `completed`. This wins over the checks below, so finished work is never lost.
 2. An abort was asked for the turn: the input ends `aborted`. The model is not called.
@@ -65,9 +78,9 @@ When a host opens the thread and finds a turn whose lease expired, it checks the
 4. The time limit passed: the input ends `failed`, with the error code `timeout`.
 5. Else the turn runs again as the next attempt, and clients get a `harness.operation.resumed` event.
 
-An input that was stored but never ran, runs now. `session.settled(inputId)` resolves to how an input ended. See [Send inputs safely](./inputs).
+An input that was stored but never ran, runs now. `session.settled({ inputId })` resolves to how an input ended. See [Send inputs safely](./inputs).
 
-A background agent that you started with `resume: true` runs again on the next host. See [Keep a background agent going after a crash](./subagents#keep-a-background-agent-going-after-a-crash). For any other background agent, when its lease expired, the next host:
+A background agent that you started with `resume: true` runs again on the next host. See [Keep a background agent going after a crash](./subagents#keep-a-background-agent-going-after-a-crash). The children and groups that it started before the stop do not start again: they give their stored results. See [Children of a run that runs again](./subagents#children-of-a-run-that-runs-again). For any other background agent whose host stopped, the next host:
 
 1. Ends the run `failed`, with the message `The host stopped during this agent run.`
 2. Adds a note about the failure to the transcript.
@@ -77,7 +90,7 @@ A background agent that you started with `resume: true` runs again on the next h
 
 ## Stop a host for a deploy
 
-`host.close()` closes every session of the host and refuses later opens. It ends each running turn `aborted`, so no host runs it again. When the server stops only for a deploy, close it with `recoverable: true`. The running turns stop, but they stay open in the log, and the next host continues them at once:
+`host.close()` closes every session of the host and refuses later opens. It ends each running turn `aborted`, so no host runs it again. When the server stops only for a deploy, close it with `recoverable: true`. The running turns stop, but they stay open in the log, and another host continues them at once:
 
 ```ts group=harness-durable
 process.on('SIGTERM', async () => {
@@ -86,7 +99,8 @@ process.on('SIGTERM', async () => {
 })
 ```
 
-- Running turns and background agents stop. The host writes no end for them and gives their leases back, so the next host does not wait for the lease to expire.
+- Running turns and background agents stop. The host writes no end for them.
+- The host gives each busy thread back with a wake. A [worker](./workers) takes it at once, so it does not wait for the ownership to expire.
 - A tool that the stop cut gets the same result as after a crash. See [Mark tools that are safe to run again](#mark-tools-that-are-safe-to-run-again).
 - A turn that a user cancelled still ends `aborted`.
 - `session.close()` releases only your handle. It does not stop the work of the session. See [Lifecycle and retention](./lifecycle#open-and-release-a-session).
@@ -95,83 +109,32 @@ During a rolling deploy, old and new hosts run at the same time. A host that rea
 
 ## Resume pending work after a deploy
 
-A host recovers a thread when something opens it. After a deploy, nobody opens a thread whose user closed the tab, so its queued turn or background agent waits. Give the host `stores.workClaims`, then call `host.resumePending` to find that work and run it.
-
-Add `workClaims` to the stores of every replica:
+A host recovers a thread when something opens it. After a deploy, nobody opens a thread whose user closed the tab, so its queued turn or background agent waits. Call `host.resumePending` to find that work and run it:
 
 ```ts group=harness-durable
-const claimStores = memoryPersistence().stores
-
-const sweeper = createHarnessHost({
-  persistence: {
-    stores: {
-      log: memoryLogStore(),
-      runs: claimStores.runs,
-      metadata: claimStores.metadata,
-      workClaims: claimStores.workClaims,
-    },
-  },
-})
+const resumed = await host.resumePending({ harnesses: [assistant] })
+console.log(`Resumed ${resumed.length} threads`, resumed)
 ```
-
-Call `resumePending` once when the server starts:
-
-```ts group=harness-durable
-const opened = await sweeper.resumePending({ harnesses: [assistant] })
-console.log(`Resumed ${opened.length} threads`, opened)
-```
-
-Call it again on a timer, from a cron route or a Durable Object alarm. Then a replica that stops while the others keep running does not leave work behind:
-
-```ts group=harness-durable
-export async function GET() {
-  const resumed = await sweeper.resumePending({
-    harnesses: [assistant],
-    limit: 50,
-  })
-  return Response.json({ resumed })
-}
-```
-
-`memoryPersistence()` includes a memory `workClaims` store. It does not survive a restart. To keep claims in your database, implement the [`WorkClaimStore` contract](../persistence/store-reference#workclaimstore). This is server-side only. Clients do nothing for it.
-
-### When a thread holds a claim
-
-The session claims its thread for its host when the thread gets work:
-
-- An input that leaves work: `prompt`, `steer`, `followUp`, `resolve`, `reset`, or an `agent` input.
-- A queued turn that the session recovers.
-- A background agent run.
-
-The session renews the claim on the lease timer: every `ownership.renewMs`, for `ownership.ttlMs`. See [One host drives a thread](#one-host-drives-a-thread) to set them.
-
-The session gives the claim back when the thread is idle: no queued or running turn, no waiting steer, and no running agent. A thread that waits for a human (an approval or a sign-in) is idle, so a sweep never takes it.
-
-A question from `ctx.session.ask` is different. The question waits in the memory of its host, so the session keeps the claim until the answer comes. Then an answer that reaches another host goes to this host. See [One host drives a thread](#one-host-drives-a-thread).
-
-The other host cannot tell if the question is a secret, so it stores the answer in `stores.inbox` as the user typed it. The host that asked removes that entry after it applies the answer. The log keeps a secret answer as `[secret]`. Keep the inbox in a store you trust as much as the log.
-
-### What a sweep does
 
 `host.resumePending({ harnesses, close, limit })`:
 
-1. Reads the expired claims, oldest first. It reads at most `limit` claims. The default is 100.
-2. Skips a thread whose harness is not in `harnesses`. That claim stays listed and counts against `limit`, so pass every harness that the host serves.
-3. Claims each thread with compare-and-set. If two hosts sweep at the same time, each thread goes to one of them.
-4. Opens the thread. The recovery steps in [What happens after a crash](#what-happens-after-a-crash) run its pending work.
+1. Lists the logs that have work and no live owner: an owner that stopped, inputs that wait, or a schedule that is due. It lists at most `limit` logs. The default is 100.
+2. Lists only the logs of the harnesses in `harnesses`. Pass every harness that the host serves.
+3. Takes each log. If two hosts sweep at the same time, each log goes to one of them.
+4. Opens the thread. The recovery steps in [What happens after a crash](#what-happens-after-a-crash) run its pending work, then the inputs that wait run.
 
-It resolves with the threads that it opened, as `{ threadId, harness }` entries. Without `stores.workClaims`, it throws.
+It resolves with the threads that it took, as `{ threadId, harness, tenantId }` entries. Each thread opens in its own tenant, with no principal.
+
+If a thread that the sweep took does not open, the host gives it back with a wake in 30 seconds. The next sweep or worker tries it again.
 
 The `close` option sets what happens to a session that the sweep opened:
 
 - `'whenIdle'` (default): the session closes when its work ends. If the app opened the same thread too, the session stays open.
 - `'never'`: the session closes like any session that no handle holds, after `lifecycle.idleCloseMs`. See [When a session closes](./lifecycle#when-a-session-closes).
 
-### Watch for claim warnings
+Call it once at boot, or from a cron route or a Durable Object alarm. To run this work all the time, on as many machines as you want, use a worker. See [Run background work on workers](./workers).
 
-A failed claim or release write does not fail the work. The session publishes a `harness.plugin.warning` custom event with `plugin: 'harness:work-claims'` and the error message. Without that claim, a sweep cannot find the work after a crash. Watch for this event to find these threads.
-
-If this host already has the thread open, the sweep claims it, but the session does not recover again. Call `host.recover(threadId)` for that thread. See [Check a skipped turn again](#check-a-skipped-turn-again).
+If this host already has the thread open, the sweep does not recover it again. Call `host.recover(threadId)` for that thread. See [Check a skipped turn again](#check-a-skipped-turn-again).
 
 ## Retry model errors
 
@@ -202,7 +165,7 @@ The steps above are the default. To change them for one input, add `durability.r
 
 Return `undefined` to keep the decision. Or return one of these:
 
-- `{ action: 'run', overrides? }`: run the input now. `overrides` are the [turn overrides](./turn-control#give-one-prompt-its-own-settings) of this attempt, for example the adapter that the first attempt used. The log does not keep overrides, so without them a recovered attempt uses the defaults.
+- `{ action: 'run', overrides? }`: run the input now. `overrides` are the [turn overrides](./turn-control#give-one-prompt-its-own-settings) of this attempt. The log keeps the JSON overrides of the input (`model`, `modelOptions`, `reasoning`, and `promptCache`). Give `adapter` and `tools` here again, because the log cannot keep objects.
 - `{ action: 'settle', outcome, error? }`: end the input as `'completed'`, `'failed'`, or `'aborted'`. Without a model call.
 
 This example fails an input with your own error code after 2 runs:
@@ -311,44 +274,91 @@ const twoNotes = defineHarness({
 
 ## One host drives a thread
 
-Only one host writes to the log of a thread at a time. On a serverless platform, two requests for one thread often reach two instances. Give every instance `workClaims` and `inbox`. Then an input that reaches the second instance goes to the first:
+On a serverless platform, two requests for one thread often reach two instances. Only one host writes to the log of a thread at a time. Give every instance the same log store, and the log decides who owns the thread:
+
+- The first write of a host takes the log. From then on, this host owns the thread.
+- One timer renews every thread that the host owns. The host gives a thread back when it has no work.
+- An input that reaches another instance waits in the log for the owner. The receipt is `queued`, and the owner runs it within a second. If the owner refuses it, `session.settled({ inputId })` on that instance rejects with `InputRejectedError`. See [Send inputs safely](./inputs).
+- Every instance reads the thread, also while the owner runs a background job. A client gets the events from the log, on any instance. A `POST run` on the second instance streams the turn that the owner runs.
+- The thread settings, the config values, and the state of an interrupted turn follow the changes that other hosts write.
+
+Set the timing with the `ownership` option of the host:
 
 ```ts group=harness-durable
-const replicaStores = memoryPersistence().stores
-
-const replica = createHarnessHost({
-  persistence: {
-    stores: {
-      log: memoryLogStore(),
-      runs: replicaStores.runs,
-      workClaims: replicaStores.workClaims,
-      inbox: replicaStores.inbox,
-    },
-  },
-})
-```
-
-The host that runs the thread holds its work claim. An input that reaches another host:
-
-- With `inbox`: waits in the inbox, and the owner applies it within a second. The receipt is `queued`.
-- Without `inbox`: is refused. The receipt is `rejected`, with the reason `owned_elsewhere`.
-
-In both cases, the running turn continues. A client reads the events of the thread from the log, on any instance. A `POST run` on the second instance streams the turn that the owner runs.
-
-No store keeps the `overrides` and the `ephemeral` messages of a prompt. So the owner runs a forwarded prompt without them. They apply only to a prompt that reaches the owner.
-
-When the owner stops, its claim expires. Then the next host that opens the thread, or a `resumePending` sweep, runs the inputs that wait.
-
-Without `workClaims`, a host cannot see the owner. When a second host writes to the thread, the first host's session stops, and its running turn fails with a clear error.
-
-The lease decides when a stopped host counts as gone. Change its timing with the `ownership` option of the host:
-
-```ts group=harness-durable
-const leasedHost = createHarnessHost({
-  persistence: { stores: { log: memoryLogStore(), runs } },
+const ownedHost = createHarnessHost({
+  persistence: memoryPersistence(),
   ownership: { ttlMs: 60_000, renewMs: 20_000 },
 })
 ```
+
+- `ttlMs`: how long the ownership lasts after each renewal. The default is 30 000. After it, another host can take the thread.
+- `renewMs`: how often the timer renews. The default is 10 000. When you set only `ttlMs`, the default is a third of `ttlMs`. It must be less than `ttlMs`, else `createHarnessHost` throws a `RangeError`.
+- `hostId`: a stable id for this host, for example the machine or pod name. With it, a thread whose coding tools use a folder on this host stays on this host. Other hosts refuse its tool calls. The host sends a heartbeat to the log store each `renewMs`. When no heartbeat came for `ttlMs`, other hosts can take its threads. See [A folder on one server](./coding-workspaces#a-folder-on-one-server).
+
+An input that waits for the owner keeps its JSON overrides (`model`, `modelOptions`, `reasoning`, and `promptCache`). The `adapter` and `tools` overrides are objects, so the owner runs the input without them.
+
+A [wait](./waits) for a person does not always keep a host busy:
+
+- The approvals and the questions that a turn stopped for, and the waits of background agent runs, are only in the log. The session goes idle, and an answer on any host continues the run.
+- A `step.ask` in code that runs, an MCP server that asks during a tool call, and an OAuth sign-in wait in the memory of the host that runs them. That host keeps the thread until the answer comes.
+
+An answer that reaches another host goes to the owner through the log. Until then, a plain answer waits in the log store as the user typed it. The log keeps a secret answer as `[secret]`.
+
+### Secret answers on another host
+
+A question with `secret: true` asks for a key or a password. The answer must not wait in the log store as the user typed it. So when the answer reaches a host that does not own the thread, it goes through the credential store:
+
+1. The host saves the answer in the `credentials` store of `createHarnessHost`, as a one-time reference for the user who answered.
+2. Only the reference goes into the log store.
+3. The owner reads the answer, deletes it from the store, and answers the question.
+
+If the host does not find the question in the log, it treats the answer as a secret too.
+
+Pass the same `credentials` store to every host. A secret answer can be rejected:
+
+- `secret_answer_needs_credentials`: the host has no `credentials` store, so it cannot send the answer.
+- `unknown_secret_answer`: the reference was used before, it expired, or it belongs to another user.
+
+The store keeps each reference as a credential of the type `secret_answer`:
+
+- Its id starts with `harness:answer:`, and its `expiresAt` is 24 hours later. After that time, the harness does not read it.
+- The owner deletes it when it reads it. The references that nobody read go when the question ends.
+- `run.credentials.list()` does not show it. Leave the `secret_answer` type out of your own `store.list` results too, for example on a page of connected accounts.
+
+### When a host loses a thread
+
+A host can stop renewing for a while: a long garbage collection pause, or a lost network. Then another host takes the thread. When the first host sees this, it stops its work on the thread:
+
+1. Its queued turns end `cancelled`, and its running work stops. The new owner runs that work again from the log.
+2. Its session stays open and still reads the thread.
+3. Its next write takes the thread back, when no other host owns it.
+
+The store refuses each late write of the first host, so the log never gets the records of two owners.
+
+## Fence your own side effects
+
+Your payment system or job queue can refuse a call from a host that lost the thread, or a second call for the same side effect. Each run gives you two values for that in `ctx.context.run`:
+
+- `epoch`: the ownership epoch of the log when the run started. A later owner has a larger one. Give it to a system that refuses an old epoch.
+- `idempotencyKey(step, scope?)`: a key for one side effect, `${logId}:${scope}:${step}`. `scope` defaults to the run id. A run again after a host stop, on any host, gets the same key.
+
+```ts group=harness-durable
+import type { HarnessRunContext } from '@tanstack/ai-harness'
+
+declare const payments: {
+  charge: (charge: { amount: number; idempotencyKey: string }) => Promise<{ id: string }>
+}
+
+const charge = toolDefinition({
+  name: 'charge',
+  description: 'Charge the card',
+}).server<HarnessRunContext>(async (_args, ctx) => {
+  const key = ctx.context.run.idempotencyKey('charge', ctx.toolCallId)
+  return payments.charge({ amount: 100, idempotencyKey: key })
+})
+```
+
+Pass the tool call id as `scope` in a tool, so two calls of one tool get two keys. A step of a [durable tool](./durable-tools) gets its own key as `idempotencyKey`.
 
 ## Check a skipped turn again
 
@@ -356,59 +366,22 @@ A host checks the log of a thread when it opens the thread. A turn that another 
 
 ```ts group=harness-durable
 setInterval(() => {
-  void leasedHost.recover()
+  void ownedHost.recover()
 }, 15_000)
 ```
 
 - `host.recover()` checks every session that this host has open. `host.recover(threadId)` checks one thread.
 - `session.recover()` does the same for one session.
-- Each call first reads the log records that other hosts wrote. Then it runs the turns whose lease expired.
+- Each call first reads the log records that other hosts wrote. Then it runs the turns whose owner stopped.
 - The turns that this session already runs or queues stay as they are. Two calls at the same time run a turn once.
 
-## Use your own leases
-
-Your job queue or submission table can already have leases. Give the host a `LeaseStore` as `stores.leases`, and it uses your system to find a crashed host. Each call gets the `threadId`, `inputId`, `operationId`, and `attempt` of one turn attempt:
-
-- `acquire`: the host takes the lease when the attempt starts. It also gets `ownerId` and `expiresAt`.
-- `renew`: the host extends the lease while the attempt runs. It also gets `ownerId` and `expiresAt`.
-- `release`: the host gives the lease back when the attempt ends. It also gets `ownerId` and `expiresAt`.
-- `isAlive`: after a crash, the host asks if another host still runs the attempt.
-
-A host with `leases` does not need `runs`. If you give both, `leases` decides. The `ownership` option sets the timing, as in the section above.
-
-```ts group=harness-durable
-import type { LeaseStore, TurnLease, TurnLeaseKey } from '@tanstack/ai-persistence'
-
-const held = new Map<string, TurnLease>()
-const keyOf = (k: TurnLeaseKey) =>
-  `${k.threadId}:${k.inputId}:${k.operationId}:${k.attempt}`
-
-// Swap the Map for your queue or table.
-const leases: LeaseStore = {
-  acquire: async (lease) => {
-    held.set(keyOf(lease), lease)
-  },
-  renew: async (lease) => {
-    held.set(keyOf(lease), lease)
-  },
-  release: async (lease) => {
-    held.delete(keyOf(lease))
-  },
-  isAlive: async (key) => (held.get(keyOf(key))?.expiresAt ?? 0) > Date.now(),
-}
-
-const leasedByYou = createHarnessHost({
-  persistence: { stores: { log: memoryLogStore(), leases } },
-})
-```
-
-For the full contract, see [`LeaseStore`](../persistence/store-reference#leasestore).
+A [worker](./workers) does this for the threads that no host has open.
 
 ## What you have now
 
 - Turns that continue after a crash or a deploy, also on threads that nobody opens again.
 - Inputs that reach any instance and run on the instance that owns the thread.
+- A host that stops its work when it loses a thread, and keys that let your own systems refuse a second side effect.
 - A turn that stops after `maxAttempts` or `timeoutMs`, with a clear error code.
 - Tools that run again safely or tell the model to check first, in your own words.
 - Retries of short model errors, with a count that survives a crash.
-- Your own recovery rule, your own leases, and a timer that checks skipped turns again.

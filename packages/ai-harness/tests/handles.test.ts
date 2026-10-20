@@ -4,7 +4,7 @@ import { createHarnessHost, defineHarness } from '../src'
 import { createHarnessHandler } from '../src/server'
 import { hostCountsOf } from '../src/host'
 import { finalizeHandle } from '../src/session/handle'
-import { mockAdapter, text } from './helpers'
+import { mockAdapter, readSse, text } from './helpers'
 import type { HostLifecycleOptions } from '../src'
 
 /**
@@ -144,6 +144,18 @@ describe('a dropped handle', () => {
     await held.close()
     await host.close()
   })
+
+  it('gives no warning after host.close(), which closed its session', async () => {
+    const warnings = droppedWarnings()
+    const { host, open } = setup({ idleCloseMs: 0 })
+    const session = await open('t1')
+    await session.send('Hello.')
+
+    await host.close()
+    finalizeHandle(session)
+
+    expect(warnings()).toHaveLength(0)
+  })
 })
 
 describe('a call after the session closed', () => {
@@ -240,6 +252,7 @@ describe('the HTTP handler', () => {
         holds: 0,
         statuses: 0,
         closing: 0,
+        children: 0,
       }),
     )
     await host.close()
@@ -256,10 +269,13 @@ describe('the HTTP handler', () => {
 
     await session.close()
 
-    // The stream read the open session, and it ends with it.
-    expect(await response.text()).toContain('Hello back.')
     expect(isOpen('t1')).toBe(false)
     expect(hostCountsOf(host).handles).toBe(0)
+    // The stream reads the log, so it still has the turn after the close.
+    const frames = await readSse<unknown>(response, (frame) =>
+      JSON.stringify(frame).includes('Hello back.'),
+    )
+    expect(JSON.stringify(frames)).toContain('Hello back.')
     await host.close()
   })
 

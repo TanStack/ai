@@ -6,6 +6,7 @@ export {
 } from './get-key'
 export {
   readCredential,
+  readCredentialEntry,
   storedProviderKeys,
   tenantScopeOf,
 } from './stored-keys'

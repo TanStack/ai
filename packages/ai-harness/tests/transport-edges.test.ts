@@ -21,6 +21,12 @@ import {
   untilAborted,
 } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const pricer = defineAgent({
   name: 'pricer',
   description: 'Prices a vendor',
@@ -173,10 +179,10 @@ describe('HTTP handler edges', () => {
     expect((await control.json()).status).toBe('accepted')
     const snapshotOf = async () =>
       (await call('snapshot?threadId=user-1-resume')).json()
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect((await snapshotOf()).status).toBe('requires_action'),
     )
-    const [interrupt] = (await snapshotOf()).pendingInterrupts
+    const [{ interrupt }] = (await snapshotOf()).pendingWaits
 
     // A thread with no stopped turn has nothing to resume.
     const nothing = await call('run', {
@@ -215,7 +221,7 @@ describe('HTTP handler edges', () => {
         }),
       })
     await prompt('first')
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect(
         (await (await call('snapshot?threadId=user-1-from')).json()).status,
       ).toBe('idle'),
@@ -249,8 +255,15 @@ describe('WebSocket edges', () => {
     const { socket, sent, closed, receive } = fakeSocket()
     handleHarnessSocket({ host, harness, socket, request: upgrade })
     receive({ type: 'harness.subscribe', threadId: 'user-2-x' })
-    await vi.waitFor(() => expect(closed).toEqual([4403]))
-    expect(sent).toEqual([{ type: 'harness.error', message: 'forbidden' }])
+    await waitFor(() => expect(closed).toEqual([4403]))
+    expect(sent).toEqual([
+      {
+        type: 'harness.error',
+        message: 'forbidden',
+        code: 'forbidden',
+        requestId: expect.any(String),
+      },
+    ])
     await host.close()
   })
 
@@ -264,20 +277,22 @@ describe('WebSocket edges', () => {
       request: upgrade,
     })
     first.receive({ type: 'harness.subscribe', threadId: 'user-1-ws2' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(first.sent.some((frame) => frame.type === 'harness.hello')).toBe(
         true,
       ),
     )
     first.receive({ type: 'harness.subscribe', threadId: 'user-1-ws2' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(first.sent.at(-1)).toEqual({
         type: 'harness.error',
         message: 'Already subscribed.',
+        code: 'invalid_frame',
+        requestId: expect.any(String),
       }),
     )
     first.receive('[1, 2]')
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(first.sent.at(-1)).toMatchObject({ type: 'harness.error' }),
     )
     first.receive({
@@ -285,7 +300,7 @@ describe('WebSocket edges', () => {
       requestId: 'p1',
       input: { op: 'prompt', message: 'hi' },
     })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         first.sent.some(
           (frame) =>
@@ -313,7 +328,7 @@ describe('WebSocket edges', () => {
       threadId: 'user-1-ws2',
       from: cursor && 'cursor' in cursor ? cursor.cursor : undefined,
     })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(second.sent.some((frame) => frame.type === 'harness.hello')).toBe(
         true,
       ),
@@ -341,13 +356,48 @@ describe('WebSocket edges', () => {
       requestId: 'p1',
       input: { op: 'prompt', message: 'hi' },
     })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         sent.find((frame) => frame.type === 'harness.receipt'),
       ).toMatchObject({ requestId: 'p1', status: 'accepted' }),
     )
     expect(sent.some((frame) => frame.type === 'harness.error')).toBe(false)
     socket.close()
+    await host.close()
+  })
+
+  it('closes the socket on a frame over media.maxBodyBytes, and runs nothing', async () => {
+    const { host } = setup()
+    const { adapter, calls } = mockAdapter([() => text('hello')])
+    const harness = defineHarness({
+      name: 'test/transport',
+      adapter,
+      media: { maxBodyBytes: 200 },
+    })
+    const { socket, sent, closed, receive } = fakeSocket()
+    handleHarnessSocket({ host, harness, socket, request: upgrade })
+
+    receive({ type: 'harness.subscribe', threadId: 'user-1-big' })
+    await vi.waitFor(() =>
+      expect(sent.some((frame) => frame.type === 'harness.hello')).toBe(true),
+    )
+    receive({
+      type: 'harness.input',
+      requestId: 'p1',
+      input: { op: 'prompt', message: 'x'.repeat(300) },
+    })
+
+    // The frame is not parsed, so its error frame names the socket, not p1.
+    expect(sent.at(-1)).toEqual({
+      type: 'harness.error',
+      message: 'The frame is bigger than the limit of 200 bytes.',
+      code: 'invalid_frame',
+      requestId: expect.any(String),
+    })
+    expect(sent.at(-1)).not.toMatchObject({ requestId: 'p1' })
+    expect(closed).toEqual([1009])
+    expect(sent.some((frame) => frame.type === 'harness.receipt')).toBe(false)
+    expect(calls).toHaveLength(0)
     await host.close()
   })
 
@@ -452,7 +502,7 @@ describe('protocol parsing and inputs', () => {
       }),
     ).toHaveProperty('status')
     release.open()
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
 
     expect(
       await applyInput({
@@ -628,7 +678,7 @@ describe('an operation that waits for cancel', () => {
       principal: user,
     })
     const operation = session.send('wait')
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('running'))
+    await waitFor(() => expect(session.snapshot().status).toBe('running'))
     await applyInput({
       harness,
       session,

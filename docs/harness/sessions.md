@@ -53,14 +53,14 @@ What an entry holds:
 - `tenantId`: the tenant of the thread. Without it, the thread is in the default tenant. See [Access and tenants](./access).
 - `usage` and `parentThreadId`: the token totals of the thread, and the parent thread of a child session, for example a subagent run.
 
-A durable host takes `sessions` next to `log`:
+The host takes `sessions` next to `log`:
 
 ```ts group=harness-sessions
 import { memoryLogStore } from '@tanstack/ai-persistence'
 
-const { runs, sessions } = memoryPersistence().stores
+const { sessions } = memoryPersistence().stores
 const durableHost = createHarnessHost({
-  persistence: { stores: { log: memoryLogStore(), runs, sessions } },
+  persistence: { stores: { log: memoryLogStore(), sessions } },
 })
 ```
 
@@ -131,7 +131,7 @@ await fork.send('Plan a trip to Porto.')
 - The host picks the new thread id. The new entry has the title of the old one plus ` (fork)`. A thread without a title gives a fork without a title.
 - With a `principal` and host `access`, the user who forks owns the fork. `members` picks who else is in it. See [Fork a shared thread](./shared-threads#6-fork-a-shared-thread). Without access and without `members`, the fork keeps the owner and the members of the old thread.
 - If the transcript has no message with that id, `fork` throws.
-- If the index entry of the thread names another harness, `fork` throws. One host can run more than one harness.
+- If the index entry of the thread names another harness, `fork` throws. One host can run more than one harness. To move a chat to another harness, use [`host.transfer`](./handoffs#5-move-a-conversation-to-another-harness).
 
 What a fork copies, and what it does not copy: [Fork and reset a thread](./fork-and-reset#fork-a-thread-at-a-message).
 
@@ -143,14 +143,14 @@ A fork keeps the old chat. To go back in the same chat, revert it to a message:
 const [question] = await session.transcript()
 if (!question?.id) throw new Error('The chat has no messages.')
 
-await session.revert(question.id)
+await session.revert({ messageId: question.id })
 // The transcript now ends at `question`. To bring the later messages back:
 await session.unrevert()
 ```
 
 - While a revert stands, `transcript()` hides the messages after that message. The session keeps them.
 - The next turn drops the hidden messages for good. A steer, a follow-up, and `continue` are turns too.
-- The session saves the revert in the log, or in `stores.metadata` on a host without a log. A restart keeps it.
+- The session saves the revert in the log. A restart keeps it.
 - Each change sends a `harness.revert` event. Read the transcript again when it arrives.
 - `revert` and `unrevert` refuse with `busy` when the session is not idle, or when another host runs the thread. `revert` refuses with `unknown_message` for an id that is not in the transcript.
 
@@ -257,7 +257,9 @@ void watch()
 - `session-deleted`: the host removed an entry. `entry` is the removed entry.
 - `revoked`: `host.revoke` or `unshare` took the access of the user `principalId` to `threadId`. See [Use your own access tables](./access#use-your-own-access-tables).
 
-Each host reports only the sessions that are open in it. A session with no status event is not open, so show it as idle.
+Each host reports only the sessions that are open in it. For those sessions, the status also counts the turns and the questions that another host writes to the same log. A session with no status event is not open, so show it as idle.
+
+A reader that does not keep up stops. When more than 1 000 changes wait for it, its loop ends. The first statuses do not count. Call `host.events()` again: the current statuses come first again.
 
 `host.close()` does not end the readers of `events()`. Abort the signal of each reader before you close the host. If you do not abort it, the loop waits forever:
 
