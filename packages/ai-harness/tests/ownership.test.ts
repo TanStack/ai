@@ -5,7 +5,14 @@ import {
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, durableTool, logIdOf } from '../src'
+import {
+  LogOwnedElsewhereError,
+  createHarnessHost,
+  defineHarness,
+  definePlugin,
+  durableTool,
+  logIdOf,
+} from '../src'
 import { HostOwnership } from '../src/ownership'
 import {
   CRASHING_OWNERSHIP,
@@ -21,7 +28,7 @@ import {
 } from './helpers'
 import type { AnyTool } from '@tanstack/ai'
 import type { LogStore } from '@tanstack/ai-persistence'
-import type { HarnessRunContext, OwnershipOptions } from '../src'
+import type { HarnessPlugin, HarnessRunContext, OwnershipOptions } from '../src'
 import type { StepRun } from '../src/durable-tool'
 import type { Reply } from './helpers'
 
@@ -43,6 +50,7 @@ async function openOn(
     tools?: Array<AnyTool>
     ownership?: OwnershipOptions
     threadId?: string
+    plugins?: () => ReadonlyArray<HarnessPlugin>
   } = {},
 ) {
   const { adapter, calls } = mockAdapter(replies)
@@ -54,6 +62,7 @@ async function openOn(
     name: 'test/ownership',
     adapter,
     tools: options.tools ?? [],
+    ...(options.plugins ? { plugins: options.plugins } : {}),
   })
   const session = await host.open(harness, {
     threadId: options.threadId ?? THREAD,
@@ -189,6 +198,78 @@ describe('ownership of a log by two hosts', () => {
     // A reads on: it has the records of B.
     expect(assistantTexts(await a.session.transcript())).toContain('B done')
     expect(a.session.snapshot().status).toBe('idle')
+    await a.host.close()
+    await b.host.close()
+  })
+
+  it('keeps the plugin state of another host off the log while the owner runs a tool', async () => {
+    const { logA, logB } = twoHosts()
+    const release = gate()
+    const wait = toolDefinition({
+      name: 'wait',
+      description: 'Wait',
+    }).server(async () => {
+      await release.opened
+      return 'waited'
+    })
+    // Like the MCP plugin: a host writes the state of its connection on
+    // mount. The test keeps the outcome of that write.
+    let stateWrite: Promise<unknown> | undefined
+    const status = definePlugin({
+      name: 'test/status',
+      setup: (ctx) => {
+        stateWrite = ctx
+          .state({ connected: false })
+          .update(() => ({ connected: true }))
+          .then(
+            () => 'written',
+            (error: unknown) => error,
+          )
+        return {}
+      },
+    })
+    const a = await openOn(
+      logA,
+      [() => toolCall('wait', {}), () => text('One.'), () => text('Two.')],
+      { tools: [wait] },
+    )
+    const turn = a.session.send('Go.', { inputId: 'in-a' })
+    await waitFor(() => expect(a.calls).toHaveLength(1))
+
+    // B opens the thread while A runs the tool. The state write of its
+    // plugin is refused: A owns the log.
+    const b = await openOn(logB, [], { tools: [wait], plugins: () => [status] })
+    expect(await stateWrite).toBeInstanceOf(LogOwnedElsewhereError)
+    // The input of B waits for A on the input lane.
+    expect(
+      await b.session.send('And then?', {
+        inputId: 'in-b',
+        mode: 'followUp',
+      }).receipt,
+    ).toEqual({ inputId: 'in-b', status: 'queued' })
+
+    // The turn of A did not stop, and A runs the input of B after it.
+    release.open()
+    expect(await turn).toEqual({ text: 'One.', media: [] })
+    expect(await a.session.settled({ inputId: 'in-b' })).toMatchObject({
+      outcome: 'completed',
+    })
+    expect(a.calls).toHaveLength(3)
+    expect(b.calls).toHaveLength(0)
+    expect(await a.session.transcript()).toMatchObject([
+      { role: 'user', content: 'Go.' },
+      { role: 'assistant' },
+      { role: 'tool', content: 'waited' },
+      { role: 'assistant', content: 'One.' },
+      { role: 'user', content: 'And then?' },
+      { role: 'assistant', content: 'Two.' },
+    ])
+    // The log has no record of the plugin state of B.
+    const types = (await logA.read({ logId: LOG })).map(
+      (entry) => entry.record.type,
+    )
+    expect(types).not.toContain('harness.plugin.state')
+    expect(a.session.snapshot().plugins).toEqual({})
     await a.host.close()
     await b.host.close()
   })
