@@ -349,7 +349,7 @@ Call `showWhoIsHere` when the page opens. To update it at once, publish a change
 - Each stream is one connection with its own `connectionId`. Two tabs of Bob are two connections, so the route counts users, not streams.
 - `GET events` and the socket of `handleHarnessSocket` count. `POST run` streams and reads from your own code do not.
 - `resumed` is `true` for a stream that goes on from a cursor, for example a reconnect.
-- `onDisconnect` runs once for each `onConnect`. Its `reason` is `closed`, `revoked` (a revoke or `unshare`), or `error`.
+- `onDisconnect` runs once for each `onConnect`. Its `reason` is `closed`, `revoked` (a revoke or `unshare`), or `error`. `error` includes a stream that the server closes because the client reads too slowly.
 - Each server reports only its own streams. When more than one server runs, keep the streams in a shared store, for example Redis, in place of the `Map`.
 
 The host does not wait for a hook. A hook that throws or rejects only logs a warning, and the stream goes on.

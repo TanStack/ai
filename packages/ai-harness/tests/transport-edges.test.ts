@@ -853,6 +853,40 @@ describe('presence hooks', () => {
     await host.close()
   })
 
+  it('reports error when a slow client makes the server close the stream', async () => {
+    const { host, harness, prompt, connected, left } = presenceSetup()
+    await prompt('t-slow')
+    // One byte of queue and 50 ms: a client that does not read is slow.
+    const stream = { sseQueueBytes: 1, slowConsumerMs: 50 }
+    const handler = createHarnessHandler({ host, harness, stream })
+    const response = await handler(
+      new Request('http://x/api/harness/events?threadId=t-slow', {
+        headers: auth,
+      }),
+    )
+    const fake = fakeSocket()
+    handleHarnessSocket({
+      host,
+      harness,
+      socket: Object.assign(fake.socket, { bufferedAmount: 2 }),
+      request: upgrade,
+      stream: { socketBufferBytes: 1, slowConsumerMs: 50 },
+    })
+    fake.receive({ type: 'harness.subscribe', threadId: 't-slow' })
+
+    await waitFor(() => expect(left).toHaveLength(2))
+    expect(fake.closed).toEqual([4408])
+    expect(
+      left.map(({ transport, reason }) => [transport, reason]).sort(),
+    ).toEqual([
+      ['sse', 'error'],
+      ['websocket', 'error'],
+    ])
+    expect(connected).toHaveLength(2)
+    await response.body?.cancel()
+    await host.close()
+  })
+
   it('keeps the stream when a hook throws, and only warns', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const { host, call, prompt, connected, left } = presenceSetup({
