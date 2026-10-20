@@ -43,6 +43,14 @@ const stream = chat({
 });
 ```
 
+## MiniMax models
+
+Use `openRouterText("minimax/minimax-m3.1-flash:free")` for MiniMax Flash, or `openRouterText("minimax/minimax-m3")` for M3. The `:free` suffix is part of [OpenRouter's published Flash ID](https://openrouter.ai/api/v1/models).
+
+Flash accepts text and images, tools, and `reasoning: "low"`, `"medium"`, `"high"`, `"xhigh"`, or `"max"`. Omitting `reasoning` leaves the gateway default unchanged; Flash always reasons and has no `off` level. Assistant thinking is replayed with tool-call history.
+
+`OPENROUTER_CHAT_MODELS` offers Flash then M3 as the ordinary MiniMax choices. Use `OPENROUTER_ALL_CHAT_MODELS` when validating a saved selection: it retains legacy IDs accepted by the adapters. Existing explicit model choices are not migrated.
+
 ## Configuration
 
 ```typescript

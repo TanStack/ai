@@ -13,6 +13,7 @@ import { videoModels as videoApiModels } from './openrouter.video-models'
 import type { OpenRouterModel } from './openrouter.models'
 import type { OpenRouterVideoApiModel } from './openrouter.video-models'
 import { toModelConstName } from './model-sync/ids'
+import { currentMiniMaxModels } from './model-sync/current-minimax-models'
 import {
   reasoningShapeName,
   reasoningShapeTable,
@@ -118,7 +119,20 @@ function generateChatModelsArray(): string {
   ) {
     modelIds.push(`"openrouter/auto"`)
   }
-  return `export const OPENROUTER_CHAT_MODELS = [\n${modelIds
+  const currentIds = currentMiniMaxModels(
+    models
+      .filter((model) => chatModels.has(`${toModelConstName(model.id)}.id`))
+      .map((model) => model.id),
+  ).map((id) => `${toModelConstName(id)}.id`)
+  if (modelIds.includes('"openrouter/auto"'))
+    currentIds.push('"openrouter/auto"')
+  return `/** All accepted ids, including legacy models for saved requests. */
+export const OPENROUTER_ALL_CHAT_MODELS = [\n${modelIds
+    .map((id) => `  ${id},`)
+    .join('\n')}\n] as const
+
+/** Ordinary choices; legacy models remain accepted through OPENROUTER_ALL_CHAT_MODELS. */
+export const OPENROUTER_CHAT_MODELS = [\n${currentIds
     .map((id) => `  ${id},`)
     .join('\n')}\n] as const`
 }
@@ -152,7 +166,7 @@ function generateChatModelInputModalitiesMap(): string {
  */
 export const OPENROUTER_MODEL_INPUT_MODALITIES: Readonly<Record<string, ReadonlyArray<Modality>>> = {\n${entries.join(
     '\n',
-  )}\n} satisfies { [K in (typeof OPENROUTER_CHAT_MODELS)[number]]: OpenRouterModelInputModalitiesByName[K] }`
+  )}\n} satisfies { [K in (typeof OPENROUTER_ALL_CHAT_MODELS)[number]]: OpenRouterModelInputModalitiesByName[K] }`
 }
 
 /**
@@ -218,7 +232,7 @@ function generateChatToolCapabilitiesType(): string {
   if (chatModels.size === 0) {
     return ''
   }
-  return `export type OpenRouterChatModelToolCapabilitiesByName = {\n  [K in (typeof OPENROUTER_CHAT_MODELS)[number]]: readonly ['web_search', 'web_fetch']\n}`
+  return `export type OpenRouterChatModelToolCapabilitiesByName = {\n  [K in (typeof OPENROUTER_ALL_CHAT_MODELS)[number]]: readonly ['web_search', 'web_fetch']\n}`
 }
 
 function generateImageModelsArray(): string {
@@ -447,7 +461,19 @@ function generateModelMetaString(model: OpenRouterModel): string {
   lines.push(`      },`)
   lines.push(`      image: ${imagePrice},`)
   lines.push(`    },`)
-  const reasoning = existingReasoning[model.id]
+  const reasoning =
+    model.id === 'minimax/minimax-m3.1-flash:free'
+      ? ({
+          levels: {
+            low: 'low',
+            medium: 'medium',
+            high: 'high',
+            xhigh: 'xhigh',
+            max: 'max',
+          },
+          budget: false,
+        } as const)
+      : existingReasoning[model.id]
   if (reasoning) {
     lines.push(`    reasoning: ${reasoningShapeName(reasoning)},`)
     reasoningModels.add(constName)

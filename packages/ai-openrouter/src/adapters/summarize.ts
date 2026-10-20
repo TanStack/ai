@@ -3,9 +3,9 @@ import { getOpenRouterApiKeyFromEnv } from '../utils'
 import { OpenRouterTextAdapter } from './text'
 import type { InferTextProviderOptions } from '@tanstack/ai/adapters'
 import type { OpenRouterConfig } from './text'
-import type { OPENROUTER_CHAT_MODELS } from '../model-meta'
+import type { OPENROUTER_ALL_CHAT_MODELS } from '../model-meta'
 
-export type OpenRouterTextModels = (typeof OPENROUTER_CHAT_MODELS)[number]
+export type OpenRouterTextModels = (typeof OPENROUTER_ALL_CHAT_MODELS)[number]
 
 /**
  * Configuration for OpenRouter summarize adapter

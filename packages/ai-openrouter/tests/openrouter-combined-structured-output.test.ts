@@ -3,7 +3,7 @@ import { EventType, chat } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { z } from 'zod'
 import {
-  OPENROUTER_CHAT_MODELS,
+  OPENROUTER_ALL_CHAT_MODELS,
   OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS,
 } from '../src/model-meta'
 import { openRouterSupportsCombinedToolsAndSchema } from '../src/internal/combined-tools-and-schema'
@@ -183,7 +183,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
           'k',
         ).supportsCombinedToolsAndSchema(),
       ).toBe(false)
-      const modelWithoutCombined = OPENROUTER_CHAT_MODELS.find(
+      const modelWithoutCombined = OPENROUTER_ALL_CHAT_MODELS.find(
         (id) => !OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS.has(id),
       )
       if (modelWithoutCombined === undefined) {
@@ -536,18 +536,19 @@ describe('OpenRouter combined tools + outputSchema', () => {
   })
 
   describe('set integrity', () => {
-    const catalog = new Set<string>(OPENROUTER_CHAT_MODELS)
+    const catalog = new Set<string>(OPENROUTER_ALL_CHAT_MODELS)
 
     it('every combined-mode id exists in the OpenRouter catalog', () => {
       for (const id of OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS) {
-        expect(catalog.has(id), `${id} is not in OPENROUTER_CHAT_MODELS`).toBe(
-          true,
-        )
+        expect(
+          catalog.has(id),
+          `${id} is not in OPENROUTER_ALL_CHAT_MODELS`,
+        ).toBe(true)
       }
     })
 
     it('every Gemini 3.x text catalog id is in the combined set', () => {
-      for (const id of OPENROUTER_CHAT_MODELS) {
+      for (const id of OPENROUTER_ALL_CHAT_MODELS) {
         if (!id.startsWith('google/gemini-3')) continue
         if (id.includes(':')) continue
         if (id.includes('-image')) continue
@@ -559,7 +560,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
     })
 
     it('every Grok 4.x tool-capable catalog id is in the combined set', () => {
-      for (const id of OPENROUTER_CHAT_MODELS) {
+      for (const id of OPENROUTER_ALL_CHAT_MODELS) {
         if (!id.startsWith('x-ai/grok-4')) continue
         if (id.includes(':')) continue
         if (id.includes('multi-agent')) continue

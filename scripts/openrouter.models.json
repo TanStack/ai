@@ -16046,6 +16046,44 @@
     }
   },
   {
+    "id": "minimax/minimax-m3.1-flash:free",
+    "canonical_slug": "minimax/minimax-m3.1-flash-20261019",
+    "hugging_face_id": null,
+    "name": "MiniMax: MiniMax M3.1 Flash (free)",
+    "created": 1792379569,
+    "context_length": 1000000,
+    "architecture": {
+      "modality": "text+image+video->text",
+      "input_modalities": ["text", "image", "video"],
+      "output_modalities": ["text"],
+      "tokenizer": "Other",
+      "instruct_type": null
+    },
+    "pricing": { "prompt": "0", "completion": "0" },
+    "top_provider": {
+      "context_length": 1000000,
+      "max_completion_tokens": 524288,
+      "is_moderated": false
+    },
+    "per_request_limits": null,
+    "supported_parameters": [
+      "include_reasoning",
+      "max_tokens",
+      "reasoning",
+      "reasoning_effort",
+      "response_format",
+      "temperature",
+      "tool_choice",
+      "tools",
+      "top_p"
+    ],
+    "reasoning": {
+      "mandatory": true,
+      "supported_efforts": ["max", "xhigh", "high", "medium", "low"],
+      "default_effort": "max"
+    }
+  },
+  {
     "id": "minimax/minimax-m3",
     "canonical_slug": "minimax/minimax-m3-20260531",
     "hugging_face_id": "MiniMaxAI/Minimax-M3",

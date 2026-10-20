@@ -2,9 +2,9 @@ import type {
   ChatContentCacheControl,
   ChatRequest,
 } from '@openrouter/sdk/models'
-import type { OPENROUTER_CHAT_MODELS } from '../model-meta'
+import type { OPENROUTER_ALL_CHAT_MODELS } from '../model-meta'
 
-type OpenRouterChatModel = (typeof OPENROUTER_CHAT_MODELS)[number]
+type OpenRouterChatModel = (typeof OPENROUTER_ALL_CHAT_MODELS)[number]
 
 // ---------------------------------------------------------------------------
 // Type aliases derived from the SDK's ChatRequest

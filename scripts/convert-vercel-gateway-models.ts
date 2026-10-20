@@ -9,6 +9,7 @@ import { writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { models } from './vercel-gateway.models'
+import { currentMiniMaxModels } from './model-sync/current-minimax-models'
 import {
   reasoningShapeName,
   reasoningShapeTable,
@@ -159,7 +160,19 @@ function formatReasoning(
   const shapes: Array<ReasoningShape> = []
   const entries: Array<string> = []
   for (const id of chatIds) {
-    const reasoning = existing[id]
+    const reasoning =
+      id === 'minimax/minimax-m3.1-flash'
+        ? ({
+            levels: {
+              low: 'low',
+              medium: 'medium',
+              high: 'high',
+              xhigh: 'xhigh',
+              max: 'max',
+            },
+            budget: false,
+          } as const)
+        : existing[id]
     if (!reasoning) continue
     shapes.push(reasoning)
     entries.push(`  ${JSON.stringify(id)}: ${reasoningShapeName(reasoning)},`)
@@ -295,9 +308,13 @@ import type {
   VercelGatewayTextProviderOptions,
 } from './text/text-provider-options'
 
-export const VERCEL_GATEWAY_CHAT_MODELS = ${formatStringArray(chatIds)}
+/** All accepted ids, including legacy models for saved requests. */
+export const VERCEL_GATEWAY_ALL_CHAT_MODELS = ${formatStringArray(chatIds)}
 
-export type VercelGatewayChatModel = (typeof VERCEL_GATEWAY_CHAT_MODELS)[number]
+/** Ordinary choices; legacy ids remain accepted by the adapters. */
+export const VERCEL_GATEWAY_CHAT_MODELS = ${formatStringArray(currentMiniMaxModels(chatIds))}
+
+export type VercelGatewayChatModel = (typeof VERCEL_GATEWAY_ALL_CHAT_MODELS)[number]
 
 export const VERCEL_GATEWAY_PROVIDERS = ${formatStringArray(uniqueSorted(providers))}
 

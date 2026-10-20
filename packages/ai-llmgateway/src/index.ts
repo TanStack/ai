@@ -34,7 +34,10 @@ export type {
   LLMGatewayChatModels,
   LLMGatewayModelId,
 } from './model-meta'
-export { LLMGATEWAY_CHAT_MODELS } from './model-meta'
+export {
+  LLMGATEWAY_CHAT_MODELS,
+  LLMGATEWAY_ALL_CHAT_MODELS,
+} from './model-meta'
 export type {
   LLMGatewayTextMetadata,
   LLMGatewayImageMetadata,

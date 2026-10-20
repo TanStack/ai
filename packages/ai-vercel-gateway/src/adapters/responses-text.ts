@@ -11,7 +11,7 @@ import type { ResponseCreateParams } from 'openai/resources/responses/responses'
 import type {
   ResolveInputModalities,
   ResolveProviderOptions,
-  VERCEL_GATEWAY_CHAT_MODELS,
+  VERCEL_GATEWAY_ALL_CHAT_MODELS,
   VercelGatewayChatModelToolCapabilitiesByName,
   VercelGatewayModelReasoningByName,
 } from '../model-meta'
@@ -51,7 +51,7 @@ type ResolveToolCapabilities<TModel extends string> =
  * `https://ai-gateway.vercel.sh/v1`.
  */
 export class VercelGatewayResponsesTextAdapter<
-  TModel extends (typeof VERCEL_GATEWAY_CHAT_MODELS)[number],
+  TModel extends (typeof VERCEL_GATEWAY_ALL_CHAT_MODELS)[number],
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
@@ -99,7 +99,7 @@ export class VercelGatewayResponsesTextAdapter<
 }
 
 export function createVercelGatewayResponsesText<
-  TModel extends (typeof VERCEL_GATEWAY_CHAT_MODELS)[number],
+  TModel extends (typeof VERCEL_GATEWAY_ALL_CHAT_MODELS)[number],
 >(
   model: TModel,
   apiKey: string,
@@ -109,7 +109,7 @@ export function createVercelGatewayResponsesText<
 }
 
 export function vercelGatewayResponsesText<
-  TModel extends (typeof VERCEL_GATEWAY_CHAT_MODELS)[number],
+  TModel extends (typeof VERCEL_GATEWAY_ALL_CHAT_MODELS)[number],
 >(
   model: TModel,
   config?: Omit<VercelGatewayResponsesTextConfig, 'apiKey'>,

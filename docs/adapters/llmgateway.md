@@ -127,6 +127,12 @@ export async function POST(request: Request) {
 }
 ```
 
+## MiniMax models
+
+Use `llmGatewayText("minimax-m3.1-flash")` for Flash or `llmGatewayText("minimax-m3")` for M3. Both accept images and tools. Flash accepts `reasoning: "low"`, `"medium"`, `"high"`, `"xhigh"`, or `"max"`; omit it to retain the gateway default. Flash has no `off` level. Assistant thinking is preserved when replaying tool-call history.
+
+`LLMGATEWAY_CHAT_MODELS` offers Flash then M3 as its MiniMax choices. `LLMGATEWAY_ALL_CHAT_MODELS` also includes legacy curated IDs. Explicit legacy and custom IDs remain accepted. Context limits and prices follow the [LLM Gateway catalog](https://api.llmgateway.io/v1/models), which can differ from direct MiniMax access.
+
 ## Model Options
 
 The gateway accepts the standard Chat Completions parameters and forwards them to the routed provider (parameters a provider doesn't support are stripped server-side). Sampling parameters live in `modelOptions`:
@@ -152,7 +158,7 @@ const stream = chat({
 
 - `kimi-k3`, `glm-5.2`, `deepseek-v4-pro`, `qwen3.7-max`: `off` to `max`.
 - `gpt-5.6-terra`: `off`, `low` to `max`. `gpt-5.5`, `gpt-5.4-mini`: `off`, `low` to `xhigh`.
-- `claude-opus-5`, `claude-sonnet-5`, `claude-haiku-4-5`, `minimax-m2.5`: `low` to `max`.
+- `claude-opus-5`, `claude-sonnet-5`, `claude-haiku-4-5`, `minimax-m3.1-flash`: `low` to `max`.
 - `gemini-pro-latest`, `grok-4-5`: `low` to `high`. `gemini-3.6-flash`: `minimal` to `high`.
 
 Reasoning models stream their thinking as `reasoning_content` deltas, which the adapter surfaces as AG-UI `REASONING_*` events.

@@ -5,11 +5,11 @@ import { mapGatewayModelOptions } from '../utils/map-gateway-options'
 import { VERCEL_GATEWAY_MODEL_REASONING } from '../model-meta'
 import { resolveReasoning } from '@tanstack/ai/adapter-internals'
 import type { ResolvedReasoning } from '@tanstack/ai/adapter-internals'
-import type { Modality, TextOptions } from '@tanstack/ai'
+import type { Modality, ModelMessage, TextOptions } from '@tanstack/ai'
 import type {
   ResolveInputModalities,
   ResolveProviderOptions,
-  VERCEL_GATEWAY_CHAT_MODELS,
+  VERCEL_GATEWAY_ALL_CHAT_MODELS,
   VercelGatewayChatModelToolCapabilitiesByName,
   VercelGatewayModelReasoningByName,
 } from '../model-meta'
@@ -54,7 +54,7 @@ export type { ExternalTextProviderOptions as VercelGatewayTextProviderOptions } 
  * `https://ai-gateway.vercel.sh/v1`.
  */
 export class VercelGatewayTextAdapter<
-  TModel extends (typeof VERCEL_GATEWAY_CHAT_MODELS)[number],
+  TModel extends (typeof VERCEL_GATEWAY_ALL_CHAT_MODELS)[number],
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
@@ -78,6 +78,38 @@ export class VercelGatewayTextAdapter<
       new OpenAI(withVercelGatewayDefaults(config)),
       config,
     )
+  }
+
+  protected override convertMessage(message: ModelMessage) {
+    const converted = super.convertMessage(message)
+    if (
+      (this.model === 'minimax/minimax-m3.1-flash' ||
+        this.model === 'minimax/minimax-m3') &&
+      message.role === 'assistant' &&
+      message.thinking?.length
+    ) {
+      return {
+        ...converted,
+        reasoning_details: message.thinking
+          .filter((part) => !part.redacted)
+          .map((part) => ({ type: 'reasoning.text', text: part.content })),
+      }
+    }
+    return converted
+  }
+
+  protected override extractReasoning(
+    chunk: unknown,
+  ): { text: string } | undefined {
+    if (
+      this.model !== 'minimax/minimax-m3.1-flash' &&
+      this.model !== 'minimax/minimax-m3'
+    )
+      return undefined
+    const raw = (
+      chunk as { choices?: Array<{ delta?: { reasoning?: unknown } }> }
+    ).choices?.[0]?.delta?.reasoning
+    return typeof raw === 'string' && raw ? { text: raw } : undefined
   }
 
   protected override mapOptionsToRequest(options: TextOptions) {

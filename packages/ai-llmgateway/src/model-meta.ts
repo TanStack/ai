@@ -426,6 +426,43 @@ const QWEN_3_7_MAX = {
   reasoning: EFFORT_NONE_MINIMAL_TO_MAX,
 } as const satisfies ModelMeta<LLMGatewayTextProviderOptions>
 
+// Gateway limits and prices: https://api.llmgateway.io/v1/models
+const MINIMAX_M3_1_FLASH = {
+  name: 'minimax-m3.1-flash',
+  context_window: 1_048_576,
+  max_completion_tokens: 524_288,
+  pricing: {
+    input: { normal: 0.15, cached: 0.015 },
+    output: { normal: 0.6 },
+  },
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    endpoints: ['chat'],
+    features: ['streaming', 'tools', 'reasoning', 'vision'],
+    tools: [] as const,
+  },
+  reasoning: EFFORT_LOW_TO_MAX,
+} as const satisfies ModelMeta<LLMGatewayTextProviderOptions>
+
+const MINIMAX_M3 = {
+  name: 'minimax-m3',
+  context_window: 1_048_576,
+  max_completion_tokens: 131_072,
+  pricing: {
+    input: { normal: 0.28, cached: 0.05 },
+    output: { normal: 1.1 },
+  },
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    endpoints: ['chat'],
+    features: ['streaming', 'tools', 'reasoning', 'vision'],
+    tools: [] as const,
+  },
+  reasoning: EFFORT_NONE_MINIMAL_TO_MAX,
+} as const satisfies ModelMeta<LLMGatewayTextProviderOptions>
+
 const MINIMAX_M2_5 = {
   name: 'minimax-m2.5',
   context_window: 204_800,
@@ -498,14 +535,20 @@ export const LLMGATEWAY_CHAT_MODELS = [
   GLM_5_2.name,
   DEEPSEEK_V4_PRO.name,
   QWEN_3_7_MAX.name,
-  MINIMAX_M2_5.name,
+  MINIMAX_M3_1_FLASH.name,
+  MINIMAX_M3.name,
   GROK_4_5.name,
 ] as const
 
 /**
  * Union type of all curated LLM Gateway chat model names.
  */
-export type LLMGatewayChatModels = (typeof LLMGATEWAY_CHAT_MODELS)[number]
+export const LLMGATEWAY_ALL_CHAT_MODELS = [
+  ...LLMGATEWAY_CHAT_MODELS,
+  MINIMAX_M2_5.name,
+] as const
+
+export type LLMGatewayChatModels = (typeof LLMGATEWAY_ALL_CHAT_MODELS)[number]
 
 /**
  * Model id accepted by the LLM Gateway adapters: a curated model name (with
@@ -533,6 +576,8 @@ export type LLMGatewayModelInputModalitiesByName = {
   [GLM_5_2.name]: typeof GLM_5_2.supports.input
   [DEEPSEEK_V4_PRO.name]: typeof DEEPSEEK_V4_PRO.supports.input
   [QWEN_3_7_MAX.name]: typeof QWEN_3_7_MAX.supports.input
+  [MINIMAX_M3_1_FLASH.name]: typeof MINIMAX_M3_1_FLASH.supports.input
+  [MINIMAX_M3.name]: typeof MINIMAX_M3.supports.input
   [MINIMAX_M2_5.name]: typeof MINIMAX_M2_5.supports.input
   [GROK_4_5.name]: typeof GROK_4_5.supports.input
 }
@@ -557,6 +602,8 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
   [GLM_5_2.name]: GLM_5_2.supports.input,
   [DEEPSEEK_V4_PRO.name]: DEEPSEEK_V4_PRO.supports.input,
   [QWEN_3_7_MAX.name]: QWEN_3_7_MAX.supports.input,
+  [MINIMAX_M3_1_FLASH.name]: MINIMAX_M3_1_FLASH.supports.input,
+  [MINIMAX_M3.name]: MINIMAX_M3.supports.input,
   [MINIMAX_M2_5.name]: MINIMAX_M2_5.supports.input,
   [GROK_4_5.name]: GROK_4_5.supports.input,
 } satisfies LLMGatewayModelInputModalitiesByName
@@ -566,7 +613,7 @@ export const LLMGATEWAY_MODEL_INPUT_MODALITIES: Readonly<
  * type.
  */
 export type LLMGatewayChatModelProviderOptionsByName = {
-  [K in (typeof LLMGATEWAY_CHAT_MODELS)[number]]: LLMGatewayTextProviderOptions
+  [K in (typeof LLMGATEWAY_ALL_CHAT_MODELS)[number]]: LLMGatewayTextProviderOptions
 }
 
 /**
@@ -588,6 +635,8 @@ export type LLMGatewayChatModelToolCapabilitiesByName = {
   [GLM_5_2.name]: typeof GLM_5_2.supports.tools
   [DEEPSEEK_V4_PRO.name]: typeof DEEPSEEK_V4_PRO.supports.tools
   [QWEN_3_7_MAX.name]: typeof QWEN_3_7_MAX.supports.tools
+  [MINIMAX_M3_1_FLASH.name]: typeof MINIMAX_M3_1_FLASH.supports.tools
+  [MINIMAX_M3.name]: typeof MINIMAX_M3.supports.tools
   [MINIMAX_M2_5.name]: typeof MINIMAX_M2_5.supports.tools
   [GROK_4_5.name]: typeof GROK_4_5.supports.tools
 }
@@ -632,6 +681,8 @@ const LLMGATEWAY_REASONING = {
   [GLM_5_2.name]: GLM_5_2.reasoning,
   [DEEPSEEK_V4_PRO.name]: DEEPSEEK_V4_PRO.reasoning,
   [QWEN_3_7_MAX.name]: QWEN_3_7_MAX.reasoning,
+  [MINIMAX_M3_1_FLASH.name]: MINIMAX_M3_1_FLASH.reasoning,
+  [MINIMAX_M3.name]: MINIMAX_M3.reasoning,
   [MINIMAX_M2_5.name]: MINIMAX_M2_5.reasoning,
   [GROK_4_5.name]: GROK_4_5.reasoning,
 }

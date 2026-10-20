@@ -2,13 +2,13 @@ import { ChatStreamSummarizeAdapter } from '@tanstack/ai/adapters'
 import { getVercelGatewayApiKeyFromEnv } from '../utils/client'
 import { VercelGatewayTextAdapter } from './text'
 import type { InferTextProviderOptions } from '@tanstack/ai/adapters'
-import type { VERCEL_GATEWAY_CHAT_MODELS } from '../model-meta'
+import type { VERCEL_GATEWAY_ALL_CHAT_MODELS } from '../model-meta'
 import type { VercelGatewayClientConfig } from '../utils/client'
 
 export interface VercelGatewaySummarizeConfig extends VercelGatewayClientConfig {}
 
 export type VercelGatewaySummarizeModel =
-  (typeof VERCEL_GATEWAY_CHAT_MODELS)[number]
+  (typeof VERCEL_GATEWAY_ALL_CHAT_MODELS)[number]
 
 export function createVercelGatewaySummarize<
   TModel extends VercelGatewaySummarizeModel,

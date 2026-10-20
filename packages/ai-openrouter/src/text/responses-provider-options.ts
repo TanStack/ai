@@ -1,7 +1,7 @@
 import type { ResponsesRequest } from '@openrouter/sdk/models'
-import type { OPENROUTER_CHAT_MODELS } from '../model-meta'
+import type { OPENROUTER_ALL_CHAT_MODELS } from '../model-meta'
 
-type OpenRouterResponsesModel = (typeof OPENROUTER_CHAT_MODELS)[number]
+type OpenRouterResponsesModel = (typeof OPENROUTER_ALL_CHAT_MODELS)[number]
 
 // ---------------------------------------------------------------------------
 // Composite option types for the OpenRouter Responses adapter.

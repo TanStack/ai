@@ -8,7 +8,7 @@ import {
   getLLMGatewayApiKeyFromEnv,
   withLLMGatewayDefaults,
 } from '../utils/client'
-import type { Modality } from '@tanstack/ai'
+import type { Modality, ModelMessage } from '@tanstack/ai'
 import type {
   LLMGatewayChatModelToolCapabilitiesByName,
   LLMGatewayModelId,
@@ -90,6 +90,24 @@ export class LLMGatewayTextAdapter<
       new OpenAI(withLLMGatewayDefaults(config)),
       config,
     )
+  }
+
+  protected override convertMessage(message: ModelMessage) {
+    const converted = super.convertMessage(message)
+    if (
+      (this.model === 'minimax-m3.1-flash' || this.model === 'minimax-m3') &&
+      message.role === 'assistant' &&
+      message.thinking?.length
+    ) {
+      return {
+        ...converted,
+        reasoning_content: message.thinking
+          .filter((part) => !part.redacted)
+          .map((part) => part.content)
+          .join(''),
+      }
+    }
+    return converted
   }
 
   protected override modelReasoning(model: string) {

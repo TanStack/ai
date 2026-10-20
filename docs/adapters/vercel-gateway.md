@@ -57,6 +57,10 @@ const adapter = createVercelGatewayText(
 
 The default adapter uses the OpenAI Responses API at `https://ai-gateway.vercel.sh/v1`. Model ids use the `creator/model` form.
 
+For MiniMax, use `vercelGatewayText("minimax/minimax-m3.1-flash")` for Flash or `vercelGatewayText("minimax/minimax-m3")` for M3. Flash supports images, tools, and `reasoning: "low"`, `"medium"`, `"high"`, `"xhigh"`, or `"max"`. Omitting `reasoning` retains the gateway default; Flash has no `off` level. These IDs and capabilities come from the [gateway catalog](https://ai-gateway.vercel.sh/v1/models).
+
+`VERCEL_GATEWAY_CHAT_MODELS` offers Flash then M3 as its ordinary MiniMax choices. `VERCEL_GATEWAY_ALL_CHAT_MODELS` retains legacy IDs for saved-selection validation, and the adapters continue accepting those IDs.
+
 **Server.** An endpoint that streams the reply over SSE:
 
 ```typescript

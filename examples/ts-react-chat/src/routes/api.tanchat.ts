@@ -16,7 +16,7 @@ import { GEMINI_MODELS, createGeminiChat } from '@tanstack/ai-gemini'
 import { geminiByok } from '@tanstack/ai-gemini/byok'
 import { createGeminiTextInteractions } from '@tanstack/ai-gemini/experimental'
 import { createOpenRouterText } from '@tanstack/ai-openrouter'
-import { OPENROUTER_CHAT_MODELS } from '@tanstack/ai-openrouter/model-meta'
+import { OPENROUTER_ALL_CHAT_MODELS } from '@tanstack/ai-openrouter/model-meta'
 import { openrouterByok } from '@tanstack/ai-openrouter/byok'
 import { GROK_CHAT_MODELS, createGrokText } from '@tanstack/ai-grok'
 import { grokByok } from '@tanstack/ai-grok/byok'
@@ -88,7 +88,7 @@ const modelSelectionSchema = z
     }),
     z.object({
       provider: z.literal('openrouter'),
-      model: z.enum(OPENROUTER_CHAT_MODELS).catch('openai/gpt-5.1'),
+      model: z.enum(OPENROUTER_ALL_CHAT_MODELS).catch('openai/gpt-5.1'),
     }),
     z.object({
       provider: z.literal('bedrock'),

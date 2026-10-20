@@ -65,7 +65,7 @@ import type {
 } from '@tanstack/ai'
 import type { ExternalResponsesProviderOptions } from '../text/responses-provider-options'
 import type {
-  OPENROUTER_CHAT_MODELS,
+  OPENROUTER_ALL_CHAT_MODELS,
   OpenRouterChatModelToolCapabilitiesByName,
   OpenRouterModelInputModalitiesByName,
   OpenRouterModelReasoningByName,
@@ -96,7 +96,7 @@ interface StreamedFunctionCallMetadata {
 
 export interface OpenRouterResponsesConfig extends SDKOptions {}
 export type OpenRouterResponsesTextModels =
-  (typeof OPENROUTER_CHAT_MODELS)[number]
+  (typeof OPENROUTER_ALL_CHAT_MODELS)[number]
 export type OpenRouterResponsesTextProviderOptions =
   ExternalResponsesProviderOptions
 

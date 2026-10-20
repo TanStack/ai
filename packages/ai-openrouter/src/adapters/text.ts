@@ -57,7 +57,7 @@ import type {
   ToolChoice,
 } from '@tanstack/ai'
 import type {
-  OPENROUTER_CHAT_MODELS,
+  OPENROUTER_ALL_CHAT_MODELS,
   OpenRouterChatModelToolCapabilitiesByName,
   OpenRouterModelInputModalitiesByName,
   OpenRouterModelOptionsByName,
@@ -80,7 +80,7 @@ export interface OpenRouterConfig extends SDKOptions {
    */
   retryCodes?: Array<string>
 }
-export type OpenRouterTextModels = (typeof OPENROUTER_CHAT_MODELS)[number]
+export type OpenRouterTextModels = (typeof OPENROUTER_ALL_CHAT_MODELS)[number]
 
 export type OpenRouterTextModelOptions = ExternalTextProviderOptions
 
@@ -1618,6 +1618,20 @@ export class OpenRouterTextAdapter<
         role: 'assistant',
         content: hasToolCalls && !textContent ? null : textContent,
         toolCalls,
+        // MiniMax's reasoning must accompany assistant tool-call history.
+        // Foreign-model thinking has already been converted to text above.
+        ...((this.model === 'minimax/minimax-m3.1-flash:free' ||
+          this.model === 'minimax/minimax-m3') &&
+        message.thinking?.length
+          ? {
+              reasoningDetails: message.thinking
+                .filter((part) => !part.redacted)
+                .map((part) => ({
+                  type: 'reasoning.text' as const,
+                  text: part.content,
+                })),
+            }
+          : {}),
       }
     }
 
