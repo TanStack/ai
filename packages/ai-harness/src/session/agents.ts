@@ -627,6 +627,21 @@ export abstract class SessionAgents<
         ...(enter ? { enter } : {}),
       })
     }
+    // Any other `parent` is a mistake: a top-level run would start in its
+    // place. A running turn or command of this session (the run of a tool
+    // of the main model) gives a top-level run.
+    const callerOperation = caller
+      ? this.operations.get(caller.runId)
+      : undefined
+    const isCallerTurn =
+      callerOperation !== undefined &&
+      callerOperation.kind !== 'agent' &&
+      !callerOperation.isSettled()
+    if (!parent && !child && caller && !isCallerTurn) {
+      throw new Error(
+        `parent names no running agent run of this session (${caller.runId}). Pass parent: null for a root run.`,
+      )
+    }
     // A start that no start function admitted (a child of a plugin group)
     // enters its group here.
     const ready = enter ? this.admitStart({ enter }).ready : given

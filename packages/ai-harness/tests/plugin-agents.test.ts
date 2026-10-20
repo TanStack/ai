@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { defineAgent } from '@tanstack/ai'
+import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   createHarnessHost,
@@ -11,7 +11,8 @@ import {
 } from '../src'
 import { AgentRegistry } from '../src/agents'
 import { mountPlugins } from '../src/plugins'
-import { mockAdapter } from './helpers'
+import { mockAdapter, text, toolCall } from './helpers'
+import type { AgentActions, HarnessRunContext } from '../src'
 
 const painter = defineAgent({
   name: 'painter',
@@ -72,6 +73,76 @@ describe('ctx.agents inside a session', () => {
       'a painting of rain',
       'a painting of sun',
     ])
+    await host.close()
+  })
+
+  it('throws for a parent that names no running agent run of this session', async () => {
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const harness = defineHarness({
+      name: 'test/agents',
+      adapter: mockAdapter([]).adapter,
+      agents: [painter],
+    })
+    const session = await host.open(harness, { threadId: 't' })
+    const other = await host.open(harness, { threadId: 't2' })
+    const ended = session.agents.painter.start(
+      { subject: 'rain' },
+      { attach: 'none' },
+    )
+    await ended
+    const foreign = other.agents.painter.start(
+      { subject: 'sun' },
+      { attach: 'none' },
+    )
+    await foreign
+
+    for (const runId of ['unknown-run', ended.id, foreign.id]) {
+      expect(() =>
+        session.agents.painter.start(
+          { subject: 'snow' },
+          { attach: 'none', parent: { runId } },
+        ),
+      ).toThrow(
+        `parent names no running agent run of this session (${runId}). Pass parent: null for a root run.`,
+      )
+    }
+    await host.close()
+  })
+
+  it('starts a top-level run for a parent that is a running turn', async () => {
+    let agents: AgentActions | undefined
+    const director = definePlugin({
+      name: 'test/director',
+      setup: (ctx) => {
+        agents = ctx.agents
+      },
+    })
+    const paint = toolDefinition({
+      name: 'paint',
+      description: 'Paints from a tool of the main model',
+      inputSchema: z.object({}),
+    }).server<HarnessRunContext>(async (_args, ctx) =>
+      agents?.run(painter, { subject: 'fog' }, { parent: ctx.context.run }),
+    )
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/agents',
+        adapter: mockAdapter([
+          () => toolCall('paint', {}),
+          () => text('Painted.'),
+        ]).adapter,
+        agents: [painter],
+        tools: [paint],
+        plugins: () => [director],
+      }),
+      { threadId: 't' },
+    )
+
+    expect((await session.send('paint fog')).text).toBe('Painted.')
+    const [run] = session.agentRuns()
+    expect(run).toMatchObject({ status: 'completed' })
+    expect(run?.parentRunId).toBeUndefined()
     await host.close()
   })
 })

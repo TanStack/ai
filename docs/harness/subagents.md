@@ -63,6 +63,7 @@ export const review = definePlugin({
 - Without `principal`, a plugin with `lifetime: 'turn'` starts it as the user of its turn. A session plugin starts it as the user who opened the session. To start it for the user of a tool call, pass `principal: ctx.context.run.principal`.
 - In a tool that an agent run calls, `ctx.agents` starts the agent as a child of that run. It runs for the user of that run, and counts in its tree and budget. It takes no `maxConcurrent` slot, so the run can await it.
 - When tools of two runs run at the same time, the plugin cannot tell which run calls it. Then pass `parent: ctx.context.run` to name the run.
+- A `parent` that names no running agent run of this session throws: an unknown id, a run that ended, an older run of a chain, or a run that another host runs. A running turn is fine: in a tool of the main model, `parent: ctx.context.run` starts a root run.
 - Pass `parent: null` to start a root run instead. It takes a `maxConcurrent` slot.
 - `ctx.agents.group(options, (g) => runs)` runs several. See [Run agents in parallel or in series](#run-agents-in-parallel-or-in-series).
 

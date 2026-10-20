@@ -118,8 +118,12 @@ export interface AgentStartOptions {
    * and the budget of that run, and runs for its user. It takes no
    * `maxConcurrent` slot, so the run can await it. Without it, a start of
    * `ctx.agents` in a plugin tool that an agent run calls is a child of that
-   * run too, when no other run of the session is in a tool call. `null`: a
-   * top-level run, which takes a `maxConcurrent` slot.
+   * run too, when no other run of the session is in a tool call. A running
+   * turn of this session (the run of a tool of the main model) gives a
+   * top-level run. Any other run id throws: an unknown id, a run of another
+   * session, a run that ended, an older run of a chain, or a run that
+   * another host runs. `null`: a top-level run, which takes a
+   * `maxConcurrent` slot.
    */
   parent?: { runId: string } | null
   /**
