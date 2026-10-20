@@ -8,7 +8,6 @@ interface Link {
 
 interface Entry {
   harness: string
-  ownerId: string
   members: Array<{ userId: string; role: string }>
   parentThreadId?: string
   metadata?: {
@@ -70,7 +69,6 @@ test.describe('harness: a transfer to another harness', () => {
     // The target belongs to the billing harness, and olga owns it alone.
     expect(result.targetEntry).toMatchObject({
       harness: BILLING,
-      ownerId: 'olga',
       members: [{ userId: 'olga', role: 'owner' }],
     })
     expect(result.targetEntry.parentThreadId).toBeUndefined()

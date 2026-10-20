@@ -73,7 +73,7 @@ function accessHost() {
   const persistence = memoryPersistence()
   const host = createHarnessHost({
     persistence,
-    access: { identify: (): User | null => null, authorize: membersOnly() },
+    access: { identify: (): User | null => null, ...membersOnly() },
   })
   const harness = defineHarness({
     name: NAME,
@@ -181,6 +181,23 @@ describe('operations that a handle returns', () => {
     await expect(run).rejects.toThrow()
     await host.close()
   })
+
+  it('refuses cancel on an operation of a revoked handle, also of its own run', async () => {
+    const { host, open, share } = accessHost()
+    await open(olga)
+    await share('bea', 'member')
+    const member = await open(bea)
+    const own = member.agents.slow.start()
+    await running(own)
+    const found = member.agentRun(own.id)
+    if (!found) throw new Error('The member does not see the run.')
+
+    await host.revoke({ threadId: THREAD, principal: bea })
+
+    await expect(found.cancel()).rejects.toBeInstanceOf(AccessDeniedError)
+    await expect(own.cancel()).rejects.toBeInstanceOf(AccessDeniedError)
+    await host.close()
+  })
 })
 
 describe('a user that loses access', () => {
@@ -243,7 +260,7 @@ describe('a user that loses access', () => {
     })
     const host = createHarnessHost({
       persistence: { ...persistence, stores: { ...persistence.stores, log } },
-      access: { identify: (): User | null => null, authorize: membersOnly() },
+      access: { identify: (): User | null => null, ...membersOnly() },
     })
     const harness = defineHarness({
       name: NAME,
@@ -298,7 +315,7 @@ describe('a user that loses access', () => {
     })
     const access = {
       identify: (): User | null => null,
-      authorize: membersOnly(),
+      ...membersOnly(),
     }
     const main = mockAdapter(() => text('ran'))
     const harness = defineHarness({

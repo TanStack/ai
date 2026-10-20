@@ -2,7 +2,7 @@ import { EventType } from '@tanstack/ai'
 import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import type { CredentialStore } from '@tanstack/ai/byok'
-import { AccessDeniedError, membersOnlyPolicyOf } from './access'
+import { AccessDeniedError, ownerOf } from './access'
 import {
   SharedLog,
   loadLogState,
@@ -133,7 +133,7 @@ export interface HarnessHostOptions<P extends Principal = Principal> {
    * const host = createHarnessHost({
    *   access: {
    *     identify: async ({ request }) => getUser(request),
-   *     authorize: membersOnly(),
+   *     ...membersOnly(),
    *   },
    * })
    * ```
@@ -418,8 +418,8 @@ export interface HostSessions<P extends Principal = Principal> {
    * `members` picks who can use the fork. `'self'`: the user who forks is
    * the owner and the only member. `'all'`: that user is the owner, and the
    * other members keep their roles (the old owner becomes a `member`). With
-   * access, the default is the `fork.members` of `membersOnly()`, else
-   * `'self'`. Without access and without `members`, the fork gets the owner
+   * access, the default is `access.members.fork` (see `membersOnly()`),
+   * else `'self'`. Without access and without `members`, the fork gets the owner
    * and members of the old thread.
    *
    * @example
@@ -442,9 +442,10 @@ export interface HostSessions<P extends Principal = Principal> {
   }) => Promise<SessionIndexEntry>
   /**
    * Add the user `userId` to the members of a thread with `role`, or change
-   * the role of a member. Needs `membersOnly()` as the host's `authorize`,
-   * and the `share` action (the owner). Resolves to the changed entry, or
-   * `undefined` for a thread that has no entry.
+   * the role of a member. Needs `access.members` (`membersOnly()` has it),
+   * and the `share` action (the owner). The role of the owner does not
+   * change. Resolves to the changed entry, or `undefined` for a thread that
+   * has no entry.
    *
    * @example
    * ```ts
@@ -459,7 +460,7 @@ export interface HostSessions<P extends Principal = Principal> {
   }) => Promise<SessionIndexEntry | undefined>
   /**
    * Remove the user `userId` from the members of a thread. Needs
-   * `membersOnly()`, and the `share` action. The running and queued work
+   * `access.members`, and the `share` action. The running and queued work
    * that the user started on the thread stops, on any host, their schedules
    * do not run, and `host.revoke` runs for the user. When that work does
    * not stop, it rejects after the member is removed: call `host.revoke`
@@ -1252,37 +1253,30 @@ const revokedKey = (
   principalId: string,
 ) => `${logIdOf({ tenantId, logId: threadId })}\u0000${principalId}`
 
+/** Only the `memberId` of an `access.listFilter` result. */
+const memberFilterOf = (filter: { memberId?: string } | undefined) =>
+  filter?.memberId === undefined ? {} : { memberId: filter.memberId }
+
 /**
- * The owner and members of a fork. `'self'`: the forker alone. `'all'`: the
- * forker as the owner, and the other members with their roles, the old
+ * The members of a fork. `'self'`: the forker alone, as the owner. `'all'`:
+ * the forker as the owner, and the other members with their roles, the old
  * owner as a `member`. Without a mode or a forker: those of the source.
  */
 function forkedMembers(
   source: SessionIndexEntry | undefined,
   forker: Principal | undefined,
   mode: 'self' | 'all' | undefined,
-) {
-  if (mode === undefined || forker === undefined) {
-    return { ownerId: source?.ownerId, members: source?.members ?? [] }
-  }
+): Array<SessionMember> {
+  if (mode === undefined || forker === undefined) return source?.members ?? []
   const owner: SessionMember = { userId: forker.id, role: 'owner' }
-  if (mode === 'self') return { ownerId: forker.id, members: [owner] }
-  const oldOwner = source?.ownerId
+  if (mode === 'self') return [owner]
   const others = (source?.members ?? [])
     .filter((member) => member.userId !== forker.id)
     .map(
       (member): SessionMember =>
         member.role === 'owner' ? { ...member, role: 'member' } : member,
     )
-  // An owner through `ownerId` alone has no entry in `members`.
-  const isListed =
-    oldOwner === undefined ||
-    oldOwner === forker.id ||
-    others.some((member) => member.userId === oldOwner)
-  const old: Array<SessionMember> = isListed
-    ? []
-    : [{ userId: oldOwner, role: 'member' }]
-  return { ownerId: forker.id, members: [owner, ...old, ...others] }
+  return [owner, ...others]
 }
 
 /**
@@ -1419,7 +1413,6 @@ export function createHarnessHost<P extends Principal = Principal>(
       'ownership.hostId must be a non-empty string, for example the machine or pod name. Leave it out when the host has no stable id.',
     )
   }
-  const policy = access && membersOnlyPolicyOf(access.authorize)
   const memory = memoryPersistence().stores
   // ponytail: memory credentials when none are given. Pass `credentials`
   // to keep sign-ins across restarts.
@@ -2143,14 +2136,15 @@ export function createHarnessHost<P extends Principal = Principal>(
   }) => {
     if (!access) return
     const { tenantId } = principal
+    // A child with no root is refused: its error would name the parent.
+    const root = entry && (await rootOf(entry).catch(() => undefined))
+    if (entry && !root) throw new AccessDeniedError({ action, threadId })
     // A thread with no entry has no owner and no members.
-    const session: AccessSession = entry
-      ? await rootOf(entry)
-      : {
-          ...(tenantId !== undefined ? { tenantId } : {}),
-          threadId,
-          members: [],
-        }
+    const session: AccessSession = root ?? {
+      ...(tenantId !== undefined ? { tenantId } : {}),
+      threadId,
+      members: [],
+    }
     const isAllowed = await access.authorize({
       principal,
       action,
@@ -2190,14 +2184,14 @@ export function createHarnessHost<P extends Principal = Principal>(
     return source
   }
 
-  /** `share` and `unshare` change the members list of `membersOnly()`. */
+  /** `share` and `unshare` change the members list: `access.members`. */
   const checkShare = async (
     call: string,
     target: { threadId: string; principal?: P | undefined },
   ) => {
-    if (!policy) {
+    if (!access?.members) {
       throw new Error(
-        `${call} needs membersOnly() as the authorize of the host access. With your own access tables, change them and call host.revoke.`,
+        `${call} needs access.members (membersOnly() has it). With your own access tables, change them and call host.revoke.`,
       )
     }
     await checkEntry(call, 'share', target)
@@ -2260,9 +2254,9 @@ export function createHarnessHost<P extends Principal = Principal>(
       return openSession(harness, openOptions, principal.tenantId)
     }
     const before = await index.get(ids)
-    // The open refuses a child thread, and says why.
-    const isRoot = before !== undefined && before.parentThreadId === undefined
-    if (isRoot) {
+    // A child is checked through its root first: only a user who may read
+    // it learns why the open refuses a child.
+    if (before) {
       await allow({ principal, action: 'read', threadId, entry: before })
     }
     const session = await openSession(harness, openOptions, principal.tenantId)
@@ -2270,7 +2264,7 @@ export function createHarnessHost<P extends Principal = Principal>(
       // Two users can create one thread at once. Only the user whose open
       // wrote the entry needs no check.
       const created = await index.get(ids)
-      if (created?.ownerId !== principal.id) {
+      if (!created || ownerOf(created) !== principal.id) {
         await allow({ principal, action: 'read', threadId, entry: created })
       }
     }
@@ -3157,9 +3151,9 @@ export function createHarnessHost<P extends Principal = Principal>(
           parentThreadId: null,
           ...filters,
           tenantId,
-          // The store keeps only the sessions of the member, so a page of
-          // `membersOnly()` stays full.
-          ...(policy ? { memberId: user.id } : {}),
+          // The store keeps only the sessions that the filter names, so a
+          // page stays full. Only `memberId`: no filter names a tenant.
+          ...memberFilterOf(access.listFilter?.(user)),
         })
         const allowed = await Promise.all(
           page.entries.map(async (session) =>
@@ -3263,18 +3257,13 @@ export function createHarnessHost<P extends Principal = Principal>(
           await release(sourceKey)
         }
         const mode =
-          members ?? (access ? (policy?.fork.members ?? 'self') : undefined)
-        const { ownerId, members: people } = forkedMembers(
-          source,
-          principal,
-          mode,
-        )
+          members ?? (access ? (access.members?.fork ?? 'self') : undefined)
+        const people = forkedMembers(source, principal, mode)
         const now = Date.now()
         // A sibling of the old thread, not a child: no parentThreadId.
         const entry: SessionIndexEntry = {
           ...(tenantId !== undefined ? { tenantId } : {}),
           threadId: forked.threadId,
-          ...(ownerId !== undefined ? { ownerId } : {}),
           members: people,
           createdAt: now,
           updatedAt: now,
@@ -3286,12 +3275,10 @@ export function createHarnessHost<P extends Principal = Principal>(
             { tenantId, threadId: entry.threadId },
             (current) => {
               // The open of the fork wrote an entry already: keep what it
-              // holds, but not its owner. The owner and the members come
-              // from `members`.
-              const { ownerId: _opener, ...opened } = current ?? entry
+              // holds, but not its members: they come from `members`.
               return {
                 ...entry,
-                ...opened,
+                ...current,
                 ...(entry.title ? { title: entry.title } : {}),
                 members: entry.members,
                 updatedAt: now,
@@ -3303,18 +3290,22 @@ export function createHarnessHost<P extends Principal = Principal>(
       async share({ threadId, userId, role, principal }) {
         const call = 'host.sessions.share'
         const user = await checkShare(call, { threadId, principal })
-        return index.update(
-          { tenantId: user.tenantId, threadId },
-          (entry) =>
-            entry && {
-              ...entry,
-              members: [
-                ...entry.members.filter((member) => member.userId !== userId),
-                { userId, role },
-              ],
-              updatedAt: Date.now(),
-            },
-        )
+        return index.update({ tenantId: user.tenantId, threadId }, (entry) => {
+          if (!entry) return undefined
+          if (ownerOf(entry) === userId && role !== 'owner') {
+            throw new Error(
+              `${JSON.stringify(userId)} owns thread ${JSON.stringify(threadId)}: the role of the owner cannot change.`,
+            )
+          }
+          return {
+            ...entry,
+            members: [
+              ...entry.members.filter((member) => member.userId !== userId),
+              { userId, role },
+            ],
+            updatedAt: Date.now(),
+          }
+        })
       },
       async unshare({ threadId, userId, principal }) {
         const call = 'host.sessions.unshare'
@@ -3322,7 +3313,7 @@ export function createHarnessHost<P extends Principal = Principal>(
         const { tenantId } = user
         const changed = await index.update({ tenantId, threadId }, (entry) => {
           if (!entry) return undefined
-          if (entry.ownerId === userId) {
+          if (ownerOf(entry) === userId) {
             throw new Error(
               `${JSON.stringify(userId)} owns thread ${JSON.stringify(threadId)}: the owner cannot be removed.`,
             )

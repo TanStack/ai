@@ -388,7 +388,7 @@ describe('an operator reply', () => {
       access: {
         identify: ({ request }): User | null =>
           tokens[request.headers.get('authorization') ?? ''] ?? null,
-        authorize: membersOnly(),
+        ...membersOnly(),
       },
     })
     const open = (principal: User) =>

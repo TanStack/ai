@@ -933,7 +933,7 @@ describe('ACP agent handlers', () => {
     // The agent runs for one local user, so no request is identified.
     const access: HarnessAccess = {
       identify: () => null,
-      authorize: membersOnly(),
+      ...membersOnly(),
     }
 
     it('throws at the start without a principal', () => {
@@ -968,7 +968,7 @@ describe('ACP agent handlers', () => {
         expect(textOf(sessionId)).toBe('echo: hello')
         expect(
           await host.sessions.get({ threadId: sessionId, principal: olga }),
-        ).toMatchObject({ ownerId: 'olga' })
+        ).toMatchObject({ members: [{ userId: 'olga', role: 'owner' }] })
         const listed = await ctx.request('session/list', {})
         expect(listed.sessions.map((session) => session.sessionId)).toEqual([
           sessionId,

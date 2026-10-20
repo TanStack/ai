@@ -1026,14 +1026,10 @@ export interface SessionIndexEntry<TMetadata = Record<string, unknown>> {
   tenantId?: string
   threadId: string
   /**
-   * The user id of the owner. Without it, the thread has no owner: a host
-   * without access rules opened it without a user.
-   */
-  ownerId?: string
-  /**
-   * The users who can open the thread. The owner is in it with the role
-   * `owner`. Empty when the thread has no owner. A subagent child keeps it
-   * empty: access to a child goes through its top-level thread.
+   * The users who can open the thread. The owner is the member with the role
+   * `owner`. Empty when the thread has no owner: a host without access rules
+   * opened it without a user. A subagent child keeps it empty: access to a
+   * child goes through its top-level thread.
    */
   members: Array<SessionMember>
   /** The name of the setup that runs the thread. */
@@ -1076,7 +1072,7 @@ export interface SessionIndexListOptions {
   tenantId?: string
   /**
    * Only the entries whose `members` have this user id, with any role. An
-   * entry with an `ownerId` and no `members` (a subagent child) never matches.
+   * entry with no `members` (a subagent child) never matches.
    */
   memberId?: string
   /** The most entries in one page. Without it, the page has all entries. */

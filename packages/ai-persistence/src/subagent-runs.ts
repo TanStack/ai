@@ -539,8 +539,8 @@ export function createSubagentRunRecorder(stores: {
   // replaces the whole entry, so keep the fields that other writers set, like
   // a title. `upsertIf` writes only over the entry that was read, and a
   // conflict reads again, so a change from another host is not lost. The
-  // child has the owner and the `harness` name of its parent entry, so a list
-  // filtered by them shows it. It has no members: access to a child goes
+  // child has the `harness` name of its parent entry, so a list filtered by
+  // it shows it. It has no members: access to a child goes
   // through its top-level thread. Best-effort: the index is a side store, so
   // a failed write never fails the run.
   async function indexChild(
@@ -569,7 +569,6 @@ export function createSubagentRunRecorder(stores: {
             ...(note.parentToolCallId !== undefined && {
               parentToolCallId: note.parentToolCallId,
             }),
-            ...(parent?.ownerId !== undefined && { ownerId: parent.ownerId }),
             ...(parent?.harness !== undefined && { harness: parent.harness }),
             createdAt: current?.entry.createdAt ?? now,
             updatedAt: now,

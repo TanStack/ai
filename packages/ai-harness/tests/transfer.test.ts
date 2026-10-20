@@ -124,7 +124,7 @@ function accessHost({
   const persistence = memoryPersistence()
   const host: HarnessHost<User> = createHarnessHost({
     persistence,
-    access: { identify: (): User | null => null, authorize: membersOnly() },
+    access: { identify: (): User | null => null, ...membersOnly() },
   })
   const supportModel = mockAdapter(support)
   const billingModel = mockAdapter(billing)
@@ -187,7 +187,6 @@ describe('host.transfer to a new thread', () => {
     expect(entry).toMatchObject({
       tenantId: 'acme',
       harness: 'test/billing',
-      ownerId: 'olga',
       members: [{ userId: 'olga', role: 'owner' }],
       metadata: {
         'harness:transferredFrom': [
@@ -601,7 +600,6 @@ describe('host.transfer access', () => {
       threadId: 'bea-billing',
       principal: bea,
     })
-    expect(entry?.ownerId).toBe('bea')
     expect(entry?.members).toEqual([
       { userId: 'bea', role: 'owner' },
       { userId: 'olga', role: 'member' },

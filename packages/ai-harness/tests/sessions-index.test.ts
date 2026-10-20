@@ -158,7 +158,6 @@ describe('host.sessions', () => {
     expect(await host.sessions.get(read)).toEqual({
       tenantId: 'org-1',
       threadId: 't1',
-      ownerId: 'u1',
       members: [{ userId: 'u1', role: 'owner' }],
       harness: 'test/sessions',
       createdAt: expect.any(Number),
@@ -190,7 +189,6 @@ describe('host.sessions', () => {
     await next.open(harness, { threadId: 't1', principal: { id: 'bob' } })
 
     expect(await next.sessions.get({ threadId: 't1' })).toMatchObject({
-      ownerId: 'alice',
       members: [{ userId: 'alice', role: 'owner' }],
     })
     await next.close()
@@ -267,7 +265,7 @@ describe('host.sessions', () => {
       metadata: { chips: ['a.ts', 'b.ts'] },
     })
     expect(await host.sessions.get({ threadId: 't1' })).toMatchObject({
-      ownerId: 'u1',
+      members: [{ userId: 'u1', role: 'owner' }],
       metadata: { chips: ['a.ts', 'b.ts'] },
     })
     expect(
@@ -499,7 +497,6 @@ describe('host.sessions', () => {
       threadId: expect.any(String),
       harness: 'test/sessions',
       title: 'Chat (fork)',
-      ownerId: 'u1',
       members: [{ userId: 'u1', role: 'owner' }],
       createdAt: expect.any(Number),
       updatedAt: expect.any(Number),
@@ -686,10 +683,16 @@ describe('tenants', () => {
     ])
     expect(
       await host.sessions.get({ threadId: 't1', principal: ada }),
-    ).toMatchObject({ tenantId: 'org-a', ownerId: 'ada' })
+    ).toMatchObject({
+      tenantId: 'org-a',
+      members: [{ userId: 'ada', role: 'owner' }],
+    })
     expect(
       await host.sessions.get({ threadId: 't1', principal: bo }),
-    ).toMatchObject({ tenantId: 'org-b', ownerId: 'bo' })
+    ).toMatchObject({
+      tenantId: 'org-b',
+      members: [{ userId: 'bo', role: 'owner' }],
+    })
     const listed = await host.sessions.list({ principal: ada })
     expect(listed.entries.map((entry) => entry.tenantId)).toEqual(['org-a'])
     const logOf = (tenantId: string) =>
@@ -765,7 +768,6 @@ describe('child sessions', () => {
         threadId: expect.stringMatching(/^subagent:/),
         parentThreadId: 'lead',
         parentToolCallId: 'call-1',
-        ownerId: 'alice',
         members: [],
         harness: 'test/subagent-child',
         createdAt: expect.any(Number),
@@ -797,7 +799,7 @@ describe('ctx.session.entry and updateEntry', () => {
       threadId: 'p1',
       title: 'From a plugin',
       metadata: { model: 'm-1' },
-      ownerId: 'u1',
+      members: [{ userId: 'u1', role: 'owner' }],
     })
     await host.close()
   })

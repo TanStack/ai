@@ -15,7 +15,11 @@ import {
   mediaPart,
   mimeTypeOf,
 } from '@tanstack/ai-harness/media'
-import { applyInput, parseHarnessInput } from '@tanstack/ai-harness/server'
+import {
+  applyInput,
+  parseHarnessInput,
+  requestUsers,
+} from '@tanstack/ai-harness/server'
 import {
   OAuthError,
   OAuthErrorCode,
@@ -248,17 +252,9 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
 ) {
   const { host, harness, openAccess } = options
   const access = host.hasAccess
-  if (access && openAccess !== undefined) {
-    throw new Error(
-      'createHarnessMcpServer: the host has access, so access.identify reads the user of each request. Remove openAccess.',
-    )
-  }
-  if (!access && openAccess === undefined) {
-    throw new Error(
-      'createHarnessMcpServer needs host access ({ identify, authorize }) or openAccess: true or { principal }.',
-    )
-  }
-  const fixed = openAccess === true ? undefined : openAccess?.principal
+  // The same fail-closed rule as the HTTP handler of the harness.
+  const users = requestUsers('createHarnessMcpServer', host, openAccess)
+  const { fixed } = users
   const defaultThread = options.threadId ?? 'main'
   const approvals = options.approvals ?? 'ask'
   const filePaths = options.filePaths ?? []
@@ -843,8 +839,8 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
         'createHarnessMcpServer: a host with access reads the user of each HTTP request, so it cannot serve over stdio. For one local user, use a host without access and openAccess: { principal }.',
       )
     }
-    const principal = await host.identify({ request })
-    if (principal === null) {
+    const principal = (await users.of(request))?.principal
+    if (principal === undefined) {
       return bearerAuthChallengeResponse(
         new OAuthError(OAuthErrorCode.InvalidToken, 'The request has no user.'),
       )

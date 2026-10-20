@@ -16,6 +16,7 @@ const SERVER = [
   'handleHarnessSocket',
   'parseControlFrame',
   'parseHarnessInput',
+  'requestUsers',
 ]
 const OAUTH = [
   'buildAuthorizationUrl',

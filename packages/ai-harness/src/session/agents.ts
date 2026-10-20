@@ -1800,7 +1800,7 @@ export abstract class SessionAgents<
     })
     if (!answers) {
       this.publishStarted(operation)
-      await this.indexAgent(operation, child, principal)
+      await this.indexAgent(operation, child)
     }
 
     let text = ''
@@ -2393,22 +2393,18 @@ export abstract class SessionAgents<
   /**
    * The index entry of an agent run: thread `subagent:<subagentRunId>`, in
    * the tenant of this thread, with this thread as its parent and the
-   * harness of this thread. Its owner is the owner of this thread, else the
-   * user of the run. It has no members: access to a child goes through its
-   * parent. A write replaces the whole entry, so the fields of other writers
+   * harness of this thread. It has no members: access to a child goes
+   * through its parent. A write replaces the whole entry, so the fields of other writers
    * stay. A failed write does not fail the run.
    */
   protected async indexAgent(
     operation: OperationImpl<unknown>,
     child: AgentChild,
-    principal: Principal | undefined,
   ) {
     const { tenantId } = this
     const threadId = `subagent:${child.subagentRunId}`
     const now = Date.now()
     try {
-      const parent = await this.index.get(this.indexKey)
-      const ownerId = parent?.ownerId ?? principal?.id
       await this.index.update({ tenantId, threadId }, (entry) => ({
         ...entry,
         ...(tenantId !== undefined ? { tenantId } : {}),
@@ -2418,7 +2414,6 @@ export abstract class SessionAgents<
           parentToolCallId: child.parentToolCallId,
         }),
         harness: this.harness.name,
-        ...(ownerId !== undefined ? { ownerId } : {}),
         members: [],
         createdAt: entry?.createdAt ?? now,
         updatedAt: now,

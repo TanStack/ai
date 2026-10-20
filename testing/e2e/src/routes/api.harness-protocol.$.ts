@@ -51,8 +51,7 @@ const identify = ({ request }: { request: Request }) =>
 // Test only: each user may do each action on each thread of their tenant.
 // The host checks the tenant before it calls `authorize`.
 const tenantAccess = { identify, authorize: () => true }
-// One host for every test. Each test uses its own thread ids, and a signed
-// media URL comes without the test headers.
+// One host for every test. Each test uses its own thread ids.
 const host = createHarnessHost({
   persistence: memoryPersistence(),
   access: tenantAccess,
@@ -69,7 +68,7 @@ const durableHost = createHarnessHost({
 // the `x-harness-access: members` header.
 const membersHost = createHarnessHost({
   persistence: memoryPersistence(),
-  access: { identify, authorize: membersOnly() },
+  access: { identify, ...membersOnly() },
 })
 // A host that closes a session as soon as no handle holds it and it is idle.
 // A request picks it with the `x-harness-idle: close` header, so a read

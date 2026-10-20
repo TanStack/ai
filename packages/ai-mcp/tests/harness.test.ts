@@ -407,7 +407,7 @@ function accessHost() {
     access: {
       identify: ({ request }) =>
         users.get(request.headers.get('x-user') ?? '') ?? null,
-      authorize: membersOnly(),
+      ...membersOnly(),
     },
   })
   cleanups.push(() => host.close())
@@ -1737,7 +1737,10 @@ describe('createHarnessMcpServer access', () => {
     })
     expect(
       await host.sessions.get({ threadId: 't-ana', principal: ana }),
-    ).toMatchObject({ tenantId: 'globex', ownerId: 'ana' })
+    ).toMatchObject({
+      tenantId: 'globex',
+      members: [{ userId: 'ana', role: 'owner' }],
+    })
     expect(await host.sessions.get({ threadId: 't-ana' })).toBeUndefined()
   })
 
@@ -1779,7 +1782,7 @@ describe('createHarnessMcpServer access', () => {
     })
     expect(
       await host.sessions.get({ threadId: 't1', principal: olga }),
-    ).toMatchObject({ ownerId: 'olga' })
+    ).toMatchObject({ members: [{ userId: 'olga', role: 'owner' }] })
     await host.sessions.share({
       threadId: 't1',
       userId: 'bea',

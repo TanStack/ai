@@ -189,7 +189,7 @@ describe('host.sessions.delete', () => {
     const { persistence } = persistenceOf(true)
     const host = createHarnessHost({
       persistence,
-      access: { identify: () => null, authorize: membersOnly() },
+      access: { identify: () => null, ...membersOnly() },
     })
     const ann = { id: 'ann', tenantId: 'acme' }
 

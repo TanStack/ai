@@ -219,7 +219,7 @@ it('types the principal of the host from what access.identify returns', () => {
   // membersOnly() fits any principal type.
   expectTypeOf(
     createHarnessHost({
-      access: { identify: () => user, authorize: membersOnly() },
+      access: { identify: () => user, ...membersOnly() },
     }),
   ).toEqualTypeOf<HarnessHost<User>>()
   // Without access, the principal is the plain one.

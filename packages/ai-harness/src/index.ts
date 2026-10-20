@@ -129,9 +129,11 @@ export type {
   SubmitInput,
   SubmitOptions,
 } from './host'
-export { AccessDeniedError, membersOnly, membersOnlyPolicyOf } from './access'
+export { AccessDeniedError, membersOnly } from './access'
 export type {
   AccessAction,
+  AccessMembers,
+  AccessPolicy,
   AccessRun,
   AccessSession,
   AccessWait,
@@ -139,7 +141,6 @@ export type {
   AuthorizeInput,
   HarnessAccess,
   MembersOnlyOptions,
-  MembersOnlyPolicy,
 } from './access'
 export type {
   SessionIndexEntry,

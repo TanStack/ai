@@ -5,6 +5,7 @@ import {
   validateWithStandardSchema,
 } from '@tanstack/ai'
 import { UNOWNED_EPOCH, loadChildTranscript } from '@tanstack/ai-persistence'
+import { ownerOf } from '../access'
 import { checkConfigValue } from '../config'
 import { transcriptText } from '../first-party/session-tools'
 import { LogOwnedElsewhereError } from '../ownership'
@@ -201,22 +202,20 @@ export abstract class SessionState<
         parent === undefined &&
         principal !== undefined &&
         (entry === undefined ||
-          (current.ownerId === undefined && !this.hasAccess))
+          (ownerOf(current) === undefined && !this.hasAccess))
       return {
         ...current,
         harness: current.harness ?? this.harness.name,
         updatedAt: now,
         ...(isClaim
-          ? {
-              ownerId: principal.id,
-              members: [{ userId: principal.id, role: 'owner' as const }],
-            }
+          ? { members: [{ userId: principal.id, role: 'owner' as const }] }
           : {}),
       }
     })
-    if (opened?.ownerId !== undefined) {
+    const ownerId = opened && ownerOf(opened)
+    if (ownerId !== undefined) {
       this.owner = {
-        id: opened.ownerId,
+        id: ownerId,
         ...(tenantId !== undefined ? { tenantId } : {}),
       }
     }

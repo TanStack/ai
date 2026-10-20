@@ -65,7 +65,7 @@ function accessHost() {
     access: {
       identify: ({ request }) =>
         users.get(request.headers.get('x-user') ?? '') ?? null,
-      authorize: membersOnly(),
+      ...membersOnly(),
     },
   })
 }
@@ -655,7 +655,7 @@ describe('a host and a principal', () => {
       await client.callTool('chat', { threadId: 't-mcp', message: 'hi' })
 
       expect(await host.sessions.get({ threadId: 't-mcp' })).toMatchObject({
-        ownerId: 'ada',
+        members: [{ userId: 'ada', role: 'owner' }],
       })
     } finally {
       await client.close()
@@ -813,7 +813,7 @@ describe('serve mode', () => {
       expect(stranger.status).toBe(403)
       expect(
         await host.sessions.get({ threadId: 't1', principal: olga }),
-      ).toMatchObject({ ownerId: 'olga' })
+      ).toMatchObject({ members: [{ userId: 'olga', role: 'owner' }] })
     } finally {
       await server.close()
       await host.close()

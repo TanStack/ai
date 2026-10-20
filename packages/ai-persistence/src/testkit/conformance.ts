@@ -2919,7 +2919,6 @@ export function runPersistenceConformance(
         const written: SessionIndexEntry = {
           tenantId,
           threadId: 'thread',
-          ownerId: 'user-1',
           members: [
             { userId: 'user-1', role: 'owner' },
             { userId: 'user-2', role: 'viewer' },
@@ -2954,7 +2953,6 @@ export function runPersistenceConformance(
         if (!store) return ctx.skip('sessions store not provided')
         const { tenantId, entry, key } = newTenant()
         const shared = entry('shared', 1, {
-          ownerId: 'alice',
           members: [
             { userId: 'alice', role: 'owner' },
             { userId: 'bob', role: 'member' },
@@ -3092,29 +3090,22 @@ export function runPersistenceConformance(
         const bob = { userId: 'bob', role: 'owner' } as const
         await store.upsert(
           entry('owned', 10, {
-            ownerId: 'alice',
             members: [{ userId: 'alice', role: 'owner' }],
           }),
         )
         await store.upsert(
           entry('member', 20, {
-            ownerId: 'bob',
             members: [bob, { userId: 'alice', role: 'member' }],
           }),
         )
         await store.upsert(
           entry('viewer', 30, {
-            ownerId: 'bob',
             members: [bob, { userId: 'alice', role: 'viewer' }],
           }),
         )
-        await store.upsert(
-          entry('other', 40, { ownerId: 'bob', members: [bob] }),
-        )
-        // A subagent child has the owner of its parent and no members.
-        await store.upsert(
-          entry('child', 50, { ownerId: 'alice', parentThreadId: 'owned' }),
-        )
+        await store.upsert(entry('other', 40, { members: [bob] }))
+        // A subagent child has no members.
+        await store.upsert(entry('child', 50, { parentThreadId: 'owned' }))
 
         expect(
           threadIds(await store.list({ tenantId, memberId: 'alice' })),

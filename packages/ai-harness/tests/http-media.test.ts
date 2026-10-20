@@ -35,7 +35,9 @@ function setup(options: { media?: MediaOptions; secret?: string } = {}) {
   })
   const persistence = memoryPersistence()
   /** A host on the shared stores. `identify` reads the user of a request. */
-  const hostWith = (identify: (request: Request) => typeof user | null) =>
+  const hostWith = (
+    identify: (request: Request) => { id: string; tenantId?: string } | null,
+  ) =>
     createHarnessHost({
       persistence,
       access: {
@@ -106,9 +108,12 @@ function setup(options: { media?: MediaOptions; secret?: string } = {}) {
     return body
   }
 
-  /** A GET with no Authorization header. */
-  const fetchSigned = (path: string, target = handler) =>
-    target(new Request(`${BASE}/${path}`))
+  /** A GET as user-1. `headers: {}` sends no Authorization header. */
+  const fetchSigned = (
+    path: string,
+    target = handler,
+    headers: Record<string, string> = { authorization: 'Bearer good' },
+  ) => target(new Request(`${BASE}/${path}`, { headers }))
 
   return {
     host,
@@ -190,7 +195,7 @@ describe('media upload and signed URLs', () => {
     warn.mockRestore()
   })
 
-  it('stores an upload, signs its URL for 1 hour, and serves the signed URL without auth', async () => {
+  it('stores an upload, signs its URL for 1 hour, and serves the signed URL to its user', async () => {
     vi.useFakeTimers({ toFake: ['Date'], now: NOW })
     const { host, upload, signedPath, fetchSigned } = setup()
 
@@ -211,7 +216,7 @@ describe('media upload and signed URLs', () => {
     expect(expiresAt).toBe(NOW + HOUR)
     expect(path).toMatch(
       new RegExp(
-        `^media\\?threadId=user-1-a&id=${record.id}&userId=user-1&exp=${NOW + HOUR}&sig=[\\w-]+$`,
+        `^media\\?threadId=user-1-a&id=${record.id}&exp=${NOW + HOUR}&sig=[\\w-]+$`,
       ),
     )
     expect(response.status).toBe(200)
@@ -219,24 +224,44 @@ describe('media upload and signed URLs', () => {
     await host.close()
   })
 
-  it('serves a signed URL on another instance whose identify refuses everyone', async () => {
+  it('serves a signed URL on another instance with the same key', async () => {
     const { host, upload, signedPath, fetchSigned, hostWith, handlerWith } =
       setup({ secret: SHARED })
     const record = await upload('user-1-a')
     const { path } = await signedPath(record)
-    const other = hostWith(() => null)
-    const refuseAll = handlerWith({ host: other, secret: SHARED })
+    const other = hostWith(allowUser)
 
-    const signed = await fetchSigned(path, refuseAll)
-    const unsigned = await fetchSigned(
-      `media?threadId=user-1-a&id=${record.id}`,
-      refuseAll,
+    const signed = await fetchSigned(
+      path,
+      handlerWith({ host: other, secret: SHARED }),
     )
 
     expect(signed.status).toBe(200)
     expect(await signed.text()).toBe('hello')
-    expect(unsigned.status).toBe(401)
     await other.close()
+    await host.close()
+  })
+
+  it('checks the user of a signed request: none is 401, a stranger or another tenant is 403', async () => {
+    const { host, upload, signedPath, fetchSigned, hostWith, handlerWith } =
+      setup({ secret: SHARED })
+    const record = await upload('user-1-a')
+    const { path } = await signedPath(record)
+    const as = (who: { id: string; tenantId?: string }) => {
+      const other = hostWith(() => who)
+      return {
+        other,
+        handler: handlerWith({ host: other, secret: SHARED }),
+      }
+    }
+    const stranger = as({ id: 'user-2' })
+    const elsewhere = as({ id: 'user-1', tenantId: 'other-tenant' })
+
+    expect((await fetchSigned(path, undefined, {})).status).toBe(401)
+    expect((await fetchSigned(path, stranger.handler)).status).toBe(403)
+    expect((await fetchSigned(path, elsewhere.handler)).status).toBe(403)
+    await stranger.other.close()
+    await elsewhere.other.close()
     await host.close()
   })
 
@@ -255,10 +280,6 @@ describe('media upload and signed URLs', () => {
     {
       label: 'a later expiry',
       change: (query) => query.set('exp', String(Date.now() + 2 * HOUR)),
-    },
-    {
-      label: 'another user',
-      change: (query) => query.set('userId', 'user-1-admin'),
     },
     {
       label: 'another tenant',
@@ -358,7 +379,7 @@ describe('media upload and signed URLs', () => {
 
     expect(owner.status).toBe(200)
     expect(await owner.text()).toBe('hello')
-    expect((await fetchSigned(path)).status).toBe(401)
+    expect((await fetchSigned(path, undefined, {})).status).toBe(401)
     expect(
       (await call(`media?threadId=someone-else&id=${record.id}`)).status,
     ).toBe(403)

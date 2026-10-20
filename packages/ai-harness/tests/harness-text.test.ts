@@ -386,7 +386,7 @@ describe('harnessText', () => {
     const studio = defineHarness({ name: 'test/inner', adapter: inner.adapter })
     const host = createHarnessHost({
       persistence: memoryPersistence(),
-      access: { identify: () => null, authorize: membersOnly() },
+      access: { identify: () => null, ...membersOnly() },
     })
     // The inner session runs on the host of the outer thread.
     const lead = defineHarness({
@@ -430,7 +430,7 @@ describe('harnessText', () => {
     const studio = defineHarness({ name: 'test/inner', adapter: inner.adapter })
     const host = createHarnessHost({
       persistence: memoryPersistence(),
-      access: { identify: () => null, authorize: membersOnly() },
+      access: { identify: () => null, ...membersOnly() },
     })
     const lead = defineHarness({
       name: 'test/lead',

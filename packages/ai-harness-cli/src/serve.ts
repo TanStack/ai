@@ -20,7 +20,8 @@ export interface ServeOptions<P extends Principal = Principal> {
   hostname: string
   /**
    * Every request must send `Authorization: Bearer <token>`. Only a signed
-   * media URL needs no token: its signature is its login.
+   * media URL needs no token. On a host with access, the handler still reads
+   * its user with `identify`.
    */
   token: string
   /**
@@ -69,7 +70,7 @@ async function mcpServer<P extends Principal>(
   })
 }
 
-/** A signed media URL is its own login: the handler checks its signature. */
+/** A signed media URL needs no token: the handler checks its signature. */
 function isSignedMedia(request: Request) {
   const url = new URL(request.url)
   return (
