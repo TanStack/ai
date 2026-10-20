@@ -4,7 +4,14 @@ import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin, logIdOf } from '../src'
 import { isRecord } from '../src/utils'
-import { gate, mockAdapter, text, toolCall, untilAborted } from './helpers'
+import {
+  appendToLog,
+  gate,
+  mockAdapter,
+  text,
+  toolCall,
+  untilAborted,
+} from './helpers'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 import type { LogStore } from '@tanstack/ai-persistence'
 import type { AgentActions, HarnessSession } from '../src'
@@ -58,6 +65,8 @@ function durablePersistence() {
   const { metadata } = memoryPersistence().stores
   return { stores: { log: memoryLogStore(), metadata } }
 }
+
+type Durable = ReturnType<typeof durablePersistence>
 
 /**
  * Stop the host of `session`: its log refuses writes, so the session stops,
@@ -336,6 +345,82 @@ describe('limits of agent starts', () => {
     opened.open()
     await expect(first).resolves.toBe('done')
     await host.close()
+  })
+
+  /**
+   * A host with maxConcurrent 1 that stops while `worker` 0 runs and
+   * `worker` 1 waits for a slot. Returns the run that waited.
+   */
+  async function stopWithQueuedStart(persistence: Durable) {
+    const { log } = persistence.stores
+    const ran: Array<number> = []
+    const worker = defineAgent({
+      name: 'worker',
+      description: 'Waits until it is stopped, for n 0',
+      inputSchema: z.object({ n: z.number() }),
+      run: async (ctx) => {
+        ran.push(ctx.input.n)
+        if (ctx.input.n === 0) await untilAbort(ctx.abortSignal)
+        return `done ${ctx.input.n}`
+      },
+    })
+    const harness = defineHarness({
+      name: 'test/agent-limits',
+      adapter: mockAdapter([]).adapter,
+      agents: [worker],
+      subagents: { agents: [], limits: { maxConcurrent: 1 } },
+    })
+    const hostA = createHarnessHost({ persistence })
+    const sessionA = await hostA.open(harness, { threadId: THREAD })
+    const first = sessionA.agents.worker.start({ n: 0 }, { attach: 'none' })
+    const queued = sessionA.agents.worker.start({ n: 1 }, { attach: 'none' })
+    await waitFor(() => expect(ran).toEqual([0]))
+    const receipt = await queued.receipt
+    expect(receipt.status).toBe('queued')
+    void Promise.resolve(queued).catch(() => {})
+    await stopHost(log, sessionA, first)
+    return { hostA, harness, ran, queued, inputId: receipt.inputId }
+  }
+
+  it('runs a start that waited for a slot on the next host, with the same run id', async () => {
+    const persistence = durablePersistence()
+    const { hostA, harness, ran, queued, inputId } =
+      await stopWithQueuedStart(persistence)
+
+    const hostB = createHarnessHost({ persistence })
+    const sessionB = await hostB.open(harness, { threadId: THREAD })
+    await expect(sessionB.settled({ inputId })).resolves.toMatchObject({
+      outcome: 'completed',
+      operationId: queued.id,
+    })
+    expect(ran).toEqual([0, 1])
+    expect(
+      sessionB.agentRuns().find((run) => run.runId === queued.id),
+    ).toMatchObject({ status: 'completed', result: 'done 1' })
+    await hostA.close().catch(() => {})
+    await hostB.close()
+  })
+
+  it('settles a cancelled start that waited for a slot aborted on the next host', async () => {
+    const persistence = durablePersistence()
+    const { hostA, harness, ran, queued, inputId } =
+      await stopWithQueuedStart(persistence)
+    // The cancel reached the log, and the host stopped before it settled.
+    await appendToLog(persistence.stores.log, { threadId: THREAD }, [
+      { type: 'harness.input.abort', inputId },
+    ])
+
+    const hostB = createHarnessHost({ persistence })
+    const sessionB = await hostB.open(harness, { threadId: THREAD })
+    await expect(sessionB.settled({ inputId })).resolves.toMatchObject({
+      outcome: 'aborted',
+    })
+    expect(ran).toEqual([0])
+    expect(
+      sessionB.agentRuns().find((run) => run.runId === queued.id)?.status,
+    ).toBe('cancelled')
+    await hostA.close().catch(() => {})
+    await hostB.close()
   })
 
   it('keeps the maxCalls count of a resumed run after a restart', async () => {

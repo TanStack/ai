@@ -624,6 +624,11 @@ export interface AgentRunStart {
   message?: AgentMessage
   /** Recovery runs again a run whose host stopped. */
   resumed?: boolean
+  /**
+   * Recovery starts a top-level run whose start waited for a slot when its
+   * host stopped. The log has its input, so the run waits for a slot again.
+   */
+  queued?: boolean
   /** The agent tool call that started a first run. */
   child?: AgentChild
   /**

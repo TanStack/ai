@@ -18,6 +18,7 @@ import {
   customEvent,
   errorText,
   inputKey,
+  isAgentInput,
   CHAT_OPS,
   CONTROL_OPS,
   hasFinalAnswer,
@@ -994,6 +995,25 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
             // the host stopped settles aborted too. Start it from the chain
             // in the log if an app needs it.
             await this.settle({ inputId: input.inputId, outcome: 'aborted' })
+          }
+          continue
+        }
+        // A top-level agent start never ran: it waited for a slot, or the
+        // host stopped first. It runs now, in log order. A cancel that was
+        // asked before settles it aborted.
+        if (isAgentInput(input) && input.input.parentRunId === undefined) {
+          if (input.abortRequested) {
+            const queued = [...writer.state.thread.tree.values()].find(
+              (node) =>
+                node.inputId === input.inputId && node.status === 'queued',
+            )
+            await this.settle({
+              inputId: input.inputId,
+              ...(queued ? { operationId: queued.runId } : {}),
+              outcome: 'aborted',
+            })
+          } else {
+            this.startQueuedAgent(input)
           }
           continue
         }

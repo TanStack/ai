@@ -703,7 +703,7 @@ See [Limit the tree](../chat/subagents#limit-the-tree) for what each limit does.
 - Over a limit, a child start throws, and no child starts. A child of a `group` with `concurrency` waits in its group instead.
 - A start that fails before its run starts, for example with an unknown agent or an input that is not valid, gives its call back.
 
-The log keeps the counts, so a restart does not reset them. A `queued` start does not survive a host stop: the next host refuses its input with the reason `expired_on_restart`.
+The log keeps the counts, so a restart does not reset them. A `queued` start also survives a host stop. The next host keeps its run id and its place in the order, and starts it when a slot is free. A start that was cancelled before the stop ends `cancelled`.
 
 ## Give one run a budget and a time limit
 

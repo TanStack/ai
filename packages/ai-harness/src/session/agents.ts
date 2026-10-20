@@ -1101,8 +1101,8 @@ export abstract class SessionAgents<
    * Take a `maxConcurrent` slot for the top-level start `operation` of
    * `chain`. With no slot free, the run waits as `queued` in the run tree.
    * Returns false when the run ended while it waited: a cancel settles it
-   * `aborted`, and a close gives it back. ponytail: the input of a run that
-   * waits when its host stops is refused on restart (`expired_on_restart`).
+   * `aborted`, and a close gives it back. A run that waits when its host
+   * stops waits again on the next host (see `startQueuedAgent`).
    */
   protected async takeSlot(
     operation: AgentRunImpl,
@@ -1394,6 +1394,29 @@ export abstract class SessionAgents<
   }
 
   /**
+   * Start a top-level agent run whose start waited in the log when its host
+   * stopped: it waited for a slot, or the host stopped before it started.
+   * It never ran, so nothing runs twice, also without `resume`. It keeps the
+   * run id of its queued node, so the `operationId` of its receipt stays
+   * valid. It waits for a slot again.
+   */
+  protected startQueuedAgent(input: AgentInputState) {
+    const node = [...this.writer.state.thread.tree.values()].find(
+      (item) => item.inputId === input.inputId && item.status === 'queued',
+    )
+    const operation = this.agentOperation(input.input.agent, node?.runId)
+    const sender = input.principal ? { principal: input.principal } : {}
+    const chain = this.createChain(this.loggedFields(input), {
+      operation,
+      ...sender,
+    })
+    void this.executeAgent(operation, chain, {
+      inputId: input.inputId,
+      queued: true,
+    })
+  }
+
+  /**
    * What a resumable agent run adds: checkpoints of its `ctx.chat` tool
    * phases, and `ctx.harness.step` values in the session log, under the key
    * of the input the run applies.
@@ -1670,21 +1693,25 @@ export abstract class SessionAgents<
     const { principal } = chain.current
     const { answers } = start
     if (!start.resumed && !start.message && !answers) {
-      const admission = await this.accept(
-        inputId,
-        {
-          op: 'agent',
-          agent: name,
-          input,
-          ...(options.wake ? { detached: true } : {}),
-          ...(options.resume ? { resume: true } : {}),
-          ...(options.attach === 'none' ? { attach: 'none' as const } : {}),
-          ...(chain.parentRunId ? { parentRunId: chain.parentRunId } : {}),
-        },
-        principal,
-        // An offered run runs as this operation on the owner.
-        { runId: operation.id },
-      )
+      // A queued start that recovery runs is in the log already. With no
+      // `await` before the slot, recovery keeps the order of the starts.
+      const admission = start.queued
+        ? 'new'
+        : await this.accept(
+            inputId,
+            {
+              op: 'agent',
+              agent: name,
+              input,
+              ...(options.wake ? { detached: true } : {}),
+              ...(options.resume ? { resume: true } : {}),
+              ...(options.attach === 'none' ? { attach: 'none' as const } : {}),
+              ...(chain.parentRunId ? { parentRunId: chain.parentRunId } : {}),
+            },
+            principal,
+            // An offered run runs as this operation on the owner.
+            { runId: operation.id },
+          )
       // As a turn does: a refused, offered, or known input gets its receipt
       // now. A new one gets it below, when the run starts or waits.
       if (admission !== 'new') {
