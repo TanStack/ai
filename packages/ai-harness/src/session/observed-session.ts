@@ -3,7 +3,7 @@ import { runStartOf, visibleMessages } from '../log'
 import { agentRunThread } from '../log-records'
 import { createMediaStore } from '../media'
 import { untilRevoked } from './handle'
-import { snapshotFrom } from './helpers'
+import { jobsOf, loggedChildWaits, snapshotFrom } from './helpers'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
   BlobRange,
@@ -23,7 +23,7 @@ import type { SessionIndexWriter } from '../host'
 import type { Cursor, MediaRecord, SessionEvent } from '../types'
 import type { HandleGuard } from './handle'
 import type { SessionImpl } from './harness-session'
-import type { SessionSnapshot } from './types'
+import type { JobInfo, SessionSnapshot } from './types'
 
 /**
  * A read-only view of one thread, from `host.observe`. It mounts no plugins,
@@ -68,8 +68,8 @@ export interface ObservedSession<THarness extends AnyHarness = AnyHarness> {
    * - `status` is never `running`: a turn runs in memory. It is
    *   `requires_action` while the last turn waits for interrupts, else
    *   `idle`.
-   * - There are no active operations, queued turns, or waiting inputs, and
-   *   no waits of `harnessAgent` children.
+   * - There are no active operations, queued turns, or waiting inputs. The
+   *   waits of `harnessAgent` children come from the log.
    * - `plugins` has only the plugin state that the log keeps. The state of
    *   a plugin that never saved one is left out, because its first value
    *   comes from the plugin setup.
@@ -106,6 +106,11 @@ export interface ObservedSession<THarness extends AnyHarness = AnyHarness> {
    * the log of its root. `undefined` when the harness has no `reduce`.
    */
   logState: () => Promise<HarnessLogStateOf<THarness> | undefined>
+  /**
+   * The background jobs of the thread, as `session.jobs()` lists them. When
+   * the session is not open on this host, `running` is `false` for each.
+   */
+  jobs: () => Promise<Array<JobInfo>>
 }
 
 /** What a view reads, from the host that makes it. */
@@ -279,6 +284,7 @@ export function observedSession<THarness extends AnyHarness>(
             plugins: Object.fromEntries(saved),
             usage: reader.state.usage,
             cursor: reader.head(),
+            childWaits: loggedChildWaits(reader, threadId),
           }),
         )
       })
@@ -339,6 +345,11 @@ export function observedSession<THarness extends AnyHarness>(
           ? (reader.reduced as HarnessLogStateOf<THarness> | undefined)
           : undefined,
       )
+    },
+    async jobs() {
+      const session = open()
+      if (session) return session.jobs()
+      return fromLog((reader) => jobsOf(reader, threadId, new Set()))
     },
   }
   liveSessions.set(view, live)

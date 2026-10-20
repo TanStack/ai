@@ -15,4 +15,4 @@ export {
   parseControlFrame,
   parseHarnessInput,
 } from './protocol'
-export type { ControlFrame, HostFrame } from './protocol'
+export type { ControlFrame, HarnessErrorCode, HostFrame } from './protocol'

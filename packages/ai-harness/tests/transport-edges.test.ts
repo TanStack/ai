@@ -16,10 +16,12 @@ import {
   fakeSocket,
   gate,
   mockAdapter,
+  readSse,
   text,
   toolCall,
   untilAborted,
 } from './helpers'
+import type { PresenceEvent } from '../src'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
 const waitFor = <T>(
@@ -694,6 +696,212 @@ describe('an operation that waits for cancel', () => {
       () => undefined,
     )
     expect(operation.status()).toBe('cancelled')
+    await host.close()
+  })
+})
+
+describe('presence hooks', () => {
+  /** A host whose presence hooks keep each call in `connected` and `left`. */
+  function presenceSetup(
+    hooks: { failConnect?: boolean; failDisconnect?: boolean } = {},
+  ) {
+    const connected: Array<PresenceEvent> = []
+    const left: Array<PresenceEvent & { reason: string }> = []
+    const harness = defineHarness({
+      name: 'test/presence',
+      adapter: mockAdapter([() => text('hi'), () => text('again')]).adapter,
+    })
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      access: {
+        identify: ({ request }) =>
+          request.headers.get('authorization') === 'Bearer good' ? user : null,
+        policy: { authorize: () => true },
+      },
+      presence: {
+        onConnect: (event) => {
+          connected.push(event)
+          if (hooks.failConnect) throw new Error('connect hook failed')
+        },
+        onDisconnect: async (event) => {
+          left.push(event)
+          if (hooks.failDisconnect) throw new Error('disconnect hook failed')
+        },
+      },
+    })
+    const handler = createHarnessHandler({ host, harness })
+    const call = (path: string, init: RequestInit = {}) =>
+      handler(
+        new Request(`http://x/api/harness/${path}`, {
+          ...init,
+          headers: {
+            ...auth,
+            'content-type': 'application/json',
+            ...init.headers,
+          },
+        }),
+      )
+    const prompt = (threadId: string) =>
+      call('control', {
+        method: 'POST',
+        body: JSON.stringify({
+          threadId,
+          input: { op: 'prompt', message: 'Hi.' },
+        }),
+      })
+    return { host, harness, call, prompt, connected, left }
+  }
+
+  const isHello = (frame: { type?: string }) => frame.type === 'harness.hello'
+
+  it('reports one connect and one disconnect for each SSE stream, with a new id for each tab', async () => {
+    const { host, call, prompt, connected, left } = presenceSetup()
+    await prompt('t-sse')
+    await waitFor(async () =>
+      expect(
+        (await (await call('snapshot?threadId=t-sse')).json()).status,
+      ).toBe('idle'),
+    )
+    expect(connected).toEqual([])
+
+    const first = await call('events?threadId=t-sse')
+    const second = await call('events?threadId=t-sse', {
+      headers: { 'Last-Event-ID': '0' },
+    })
+    await readSse(first, isHello)
+    await readSse(second, isHello)
+
+    await waitFor(() => expect(left).toHaveLength(2))
+    expect(connected).toEqual([
+      {
+        principal: user,
+        threadId: 't-sse',
+        harness: 'test/presence',
+        connectionId: expect.any(String),
+        transport: 'sse',
+        resumed: false,
+      },
+      expect.objectContaining({ transport: 'sse', resumed: true }),
+    ])
+    expect(connected[0]?.connectionId).not.toBe(connected[1]?.connectionId)
+    expect(
+      left.map(({ connectionId, reason }) => [connectionId, reason]),
+    ).toEqual(connected.map(({ connectionId }) => [connectionId, 'closed']))
+    await host.close()
+  })
+
+  it('reports revoked when a revoke closes an SSE stream', async () => {
+    const { host, call, prompt, connected, left } = presenceSetup()
+    await prompt('t-revoke')
+    const reading = readSse(await call('events?threadId=t-revoke'), () => false)
+    await waitFor(() => expect(connected).toHaveLength(1))
+
+    host.revoke({ threadId: 't-revoke', principal: user })
+    await reading
+
+    await waitFor(() =>
+      expect(left).toEqual([expect.objectContaining({ reason: 'revoked' })]),
+    )
+    await host.close()
+  })
+
+  it('reports a socket after its subscribe, and closed, revoked, or error at its end', async () => {
+    const { host, harness, prompt, connected, left } = presenceSetup()
+    await prompt('t-ws')
+    const open = (from?: string) => {
+      const fake = fakeSocket()
+      handleHarnessSocket({
+        host,
+        harness,
+        socket: fake.socket,
+        request: upgrade,
+      })
+      fake.receive({
+        type: 'harness.subscribe',
+        threadId: 't-ws',
+        ...(from ? { from } : {}),
+      })
+      return fake
+    }
+
+    const closing = open()
+    const failing = open('0')
+    await waitFor(() => expect(connected).toHaveLength(2))
+    expect(connected).toEqual([
+      expect.objectContaining({
+        transport: 'websocket',
+        resumed: false,
+        threadId: 't-ws',
+      }),
+      expect.objectContaining({ transport: 'websocket', resumed: true }),
+    ])
+    closing.socket.close()
+    failing.fail()
+    await waitFor(() => expect(left).toHaveLength(2))
+    const revoking = open()
+    await waitFor(() => expect(connected).toHaveLength(3))
+    host.revoke({ threadId: 't-ws', principal: user })
+
+    await waitFor(() => expect(revoking.closed).toEqual([4403]))
+    expect(
+      left.map(({ connectionId, reason }) => [connectionId, reason]),
+    ).toEqual([
+      [connected[0]?.connectionId, 'closed'],
+      [connected[1]?.connectionId, 'error'],
+      [connected[2]?.connectionId, 'revoked'],
+    ])
+    await host.close()
+  })
+
+  it('keeps the stream when a hook throws, and only warns', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { host, call, prompt, connected, left } = presenceSetup({
+      failConnect: true,
+      failDisconnect: true,
+    })
+    await prompt('t-throw')
+
+    const frames = await readSse<{ type?: string }>(
+      await call('events?threadId=t-throw&from=0'),
+      (frame) => frame.type === 'harness.event',
+    )
+
+    expect(frames.map((frame) => frame.type)).toEqual([
+      'harness.hello',
+      'harness.event',
+    ])
+    await waitFor(() => expect(left).toHaveLength(1))
+    expect(connected).toHaveLength(1)
+    await waitFor(() =>
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('disconnect hook failed'),
+      ),
+    )
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('connect hook failed'),
+    )
+    warn.mockRestore()
+    await host.close()
+  })
+
+  it('does not report a POST run stream or a read from code', async () => {
+    const { host, harness, call, connected } = presenceSetup()
+    const run = await call('run', {
+      method: 'POST',
+      body: runBody('t-run', {
+        messages: [{ id: 'u1', role: 'user', content: 'Hi.' }],
+      }),
+    })
+    expect(await run.text()).toContain('RUN_FINISHED')
+    const view = await host.observe(harness, {
+      threadId: 't-run',
+      principal: user,
+    })
+    const controller = new AbortController()
+    const events = view.events({ from: '0', signal: controller.signal })
+    for await (const _ of events) break
+
+    expect(connected).toEqual([])
     await host.close()
   })
 })

@@ -24,7 +24,7 @@ import type {
 import type { LogRecord, MessageStore } from '@tanstack/ai-persistence'
 import type { Redactor } from '../auth'
 import type { EventFeed, EventListener, ListenedFeed } from '../feed'
-import type { InputState } from '../log'
+import type { InputState, LogReader } from '../log'
 import type {
   AgentResultRecord,
   NamedTurnOverrides,
@@ -45,11 +45,39 @@ import type {
 } from '../types'
 import type {
   AgentRunInfo,
+  JobInfo,
   AgentMessage,
   AgentInputState,
   AgentStartOptions,
   SessionSnapshot,
 } from './types'
+
+/**
+ * @internal The background jobs of `threadId` and of its child threads in
+ * `log`. `running` has the ids of the jobs that this host runs.
+ */
+export function jobsOf(
+  log: Pick<LogReader, 'threads' | 'stateOf'>,
+  threadId: string,
+  running: ReadonlySet<string>,
+): Array<JobInfo> {
+  return log
+    .threads()
+    .filter(
+      (thread) => thread === threadId || thread.startsWith(`${threadId}/`),
+    )
+    .flatMap((thread) =>
+      [...log.stateOf(thread).jobs].map(([jobId, job]) => ({
+        jobId,
+        threadId: thread,
+        ...(job.backendId !== undefined ? { backendId: job.backendId } : {}),
+        ...(job.principal ? { principal: { ...job.principal } } : {}),
+        ...(job.at !== undefined ? { startedAt: job.at } : {}),
+        ...(job.label !== undefined ? { label: job.label } : {}),
+        running: running.has(jobId),
+      })),
+    )
+}
 
 /**
  * @internal The snapshot of a thread. An open session and a `host.observe`
@@ -67,6 +95,7 @@ export function snapshotFrom({
   plugins,
   usage,
   cursor,
+  childWaits = [],
   live,
 }: {
   threadId: string
@@ -81,6 +110,8 @@ export function snapshotFrom({
   plugins: SessionSnapshot['plugins']
   usage: SessionSnapshot['usage']
   cursor: SessionSnapshot['cursor']
+  /** The waits of the `harnessAgent` children that the log has. See {@link loggedChildWaits}. */
+  childWaits?: SessionSnapshot['pendingWaits']
   live?: {
     isRunning: boolean
     activeOperations: SessionSnapshot['activeOperations']
@@ -89,7 +120,34 @@ export function snapshotFrom({
     childWaits: SessionSnapshot['pendingWaits']
   }
 }): SessionSnapshot {
-  const waits = snapshotWaits({
+  const waits = threadWaits(thread, stopped, interrupts)
+  // A live child and the log list the same waits: the live one wins.
+  const liveChildWaits = live?.childWaits ?? []
+  const seen = new Set(liveChildWaits.map((wait) => wait.waitId))
+  return {
+    threadId,
+    status: live?.isRunning ? 'running' : stopped ? 'requires_action' : 'idle',
+    activeOperations: live?.activeOperations ?? [],
+    queuedTurns: live?.queuedTurns ?? 0,
+    waitingInputs: live?.waitingInputs ?? [],
+    pendingWaits: [
+      ...waits,
+      ...liveChildWaits,
+      ...childWaits.filter((wait) => !seen.has(wait.waitId)),
+    ],
+    plugins,
+    usage,
+    cursor,
+  }
+}
+
+/** The open waits of a thread fold: of its stopped turn, and of the log. */
+function threadWaits(
+  thread: ThreadStateFold | undefined,
+  stopped: Parameters<typeof snapshotWaits>[0]['stopped'],
+  interrupts: ReadonlyArray<Interrupt>,
+) {
+  return snapshotWaits({
     stopped,
     interrupts,
     // With the expiry of each wait, also the default one of its kind.
@@ -97,17 +155,31 @@ export function snapshotFrom({
     waits: thread?.waits,
     records: thread?.interrupts,
   })
-  return {
-    threadId,
-    status: live?.isRunning ? 'running' : stopped ? 'requires_action' : 'idle',
-    activeOperations: live?.activeOperations ?? [],
-    queuedTurns: live?.queuedTurns ?? 0,
-    waitingInputs: live?.waitingInputs ?? [],
-    pendingWaits: [...waits, ...(live?.childWaits ?? [])],
-    plugins,
-    usage,
-    cursor,
-  }
+}
+
+/**
+ * @internal The waits of the `harnessAgent` children of `threadId` in
+ * `log`: the waits on each child thread (`<thread>/agent/<run id>`) whose
+ * run did not end. Every host reads them, also with no live child.
+ */
+export function loggedChildWaits(
+  log: Pick<LogReader, 'threads' | 'stateOf'>,
+  threadId: string,
+): SessionSnapshot['pendingWaits'] {
+  const prefix = `${threadId}/agent/`
+  const { runs } = log.stateOf(threadId).thread
+  return log.threads().flatMap((thread) => {
+    if (!thread.startsWith(prefix)) return []
+    // The root log gets the run record of the child when its run ends.
+    const run = runs.get(thread.slice(prefix.length))
+    if (run && run.status !== 'running' && run.status !== 'interrupted')
+      return []
+    const fold = log.stateOf(thread).thread
+    const stopped = fold.interrupted
+    return threadWaits(fold, stopped, stopped?.interrupts ?? []).map(
+      ({ turn: _turn, ...wait }) => wait,
+    )
+  })
 }
 
 /**

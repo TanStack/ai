@@ -70,6 +70,7 @@ type PublicSessionMember =
   | 'getMedia'
   | 'inputs'
   | 'inspect'
+  | 'jobs'
   | 'loadMedia'
   | 'logState'
   | 'mediaUrl'
@@ -599,10 +600,11 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
       onLost: () => this.stopOnOwnershipLoss(),
       // A background job of this host keeps the log too: a host that takes
       // the log over would note the job as stopped.
-      isBusy: () => !this.isIdle() || this.jobs.size > 0 || this.recovering > 0,
+      isBusy: () =>
+        !this.isIdle() || this.liveJobs.size > 0 || this.recovering > 0,
       // A sleep has a schedule, so its wake comes at its time.
       hasWorkNow: () =>
-        (!this.isIdle() || this.jobs.size > 0 || this.recovering > 0) &&
+        (!this.isIdle() || this.liveJobs.size > 0 || this.recovering > 0) &&
         this.sleeping === 0,
       onOffers: () => void this.drainOffers(),
       // An event that another host wrote: the host status and the `onEvent`

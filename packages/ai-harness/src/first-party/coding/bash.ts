@@ -319,6 +319,7 @@ export function bashTools(
     const backendId = await job.jobId
     options.jobs?.started({
       jobId,
+      label: command,
       ...(backendId !== undefined ? { backendId } : {}),
       ...(threadId !== undefined ? { threadId } : {}),
     })
@@ -437,6 +438,7 @@ export function bashTools(
             options.jobs?.started({
               jobId,
               backendId,
+              label: command,
               ...(threadId !== undefined ? { threadId } : {}),
             })
           }

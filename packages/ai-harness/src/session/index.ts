@@ -8,6 +8,7 @@ export type {
   DynamicAgentHandle,
   AgentHandles,
   AgentRunInfo,
+  JobInfo,
   ScheduleOptions,
   SessionSnapshot,
   SessionInspection,

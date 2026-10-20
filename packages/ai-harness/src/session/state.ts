@@ -33,6 +33,7 @@ import {
   customEvent,
   isOfferedInputRecord,
   scopeOf,
+  loggedChildWaits,
   snapshotFrom,
   storedPrincipal,
   changeSettings,
@@ -157,10 +158,11 @@ export abstract class SessionState<
         ]),
       pin: (hostId) => this.writer.pin(hostId),
       lostJobs: (threadId) =>
-        [...this.writer.stateOf(threadId).jobs].flatMap(([jobId, backendId]) =>
-          backendId === undefined || this.jobs.has(jobId)
-            ? []
-            : [{ jobId, backendId }],
+        [...this.writer.stateOf(threadId).jobs].flatMap(
+          ([jobId, { backendId }]) =>
+            backendId === undefined || this.liveJobs.has(jobId)
+              ? []
+              : [{ jobId, backendId }],
         ),
       stranded: ({ operationId, hostId }) =>
         this.feed.publish(
@@ -257,6 +259,10 @@ export abstract class SessionState<
       plugins: { ...this.stateDoc },
       usage: this.usage(),
       cursor: this.feed.head(),
+      // The waits of the children that another host runs.
+      childWaits: this.logWriter
+        ? loggedChildWaits(this.logWriter, this.threadId)
+        : [],
       live: {
         isRunning: this.activeTurn !== undefined,
         activeOperations: active.map((operation) => ({

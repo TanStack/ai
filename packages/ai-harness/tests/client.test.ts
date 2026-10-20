@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, logMessageStore } from '../src'
+import {
+  createHarnessHost,
+  defineHarness,
+  logMessageStore,
+  membersOnly,
+} from '../src'
 import { createHarnessHandler } from '../src/server'
 import { createHarnessClient } from '../src/client'
 import { gate, messageTexts, mockAdapter, text } from './helpers'
@@ -375,6 +380,66 @@ describe('client.send to an agent run', () => {
       },
     ])
     hold.open()
+    await host.close()
+  })
+})
+
+describe('client.sessions share and unshare', () => {
+  it('shares a session with a user, unshares them, and throws for a missing thread', async () => {
+    const studio = defineHarness({
+      name: 'test/client-share',
+      adapter: mockAdapter(() => text('ok')).adapter,
+    })
+    const users = new Map([
+      ['olga', { id: 'olga' }],
+      ['bea', { id: 'bea' }],
+    ])
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      access: {
+        identify: ({ request }) =>
+          users.get(request.headers.get('x-user') ?? '') ?? null,
+        policy: membersOnly(),
+      },
+    })
+    const handler = createHarnessHandler({ host, harness: studio })
+    const clientOf = (userId: string) =>
+      createHarnessClient<typeof studio>({
+        url: 'http://local/api/harness',
+        threadId: 't1',
+        headers: { 'x-user': userId },
+        fetch: (input, init) => handler(new Request(input, init)),
+      })
+    const olga = clientOf('olga')
+    const bea = clientOf('bea')
+    await olga.send('hi')
+
+    const shared = await olga.sessions.share({
+      threadId: 't1',
+      userId: 'bea',
+      role: 'viewer',
+    })
+
+    expect(shared.members).toEqual([
+      { userId: 'olga', role: 'owner' },
+      { userId: 'bea', role: 'viewer' },
+    ])
+    await expect(bea.transcript()).resolves.toBeDefined()
+
+    const unshared = await olga.sessions.unshare({
+      threadId: 't1',
+      userId: 'bea',
+    })
+
+    expect(unshared.members).toEqual([{ userId: 'olga', role: 'owner' }])
+    await expect(bea.transcript()).rejects.toThrow('403')
+    await expect(
+      olga.sessions.share({
+        threadId: 't-none',
+        userId: 'bea',
+        role: 'member',
+      }),
+    ).rejects.toThrow('404')
     await host.close()
   })
 })

@@ -19,6 +19,7 @@ import type {
   AgentSettled,
   HarnessAgentContext,
   HarnessConfig,
+  HarnessErrorCode,
   HarnessEventValues,
   HarnessHost,
   HarnessInput,
@@ -33,6 +34,11 @@ import type {
   SessionMetadataOf,
 } from '../src'
 import type { InputSettlement } from '../src/types'
+import type {
+  HarnessErrorCode as ClientErrorCode,
+  HarnessProtocolError,
+} from '../src/client'
+import type { HarnessErrorCode as ServerErrorCode } from '../src/server'
 import type { ToolStep } from '../src/durable-tool'
 import type { PluginServices, PluginSetupContext } from '../src/plugins'
 
@@ -356,4 +362,11 @@ it('takes only JSON values from step.do', () => {
     await step.do('seen', () => ({ ids: new Map<string, number>() }))
   }
   expectTypeOf(run).toBeFunction()
+})
+
+it('exports HarnessErrorCode from each entry, as the type of the error code', () => {
+  expectTypeOf<HarnessProtocolError['code']>().toEqualTypeOf<HarnessErrorCode>()
+  expectTypeOf<ClientErrorCode>().toEqualTypeOf<HarnessErrorCode>()
+  expectTypeOf<ServerErrorCode>().toEqualTypeOf<HarnessErrorCode>()
+  expectTypeOf<'slow_consumer'>().toExtend<HarnessErrorCode>()
 })

@@ -124,6 +124,7 @@ What the view reads for the rest:
 - `usage()`: the token totals of the thread.
 - `entry()`: the index entry of the thread.
 - `logState()`: the `durability.reduce` fold of the log. See [One log for a session tree](./shared-logs#keep-state-for-the-whole-tree).
+- `jobs()`: the background jobs that did not end. See [Watch background jobs](./coding-workspaces#4-watch-background-jobs).
 
 The view sets up no plugins, writes nothing, and never takes the log, so a read never fails because another host owns the thread. When the session is open on this host, the view reads through it, but it never holds the session open. The read paths of [`createHarnessHandler`](./connect) use the view, so a client that only reads starts no plugins. `GET describe` opens the session, because the plugins give the commands and the settings.
 

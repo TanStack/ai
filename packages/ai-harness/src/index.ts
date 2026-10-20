@@ -123,6 +123,7 @@ export type {
   HostStatusEvent,
   HostTransferredEvent,
   OpenSessionOptions,
+  PresenceEvent,
   ResumedThread,
   ResumePendingOptions,
   RetentionLimits,
@@ -159,6 +160,7 @@ export type {
   AgentRunOptions,
   AgentStartOptions,
   DynamicAgentHandle,
+  JobInfo,
   ScheduleOptions,
   SessionDescription,
   SessionInspection,
@@ -181,6 +183,8 @@ export type {
   TurnAdditions,
 } from './turn'
 export { isTransientModelError, retryTransientErrors } from './turn'
+
+export type { HarnessErrorCode } from './protocol'
 
 export { HARNESS_EVENTS, InputRejectedError } from './types'
 export type {

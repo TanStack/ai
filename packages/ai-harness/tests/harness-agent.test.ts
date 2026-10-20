@@ -3,7 +3,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, chat, toolDefinition } from '@tanstack/ai'
 import { defineByokProvider, keyedAdapter } from '@tanstack/ai/byok'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import {
+  memoryLogState,
+  memoryLogStore,
+  memoryPersistence,
+} from '@tanstack/ai-persistence'
 import {
   createHarnessHost,
   defineHarness,
@@ -293,6 +297,69 @@ describe('harnessAgent in a harness session', () => {
     await host.close()
   })
 
+  it('lists a wait of the child on another host and in host.observe, and an answer there resumes the child', async () => {
+    const deployed: Array<string> = []
+    const deploy = toolDefinition({
+      name: 'deploy',
+      description: 'Deploy. Needs approval.',
+      needsApproval: true,
+      inputSchema: z.object({ target: z.string() }),
+    }).server(({ target }) => {
+      deployed.push(target)
+      return Promise.resolve({ deployed: true })
+    })
+    const child = defineHarness({
+      name: 'test/deployer',
+      adapter: mockAdapter([
+        () => toolCall('deploy', { target: 'prod' }),
+        () => text('Deployed.'),
+      ]).adapter,
+      tools: [deploy],
+    })
+    const { harness } = lead(child)
+    // Two hosts on one log backend: two servers on one database.
+    const logState = memoryLogState()
+    const hostOf = () =>
+      createHarnessHost({
+        persistence: { stores: { log: memoryLogStore({ state: logState }) } },
+      })
+    const owner = hostOf()
+    const other = hostOf()
+    const session = await owner.open(harness, { threadId: 't' })
+
+    const turn = session.send('Ship it.')
+    await waitFor(() => expect(session.snapshot().pendingWaits).toHaveLength(1))
+    const [wait] = session.snapshot().pendingWaits
+    const view = await other.observe(harness, { threadId: 't' })
+    await waitFor(async () =>
+      expect((await view.snapshot()).pendingWaits).toEqual([
+        expect.objectContaining({ waitId: wait?.waitId, kind: 'approval' }),
+      ]),
+    )
+    const remote = await other.open(harness, { threadId: 't' })
+    await waitFor(() =>
+      expect(remote.snapshot().pendingWaits).toEqual([
+        expect.objectContaining({ waitId: wait?.waitId, kind: 'approval' }),
+      ]),
+    )
+    // The owner lists the wait once: from its live child, not also from the log.
+    expect(session.snapshot().pendingWaits).toHaveLength(1)
+
+    const receipt = await remote.resolve({
+      resume: [
+        { interruptId: wait?.waitId ?? '', status: 'resolved', payload: true },
+      ],
+    })
+
+    expect(receipt.status).not.toBe('rejected')
+    await expect(turn).resolves.toMatchObject({ text: 'Done.' })
+    expect(deployed).toEqual(['prod'])
+    await waitFor(() => expect(remote.snapshot().pendingWaits).toEqual([]))
+    expect((await view.snapshot()).pendingWaits).toEqual([])
+    await other.close()
+    await owner.close()
+  })
+
   it('cancels the child when the run stops while a turn of the child waits', async () => {
     const deploy = toolDefinition({
       name: 'deploy',
@@ -314,6 +381,8 @@ describe('harnessAgent in a harness session', () => {
     await turn.cancel()
     await expect(turn).rejects.toThrow()
     await waitFor(() => expect(hostCountsOf(host).children).toBe(0))
+    // The log of the child still has its stopped turn, but its run ended.
+    expect(session.snapshot().pendingWaits).toEqual([])
     await host.close()
   })
 

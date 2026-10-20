@@ -241,6 +241,7 @@ describe('bash in the foreground', () => {
     expect(started).toHaveBeenCalledWith({
       jobId: 'call-1',
       backendId: 'pid-3',
+      label: 'npm run dev',
       threadId: 't',
     })
   })
@@ -390,6 +391,7 @@ describe('bash job ids', () => {
     expect(started).toHaveBeenCalledWith({
       jobId: 'bash-1',
       backendId: 'pid-9',
+      label: 'serve',
       threadId: 'child',
     })
     expect(ended).toHaveBeenCalledWith({ jobId: 'bash-1', threadId: 'child' })

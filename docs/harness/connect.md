@@ -92,7 +92,7 @@ For one session:
 For a list of sessions:
 
 - `GET sessions`: one page of the sessions that this user can list, newest first.
-- `POST sessions`: change a session with `{ op, threadId }`. The ops are `rename`, `update`, `delete`, `fork`, `share`, and `unshare`. See [List, rename, and fork sessions](./sessions) and [Share the thread](./shared-threads#2-share-the-thread).
+- `POST sessions`: change a session with `{ op, threadId }`. The ops are `rename`, `update`, `delete`, `fork`, `share`, and `unshare`. `client.sessions` has one method for each op. A thread that is not there throws `404`. See [List, rename, and fork sessions](./sessions) and [Share the thread](./shared-threads#2-share-the-thread).
 - `GET host-events`: the status changes and index changes of the sessions that this user can read, as SSE.
 
 A read of a thread that does not exist answers `404`. Only `GET run?threadId=` answers an empty thread, because `useChat` reads it before the first message.
@@ -123,6 +123,7 @@ Every transport sends the same frames: each event is an AG-UI wire chunk in a `h
 - When the stream is idle, the server sends a heartbeat every 20 s. Set the idle timeout of your proxy to more than that.
 - A client that does not read for 30 s gets a `slow_consumer` error frame, and the stream closes. Connect again from the last cursor.
 - Every answer of the handler has an `X-Request-Id` header, and every error frame has a `code` and a `requestId`. Log the id, to find the request in the server logs.
+- To know who has a stream open, pass `presence: { onConnect, onDisconnect }` to `createHarnessHost`. See [Show who is here](./shared-threads#8-show-who-is-here).
 
 To change the heartbeat or the limits, pass `stream` to `createHarnessHandler` and `handleHarnessSocket`. [The harness wire protocol](./protocol) lists every frame, the error codes, and the `stream` values, for a client in any language.
 

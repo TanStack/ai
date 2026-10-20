@@ -142,7 +142,8 @@ export type HarnessRecord =
    * A background job started, or it ended. `backendId` is the id of its
    * process in the workspace backend, so a later host can stop it.
    * `principal` is who moved a running call to the background
-   * (`session.background`).
+   * (`session.background`). A start has `at`, its time in epoch ms, and
+   * `label`, the command or the tool name.
    */
   | {
       type: 'harness.job'
@@ -150,6 +151,8 @@ export type HarnessRecord =
       ended: boolean
       backendId?: string
       principal?: { id: string; tenantId?: string }
+      at?: number
+      label?: string
     }
   /** A note for the transcript. `noteId` is the id of its message. */
   | { type: 'harness.note'; noteId: string; note: string }
@@ -295,6 +298,17 @@ export interface InputState {
   traceparent?: string
 }
 
+/**
+ * A background job that started and did not end. `backendId` is the id of
+ * its process in the workspace backend, when the backend gave one.
+ */
+export interface JobState {
+  backendId?: string
+  principal?: { id: string; tenantId?: string }
+  at?: number
+  label?: string
+}
+
 /** The fold of a session log. */
 export interface LogState {
   /** The position of the last folded record. */
@@ -322,11 +336,8 @@ export interface LogState {
   runUsage: Map<string, UsageCounts>
   /** The revert that stands, if any. */
   revert?: RevertState
-  /**
-   * Background jobs that started and did not end, by job id: the id of the
-   * process in the workspace backend, when the backend gave one.
-   */
-  jobs: Map<string, string | undefined>
+  /** Background jobs that started and did not end, by job id. */
+  jobs: Map<string, JobState>
   /** Notes that are not in the transcript yet, by message id. */
   notes: Map<string, string>
   /**
@@ -725,10 +736,24 @@ export function foldEntry(
       if (record.revert) state.revert = record.revert
       else delete state.revert
       return
-    case 'harness.job':
-      if (record.ended) state.jobs.delete(record.jobId)
-      else state.jobs.set(record.jobId, record.backendId)
+    case 'harness.job': {
+      if (record.ended) {
+        state.jobs.delete(record.jobId)
+        return
+      }
+      // A moved call logs a second start with its backend id. The first
+      // start keeps who moved it and when.
+      const job = state.jobs.get(record.jobId) ?? {}
+      const { backendId, principal, at, label } = record
+      state.jobs.set(record.jobId, {
+        ...job,
+        ...(backendId !== undefined ? { backendId } : {}),
+        ...(label !== undefined ? { label } : {}),
+        ...(job.principal === undefined && principal ? { principal } : {}),
+        ...(job.at === undefined && at !== undefined ? { at } : {}),
+      })
       return
+    }
     case 'harness.note':
       state.notes.set(record.noteId, record.note)
       return
@@ -1000,9 +1025,7 @@ function serialize(state: SharedLogState, versions: SnapshotVersions) {
         usage: session.usage,
         runUsage: [...session.runUsage.entries()],
         revert: session.revert ?? null,
-        jobs: [...session.jobs].map(([jobId, backendId]) =>
-          backendId === undefined ? jobId : [jobId, backendId],
-        ),
+        jobs: [...session.jobs],
         notes: [...session.notes.entries()],
         keptRecords: session.keptRecords,
         thread: serializeThread(session.thread),
@@ -1049,10 +1072,15 @@ function parseSession(value: unknown, seq: number) {
     runUsage: new Map(runUsage as Array<[string, UsageCounts]>),
     // A thread with no revert data has null.
     ...(revert ? { revert } : {}),
-    // A job with a backend id is a pair.
+    // An older snapshot has a job id, or a pair of the id and its backend id.
     jobs: new Map(
-      (jobs as Array<string | [string, string]>).map((job) =>
-        typeof job === 'string' ? [job, undefined] : job,
+      (jobs as Array<string | [string, string | JobState]>).map((job) =>
+        typeof job === 'string'
+          ? [job, {}]
+          : [
+              job[0],
+              typeof job[1] === 'string' ? { backendId: job[1] } : job[1],
+            ],
       ),
     ),
     notes: new Map(notes as Array<[string, string]>),
@@ -1335,6 +1363,8 @@ export interface LogWriter extends EventFeed {
    * agent chain or a subagent run). Empty when the log has no record of it.
    */
   stateOf: (thread: string) => LogState
+  /** The threads that the log has a fold of. */
+  threads: () => Array<string>
   /**
    * The `reduce` fold of the whole log, when `reduce` is the reduce that
    * folds this log. Else `undefined`.
@@ -1454,6 +1484,8 @@ export interface LogReader<TState = unknown> {
   readonly state: LogState
   /** The fold of another thread of the log: a child thread of the session. */
   stateOf: (thread: string) => LogState
+  /** The threads that the log has a fold of. */
+  threads: () => Array<string>
   /** The `reduce` fold of the whole log. */
   readonly reduced: TState | undefined
   /** The log position. */
@@ -1697,6 +1729,7 @@ export class SharedLog<TState = unknown> {
         return shared.sessions.get(threadId) ?? emptyLogState()
       },
       stateOf: (thread) => shared.sessions.get(thread) ?? emptyLogState(),
+      threads: () => [...shared.sessions.keys()],
       get reduced() {
         return shared.reduced
       },
@@ -1763,6 +1796,7 @@ export class SharedLog<TState = unknown> {
         return own.fenced
       },
       stateOf: (thread) => sessionOf(shared, thread),
+      threads: () => [...shared.sessions.keys()],
       reducedBy: (reduce) =>
         reduce !== undefined && reduce === this.fold.reduce
           ? shared.reduced

@@ -222,7 +222,54 @@ export interface HarnessHostOptions<P extends Principal = Principal> {
    * ```
    */
   harnesses?: ReadonlyArray<AnyHarness>
+  /**
+   * Hooks for the event streams of clients: `GET events` and the socket of
+   * `handleHarnessSocket`, after its subscribe. `onConnect` runs when a
+   * stream starts, and `onDisconnect` runs once when it ends. Each stream
+   * gets its own `connectionId`, so two tabs are two connections. A host
+   * reports only the streams that it serves. Reads from your own code and
+   * `POST run` streams do not count. The host does not wait for a hook: a
+   * hook that throws or rejects only logs a warning.
+   *
+   * @example
+   * ```ts
+   * const host = createHarnessHost({
+   *   presence: {
+   *     onConnect: ({ threadId, principal }) => online.add(threadId, principal?.id),
+   *     onDisconnect: ({ threadId, principal }) => online.remove(threadId, principal?.id),
+   *   },
+   * })
+   * ```
+   */
+  presence?: {
+    onConnect?: (event: PresenceEvent<P>) => void | Promise<void>
+    onDisconnect?: (
+      event: PresenceEvent<P> & { reason: PresenceEndReason },
+    ) => void | Promise<void>
+  }
 }
+
+/** An event stream of a client on a thread. See `HarnessHostOptions.presence`. */
+export interface PresenceEvent<P extends Principal = Principal> {
+  /** The user of the stream. */
+  principal?: P
+  threadId: string
+  tenantId?: string
+  /** The name of the harness that the handler serves. */
+  harness: string
+  /** A new id for each stream. A reconnect gets a new one too. */
+  connectionId: string
+  transport: 'sse' | 'websocket'
+  /** The stream goes on from a cursor: `Last-Event-ID`, or `from`. */
+  resumed: boolean
+}
+
+/**
+ * Why a stream ended. `closed`: the client left, or the server closed the
+ * stream. `revoked`: `host.revoke` or `unshare` took the access of the user.
+ * `error`: the read of the events failed.
+ */
+export type PresenceEndReason = 'closed' | 'revoked' | 'error'
 
 /** How the sessions of a host live. */
 export interface HostLifecycleOptions {
@@ -1138,6 +1185,46 @@ const tenantEventReaders = new WeakMap<
  */
 export function tenantEventsOf<P extends Principal>(host: HarnessHost<P>) {
   return tenantEventReaders.get(host)
+}
+
+/** What a transport tells the host of a stream. Not public API. */
+interface PresenceReporter<P extends Principal> {
+  /** A stream started. Call the result once, when it ends. */
+  connect: (
+    event: Omit<PresenceEvent<P>, 'connectionId'>,
+  ) => (reason: PresenceEndReason) => void
+}
+
+/**
+ * The presence hooks of each host that has them. Not public API. `never`
+ * takes the reporter of a host of any principal type.
+ */
+const presences = new WeakMap<object, PresenceReporter<never>>()
+
+/**
+ * @internal The reporter of the client streams of `host`, or `undefined`
+ * when the host has no `presence` hooks.
+ */
+export function presenceOf<P extends Principal>(host: HarnessHost<P>) {
+  // `createHarnessHost` keyed the reporter by this host, so it takes `P`.
+  return presences.get(host) as PresenceReporter<P> | undefined
+}
+
+/** Call a presence hook. A hook that throws or rejects only warns. */
+function callPresence<T>(
+  hook: ((event: T) => void | Promise<void>) | undefined,
+  event: T,
+) {
+  const warn = (error: unknown) =>
+    console.warn(
+      `[@tanstack/ai-harness] A presence hook failed: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  try {
+    const done = hook?.(event)
+    if (done) done.then(undefined, warn)
+  } catch (error) {
+    warn(error)
+  }
 }
 
 /** A log that a sweep took over, and the end of what the sweep opened. */
@@ -3374,6 +3461,21 @@ export function createHarnessHost<P extends Principal = Principal>(
       ...(signal ? { signal } : {}),
     }),
   )
+  const { presence } = options
+  if (presence) {
+    presences.set(host, {
+      connect: (event: Omit<PresenceEvent<P>, 'connectionId'>) => {
+        const connected = { ...event, connectionId: crypto.randomUUID() }
+        callPresence(presence.onConnect, connected)
+        let isEnded = false
+        return (reason) => {
+          if (isEnded) return
+          isEnded = true
+          callPresence(presence.onDisconnect, { ...connected, reason })
+        }
+      },
+    })
+  }
   sweeps.set(host, {
     listOrphaned: (query) =>
       logStore.listOrphaned({ ...query, ...pinOf(ownership) }),
