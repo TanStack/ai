@@ -261,7 +261,7 @@ const host = createHarnessHost({
   persistence: memoryPersistence(),
   access: {
     identify: ({ request }) => users.get(request.headers.get('authorization') ?? '') ?? null,
-    ...membersOnly(),
+    policy: membersOnly(),
   },
 })
 

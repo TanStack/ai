@@ -75,7 +75,7 @@ function setup(
 ) {
   const host = createHarnessHost({
     persistence,
-    access: { identify: () => user, authorize },
+    access: { identify: () => user, policy: { authorize } },
   })
   const handler = createHarnessHandler({ host, harness })
   const call = (path: string, body?: object) =>
@@ -308,7 +308,7 @@ describe('POST run', () => {
         identify: ({ request }) => ({
           id: request.headers.get('x-user') ?? '',
         }),
-        authorize: () => true,
+        policy: { authorize: () => true },
       },
     })
     const handler = createHarnessHandler({

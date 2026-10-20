@@ -211,7 +211,7 @@ async function start(request: Request) {
     access: {
       identify: ({ request: incoming }): User | null =>
         USERS[incoming.headers.get('authorization') ?? ''] ?? null,
-      ...membersOnly(),
+      policy: membersOnly(),
     },
   })
   try {

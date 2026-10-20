@@ -202,9 +202,11 @@ it('types the principal of the host from what access.identify returns', () => {
   const host = createHarnessHost({
     access: {
       identify: ({ request }) => userOf(request),
-      authorize: ({ principal }) => {
-        expectTypeOf(principal).toEqualTypeOf<User>()
-        return principal.role === 'admin'
+      policy: {
+        authorize: ({ principal }) => {
+          expectTypeOf(principal).toEqualTypeOf<User>()
+          return principal.role === 'admin'
+        },
       },
     },
   })
@@ -219,7 +221,7 @@ it('types the principal of the host from what access.identify returns', () => {
   // membersOnly() fits any principal type.
   expectTypeOf(
     createHarnessHost({
-      access: { identify: () => user, ...membersOnly() },
+      access: { identify: () => user, policy: membersOnly() },
     }),
   ).toEqualTypeOf<HarnessHost<User>>()
   // Without access, the principal is the plain one.

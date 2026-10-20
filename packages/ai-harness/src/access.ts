@@ -91,13 +91,13 @@ export interface AccessMembers {
 }
 
 /**
- * The rules of {@link HarnessAccess} without `identify`: what
- * {@link membersOnly} returns. Spread it into `access`, or write your own.
+ * The rules of a host: the `policy` of {@link HarnessAccess}.
+ * {@link membersOnly} returns one, or write your own with only `authorize`.
  */
 export interface AccessPolicy<P extends Principal = Principal> {
   /**
-   * What they may do. Called for every action. The harness checks the
-   * tenant before it calls this.
+   * What a principal may do. Called for every action. The harness checks
+   * the tenant before it calls this.
    */
   authorize: Authorize<P>
   /**
@@ -123,17 +123,20 @@ export interface AccessPolicy<P extends Principal = Principal> {
  * @example
  * access: {
  *   identify: ({ request }) => getUser(request),
- *   ...membersOnly(),
+ *   policy: membersOnly(),
  * }
  */
-export interface HarnessAccess<
-  P extends Principal = Principal,
-> extends AccessPolicy<P> {
+export interface HarnessAccess<P extends Principal = Principal> {
   /**
    * Who is calling: your own login check, once per request. Return null to
    * refuse with 401.
    */
   identify: (input: { request: Request }) => P | null | Promise<P | null>
+  /**
+   * What each user may do: `membersOnly()`, or your own
+   * `{ authorize, listFilter?, members? }`.
+   */
+  policy: AccessPolicy<P>
   /**
    * A guest for a signed media URL with no login, for example an `<img>`
    * that sends no cookies. The handler calls it only on the signed media
@@ -242,7 +245,7 @@ function allows(
 
 /**
  * Ready-made access rules: only the members of a session may use it, each
- * with the limits of the member's role. Spread it into `access`.
+ * with the limits of the member's role. Use it as the `policy` of `access`.
  *
  * - Owner: every action but `operator`.
  * - Member: read, list, send, and fork. Answer and cancel only the runs
@@ -259,8 +262,7 @@ function allows(
  * host passes the root session, so it has no special rules for children.
  *
  * It also lists only the sessions of a member (`listFilter`), and turns on
- * `host.sessions.share` and `unshare` (`members`). To change one rule, spread
- * it and replace that key.
+ * `host.sessions.share` and `unshare` (`members`).
  *
  * @param options - `fork.members` sets who is a member of a forked session.
  *   The default is `'self'`. `operator.roles` sets the roles with the
@@ -269,7 +271,7 @@ function allows(
  * @example
  * access: {
  *   identify: ({ request }) => getUser(request),
- *   ...membersOnly({ fork: { members: 'self' } }),
+ *   policy: membersOnly({ fork: { members: 'self' } }),
  * }
  */
 export function membersOnly(

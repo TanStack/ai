@@ -124,7 +124,7 @@ function accessHost({
   const persistence = memoryPersistence()
   const host: HarnessHost<User> = createHarnessHost({
     persistence,
-    access: { identify: (): User | null => null, ...membersOnly() },
+    access: { identify: (): User | null => null, policy: membersOnly() },
   })
   const supportModel = mockAdapter(support)
   const billingModel = mockAdapter(billing)

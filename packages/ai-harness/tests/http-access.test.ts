@@ -44,7 +44,7 @@ function setup() {
     access: {
       identify: ({ request }) =>
         users.get(request.headers.get('x-user') ?? '') ?? null,
-      ...membersOnly(),
+      policy: membersOnly(),
     },
   })
   const handler = createHarnessHandler({ host, harness })
@@ -77,7 +77,7 @@ describe('handlers and sockets fail closed', () => {
     const harness = defineHarness({ name: 'test/open' })
 
     expect(() => createHarnessHandler({ host, harness })).toThrow(
-      'createHarnessHandler needs host access ({ identify, authorize }) or openAccess: true',
+      'createHarnessHandler needs host access ({ identify, policy }) or openAccess: true',
     )
     expect(() =>
       handleHarnessSocket({
@@ -87,7 +87,7 @@ describe('handlers and sockets fail closed', () => {
         request: requestAs('olga'),
       }),
     ).toThrow(
-      'handleHarnessSocket needs host access ({ identify, authorize }) or openAccess: true',
+      'handleHarnessSocket needs host access ({ identify, policy }) or openAccess: true',
     )
   })
 

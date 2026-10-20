@@ -413,7 +413,7 @@ export function requestUsers<P extends Principal>(
   }
   if (!host.hasAccess && openAccess === undefined) {
     throw new Error(
-      `${call} needs host access ({ identify, authorize }) or openAccess: true or { principal }.`,
+      `${call} needs host access ({ identify, policy }) or openAccess: true or { principal }.`,
     )
   }
   const fixed = openAccess === true ? undefined : openAccess?.principal
@@ -549,7 +549,7 @@ let warnedMediaKey = false
  *   (it deletes the thread and its child threads, as
  *   `host.sessions.delete` does), `{ op: 'fork', threadId, before }`
  *   or `{ op: 'fork', threadId, through }` with a message id, and with
- *   `access.members`, `{ op: 'share', threadId, userId, role }` and
+ *   `access.policy.members`, `{ op: 'share', threadId, userId, role }` and
  *   `{ op: 'unshare', threadId, userId }`. Rename, update, fork, share, and
  *   unshare answer with the entry, delete with 204. 400
  *   (`invalid_metadata`, with `issues`) for metadata the schema refuses, 404
@@ -893,7 +893,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
         // The entry of a root is gone: decide on the removed one.
         const access = accessOf(host)
         return principal !== undefined && access !== undefined
-          ? access.authorize({
+          ? access.policy.authorize({
               principal,
               action: 'read',
               session: event.entry,

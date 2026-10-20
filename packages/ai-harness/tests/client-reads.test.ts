@@ -34,7 +34,9 @@ const accessHost = () =>
     persistence: memoryPersistence(),
     access: {
       identify: () => user,
-      authorize: ({ session }) => session.threadId !== 'someone-else',
+      policy: {
+        authorize: ({ session }) => session.threadId !== 'someone-else',
+      },
     },
   })
 

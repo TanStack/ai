@@ -123,7 +123,7 @@ async function run() {
     access: {
       identify: ({ request }): User | null =>
         USERS[request.headers.get('authorization') ?? ''] ?? null,
-      ...membersOnly(),
+      policy: membersOnly(),
     },
   })
   const support = harnessWith('e2e/harness-transfer-support', [

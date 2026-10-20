@@ -37,7 +37,7 @@ describe('harnessText for a remote harness', () => {
           request.headers.get('authorization') === 'Bearer secret'
             ? { id: 'u' }
             : null,
-        authorize: () => true,
+        policy: { authorize: () => true },
       },
     })
     const handler = createHarnessHandler({

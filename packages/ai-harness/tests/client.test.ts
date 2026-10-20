@@ -36,7 +36,7 @@ describe('createHarnessClient', () => {
           request.headers.get('authorization') === 'Bearer t'
             ? { id: 'u' }
             : null,
-        authorize: () => true,
+        policy: { authorize: () => true },
       },
     })
     const handler = createHarnessHandler({ host, harness: studio })
@@ -236,7 +236,7 @@ describe('createHarnessClient', () => {
     const studio = defineHarness({ name: 'test/client-denied', adapter })
     const host = createHarnessHost({
       persistence: memoryPersistence(),
-      access: { identify: () => null, authorize: () => true },
+      access: { identify: () => null, policy: { authorize: () => true } },
     })
     const handler = createHarnessHandler({ host, harness: studio })
     const client = createHarnessClient<typeof studio>({

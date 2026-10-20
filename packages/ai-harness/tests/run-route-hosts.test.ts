@@ -56,8 +56,10 @@ function twoHosts(options: { snapshot?: SnapshotTiming } = {}) {
           id: request.headers.get('x-user') ?? 'user-1',
         }),
         // A user may use the threads whose id starts with the user id.
-        authorize: ({ principal, session }) =>
-          session.threadId.startsWith(principal.id),
+        policy: {
+          authorize: ({ principal, session }) =>
+            session.threadId.startsWith(principal.id),
+        },
       },
     })
     const handler = createHarnessHandler({

@@ -40,7 +40,7 @@ export const host = createHarnessHost({
   persistence: memoryPersistence(),
   access: {
     identify: ({ request }) => users.get(request.headers.get('authorization') ?? '') ?? null,
-    ...membersOnly(),
+    policy: membersOnly(),
   },
 })
 
@@ -48,14 +48,14 @@ export const handler = createHarnessHandler({ host, harness: assistant })
 ```
 
 - `identify` reads the user of a request with your own login check. Return `null` to refuse the request with `401`.
-- `membersOnly()` gives the rules: only the members of a session can use it. Spread it into `access`. See [Share a thread between people](./shared-threads).
+- `policy` decides each action. `membersOnly()` is a ready policy: only the members of a session can use it. See [Share a thread between people](./shared-threads).
 - `memoryPersistence()` has a `sessions` store. Without `stores.sessions`, `createHarnessHost` throws.
 
 The handler gets the user from `identify`, so it needs no login option of its own. A new thread belongs to the user who opens it first.
 
 ## 2. Write your own rule
 
-Give `access` your own `authorize` instead of `membersOnly()`. `authorize` gets the user, the action, and the session. Return `false` to refuse. The user has the type that `identify` returns, so your own fields are typed too:
+Give `access` your own `policy` with an `authorize` function. `authorize` gets the user, the action, and the session. Return `false` to refuse. The user has the type that `identify` returns, so your own fields are typed too:
 
 ```ts group=harness-access-rule
 import { createHarnessHost } from '@tanstack/ai-harness'
@@ -76,14 +76,14 @@ export const host = createHarnessHost({
   persistence: memoryPersistence(),
   access: {
     identify: ({ request }) => users.get(request.headers.get('authorization') ?? '') ?? null,
-    authorize: ({ principal, action, session }) => {
+    policy: { authorize: ({ principal, action, session }) => {
       const isOwner = session.members.some(
         (member) => member.userId === principal.id && member.role === 'owner',
       )
       if (isOwner || principal.isAdmin) return true
       // Everyone in the organization can read every thread of it.
       return action === 'read' || action === 'list'
-    },
+    } },
   },
 })
 ```
@@ -110,7 +110,7 @@ Each action covers these calls:
 - `host.submit` and `schedule` check an answer or a cancel when you send it, with `run` from the log. A run that the log does not have is refused with `unknown_run`: `submit` returns a `rejected` receipt, and `schedule` throws `InputRejectedError`.
 - A handle checks `read` once, when it opens. Each action that changes the session asks `authorize` again. This includes `cancel` and `send` on an operation or an agent run that the handle returns.
 
-`membersOnly()` also gives `access` two keys that your own rules can leave out, or take from it with `...membersOnly()`:
+A policy has two more keys. `membersOnly()` sets both. Your own policy can leave them out:
 
 - `listFilter`: the filter that `host.sessions.list` gives the store, for example `{ memberId }`. Without it, the store reads every session of the tenant, and `authorize` drops the others, so a page can have fewer entries than `limit`.
 - `members`: turns on `host.sessions.share` and `unshare`, and `members.fork` sets the members of a fork. Without it, `share` and `unshare` throw.
@@ -150,12 +150,15 @@ const members = membersOnly()
 export const host = createHarnessHost<User>({
   persistence: memoryPersistence(),
   access: {
-    ...members,
     identify: () => null,
     // `tenantId` is the tenant of the signed URL.
     anonymous: ({ tenantId }) => ({ id: 'guest', tenantId, isGuest: true }),
-    authorize: (input) =>
-      input.principal.isGuest === true ? input.action === 'read' : members.authorize(input),
+    policy: {
+      authorize: (input) =>
+        input.principal.isGuest === true ? input.action === 'read' : members.authorize(input),
+      listFilter: members.listFilter,
+      members: members.members,
+    },
   },
 })
 ```
@@ -219,9 +222,9 @@ export const host = createHarnessHost({
   persistence: memoryPersistence(),
   access: {
     identify: ({ request }) => users.get(request.headers.get('authorization') ?? '') ?? null,
-    authorize: ({ principal, session }) =>
+    policy: { authorize: ({ principal, session }) =>
       session.members.some((member) => member.userId === principal.id) ||
-      (teams.get(session.threadId)?.has(principal.id) ?? false),
+      (teams.get(session.threadId)?.has(principal.id) ?? false) },
   },
 })
 
@@ -241,7 +244,7 @@ When the promise of `host.revoke` resolves:
 
 When the cancels cannot be sent (for example, the log store fails), the promise rejects. The access is gone already. Call `host.revoke` again to stop the work. `host.sessions.unshare` rejects the same way, after it removed the member.
 
-`host.sessions.share` and `unshare` need `access.members`, which `membersOnly()` has. With your own tables, change the tables, then call `host.revoke`.
+`host.sessions.share` and `unshare` need `members` in the policy, which `membersOnly()` has. With your own tables, change the tables, then call `host.revoke`.
 
 ## Serve with no login
 
@@ -278,7 +281,7 @@ CAUTION: Do not use `openAccess` on a server that the internet can reach. Every 
 
 ## Use the provider keys of the server
 
-With access, a keyed adapter and `run.keys` read only the keys that each user saved. They do not read the env vars of the server, so a user never spends the key of the server. To let users fall back to the server key, set `envKeys: true` in `access`, next to `identify` and `authorize`. See [Connect model providers](./provider-keys).
+With access, a keyed adapter and `run.keys` read only the keys that each user saved. They do not read the env vars of the server, so a user never spends the key of the server. To let users fall back to the server key, set `envKeys: true` in `access`, next to `identify` and `policy`. See [Connect model providers](./provider-keys).
 
 ## What you have now
 

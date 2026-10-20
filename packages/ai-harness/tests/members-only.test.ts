@@ -266,10 +266,10 @@ describe('membersOnly with a wider principal type', () => {
   it('works as the authorize of an access object', async () => {
     const access: HarnessAccess<AppUser> = {
       identify: () => null,
-      ...membersOnly(),
+      policy: membersOnly(),
     }
     const principal: AppUser = { id: 'mia', plan: 'pro' }
-    const decision = await access.authorize({
+    const decision = await access.policy.authorize({
       principal,
       action: 'send',
       session,

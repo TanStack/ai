@@ -73,7 +73,7 @@ function accessHost() {
   const persistence = memoryPersistence()
   const host = createHarnessHost({
     persistence,
-    access: { identify: (): User | null => null, ...membersOnly() },
+    access: { identify: (): User | null => null, policy: membersOnly() },
   })
   const harness = defineHarness({
     name: NAME,
@@ -260,7 +260,7 @@ describe('a user that loses access', () => {
     })
     const host = createHarnessHost({
       persistence: { ...persistence, stores: { ...persistence.stores, log } },
-      access: { identify: (): User | null => null, ...membersOnly() },
+      access: { identify: (): User | null => null, policy: membersOnly() },
     })
     const harness = defineHarness({
       name: NAME,
@@ -315,7 +315,7 @@ describe('a user that loses access', () => {
     })
     const access = {
       identify: (): User | null => null,
-      ...membersOnly(),
+      policy: membersOnly(),
     }
     const main = mockAdapter(() => text('ran'))
     const harness = defineHarness({

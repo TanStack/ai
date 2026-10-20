@@ -122,7 +122,7 @@ const watcherHost = createHarnessHost({
         ? { id: 'ci-bot' }
         : null,
     // The CI bot is the only user, so it can use every thread.
-    authorize: ({ principal }) => principal.id === 'ci-bot',
+    policy: { authorize: ({ principal }) => principal.id === 'ci-bot' },
   },
 })
 

@@ -65,7 +65,7 @@ function accessHost() {
     access: {
       identify: ({ request }) =>
         users.get(request.headers.get('x-user') ?? '') ?? null,
-      ...membersOnly(),
+      policy: membersOnly(),
     },
   })
 }

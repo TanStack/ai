@@ -71,7 +71,7 @@ async function open(options: {
     persistence,
     credentials,
     ...(options.access
-      ? { access: { identify: () => null, authorize: () => true } }
+      ? { access: { identify: () => null, policy: { authorize: () => true } } }
       : {}),
   })
   const session = await host.open(

@@ -407,7 +407,7 @@ function accessHost() {
     access: {
       identify: ({ request }) =>
         users.get(request.headers.get('x-user') ?? '') ?? null,
-      ...membersOnly(),
+      policy: membersOnly(),
     },
   })
   cleanups.push(() => host.close())
@@ -1708,7 +1708,7 @@ describe('createHarnessMcpServer access', () => {
     await expect(
       createHarnessMcpServer({ host, harness: greeter() }),
     ).rejects.toThrow(
-      'createHarnessMcpServer needs host access ({ identify, authorize }) or openAccess: true or { principal }.',
+      'createHarnessMcpServer needs host access ({ identify, policy }) or openAccess: true or { principal }.',
     )
   })
 

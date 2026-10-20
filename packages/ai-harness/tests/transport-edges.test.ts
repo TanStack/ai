@@ -67,8 +67,10 @@ function setup(replies: Parameters<typeof mockAdapter>[0] = []) {
       identify: ({ request }) =>
         request.headers.get('authorization') === 'Bearer good' ? user : null,
       // A user may use the threads whose id starts with the user id.
-      authorize: ({ principal, session }) =>
-        session.threadId.startsWith(principal.id),
+      policy: {
+        authorize: ({ principal, session }) =>
+          session.threadId.startsWith(principal.id),
+      },
     },
   })
   const handler = createHarnessHandler({ host, harness })

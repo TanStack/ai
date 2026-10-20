@@ -35,7 +35,7 @@ const host = createHarnessHost({
       request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
         ? { id: 'user-1' }
         : null,
-    ...membersOnly(),
+    policy: membersOnly(),
   },
 })
 
@@ -220,7 +220,7 @@ const host = createHarnessHost({
       request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
         ? { id: 'user-1' }
         : null,
-    ...membersOnly(),
+    policy: membersOnly(),
   },
 })
 
@@ -402,7 +402,7 @@ const host = createHarnessHost({
       request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
         ? { id: 'user-1' }
         : null,
-    ...membersOnly(),
+    policy: membersOnly(),
   },
 })
 

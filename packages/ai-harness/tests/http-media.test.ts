@@ -42,8 +42,10 @@ function setup(options: { media?: MediaOptions; secret?: string } = {}) {
       persistence,
       access: {
         identify: ({ request }) => identify(request),
-        authorize: ({ principal, session }) =>
-          session.threadId.startsWith(principal.id),
+        policy: {
+          authorize: ({ principal, session }) =>
+            session.threadId.startsWith(principal.id),
+        },
       },
     })
   const host = hostWith(allowUser)
@@ -278,8 +280,10 @@ describe('media upload and signed URLs', () => {
         access: {
           identify: () => null,
           ...(anonymous ? { anonymous: () => ({ id: 'guest' }) } : {}),
-          authorize: ({ principal, action }) =>
-            canRead && principal.id === 'guest' && action === 'read',
+          policy: {
+            authorize: ({ principal, action }) =>
+              canRead && principal.id === 'guest' && action === 'read',
+          },
         },
       })
       const handler = createHarnessHandler({

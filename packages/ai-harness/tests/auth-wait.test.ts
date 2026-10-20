@@ -413,7 +413,7 @@ describe('sign-ins in a shared thread', () => {
         identify: ({ request }) => ({
           id: request.headers.get('x-user') ?? '',
         }),
-        authorize: () => true,
+        policy: { authorize: () => true },
       },
     })
     const harness = defineHarness({

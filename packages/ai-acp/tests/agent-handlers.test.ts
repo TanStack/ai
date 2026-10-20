@@ -933,7 +933,7 @@ describe('ACP agent handlers', () => {
     // The agent runs for one local user, so no request is identified.
     const access: HarnessAccess = {
       identify: () => null,
-      ...membersOnly(),
+      policy: membersOnly(),
     }
 
     it('throws at the start without a principal', () => {

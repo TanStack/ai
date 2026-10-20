@@ -73,7 +73,7 @@ function accessHost({
     persistence,
     access: {
       identify: (): User | null => null,
-      ...policy,
+      policy,
       ...(envKeys !== undefined ? { envKeys } : {}),
     },
   })
@@ -499,7 +499,7 @@ describe('host access with your own access tables', () => {
     await host.close()
   })
 
-  it('refuses share without access.members', async () => {
+  it('refuses share without access.policy.members', async () => {
     const { host, open } = accessHost({
       policy: { authorize: tableAccess('olga').authorize },
     })
@@ -513,7 +513,7 @@ describe('host access with your own access tables', () => {
         principal: olga,
       }),
     ).rejects.toThrow(
-      'host.sessions.share needs access.members (membersOnly() has it). With your own access tables, change them and call host.revoke.',
+      'host.sessions.share needs access.policy.members (membersOnly() has it). With your own access tables, change them and call host.revoke.',
     )
     await host.close()
   })
@@ -560,7 +560,10 @@ const asking = definePlugin({
 /** Two hosts with access on one database, and a harness with `asking`. */
 function twoAccessHosts(replies: Array<Reply>) {
   const persistence = memoryPersistence()
-  const access = { identify: (): User | null => null, authorize: ownRunsOnly }
+  const access = {
+    identify: (): User | null => null,
+    policy: { authorize: ownRunsOnly },
+  }
   const owner = createHarnessHost({ persistence, access })
   const submitter = createHarnessHost({ persistence, access })
   const harness = defineHarness({
@@ -697,7 +700,10 @@ describe('a resolve of the waits of background agent runs', () => {
   /** Two hosts on one database. `cleaner` waits for an approval. */
   function cleaningHosts() {
     const persistence = memoryPersistence()
-    const access = { identify: (): User | null => null, authorize: ownRunsOnly }
+    const access = {
+      identify: (): User | null => null,
+      policy: { authorize: ownRunsOnly },
+    }
     const owner = createHarnessHost({ persistence, access })
     const submitter = createHarnessHost({ persistence, access })
     const remove = toolDefinition({
@@ -858,7 +864,7 @@ describe('host access and principals', () => {
     })
     const host = createHarnessHost({
       persistence: memoryPersistence(),
-      access: { identify: (): User | null => null, ...membersOnly() },
+      access: { identify: (): User | null => null, policy: membersOnly() },
     })
     const harness = defineHarness({
       name: 'test/access-resume',
@@ -936,7 +942,7 @@ it('needs stores.sessions for host access', () => {
       persistence: {
         stores: { log: memoryLogStore() },
       },
-      access: { identify: () => null, ...membersOnly() },
+      access: { identify: () => null, policy: membersOnly() },
     }),
   ).toThrow(
     'Host access needs stores.sessions: each session keeps its owner and members there.',

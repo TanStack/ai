@@ -133,7 +133,7 @@ export interface HarnessHostOptions<P extends Principal = Principal> {
    * const host = createHarnessHost({
    *   access: {
    *     identify: async ({ request }) => getUser(request),
-   *     ...membersOnly(),
+   *     policy: membersOnly(),
    *   },
    * })
    * ```
@@ -418,7 +418,7 @@ export interface HostSessions<P extends Principal = Principal> {
    * `members` picks who can use the fork. `'self'`: the user who forks is
    * the owner and the only member. `'all'`: that user is the owner, and the
    * other members keep their roles (the old owner becomes a `member`). With
-   * access, the default is `access.members.fork` (see `membersOnly()`),
+   * access, the default is `access.policy.members.fork` (see `membersOnly()`),
    * else `'self'`. Without access and without `members`, the fork gets the owner
    * and members of the old thread.
    *
@@ -442,7 +442,7 @@ export interface HostSessions<P extends Principal = Principal> {
   }) => Promise<SessionIndexEntry>
   /**
    * Add the user `userId` to the members of a thread with `role`, or change
-   * the role of a member. Needs `access.members` (`membersOnly()` has it),
+   * the role of a member. Needs `access.policy.members` (`membersOnly()` has it),
    * and the `share` action (the owner). The role of the owner does not
    * change. Resolves to the changed entry, or `undefined` for a thread that
    * has no entry.
@@ -460,7 +460,7 @@ export interface HostSessions<P extends Principal = Principal> {
   }) => Promise<SessionIndexEntry | undefined>
   /**
    * Remove the user `userId` from the members of a thread. Needs
-   * `access.members`, and the `share` action. The running and queued work
+   * `access.policy.members`, and the `share` action. The running and queued work
    * that the user started on the thread stops, on any host, their schedules
    * do not run, and `host.revoke` runs for the user. When that work does
    * not stop, it rejects after the member is removed: call `host.revoke`
@@ -1253,7 +1253,7 @@ const revokedKey = (
   principalId: string,
 ) => `${logIdOf({ tenantId, logId: threadId })}\u0000${principalId}`
 
-/** Only the `memberId` of an `access.listFilter` result. */
+/** Only the `memberId` of an `access.policy.listFilter` result. */
 const memberFilterOf = (filter: { memberId?: string } | undefined) =>
   filter?.memberId === undefined ? {} : { memberId: filter.memberId }
 
@@ -2145,7 +2145,7 @@ export function createHarnessHost<P extends Principal = Principal>(
       threadId,
       members: [],
     }
-    const isAllowed = await access.authorize({
+    const isAllowed = await access.policy.authorize({
       principal,
       action,
       session,
@@ -2184,14 +2184,14 @@ export function createHarnessHost<P extends Principal = Principal>(
     return source
   }
 
-  /** `share` and `unshare` change the members list: `access.members`. */
+  /** `share` and `unshare` change the members list: `access.policy.members`. */
   const checkShare = async (
     call: string,
     target: { threadId: string; principal?: P | undefined },
   ) => {
-    if (!access?.members) {
+    if (!access?.policy.members) {
       throw new Error(
-        `${call} needs access.members (membersOnly() has it). With your own access tables, change them and call host.revoke.`,
+        `${call} needs access.policy.members (membersOnly() has it). With your own access tables, change them and call host.revoke.`,
       )
     }
     await checkEntry(call, 'share', target)
@@ -2973,7 +2973,7 @@ export function createHarnessHost<P extends Principal = Principal>(
     async identify({ request }) {
       if (!access) {
         throw new Error(
-          'host.identify needs host access ({ identify, authorize }).',
+          'host.identify needs host access ({ identify, policy }).',
         )
       }
       return await access.identify({ request })
@@ -3153,11 +3153,15 @@ export function createHarnessHost<P extends Principal = Principal>(
           tenantId,
           // The store keeps only the sessions that the filter names, so a
           // page stays full. Only `memberId`: no filter names a tenant.
-          ...memberFilterOf(access.listFilter?.(user)),
+          ...memberFilterOf(access.policy.listFilter?.(user)),
         })
         const allowed = await Promise.all(
           page.entries.map(async (session) =>
-            access.authorize({ principal: user, action: 'list', session }),
+            access.policy.authorize({
+              principal: user,
+              action: 'list',
+              session,
+            }),
           ),
         )
         return {
@@ -3257,7 +3261,8 @@ export function createHarnessHost<P extends Principal = Principal>(
           await release(sourceKey)
         }
         const mode =
-          members ?? (access ? (access.members?.fork ?? 'self') : undefined)
+          members ??
+          (access ? (access.policy.members?.fork ?? 'self') : undefined)
         const people = forkedMembers(source, principal, mode)
         const now = Date.now()
         // A sibling of the old thread, not a child: no parentThreadId.

@@ -227,7 +227,7 @@ describe('host.observe with access', () => {
 
   it('refuses a stranger and a thread with no entry, and checks a child through its root', async () => {
     const { host, harness, persistence, seed } = setup({
-      access: { identify: () => null, ...membersOnly() },
+      access: { identify: () => null, policy: membersOnly() },
     })
     await seed(olga)
     await persistence.stores.sessions.upsert({
