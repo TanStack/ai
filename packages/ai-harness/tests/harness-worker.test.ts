@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { toolDefinition } from '@tanstack/ai'
-import { memoryLogBackend, memoryLogStore } from '@tanstack/ai-persistence'
+import { memoryLogState, memoryLogStore } from '@tanstack/ai-persistence'
 import {
   createHarnessHost,
   createHarnessWorker,
@@ -41,8 +41,11 @@ const harnessWith = (
 
 /** Two log stores on one backend: two servers on one database. */
 function twoStores() {
-  const backend = memoryLogBackend()
-  return { a: memoryLogStore({ backend }), b: memoryLogStore({ backend }) }
+  const logState = memoryLogState()
+  return {
+    a: memoryLogStore({ state: logState }),
+    b: memoryLogStore({ state: logState }),
+  }
 }
 
 const hostOn = (log: LogStore) =>

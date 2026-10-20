@@ -16,7 +16,7 @@ keywords:
 
 Some work has no user who waits for it: a report that a cron job asks for, a reminder in one day, a tool that waits for a payment, or a turn that a deploy cut. Nobody opens these threads, so nothing runs them. A worker finds each thread in the session log that has work and no live host, takes it, runs the work, and gives it back.
 
-Every host on this page shares one log store. In production, that is your [`LogStore`](../persistence/store-reference#logstore). Here, `memoryLogBackend()` gives two hosts one memory log, the same as two servers on one database.
+Every host on this page shares one log store. In production, that is your [`LogStore`](../persistence/store-reference#logstore). Here, `memoryLogState()` gives two hosts one memory log, the same as two servers on one database.
 
 ## 1. Start a worker
 
@@ -28,7 +28,7 @@ import {
   createHarnessWorker,
   defineHarness,
 } from '@tanstack/ai-harness'
-import { memoryLogBackend, memoryLogStore } from '@tanstack/ai-persistence'
+import { memoryLogState, memoryLogStore } from '@tanstack/ai-persistence'
 import { openaiText } from '@tanstack/ai-openai'
 
 const assistant = defineHarness({
@@ -37,9 +37,9 @@ const assistant = defineHarness({
 })
 
 // One log store for every host. Swap in your own store.
-const backend = memoryLogBackend()
+const state = memoryLogState()
 const hostOn = () =>
-  createHarnessHost({ persistence: { stores: { log: memoryLogStore({ backend }) } } })
+  createHarnessHost({ persistence: { stores: { log: memoryLogStore({ state }) } } })
 
 const workerHost = hostOn()
 const worker = createHarnessWorker({ host: workerHost, harnesses: [assistant] })

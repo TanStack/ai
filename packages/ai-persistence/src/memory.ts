@@ -684,28 +684,21 @@ function headOf(log: KeptLog) {
 type Listeners = Map<string, Set<() => void>>
 
 /**
- * A shared log state for {@link memoryLogStore}. It is a handle only: make one
- * with {@link memoryLogBackend}, and pass it to `memoryLogStore({ backend })`.
+ * The state of the memory log, shared by every store instance on it. Make one
+ * with {@link memoryLogState}. Two instances on one state act as two machines
+ * on one database: they see the same records, owners, offers, and snapshots,
+ * and a write on one calls the listeners of both.
  */
-export interface MemoryLogBackend {
-  readonly kind: 'memory-log-backend'
-}
-
-/**
- * The state of the memory log, shared by every store instance on it. Two
- * instances on one state act as two machines on one database: they see the
- * same records, owners, offers, and snapshots, and a write on one calls the
- * listeners of both.
- */
-class LogBackendState {
+class MemoryLogState {
   /** The store clock, in epoch milliseconds. */
   readonly now: () => number
   readonly logs = new Map<string, KeptLog>()
   readonly snapshots = new Map<string, LogSnapshot>()
   readonly owners = new Map<string, Ownership>()
-  // Kept apart from `owners`, because a log that no host acquired can have a
-  // pin too (`setAffinity` with UNOWNED_EPOCH).
+  // Kept apart from `owners`, so a pin stays when its owner releases the log.
   readonly affinities = new Map<string, string>()
+  /** The deleted logs. Only an `acquire` lets a write in again. */
+  readonly deleted = new Set<string>()
   /** When the heartbeat of each host expires, by its host id. */
   readonly hosts = new Map<string, number>()
   // Kept apart from `owners`, because any machine can offer to a log that no
@@ -737,31 +730,40 @@ class LogBackendState {
   }
 }
 
-// The state behind each handle from `memoryLogBackend()`. The handle shows no
-// state, so the public type stays opaque.
-const backendStates = new WeakMap<MemoryLogBackend, LogBackendState>()
+/** The type of the shared state from {@link memoryLogState}. */
+export type { MemoryLogState }
 
 // The methods are `async`, so a thrown error becomes a rejection. They never
 // await, so each call runs to its end before the next one starts, also across
 // the store instances on one backend.
 class MemoryLogStore implements LogStore {
-  private readonly backend: LogBackendState
+  private readonly backend: MemoryLogState
   private readonly listeners: Listeners = new Map()
 
-  constructor(backend: LogBackendState) {
+  constructor(backend: MemoryLogState) {
     this.backend = backend
     backend.instances.add(this.listeners)
   }
 
   /**
-   * The fence of every fenced write. A log that a host acquired needs the
-   * current epoch and an owner that did not release it. A log that no host
-   * acquired needs UNOWNED_EPOCH.
+   * The fence of `append`. A log that a host acquired needs the current epoch
+   * and an owner that did not release it. A log that no host acquired needs
+   * UNOWNED_EPOCH. A deleted log refuses every write until an `acquire`.
    */
   private canWrite(logId: string, epoch: number) {
+    if (this.backend.deleted.has(logId)) return false
     const owner = this.backend.owners.get(logId)
     if (owner === undefined) return epoch === UNOWNED_EPOCH
     return owner.epoch === epoch && !owner.released
+  }
+
+  /**
+   * The fence of `setAffinity`, `putSnapshot`, and `truncate`: only the
+   * owner writes them, so a log that no host acquired refuses them.
+   */
+  private assertOwned(logId: string, epoch: number) {
+    const isOwned = epoch !== UNOWNED_EPOCH && this.canWrite(logId, epoch)
+    if (!isOwned) throw new OwnershipLostError(logId, epoch)
   }
 
   /** The record, when `ownerId` holds the log at `epoch` and did not release it. */
@@ -871,6 +873,8 @@ class MemoryLogStore implements LogStore {
     // Another owner that did not release: its ownership expired.
     const expired =
       owner !== undefined && !owner.released && owner.ownerId !== ownerId
+    // A new owner opens a deleted log again.
+    this.backend.deleted.delete(logId)
     this.backend.owners.set(logId, {
       harness,
       ownerId,
@@ -935,9 +939,7 @@ class MemoryLogStore implements LogStore {
     epoch,
     affinity,
   }: Parameters<LogStore['setAffinity']>[0]) {
-    if (!this.canWrite(logId, epoch)) {
-      throw new OwnershipLostError(logId, epoch)
-    }
+    this.assertOwned(logId, epoch)
     if (affinity === null) this.backend.affinities.delete(logId)
     else this.backend.affinities.set(logId, affinity)
   }
@@ -1052,9 +1054,7 @@ class MemoryLogStore implements LogStore {
     version,
     state,
   }: Parameters<LogStore['putSnapshot']>[0]) {
-    if (!this.canWrite(logId, epoch)) {
-      throw new OwnershipLostError(logId, epoch)
-    }
+    this.assertOwned(logId, epoch)
     const log = this.logOf(logId)
     const head = headOf(log)
     if (seq > head) {
@@ -1079,9 +1079,7 @@ class MemoryLogStore implements LogStore {
     epoch,
     beforeSeq,
   }: Parameters<LogStore['truncate']>[0]) {
-    if (!this.canWrite(logId, epoch)) {
-      throw new OwnershipLostError(logId, epoch)
-    }
+    this.assertOwned(logId, epoch)
     // A reader that gets LogTruncatedError loads the snapshot, so the
     // snapshot must hold every record that the cut drops.
     const snapshot = this.backend.snapshots.get(logId)
@@ -1105,8 +1103,10 @@ class MemoryLogStore implements LogStore {
     this.backend.snapshots.delete(logId)
     this.backend.lanes.delete(logId)
     this.backend.affinities.delete(logId)
-    // Keep the epoch counter, so a write with an old epoch still fails. The
-    // log has no owner now, as after a release with no wake.
+    // A late write must not bring the log back, so every write fails until
+    // an `acquire`. Keep the epoch counter. The log has no owner now, as
+    // after a release with no wake.
+    this.backend.deleted.add(logId)
     const owner = this.backend.owners.get(logId)
     if (owner !== undefined) {
       owner.released = true
@@ -1121,46 +1121,36 @@ class MemoryLogStore implements LogStore {
  * log is lost when the process stops. Records are JSON-copied in and out.
  *
  * `memoryPersistence()` has one. Make your own to share a
- * {@link memoryLogBackend} between two stores.
+ * {@link memoryLogState} between two stores.
  *
- * @param options.backend - The log state to use. Pass one
- *   {@link memoryLogBackend} to two stores, and they act as two machines on
+ * @param options.state - The log state to use. Pass one
+ *   {@link memoryLogState} to two stores, and they act as two machines on
  *   one database. Without it, the store makes its own state.
- * @throws {TypeError} When `backend` was not made by {@link memoryLogBackend}.
  *
  * @example
  * ```ts
- * const backend = memoryLogBackend()
+ * const state = memoryLogState()
  * const machineA = defineAIPersistence({
- *   stores: { ...memoryPersistence().stores, log: memoryLogStore({ backend }) },
+ *   stores: { ...memoryPersistence().stores, log: memoryLogStore({ state }) },
  * })
  * ```
  */
 export function memoryLogStore({
-  backend,
-}: { backend?: MemoryLogBackend } = {}): LogStore {
-  if (backend === undefined) {
-    return new MemoryLogStore(new LogBackendState(() => Date.now()))
-  }
-  const state = backendStates.get(backend)
-  if (state === undefined) {
-    throw new TypeError(
-      'memoryLogStore: this backend was not made by memoryLogBackend().',
-    )
-  }
+  state = memoryLogState(),
+}: { state?: MemoryLogState } = {}): LogStore {
   return new MemoryLogStore(state)
 }
 
 /**
- * A new log state for {@link memoryLogStore}. Give one backend to two stores
+ * A new log state for {@link memoryLogStore}. Give one state to two stores
  * to test two hosts in one process: an append on one store calls the
  * listeners on the other, and both see one owner per log.
  *
  * @example
  * ```ts
- * const backend = memoryLogBackend()
- * const hostA = memoryLogStore({ backend })
- * const hostB = memoryLogStore({ backend })
+ * const state = memoryLogState()
+ * const hostA = memoryLogStore({ state })
+ * const hostB = memoryLogStore({ state })
  * hostB.subscribe({ logId: 'session-1', listener: () => console.log('new') })
  * await hostA.append({
  *   logId: 'session-1',
@@ -1178,17 +1168,13 @@ export function memoryLogStore({
  * @example
  * ```ts
  * let clock = 0
- * const backend = memoryLogBackend({ now: () => clock })
+ * const state = memoryLogState({ now: () => clock })
  * // A wake time of 5 s from now is due after this:
  * clock += 5_000
  * ```
  */
-export function memoryLogBackend({ now }: { now?: () => number } = {}) {
-  const handle: MemoryLogBackend = Object.freeze({
-    kind: 'memory-log-backend',
-  })
-  backendStates.set(handle, new LogBackendState(now ?? (() => Date.now())))
-  return handle
+export function memoryLogState({ now }: { now?: () => number } = {}) {
+  return new MemoryLogState(now ?? (() => Date.now()))
 }
 
 // Newest `updatedAt` first, then `threadId` order. The cursor uses it too.

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, toolDefinition } from '@tanstack/ai'
 import {
-  memoryLogBackend,
+  memoryLogState,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -452,8 +452,8 @@ describe('host.transfer retries', () => {
   })
 
   it('writes only the source record on a retry after the source write failed', async () => {
-    const backend = memoryLogBackend()
-    const log = memoryLogStore({ backend })
+    const logState = memoryLogState()
+    const log = memoryLogStore({ state: logState })
     const { sessions } = memoryPersistence().stores
     // The first host cannot write the source end of a transfer.
     const failing = wrapLogStore(log, {
@@ -610,7 +610,7 @@ describe('host.transfer access', () => {
 
 describe('host.transfer across hosts', () => {
   it('writes the source record through the input lane when another host owns the source', async () => {
-    const backend = memoryLogBackend()
+    const logState = memoryLogState()
     const { sessions } = memoryPersistence().stores
     const release = gate()
     const support = defineHarness({
@@ -623,9 +623,11 @@ describe('host.transfer across hosts', () => {
       adapter: mockAdapter(() => text('billing here')).adapter,
     })
     const one = createHarnessHost({
-      persistence: { stores: { log: memoryLogStore({ backend }), sessions } },
+      persistence: {
+        stores: { log: memoryLogStore({ state: logState }), sessions },
+      },
     })
-    const twoLog = memoryLogStore({ backend })
+    const twoLog = memoryLogStore({ state: logState })
     const two = createHarnessHost({
       persistence: { stores: { log: twoLog, sessions } },
     })

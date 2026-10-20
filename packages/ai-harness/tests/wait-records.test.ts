@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import {
-  memoryLogBackend,
+  memoryLogState,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -163,10 +163,10 @@ describe('a question is a wait in the log', () => {
   })
 
   it('shows on another host that reads the log', async () => {
-    const backend = memoryLogBackend()
-    const owner = await hostOn(memoryLogStore({ backend }))
+    const logState = memoryLogState()
+    const owner = await hostOn(memoryLogStore({ state: logState }))
     const reader = createHarnessHost({
-      persistence: { stores: { log: memoryLogStore({ backend }) } },
+      persistence: { stores: { log: memoryLogStore({ state: logState }) } },
     })
 
     const { running, wait } = await asked(owner.session, 'ask')
@@ -221,8 +221,8 @@ describe('a question is a wait in the log', () => {
   })
 
   it('ends cancelled on the next owner when the host that asked stopped', async () => {
-    const backend = memoryLogBackend()
-    const log = memoryLogStore({ backend })
+    const logState = memoryLogState()
+    const log = memoryLogStore({ state: logState })
     // The first host never renews its ownership, as after a crash.
     const first = await hostOn(log, { ownership: CRASHING_OWNERSHIP })
     const { wait } = await asked(first.session, 'ask')
@@ -232,7 +232,7 @@ describe('a question is a wait in the log', () => {
 
     await ownershipExpired()
     // No promise of this host holds the question: no answer can reach it.
-    const next = await hostOn(memoryLogStore({ backend }))
+    const next = await hostOn(memoryLogStore({ state: logState }))
     await waitFor(() =>
       expect(questionsOf(next.session.snapshot())).toEqual([]),
     )

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, toolDefinition } from '@tanstack/ai'
-import { memoryLogBackend, memoryLogStore } from '@tanstack/ai-persistence'
+import { memoryLogState, memoryLogStore } from '@tanstack/ai-persistence'
 import {
   createHarnessHost,
   defineHarness,
@@ -86,14 +86,14 @@ const customNames = (events: ReadonlyArray<LiveEvent>) =>
 
 describe('hooks on a host that does not own the log', () => {
   it('fire once for each event that the owner writes, and the status follows', async () => {
-    const backend = memoryLogBackend()
+    const logState = memoryLogState()
     const owner = await hostOn(
-      memoryLogStore({ backend }),
+      memoryLogStore({ state: logState }),
       mockAdapter([() => toolCall('probe', {}), () => withUsage('Done.')])
         .adapter,
     )
     const other = await hostOn(
-      memoryLogStore({ backend }),
+      memoryLogStore({ state: logState }),
       mockAdapter([]).adapter,
     )
     const from = owner.session.snapshot().cursor

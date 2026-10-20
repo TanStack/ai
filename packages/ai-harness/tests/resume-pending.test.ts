@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { defineAgent } from '@tanstack/ai'
 import {
   UNOWNED_EPOCH,
-  memoryLogBackend,
+  memoryLogState,
   memoryLogStore,
 } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin, logIdOf } from '../src'
@@ -364,7 +364,7 @@ describe('host.resumePending', () => {
   it('goes on after a thread that fails to open, and names the threads it opened', async () => {
     let skew = 0
     const log = memoryLogStore({
-      backend: memoryLogBackend({ now: () => Date.now() + skew }),
+      state: memoryLogState({ now: () => Date.now() + skew }),
     })
     // The failing thread expired first, so it comes first.
     await stopOwner(log, logIdOf({ logId: 't-bad' }))

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, defineAgent } from '@tanstack/ai'
 import {
-  memoryLogBackend,
+  memoryLogState,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -54,8 +54,11 @@ const NAME = 'test/input-lane'
 
 /** Two log stores on one backend: two servers on one database. */
 function twoStores() {
-  const backend = memoryLogBackend()
-  return { a: memoryLogStore({ backend }), b: memoryLogStore({ backend }) }
+  const logState = memoryLogState()
+  return {
+    a: memoryLogStore({ state: logState }),
+    b: memoryLogStore({ state: logState }),
+  }
 }
 
 function harnessWith(

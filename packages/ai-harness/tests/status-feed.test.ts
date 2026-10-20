@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import {
-  memoryLogBackend,
+  memoryLogState,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -174,10 +174,10 @@ describe('host.events', () => {
 
 describe('host.events on a host that does not own the log', () => {
   it('shows running, then idle, for a turn that another host runs', async () => {
-    const backend = memoryLogBackend()
+    const logState = memoryLogState()
     const hostOn = () =>
       createHarnessHost({
-        persistence: { stores: { log: memoryLogStore({ backend }) } },
+        persistence: { stores: { log: memoryLogStore({ state: logState }) } },
       })
     const owner = hostOn()
     const other = hostOn()
@@ -202,18 +202,18 @@ describe('host.events on a host that does not own the log', () => {
   })
 
   it('shows idle after it takes the log of a host that stopped in a turn', async () => {
-    const backend = memoryLogBackend()
+    const logState = memoryLogState()
     const harnessOf = (replies: Parameters<typeof mockAdapter>[0]) =>
       defineHarness({
         name: 'test/status-takeover',
         adapter: mockAdapter(replies).adapter,
       })
     const stopped = createHarnessHost({
-      persistence: { stores: { log: memoryLogStore({ backend }) } },
+      persistence: { stores: { log: memoryLogStore({ state: logState }) } },
       ownership: CRASHING_OWNERSHIP,
     })
     const other = createHarnessHost({
-      persistence: { stores: { log: memoryLogStore({ backend }) } },
+      persistence: { stores: { log: memoryLogStore({ state: logState }) } },
     })
     const first = await stopped.open(harnessOf([untilAborted()]), {
       threadId: 's',

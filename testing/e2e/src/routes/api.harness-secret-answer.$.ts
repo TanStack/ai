@@ -9,7 +9,7 @@ import {
   logIdOf,
 } from '@tanstack/ai-harness'
 import { createHarnessHandler } from '@tanstack/ai-harness/server'
-import { memoryLogBackend, memoryLogStore } from '@tanstack/ai-persistence'
+import { memoryLogState, memoryLogStore } from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import { createTextAdapter } from '@/lib/providers'
 import type { CredentialStore } from '@tanstack/ai/byok'
@@ -116,8 +116,8 @@ async function start(request: Request) {
   const testId = request.headers.get('x-test-id') ?? 'default'
   const runId = crypto.randomUUID()
   const threadId = `e2e-harness-secret-answer-${runId}`
-  const backend = memoryLogBackend()
-  const logA = memoryLogStore({ backend })
+  const logState = memoryLogState()
+  const logA = memoryLogStore({ state: logState })
   const saved: Array<string> = []
   let credentials: CredentialStore | undefined
   if (body.credentials) {
@@ -136,7 +136,7 @@ async function start(request: Request) {
       ...(credentials ? { credentials } : {}),
     })
   const hostA = hostOn(logA)
-  const hostB = hostOn(memoryLogStore({ backend }))
+  const hostB = hostOn(memoryLogStore({ state: logState }))
   // Host B must not run the turn: the test checks that its id has no calls.
   const harnessB = harnessWith(`${testId}:b`)
   try {

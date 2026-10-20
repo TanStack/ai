@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineAgent } from '@tanstack/ai'
 import {
-  memoryLogBackend,
+  memoryLogState,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -307,7 +307,7 @@ describe('a user that loses access', () => {
   })
 
   it('has their work and their schedules stopped by an unshare on another host', async () => {
-    const backend = memoryLogBackend()
+    const logState = memoryLogState()
     const shared = memoryPersistence()
     const on = (log: LogStore) => ({
       ...shared,
@@ -323,10 +323,10 @@ describe('a user that loses access', () => {
       adapter: main.adapter,
       agents: [slow],
     })
-    const log = memoryLogStore({ backend })
+    const log = memoryLogStore({ state: logState })
     const hostA = createHarnessHost({ persistence: on(log), access })
     const hostB = createHarnessHost({
-      persistence: on(memoryLogStore({ backend })),
+      persistence: on(memoryLogStore({ state: logState })),
       access,
     })
     await hostA.open(harness, { threadId: THREAD, principal: olga })

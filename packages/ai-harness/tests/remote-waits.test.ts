@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
-import { memoryLogBackend, memoryLogStore } from '@tanstack/ai-persistence'
+import { memoryLogState, memoryLogStore } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import { permissions } from '../src/first-party/permissions'
 import { mockAdapter, text, toolCall } from './helpers'
@@ -33,12 +33,12 @@ function harnessWith(replies: Array<Reply>) {
 describe('the waits that another host writes', () => {
   it('show in the snapshot of a session that does not own the log', async () => {
     // Two hosts on one log backend: two servers on one database.
-    const backend = memoryLogBackend()
+    const logState = memoryLogState()
     const hostA = createHarnessHost({
-      persistence: { stores: { log: memoryLogStore({ backend }) } },
+      persistence: { stores: { log: memoryLogStore({ state: logState }) } },
     })
     const hostB = createHarnessHost({
-      persistence: { stores: { log: memoryLogStore({ backend }) } },
+      persistence: { stores: { log: memoryLogStore({ state: logState }) } },
     })
     // B opens the thread first, so it reads the log before the wait opens.
     const sessionB = await hostB.open(harnessWith([() => text('Deployed.')]), {

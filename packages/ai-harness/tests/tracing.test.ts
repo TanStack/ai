@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EventType, defineAgent } from '@tanstack/ai'
 import {
-  memoryLogBackend,
+  memoryLogState,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -249,18 +249,18 @@ describe('operation spans', () => {
   })
 
   it('links a traceparent sent to one host on the span of the host that runs the turn', async () => {
-    const backend = memoryLogBackend()
+    const logState = memoryLogState()
     const ownerTracing = fakeTracer()
     const otherTracing = fakeTracer()
     const otherReports: Array<OperationReport> = []
     const release = gate()
     const owner = await hostOn(
-      memoryLogStore({ backend }),
+      memoryLogStore({ state: logState }),
       chatHarness([after(release.opened, 'One.'), () => text('Two.')]),
       { observability: { tracer: ownerTracing.tracer } },
     )
     const harness = chatHarness([() => text('Not here.')])
-    const other = await hostOn(memoryLogStore({ backend }), harness, {
+    const other = await hostOn(memoryLogStore({ state: logState }), harness, {
       observability: {
         tracer: otherTracing.tracer,
         onOperation: (report) => void otherReports.push(report),

@@ -2805,7 +2805,7 @@ export function engineMessageStore(options: SessionLogView) {
  * subagent run) is in the log of its root: read it through `host.observe`.
  * `loadThread` folds the log. `saveThread` appends the change as one
  * transcript record, with no owner: the store refuses it on a log that a
- * host acquired.
+ * host acquired, and on a deleted log.
  *
  * @example
  * ```ts

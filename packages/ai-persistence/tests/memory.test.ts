@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  memoryLogBackend,
+  memoryLogState,
   memoryLogStore,
   memoryPersistence,
 } from '../src/memory'
@@ -270,28 +270,15 @@ describe('memoryPersistence', () => {
   })
 })
 
-describe('memoryLogStore', () => {
-  it('refuses a backend that memoryLogBackend did not make', () => {
-    // The same shape as a real handle, but with no log state behind it.
-    const makeStore = () =>
-      memoryLogStore({ backend: Object.freeze({ kind: 'memory-log-backend' }) })
-
-    expect(makeStore).toThrow(TypeError)
-    expect(makeStore).toThrow(
-      'memoryLogStore: this backend was not made by memoryLogBackend().',
-    )
-  })
-})
-
-describe('memoryLogBackend({ now })', () => {
+describe('memoryLogState({ now })', () => {
   const logId = 'log-1'
   const harness = 'test/clock'
 
-  /** A store on a backend whose clock the test moves. */
+  /** A store on a log state whose clock the test moves. */
   function clockedStore() {
     const clock = { now: 1_000 }
     const store = memoryLogStore({
-      backend: memoryLogBackend({ now: () => clock.now }),
+      state: memoryLogState({ now: () => clock.now }),
     })
     return { clock, store }
   }

@@ -4,7 +4,7 @@ import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import { createHarnessHost, defineHarness, logIdOf } from '@tanstack/ai-harness'
 import { createHarnessHandler } from '@tanstack/ai-harness/server'
 import {
-  memoryLogBackend,
+  memoryLogState,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -355,17 +355,17 @@ async function tracing(
   threadId: string,
   released: Promise<void>,
 ): Promise<Setup> {
-  const backend = memoryLogBackend()
+  const logState = memoryLogState()
   const ownerTracing = fakeObservability()
   const otherTracing = fakeObservability()
   const ownerModel = scriptedModel(['One.', 'Two.'], released)
   const otherModel = scriptedModel(['Not on this host.'])
   const ownerHost = createHarnessHost({
-    persistence: { stores: { log: memoryLogStore({ backend }) } },
+    persistence: { stores: { log: memoryLogStore({ state: logState }) } },
     observability: ownerTracing.observability,
   })
   const otherHost = createHarnessHost({
-    persistence: { stores: { log: memoryLogStore({ backend }) } },
+    persistence: { stores: { log: memoryLogStore({ state: logState }) } },
     observability: otherTracing.observability,
   })
   const owner = await ownerHost.open(

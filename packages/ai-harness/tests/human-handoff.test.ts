@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import {
-  memoryLogBackend,
+  memoryLogState,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -328,7 +328,7 @@ describe('a handoff to a person', () => {
   })
 
   it('takes the answer of a second host through the input lane', async () => {
-    const backend = memoryLogBackend()
+    const logState = memoryLogState()
     const release = gate()
     const slow = toolDefinition({
       name: 'slow',
@@ -344,7 +344,7 @@ describe('a handoff to a person', () => {
       replies: [toHuman],
       tools: [slow],
     })
-    const owner = await hostOn(memoryLogStore({ backend }), harness)
+    const owner = await hostOn(memoryLogStore({ state: logState }), harness)
     await owner.session.send('I want a person.')
     const [wait] = owner.session.snapshot().pendingWaits
     if (!wait) throw new Error('No human wait.')
@@ -352,7 +352,7 @@ describe('a handoff to a person', () => {
     const busy = owner.session.tool({ name: 'slow' })
     await busy.receipt
 
-    const other = await hostOn(memoryLogStore({ backend }), harness)
+    const other = await hostOn(memoryLogStore({ state: logState }), harness)
     const receipt = await other.session.answer({
       questionId: wait.waitId,
       value: { handBack: 'billing' },
@@ -362,9 +362,9 @@ describe('a handoff to a person', () => {
     release.open()
     await busy
     await waitFor(async () =>
-      expect((await stored(memoryLogStore({ backend }))).activeAgent).toBe(
-        'billing',
-      ),
+      expect(
+        (await stored(memoryLogStore({ state: logState }))).activeAgent,
+      ).toBe('billing'),
     )
     expect((await owner.session.send('Hello?')).text).toBe(
       'billing:\nBilling here.',

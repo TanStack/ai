@@ -722,14 +722,14 @@ interface LogStore {
 
 `memoryLogStore()` is the reference store. `memoryPersistence()` includes one. To
 run two store instances on one memory log, as two machines on one database, share a
-`memoryLogBackend()`:
+`memoryLogState()`:
 
 ```ts
-import { memoryLogBackend, memoryLogStore } from '@tanstack/ai-persistence'
+import { memoryLogState, memoryLogStore } from '@tanstack/ai-persistence'
 
-const backend = memoryLogBackend()
-const first = memoryLogStore({ backend })
-const second = memoryLogStore({ backend })
+const state = memoryLogState()
+const first = memoryLogStore({ state })
+const second = memoryLogStore({ state })
 ```
 
 ### Fence the writes with the epoch
@@ -749,8 +749,10 @@ epoch before anything else:
 
 - On a log that a host acquired, `epoch` must be the current epoch. A released log
   refuses every epoch.
-- On a log that no host acquired, `epoch` must be `UNOWNED_EPOCH`. A writer that
-  never calls `acquire` writes with it.
+- On a log that no host acquired, `append` needs `UNOWNED_EPOCH`. A writer that never
+  calls `acquire` writes with it. `putSnapshot`, `truncate`, and `setAffinity` need
+  an owner, so they refuse `UNOWNED_EPOCH`.
+- A deleted log refuses every epoch until the next `acquire`.
 - A call with any other epoch rejects with `OwnershipLostError`, and the store writes
   nothing.
 
@@ -803,8 +805,8 @@ or a `wakeInMs` less than 0, rejects with `RangeError`.
 - It returns `null` when the log has an affinity that is not `claim.affinity`, and
   the host of that affinity is alive.
 - For the owner of a live record, it extends the expiry and returns the same epoch.
-- Else it adds 1 to the epoch, stores `harness`, clears the wake time, and returns
-  `{ epoch }`.
+- Else it adds 1 to the epoch, stores `harness`, clears the wake time, opens a
+  deleted log again, and returns `{ epoch }`.
 - When the record had another owner that did not release, it returns
   `{ epoch, expired: true }`. That owner stopped. The harness then sends
   `harness.ownership.changed` with `reason: taken_over`.
@@ -818,7 +820,7 @@ For the other ownership methods:
   `wakeInMs`, it also sets the wake time to `wakeInMs` from now. Any other `release`
   does nothing.
 - `setAffinity` pins the log to the workers with that affinity, or unpins it with
-  `null`. It is fenced.
+  `null`. Only the owner pins: it needs the current epoch of an acquired log.
 - `heartbeat` marks the host `hostId` alive for `ttlMs` from now. `hostId` is the
   affinity of its pins. A pin counts only while its host is alive, so the logs of a
   host that stopped go to other hosts. A host that is alive keeps its pins, also on
@@ -848,8 +850,9 @@ A client can send an input to any machine, but only the owner of the log runs it
 `append({ consumes })`, in the same write as the records of the input.
 
 - If the `inputId` is new, `offer` stores a pending offer with `offeredAt` from the
-  store clock. It records `harness` for the log, calls the listeners, and returns
-  `'offered'`.
+  store clock. It calls the listeners and returns `'offered'`.
+- The harness of the owner names the log for `listOrphaned`. A log with no owner
+  keeps the `harness` of its first offer. A later offer does not change it.
 - If the `inputId` was offered before (pending or consumed), `offer` changes nothing.
   It returns `'duplicate'` when the JSON of the record is equal, else `'conflict'`.
 - If the record cannot become JSON, `offer` rejects and stores nothing.
@@ -862,20 +865,21 @@ A long log is slow to read from the start. A snapshot saves the state at one
 position. Then a reader loads the snapshot and reads only the records after it.
 With a snapshot, the owner can also drop the old records.
 
-- `putSnapshot` is fenced, and it replaces the previous snapshot. If `seq` is after
-  the last position, or before `firstSeq - 1`, it rejects with `RangeError`.
+- `putSnapshot` needs the owner, and it replaces the previous snapshot. If `seq` is
+  after the last position, or before `firstSeq - 1`, it rejects with `RangeError`.
   `firstSeq` is the first kept position, so an earlier snapshot needs records that
   a truncate dropped.
 - `getSnapshot` returns the latest snapshot, or `null` when the log has none.
-- `truncate` is fenced. It drops the records with `seq` less than `beforeSeq`. If the
-  log has no snapshot with a `seq` of `beforeSeq - 1` or more, it rejects with
-  `RangeError`.
+- `truncate` needs the owner. It drops the records with `seq` less than `beforeSeq`.
+  If the log has no snapshot with a `seq` of `beforeSeq - 1` or more, it rejects
+  with `RangeError`.
 - After a truncate, the positions keep counting, so the next `append` is still at the
   last position plus 1. A `read` from before the cut rejects with
   `LogTruncatedError`, and its `firstSeq` is the first kept position.
 - `deleteLog` removes the records, the offers, the snapshot, the truncation point,
-  the affinity, and the wake time, and calls the listeners. Only the epoch counter
-  stays, so a write with an old epoch still fails.
+  the affinity, and the wake time, and calls the listeners. The epoch counter stays.
+  Every fenced write fails until the next `acquire`, also with `UNOWNED_EPOCH`. So a
+  late write cannot bring a deleted transcript back. An `offer` still works.
 
 ### In SQL
 
@@ -884,9 +888,9 @@ ownership, and the offers:
 
 - `log_records`: the primary key `(log_id, seq)` refuses a taken position.
 - `log_owner`: one row per log, with the epoch, the last position (`head`), and the
-  first kept position. Insert the row with `epoch` 0 at the first write to the log.
-  Then one compare-and-set on `epoch` fences both kinds of log: acquired, and never
-  acquired.
+  first kept position. `append`, `acquire`, and `deleteLog` insert the row with
+  `epoch` 0 when it is missing. Then one compare-and-set on `epoch` and `released`
+  fences every log: acquired, never acquired, and deleted.
 - `log_offers`: the unique key `(log_id, input_id)` finds a duplicate offer.
 
 ```sql
@@ -949,12 +953,37 @@ WHERE log_id = :log_id AND input_id = ANY(:consumes) AND NOT consumed;
 COMMIT;
 ```
 
-For the other methods:
+`acquire` adds the row too, so a host can take a new log before its first record.
+It reads the row first, because the result needs the old owner:
 
-- `acquire` runs in one transaction. It first adds the `log_owner` row when it is
-  missing (`INSERT ... ON CONFLICT DO NOTHING`, as in `append`), so a host can take a
-  new log before its first record. Then one conditional `UPDATE` changes the row
-  only when the rules for `acquire` allow it.
+```sql
+BEGIN;
+INSERT INTO log_owner (log_id) VALUES (:log_id) ON CONFLICT DO NOTHING;
+
+SELECT owner_id, released, NOT released AND expires_at > now() AS live
+FROM log_owner WHERE log_id = :log_id FOR UPDATE;
+-- Live, and owner_id is not :owner_id: roll back, and return null.
+-- A live pin of another host (see below): roll back, and return null.
+-- Live, and owner_id is :owner_id: set expires_at, and return { epoch }.
+
+UPDATE log_owner
+SET epoch = epoch + 1, owner_id = :owner_id, harness = :harness,
+  expires_at = now() + :ttl_ms * interval '1 millisecond',
+  released = FALSE, wake_at = NULL
+WHERE log_id = :log_id
+RETURNING epoch;
+-- expired: true when the row that you read had an owner_id that is not
+-- :owner_id, and released was FALSE.
+COMMIT;
+```
+
+`released = FALSE` also opens a deleted log again. For the other methods:
+
+- `setAffinity`, `putSnapshot`, and `truncate` need the owner. Lock the row with
+  `SELECT 1 FROM log_owner WHERE log_id = :log_id AND epoch = :epoch AND epoch > 0
+  AND NOT released FOR UPDATE`. No row: reject with `OwnershipLostError`.
+- In `listOrphaned`, the harness of a log is `log_owner.harness`. When it is `NULL`,
+  use the `harness` of the first offer of the log (the lowest `id`).
 - Use the database clock (`now()`) for each expiry, wake time, and `offeredAt`. The
   clocks of the hosts can disagree.
 - `heartbeat` is one upsert into `log_hosts`. In `acquire` and `listOrphaned`, an
@@ -972,11 +1001,11 @@ WHERE o.log_id = :log_id;
 ```
 
 - Keep the snapshot in one more table, with one row per log.
-- `deleteLog` deletes the rows of the log in the other tables, and resets its
-  `log_owner` row: `head = 0`, `first_seq = 1`, `released = TRUE`, and no `wake_at`
-  or `affinity`. It keeps `epoch`, so a write with an old epoch still fails, and the
-  old owner cannot write, because the log is released. The next `acquire` and
-  `append` start a new log at position 1.
+- `deleteLog` deletes the rows of the log in the other tables. It inserts the
+  `log_owner` row when it is missing, and sets `head = 0`, `first_seq = 1`,
+  `released = TRUE`, and no `wake_at` or `affinity`. It keeps `epoch`. The released
+  row refuses every write, also with `UNOWNED_EPOCH`, until the next `acquire`. That
+  owner starts a new log at position 1.
 - Each record is JSON. Store it as text or as a JSON column. The store does not read
   the records.
 
@@ -1163,8 +1192,9 @@ Some `log` cases need two machines on one backend:
 - An offer on one instance is a `'duplicate'` on the other.
 - A listener that throws does not stop the listeners of the other instance.
 
-Pass `twin`: a function that returns a second store set on the same backend. If your
-persistence has `log` and no `twin`, these cases fail.
+Pass `twin`: a function that returns a second store set on the same backend. Its `log`
+must be a new store instance, not the same object. If your persistence has `log` and
+no `twin`, these cases fail.
 
 ```ts
 import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
@@ -1193,9 +1223,9 @@ runPersistenceConformance(
 )
 ```
 
-For the memory store, share one `memoryLogBackend()`. Each
-`memoryLogStore({ backend })` call on it gives one more store instance on that
-backend.
+For the memory store, share one `memoryLogState()`. Each
+`memoryLogStore({ state })` call on it gives one more store instance on that
+state.
 
 ## How the records relate
 

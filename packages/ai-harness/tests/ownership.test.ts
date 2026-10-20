@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { toolDefinition } from '@tanstack/ai'
 import {
-  memoryLogBackend,
+  memoryLogState,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -63,10 +63,10 @@ async function openOn(
 
 /** Two hosts on one database: two log stores on one memory backend. */
 function twoHosts() {
-  const backend = memoryLogBackend()
+  const logState = memoryLogState()
   return {
-    logA: memoryLogStore({ backend }),
-    logB: memoryLogStore({ backend }),
+    logA: memoryLogStore({ state: logState }),
+    logB: memoryLogStore({ state: logState }),
   }
 }
 

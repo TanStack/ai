@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
-import { memoryLogBackend, memoryLogStore } from '@tanstack/ai-persistence'
+import { memoryLogState, memoryLogStore } from '@tanstack/ai-persistence'
 import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import {
   createHarnessHost,
@@ -197,7 +197,7 @@ describe('step.ask in a durable tool', () => {
   })
 
   it('waits across a crash: the next host runs the call again, and its answer reaches the call', async () => {
-    const backend = memoryLogBackend()
+    const logState = memoryLogState()
     const reserve = vi.fn(async () => 'r-1')
     const book = durableTool(
       toolDefinition({
@@ -215,7 +215,7 @@ describe('step.ask in a durable tool', () => {
       harnessWith({ replies, tools: [book] })
     // The first host never renews its ownership, as after a crash.
     const first = await hostOn(
-      memoryLogStore({ backend }),
+      memoryLogStore({ state: logState }),
       harness([() => toolCall('book', {}, 'call-book')]),
       { ownership: CRASHING_OWNERSHIP },
     )
@@ -225,7 +225,7 @@ describe('step.ask in a durable tool', () => {
     await ownershipExpired()
     // The next host runs the cut call again, then calls the model.
     const next = await hostOn(
-      memoryLogStore({ backend }),
+      memoryLogStore({ state: logState }),
       harness([() => text('done')]),
     )
     // The wait stays open: the call runs again and waits for it.
@@ -302,7 +302,7 @@ describe('step.ask in a durable tool', () => {
 
 describe('step.ask in a command', () => {
   it('runs the command again after a crash, and a secret answer reaches the run again through the credential store', async () => {
-    const backend = memoryLogBackend()
+    const logState = memoryLogState()
     const credentials: CredentialStore = memoryCredentialStore()
     const saved = vi.fn(async () => 'saved')
     const hostStops = gate()
@@ -333,7 +333,7 @@ describe('step.ask in a command', () => {
       }),
     })
     const harness = harnessWith({ plugins: [plugin] })
-    const first = await hostOn(memoryLogStore({ backend }), harness, {
+    const first = await hostOn(memoryLogStore({ state: logState }), harness, {
       credentials,
       ownership: CRASHING_OWNERSHIP,
     })
@@ -355,11 +355,11 @@ describe('step.ask in a command', () => {
     ).toMatchObject({ status: 'accepted' })
 
     await ownershipExpired()
-    const next = await hostOn(memoryLogStore({ backend }), harness, {
+    const next = await hostOn(memoryLogStore({ state: logState }), harness, {
       credentials,
     })
     // The next host runs the command again, and it ends.
-    const log = memoryLogStore({ backend })
+    const log = memoryLogStore({ state: logState })
     await waitFor(async () =>
       expect(
         (await log.read({ logId: LOG })).map((entry) => entry.record),

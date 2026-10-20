@@ -691,8 +691,10 @@ export class LogConflictError extends Error {
  * The error that a fenced write ({@link LogStore.append},
  * {@link LogStore.putSnapshot}, {@link LogStore.truncate},
  * {@link LogStore.setAffinity}) rejects with when `epoch` does not give the
- * writer the log. It means that another host acquired the log, or that the
- * owner released it. Nothing is written. Stop the work on the log.
+ * writer the log. It means that another host acquired the log, that the
+ * owner released it, that the log was deleted, or that the writer did not
+ * acquire a log that needs an owner. Nothing is written. Stop the work on the
+ * log.
  */
 export class OwnershipLostError extends Error {
   readonly logId: string
@@ -794,7 +796,8 @@ export interface LogStore {
    *
    * 1. The fence. On a log that a host acquired, `epoch` must be the current
    *    epoch, and the owner must not have released the log. On a log that no
-   *    host acquired, `epoch` must be {@link UNOWNED_EPOCH}. Else reject with
+   *    host acquired, `epoch` must be {@link UNOWNED_EPOCH}. A deleted log
+   *    refuses every epoch until the next `acquire`. Else reject with
    *    {@link OwnershipLostError}.
    * 2. `seq` must be the next free position (the last position plus 1, or 1
    *    for a new log). Else reject with {@link LogConflictError}.
@@ -849,9 +852,9 @@ export interface LogStore {
    *   `heartbeat`). The pin of a host with no live heartbeat does not count.
    * - When `ownerId` already holds the log, extends the expiry and returns
    *   the same epoch.
-   * - Else increments the epoch, stores `harness`, clears the wake time, and
-   *   returns the new epoch. The epoch never goes down, also after `release`
-   *   and `deleteLog`.
+   * - Else increments the epoch, stores `harness`, clears the wake time,
+   *   opens a deleted log again, and returns the new epoch. The epoch never
+   *   goes down, also after `release` and `deleteLog`.
    * - When the log had another owner whose ownership expired with no
    *   `release`, the result has `expired: true`: that owner stopped.
    *
@@ -893,8 +896,9 @@ export interface LogStore {
   }) => Promise<void>
   /**
    * Pin the log to the workers with `affinity`, or unpin it with `null`.
-   * Fenced like `append`: a wrong `epoch` rejects with
-   * {@link OwnershipLostError}.
+   * Only the owner pins: `epoch` must be the current epoch of an acquired
+   * log that is not released. Else reject with {@link OwnershipLostError},
+   * also for {@link UNOWNED_EPOCH}.
    */
   setAffinity: (pin: {
     logId: string
@@ -954,8 +958,8 @@ export interface LogStore {
   /** The latest snapshot of `logId`, or `null` when the log has none. */
   getSnapshot: (query: { logId: string }) => Promise<LogSnapshot | null>
   /**
-   * Replace the snapshot of the log. Fenced like `append`: a wrong `epoch`
-   * rejects with {@link OwnershipLostError}. Rejects with a `RangeError`
+   * Replace the snapshot of the log. Fenced like `setAffinity`: only the
+   * owner of an acquired log writes it. Rejects with a `RangeError`
    * unless `firstSeq - 1 <= seq <= head`. `head` is the last position of the
    * log. `firstSeq` is the first kept position after a `truncate`, or 1. A
    * snapshot before `firstSeq - 1` needs records that a truncate dropped.
@@ -966,8 +970,8 @@ export interface LogStore {
   /**
    * Drop the records with `seq` less than `beforeSeq`. The positions keep
    * counting, so the next `append` is still at the last position plus 1.
-   * Fenced like `append`: a wrong `epoch` rejects with
-   * {@link OwnershipLostError}. Rejects with a `RangeError` unless a snapshot
+   * Fenced like `setAffinity`: only the owner of an acquired log truncates.
+   * Rejects with a `RangeError` unless a snapshot
    * has a `seq` of `beforeSeq - 1` or more.
    */
   truncate: (cut: {
@@ -977,8 +981,10 @@ export interface LogStore {
   }) => Promise<void>
   /**
    * Remove the records, the offers, the snapshot, the truncation point, the
-   * affinity, and the wake time of `logId`, and call the listeners. Only the
-   * epoch counter stays, so a write with an old epoch still fails.
+   * affinity, and the wake time of `logId`, and call the listeners. The epoch
+   * counter stays. Every fenced write to the log fails until the next
+   * `acquire`, also with {@link UNOWNED_EPOCH}, so a late write cannot bring
+   * the deleted records back. An `offer` still works.
    */
   deleteLog: (target: { logId: string }) => Promise<void>
 }

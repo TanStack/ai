@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, createCapability, toolDefinition } from '@tanstack/ai'
 import {
-  memoryLogBackend,
+  memoryLogState,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -417,7 +417,7 @@ describe('plugin config next to the settings', () => {
 
 describe('thread settings on two hosts', () => {
   it('keeps the change of the other host, and a turn uses it', async () => {
-    const backend = memoryLogBackend()
+    const logState = memoryLogState()
     const model = mockAdapter(() => text('ok'))
     const harness = defineHarness({
       name: 'test/settings',
@@ -425,7 +425,7 @@ describe('thread settings on two hosts', () => {
     })
     const hostOn = () =>
       createHarnessHost({
-        persistence: { stores: { log: memoryLogStore({ backend }) } },
+        persistence: { stores: { log: memoryLogStore({ state: logState }) } },
       })
     const hostA = hostOn()
     const hostB = hostOn()
@@ -434,7 +434,7 @@ describe('thread settings on two hosts', () => {
 
     await a.configure({ settings: { reasoning: 'high' } })
     // A gives the log back, so B owns it for its change.
-    const store = memoryLogStore({ backend })
+    const store = memoryLogStore({ state: logState })
     await vi.waitFor(
       async () =>
         expect(await canOtherHostTake(store, logIdOf({ logId: THREAD }))).toBe(
