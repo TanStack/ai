@@ -135,6 +135,8 @@ export interface SubagentsBag<
   /**
    * What a host adds to every activity call a child makes through `ctx`
    * (`ctx.chat`, `ctx.generateImage`, and the rest). Apps do not set it.
+   *
+   * @internal For hosts that run agents, such as `@tanstack/ai-harness`.
    */
   binding?: SubagentBinding
   /**

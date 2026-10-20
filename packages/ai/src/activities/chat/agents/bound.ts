@@ -46,6 +46,8 @@ export interface SubagentForward {
 /**
  * What a host adds to every activity call an agent makes through `ctx`. Apps
  * using plain `chat({ subagents })` do not set it.
+ *
+ * @internal For hosts that run agents, such as `@tanstack/ai-harness`.
  */
 export interface SubagentBinding {
   /**
