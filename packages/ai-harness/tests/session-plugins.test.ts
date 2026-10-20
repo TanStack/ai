@@ -11,13 +11,23 @@ import {
   createHarnessHost,
   createPluginEvent,
   defineCommand,
+  durableTool,
   defineHarness,
   definePlugin,
 } from '../src'
 import { compact, modelPicker, todos, usage } from '../src/first-party'
 import { fileCommands, projectInstructions } from '../src/first-party/node'
-import { appendToLog, gate, mockAdapter, text, toolCall } from './helpers'
-import type { PluginState, SessionEvent } from '../src'
+import { loadLogState, logIdOf, sessionOf } from '../src/log'
+import {
+  after,
+  appendToLog,
+  gate,
+  mockAdapter,
+  questionsOf,
+  text,
+  toolCall,
+} from './helpers'
+import type { PluginSessionApi, PluginState, SessionEvent } from '../src'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
 const waitFor = <T>(
@@ -226,12 +236,13 @@ describe('questions', () => {
   it('asks with a schema, checks answers, and rejects open questions on close', async () => {
     const asker = definePlugin({
       name: 'test/asker',
-      setup: (ctx) => ({
+      setup: () => ({
         commands: {
           pick: defineCommand({
             description: 'Pick a number',
-            run: async () => {
-              const answer = await ctx.session.ask({
+            run: async (_input, { step }) => {
+              const answer = await step.ask({
+                name: 'count',
                 message: 'How many?',
                 schema: z.object({ count: z.number() }),
               })
@@ -240,7 +251,8 @@ describe('questions', () => {
           }),
           open: defineCommand({
             description: 'Asks and never gets an answer',
-            run: () => ctx.session.ask({ message: 'Still there?' }),
+            run: (_input, { step }) =>
+              step.ask({ name: 'there', message: 'Still there?' }),
           }),
         },
       }),
@@ -257,10 +269,8 @@ describe('questions', () => {
       },
     )
     const picking = session.command({ name: 'pick' })
-    await waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
-    const [question] = session.snapshot().pendingQuestions
+    await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
+    const [question] = questionsOf(session.snapshot())
     expect(question).toMatchObject({
       message: 'How many?',
       schema: { type: 'object' },
@@ -291,25 +301,24 @@ describe('questions', () => {
     expect(await picking).toBe(4)
 
     const open = session.command({ name: 'open' })
-    await waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
+    await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
     await host.close()
     // The close cancels the command that waits for its answer.
     await expect(open).rejects.toBeDefined()
     expect(open.status()).toBe('cancelled')
-    expect(session.snapshot().pendingQuestions).toEqual([])
+    expect(questionsOf(session.snapshot())).toEqual([])
   })
 
   it('rejects the questions of a turn when the turn is cancelled', async () => {
     let asked: Promise<unknown> | undefined
     const asker = definePlugin({
       name: 'test/turn-asker',
-      setup: (ctx) => ({
+      setup: () => ({
         tools: [
-          toolDefinition({ name: 'confirm', description: 'Ask' }).server(
-            async () => {
-              asked = ctx.session.ask({ message: 'Sure?' })
+          durableTool(
+            toolDefinition({ name: 'confirm', description: 'Ask' }),
+            async (_args, { step }) => {
+              asked = step.ask({ name: 'sure', message: 'Sure?' })
               return asked
             },
           ),
@@ -328,14 +337,12 @@ describe('questions', () => {
       },
     )
     const turn = session.send('Go.')
-    await waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
+    await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
 
     await session.cancel({ operationId: turn.id })
 
     await expect(asked).rejects.toThrow('Cancelled.')
-    expect(session.snapshot().pendingQuestions).toEqual([])
+    expect(questionsOf(session.snapshot())).toEqual([])
     await host.close()
   })
 
@@ -347,8 +354,8 @@ describe('questions', () => {
         commands: {
           confirm: defineCommand({
             description: 'Ask',
-            run: (_input, { session }) => {
-              asked = session.ask({ message: 'Sure?' })
+            run: (_input, { step }) => {
+              asked = step.ask({ name: 'sure', message: 'Sure?' })
               return asked
             },
           }),
@@ -367,14 +374,12 @@ describe('questions', () => {
       },
     )
     const command = session.command({ name: 'confirm' })
-    await waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
+    await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
 
     await session.cancel({ operationId: command.id })
 
     await expect(asked).rejects.toThrow('Cancelled.')
-    expect(session.snapshot().pendingQuestions).toEqual([])
+    expect(questionsOf(session.snapshot())).toEqual([])
     await host.close()
   })
 })
@@ -871,6 +876,69 @@ describe('session events', () => {
     )
     controller.abort()
     await reading
+    await host.close()
+  })
+})
+
+describe('the turns that a session plugin starts', () => {
+  it('run as the owner, or as the principal that the plugin passes, not as the sender of the running turn', async () => {
+    let api: PluginSessionApi | undefined
+    const notes = definePlugin({
+      name: 'test/notes',
+      setup: (ctx) => {
+        api = ctx.session
+      },
+    })
+    const release = gate()
+    const { adapter, calls } = mockAdapter([
+      after(release.opened, 'Bea is done.'),
+      () => text('One.'),
+      () => text('Two.'),
+      () => text('Three.'),
+    ])
+    const persistence = memoryPersistence()
+    const host = createHarnessHost({ persistence })
+    const harness = defineHarness({
+      name: 'test/notes',
+      adapter,
+      plugins: () => [notes],
+    })
+    // Olga opens the thread first, so she owns it.
+    await host.open(harness, { threadId: 't', principal: { id: 'olga' } })
+    const bea = await host.open(harness, {
+      threadId: 't',
+      principal: { id: 'bea' },
+    })
+    const turn = bea.send('Start a job.')
+    await waitFor(() => expect(turn.status()).toBe('running'))
+    if (!api) throw new Error('No plugin context.')
+
+    // A job of olga ends while the turn of bea runs.
+    await api.note('The job of olga ended.', { wake: true })
+    await api.note('The job of carl ended.', {
+      wake: true,
+      principal: { id: 'carl' },
+    })
+    api.send('Go on, carl.', { principal: { id: 'carl' } })
+    release.open()
+    await turn
+    await waitFor(() => expect(calls).toHaveLength(4))
+
+    const state = await loadLogState({
+      store: persistence.stores.log,
+      logId: logIdOf({ logId: 't' }),
+      rootThread: 't',
+    })
+    const senders = [...sessionOf(state, 't').inputs.values()].map((logged) => [
+      logged.input.op,
+      logged.principal?.id,
+    ])
+    expect(senders).toEqual([
+      ['prompt', 'bea'],
+      ['followUp', 'olga'],
+      ['followUp', 'carl'],
+      ['prompt', 'carl'],
+    ])
     await host.close()
   })
 })

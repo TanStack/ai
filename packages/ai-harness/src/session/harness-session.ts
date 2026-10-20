@@ -7,6 +7,7 @@ import { mountPlugins } from '../plugins'
 import {
   CUT_OFF_NOTE,
   checkpointMiddleware,
+  toolResultRecorder,
   repairSteps,
   repairTranscript,
 } from '../resume'
@@ -21,6 +22,7 @@ import {
   CONTROL_OPS,
   hasFinalAnswer,
   loggedExtras,
+  notifyListeners,
   offeredInputRecord,
   SHUTDOWN_REASON,
   storedPrincipal,
@@ -28,6 +30,7 @@ import {
   toolCallOf,
 } from './helpers'
 import { SessionTurn } from './turn'
+import { commandStepScope, stepWaitPrefix } from './turn-parts'
 import { MAX_TIMER_MS } from '../utils'
 import type { ModelMessage } from '@tanstack/ai'
 import type { AccessRun } from '../access'
@@ -50,13 +53,22 @@ export interface HarnessSession<
   // The public members that only the host and the handler call.
   | 'open'
   | 'adoptFork'
+  | 'adoptMessages'
+  | 'transferOf'
+  | 'recordTransfer'
+  | 'transferSummary'
   | 'onIdle'
   | 'resolveForRun'
+  | 'sendForRun'
   | 'checked'
+  | 'knownMessage'
   | 'cancelWorkOf'
   | 'agentHandle'
   | 'isIdle'
   | 'isClosing'
+  | 'openWait'
+  | 'openToEnd'
+  | 'endThread'
   // A handle closes itself, not the session.
   | 'close'
 > {
@@ -116,8 +128,29 @@ export class SessionImpl<
     return this.close()
   }
 
+  /**
+   * @internal `error` without the secrets of this session, for an error
+   * frame that leaves it (the HTTP handler, the socket, a worker). An
+   * `Error` keeps its class: its message and stack are scrubbed in place.
+   * The same value when it has no secret.
+   */
+  scrubError(error: unknown): unknown {
+    if (!(error instanceof Error)) return this.redactor.redact(error)
+    const message = this.scrub(error.message)
+    if (message === error.message) return error
+    try {
+      error.message = message
+      if (error.stack !== undefined) error.stack = this.scrub(error.stack)
+      return error
+    } catch {
+      // A message that cannot change (a getter only): a plain error.
+      return new Error(message)
+    }
+  }
+
   /** @internal Mount session plugins and recover the work in the log. */
   async open(): Promise<void> {
+    await this.tracing?.ready()
     // First: plugins publish events while they mount.
     await this.openLog()
     try {
@@ -140,6 +173,41 @@ export class SessionImpl<
       await this.close({ recoverable: true }).catch(() => {})
       throw error
     }
+  }
+
+  /**
+   * @internal For `host.sessions.delete`: open the log and the session
+   * plugins, and nothing else. No recovery, no index entry, no offers, and
+   * no schedules, so no work of the thread runs again before the purge. Call
+   * `endThread`, then close it.
+   */
+  async openToEnd(): Promise<void> {
+    await this.openLog()
+    await this.mountSessionPlugins()
+    this.loadSettings()
+  }
+
+  /**
+   * @internal The thread ends for good: each `ThreadEnds` handler of the
+   * plugins runs, the newest first, so a plugin that needs the workspace of
+   * an older plugin runs before that workspace closes. Every handler runs.
+   * Then the first error, if any, is thrown.
+   */
+  async endThread(): Promise<void> {
+    const run = this.runContext({
+      principal: undefined,
+      runId: `end:${this.threadId}`,
+      signal: this.lifetime.signal,
+    })
+    const errors: Array<unknown> = []
+    for (const handler of [...this.threadEnds].reverse()) {
+      await handler({
+        tenantId: this.tenantId,
+        threadId: this.threadId,
+        run,
+      }).catch((error: unknown) => errors.push(error))
+    }
+    if (errors.length > 0) throw errors[0]
   }
 
   /** Also waits for the last append of the log, so a reopen reads it. */
@@ -179,6 +247,8 @@ export class SessionImpl<
         ),
         services: this.services,
         inherited: this.storeCapabilities(),
+        // A plugin that this thread removed gives `collect` nothing.
+        hiddenOwners: () => this.removedPlugins(),
       },
     )
     this.loadConfig()
@@ -385,7 +455,9 @@ export class SessionImpl<
    * is still due (another host owns the log, or a write failed) waits
    * `SCHEDULE_RETRY_MS` before the next try.
    */
-  private armSchedules({ isRetry = false }: { isRetry?: boolean } = {}) {
+  protected override armSchedules({
+    isRetry = false,
+  }: { isRetry?: boolean } = {}) {
     clearTimeout(this.scheduleTimer)
     this.scheduleTimer = undefined
     if (this.closing || this.logWriter === undefined) return
@@ -493,9 +565,31 @@ export class SessionImpl<
         (!this.isIdle() || this.jobs.size > 0 || this.recovering > 0) &&
         this.sleeping === 0,
       onOffers: () => void this.drainOffers(),
+      // An event that another host wrote: the host status and the `onEvent`
+      // listeners see it, as they see the events of this host at publish.
+      onRemoteEvent: ({ operationId, event }) =>
+        notifyListeners(this.notifyHost, this.eventListeners, {
+          operationId,
+          event,
+        }),
+      // Records of another host: the settings, the config, and the
+      // interrupted turn come from the new fold.
+      onRemoteFold: () => this.syncFromLog(),
+      // This host became the owner. The event goes in the next append.
+      onOwned: (change) =>
+        this.feed.publish(
+          'session',
+          customEvent(HARNESS_EVENTS.ownershipChanged, { ...change }),
+        ),
+      redact: this.redactor.redact,
     })
     this.logWriter = writer
-    this.feed = tapFeed(writer, this.notifyHost, this.eventListeners)
+    this.feed = tapFeed(
+      writer,
+      this.notifyHost,
+      this.eventListeners,
+      this.redactor,
+    )
     // The child threads (agent chains and subagent runs) are in this log.
     const view = { writer }
     this.messages = sessionMessageStore(view)
@@ -515,15 +609,16 @@ export class SessionImpl<
     this.checkpoint = checkpointMiddleware({
       runs,
       messages: engineMessages,
-      // The log keeps each finished tool result, so a crash later in the
-      // batch does not lose it.
       onToolStart: ({ toolCallId, name, replay }) =>
         writer.append([
           { type: 'harness.tool.started', toolCallId, name, replay },
         ]),
-      onToolResult: ({ toolCallId, message }) =>
-        writer.append([{ type: 'harness.tool.result', toolCallId, message }]),
     })
+    // The log keeps each finished tool result, so a crash later in the
+    // batch does not lose it. It is the final result, after every plugin.
+    this.toolRecorder = toolResultRecorder(({ toolCallId, message }) =>
+      writer.append([{ type: 'harness.tool.result', toolCallId, message }]),
+    )
   }
 
   /**
@@ -747,10 +842,18 @@ export class SessionImpl<
     }
     // The host keeps the log until recovery queued its work.
     this.recovering += 1
+    // A span only when inputs of a host that stopped wait for this host.
+    const span = hasWork
+      ? this.tracing?.span('harness.recovery', {})
+      : undefined
     try {
       try {
         await this.recoverInputs(writer, isTaken)
       } catch (error) {
+        this.tracing?.safely(() => {
+          span?.recordException(error instanceof Error ? error : String(error))
+          span?.setStatus({ code: 2 })
+        })
         // Not recovered, so the next `recover()` takes them again.
         for (const inputId of taken) {
           if (!this.turnOperations.has(inputId)) this.admitted.delete(inputId)
@@ -760,8 +863,14 @@ export class SessionImpl<
       // After the turns are decided: a note must not end the transcript
       // that a cut turn continues.
       await this.recoverBackground(writer)
+      // The waits that expired, and the live waits of a host that stopped.
+      await this.endStaleWaits()
+      await this.expireInterrupted()
+      // The agent runs whose waits ended while no host could resume them.
+      await this.resumeWaitingRuns()
     } finally {
       this.recovering -= 1
+      this.tracing?.safely(() => span?.end())
       // A recovery that left no work gives the log back.
       void writer.rest()
     }
@@ -799,9 +908,23 @@ export class SessionImpl<
         }
         continue
       }
-      // A command that the host stopped during: no host runs it again.
+      // A command that the host stopped during: no host runs it again,
+      // unless it asked in a `step.ask`. Then it runs again from the top.
       if (input.input.op === 'command' && input.status === 'applied') {
         if (isTaken(input)) continue
+        const prefix = stepWaitPrefix(commandStepScope(input.inputId))
+        const hasAsked = [...writer.state.thread.waits.keys()].some((waitId) =>
+          waitId.startsWith(prefix),
+        )
+        const isReplayed =
+          hasAsked &&
+          this.replayCommand({
+            inputId: input.inputId,
+            name: input.input.name,
+            input: input.input.input,
+            principal: input.principal,
+          })
+        if (isReplayed) continue
         await this.settle({
           inputId: input.inputId,
           ...(input.operationId ? { operationId: input.operationId } : {}),
@@ -886,6 +1009,19 @@ export class SessionImpl<
           })
           continue
         }
+        if (input.input.op === 'prompt' && input.input.as === 'operator') {
+          // An operator reply runs no model, as `send` does.
+          const operation = this.createTurnOperation()
+          this.bindTurn(input.inputId, operation)
+          this.enqueueTurn({
+            operation,
+            inputId: input.inputId,
+            principal: input.principal,
+            message: input.input.message,
+            operator: true,
+          })
+          continue
+        }
         const steer: WaitingSteer = {
           inputId: input.inputId,
           message: input.input.message,
@@ -913,10 +1049,24 @@ export class SessionImpl<
       const run = input.operationId ? await runs.get(input.operationId) : null
       const now = Date.now()
       if (first) {
+        // A run that waits for answers waits on here. A crash after the run
+        // store marked it `interrupted` and before its waits landed leaves
+        // nothing to answer: that run stopped, as a running one.
+        const hasWaits = [...writer.state.thread.waits.values()].some(
+          ({ wait }) => wait.runId === input.operationId,
+        )
+        if (run?.status === 'interrupted' && hasWaits) {
+          this.adoptWaitingRun(input, first, run)
+          continue
+        }
         // A run that ended before its settle record landed did not stop.
-        if (!run || run.status === 'running') {
+        if (!run || run.status === 'running' || run.status === 'interrupted') {
           const isResumable = first.input.resume === true
-          if (isResumable && input.attempt < maxAttempts) {
+          // `limits.maxAttempts` of the run wins over the harness's.
+          const runMax =
+            writer.state.thread.tree.get(input.operationId ?? '')?.limits
+              ?.maxAttempts ?? maxAttempts
+          if (isResumable && input.attempt < runMax) {
             if (input.operationId) {
               await runs.update(input.operationId, {
                 status: 'failed',
@@ -1151,6 +1301,10 @@ export class SessionImpl<
         principal: input.principal,
         ...('message' in sent ? { sentMessage: sent.message } : {}),
         ...('context' in sent ? { context: sent.context } : {}),
+        // An operator reply runs no model.
+        ...(sent.op === 'prompt' && sent.as === 'operator'
+          ? { operator: true }
+          : {}),
         ...this.recoveredExtras(input.inputId, decision.overrides),
       })
     }
@@ -1191,3 +1345,10 @@ function appliedOperationId(input: InputState): string {
   }
   return input.operationId
 }
+
+/**
+ * `error` without the secrets of `session`, when it is a session of this
+ * package. Else the same `error`: a code path with no session leaves it.
+ */
+export const scrubbedBy = (session: unknown, error: unknown): unknown =>
+  session instanceof SessionImpl ? session.scrubError(error) : error

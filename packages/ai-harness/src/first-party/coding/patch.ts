@@ -1,7 +1,8 @@
 import { toolDefinition } from '@tanstack/ai'
-import { afterWrite, readText, stringArg } from './backend'
-import { findMatches, toEndingsOf } from './edit'
+import { readText, stringArg } from './backend'
+import { afterWriteSeen, findMatches, toEndingsOf } from './edit'
 import type { ToolEnv } from './backend'
+import type { FileVersions } from './edit'
 
 const BOM = '﻿'
 
@@ -305,10 +306,15 @@ interface Step {
 
 /**
  * Apply each step. Every file is read and checked first. The files are
- * written and removed only when every operation fits. Then the `afterWrite`
- * hooks run for the written files.
+ * written and removed only when every operation fits, and `versions`
+ * remembers the files as the patch left them. Resolves to the lines of the
+ * result and the written files, for the `afterWrite` hooks.
  */
-async function applyAll(env: ToolEnv, steps: ReadonlyArray<Step>) {
+async function applyAll(
+  env: ToolEnv,
+  versions: FileVersions,
+  steps: ReadonlyArray<Step>,
+) {
   const { backend } = env
   // The new state of each file: its text, or `null` to remove it. A later
   // operation on a file sees it. A removed file is always a file that was
@@ -392,9 +398,9 @@ async function applyAll(env: ToolEnv, steps: ReadonlyArray<Step>) {
   for (const { full, text } of written) await backend.writeFile(full, text)
   // The checks above refuse a removal when the backend has no `remove`.
   for (const full of removed) await backend.remove?.(full)
-  const notes: Array<string> = []
-  for (const { full } of written) notes.push(...(await afterWrite(env, full)))
-  return ['Applied the patch:', ...changes, ...notes].join('\n')
+  for (const { full } of written) await versions.saw(full)
+  for (const full of removed) versions.forget(full)
+  return { changes, written: written.map(({ full }) => full) }
 }
 
 /**
@@ -412,8 +418,10 @@ async function applyAll(env: ToolEnv, steps: ReadonlyArray<Step>) {
  *   refuses them, before it writes anything.
  * - A file that the patch removed or moved away cannot change again in the
  *   same patch. A file cannot be removed or moved after the patch changed it.
+ * - A file that changed since a tool read it fails the patch, before it
+ *   writes anything (see `versions`).
  */
-export function patchTools(env: ToolEnv) {
+export function patchTools(env: ToolEnv, versions: FileVersions) {
   return [
     toolDefinition({
       name: 'patch',
@@ -425,8 +433,8 @@ export function patchTools(env: ToolEnv) {
       },
     }).server(async (args: unknown) => {
       const operations = parsePatch(stringArg(args, 'patch'))
-      // Resolve each path first. A path outside the workspace can ask the
-      // user.
+      // Resolve each path first. The rules decided an outside path before
+      // the call.
       const steps: Array<Step> = []
       for (const operation of operations) {
         const full = await env.reach(operation.path, 'patch', 'file')
@@ -443,12 +451,25 @@ export function patchTools(env: ToolEnv) {
       const paths = [
         ...new Set(steps.flatMap((step) => [step.full, step.to])),
       ].sort()
-      let run = () => applyAll(env, steps)
+      // The paths with no file before the locks. A file there under the
+      // locks is new, and the patch did not see it.
+      const missing = new Set<string>()
+      for (const path of paths) {
+        if (!(await versions.exists(path))) missing.add(path)
+      }
+      let run = async () => {
+        for (const path of paths) {
+          await versions.check(path, { missing: missing.has(path) })
+        }
+        return applyAll(env, versions, steps)
+      }
       for (const path of paths) {
         const inner = run
         run = () => env.lock(path, inner)
       }
-      return run()
+      const { changes, written } = await run()
+      const notes = await afterWriteSeen(env, versions, written)
+      return ['Applied the patch:', ...changes, ...notes].join('\n')
     }),
   ]
 }

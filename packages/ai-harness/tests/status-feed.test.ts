@@ -1,10 +1,33 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
-import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, definePlugin } from '../src'
-import { mockAdapter, text, toolCall } from './helpers'
+import {
+  memoryLogBackend,
+  memoryLogStore,
+  memoryPersistence,
+} from '@tanstack/ai-persistence'
+import {
+  createHarnessHost,
+  defineHarness,
+  definePlugin,
+  durableTool,
+} from '../src'
+import {
+  CRASHING_OWNERSHIP,
+  mockAdapter,
+  ownershipExpired,
+  questionsOf,
+  text,
+  toolCall,
+  untilAborted,
+} from './helpers'
 import type { HostEvent } from '../src'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 /** Read a stream of host events into `seen` until `stop()`. */
 function watch(read: (signal: AbortSignal) => AsyncIterable<HostEvent>) {
@@ -40,10 +63,10 @@ const probe = toolDefinition({
 function askingHarness() {
   const asker = definePlugin({
     name: 'test/asker',
-    setup: (ctx) => ({
+    setup: () => ({
       tools: [
-        probe.server(async () => ({
-          sure: await ctx.session.ask({ message: 'Sure?' }),
+        durableTool(probe, async (_args, { step }) => ({
+          sure: await step.ask({ name: 'sure', message: 'Sure?' }),
         })),
       ],
     }),
@@ -70,15 +93,13 @@ describe('host.events', () => {
     const b = await host.open(plainHarness(), { threadId: 'b' })
 
     const turn = a.send('go')
-    await vi.waitFor(() =>
-      expect(a.snapshot().pendingQuestions).toHaveLength(1),
-    )
+    await waitFor(() => expect(questionsOf(a.snapshot())).toHaveLength(1))
     await b.send('hi')
-    const [question] = a.snapshot().pendingQuestions
+    const [question] = questionsOf(a.snapshot())
     await a.answer({ questionId: question?.questionId ?? '', value: 'yes' })
     await turn
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(statusesOf(feed.seen, 'a')).toEqual([
         'idle',
         'running',
@@ -97,13 +118,11 @@ describe('host.events', () => {
     const a = await host.open(askingHarness(), { threadId: 'a' })
     await host.open(plainHarness(), { threadId: 'b' })
     void a.send('go')
-    await vi.waitFor(() =>
-      expect(a.snapshot().pendingQuestions).toHaveLength(1),
-    )
+    await waitFor(() => expect(questionsOf(a.snapshot())).toHaveLength(1))
 
     const feed = watch((signal) => host.events({ signal }))
 
-    await vi.waitFor(() => expect(feed.seen).toHaveLength(2))
+    await waitFor(() => expect(feed.seen).toHaveLength(2))
     expect(feed.seen).toEqual([
       {
         type: 'status',
@@ -125,7 +144,7 @@ describe('host.events', () => {
     await host.sessions.rename({ threadId: 'b', title: 'Greetings' })
     await host.sessions.delete({ threadId: 'b' })
 
-    await vi.waitFor(() => expect(feed.seen).toHaveLength(3))
+    await waitFor(() => expect(feed.seen).toHaveLength(3))
     expect(feed.seen).toMatchObject([
       { type: 'status', threadId: 'b', status: 'idle' },
       { type: 'session', threadId: 'b', entry: { title: 'Greetings' } },
@@ -147,8 +166,74 @@ describe('host.events', () => {
     expect(await events.next()).toEqual({ done: true, value: undefined })
     // `stop` resolves only when the waiting read ends.
     const feed = watch((signal) => host.events({ signal }))
-    await vi.waitFor(() => expect(feed.seen).toHaveLength(1))
+    await waitFor(() => expect(feed.seen).toHaveLength(1))
     await feed.stop()
     await host.close()
+  })
+})
+
+describe('host.events on a host that does not own the log', () => {
+  it('shows running, then idle, for a turn that another host runs', async () => {
+    const backend = memoryLogBackend()
+    const hostOn = () =>
+      createHarnessHost({
+        persistence: { stores: { log: memoryLogStore({ backend }) } },
+      })
+    const owner = hostOn()
+    const other = hostOn()
+    const harness = plainHarness()
+    const running = await owner.open(harness, { threadId: 'r' })
+    const reading = await other.open(harness, { threadId: 'r' })
+    const feed = watch((signal) => other.events({ signal }))
+
+    await running.send('hi')
+
+    // Coverage runs in CI are slow, so the check waits up to 5 s.
+    await waitFor(
+      () =>
+        expect(statusesOf(feed.seen, 'r')).toEqual(['idle', 'running', 'idle']),
+      { timeout: 5_000 },
+    )
+    await feed.stop()
+    await reading.close()
+    await running.close()
+    await other.close()
+    await owner.close()
+  })
+
+  it('shows idle after it takes the log of a host that stopped in a turn', async () => {
+    const backend = memoryLogBackend()
+    const harnessOf = (replies: Parameters<typeof mockAdapter>[0]) =>
+      defineHarness({
+        name: 'test/status-takeover',
+        adapter: mockAdapter(replies).adapter,
+      })
+    const stopped = createHarnessHost({
+      persistence: { stores: { log: memoryLogStore({ backend }) } },
+      ownership: CRASHING_OWNERSHIP,
+    })
+    const other = createHarnessHost({
+      persistence: { stores: { log: memoryLogStore({ backend }) } },
+    })
+    const first = await stopped.open(harnessOf([untilAborted()]), {
+      threadId: 's',
+    })
+    const second = await other.open(harnessOf([() => text('two')]), {
+      threadId: 's',
+    })
+    const feed = watch((signal) => other.events({ signal }))
+    void Promise.resolve(first.send('one', { inputId: 'in-1' })).catch(() => {})
+    await waitFor(() => expect(statusesOf(feed.seen, 's')).toContain('running'))
+    // The first host stops: its ownership of the log expires.
+    await ownershipExpired()
+
+    // The next send takes the log from the stopped host, and runs.
+    await second.send('two')
+
+    await waitFor(() => expect(statusesOf(feed.seen, 's').at(-1)).toBe('idle'))
+    await feed.stop()
+    await second.close()
+    await stopped.close().catch(() => {})
+    await other.close()
   })
 })

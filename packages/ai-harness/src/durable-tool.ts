@@ -8,6 +8,7 @@ import type {
 } from '@tanstack/ai'
 import { jsonCopy, waitUntil } from './utils'
 import type { LogRecord } from '@tanstack/ai-persistence'
+import type { AnswerOf, Question } from './commands'
 
 /** What the `fn` of one `step.do` gets. */
 export interface StepRun {
@@ -40,6 +41,9 @@ export interface ToolStep {
    * nothing is stored. Use a name that is the same on every run (for example
    * `charge:${orderId}`). The same name twice in one call throws. A step
    * does not start after the host lost the session log to another host.
+   * In a harness session, a value that holds a secret of the session (a key
+   * it read, a secret answer) throws too, on the first run and on a replay:
+   * the log never keeps a secret. Read the secret outside `step.do`.
    *
    * @example
    * ```ts
@@ -68,6 +72,40 @@ export interface ToolStep {
    * ```
    */
   sleep: (options: { name: string; ms: number }) => Promise<void>
+  /**
+   * Ask the user, once for `name` in this call, and wait for the answer.
+   * The log keeps the question as a wait of this run, so a user on any
+   * machine can answer it. When the host stops while it waits, the next
+   * host runs the code again from the top: finished `do` steps return their
+   * values, and `ask` returns the logged answer, or waits again.
+   *
+   * The answer is checked against `schema`. A `secret` answer is never in
+   * the log: the credential store keeps it until the run ends, so a run
+   * again can read it. `ask` rejects when the wait is cancelled or
+   * expires, and when the run stops. Outside a harness session it throws.
+   *
+   * @example
+   * ```ts
+   * const key = await step.ask({ name: 'api-key', message: 'Paste your key', secret: true })
+   * ```
+   */
+  ask: <TSchema extends SchemaInput | undefined = undefined>(
+    question: StepQuestion<TSchema>,
+  ) => Promise<AnswerOf<TSchema>>
+}
+
+/**
+ * A question of `step.ask`: a {@link Question}, with a `name` that is the
+ * same on every run of the code.
+ */
+export type StepQuestion<TSchema extends SchemaInput | undefined = undefined> =
+  Omit<Question<TSchema>, 'live'> & { name: string }
+
+/** `step.ask` outside a harness session: nobody can answer. */
+export const askWithoutSession = (): never => {
+  throw new Error(
+    'step.ask needs a harness session: call it in a command, a durable tool, or an agent run of host.open().',
+  )
 }
 
 /** What the `execute` of a {@link durableTool} gets. */
@@ -107,6 +145,8 @@ export function createToolStep(options: {
   record: (name: string, value: unknown) => Promise<void>
   run: (name: string) => StepRun
   sleep: (sleep: { name: string; wakeAt: number }) => Promise<void>
+  /** Ask the user, and resolve with the checked answer. */
+  ask?: (question: StepQuestion<SchemaInput | undefined>) => Promise<unknown>
 }) {
   const used = new Set<string>()
   const step = {
@@ -143,6 +183,19 @@ export function createToolStep(options: {
       await options.record(name, copy)
       // JSON of `fn`'s own value: the type of `T`, as a replay gives it.
       return copy as T
+    },
+    ask: async (question) => {
+      const { ask } = options
+      if (!ask) return askWithoutSession()
+      const key = `ask:${question.name}`
+      if (used.has(key)) {
+        throw new Error(
+          `step.ask: the name ${JSON.stringify(question.name)} is already used in this call.`,
+        )
+      }
+      used.add(key)
+      // The session checked the answer against the schema of the question.
+      return (await ask(question)) as never
     },
   } satisfies ToolStep
   return step
@@ -251,6 +304,8 @@ const DURABLE_BINDER: unique symbol = Symbol(
 export type DurableBind = (toolCallId: string) => {
   step: ToolStep
   append: DurableToolContext['append']
+  /** The call ended, and no run again reads what its steps keep. */
+  done?: () => Promise<void>
 }
 
 /**
@@ -267,12 +322,18 @@ export function bindDurable(tool: AnyTool, bind: DurableBind) {
   const execute = tool[DURABLE_EXECUTE]
   const bound = {
     ...tool,
-    execute: (args: unknown, context?: ToolExecutionContext) => {
+    execute: async (args: unknown, context?: ToolExecutionContext) => {
       const base = context ?? emptyContext
       if (!base.toolCallId) {
         throw new Error('A durable tool call needs a tool call id.')
       }
-      return execute(args, { ...base, ...bind(base.toolCallId) })
+      const { done, ...bound } = bind(base.toolCallId)
+      try {
+        return await execute(args, { ...base, ...bound })
+      } finally {
+        // A stopped call runs again, and reads its steps again.
+        if (!base.abortSignal?.aborted) await done?.().catch(() => {})
+      }
     },
   }
   Object.defineProperty(bound, DURABLE_BINDER, {

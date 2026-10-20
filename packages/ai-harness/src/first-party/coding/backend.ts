@@ -1,8 +1,12 @@
 import * as childProcess from 'node:child_process'
 import * as fs from 'node:fs/promises'
 import * as nodePath from 'node:path'
+import { commandEnv, createOutputTail } from '@tanstack/ai-utils'
 import { isRecord } from '../../utils'
+import type { RunContext } from '../../types'
 import type { WorkspaceHooks } from '../workspace-hooks'
+
+export type { WorkspaceBinding } from '../../log-records'
 
 /**
  * Where the workspace tools read and write files and run commands. Every
@@ -23,12 +27,16 @@ export interface WorkspaceBackend {
   readFile: (path: string) => Promise<Uint8Array>
   /**
    * One page of a file, without the whole file in memory: the first 8 KiB
-   * (`head`), the size in bytes, the lines from line `offset` (from 1) as
-   * UTF-8 text, and the number of lines. It gives at most `limit` lines, and
-   * fewer when the lines are long: no more lines after 64 KiB. A final
-   * newline ends the last line. It does not start a new one. Throws when
-   * there is no file. Optional: without it, `read_file` reads the whole
-   * file.
+   * (`head`), the size in bytes, and the lines from line `offset` (from 1)
+   * as UTF-8 text. It gives at most `limit` lines, and fewer when the lines
+   * are long: no more lines after 64 KiB. A final newline ends the last
+   * line. It does not start a new one. Throws when there is no file.
+   *
+   * It stops reading after the page. `total`, the number of lines, is there
+   * only when the read got to the end of the file. `undefined` means that
+   * the file has more lines after the page.
+   *
+   * Optional: without it, `read_file` reads the whole file.
    */
   readLines?: (
     path: string,
@@ -37,7 +45,7 @@ export interface WorkspaceBackend {
     head: Uint8Array
     size: number
     lines: Array<string>
-    total: number
+    total?: number
   }>
   /** Create or replace a file. Missing parent folders are created. */
   writeFile: (path: string, data: Uint8Array | string) => Promise<void>
@@ -55,10 +63,10 @@ export interface WorkspaceBackend {
   /**
    * The real path of `path`, with every link resolved, or `undefined` when
    * nothing is at `path`. Throws for a link to a target that is not there.
-   * The tools use it to refuse a link that leads out of the workspace.
-   * Optional: without it, the tools do not check links.
+   * The tools use it to refuse a link that leads out of the workspace. A
+   * backend that cannot resolve a path throws, and the tool call fails.
    */
-  realpath?: (path: string) => Promise<string | undefined>
+  realpath: (path: string) => Promise<string | undefined>
   /**
    * The entries of a folder. A symbolic link (or a Windows junction) has
    * the type `'link'`, whatever it points to. The tools do not follow it.
@@ -68,7 +76,12 @@ export interface WorkspaceBackend {
   ) => Promise<Array<{ name: string; type: 'file' | 'dir' | 'link' }>>
   /**
    * Run a shell command and wait for it to end. `env` is added to the
-   * environment. A command that fails resolves with its exit code.
+   * environment. A command that fails resolves with its exit code. On
+   * {@link hostBackend}, a command gets only a few variables of this
+   * process (see `commandEnv` of `@tanstack/ai-utils`), plus `env`. `onStart` gets the id of
+   * the process when it started, like the `jobId` of `spawn`, for
+   * {@link killJob}: the host can move a running command to the background.
+   * A backend that has no id does not call it.
    */
   exec: (
     command: string,
@@ -77,21 +90,74 @@ export interface WorkspaceBackend {
       env?: Record<string, string>
       timeoutMs?: number
       signal?: AbortSignal
+      onStart?: (jobId: string) => void
     },
   ) => Promise<{ exitCode: number; stdout: string; stderr: string }>
   /**
    * Start a shell command in the background. `output()` is stdout and
-   * stderr so far. Optional: without it, background commands give an error.
+   * stderr so far: the newest 1 MiB, with a first line that tells how many
+   * older bytes were dropped. `kill()` stops the command and every command
+   * it started, also right after the start. `onOutput` gets the new text
+   * of stdout and stderr as it comes. A backend that cannot stream the
+   * output does not call it. Optional: without `spawn`, background commands
+   * give an error.
    */
   spawn?: (
     command: string,
-    options?: { cwd?: string; env?: Record<string, string> },
+    options?: {
+      cwd?: string
+      env?: Record<string, string>
+      onOutput?: (text: string) => void
+    },
   ) => {
     wait: () => Promise<{ exitCode: number }>
     kill: () => void
     output: () => string
+    /**
+     * Resolves with the id of the process in this backend, for
+     * {@link killJob}, once it started. `undefined` when it did not start.
+     * The session log keeps it, so a later host can stop the job.
+     */
+    jobId?: Promise<string | undefined>
   }
+  /**
+   * Stop the job with the `jobId` that `spawn` gave, also a job of an
+   * earlier process or machine, with every command it started. Resolves
+   * `true` when the job ran and was stopped, and `false` when no such job
+   * runs. Rejects when it cannot check that the process is the job, for
+   * example when `ps` is missing: then the job may still run. Optional:
+   * without it, a job that a crash left running is not stopped.
+   */
+  killJob?: (jobId: string) => Promise<boolean>
+  /**
+   * Where the files are, when they are not on this machine: a sandbox,
+   * which another machine can resume. The session log keeps it as the
+   * binding of the thread. Without it, the workspace is on this host, and
+   * the log is pinned to this host.
+   */
+  binding?: () => { kind: 'sandbox'; provider: string; sandboxId: string }
+  /**
+   * The tools are done with this backend. Before they call it, they stop
+   * the jobs of the session. `reason` tells why:
+   *
+   * - `'closed'`: the session closed. Stop the jobs that this backend
+   *   started, and destroy what it made for itself, like a sandbox that it
+   *   created.
+   * - `'moved'`: the session continues on another machine. Keep what that
+   *   machine can resume, like a sandbox.
+   *
+   * Never destroy a sandbox that the backend did not create. Optional: a
+   * backend with nothing to release has none.
+   */
+  close?: (input: { reason: 'closed' | 'moved' }) => Promise<void>
 }
+
+/**
+ * A workspace that `workspace.bind` of `workspaceTools()` gives: a backend,
+ * and its workspace folder `root`, an absolute path. `root` is the boundary
+ * of every tool.
+ */
+export type BoundWorkspace = WorkspaceBackend & { root: string }
 
 /** What each workspace tool gets from `workspaceTools()`. */
 export interface ToolEnv {
@@ -100,12 +166,19 @@ export interface ToolEnv {
   root: string
   /** The hooks that plugins added. Read them when the tool runs. */
   hooks: () => ReadonlyArray<WorkspaceHooks>
-  /** Run `fn` when the work before it on `path` is done, one at a time. */
+  /**
+   * Run `fn` when the work before it on `path` is done, one at a time.
+   * `path` comes from `reach`. Before `fn`, it checks again that `path` has
+   * no links, so a link made after `reach` cannot move the work. Else it
+   * throws, and `fn` does not run.
+   */
   lock: <T>(path: string, fn: () => Promise<T>) => Promise<T>
   /**
-   * The absolute path of `path`, a file or a folder. A path outside the
-   * workspace is refused, or needs the user's yes for its folder. The check
-   * uses the real path, so a link that leads out counts as outside.
+   * The absolute path of `path`, a file or a folder, with every link in the
+   * workspace resolved. Use it for the work, so the work goes to the file
+   * that was checked. A path outside the workspace is refused, or needs the
+   * user's yes for its folder. The check uses the real path, so a link that
+   * leads out counts as outside.
    */
   reach: (
     path: string,
@@ -142,19 +215,37 @@ export function pathsOf(backend: WorkspaceBackend) {
 }
 
 /**
- * The environment of a command: the environment of this process, plus
- * `env`. Without `env` off Windows: `undefined`, so the command gets the
- * environment of this process. On Windows it sets
- * `NoDefaultCurrentDirectoryInExePath`. Then `cmd.exe` takes a program
- * name like `rg` from the PATH only, and not from the current folder, where
- * a cloned repo can put an `rg.cmd`.
+ * A workspace folder in `base` for `parts`, like a tenant and a thread id:
+ * `base/part/part`. Each part is URL-encoded, so a `/`, a `\`, or a `..` in
+ * an id from a client cannot leave `base` or reach the folder of another
+ * thread. Throws for an empty part, `.`, or `..`, and when the result is not
+ * a folder in `base`. A POSIX `base` (like `/srv/work`) gives a POSIX path,
+ * also on Windows.
+ *
+ * @example
+ * ```ts
+ * workspaceRoot('/srv/work', 'acme', '../other/t-1')
+ * // '/srv/work/acme/..%2Fother%2Ft-1'
+ * ```
  */
-export function commandEnv(
-  env: Record<string, string> | undefined,
-  platform: NodeJS.Platform,
-) {
-  if (platform !== 'win32') return env && { ...process.env, ...env }
-  return { ...process.env, ...env, NoDefaultCurrentDirectoryInExePath: '1' }
+export function workspaceRoot(base: string, ...parts: Array<string>) {
+  const path = base.startsWith('/') ? nodePath.posix : nodePath
+  const names = parts.map((part) => {
+    const name = encodeURIComponent(part)
+    if (name === '' || name === '.' || name === '..') {
+      throw new Error(`${JSON.stringify(part)} cannot name a workspace folder.`)
+    }
+    return name
+  })
+  const full = path.resolve(base, ...names)
+  const inBase = path.relative(path.resolve(base), full)
+  const isIn =
+    inBase !== '' &&
+    inBase !== '..' &&
+    !inBase.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(inBase)
+  if (!isIn) throw new Error(`${full} is not a folder in ${base}.`)
+  return full
 }
 
 /** True for the error of a path that is not there. */
@@ -173,10 +264,154 @@ const pageDecoder = new TextDecoder()
 /** `exec` stops a command that writes more than 10 MiB of output. */
 const MAX_EXEC_OUTPUT = 10 * 1024 * 1024
 
+/** `spawn` keeps the newest 1 MiB of the output of a background command. */
+const MAX_JOB_OUTPUT = 1024 * 1024
+
+/** Resolves after `ms` milliseconds, or with the first of `events`. */
+const firstOf = (ms: number, events: ReadonlyArray<Promise<unknown>>) =>
+  Promise.race([
+    new Promise<void>((done) => setTimeout(done, ms).unref()),
+    ...events,
+  ])
+
+/**
+ * Run a program of Windows by its full path, and resolve with its stdout.
+ * Node looks for a bare name in the current folder first, and that folder
+ * can be a cloned repo. A failed program resolves too.
+ */
+function runWindowsProgram(path: string, args: Array<string>) {
+  const system = nodePath.join(
+    process.env.SystemRoot ?? 'C:\\Windows',
+    'System32',
+  )
+  return new Promise<string>((done) => {
+    childProcess.execFile(
+      nodePath.join(system, path),
+      args,
+      { windowsHide: true },
+      (_error, stdout) => done(String(stdout)),
+    )
+  })
+}
+
+/** Kill `pid` and the processes it started, with `taskkill`. */
+const taskkill = (pid: number) =>
+  runWindowsProgram('taskkill.exe', ['/pid', String(pid), '/T', '/F'])
+
+/**
+ * The processes that `pid` started between `from` and `to` (times in
+ * milliseconds). The time range skips the processes of another process
+ * that gets the same pid later.
+ */
+async function windowsChildren(pid: number, from: number, to: number) {
+  // One statement on each line.
+  const script = [
+    `$from = [DateTimeOffset]::FromUnixTimeMilliseconds(${from}).LocalDateTime`,
+    `$to = [DateTimeOffset]::FromUnixTimeMilliseconds(${to}).LocalDateTime`,
+    `Get-CimInstance Win32_Process -Filter 'ParentProcessId=${pid}' | Where-Object { $_.CreationDate -ge $from -and $_.CreationDate -le $to } | ForEach-Object { $_.ProcessId }`,
+  ].join('\n')
+  const stdout = await runWindowsProgram(
+    'WindowsPowerShell\\v1.0\\powershell.exe',
+    ['-NoProfile', '-NonInteractive', '-Command', script],
+  )
+  return stdout
+    .split(/\s+/)
+    .filter((line) => /^\d+$/.test(line))
+    .map(Number)
+}
+
+/** True when a process with `pid` runs now. Signal 0 only checks. */
+function isAlive(pid: number) {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * When the process `pid` started, in epoch milliseconds, or `undefined` when
+ * no process has that pid. `ps` gives whole seconds.
+ */
+async function processStart(pid: number) {
+  if (process.platform === 'win32') {
+    const script = `[DateTimeOffset]::new((Get-Process -Id ${pid}).StartTime).ToUnixTimeMilliseconds()`
+    const stdout = await runWindowsProgram(
+      'WindowsPowerShell\\v1.0\\powershell.exe',
+      ['-NoProfile', '-NonInteractive', '-Command', script],
+    )
+    const ms = Number(stdout.trim())
+    return stdout.trim() !== '' && Number.isFinite(ms) ? ms : undefined
+  }
+  // The C locale gives the date in the format that `Date.parse` reads.
+  const stdout = await new Promise<string>((done) => {
+    childProcess.execFile(
+      'ps',
+      ['-o', 'lstart=', '-p', String(pid)],
+      { env: { ...commandEnv(undefined, process.platform), LC_ALL: 'C' } },
+      (_error, out) => done(String(out)),
+    )
+  })
+  const ms = Date.parse(stdout.trim())
+  return Number.isNaN(ms) ? undefined : ms
+}
+
+/**
+ * A process of a job starts in this many milliseconds after `spawn`, or
+ * `ps` rounds its start down to the second.
+ */
+const START_SLACK_MS = 5_000
+
+/**
+ * Kill `child`, a `cmd.exe`, and every command it started. A killed
+ * `cmd.exe` alone leaves its commands running. `taskkill /T` finds the
+ * commands when it starts, so it can miss a command that the shell starts
+ * at the same moment. That command keeps the output pipes open, and the
+ * shell never gives `close`. So:
+ *
+ * 1. `taskkill /T` again while the shell runs.
+ * 2. When the shell ended but the pipes stay open, kill the commands that
+ *    it started, found by their parent pid.
+ * 3. When the pipes are still open after that, close them, so `close` comes.
+ */
+async function killWindowsShell(shell: ShellProcess, pid: number) {
+  // `exit` comes at once after the end of the shell. So before it, the pid
+  // is still the shell, and a new `taskkill` cannot hit another process.
+  for (let tries = 0; tries < 5 && shell.exitedAt === undefined; tries++) {
+    await taskkill(pid)
+    await firstOf(500, [shell.exited])
+  }
+  const isClosed = await firstOf(1000, [shell.closed.then(() => true)])
+  const { exitedAt } = shell
+  if (isClosed === true || exitedAt === undefined) return
+  // Another process with the same pid would run now. Its commands are not ours.
+  if (!isAlive(pid)) {
+    const started = await windowsChildren(
+      pid,
+      shell.startedAt - 100,
+      exitedAt + 100,
+    )
+    await Promise.all(started.map(taskkill))
+  }
+  await firstOf(2000, [shell.closed])
+  shell.child.stdout?.destroy()
+  shell.child.stderr?.destroy()
+}
+
+/** A shell from {@link startShell}, and when it started and ended. */
+interface ShellProcess {
+  child: childProcess.ChildProcessWithoutNullStreams
+  startedAt: number
+  /** Set in the `exit` event, so it is there at once. */
+  exitedAt?: number
+  exited: Promise<void>
+  closed: Promise<void>
+}
+
 /**
  * Start `command` in the system shell. `kill` stops the shell and every
- * command it started: on Windows, a killed `cmd.exe` leaves its commands
- * running.
+ * command it started, also when it comes right after the start.
  */
 function startShell(
   command: string,
@@ -191,23 +426,30 @@ function startShell(
     shell: true,
     detached: !isWindows,
   })
+  // The listeners are added now, so `kill` does not miss an event that
+  // came before it.
+  const shell: ShellProcess = {
+    child,
+    startedAt: Date.now(),
+    exited: new Promise((done) =>
+      child.once('exit', () => {
+        shell.exitedAt = Date.now()
+        done()
+      }),
+    ),
+    closed: new Promise((done) => child.once('close', () => done())),
+  }
+  let isKilled = false
   const kill = () => {
-    if (child.pid === undefined) return
+    // The shell did not start. `error` ends the command.
+    const { pid } = child
+    if (isKilled || pid === undefined) return
+    isKilled = true
     if (isWindows) {
-      // The full path: Node looks for a bare name in the current folder
-      // first, and that folder can be a cloned repo.
-      const system = nodePath.join(
-        process.env.SystemRoot ?? 'C:\\Windows',
-        'System32',
-      )
-      childProcess.execFile(
-        nodePath.join(system, 'taskkill.exe'),
-        ['/pid', String(child.pid), '/T', '/F'],
-        () => undefined,
-      )
+      void killWindowsShell(shell, pid)
       return
     }
-    const group = -child.pid
+    const group = -pid
     try {
       process.kill(group, 'SIGTERM')
     } catch {
@@ -249,9 +491,12 @@ export const hostBackend = {
       let end = offset + limit
       const page: Array<Buffer> = []
       let pageBytes = 0
+      // True when a byte of line `end` was found: the file goes on after
+      // the page, and the read stops there.
+      let hasMore = false
       // ponytail: reads up to the size at the start. Bytes added later wait
       // for the next read.
-      for (let position = 0; position < size;) {
+      for (let position = 0; position < size && !hasMore;) {
         const { bytesRead } = await handle.read(
           chunk,
           0,
@@ -269,6 +514,10 @@ export const hostBackend = {
         let pageTo = -1
         // Count the lines with `indexOf`. Only the page is decoded.
         for (let from = 0; from < bytesRead;) {
+          if (line >= end) {
+            hasMore = true
+            break
+          }
           const newline = data.indexOf(10, from)
           const to = newline === -1 ? bytesRead : newline + 1
           if (line >= offset && line < end) {
@@ -284,11 +533,17 @@ export const hostBackend = {
         if (pageFrom !== -1)
           page.push(Buffer.from(data.subarray(pageFrom, pageTo)))
       }
-      // An empty file has one empty line, like `''.split('\n')`.
-      const total = line - 1 + (size === 0 || last !== 10 ? 1 : 0)
       const text = pageDecoder.decode(Buffer.concat(page))
-      const lines = offset > total ? [] : text.split('\n')
-      if (text.endsWith('\n')) lines.pop()
+      const split = text.split('\n')
+      if (text.endsWith('\n')) split.pop()
+      // An empty file has one empty line, like `''.split('\n')`.
+      const total = hasMore
+        ? undefined
+        : line - 1 + (size === 0 || last !== 10 ? 1 : 0)
+      // No lines for an offset after the end, or a page of no lines, like
+      // with a limit of 0.
+      const isEmpty = total === undefined ? text === '' : offset > total
+      const lines = isEmpty ? [] : split
       return { head: head ?? Buffer.alloc(0), size, lines, total }
     } finally {
       await handle.close()
@@ -343,6 +598,10 @@ export const hostBackend = {
   exec: (command, options = {}) =>
     new Promise((done) => {
       const { child, kill } = startShell(command, options)
+      // The same id as `spawn` gives, so `killJob` stops a moved command.
+      if (child.pid !== undefined) {
+        options.onStart?.(`${child.pid}:${Date.now()}`)
+      }
       const stdout: Array<Buffer> = []
       const stderr: Array<Buffer> = []
       let size = 0
@@ -387,28 +646,65 @@ export const hostBackend = {
     }),
   spawn: (command, options = {}) => {
     const { child, kill } = startShell(command, options)
-    // ponytail: keeps the last 10 MiB of a long job, like `exec` keeps the first.
-    let output = ''
-    const collect = (chunk: string) => {
-      output = keepTail(output + chunk)
+    // Bytes, not text: the text is made at `output()`, so a character split
+    // over two chunks stays whole.
+    const output = createOutputTail(MAX_JOB_OUTPUT)
+    const { onOutput } = options
+    /** Keep the chunks of `stream`, and give their text to `onOutput`. */
+    const collect = (stream: NodeJS.ReadableStream) => {
+      // One decoder for each stream keeps a character that is split over
+      // two chunks whole.
+      const decoder = new TextDecoder()
+      stream.on('data', (chunk: Buffer) => {
+        output.push(chunk)
+        if (onOutput) onOutput(decoder.decode(chunk, { stream: true }))
+      })
     }
-    // The stream decodes UTF-8, so a character split over two chunks stays whole.
-    child.stdout.setEncoding('utf8').on('data', collect)
-    child.stderr.setEncoding('utf8').on('data', collect)
+    collect(child.stdout)
+    collect(child.stderr)
     const exited = new Promise<{ exitCode: number }>((done) => {
       child.on('close', (code) => done({ exitCode: code ?? 1 }))
       child.on('error', (error) => {
-        output += String(error)
+        output.push(String(error))
         done({ exitCode: 1 })
       })
     })
-    return { wait: () => exited, kill, output: () => output }
+    // The pid and the start time: a later process can get the same pid.
+    const jobId =
+      child.pid === undefined ? undefined : `${child.pid}:${Date.now()}`
+    return {
+      wait: () => exited,
+      kill,
+      output: output.text,
+      jobId: Promise.resolve(jobId),
+    }
+  },
+  killJob: async (jobId) => {
+    const [pid = NaN, startedAt = NaN] = jobId.split(':').map(Number)
+    if (!Number.isSafeInteger(pid) || pid <= 0 || !isAlive(pid)) return false
+    // Only the process that started with the job. Another process can have
+    // its pid now.
+    const start = await processStart(pid)
+    // Not `false`: the job can be this process, and still run.
+    if (start === undefined) {
+      throw new Error(
+        `Cannot check that process ${pid} is the job: no start time from ps.`,
+      )
+    }
+    if (Math.abs(start - startedAt) > START_SLACK_MS) return false
+    if (process.platform === 'win32') {
+      await taskkill(pid)
+      return true
+    }
+    // The job leads its own process group, so this stops its commands too.
+    try {
+      process.kill(-pid, 'SIGKILL')
+      return true
+    } catch {
+      return false
+    }
   },
 } satisfies WorkspaceBackend
-
-/** Keep the last `MAX_EXEC_OUTPUT` characters. Cuts at twice that, so it copies rarely. */
-const keepTail = (text: string) =>
-  text.length > 2 * MAX_EXEC_OUTPUT ? text.slice(-MAX_EXEC_OUTPUT) : text
 
 const MAX_OUTPUT = 20_000
 
@@ -417,6 +713,28 @@ export function clip(text: string) {
   return text.length > MAX_OUTPUT
     ? `${text.slice(0, MAX_OUTPUT)}\n[${text.length - MAX_OUTPUT} more characters]`
     : text
+}
+
+/**
+ * True for the run context that the harness gives a tool call. It checks the
+ * fields that the tools read. The harness sets the others.
+ */
+function isRun(value: unknown): value is RunContext {
+  return (
+    isRecord(value) &&
+    typeof value.logId === 'string' &&
+    typeof value.threadId === 'string'
+  )
+}
+
+/**
+ * The run of a tool call or a middleware call: `ctx.context.run`, or
+ * `undefined` without one.
+ */
+export function runOf(context: unknown) {
+  if (!isRecord(context) || !isRecord(context.context)) return undefined
+  const { run } = context.context
+  return isRun(run) ? run : undefined
 }
 
 /** The string argument `key` of a tool call. Throws when it is not a string. */

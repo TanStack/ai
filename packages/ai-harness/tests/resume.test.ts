@@ -7,9 +7,11 @@ import { logIdOf } from '../src/log'
 import {
   INTERRUPTED_TOOL_RESULT,
   TRUNCATED_TOOL_RESULT,
-  checkpointMiddleware,
   repairTranscript,
+  scrubToolResults,
+  toolResultRecorder,
 } from '../src/resume'
+import { createRedactor } from '../src/auth'
 import {
   canOtherHostTake,
   gate,
@@ -32,7 +34,7 @@ async function runWithCheckpoint(options: {
   tools?: Array<AnyTool>
   middleware: (
     stores: ReturnType<typeof memoryPersistence>['stores'],
-  ) => AnyChatMiddleware
+  ) => AnyChatMiddleware | Array<AnyChatMiddleware>
 }) {
   const { stores } = memoryPersistence()
   await stores.runs.createOrResume({
@@ -45,7 +47,7 @@ async function runWithCheckpoint(options: {
     adapter,
     messages: [{ role: 'user', content: 'go' }],
     tools: options.tools ?? [],
-    middleware: [options.middleware(stores)],
+    middleware: [options.middleware(stores)].flat(),
     threadId: 't1',
     runId: 'run-1',
     stream: true,
@@ -377,31 +379,32 @@ describe('crash resume', () => {
   })
 })
 
-describe('checkpoint middleware options', () => {
+/** A tool that returns `echoed`, and one that throws `boom failed`. */
+const echoAndBoom = () => [
+  toolDefinition({ name: 'echo', description: 'Echo' }).server(
+    async () => 'echoed',
+  ),
+  toolDefinition({ name: 'boom', description: 'Fail' }).server(async () => {
+    throw new Error('boom failed')
+  }),
+]
+
+/** The model calls `echo`, then `boom`, then answers. */
+const echoThenBoom = [
+  () => toolCall('echo', {}, 'call-echo'),
+  () => toolCall('boom', {}, 'call-boom'),
+  () => text('done'),
+]
+
+describe('toolResultRecorder', () => {
   it('gives onToolResult the tool message of each call that ends', async () => {
     const seen: Array<{ toolCallId: string; message: ModelMessage }> = []
-    const tools = [
-      toolDefinition({ name: 'echo', description: 'Echo' }).server(
-        async () => 'echoed',
-      ),
-      toolDefinition({ name: 'boom', description: 'Fail' }).server(async () => {
-        throw new Error('boom failed')
-      }),
-    ]
     await runWithCheckpoint({
-      replies: [
-        () => toolCall('echo', {}, 'call-echo'),
-        () => toolCall('boom', {}, 'call-boom'),
-        () => text('done'),
-      ],
-      tools,
-      middleware: ({ runs, messages }) =>
-        checkpointMiddleware({
-          runs,
-          messages,
-          onToolResult: (info) => {
-            seen.push(info)
-          },
+      replies: echoThenBoom,
+      tools: echoAndBoom(),
+      middleware: () =>
+        toolResultRecorder((info) => {
+          seen.push(info)
         }),
     })
 
@@ -418,6 +421,76 @@ describe('checkpoint middleware options', () => {
           content: JSON.stringify({ error: 'boom failed' }),
           error: 'boom failed',
         },
+      },
+    ])
+  })
+
+  it('records the result after an earlier middleware replaced it, also on an error', async () => {
+    const seen: Array<ModelMessage> = []
+    const replace: AnyChatMiddleware = {
+      name: 'test:replace',
+      onAfterToolCall: (_ctx, info) => ({
+        type: 'replaceResult',
+        result: info.ok ? 'replaced' : { error: 'replaced error' },
+      }),
+    }
+    await runWithCheckpoint({
+      replies: echoThenBoom,
+      tools: echoAndBoom(),
+      middleware: () => [
+        replace,
+        toolResultRecorder(({ message }) => {
+          seen.push(message)
+        }),
+      ],
+    })
+
+    expect(seen).toEqual([
+      { role: 'tool', toolCallId: 'call-echo', content: 'replaced' },
+      {
+        role: 'tool',
+        toolCallId: 'call-boom',
+        content: JSON.stringify({ error: 'replaced error' }),
+        error: 'replaced error',
+      },
+    ])
+  })
+
+  it('records the result without the secrets after scrubToolResults', async () => {
+    const secret = 'sk-test-0123456789'
+    const redactor = createRedactor()
+    redactor.add(secret)
+    const seen: Array<ModelMessage> = []
+    const tools = [
+      toolDefinition({ name: 'echo', description: 'Echo' }).server(
+        async () => ({ key: secret }),
+      ),
+      toolDefinition({ name: 'boom', description: 'Fail' }).server(async () => {
+        throw new Error(`The key ${secret} was refused.`)
+      }),
+    ]
+    await runWithCheckpoint({
+      replies: echoThenBoom,
+      tools,
+      middleware: () => [
+        scrubToolResults(redactor),
+        toolResultRecorder(({ message }) => {
+          seen.push(message)
+        }),
+      ],
+    })
+
+    expect(seen).toEqual([
+      {
+        role: 'tool',
+        toolCallId: 'call-echo',
+        content: JSON.stringify({ key: '[redacted]' }),
+      },
+      {
+        role: 'tool',
+        toolCallId: 'call-boom',
+        content: JSON.stringify({ error: 'The key [redacted] was refused.' }),
+        error: 'The key [redacted] was refused.',
       },
     ])
   })

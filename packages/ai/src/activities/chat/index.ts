@@ -1500,10 +1500,25 @@ class TextEngine<
         return
       }
 
+      const hasResumedTools = this.getPendingToolCallsFromMessages().length > 0
       const pendingPhase = yield* this.checkForPendingToolCalls()
       if (pendingPhase === 'stop' || pendingPhase === 'wait') {
         await this.runTerminalHook()
         return
+      }
+      // The resumed tools are a tool phase too: middleware `onShouldContinue`
+      // can end the run before the next model call. The loop strategy is not
+      // asked here.
+      const isStoppedAfterResume =
+        hasResumedTools &&
+        !(yield* this.runWhileYielding(
+          this.middlewareRunner.runOnShouldContinue(
+            this.middlewareCtx,
+            this.loopState(this.iterationCount),
+          ),
+        ))
+      if (isStoppedAfterResume && !this.finalStructuredOutput) {
+        yield* this.emitSuccessfulEarlyTermination()
       }
 
       // Skip the agent loop entirely when there are no tools AND a separate
@@ -1520,7 +1535,7 @@ class TextEngine<
         this.tools.length === 0 &&
         this.finalStructuredOutput.nativeCombined !== true
 
-      if (!skipAgentLoop) {
+      if (!skipAgentLoop && !isStoppedAfterResume) {
         do {
           if (this.earlyTermination) break
           if (this.isCancelled()) return
@@ -3990,6 +4005,14 @@ class TextEngine<
           toolCallId: toolCall.id,
         })
       },
+      onGuardToolCall: async (toolCall, tool, args) =>
+        this.middlewareRunner.runOnGuardToolCall(this.middlewareCtx, {
+          toolCall,
+          tool,
+          args,
+          toolName: toolCall.function.name,
+          toolCallId: toolCall.id,
+        }),
       onAfterToolCall: async (info) => {
         this.logger.tools(`phase=after name=${info.toolName}`, {
           name: info.toolName,
@@ -4383,15 +4406,20 @@ class TextEngine<
     )
   }
 
-  /** Ask the loop strategy and middleware `onShouldContinue`. */
-  private async loopContinues(iterationCount: number): Promise<boolean> {
-    const state = {
+  /** What the loop strategy and middleware `onShouldContinue` get. */
+  private loopState(iterationCount: number) {
+    return {
       iterationCount,
       messages: this.messages,
       finishReason: this.lastFinishReason,
       toolCallCount: this.toolCallCount,
       lastTurnToolCallCount: this.lastTurnToolCallCount,
     }
+  }
+
+  /** Ask the loop strategy and middleware `onShouldContinue`. */
+  private async loopContinues(iterationCount: number): Promise<boolean> {
+    const state = this.loopState(iterationCount)
 
     // Evaluate strategy and middleware unconditionally (even when the
     // strategy already says stop) so every onShouldContinue observer still

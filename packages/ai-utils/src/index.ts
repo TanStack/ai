@@ -1,5 +1,6 @@
 export { generateId } from './id'
 export { getApiKeyFromEnv } from './env'
+export { commandEnv, createOutputTail } from './command'
 export { transformNullsToUndefined, undoNullWidening } from './transforms'
 export type { NullWideningMap } from './transforms'
 export {

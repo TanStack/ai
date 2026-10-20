@@ -112,7 +112,7 @@ describe('host.observe of an idle thread', () => {
       threadId: THREAD,
       status: 'idle',
       activeOperations: [],
-      pendingInterrupts: [],
+      pendingWaits: [],
       plugins: { 'test/stdio-like': { mounts: 1 } },
     })
     expect(entry?.harness).toBe('test/observe')

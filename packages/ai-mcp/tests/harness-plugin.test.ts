@@ -25,10 +25,10 @@ const childEnv = 'TANSTACK_AI_MCP_PLUGIN_CHILD'
 const cleanups: Array<() => unknown> = []
 
 /** A server with one `echo` tool, in this process. */
-function echoServer() {
+function echoServer(description = 'Echo text') {
   const echo = toolDefinition({
     name: 'echo',
-    description: 'Echo text',
+    description,
     inputSchema: z.object({ text: z.string() }),
   }).server(async ({ text }) => text)
   return createMCPServer({ name: 'echo', version: '1.0.0', tools: [echo] })
@@ -37,7 +37,10 @@ function echoServer() {
 /** An `http` server config whose requests go to `handle`, with no network. */
 function httpServer(
   handle: (request: Request) => Promise<Response>,
-  options: Pick<McpServerConfig, 'timeoutMs' | 'codeMode'> = {},
+  options: Pick<
+    McpServerConfig,
+    'timeoutMs' | 'codeMode' | 'needsApproval' | 'toolName'
+  > = {},
 ) {
   const config: McpServerConfig = {
     type: 'http',
@@ -210,6 +213,120 @@ if (process.env[childEnv] === '1') {
     })
 
     it.each([
+      ['true', true],
+      ['a function', (tool: { name: string }) => tool.name === 'echo'],
+    ])(
+      'asks for approval before the tools of a server with needsApproval %s',
+      async (_name, needsApproval) => {
+        const gated = echoServer()
+        const open = echoServer()
+        const { session, model } = await openWith({
+          gated: httpServer((request) => gated.fetch(request), {
+            needsApproval,
+          }),
+          open: httpServer((request) => open.fetch(request)),
+        })
+        await session.send('hi')
+
+        const marks = (model.calls[0]?.tools ?? []).map((tool) => [
+          tool.name,
+          tool.needsApproval === true,
+        ])
+        expect(marks).toEqual([
+          ['gated_echo', true],
+          ['open_echo', false],
+        ])
+      },
+    )
+
+    it('names the tools of a server with its toolName', async () => {
+      const files = echoServer()
+      const { session, model } = await openWith({
+        files: httpServer((request) => files.fetch(request), {
+          toolName: (tool) => `fs_${tool.name}`,
+        }),
+      })
+      await session.send('hi')
+
+      expect(model.toolNames(0)).toEqual(['fs_echo'])
+    })
+
+    it('keeps the tool of the first server when two servers give one tool name, and warns once', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      cleanups.push(() => warn.mockRestore())
+      const first = echoServer('First echo')
+      const second = echoServer('Second echo')
+      const { session, model } = await openWith({
+        first: httpServer((request) => first.fetch(request), {
+          toolName: (tool) => tool.name,
+        }),
+        second: httpServer((request) => second.fetch(request), {
+          toolName: (tool) => tool.name,
+        }),
+      })
+      await session.send('hi')
+      await session.send('again')
+
+      for (const call of [0, 1]) {
+        const tools = (model.calls[call]?.tools ?? []).map((tool) => [
+          tool.name,
+          tool.description,
+        ])
+        expect(tools).toEqual([['echo', 'First echo']])
+      }
+      expect(warn.mock.calls).toEqual([
+        [
+          '[@tanstack/ai-mcp] The MCP servers "first" and "second" both give the tool "echo". The model gets the tool of "first". Set toolName on one of the servers to rename its tools.',
+        ],
+      ])
+    })
+
+    it("fails the later server when two servers give one tool name, with onDuplicateTool 'error'", async () => {
+      const first = echoServer('First echo')
+      const second = echoServer('Second echo')
+      const third = echoServer('Third echo')
+      const model = recorder()
+      const host = createHarnessHost({ persistence: memoryPersistence() })
+      cleanups.push(() => host.close())
+      const harness = defineHarness({
+        name: 'test/mcp-plugin',
+        adapter: model.adapter,
+        plugins: () => [
+          mcp({
+            onDuplicateTool: 'error',
+            servers: {
+              first: httpServer((request) => first.fetch(request), {
+                toolName: (tool) => tool.name,
+              }),
+              second: httpServer((request) => second.fetch(request)),
+              third: httpServer((request) => third.fetch(request), {
+                toolName: (tool) => tool.name,
+              }),
+            },
+          }),
+        ],
+      })
+      const session = await host.open(harness, { threadId: 't' })
+      await session.send('hi')
+
+      const tools = (model.calls[0]?.tools ?? []).map((tool) => [
+        tool.name,
+        tool.description,
+      ])
+      expect(tools).toEqual([
+        ['echo', 'First echo'],
+        ['second_echo', 'Second echo'],
+      ])
+      await expect(session.command({ name: 'mcp' })).resolves.toBe(
+        [
+          'first: connected (1 tool)',
+          'second: connected (1 tool)',
+          'third: failed: The MCP servers "first" and "third" both give the tool "echo". Set toolName on one of the servers to rename its tools.',
+        ].join('\n'),
+      )
+    })
+
+    it.each([
       [
         'accepts',
         { city: 'Paris' },
@@ -228,14 +345,14 @@ if (process.env[childEnv] === '1') {
         )
         const turn = session.send('book a trip')
         await vi.waitFor(() =>
-          expect(session.snapshot().pendingQuestions).toHaveLength(1),
+          expect(session.snapshot().pendingWaits).toHaveLength(1),
         )
-        const [question] = session.snapshot().pendingQuestions
+        const [question] = session.snapshot().pendingWaits
 
         expect(question?.message).toBe('Which city?')
         expect(question?.schema).toMatchObject(tripForm.requestedSchema)
         expect(question?.url).toBeUndefined()
-        await session.answer({ questionId: question?.questionId ?? '', value })
+        await session.answer({ questionId: question?.waitId ?? '', value })
         await turn
         expect(trips.answers).toEqual([expected])
         expect(JSON.stringify(model.calls[1]?.messages)).toContain('booked')
@@ -255,16 +372,16 @@ if (process.env[childEnv] === '1') {
       )
       const turn = session.send('book a trip')
       await vi.waitFor(() =>
-        expect(session.snapshot().pendingQuestions).toHaveLength(1),
+        expect(session.snapshot().pendingWaits).toHaveLength(1),
       )
-      const [question] = session.snapshot().pendingQuestions
+      const [question] = session.snapshot().pendingWaits
 
       expect(question).toMatchObject({
         message: 'Pay for the trip, then come back.',
         url: 'https://pay.example.com/trip',
       })
       await session.answer({
-        questionId: question?.questionId ?? '',
+        questionId: question?.waitId ?? '',
         value: 'done',
       })
       await turn
@@ -290,13 +407,13 @@ if (process.env[childEnv] === '1') {
         )
         const turn = session.send('book a trip')
         await vi.waitFor(() =>
-          expect(session.snapshot().pendingQuestions).toHaveLength(1),
+          expect(session.snapshot().pendingWaits).toHaveLength(1),
         )
-        const [question] = session.snapshot().pendingQuestions
+        const [question] = session.snapshot().pendingWaits
 
         expect(question?.message).toBe('Which city?')
         expect(question?.schema).toMatchObject(tripForm.requestedSchema)
-        await session.answer({ questionId: question?.questionId ?? '', value })
+        await session.answer({ questionId: question?.waitId ?? '', value })
         await turn
         expect(trips.answers).toEqual([expected])
         expect(JSON.stringify(model.calls[1]?.messages)).toContain('booked')
@@ -318,16 +435,16 @@ if (process.env[childEnv] === '1') {
       )
       const turn = session.send('book a trip')
       await vi.waitFor(() =>
-        expect(session.snapshot().pendingQuestions).toHaveLength(1),
+        expect(session.snapshot().pendingWaits).toHaveLength(1),
       )
-      const [question] = session.snapshot().pendingQuestions
+      const [question] = session.snapshot().pendingWaits
 
       expect(question).toMatchObject({
         message: 'Pay for the trip, then come back.',
         url: 'https://pay.example.com/trip',
       })
       await session.answer({
-        questionId: question?.questionId ?? '',
+        questionId: question?.waitId ?? '',
         value: 'done',
       })
       await turn
@@ -358,10 +475,10 @@ if (process.env[childEnv] === '1') {
         ['Which seat?', { seat: '12A' }],
       ] as const) {
         await vi.waitFor(() =>
-          expect(session.snapshot().pendingQuestions[0]?.message).toBe(message),
+          expect(session.snapshot().pendingWaits[0]?.message).toBe(message),
         )
-        const [question] = session.snapshot().pendingQuestions
-        await session.answer({ questionId: question?.questionId ?? '', value })
+        const [question] = session.snapshot().pendingWaits
+        await session.answer({ questionId: question?.waitId ?? '', value })
       }
       await turn
       expect(trips.answers).toEqual([
@@ -383,11 +500,11 @@ if (process.env[childEnv] === '1') {
       const turn = session.send('book a trip')
       for (let round = 0; round < 5; round++) {
         await vi.waitFor(() =>
-          expect(session.snapshot().pendingQuestions).toHaveLength(1),
+          expect(session.snapshot().pendingWaits).toHaveLength(1),
         )
-        const [question] = session.snapshot().pendingQuestions
+        const [question] = session.snapshot().pendingWaits
         await session.answer({
-          questionId: question?.questionId ?? '',
+          questionId: question?.waitId ?? '',
           value: { city: 'Paris' },
         })
       }

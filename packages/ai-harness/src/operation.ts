@@ -20,21 +20,22 @@ export function createOperationId(kind: OperationKind): string {
   return `op-${kind}-${Date.now().toString(36)}-${counter}`
 }
 
-const TERMINAL: ReadonlySet<OperationStatus> = new Set([
-  'completed',
-  'failed',
-  'cancelled',
-  'interrupted',
-])
-
 /** The session-side implementation of {@link Operation}. */
 export class OperationImpl<TResult> implements Operation<TResult> {
   readonly id: string
-  /** The feed head when the operation was made. Its events come after it. */
+  /**
+   * The feed head when the operation was made. Its events come after it. A
+   * rebuilt operation gets the start of its run in the log.
+   */
   readonly startedCursor: Cursor
   readonly abortController = new AbortController()
   readonly receipt: Promise<Receipt>
   private current: OperationStatus = 'accepted'
+  /**
+   * The result is set. An agent run that waits is `interrupted`, but it
+   * does not end until an answer resumes it.
+   */
+  private ended = false
   private readonly settled: Promise<TResult>
   private resolveResult!: (value: TResult) => void
   private rejectResult!: (error: unknown) => void
@@ -53,9 +54,11 @@ export class OperationImpl<TResult> implements Operation<TResult> {
     readonly agent?: string,
     /** A stored operation id, when a restart rebuilds this operation. */
     id?: string,
+    /** The cursor before the first event of a rebuilt operation. */
+    startedCursor?: Cursor,
   ) {
     this.id = id ?? createOperationId(kind)
-    this.startedCursor = feed.head()
+    this.startedCursor = startedCursor ?? feed.head()
     // A settled operation sends no more events, so a listener is not added,
     // and its listeners go once it settled. After a tick, so the events it
     // sends as it settles (the finished event) still reach them.
@@ -102,10 +105,12 @@ export class OperationImpl<TResult> implements Operation<TResult> {
   }
 
   isSettled(): boolean {
-    return TERMINAL.has(this.current)
+    return this.ended
   }
 
+  /** Set the status. A settled operation keeps its final status. */
   setStatus(status: OperationStatus): void {
+    if (this.isSettled()) return
     this.current = status
   }
 
@@ -118,15 +123,27 @@ export class OperationImpl<TResult> implements Operation<TResult> {
     this.settleReceipt(receipt)
   }
 
+  /**
+   * Settle with `result`. The first settle wins: when the operation settled
+   * already, this call does nothing.
+   */
   finish(status: 'completed' | 'interrupted', result: TResult): void {
+    if (this.isSettled()) return
     this.current = status
+    this.ended = true
     this.resolveResult(result)
     // A reader of `events()` waits for the next event: it ends now instead.
     this.feed.wake()
   }
 
+  /**
+   * Settle with `error`. The first settle wins: when the operation settled
+   * already, this call does nothing.
+   */
   fail(status: 'failed' | 'cancelled', error: unknown): void {
+    if (this.isSettled()) return
     this.current = status
+    this.ended = true
     this.rejectResult(error)
     this.feed.wake()
   }
@@ -137,6 +154,9 @@ export class OperationImpl<TResult> implements Operation<TResult> {
   }): AsyncIterable<SessionEvent> {
     return this.feed.read({
       ...options,
+      // Every event of this operation comes after its start, so the read
+      // does not walk the older events of the feed.
+      from: options?.from ?? this.startedCursor,
       filter: (entry) => entry.operationId === this.id,
       until: () => this.isSettled(),
     })
@@ -145,7 +165,7 @@ export class OperationImpl<TResult> implements Operation<TResult> {
   async *stream(options?: {
     signal?: AbortSignal
   }): AsyncIterable<StreamChunk> {
-    for await (const entry of this.events({ from: '0', ...options })) {
+    for await (const entry of this.events(options)) {
       yield entry.event
     }
   }

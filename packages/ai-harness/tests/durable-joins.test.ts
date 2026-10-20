@@ -174,7 +174,7 @@ describe('durable joins', () => {
     ).toHaveLength(3)
     expect(joinBatch).toContain('harness.transcript')
     for (const name of ['a', 'b', 'c']) {
-      expect(await session.settled(`join-${name}`)).toEqual({
+      expect(await session.settled({ inputId: `join-${name}` })).toEqual({
         inputId: `join-${name}`,
         outcome: 'completed',
         operationId: turn.id,
@@ -203,7 +203,7 @@ describe('durable joins', () => {
     expect(await turn).toEqual({ text: 'first answerlate answer', media: [] })
     expect(calls).toHaveLength(2)
     expect(messageTexts(calls[1]).at(-1)).toBe('one more thing')
-    expect(await session.settled('late')).toMatchObject({
+    expect(await session.settled({ inputId: 'late' })).toMatchObject({
       outcome: 'completed',
       operationId: turn.id,
     })
@@ -233,8 +233,8 @@ describe('durable joins', () => {
       operationId: turn.id,
       error: { message: 'model down' },
     }
-    expect(await session.settled('host')).toMatchObject(expected)
-    expect(await session.settled('late')).toMatchObject(expected)
+    expect(await session.settled({ inputId: 'host' })).toMatchObject(expected)
+    expect(await session.settled({ inputId: 'late' })).toMatchObject(expected)
     await host.close()
   })
 })
@@ -247,12 +247,12 @@ describe('recovery of durable joins', () => {
     const { host, session, calls } = await openDurable(persistence, [
       () => text('answered both'),
     ])
-    const host1 = await session.settled('in-1')
+    const host1 = await session.settled({ inputId: 'in-1' })
 
     expect(calls).toHaveLength(1)
     expect(messageTexts(calls[0]).slice(-2)).toEqual(['go', 'and more'])
     expect(host1.outcome).toBe('completed')
-    expect(await session.settled('in-2')).toEqual({
+    expect(await session.settled({ inputId: 'in-2' })).toEqual({
       inputId: 'in-2',
       outcome: 'completed',
       operationId: host1.operationId,
@@ -268,8 +268,8 @@ describe('recovery of durable joins', () => {
       () => text('answer to go'),
       () => text('answer to more'),
     ])
-    const first = await session.settled('in-1')
-    const second = await session.settled('in-2')
+    const first = await session.settled({ inputId: 'in-1' })
+    const second = await session.settled({ inputId: 'in-2' })
 
     expect(calls).toHaveLength(2)
     expect(messageTexts(calls[1]).at(-1)).toBe('and more')
@@ -320,15 +320,15 @@ describe('the join rule', () => {
 
     await turn
     expect(messageTexts(calls[1]).at(-1)).toBe('a')
-    expect(await session.settled('join-a')).toMatchObject({
+    expect(await session.settled({ inputId: 'join-a' })).toMatchObject({
       outcome: 'completed',
       operationId: turn.id,
     })
-    expect(await session.settled('join-b')).toMatchObject({
+    expect(await session.settled({ inputId: 'join-b' })).toMatchObject({
       outcome: 'aborted',
     })
     await expect(b).rejects.toThrow()
-    const ownTurn = await session.settled('join-c')
+    const ownTurn = await session.settled({ inputId: 'join-c' })
     expect(ownTurn).toMatchObject({ outcome: 'completed' })
     expect(ownTurn.operationId).not.toBe(turn.id)
     expect(messageTexts(calls[2]).at(-1)).toBe('c')
@@ -365,7 +365,9 @@ describe('the join rule', () => {
     await turn
     expect(messageTexts(calls[1])).not.toContain('later')
     expect(await later).toEqual({ text: 'later answer', media: [] })
-    expect((await session.settled('later')).operationId).not.toBe(turn.id)
+    expect((await session.settled({ inputId: 'later' })).operationId).not.toBe(
+      turn.id,
+    )
     await host.close()
   })
 
@@ -444,7 +446,7 @@ describe('the join rule', () => {
       { stores: { ...persistence.stores, log: inner } },
       [() => text('host answer'), () => text('join answer')],
     )
-    const settled = await next.session.settled('join-1')
+    const settled = await next.session.settled({ inputId: 'join-1' })
     expect(settled.outcome).toBe('completed')
     expect(settled.operationId).not.toBe(turn.id)
     await next.host.close()
@@ -556,7 +558,7 @@ describe('the join rule', () => {
     expect(receipt).toMatchObject({ status: 'rejected', reason: 'not_running' })
     expect(await steer).toEqual(await turn)
     expect(messageTexts(calls[1]).at(-1)).toBe('stop me')
-    expect(await session.settled('s1')).toMatchObject({
+    expect(await session.settled({ inputId: 's1' })).toMatchObject({
       outcome: 'completed',
       operationId: turn.id,
     })
@@ -608,7 +610,9 @@ describe('the join rule', () => {
     await turn
     expect(messageTexts(calls[1])).not.toContain('stop me')
     expect(messageTexts(calls[1]).at(-1)).toBe('a')
-    expect(await session.settled('s1')).toMatchObject({ outcome: 'aborted' })
+    expect(await session.settled({ inputId: 's1' })).toMatchObject({
+      outcome: 'aborted',
+    })
     await expect(steer).rejects.toThrow()
     expect(calls).toHaveLength(2)
     await host.close()

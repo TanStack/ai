@@ -55,10 +55,10 @@ const busyHost = createHarnessHost({
 })
 ```
 
-- `idleCloseMs`: how long an idle session with no handle stays open, in milliseconds. The default is 60 000. `0` closes it at once.
+- `idleCloseMs`: how long an idle session with no handle stays open, in milliseconds. The default is 60 000. `0` closes it at once. A session is not idle while a background job of this host runs, for example a `bash` job.
 - `maxOpen`: how many sessions the host keeps open. The default is 500. An open past the limit first closes the least recently used sessions that are idle and that no handle holds.
 - If every open session is busy or held, the open goes on, and the host logs one warning.
-- A close cleans up the plugins of the session. The transcript and the other data stay in the stores, so the next open continues the thread.
+- A close cleans up the plugins of the session. The transcript and the other data stay in the stores, so the next open continues the thread. A workspace that `bind` gave the thread closes with `'moved'`, so an owned sandbox stays.
 - The idle timer does not keep the Node process alive.
 
 A plugin with `lifetime: 'host'` stays set up while another session uses it. See [Share one setup between sessions](./plugins#share-one-setup-between-sessions).
@@ -115,11 +115,11 @@ What the view reads for the chat:
 - `transcript()`: the saved messages.
 - `snapshot()`: the status and the waiting approvals. When the session is open on this host, it also has the running operations.
 - `events({ from, signal })`: the events of the thread after a cursor.
-- `agentTranscript(id)`: the messages of one child agent run.
+- `agentTranscript({ subagentRunId })`: the messages of one child agent run.
 
 What the view reads for the rest:
 
-- `getMedia(id)` and `loadMedia({ id, range })`: a media file and its bytes.
+- `getMedia({ id })` and `loadMedia({ id, range })`: a media file and its bytes.
 - `usage()`: the token totals of the thread.
 - `entry()`: the index entry of the thread.
 - `logState()`: the `durability.reduce` fold of the log. See [One log for a session tree](./shared-logs#keep-state-for-the-whole-tree).
@@ -143,11 +143,11 @@ const leanHost = createHarnessHost({
 | --- | --- | --- |
 | `settledOperations` | 500 | `session.operation(id)` is `undefined` for the oldest settled turns, commands, and resets. |
 | `settledAgentRuns` | 500 | `session.agentRun(id)` and `session.agentRuns()` leave out the oldest settled agent runs. |
-| `eventBytes` | 8 000 000 | `session.events()` keeps the newest events, by the JSON length of each event. A reader with an older cursor starts at the oldest event kept. |
+| `eventBytes` | 8 000 000 | `session.events()` keeps the newest events, by the JSON length of each event. A reader with an older cursor reads the older events from the log. |
 
 The log keeps what memory drops:
 
-- `session.settled(inputId)` of an old input reads the log.
+- `session.settled({ inputId })` of an old input reads the log.
 - `agentRun(id)` and `agentRuns()` also find the runs in the log.
 - `events({ from })` reads the older events from the log.
 - `eventBytes` also bounds the log tail that the host keeps in memory.
@@ -166,6 +166,7 @@ const trimmedHost = createHarnessHost({
 - `'all'` (default): the store keeps every record.
 - `'since-snapshot'`: after each snapshot, the owner truncates the records before it. The type is `LogRecordRetention`.
 - A reader whose cursor is in the dropped part gets one `harness.gap` event, then the stream goes on. See [Cursors](./connect#cursors).
+- `session.revert()` still works. The snapshot keeps the last 500 file steps of [`snapshots()`](./snapshots#go-back-to-an-earlier-message).
 
 CAUTION: With `'since-snapshot'`, do not change `durability.reduce` or `durability.project` often. When the host cannot use the snapshot (its `reduce` version or its `project` changed, or the snapshot has a newer version), a thread with dropped records cannot open. The open rejects with `LogTruncatedError`. Keep `'all'` if you change `reduce` often.
 
@@ -183,6 +184,23 @@ First, `delete` closes the sessions of the thread and of its child threads, for 
 - The index entry of each thread.
 - The uploaded media and the generated artifacts.
 - The log checkpoint in `stores.metadata`.
+
+The first-party plugins also end the thread:
+
+- [`workspaceTools()`](./coding-workspaces) reattaches an owned sandbox of the thread and closes it with `'closed'`, so it is destroyed.
+- [`snapshots()`](./snapshots#remove-the-snapshots-of-a-thread) removes the snapshot repository of the thread.
+- This needs the index entry of the thread, and the harness of the thread on this host.
+
+A host knows a harness when it opened a session of it. After a deploy or a restart, a new host has opened nothing. Give it the harnesses that it can delete threads of:
+
+```ts group=harness-lifecycle
+const deleteHost = createHarnessHost({
+  persistence: memoryPersistence(),
+  harnesses: [assistant],
+})
+```
+
+A host that does not know the harness of a thread still deletes the data. It warns, and the plugins do not end the thread: an owned sandbox stays.
 
 - On a host with `access`, `delete` needs the `delete` action. A child thread is checked through its root thread.
 - A handle that calls again after the delete opens a new, empty thread.

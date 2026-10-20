@@ -13,19 +13,20 @@ import {
   logIdOf,
 } from '../src'
 import {
-  CRASHING_OWNERSHIP,
   after,
+  appendToLog,
+  CRASHING_OWNERSHIP,
   gate,
   messageTexts,
   mockAdapter,
-  text,
-  toolCall,
-  untilAborted,
-  appendToLog,
   ownershipExpired,
   stoppedRun,
   storedRun,
   storedThreadState,
+  text,
+  toolCall,
+  turnInterrupts,
+  untilAborted,
   wakeMessages,
   wrapLogStore,
 } from './helpers'
@@ -181,7 +182,7 @@ describe('recovery of a durable input', () => {
       durability: { maxAttempts: 3 },
     })
 
-    expect(await session.settled('in-1')).toEqual({
+    expect(await session.settled({ inputId: 'in-1' })).toEqual({
       inputId: 'in-1',
       outcome: 'failed',
       operationId: 'op-stopped',
@@ -204,7 +205,7 @@ describe('recovery of a durable input', () => {
       replies: [() => text('recovered')],
       durability: { maxAttempts: 3 },
     })
-    const settlement = await session.settled('in-1')
+    const settlement = await session.settled({ inputId: 'in-1' })
 
     expect(settlement.outcome).toBe('completed')
     expect(calls).toHaveLength(1)
@@ -228,7 +229,7 @@ describe('recovery of a durable input', () => {
       durability: { maxAttempts: 10, timeoutMs: 60_000 },
     })
 
-    expect(await session.settled('in-1')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'failed',
       error: { code: 'timeout' },
     })
@@ -245,7 +246,9 @@ describe('recovery of a durable input', () => {
       replies: [() => text('never')],
     })
 
-    expect(await session.settled('in-1')).toMatchObject({ outcome: 'aborted' })
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
+      outcome: 'aborted',
+    })
     expect(calls).toHaveLength(0)
     await host.close()
   })
@@ -267,7 +270,9 @@ describe('recovery of a durable input', () => {
       replies: [() => text('never')],
     })
 
-    expect(await session.settled('in-1')).toMatchObject({ outcome: 'aborted' })
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
+      outcome: 'aborted',
+    })
     expect(calls).toHaveLength(0)
     await host.close()
   })
@@ -281,7 +286,7 @@ describe('recovery of a durable input', () => {
       replies: [() => text('never')],
     })
 
-    expect(await session.settled('in-1')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(calls).toHaveLength(0)
@@ -315,7 +320,7 @@ describe('recovery of a durable input', () => {
         },
       })
 
-      expect(await session.settled('in-1')).toMatchObject({
+      expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
         outcome: 'completed',
       })
       expect(seen).toEqual([{ action: 'settle', outcome: 'completed' }])
@@ -366,7 +371,7 @@ describe('recovery of a durable input', () => {
       tools: [mail],
       durability: { interruptedToolResult: interrupted },
     })
-    await next.session.settled('in-1')
+    await next.session.settled({ inputId: 'in-1' })
 
     const results = (await next.session.transcript()).filter(
       (message) => message.role === 'tool',
@@ -478,7 +483,7 @@ describe('recovery of a durable input', () => {
       durability: { truncatedToolResult: 'Cut off. Not run.' },
     })
 
-    expect(await next.session.settled('in-1')).toMatchObject({
+    expect(await next.session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(lookup).not.toHaveBeenCalled()
@@ -663,7 +668,7 @@ describe('recovery of a durable input', () => {
       },
     })
 
-    expect(await session.settled('in-1')).toEqual({
+    expect(await session.settled({ inputId: 'in-1' })).toEqual({
       inputId: 'in-1',
       outcome: 'failed',
       operationId: 'op-stopped',
@@ -691,7 +696,7 @@ describe('recovery of a durable input', () => {
       },
     })
 
-    expect(await session.settled('in-1')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(calls).toHaveLength(1)
@@ -713,7 +718,7 @@ describe('recovery of a durable input', () => {
       durability: { recover: () => ({ action: 'settle', outcome: 'aborted' }) },
     })
 
-    expect(await session.settled('in-new')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-new' })).toMatchObject({
       outcome: 'aborted',
     })
     expect(calls).toHaveLength(0)
@@ -805,7 +810,7 @@ describe('recovery of a durable input', () => {
           },
         },
       })
-      await session.settled('in-1')
+      await session.settled({ inputId: 'in-1' })
 
       expect(seen).toEqual([
         {
@@ -851,7 +856,7 @@ describe('recovery of a durable input', () => {
         },
       },
     })
-    await session.settled('in-1')
+    await session.settled({ inputId: 'in-1' })
 
     expect(seen).toEqual([
       [{ toolCallId: 'call-lookup', toolName: 'lookup', reason: 'truncated' }],
@@ -909,10 +914,10 @@ describe('session.recover()', () => {
     await other.stop()
     await host.recover()
 
-    expect(await session.settled('in-1')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
-    expect(await session.settled('in-2')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-2' })).toMatchObject({
       outcome: 'completed',
     })
     expect(calls).toHaveLength(2)
@@ -930,7 +935,7 @@ describe('session.recover()', () => {
     await other.stop()
 
     await Promise.all([session.recover(), host.recover(THREAD)])
-    await session.settled('in-1')
+    await session.settled({ inputId: 'in-1' })
     // A second run of the turn would run before this one.
     await session.send('later')
 
@@ -987,7 +992,7 @@ describe('durable input limits while a turn runs', () => {
     const turn = session.send('slow', { inputId: 'slow-1' })
 
     await expect(turn).rejects.toThrow('The input passed its time limit.')
-    expect(await session.settled('slow-1')).toMatchObject({
+    expect(await session.settled({ inputId: 'slow-1' })).toMatchObject({
       outcome: 'failed',
       error: { code: 'timeout' },
     })
@@ -1006,7 +1011,7 @@ describe('durable input limits while a turn runs', () => {
     await session.cancel({ operationId: turn.id })
 
     await expect(turn).rejects.toThrow('Cancelled.')
-    expect(await session.settled('wait-1')).toMatchObject({
+    expect(await session.settled({ inputId: 'wait-1' })).toMatchObject({
       outcome: 'aborted',
     })
     const types = await recordTypes(persistence)
@@ -1056,10 +1061,10 @@ describe('waiting inputs', () => {
       { inputId: 'third', delivery: 'steer', message: 'third' },
       { inputId: 'second', delivery: 'queue', message: 'second' },
     ])
-    expect(await session.cancelInput('second')).toMatchObject({
+    expect(await session.cancelInput({ inputId: 'second' })).toMatchObject({
       status: 'accepted',
     })
-    expect(await session.settled('second')).toMatchObject({
+    expect(await session.settled({ inputId: 'second' })).toMatchObject({
       outcome: 'aborted',
     })
     expect(session.inputs()).toEqual([
@@ -1072,7 +1077,7 @@ describe('waiting inputs', () => {
 
     release.open()
     await first
-    expect(await session.settled('third')).toMatchObject({
+    expect(await session.settled({ inputId: 'third' })).toMatchObject({
       outcome: 'completed',
     })
     expect(calls).toHaveLength(2)
@@ -1089,7 +1094,7 @@ describe('waiting inputs', () => {
     const turn = session.send('first', { inputId: 'first' })
     await waitFor(() => expect(calls).toHaveLength(1))
 
-    expect(await session.cancelInput('first')).toMatchObject({
+    expect(await session.cancelInput({ inputId: 'first' })).toMatchObject({
       status: 'rejected',
       reason: 'not_waiting',
     })
@@ -1122,7 +1127,7 @@ describe('waiting inputs', () => {
 
     release.open()
     await first
-    expect(await session.settled('later')).toMatchObject({
+    expect(await session.settled({ inputId: 'later' })).toMatchObject({
       outcome: 'completed',
       operationId: first.id,
     })
@@ -1142,7 +1147,7 @@ describe('waiting inputs', () => {
     await session.send('later', { inputId: 'later', mode: 'followUp' }).receipt
     await session.setDelivery({ inputId: 'later', delivery: 'steer' })
 
-    expect(await session.settled('later')).toMatchObject({
+    expect(await session.settled({ inputId: 'later' })).toMatchObject({
       outcome: 'completed',
     })
     expect(messageTexts(calls[0])).toContain('later')
@@ -1162,10 +1167,12 @@ describe('waiting inputs', () => {
       ),
     )
 
-    expect(await session.cancelInput('c-1')).toMatchObject({
+    expect(await session.cancelInput({ inputId: 'c-1' })).toMatchObject({
       status: 'accepted',
     })
-    expect(await session.settled('c-1')).toMatchObject({ outcome: 'aborted' })
+    expect(await session.settled({ inputId: 'c-1' })).toMatchObject({
+      outcome: 'aborted',
+    })
     await expect(queued).rejects.toThrow()
 
     release.open()
@@ -1193,7 +1200,7 @@ describe('waiting inputs', () => {
 
     release.open()
     await first
-    await session.settled('now')
+    await session.settled({ inputId: 'now' })
     expect(calls).toHaveLength(3)
     expect(messageTexts(calls[1])).not.toContain('now')
     expect(messageTexts(calls[2])).toContain('now')
@@ -1233,7 +1240,7 @@ describe('waiting inputs', () => {
         replies: [() => text('never')],
       })
 
-      expect(await session.settled('in-1')).toMatchObject({
+      expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
         outcome: 'aborted',
       })
       expect(calls).toHaveLength(0)
@@ -1274,7 +1281,7 @@ describe('waiting inputs', () => {
         replies: [() => text('both'), () => text('never')],
       })
 
-      expect(await session.settled('in-2')).toMatchObject({
+      expect(await session.settled({ inputId: 'in-2' })).toMatchObject({
         outcome: 'completed',
       })
       expect(calls).toHaveLength(1)
@@ -1353,6 +1360,29 @@ describe('input ids', () => {
       operationId: original.id,
     })
     expect(second.calls).toHaveLength(0)
+    await second.host.close()
+  })
+
+  it('streams a duplicate after a restart from the start of its run in the log', async () => {
+    const persistence = durablePersistence()
+    const first = await openDurable({
+      persistence,
+      replies: [() => text('from the first host')],
+    })
+    await first.session.send('hi', { inputId: 'dup-1' })
+    await first.host.close()
+
+    const second = await openDurable({ persistence, replies: [] })
+    const replay = second.session.send('hi', { inputId: 'dup-1' })
+    await replay
+    const deltas: Array<string> = []
+    for await (const chunk of replay.stream()) {
+      if (chunk.type === EventType.TEXT_MESSAGE_CONTENT)
+        deltas.push(chunk.delta)
+    }
+
+    // The rebuilt operation starts before its run, not at the log head.
+    expect(deltas.join('')).toBe('from the first host')
     await second.host.close()
   })
 
@@ -1468,7 +1498,7 @@ describe('session.continue()', () => {
       expect(
         calls[0].messages.map((message: ModelMessage) => message.role),
       ).toEqual(messages.map((message) => message.role))
-      expect(await session.settled('c-1')).toMatchObject({
+      expect(await session.settled({ inputId: 'c-1' })).toMatchObject({
         outcome: 'completed',
       })
       await host.close()
@@ -1519,7 +1549,7 @@ describe('session.continue()', () => {
       replies: [() => text('went')],
     })
 
-    expect(await session.settled('c-1')).toMatchObject({
+    expect(await session.settled({ inputId: 'c-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(messageTexts(calls[0])).toEqual(['go'])
@@ -1552,7 +1582,7 @@ describe('session.continue()', () => {
       const turn = session.continue({ inputId: 'c-1' })
 
       await expect(turn).rejects.toBeInstanceOf(InputRejectedError)
-      await expect(session.settled('c-1')).rejects.toMatchObject({
+      await expect(session.settled({ inputId: 'c-1' })).rejects.toMatchObject({
         receipt: { status: 'rejected', reason: 'nothing_to_continue' },
       })
       expect(calls).toHaveLength(0)
@@ -1575,12 +1605,12 @@ describe('settled() of a live input', () => {
     const turn = session.send('hi', { inputId: 'live-1' })
     await turn
 
-    expect(await session.settled('live-1')).toEqual({
+    expect(await session.settled({ inputId: 'live-1' })).toEqual({
       inputId: 'live-1',
       outcome: 'completed',
       operationId: turn.id,
     })
-    await expect(session.settled('missing')).rejects.toThrow(
+    await expect(session.settled({ inputId: 'missing' })).rejects.toThrow(
       'knows no chat input',
     )
     await host.close()
@@ -1617,14 +1647,14 @@ describe('durable approval recovery', () => {
     await expect(session.operation(receipt.operationId ?? '')).rejects.toThrow(
       'time limit',
     )
-    expect(await session.settled(receipt.inputId)).toMatchObject({
+    expect(await session.settled({ inputId: receipt.inputId })).toMatchObject({
       outcome: 'failed',
       error: { code: 'timeout' },
     })
     // The approved tool ran before the time limit. Offering the approval
     // again would run it a second time, so it is used up.
     expect(execute).toHaveBeenCalledTimes(1)
-    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(session.snapshot())).toEqual([])
     const { interrupts } = await storedThreadState(persistence.stores.log, {
       threadId: THREAD,
     })
@@ -1632,7 +1662,7 @@ describe('durable approval recovery', () => {
     await host.close()
     const next = createHarnessHost({ persistence })
     const reopened = await next.open(config, { threadId: THREAD })
-    expect(reopened.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(reopened.snapshot())).toEqual([])
     expect(
       await reopened.resolve({
         resume: [
@@ -1679,15 +1709,15 @@ describe('durable approval recovery', () => {
       resume: [{ interruptId: approval.id, status: 'resolved', payload: true }],
     })
     await expect(session.operation(receipt.operationId ?? '')).rejects.toThrow()
-    expect(session.snapshot().pendingInterrupts.map((item) => item.id)).toEqual(
-      [approval.id],
-    )
+    expect(turnInterrupts(session.snapshot()).map((item) => item.id)).toEqual([
+      approval.id,
+    ])
     expect(execute).not.toHaveBeenCalled()
     write.mockRestore()
     await host.close()
     const next = createHarnessHost({ persistence })
     const reopened = await next.open(config, { threadId: THREAD })
-    if (reopened.snapshot().pendingInterrupts.length > 0) {
+    if (turnInterrupts(reopened.snapshot()).length > 0) {
       const retry = await reopened.resolve({
         resume: [
           { interruptId: approval.id, status: 'resolved', payload: true },
@@ -1696,7 +1726,7 @@ describe('durable approval recovery', () => {
       await reopened.operation(retry.operationId ?? '')
     }
     expect(execute).toHaveBeenCalledTimes(1)
-    expect(reopened.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(reopened.snapshot())).toEqual([])
     await next.close()
   })
 
@@ -1761,7 +1791,7 @@ describe('durable approval recovery', () => {
         threadId: THREAD,
       },
     )
-    expect(await session.settled('resume-crash')).toMatchObject({
+    expect(await session.settled({ inputId: 'resume-crash' })).toMatchObject({
       outcome: 'completed',
     })
     expect(execute).toHaveBeenCalledExactlyOnceWith(
@@ -1769,7 +1799,7 @@ describe('durable approval recovery', () => {
       expect.anything(),
     )
     expect(nextAdapter.calls).toHaveLength(1)
-    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(session.snapshot())).toEqual([])
     await next.close()
   })
 
@@ -1804,7 +1834,7 @@ describe('durable approval recovery', () => {
       resume: [{ interruptId: approval.id, status: 'resolved', payload: true }],
     })
     await session.operation(receipt.operationId ?? '')
-    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(session.snapshot())).toEqual([])
     await host.close()
     // A stale copy of the stopped turn lands after the resolve.
     await appendToLog(log, { threadId: THREAD }, [
@@ -1812,7 +1842,7 @@ describe('durable approval recovery', () => {
     ])
     const next = createHarnessHost({ persistence })
     const reopened = await next.open(config, { threadId: THREAD })
-    expect(reopened.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(reopened.snapshot())).toEqual([])
     expect(
       await reopened.resolve({
         resume: [

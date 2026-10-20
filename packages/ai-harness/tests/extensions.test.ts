@@ -12,7 +12,7 @@ import {
   defineHarness,
   definePlugin,
 } from '../src'
-import { mockAdapter, storedThreadState, text } from './helpers'
+import { mockAdapter, questionsOf, storedThreadState, text } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
@@ -288,7 +288,8 @@ describe('commands and questions', () => {
           deploy: defineCommand({
             description: 'Deploy after a confirmation',
             run: async (_input, ctx) => {
-              const sure = await ctx.session.ask({
+              const sure = await ctx.step.ask({
+                name: 'sure',
                 message: 'Deploy to production?',
                 schema: z.boolean(),
               })
@@ -312,10 +313,8 @@ describe('commands and questions', () => {
     )
 
     const running = session.command({ name: 'deploy' })
-    await waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
-    const [question] = session.snapshot().pendingQuestions
+    await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
+    const [question] = questionsOf(session.snapshot())
     expect(question?.message).toBe('Deploy to production?')
     expect(
       await session.answer({

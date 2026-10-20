@@ -1,5 +1,6 @@
 // Browser-safe: runtime imports only from @tanstack/ai, @tanstack/store,
-// ../types, ../media-ref, and ./reduce. Everything else is a type.
+// ../types, ../media-ref, and ./reduce (it also reads ../usage). Everything
+// else is a type.
 import {
   EventType,
   INTERRUPT_PAYLOAD_METADATA_KEY,
@@ -50,7 +51,6 @@ import type {
 } from '../types'
 import type { ItemFactory } from './reduce'
 import type {
-  AgentPart,
   Approval,
   ApproveOptions,
   ClientToolCall,
@@ -62,6 +62,7 @@ import type {
   ViewPart,
   ViewQuestion,
 } from './types'
+import type { PendingWait } from '../waits'
 
 export {
   MEDIA_URL_PREFIX,
@@ -71,6 +72,8 @@ export {
   mediaPart,
 } from '../media-ref'
 export type { MediaKind, MediaRecord, WaitingInput } from '../types'
+export { isApproval, waitKind, waitOfInterrupt, waitOfQuestion } from '../waits'
+export type { PendingWait, Wait, WaitKind, WaitOutcome } from '../waits'
 export type {
   AgentPart,
   Approval,
@@ -135,10 +138,31 @@ function isEnd({ event }: SessionEvent) {
 const URL_REFRESH_EARLY = 60_000
 
 /** The options a view gives `source.send` for a turn. */
-export interface ViewSendOptions {
-  to?: undefined
-  mode?: 'prompt' | 'steer' | 'followUp'
+export type ViewSendOptions = { to?: undefined } & (
+  | {
+      mode?: 'prompt'
+      /** `'operator'`: an operator reply. See `SendOptions.as`. */
+      as?: 'operator'
+    }
+  | { mode: 'steer' | 'followUp'; as?: never }
+)
+
+/** The options of `view.send`. */
+export interface ViewTextOptions {
+  /** Stored media files (from `putMedia`) that go with the text. */
+  attachments?: ReadonlyArray<MediaRecord>
+  /**
+   * `'operator'`: the reply of an operator while a handoff to a person is
+   * open. No model runs, and it is not a `/command`. The user of the view
+   * needs the `operator` access action.
+   */
+  as?: 'operator'
 }
+
+/** True when `view.send` got its attachments as a list. */
+const isAttachmentList = (
+  options: ViewTextOptions | ReadonlyArray<MediaRecord>,
+): options is ReadonlyArray<MediaRecord> => Array.isArray(options)
 
 /** The options a view gives `source.send` for a message to an agent run. */
 export interface ViewAgentSendOptions {
@@ -160,14 +184,14 @@ export interface SessionViewSource {
   cancel: (options?: CancelOptions) => Promise<Receipt>
   // Both sources have these. Without one, its view action shows an error.
   continue?: () => unknown
-  cancelInput?: (inputId: string) => Promise<Receipt>
+  cancelInput?: (options: { inputId: string }) => Promise<Receipt>
   setDelivery?: (change: {
     inputId: string
     delivery: WaitingInput['delivery']
   }) => Promise<Receipt>
   configure?: (options: ConfigureOptions) => Promise<Receipt>
   reset?: (options?: ResetOptions) => Promise<Receipt>
-  revert?: (messageId: string) => Promise<Receipt>
+  revert?: (options: { messageId: string }) => Promise<Receipt>
   unrevert?: () => Promise<Receipt>
   answer: (answer: { questionId: string; value: unknown }) => Promise<Receipt>
   command: (options: CommandOptions) => unknown
@@ -181,14 +205,17 @@ export interface SessionViewSource {
   transcript: () => Promise<Array<ModelMessage>>
   describe: () => SessionDescription | Promise<SessionDescription>
   /** A URL for a media file. Without it, media parts have no `url`. */
-  mediaUrl?: (id: string) => Promise<{ url?: string; expiresAt?: number }>
+  mediaUrl?: (options: {
+    id: string
+  }) => Promise<{ url?: string; expiresAt?: number }>
   /** The bytes of a media file. Without it, `load()` rejects. */
   loadMedia?: (options: { id: string }) => Promise<Uint8Array>
-  /** Store a file: `upload` on a client, `putMedia` on a session. */
-  upload?: (file: MediaUpload<MediaBody>) => Promise<MediaRecord>
+  /** Store a file. Without it, `view.putMedia` rejects. */
   putMedia?: (file: MediaUpload<MediaBody>) => Promise<MediaRecord>
   /** The saved messages of a child agent run. Without it, a reload shows no child parts. */
-  agentTranscript?: (subagentRunId: string) => Promise<Array<ModelMessage>>
+  agentTranscript?: (options: {
+    subagentRunId: string
+  }) => Promise<Array<ModelMessage>>
 }
 
 /** The bytes of a file to store. */
@@ -229,12 +256,19 @@ export interface SessionView {
   ready: Promise<void>
   /**
    * A `/command`, a prompt, or a steer while a turn runs. `attachments` are
-   * stored media files (from `upload`) that go with the text.
-   * A `/command` ignores them. Empty text with no attachments does nothing.
+   * stored media files (from `putMedia`) that go with the text. Pass them as
+   * a list, or as `{ attachments }`. A `/command` ignores them. Empty text
+   * with no attachments does nothing. `{ as: 'operator' }` sends the reply
+   * of an operator (see {@link ViewTextOptions}).
+   *
+   * @example
+   * ```ts
+   * await view.send('I refunded order 42.', { as: 'operator' })
+   * ```
    */
   send: (
     text: string,
-    attachments?: ReadonlyArray<MediaRecord>,
+    options?: ViewTextOptions | ReadonlyArray<MediaRecord>,
   ) => Promise<void>
   /** A message that runs as its own turn after the current work. */
   followUp: (
@@ -248,10 +282,10 @@ export interface SessionView {
    *
    * @example
    * ```ts
-   * const record = await view.upload({ body: bytes, mimeType: 'image/png', name: 'cat.png' })
+   * const record = await view.putMedia({ body: bytes, mimeType: 'image/png', name: 'cat.png' })
    * ```
    */
-  upload: (file: MediaUpload<MediaBody>) => Promise<MediaRecord>
+  putMedia: (file: MediaUpload<MediaBody>) => Promise<MediaRecord>
   /**
    * Run the plugin command `name` with its `input`.
    *
@@ -274,7 +308,7 @@ export interface SessionView {
   /** Stop the running turn, or the operation `operationId`. */
   cancel: (options?: CancelOptions) => Promise<void>
   /** Drop an input from `waitingInputs` before it runs. */
-  cancelInput: (inputId: string) => Promise<void>
+  cancelInput: (options: { inputId: string }) => Promise<void>
   /** Move a waiting input: `'steer'` joins the running turn, `'queue'` waits for its own turn. */
   setDelivery: (change: {
     inputId: string
@@ -282,15 +316,59 @@ export interface SessionView {
   }) => Promise<void>
   /** Start a fresh model context. The model sees `note` first. */
   reset: (options?: ResetOptions) => Promise<void>
-  /** Go back to the message `messageId`. `unrevert` undoes it. */
-  revert: (messageId: string) => Promise<void>
+  /**
+   * Go back to the message `messageId`. `unrevert` undoes it.
+   *
+   * @example
+   * ```ts
+   * await view.revert({ messageId: message.id })
+   * ```
+   */
+  revert: (options: { messageId: string }) => Promise<void>
   unrevert: () => Promise<void>
-  approve: (id: string, options?: ApproveOptions) => void
-  reject: (id: string, payload?: unknown) => void
+  /**
+   * Say yes to the approval `id`, maybe with changed arguments or data.
+   *
+   * @example
+   * ```ts
+   * view.approve({ id: approval.id })
+   * ```
+   */
+  approve: (options: { id: string } & ApproveOptions) => void
+  /**
+   * Say no to the approval `id`. `payload` goes to the tool's approval
+   * schema, when it has one.
+   *
+   * @example
+   * ```ts
+   * view.reject({ id: approval.id })
+   * ```
+   */
+  reject: (options: { id: string; payload?: unknown }) => void
   approveAll: () => void
   rejectAll: () => void
-  /** Add a line of your own to the messages. */
-  notice: (text: string) => void
+  /**
+   * Add a line of your own to the messages.
+   *
+   * @example
+   * ```ts
+   * view.notice({ text: 'Saved.' })
+   * ```
+   */
+  notice: (options: { text: string }) => void
+  /**
+   * Fill the agent part `id` of a saved message with what that child wrote.
+   * After a reload, a saved child shows only its card (name, status, result)
+   * until you call this, for example when the user opens it. Its nested
+   * children load the same way. Without `source.agentTranscript`, it does
+   * nothing.
+   *
+   * @example
+   * ```ts
+   * await view.loadAgent({ id: part.id })
+   * ```
+   */
+  loadAgent: (options: { id: string }) => Promise<void>
   /**
    * Listen for a view event (`'approval'`, `'turnEnd'`, ...) or a plugin event.
    * Returns a function that stops listening.
@@ -312,10 +390,19 @@ function userInput(line: string, attachments: ReadonlyArray<MediaRecord>) {
   return input
 }
 
+/** The shown form of a message, and the media parts it shows. */
+interface ShownMessage {
+  message: ViewMessage
+  media: Array<MediaPart>
+}
+
 const isGap = ({ event }: SessionEvent) =>
   event.type === EventType.CUSTOM && event.name === HARNESS_EVENTS.gap
 
-/** Events after which the snapshot can differ. */
+/**
+ * Events after which the snapshot can differ. A config change is not in the
+ * snapshot. A usage event changes only the usage, and the reducer adds it.
+ */
 function changesSnapshot(entry: SessionEvent) {
   const { event } = entry
   if (
@@ -327,8 +414,27 @@ function changesSnapshot(entry: SessionEvent) {
   }
   return (
     event.type === EventType.CUSTOM &&
-    /^harness\.(operation|input|question|config|usage|gap)/.test(event.name)
+    /^harness\.(operation|input|question|gap)/.test(event.name)
   )
+}
+
+/**
+ * A usage event that the reducer could not add, and that the view does not
+ * count yet: a call was missed, so the view reads the usage again.
+ */
+function missesUsage({ event }: SessionEvent, state: SessionViewState) {
+  if (event.type !== EventType.CUSTOM || event.name !== HARNESS_EVENTS.usage)
+    return false
+  const { value } = event
+  const total: unknown =
+    typeof value === 'object' && value !== null && 'total' in value
+      ? value.total
+      : undefined
+  const calls =
+    typeof total === 'object' && total !== null && 'calls' in total
+      ? total.calls
+      : undefined
+  return typeof calls !== 'number' || calls > (state.usage?.total.calls ?? 0)
 }
 
 /**
@@ -397,12 +503,26 @@ export function createSessionView(source: SessionViewSource) {
   const handlers = new Map<string, Set<(value: unknown) => void>>()
   /** The answer to each open approval and client tool, by interrupt id. */
   const decisions = new Map<string, RunAgentResumeItem>()
+  /**
+   * The waits that no turn holds (the waits of background agent runs), by
+   * id, from the last snapshot. Each one is answered on its own, not with
+   * the interrupts of the turn.
+   */
+  let runWaits = new Map<string, PendingWait>()
+  /** The waits of background runs whose answer is on its way. */
+  const sending = new Set<string>()
   const chatTurns = new Set<string>()
   const agentNames = new Map<string, string>()
   const mediaParts = new Map<string, MediaPart>()
   const urlRefreshes = new Map<string, ReturnType<typeof setTimeout>>()
-  /** The media ids the last commit shows. */
-  let shownMedia = new Set<string>()
+  /**
+   * The shown form of each message, and the media parts it shows, by message
+   * object. The reducer keeps a message that did not change, so a commit
+   * walks only the new messages.
+   */
+  const shownOf = new WeakMap<ViewMessage, ShownMessage>()
+  /** The agent parts of saved messages, that `loadAgent` can fill. */
+  let savedAgents = new Set<string>()
   /** The agent parts of a reload that loaded, or load now. */
   const loadedAgents = new Set<string>()
   /** The ids the first transcript has. See `replayed`. */
@@ -418,9 +538,16 @@ export function createSessionView(source: SessionViewSource) {
   const get = () => internal.state
   const commit = (next: SessionViewState) => {
     if (disposed) return
-    shownMedia = new Set()
-    const shown = withMediaActions(next)
+    const entries = next.messages.map(withActions)
+    const messages = keep(
+      next.messages,
+      entries.map((entry) => entry.message),
+    )
+    const shown = messages === next.messages ? next : { ...next, messages }
     // A media file that no message shows now (after a revert) needs no URL.
+    const shownMedia = new Set(
+      entries.flatMap((entry) => entry.media.map((part) => part.id)),
+    )
     for (const id of mediaParts.keys()) {
       if (shownMedia.has(id)) continue
       clearTimeout(urlRefreshes.get(id))
@@ -480,7 +607,7 @@ export function createSessionView(source: SessionViewSource) {
   const fetchUrl = async (id: string) => {
     if (!source.mediaUrl) return
     try {
-      const { url, expiresAt } = await source.mediaUrl(id)
+      const { url, expiresAt } = await source.mediaUrl({ id })
       const part = mediaParts.get(id)
       if (disposed || !part) return
       if (url !== undefined) mediaParts.set(id, { ...part, url })
@@ -500,7 +627,6 @@ export function createSessionView(source: SessionViewSource) {
   }
   /** The view's own part for a media id: it loads from the source and gets a url once. */
   const mediaActions = (part: MediaPart) => {
-    shownMedia.add(part.id)
     const known = mediaParts.get(part.id)
     if (known) return known
     const { id } = part
@@ -515,38 +641,84 @@ export function createSessionView(source: SessionViewSource) {
     void fetchUrl(id)
     return shown
   }
-  const partsWithActions = (parts: Array<ViewPart>): Array<ViewPart> =>
+  /** The parts with the view's media parts. Each media part goes in `found`. */
+  const partsWithActions = (
+    parts: Array<ViewPart>,
+    found: Array<MediaPart>,
+  ): Array<ViewPart> =>
     keep(
       parts,
       parts.map((part) => {
-        if (part.type === 'media') return mediaActions(part)
+        if (part.type === 'media') {
+          const shown = mediaActions(part)
+          found.push(shown)
+          return shown
+        }
         if (part.type !== 'agent') return part
-        const inner = partsWithActions(part.parts)
+        const inner = partsWithActions(part.parts, found)
         return inner === part.parts ? part : { ...part, parts: inner }
       }),
     )
-  const messageWithActions = (message: ViewMessage) => {
+  const messageWithActions = (
+    message: ViewMessage,
+    found: Array<MediaPart>,
+  ) => {
     if (message.role === 'assistant') {
-      const parts = partsWithActions(message.parts)
+      const parts = partsWithActions(message.parts, found)
       return parts === message.parts ? message : { ...message, parts }
     }
     if (message.role !== 'user' || !message.media) return message
-    const media = keep(message.media, message.media.map(mediaActions))
+    const media = keep(
+      message.media,
+      message.media.map((part) => {
+        const shown = mediaActions(part)
+        found.push(shown)
+        return shown
+      }),
+    )
     return media === message.media ? message : { ...message, media }
   }
-  // ponytail: this walks every message on each commit. Track new media ids
-  // instead if a long session gets slow.
-  const withMediaActions = (state: SessionViewState) => {
-    const messages = keep(
-      state.messages,
-      state.messages.map(messageWithActions),
+  /**
+   * The shown form of `message`. A known message is walked again only when
+   * one of its media parts changed (a new URL) or went (after a revert).
+   */
+  const withActions = (message: ViewMessage): ShownMessage => {
+    const known = shownOf.get(message)
+    const isCurrent = known?.media.every(
+      (part) => mediaParts.get(part.id) === part,
     )
-    return messages === state.messages ? state : { ...state, messages }
+    if (known && isCurrent) return known
+    const media: Array<MediaPart> = []
+    const entry = { message: messageWithActions(message, media), media }
+    shownOf.set(message, entry)
+    shownOf.set(entry.message, entry)
+    return entry
   }
 
+  /** `items` without the items that `drop` matches. */
+  const without = <T extends { id: string }>(
+    items: Array<T>,
+    drop: (id: string) => boolean,
+  ) =>
+    keep(
+      items,
+      items.filter((item) => !drop(item.id)),
+    )
+  /** The state without the approvals, client tools, and interrupts `drop` matches. */
+  const withoutItems = (drop: (id: string) => boolean) => {
+    const state = get()
+    return {
+      ...state,
+      approvals: without(state.approvals, drop),
+      clientTools: without(state.clientTools, drop),
+      interrupts: without(state.interrupts, drop),
+    }
+  }
   /**
    * Keep the answer to an item of `open`. One resume must answer every open
-   * interrupt, so it goes when each approval and client tool has an answer.
+   * interrupt of the turn, so it goes when each approval and client tool of
+   * the turn has an answer. A wait of a background agent run goes at once,
+   * on its own.
    */
   const answer = (
     open: ReadonlyArray<{ id: string }>,
@@ -554,17 +726,36 @@ export function createSessionView(source: SessionViewSource) {
   ) => {
     alive()
     const id = entry.interruptId
-    const isDecided =
-      resolving || decisions.has(id) || !open.some((item) => item.id === id)
-    if (isDecided) return
+    if (!open.some((item) => item.id === id)) return
+    const wait = runWaits.get(id)
+    if (wait !== undefined) {
+      if (sending.has(id)) return
+      sending.add(id)
+      commit(withoutItems((item) => item === id))
+      // A person answers a `human` wait with `answer`, which an operator
+      // may send too. A wait with no interrupt takes only `answer`.
+      const sent =
+        (wait.kind === 'human' || !wait.interrupt) &&
+        entry.status === 'resolved'
+          ? source.answer({ questionId: id, value: entry.payload })
+          : source.resolve({ resume: [entry] })
+      void sent.then(refused, fail).finally(() => {
+        sending.delete(id)
+        refreshSnapshot()
+      })
+      return
+    }
+    if (resolving || decisions.has(id)) return
     decisions.set(id, entry)
     const { approvals, clientTools, interrupts } = get()
-    const waiting = [...approvals, ...clientTools, ...interrupts]
+    const waiting = [...approvals, ...clientTools, ...interrupts].filter(
+      (item) => !runWaits.has(item.id),
+    )
     const resume = waiting.flatMap((item) => decisions.get(item.id) ?? [])
     if (resume.length < waiting.length) return
     decisions.clear()
     resolving = true
-    commit({ ...get(), approvals: [], clientTools: [], interrupts: [] })
+    commit(withoutItems((item) => !runWaits.has(item)))
     void source
       .resolve({ resume })
       .then(undefined, fail)
@@ -599,7 +790,8 @@ export function createSessionView(source: SessionViewSource) {
         args: call?.args ?? bound?.originalArgs,
         ...(interrupt.message ? { message: interrupt.message } : {}),
         approve: (options) => decide(interrupt.id, approvedWith(options)),
-        reject: (payload) => decide(interrupt.id, rejectedWith(payload)),
+        reject: ({ payload } = {}) =>
+          decide(interrupt.id, rejectedWith(payload)),
       }
     },
     interrupt: (interrupt) => {
@@ -683,6 +875,11 @@ export function createSessionView(source: SessionViewSource) {
   }
 
   const takeSnapshot = (snapshot: SessionSnapshot, initial = false) => {
+    runWaits = new Map(
+      snapshot.pendingWaits.flatMap((wait) =>
+        wait.turn ? [] : [[wait.waitId, wait] as const],
+      ),
+    )
     const before = get()
     const next = applySnapshot(before, snapshot, factory, { initial })
     commit(next)
@@ -715,31 +912,32 @@ export function createSessionView(source: SessionViewSource) {
     }
   })
 
+  /** The ids of the agent parts in `messages` that show no parts yet. */
+  const agentIdsIn = (messages: ReadonlyArray<ViewMessage>) =>
+    emptyAgentsIn(messages).map((agent) => agent.id)
+
   /**
-   * Fill the agent parts `ids` that the saved messages made, from the saved
-   * messages of each child, then the nested children those hold.
+   * Fill the saved agent part `id` from the saved messages of its child. Its
+   * nested children become saved agent parts too, and load on their own call.
    */
-  const loadAgents = async (agents: Array<AgentPart>): Promise<void> => {
-    if (!source.agentTranscript) return
-    // ponytail: every child loads at start. Load on demand if long sessions
-    // get slow.
-    await Promise.all(
-      agents.map(async ({ id }) => {
-        // A continued child has one id for each of its calls.
-        if (loadedAgents.has(id)) return
-        loadedAgents.add(id)
-        try {
-          const messages = (await source.agentTranscript?.(id)) ?? []
-          const parts = agentPartsFrom(messages)
-          if (disposed) return
-          // A child that failed before its first message has only its card.
-          commit(withAgentParts(get(), id, parts, endOf(messages)))
-          await loadAgents(emptyAgentsIn([{ id, role: 'assistant', parts }]))
-        } catch (error) {
-          fail(error)
-        }
-      }),
-    )
+  const loadAgent = async (id: string): Promise<void> => {
+    // A continued child has one id for each of its calls.
+    const isWaiting = savedAgents.has(id) && !loadedAgents.has(id)
+    if (!source.agentTranscript || !isWaiting) return
+    loadedAgents.add(id)
+    try {
+      const messages = await source.agentTranscript({ subagentRunId: id })
+      const parts = agentPartsFrom(messages)
+      if (disposed) return
+      // A child that failed before its first message has only its card.
+      commit(withAgentParts(get(), id, parts, endOf(messages)))
+      const inner = agentIdsIn([{ id, role: 'assistant', parts }])
+      for (const child of inner) savedAgents.add(child)
+    } catch (error) {
+      // A later call can try again.
+      loadedAgents.delete(id)
+      fail(error)
+    }
   }
 
   // A revert changes which saved messages show. The session is idle then.
@@ -749,12 +947,48 @@ export function createSessionView(source: SessionViewSource) {
       if (disposed) return
       const messages = messagesFromTranscript(transcript)
       commit({ ...get(), messages })
+      // The children that loaded before load again, a parent before its
+      // nested children.
+      const loaded = [...loadedAgents]
       loadedAgents.clear()
-      await loadAgents(emptyAgentsIn(messages))
+      savedAgents = new Set(agentIdsIn(messages))
+      for (const id of loaded) await loadAgent(id)
     } catch (error) {
       fail(error)
     }
   })
+
+  /**
+   * After a gap: the events of a part of the log are gone. Load the snapshot
+   * and the transcript again, as `ready` does, while `read` waits. The
+   * stream goes on after the gap's `resumeAt`. Its events up to the new
+   * snapshot cursor replay only for the operations that run now, and the
+   * parts that the transcript has are dropped by id.
+   */
+  const reload = async () => {
+    try {
+      // The snapshot before the transcript, as in `ready`.
+      const snapshot = await source.snapshot()
+      const transcript = await source.transcript()
+      if (disposed) return
+      commit({ ...get(), messages: messagesFromTranscript(transcript) })
+      takeSnapshot(snapshot)
+      saved = transcriptIds(transcript)
+      held = []
+      replayEnd = Number(snapshot.cursor)
+      replayOps = new Set(snapshot.activeOperations.map((item) => item.id))
+      // The children that loaded before load again, a parent before its
+      // nested children. The events do not wait for them.
+      const loaded = [...loadedAgents]
+      loadedAgents.clear()
+      savedAgents = new Set(agentIdsIn(get().messages))
+      void (async () => {
+        for (const id of loaded) await loadAgent(id)
+      })()
+    } catch (error) {
+      fail(error)
+    }
+  }
 
   const fire = (
     entry: SessionEvent,
@@ -813,12 +1047,8 @@ export function createSessionView(source: SessionViewSource) {
         event.name === HARNESS_EVENTS.commandsChanged ||
         event.name === HARNESS_EVENTS.reloaded
       if (isDescriptionChange) refreshDescription()
-      // A gap: the events of a part of the log are gone, so the view loads
-      // the transcript (and the snapshot, see `changesSnapshot`) again.
-      const isReload =
-        event.name === HARNESS_EVENTS.revert ||
-        event.name === HARNESS_EVENTS.gap
-      if (isReload) refreshTranscript()
+      // A gap loads the transcript again too, in `read` (see `reload`).
+      if (event.name === HARNESS_EVENTS.revert) refreshTranscript()
     }
     for (const signIn of after.signIns)
       if (!before.signIns.includes(signIn)) emit('signIn', signIn)
@@ -833,9 +1063,12 @@ export function createSessionView(source: SessionViewSource) {
       })
       for await (const entry of entries) {
         if (disposed) return
-        // A gap is not an event of an operation, so no replay drops it.
-        if (isGap(entry)) apply(entry)
-        else for (const ready of replayed(entry)) apply(ready)
+        // A gap is not an event of an operation, so no replay drops it. No
+        // event applies until the reload ends.
+        if (isGap(entry)) {
+          apply(entry)
+          await reload()
+        } else for (const ready of replayed(entry)) apply(ready)
       }
     } catch (error) {
       fail(error)
@@ -849,7 +1082,7 @@ export function createSessionView(source: SessionViewSource) {
     const after = applyEvent(before, entry)
     commit(after)
     fire(entry, before, after)
-    if (changesSnapshot(entry)) refreshSnapshot()
+    if (changesSnapshot(entry) || missesUsage(entry, after)) refreshSnapshot()
   }
 
   /**
@@ -968,7 +1201,7 @@ export function createSessionView(source: SessionViewSource) {
     // ponytail: a background child that runs now can save a model call
     // before its saved messages load, and that call then shows twice. Drop
     // live parts by id if that shows up.
-    void loadAgents(emptyAgentsIn(get().messages))
+    savedAgents = new Set(agentIdsIn(get().messages))
     void read(snapshot ? String(from) : undefined)
   })()
 
@@ -989,10 +1222,19 @@ export function createSessionView(source: SessionViewSource) {
   const view: SessionView = {
     store,
     ready,
-    send: async (text, attachments = []) => {
+    send: async (text, options = []) => {
       alive()
+      const { attachments = [], as } = isAttachmentList(options)
+        ? { attachments: options, as: undefined }
+        : options
       const line = text.trim()
       if (line === '' && attachments.length === 0) return
+      if (as === 'operator') {
+        // An assistant message of the operator: the transcript has it.
+        const message = userInput(line, attachments)
+        await act(() => receiptOf(source.send(message, { as })))
+        return
+      }
       if (line.startsWith('/')) {
         const [name = '', ...rest] = line.slice(1).split(' ')
         const input = rest.join(' ').trim()
@@ -1024,9 +1266,8 @@ export function createSessionView(source: SessionViewSource) {
       alive()
       settle(source.continue ? source.continue() : missing('continue'))
     },
-    upload: (file) => {
+    putMedia: (file) => {
       alive()
-      if (source.upload) return source.upload(file)
       if (source.putMedia) return source.putMedia(file)
       return Promise.reject(new Error('This view source cannot store media.'))
     },
@@ -1040,10 +1281,10 @@ export function createSessionView(source: SessionViewSource) {
         source.configure ? source.configure(options) : missing('configure'),
       ),
     cancel: (options) => act(() => source.cancel(options)),
-    cancelInput: (inputId) =>
+    cancelInput: ({ inputId }) =>
       act(() =>
         source.cancelInput
-          ? source.cancelInput(inputId)
+          ? source.cancelInput({ inputId })
           : missing('cancel inputs'),
       ),
     setDelivery: (change) =>
@@ -1054,17 +1295,28 @@ export function createSessionView(source: SessionViewSource) {
       ),
     reset: (options) =>
       act(() => (source.reset ? source.reset(options) : missing('reset'))),
-    revert: (messageId) =>
-      act(() => (source.revert ? source.revert(messageId) : missing('revert'))),
+    revert: ({ messageId }) =>
+      act(() =>
+        source.revert ? source.revert({ messageId }) : missing('revert'),
+      ),
     unrevert: () =>
       act(() => (source.unrevert ? source.unrevert() : missing('unrevert'))),
-    approve: (id, options) => decide(id, approvedWith(options)),
-    reject: (id, payload) => decide(id, rejectedWith(payload)),
+    approve: ({ id, ...options }) =>
+      decide(
+        id,
+        approvedWith(Object.keys(options).length > 0 ? options : undefined),
+      ),
+    reject: ({ id, payload }) => decide(id, rejectedWith(payload)),
     approveAll: () => decideAll(true),
     rejectAll: () => decideAll(false),
-    notice: (text) => {
+    notice: ({ text }) => {
       alive()
       commit(withNotice(get(), 'ui', text))
+    },
+    loadAgent: async ({ id }) => {
+      alive()
+      await ready
+      await loadAgent(id)
     },
     on,
     dispose: () => {

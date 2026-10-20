@@ -144,6 +144,18 @@ describe('a dropped handle', () => {
     await held.close()
     await host.close()
   })
+
+  it('gives no warning after host.close(), which closed its session', async () => {
+    const warnings = droppedWarnings()
+    const { host, open } = setup({ idleCloseMs: 0 })
+    const session = await open('t1')
+    await session.send('Hello.')
+
+    await host.close()
+    finalizeHandle(session)
+
+    expect(warnings()).toHaveLength(0)
+  })
 })
 
 describe('a call after the session closed', () => {
@@ -240,6 +252,7 @@ describe('the HTTP handler', () => {
         holds: 0,
         statuses: 0,
         closing: 0,
+        children: 0,
       }),
     )
     await host.close()

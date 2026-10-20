@@ -171,9 +171,11 @@ describe('turn.onModelError', () => {
       turn: {
         onModelError: async ({ session: current, error, retries }) => {
           if (retries > 0 || error.code !== CONTEXT_OVERFLOW_CODE) return
-          await current.append([
-            { type: 'app.compaction', summary: 'summary of the chat' },
-          ])
+          await current.append({
+            records: [
+              { type: 'app.compaction', summary: 'summary of the chat' },
+            ],
+          })
           return 'retry'
         },
       },
@@ -772,7 +774,7 @@ describe('turn.onModelError', () => {
       expect(first.seen).toEqual([0, 1])
 
       const next = await openOn([failsWith('503 Service Unavailable')])
-      await next.session.settled('in-1')
+      await next.session.settled({ inputId: 'in-1' })
 
       expect(next.seen).toEqual([2])
       await first.host.close().catch(() => {})
@@ -788,7 +790,7 @@ describe('turn.onModelError', () => {
       expect(first.seen).toEqual([0])
 
       const next = await openOn([failsWith('503 Service Unavailable')])
-      await next.session.settled('in-1')
+      await next.session.settled({ inputId: 'in-1' })
 
       expect(next.seen).toEqual([0])
       await first.host.close().catch(() => {})
@@ -833,7 +835,7 @@ describe('turn.onModelError', () => {
         1,
       )
 
-      expect(await next.session.settled('in-1')).toMatchObject({
+      expect(await next.session.settled({ inputId: 'in-1' })).toMatchObject({
         outcome: 'completed',
       })
       expect(next.seen).toEqual([1])
@@ -1140,7 +1142,7 @@ describe('turn.beforeFinish', () => {
 
     const next = await openOn([() => text('posted')])
 
-    expect(await next.session.settled('in-1')).toMatchObject({
+    expect(await next.session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(next.calls).toHaveLength(1)

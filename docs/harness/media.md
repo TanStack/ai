@@ -47,13 +47,14 @@ console.log(turn.text)
 ```
 
 - The transcript keeps a `harness-media:<id>` URL for the file. Only the model call gets the bytes.
+- The host keeps up to 32 MB of base64 text in memory, for all its sessions together, so the next turn does not encode a file again. Above that, a turn encodes the oldest files again.
 - If the harness refuses the file, `putMedia` throws a `MediaError`. Its `status` is `413` for a file over the size limit, and `415` for a kind that the harness does not take.
 
 The session also has:
 
-- `getMedia(id)`: the record, or `null` when the thread has no file with this id.
+- `getMedia({ id })`: the record, or `null` when the thread has no file with this id.
 - `loadMedia({ id, range })`: the bytes, or one range of them. `range` is optional.
-- `mediaUrl(id)`: `{ url }`, with a data URL for a file up to 1 MB. A bigger file gets `{}`. Use `loadMedia` for it, and serve the bytes from your own route.
+- `mediaUrl({ id })`: `{ url }`, with a data URL for a file up to 1 MB. A bigger file gets `{}`. Use `loadMedia` for it, and serve the bytes from your own route.
 
 ## Media that agents make
 
@@ -168,6 +169,81 @@ gpt-6.1-sol cannot read audio files. Add media.transcribe, or send a text summar
 ```
 
 In a child agent, `ctx.chat` gets the bytes of the files too. There, only `accepts` limits the kinds, because the harness does not know the adapter of the child.
+
+## Files inside a client message
+
+A browser can put a file in the message itself, as base64 bytes or as a URL. Base64 bytes make the transcript, the log, and each model call big. A URL can point to a server that the model provider then fetches. So the harness checks each part of an input from a client before the turn starts.
+
+The browser sends the bytes in the message:
+
+```ts group=harness-media-client
+import { createHarnessClient } from '@tanstack/ai-harness/client'
+import type { assistant } from './harness'
+
+const client = createHarnessClient<typeof assistant>({
+  url: '/api/harness',
+  threadId: 'user-1-thread',
+})
+
+async function toBase64(file: File) {
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  return btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(''))
+}
+
+export async function askAbout(file: File) {
+  const receipt = await client.send([
+    { type: 'text', content: 'What is on this receipt?' },
+    {
+      type: 'image',
+      source: { type: 'data', value: await toBase64(file), mimeType: file.type },
+    },
+  ])
+  if (receipt.status === 'rejected') console.log(receipt.reason)
+}
+```
+
+On the server, the harness does this for each part:
+
+- Base64 bytes (a `data` source, or a base64 `data:` URL) go to the media store. The message keeps a `harness-media:` reference, the same as a file from `putMedia`. `maxBytes`, `kinds`, and the model check apply.
+- An `http:` or `https:` URL is refused. Set `externalUrls` to allow it.
+- A provider file handle (`source: { type: 'file' }`) is refused. The adapter reads the file with your provider key, so a client that knows the file id of another user could make the model read it. Set `allowProviderFiles: true` to allow it.
+- A URL with another scheme, for example `file:`, is always refused.
+
+`POST run` (the route of `useChat`) checks the parts of the last user message the same way.
+
+Three options control this:
+
+```ts group=harness-media-inline
+import { defineHarness } from '@tanstack/ai-harness'
+import { openaiText } from '@tanstack/ai-openai'
+
+export const assistant = defineHarness({
+  name: 'acme/assistant',
+  adapter: openaiText('gpt-6.1-sol'),
+  media: {
+    externalUrls: (url) => url.hostname === 'cdn.acme.com',
+    allowProviderFiles: false,
+    maxBodyBytes: 8 * 1024 * 1024,
+  },
+})
+```
+
+- `externalUrls`: `true` allows every `http:` and `https:` URL. A function decides for each URL. Default `false`.
+- `allowProviderFiles`: `true` allows provider file handles. Default `false`.
+- `maxBodyBytes`: the largest request body or socket frame, in bytes. Default 32 MiB. A bigger body answers `413`. A bigger frame closes the socket. The socket checks a frame only after your WebSocket server read it, so also set the frame limit of your server, for example `maxPayload` of `ws`.
+
+If the harness refuses a part, no turn starts. The receipt is `rejected`, and its `reason` tells you why:
+
+| `reason`                | Why                                                                                                            |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `media_too_large`       | The bytes are bigger than `maxBytes`.                                                                          |
+| `media_not_allowed`     | The kind is not in `kinds`, or the type has no kind.                                                           |
+| `media_invalid`         | The bytes are not base64.                                                                                      |
+| `media_url_not_allowed` | `externalUrls` refuses the URL, the scheme is bad, or it is a file handle and `allowProviderFiles` is not set. |
+
+`POST run` has no receipt. It answers with the `reason` as `error`, and with `413` for `media_too_large`, `415` for `media_not_allowed`, or `400` for the other two.
+
+Server code that calls `session.send` directly is not checked, so it can send file handles. The checks are for inputs from a client.
 
 ## Keep media across restarts
 

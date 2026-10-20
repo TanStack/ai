@@ -236,9 +236,9 @@ describe('durable host stores', () => {
     const durable = await createHarnessHost({
       persistence: durablePersistence(),
     }).open(harness, { threadId: THREAD })
-    await expect(durable.append([{ type: 'harness.event' }])).rejects.toThrow(
-      'reserved for the harness',
-    )
+    await expect(
+      durable.append({ records: [{ type: 'harness.event' }] }),
+    ).rejects.toThrow('reserved for the harness')
   })
 })
 
@@ -308,7 +308,33 @@ describe('durable session log', () => {
     await next.close()
   })
 
-  it('writes host records in the same batch as the waiting events, in order', async () => {
+  it('logs an append with no inputId as an input, with the id of its receipt', async () => {
+    const persistence = durablePersistence()
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/append',
+        adapter: mockAdapter(() => text('ok')).adapter,
+      }),
+      { threadId: THREAD },
+    )
+
+    const { inputId } = await session.append({
+      records: [{ type: 'app.note' }],
+    })
+
+    const state = await loadLogState({
+      store: persistence.stores.log,
+      logId: LOG,
+      rootThread: THREAD,
+    })
+    expect(sessionOf(state, THREAD).inputs.get(inputId)?.input.op).toBe(
+      'append',
+    )
+    await host.close()
+  })
+
+  it('writes host records after the waiting events, in order', async () => {
     const inner = memoryLogStore()
     const batches: Array<Array<unknown>> = []
     const log = wrapLogStore(inner, {
@@ -340,14 +366,20 @@ describe('durable session log', () => {
       expect(JSON.stringify(batches)).toContain('TEXT_MESSAGE_START'),
     )
 
-    await session.append([{ type: 'app.note', n: 1 }])
+    await session.append({ records: [{ type: 'app.note', n: 1 }] })
 
-    expect(batches.at(-1)).toEqual([
+    // The input record of the append takes the waiting events with it, and
+    // the records come after them.
+    expect(batches).toContainEqual([
       expect.objectContaining({
         type: EventType.TEXT_MESSAGE_CONTENT,
         delta: 'partial',
       }),
+      expect.objectContaining({ type: 'harness.input' }),
+    ])
+    expect(batches.at(-2)).toEqual([
       { type: 'app.note', n: 1 },
+      expect.objectContaining({ type: 'harness.input.applied' }),
     ])
     release.open()
     await Promise.resolve(turn).catch(() => {})
@@ -361,9 +393,9 @@ describe('durable session log', () => {
       name: 'check',
       description: 'Check the build',
     }).server(async () => {
-      await session?.append([
-        { type: 'app.signal', text: '[signal] tests failed' },
-      ])
+      await session?.append({
+        records: [{ type: 'app.signal', text: '[signal] tests failed' }],
+      })
       await session?.send('more', { busy: 'steer' }).receipt
       return 'checked'
     })
@@ -405,9 +437,9 @@ describe('durable session log', () => {
       name: 'check',
       description: 'Check the build',
     }).server(async () => {
-      await session?.append([
-        { type: 'app.signal', text: '[signal] tests failed' },
-      ])
+      await session?.append({
+        records: [{ type: 'app.signal', text: '[signal] tests failed' }],
+      })
       return 'checked'
     })
     const { adapter, calls } = mockAdapter([
@@ -430,9 +462,9 @@ describe('durable session log', () => {
 
     await session.send('one')
     // Between turns: the next turn starts with it.
-    await session.append([
-      { type: 'app.signal', text: '[signal] build failed' },
-    ])
+    await session.append({
+      records: [{ type: 'app.signal', text: '[signal] build failed' }],
+    })
     await session.send('two')
 
     expect(messageTexts(calls[1])).toEqual([
@@ -486,9 +518,11 @@ describe('durable session log', () => {
     await session.send('q1')
     await session.send('q2')
 
-    await session.append([
-      { type: 'app.compact', summary: 'Earlier: q1 and a1.', firstKept: 2 },
-    ])
+    await session.append({
+      records: [
+        { type: 'app.compact', summary: 'Earlier: q1 and a1.', firstKept: 2 },
+      ],
+    })
     await session.send('q3')
 
     expect(messageTexts(calls[2])).toEqual([

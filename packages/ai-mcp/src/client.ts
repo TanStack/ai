@@ -65,6 +65,8 @@ type ToolPolicy = Pick<
   'toolFilter' | 'needsApproval' | 'toolName' | 'requestOptions'
 >
 
+type ClientEvents = Pick<MCPClientOptions, 'onClose' | 'onToolListChanged'>
+
 export interface MCPClient<
   TServer extends ServerDescriptor = AutomaticDescriptor,
 > {
@@ -172,6 +174,9 @@ class MCPClientImpl<
   instructions: string | undefined
   readonly #client: Client
   #closed = false
+  // Set when connect succeeds. A close before that is a failed connect.
+  #connected = false
+  readonly #events: ClientEvents
   #toolDefinitions?: Map<string, McpToolDef>
   // Open only after a spec 2026 connect when the server can report tool changes.
   #toolListSubscription?: McpSubscription
@@ -193,11 +198,13 @@ class MCPClientImpl<
     clientOptions?: ClientOptions,
     policy: ToolPolicy = {},
     onElicit?: OnElicit,
+    events: ClientEvents = {},
   ) {
     this.prefix = prefix
     this.#transport = transport
     this.#clientOptions = clientOptions
     this.#policy = policy
+    this.#events = events
     // Try spec 2026-07-28 first. If the server does not support it, the
     // client uses the 2025 initialize handshake. Caller options still apply.
     // `mode` stays `auto` even when `clientOptions` sets another mode.
@@ -256,8 +263,15 @@ class MCPClientImpl<
         'notifications/tools/list_changed',
         () => {
           this.#toolDefinitions = undefined
+          this.#events.onToolListChanged?.()
         },
       )
+      // The SDK calls `onclose` for every close, also for our own `close()`.
+      // Only a close that this client did not start is reported.
+      this.#client.onclose = () => {
+        const isDropped = this.#connected && !this.#closed
+        if (isDropped) this.#events.onClose?.()
+      }
       // The connect handshake gets the request options too, so `timeout`
       // also limits a server that does not answer while it connects.
       await this.#client.connect(
@@ -269,6 +283,7 @@ class MCPClientImpl<
       // A failed listen only means that tool changes are not pushed.
       // The connection still works, so the error does not fail connect.
       await this.#listenForToolListChanges().catch(() => undefined)
+      this.#connected = true
     } catch (err) {
       await this.#toolListSubscription?.close().catch(() => undefined)
       await this.#client.close().catch(() => undefined)
@@ -607,7 +622,8 @@ export type OnElicit = (
 
 /**
  * Connects a client to a transport. The harness passes `onElicit` to answer
- * the `elicitation/create` requests of spec 2025 servers.
+ * the `elicitation/create` requests of spec 2025 servers. `options.onClose`
+ * and `options.onToolListChanged` get the events of the connection.
  */
 export async function connectTransport<
   TServer extends ServerDescriptor = AutomaticDescriptor,
@@ -628,6 +644,10 @@ export async function connectTransport<
       requestOptions: options.requestOptions,
     },
     onElicit,
+    {
+      onClose: options.onClose,
+      onToolListChanged: options.onToolListChanged,
+    },
   )
   await impl.connect(transport)
   return impl

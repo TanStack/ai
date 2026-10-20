@@ -1,7 +1,8 @@
 // Browser-safe: this module has type-only imports from the rest of the
-// package, plus `media-ref`, which has type-only imports itself. So no server
-// code (adapters, stores, secrets) reaches a client.
+// package, plus `media-ref` and `utils`, which have no runtime imports
+// themselves. So no server code (adapters, stores, secrets) reaches a client.
 import { isMediaRecord } from './media-ref'
+import { isRecord } from './utils'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
   LogRecord,
@@ -17,6 +18,7 @@ import type {
   SessionMetadataOf,
 } from './define'
 import type { HostEvent } from './host'
+import type { HarnessErrorCode } from './protocol'
 import type { SessionDescription, SessionSnapshot } from './session/index'
 import type { SessionEntryChange } from './session-entry'
 import type {
@@ -52,6 +54,36 @@ export type {
   HostStatusEvent,
 } from './host'
 
+/**
+ * A `harness.error` frame that ended a stream of the client: `code` says
+ * what failed. `events()` and `hostEvents()` throw it. A `slow_consumer`
+ * error is not thrown: they connect again.
+ */
+export class HarnessProtocolError extends Error {
+  readonly code: HarnessErrorCode
+  constructor(code: HarnessErrorCode, message: string) {
+    super(message)
+    this.name = 'HarnessProtocolError'
+    this.code = code
+  }
+}
+
+/**
+ * The error of a `harness.error` frame. Undefined for another frame and
+ * for `slow_consumer`: the stream ends, and the client connects again.
+ */
+function protocolErrorOf(frame: unknown): HarnessProtocolError | undefined {
+  if (!isRecord(frame) || frame.type !== 'harness.error') return undefined
+  if (frame.code === 'slow_consumer') return undefined
+  const code =
+    typeof frame.code === 'string'
+      ? (frame.code as HarnessErrorCode)
+      : 'internal'
+  const message =
+    typeof frame.message === 'string' ? frame.message : 'Harness stream failed'
+  return new HarnessProtocolError(code, message)
+}
+
 export interface HarnessClientOptions {
   /** The base URL of `createHarnessHandler`, for example `/api/harness`. */
   url: string
@@ -59,8 +91,20 @@ export interface HarnessClientOptions {
   /** Extra headers, for example `Authorization`. */
   headers?: Record<string, string> | (() => Record<string, string>)
   fetch?: typeof fetch
-  /** Wait before a reconnect of `events()`. Default 1000 ms. */
+  /**
+   * The first wait before a reconnect of `events()`. Default 1000 ms. Each
+   * failed try after it doubles the wait, up to 30 s, with a random part.
+   * A read from the server sets the wait back to this value.
+   */
   reconnectDelayMs?: number
+  /**
+   * A connection of `events()` that gets no bytes for this long is dead,
+   * for example after a laptop sleeps or a NAT drops the mapping. The
+   * client closes it and connects again from its last cursor. Default
+   * 60 000 ms. Keep it larger than the `stream.heartbeatMs` of the server
+   * (default 20 000 ms), or the client reconnects in a loop.
+   */
+  idleTimeoutMs?: number
 }
 
 type StartArgs<TAgent> =
@@ -76,20 +120,36 @@ export type ClientAgentHandles<THarness> = {
 }
 
 /** The options of `HarnessClient.send`. */
-export type ClientSendOptions = { inputId?: string } & (
+export type ClientSendOptions = {
+  inputId?: string
+  /**
+   * A W3C `traceparent` of the caller, sent as the `traceparent` header.
+   * The span of the turn on the server links it.
+   */
+  traceparent?: string
+} & (
   | {
       to?: undefined
       mode?: 'prompt'
       busy?: BusyPolicy
       ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
+      /** `'operator'`: an operator reply. See `SendOptions.as`. */
+      as?: 'operator'
     }
   | {
       to?: undefined
       mode: 'steer' | 'followUp'
       busy?: never
       ephemeral?: never
+      as?: never
     }
-  | { to: string; mode?: 'steer' | 'followUp'; busy?: never; ephemeral?: never }
+  | {
+      to: string
+      mode?: 'steer' | 'followUp'
+      busy?: never
+      ephemeral?: never
+      as?: never
+    }
 )
 
 export interface HarnessClient<THarness extends AnyHarness> {
@@ -100,6 +160,8 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * run's agent in `expose.agents`. `inputId` is an id you choose: a retry
    * with the same id and message gets the first receipt and does not run
    * again. `ephemeral` are messages for the model calls of a prompt only.
+   * `as: 'operator'` is the reply of an operator while a handoff to a
+   * person is open: no model runs. The sender needs the `operator` action.
    */
   send: (message: UserInput, options?: ClientSendOptions) => Promise<Receipt>
   /**
@@ -111,7 +173,11 @@ export interface HarnessClient<THarness extends AnyHarness> {
     ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
   }) => Promise<Receipt>
   /**
-   * Answer the interrupts of the last turn, as `session.resolve` does.
+   * Answer the waits of `snapshot().pendingWaits` that have an
+   * `interrupt`, as `session.resolve` does. The waits of the last turn (the
+   * approvals, the `question` tool calls, the client tools, and the
+   * sign-ins) go in one resume. A wait of a background agent run takes a
+   * resolve of its own. A wait with no interrupt takes `answer`.
    *
    * @example
    * ```ts
@@ -132,8 +198,13 @@ export interface HarnessClient<THarness extends AnyHarness> {
   /**
    * Cancel an input that waits (see `snapshot().waitingInputs`). An input
    * that started is refused with `not_waiting`: use `cancel`.
+   *
+   * @example
+   * ```ts
+   * await client.cancelInput({ inputId })
+   * ```
    */
-  cancelInput: (inputId: string) => Promise<Receipt>
+  cancelInput: (options: { inputId: string }) => Promise<Receipt>
   /**
    * Move an input that waits: `'steer'` joins the running turn, `'queue'`
    * runs it as its own turn later.
@@ -143,7 +214,12 @@ export interface HarnessClient<THarness extends AnyHarness> {
     delivery: WaitingInput['delivery']
   }) => Promise<Receipt>
   agents: ClientAgentHandles<THarness>
-  /** Answer a question from a command or a plugin. */
+  /**
+   * Answer a wait of `snapshot().pendingWaits` that no turn holds, as
+   * `session.answer` does: a `step.ask` wait of a command, a durable tool,
+   * or an agent run, an MCP question, or a `human` wait. The waits of the
+   * stopped turn take `resolve`.
+   */
   answer: (answer: { questionId: string; value: unknown }) => Promise<Receipt>
   /**
    * Run the plugin command `name`. Its result arrives as a
@@ -173,9 +249,18 @@ export interface HarnessClient<THarness extends AnyHarness> {
   }) => Promise<Receipt>
   /**
    * Add host records to the session log, as `session.append` does. The
-   * harness must list each record type in `expose.records`.
+   * harness must list each record type in `expose.records`. With `inputId`,
+   * a second append with the same id is a duplicate and writes nothing.
+   *
+   * @example
+   * ```ts
+   * await client.append({ records: [{ type: 'app.signal', text: 'Saved.' }] })
+   * ```
    */
-  append: (records: ReadonlyArray<LogRecord>) => Promise<Receipt>
+  append: (options: {
+    records: ReadonlyArray<LogRecord>
+    inputId?: string
+  }) => Promise<Receipt>
   /** Change a session setting. */
   setConfig: (change: { key: string; value: unknown }) => Promise<Receipt>
   /**
@@ -200,12 +285,19 @@ export interface HarnessClient<THarness extends AnyHarness> {
   /**
    * Go back to the message `messageId`, as `session.revert` does. The
    * harness must list `'undo'` in `expose.commands`.
+   *
+   * @example
+   * ```ts
+   * await client.revert({ messageId })
+   * ```
    */
-  revert: (messageId: string) => Promise<Receipt>
+  revert: (options: { messageId: string }) => Promise<Receipt>
   /** End the revert that stands, as `session.unrevert` does. */
   unrevert: () => Promise<Receipt>
   /**
-   * The session events from `from` (exclusive). Reconnects after a network
+   * The session events from `from` (exclusive). Without `from`, the events
+   * start at the cursor of the snapshot: only new events come. Pass
+   * `from: '0'` to read the events from the start. Reconnects after a network
    * error and resumes from the last cursor. Ends when `signal` aborts.
    * `onConnection` reports `'open'` for each connection and `'reconnecting'`
    * before each new try. When the log dropped the events after `from`, the
@@ -231,8 +323,15 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * The saved messages of a child agent run of the thread, by its
    * `subagentRunId`. Empty for an unknown id. A child with no messages has
    * one message with no content, with its card. See `session.agentTranscript`.
+   *
+   * @example
+   * ```ts
+   * const messages = await client.agentTranscript({ subagentRunId })
+   * ```
    */
-  agentTranscript: (subagentRunId: string) => Promise<Array<ModelMessage>>
+  agentTranscript: (options: {
+    subagentRunId: string
+  }) => Promise<Array<ModelMessage>>
   /**
    * The commands, settings, and tools of the session. Only the commands in
    * `expose.commands` and the config keys in `expose.config`.
@@ -245,17 +344,24 @@ export interface HarnessClient<THarness extends AnyHarness> {
    *
    * @example
    * ```ts
-   * const record = await client.upload({ body: file, mimeType: file.type, name: file.name })
+   * const record = await client.putMedia({ body: file, mimeType: file.type, name: file.name })
    * ```
    */
-  upload: (
+  putMedia: (
     file: MediaUpload<Blob | ArrayBuffer | Uint8Array>,
   ) => Promise<MediaRecord>
   /**
    * A signed URL for a media file, for `<img>`, `<audio>`, or `<video>`. It
    * stops working at `expiresAt` (epoch milliseconds). Ask again for a new one.
+   *
+   * @example
+   * ```ts
+   * const { url } = await client.mediaUrl({ id: record.id })
+   * ```
    */
-  mediaUrl: (id: string) => Promise<{ url?: string; expiresAt?: number }>
+  mediaUrl: (options: {
+    id: string
+  }) => Promise<{ url?: string; expiresAt?: number }>
   /**
    * The bytes of the media file `id`.
    *
@@ -266,13 +372,29 @@ export interface HarnessClient<THarness extends AnyHarness> {
    */
   loadMedia: (options: { id: string }) => Promise<Uint8Array>
   /**
+   * Your sessions on the server, as `host.sessions` has them for the
+   * principal of the request.
+   *
+   * @example
+   * ```ts
+   * const page = await client.sessions.list({ limit: 20 })
+   * await client.sessions.rename({ threadId: 't-1', title: 'Trip plan' })
+   * await client.sessions.delete({ threadId: 't-1' })
+   * ```
+   */
+  sessions: HarnessClientSessions<THarness>
+}
+
+/** The sessions of the user of a `HarnessClient`. See `client.sessions`. */
+export interface HarnessClientSessions<THarness extends AnyHarness> {
+  /**
    * One page of your sessions, newest first. Default: top-level sessions.
    * Pass `parentThreadId` to get the child sessions of a thread, and the
    * `cursor` of a page to get the next page. `search` keeps the sessions
    * whose title contains the text, without case. `metadata` keeps the
    * sessions with each exact metadata value.
    */
-  listSessions: (options?: {
+  list: (options?: {
     limit?: number
     cursor?: string
     parentThreadId?: string
@@ -284,7 +406,7 @@ export interface HarnessClient<THarness extends AnyHarness> {
     }
   >
   /** Set the title of one of your sessions. Resolves to the changed entry. */
-  renameSession: (change: {
+  rename: (change: {
     threadId: string
     title: string
   }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
@@ -294,7 +416,7 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * pass besides `threadId` replaces the stored one. The harness `metadataSchema` checks
    * `metadata` on the server. Resolves to the changed entry.
    */
-  updateSession: (
+  update: (
     change: { threadId: string } & SessionEntryChange<
       SessionMetadataOf<THarness>
     >,
@@ -303,12 +425,12 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * Remove one of your sessions from the session index. The transcript and
    * the other data of the thread stay on the server.
    */
-  deleteSession: (threadId: string) => Promise<void>
+  delete: (options: { threadId: string }) => Promise<void>
   /**
    * Copy one of your sessions into a new session, up to a message id.
    * Resolves to the entry of the new session.
    */
-  forkSession: (options: {
+  fork: (options: {
     threadId: string
     at: ForkPoint
   }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
@@ -321,38 +443,116 @@ type SessionChange =
   | { op: 'delete'; threadId: string }
   | ({ op: 'fork'; threadId: string } & ForkPoint)
 
-/** The `data` of each event of an SSE body, as parsed JSON. */
-async function* sseFrames(
-  body: ReadableStream<Uint8Array>,
-  signal: AbortSignal | undefined,
+/** The longest wait before a reconnect of `events()`. */
+const MAX_RECONNECT_DELAY_MS = 30_000
+
+/**
+ * The default `idleTimeoutMs`: 3 times the default `stream.heartbeatMs` of
+ * the server, so a live connection always sends bytes before it.
+ */
+const IDLE_TIMEOUT_MS = 60_000
+
+/**
+ * The wait before reconnect number `attempt` (0 is the first): `base`
+ * doubled for each attempt, up to 30 s. A random part takes up to half of
+ * it away, so many clients do not reconnect at the same time.
+ */
+function reconnectDelay(base: number, attempt: number) {
+  const full = Math.min(MAX_RECONNECT_DELAY_MS, base * 2 ** attempt)
+  return full / 2 + (full / 2) * Math.random()
+}
+
+/** Run `stop` when `signal` aborts. Returns the function that removes it. */
+function whenAborted(signal: AbortSignal | undefined, stop: () => void) {
+  if (!signal) return () => {}
+  signal.addEventListener('abort', stop, { once: true })
+  return () => signal.removeEventListener('abort', stop)
+}
+
+/** Stop the read of an SSE body. Some fetch shims ignore the signal then. */
+function cancelReader(
+  reader: ReadableStreamDefaultReader<Uint8Array> | undefined,
 ) {
-  const reader = body.getReader()
-  // Some fetch shims ignore the signal once the body streams.
-  signal?.addEventListener('abort', () => void reader.cancel(), {
-    once: true,
-  })
+  reader?.cancel().catch(() => {})
+}
+
+/**
+ * An SSE parser that reads a stream as the SSE spec does. Give it the text
+ * as it comes. It returns the `data` of each event that the text ends.
+ *
+ * - A line ends with CR, LF, or CRLF, also when a CRLF is split across two
+ *   reads.
+ * - The `data` lines of one event are joined with `\n`. One space after the
+ *   colon is not part of the value.
+ * - A line that starts with `:` is a comment.
+ * - Only the new text is read. The part after the last line end is kept.
+ */
+function sseParser() {
+  let line = ''
+  let data: string | undefined
+  // The last text ended with CR. An LF at the start of the next text ends
+  // the same line, so it is skipped.
+  let afterCr = false
+  const endLine = (text: string, events: Array<string>) => {
+    if (text === '') {
+      if (data !== undefined) events.push(data)
+      data = undefined
+      return
+    }
+    if (text.startsWith(':')) return
+    const colon = text.indexOf(':')
+    const field = colon < 0 ? text : text.slice(0, colon)
+    // The client reads only `data`. `id`, `event`, and `retry` are left out.
+    if (field !== 'data') return
+    const raw = colon < 0 ? '' : text.slice(colon + 1)
+    const value = raw.startsWith(' ') ? raw.slice(1) : raw
+    data = data === undefined ? value : `${data}\n${value}`
+  }
+  return (text: string) => {
+    const events: Array<string> = []
+    let start = afterCr && text.startsWith('\n') ? 1 : 0
+    afterCr = false
+    const ends = /\r\n|\r|\n/g
+    ends.lastIndex = start
+    let match = ends.exec(text)
+    while (match) {
+      endLine(line + text.slice(start, match.index), events)
+      line = ''
+      start = match.index + match[0].length
+      afterCr = match[0] === '\r' && start === text.length
+      match = ends.exec(text)
+    }
+    line += text.slice(start)
+    return events
+  }
+}
+
+/**
+ * The `data` of each event of an SSE body, as parsed JSON. `onRead` runs
+ * for each chunk the server sends.
+ */
+async function* sseFrames(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  onRead?: () => void,
+) {
   const decoder = new TextDecoder()
-  let buffer = ''
+  const parse = sseParser()
   try {
     while (true) {
       const { value, done } = await reader.read()
       if (done) return
-      buffer += decoder.decode(value, { stream: true })
-      const blocks = buffer.split('\n\n')
-      buffer = blocks.pop() ?? ''
-      for (const block of blocks) {
-        const data = block
-          .split('\n')
-          .find((line) => line.startsWith('data: '))
-          ?.slice(6)
-        if (!data) continue
+      onRead?.()
+      const events = parse(decoder.decode(value, { stream: true }))
+      for (const data of events) {
+        // An event with an empty `data` has no frame.
+        if (data === '') continue
         const frame: unknown = JSON.parse(data)
         yield frame
       }
     }
   } finally {
     // A reader that stops early closes the connection, so the server stops.
-    reader.cancel().catch(() => {})
+    cancelReader(reader)
   }
 }
 
@@ -380,6 +580,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
 ): HarnessClient<THarness> {
   const base = options.url.replace(/\/$/, '')
   const doFetch = options.fetch ?? fetch
+  const idleTimeoutMs = options.idleTimeoutMs ?? IDLE_TIMEOUT_MS
   const headers = () =>
     typeof options.headers === 'function'
       ? options.headers()
@@ -406,11 +607,24 @@ export function createHarnessClient<THarness extends AnyHarness>(
     throw failure(action, response, refusal)
   }
 
-  const send = async (input: HarnessInput): Promise<Receipt> => {
+  const send = async (
+    input: HarnessInput,
+    traceparent?: string,
+  ): Promise<Receipt> => {
+    // In `cancelInput` and `setDelivery`, `inputId` is the input to change.
+    const namesOther = input.op === 'cancelInput' || input.op === 'setDelivery'
+    // Each input gets an id, so a retry of the same request is the same
+    // input: the handler answers it with the first receipt.
+    const withId =
+      namesOther || input.inputId ? input : { ...input, inputId: newInputId() }
     const response = await doFetch(`${base}/control`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...headers() },
-      body: JSON.stringify({ threadId: options.threadId, input }),
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers(),
+        ...(traceparent ? { traceparent } : {}),
+      },
+      body: JSON.stringify({ threadId: options.threadId, input: withId }),
     })
     const body: unknown = await (await checked('request', response)).json()
     // The handler answers /control with a Receipt.
@@ -432,7 +646,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
     // that reads it. That member type sets `T`.
     (await (await get(route, params)).json()) as T
 
-  const upload = async ({
+  const putMedia = async ({
     body,
     mimeType,
     name,
@@ -456,7 +670,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
     return stored
   }
 
-  const mediaUrl = async (id: string) => {
+  const mediaUrl = async ({ id }: { id: string }) => {
     const body: unknown = await (await get('media-url', { id })).json()
     if (!isSignedPath(body))
       throw new Error('Harness media-url failed: the answer has no signed path')
@@ -493,68 +707,154 @@ export function createHarnessClient<THarness extends AnyHarness>(
   ) {
     let cursor = eventOptions.from
     const signal = eventOptions.signal
-    while (!signal?.aborted) {
-      try {
-        const query = new URLSearchParams({ threadId: options.threadId })
-        if (cursor) query.set('from', cursor)
-        const response = await doFetch(`${base}/events?${query}`, {
-          headers: headers(),
-          ...(signal ? { signal } : {}),
-        })
-        if (!response.ok || !response.body) {
-          throw new Error(`Harness events failed (${response.status})`)
-        }
-        eventOptions.onConnection?.('open')
-        for await (const frame of sseFrames(response.body, signal)) {
-          if (
-            typeof frame === 'object' &&
-            frame !== null &&
-            'type' in frame &&
-            frame.type === 'harness.event' &&
-            'cursor' in frame &&
-            typeof frame.cursor === 'string'
-          ) {
-            cursor = frame.cursor
-            // The handler sends `{ type, cursor, operationId, event }`.
-            const { type: _type, ...entry } = frame as SessionEvent & {
-              type: string
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
+    // Ends the wait before a reconnect.
+    let wake: (() => void) | undefined
+    // Closes a connection that sends nothing for `idleTimeoutMs`.
+    let idle: ReturnType<typeof setTimeout> | undefined
+    // One listener for all the connections: it stops the current read or
+    // the current wait.
+    const stopListening = whenAborted(signal, () => {
+      cancelReader(reader)
+      wake?.()
+    })
+    // The tries since the last read from the server, for the next wait.
+    let attempt = 0
+    // The error of a /snapshot answer with the wrong shape. It is not retried.
+    let badSnapshot: Error | undefined
+    try {
+      while (!signal?.aborted) {
+        try {
+          const query = new URLSearchParams({ threadId: options.threadId })
+          // No `from`: start at the head, so the stream does not send the
+          // whole history first. A thread with no entry has no events yet.
+          if (cursor === undefined) {
+            const head = await doFetch(`${base}/snapshot?${query}`, {
+              headers: headers(),
+              ...(signal ? { signal } : {}),
+            })
+            if (head.status === 404) cursor = '0'
+            else if (!head.ok) {
+              throw new Error(`Harness snapshot failed (${head.status})`)
+            } else {
+              const body: unknown = await head.json()
+              if (!isRecord(body) || typeof body.cursor !== 'string') {
+                // A retry gets the same answer, so stop the read.
+                badSnapshot = new Error(
+                  `Harness snapshot has no string "cursor". Is ${base} a harness handler?`,
+                )
+                throw badSnapshot
+              }
+              cursor = body.cursor
             }
-            yield entry
           }
+          if (cursor) query.set('from', cursor)
+          const response = await doFetch(`${base}/events?${query}`, {
+            headers: headers(),
+            ...(signal ? { signal } : {}),
+          })
+          if (!response.ok || !response.body) {
+            throw new Error(`Harness events failed (${response.status})`)
+          }
+          eventOptions.onConnection?.('open')
+          const connection = response.body.getReader()
+          reader = connection
+          // Each read, a ping too, shows that the connection is alive. A
+          // cancel ends the read, and the loop below connects again.
+          const isAlive = () => {
+            clearTimeout(idle)
+            idle = setTimeout(() => cancelReader(connection), idleTimeoutMs)
+          }
+          isAlive()
+          const frames = sseFrames(reader, () => {
+            attempt = 0
+            isAlive()
+          })
+          for await (const frame of frames) {
+            const failure = protocolErrorOf(frame)
+            if (failure) throw failure
+            if (
+              typeof frame === 'object' &&
+              frame !== null &&
+              'type' in frame &&
+              frame.type === 'harness.event' &&
+              'cursor' in frame &&
+              typeof frame.cursor === 'string'
+            ) {
+              cursor = frame.cursor
+              // The handler sends `{ type, cursor, operationId, event }`.
+              const { type: _type, ...entry } = frame as SessionEvent & {
+                type: string
+              }
+              yield entry
+            }
+          }
+        } catch (error) {
+          if (signal?.aborted) return
+          if (error === badSnapshot) throw error
+          if (error instanceof HarnessProtocolError) throw error
+          // A 404 means that the thread has no entry yet: a new chat, before
+          // its first message. Try again, the same as after a network error.
+          if (error instanceof Error && /\((401|403)\)/.test(error.message))
+            throw error
+        } finally {
+          clearTimeout(idle)
         }
-      } catch (error) {
         if (signal?.aborted) return
-        // A 404 means that the thread has no entry yet: a new chat, before
-        // its first message. Try again, the same as after a network error.
-        if (error instanceof Error && /\((401|403)\)/.test(error.message))
-          throw error
+        eventOptions.onConnection?.('reconnecting')
+        const wait = reconnectDelay(options.reconnectDelayMs ?? 1000, attempt)
+        attempt += 1
+        await new Promise<void>((resolve) => {
+          const timer = setTimeout(resolve, wait)
+          wake = () => {
+            clearTimeout(timer)
+            resolve()
+          }
+        })
+        wake = undefined
       }
-      if (signal?.aborted) return
-      eventOptions.onConnection?.('reconnecting')
-      await new Promise((resolve) =>
-        setTimeout(resolve, options.reconnectDelayMs ?? 1000),
-      )
+    } finally {
+      stopListening()
     }
   }
 
   async function* hostEvents({ signal }: { signal?: AbortSignal } = {}) {
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
+    const stopListening = whenAborted(signal, () => cancelReader(reader))
     try {
-      const response = await checked(
-        'host-events',
-        await doFetch(`${base}/host-events`, {
-          headers: headers(),
-          ...(signal ? { signal } : {}),
-        }),
-      )
-      if (!response.body)
-        throw new Error('Harness host-events failed: the answer has no body')
-      for await (const frame of sseFrames(response.body, signal)) {
-        // The handler sends `HostEvent` frames only.
-        yield frame as HostEvent
+      // A `slow_consumer` error ends the stream: connect again. The current
+      // statuses come first again.
+      let isSlow = true
+      while (isSlow && !signal?.aborted) {
+        isSlow = false
+        const response = await checked(
+          'host-events',
+          await doFetch(`${base}/host-events`, {
+            headers: headers(),
+            ...(signal ? { signal } : {}),
+          }),
+        )
+        if (!response.body)
+          throw new Error('Harness host-events failed: the answer has no body')
+        reader = response.body.getReader()
+        for await (const frame of sseFrames(reader)) {
+          // The handler sends `HostEvent` frames, and `harness.*` frames
+          // (the hello first, an error last) that are not host events.
+          const type = isRecord(frame) ? frame.type : undefined
+          if (type === 'harness.error') {
+            const failure = protocolErrorOf(frame)
+            if (failure) throw failure
+            isSlow = true
+          } else if (typeof type !== 'string' || !type.startsWith('harness.')) {
+            yield frame as HostEvent
+          }
+        }
       }
     } catch (error) {
       if (signal?.aborted) return
       throw error
+    } finally {
+      stopListening()
     }
   }
 
@@ -588,14 +888,23 @@ export function createHarnessClient<THarness extends AnyHarness>(
         })
       }
       const mode = sendOptions?.mode ?? 'prompt'
-      if (mode !== 'prompt') return send({ op: mode, message, ...inputId })
-      return send({
-        op: 'prompt',
-        message,
-        ...(sendOptions?.busy ? { busy: sendOptions.busy } : {}),
-        ...(sendOptions?.ephemeral ? { ephemeral: sendOptions.ephemeral } : {}),
-        ...inputId,
-      })
+      const traceparent = sendOptions?.traceparent
+      if (mode !== 'prompt') {
+        return send({ op: mode, message, ...inputId }, traceparent)
+      }
+      return send(
+        {
+          op: 'prompt',
+          message,
+          ...(sendOptions?.busy ? { busy: sendOptions.busy } : {}),
+          ...(sendOptions?.ephemeral
+            ? { ephemeral: sendOptions.ephemeral }
+            : {}),
+          ...(sendOptions?.as ? { as: sendOptions.as } : {}),
+          ...inputId,
+        },
+        traceparent,
+      )
     },
     continue: (continueOptions) =>
       send({
@@ -611,7 +920,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
       send({ op: 'resolve', resume, ...(inputId ? { inputId } : {}) }),
     cancel: ({ operationId } = {}) =>
       send({ op: 'cancel', ...(operationId ? { operationId } : {}) }),
-    cancelInput: (inputId) => send({ op: 'cancelInput', inputId }),
+    cancelInput: ({ inputId }) => send({ op: 'cancelInput', inputId }),
     setDelivery: ({ inputId, delivery }) =>
       send({ op: 'setDelivery', inputId, delivery }),
     agents,
@@ -626,7 +935,12 @@ export function createHarnessClient<THarness extends AnyHarness>(
         ...(meta ? { meta } : {}),
         ...(inputId ? { inputId } : {}),
       }),
-    append: (records) => send({ op: 'append', records: [...records] }),
+    append: ({ records, inputId }) =>
+      send({
+        op: 'append',
+        records: [...records],
+        ...(inputId ? { inputId } : {}),
+      }),
     setConfig: ({ key, value }) => send({ op: 'config', key, value }),
     configure: ({ settings, inputId }) =>
       send({ op: 'configure', settings, ...(inputId ? { inputId } : {}) }),
@@ -636,48 +950,57 @@ export function createHarnessClient<THarness extends AnyHarness>(
         ...(note !== undefined ? { note } : {}),
         ...(inputId ? { inputId } : {}),
       }),
-    revert: (messageId) => send({ op: 'revert', messageId }),
+    revert: ({ messageId }) => send({ op: 'revert', messageId }),
     unrevert: () => send({ op: 'unrevert' }),
     events,
     hostEvents,
     snapshot: () => read('snapshot'),
     transcript: () => read('transcript'),
-    agentTranscript: (subagentRunId) =>
+    agentTranscript: ({ subagentRunId }) =>
       read('agent-transcript', { subagentRunId }),
     describe: () => read('describe'),
-    upload,
+    putMedia,
     mediaUrl,
     loadMedia,
-    listSessions: async ({
-      limit,
-      cursor,
-      parentThreadId,
-      search,
-      metadata = {},
-    } = {}) => {
-      const query = new URLSearchParams()
-      if (limit !== undefined) query.set('limit', String(limit))
-      if (cursor) query.set('cursor', cursor)
-      if (parentThreadId) query.set('parentThreadId', parentThreadId)
-      if (search) query.set('search', search)
-      for (const [key, value] of Object.entries(metadata))
-        query.set(`metadata.${key}`, value)
-      const response = await checked(
-        'sessions',
-        await doFetch(`${base}/sessions?${query}`, { headers: headers() }),
-      )
-      // The handler answers with one page of the session index.
-      return (await response.json()) as Omit<SessionIndexPage, 'entries'> & {
-        entries: Array<SessionIndexEntry<SessionMetadataOf<THarness>>>
-      }
+    sessions: {
+      list: async ({
+        limit,
+        cursor,
+        parentThreadId,
+        search,
+        metadata = {},
+      } = {}) => {
+        const query = new URLSearchParams()
+        if (limit !== undefined) query.set('limit', String(limit))
+        if (cursor) query.set('cursor', cursor)
+        if (parentThreadId) query.set('parentThreadId', parentThreadId)
+        if (search) query.set('search', search)
+        for (const [key, value] of Object.entries(metadata))
+          query.set(`metadata.${key}`, value)
+        const response = await checked(
+          'sessions',
+          await doFetch(`${base}/sessions?${query}`, { headers: headers() }),
+        )
+        // The handler answers with one page of the session index.
+        return (await response.json()) as Omit<SessionIndexPage, 'entries'> & {
+          entries: Array<SessionIndexEntry<SessionMetadataOf<THarness>>>
+        }
+      },
+      rename: ({ threadId, title }) =>
+        sessionEntry({ op: 'rename', threadId, title }),
+      update: (change) => sessionEntry({ ...change, op: 'update' }),
+      delete: async ({ threadId }) => {
+        await changeSession({ op: 'delete', threadId })
+      },
+      fork: ({ threadId, at }) => sessionEntry({ op: 'fork', threadId, ...at }),
     },
-    renameSession: ({ threadId, title }) =>
-      sessionEntry({ op: 'rename', threadId, title }),
-    updateSession: (change) => sessionEntry({ ...change, op: 'update' }),
-    deleteSession: async (threadId) => {
-      await changeSession({ op: 'delete', threadId })
-    },
-    forkSession: ({ threadId, at }) =>
-      sessionEntry({ op: 'fork', threadId, ...at }),
   }
+}
+
+// Browsers expose `crypto.randomUUID` only on HTTPS and localhost. The id
+// only has to be unique, so plain HTTP falls back to random digits.
+function newInputId(): string {
+  return typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`
 }

@@ -120,6 +120,11 @@ function credentialFrom(
     ...(typeof response.scope === 'string'
       ? { scopes: response.scope.split(/[ ,]/).filter(Boolean) }
       : {}),
+    // A refresh keeps the client the tokens belong to: the next refresh
+    // needs it too.
+    ...(previous?.type === 'oauth' && previous.client
+      ? { client: previous.client }
+      : {}),
   }
 }
 
@@ -364,7 +369,12 @@ export async function loopbackLogin(
 export async function deviceLogin(
   config: OAuthConfig,
   options: {
-    onCode: (info: { userCode: string; verificationUri: string }) => void
+    /** `expiresAt`: when the code expires, in epoch milliseconds. */
+    onCode: (info: {
+      userCode: string
+      verificationUri: string
+      expiresAt: number
+    }) => void
     fetch?: Fetch
     signal?: AbortSignal
     /**
@@ -416,7 +426,7 @@ export async function deviceLogin(
     ('expires_in' in device && typeof device.expires_in === 'number'
       ? device.expires_in * 1000
       : 15 * 60_000)
-  options.onCode({ userCode: device.user_code, verificationUri })
+  options.onCode({ userCode: device.user_code, verificationUri, expiresAt })
 
   while (Date.now() < expiresAt) {
     await sleep(interval, signal)

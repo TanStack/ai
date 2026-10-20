@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { toolDefinition } from '@tanstack/ai'
+import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { defineByokProvider, keyedAdapter } from '@tanstack/ai/byok'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import {
@@ -12,7 +12,14 @@ import {
   logIdOf,
   membersOnly,
 } from '../src'
-import { after, gate, mockAdapter, text, toolCall } from './helpers'
+import {
+  after,
+  gate,
+  mockAdapter,
+  questionsOf,
+  text,
+  toolCall,
+} from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type { LogStore } from '@tanstack/ai-persistence'
 import type {
@@ -510,7 +517,7 @@ const asking = definePlugin({
       ask: defineCommand({
         description: 'Ask a question',
         run: (_input, ctx) =>
-          ctx.session.ask({ message: 'Name?', schema: z.string() }),
+          ctx.step.ask({ name: 'name', message: 'Name?', schema: z.string() }),
       }),
     },
   }),
@@ -577,10 +584,8 @@ describe('access to the inputs of the input lane', () => {
       principal: bea,
     })
     const running = member.command({ name: 'ask' })
-    await waitFor(() =>
-      expect(member.snapshot().pendingQuestions).toHaveLength(1),
-    )
-    const [question] = member.snapshot().pendingQuestions
+    await waitFor(() => expect(questionsOf(member.snapshot())).toHaveLength(1))
+    const [question] = questionsOf(member.snapshot())
     const answer = (principal: User, value: string) =>
       submitter.submit({
         harness,
@@ -649,6 +654,103 @@ describe('access to the inputs of the input lane', () => {
     await member.cancelSchedule({ scheduleId })
     expect(await isDone()).toBe(true)
     await host.close()
+  })
+})
+
+describe('a resolve of the waits of background agent runs', () => {
+  /** Two hosts on one database. `cleaner` waits for an approval. */
+  function cleaningHosts() {
+    const persistence = memoryPersistence()
+    const access = { identify: (): User | null => null, authorize: ownRunsOnly }
+    const owner = createHarnessHost({ persistence, access })
+    const submitter = createHarnessHost({ persistence, access })
+    const remove = toolDefinition({
+      name: 'remove',
+      description: 'Remove a file. Needs approval.',
+      needsApproval: true,
+      inputSchema: z.object({ path: z.string() }),
+    }).server(() => Promise.resolve({ removed: true }))
+    const model = mockAdapter([
+      () => toolCall('remove', { path: 'a.log' }, 'call-a'),
+      () => toolCall('remove', { path: 'b.log' }, 'call-b'),
+      () => text('Done.'),
+      () => text('Done.'),
+    ])
+    const cleaner = defineAgent({
+      name: 'cleaner',
+      description: 'Cleans up',
+      run: (ctx) => ctx.chat({ adapter: model.adapter, tools: [remove] }),
+    })
+    const harness = defineHarness({
+      name: 'test/access',
+      adapter: mockAdapter([]).adapter,
+      agents: [cleaner],
+    })
+    return { owner, submitter, harness }
+  }
+
+  /** bea and olga each start a run that waits for an approval. */
+  async function twoWaitingRuns() {
+    const hosts = cleaningHosts()
+    const open = (principal: User) =>
+      hosts.owner.open(hosts.harness, { threadId: THREAD, principal })
+    const mine = await open(bea)
+    const theirs = await open(olga)
+    const runs = [mine.agents.cleaner.start(), theirs.agents.cleaner.start()]
+    for (const run of runs)
+      run.then(
+        () => {},
+        () => {},
+      )
+    const waitOf = (runId: string) =>
+      waitFor(() => {
+        const wait = mine
+          .snapshot()
+          .pendingWaits.find((open) => open.runId === runId)
+        expect(wait).toBeDefined()
+        return wait!
+      })
+    const beaWait = await waitOf(runs[0]!.id)
+    const olgaWait = await waitOf(runs[1]!.id)
+    return { ...hosts, mine, beaWait, olgaWait }
+  }
+
+  it('refuses a batch with the wait of a run of another user', async () => {
+    const { owner, submitter, mine, beaWait, olgaWait } = await twoWaitingRuns()
+    const answer = (waitId: string) =>
+      ({ interruptId: waitId, status: 'resolved', payload: true }) as const
+
+    expect(
+      await mine.resolve({
+        resume: [answer(beaWait.waitId), answer(olgaWait.waitId)],
+      }),
+    ).toMatchObject({ status: 'rejected', reason: 'mixed_runs' })
+    expect(mine.snapshot().pendingWaits.map(({ waitId }) => waitId)).toEqual(
+      expect.arrayContaining([beaWait.waitId, olgaWait.waitId]),
+    )
+    await owner.close()
+    await submitter.close()
+  })
+
+  it('checks a resolve from host.submit against the run of the wait', async () => {
+    const { owner, submitter, harness, olgaWait } = await twoWaitingRuns()
+    const submit = (principal: User) =>
+      submitter.submit({
+        harness,
+        threadId: THREAD,
+        principal,
+        input: {
+          op: 'resolve',
+          resume: [
+            { interruptId: olgaWait.waitId, status: 'resolved', payload: true },
+          ],
+        },
+      })
+
+    await expect(submit(bea)).rejects.toBeInstanceOf(AccessDeniedError)
+    expect((await submit(olga)).status).toBe('queued')
+    await owner.close()
+    await submitter.close()
   })
 })
 

@@ -83,7 +83,7 @@ function model(): AnyTextAdapter {
 
 const tools = definePlugin({
   name: 'test/tools',
-  setup: (ctx) => ({
+  setup: () => ({
     config: {
       level: configOption.select({ options: ['low', 'high'], default: 'low' }),
     },
@@ -108,8 +108,9 @@ const tools = definePlugin({
       }),
       confirm: defineCommand({
         description: 'Asks a yes or no question',
-        run: async () => {
-          const answer = await ctx.session.ask({
+        run: async (_input, { step }) => {
+          const answer = await step.ask({
+            name: 'sure',
             message: 'Sure?',
             schema: z.boolean(),
           })
@@ -215,7 +216,7 @@ describe('handleLine', () => {
     expect(asked).toMatchObject({ type: 'notice', text: '' })
     const later = asked.type === 'notice' ? asked.later : undefined
     expect(later).toBeDefined()
-    expect(session.snapshot().pendingQuestions).toHaveLength(1)
+    expect(session.snapshot().pendingWaits).toHaveLength(1)
     expect(await handleLine(session, 'maybe')).toMatchObject({
       text: expect.stringMatching(/^Answer again: /),
     })

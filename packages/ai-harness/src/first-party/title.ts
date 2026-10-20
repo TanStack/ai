@@ -1,4 +1,3 @@
-import { chat } from '@tanstack/ai'
 import { createPluginEvent } from '../extensions'
 import { definePlugin } from '../plugins'
 import { textOf } from './session-tools'
@@ -58,12 +57,15 @@ export function title(options: {
         if (!first || !entry || entry.title) return
         // ponytail: the first 2000 characters are enough for a title.
         const message = textOf(first).slice(0, 2000)
-        const answer = await chat({
-          adapter: await run.keys.adapter(options.adapter),
-          messages: [
-            { role: 'user', content: `${TITLE_PROMPT}\n\n${message}` },
-          ],
-          stream: false,
+        const answer = await ctx.model.chat({
+          adapter: options.adapter,
+          run,
+          label: 'title',
+          options: {
+            messages: [
+              { role: 'user', content: `${TITLE_PROMPT}\n\n${message}` },
+            ],
+          },
         })
         const text = cleanTitle(answer.text)
         if (text) await ctx.session.updateEntry({ title: text })
