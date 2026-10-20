@@ -357,7 +357,8 @@ async function pinScenario(root: string) {
     const deadline = Date.now() + 5000
     let offers = 0
     while (Date.now() < deadline) {
-      offers = (await persistence.stores.log.offered({ logId })).length
+      offers = (await persistence.stores.log.listOfferedInputs({ logId }))
+        .length
       if (offers > 0) break
       await new Promise((done) => setTimeout(done, 50))
     }

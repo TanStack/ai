@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { EventType, toolDefinition } from '@tanstack/ai'
 import { defineByokProvider, keyedAdapter } from '@tanstack/ai/byok'
 import {
-  UNOWNED_EPOCH,
+  NO_OWNER_EPOCH,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -608,7 +608,7 @@ describe('ephemeral input', () => {
     await persistence.stores.log.append({
       logId: LOG,
       seq: 1,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records: [
         {
           type: 'harness.transcript',

@@ -131,9 +131,9 @@ describe('a durable host with only a log', () => {
     const log = memoryLogStore()
     // A store that releases after a timer, like one over the network.
     const slow = wrapLogStore(log, {
-      release: async (claim) => {
+      releaseOwnership: async (claim) => {
         await new Promise((resolve) => setTimeout(resolve, 5))
-        await log.release(claim)
+        await log.releaseOwnership(claim)
       },
     })
     const remove = toolDefinition({

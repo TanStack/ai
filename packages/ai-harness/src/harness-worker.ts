@@ -132,7 +132,7 @@ export function createHarnessWorker<U extends HarnessUser>({
     const free = concurrency - running.size
     // The logs that this worker takes over now, and the logs that failed,
     // can still be listed: look past them.
-    const orphans = await sweep.listOrphaned({
+    const orphans = await sweep.listLogsWithoutOwner({
       limit: free + running.size + failures.size,
       harnesses: names,
     })

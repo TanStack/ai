@@ -250,7 +250,7 @@ describe('the workspace binding in the session log', () => {
     const { log } = persistence.stores
     const binding = { kind: 'host', hostId: 'host-a', root: '/ws' }
     // host-a runs: its pins count.
-    await log.heartbeat({ hostId: 'host-a', ttlMs: 60_000 })
+    await log.markHostAlive({ hostId: 'host-a', ttlMs: 60_000 })
     await appendToLog(log, { threadId: THREAD }, [
       { type: 'harness.workspace.bound', binding },
     ])
@@ -295,7 +295,7 @@ describe('the workspace binding in the session log', () => {
     const sent = (await other.opened).send('read')
     await waitFor(
       async () => {
-        expect(await log.offered({ logId: LOG })).toHaveLength(1)
+        expect(await log.listOfferedInputs({ logId: LOG })).toHaveLength(1)
       },
       { timeout: 5000 },
     )
@@ -338,9 +338,16 @@ describe('the workspace binding in the session log', () => {
     // Past the ttl: pod-a released the idle log, and it still runs.
     await new Promise((resolve) => setTimeout(resolve, 1_200))
     const asPodA = { logId: LOG, harness: 'x', ownerId: 'x', ttlMs: 1_000 }
-    const released = await log.acquire({ ...asPodA, affinity: 'pod-a' })
+    const released = await log.acquireOwnership({
+      ...asPodA,
+      affinity: 'pod-a',
+    })
     expect(released).not.toBeNull()
-    await log.release({ logId: LOG, ownerId: 'x', epoch: released?.epoch ?? 0 })
+    await log.releaseOwnership({
+      logId: LOG,
+      ownerId: 'x',
+      epoch: released?.epoch ?? 0,
+    })
 
     expect(await canOtherHostTake(log, LOG)).toBe(false)
     await live.close()
@@ -418,7 +425,7 @@ describe('the workspace binding in the session log', () => {
     const { log } = persistence.stores
     const inFolder = { root: '/ws', backend: backend() }
     // A binding to pod-a, and no pin yet: host B gets the log.
-    await log.heartbeat({ hostId: 'pod-a', ttlMs: 60_000 })
+    await log.markHostAlive({ hostId: 'pod-a', ttlMs: 60_000 })
     await appendToLog(log, { threadId: THREAD }, [
       {
         type: 'harness.workspace.bound',

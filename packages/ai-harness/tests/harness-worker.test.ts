@@ -203,9 +203,9 @@ describe('createHarnessWorker', () => {
     const inner = memoryLogStore()
     const looks = vi.fn()
     const log = wrapLogStore(inner, {
-      listOrphaned: (query) => {
+      listLogsWithoutOwner: (query) => {
         looks()
-        return inner.listOrphaned(query)
+        return inner.listLogsWithoutOwner(query)
       },
     })
     const host = hostOn(log)
@@ -239,9 +239,9 @@ describe('createHarnessWorker', () => {
     const looks = vi.fn()
     const host = hostOn(
       wrapLogStore(log, {
-        listOrphaned: (query) => {
+        listLogsWithoutOwner: (query) => {
           looks()
-          return log.listOrphaned(query)
+          return log.listLogsWithoutOwner(query)
         },
       }),
     )
@@ -407,7 +407,7 @@ describe('session.schedule', () => {
     await pause()
     expect(calls).toHaveLength(1)
     expect(await countOf(a, 'harness.input', 'schedule:daily')).toBe(1)
-    expect(await a.listOrphaned({ limit: 10 })).toEqual([])
+    expect(await a.listLogsWithoutOwner({ limit: 10 })).toEqual([])
     await worker.stop()
     await runner.close()
   })

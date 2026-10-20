@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { EventType, defineAgent } from '@tanstack/ai'
-import { UNOWNED_EPOCH, memoryPersistence } from '@tanstack/ai-persistence'
+import { NO_OWNER_EPOCH, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, logIdOf } from '../src'
 import { createHarnessClient } from '../src/client'
 import { createHarnessHandler, handleHarnessSocket } from '../src/server'
@@ -174,7 +174,7 @@ describe('run tags on session events', () => {
     await persistence.stores.log.append({
       logId: logIdOf({ logId: 'old' }),
       seq: 1,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records: [
         {
           type: 'harness.event',

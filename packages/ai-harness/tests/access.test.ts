@@ -536,7 +536,9 @@ async function hasRecord(
 /** The input ids that wait in the lane of `THREAD` in tenant `acme`. */
 const waitingIn = async (log: LogStore) =>
   (
-    await log.offered({ logId: logIdOf({ tenantId: 'acme', logId: THREAD }) })
+    await log.listOfferedInputs({
+      logId: logIdOf({ tenantId: 'acme', logId: THREAD }),
+    })
   ).map((offer) => offer.inputId)
 
 /** A command that asks a question, and returns the answer. */

@@ -91,7 +91,7 @@ const contents = (
 
 /** The input ids that wait in the lane of `THREAD`. */
 const waiting = async (log: LogStore) =>
-  (await log.offered({ logId: LOG })).map((offer) => offer.inputId)
+  (await log.listOfferedInputs({ logId: LOG })).map((offer) => offer.inputId)
 
 /** A command that asks for a password, and says if it is right. */
 const asking = (secret: boolean) =>
@@ -225,7 +225,8 @@ describe('an input that reaches a host that does not own the log', () => {
     // The owner does not read the lane until the test lets it.
     let isLaneOpen = false
     const slowLane = wrapLogStore(a, {
-      offered: (scope) => (isLaneOpen ? a.offered(scope) : Promise.resolve([])),
+      listOfferedInputs: (scope) =>
+        isLaneOpen ? a.listOfferedInputs(scope) : Promise.resolve([]),
     })
     const release = gate()
     const ownerModel = mockAdapter([
@@ -480,9 +481,9 @@ describe('an input that reaches a host that does not own the log', () => {
       const { a, b } = twoStores()
       const offers: Array<unknown> = []
       const offering = wrapLogStore(b, {
-        offer: (input) => {
+        offerInput: (input) => {
           offers.push(input)
-          return b.offer(input)
+          return b.offerInput(input)
         },
       })
       const { credentials, saved } = sharedCredentials()
@@ -964,10 +965,13 @@ describe('the input lane while idle', () => {
       }
       return wrapLogStore(log, {
         read: (query) => (count(), log.read(query)),
-        offered: (query) => (count(), log.offered(query)),
-        acquire: (claim) => (count(), log.acquire(claim)),
-        renew: (claim) => (count(), log.renew(claim)),
-        listOrphaned: (query) => (count(), log.listOrphaned(query)),
+        listOfferedInputs: (query) => (count(), log.listOfferedInputs(query)),
+        acquireOwnership: (claim) => (count(), log.acquireOwnership(claim)),
+        renewOwnership: (claim) => (count(), log.renewOwnership(claim)),
+        listLogsWithoutOwner: (query) => (
+          count(),
+          log.listLogsWithoutOwner(query)
+        ),
       })
     }
     const release = gate()

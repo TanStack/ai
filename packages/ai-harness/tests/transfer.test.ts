@@ -650,9 +650,9 @@ describe('host.transfer across hosts', () => {
         )?.to,
       ).toEqual({ harness: 'test/billing', threadId }),
     )
-    expect(await twoLog.offered({ logId: logIdOf({ logId: SOURCE }) })).toEqual(
-      [],
-    )
+    expect(
+      await twoLog.listOfferedInputs({ logId: logIdOf({ logId: SOURCE }) }),
+    ).toEqual([])
     // The saved messages moved: not the answer of the turn that runs.
     const target = await two.open(billing, { threadId })
     expect(contents(await target.transcript())).toEqual([

@@ -202,7 +202,7 @@ describe('subagents.router', () => {
       pick: 'writer',
       ownership: { renewEveryMs: 5 },
     })
-    const renew = vi.spyOn(log, 'renew')
+    const renew = vi.spyOn(log, 'renewOwnership')
 
     await session.send('go')
 

@@ -15,7 +15,7 @@ export {
   LogConflictError,
   LogTruncatedError,
   OwnershipLostError,
-  UNOWNED_EPOCH,
+  NO_OWNER_EPOCH,
   // Run lifecycle helpers owned by @tanstack/ai, transiting through ./types so
   // this package's public surface stays a single import for backend authors.
   isTerminalRunStatus,

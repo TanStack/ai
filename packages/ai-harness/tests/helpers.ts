@@ -57,14 +57,19 @@ export function wrapLogStore(
     append: overrides.append ?? inner.append.bind(inner),
     read: overrides.read ?? inner.read.bind(inner),
     subscribe: overrides.subscribe ?? inner.subscribe.bind(inner),
-    acquire: overrides.acquire ?? inner.acquire.bind(inner),
-    renew: overrides.renew ?? inner.renew.bind(inner),
-    release: overrides.release ?? inner.release.bind(inner),
-    setAffinity: overrides.setAffinity ?? inner.setAffinity.bind(inner),
-    heartbeat: overrides.heartbeat ?? inner.heartbeat.bind(inner),
-    listOrphaned: overrides.listOrphaned ?? inner.listOrphaned.bind(inner),
-    offer: overrides.offer ?? inner.offer.bind(inner),
-    offered: overrides.offered ?? inner.offered.bind(inner),
+    acquireOwnership:
+      overrides.acquireOwnership ?? inner.acquireOwnership.bind(inner),
+    renewOwnership:
+      overrides.renewOwnership ?? inner.renewOwnership.bind(inner),
+    releaseOwnership:
+      overrides.releaseOwnership ?? inner.releaseOwnership.bind(inner),
+    pinToWorkers: overrides.pinToWorkers ?? inner.pinToWorkers.bind(inner),
+    markHostAlive: overrides.markHostAlive ?? inner.markHostAlive.bind(inner),
+    listLogsWithoutOwner:
+      overrides.listLogsWithoutOwner ?? inner.listLogsWithoutOwner.bind(inner),
+    offerInput: overrides.offerInput ?? inner.offerInput.bind(inner),
+    listOfferedInputs:
+      overrides.listOfferedInputs ?? inner.listOfferedInputs.bind(inner),
     getSnapshot: overrides.getSnapshot ?? inner.getSnapshot.bind(inner),
     putSnapshot: overrides.putSnapshot ?? inner.putSnapshot.bind(inner),
     truncate: overrides.truncate ?? inner.truncate.bind(inner),
@@ -166,14 +171,14 @@ export async function appendToLog(
  */
 export async function canOtherHostTake(log: LogStore, logId: string) {
   const ownerId = 'other-host'
-  const owned = await log.acquire({
+  const owned = await log.acquireOwnership({
     logId,
     harness: 'other-host',
     ownerId,
     ttlMs: 60_000,
   })
   if (owned === null) return false
-  await log.release({ logId, ownerId, epoch: owned.epoch })
+  await log.releaseOwnership({ logId, ownerId, epoch: owned.epoch })
   return true
 }
 
@@ -188,7 +193,7 @@ export async function writeAsOtherHost(
   write: (epoch: number) => Promise<void>,
 ) {
   const ownerId = 'other-host'
-  const owned = await log.acquire({
+  const owned = await log.acquireOwnership({
     logId,
     harness: 'other-host',
     ownerId,
@@ -200,7 +205,7 @@ export async function writeAsOtherHost(
   try {
     await write(owned.epoch)
   } finally {
-    await log.release({ logId, ownerId, epoch: owned.epoch })
+    await log.releaseOwnership({ logId, ownerId, epoch: owned.epoch })
   }
 }
 

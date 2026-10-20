@@ -4,7 +4,7 @@ import {
   validateJsonSchema,
   validateWithStandardSchema,
 } from '@tanstack/ai'
-import { UNOWNED_EPOCH, loadChildTranscript } from '@tanstack/ai-persistence'
+import { NO_OWNER_EPOCH, loadChildTranscript } from '@tanstack/ai-persistence'
 import { ownerOf } from '../access'
 import { checkConfigValue } from '../config'
 import { transcriptText } from '../first-party/session-tools'
@@ -240,7 +240,7 @@ export abstract class SessionState<
       !writer ||
       this.logFailure ||
       this.activeTurn ||
-      writer.epoch !== UNOWNED_EPOCH
+      writer.epoch !== NO_OWNER_EPOCH
     ) {
       return this.interrupted
     }

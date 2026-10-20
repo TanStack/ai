@@ -3,7 +3,7 @@ import {
   LogConflictError,
   LogTruncatedError,
   OwnershipLostError,
-  UNOWNED_EPOCH,
+  NO_OWNER_EPOCH,
 } from '@tanstack/ai-persistence'
 import { gapEvent } from './feed'
 import { LogOwnedElsewhereError } from './ownership'
@@ -1384,7 +1384,7 @@ export interface LogWriter extends EventFeed {
   /** Fold the records that another writer appended, after the queued writes. */
   catchUp: () => Promise<void>
   /**
-   * The epoch at which this host owns the log, or {@link UNOWNED_EPOCH} when
+   * The epoch at which this host owns the log, or {@link NO_OWNER_EPOCH} when
    * it does not own it now.
    */
   readonly epoch: number
@@ -1769,7 +1769,7 @@ export class SharedLog<TState = unknown> {
     const redact = hooks.redact ?? (<T>(value: T) => value)
     const shared = this.state
     // `this` in a getter below is the view.
-    const epochOf = () => this.epoch ?? UNOWNED_EPOCH
+    const epochOf = () => this.epoch ?? NO_OWNER_EPOCH
     let closed = false
     // A closed view writes nothing more, like a host that stopped. After a
     // failed write, a write still rejects with that failure. A fenced view
@@ -2089,7 +2089,7 @@ export class SharedLog<TState = unknown> {
     // Before the call: the store calls the listeners in it.
     this.offeredHere.add(inputId)
     const offered = await this.store
-      .offer({
+      .offerInput({
         logId: this.logId,
         harness: this.harness,
         inputId,
@@ -2107,7 +2107,7 @@ export class SharedLog<TState = unknown> {
 
   /** The pending offers of session `thread`. */
   private async offered(thread: string) {
-    const offers = await this.store.offered({ logId: this.logId })
+    const offers = await this.store.listOfferedInputs({ logId: this.logId })
     // The offers of this host that the owner consumed wait no more.
     const pending = new Set(offers.map((offer) => offer.inputId))
     for (const inputId of [...this.offeredHere]) {
@@ -2399,7 +2399,7 @@ export class SharedLog<TState = unknown> {
   }) {
     try {
       if (batch.length === 0) {
-        const offers = await this.store.offered({ logId: this.logId })
+        const offers = await this.store.listOfferedInputs({ logId: this.logId })
         return !offers.some((offer) => consumes.includes(offer.inputId))
       }
       const entries = await this.store.read({
@@ -2851,7 +2851,7 @@ export function logMessageStore(options: {
           await store.append({
             logId: logOf(threadId),
             seq: state.seq + 1,
-            epoch: UNOWNED_EPOCH,
+            epoch: NO_OWNER_EPOCH,
             records,
           })
           return

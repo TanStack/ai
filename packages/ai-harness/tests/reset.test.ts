@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import {
-  UNOWNED_EPOCH,
+  NO_OWNER_EPOCH,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -296,7 +296,7 @@ describe('reset after a restart', () => {
     await log.append({
       logId: logIdOf({ logId: 't1' }),
       seq: 1,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records: [
         {
           type: 'harness.input',

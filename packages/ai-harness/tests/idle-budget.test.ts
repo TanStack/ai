@@ -55,7 +55,7 @@ describe('an idle session', () => {
     const session = await host.open(harness, { threadId: 't1' })
     await session.send('hi')
     // The session gives its log back when its work ends.
-    await waitFor(() => expect(calls).toContain('log.release'))
+    await waitFor(() => expect(calls).toContain('log.releaseOwnership'))
     await vi.advanceTimersByTimeAsync(100)
     // The spy sees the writes of the turn.
     expect(calls).toContain('log.append')

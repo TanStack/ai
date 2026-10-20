@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import {
-  UNOWNED_EPOCH,
+  NO_OWNER_EPOCH,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -86,7 +86,7 @@ function durableHost() {
       log.append({
         logId: key,
         seq: 1,
-        epoch: UNOWNED_EPOCH,
+        epoch: NO_OWNER_EPOCH,
         records: [
           { type: 'harness.input', inputId: 'in-1', input: PROMPT, at: 1 },
         ],
@@ -178,7 +178,7 @@ describe('one thread id in two tenants', () => {
     const { persistence, seedInput } = durableHost()
     await seedInput(ACME_THREAD)
     // The host that logged the input stopped while it owned the log.
-    await persistence.stores.log.acquire({
+    await persistence.stores.log.acquireOwnership({
       logId: ACME_THREAD,
       harness: NAME,
       ownerId: 'host-gone',

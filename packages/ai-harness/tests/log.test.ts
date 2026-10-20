@@ -4,7 +4,7 @@ import {
   LogConflictError,
   LogTruncatedError,
   OwnershipLostError,
-  UNOWNED_EPOCH,
+  NO_OWNER_EPOCH,
   memoryLogStore,
 } from '@tanstack/ai-persistence'
 import {
@@ -344,7 +344,7 @@ describe('fold robustness', () => {
       await inner.append({
         logId: LOG,
         seq,
-        epoch: UNOWNED_EPOCH,
+        epoch: NO_OWNER_EPOCH,
         records: [{ type: 'app.signal', text: `s${seq}` }],
       })
     }
@@ -524,7 +524,7 @@ describe('input fold', () => {
     await store.append({
       logId: LOG,
       seq: 1,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records: [
         {
           type: 'harness.input',
@@ -541,14 +541,14 @@ describe('input fold', () => {
     await store.append({
       logId: LOG,
       seq: 2,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records: [retry(1), retry(2)],
     })
     expect((await loadSession({ store })).inputs.get('in-1')?.retries).toBe(2)
     await store.append({
       logId: LOG,
       seq: 4,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records: [retry(0)],
     })
     expect((await loadSession({ store })).inputs.get('in-1')?.retries).toBe(0)
@@ -745,7 +745,7 @@ describe('write failures', () => {
     expect(lost[0]).toBeInstanceOf(OwnershipLostError)
     expect(failures).toEqual([])
     expect(first.state.seq).toBe(2)
-    expect(first.epoch).toBe(UNOWNED_EPOCH)
+    expect(first.epoch).toBe(NO_OWNER_EPOCH)
     expect(first.fenced).toBe(true)
     await expect(first.append([{ type: 'app.zombie' }])).rejects.toBeInstanceOf(
       LogOwnedElsewhereError,
@@ -765,7 +765,7 @@ describe('write failures', () => {
     const store = memoryLogStore()
     const failures: Array<unknown> = []
     const writer = newWriter(store, { onFailure: (e) => failures.push(e) })
-    const other = await store.acquire({
+    const other = await store.acquireOwnership({
       logId: LOG,
       harness: HARNESS,
       ownerId: 'other-host',
@@ -835,7 +835,7 @@ describe('write failures', () => {
     await store.append({
       logId: LOG,
       seq: 1,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records: [{ type: 'app.from-another-host' }],
     })
 
@@ -908,7 +908,7 @@ describe('write failures', () => {
     await inner.append({
       logId: LOG,
       seq: 1,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records: [{ type: 'app.other' }],
     })
     // After the failed read: the flush runs after it.
@@ -920,7 +920,7 @@ describe('write failures', () => {
     await inner.append({
       logId: LOG,
       seq: 2,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records: [{ type: 'app.other' }],
     })
 
@@ -1040,7 +1040,7 @@ describe('snapshots', () => {
     ],
   ) {
     const inner = memoryLogStore()
-    await inner.append({ logId: LOG, seq: 1, epoch: UNOWNED_EPOCH, records })
+    await inner.append({ logId: LOG, seq: 1, epoch: NO_OWNER_EPOCH, records })
     // The store does not read the state, so a test can give any value.
     return wrapLogStore(inner, {
       getSnapshot: async () => snapshot as LogSnapshot,

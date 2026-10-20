@@ -1081,7 +1081,7 @@ const OUTER_THREAD = 'harness:outerThread'
  * thread. One thread id in two tenants is two sessions.
  */
 /**
- * The `affinity` of a `listOrphaned` query of this host: a log pinned to
+ * The `affinity` of a `listLogsWithoutOwner` query of this host: a log pinned to
  * another host is not listed.
  */
 const pinOf = ({ affinity }: HostOwnership) =>
@@ -1252,7 +1252,7 @@ export interface TakenLog {
 /** What `createHarnessWorker` needs of a host. Not public API. */
 export interface HostSweep {
   /** The logs of the harnesses named in `harnesses` with work and no live owner. */
-  listOrphaned: (query: {
+  listLogsWithoutOwner: (query: {
     limit: number
     harnesses: ReadonlyArray<string>
   }) => Promise<Array<OrphanedLog>>
@@ -2505,8 +2505,8 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
         open.some((session) => session.operation(operationId) !== undefined)
       const offer = (
         inputId: string,
-        record: Parameters<LogStore['offer']>[0]['record'],
-      ) => logStore.offer({ logId, harness, inputId, record })
+        record: Parameters<LogStore['offerInput']>[0]['record'],
+      ) => logStore.offerInput({ logId, harness, inputId, record })
       for (const logged of root.inputs.values()) {
         const isTheirs =
           logged.user?.id === userId && WORK_OPS.has(logged.input.op)
@@ -3148,7 +3148,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
         return refused
       }
       const record = offeredInputRecord({ inputId: id, input, user })
-      const offered = await logStore.offer({
+      const offered = await logStore.offerInput({
         logId: logIdOf({ tenantId, logId: threadId }),
         harness: harness.name,
         inputId: id,
@@ -3166,7 +3166,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
         harnesses.map((harness) => [harness.name, harness]),
       )
       // A log pinned to another host is not listed.
-      const orphaned = await logStore.listOrphaned({
+      const orphaned = await logStore.listLogsWithoutOwner({
         limit,
         harnesses: [...byName.keys()],
         ...pinOf(ownership),
@@ -3500,8 +3500,8 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
     })
   }
   sweeps.set(host, {
-    listOrphaned: (query) =>
-      logStore.listOrphaned({ ...query, ...pinOf(ownership) }),
+    listLogsWithoutOwner: (query) =>
+      logStore.listLogsWithoutOwner({ ...query, ...pinOf(ownership) }),
     takeOver,
   })
   counters.set(host, () => ({

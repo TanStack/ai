@@ -664,9 +664,9 @@ export interface LogEntry {
 
 /**
  * The epoch of a log that no host ever acquired. A writer that never calls
- * {@link LogStore.acquire} writes with this epoch.
+ * {@link LogStore.acquireOwnership} writes with this epoch.
  */
-export const UNOWNED_EPOCH = 0
+export const NO_OWNER_EPOCH = 0
 
 /**
  * The error {@link LogStore.append} rejects with when `seq` is not the next
@@ -690,7 +690,7 @@ export class LogConflictError extends Error {
 /**
  * The error that a fenced write ({@link LogStore.append},
  * {@link LogStore.putSnapshot}, {@link LogStore.truncate},
- * {@link LogStore.setAffinity}) rejects with when `epoch` does not give the
+ * {@link LogStore.pinToWorkers}) rejects with when `epoch` does not give the
  * writer the log. It means that another host acquired the log, that the
  * owner released it, that the log was deleted, or that the writer did not
  * acquire a log that needs an owner. Nothing is written. Stop the work on the
@@ -730,7 +730,7 @@ export class LogTruncatedError extends Error {
 }
 
 /**
- * The result of {@link LogStore.offer}:
+ * The result of {@link LogStore.offerInput}:
  *
  * - `'offered'`: the store keeps the input as a pending offer.
  * - `'duplicate'`: the id was offered before with an equal record.
@@ -740,7 +740,7 @@ export class LogTruncatedError extends Error {
  */
 export type OfferResult = 'offered' | 'duplicate' | 'conflict' | 'deleted'
 
-/** A pending input of a log, from {@link LogStore.offered}. */
+/** A pending input of a log, from {@link LogStore.listOfferedInputs}. */
 export interface OfferedInput {
   inputId: string
   record: LogRecord
@@ -748,7 +748,7 @@ export interface OfferedInput {
   offeredAt: number
 }
 
-/** A log that has work and no live owner, from {@link LogStore.listOrphaned}. */
+/** A log that has work and no live owner, from {@link LogStore.listLogsWithoutOwner}. */
 export interface OrphanedLog {
   logId: string
   /** The name of the setup that runs the log, so a worker can open it. */
@@ -780,7 +780,7 @@ export interface LogSnapshot {
  * the latest snapshot.
  *
  * The log has one writer at a time: the owner. A host gets the log with
- * `acquire`, and each fenced write carries the epoch that `acquire` returned.
+ * `acquireOwnership`, and each fenced write carries the epoch that `acquireOwnership` returned.
  * When another host acquired the log, the epoch is old and the write fails.
  * `append` is also a compare-and-append: the writer names the position of the
  * first record, and the store refuses the batch when that position is taken.
@@ -798,8 +798,8 @@ export interface LogStore {
    *
    * 1. The fence. On a log that a host acquired, `epoch` must be the current
    *    epoch, and the owner must not have released the log. On a log that no
-   *    host acquired, `epoch` must be {@link UNOWNED_EPOCH}. A deleted log
-   *    refuses every epoch until the next `acquire`. Else reject with
+   *    host acquired, `epoch` must be {@link NO_OWNER_EPOCH}. A deleted log
+   *    refuses every epoch until the next `acquireOwnership`. Else reject with
    *    {@link OwnershipLostError}.
    * 2. `seq` must be the next free position (the last position plus 1, or 1
    *    for a new log). Else reject with {@link LogConflictError}.
@@ -836,7 +836,7 @@ export interface LogStore {
     limit?: number
   }) => Promise<Array<LogEntry>>
   /**
-   * Call `listener` after each successful `append` to `logId`, each `offer`
+   * Call `listener` after each successful `append` to `logId`, each `offerInput`
    * that returns `'offered'`, and each `deleteLog` of `logId`. The calls come
    * from every store instance on the same backend (other machines). A store
    * that cannot push must poll. A listener that throws is logged, and the
@@ -851,18 +851,18 @@ export interface LogStore {
    *   expired).
    * - Returns `null` when the log has an affinity that is not
    *   `claim.affinity`, and the host of that affinity is alive (see
-   *   `heartbeat`). The pin of a host with no live heartbeat does not count.
+   *   `markHostAlive`). The pin of a host with no live heartbeat does not count.
    * - When `ownerId` already holds the log, extends the expiry and returns
    *   the same epoch.
    * - Else increments the epoch, stores `harness`, clears the wake time,
    *   opens a deleted log again, and returns the new epoch. The epoch never
-   *   goes down, also after `release` and `deleteLog`.
+   *   goes down, also after `releaseOwnership` and `deleteLog`.
    * - When the log had another owner whose ownership expired with no
-   *   `release`, the result has `expired: true`: that owner stopped.
+   *   `releaseOwnership`, the result has `expired: true`: that owner stopped.
    *
    * Rejects with a `RangeError` when `ttlMs` is not more than 0.
    */
-  acquire: (claim: {
+  acquireOwnership: (claim: {
     logId: string
     harness: string
     ownerId: string
@@ -877,7 +877,7 @@ export interface LogStore {
    *
    * Rejects with a `RangeError` when `ttlMs` is not more than 0.
    */
-  renew: (claim: {
+  renewOwnership: (claim: {
     logId: string
     ownerId: string
     epoch: number
@@ -890,7 +890,7 @@ export interface LogStore {
    *
    * Rejects with a `RangeError` when `wakeInMs` is less than 0.
    */
-  release: (claim: {
+  releaseOwnership: (claim: {
     logId: string
     ownerId: string
     epoch: number
@@ -900,9 +900,9 @@ export interface LogStore {
    * Pin the log to the workers with `affinity`, or unpin it with `null`.
    * Only the owner pins: `epoch` must be the current epoch of an acquired
    * log that is not released. Else reject with {@link OwnershipLostError},
-   * also for {@link UNOWNED_EPOCH}.
+   * also for {@link NO_OWNER_EPOCH}.
    */
-  setAffinity: (pin: {
+  pinToWorkers: (pin: {
     logId: string
     epoch: number
     affinity: string | null
@@ -914,7 +914,7 @@ export interface LogStore {
    *
    * Rejects with a `RangeError` when `ttlMs` is not more than 0.
    */
-  heartbeat: (beat: { hostId: string; ttlMs: number }) => Promise<void>
+  markHostAlive: (beat: { hostId: string; ttlMs: number }) => Promise<void>
   /**
    * The logs that have work and no live owner, at most `limit` of them. A log
    * is listed for the first reason that applies:
@@ -925,10 +925,10 @@ export interface LogStore {
    *
    * Only logs of `harnesses` are listed, when `harnesses` is given. A log with
    * an affinity is listed only when `affinity` is equal, or the host of the
-   * affinity is not alive (see `heartbeat`). The log that is due
+   * affinity is not alive (see `markHostAlive`). The log that is due
    * first comes first. `limit: 0` gives `[]`.
    */
-  listOrphaned: (query: {
+  listLogsWithoutOwner: (query: {
     limit: number
     harnesses?: ReadonlyArray<string>
     affinity?: string
@@ -939,7 +939,7 @@ export interface LogStore {
    * the owner consumes, with `append({ consumes })`.
    *
    * - A deleted log returns `'deleted'` and stores nothing, until the next
-   *   `acquire`.
+   *   `acquireOwnership`.
    * - An `inputId` that was offered before (pending or consumed) returns
    *   `'duplicate'` when the JSON of the record is equal, else `'conflict'`.
    *   Nothing changes.
@@ -950,19 +950,19 @@ export interface LogStore {
    *
    * Rejects, and stores nothing, when the record cannot become JSON.
    */
-  offer: (input: {
+  offerInput: (input: {
     logId: string
     harness: string
     inputId: string
     record: LogRecord
   }) => Promise<OfferResult>
   /** The pending offers of `logId`, in offer order. */
-  offered: (query: { logId: string }) => Promise<Array<OfferedInput>>
+  listOfferedInputs: (query: { logId: string }) => Promise<Array<OfferedInput>>
 
   /** The latest snapshot of `logId`, or `null` when the log has none. */
   getSnapshot: (query: { logId: string }) => Promise<LogSnapshot | null>
   /**
-   * Replace the snapshot of the log. Fenced like `setAffinity`: only the
+   * Replace the snapshot of the log. Fenced like `pinToWorkers`: only the
    * owner of an acquired log writes it. Rejects with a `RangeError`
    * unless `firstSeq - 1 <= seq <= head`. `head` is the last position of the
    * log. `firstSeq` is the first kept position after a `truncate`, or 1. A
@@ -974,7 +974,7 @@ export interface LogStore {
   /**
    * Drop the records with `seq` less than `beforeSeq`. The positions keep
    * counting, so the next `append` is still at the last position plus 1.
-   * Fenced like `setAffinity`: only the owner of an acquired log truncates.
+   * Fenced like `pinToWorkers`: only the owner of an acquired log truncates.
    * Rejects with a `RangeError` unless a snapshot
    * has a `seq` of `beforeSeq - 1` or more.
    */
@@ -987,8 +987,8 @@ export interface LogStore {
    * Remove the records, the offers, the snapshot, the truncation point, the
    * affinity, and the wake time of `logId`, and call the listeners. The epoch
    * counter stays. Every fenced write to the log fails until the next
-   * `acquire`, also with {@link UNOWNED_EPOCH}, so a late write cannot bring
-   * the deleted records back. An `offer` returns `'deleted'`.
+   * `acquireOwnership`, also with {@link NO_OWNER_EPOCH}, so a late write cannot bring
+   * the deleted records back. An `offerInput` returns `'deleted'`.
    */
   deleteLog: (target: { logId: string }) => Promise<void>
 }

@@ -252,10 +252,10 @@ describe('a user that loses access', () => {
     const persistence = memoryPersistence()
     let isDown = false
     const log = wrapLogStore(persistence.stores.log, {
-      offer: (input) =>
+      offerInput: (input) =>
         isDown
           ? Promise.reject(new Error('The store is down.'))
-          : persistence.stores.log.offer(input),
+          : persistence.stores.log.offerInput(input),
     })
     const host = createHarnessHost({
       persistence: { ...persistence, stores: { ...persistence.stores, log } },

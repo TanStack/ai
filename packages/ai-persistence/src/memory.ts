@@ -2,7 +2,7 @@ import {
   LogConflictError,
   LogTruncatedError,
   OwnershipLostError,
-  UNOWNED_EPOCH,
+  NO_OWNER_EPOCH,
   defineAIPersistence,
 } from './types'
 import { resolveBlobRange } from './blob-range'
@@ -659,7 +659,7 @@ interface Offer {
 
 /** The offers of one log. */
 interface Lane {
-  /** The harness of the first offer, for `listOrphaned`. */
+  /** The harness of the first offer, for `listLogsWithoutOwner`. */
   harness: string
   /** By input id, in offer order. */
   inputs: Map<string, Offer>
@@ -697,7 +697,7 @@ class MemoryLogState {
   readonly owners = new Map<string, Ownership>()
   // Kept apart from `owners`, so a pin stays when its owner releases the log.
   readonly affinities = new Map<string, string>()
-  /** The deleted logs. Only an `acquire` lets a write or an offer in again. */
+  /** The deleted logs. Only an `acquireOwnership` lets a write or an offer in again. */
   readonly deleted = new Set<string>()
   /** When the heartbeat of each host expires, by its host id. */
   readonly hosts = new Map<string, number>()
@@ -748,21 +748,21 @@ class MemoryLogStore implements LogStore {
   /**
    * The fence of `append`. A log that a host acquired needs the current epoch
    * and an owner that did not release it. A log that no host acquired needs
-   * UNOWNED_EPOCH. A deleted log refuses every write until an `acquire`.
+   * NO_OWNER_EPOCH. A deleted log refuses every write until an `acquireOwnership`.
    */
   private canWrite(logId: string, epoch: number) {
     if (this.backend.deleted.has(logId)) return false
     const owner = this.backend.owners.get(logId)
-    if (owner === undefined) return epoch === UNOWNED_EPOCH
+    if (owner === undefined) return epoch === NO_OWNER_EPOCH
     return owner.epoch === epoch && !owner.released
   }
 
   /**
-   * The fence of `setAffinity`, `putSnapshot`, and `truncate`: only the
+   * The fence of `pinToWorkers`, `putSnapshot`, and `truncate`: only the
    * owner writes them, so a log that no host acquired refuses them.
    */
   private assertOwned(logId: string, epoch: number) {
-    const isOwned = epoch !== UNOWNED_EPOCH && this.canWrite(logId, epoch)
+    const isOwned = epoch !== NO_OWNER_EPOCH && this.canWrite(logId, epoch)
     if (!isOwned) throw new OwnershipLostError(logId, epoch)
   }
 
@@ -850,13 +850,13 @@ class MemoryLogStore implements LogStore {
     }
   }
 
-  async acquire({
+  async acquireOwnership({
     logId,
     harness,
     ownerId,
     ttlMs,
     affinity,
-  }: Parameters<LogStore['acquire']>[0]) {
+  }: Parameters<LogStore['acquireOwnership']>[0]) {
     assertMs({ name: 'ttlMs', value: ttlMs, allowZero: false })
     const now = this.backend.now()
     const owner = this.backend.owners.get(logId)
@@ -869,7 +869,7 @@ class MemoryLogStore implements LogStore {
       owner.expiresAt = now + ttlMs
       return { epoch: owner.epoch }
     }
-    const epoch = (owner?.epoch ?? UNOWNED_EPOCH) + 1
+    const epoch = (owner?.epoch ?? NO_OWNER_EPOCH) + 1
     // Another owner that did not release: its ownership expired.
     const expired =
       owner !== undefined && !owner.released && owner.ownerId !== ownerId
@@ -885,12 +885,12 @@ class MemoryLogStore implements LogStore {
     return expired ? { epoch, expired: true } : { epoch }
   }
 
-  async renew({
+  async renewOwnership({
     logId,
     ownerId,
     epoch,
     ttlMs,
-  }: Parameters<LogStore['renew']>[0]) {
+  }: Parameters<LogStore['renewOwnership']>[0]) {
     assertMs({ name: 'ttlMs', value: ttlMs, allowZero: false })
     // An expired owner can renew. A new acquire would have changed the epoch.
     const owner = this.heldBy(logId, ownerId, epoch)
@@ -899,12 +899,12 @@ class MemoryLogStore implements LogStore {
     return true
   }
 
-  async release({
+  async releaseOwnership({
     logId,
     ownerId,
     epoch,
     wakeInMs,
-  }: Parameters<LogStore['release']>[0]) {
+  }: Parameters<LogStore['releaseOwnership']>[0]) {
     if (wakeInMs !== undefined) {
       assertMs({ name: 'wakeInMs', value: wakeInMs, allowZero: true })
     }
@@ -914,7 +914,10 @@ class MemoryLogStore implements LogStore {
     if (wakeInMs !== undefined) owner.wakeAt = this.backend.now() + wakeInMs
   }
 
-  async heartbeat({ hostId, ttlMs }: Parameters<LogStore['heartbeat']>[0]) {
+  async markHostAlive({
+    hostId,
+    ttlMs,
+  }: Parameters<LogStore['markHostAlive']>[0]) {
     assertMs({ name: 'ttlMs', value: ttlMs, allowZero: false })
     this.backend.hosts.set(hostId, this.backend.now() + ttlMs)
   }
@@ -934,21 +937,21 @@ class MemoryLogStore implements LogStore {
     return (this.backend.hosts.get(pin) ?? 0) > now
   }
 
-  async setAffinity({
+  async pinToWorkers({
     logId,
     epoch,
     affinity,
-  }: Parameters<LogStore['setAffinity']>[0]) {
+  }: Parameters<LogStore['pinToWorkers']>[0]) {
     this.assertOwned(logId, epoch)
     if (affinity === null) this.backend.affinities.delete(logId)
     else this.backend.affinities.set(logId, affinity)
   }
 
-  async listOrphaned({
+  async listLogsWithoutOwner({
     limit,
     harnesses,
     affinity,
-  }: Parameters<LogStore['listOrphaned']>[0]) {
+  }: Parameters<LogStore['listLogsWithoutOwner']>[0]) {
     const now = this.backend.now()
     // A log with offers can have no ownership record, so look in both maps.
     const logIds = new Set([
@@ -1005,12 +1008,12 @@ class MemoryLogStore implements LogStore {
     return undefined
   }
 
-  async offer({
+  async offerInput({
     logId,
     harness,
     inputId,
     record,
-  }: Parameters<LogStore['offer']>[0]) {
+  }: Parameters<LogStore['offerInput']>[0]) {
     // Copy first, so a record that cannot become JSON stores nothing.
     const copy = copyJson(record)
     // A late input must not start a deleted log again.
@@ -1036,7 +1039,9 @@ class MemoryLogStore implements LogStore {
     return 'offered'
   }
 
-  async offered({ logId }: Parameters<LogStore['offered']>[0]) {
+  async listOfferedInputs({
+    logId,
+  }: Parameters<LogStore['listOfferedInputs']>[0]) {
     return this.pending(logId).map(([inputId, offer]) => ({
       inputId,
       record: copyJson(offer.record),
@@ -1106,7 +1111,7 @@ class MemoryLogStore implements LogStore {
     this.backend.lanes.delete(logId)
     this.backend.affinities.delete(logId)
     // A late write must not bring the log back, so every write fails until
-    // an `acquire`. Keep the epoch counter. The log has no owner now, as
+    // an `acquireOwnership`. Keep the epoch counter. The log has no owner now, as
     // after a release with no wake.
     this.backend.deleted.add(logId)
     const owner = this.backend.owners.get(logId)
@@ -1157,7 +1162,7 @@ export function memoryLogStore({
  * await hostA.append({
  *   logId: 'session-1',
  *   seq: 1,
- *   epoch: UNOWNED_EPOCH,
+ *   epoch: NO_OWNER_EPOCH,
  *   records: [{ type: 'hello' }],
  * })
  * // The listener on hostB ran.

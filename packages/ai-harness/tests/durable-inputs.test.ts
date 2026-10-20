@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { EventType, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import {
-  UNOWNED_EPOCH,
+  NO_OWNER_EPOCH,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -127,7 +127,7 @@ async function seedStoppedTurn(
   await persistence.stores.log.append({
     logId: LOG,
     seq: 1,
-    epoch: UNOWNED_EPOCH,
+    epoch: NO_OWNER_EPOCH,
     records,
   })
 }
@@ -258,7 +258,7 @@ describe('recovery of a durable input', () => {
     await persistence.stores.log.append({
       logId: LOG,
       seq: 1,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records: [
         pendingInput('in-1', 'go'),
         { type: 'harness.input.abort', inputId: 'in-1' },
@@ -463,7 +463,7 @@ describe('recovery of a durable input', () => {
     await stopped.stores.log.append({
       logId: LOG,
       seq: 1,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records: entries.slice(0, settledAt).map(({ record }) =>
         Array.isArray(record.add)
           ? {
@@ -563,7 +563,7 @@ describe('recovery of a durable input', () => {
     await persistence.stores.log.append({
       logId: LOG,
       seq: 1,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records: [
         {
           type: 'harness.input',
@@ -615,7 +615,7 @@ describe('recovery of a durable input', () => {
     await persistence.stores.log.append({
       logId: LOG,
       seq: 1,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records: [
         {
           type: 'harness.input',
@@ -708,7 +708,7 @@ describe('recovery of a durable input', () => {
     await persistence.stores.log.append({
       logId: LOG,
       seq: 1,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records: [pendingInput('in-new', 'later')],
     })
 
@@ -733,7 +733,7 @@ describe('recovery of a durable input', () => {
     persistence.stores.log.append({
       logId: LOG,
       seq: (await persistence.stores.log.read({ logId: LOG })).length + 1,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records,
     })
 
@@ -874,7 +874,7 @@ describe('session.recoverPendingWork()', () => {
     await seedStoppedTurn(persistence, { attempt: 1 })
     const { log } = persistence.stores
     const ownerId = 'other-host'
-    const owned = await log.acquire({
+    const owned = await log.acquireOwnership({
       logId: LOG,
       harness: 'test/durable-inputs',
       ownerId,
@@ -882,7 +882,10 @@ describe('session.recoverPendingWork()', () => {
     })
     if (owned === null) throw new Error('The other host has no ownership.')
     const { epoch } = owned
-    return { epoch, stop: () => log.release({ logId: LOG, ownerId, epoch }) }
+    return {
+      epoch,
+      stop: () => log.releaseOwnership({ logId: LOG, ownerId, epoch }),
+    }
   }
 
   it('runs a turn that another host held at open, after that host stops', async () => {
@@ -1230,7 +1233,7 @@ describe('waiting inputs', () => {
       await persistence.stores.log.append({
         logId: LOG,
         seq: 1,
-        epoch: UNOWNED_EPOCH,
+        epoch: NO_OWNER_EPOCH,
         records: [
           pendingInput('in-1', 'go'),
           controlInput({ op: 'cancelInput', inputId: 'in-1' }),
@@ -1266,7 +1269,7 @@ describe('waiting inputs', () => {
       await persistence.stores.log.append({
         logId: LOG,
         seq: 1,
-        epoch: UNOWNED_EPOCH,
+        epoch: NO_OWNER_EPOCH,
         records: [
           pendingInput('in-1', 'first'),
           pendingInput('in-2', 'second'),
@@ -1487,7 +1490,7 @@ describe('session.continueWithoutMessage()', () => {
       await persistence.stores.log.append({
         logId: LOG,
         seq: 1,
-        epoch: UNOWNED_EPOCH,
+        epoch: NO_OWNER_EPOCH,
         records: [transcript(...messages)],
       })
       const { host, session, calls } = await openDurable({
@@ -1515,7 +1518,7 @@ describe('session.continueWithoutMessage()', () => {
     await persistence.stores.log.append({
       logId: LOG,
       seq: 1,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records: [transcript(user)],
     })
     const { host, session, calls } = await openDurable({
@@ -1537,7 +1540,7 @@ describe('session.continueWithoutMessage()', () => {
     await persistence.stores.log.append({
       logId: LOG,
       seq: 1,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records: [
         transcript(user),
         {
@@ -1575,7 +1578,7 @@ describe('session.continueWithoutMessage()', () => {
         await persistence.stores.log.append({
           logId: LOG,
           seq: 1,
-          epoch: UNOWNED_EPOCH,
+          epoch: NO_OWNER_EPOCH,
           records,
         })
       }

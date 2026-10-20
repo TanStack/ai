@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { EventType, getLogRecords, toolDefinition } from '@tanstack/ai'
 import {
-  UNOWNED_EPOCH,
+  NO_OWNER_EPOCH,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -564,7 +564,7 @@ describe('durable session log', () => {
     await inner.append({
       logId: LOG,
       seq: 1,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records: [{ type: 'app.from-another-host' }],
     })
 

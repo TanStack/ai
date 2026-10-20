@@ -614,10 +614,10 @@ log. The root thread and its child threads (agent runs and subagents) share it. 
 serve the sessions, the log also records which host runs each session, and it keeps
 the inputs that any machine accepts. `LogStore` stores all of this.
 
-The types, `UNOWNED_EPOCH`, and the three errors come from `@tanstack/ai-persistence`:
+The types, `NO_OWNER_EPOCH`, and the three errors come from `@tanstack/ai-persistence`:
 
 ```ts
-const UNOWNED_EPOCH = 0 // the epoch of a log that no host ever acquired
+const NO_OWNER_EPOCH = 0 // the epoch of a log that no host ever acquired
 
 interface LogRecord {
   type: string
@@ -666,45 +666,45 @@ interface LogStore {
   subscribe(watch: { logId: string; listener: () => void }): () => void
 
   // Ownership
-  acquire(claim: {
+  acquireOwnership(claim: {
     logId: string
     harness: string
     ownerId: string
     ttlMs: number
     affinity?: string
   }): Promise<{ epoch: number; expired?: boolean } | null>
-  renew(claim: {
+  renewOwnership(claim: {
     logId: string
     ownerId: string
     epoch: number
     ttlMs: number
   }): Promise<boolean>
-  release(claim: {
+  releaseOwnership(claim: {
     logId: string
     ownerId: string
     epoch: number
     wakeInMs?: number
   }): Promise<void>
-  setAffinity(pin: {
+  pinToWorkers(pin: {
     logId: string
     epoch: number
     affinity: string | null
   }): Promise<void>
-  heartbeat(beat: { hostId: string; ttlMs: number }): Promise<void>
-  listOrphaned(query: {
+  markHostAlive(beat: { hostId: string; ttlMs: number }): Promise<void>
+  listLogsWithoutOwner(query: {
     limit: number
     harnesses?: ReadonlyArray<string>
     affinity?: string
   }): Promise<Array<OrphanedLog>>
 
   // Input lane
-  offer(input: {
+  offerInput(input: {
     logId: string
     harness: string
     inputId: string
     record: LogRecord
   }): Promise<OfferResult>
-  offered(query: { logId: string }): Promise<Array<OfferedInput>>
+  listOfferedInputs(query: { logId: string }): Promise<Array<OfferedInput>>
 
   // Snapshots and lifecycle
   getSnapshot(query: { logId: string }): Promise<LogSnapshot | null>
@@ -739,20 +739,20 @@ while: a long garbage collection pause, or a lost network. Its ownership expires
 and host B acquires the log. When host A continues, it writes again. Without a
 fence, the log gets the records of two owners.
 
-The epoch is the fence. Each `acquire` that starts a new ownership adds 1 to the
+The epoch is the fence. Each `acquireOwnership` that starts a new ownership adds 1 to the
 epoch of the log. The owner sends that epoch with each write, and the store refuses
 an old epoch. So the late write of host A rejects with `OwnershipLostError`, and the
 log does not change.
 
-`append`, `putSnapshot`, `truncate`, and `setAffinity` are fenced. They check the
+`append`, `putSnapshot`, `truncate`, and `pinToWorkers` are fenced. They check the
 epoch before anything else:
 
 - On a log that a host acquired, `epoch` must be the current epoch. A released log
   refuses every epoch.
-- On a log that no host acquired, `append` needs `UNOWNED_EPOCH`. A writer that never
-  calls `acquire` writes with it. `putSnapshot`, `truncate`, and `setAffinity` need
-  an owner, so they refuse `UNOWNED_EPOCH`.
-- A deleted log refuses every epoch until the next `acquire`.
+- On a log that no host acquired, `append` needs `NO_OWNER_EPOCH`. A writer that never
+  calls `acquireOwnership` writes with it. `putSnapshot`, `truncate`, and `pinToWorkers` need
+  an owner, so they refuse `NO_OWNER_EPOCH`.
+- A deleted log refuses every epoch until the next `acquireOwnership`.
 - A call with any other epoch rejects with `OwnershipLostError`, and the store writes
   nothing.
 
@@ -782,7 +782,7 @@ writes nothing and checks nothing.
 
 `subscribe` wakes a host when the log changes:
 
-- The store calls the listener after each successful `append`, each `offer` that
+- The store calls the listener after each successful `append`, each `offerInput` that
   returns `'offered'`, and each `deleteLog` of the log.
 - The calls come from every store instance on the same backend. That is how one
   machine hears the writes of another.
@@ -794,11 +794,11 @@ writes nothing and checks nothing.
 
 Each log has one ownership record: `harness`, `ownerId`, the epoch, the expiry time,
 a released flag, and an optional affinity and wake time. The epoch never goes down.
-It stays after `release` and after `deleteLog`. The store clock decides each expiry,
+It stays after `releaseOwnership` and after `deleteLog`. The store clock decides each expiry,
 so callers pass `ttlMs` and `wakeInMs`, never a timestamp. A `ttlMs` of 0 or less,
 or a `wakeInMs` less than 0, rejects with `RangeError`.
 
-`acquire` gives the log to `ownerId` for `ttlMs` milliseconds:
+`acquireOwnership` gives the log to `ownerId` for `ttlMs` milliseconds:
 
 - It returns `null` when another owner holds a live record: not released, and not
   expired.
@@ -813,22 +813,22 @@ or a `wakeInMs` less than 0, rejects with `RangeError`.
 
 For the other ownership methods:
 
-- `renew` returns `true` only for the current epoch and owner of a log that is not
+- `renewOwnership` returns `true` only for the current epoch and owner of a log that is not
   released. In that case, it sets the expiry to `ttlMs` from now. A renew after the
   expiry also succeeds if no other host acquired the log in between.
-- `release` with the current epoch and owner marks the log released. With
-  `wakeInMs`, it also sets the wake time to `wakeInMs` from now. Any other `release`
+- `releaseOwnership` with the current epoch and owner marks the log released. With
+  `wakeInMs`, it also sets the wake time to `wakeInMs` from now. Any other `releaseOwnership`
   does nothing.
-- `setAffinity` pins the log to the workers with that affinity, or unpins it with
+- `pinToWorkers` pins the log to the workers with that affinity, or unpins it with
   `null`. Only the owner pins: it needs the current epoch of an acquired log.
-- `heartbeat` marks the host `hostId` alive for `ttlMs` from now. `hostId` is the
+- `markHostAlive` marks the host `hostId` alive for `ttlMs` from now. `hostId` is the
   affinity of its pins. A pin counts only while its host is alive, so the logs of a
   host that stopped go to other hosts. A host that is alive keeps its pins, also on
   the logs that it released.
 
-`listOrphaned` finds the logs that have work and no live owner. A worker sweep
+`listLogsWithoutOwner` finds the logs that have work and no live owner. A worker sweep
 ([`createHarnessWorker`](../harness/workers) or `host.resumePending`) calls it, then
-calls `acquire` for each log. A log is listed for the first reason that
+calls `acquireOwnership` for each log. A log is listed for the first reason that
 applies:
 
 1. `'expired'`: the log is not released, and its expiry is due.
@@ -846,20 +846,20 @@ Then:
 ### Rules for the input lane
 
 A client can send an input to any machine, but only the owner of the log runs it.
-`offer` keeps the input as a pending offer. The owner consumes it with
+`offerInput` keeps the input as a pending offer. The owner consumes it with
 `append({ consumes })`, in the same write as the records of the input.
 
-- If `deleteLog` deleted the log and no host acquired it since, `offer` returns
+- If `deleteLog` deleted the log and no host acquired it since, `offerInput` returns
   `'deleted'` and stores nothing.
-- If the `inputId` is new, `offer` stores a pending offer with `offeredAt` from the
+- If the `inputId` is new, `offerInput` stores a pending offer with `offeredAt` from the
   store clock. It calls the listeners and returns `'offered'`.
-- The harness of the owner names the log for `listOrphaned`. A log with no owner
+- The harness of the owner names the log for `listLogsWithoutOwner`. A log with no owner
   keeps the `harness` of its first offer. A later offer does not change it.
-- If the `inputId` was offered before (pending or consumed), `offer` changes nothing.
+- If the `inputId` was offered before (pending or consumed), `offerInput` changes nothing.
   It returns `'duplicate'` when the JSON of the record is equal, else `'conflict'`.
-- If the record cannot become JSON, `offer` rejects and stores nothing.
+- If the record cannot become JSON, `offerInput` rejects and stores nothing.
 - Offers belong to one log. The same `inputId` on two logs gives two offers.
-- `offered` returns the pending offers in offer order.
+- `listOfferedInputs` returns the pending offers in offer order.
 
 ### Rules for snapshots, truncate, and delete
 
@@ -880,8 +880,8 @@ With a snapshot, the owner can also drop the old records.
   `LogTruncatedError`, and its `firstSeq` is the first kept position.
 - `deleteLog` removes the records, the offers, the snapshot, the truncation point,
   the affinity, and the wake time, and calls the listeners. The epoch counter stays.
-  Every fenced write fails until the next `acquire`, also with `UNOWNED_EPOCH`. So a
-  late write cannot bring a deleted transcript back. An `offer` returns `'deleted'`
+  Every fenced write fails until the next `acquireOwnership`, also with `NO_OWNER_EPOCH`. So a
+  late write cannot bring a deleted transcript back. An `offerInput` returns `'deleted'`
   and stores nothing.
 
 ### In SQL
@@ -891,7 +891,7 @@ ownership, and the offers:
 
 - `log_records`: the primary key `(log_id, seq)` refuses a taken position.
 - `log_owner`: one row per log, with the epoch, the last position (`head`), and the
-  first kept position. `append`, `acquire`, and `deleteLog` insert the row with
+  first kept position. `append`, `acquireOwnership`, and `deleteLog` insert the row with
   `epoch` 0 when it is missing. Then one compare-and-set on `epoch` and `released`
   fences every log: acquired, never acquired, and deleted.
 - `log_offers`: the unique key `(log_id, input_id)` finds a duplicate offer.
@@ -906,7 +906,7 @@ CREATE TABLE log_records (
 
 CREATE TABLE log_owner (
   log_id TEXT PRIMARY KEY,
-  epoch BIGINT NOT NULL DEFAULT 0, -- 0 is UNOWNED_EPOCH. It never goes down.
+  epoch BIGINT NOT NULL DEFAULT 0, -- 0 is NO_OWNER_EPOCH. It never goes down.
   head BIGINT NOT NULL DEFAULT 0, -- the last position
   first_seq BIGINT NOT NULL DEFAULT 1, -- the first kept position, after a truncate
   harness TEXT,
@@ -957,7 +957,7 @@ WHERE log_id = :log_id AND input_id = ANY(:consumes) AND NOT consumed;
 COMMIT;
 ```
 
-`acquire` adds the row too, so a host can take a new log before its first record.
+`acquireOwnership` adds the row too, so a host can take a new log before its first record.
 It reads the row first, because the result needs the old owner:
 
 ```sql
@@ -983,16 +983,16 @@ COMMIT;
 
 `deleted = FALSE` opens a deleted log again. For the other methods:
 
-- `setAffinity`, `putSnapshot`, and `truncate` need the owner. Lock the row with
+- `pinToWorkers`, `putSnapshot`, and `truncate` need the owner. Lock the row with
   `SELECT 1 FROM log_owner WHERE log_id = :log_id AND epoch = :epoch AND epoch > 0
   AND NOT released FOR UPDATE`. No row: reject with `OwnershipLostError`.
-- `offer` first reads `deleted` with `SELECT deleted FROM log_owner WHERE log_id =
+- `offerInput` first reads `deleted` with `SELECT deleted FROM log_owner WHERE log_id =
   :log_id FOR SHARE`. `TRUE`: return `'deleted'`, and insert nothing.
-- In `listOrphaned`, the harness of a log is `log_owner.harness`. When it is `NULL`,
+- In `listLogsWithoutOwner`, the harness of a log is `log_owner.harness`. When it is `NULL`,
   use the `harness` of the first offer of the log (the lowest `id`).
 - Use the database clock (`now()`) for each expiry, wake time, and `offeredAt`. The
   clocks of the hosts can disagree.
-- `heartbeat` is one upsert into `log_hosts`. In `acquire` and `listOrphaned`, an
+- `markHostAlive` is one upsert into `log_hosts`. In `acquireOwnership` and `listLogsWithoutOwner`, an
   affinity counts only when its row has `expires_at > now()`:
 
 ```sql
@@ -1000,7 +1000,7 @@ INSERT INTO log_hosts (host_id, expires_at)
 VALUES (:host_id, now() + :ttl_ms * interval '1 millisecond')
 ON CONFLICT (host_id) DO UPDATE SET expires_at = EXCLUDED.expires_at;
 
--- The pin of a log that `acquire` and `listOrphaned` respect.
+-- The pin of a log that `acquireOwnership` and `listLogsWithoutOwner` respect.
 SELECT o.affinity FROM log_owner o
 JOIN log_hosts h ON h.host_id = o.affinity AND h.expires_at > now()
 WHERE o.log_id = :log_id;
@@ -1010,8 +1010,8 @@ WHERE o.log_id = :log_id;
 - `deleteLog` deletes the rows of the log in the other tables. It inserts the
   `log_owner` row when it is missing, and sets `head = 0`, `first_seq = 1`,
   `released = TRUE`, `deleted = TRUE`, and no `wake_at` or `affinity`. It keeps
-  `epoch`. The released row refuses every write, also with `UNOWNED_EPOCH`, and
-  `deleted` refuses every offer, until the next `acquire`. That owner starts a new
+  `epoch`. The released row refuses every write, also with `NO_OWNER_EPOCH`, and
+  `deleted` refuses every offer, until the next `acquireOwnership`. That owner starts a new
   log at position 1.
 - Each record is JSON. Store it as text or as a JSON column. The store does not read
   the records.
@@ -1195,7 +1195,7 @@ runPersistenceConformance(
 Some `log` cases need two machines on one backend:
 
 - A listener on one instance runs after an append on the other.
-- Only one instance gets the log from `acquire`.
+- Only one instance gets the log from `acquireOwnership`.
 - An offer on one instance is a `'duplicate'` on the other.
 - A listener that throws does not stop the listeners of the other instance.
 

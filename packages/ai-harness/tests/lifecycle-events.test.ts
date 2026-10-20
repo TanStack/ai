@@ -118,7 +118,7 @@ describe('harness.ownership.changed', () => {
       () => text('two'),
     ])
 
-    const release = vi.spyOn(log, 'release')
+    const release = vi.spyOn(log, 'releaseOwnership')
     await session.send('one')
     // An idle host gives the log up. The next turn acquires it again.
     await waitFor(() => expect(release).toHaveBeenCalled())
@@ -129,7 +129,7 @@ describe('harness.ownership.changed', () => {
       { epoch: 1, reason: 'acquired' },
     ])
     // The host had the log at more than one epoch.
-    const other = await log.acquire({
+    const other = await log.acquireOwnership({
       logId: logIdOf({ logId: THREAD }),
       harness: 'other-host',
       ownerId: 'other-host',

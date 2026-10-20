@@ -285,28 +285,38 @@ describe('memoryLogState({ now })', () => {
 
   it('expires an ownership when its clock passes the ttl', async () => {
     const { clock, store } = clockedStore()
-    await store.acquire({ logId, harness, ownerId: 'a', ttlMs: 500 })
+    await store.acquireOwnership({ logId, harness, ownerId: 'a', ttlMs: 500 })
 
     clock.now = 1_499
     expect(
-      await store.acquire({ logId, harness, ownerId: 'b', ttlMs: 500 }),
+      await store.acquireOwnership({
+        logId,
+        harness,
+        ownerId: 'b',
+        ttlMs: 500,
+      }),
     ).toBeNull()
     clock.now = 1_500
     expect(
-      await store.acquire({ logId, harness, ownerId: 'b', ttlMs: 500 }),
+      await store.acquireOwnership({
+        logId,
+        harness,
+        ownerId: 'b',
+        ttlMs: 500,
+      }),
     ).toEqual({ epoch: 2, expired: true })
   })
 
   it('lists a released log for its wake only when its clock reaches the wake time', async () => {
     const { clock, store } = clockedStore()
-    const owned = await store.acquire({
+    const owned = await store.acquireOwnership({
       logId,
       harness,
       ownerId: 'a',
       ttlMs: 500,
     })
     if (owned === null) throw new Error('The first acquire must succeed.')
-    await store.release({
+    await store.releaseOwnership({
       logId,
       ownerId: 'a',
       epoch: owned.epoch,
@@ -314,23 +324,23 @@ describe('memoryLogState({ now })', () => {
     })
 
     clock.now = 60_999
-    expect(await store.listOrphaned({ limit: 10 })).toEqual([])
+    expect(await store.listLogsWithoutOwner({ limit: 10 })).toEqual([])
     clock.now = 61_000
-    expect(await store.listOrphaned({ limit: 10 })).toEqual([
+    expect(await store.listLogsWithoutOwner({ limit: 10 })).toEqual([
       { logId, harness, reason: 'wake' },
     ])
   })
 
   it('stamps an offer with its clock', async () => {
     const { store } = clockedStore()
-    await store.offer({
+    await store.offerInput({
       logId,
       harness,
       inputId: 'in-1',
       record: { type: 'app.input' },
     })
 
-    expect(await store.offered({ logId })).toEqual([
+    expect(await store.listOfferedInputs({ logId })).toEqual([
       { inputId: 'in-1', record: { type: 'app.input' }, offeredAt: 1_000 },
     ])
   })

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { EventType, toolDefinition } from '@tanstack/ai'
 import {
-  UNOWNED_EPOCH,
+  NO_OWNER_EPOCH,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -128,7 +128,7 @@ async function seedStoppedTurn(
   await persistence.stores.log.append({
     logId: LOG,
     seq: 1,
-    epoch: UNOWNED_EPOCH,
+    epoch: NO_OWNER_EPOCH,
     records: [
       ...records,
       stoppedRun('op-stopped', THREAD, {

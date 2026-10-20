@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, keyedAdapter, toolDefinition } from '@tanstack/ai'
 import {
-  UNOWNED_EPOCH,
+  NO_OWNER_EPOCH,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -500,7 +500,7 @@ describe('recovery keeps the sender and the context', () => {
     await persistence.stores.log.append({
       logId: LOG,
       seq: 1,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records: [
         {
           type: 'harness.input',
@@ -549,7 +549,7 @@ describe('recovery keeps the sender and the context', () => {
     await persistence.stores.log.append({
       logId: LOG,
       seq: 1,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records: [
         {
           type: 'harness.input',

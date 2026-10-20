@@ -286,7 +286,7 @@ describe('a host that lost the log and takes it back', () => {
     await ownershipExpired()
 
     // B takes the log, writes once, and crashes before the turn settles.
-    const owned = await log.acquire({
+    const owned = await log.acquireOwnership({
       logId: LOG,
       harness: 'test/ownership',
       ownerId: 'host-b',
@@ -319,10 +319,10 @@ describe('a host that lost the log and takes it back', () => {
     let isDown = false
     let renewals = 0
     const log = wrapLogStore(inner, {
-      renew: async (input) => {
+      renewOwnership: async (input) => {
         if (isDown) throw new Error('The store is down.')
         renewals += 1
-        return inner.renew(input)
+        return inner.renewOwnership(input)
       },
     })
     const release = gate()
@@ -357,7 +357,7 @@ describe('renewals', () => {
     const renewMs = 37
     const intervals = vi.spyOn(globalThis, 'setInterval')
     const log = memoryLogStore()
-    const renew = vi.spyOn(log, 'renew')
+    const renew = vi.spyOn(log, 'renewOwnership')
     const release = gate()
     // Every model call waits for `release`.
     const { adapter } = mockAdapter(after(release.opened, 'done'))
@@ -406,7 +406,7 @@ describe('renewals', () => {
 
   it('gives the log up when the session goes idle, and makes no more store calls', async () => {
     const log = memoryLogStore()
-    const renew = vi.spyOn(log, 'renew')
+    const renew = vi.spyOn(log, 'renewOwnership')
     const release = gate()
     const { host, session } = await openOn(
       log,
@@ -439,7 +439,7 @@ describe('renewals', () => {
     ownership.onLost(LOG, lost)
     const epoch = await ownership.acquire(LOG, 'test/ownership')
     const renew = vi
-      .spyOn(log, 'renew')
+      .spyOn(log, 'renewOwnership')
       .mockRejectedValueOnce(new Error('store down'))
 
     await waitFor(() =>

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineAgent } from '@tanstack/ai'
 import {
-  UNOWNED_EPOCH,
+  NO_OWNER_EPOCH,
   memoryLogState,
   memoryLogStore,
 } from '@tanstack/ai-persistence'
@@ -34,14 +34,14 @@ const NAME = 'test/resume-pending'
  * ownership expires at once. Wait with `expired()`.
  */
 const stopOwner = (log: LogStore, logId = LOG, harness = NAME) =>
-  log.acquire({ logId, harness, ownerId: 'host-gone', ttlMs: 1 })
+  log.acquireOwnership({ logId, harness, ownerId: 'host-gone', ttlMs: 1 })
 
 /** Wait until the ownerships of `stopOwner` expired. */
 const expired = () => new Promise((resolve) => setTimeout(resolve, 5))
 
 /** Append `records` to the log `logId`, as a host does before it owns it. */
 const seed = (log: LogStore, records: Array<LogRecord>, logId = LOG) =>
-  log.append({ logId, seq: 1, epoch: UNOWNED_EPOCH, records })
+  log.append({ logId, seq: 1, epoch: NO_OWNER_EPOCH, records })
 
 /** The log and run of a host that stopped during a turn. */
 async function seedStoppedTurn(log: LogStore) {
@@ -320,7 +320,7 @@ describe('host.resumePending', () => {
         ],
       }),
     ).toEqual([])
-    expect(await log.listOrphaned({ limit: 10 })).toEqual([
+    expect(await log.listLogsWithoutOwner({ limit: 10 })).toEqual([
       { logId: other, harness: 'test/other', reason: 'expired' },
     ])
     await host.close()
@@ -340,7 +340,7 @@ describe('host.resumePending', () => {
     // The thread goes idle: the session gives the log back, and the sweep
     // closes it. A new prompt arrives right then, the way a request does.
     const log = wrapLogStore(base, {
-      release: (claim) => {
+      releaseOwnership: (claim) => {
         if (arriving === undefined) {
           queueMicrotask(() => {
             arriving = host
@@ -348,7 +348,7 @@ describe('host.resumePending', () => {
               .then(async (session) => (await session.send('Again.')).text)
           })
         }
-        return base.release(claim)
+        return base.releaseOwnership(claim)
       },
     })
     const host = hostOn(log)
@@ -404,7 +404,7 @@ describe('host.resumePending', () => {
     // The log of the thread that failed goes back with a wake, so a later
     // sweep lists it again.
     const listed = async () =>
-      (await log.listOrphaned({ limit: 10, harnesses: [NAME] })).map(
+      (await log.listLogsWithoutOwner({ limit: 10, harnesses: [NAME] })).map(
         (orphan) => orphan.logId,
       )
     expect(await listed()).not.toContain(logIdOf({ logId: 't-bad' }))

@@ -161,7 +161,7 @@ export class HostOwnership {
     const hostId = this.affinity
     if (hostId === undefined) return Promise.resolve()
     return Promise.resolve()
-      .then(() => this.store.heartbeat({ hostId, ttlMs: this.ttlMs }))
+      .then(() => this.store.markHostAlive({ hostId, ttlMs: this.ttlMs }))
       .catch(() => {})
   }
 
@@ -185,7 +185,7 @@ export class HostOwnership {
   async acquire(logId: string, harness: string) {
     // A failed release leaves the ownership to expire. The acquire goes on.
     await this.releasing.get(logId)?.catch(() => {})
-    const got = await this.store.acquire({
+    const got = await this.store.acquireOwnership({
       logId,
       harness,
       ownerId: this.ownerId,
@@ -205,7 +205,7 @@ export class HostOwnership {
    * with `OwnershipLostError` when it does not.
    */
   pin(logId: string, epoch: number, hostId: string | null) {
-    return this.store.setAffinity({ logId, epoch, affinity: hostId })
+    return this.store.pinToWorkers({ logId, epoch, affinity: hostId })
   }
 
   /**
@@ -222,7 +222,7 @@ export class HostOwnership {
       return true
     }
     await this.releasing.get(logId)?.catch(() => {})
-    const got = await this.store.acquire({
+    const got = await this.store.acquireOwnership({
       logId,
       harness,
       ownerId: this.ownerId,
@@ -233,7 +233,7 @@ export class HostOwnership {
     try {
       await this.pin(logId, got.epoch, null)
     } finally {
-      await this.store.release({
+      await this.store.releaseOwnership({
         logId,
         ownerId: this.ownerId,
         epoch: got.epoch,
@@ -262,7 +262,7 @@ export class HostOwnership {
     this.forget(logId)
     const wakeInMs = wakeIn ?? this.wakes.get(logId)?.()
     const released = this.store
-      .release({
+      .releaseOwnership({
         logId,
         ownerId: this.ownerId,
         epoch,
@@ -343,7 +343,7 @@ export class HostOwnership {
   private async renewOne(logId: string, epoch: number) {
     let isKept: boolean
     try {
-      isKept = await this.store.renew({
+      isKept = await this.store.renewOwnership({
         logId,
         ownerId: this.ownerId,
         epoch,

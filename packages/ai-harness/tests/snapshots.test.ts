@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai'
-import { UNOWNED_EPOCH, memoryPersistence } from '@tanstack/ai-persistence'
+import { NO_OWNER_EPOCH, memoryPersistence } from '@tanstack/ai-persistence'
 import {
   HARNESS_EVENTS,
   createHarnessHost,
@@ -158,7 +158,7 @@ describe('log snapshots on a host', () => {
     await persistence.stores.log.append({
       logId: LOG,
       seq: 1,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records,
     })
     let session: PluginSessionApi | undefined
@@ -208,7 +208,7 @@ describe('log snapshots on a host', () => {
     await persistence.stores.log.append({
       logId: LOG,
       seq: 1,
-      epoch: UNOWNED_EPOCH,
+      epoch: NO_OWNER_EPOCH,
       records: [step],
     })
     let steps: Array<Record<string, unknown>> = []
