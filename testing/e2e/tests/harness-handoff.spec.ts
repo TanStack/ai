@@ -22,10 +22,15 @@ interface Debug {
   waits: Array<{ waitId: string; kind: string; message?: string }>
   mainCalls: number
   billingCalls: number
+  /** The messages of the first request of `billing`, as Anthropic gets them. */
+  billingMessages: Array<{ role: string; content: unknown }>
 }
 
 /** Open the thread of `scenario` for olga, shared with bea. */
-async function start(request: APIRequestContext, scenario: 'agent' | 'human') {
+async function start(
+  request: APIRequestContext,
+  scenario: 'agent' | 'human' | 'code',
+) {
   const res = await request.post(`${ROUTE}/start`, { data: { scenario } })
   expect(res.ok()).toBe(true)
   const started: Started = await res.json()
@@ -178,6 +183,59 @@ test.describe('harness: handoffs inside one session', () => {
           .filter((message) => message.role === 'assistant')
           .map((message) => message.agent),
       ).toEqual([null, 'billing', 'billing'])
+    } finally {
+      await stop(request, started.runId)
+    }
+  })
+
+  test('a router and a code handoff put a handoff note in the request of the target model', async ({
+    request,
+  }) => {
+    const started = await start(request, 'code')
+    try {
+      await control(request, started, {
+        op: 'prompt',
+        message: 'refund please',
+        inputId: 'in-1',
+      })
+      expect(await outcomeOf(request, started.runId, 'in-1')).toBe('completed')
+
+      const read = await readUntil(request, started.runId, (done) =>
+        done.view.some((message) => message.agent === 'billing'),
+      )
+      expect(read.handoffs).toEqual([
+        expect.objectContaining({ from: null, to: 'triage', by: 'router' }),
+        expect.objectContaining({
+          from: 'triage',
+          to: 'billing',
+          note: 'Refund for order 42.',
+          by: 'code',
+        }),
+      ])
+      expect(read.mainCalls).toBe(0)
+      expect(read.billingCalls).toBe(1)
+      // The model of billing gets the note of its handoff last: a `handoff`
+      // tool call with the note, and its result.
+      const [noteCall, noteResult] = read.billingMessages.slice(-2)
+      expect(noteCall).toMatchObject({
+        role: 'assistant',
+        content: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'tool_use',
+            name: 'handoff',
+            input: { to: 'billing', note: 'Refund for order 42.' },
+          }),
+        ]),
+      })
+      expect(noteResult).toMatchObject({ role: 'user' })
+      expect(JSON.stringify(noteResult)).toContain(
+        'Handed off to billing. billing answers next.',
+      )
+      expect(lines(read).at(-1)).toEqual({
+        role: 'assistant',
+        text: 'billing:\nYour refund is on its way.',
+        by: 'billing',
+      })
     } finally {
       await stop(request, started.runId)
     }

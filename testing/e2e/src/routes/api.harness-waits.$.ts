@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { toolDefinition } from '@tanstack/ai'
+import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import {
   createHarnessHost,
@@ -26,6 +26,10 @@ import type { LogStore } from '@tanstack/ai-persistence'
  *     approval before the tool runs. The turn stops with an approval wait.
  *   - `expiry`: the model calls `confirm`, a durable tool that asks with
  *     `step.ask` and an `expiresAt` 2 s later. Nobody answers.
+ *   - `agent-approval`: the model calls the `writer` agent as a tool, and
+ *     the model of `writer` calls `deploy`. The turn stops with the approval
+ *     wait of the agent. After the answer, the agent goes on, and the main
+ *     model answers with the result of the agent.
  * - `POST .../control?runId=` goes to the handler of host B.
  * - `GET .../debug?runId=` returns what the test checks: how the first turn
  *   on host A ended, the snapshot and the transcript that host B reads from
@@ -42,7 +46,7 @@ const NAME = 'e2e/harness-waits'
 /** How long the question of the `expiry` scenario waits. */
 const EXPIRY_MS = 2_000
 
-type Scenario = 'approval' | 'expiry'
+type Scenario = 'approval' | 'expiry' | 'agent-approval'
 type AnthropicEvent = { type: string } & Record<string, unknown>
 
 const sseOf = (events: Array<AnthropicEvent>) =>
@@ -74,8 +78,8 @@ const ending = (stopReason: string): Array<AnthropicEvent> => [
   { type: 'message_stop' },
 ]
 
-/** An answer that calls the tool `name` with no arguments. */
-const callTool = (id: string, name: string) =>
+/** An answer that calls the tool `name` with `input`. */
+const callTool = (id: string, name: string, input: object = {}) =>
   sseOf([
     messageStart(id),
     {
@@ -86,7 +90,7 @@ const callTool = (id: string, name: string) =>
     {
       type: 'content_block_delta',
       index: 0,
-      delta: { type: 'input_json_delta', partial_json: '{}' },
+      delta: { type: 'input_json_delta', partial_json: JSON.stringify(input) },
     },
     ...ending('tool_use'),
   ])
@@ -124,6 +128,35 @@ const confirm = toolDefinition({
 const SCRIPTS: Record<Scenario, { tool: string; done: string }> = {
   approval: { tool: 'deploy', done: 'Deployed v2.' },
   expiry: { tool: 'confirm', done: 'Nobody confirmed, so I stopped.' },
+  'agent-approval': { tool: 'writer', done: 'The writer deployed v2.' },
+}
+
+/** The last answer of the `writer` agent. */
+const WRITER_DONE = 'Writer: deployed v2.'
+
+/**
+ * A model that calls `tool` with `input` first. When the request has a tool
+ * result, it answers with `done(body)`. `counter.calls` counts its requests.
+ */
+function scriptedModel(
+  prefix: string,
+  tool: string,
+  input: object,
+  done: (body: string) => string,
+  counter: { calls: number },
+) {
+  const scriptedFetch: typeof fetch = async (_url, init) => {
+    counter.calls += 1
+    const body = typeof init?.body === 'string' ? init.body : ''
+    const id = `msg_${prefix}_${counter.calls}`
+    const answer = body.includes('"tool_result"')
+      ? reply(id, done(body))
+      : callTool(id, tool, input)
+    return new Response(answer, {
+      headers: { 'Content-Type': 'text/event-stream' },
+    })
+  }
+  return createAnthropicChat(MODEL, DUMMY_KEY, { fetch: scriptedFetch })
 }
 
 /**
@@ -135,21 +168,40 @@ const SCRIPTS: Record<Scenario, { tool: string; done: string }> = {
 function harnessWith(scenario: Scenario) {
   const script = SCRIPTS[scenario]
   const counter = { calls: 0 }
-  const scriptedFetch: typeof fetch = async (_url, init) => {
-    counter.calls += 1
-    const body = typeof init?.body === 'string' ? init.body : ''
-    const id = `msg_waits_${counter.calls}`
-    const answer = body.includes('"tool_result"')
-      ? reply(id, script.done)
-      : callTool(id, script.tool)
-    return new Response(answer, {
-      headers: { 'Content-Type': 'text/event-stream' },
-    })
-  }
+  // The model of `writer` calls `deploy`. Its calls count with the main model.
+  const writer = defineAgent({
+    name: 'writer',
+    description: 'Deploys the app.',
+    run: (ctx) =>
+      ctx.chat({
+        adapter: scriptedModel(
+          'writer',
+          'deploy',
+          {},
+          () => WRITER_DONE,
+          counter,
+        ),
+        tools: [deploy],
+        stream: false,
+      }),
+  })
+  // The main model answers with the text of the agent result only when it
+  // got it as a tool result.
+  const done = (body: string) =>
+    !body.includes(WRITER_DONE) && scenario === 'agent-approval'
+      ? 'The writer sent no result.'
+      : script.done
   const harness = defineHarness({
     name: NAME,
-    adapter: createAnthropicChat(MODEL, DUMMY_KEY, { fetch: scriptedFetch }),
+    adapter: scriptedModel(
+      'waits',
+      script.tool,
+      scenario === 'agent-approval' ? { prompt: 'Deploy the app.' } : {},
+      done,
+      counter,
+    ),
     tools: [deploy],
+    subagents: { agents: [writer] },
     plugins: () => [
       permissions({ rules: [{ tool: 'deploy', decision: 'ask' }] }),
       definePlugin({

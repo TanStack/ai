@@ -15,6 +15,8 @@ interface Wait {
   runId: string
   expiresAt?: number
   message?: string
+  turn?: boolean
+  agent?: string
 }
 
 interface Debug {
@@ -31,7 +33,7 @@ interface Debug {
 /** Start the turn of `scenario` on host A. */
 async function start(
   request: APIRequestContext,
-  scenario: 'approval' | 'expiry',
+  scenario: 'approval' | 'expiry' | 'agent-approval',
 ) {
   const res = await request.post(`${ROUTE}/start`, { data: { scenario } })
   expect(res.ok()).toBe(true)
@@ -68,6 +70,25 @@ async function readUntil(
 
 const stop = (request: APIRequestContext, runId: string) =>
   request.post(`${ROUTE}/stop?runId=${runId}`)
+
+/** Approve the wait `waitId` on host B. */
+async function approve(
+  request: APIRequestContext,
+  { runId, threadId }: Started,
+  waitId: string,
+) {
+  const res = await request.post(`${ROUTE}/control?runId=${runId}`, {
+    data: {
+      threadId,
+      input: {
+        op: 'resolve',
+        resume: [{ interruptId: waitId, status: 'resolved', payload: true }],
+      },
+    },
+  })
+  expect(res.ok()).toBe(true)
+  expect(await res.json()).toMatchObject({ status: 'accepted' })
+}
 
 test.describe('harness: durable waits', () => {
   test('an approval asked on one server is answered on another', async ({
@@ -153,6 +174,55 @@ test.describe('harness: durable waits', () => {
           response: true,
         }),
       ])
+    } finally {
+      await stop(request, started.runId)
+    }
+  })
+
+  test('the approval of an agent that the model calls as a tool is a wait of the turn, and the agent result reaches the answer', async ({
+    request,
+  }) => {
+    const started = await start(request, 'agent-approval')
+    try {
+      // The model of `writer` calls `deploy`, and the turn stops for the
+      // approval. The wait names the agent.
+      const asked = await readUntil(
+        request,
+        started.runId,
+        (read) => read.pendingWaits.length > 0,
+      )
+      expect(asked.status).toBe('requires_action')
+      expect(asked.pendingWaits).toEqual([
+        expect.objectContaining({
+          kind: 'approval',
+          turn: true,
+          agent: 'writer',
+          message: expect.stringContaining('deploy'),
+        }),
+      ])
+      // The main model and the agent each called their model once.
+      expect(asked.modelCallsA).toBe(2)
+      expect(asked.modelCallsB).toBe(0)
+
+      await approve(request, started, asked.pendingWaits[0]!.waitId)
+
+      const read = await readUntil(
+        request,
+        started.runId,
+        (done) => done.status === 'idle' && done.transcript.length === 4,
+      )
+      expect(read.turn).toEqual({ text: '', interrupts: 1 })
+      // The agent went on from its approval, and the main model got the
+      // result of the agent as the tool result.
+      expect(read.transcript).toEqual([
+        { role: 'user', text: '[harness-waits] agent-approval' },
+        expect.objectContaining({ role: 'assistant' }),
+        { role: 'tool', text: expect.stringContaining('Writer: deployed v2.') },
+        { role: 'assistant', text: 'The writer deployed v2.' },
+      ])
+      expect(read.pendingWaits).toEqual([])
+      // Each model got one more call: no new start of the agent.
+      expect(read.modelCallsA + read.modelCallsB).toBe(4)
     } finally {
       await stop(request, started.runId)
     }
