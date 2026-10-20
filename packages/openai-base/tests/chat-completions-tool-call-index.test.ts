@@ -74,7 +74,8 @@ const weatherTool: Tool = {
 /**
  * Some OpenAI-compatible providers (Gemini's compatibility endpoint, for
  * example) leave `tool_calls[].index` out. A delta without an index starts the
- * next call when it brings a new id and continues the latest call otherwise;
+ * next call when it brings a new id, or a name without an id once the latest
+ * call has a name, and continues the latest call otherwise;
  * treating a missing index as one shared slot merged parallel calls into one.
  */
 describe('OpenAIBaseChatCompletionsTextAdapter — tool call deltas without an index', () => {
@@ -102,6 +103,49 @@ describe('OpenAIBaseChatCompletionsTextAdapter — tool call deltas without an i
       }),
       {
         id: 'chatcmpl-no-index',
+        model: 'test-model',
+        choices: [{ delta: {}, finish_reason: 'tool_calls' }],
+      },
+    ])
+    const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+    const chunks: Array<AdapterYieldChunk> = []
+
+    for await (const chunk of adapter.chatStream({
+      logger: testLogger,
+      model: 'test-model',
+      messages: [{ role: 'user', content: 'Weather and time in Berlin?' }],
+      tools: [weatherTool],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const toolEnds = chunks.flatMap((c) =>
+      c.type === EventType.TOOL_CALL_END
+        ? [[c.toolCallId, c.toolName, c.args]]
+        : [],
+    )
+    expect(toolEnds).toEqual([
+      ['call_a', 'get_weather', '{"location":"Berlin"}'],
+      ['call_b', 'get_time', '{"tz":"CET"}'],
+    ])
+  })
+
+  it('starts a new call for a name without an id after a named call (id arrives later)', async () => {
+    const toolCallChunk = (toolCall: Record<string, unknown>) => ({
+      id: 'chatcmpl-no-index-no-id',
+      model: 'test-model',
+      choices: [{ delta: { tool_calls: [toolCall] }, finish_reason: null }],
+    })
+    setupMockSdkClient([
+      toolCallChunk({ function: { name: 'get_weather' } }),
+      toolCallChunk({
+        id: 'call_a',
+        function: { arguments: '{"location":"Berlin"}' },
+      }),
+      toolCallChunk({ function: { name: 'get_time' } }),
+      toolCallChunk({ id: 'call_b', function: { arguments: '{"tz":"CET"}' } }),
+      {
+        id: 'chatcmpl-no-index-no-id',
         model: 'test-model',
         choices: [{ delta: {}, finish_reason: 'tool_calls' }],
       },
