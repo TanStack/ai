@@ -82,6 +82,7 @@ console.log(wait.kind, wait.message) // question How much do we refund for A-17?
 
 - Without `runId`, it resolves with the first wait of the session.
 - `session.snapshot().pendingWaits` lists every open wait, oldest first. A wait that a chat run stopped for has its `interrupt`. A wait of the stopped turn has `turn: true`.
+- A wait of an agent that the model calls as a tool has the `agent` name and the `subagentRunId` of that agent run. See [When an agent tool waits](./subagents#when-an-agent-tool-waits).
 
 Each wait has a `kind`:
 
@@ -116,8 +117,8 @@ await turn
 
 The tool pays 40 and the turn finishes. Two inputs answer waits:
 
-- `answer`: a wait with no `interrupt`: a `step.ask` question, a question of an MCP server, and the `human` wait of a handoff. It checks the answer against the `schema` of the wait, and keeps a secret answer out of the log.
-- `resolve`: a wait with an `interrupt`: a wait that a turn stopped for (an approval, the `question` tool, a client tool, a sign-in), and a wait of a [background agent run](./subagents#when-a-background-agent-waits). One `resolve` answers every wait of the stopped turn, or waits of one background run. A `resolve` of a wait with no `interrupt` is refused with `use_answer`.
+- `answer`: a wait with no `interrupt`: a `step.ask` question (of a durable tool, a command, or a background agent run), a question of an MCP server, and the `human` wait of a handoff. It checks the answer against the `schema` of the wait, and keeps a secret answer out of the log.
+- `resolve`: a wait with an `interrupt`: a wait that a turn stopped for (an approval, the `question` tool, a client tool, a sign-in, a wait of an [agent tool](./subagents#when-an-agent-tool-waits)), and a wait of a [background agent run](./subagents#when-a-background-agent-waits). One `resolve` answers every wait of the stopped turn, or waits of one background run. A `resolve` of a wait with no `interrupt` is refused with `use_answer`.
 
 Both are inputs. An answer that reaches another instance waits in the log until the owner takes it. `host.submit` stores an answer for a thread that has no open session.
 
@@ -139,7 +140,7 @@ A run waits for a person only at these points:
 
 1. Before a tool call. [`permissions()`](./permissions) opens one approval wait for each call that asks.
 2. The `question` tool. The model asks the user to pick an option.
-3. `step.ask` in a durable tool, in a command, or in an agent run that started with `resume: true`.
+3. `step.ask` in a durable tool, in a command, in an agent run that started with `resume: true`, or in an agent that the model calls as a tool.
 4. Live waits: an MCP server that asks during a tool call (elicitation), and an OAuth sign-in. The host that runs the call keeps the thread until the answer comes. See [Answer a question from a server](./mcp#answer-a-question-from-a-server).
 
 `ctx.session.ask` in your own plugin throws an error that names these points. A command that called `step.ask` runs again from the top after a host stop, so put each side effect before the ask in `step.do`.

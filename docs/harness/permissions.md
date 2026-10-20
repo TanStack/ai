@@ -301,7 +301,7 @@ The same check runs in every agent run of the session:
 
 - Each call in a child run gets the same rules and the same mode. This includes the agents that the model calls, the agents that plugins start, and their children.
 - A background agent run that needs an approval stops with status `waiting`. Its approval is in `pendingWaits` of the same session. Answer it with `resolve`, and the run continues. See [When a background agent waits](./subagents#when-a-background-agent-waits).
-- An agent that the model calls as a tool inside a turn cannot stop for an approval. A call of it that asks gets the tool error `This call needs the approval of the user, and this run cannot ask for it.`
+- An agent that the model calls as a tool inside a turn stops the turn for its approval. The wait has the `agent` that asks. After the `resolve`, that agent goes on. See [When an agent tool waits](./subagents#when-an-agent-tool-waits).
 - In `plan` mode, a child cannot change a file. Its call gets the tool error `This tool is not allowed in plan mode.`
 - The `permissions` of an [agent profile](./agents) count while that profile is the primary agent, in its turns and in each child run. A child run does not use the rules of its own profile.
 - [Coding agents](./coding-agents#plan-mode) such as Claude Code start read-only in `plan` mode.

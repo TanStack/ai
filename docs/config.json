@@ -1004,12 +1004,13 @@
           "label": "Run side effects once",
           "to": "harness/durable-tools",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-19"
+          "updatedAt": "2026-10-20"
         },
         {
           "label": "Wait for a person",
           "to": "harness/waits",
-          "addedAt": "2026-10-18"
+          "addedAt": "2026-10-18",
+          "updatedAt": "2026-10-20"
         },
         {
           "label": "Build on the session log",
@@ -1063,7 +1064,7 @@
           "label": "Ask before risky tool calls",
           "to": "harness/permissions",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-20"
         },
         {
           "label": "Give your agent coding tools",

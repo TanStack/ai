@@ -379,6 +379,35 @@ describe('a wait of an agent tool', () => {
     expect(JSON.stringify(lead.calls[1].messages)).toContain('researcher done')
     await host.close()
   })
+
+  it('waits for an agent that a router picks, as for an agent tool', async () => {
+    const write = writeTool()
+    const writer = toolAgent('writer', write.tool, { path: 'x.txt' })
+    const lead = mockAdapter([])
+    const { host, session } = await open(
+      leadHarness(lead, [], {
+        subagents: undefined,
+        agents: [writer.agent],
+        routing: { router: () => 'writer' },
+      }),
+    )
+
+    await session.send('write it')
+    expect(session.snapshot().pendingWaits).toEqual([
+      expect.objectContaining({ kind: 'approval', agent: 'writer' }),
+    ])
+    const result = await resolveAll(session, () => ({
+      status: 'resolved',
+      payload: true,
+    }))
+
+    expect(result).toMatchObject({
+      text: expect.stringContaining('writer done'),
+    })
+    expect(write.execute).toHaveBeenCalledTimes(1)
+    expect(writer.model.calls).toHaveLength(2)
+    await host.close()
+  })
 })
 
 /** The next settlement of a sign-in resume that is not `interrupted`. */
