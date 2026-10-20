@@ -3,11 +3,7 @@
   "domains": [
     {
       "id": "core",
-      "owns": [
-        "packages/ai",
-        "packages/ai-utils",
-        "packages/ai-event-client"
-      ],
+      "owns": ["packages/ai", "packages/ai-utils", "packages/ai-event-client"],
       "talksTo": []
     },
     {
@@ -38,9 +34,7 @@
         "packages/ai-vertex",
         "packages/ai-worldlabs"
       ],
-      "talksTo": [
-        "core"
-      ]
+      "talksTo": ["core"]
     },
     {
       "id": "harness",
@@ -51,10 +45,7 @@
         "packages/ai-opencode",
         "packages/ai-grok-build"
       ],
-      "talksTo": [
-        "core",
-        "sandbox"
-      ]
+      "talksTo": ["core", "sandbox"]
     },
     {
       "id": "client",
@@ -72,9 +63,7 @@
         "packages/ai-solid-ui",
         "packages/ai-vue-ui"
       ],
-      "talksTo": [
-        "core"
-      ]
+      "talksTo": ["core"]
     },
     {
       "id": "code-mode",
@@ -88,9 +77,7 @@
         "packages/ai-isolate-quickjs",
         "packages/ai-isolate-quickjs-bun"
       ],
-      "talksTo": [
-        "core"
-      ]
+      "talksTo": ["core"]
     },
     {
       "id": "sandbox",
@@ -108,11 +95,7 @@
         "packages/ai-sandbox-upstash-box",
         "packages/ai-sandbox-vercel"
       ],
-      "talksTo": [
-        "core",
-        "middleware",
-        "persistence"
-      ]
+      "talksTo": ["core", "middleware", "persistence"]
     },
     {
       "id": "middleware",
@@ -122,19 +105,12 @@
         "packages/ai-skills",
         "packages/ai-mcp"
       ],
-      "talksTo": [
-        "core"
-      ]
+      "talksTo": ["core"]
     },
     {
       "id": "persistence",
-      "owns": [
-        "packages/ai-persistence",
-        "packages/ai-durable-stream"
-      ],
-      "talksTo": [
-        "core"
-      ]
+      "owns": ["packages/ai-persistence", "packages/ai-durable-stream"],
+      "talksTo": ["core"]
     },
     {
       "id": "devtools",
@@ -145,9 +121,7 @@
         "packages/svelte-ai-devtools",
         "packages/preact-ai-devtools"
       ],
-      "talksTo": [
-        "core"
-      ]
+      "talksTo": ["core"]
     },
     {
       "id": "computer-use",
@@ -156,15 +130,11 @@
         "packages/ai-computer-playwright",
         "packages/ai-computer-e2b"
       ],
-      "talksTo": [
-        "core"
-      ]
+      "talksTo": ["core"]
     },
     {
       "id": "e2e",
-      "owns": [
-        "testing/e2e"
-      ],
+      "owns": ["testing/e2e"],
       "talksTo": [
         "client",
         "code-mode",
@@ -179,19 +149,13 @@
     },
     {
       "id": "docs",
-      "owns": [
-        "docs"
-      ],
+      "owns": ["docs"],
       "talksTo": []
     },
     {
       "id": "model-sync",
-      "owns": [
-        "scripts/model-sync"
-      ],
-      "talksTo": [
-        "provider-adapters"
-      ]
+      "owns": ["scripts/model-sync"],
+      "talksTo": ["provider-adapters"]
     }
   ]
 }
