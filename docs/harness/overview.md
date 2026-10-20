@@ -106,6 +106,8 @@ Opening the same `threadId` again gives another handle to the same live session.
 
 Does the host serve many users? Give it `access`, so each user reaches only their own sessions. See [Access and tenants](./access).
 
+To see every option of `createHarnessHost`, and which ones your app needs, see [Host options](./host-options).
+
 ## 3. Send a message
 
 `send` returns an operation. Await it for the text of the turn.

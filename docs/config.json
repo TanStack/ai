@@ -927,7 +927,12 @@
           "label": "Build your first harness",
           "to": "harness/overview",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-20"
+        },
+        {
+          "label": "Host options",
+          "to": "harness/host-options",
+          "addedAt": "2026-10-20"
         },
         {
           "label": "Send and show media",
