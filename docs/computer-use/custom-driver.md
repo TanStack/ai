@@ -2,11 +2,12 @@
 title: Custom Computer Use Driver
 id: computer-use-custom-driver
 order: 4
-description: "Let the model use your own machine. Write a ComputerDriver with a small set of mouse, keyboard, and screenshot methods."
+description: "Let the model use your own machine. Write a ComputerDriver with a small set of mouse, keyboard, and screenshot methods, and a ComputerDriverFactory to give each thread its own machine."
 keywords:
   - tanstack ai
   - computer use
   - ComputerDriver
+  - ComputerDriverFactory
   - custom driver
   - virtual machine
 ---
@@ -21,45 +22,53 @@ A driver is an object with a screen size and a small set of methods. This exampl
 // app/my-driver.ts
 import type { ComputerDriver } from '@tanstack/ai-computer-use'
 
-const base = 'http://localhost:8000'
+export function createMyDriver(base: string) {
+  async function send(path: string, body: object) {
+    const response = await fetch(`${base}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!response.ok) throw new Error(`${path} failed: ${response.status}`)
+  }
 
-async function send(path: string, body: object) {
-  const response = await fetch(`${base}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!response.ok) throw new Error(`${path} failed: ${response.status}`)
-}
-
-export const myDriver: ComputerDriver = {
-  display: { width: 1920, height: 1080 },
-  environment: 'windows',
-  async screenshot() {
-    const response = await fetch(`${base}/screenshot`)
-    if (!response.ok) throw new Error(`/screenshot failed: ${response.status}`)
-    return new Uint8Array(await response.arrayBuffer())
-  },
-  click: (x, y, { button, count }) => send('/click', { x, y, button, count }),
-  move: (x, y) => send('/move', { x, y }),
-  mouseDown: (button) => send('/mouse-down', { button }),
-  mouseUp: (button) => send('/mouse-up', { button }),
-  scroll: (x, y, deltaX, deltaY) => send('/scroll', { x, y, deltaX, deltaY }),
-  keyDown: (key) => send('/key-down', { key }),
-  keyUp: (key) => send('/key-up', { key }),
-  press: (keys) => send('/press', { keys }),
-  type: (text) => send('/type', { text }),
+  const driver: ComputerDriver = {
+    display: { width: 1920, height: 1080 },
+    environment: 'windows',
+    async screenshot() {
+      const response = await fetch(`${base}/screenshot`)
+      if (!response.ok) throw new Error(`/screenshot failed: ${response.status}`)
+      return new Uint8Array(await response.arrayBuffer())
+    },
+    click: (x, y, { button, count }) => send('/click', { x, y, button, count }),
+    move: (x, y) => send('/move', { x, y }),
+    mouseDown: (button) => send('/mouse-down', { button }),
+    mouseUp: (button) => send('/mouse-up', { button }),
+    scroll: (x, y, deltaX, deltaY) => send('/scroll', { x, y, deltaX, deltaY }),
+    keyDown: (key) => send('/key-down', { key }),
+    keyUp: (key) => send('/key-up', { key }),
+    press: (keys) => send('/press', { keys }),
+    type: (text) => send('/type', { text }),
+  }
+  return driver
 }
 ```
 
-Then pass it to `createComputerUse`:
+Then give it to `createComputerUse`:
 
 ```ts
 import { createComputerUse } from '@tanstack/ai-computer-use'
-import { myDriver } from './my-driver'
+import type { ComputerDriver } from '@tanstack/ai-computer-use'
 
-const { tool, middleware, interrupt } = createComputerUse({ driver: myDriver })
+// From app/my-driver.ts above.
+declare function createMyDriver(base: string): ComputerDriver
+
+const computerUse = createComputerUse({
+  driver: createMyDriver('http://localhost:8000'),
+})
 ```
+
+A driver is one machine. Every thread shares it, so it serves one conversation at a time. `createComputerUse` never closes it. To give each thread its own machine, write a [driver factory](#one-machine-for-each-thread).
 
 ## The contract
 
@@ -80,15 +89,17 @@ Coordinates are in pixels, in `display` space. Key names are `KeyboardEvent.key`
 
 ## Add the optional methods
 
-Two methods are optional. When the driver has one, the Anthropic adapter turns on that action for the model.
+Four methods are optional:
 
-- `zoom(region)`: returns PNG bytes of one region at full size. The region has `x`, `y`, `width`, and `height`.
-- `cursorPosition()`: returns the mouse position as `{ x, y }`.
+- `zoom(region)`: returns PNG bytes of one region at full size. The region has `x`, `y`, `width`, and `height`. The Anthropic adapter then turns on the `zoom` action.
+- `cursorPosition()`: returns the mouse position as `{ x, y }`. The Anthropic adapter then turns on the `cursor_position` action.
+- `navigate(url)`: opens the URL. `computerUse.tools` then has the `navigate` tool. The tool accepts only `http:` and `https:` URLs.
+- `close()`: frees the machine. `createComputerUse` calls it only on a driver that a factory made.
 
 Add this function to `app/my-driver.ts`. It narrows the JSON from your agent before it returns it:
 
 ```ts
-async function cursorPosition() {
+export async function readCursorPosition(base: string) {
   const response = await fetch(`${base}/cursor`)
   const data: unknown = await response.json()
   const isPoint =
@@ -103,7 +114,67 @@ async function cursorPosition() {
 }
 ```
 
-Then add `cursorPosition` to `myDriver`.
+Then add `cursorPosition: () => readCursorPosition(base)` to `driver` in `createMyDriver`.
+
+## One machine for each thread
+
+One shared machine serves one conversation at a time. To give each thread its own machine, write a `ComputerDriverFactory`. `createComputerUse` calls `create` on the first action of each thread.
+
+This example asks a pool service for one VM for each thread, and stops the VM when the thread closes:
+
+```ts
+// app/my-machines.ts
+import type {
+  ComputerDriver,
+  ComputerDriverFactory,
+} from '@tanstack/ai-computer-use'
+
+// From app/my-driver.ts above.
+declare function createMyDriver(base: string): ComputerDriver
+
+const pool = 'http://localhost:9000'
+
+export const myMachines: ComputerDriverFactory = {
+  display: { width: 1920, height: 1080 },
+  environment: 'windows',
+  capabilities: { zoom: false, cursorPosition: false, navigate: false },
+  async create({ threadId }) {
+    const machine = `${pool}/machines/${encodeURIComponent(threadId)}`
+    const response = await fetch(machine, { method: 'PUT' })
+    if (!response.ok) throw new Error(`Start failed: ${response.status}`)
+    return {
+      ...createMyDriver(`${machine}/agent`),
+      close: async () => {
+        await fetch(machine, { method: 'DELETE' })
+      },
+    }
+  },
+}
+```
+
+Then give the factory to `createComputerUse`:
+
+```ts
+import { createComputerUse } from '@tanstack/ai-computer-use'
+import type { ComputerDriverFactory } from '@tanstack/ai-computer-use'
+
+// From app/my-machines.ts above.
+declare const myMachines: ComputerDriverFactory
+
+const computerUse = createComputerUse({ driver: myMachines })
+```
+
+The factory has these members:
+
+| Member | What it does |
+| --- | --- |
+| `display` | The screen size of every machine. Each driver from `create` has this `display`. |
+| `environment` | The kind of every machine. |
+| `capabilities` | `{ zoom, cursorPosition, navigate }`: the optional methods that every driver from `create` has. The tool is built before any machine exists, so the factory tells it. |
+| `create({ threadId })` | Makes the driver of one thread. If it throws, the model gets the error. The next model turn calls `create` again. |
+| `close()` | Optional. Frees what the threads share. `computerUse.close()` calls it after it closes every thread. |
+
+When a thread closes or goes idle, `createComputerUse` calls `close()` on the driver of that thread.
 
 ## What the core builds for you
 

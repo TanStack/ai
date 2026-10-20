@@ -2,71 +2,60 @@
 title: Computer Use
 id: computer-use
 order: 1
-description: "Let the model use a web page for the user. It sees screenshots and sends clicks and key presses. The same code runs on OpenAI and Anthropic."
+description: "Let the model use a web page for the user. It sees screenshots and sends clicks and key presses. Each conversation gets its own browser page, and the same code runs on OpenAI and Anthropic."
 keywords:
   - tanstack ai
   - computer use
   - createComputerUse
+  - playwrightComputer
   - browser agent
   - playwright
   - openai
   - anthropic
 ---
 
-You have a chat app. You want the model to do a task on a web page for the user, for example fill in a form or find a price. Computer use gives the model a screen, a mouse, and a keyboard. The same code runs on OpenAI and on Anthropic.
+You have a chat app. You want the model to do a task on a web page for the user, for example fill in a form or find a price. Computer use gives the model a screen, a mouse, and a keyboard. Each conversation gets its own browser page. The same code runs on OpenAI and on Anthropic.
 
 ## Install
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->
 
-react: @tanstack/ai-computer-use @tanstack/ai-computer-playwright playwright zod
-vue: @tanstack/ai-computer-use @tanstack/ai-computer-playwright playwright zod
-solid: @tanstack/ai-computer-use @tanstack/ai-computer-playwright playwright zod
-svelte: @tanstack/ai-computer-use @tanstack/ai-computer-playwright playwright zod
-preact: @tanstack/ai-computer-use @tanstack/ai-computer-playwright playwright zod
-angular: @tanstack/ai-computer-use @tanstack/ai-computer-playwright playwright zod
-vanilla: @tanstack/ai-computer-use @tanstack/ai-computer-playwright playwright zod
-octane: @tanstack/ai-computer-use @tanstack/ai-computer-playwright playwright zod
+react: @tanstack/ai-computer-use @tanstack/ai-computer-playwright playwright-core zod
+vue: @tanstack/ai-computer-use @tanstack/ai-computer-playwright playwright-core zod
+solid: @tanstack/ai-computer-use @tanstack/ai-computer-playwright playwright-core zod
+svelte: @tanstack/ai-computer-use @tanstack/ai-computer-playwright playwright-core zod
+preact: @tanstack/ai-computer-use @tanstack/ai-computer-playwright playwright-core zod
+angular: @tanstack/ai-computer-use @tanstack/ai-computer-playwright playwright-core zod
+vanilla: @tanstack/ai-computer-use @tanstack/ai-computer-playwright playwright-core zod
+octane: @tanstack/ai-computer-use @tanstack/ai-computer-playwright playwright-core zod
 
 <!-- ::end:tabs -->
 
-## Give the model a browser page
+Then download Chromium one time:
 
-1. Open a Playwright page that has a viewport size.
-2. Create the computer from a driver for that page.
-3. Give `tool`, `middleware`, and `interrupt` to `chat()`.
-
-```ts
-// app/api/chat/computers.ts
-import { createComputerUse } from '@tanstack/ai-computer-use'
-import { createPlaywrightComputerDriver } from '@tanstack/ai-computer-playwright'
-import { chromium } from 'playwright'
-
-const browser = await chromium.launch()
-const computers = new Map<string, ReturnType<typeof createComputerUse>>()
-
-export async function computerFor(threadId: string) {
-  const existing = computers.get(threadId)
-  if (existing) return existing
-  const page = await browser.newPage({ viewport: { width: 1280, height: 720 } })
-  await page.goto('https://example.com')
-  const computer = createComputerUse({
-    driver: createPlaywrightComputerDriver({ page }),
-  })
-  computers.set(threadId, computer)
-  return computer
-}
+```bash
+npx playwright-core install chromium
 ```
+
+## Give the model a browser
+
+1. Create the computer with `playwrightComputer()`, one time, at module scope.
+2. Give `tools`, `middleware`, and `interrupt` to `chat()`.
+3. Give the `threadId` of the request to `chat()`.
 
 ```ts
 // app/api/chat/route.ts
 import { chat, chatParamsFromRequest, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-import { computerFor } from './computers'
+import { createComputerUse } from '@tanstack/ai-computer-use'
+import { playwrightComputer } from '@tanstack/ai-computer-playwright'
+
+const computerUse = createComputerUse({
+  driver: playwrightComputer({ startUrl: 'https://tanstack.com' }),
+})
 
 export async function POST(request: Request) {
   const params = await chatParamsFromRequest(request)
-  const { tool, middleware, interrupt } = await computerFor(params.threadId)
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages: params.messages,
@@ -74,17 +63,19 @@ export async function POST(request: Request) {
     runId: params.runId,
     ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
     ...(params.resume ? { resume: params.resume } : {}),
-    tools: [tool],
-    middleware: [middleware],
-    interrupts: [interrupt],
+    tools: computerUse.tools,
+    middleware: [computerUse.middleware],
+    interrupts: [computerUse.interrupt],
   })
   return toServerSentEventsResponse(stream)
 }
 ```
 
-One `createComputerUse` drives one machine for one conversation at a time. The map keeps one computer for each thread. Your app owns the browser. When the conversation ends, close the page.
+- `tools`: the `computer` tool and the `navigate` tool. With `computer`, the model clicks, types, and takes screenshots. With `navigate`, it opens a URL.
+- `middleware`: stops the rest of a turn after a failed action. It also runs the OpenAI safety checks.
+- `interrupt`: asks a person to approve an action that has a safety check.
 
-The `middleware` stops the rest of a turn after a failed action. It also runs the OpenAI safety checks. The `interrupt` asks a person to approve an action that has a safety check.
+Chromium starts on the first action. Each thread gets a new page on its own first action, and the page opens `startUrl`.
 
 To use Anthropic, change only the adapter:
 
@@ -95,6 +86,54 @@ const adapter = anthropicText('claude-opus-5-5')
 ```
 
 Need a full Linux desktop and not a browser page? See [Drivers](./drivers).
+
+## One page for each thread
+
+Each `threadId` gets its own machine. With `playwrightComputer()`, the machine is a browser context with one page:
+
+- Each thread has its own cookies and storage.
+- Each thread has its own action queue and its own safety-check approvals.
+- All threads share one Chromium process.
+
+Give a stable `threadId` to `chat()`. If `chat()` gets no `threadId`, it makes a new id for each request. Then each request gets a new page.
+
+`useChat` sends the same thread id with each request of a chat. `chatParamsFromRequest` reads it, as in the route above.
+
+## Close the pages
+
+Each open page uses memory on your server. Close the page of a thread when its conversation ends. Close all pages when the server stops:
+
+```ts
+import { createComputerUse } from '@tanstack/ai-computer-use'
+import { playwrightComputer } from '@tanstack/ai-computer-playwright'
+
+declare const threadId: string
+
+const computerUse = createComputerUse({
+  driver: playwrightComputer({ startUrl: 'https://tanstack.com' }),
+  idleTimeout: 30 * 60_000,
+})
+
+// The conversation ended. Close the page of this thread.
+await computerUse.close(threadId)
+
+// The server stops. Close every page, then Chromium.
+await computerUse.close()
+```
+
+A thread that stays idle closes by itself. `idleTimeout` sets this time in ms:
+
+- The default is 10 minutes.
+- When the time ends, the page of the thread closes. The next action of that thread opens a new page at `startUrl`.
+- `false` keeps every thread open until you call `close`.
+
+## Keep the browser away from private addresses
+
+CAUTION: Run the browser in a network where it cannot reach private services. The browser can open every address that your server can reach.
+
+For example, a page can link to an internal admin page or to a cloud metadata URL. The `navigate` tool accepts only `http:` and `https:` URLs. It does not block private addresses.
+
+To keep the machine off your network, use an [E2B sandbox](./drivers#e2b).
 
 ## Register the interrupt on the client
 
@@ -147,19 +186,23 @@ The model clicks, double-clicks, drags, moves the mouse, scrolls, types text, an
 - The screenshot comes 500 ms after the action. This time lets the page settle.
 - `zoom` returns an image of one region at full size.
 - `cursor_position` returns the mouse position as text.
+- `navigate` opens a URL, then returns a screenshot.
 
 To change the delay, set `screenshotDelay` in ms:
 
 ```ts
-const computer = createComputerUse({
-  driver: createPlaywrightComputerDriver({ page }),
+import { createComputerUse } from '@tanstack/ai-computer-use'
+import { playwrightComputer } from '@tanstack/ai-computer-playwright'
+
+const computerUse = createComputerUse({
+  driver: playwrightComputer({ startUrl: 'https://tanstack.com' }),
   screenshotDelay: 1000,
 })
 ```
 
 ## Order and failures
 
-Actions run one at a time, in the order that the model calls them.
+In one thread, actions run one at a time, in the order that the model calls them. Two threads run at the same time, each on its own page.
 
 If one action fails, the other actions of that model turn do not run. The model gets this result for each of them:
 
@@ -168,6 +211,11 @@ Not executed: an earlier computer action in this turn failed.
 ```
 
 The next model turn starts clean. The model sees the error and can try again.
+
+## Limits
+
+- **One server process.** The pages live in the memory of one process. If the next request of a thread goes to another server, the thread gets a new page there.
+- **Time to approve.** If a person answers a safety check after `idleTimeout`, the page is already closed. The approved action then runs on a new page. Set `idleTimeout` above the time that a person takes to answer.
 
 ## Model support
 
@@ -180,9 +228,9 @@ The next model turn starts clean. The model sees the error and can try again.
 Start the app and send this message:
 
 ```text
-Open example.com and tell me the title of the page.
+Go to https://tanstack.com/ai and tell me the title of the page.
 ```
 
-The model takes a screenshot, reads the page, and answers in the chat. You now have a browser agent.
+The model calls `navigate`, reads the screenshot, and answers in the chat. You now have a browser agent.
 
 To control your own machine with no driver package, see [Custom driver](./custom-driver).

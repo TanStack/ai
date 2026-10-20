@@ -1,4 +1,9 @@
-import type { ComputerDriver, MouseButton } from '@tanstack/ai-computer-use'
+import { Sandbox } from '@e2b/desktop'
+import type {
+  ComputerDriver,
+  ComputerDriverFactory,
+  MouseButton,
+} from '@tanstack/ai-computer-use'
 
 /** The parts of an `@e2b/desktop` `Sandbox` that the driver uses. */
 export interface E2BDesktopLike {
@@ -149,4 +154,85 @@ export async function createE2BComputerDriver({
     cursorPosition: () => desktop.getCursorPosition(),
   }
   return driver
+}
+
+/**
+ * The options of `Sandbox.create` from `@e2b/desktop`. The package does not
+ * export this type. Its `SandboxOpts` export is the base `e2b` type, without
+ * `resolution`. Both `create` signatures take these options last.
+ */
+type DesktopSandboxOpts = NonNullable<Parameters<typeof Sandbox.create>[1]>
+
+/**
+ * Options for {@link e2bComputer}. Every option except `display` goes to
+ * `Sandbox.create` from `@e2b/desktop`, like `apiKey`, `timeoutMs`, and
+ * `template`.
+ */
+export type E2BComputerOptions = Omit<
+  DesktopSandboxOpts,
+  'resolution' | 'display'
+> & {
+  /**
+   * The screen size in pixels. Each sandbox starts at this resolution.
+   * The default is `{ width: 1024, height: 768 }`.
+   */
+  display?: { width: number; height: number }
+}
+
+/**
+ * Create a driver factory that starts one E2B desktop sandbox for each thread.
+ *
+ * When `createComputerUse` closes a thread, or the thread goes idle, the
+ * sandbox of that thread is killed. The drivers have `cursorPosition`. They
+ * have no `zoom` and no `navigate`, because a desktop has no address. The
+ * model opens the browser on the desktop.
+ *
+ * ponytail: E2B kills a sandbox after its own `timeoutMs`, even when the
+ * thread is busy. Pass a `timeoutMs` above `idleTimeout` plus the longest
+ * thread.
+ *
+ * @param options - The `display` size and the `Sandbox.create` options.
+ *
+ * @example
+ * const computer = createComputerUse({
+ *   driver: e2bComputer({ timeoutMs: 30 * 60_000 }),
+ * })
+ */
+export function e2bComputer(options: E2BComputerOptions = {}) {
+  const {
+    display = { width: 1024, height: 768 },
+    template,
+    ...sandboxOptions
+  } = options
+
+  const factory: ComputerDriverFactory = {
+    display,
+    environment: 'linux',
+    capabilities: { zoom: false, cursorPosition: true, navigate: false },
+    async create() {
+      const createOptions: DesktopSandboxOpts = {
+        ...sandboxOptions,
+        resolution: [display.width, display.height],
+      }
+      // The desktop SDK reads the template only from the first argument.
+      const desktop =
+        template === undefined
+          ? await Sandbox.create(createOptions)
+          : await Sandbox.create(template, createOptions)
+      const driver = await createE2BComputerDriver({ desktop }).catch(
+        async (error: unknown) => {
+          // Keep the setup error. A failed kill does not replace it.
+          await desktop.kill().catch(() => undefined)
+          throw error
+        },
+      )
+      return {
+        ...driver,
+        close: async () => {
+          await desktop.kill()
+        },
+      }
+    },
+  }
+  return factory
 }

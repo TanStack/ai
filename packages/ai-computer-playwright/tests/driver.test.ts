@@ -1,6 +1,16 @@
-import { describe, expect, it } from 'vitest'
-import { createPlaywrightComputerDriver } from '../src/index'
-import type { PlaywrightPageLike } from '../src/index'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  createPlaywrightComputerDriver,
+  playwrightComputer,
+} from '../src/index'
+import type { LaunchOptions } from 'playwright-core'
+import type { PlaywrightBrowserLike, PlaywrightPageLike } from '../src/index'
+
+const launch = vi.hoisted(() =>
+  vi.fn<(options?: LaunchOptions) => Promise<PlaywrightBrowserLike>>(),
+)
+
+vi.mock('playwright-core', () => ({ chromium: { launch } }))
 
 const PNG = new Uint8Array([137, 80, 78, 71])
 
@@ -37,6 +47,7 @@ function createFakePage(
     },
     goBack: record('goBack'),
     goForward: record('goForward'),
+    goto: record('goto'),
   }
   return { page, calls }
 }
@@ -44,6 +55,37 @@ function createFakePage(
 function setup() {
   const { page, calls } = createFakePage()
   return { driver: createPlaywrightComputerDriver({ page }), calls }
+}
+
+function createFakeBrowser({ gotoError }: { gotoError?: Error } = {}) {
+  const contexts: Array<{
+    viewport: { width: number; height: number }
+    calls: Array<[string, ...Array<unknown>]>
+    closed: boolean
+  }> = []
+  const state = { closed: false }
+  const browser: PlaywrightBrowserLike = {
+    newContext: async ({ viewport }) => {
+      const { page, calls } = createFakePage(viewport)
+      if (gotoError) {
+        page.goto = async () => {
+          throw gotoError
+        }
+      }
+      const context = { viewport, calls, closed: false }
+      contexts.push(context)
+      return {
+        newPage: async () => page,
+        close: async () => {
+          context.closed = true
+        },
+      }
+    },
+    close: async () => {
+      state.closed = true
+    },
+  }
+  return { browser, contexts, state }
 }
 
 describe('createPlaywrightComputerDriver', () => {
@@ -128,5 +170,138 @@ describe('createPlaywrightComputerDriver', () => {
       ['keyboard.press', 'Control+s'],
       ['keyboard.type', 'hello'],
     ])
+  })
+
+  it('goes to a URL', async () => {
+    const { driver, calls } = setup()
+    await driver.navigate?.('https://tanstack.com')
+    expect(calls).toEqual([['goto', 'https://tanstack.com']])
+  })
+})
+
+describe('playwrightComputer', () => {
+  beforeEach(() => {
+    launch.mockReset()
+  })
+
+  it('reports a browser with zoom and navigate', async () => {
+    const { browser } = createFakeBrowser()
+    const factory = playwrightComputer({ browser })
+    const driver = await factory.create({ threadId: 'a' })
+    expect(factory.environment).toBe('browser')
+    expect(factory.capabilities).toEqual({
+      zoom: true,
+      cursorPosition: false,
+      navigate: true,
+    })
+    expect(driver.zoom).toBeTypeOf('function')
+    expect(driver.navigate).toBeTypeOf('function')
+    expect(driver.cursorPosition).toBeUndefined()
+  })
+
+  it('makes one 1280x800 context for each thread by default', async () => {
+    const { browser, contexts } = createFakeBrowser()
+    const factory = playwrightComputer({ browser })
+    const driver = await factory.create({ threadId: 'a' })
+    await factory.create({ threadId: 'b' })
+    expect(factory.display).toEqual({ width: 1280, height: 800 })
+    expect(driver.display).toEqual({ width: 1280, height: 800 })
+    expect(contexts.map((context) => context.viewport)).toEqual([
+      { width: 1280, height: 800 },
+      { width: 1280, height: 800 },
+    ])
+  })
+
+  it('uses the display option as the viewport', async () => {
+    const { browser, contexts } = createFakeBrowser()
+    const display = { width: 1024, height: 768 }
+    const factory = playwrightComputer({ browser, display })
+    const driver = await factory.create({ threadId: 'a' })
+    expect(factory.display).toEqual({ width: 1024, height: 768 })
+    expect(driver.display).toEqual({ width: 1024, height: 768 })
+    expect(contexts[0]?.viewport).toEqual({ width: 1024, height: 768 })
+  })
+
+  it('opens startUrl on the new page', async () => {
+    const { browser, contexts } = createFakeBrowser()
+    const factory = playwrightComputer({
+      browser,
+      startUrl: 'https://tanstack.com',
+    })
+    await factory.create({ threadId: 'a' })
+    expect(contexts[0]?.calls).toEqual([['goto', 'https://tanstack.com']])
+  })
+
+  it('does not navigate without startUrl', async () => {
+    const { browser, contexts } = createFakeBrowser()
+    await playwrightComputer({ browser }).create({ threadId: 'a' })
+    expect(contexts[0]?.calls).toEqual([])
+  })
+
+  it('closes the context and rethrows when startUrl fails to load', async () => {
+    const { browser, contexts } = createFakeBrowser({
+      gotoError: new Error('net::ERR_NAME_NOT_RESOLVED'),
+    })
+    const factory = playwrightComputer({
+      browser,
+      startUrl: 'https://tanstack.invalid',
+    })
+    await expect(factory.create({ threadId: 'a' })).rejects.toThrow(
+      'net::ERR_NAME_NOT_RESOLVED',
+    )
+    expect(contexts[0]?.closed).toBe(true)
+  })
+
+  it('closes only its own context when a driver closes', async () => {
+    const { browser, contexts, state } = createFakeBrowser()
+    const factory = playwrightComputer({ browser })
+    const first = await factory.create({ threadId: 'a' })
+    await factory.create({ threadId: 'b' })
+    await first.close?.()
+    expect(contexts.map((context) => context.closed)).toEqual([true, false])
+    expect(state.closed).toBe(false)
+  })
+
+  it('leaves a passed browser open on factory close', async () => {
+    const { browser, state } = createFakeBrowser()
+    const factory = playwrightComputer({ browser })
+    await factory.create({ threadId: 'a' })
+    await factory.close?.()
+    expect(state.closed).toBe(false)
+  })
+
+  it('launches Chromium once for two threads at once', async () => {
+    const { browser, contexts } = createFakeBrowser()
+    launch.mockResolvedValue(browser)
+    const factory = playwrightComputer({ launch: { headless: false } })
+    await Promise.all([
+      factory.create({ threadId: 'a' }),
+      factory.create({ threadId: 'b' }),
+    ])
+    expect(launch.mock.calls).toEqual([[{ headless: false }]])
+    expect(contexts).toHaveLength(2)
+  })
+
+  it('closes the launched browser on factory close', async () => {
+    const { browser, state } = createFakeBrowser()
+    launch.mockResolvedValue(browser)
+    const factory = playwrightComputer()
+    await factory.create({ threadId: 'a' })
+    await factory.close?.()
+    expect(state.closed).toBe(true)
+  })
+
+  it('tries the launch again after a failed launch', async () => {
+    const { browser, contexts } = createFakeBrowser()
+    launch
+      .mockRejectedValueOnce(new Error('Chromium is not installed'))
+      .mockResolvedValueOnce(browser)
+    const factory = playwrightComputer()
+    await expect(factory.create({ threadId: 'a' })).rejects.toThrow(
+      'Chromium is not installed',
+    )
+    await factory.create({ threadId: 'a' })
+    expect(launch).toHaveBeenCalledTimes(2)
+    expect(contexts).toHaveLength(1)
   })
 })

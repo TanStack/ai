@@ -45,7 +45,13 @@
     "browser"
   ],
   "peerDependencies": {
-    "@tanstack/ai-computer-use": "workspace:^"
+    "@tanstack/ai-computer-use": "workspace:^",
+    "playwright-core": "^1.40.0"
+  },
+  "peerDependenciesMeta": {
+    "playwright-core": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@tanstack/ai-computer-use": "workspace:*",

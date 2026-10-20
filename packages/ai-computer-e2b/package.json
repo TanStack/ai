@@ -45,6 +45,7 @@
     "sandbox"
   ],
   "peerDependencies": {
+    "@e2b/desktop": "^2.0.0",
     "@tanstack/ai-computer-use": "workspace:^"
   },
   "devDependencies": {

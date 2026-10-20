@@ -1,6 +1,9 @@
 /** A mouse button a driver can press. */
 export type MouseButton = 'left' | 'right' | 'middle' | 'back' | 'forward'
 
+/** The kind of computer a driver controls. */
+export type ComputerEnvironment = 'browser' | 'linux' | 'mac' | 'windows'
+
 /**
  * Controls one computer: a browser page, a desktop VM, or a sandbox.
  *
@@ -11,7 +14,7 @@ export interface ComputerDriver {
   /** The screen size in pixels. Screenshots have this size. */
   display: { width: number; height: number }
   /** The kind of computer the driver controls. */
-  environment: 'browser' | 'linux' | 'mac' | 'windows'
+  environment: ComputerEnvironment
   /** Take a screenshot. Returns PNG bytes. */
   screenshot: () => Promise<Uint8Array>
   /** Click `count` times at the point with the given button. */
@@ -50,4 +53,37 @@ export interface ComputerDriver {
   }) => Promise<Uint8Array>
   /** Get the current mouse position. */
   cursorPosition?: () => Promise<{ x: number; y: number }>
+  /**
+   * Go to a URL. When the driver has this method, `createComputerUse` adds
+   * the `navigate` tool.
+   */
+  navigate?: (url: string) => Promise<void>
+  /**
+   * Free the machine. When a factory created the driver, `createComputerUse`
+   * calls this when the thread closes or goes idle. A driver that the app
+   * passes in stays open.
+   */
+  close?: () => Promise<void>
+}
+
+/**
+ * Makes one machine per thread.
+ *
+ * `createComputerUse` builds the tool before any machine exists. The factory
+ * tells it the display, the environment, and the optional methods.
+ */
+export interface ComputerDriverFactory {
+  /** The screen size in pixels. Every created driver has this `display`. */
+  display: { width: number; height: number }
+  /** The kind of computer. Every created driver has this `environment`. */
+  environment: ComputerEnvironment
+  /** The optional methods that every created driver has. */
+  capabilities: { zoom: boolean; cursorPosition: boolean; navigate: boolean }
+  /** Make the machine for one thread. */
+  create: (context: { threadId: string }) => Promise<ComputerDriver>
+  /**
+   * Free what the threads share, like the browser.
+   * `createComputerUse(...).close()` with no thread id calls this.
+   */
+  close?: () => Promise<void>
 }

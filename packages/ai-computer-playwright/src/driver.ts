@@ -1,4 +1,9 @@
-import type { ComputerDriver, MouseButton } from '@tanstack/ai-computer-use'
+import type {
+  ComputerDriver,
+  ComputerDriverFactory,
+  MouseButton,
+} from '@tanstack/ai-computer-use'
+import type { LaunchOptions } from 'playwright-core'
 
 type PageMouseButton = 'left' | 'right' | 'middle'
 
@@ -28,11 +33,40 @@ export interface PlaywrightPageLike {
   }
   goBack: () => Promise<unknown>
   goForward: () => Promise<unknown>
+  goto: (url: string) => Promise<unknown>
+}
+
+/** The slice of a Playwright `BrowserContext` the factory uses. */
+export interface PlaywrightContextLike {
+  newPage: () => Promise<PlaywrightPageLike>
+  close: () => Promise<void>
+}
+
+/** The slice of a Playwright `Browser` the factory uses. */
+export interface PlaywrightBrowserLike {
+  newContext: (options: {
+    viewport: { width: number; height: number }
+  }) => Promise<PlaywrightContextLike>
+  close: () => Promise<void>
 }
 
 export interface PlaywrightComputerDriverOptions {
   /** The page to control. It must have a viewport size. */
   page: PlaywrightPageLike
+}
+
+export interface PlaywrightComputerOptions {
+  /** The URL that each new page opens. Without it, the page stays blank. */
+  startUrl?: string
+  /** The viewport of each page in pixels. The default is 1280 x 800. */
+  display?: { width: number; height: number }
+  /**
+   * The browser that makes the pages. Without it, the factory launches
+   * Chromium on the first thread. A browser you pass in stays open.
+   */
+  browser?: PlaywrightBrowserLike
+  /** The options for `chromium.launch`. With `browser`, the factory ignores them. */
+  launch?: LaunchOptions
 }
 
 /**
@@ -56,7 +90,7 @@ export function createPlaywrightComputerDriver({
     )
   }
 
-  async function navigate(button: 'back' | 'forward') {
+  async function history(button: 'back' | 'forward') {
     if (button === 'back') await page.goBack()
     else await page.goForward()
   }
@@ -66,7 +100,7 @@ export function createPlaywrightComputerDriver({
     environment: 'browser',
     screenshot: () => page.screenshot({ type: 'png' }),
     async click(x, y, { button, count }) {
-      if (button === 'back' || button === 'forward') return navigate(button)
+      if (button === 'back' || button === 'forward') return history(button)
       await page.mouse.click(x, y, { button, clickCount: count })
     },
     move: (x, y) => page.mouse.move(x, y),
@@ -76,7 +110,7 @@ export function createPlaywrightComputerDriver({
       await page.mouse.down({ button })
     },
     async mouseUp(button: MouseButton) {
-      if (button === 'back' || button === 'forward') return navigate(button)
+      if (button === 'back' || button === 'forward') return history(button)
       await page.mouse.up({ button })
     },
     async scroll(x, y, deltaX, deltaY) {
@@ -88,6 +122,75 @@ export function createPlaywrightComputerDriver({
     press: (keys) => page.keyboard.press(keys.join('+')),
     type: (text) => page.keyboard.type(text),
     zoom: (region) => page.screenshot({ type: 'png', clip: region }),
+    navigate: async (url) => {
+      await page.goto(url)
+    },
   }
   return driver
+}
+
+/**
+ * Create a driver factory that gives each thread its own browser page.
+ *
+ * Each thread gets its own browser context, with its own cookies and
+ * storage. When the thread closes, its context closes. When you pass no
+ * `browser`, the factory launches Chromium once, on the first thread, and
+ * `close()` on the factory closes it.
+ *
+ * Without `browser`, the app installs `playwright-core` and runs
+ * `npx playwright-core install chromium` once.
+ *
+ * @param options - The start URL, the display, and the browser or the launch options.
+ *
+ * @example
+ * const computer = createComputerUse({
+ *   driver: playwrightComputer({ startUrl: 'https://tanstack.com' }),
+ * })
+ */
+export function playwrightComputer(options: PlaywrightComputerOptions = {}) {
+  const { startUrl, browser, launch } = options
+  const display = options.display ?? { width: 1280, height: 800 }
+  let launched: Promise<PlaywrightBrowserLike> | null = null
+
+  async function launchChromium() {
+    const { chromium } = await import('playwright-core')
+    return chromium.launch(launch)
+  }
+
+  function getBrowser() {
+    if (browser !== undefined) return Promise.resolve(browser)
+    launched ??= launchChromium().catch((error: unknown) => {
+      launched = null
+      throw error
+    })
+    return launched
+  }
+
+  const factory: ComputerDriverFactory = {
+    display,
+    environment: 'browser',
+    capabilities: { zoom: true, cursorPosition: false, navigate: true },
+    async create() {
+      const shared = await getBrowser()
+      const context = await shared.newContext({ viewport: display })
+      try {
+        const page = await context.newPage()
+        if (startUrl !== undefined) await page.goto(startUrl)
+        return {
+          ...createPlaywrightComputerDriver({ page }),
+          close: () => context.close(),
+        }
+      } catch (error) {
+        await context.close()
+        throw error
+      }
+    },
+    async close() {
+      const current = launched
+      launched = null
+      if (current === null) return
+      await (await current).close()
+    },
+  }
+  return factory
 }

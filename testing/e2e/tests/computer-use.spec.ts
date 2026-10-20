@@ -8,14 +8,19 @@ import {
 } from '@tanstack/ai'
 import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import { createComputerUse } from '@tanstack/ai-computer-use'
-import { createPlaywrightComputerDriver } from '@tanstack/ai-computer-playwright'
+import {
+  createPlaywrightComputerDriver,
+  playwrightComputer,
+} from '@tanstack/ai-computer-playwright'
 import { createOpenaiChat } from '@tanstack/ai-openai'
-import type { Locator, Page } from '@playwright/test'
+import type { Browser, BrowserContext, Locator, Page } from '@playwright/test'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 
 /**
  * Computer use from end to end. A real Playwright page is the computer.
  * `createComputerUse` with the Playwright driver runs the actions on it.
+ * `playwrightComputer` makes one page for each thread from the `browser`
+ * fixture.
  *
  * `chat()` runs in the spec process. A mock `fetch` sends the model streams
  * and keeps each request body. No app server and no API key are used.
@@ -27,6 +32,9 @@ const PAGE_HTML = `
   <input id="name" />
 `
 
+const START_URL = 'https://computer.test/start'
+const FORM_URL = 'https://computer.test/form'
+
 const USER_MESSAGE: ModelMessage = { role: 'user', content: 'Fill the form.' }
 
 const SAFETY_CHECK = {
@@ -34,6 +42,12 @@ const SAFETY_CHECK = {
   code: 'malicious_instructions',
   message: 'The page asks the model to do something else.',
 }
+
+/** The `navigate` function tool in an OpenAI request body. */
+const OPENAI_NAVIGATE_TOOL = { type: 'function', name: 'navigate' }
+
+type MockModel = ReturnType<typeof mockModel>
+type ComputerUse = ReturnType<typeof createComputerUse>
 
 /** A mock `fetch` that sends one stream per request, in order. */
 function mockModel(streams: Array<() => ReadableStream<Uint8Array>>) {
@@ -85,6 +99,21 @@ function openaiStream(id: string, output: Array<unknown>) {
       ...events.map((event) => `data: ${JSON.stringify(event)}\n\n`),
       'data: [DONE]\n\n',
     ])
+}
+
+/** An OpenAI `computer_call` item with one action and no safety checks. */
+function computerCall(
+  name: string,
+  action: { type: string; [field: string]: unknown },
+) {
+  return {
+    type: 'computer_call',
+    id: `cu_${name}`,
+    call_id: `call_cu_${name}`,
+    status: 'completed',
+    action,
+    pending_safety_checks: [],
+  }
 }
 
 const OPENAI_ANSWER = {
@@ -177,6 +206,64 @@ function computerUseFor(page: Page) {
   })
 }
 
+/**
+ * Computer use with `playwrightComputer` on the `browser` fixture. Each new
+ * context serves `PAGE_HTML` for every `https://computer.test` URL. The
+ * contexts stay in `contexts` in the order the threads open them.
+ */
+function routedComputerUse(browser: Browser) {
+  const contexts: Array<BrowserContext> = []
+  const computerUse = createComputerUse({
+    driver: playwrightComputer({
+      startUrl: START_URL,
+      browser: {
+        async newContext(options) {
+          const context = await browser.newContext(options)
+          await context.route('https://computer.test/**', (route) =>
+            route.fulfill({ contentType: 'text/html', body: PAGE_HTML }),
+          )
+          contexts.push(context)
+          return context
+        },
+        close: () => browser.close(),
+      },
+    }),
+    screenshotDelay: 0,
+  })
+  return { computerUse, contexts }
+}
+
+/** The one page that the factory opens in a context. */
+function pageOf(context: BrowserContext) {
+  const [page] = context.pages()
+  if (!page) throw new Error('The context has no page.')
+  return page
+}
+
+function openaiAdapter(model: MockModel) {
+  return createOpenaiChat('gpt-6.1-sol', 'sk-e2e-dummy', {
+    fetch: model.fetch,
+  })
+}
+
+/** Run one OpenAI chat with computer use in a thread, to the end. */
+function runOpenai(
+  computerUse: ComputerUse,
+  model: MockModel,
+  threadId: string,
+) {
+  return drain(
+    chat({
+      adapter: openaiAdapter(model),
+      messages: [USER_MESSAGE],
+      threadId,
+      tools: computerUse.tools,
+      middleware: [computerUse.middleware],
+      interrupts: [computerUse.interrupt],
+    }),
+  )
+}
+
 async function drain(stream: AsyncIterable<StreamChunk>) {
   const chunks: Array<StreamChunk> = []
   for await (const chunk of stream) chunks.push(chunk)
@@ -223,7 +310,7 @@ test.describe('computer use with a Playwright page', () => {
     page,
   }) => {
     const { button, input } = await openForm(page)
-    const { tool, middleware, interrupt } = computerUseFor(page)
+    const computerUse = computerUseFor(page)
     const model = mockModel([
       openaiStream('resp_cu_1', [
         {
@@ -242,22 +329,15 @@ test.describe('computer use with a Playwright page', () => {
       openaiStream('resp_cu_2', [OPENAI_ANSWER]),
     ])
 
-    await drain(
-      chat({
-        adapter: createOpenaiChat('gpt-6.1-sol', 'sk-e2e-dummy', {
-          fetch: model.fetch,
-        }),
-        messages: [USER_MESSAGE],
-        tools: [tool],
-        middleware: [middleware],
-        interrupts: [interrupt],
-      }),
-    )
+    await runOpenai(computerUse, model, 'thread-cu-batch')
 
     await expect(page.locator('#status')).toHaveText('clicked')
     await expect(page.locator('#name')).toHaveValue('hello')
     expect(model.bodies).toHaveLength(2)
-    expect(model.bodies[0]).toMatchObject({ tools: [{ type: 'computer' }] })
+    // The Playwright driver can navigate, so the `navigate` tool goes too.
+    expect(model.bodies[0]).toMatchObject({
+      tools: [{ type: 'computer' }, OPENAI_NAVIGATE_TOOL],
+    })
     expect(model.bodies[1]).toMatchObject({
       input: expect.arrayContaining([
         expect.objectContaining({
@@ -276,7 +356,7 @@ test.describe('computer use with a Playwright page', () => {
     page,
   }) => {
     const { button, input } = await openForm(page)
-    const { tool, middleware, interrupt } = computerUseFor(page)
+    const computerUse = computerUseFor(page)
     const model = mockModel([
       anthropicStream([
         ANTHROPIC_START,
@@ -298,16 +378,18 @@ test.describe('computer use with a Playwright page', () => {
           fetch: model.fetch,
         }),
         messages: [USER_MESSAGE],
-        tools: [tool],
-        middleware: [middleware],
-        interrupts: [interrupt],
+        threadId: 'thread-cu-toolset',
+        tools: computerUse.tools,
+        middleware: [computerUse.middleware],
+        interrupts: [computerUse.interrupt],
       }),
     )
 
     await expect(page.locator('#status')).toHaveText('clicked')
     await expect(page.locator('#name')).toHaveValue('hello')
     expect(model.bodies).toHaveLength(2)
-    // The Playwright driver has zoom and no cursor position.
+    // The Playwright driver has zoom and no cursor position. It can
+    // navigate, so the `navigate` tool goes too, as a custom tool.
     expect(model.bodies[0]).toMatchObject({
       tools: [
         {
@@ -317,6 +399,7 @@ test.describe('computer use with a Playwright page', () => {
             cursor_position: { enabled: false },
           },
         },
+        { type: 'custom', name: 'navigate' },
       ],
     })
     const screenshotResult = (toolUseId: string) =>
@@ -351,24 +434,20 @@ test.describe('computer use with a Playwright page', () => {
     page,
   }) => {
     const { button } = await openForm(page)
-    const { tool, middleware, interrupt } = computerUseFor(page)
+    const computerUse = computerUseFor(page)
     const click = { type: 'click', button: 'left', ...button }
     const model = mockModel([
       openaiStream('resp_cu_1', [
         {
-          type: 'computer_call',
-          id: 'cu_checked',
-          call_id: 'call_cu_checked',
-          status: 'completed',
-          action: click,
+          ...computerCall('checked', click),
           pending_safety_checks: [SAFETY_CHECK],
         },
       ]),
       openaiStream('resp_cu_2', [OPENAI_ANSWER]),
     ])
-    const adapter = createOpenaiChat('gpt-6.1-sol', 'sk-e2e-dummy', {
-      fetch: model.fetch,
-    })
+    const adapter = openaiAdapter(model)
+    // `createComputerUse` keeps the approvals per thread. So both runs use
+    // the same thread.
     const threadId = 'thread-cu-safety'
 
     // Run 1 ends with the safety-check interrupt. The click waits.
@@ -376,9 +455,9 @@ test.describe('computer use with a Playwright page', () => {
       chat({
         adapter,
         messages: [USER_MESSAGE],
-        tools: [tool],
-        middleware: [middleware],
-        interrupts: [interrupt],
+        tools: computerUse.tools,
+        middleware: [computerUse.middleware],
+        interrupts: [computerUse.interrupt],
         threadId,
         runId: 'run-cu-safety-1',
       }),
@@ -405,9 +484,9 @@ test.describe('computer use with a Playwright page', () => {
       chat({
         adapter,
         messages: [USER_MESSAGE, assistantFromChunks(first)],
-        tools: [tool],
-        middleware: [middleware],
-        interrupts: [interrupt],
+        tools: computerUse.tools,
+        middleware: [computerUse.middleware],
+        interrupts: [computerUse.interrupt],
         threadId,
         runId: 'run-cu-safety-2',
         parentRunId: 'run-cu-safety-1',
@@ -441,5 +520,94 @@ test.describe('computer use with a Playwright page', () => {
         }),
       ]),
     })
+  })
+})
+
+test.describe('computer use with playwrightComputer', () => {
+  test('playwrightComputer navigates, then clicks', async ({
+    browser,
+    page,
+  }) => {
+    // The fixture page has the same HTML and width as the factory pages.
+    // So the button has the same center there.
+    const { button } = await openForm(page)
+    const { computerUse, contexts } = routedComputerUse(browser)
+    const model = mockModel([
+      openaiStream('resp_cu_1', [
+        {
+          type: 'function_call',
+          id: 'fc_cu_navigate',
+          call_id: 'call_cu_navigate',
+          name: 'navigate',
+          arguments: JSON.stringify({ url: FORM_URL }),
+          status: 'completed',
+        },
+      ]),
+      openaiStream('resp_cu_2', [
+        computerCall('click', { type: 'click', button: 'left', ...button }),
+      ]),
+      openaiStream('resp_cu_3', [OPENAI_ANSWER]),
+    ])
+
+    await runOpenai(computerUse, model, 'thread-cu-navigate')
+
+    expect(contexts).toHaveLength(1)
+    const [formPage] = contexts.map(pageOf)
+    expect(formPage.url()).toBe(FORM_URL)
+    await expect(formPage.locator('#status')).toHaveText('clicked')
+    expect(model.bodies).toHaveLength(3)
+    expect(model.bodies[0]).toMatchObject({
+      tools: [{ type: 'computer' }, OPENAI_NAVIGATE_TOOL],
+    })
+    expect(model.bodies[1]).toMatchObject({
+      input: expect.arrayContaining([
+        expect.objectContaining({
+          type: 'function_call_output',
+          call_id: 'call_cu_navigate',
+          output: [
+            expect.objectContaining({
+              type: 'input_image',
+              image_url: expect.stringMatching(/^data:image\/png;base64,./),
+            }),
+          ],
+        }),
+      ]),
+    })
+
+    await computerUse.close()
+  })
+
+  test('two threads get two pages', async ({ browser, page }) => {
+    const { button } = await openForm(page)
+    const { computerUse, contexts } = routedComputerUse(browser)
+    // Thread A clicks Go. Thread B only takes a screenshot.
+    const clickModel = mockModel([
+      openaiStream('resp_cu_a1', [
+        computerCall('click', { type: 'click', button: 'left', ...button }),
+      ]),
+      openaiStream('resp_cu_a2', [OPENAI_ANSWER]),
+    ])
+    const lookModel = mockModel([
+      openaiStream('resp_cu_b1', [
+        computerCall('look', { type: 'screenshot' }),
+      ]),
+      openaiStream('resp_cu_b2', [OPENAI_ANSWER]),
+    ])
+
+    await runOpenai(computerUse, clickModel, 'a')
+    await runOpenai(computerUse, lookModel, 'b')
+
+    expect(contexts).toHaveLength(2)
+    const [pageA, pageB] = contexts.map(pageOf)
+    await expect(pageA.locator('#status')).toHaveText('clicked')
+    await expect(pageB.locator('#status')).toHaveText('idle')
+
+    // `close('a')` closes the context of thread A. Thread B keeps its page.
+    await computerUse.close('a')
+    expect(pageA.isClosed()).toBe(true)
+    expect(pageB.isClosed()).toBe(false)
+
+    await computerUse.close()
+    expect(pageB.isClosed()).toBe(true)
   })
 })

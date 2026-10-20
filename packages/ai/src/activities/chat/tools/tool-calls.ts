@@ -981,6 +981,8 @@ async function buildClientToolResult(
  *   call at a time. Results come back in call order either way.
  * @param repairToolInput - How an input that fails the final check is
  *   repaired: the built-in repair (default), none (`false`), or a function.
+ * @param threadId - The thread id of the run. Each server tool gets it on
+ *   its context.
  */
 export async function* executeToolCalls<TContext = unknown>(
   toolCalls: Array<ToolCall>,
@@ -998,6 +1000,7 @@ export async function* executeToolCalls<TContext = unknown>(
   resumeState?: ToolResumeExecutionState,
   toolExecution: NonNullable<TextOptions['toolExecution']> = 'parallel',
   repairToolInput?: TextOptions['repairToolInput'],
+  threadId?: string,
 ): AsyncGenerator<CustomEvent | StreamChunk, ExecuteToolCallsResult, void> {
   const results: Array<ToolResult> = []
   const needsApproval: Array<ApprovalRequest> = []
@@ -1292,6 +1295,7 @@ export async function* executeToolCalls<TContext = unknown>(
       toolCallId: toolCall.id,
       context: userContext,
       abortSignal,
+      ...(threadId !== undefined ? { threadId } : {}),
       ...(inputResponse !== undefined ? { inputResponse } : {}),
       emitCustomEvent: (
         eventName: string,
@@ -1355,6 +1359,7 @@ export async function* executeToolCalls<TContext = unknown>(
       resumeState,
       toolExecution,
       repairToolInput,
+      threadId,
     )
     results.push(...rest.results)
     needsClientExecution.push(...rest.needsClientExecution)

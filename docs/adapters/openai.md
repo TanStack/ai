@@ -992,65 +992,50 @@ const stream = chat({
 
 ### `computerUseTool`
 
-Lets the model observe a virtual desktop via screenshots and interact with
-it using keyboard and mouse events.
-
-To run the actions on a browser or a desktop without your own action code, use `createComputerUse` from `@tanstack/ai-computer-use`. It runs each action on a Playwright page or an E2B desktop. See [Computer use](../computer-use/computer-use.md). For the approval of safety checks, see [Safety checks](../computer-use/safety-checks.md). The rest of this section shows how to run the actions yourself.
-
-The model asks for actions, for example a click and then some typing. Your app runs the actions, then returns a screenshot of the screen. Add an `execute` to the tool that does this:
+The model can look at a screen and use the mouse and the keyboard. Your app runs each action and sends back a screenshot. `createComputerUse` from `@tanstack/ai-computer-use` does this on a Playwright browser or an E2B desktop. Each thread gets its own machine:
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
-import { computerUseTool } from "@tanstack/ai-openai/tools";
+import { createComputerUse } from "@tanstack/ai-computer-use";
+import { playwrightComputer } from "@tanstack/ai-computer-playwright";
 
-interface SafetyCheck {
-  id: string;
-  code?: string;
-  message?: string;
-}
+declare const threadId: string;
 
-// Your code: run one action on the desktop.
-declare function runAction(action: unknown): Promise<void>;
-// Your code: return a PNG of the screen as base64.
-declare function takeScreenshot(): Promise<string>;
-// Your code: show the checks to a person and return their answer.
-declare function askPerson(checks: Array<SafetyCheck>): Promise<boolean>;
+const computerUse = createComputerUse({
+  driver: playwrightComputer({ startUrl: "https://tanstack.com" }),
+});
 
 const stream = chat({
   adapter: openaiText("gpt-6.1-sol"),
-  messages: [{ role: "user", content: "Open example.com and sign up for the newsletter" }],
-  tools: [
-    {
-      ...computerUseTool({ type: "computer" }),
-      execute: async (input: {
-        actions: Array<unknown>;
-        pending_safety_checks: Array<SafetyCheck>;
-      }) => {
-        const checks = input.pending_safety_checks;
-        if (checks.length > 0 && !(await askPerson(checks))) {
-          throw new Error("A person did not allow this action.");
-        }
-        for (const action of input.actions) {
-          await runAction(action);
-        }
-        const screenshot = await takeScreenshot();
-        return [
-          {
-            type: "image",
-            source: { type: "data", value: screenshot, mimeType: "image/png" },
-          },
-        ];
-      },
-    },
-  ],
+  messages: [{ role: "user", content: "Find the TanStack AI docs" }],
+  threadId,
+  tools: computerUse.tools,
+  middleware: [computerUse.middleware],
+  interrupts: [computerUse.interrupt],
 });
 ```
 
-The input of each call has two fields:
+The adapter sends the `computer` tool to OpenAI as its native computer tool.
+
+- For the setup, the threads, and how to close the machines, see [Computer use](../computer-use/computer-use.md).
+- For the approval of OpenAI safety checks, see [Safety checks](../computer-use/safety-checks.md).
+- For your own machine, see [Custom driver](../computer-use/custom-driver.md).
+
+#### The raw tool
+
+`computerUseTool` from `@tanstack/ai-openai/tools` is the native tool with no `execute`. Use it when your app runs the actions itself:
+
+```typescript
+import { computerUseTool } from "@tanstack/ai-openai/tools";
+
+const computer = computerUseTool({ type: "computer" });
+```
+
+Add an `execute` that runs the actions and returns a screenshot as an image part. The input of each call has two fields:
 
 - `actions`: the actions to run, in order, as OpenAI sends them. For example `[{ type: "click", button: "left", x: 120, y: 340 }, { type: "type", text: "ada@example.com" }]`.
-- `pending_safety_checks`: the safety checks of the actions. If the list is not empty, ask a person before you run the actions.
+- `pending_safety_checks`: the safety checks that OpenAI attached to the actions.
 
 The adapter sends the first image of the result back as the screenshot. When the call does not fail, the adapter also tells OpenAI that the safety checks are accepted. When the call fails, they stay unaccepted.
 

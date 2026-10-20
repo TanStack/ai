@@ -1505,7 +1505,7 @@
           "label": "@tanstack/ai",
           "to": "api/ai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-13"
+          "updatedAt": "2026-10-20"
         },
         {
           "label": "@tanstack/ai-client",

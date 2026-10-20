@@ -367,6 +367,3 @@ export async function runComputerAction(
   }
   throw invalid('action', 'a string, an object, or an "actions" array')
 }
-
-/** The result of `runComputerAction`. */
-export type ComputerActionResult = Awaited<ReturnType<typeof runComputerAction>>

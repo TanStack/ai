@@ -8,24 +8,34 @@
 '@tanstack/ai-anthropic': minor
 ---
 
-Add computer use that runs the same code on OpenAI and on Anthropic. A driver controls the machine.
+Add computer use that runs the same code on OpenAI and on Anthropic. A driver controls the machine, and each thread gets its own machine.
 
-- `@tanstack/ai-computer-use` adds `createComputerUse()`. It returns a tool, a middleware, and a safety-check interrupt for `chat()`.
-- `@tanstack/ai-computer-playwright` adds `createPlaywrightComputerDriver()`. It controls a Playwright page.
-- `@tanstack/ai-computer-e2b` adds `createE2BComputerDriver()`. It controls a Linux desktop in an E2B sandbox.
-- `@tanstack/ai-anthropic` and `@tanstack/openai-base` send the generic computer tool to the model as the native computer tool of the provider. `@tanstack/ai` adds the metadata reader for this in `@tanstack/ai/adapter-internals`.
+New packages:
+
+- `@tanstack/ai-computer-use` adds `createComputerUse()`. It returns `tools`, a middleware, a safety-check interrupt, and `close`. Each `threadId` gets its own machine, action queue, and approvals. A thread that stays idle for `idleTimeout` (10 minutes by default) closes.
+- `@tanstack/ai-computer-playwright` adds `playwrightComputer()`, which opens one browser page for each thread. `createPlaywrightComputerDriver()` controls one page that you give it. Both add a `navigate` tool that opens `http:` and `https:` URLs.
+- `@tanstack/ai-computer-e2b` adds `e2bComputer()`, which starts one E2B desktop sandbox for each thread. `createE2BComputerDriver()` controls one sandbox that you give it.
+
+Changes in existing packages:
+
+- `@tanstack/ai` adds `threadId` to `ToolExecutionContext`. It also adds the computer tool metadata reader in `@tanstack/ai/adapter-internals`.
+- `@tanstack/ai-anthropic` and `@tanstack/openai-base` send the generic computer tool to the model as the native computer tool of the provider.
 - `@tanstack/ai-openai` marks the models that support the `computer` tool.
 
 ```ts
-const { tool, middleware, interrupt } = createComputerUse({
-  driver: createPlaywrightComputerDriver({ page }),
+const computerUse = createComputerUse({
+  driver: playwrightComputer({ startUrl: 'https://tanstack.com' }),
 })
 
 chat({
   adapter,
   messages,
-  tools: [tool],
-  middleware: [middleware],
-  interrupts: [interrupt],
+  threadId,
+  tools: computerUse.tools,
+  middleware: [computerUse.middleware],
+  interrupts: [computerUse.interrupt],
 })
+
+await computerUse.close(threadId) // one thread
+await computerUse.close() // every thread, and the browser
 ```

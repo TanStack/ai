@@ -8,19 +8,21 @@ import type {
   InterruptResolutionCollection,
   ModelMessage,
 } from '@tanstack/ai'
-import type { ComputerDriver } from '../src/types'
+import type { ComputerDriver, ComputerDriverFactory } from '../src/types'
 
 const PNG_BYTES = new Uint8Array([137, 80, 78, 71])
 const PNG_BASE64 = 'iVBORw=='
 const ZOOM_BYTES = new Uint8Array([1, 2, 3])
 const ZOOM_BASE64 = 'AQID'
 
+const THREAD = 'thread'
 const CLICK = { action: { type: 'click', x: 10, y: 20, button: 'left' } }
 const TYPE = { action: { type: 'type', text: 'hi' } }
 const CHECK = { id: 'sc_1', code: 'malicious_instructions', message: 'Look.' }
 const CHECKED_CLICK = { ...CLICK, pending_safety_checks: [CHECK] }
 const NOT_EXECUTED =
   'Not executed: an earlier computer action in this turn failed.'
+const FULL_URL = 'a full URL that starts with https:// or http://'
 
 function screenshotOf(base64: string) {
   return [
@@ -31,9 +33,19 @@ function screenshotOf(base64: string) {
   ]
 }
 
+/** A gate that holds an action until the test opens it. */
+function createGate() {
+  let open = () => {}
+  const gate = new Promise<void>((resolve) => {
+    open = resolve
+  })
+  return { gate, open }
+}
+
 interface DriverOptions {
   zoom?: boolean
   cursor?: boolean
+  navigate?: boolean
   /** `click` throws while this returns true. */
   failClick?: () => boolean
   /** `click` waits for this promise. */
@@ -41,7 +53,7 @@ interface DriverOptions {
 }
 
 /** A driver that records its calls in order. */
-function createDriver(options: DriverOptions) {
+function createDriver(options: DriverOptions = {}) {
   const calls: Array<string> = []
   const record = (name: string) => async () => {
     calls.push(name)
@@ -67,36 +79,108 @@ function createDriver(options: DriverOptions) {
     keyUp: record('keyUp'),
     press: record('press'),
     type: record('type'),
+    close: record('close'),
   }
   if (options.zoom) driver.zoom = async () => ZOOM_BYTES
   if (options.cursor) driver.cursorPosition = async () => ({ x: 7, y: 9 })
+  if (options.navigate) {
+    driver.navigate = async (url) => {
+      calls.push(`navigate:${url}`)
+    }
+  }
   return { driver, calls }
 }
 
-function setup(options: DriverOptions & { screenshotDelay?: number } = {}) {
-  const { driver, calls } = createDriver(options)
+interface FactoryOptions extends DriverOptions {
+  /** `create` throws while this returns true. */
+  failCreate?: () => boolean
+}
+
+/** A factory that records each created machine and each close. */
+function createFactory(options: FactoryOptions = {}) {
+  const created: Array<string> = []
+  const closed: Array<string> = []
+  const machines = new Map<string, Array<string>>()
+  const factory: ComputerDriverFactory = {
+    display: { width: 1280, height: 800 },
+    environment: 'linux',
+    capabilities: {
+      zoom: options.zoom ?? false,
+      cursorPosition: options.cursor ?? false,
+      navigate: options.navigate ?? false,
+    },
+    async create({ threadId }) {
+      created.push(threadId)
+      if (options.failCreate?.()) throw new Error('create failed')
+      const { driver, calls } = createDriver(options)
+      driver.close = async () => {
+        closed.push(threadId)
+      }
+      machines.set(threadId, calls)
+      return driver
+    },
+    async close() {
+      closed.push('factory')
+    },
+  }
+  return { factory, created, closed, machines }
+}
+
+interface SetupOptions {
+  screenshotDelay?: number
+  idleTimeout?: number | false
+}
+
+/** `createComputerUse`, plus helpers that call its tools as `chat()` does. */
+function setupWith(
+  driver: ComputerDriver | ComputerDriverFactory,
+  options: SetupOptions = {},
+) {
   const computer = createComputerUse({
     driver,
     screenshotDelay: options.screenshotDelay ?? 0,
+    idleTimeout: options.idleTimeout,
   })
-  const execute = (input: unknown, toolCallId = 'call_1') => {
-    if (!computer.tool.execute) throw new Error('The tool has no execute.')
-    return computer.tool.execute(input, { toolCallId, emitCustomEvent() {} })
+  const [computerTool, navigateTool] = computer.tools
+  const execute = (
+    input: unknown,
+    toolCallId = 'call_1',
+    threadId = THREAD,
+  ) => {
+    if (!computerTool.execute) throw new Error('The tool has no execute.')
+    return computerTool.execute(input, {
+      toolCallId,
+      threadId,
+      emitCustomEvent() {},
+    })
   }
-  return { ...computer, calls, execute }
+  const navigate = (url: string, threadId = THREAD) => {
+    if (!navigateTool?.execute) throw new Error('There is no navigate tool.')
+    return navigateTool.execute(
+      { url },
+      { toolCallId: 'call_nav', threadId, emitCustomEvent() {} },
+    )
+  }
+  return { ...computer, execute, navigate }
 }
 
-type Computer = ReturnType<typeof setup>
+function setup(options: DriverOptions & SetupOptions = {}) {
+  const { driver, calls } = createDriver(options)
+  return { ...setupWith(driver, options), calls }
+}
+
+type Computer = ReturnType<typeof createComputerUse>
 
 function createContext(
   phase: ChatMiddlewareContext['phase'],
   messages: Array<ModelMessage> = [],
+  threadId = THREAD,
 ): ChatMiddlewareContext {
   return {
     requestId: 'request',
     streamId: 'stream',
     runId: 'run',
-    threadId: 'thread',
+    threadId,
     phase,
     iteration: 0,
     chunkIndex: 0,
@@ -138,23 +222,23 @@ function toolCall(id: string, input: unknown, name = 'computer') {
 function boundary(
   computer: Computer,
   toolCalls: Array<ReturnType<typeof toolCall>>,
+  threadId = THREAD,
 ) {
   const messages: Array<ModelMessage> = [
     { role: 'user', content: 'Click the button.' },
     { role: 'assistant', content: null, toolCalls },
   ]
   return computer.middleware.onInterruptBoundary?.({
-    ...createContext('beforeTools', messages),
+    ...createContext('beforeTools', messages, threadId),
     phase: 'beforeTools',
   })
 }
 
-function beforeModel(computer: Computer) {
-  return computer.middleware.onConfig?.(createContext('beforeModel'), {
-    messages: [],
-    systemPrompts: [],
-    tools: [computer.tool],
-  })
+function beforeModel(computer: Computer, threadId = THREAD) {
+  return computer.middleware.onConfig?.(
+    createContext('beforeModel', [], threadId),
+    { messages: [], systemPrompts: [], tools: [] },
+  )
 }
 
 type Resolution = GenericInterruptResolution<typeof computerSafetyCheck>
@@ -180,7 +264,11 @@ function cancelled(key: string): Resolution {
   return { request: safetyRequest(key), status: 'cancelled' }
 }
 
-function resolve(computer: Computer, items: Array<Resolution>) {
+function resolve(
+  computer: Computer,
+  items: Array<Resolution>,
+  threadId = THREAD,
+) {
   const collection: InterruptResolutionCollection<typeof computerSafetyCheck> =
     {
       // TypeScript cannot tie a generic return to one definition. The chat
@@ -189,9 +277,14 @@ function resolve(computer: Computer, items: Array<Resolution>) {
       all: () => items,
     }
   return computer.middleware.onInterruptResolution?.(
-    createContext('init'),
+    createContext('init', [], threadId),
     collection,
   )
+}
+
+/** Wait for a macrotask, so that every pending promise step runs. */
+function settle() {
+  return new Promise((done) => setTimeout(done, 0))
 }
 
 afterEach(() => {
@@ -200,7 +293,10 @@ afterEach(() => {
 
 describe('createComputerUse tool', () => {
   it('is the computer tool with the driver metadata', () => {
-    const { tool, interrupt } = setup({ zoom: true })
+    const {
+      tools: [tool],
+      interrupt,
+    } = setup({ zoom: true })
 
     expect(tool.name).toBe('computer')
     expect(tool.metadata).toEqual({
@@ -213,12 +309,29 @@ describe('createComputerUse tool', () => {
   })
 
   it('gives the cursorPosition capability from the driver', () => {
-    const { tool } = setup({ cursor: true })
+    const {
+      tools: [tool],
+    } = setup({ cursor: true })
 
     expect(tool.metadata?.capabilities).toEqual({
       zoom: false,
       cursorPosition: true,
     })
+  })
+
+  it('takes the metadata from the factory before any machine exists', () => {
+    const { factory, created } = createFactory({ cursor: true })
+    const {
+      tools: [tool],
+    } = setupWith(factory)
+
+    expect(tool.metadata).toEqual({
+      __kind: 'computer_use',
+      display: { width: 1280, height: 800 },
+      environment: 'linux',
+      capabilities: { zoom: false, cursorPosition: true },
+    })
+    expect(created).toEqual([])
   })
 
   it('returns a screenshot after an action', async () => {
@@ -256,16 +369,13 @@ describe('createComputerUse tool', () => {
   })
 
   it('runs concurrent calls one at a time, in call order', async () => {
-    let openGate = () => {}
-    const clickGate = new Promise<void>((open) => {
-      openGate = open
-    })
-    const computer = setup({ clickGate })
+    const { gate, open } = createGate()
+    const computer = setup({ clickGate: gate })
 
     const first = computer.execute(CLICK, 'call_1')
     const second = computer.execute(TYPE, 'call_2')
     await vi.waitFor(() => expect(computer.calls).toEqual(['click:start']))
-    openGate()
+    open()
     await Promise.all([first, second])
 
     expect(computer.calls).toEqual([
@@ -425,5 +535,331 @@ describe('createComputerUse safety checks', () => {
     const computer = setup()
 
     expect(await resolve(computer, [])).toBeUndefined()
+  })
+})
+
+describe('createComputerUse threads', () => {
+  it('gives each thread its own machine from the factory', async () => {
+    const { factory, created, machines } = createFactory()
+    const computer = setupWith(factory)
+
+    await computer.execute(CLICK, 'call_1', 'a')
+    await computer.execute(TYPE, 'call_2', 'b')
+
+    expect(created).toEqual(['a', 'b'])
+    expect(machines.get('a')).toEqual([
+      'click:start',
+      'click:end',
+      'screenshot',
+    ])
+    expect(machines.get('b')).toEqual(['type', 'screenshot'])
+  })
+
+  it('creates one machine for two calls at once on a new thread', async () => {
+    const { factory, created, machines } = createFactory()
+    const computer = setupWith(factory)
+
+    await Promise.all([
+      computer.execute(CLICK, 'call_1', 'a'),
+      computer.execute(TYPE, 'call_2', 'a'),
+    ])
+
+    expect(created).toEqual(['a'])
+    expect(machines.get('a')).toEqual([
+      'click:start',
+      'click:end',
+      'screenshot',
+      'type',
+      'screenshot',
+    ])
+  })
+
+  it('uses one shared thread for calls with no threadId', async () => {
+    const { factory, created } = createFactory()
+    const {
+      tools: [tool],
+    } = setupWith(factory)
+    const context = { emitCustomEvent() {} }
+
+    await tool.execute?.(CLICK, context)
+    await tool.execute?.(TYPE, context)
+
+    expect(created).toHaveLength(1)
+  })
+
+  it('keeps the approvals per thread', async () => {
+    const computer = setup()
+
+    await resolve(computer, [answer('call_1', true)], 'a')
+    const otherThread = await boundary(
+      computer,
+      [toolCall('call_1', CHECKED_CLICK)],
+      'b',
+    )
+
+    expect(otherThread?.interrupts).toHaveLength(1)
+    await expect(
+      computer.execute(CHECKED_CLICK, 'call_1', 'b'),
+    ).rejects.toThrow('Refused')
+    await expect(
+      computer.execute(CHECKED_CLICK, 'call_1', 'a'),
+    ).resolves.toEqual(screenshotOf(PNG_BASE64))
+  })
+
+  it('keeps the failed-turn flag per thread', async () => {
+    const computer = setup({ failClick: () => true })
+
+    await expect(computer.execute(CLICK, 'call_1', 'a')).rejects.toThrow(
+      'click failed',
+    )
+    await expect(computer.execute(TYPE, 'call_2', 'b')).resolves.toEqual(
+      screenshotOf(PNG_BASE64),
+    )
+    await beforeModel(computer, 'b')
+
+    await expect(computer.execute(TYPE, 'call_3', 'a')).rejects.toThrow(
+      NOT_EXECUTED,
+    )
+  })
+
+  it('calls create again after it rejects', async () => {
+    let isBroken = true
+    const { factory, created } = createFactory({ failCreate: () => isBroken })
+    const computer = setupWith(factory)
+
+    await expect(computer.execute(CLICK, 'call_1', 'a')).rejects.toThrow(
+      'create failed',
+    )
+    isBroken = false
+    await beforeModel(computer, 'a')
+
+    await expect(computer.execute(CLICK, 'call_2', 'a')).resolves.toEqual(
+      screenshotOf(PNG_BASE64),
+    )
+    expect(created).toEqual(['a', 'a'])
+  })
+})
+
+describe('createComputerUse close', () => {
+  it('closes the machine of one thread with close(threadId)', async () => {
+    const { factory, created, closed } = createFactory()
+    const computer = setupWith(factory)
+    await computer.execute(CLICK, 'call_1', 'a')
+    await computer.execute(CLICK, 'call_2', 'b')
+
+    await computer.close('a')
+    await computer.execute(CLICK, 'call_3', 'a')
+
+    expect(closed).toEqual(['a'])
+    expect(created).toEqual(['a', 'b', 'a'])
+  })
+
+  it('closes every thread, then the factory, with close()', async () => {
+    const { factory, closed } = createFactory()
+    const computer = setupWith(factory)
+    await computer.execute(CLICK, 'call_1', 'a')
+    await computer.execute(CLICK, 'call_2', 'b')
+
+    await computer.close()
+
+    expect(closed).toEqual(['a', 'b', 'factory'])
+  })
+
+  it('closes the factory when a thread close fails, then throws', async () => {
+    const { factory, closed } = createFactory()
+    const create = factory.create
+    factory.create = async (context) => {
+      const driver = await create(context)
+      if (context.threadId === 'a') {
+        driver.close = async () => {
+          throw new Error('close failed')
+        }
+      }
+      return driver
+    }
+    const computer = setupWith(factory)
+    await computer.execute(CLICK, 'call_1', 'a')
+    await computer.execute(CLICK, 'call_2', 'b')
+
+    await expect(computer.close()).rejects.toThrow('close failed')
+    expect(closed).toEqual(['b', 'factory'])
+  })
+
+  it('does not throw for a closed or an unknown thread', async () => {
+    const { factory, closed } = createFactory()
+    const computer = setupWith(factory)
+    await computer.execute(CLICK, 'call_1', 'a')
+
+    await computer.close('a')
+    await computer.close('a')
+    await computer.close('unknown')
+
+    expect(closed).toEqual(['a'])
+  })
+
+  it('waits for the running action before it closes the thread', async () => {
+    const { gate, open } = createGate()
+    const { factory, closed, machines } = createFactory({ clickGate: gate })
+    const computer = setupWith(factory)
+    const result = computer.execute(CLICK, 'call_1', 'a')
+    await vi.waitFor(() => expect(machines.get('a')).toEqual(['click:start']))
+
+    const closing = computer.close('a')
+    await settle()
+    expect(closed).toEqual([])
+    open()
+    await closing
+
+    expect(closed).toEqual(['a'])
+    await expect(result).resolves.toEqual(screenshotOf(PNG_BASE64))
+    expect(machines.get('a')).toEqual([
+      'click:start',
+      'click:end',
+      'screenshot',
+    ])
+  })
+
+  it('never closes a driver that the app passed in', async () => {
+    vi.useFakeTimers()
+    let isBroken = true
+    const computer = setup({ idleTimeout: 1000, failClick: () => isBroken })
+    await expect(computer.execute(CLICK, 'call_1')).rejects.toThrow(
+      'click failed',
+    )
+    isBroken = false
+
+    await vi.advanceTimersByTimeAsync(1000)
+    const next = computer.execute(TYPE, 'call_2')
+    await vi.advanceTimersByTimeAsync(0)
+    await computer.close(THREAD)
+    await computer.close()
+
+    // The idle timeout dropped the failed turn of the thread.
+    await expect(next).resolves.toEqual(screenshotOf(PNG_BASE64))
+    expect(computer.calls).not.toContain('close')
+  })
+})
+
+describe('createComputerUse idle timeout', () => {
+  it('closes and drops a thread after idleTimeout', async () => {
+    vi.useFakeTimers()
+    const { factory, created, closed } = createFactory()
+    const computer = setupWith(factory, { idleTimeout: 1000 })
+    const first = computer.execute(CLICK, 'call_1', 'a')
+    await vi.advanceTimersByTimeAsync(0)
+    await first
+
+    await vi.advanceTimersByTimeAsync(999)
+    expect(closed).toEqual([])
+    await vi.advanceTimersByTimeAsync(1)
+    expect(closed).toEqual(['a'])
+
+    const second = computer.execute(CLICK, 'call_2', 'a')
+    await vi.advanceTimersByTimeAsync(0)
+    await second
+    expect(created).toEqual(['a', 'a'])
+  })
+
+  it('starts the idle time only after a long action ends', async () => {
+    vi.useFakeTimers()
+    const { gate, open } = createGate()
+    const { factory, closed } = createFactory({ clickGate: gate })
+    const computer = setupWith(factory, { idleTimeout: 1000 })
+    const result = computer.execute(CLICK, 'call_1', 'a')
+
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(closed).toEqual([])
+    open()
+    await vi.advanceTimersByTimeAsync(0)
+    await result
+    await vi.advanceTimersByTimeAsync(999)
+    expect(closed).toEqual([])
+    await vi.advanceTimersByTimeAsync(1)
+
+    expect(closed).toEqual(['a'])
+  })
+
+  it('never closes a thread with idleTimeout false', async () => {
+    vi.useFakeTimers()
+    const { factory, created, closed } = createFactory()
+    const computer = setupWith(factory, { idleTimeout: false })
+    const first = computer.execute(CLICK, 'call_1', 'a')
+    await vi.advanceTimersByTimeAsync(0)
+    await first
+
+    await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000)
+    const second = computer.execute(CLICK, 'call_2', 'a')
+    await vi.advanceTimersByTimeAsync(0)
+    await second
+
+    expect(closed).toEqual([])
+    expect(created).toEqual(['a'])
+  })
+})
+
+describe('createComputerUse navigate', () => {
+  it('has no navigate tool for a driver without navigate', () => {
+    const { tools } = setup()
+
+    expect(tools.map((tool) => tool.name)).toEqual(['computer'])
+  })
+
+  it('has a navigate tool for a factory that can navigate', () => {
+    const { factory } = createFactory({ navigate: true })
+    const { tools } = setupWith(factory)
+
+    expect(tools.map((tool) => tool.name)).toEqual(['computer', 'navigate'])
+  })
+
+  it('goes to the URL on the machine of the thread and returns a screenshot', async () => {
+    const { factory, machines } = createFactory({ navigate: true })
+    const computer = setupWith(factory)
+
+    await expect(
+      computer.navigate('https://tanstack.com', 'a'),
+    ).resolves.toEqual(screenshotOf(PNG_BASE64))
+    expect(machines.get('a')).toEqual([
+      'navigate:https://tanstack.com',
+      'screenshot',
+    ])
+  })
+
+  it('asks for a full URL when the URL has no scheme', async () => {
+    const computer = setup({ navigate: true })
+
+    await expect(computer.navigate('tanstack.com')).rejects.toThrow(FULL_URL)
+    expect(computer.calls).toEqual([])
+  })
+
+  it.each(['file:///etc/passwd', 'javascript:alert(1)'])(
+    'refuses %s',
+    async (url) => {
+      const computer = setup({ navigate: true })
+
+      await expect(computer.navigate(url)).rejects.toThrow(FULL_URL)
+      expect(computer.calls).toEqual([])
+    },
+  )
+
+  it('stops the turn after a refused navigate', async () => {
+    const computer = setup({ navigate: true })
+
+    await expect(computer.navigate('file:///etc/passwd')).rejects.toThrow(
+      FULL_URL,
+    )
+
+    await expect(computer.execute(CLICK)).rejects.toThrow(NOT_EXECUTED)
+  })
+
+  it('fails when the factory says navigate but its driver has none', async () => {
+    const { factory } = createFactory()
+    const computer = setupWith({
+      ...factory,
+      capabilities: { ...factory.capabilities, navigate: true },
+    })
+
+    await expect(computer.navigate('https://tanstack.com')).rejects.toThrow(
+      'no navigate method',
+    )
   })
 })

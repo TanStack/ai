@@ -29,17 +29,23 @@ Safety checks are an OpenAI feature. Anthropic models do not send them, so this 
 
 ## Server
 
-Give `middleware` and `interrupt` to `chat()`. Also pass `parentRunId` and `resume`, so that the approval can continue the run.
+Give `tools`, `middleware`, and `interrupt` to `chat()`. Also give `parentRunId` and `resume`, so that the approval can continue the run.
 
 ```ts
 // app/api/chat/route.ts
 import { chat, chatParamsFromRequest, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-import { computerFor } from './computers'
+import { createComputerUse } from '@tanstack/ai-computer-use'
+import { playwrightComputer } from '@tanstack/ai-computer-playwright'
+
+const computerUse = createComputerUse({
+  driver: playwrightComputer({ startUrl: 'https://tanstack.com' }),
+  // A person has up to one hour to answer before the page closes.
+  idleTimeout: 60 * 60_000,
+})
 
 export async function POST(request: Request) {
   const params = await chatParamsFromRequest(request)
-  const { tool, middleware, interrupt } = await computerFor(params.threadId)
   const stream = chat({
     adapter: openaiText('gpt-6.1-sol'),
     messages: params.messages,
@@ -47,15 +53,20 @@ export async function POST(request: Request) {
     runId: params.runId,
     ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
     ...(params.resume ? { resume: params.resume } : {}),
-    tools: [tool],
-    middleware: [middleware],
-    interrupts: [interrupt],
+    tools: computerUse.tools,
+    middleware: [computerUse.middleware],
+    interrupts: [computerUse.interrupt],
   })
   return toServerSentEventsResponse(stream)
 }
 ```
 
-`computerFor` returns the same `createComputerUse` result for each thread. The approval is stored on that result, so the continuation must use the same one. [Computer Use](./computer-use) shows `computerFor`.
+`computerUse` keeps the approval for the thread until the resume request comes. To keep it there:
+
+- Create `computerUse` one time, at module scope. Every request uses the same one.
+- Give `params.threadId` to `chat()`. The resume request has the same thread id as the request that paused.
+- Set `idleTimeout` above the time that a person takes to answer. If the time ends first, the page closes, and the approved action runs on a new page.
+- Send the resume request to the same server process. The approvals live in the memory of that process.
 
 ## Client
 

@@ -618,62 +618,49 @@ equivalent — see [Provider Skills](../tools/provider-skills.md).
 
 ### `computerUseTool`
 
-Claude can look at a screen and use the mouse and the keyboard. Your app owns the screen: it runs each action that Claude asks for and sends back a screenshot.
-
-To run the actions on a browser or a desktop without your own action code, use `createComputerUse` from `@tanstack/ai-computer-use`. It runs each action on a Playwright page or an E2B desktop, and the adapter picks the tool version for your model. See [Computer use](../computer-use/computer-use.md). The rest of this section shows how to run the actions yourself.
-
-1. Pick the version that your model takes:
-
-   | Version | Models |
-   | --- | --- |
-   | `computer_toolset_20260801` | Claude Opus 5.5, Sonnet 5.5, Haiku 5.5, Fable 5.1, Fable 5, Opus 5, Sonnet 5, Opus 4.8 |
-   | `computer_20251124` | Claude Fable 5.1, Fable 5, Opus 5, Sonnet 5, Opus 4.8, Opus 4.7, Opus 4.6, Sonnet 4.6, Opus 4.5 |
-   | `computer_20250124` | Claude Sonnet 4.5, Haiku 4.5, Opus 4.1 |
-
-2. Give the tool an `execute` that runs each action on your screen.
-3. Return a screenshot for the `screenshot` action, and `"OK"` for the other actions.
+Claude can look at a screen and use the mouse and the keyboard. Your app runs each action and sends back a screenshot. `createComputerUse` from `@tanstack/ai-computer-use` does this on a Playwright browser or an E2B desktop. Each thread gets its own machine:
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
-import { computerUseTool } from "@tanstack/ai-anthropic/tools";
+import { createComputerUse } from "@tanstack/ai-computer-use";
+import { playwrightComputer } from "@tanstack/ai-computer-playwright";
 
-// Your screen, for example a virtual machine. Replace these two functions.
-async function runAction(input: { action: string }): Promise<void> {
-  console.log("run", input);
-}
-async function takeScreenshot(): Promise<string> {
-  return ""; // A PNG, as base64.
-}
+declare const threadId: string;
 
-const computer = {
-  ...computerUseTool({
-    type: "computer_toolset_20260801",
-    configs: { zoom: { enabled: false } },
-  }),
-  // Every version calls `execute` with the action in `input.action`.
-  execute: async (input: { action: string }) => {
-    if (input.action === "screenshot") {
-      const value = await takeScreenshot();
-      return [
-        {
-          type: "image",
-          source: { type: "data", value, mimeType: "image/png" },
-        },
-      ];
-    }
-    await runAction(input);
-    return "OK";
-  },
-};
+const computerUse = createComputerUse({
+  driver: playwrightComputer({ startUrl: "https://tanstack.com" }),
+});
 
 const stream = chat({
   adapter: anthropicText("claude-opus-5-5"),
-  messages: [{ role: "user", content: "Open the display settings." }],
-  tools: [computer],
-  // Claude can ask for several actions in one turn. Run them in order.
-  toolExecution: "sequential",
+  messages: [{ role: "user", content: "Find the TanStack AI docs" }],
+  threadId,
+  tools: computerUse.tools,
+  middleware: [computerUse.middleware],
+  interrupts: [computerUse.interrupt],
 });
+```
+
+The adapter sends the `computer` tool to Claude as the newest native computer tool that your model takes.
+
+- For the setup, the threads, and how to close the machines, see [Computer use](../computer-use/computer-use.md).
+- For your own machine, see [Custom driver](../computer-use/custom-driver.md).
+
+#### The raw tool
+
+`computerUseTool` from `@tanstack/ai-anthropic/tools` is the native tool with no `execute`. Use it when your app runs the actions itself. Pick the version that your model takes:
+
+| Version | Models |
+| --- | --- |
+| `computer_toolset_20260801` | Claude Opus 5.5, Sonnet 5.5, Haiku 5.5, Fable 5.1, Fable 5, Opus 5, Sonnet 5, Opus 4.8 |
+| `computer_20251124` | Claude Fable 5.1, Fable 5, Opus 5, Sonnet 5, Opus 4.8, Opus 4.7, Opus 4.6, Sonnet 4.6, Opus 4.5 |
+| `computer_20250124` | Claude Sonnet 4.5, Haiku 4.5, Opus 4.1 |
+
+```typescript
+import { computerUseTool } from "@tanstack/ai-anthropic/tools";
+
+const computer = computerUseTool({ type: "computer_toolset_20260801" });
 ```
 
 The earlier versions also take a name and the screen size:
@@ -689,13 +676,15 @@ const computer = computerUseTool({
 });
 ```
 
-Good to know:
+Add an `execute` that runs the action and returns a result:
 
+- Every version calls `execute` with the action in `input.action`. With the toolset, Claude calls each action as its own tool. The adapter gives you each call as one `computer` call.
+- Return a screenshot as an image part for the `screenshot` action, and `"OK"` for the other actions.
+- Send screenshots that fit the image limits of the model. The toolset refuses a large screenshot. It does not make it smaller.
+- The toolset turns on `zoom` by default. Return an image for the `zoom` action, or turn it off with `configs: { zoom: { enabled: false } }`.
 - The adapter sends the beta header that an earlier version needs. The toolset needs no beta header.
-- With the toolset, Claude calls each action as its own tool. The adapter gives you each call as one `computer` call, and sends it back in the form that Claude sent. So one `execute` works for every version.
-- The toolset turns on `zoom` by default. To let Claude zoom, remove `configs` and return an image for the `zoom` action too.
-- Send screenshots that fit the image limits of the model. The toolset does not make a large screenshot smaller. It refuses it. Claude gives coordinates in the pixels of your screenshots.
-- If an action fails, answer each later action of the same turn with `Not executed: an earlier computer action in this turn failed.`
+
+Claude gives coordinates in the pixels of your screenshots.
 
 A version that your model does not take is a type error. `claude-opus-5-fast` takes no provider tools. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
