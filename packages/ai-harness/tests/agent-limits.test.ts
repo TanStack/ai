@@ -102,11 +102,11 @@ describe('limits of agent starts', () => {
       name: 'lead',
       description: 'Starts an unknown agent, then the helper',
       run: async (ctx) => {
-        const missing = await ctx.harness.agents.run('missing').then(
+        const missing = await ctx.harness!.agents.run('missing').then(
           () => 'ran',
           (error: unknown) => why(error),
         )
-        const helped = await ctx.harness.agents.run(helper)
+        const helped = await ctx.harness!.agents.run(helper)
         return { missing, helped }
       },
     })
@@ -356,7 +356,7 @@ describe('limits of agent starts', () => {
         // the first attempt started.
         const options = attempt === 1 ? {} : { key: 'again' }
         const got = await Promise.resolve()
-          .then(() => ctx.harness.agents.run(helper, undefined, options))
+          .then(() => ctx.harness!.agents.run(helper, undefined, options))
           .then(String, (error: unknown) => `refused: ${why(error)}`)
         if (attempt === 1) await untilAbort(ctx.abortSignal)
         return got
@@ -408,8 +408,8 @@ describe('the budget of an agent run', () => {
       name: 'lead',
       description: 'Runs the worker with a budget',
       run: async (ctx) =>
-        ctx.harness.agents
-          .run(worker, undefined, { budget: { maxTokens: 50 } })
+        ctx
+          .harness!.agents.run(worker, undefined, { budget: { maxTokens: 50 } })
           .then(
             () => 'finished',
             (error: unknown) =>
@@ -454,9 +454,9 @@ describe('the budget of an agent run', () => {
       name: 'lead',
       description: 'Runs the spender, then the helper',
       run: async (ctx) => {
-        await ctx.harness.agents.run(spender)
+        await ctx.harness!.agents.run(spender)
         return Promise.resolve()
-          .then(() => ctx.harness.agents.run(helper))
+          .then(() => ctx.harness!.agents.run(helper))
           .then(String, why)
       },
     })

@@ -79,7 +79,7 @@ describe('group', () => {
       name: 'lead',
       description: 'Runs children',
       run: (ctx) =>
-        ctx.harness.agents.group({ concurrency: 2 }, (g) =>
+        ctx.harness!.agents.group({ concurrency: 2 }, (g) =>
           [0, 1, 2, 3, 4].map((n) => g.start(child, { n })),
         ),
     })
@@ -117,7 +117,7 @@ describe('group', () => {
       name: 'lead',
       description: 'Runs children',
       run: (ctx) =>
-        ctx.harness.agents.group({ concurrency: 3 }, (g) =>
+        ctx.harness!.agents.group({ concurrency: 3 }, (g) =>
           [0, 1, 2, 3, 4].map((n) => g.start(child, { n })),
         ),
     })
@@ -151,7 +151,7 @@ describe('group', () => {
       name: 'lead',
       description: 'Runs children',
       run: (ctx) =>
-        ctx.harness.agents.group(
+        ctx.harness!.agents.group(
           { concurrency: 3, onFailure: 'collect' },
           (g) => [0, 1, 2, 3, 4].map((n) => g.start(child, { n })),
         ),
@@ -183,7 +183,7 @@ describe('group', () => {
       name: 'lead',
       description: 'Runs children',
       run: (ctx) =>
-        ctx.harness.agents.group({ concurrency: 0 }, (g) => [
+        ctx.harness!.agents.group({ concurrency: 0 }, (g) => [
           g.start(child, { n: 0 }),
         ]),
     })
@@ -203,8 +203,8 @@ describe('run', () => {
       name: 'lead',
       description: 'Runs children in series',
       run: async (ctx) => {
-        const first = await ctx.harness.agents.run(child, { n: 0 })
-        const second = await ctx.harness.agents.run(child, { n: 1 })
+        const first = await ctx.harness!.agents.run(child, { n: 0 })
+        const second = await ctx.harness!.agents.run(child, { n: 1 })
         return [first, second]
       },
     })
@@ -293,7 +293,7 @@ describe('a resumable run that runs again', () => {
           name: 'lead',
           description: 'Runs children',
           run: (ctx) =>
-            ctx.harness.agents.group({ concurrency: 3 }, async (g) => {
+            ctx.harness!.agents.group({ concurrency: 3 }, async (g) => {
               const first = [0, 1, 2].map((n) => g.start(child, { n }))
               await Promise.all(first)
               await hold()
@@ -325,9 +325,9 @@ describe('a resumable run that runs again', () => {
           name: 'lead',
           description: 'Runs children in series',
           run: async (ctx) => {
-            const first = await ctx.harness.agents.run(child, { n: 0 })
+            const first = await ctx.harness!.agents.run(child, { n: 0 })
             await hold()
-            const second = await ctx.harness.agents.run(child, { n: 1 })
+            const second = await ctx.harness!.agents.run(child, { n: 1 })
             return [first, second]
           },
         }),

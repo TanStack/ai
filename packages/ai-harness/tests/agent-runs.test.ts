@@ -520,7 +520,7 @@ describe('agents that agent code starts', () => {
       name: 'lead',
       description: 'Starts a helper',
       run: async (ctx) => {
-        const child = ctx.harness.agents.start('helper')
+        const child = ctx.harness!.agents.start('helper')
         childId = child.id
         return await child
       },
@@ -585,8 +585,8 @@ describe('agents that agent code starts', () => {
       name: 'lead',
       description: 'Runs helpers',
       run: async (ctx) => {
-        const one = await ctx.harness.agents.run(helper)
-        const [two, three] = await ctx.harness.agents.group({}, (g) => [
+        const one = await ctx.harness!.agents.run(helper)
+        const [two, three] = await ctx.harness!.agents.group({}, (g) => [
           g.start(helper),
           g.start('helper'),
         ])
@@ -618,7 +618,7 @@ describe('agents that agent code starts', () => {
       description: 'Starts a helper',
       run: async (ctx) => {
         try {
-          ctx.harness.agents.start('helper')
+          ctx.harness!.agents.start('helper')
           return 'started'
         } catch (error) {
           return String(error)
@@ -661,7 +661,7 @@ describe('agents that agent code starts', () => {
       name: 'lead',
       description: 'Starts a waiter, then waits',
       run: (ctx) => {
-        void ctx.harness.agents.start('waiter')
+        void ctx.harness!.agents.start('waiter')
         return waitForAbort('lead', ctx.abortSignal)
       },
     })

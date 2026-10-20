@@ -1045,7 +1045,7 @@
           "label": "One log for a session tree",
           "to": "harness/shared-logs",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-18"
+          "updatedAt": "2026-10-20"
         },
         {
           "label": "Write a plugin",
@@ -1147,7 +1147,7 @@
           "label": "Run agents from a harness",
           "to": "harness/subagents",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-19"
+          "updatedAt": "2026-10-20"
         },
         {
           "label": "Hand off a conversation",

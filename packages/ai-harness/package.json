@@ -22,9 +22,7 @@
     "src"
   ],
   "type": "module",
-  "sideEffects": [
-    "./dist/esm/agents.js"
-  ],
+  "sideEffects": false,
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
   "exports": {

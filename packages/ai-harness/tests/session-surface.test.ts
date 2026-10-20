@@ -93,6 +93,12 @@ describe('the HarnessSession type', () => {
     void answers
     // @ts-expect-error the handler sends a `POST run` as its run id.
     void session.sendForRun
+    // @ts-expect-error a sweep takes over the log of the session.
+    void session.takeOver
+    // @ts-expect-error the handler scrubs an error frame.
+    void session.scrubError
+    // @ts-expect-error the access check of a schedule reads the log.
+    void session.loggedRun
     const sent: Parameters<typeof session.send>[1] = {
       // @ts-expect-error `send` takes no run id.
       runId: 'run-1',
@@ -117,20 +123,13 @@ describe('the HarnessSession type', () => {
 })
 
 describe('ctx.harness in a run that a plain chat() starts', () => {
-  it('runs step.do each time, and agents.start throws the clear error', async () => {
-    const seen: { steps: Array<number>; startError?: unknown } = { steps: [] }
+  it('is undefined, since no harness runs the agent', async () => {
+    const seen: Array<unknown> = []
     const probe = defineAgent({
       name: 'probe',
-      description: 'Uses ctx.harness with no harness session',
+      description: 'Reads ctx.harness with no harness session',
       run: async (ctx) => {
-        // No `?` and no @ts-expect-error: `ctx.harness` is always there.
-        seen.steps.push(await ctx.harness.step.do('count', () => 1))
-        seen.steps.push(await ctx.harness.step.do('count', () => 2))
-        try {
-          ctx.harness.agents.start('helper')
-        } catch (error) {
-          seen.startError = error
-        }
+        seen.push(ctx.harness)
         return 'done'
       },
     })
@@ -143,11 +142,6 @@ describe('ctx.harness in a run that a plain chat() starts', () => {
       // drain
     }
 
-    expect(seen.steps).toEqual([1, 2])
-    expect(seen.startError).toEqual(
-      new Error(
-        'ctx.harness.agents needs a run that a harness session started.',
-      ),
-    )
+    expect(seen).toEqual([undefined])
   })
 })

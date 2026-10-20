@@ -72,6 +72,7 @@ export const triage = defineAgent({
   name: 'triage',
   description: 'Sorts new requests',
   run: async (ctx) => {
+    if (!ctx.harness) throw new Error('This agent must run in a harness.')
     await ctx.harness.handoff({ to: 'billing', note: 'Refund for order 42' })
     return 'I pass you to billing.'
   },

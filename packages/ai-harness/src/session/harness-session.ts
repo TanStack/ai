@@ -41,6 +41,67 @@ import type { HarnessInput, SettlementOutcome, TurnOverrides } from '../types'
 import type { ScheduleOptions, WaitingSteer } from './types'
 
 /**
+ * The members of the session class that {@link HarnessSession} has. Only
+ * these are public: a new member of a layer stays off the public type until
+ * it is listed here.
+ */
+type PublicSessionMember =
+  | 'agent'
+  | 'agentResult'
+  | 'agentRun'
+  | 'agentRuns'
+  | 'agentTranscript'
+  | 'agents'
+  | 'answer'
+  | 'append'
+  | 'background'
+  | 'cancel'
+  | 'cancelInput'
+  | 'cancelSchedule'
+  | 'command'
+  | 'commands'
+  | 'config'
+  | 'configure'
+  | 'continue'
+  | 'describe'
+  | 'entry'
+  | 'events'
+  | 'getMedia'
+  | 'inputs'
+  | 'inspect'
+  | 'loadMedia'
+  | 'logState'
+  | 'mediaUrl'
+  | 'onAuthRequired'
+  | 'onEvent'
+  | 'onMedia'
+  | 'onQuestion'
+  | 'onUsage'
+  | 'operation'
+  | 'putMedia'
+  | 'recover'
+  | 'registry'
+  | 'reload'
+  | 'reset'
+  | 'resolve'
+  | 'revert'
+  | 'schedule'
+  | 'send'
+  | 'setConfig'
+  | 'setDelivery'
+  | 'settings'
+  | 'settled'
+  | 'snapshot'
+  | 'threadId'
+  | 'tool'
+  | 'transcript'
+  | 'unrevert'
+  | 'updateEntry'
+  | 'usage'
+  | 'waitFor'
+  | 'whenIdle'
+
+/**
  * A handle to a live harness session: one conversation (`threadId`) with its
  * plugins, operations, inputs, and event stream. Open one with `host.open()`.
  * Each open gives its own handle. Release it with `close()`, or with
@@ -48,30 +109,7 @@ import type { ScheduleOptions, WaitingSteer } from './types'
  */
 export interface HarnessSession<
   THarness extends AnyHarness = AnyHarness,
-> extends Omit<
-  SessionImpl<THarness>,
-  // The public members that only the host and the handler call.
-  | 'open'
-  | 'adoptFork'
-  | 'adoptMessages'
-  | 'transferOf'
-  | 'recordTransfer'
-  | 'transferSummary'
-  | 'onIdle'
-  | 'resolveForRun'
-  | 'sendForRun'
-  | 'checked'
-  | 'knownMessage'
-  | 'cancelWorkOf'
-  | 'agentHandle'
-  | 'isIdle'
-  | 'isClosing'
-  | 'openWait'
-  | 'openToEnd'
-  | 'endThread'
-  // A handle closes itself, not the session.
-  | 'close'
-> {
+> extends Pick<SessionImpl<THarness>, PublicSessionMember> {
   /**
    * Release this handle. The session stays open while another handle holds
    * it. When no handle holds it and it is idle, the host closes it after
@@ -105,9 +143,10 @@ export interface HarnessSession<
  * The session class. The package does not export it: apps get the
  * {@link HarnessSession} type from `host.open()`.
  */
-export class SessionImpl<
-  THarness extends AnyHarness = AnyHarness,
-> extends SessionTurn<THarness> {
+export class SessionImpl<THarness extends AnyHarness = AnyHarness>
+  extends SessionTurn<THarness>
+  implements HarnessSession<THarness>
+{
   /** The recoveries that run. The host keeps the log while one runs. */
   private recovering = 0
   /** The timer of the next schedule of this thread. See `armSchedules`. */

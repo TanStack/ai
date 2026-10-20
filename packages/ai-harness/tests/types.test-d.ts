@@ -324,12 +324,13 @@ it('gives plugins and agent code the same agent actions', () => {
   expectTypeOf<PluginSetupContext['agents']>().toExtend<AgentActions>()
 })
 
-it('always gives agent code ctx.harness', () => {
+it('types ctx.harness as optional, since a plain chat() run has none', () => {
   defineAgent({
     name: 'boss',
     description: 'Starts a worker',
     run: async (ctx) => {
-      expectTypeOf(ctx.harness).toEqualTypeOf<HarnessAgentContext>()
+      expectTypeOf(ctx.harness).toEqualTypeOf<HarnessAgentContext | undefined>()
+      if (!ctx.harness) throw new Error('This agent must run in a harness.')
       const priced = await ctx.harness.agents.run(pricer, { vendor: 'a' })
       expectTypeOf(priced).toEqualTypeOf<Priced>()
       return `${priced.cents}`

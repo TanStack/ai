@@ -56,7 +56,7 @@ async function stopDuringAgent(options: {
       name: 'worker',
       description: 'Works',
       run: async (ctx) => {
-        await ctx.harness.step.do('reserve', () => {
+        await ctx.harness!.step.do('reserve', () => {
           effects.push('reserve')
           return 'R-1'
         })
@@ -208,8 +208,8 @@ describe('the children of a run with resume: true', () => {
       name: 'lead',
       description: 'Runs a with the key 1, then b with no key',
       run: async (ctx) => [
-        await ctx.harness.agents.run(a, undefined, { key: '1' }),
-        await ctx.harness.agents.run(b),
+        await ctx.harness!.agents.run(a, undefined, { key: '1' }),
+        await ctx.harness!.agents.run(b),
       ],
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
@@ -239,7 +239,7 @@ describe('the children of a run with resume: true', () => {
         name: 'child',
         description: 'Reserves an id, then works',
         run: async (ctx) => {
-          await ctx.harness.step.do('reserve', () => {
+          await ctx.harness!.step.do('reserve', () => {
             effects.push('reserve')
             return 'R-1'
           })
@@ -252,8 +252,11 @@ describe('the children of a run with resume: true', () => {
       description:
         'Starts the child in the background, and ends after its step',
       run: async (ctx) => {
-        void ctx.harness.agents
-          .start('child', undefined, { resume: true, attach: 'none' })
+        void ctx
+          .harness!.agents.start('child', undefined, {
+            resume: true,
+            attach: 'none',
+          })
           .then(undefined, () => undefined)
         await reserved.opened
         return 'started'

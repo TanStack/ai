@@ -84,6 +84,7 @@ const researcher = defineAgent({
   description: 'Explores each topic, two at a time',
   inputSchema: z.object({ topics: z.array(z.string()) }),
   run: async (ctx) => {
+    if (!ctx.harness) throw new Error('This agent must run in a harness.')
     const notes = await ctx.harness.agents.group({ concurrency: 2 }, (g) =>
       ctx.input.topics.map((topic) => g.start(explorer, { task: topic })),
     )
@@ -107,6 +108,7 @@ const checker = defineAgent({
   description: 'Explores a topic, then checks the notes',
   inputSchema: z.object({ topic: z.string() }),
   run: async (ctx) => {
+    if (!ctx.harness) throw new Error('This agent must run in a harness.')
     const { agents } = ctx.harness
     const notes = await agents.run(explorer, { task: ctx.input.topic })
     return await agents.run(explorer, { task: `Find the errors in these notes:\n${notes}` })
@@ -132,6 +134,7 @@ const migrator = defineAgent({
   description: 'Moves the data of one customer to the new region',
   inputSchema: z.object({ customer: z.string() }),
   run: async (ctx) => {
+    if (!ctx.harness) throw new Error('This agent must run in a harness.')
     const { step } = ctx.harness
     // Each side effect is a step. A finished step does not run again.
     const exportId = await step.do('export', () => startExport(ctx.input.customer))
@@ -166,11 +169,11 @@ export const migrations = definePlugin({
 2. Put each side effect in `ctx.harness.step.do(name, fn)`. The agent code runs again from its start, and a finished step returns its stored value.
 3. Give each step a name that is the same on every run, and return a JSON value from `fn`.
 
-`ctx.harness` gives the agent `step`, `agents`, and `state`. When your app loads `@tanstack/ai-harness`, every agent run has it:
+`ctx.harness` gives the agent `step`, `agents`, and `state`. A harness gives it to every agent run in a session:
 
 - A run that a session starts from code gets the full context.
 - An agent that the model calls as a tool, and an agent that a router picks, get `agents` and `state`. Their `step.do` runs `fn` each time.
-- An agent in a plain `chat()` has no session. Its `step.do` runs `fn` each time, and each call of `agents` and `state` throws an error.
+- An agent in a plain `chat()` has no harness, so `ctx.harness` is `undefined`. Check it before you use it, as the samples on this page do.
 
 What the next host does:
 
@@ -197,6 +200,7 @@ const auditor = defineAgent({
   description: 'Explores the services, then writes a summary',
   inputSchema: z.object({ services: z.array(z.string()) }),
   run: async (ctx) => {
+    if (!ctx.harness) throw new Error('This agent must run in a harness.')
     const { agents } = ctx.harness
     const notes = await agents.group({ key: 'services' }, (g) =>
       ctx.input.services.map((service) => g.start(explorer, { task: service })),
@@ -305,6 +309,7 @@ const editor = defineAgent({
   name: 'editor',
   description: 'Starts two drafts and joins them',
   run: async (ctx) => {
+    if (!ctx.harness) throw new Error('This agent must run in a harness.')
     const { agents } = ctx.harness
     const intro = agents.start(drafter)
     const outro = agents.start(drafter)
@@ -745,6 +750,7 @@ const reader = defineAgent({
   description: 'Reads one page, once per session',
   inputSchema: z.object({ url: z.string() }),
   run: async (ctx) => {
+    if (!ctx.harness) throw new Error('This agent must run in a harness.')
     const seen = ctx.harness.state<Array<string>>({ key: 'seen-urls', initial: [] })
     if ((await seen.get()).includes(ctx.input.url)) return 'Already read.'
     await seen.update((urls) => [...urls, ctx.input.url])
@@ -761,7 +767,7 @@ const reader = defineAgent({
 - `get` and `update` work like [plugin state](./plugins#keep-state). The updates of one key run one at a time, and the value is JSON.
 - The log keeps the value. It survives a restart, and a [fork](./fork-and-reset) copies it.
 - Clients see each change in the AG-UI `STATE_SNAPSHOT` event, under `shared`. Plugin state is under `plugins`.
-- An agent in a plain `chat()` has no session, so `ctx.harness.state` throws there.
+- An agent in a plain `chat()` has no `ctx.harness`, so it has no shared state.
 
 ## What you have now
 

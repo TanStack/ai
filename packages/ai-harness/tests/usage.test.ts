@@ -265,7 +265,7 @@ describe('usage of each run', () => {
     const lead = defineAgent({
       name: 'lead',
       description: 'Runs the worker',
-      run: async (ctx) => ctx.harness.agents.run(worker),
+      run: async (ctx) => ctx.harness!.agents.run(worker),
     })
     const { metadata } = memoryPersistence().stores
     const log = memoryLogStore()

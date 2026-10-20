@@ -179,12 +179,14 @@ async function group() {
   const lead = defineAgent({
     name: 'lead',
     description: 'Runs a, b, and c, two at a time',
-    run: (ctx) =>
-      ctx.harness.agents.group({ concurrency: 2 }, (g) => [
+    run: (ctx) => {
+      if (!ctx.harness) throw new Error('This agent must run in a harness.')
+      return ctx.harness.agents.group({ concurrency: 2 }, (g) => [
         g.start(a, { topic: 'auth' }),
         g.start(b, { topic: 'billing' }),
         g.start(c, { topic: 'search' }),
-      ]),
+      ])
+    },
   })
   const { host, session } = await openWith('group', [lead, a, b, c])
   try {
@@ -213,8 +215,9 @@ async function budget() {
   const lead = defineAgent({
     name: 'lead',
     description: 'Runs the worker with a budget, and returns the error code',
-    run: async (ctx) =>
-      ctx.harness.agents
+    run: async (ctx) => {
+      if (!ctx.harness) throw new Error('This agent must run in a harness.')
+      return ctx.harness.agents
         .run(worker, undefined, { budget: { maxTokens: 50 } })
         .then(
           () => 'finished',
@@ -225,7 +228,8 @@ async function budget() {
             typeof error.code === 'string'
               ? error.code
               : errorOf(error),
-        ),
+        )
+    },
   })
   const { host, session } = await openWith('budget', [lead, worker])
   try {
@@ -243,13 +247,18 @@ async function state() {
     name: 'adder',
     description: 'Adds `by` to the shared count',
     inputSchema: z.object({ by: z.number() }),
-    run: (ctx) =>
-      ctx.harness.state(counter()).update((count) => count + ctx.input.by),
+    run: (ctx) => {
+      if (!ctx.harness) throw new Error('This agent must run in a harness.')
+      return ctx.harness
+        .state(counter())
+        .update((count) => count + ctx.input.by)
+    },
   })
   const lead = defineAgent({
     name: 'lead',
     description: 'Runs two adders at the same time, then reads the count',
     run: async (ctx) => {
+      if (!ctx.harness) throw new Error('This agent must run in a harness.')
       await ctx.harness.agents.group({}, (g) => [
         g.start(adder, { by: 1 }),
         g.start(adder, { by: 10 }),

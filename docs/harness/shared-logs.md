@@ -99,6 +99,7 @@ console.log((await tracked.logState())?.tasks)
 - The fold comes from the log, so a session on another machine gets the same state.
 - Change `version` when you change `record`. A fold checkpoint with another version is ignored.
 - `durability.project` also works with `reduce`. It folds a host record into the messages of its own thread only.
+- Every harness that opens the same log must pass the same `project` and `reduce` objects. When a harness with other ones opens a log that is open, `host.open` throws, and so do the reads of `host.observe`.
 
 A read route that opens no session gets the same state from a view:
 

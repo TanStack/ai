@@ -118,7 +118,7 @@ const helper = defineAgent({
 const nester = defineAgent({
   name: 'nester',
   description: 'Starts a helper',
-  run: async (ctx) => await ctx.harness.agents.run('helper'),
+  run: async (ctx) => await ctx.harness!.agents.run('helper'),
 })
 
 /** Runs a helper and a nester in a parallel group. */
@@ -126,7 +126,7 @@ const lead = defineAgent({
   name: 'lead',
   description: 'Runs a group',
   run: async (ctx) => {
-    const results = await ctx.harness.agents.group({}, (g) => [
+    const results = await ctx.harness!.agents.group({}, (g) => [
       g.start('helper'),
       g.start('nester'),
     ])

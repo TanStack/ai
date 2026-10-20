@@ -220,7 +220,7 @@ function scouting() {
   const scout = defineAgent({
     name: 'scout',
     description: 'Scouts',
-    run: async (ctx) => await ctx.harness.agents.run(helper),
+    run: async (ctx) => await ctx.harness!.agents.run(helper),
   })
   const harness = defineHarness({
     name: 'test/run-tree',
@@ -240,7 +240,7 @@ function leading() {
   const lead = defineAgent({
     name: 'lead',
     description: 'Runs a helper',
-    run: async (ctx) => await ctx.harness.agents.run(helper),
+    run: async (ctx) => await ctx.harness!.agents.run(helper),
   })
   return defineHarness({
     name: 'test/run-tree',

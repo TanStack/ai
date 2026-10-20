@@ -620,6 +620,18 @@ export function createHarnessHandler<P extends Principal = Principal>(
   const openFor = (principal: P | undefined, threadId: string) =>
     host.open(harness, { threadId, ...(principal ? { principal } : {}) })
 
+  /**
+   * `openFor` for `POST run`, which passes its run id. Only the session class
+   * takes it, and `host.open` gives a handle of that class.
+   */
+  const openForRun = async (principal: P | undefined, threadId: string) => {
+    const session = await openFor(principal, threadId)
+    if (session instanceof SessionImpl) return session
+    throw new Error(
+      'The host gave a session of another copy of @tanstack/ai-harness. Install one copy of the package.',
+    )
+  }
+
   /** The view of a thread for a read route. See `observeToRead`. */
   const viewFor = (principal: P | undefined, threadId: string) =>
     observeToRead(host, harness, { threadId, principal })
@@ -921,7 +933,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
     if (request.method === 'POST' && route === 'run') {
       const params = await chatParamsFromRequestBody(await readJson(request))
       const message = lastUserInput(params.messages)
-      const session = await openFor(principal, params.threadId)
+      const session = await openForRun(principal, params.threadId)
       // The turn runs as the request's run id, so an AG-UI client matches
       // its events and interrupts. The run id is the input id too, so a
       // retried request runs once. It runs as this request's principal.
@@ -931,10 +943,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
       return withSession(session, async (keep) => {
         if (params.resume && params.resume.length > 0) {
           const answers = { resume: params.resume, ...ids }
-          // Only the session class takes the run id. `host.open` gives one.
-          const receipt = await (session instanceof SessionImpl
-            ? session.resolveForRun(answers)
-            : session.resolve(answers))
+          const receipt = await session.resolveForRun(answers)
           if (receipt.status === 'rejected') {
             return json({ error: receipt.reason }, 409)
           }
@@ -991,11 +1000,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
             : {}),
           ...(traceparent ? { traceparent } : {}),
         }
-        // Only the session class takes the run id. `host.open` gives one.
-        const operation =
-          session instanceof SessionImpl
-            ? session.sendForRun(checked.parts, sent)
-            : session.send(checked.parts, sent)
+        const operation = session.sendForRun(checked.parts, sent)
         // A turn that the host refused throws, and the answer is 403.
         const receipt = await turnReceipt(operation)
         if (receipt.status === 'rejected') {

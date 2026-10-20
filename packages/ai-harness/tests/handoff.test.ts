@@ -246,7 +246,7 @@ describe('handoffs', () => {
       name: 'triage',
       description: 'Sorts requests',
       run: async (ctx) => {
-        await ctx.harness.handoff({ to: 'billing', note: 'A refund' })
+        await ctx.harness!.handoff({ to: 'billing', note: 'A refund' })
         return 'Passing you to billing.'
       },
     })
@@ -320,7 +320,7 @@ describe('handoffs', () => {
       name: 'triage',
       description: 'Sorts requests',
       run: async (ctx) =>
-        ctx.harness.handoff({ to: 'helper' }).then(
+        ctx.harness!.handoff({ to: 'helper' }).then(
           () => 'moved',
           (error: unknown) => `I stay. ${String(error)}`,
         ),
@@ -345,7 +345,7 @@ describe('handoffs', () => {
       name: 'helper',
       description: 'Helps',
       run: async (ctx) =>
-        ctx.harness.handoff({ to: 'billing' }).then(
+        ctx.harness!.handoff({ to: 'billing' }).then(
           () => 'moved',
           (error: unknown) => String(error),
         ),

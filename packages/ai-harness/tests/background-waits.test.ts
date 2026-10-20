@@ -544,7 +544,7 @@ describe('step.ask in a background agent run', () => {
       name: 'asker',
       description: 'Asks for a key',
       run: async (ctx) => {
-        const key = await ctx.harness.step.ask({
+        const key = await ctx.harness!.step.ask({
           name: 'key',
           message: 'Paste your key',
           schema: z.string(),

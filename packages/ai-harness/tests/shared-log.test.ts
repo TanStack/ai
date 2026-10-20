@@ -137,6 +137,23 @@ describe('the log of a session tree', () => {
     await host.close()
   })
 
+  it('refuses to open a log with another reduce than the one that folds it', async () => {
+    const host = hostFor(durablePersistence())
+    await host.open(tracked, { threadId: ROOT })
+    const other = defineHarness({
+      name: 'test/other',
+      adapter: mockAdapter([]).adapter,
+    })
+
+    await expect(host.open(other, { threadId: ROOT })).rejects.toThrow(
+      'Pass the same project and reduce objects to every harness that shares a log.',
+    )
+    // A view reads the log through the fold too.
+    const view = await host.observe(plain, { threadId: ROOT })
+    await expect(view.logState()).rejects.toThrow('durability.reduce')
+    await host.close()
+  })
+
   it('gives project only the records of its own thread', async () => {
     const host = createHarnessHost({ persistence: durablePersistence() })
     const harness = defineHarness({
