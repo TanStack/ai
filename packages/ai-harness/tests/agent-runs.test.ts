@@ -154,6 +154,78 @@ describe('the thread of an agent run', () => {
     )
     await host.close()
   })
+
+  it('gives a run that code starts a subagentRunId, and reads its transcript by it or by the run id', async () => {
+    const persistence = memoryPersistence()
+    const { host, session } = await open(
+      writing(mockAdapter([() => text('Drafted.')]).adapter),
+      persistence,
+    )
+
+    const run = session.agents.writer.start(undefined, { attach: 'none' })
+    expect(typeof run.subagentRunId).toBe('string')
+    await run
+
+    expect(session.agentRuns()).toMatchObject([
+      { runId: run.id, subagentRunId: run.subagentRunId },
+    ])
+    const contents = (messages: Array<{ content: unknown }>) =>
+      messages.map((message) => message.content)
+    const byRun = await session.agentTranscript({ runId: run.id })
+    expect(contents(byRun)).toContain('Drafted.')
+    expect(
+      await session.agentTranscript({ subagentRunId: run.subagentRunId }),
+    ).toEqual(byRun)
+    expect(await session.agentTranscript({ runId: 'unknown' })).toEqual([])
+    await host.close()
+
+    // A view of a host with no open session reads the log the same way.
+    const next = createHarnessHost({ persistence })
+    const view = await next.observe(writing(mockAdapter([]).adapter), {
+      threadId: THREAD,
+      principal: alice,
+    })
+    expect(await view.agentTranscript({ runId: run.id })).toEqual(byRun)
+    expect(
+      await view.agentTranscript({ subagentRunId: run.subagentRunId }),
+    ).toEqual(byRun)
+    await next.close()
+  })
+
+  it('reads the transcript of a background child of the model by its subagentRunId', async () => {
+    const child = mockAdapter(() => text('Found it.'))
+    const scout = defineAgent({
+      name: 'scout',
+      description: 'Scouts',
+      run: (ctx) => ctx.chat({ adapter: child.adapter }),
+    })
+    const lead = mockAdapter([
+      () => toolCall('scout', { prompt: 'Look', background: true }, 'call-1'),
+      () => text('Started.'),
+      () => text('Noted.'),
+    ])
+    const { host, session } = await open(
+      defineHarness({
+        name: 'test/agent-runs',
+        adapter: lead.adapter,
+        subagents: { agents: [scout] },
+      }),
+    )
+
+    await session.send('Scout')
+    await waitFor(() =>
+      expect(session.agentRuns()[0]?.status).toBe('completed'),
+    )
+    const result = (await session.transcript()).find(
+      (message) => message.role === 'tool',
+    )
+    const { subagentRunId } = JSON.parse(String(result?.content))
+
+    expect(session.agentRuns()[0]?.subagentRunId).toBe(subagentRunId)
+    const messages = await session.agentTranscript({ subagentRunId })
+    expect(messages.map((message) => message.content)).toContain('Found it.')
+    await host.close()
+  })
 })
 
 describe('the receipt of an agent run', () => {
@@ -405,6 +477,7 @@ describe('agentRuns() and agentRun(id)', () => {
         runId: run.id,
         kind: 'agent',
         agent: 'writer',
+        subagentRunId: run.subagentRunId,
         status: 'running',
         principal: alice,
       },
@@ -413,6 +486,7 @@ describe('agentRuns() and agentRun(id)', () => {
         runId: queued.operationId,
         kind: 'agent',
         agent: 'writer',
+        subagentRunId: queued.operationId,
         status: 'queued',
         principal: alice,
       },
@@ -460,6 +534,7 @@ describe('agentRuns() and agentRun(id)', () => {
         runId: run.id,
         kind: 'agent',
         agent: 'writer',
+        subagentRunId: run.subagentRunId,
         status: 'completed',
         principal: alice,
         result: 'Draft one.',
@@ -542,6 +617,7 @@ describe('agents that agent code starts', () => {
         runId: run.id,
         kind: 'agent',
         agent: 'lead',
+        subagentRunId: run.subagentRunId,
         status: 'completed',
         principal: alice,
         result: 'helped',
@@ -551,6 +627,7 @@ describe('agents that agent code starts', () => {
         runId: childId,
         kind: 'agent',
         agent: 'helper',
+        subagentRunId: childId,
         status: 'completed',
         parentRunId: run.id,
         principal: alice,

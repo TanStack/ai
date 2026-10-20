@@ -290,6 +290,7 @@ if (session.agentRun(run.id)) {
 Each item of `agentRuns()` has these fields:
 
 - `runId` (the same as `operationId`) and `agent`: the run and the name of its agent. `kind` is always `'agent'`.
+- `subagentRunId`: the id of the run as a child of the thread, the same as `run.subagentRunId`. A run that runs again after a host stop keeps it. A run in the log that did not start yet has none.
 - `status`: `running`, `queued`, `waiting`, `completed`, `failed`, or `cancelled`. A `queued` run did not start yet: it waits for a free slot, or it is a follow-up that waits for the run before it. A `waiting` run waits for an answer, see [When a background agent waits](#when-a-background-agent-waits).
 - `parentRunId`: the run that started this run, if there is one. That is the agent run whose code started it, or the turn whose tool started it.
 - `principal`: the user that the run runs for. `budget`: the budget of the run, if it has one.
@@ -299,7 +300,14 @@ Each item of `agentRuns()` has these fields:
 
 These three methods also read the log. After a restart, they still find each run, and a follow-up continues a run that ended before the restart. See [Durable sessions](./durable-sessions).
 
-A run and all of its follow-ups keep their messages in one thread: `<threadId>:<name>:<input id of the first run>`. So each follow-up reads the full history of the runs before it.
+A run and all of its follow-ups keep their messages in one thread: `<threadId>:<name>:<input id of the first run>`. So each follow-up reads the full history of the runs before it. To read those messages, pass the run id or its `subagentRunId`:
+
+```ts group=harness-subagents-messages
+const history = await session.agentTranscript({ runId: run.id })
+const same = await session.agentTranscript({ subagentRunId: run.subagentRunId })
+```
+
+The list starts with the messages that the first run started from. See [Show what a child wrote after a reload](#show-what-a-child-wrote-after-a-reload).
 
 ### Start agents from agent code
 
@@ -481,6 +489,7 @@ What you get back:
 - Each message has the child's card in `metadata.tanstack.subagent`: its `name` and its `status` (`running`, `finished`, `error`, or `suspended`).
 - A child that failed before it wrote anything gives you one empty message. It holds only the card, so you can still show that it failed.
 - A nested child works the same way. Pass its own `subagentRunId`.
+- A background child (`background: true`) and an agent run that code starts give the messages of their chain thread. See [Find a run by its id](#find-a-run-by-its-id). For those, `{ runId }` works too.
 
 In the browser, `client.agentTranscript` reads the same messages through [your handler](./connect):
 
@@ -498,6 +507,8 @@ export async function childMessages(subagentRunId: string) {
   return client.agentTranscript({ subagentRunId })
 }
 ```
+
+The handler route is `GET .../agent-transcript?threadId=&subagentRunId=`, or `&runId=` for a run id.
 
 You get an empty list when the id is unknown, or when the child belongs to another thread. The id can come from a prompt, so a session never reads the children of another thread. A [fork](./fork-and-reset) copies the agent results, but their children stay with the thread that ran them. So in the fork, `agentTranscript` gives an empty list for them.
 

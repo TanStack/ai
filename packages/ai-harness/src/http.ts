@@ -522,9 +522,9 @@ let warnedMediaKey = false
  * - `POST .../control`: `{ threadId, input }`. Returns the receipt.
  * - `GET  .../snapshot?threadId=`: the session snapshot.
  * - `GET  .../transcript?threadId=`: the saved messages of the thread.
- * - `GET  .../agent-transcript?threadId=&subagentRunId=`: the saved messages
- *   of a child agent run of the thread. Empty for an unknown id or a child
- *   of another thread. 400 without `subagentRunId`.
+ * - `GET  .../agent-transcript?threadId=&subagentRunId=` (or `&runId=`): the
+ *   saved messages of a child agent run of the thread. Empty for an unknown
+ *   id or a child of another thread. 400 without `subagentRunId` or `runId`.
  * - `GET  .../describe?threadId=`: the commands, settings, and tools. Only
  *   the commands in `expose.commands` and the config keys in `expose.config`.
  * - `POST .../media?threadId=&name=`: store the raw body as a media file of
@@ -1139,12 +1139,18 @@ export function createHarnessHandler<P extends Principal = Principal>(
     if (request.method === 'GET' && route === 'agent-transcript') {
       const threadId = url.searchParams.get('threadId')
       const subagentRunId = url.searchParams.get('subagentRunId')
+      const runId = url.searchParams.get('runId')
+      const run = subagentRunId
+        ? { subagentRunId }
+        : runId
+          ? { runId }
+          : undefined
       if (!threadId) return json({ error: 'threadId is required' }, 400)
-      if (!subagentRunId)
-        return json({ error: 'subagentRunId is required' }, 400)
+      if (!run)
+        return json({ error: 'subagentRunId or runId is required' }, 400)
       const view = await viewFor(principal, threadId)
       if (!view) return json({ error: 'not found' }, 404)
-      return json(await view.agentTranscript({ subagentRunId }))
+      return json(await view.agentTranscript(run))
     }
 
     if (request.method === 'GET' && route === 'snapshot') {

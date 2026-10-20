@@ -403,6 +403,28 @@ export interface ThreadStateFold {
   workspace: WorkspaceBinding | null
 }
 
+/**
+ * The thread of the chain of an agent run of the thread `threadId`, where
+ * the run keeps its messages: `<threadId>:<agent>:<first input>`. `run`
+ * names the run by its run id, or by the `subagentRunId` of its run record.
+ * `undefined` when the thread has no such agent run.
+ */
+export function agentRunThread(
+  state: Pick<ThreadStateFold, 'runs' | 'tree'>,
+  threadId: string,
+  run: { runId: string } | { subagentRunId: string },
+) {
+  const runId =
+    'runId' in run
+      ? run.runId
+      : [...state.runs.values()].find(
+          (record) => record.subagentRunId === run.subagentRunId,
+        )?.runId
+  const node = runId === undefined ? undefined : state.tree.get(runId)
+  if (node?.kind !== 'agent' || node.chainInputId === undefined) return
+  return `${threadId}:${node.agent}:${node.chainInputId}`
+}
+
 /** The thread state of a log with no thread-state records. */
 export function emptyThreadState() {
   const state: ThreadStateFold = {

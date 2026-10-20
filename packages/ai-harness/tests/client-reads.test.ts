@@ -212,6 +212,40 @@ describe('client reads and actions', () => {
     await host.close()
   })
 
+  it('reads the transcript of an agent run that code starts, by its run id', async () => {
+    const writer = defineAgent({
+      name: 'writer',
+      description: 'Writes notes',
+      run: (ctx) =>
+        ctx.chat({ adapter: mockAdapter(() => text('Note 1')).adapter }),
+    })
+    const host = accessHost()
+    const harness = defineHarness({
+      name: 'test/client-reads-agents',
+      adapter: mockAdapter([]).adapter,
+      agents: [writer],
+    })
+    const session = await host.open(harness, {
+      threadId: 'thread-a',
+      principal: user,
+    })
+    const run = session.agents.writer.start(undefined, { attach: 'none' })
+    await run
+    const handler = createHarnessHandler({ host, harness })
+    const client = createHarnessClient({
+      url: 'http://local/api/harness',
+      threadId: 'thread-a',
+      fetch: (input, init) => handler(new Request(input, init)),
+    })
+
+    const byRun = await client.agentTranscript({ runId: run.id })
+    expect(byRun.map((message) => message.content)).toContain('Note 1')
+    expect(
+      await client.agentTranscript({ subagentRunId: run.subagentRunId }),
+    ).toEqual(byRun)
+    await host.close()
+  })
+
   it('throws with the route and the status when a read fails', async () => {
     const { host, client } = setup(
       () => async () => new Response('down', { status: 500 }),

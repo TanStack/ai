@@ -1,5 +1,6 @@
 import { loadChildTranscript } from '@tanstack/ai-persistence'
 import { runStartOf, visibleMessages } from '../log'
+import { agentRunThread } from '../log-records'
 import { createMediaStore } from '../media'
 import { untilRevoked } from './handle'
 import { snapshotFrom } from './helpers'
@@ -76,12 +77,13 @@ export interface ObservedSession<THarness extends AnyHarness = AnyHarness> {
    */
   snapshot: () => Promise<SessionSnapshot>
   /**
-   * The saved messages of a child agent run of the thread, as
-   * `session.agentTranscript()` gives them. Empty for an unknown id.
+   * The saved messages of a child agent run of the thread, by its
+   * `subagentRunId` or by its `runId`, as `session.agentTranscript()` gives
+   * them. Empty for an unknown id.
    */
-  agentTranscript: (options: {
-    subagentRunId: string
-  }) => Promise<Array<ModelMessage>>
+  agentTranscript: (
+    run: { subagentRunId: string } | { runId: string },
+  ) => Promise<Array<ModelMessage>>
   /** The record of a media file of the thread, or `null` when it is not found. */
   getMedia: (options: { id: string }) => Promise<MediaRecord | null>
   /**
@@ -281,7 +283,7 @@ export function observedSession<THarness extends AnyHarness>(
         )
       })
     },
-    async agentTranscript({ subagentRunId }) {
+    async agentTranscript(run) {
       check()
       const { reader } = await readLog()
       try {
@@ -293,9 +295,16 @@ export function observedSession<THarness extends AnyHarness>(
           saveThread: () =>
             Promise.reject(new Error('host.observe writes nothing.')),
         }
-        return (
-          (await loadChildTranscript(children, subagentRunId, threadId)) ?? []
-        )
+        if ('subagentRunId' in run) {
+          const child = await loadChildTranscript(
+            children,
+            run.subagentRunId,
+            threadId,
+          )
+          if (child) return child
+        }
+        const thread = agentRunThread(reader.state.thread, threadId, run)
+        return thread === undefined ? [] : children.loadThread(thread)
       } finally {
         reader.close()
       }

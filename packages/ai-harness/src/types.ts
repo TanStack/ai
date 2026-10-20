@@ -697,6 +697,12 @@ export interface AgentRun<TResult> extends Operation<TResult> {
   readonly kind: 'agent'
   readonly agent: string
   /**
+   * The id of the run as a child of the session thread. Its index entry is
+   * `subagent:<subagentRunId>`. A run that runs again after a host stop keeps
+   * it. Read its messages with `session.agentTranscript({ subagentRunId })`.
+   */
+  readonly subagentRunId: string
+  /**
    * Add a message to this run. `mode: 'steer'` (default) gives it to the
    * run's next model call. When the run makes no further model call, it
    * runs as a follow-up. `mode: 'followUp'` runs the agent again after the

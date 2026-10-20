@@ -248,6 +248,11 @@ export interface AgentRunInfo {
   kind: 'agent'
   agent: string
   /**
+   * The id of the run as a child of the session thread
+   * (`AgentRun.subagentRunId`). A run that did not start yet has none.
+   */
+  subagentRunId?: string
+  /**
    * `queued`: a follow-up that waits for the run before it. `waiting`: the
    * run stopped for its waits (an approval, a sign-in), and an answer
    * resumes it. See `pendingWaits`.

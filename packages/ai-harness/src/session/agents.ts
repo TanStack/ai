@@ -303,6 +303,7 @@ export abstract class SessionAgents<
             ...(principal ? { principal } : {}),
           },
           chain.agent,
+          operation.subagentRunId,
         )
       }),
     )
@@ -332,7 +333,13 @@ export abstract class SessionAgents<
   protected loggedRuns(): Array<AgentRunInfo> {
     return [...this.writer.state.thread.tree.values()].flatMap((node) =>
       node.kind === 'agent' && node.agent !== undefined
-        ? [agentRunInfo(node, node.agent)]
+        ? [
+            agentRunInfo(
+              node,
+              node.agent,
+              this.writer.state.thread.runs.get(node.runId)?.subagentRunId,
+            ),
+          ]
         : [],
     )
   }
@@ -645,7 +652,12 @@ export abstract class SessionAgents<
     // A start that no start function admitted (a child of a plugin group)
     // enters its group here.
     const ready = enter ? this.admitStart({ enter }).ready : given
-    const operation = this.agentOperation(name, offered?.runId)
+    const operation = this.agentOperation(
+      name,
+      offered?.runId,
+      undefined,
+      child?.subagentRunId,
+    )
     // The agent runs for the user who starts it, also after the turn that
     // starts it ends. A child of agent code runs for its parent run's user.
     // Without either, it runs for the principal that opened the session.
@@ -1282,11 +1294,14 @@ export abstract class SessionAgents<
   /**
    * A new agent run operation. `id`: a stored one, after a restart.
    * `startedCursor`: the start of a run that the log rebuilds.
+   * `subagentRunId`: the child id of the run. Default: the one of its run
+   * record, else the run id, so a host that offered the run knows it too.
    */
   protected agentOperation(
     agent: string,
     id?: string,
     startedCursor?: Cursor,
+    subagentRunId?: string,
   ): AgentRunImpl {
     // A call on the run itself acts as the user of the run, not as the
     // principal that opened the session. A handle passes its own principal.
@@ -1307,6 +1322,10 @@ export abstract class SessionAgents<
       // `kind` and `agent` are fixed by the constructor call above.
       operation as OperationImpl<unknown> & { kind: 'agent'; agent: string },
       {
+        subagentRunId:
+          subagentRunId ??
+          this.writer.state.thread.runs.get(operation.id)?.subagentRunId ??
+          operation.id,
         send: (
           message: UserInput,
           options?: {
@@ -1379,7 +1398,12 @@ export abstract class SessionAgents<
     subagentRunId?: string,
   ) {
     this.warnLiveOnly(input.operationId)
-    const operation = this.agentOperation(first.input.agent)
+    const operation = this.agentOperation(
+      first.input.agent,
+      undefined,
+      undefined,
+      subagentRunId,
+    )
     const sender = input.principal ? { principal: input.principal } : {}
     const chain = this.createChain(this.loggedFields(first), {
       operation,
@@ -1395,7 +1419,6 @@ export abstract class SessionAgents<
     void this.executeAgent(operation, chain, {
       inputId: input.inputId,
       resumed: true,
-      ...(subagentRunId !== undefined ? { child: { subagentRunId } } : {}),
       ...(input.input.op === 'agentMessage'
         ? {
             message: {
@@ -1836,7 +1859,7 @@ export abstract class SessionAgents<
     const stopTimer = this.startTimeout(inputId, operation)
     const child = answers
       ? { subagentRunId: answers.subagentRunId }
-      : (start.child ?? { subagentRunId: createSubagentId() })
+      : (start.child ?? { subagentRunId: operation.subagentRunId })
     const runs = this.runStore
     // The run record keeps the child id, so the run can go on after a
     // restart with the same one.
@@ -2630,12 +2653,17 @@ function limitFailure(reason: unknown) {
 }
 
 /** The `agentRuns()` entry of the agent run `node`, of the agent `agent`. */
-function agentRunInfo(node: RunTreeNode, agent: string): AgentRunInfo {
+function agentRunInfo(
+  node: RunTreeNode,
+  agent: string,
+  subagentRunId: string | undefined,
+): AgentRunInfo {
   return {
     operationId: node.runId,
     runId: node.runId,
     kind: 'agent',
     agent,
+    ...(subagentRunId !== undefined ? { subagentRunId } : {}),
     status: node.status,
     ...(node.parentRunId !== undefined
       ? { parentRunId: node.parentRunId }

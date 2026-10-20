@@ -321,17 +321,18 @@ export interface HarnessClient<THarness extends AnyHarness> {
   transcript: () => Promise<Array<ModelMessage>>
   /**
    * The saved messages of a child agent run of the thread, by its
-   * `subagentRunId`. Empty for an unknown id. A child with no messages has
-   * one message with no content, with its card. See `session.agentTranscript`.
+   * `subagentRunId` or by its `runId`. Empty for an unknown id. A child with
+   * no messages has one message with no content, with its card. See
+   * `session.agentTranscript`.
    *
    * @example
    * ```ts
    * const messages = await client.agentTranscript({ subagentRunId })
    * ```
    */
-  agentTranscript: (options: {
-    subagentRunId: string
-  }) => Promise<Array<ModelMessage>>
+  agentTranscript: (
+    run: { subagentRunId: string } | { runId: string },
+  ) => Promise<Array<ModelMessage>>
   /**
    * The commands, settings, and tools of the session. Only the commands in
    * `expose.commands` and the config keys in `expose.config`.
@@ -956,8 +957,13 @@ export function createHarnessClient<THarness extends AnyHarness>(
     hostEvents,
     snapshot: () => read('snapshot'),
     transcript: () => read('transcript'),
-    agentTranscript: ({ subagentRunId }) =>
-      read('agent-transcript', { subagentRunId }),
+    agentTranscript: (run) =>
+      read(
+        'agent-transcript',
+        'subagentRunId' in run
+          ? { subagentRunId: run.subagentRunId }
+          : { runId: run.runId },
+      ),
     describe: () => read('describe'),
     putMedia,
     mediaUrl,

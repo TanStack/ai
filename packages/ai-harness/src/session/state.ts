@@ -12,7 +12,7 @@ import { LogOwnedElsewhereError } from '../ownership'
 import { isRecord } from '../utils'
 import { changedEntry } from '../session-entry'
 import { stableJson, visibleMessages } from '../log'
-import { isHumanTarget } from '../log-records'
+import { agentRunThread, isHumanTarget } from '../log-records'
 import { mediaIdOf, mediaOfMessage, mediaPart } from '../media-ref'
 import {
   BackgroundJobs,
@@ -798,22 +798,32 @@ export abstract class SessionState<
 
   /**
    * The saved messages of a child agent run of this thread, by its
-   * `subagentRunId`, oldest first. It starts with the task of the agent
-   * call. Each message has the child's card (its name and how it ended) in
-   * `metadata.tanstack.subagent`. A child with no messages has one assistant
-   * message with no content that holds only its card. A nested child is a
-   * child of this thread too. Empty for an unknown id, and for a child of
-   * another thread.
+   * `subagentRunId` or by its `runId`, oldest first.
+   *
+   * - An agent that the model calls as a tool: it starts with the task of
+   *   the agent call. Each message has the child's card (its name and how
+   *   it ended) in `metadata.tanstack.subagent`. A child with no messages
+   *   has one assistant message with no content that holds only its card. A
+   *   nested child is a child of this thread too.
+   * - An agent run that code or a background call starts: the transcript of
+   *   its chain, which its follow-up runs share. It starts with the messages
+   *   that the first run started from.
+   *
+   * Empty for an unknown id, and for a child of another thread.
    */
-  async agentTranscript({
-    subagentRunId,
-  }: {
-    subagentRunId: string
-  }): Promise<Array<ModelMessage>> {
-    return (
-      (await loadChildTranscript(this.engine, subagentRunId, this.threadId)) ??
-      []
-    )
+  async agentTranscript(
+    run: { subagentRunId: string } | { runId: string },
+  ): Promise<Array<ModelMessage>> {
+    if ('subagentRunId' in run) {
+      const child = await loadChildTranscript(
+        this.engine,
+        run.subagentRunId,
+        this.threadId,
+      )
+      if (child) return child
+    }
+    const thread = agentRunThread(this.writer.state.thread, this.threadId, run)
+    return thread === undefined ? [] : this.engine.loadThread(thread)
   }
 
   /**
