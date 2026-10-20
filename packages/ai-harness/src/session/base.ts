@@ -36,6 +36,7 @@ import {
   customEvent,
   cacheObject,
   dropOldest,
+  jobsOf,
   scopeOf,
   storedPrincipal,
   notOpenMessages,
@@ -107,6 +108,7 @@ import type {
   AgentHandles,
   DynamicAgentHandle,
   GroupRuns,
+  JobInfo,
   SessionInspection,
   SessionDependencies,
   QueuedTurn,
@@ -376,7 +378,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /** Notes that wait for the transcript. The log has each one. */
   protected readonly pendingNotes: Array<ModelMessage> = []
   /** Background jobs that run on this host. Recovery skips them. */
-  protected readonly jobs = new Set<string>()
+  protected readonly liveJobs = new Set<string>()
   /** Running tool calls that support `detach`: id to the move. */
   protected readonly detachable = new Map<
     string,
@@ -1167,7 +1169,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     return (
       // A background job of this host runs in its memory. A close stops it,
       // and its end note is lost.
-      this.jobs.size === 0 &&
+      this.liveJobs.size === 0 &&
       // A live wait (an `ask()`) waits in this host's memory: its answer
       // must come here, so it keeps the log. A wait that only the log keeps
       // does not: the session is idle, and an answer reaches any host.
@@ -1371,10 +1373,21 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
+   * The background jobs of this thread and of its child threads that did
+   * not end: `bash` jobs, and calls that `background()` moved. It reads the
+   * log, so it also lists the jobs of other hosts, and after a restart.
+   * `running` is `true` for a job that this host runs.
+   */
+  jobs(): Array<JobInfo> {
+    return jobsOf(this.writer, this.threadId, this.liveJobs)
+  }
+
+  /**
    * Track a background job of this host. The log also has its start and
    * end, so recovery can note a job that a crash stopped. The record goes
    * to `threadId`, the thread of the workspace that runs the job.
-   * `principal` is who moved the job to the background.
+   * `principal` is who moved the job to the background. `label` is the
+   * command or the tool name.
    */
   protected logJob(
     job: {
@@ -1382,18 +1395,21 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       backendId?: string
       threadId?: string
       principal?: Principal
+      label?: string
     },
     ended: boolean,
   ) {
-    const { jobId, backendId, threadId, principal } = job
-    if (ended) this.jobs.delete(jobId)
-    else this.jobs.add(jobId)
+    const { jobId, backendId, threadId, principal, label } = job
+    if (ended) this.liveJobs.delete(jobId)
+    else this.liveJobs.add(jobId)
     const isOtherThread = threadId !== undefined && threadId !== this.threadId
     const record = {
       type: 'harness.job',
       jobId,
       ended,
+      ...(!ended ? { at: Date.now() } : {}),
       ...(!ended && backendId !== undefined ? { backendId } : {}),
+      ...(!ended && label !== undefined ? { label } : {}),
       ...storedPrincipal(principal),
       ...(isOtherThread ? { thread: threadId } : {}),
     }

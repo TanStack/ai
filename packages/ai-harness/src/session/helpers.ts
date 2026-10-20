@@ -21,7 +21,7 @@ import type {
 import type { LogRecord, MessageStore } from '@tanstack/ai-persistence'
 import type { Redactor } from '../auth'
 import type { EventFeed, EventListener, ListenedFeed } from '../feed'
-import type { InputState } from '../log'
+import type { InputState, LogReader } from '../log'
 import type {
   AgentResultRecord,
   NamedTurnOverrides,
@@ -42,11 +42,39 @@ import type {
 } from '../types'
 import type {
   AgentRunInfo,
+  JobInfo,
   AgentMessage,
   AgentInputState,
   AgentStartOptions,
   SessionSnapshot,
 } from './types'
+
+/**
+ * @internal The background jobs of `threadId` and of its child threads in
+ * `log`. `running` has the ids of the jobs that this host runs.
+ */
+export function jobsOf(
+  log: Pick<LogReader, 'threads' | 'stateOf'>,
+  threadId: string,
+  running: ReadonlySet<string>,
+): Array<JobInfo> {
+  return log
+    .threads()
+    .filter(
+      (thread) => thread === threadId || thread.startsWith(`${threadId}/`),
+    )
+    .flatMap((thread) =>
+      [...log.stateOf(thread).jobs].map(([jobId, job]) => ({
+        jobId,
+        threadId: thread,
+        ...(job.backendId !== undefined ? { backendId: job.backendId } : {}),
+        ...(job.principal ? { principal: { ...job.principal } } : {}),
+        ...(job.at !== undefined ? { startedAt: job.at } : {}),
+        ...(job.label !== undefined ? { label: job.label } : {}),
+        running: running.has(jobId),
+      })),
+    )
+}
 
 /**
  * @internal The snapshot of a thread. An open session and a `host.observe`

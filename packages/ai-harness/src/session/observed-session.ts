@@ -2,7 +2,7 @@ import { loadChildTranscript } from '@tanstack/ai-persistence'
 import { runStartOf, visibleMessages } from '../log'
 import { createMediaStore } from '../media'
 import { untilRevoked } from './handle'
-import { snapshotFrom } from './helpers'
+import { jobsOf, snapshotFrom } from './helpers'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
   BlobRange,
@@ -22,7 +22,7 @@ import type { SessionIndexWriter } from '../host'
 import type { Cursor, MediaRecord, SessionEvent } from '../types'
 import type { HandleGuard } from './handle'
 import type { SessionImpl } from './harness-session'
-import type { SessionSnapshot } from './types'
+import type { JobInfo, SessionSnapshot } from './types'
 
 /**
  * A read-only view of one thread, from `host.observe`. It mounts no plugins,
@@ -104,6 +104,11 @@ export interface ObservedSession<THarness extends AnyHarness = AnyHarness> {
    * the log of its root. `undefined` when the harness has no `reduce`.
    */
   logState: () => Promise<HarnessLogStateOf<THarness> | undefined>
+  /**
+   * The background jobs of the thread, as `session.jobs()` lists them. When
+   * the session is not open on this host, `running` is `false` for each.
+   */
+  jobs: () => Promise<Array<JobInfo>>
 }
 
 /** What a view reads, from the host that makes it. */
@@ -330,6 +335,11 @@ export function observedSession<THarness extends AnyHarness>(
           ? (reader.reduced as HarnessLogStateOf<THarness> | undefined)
           : undefined,
       )
+    },
+    async jobs() {
+      const session = open()
+      if (session) return session.jobs()
+      return fromLog((reader) => jobsOf(reader, threadId, new Set()))
     },
   }
   liveSessions.set(view, live)

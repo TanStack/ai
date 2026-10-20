@@ -314,7 +314,7 @@ export abstract class SessionTurnParts<
       this.sleeping += 1
       // ponytail: the close stops the other work of the session too, as a
       // deploy does, and the next host runs it again. A job keeps the host.
-      if (wakeAt - Date.now() > LONG_SLEEP_MS && this.jobs.size === 0) {
+      if (wakeAt - Date.now() > LONG_SLEEP_MS && this.liveJobs.size === 0) {
         this.onLongSleep?.()
       }
       try {
@@ -481,7 +481,10 @@ export abstract class SessionTurnParts<
           context.detach = (work) =>
             new Promise((moved) => {
               this.detachable.set(id, (mover) => {
-                this.logJob({ jobId: id, principal: mover }, false)
+                this.logJob(
+                  { jobId: id, principal: mover, label: tool.name },
+                  false,
+                )
                 moved(
                   `The job moved to the background. Its id is ${id}. You get a note when it ends.`,
                 )

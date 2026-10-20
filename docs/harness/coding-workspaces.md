@@ -135,6 +135,28 @@ With `background: true`, `bash` returns at once with a job id like `bash-1`. Two
 
 When a job ends, the model gets a note, and the wake turn runs as the user whose run started the job.
 
+To show the jobs that run now, for example in a status bar, call `session.jobs()`. A [view](./lifecycle#read-a-thread-without-a-session) of `host.observe` has `jobs()` too:
+
+```ts group=harness-coding-workspaces
+import type { HarnessSession } from '@tanstack/ai-harness'
+
+export function listJobs(session: HarnessSession) {
+  for (const job of session.jobs()) {
+    console.log(`${job.jobId}: ${job.label ?? 'job'}, started by ${job.principal?.id ?? 'the agent'}`)
+  }
+}
+```
+
+Each entry has:
+
+- `jobId` and `threadId`: the job, and the thread of the workspace that runs it.
+- `label`: the command, or the name of the tool that `session.background()` moved.
+- `principal` and `startedAt`: who moved the call to the background, and when the job started.
+- `running`: `true` when this host runs the job. A job of another host, or one that a crash stopped, has `false`.
+- `backendId`: the id of the process in the workspace backend, when it has one.
+
+`session.jobs()` reads the log, so it also lists the jobs of other hosts. After a restart, it lists a job until the host notes that the job stopped.
+
 Each job sends events. Listen for them in a plugin:
 
 ```ts group=harness-coding-workspaces

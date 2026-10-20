@@ -1087,13 +1087,39 @@ describe('snapshots', () => {
         { type: 'harness.workspace.bound', binding },
         { type: 'harness.job', jobId: 'bash-1', ended: false, backendId: 'p9' },
         { type: 'harness.job', jobId: 'bash-2', ended: false },
+        {
+          type: 'harness.job',
+          jobId: 'call-1',
+          ended: false,
+          principal: { id: 'u1' },
+          at: 100,
+          label: 'bash',
+        },
+        // The second start of a moved call adds its backend id and command.
+        {
+          type: 'harness.job',
+          jobId: 'call-1',
+          ended: false,
+          at: 200,
+          backendId: 'p3',
+          label: 'npm run dev',
+        },
       ]),
       project,
     })
     expect(fromRecords.thread.workspace).toEqual(binding)
     expect([...fromRecords.jobs]).toEqual([
-      ['bash-1', 'p9'],
-      ['bash-2', undefined],
+      ['bash-1', { backendId: 'p9' }],
+      ['bash-2', {}],
+      [
+        'call-1',
+        {
+          principal: { id: 'u1' },
+          at: 100,
+          backendId: 'p3',
+          label: 'npm run dev',
+        },
+      ],
     ])
 
     const snapshot = snapshotOf({
@@ -1102,7 +1128,7 @@ describe('snapshots', () => {
           THREAD,
           snapshotSession({
             messages: [],
-            jobs: [['bash-1', 'p9'], 'bash-2'],
+            jobs: [['bash-1', 'p9'], 'bash-2', ['bash-3', { label: 'ls' }]],
             thread: threadOf({ workspace: binding }),
           }),
         ],
@@ -1114,8 +1140,9 @@ describe('snapshots', () => {
     })
     expect(fromSnapshot.thread.workspace).toEqual(binding)
     expect([...fromSnapshot.jobs]).toEqual([
-      ['bash-1', 'p9'],
-      ['bash-2', undefined],
+      ['bash-1', { backendId: 'p9' }],
+      ['bash-2', {}],
+      ['bash-3', { label: 'ls' }],
     ])
   })
 

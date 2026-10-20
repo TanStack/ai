@@ -2531,8 +2531,8 @@ export abstract class SessionAgents<
     }
     const lost = [...writer.state.jobs]
       .filter(
-        ([jobId, backendId]) =>
-          !this.jobs.has(jobId) && backendId === undefined,
+        ([jobId, { backendId }]) =>
+          !this.liveJobs.has(jobId) && backendId === undefined,
       )
       .map(([jobId]) => jobId)
     // Only the owner notes them. While another live host owns the log, the

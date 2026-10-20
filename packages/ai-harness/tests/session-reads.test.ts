@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { toolDefinition } from '@tanstack/ai'
+import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   configOption,
@@ -9,7 +9,7 @@ import {
   defineHarness,
   definePlugin,
 } from '../src'
-import { mockAdapter, text } from './helpers'
+import { after, gate, mockAdapter, text, toolCall } from './helpers'
 
 const counter = definePlugin({
   name: 'test/counter',
@@ -114,5 +114,59 @@ describe('session reads for UIs', () => {
       'test/counter': { count: 2 },
     })
     await second.host.close()
+  })
+})
+
+describe('session.jobs', () => {
+  it('lists a moved call with who moved it, on the session and on a view, until it ends', async () => {
+    const finish = gate()
+    const woke = gate()
+    const child = mockAdapter(after(finish.opened, 'Found it'))
+    const writer = defineAgent({
+      name: 'writer',
+      description: 'Writes notes',
+      run: (ctx) => ctx.chat({ adapter: child.adapter }),
+    })
+    const { adapter } = mockAdapter([
+      () => toolCall('writer', { prompt: 'Look around' }, 'call-1'),
+      () => text('Moved.'),
+      () => {
+        woke.open()
+        return text('Got it.')
+      },
+    ])
+    const harness = defineHarness({
+      name: 'test/jobs',
+      adapter,
+      subagents: { agents: [writer] },
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(harness, {
+      threadId: 't',
+      principal: { id: 'ada' },
+    })
+    expect(session.jobs()).toEqual([])
+
+    const turn = session.send('Look around for me')
+    await vi.waitFor(() => expect(child.calls).toHaveLength(1))
+    await session.background()
+    await turn
+
+    const job = {
+      jobId: 'call-1',
+      threadId: 't',
+      principal: { id: 'ada' },
+      startedAt: expect.any(Number),
+      label: 'writer',
+      running: true,
+    }
+    expect(session.jobs()).toEqual([job])
+    const view = await host.observe(harness, { threadId: 't' })
+    expect(await view.jobs()).toEqual([job])
+
+    finish.open()
+    await woke.opened
+    await vi.waitFor(() => expect(session.jobs()).toEqual([]))
+    await host.close()
   })
 })

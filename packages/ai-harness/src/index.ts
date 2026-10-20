@@ -159,6 +159,7 @@ export type {
   AgentRunOptions,
   AgentStartOptions,
   DynamicAgentHandle,
+  JobInfo,
   ScheduleOptions,
   SessionDescription,
   SessionInspection,

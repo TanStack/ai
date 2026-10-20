@@ -263,6 +263,26 @@ export interface AgentRunInfo {
   error?: RunNode['error']
 }
 
+/**
+ * A background job that started and did not end, as `session.jobs()` lists
+ * it: a `bash` job, or a call that `session.background()` moved.
+ */
+export interface JobInfo {
+  jobId: string
+  /** The thread of the workspace that runs the job. */
+  threadId: string
+  /** The id of its process in the workspace backend, when it has one. */
+  backendId?: string
+  /** Who moved the call to the background. */
+  principal?: Principal
+  /** When the job started, in epoch ms. */
+  startedAt?: number
+  /** The command, or the name of the tool. */
+  label?: string
+  /** This host runs the job. Else another host runs it, or a crash stopped it. */
+  running: boolean
+}
+
 /** What a session looks like right now. */
 export interface SessionSnapshot {
   threadId: string

@@ -157,10 +157,11 @@ export abstract class SessionState<
         ]),
       pin: (hostId) => this.writer.pin(hostId),
       lostJobs: (threadId) =>
-        [...this.writer.stateOf(threadId).jobs].flatMap(([jobId, backendId]) =>
-          backendId === undefined || this.jobs.has(jobId)
-            ? []
-            : [{ jobId, backendId }],
+        [...this.writer.stateOf(threadId).jobs].flatMap(
+          ([jobId, { backendId }]) =>
+            backendId === undefined || this.liveJobs.has(jobId)
+              ? []
+              : [{ jobId, backendId }],
         ),
       stranded: ({ operationId, hostId }) =>
         this.feed.publish(

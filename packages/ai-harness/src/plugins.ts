@@ -857,6 +857,8 @@ export interface BackgroundJobsApi {
     jobId: string
     backendId?: string
     threadId?: string
+    /** The command or the tool name. */
+    label?: string
   }) => void
   ended: (job: { jobId: string; threadId?: string }) => void
 }
