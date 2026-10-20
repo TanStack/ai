@@ -4,9 +4,9 @@
 
 Add `@tanstack/ai-harness-cli`: `runCli(harness)` runs a harness from the terminal.
 
-- Line mode reads one message or `/command` per line, answers approvals and questions, hides a secret answer while the user types, and sends `@path` files. Pass `ui` to show your own screen on a session view instead.
-- `-p "prompt"` runs one prompt for scripts and CI, and `--output ndjson` prints every AG-UI event.
+- Line mode reads one message or `/command` per line, hides a secret answer while the user types, and sends `@path` files. In a terminal, `/cancel` and a message typed while a turn runs act at once: the message joins the running turn. When a turn waits, each next line answers one wait: `y` or `n` for an approval (`once`, `always`, or `reject` for an approval of `permissions()`), and an answer read with the schema for a question. Pass `ui` to show your own screen on a session view instead.
+- `-p "prompt"` runs one prompt for scripts and CI, and `--output ndjson` prints every AG-UI event. `-p` exits with code 3 (`EXIT.needsAction`) at the first wait of the turn: an approval, a question, or a sign-in. The exit code for this case changed from 2 to 3. A script that checks for exit code 2 must check for 3.
 - `--serve` serves the session protocol over HTTP behind a bearer token.
-- `--acp`, `--mcp`, and `--dashboard` load `@tanstack/ai-acp`, `@tanstack/ai-mcp`, and `@tanstack/ai-dashboard` only when you use the flag. A missing package, or one without harness support, fails that flag with a clear message.
+- `--acp` and `--mcp` load `@tanstack/ai-acp` and `@tanstack/ai-mcp` only when you use the flag. A missing package, or one without harness support, fails that flag with a clear message. Any other error while the package loads is reported, not hidden. The `--dashboard` flag was removed.
 - In every mode, the first SIGINT or SIGTERM cancels the running turn. A second one, or one while no turn runs, stops the CLI, and `runCli` resolves to 130 (SIGINT) or 143 (SIGTERM). The CLI closes a host that it made with `recoverable: true`, or releases its session handle on your own host. The `signals` option takes another signal source, for example an `EventEmitter` in a test.
-- `host` and `principal` options let the CLI use your durable host and run as your user. Every mode except `--dashboard` opens its sessions as that principal. On a host with `access`, `--serve` reads the user of each request with `identify`, and `--mcp` does not start, because stdio has no login.
+- `host` and `principal` options let the CLI use your durable host and run as your user. Every mode opens its sessions as that principal. On a host with `access`, `--serve` reads the user of each request with `identify`, and `--mcp` does not start, because stdio has no login.

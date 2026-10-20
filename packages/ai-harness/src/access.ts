@@ -1,5 +1,6 @@
 import type { SessionMember } from '@tanstack/ai-persistence'
 import type { Principal } from './types'
+import type { WaitKind } from './waits'
 
 /**
  * What a principal tries to do with a session.
@@ -8,17 +9,22 @@ import type { Principal } from './types'
  * - `list`: see the session in a list of sessions.
  * - `send`: prompt, steer, follow up, start agents, and run commands.
  * - `answer`: answer a question or an approval of a run.
+ * - `operator`: answer a `human` wait of any run, and reply as an operator
+ *   who takes over from the agent. A `human` wait takes only `operator`,
+ *   so the user who waits for a person cannot answer it.
  * - `cancel`: stop a run.
  * - `configure`: change the settings of the thread.
  * - `share`: add or remove members.
  * - `delete`: delete the session.
  * - `fork`: copy the session into a new session.
- * - `transfer`: give the session to a new owner.
+ * - `transfer`: move the conversation to a new thread, maybe of another
+ *   harness, with `host.transfer`.
  */
 export type AccessAction =
   | 'read'
   | 'send'
   | 'answer'
+  | 'operator'
   | 'cancel'
   | 'configure'
   | 'share'
@@ -45,6 +51,12 @@ export interface AccessRun {
   principalId?: string
 }
 
+/** The wait that an `answer` or `operator` action answers. */
+export interface AccessWait {
+  waitId: string
+  kind: WaitKind
+}
+
 /** What `authorize` gets for one action. */
 export interface AuthorizeInput<P extends Principal = Principal> {
   principal: P
@@ -52,6 +64,8 @@ export interface AuthorizeInput<P extends Principal = Principal> {
   session: AccessSession
   /** The run that an `answer` or `cancel` targets, when the host knows it. */
   run?: AccessRun
+  /** The wait that an `answer` or `operator` action answers, when the host knows it. */
+  wait?: AccessWait
 }
 
 /** Decide if a principal may do one action. Return `false` to refuse. */
@@ -116,6 +130,15 @@ export interface MembersOnlyOptions {
      */
     members?: 'self' | 'all'
   }
+  operator?: {
+    /**
+     * The roles that have the `operator` action: they answer a `human` wait
+     * and reply as an operator. Default `['operator']`: only members with
+     * the role `operator`. The owner and plain members do not have it, so
+     * the user who waits for a person cannot act as that person.
+     */
+    roles?: ReadonlyArray<SessionMember['role']>
+  }
 }
 
 /**
@@ -137,14 +160,20 @@ function roleOf(session: AccessSession, userId: string) {
   return session.members.find((member) => member.userId === userId)?.role
 }
 
-function allows(role: Role, { principal, action, run }: AuthorizeInput) {
+function allows(
+  role: Role,
+  { principal, action, run }: AuthorizeInput,
+  operators: ReadonlyArray<Role>,
+) {
   switch (action) {
     case 'read':
     case 'list':
       return true
     case 'send':
     case 'fork':
-      return role !== 'viewer'
+      return role === 'owner' || role === 'member'
+    case 'operator':
+      return operators.includes(role)
     case 'answer':
     case 'cancel': {
       const startedTheRun = run?.principalId === principal.id
@@ -162,11 +191,15 @@ function allows(role: Role, { principal, action, run }: AuthorizeInput) {
  * A ready-made `authorize`: only the members of a session may use it, each
  * with the limits of the member's role.
  *
- * - Owner: every action.
- * - Member: read, list, send, and fork. Answer and cancel only the runs that
- *   the member started.
+ * - Owner: every action but `operator`.
+ * - Member: read, list, send, and fork. Answer and cancel only the runs
+ *   that the member started.
+ * - Operator: read, list, and `operator` (answer a `human` wait, and reply
+ *   as an operator).
  * - Viewer: read and list.
  * - Not a member: no action.
+ *
+ * `operator.roles` changes who has `operator`.
  *
  * The owner is the `ownerId` of the session, or a member with the role
  * `owner`. This function does not check the tenant: the host does that
@@ -178,7 +211,8 @@ function allows(role: Role, { principal, action, run }: AuthorizeInput) {
  * a fork.
  *
  * @param options - `fork.members` sets who is a member of a forked session.
- *   The default is `'self'`.
+ *   The default is `'self'`. `operator.roles` sets the roles with the
+ *   `operator` action. The default is `['operator']`.
  *
  * @example
  * access: {
@@ -190,11 +224,12 @@ export function membersOnly(options: MembersOnlyOptions = {}) {
   const marker: { readonly membersOnly: MembersOnlyPolicy } = {
     membersOnly: { fork: { members: options.fork?.members ?? 'self' } },
   }
+  const operators = options.operator?.roles ?? ['operator']
   // A new function on each call, so each one keeps its own marker.
   const authorize: Authorize = (input) => {
     const role = roleOf(input.session, input.principal.id)
     if (role === undefined) return false
-    return allows(role, input)
+    return allows(role, input, operators)
   }
   return Object.assign(authorize, marker)
 }

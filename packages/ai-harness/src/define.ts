@@ -18,7 +18,7 @@ import type {
 import type { AnyAgent } from './agents'
 import type { ProjectOptions, ReduceOptions } from './log'
 import type { MediaOptions } from './media'
-import type { HarnessPlugin, PluginMetadataCheck } from './plugins'
+import type { HarnessPlugin, PluginMetadataCheck, PluginModel } from './plugins'
 import type { HarnessSession } from './session/index'
 import type { MetadataOf } from './session-entry'
 import type { HarnessTurnOptions, RecoverHook } from './turn'
@@ -64,27 +64,96 @@ export interface HarnessRouterContext<TMetadataSchema = any> {
   context?: unknown
   /** The main text adapter of the turn, with the user's keys bound. */
   adapter: AnyTextAdapter
+  /**
+   * Call a model to pick the agent, as `ctx.model.chat` of a plugin does.
+   * The call has the keys of the sender and the signal of the turn. Its
+   * usage counts in the session (`session.usage().bySource` under
+   * `router`) and in the turn. The `run` option is ignored: the call is
+   * always for this turn.
+   *
+   * @example
+   * ```ts
+   * router: async ({ model, messages }) => {
+   *   const { text } = await model.chat({
+   *     options: {
+   *       messages,
+   *       systemPrompts: ['Answer "billing" or "support". Nothing else.'],
+   *     },
+   *     label: 'pick',
+   *   })
+   *   return text.trim() === 'billing' ? 'billing' : undefined
+   * }
+   * ```
+   */
+  model: PluginModel
+  /**
+   * The root agent that answers the turns of this thread since the last
+   * handoff. `undefined`: the main model answers. Return `undefined` from
+   * the router to send the turn to it.
+   *
+   * The `agents()` plugin has its own primary agent (its `agent` config and
+   * `/agent`). That one changes the prompt and tools of the main model. It
+   * is not this value, and neither one changes the other.
+   */
+  activeAgent?: string
 }
 
 /**
+ * What `routing.router` returns: a pick of `subagents.router`, a handoff, or
+ * `undefined`.
+ * - `undefined`: the active agent answers, else the main model.
+ * - One agent name: that agent answers, and it becomes the active agent.
+ * - `'main'`: the main model answers, and no agent is active.
+ * - `{ handoff, note }`: a handoff to that root agent (or `'main'`). The log
+ *   keeps the note. Then the target answers, and it becomes the active agent.
+ * - `{ name, input }`, a list, `{ names }`, or `{ steps }`: those agents
+ *   answer. The active agent does not change.
+ */
+export type HarnessRouterPick =
+  | SubagentRouterPick
+  | { handoff: string; note?: string }
+  | undefined
+
+/**
  * The `routing` option. The other fields mean the same as in `subagents`.
- * `limits` defaults to `subagents.limits`. With `strategy: 'handoff'`, the
- * main model answers after the agents, in the same turn, and it keeps its
- * `subagents`.
+ * `limits` defaults to `subagents.limits`. The `strategy` of `subagents` is
+ * not here: use `after`.
  */
 export interface HarnessRouting<TMetadataSchema = any> extends Pick<
   SubagentsBag,
-  'order' | 'strategy' | 'limits' | 'sandbox'
+  'order' | 'limits' | 'sandbox'
 > {
   /**
-   * Pick who answers the turn, with the picks of `subagents.router`:
-   * `'main'`, an agent name, a list of names, `{ names, order }`, or
-   * `{ steps }`. Give an agent with `inputSchema` its input with
-   * `{ name, input }`. A throw fails the turn.
+   * Pick who answers the turn: `undefined` (the active agent), `'main'`, an
+   * agent name, a list of names, `{ names, order }`, `{ steps }`, or
+   * `{ handoff, note }`. Give an agent with `inputSchema` its input with
+   * `{ name, input }`. A throw fails the turn. See {@link HarnessRouterPick}.
    */
   router: (
     ctx: HarnessRouterContext<TMetadataSchema>,
-  ) => SubagentRouterPick | Promise<SubagentRouterPick>
+  ) => HarnessRouterPick | Promise<HarnessRouterPick>
+  /**
+   * What happens after the picked agents answer. `'end'`: the turn ends.
+   * `'main'`: the main model answers next, in the same turn, with their
+   * answers in the transcript, and it keeps its `subagents`. Default
+   * `'end'`.
+   */
+  after?: 'end' | 'main'
+  /**
+   * Let the models and your code hand the turn to a person. When true, the
+   * `to` of the `handoff` tool also takes `{ human: true }`, and
+   * `ctx.harness.handoff({ to: { human: true } })` and `run.handoff` open a
+   * `human` wait. When false, the `handoff` tool offers only the agents and
+   * `'main'`, and a handoff to a person rejects. Default `false`.
+   */
+  humans?: boolean
+  /**
+   * Give the main model and each root agent the `handoff` tool. When false,
+   * no model gets it, and an app tool can use the name `handoff`. The
+   * router and your code (`ctx.harness.handoff`, `run.handoff`) can still
+   * hand off. Default `true`.
+   */
+  handoffs?: boolean
 }
 
 /**

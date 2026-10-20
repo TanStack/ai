@@ -6,6 +6,7 @@ import {
   createHarnessHost,
   defineHarness,
   definePlugin,
+  durableTool,
   logIdOf,
 } from '@tanstack/ai-harness'
 import { createHarnessHandler } from '@tanstack/ai-harness/server'
@@ -136,10 +137,11 @@ function harnessWith(answers: Array<(id: string) => string>) {
     plugins: () => [
       definePlugin({
         name: 'e2e/sign-in',
-        setup: (ctx) => ({
+        setup: () => ({
           tools: [
-            signIn.server(async () => {
-              const password = await ctx.session.ask({
+            durableTool(signIn, async (_args, { step }) => {
+              const password = await step.ask({
+                name: 'password',
                 message: 'Password?',
                 schema: z.string(),
                 secret: true,
@@ -273,7 +275,7 @@ async function start(request: Request) {
 
 async function debug(run: Run) {
   return Response.json({
-    questionId: run.owner.snapshot().pendingQuestions[0]?.questionId ?? null,
+    questionId: run.owner.snapshot().pendingWaits[0]?.waitId ?? null,
     turn: run.turn,
     transcript: await run.owner.transcript(),
     events: run.events,

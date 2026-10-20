@@ -9,7 +9,13 @@ import {
   definePlugin,
 } from '../src'
 import { mediaIdOf, mediaPart } from '../src/media-entry'
-import { messageTexts, mockAdapter, text, toolCall } from './helpers'
+import {
+  messageTexts,
+  mockAdapter,
+  text,
+  toolCall,
+  turnInterrupts,
+} from './helpers'
 import type { ModelMessage } from '@tanstack/ai'
 import type { HarnessPersistence, HostLifecycleOptions } from '../src'
 
@@ -179,7 +185,7 @@ describe('host.fork', () => {
     await source.setConfig({ key: 'tone', value: 'warm' })
     await source.send('Count.')
     await source.send('Deploy.')
-    expect(source.snapshot().pendingInterrupts).toHaveLength(1)
+    expect(turnInterrupts(source.snapshot())).toHaveLength(1)
     expect(source.snapshot().plugins['test/counter']).toEqual({ count: 1 })
 
     const fork = await host.fork(harness, {
@@ -192,7 +198,7 @@ describe('host.fork', () => {
     })
     expect(fork.config().tone?.value).toBe('warm')
     expect(fork.snapshot().plugins['test/counter']).toEqual({ count: 0 })
-    expect(fork.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(fork.snapshot())).toEqual([])
     await host.close()
   })
 
@@ -222,14 +228,48 @@ describe('host.fork', () => {
     if (!id) throw new Error('The fork lost the media part.')
 
     expect(id).not.toBe(record.id)
-    expect(await fork.getMedia(id)).toMatchObject({
+    expect(await fork.getMedia({ id })).toMatchObject({
       threadId: FORK,
       name: 'cat.png',
     })
     expect(await fork.loadMedia({ id })).toEqual(bytes)
     // Each thread sees only its own media.
-    expect(await fork.getMedia(record.id)).toBeNull()
-    expect(await source.getMedia(id)).toBeNull()
+    expect(await fork.getMedia({ id: record.id })).toBeNull()
+    expect(await source.getMedia({ id })).toBeNull()
+    await host.close()
+  })
+})
+
+describe('a fork stays in its harness', () => {
+  it('refuses host.fork and host.sessions.fork of a thread of another harness', async () => {
+    const support = defineHarness({
+      name: 'test/support',
+      adapter: mockAdapter(() => text('ok')).adapter,
+    })
+    const billing = defineHarness({
+      name: 'test/billing',
+      adapter: mockAdapter(() => text('billing here')).adapter,
+      plugins: () => [counter],
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const source = await host.open(support, { threadId: SOURCE })
+    await source.send('one')
+
+    await expect(
+      host.fork(billing, { threadId: SOURCE, newThreadId: FORK }),
+    ).rejects.toThrow(
+      `Thread "${SOURCE}" belongs to harness "test/support", not "test/billing".`,
+    )
+    await expect(
+      host.sessions.fork({
+        harness: billing,
+        threadId: SOURCE,
+        at: { through: 'any' },
+      }),
+    ).rejects.toThrow('belongs to harness "test/support"')
+    // Nothing opened the source under the other harness, and no fork exists.
+    expect(host.isOpen(billing, { threadId: SOURCE })).toBe(false)
+    expect(await host.sessions.get({ threadId: FORK })).toBeUndefined()
     await host.close()
   })
 })

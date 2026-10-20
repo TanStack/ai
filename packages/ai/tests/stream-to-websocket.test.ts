@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import {
   buildTurnRequest,
   decodeWsFrame,
@@ -100,6 +100,14 @@ class FakeSocket implements WebSocketLike {
     for (const h of this.handlers[type] ?? []) h(ev)
   }
 }
+
+describe('WebSocketLike', () => {
+  it('has an optional bufferedAmount (FakeSocket has none and still fits)', () => {
+    expectTypeOf<WebSocketLike['bufferedAmount']>().toEqualTypeOf<
+      number | undefined
+    >()
+  })
+})
 
 describe('buildTurnRequest', () => {
   it('keys the synthetic request by runId and preserves headers', () => {

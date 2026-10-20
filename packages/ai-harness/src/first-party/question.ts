@@ -1,6 +1,8 @@
 import { toolDefinition } from '@tanstack/ai'
+import { questionInterrupt } from '../boundary-waits'
 import { definePlugin } from '../plugins'
 import { isRecord } from '../utils'
+import type { AnyChatMiddleware, ModelMessage, ToolCall } from '@tanstack/ai'
 
 /** One question the model asks, as the tool input has it. */
 interface ToolQuestion {
@@ -11,6 +13,9 @@ interface ToolQuestion {
 }
 
 const NO_ANSWER = 'The user did not answer.'
+
+/** The name of the tool. */
+const TOOL_NAME = 'question'
 
 function isOption(value: unknown) {
   return (
@@ -99,12 +104,57 @@ function readAnswer(reply: unknown, item: ToolQuestion) {
   return `Own answer: ${own}`
 }
 
+/** The questions of a `question` call, or `undefined` for input that is not valid. */
+function questionsOf(args: unknown): Array<ToolQuestion> | undefined {
+  const items =
+    isRecord(args) && Array.isArray(args.questions) ? args.questions : []
+  return items.length > 0 && items.every(isToolQuestion) ? items : undefined
+}
+
+/** The arguments of a tool call. Text that is not JSON has no questions. */
+function parseArgs(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * The `question` calls of the last model message that have no result yet:
+ * the calls that the tools phase runs next.
+ */
+function pendingQuestionCalls(messages: ReadonlyArray<ModelMessage>) {
+  const index = messages.findLastIndex(
+    (message) => message.role === 'assistant' && message.toolCalls?.length,
+  )
+  const calls: ReadonlyArray<ToolCall> = messages[index]?.toolCalls ?? []
+  const done = new Set(
+    messages
+      .slice(index + 1)
+      .flatMap((message) =>
+        message.role === 'tool' && message.toolCallId
+          ? [message.toolCallId]
+          : [],
+      ),
+  )
+  return calls.filter(
+    (call) => call.function.name === TOOL_NAME && !done.has(call.id),
+  )
+}
+
+/** The key of the wait for question `index` of the call `toolCallId`. */
+const keyOf = (toolCallId: string, index: number) => `${toolCallId}:${index}`
+
 /**
  * Add a `question` tool: the model asks the user one to four questions,
- * each with two to six options, and waits for the answers. Each question
- * goes to the user through `ctx.session.ask`, one at a time. The user picks
- * by number or label, or types their own answer. With no answer, or when
- * the session closes, the model gets a tool error.
+ * each with two to six options, and waits for the answers. The call is the
+ * wait: the turn stops before its tools run, with one `question` wait for
+ * each question, so no process waits for the user, and a user on any host
+ * can answer. The answers become the result of the call. The user picks by
+ * number or label, or types their own answer. With no answer (an empty
+ * reply, a cancel, or a run that cannot stop, like an agent run), the model
+ * gets a tool error.
  *
  * @example
  * ```ts
@@ -114,76 +164,121 @@ function readAnswer(reply: unknown, item: ToolQuestion) {
 export function question() {
   return definePlugin({
     name: 'tanstack/question',
-    setup: (ctx) => ({
-      tools: [
-        toolDefinition({
-          name: 'question',
-          description:
-            'Ask the user one or more questions, each with options, and wait for the answers. Use it when you need a decision or a preference from the user to continue. The user can also type their own answer.',
-          inputSchema: {
-            type: 'object',
-            properties: {
-              questions: {
-                type: 'array',
-                minItems: 1,
-                maxItems: 4,
-                items: {
-                  type: 'object',
-                  properties: {
-                    question: {
-                      type: 'string',
-                      description: 'The full question.',
+    setup: () => {
+      /**
+       * The replies to the questions of the turn, by `keyOf`. The turn that
+       * resumes gets them in `onInterruptResolution`, on any host, before
+       * its tools run. A call takes its replies when it runs.
+       */
+      const replies = new Map<string, unknown>()
+      const boundary = {
+        name: 'tanstack/question',
+        // Stop the turn before its tools run, with a wait for each question
+        // of each `question` call that has no reply yet.
+        onInterruptBoundary: (run) => {
+          if (run.phase !== 'beforeTools') return undefined
+          const interrupts = pendingQuestionCalls(run.messages).flatMap(
+            (call) => {
+              // A call with input that is not valid fails when it runs.
+              const items = questionsOf(parseArgs(call.function.arguments))
+              if (!items) return []
+              return items.flatMap((item, index) => {
+                const key = keyOf(call.id, index)
+                if (replies.has(key)) return []
+                return [
+                  questionInterrupt.interrupt({
+                    key,
+                    reason: 'question',
+                    message: messageOf(item),
+                    payload: {
+                      toolCallId: call.id,
+                      index,
+                      schema: answerSchema(item),
                     },
-                    header: {
-                      type: 'string',
-                      description: 'A short label for the question.',
-                    },
-                    options: {
-                      type: 'array',
-                      minItems: 2,
-                      maxItems: 6,
-                      items: {
-                        type: 'object',
-                        properties: {
-                          label: { type: 'string' },
-                          description: { type: 'string' },
-                        },
-                        required: ['label'],
+                  }),
+                ]
+              })
+            },
+          )
+          return interrupts.length > 0 ? { interrupts } : undefined
+        },
+        onInterruptResolution: (_run, resolutions) => {
+          for (const resolution of resolutions.for(questionInterrupt)) {
+            // A cancelled question has no reply: the call gets no answer.
+            replies.set(
+              resolution.request.key,
+              resolution.status === 'resolved' ? resolution.response : '',
+            )
+          }
+        },
+      } satisfies AnyChatMiddleware
+      const tool = toolDefinition({
+        name: TOOL_NAME,
+        description:
+          'Ask the user one or more questions, each with options, and wait for the answers. Use it when you need a decision or a preference from the user to continue. The user can also type their own answer.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            questions: {
+              type: 'array',
+              minItems: 1,
+              maxItems: 4,
+              items: {
+                type: 'object',
+                properties: {
+                  question: {
+                    type: 'string',
+                    description: 'The full question.',
+                  },
+                  header: {
+                    type: 'string',
+                    description: 'A short label for the question.',
+                  },
+                  options: {
+                    type: 'array',
+                    minItems: 2,
+                    maxItems: 6,
+                    items: {
+                      type: 'object',
+                      properties: {
+                        label: { type: 'string' },
+                        description: { type: 'string' },
                       },
-                    },
-                    multiple: {
-                      type: 'boolean',
-                      description: 'The user can pick more than one option.',
+                      required: ['label'],
                     },
                   },
-                  required: ['question', 'options'],
+                  multiple: {
+                    type: 'boolean',
+                    description: 'The user can pick more than one option.',
+                  },
                 },
+                required: ['question', 'options'],
               },
             },
-            required: ['questions'],
           },
-          // Asking again after a crash has no side effect.
-          replay: 'safe',
-        }).server(async (args: unknown) => {
-          const items =
-            isRecord(args) && Array.isArray(args.questions)
-              ? args.questions
-              : []
-          if (!items.every(isToolQuestion))
-            throw new Error('Each question needs a question and options.')
-          const answers: Array<string> = []
-          for (const item of items) {
-            // A closed session rejects the question: that is no answer too.
-            const reply = await ctx.session
-              .ask({ message: messageOf(item), schema: answerSchema(item) })
-              .catch(() => undefined)
-            const answer = readAnswer(reply, item)
-            if (answer === undefined) throw new Error(NO_ANSWER)
-            answers.push(`${item.question}\n${answer}`)
-          }
-          return answers.join('\n\n')
-        }),
-      ],
-    }),
+          required: ['questions'],
+        },
+        // Asking again after a crash has no side effect.
+        replay: 'safe',
+      }).server((args: unknown, context) => {
+        const items = questionsOf(args)
+        if (!items)
+          throw new Error('Each question needs a question and options.')
+        const toolCallId = context?.toolCallId ?? ''
+        const keys = items.map((_item, index) => keyOf(toolCallId, index))
+        const answers = items.map((item, index) =>
+          readAnswer(replies.get(keys[index] ?? ''), item),
+        )
+        for (const key of keys) replies.delete(key)
+        // One question with no answer gives the model no answer.
+        if (answers.includes(undefined)) throw new Error(NO_ANSWER)
+        return items
+          .map((item, index) => `${item.question}\n${answers[index]}`)
+          .join('\n\n')
+      })
+      // The turn registers the question waits. An agent run does not, so
+      // it gets no boundary, and its question calls get no answer.
+      return { tools: [tool], middleware: [boundary] }
+    },
   })
 }

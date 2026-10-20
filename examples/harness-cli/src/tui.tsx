@@ -104,7 +104,9 @@ function Screen({ view }: { view: SessionView }) {
           .answer(answerOf(text, question.schema))
           .then((receipt) => {
             if (receipt.status === 'rejected') {
-              view.notice(`Answer again: ${receipt.reason ?? 'not accepted'}`)
+              view.notice({
+                text: `Answer again: ${receipt.reason ?? 'not accepted'}`,
+              })
             }
           })
       }
@@ -168,7 +170,35 @@ function Screen({ view }: { view: SessionView }) {
   )
 }
 
+/** The ids of the child agent parts in `parts`, at any depth. */
+function agentIds(parts: ReadonlyArray<ViewPart>): Array<string> {
+  return parts.flatMap((part) =>
+    part.type === 'agent' ? [part.id, ...agentIds(part.parts)] : [],
+  )
+}
+
+/**
+ * Fill the saved child agents of a reopened thread. Ink prints the old turns
+ * once, so they load before the first render. A loaded child can have saved
+ * children of its own, so it loads again until no new id shows up.
+ */
+async function loadSavedAgents(view: SessionView) {
+  const loaded = new Set<string>()
+  for (;;) {
+    const ids = view.store
+      .get()
+      .messages.flatMap((message) =>
+        message.role === 'assistant' ? agentIds(message.parts) : [],
+      )
+      .filter((id) => !loaded.has(id))
+    if (ids.length === 0) return
+    for (const id of ids) loaded.add(id)
+    await Promise.all(ids.map((id) => view.loadAgent({ id })))
+  }
+}
+
 /** The `ui` of runCli: show the screen until the user quits. */
 export async function runTui(view: SessionView) {
+  await loadSavedAgents(view)
   await render(<Screen view={view} />).waitUntilExit()
 }

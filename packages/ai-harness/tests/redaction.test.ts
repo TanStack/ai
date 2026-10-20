@@ -1,3 +1,6 @@
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
@@ -15,10 +18,13 @@ import {
 import { Redactor, redactMiddleware } from '../src/auth'
 import { createHarnessHandler } from '../src/server'
 import { scrubbedBy } from '../src/session/harness-session'
+import { hostBackend } from '../src/first-party/coding/backend'
+import { workspaceTools } from '../src/first-party/coding/workspace'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { AnyTool, ChatMiddlewareConfig } from '@tanstack/ai'
 import type { Reply } from './helpers'
-import type { HarnessRunContext } from '../src'
+import type { WorkspaceBackend } from '../src/first-party/coding/backend'
+import type { HarnessPlugin, HarnessRunContext } from '../src'
 
 const THREAD = 't1'
 const LOG = logIdOf({ logId: THREAD })
@@ -38,10 +44,12 @@ const leaked = createPluginEvent<{ key: string }>('test/leaked')
 async function open({
   fail,
   tools = [],
+  plugins = [],
   replies = [() => toolCall('leak', {}), () => text('done')],
 }: {
   fail: boolean
   tools?: Array<AnyTool>
+  plugins?: Array<HarnessPlugin>
   replies?: Array<Reply>
 }) {
   const credentials = memoryCredentialStore()
@@ -80,7 +88,7 @@ async function open({
     name: 'test/redaction',
     adapter: model.adapter,
     tools,
-    plugins: () => [leaky],
+    plugins: () => [leaky, ...plugins],
   })
   const session = await host.open(harness, {
     threadId: THREAD,
@@ -128,6 +136,46 @@ describe('the redaction sink of a session', () => {
       await host.close()
     },
   )
+})
+
+describe('a bash spill', () => {
+  it('keeps no key of the session in the file of the full output', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'tanstack-spill-'))
+    try {
+      // Long output with the key: the model gets only its end, and the
+      // file gets all of it.
+      const backend: WorkspaceBackend = {
+        ...hostBackend,
+        exec: async () => ({
+          exitCode: 0,
+          stdout: `${KEY}\n`.repeat(3000),
+          stderr: '',
+        }),
+      }
+      const { host, session } = await open({
+        fail: false,
+        plugins: [
+          workspaceTools({ root, backend, spillDir: 'spill', web: false }),
+        ],
+        replies: [
+          () => toolCall('leak', {}, 'c0'),
+          () => toolCall('bash', { command: 'print-key' }, 'c1'),
+          () => text('done'),
+        ],
+      })
+
+      await session.send('Leak it twice.')
+
+      const [file] = await readdir(join(root, 'spill'))
+      if (file === undefined) throw new Error('No spill file.')
+      const saved = await readFile(join(root, 'spill', file), 'utf8')
+      expect(saved).toContain('[redacted]')
+      expect(saved).not.toContain(KEY_PART)
+      await host.close()
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
 })
 
 describe('the edges of a session', () => {

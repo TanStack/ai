@@ -88,15 +88,16 @@ const session = await host.open(assistant, {
 ```ts group=harness-provider-keys
 const stopAsking = session.onEvent('CUSTOM', async ({ event }) => {
   if (event.name !== 'harness.question') return
-  const [question] = session.snapshot().pendingQuestions
+  const [question] = session.snapshot().pendingWaits
   // question.secret is true. Read the key without showing it.
-  if (question) await session.answer({ questionId: question.questionId, value: 'sk-proj-...' })
+  if (question) await session.answer({ questionId: question.waitId, value: 'sk-proj-...' })
 })
 
 console.log(await session.command({ name: 'connect:openai' })) // Connected to OpenAI (key ...abcd).
 stopAsking()
 ```
 
+- The command asks with `step.ask`, so the log keeps the question as a [wait](./waits), and the user can answer it on any server. The log never keeps the key.
 - With `keyUrl`, the page to make a key opens first. The session sends a `harness.auth_required` event with the URL, and your app opens it.
 - `/disconnect:openai` deletes the key.
 - `/keys` shows where each key comes from:

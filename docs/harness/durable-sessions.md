@@ -78,9 +78,9 @@ A host that stops also stops renewing its ownership of the thread. When the owne
 4. The time limit passed: the input ends `failed`, with the error code `timeout`.
 5. Else the turn runs again as the next attempt, and clients get a `harness.operation.resumed` event.
 
-An input that was stored but never ran, runs now. `session.settled(inputId)` resolves to how an input ended. See [Send inputs safely](./inputs).
+An input that was stored but never ran, runs now. `session.settled({ inputId })` resolves to how an input ended. See [Send inputs safely](./inputs).
 
-A background agent that you started with `resume: true` runs again on the next host. See [Keep a background agent going after a crash](./subagents#keep-a-background-agent-going-after-a-crash). For any other background agent whose host stopped, the next host:
+A background agent that you started with `resume: true` runs again on the next host. See [Keep a background agent going after a crash](./subagents#keep-a-background-agent-going-after-a-crash). The children and groups that it started before the stop do not start again: they give their stored results. See [Children of a run that runs again](./subagents#children-of-a-run-that-runs-again). For any other background agent whose host stopped, the next host:
 
 1. Ends the run `failed`, with the message `The host stopped during this agent run.`
 2. Adds a note about the failure to the transcript.
@@ -124,6 +124,8 @@ console.log(`Resumed ${resumed.length} threads`, resumed)
 4. Opens the thread. The recovery steps in [What happens after a crash](#what-happens-after-a-crash) run its pending work, then the inputs that wait run.
 
 It resolves with the threads that it took, as `{ threadId, harness, tenantId }` entries. Each thread opens in its own tenant, with no principal.
+
+If a thread that the sweep took does not open, the host gives it back with a wake in 30 seconds. The next sweep or worker tries it again.
 
 The `close` option sets what happens to a session that the sweep opened:
 
@@ -276,8 +278,9 @@ On a serverless platform, two requests for one thread often reach two instances.
 
 - The first write of a host takes the log. From then on, this host owns the thread.
 - One timer renews every thread that the host owns. The host gives a thread back when it has no work.
-- An input that reaches another instance waits in the log for the owner. The receipt is `queued`, and the owner runs it within a second.
-- Every instance reads the thread. A client gets the events from the log, on any instance. A `POST run` on the second instance streams the turn that the owner runs.
+- An input that reaches another instance waits in the log for the owner. The receipt is `queued`, and the owner runs it within a second. If the owner refuses it, `session.settled({ inputId })` on that instance rejects with `InputRejectedError`. See [Send inputs safely](./inputs).
+- Every instance reads the thread, also while the owner runs a background job. A client gets the events from the log, on any instance. A `POST run` on the second instance streams the turn that the owner runs.
+- The thread settings, the config values, and the state of an interrupted turn follow the changes that other hosts write.
 
 Set the timing with the `ownership` option of the host:
 
@@ -289,11 +292,17 @@ const ownedHost = createHarnessHost({
 ```
 
 - `ttlMs`: how long the ownership lasts after each renewal. The default is 30 000. After it, another host can take the thread.
-- `renewMs`: how often the timer renews. The default is 10 000.
+- `renewMs`: how often the timer renews. The default is 10 000. When you set only `ttlMs`, the default is a third of `ttlMs`. It must be less than `ttlMs`, else `createHarnessHost` throws a `RangeError`.
+- `hostId`: a stable id for this host, for example the machine or pod name. With it, a thread whose coding tools use a folder on this host stays on this host. Other hosts refuse its tool calls. The host sends a heartbeat to the log store each `renewMs`. When no heartbeat came for `ttlMs`, other hosts can take its threads. See [A folder on one server](./coding-workspaces#a-folder-on-one-server).
 
 An input that waits for the owner keeps its JSON overrides (`model`, `modelOptions`, `reasoning`, and `promptCache`). The `adapter` and `tools` overrides are objects, so the owner runs the input without them.
 
-A question from `ctx.session.ask` waits in the memory of the host that asked, so that host keeps the thread until the answer comes. An answer that reaches another host goes to the host that asked. Until then, a plain answer waits in the log store as the user typed it. The log keeps a secret answer as `[secret]`.
+A [wait](./waits) for a person does not always keep a host busy:
+
+- The approvals and the questions that a turn stopped for, and the waits of background agent runs, are only in the log. The session goes idle, and an answer on any host continues the run.
+- A `step.ask` in code that runs, an MCP server that asks during a tool call, and an OAuth sign-in wait in the memory of the host that runs them. That host keeps the thread until the answer comes.
+
+An answer that reaches another host goes to the owner through the log. Until then, a plain answer waits in the log store as the user typed it. The log keeps a secret answer as `[secret]`.
 
 ### Secret answers on another host
 

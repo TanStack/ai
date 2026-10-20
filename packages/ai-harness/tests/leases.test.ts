@@ -180,7 +180,7 @@ describe('a durable host with no run store', () => {
 
     await ownershipExpired()
     const next = await openHost(persistence, [() => text('recovered')])
-    expect(await next.session.settled('in-1')).toMatchObject({
+    expect(await next.session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(next.calls).toHaveLength(1)
@@ -313,7 +313,7 @@ describe('a durable host with no run store', () => {
     await ownershipExpired()
 
     const next = await openHost(persistence, [() => text('done')], tools)
-    await next.session.settled('batch-1')
+    await next.session.settled({ inputId: 'batch-1' })
 
     const results = (await next.session.transcript()).filter(
       (message) => message.role === 'tool',
@@ -416,7 +416,7 @@ describe('close({ recoverable: true })', () => {
         ?.status,
     ).toBe('running')
     const next = await openOn(persistence, [() => text('recovered')])
-    expect(await next.session.settled('in-1')).toMatchObject({
+    expect(await next.session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
     const applied = (await logRecords(persistence)).filter(
@@ -454,7 +454,7 @@ describe('close({ recoverable: true })', () => {
     const next = await openOn(persistence, [() => text('done')], {
       tools: [mail],
     })
-    await next.session.settled('in-1')
+    await next.session.settled({ inputId: 'in-1' })
 
     const results = (await next.session.transcript()).filter(
       (message) => message.role === 'tool',
@@ -484,7 +484,7 @@ describe('close({ recoverable: true })', () => {
         ?.status,
     ).toBe('aborted')
     const next = await openOn(persistence, [() => text('never')])
-    expect(await next.session.settled('in-1')).toMatchObject({
+    expect(await next.session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'aborted',
     })
     expect(next.calls).toHaveLength(0)
@@ -515,7 +515,7 @@ describe('close({ recoverable: true })', () => {
     const next = await openCutOff(persistence, [() => text('42.')], {
       durability: { continueCutOff: true },
     })
-    await next.session.settled('in-1')
+    await next.session.settled({ inputId: 'in-1' })
 
     expect(roles(next.calls[0].messages)).toEqual([
       ['user', 'go'],
@@ -550,7 +550,9 @@ describe('close({ recoverable: true })', () => {
     const input = (await logRecords(persistence)).find(
       (record) => record.type === 'harness.input',
     )
-    expect(await next.session.settled(String(input?.inputId))).toMatchObject({
+    expect(
+      await next.session.settled({ inputId: String(input?.inputId) }),
+    ).toMatchObject({
       outcome: 'completed',
     })
     await next.host.close()
@@ -608,7 +610,7 @@ describe('durability.continueCutOff', () => {
         durability: { continueCutOff: option },
         tools: [lookup],
       })
-      expect(await next.session.settled('in-1')).toMatchObject({
+      expect(await next.session.settled({ inputId: 'in-1' })).toMatchObject({
         outcome: 'completed',
       })
 
@@ -651,7 +653,7 @@ describe('durability.continueCutOff', () => {
     const next = await openCutOff(persistence, [() => text('42.')], {
       durability: { continueCutOff: { note: [one, two] } },
     })
-    await next.session.settled('in-1')
+    await next.session.settled({ inputId: 'in-1' })
 
     const added = [
       ['assistant', 'The answer is '],
@@ -719,7 +721,7 @@ describe('durability.continueCutOff', () => {
     const next = await openCutOff(persistence, [() => text('42.')], {
       durability: { continueCutOff: true },
     })
-    await next.session.settled('in-1')
+    await next.session.settled({ inputId: 'in-1' })
 
     const partial = {
       role: 'assistant',
@@ -749,7 +751,7 @@ describe('durability.continueCutOff', () => {
     const next = await openCutOff(persistence, [() => text('42.')], {
       durability: { continueCutOff: true },
     })
-    await next.session.settled('in-1')
+    await next.session.settled({ inputId: 'in-1' })
 
     expect(roles(next.calls[0].messages)).toEqual([['user', 'go']])
     await first.host.close().catch(() => {})
@@ -762,7 +764,7 @@ describe('durability.continueCutOff', () => {
     ])
 
     const next = await openCutOff(persistence, [() => text('42.')])
-    await next.session.settled('in-1')
+    await next.session.settled({ inputId: 'in-1' })
 
     expect(roles(next.calls[0].messages)).toEqual([['user', 'go']])
     expect(roles(await next.session.transcript())).toEqual([
@@ -791,7 +793,7 @@ describe('durability.continueCutOff', () => {
       durability: { continueCutOff: true },
       subagents,
     })
-    await next.session.settled('in-1')
+    await next.session.settled({ inputId: 'in-1' })
 
     const sent = JSON.stringify(next.calls[0].messages)
     expect(sent).not.toContain('Agent notes')
@@ -813,7 +815,7 @@ describe('durability.continueCutOff', () => {
     const next = await openCutOff(persistence, [() => text('42.')], {
       durability: { continueCutOff: true },
     })
-    await next.session.settled('in-1')
+    await next.session.settled({ inputId: 'in-1' })
 
     expect(roles(next.calls[0].messages)).toEqual([['user', 'go']])
     await first.host.close().catch(() => {})

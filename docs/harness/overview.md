@@ -205,6 +205,8 @@ Each host keeps every thread in a session log: the transcript, the inputs, the r
 
 `memoryPersistence()` has every store, but it keeps them in memory only. To keep the log in your database, implement the [`LogStore` contract](../persistence/store-reference#logstore). Then a turn continues after a crash or a deploy. See [Durable sessions](./durable-sessions).
 
+Before you run many servers or long threads, read the [known limits](./deploy#known-limits).
+
 ## Prompt caching
 
 Every session caches the stable start of its requests by default, with its `threadId` as the cache key. To change the default for every session, set `promptCache` on the harness:

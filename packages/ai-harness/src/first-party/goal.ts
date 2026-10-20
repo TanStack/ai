@@ -1,11 +1,17 @@
-import { EventType, chat } from '@tanstack/ai'
+import { EventType } from '@tanstack/ai'
 import { defineCommand } from '../commands'
 import { createPluginEvent } from '../extensions'
 import { definePlugin } from '../plugins'
+import { isApproval } from '../waits'
 import { textOf, transcriptText } from './session-tools'
 import type { AnyTextAdapter, ChatMiddleware, KeyedAdapter } from '@tanstack/ai'
 import type { PluginSessionApi } from '../commands'
-import type { ChatTurnResult, HarnessRunContext, Operation } from '../types'
+import type {
+  ChatTurnResult,
+  HarnessRunContext,
+  Operation,
+  Principal,
+} from '../types'
 
 /** The goal of a session. It is plugin state, so it survives restarts. */
 export interface Goal {
@@ -33,6 +39,8 @@ const USER_MESSAGE =
 const TURN_FAILED = 'The last turn failed. Run /goal resume to try again.'
 const WAITS_FOR_APPROVAL =
   'The last turn waits for approval. Answer it, then run /goal resume.'
+const WAITS_FOR_INPUT =
+  'The last turn waits for input. Answer it, then run /goal resume.'
 
 function isVerdict(value: unknown): value is { met: boolean; reason: string } {
   return (
@@ -123,13 +131,15 @@ export function goal(options: {
 
       /**
        * Queue the next turn of the goal. `/goal` passes its own session, so
-       * the turn runs as the user who runs it.
+       * the turn runs as the user who runs it. `onFinish` passes the user of
+       * the goal's last turn, so the goal goes on as that user.
        */
-      // ponytail: D9. From `onFinish`, `ctx.session.send` runs as the sender
-      // of the running turn: the goal's own turn there. PR 7 rebuilds send
-      // on the run that calls.
-      const queue = (message: string, session = ctx.session) => {
-        queuedTurn = session.send(message)
+      const queue = (
+        message: string,
+        session = ctx.session,
+        principal?: Principal,
+      ) => {
+        queuedTurn = session.send(message, principal ? { principal } : {})
       }
 
       /** Cancel the queued turn if it has not started. */
@@ -188,21 +198,26 @@ export function goal(options: {
         const transcript = transcriptText(
           (await ctx.session.transcript()).slice(-10),
         ).slice(-8000)
-        const verdict = await chat({
-          adapter: await run.keys.adapter(options.judge),
-          messages: [
-            {
-              role: 'user',
-              content: `${JUDGE_PROMPT}\n\nGoal: ${text}\n\nThe last part of the conversation:\n${transcript}`,
+        // Counted in the session, and stopped when the turn stops.
+        const verdict = await ctx.model.chat({
+          adapter: options.judge,
+          run,
+          label: 'judge',
+          options: {
+            messages: [
+              {
+                role: 'user',
+                content: `${JUDGE_PROMPT}\n\nGoal: ${text}\n\nThe last part of the conversation:\n${transcript}`,
+              },
+            ],
+            outputSchema: {
+              type: 'object',
+              properties: {
+                met: { type: 'boolean' },
+                reason: { type: 'string' },
+              },
+              required: ['met', 'reason'],
             },
-          ],
-          outputSchema: {
-            type: 'object',
-            properties: {
-              met: { type: 'boolean' },
-              reason: { type: 'string' },
-            },
-            required: ['met', 'reason'],
           },
         })
         if (!isVerdict(verdict))
@@ -214,6 +229,8 @@ export function goal(options: {
         prompts: [
           {
             id: 'tanstack/goal:active',
+            // It changes often: last, so the system prompts before it stay cached.
+            placement: 'context',
             text: () =>
               current?.status === 'active'
                 ? `You work toward this goal: ${current.text}. Keep going until it is done.`
@@ -294,10 +311,18 @@ export function goal(options: {
               await change(saved.text, { round: saved.round + 1, queued: '' })
             },
             onChunk: async (run, chunk) => {
-              const isApproval =
+              // The turn stopped for its waits: approvals, or other input
+              // (a question, a sign-in, a client tool).
+              if (
                 chunk.type === EventType.RUN_FINISHED &&
                 chunk.outcome?.type === 'interrupt'
-              if (isApproval) await pauseOwnTurn(run.runId, WAITS_FOR_APPROVAL)
+              ) {
+                const isApprovals = chunk.outcome.interrupts.every(isApproval)
+                await pauseOwnTurn(
+                  run.runId,
+                  isApprovals ? WAITS_FOR_APPROVAL : WAITS_FOR_INPUT,
+                )
+              }
               if (chunk.type === EventType.RUN_ERROR)
                 await pauseOwnTurn(run.runId, TURN_FAILED)
             },
@@ -349,8 +374,9 @@ export function goal(options: {
                 return
               }
               const message = keepWorking(text, reason)
-              if (await change(text, { reason, queued: message }))
-                queue(message)
+              if (await change(text, { reason, queued: message })) {
+                queue(message, ctx.session, run.context.run.principal)
+              }
             },
           } satisfies ChatMiddleware<HarnessRunContext>,
         ],

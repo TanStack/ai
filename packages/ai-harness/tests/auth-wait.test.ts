@@ -21,6 +21,7 @@ import {
   storedThreadState,
   text,
   toolCall,
+  turnInterrupts,
 } from './helpers'
 import type { HarnessRunContext, HarnessSession } from '../src'
 import type { OAuthConfig } from '../src/oauth'
@@ -179,7 +180,7 @@ describe('require with wait', () => {
         },
       },
     ])
-    expect(await session.settled('ask')).toMatchObject({
+    expect(await session.settled({ inputId: 'ask' })).toMatchObject({
       outcome: 'interrupted',
     })
     expect(signIns).toEqual([{ connector: 'github' }])
@@ -193,7 +194,7 @@ describe('require with wait', () => {
     expect(seenTokens).toEqual(['gh-token'])
     // No new prompt: the second model call is the answer of the same turn.
     expect(calls).toHaveLength(2)
-    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(session.snapshot())).toEqual([])
     reader.abort()
     await host.close()
   })
@@ -223,7 +224,7 @@ describe('require with wait', () => {
 
     const b = start([() => text('One issue.')])
     const session = await b.open()
-    expect(session.snapshot().pendingInterrupts).toMatchObject([
+    expect(turnInterrupts(session.snapshot())).toMatchObject([
       { reason: 'auth_required' },
     ])
     const ended = nextEnd(session)
@@ -260,11 +261,11 @@ describe('require with wait', () => {
       inputId: 'no',
     })
     expect(receipt.status).toBe('accepted')
-    expect(await session.settled('no')).toMatchObject({
+    expect(await session.settled({ inputId: 'no' })).toMatchObject({
       outcome: 'completed',
     })
     expect(seen).toEqual([])
-    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(session.snapshot())).toEqual([])
     // The model got the tool error, as without `wait`.
     expect(JSON.stringify(calls[1]?.messages)).toContain(
       'Sign in to github first',
@@ -292,7 +293,7 @@ describe('require with wait', () => {
     )
     const turn = await session.send('List my issues.', { inputId: 'ask' })
     expect(turn.interrupts).toBeUndefined()
-    expect(await session.settled('ask')).toMatchObject({
+    expect(await session.settled({ inputId: 'ask' })).toMatchObject({
       outcome: 'completed',
     })
     expect(JSON.stringify(calls[1]?.messages)).toContain(
@@ -386,12 +387,12 @@ describe('sign-ins in a shared thread', () => {
 
     // Saves for alice, while bob's turn waits for bob's sign-in.
     await session.command({ name: 'note' })
-    expect(session.snapshot().pendingInterrupts).toHaveLength(1)
+    expect(turnInterrupts(session.snapshot())).toHaveLength(1)
     await session.command({ name: 'connect:github', principal: alice })
 
     expect(seen).toEqual([])
     expect(calls).toHaveLength(1)
-    expect(session.snapshot().pendingInterrupts).toMatchObject([
+    expect(turnInterrupts(session.snapshot())).toMatchObject([
       { reason: 'auth_required' },
     ])
     await host.close()
@@ -441,7 +442,7 @@ describe('sign-ins in a shared thread', () => {
       op: 'prompt',
       message: 'List my issues.',
     })
-    expect(await session.settled(asked.inputId)).toMatchObject({
+    expect(await session.settled({ inputId: asked.inputId })).toMatchObject({
       outcome: 'interrupted',
     })
 
@@ -494,7 +495,7 @@ describe('sign-ins in a shared thread', () => {
       host,
       harness,
       openAccess: { principal: bob },
-      media: { secret: 'test-secret' },
+      media: { secret: 'test-secret-of-at-least-32-bytes!' },
     })
     const session = await host.open(harness, {
       threadId: 't',
@@ -557,7 +558,7 @@ describe('sign-ins in a shared thread', () => {
 
     const b = start([() => text('One issue.')])
     const session = await b.open()
-    expect(session.snapshot().pendingInterrupts).toMatchObject([
+    expect(turnInterrupts(session.snapshot())).toMatchObject([
       { reason: 'auth_required' },
     ])
     const ended = nextEnd(session)

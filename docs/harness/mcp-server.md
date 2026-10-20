@@ -93,13 +93,13 @@ To talk to the harness:
 - `chat`: send a message and wait for the answer. While a turn runs, the message waits in the queue. To send files too, see [Send files and get media](#send-files-and-get-media).
 - `steer`: add a message to the running turn.
 - `cancel`: cancel the running turn.
-- `status`: show the status, the interrupts and questions that wait, the background agents, and the queued turns.
+- `status`: show the status, every wait, the background agents, and the queued turns.
 
 To answer the harness:
 
-- `approve` and `reject`: answer every approval that waits.
-- `resolve`: answer every interrupt that waits, in one call.
-- `answer`: answer a question from a command or a plugin.
+- `approve` and `reject`: answer every approval of the stopped turn.
+- `resolve`: answer every interrupt of the stopped turn in one call, or the waits of a background agent run.
+- `answer`: answer a question from a command, a durable tool, or an MCP server.
 
 To run what the harness has:
 
@@ -123,17 +123,25 @@ Because of that, the input of an agent, a command, or a tool cannot have its own
   "status": "completed",
   "text": "You have three open tickets.",
   "interrupts": [],
-  "questions": []
+  "questions": [],
+  "waits": []
 }
 ```
 
-## Interrupts and questions
+## Waits
 
-A turn can stop for an interrupt. The turn then waits for your answer. Each interrupt has a `kind`:
+The work of a tool call can stop for a [wait](./waits). The result lists the open waits of that work in `waits`. Each wait has a `kind`:
 
 - `approval`: a tool call that needs your yes or no.
-- `client-tool`: a tool that the client runs. The turn waits for the tool output.
-- `generic`: a question from a middleware. The answer must match its `responseSchema`.
+- `question`: an answer that fits the `schema` of the wait, for example from the `question` tool or a `step.ask`.
+- `sign-in`: a connector that needs you to sign in.
+- `client-tool`: a tool that the client runs. The work waits for the tool output.
+- `human`: a person who takes over, from an interrupt of `defineInterrupt`.
+
+The result also splits the waits by how you answer them:
+
+- `interrupts`: the waits of a stopped turn. Each one has `id`, `kind`, `message`, and `responseSchema`. An approval and a client tool also have `tool` and `args`, the tool call that waits.
+- `questions`: the questions that a command, a durable tool, or an MCP server asks while it runs.
 
 For an approval, the client asks you in its own window (MCP elicitation). Answer `yes` to run the tool. Any other answer rejects it.
 
@@ -141,7 +149,7 @@ In these cases, `chat` returns the interrupts with `status: "interrupted"`:
 
 - The client cannot ask you.
 - You close the question without an answer.
-- An interrupt of another kind also waits.
+- A wait of another kind also waits.
 
 ```json
 {
@@ -150,7 +158,7 @@ In these cases, `chat` returns the interrupts with `status: "interrupted"`:
   "interrupts": [
     {
       "id": "interrupt-1",
-      "kind": "generic",
+      "kind": "human",
       "message": "Review the plan",
       "responseSchema": {
         "type": "object",
@@ -159,15 +167,26 @@ In these cases, `chat` returns the interrupts with `status: "interrupted"`:
       }
     }
   ],
-  "questions": []
+  "questions": [],
+  "waits": [
+    {
+      "waitId": "interrupt-1",
+      "kind": "human",
+      "runId": "run-1",
+      "message": "Review the plan",
+      "schema": {
+        "type": "object",
+        "properties": { "note": { "type": "string" } },
+        "required": ["note"]
+      }
+    }
+  ]
 }
 ```
 
-An approval and a client tool also have `tool` and `args`, the tool call that waits.
+Then the client calls `approve`, `reject`, or `resolve`. That call waits for the turn to continue and returns the same JSON as `chat`. `approve` and `reject` answer approvals only. When a wait of another kind also waits, they refuse, and the client uses `resolve`.
 
-Then the client calls `approve`, `reject`, or `resolve`. That call waits for the turn to continue and returns the same JSON as `chat`. `approve` and `reject` answer approvals only. When an interrupt of another kind also waits, they refuse, and the client uses `resolve`.
-
-`resolve` takes one decision for each interrupt that waits. This example answers a turn with one approval and one generic interrupt:
+`resolve` takes one decision for each interrupt that waits. This example answers a turn with one approval and one `human` wait:
 
 ```json
 {
@@ -180,13 +199,20 @@ Then the client calls `approve`, `reject`, or `resolve`. That call waits for the
 
 - For an approval, set `approved`. `true` runs the tool, and `false` rejects it.
 - For a client tool, set `payload` to the tool output.
-- For a generic interrupt, set `payload` to a value that matches its `responseSchema`.
+- For any other kind, set `payload` to a value that matches its schema.
 
 `resolve` refuses a list that does not answer every interrupt. It also refuses a decision without the field that its kind needs.
 
-To approve every tool call without a question, set `approvals: 'auto'`. Use it only with tools that you trust. It answers approvals only, so other interrupts still come back in the result.
+To approve every tool call without a question, set `approvals: 'auto'`. Use it only with tools that you trust. It answers approvals only, so other waits still come back in the result.
 
-A command or a plugin can also ask you a question. The result then has `status: "waiting"` and the question in `questions`. The client calls `answer` with the question `id` as `questionId` and your `value`. `answer` waits for the work that asked, then returns its result.
+### Questions and background agents
+
+Some work keeps running while it waits. The result then has `status: "waiting"`:
+
+- A question in `questions`: the client calls `answer` with the question `id` as `questionId` and your `value`.
+- A wait of a background agent run (an approval of `permissions()`, for example): the client calls `resolve` with one decision for each wait of that run. The `interruptId` is the `waitId`.
+
+`answer` and `resolve` wait for the work, then return its result. The `status` tool lists every wait, and each background agent with `status: "running"` or `"waiting"`.
 
 ## Send files and get media
 
@@ -269,7 +295,7 @@ claude mcp add --transport http assistant https://your-app.example.com/mcp --hea
 
 - Your harness in Claude Code, Claude Desktop, Cursor, or any other MCP client.
 - Approvals that the client asks you about, or answers with `approve` and `reject`.
-- Every kind of interrupt, answered with one `resolve` call.
+- Every kind of wait in one list, answered with `resolve` or `answer`.
 - The agents, commands, and tools of your harness as MCP tools.
 - Records that the client adds to a thread with `append`.
 - Files that the client sends with a message, and the media of each turn in the result.

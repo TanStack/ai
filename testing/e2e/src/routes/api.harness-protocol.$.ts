@@ -8,6 +8,7 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
+  durableTool,
   membersOnly,
 } from '@tanstack/ai-harness'
 import { createHarnessHandler } from '@tanstack/ai-harness/server'
@@ -267,13 +268,15 @@ function harnessFor(request: Request) {
           ],
         }),
       }),
-      // A tool that waits for an answer, so a turn stays running.
+      // A tool that waits for an answer, so a turn stays running. The log
+      // keeps the question, so any server takes the answer.
       definePlugin({
         name: 'e2e/ask',
-        setup: (ctx) => ({
+        setup: () => ({
           tools: [
-            askName.server(async () => ({
-              name: await ctx.session.ask({
+            durableTool(askName, async (_args, { step }) => ({
+              name: await step.ask({
+                name: 'name',
                 message: 'What is your name?',
                 schema: z.string(),
               }),
@@ -338,7 +341,7 @@ function handlerFor(request: Request) {
     harness,
     // Each request makes a new handler, so a fixed secret keeps a signed URL
     // working on the next request.
-    media: { secret: 'e2e-media-secret' },
+    media: { secret: 'e2e-media-secret-of-32-bytes-or-more' },
   })
 }
 

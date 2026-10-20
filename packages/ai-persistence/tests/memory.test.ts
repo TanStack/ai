@@ -307,7 +307,7 @@ describe('memoryLogBackend({ now })', () => {
     clock.now = 1_500
     expect(
       await store.acquire({ logId, harness, ownerId: 'b', ttlMs: 500 }),
-    ).toEqual({ epoch: 2 })
+    ).toEqual({ epoch: 2, expired: true })
   })
 
   it('lists a released log for its wake only when its clock reaches the wake time', async () => {

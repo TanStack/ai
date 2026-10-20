@@ -2768,6 +2768,59 @@ describe('chat()', () => {
       expect(toolMsg).toBeDefined()
     })
 
+    it.each([
+      { answer: false, modelCalls: 0 },
+      { answer: undefined, modelCalls: 1 },
+    ])(
+      'asks onShouldContinue after resumed tools: $answer gives $modelCalls model calls',
+      async ({ answer, modelCalls }) => {
+        const executeSpy = vi.fn().mockReturnValue({ temp: 72 })
+        const onShouldContinue = vi.fn(() => answer)
+        const { adapter, calls } = createMockAdapter({
+          iterations: [
+            [
+              ev.runStarted(),
+              ev.textStart(),
+              ev.textContent('72F in NYC'),
+              ev.textEnd(),
+              ev.runFinished('stop'),
+            ],
+          ],
+        })
+
+        const chunks = await collectChunks(
+          chat({
+            adapter,
+            messages: [
+              { role: 'user', content: 'Weather?' },
+              {
+                role: 'assistant',
+                content: 'Let me check.',
+                toolCalls: [
+                  {
+                    id: 'call_1',
+                    type: 'function' as const,
+                    function: {
+                      name: 'getWeather',
+                      arguments: '{"city":"NYC"}',
+                    },
+                  },
+                ],
+              },
+            ],
+            tools: [serverTool('getWeather', executeSpy)],
+            middleware: [defineChatMiddleware({ onShouldContinue })],
+          }) as AsyncIterable<StreamChunk>,
+        )
+
+        expect(executeSpy).toHaveBeenCalledTimes(1)
+        expect(onShouldContinue).toHaveBeenCalled()
+        expect(calls).toHaveLength(modelCalls)
+        // One terminal: the run ends cleanly, with or without the call.
+        expectSingleRunFinished(chunks)
+      },
+    )
+
     it('should skip pending tool calls that already have results', async () => {
       const executeSpy = vi.fn().mockReturnValue({ temp: 72 })
 

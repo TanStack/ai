@@ -27,7 +27,7 @@ const asker = definePlugin({
     commands: {
       confirm: defineCommand({
         description: 'Asks, then returns the answer',
-        run: () => ctx.session.ask({ message: 'Go on?' }),
+        run: (_input, { step }) => step.ask({ name: 'go', message: 'Go on?' }),
       }),
       connect: defineCommand({
         description: 'Needs a sign-in',
