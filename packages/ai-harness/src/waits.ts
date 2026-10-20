@@ -4,7 +4,7 @@ import {
 } from '@tanstack/ai'
 import { isRecord } from './utils'
 import { APPROVAL_INTERRUPT_ID, QUESTION_INTERRUPT_ID } from './boundary-waits'
-import type { Interrupt } from '@tanstack/ai'
+import type { Interrupt, UIMessage } from '@tanstack/ai'
 import type { InterruptRecord } from '@tanstack/ai-persistence'
 import type { WaitState } from './log-records'
 import type { PendingQuestion } from './types'
@@ -66,6 +66,13 @@ export interface PendingWait extends Wait {
    * the turn, and the turn goes on.
    */
   turn?: true
+  /**
+   * A wait of the turn that an agent tool stopped for: the name of that
+   * agent. For a nested agent, the agent that waits.
+   */
+  agent?: string
+  /** With `agent`: the `subagentRunId` of the agent run that waits. */
+  subagentRunId?: string
   /** The answer is a secret (a key or a password). Hide it as the user types. */
   secret?: true
   /** A page the user must open before they answer. Show the link. */
@@ -186,7 +193,15 @@ export function waitOfInterrupt({
     binding?.kind === 'generic' &&
     binding.definitionId === QUESTION_INTERRUPT_ID &&
     isRecord(payload)
-  const schema = isToolQuestion ? payload.schema : interrupt.responseSchema
+  // A form request (an MCP form, a `step.ask` of an agent tool) has its
+  // answer shape in `requestedSchema`.
+  const request = isRecord(payload) ? payload.request : undefined
+  const schema = isToolQuestion
+    ? payload.schema
+    : (interrupt.responseSchema ??
+      (isRecord(payload) && payload.kind === 'form' && isRecord(request)
+        ? request.requestedSchema
+        : undefined))
   return {
     waitId: interrupt.id,
     kind: waitKind(interrupt),
@@ -260,6 +275,32 @@ export function interruptExpiry(
   return opened && expiryOf(waitKind(interrupt), undefined, opened.requestedAt)
 }
 
+/**
+ * The agent run `subagentRunId` on the cards of `messages`, nested cards
+ * too: its name, and the tool call that started its top card (a tool call
+ * of the main model).
+ */
+export function agentCardOf(
+  messages: ReadonlyArray<UIMessage>,
+  subagentRunId: string,
+): { agent: string; parentToolCallId?: string } | undefined {
+  for (const message of messages) {
+    for (const part of message.parts) {
+      if (part.type !== 'subagent') continue
+      const { subagent } = part
+      const found =
+        subagent.id === subagentRunId
+          ? { agent: subagent.name }
+          : agentCardOf(subagent.messages, subagentRunId)
+      if (!found) continue
+      return subagent.parentToolCallId === undefined
+        ? found
+        : { ...found, parentToolCallId: subagent.parentToolCallId }
+    }
+  }
+  return undefined
+}
+
 /** The waits of `waits` that did not end, oldest first. */
 export function openWaits(waits: ReadonlyMap<string, WaitState> | undefined) {
   return [...(waits?.values() ?? [])].filter(
@@ -280,7 +321,14 @@ export function snapshotWaits({
   records,
   expiry,
 }: {
-  stopped: { runId: string; principal?: Wait['principal'] } | null | undefined
+  stopped:
+    | {
+        runId: string
+        principal?: Wait['principal']
+        routed?: { messages: ReadonlyArray<UIMessage> }
+      }
+    | null
+    | undefined
   interrupts: ReadonlyArray<Interrupt>
   waits: ReadonlyMap<string, WaitState> | undefined
   records: ReadonlyMap<string, InterruptRecord> | undefined
@@ -296,11 +344,19 @@ export function snapshotWaits({
         ...(principal ? { principal } : {}),
       })
       const expiresAt = wait.expiresAt ?? expiry?.(interrupt)
+      const { subagentRunId } = interrupt
+      const agent =
+        subagentRunId === undefined
+          ? undefined
+          : agentCardOf(stopped?.routed?.messages ?? [], subagentRunId)?.agent
       return {
         ...wait,
         ...(expiresAt !== undefined ? { expiresAt } : {}),
         interrupt,
         turn: true as const,
+        ...(agent !== undefined && subagentRunId !== undefined
+          ? { agent, subagentRunId }
+          : {}),
       }
     }),
     ...openWaits(waits).map(({ wait, secret, url }) => {

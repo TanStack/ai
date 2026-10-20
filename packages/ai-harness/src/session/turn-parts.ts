@@ -4,11 +4,12 @@ import {
   convertSchemaToJsonSchema,
   isStandardSchema,
   provideLogRecords,
+  validateJsonSchema,
   validateWithStandardSchema,
 } from '@tanstack/ai'
 import { bindDurable, createToolStep } from '../durable-tool'
 import { expiryOf } from '../waits'
-import { waitUntil } from '../utils'
+import { jsonCopy, waitUntil } from '../utils'
 import { commonPrefix, stepKey } from '../log'
 import { isEnded } from '../log-records'
 import { mediaIdOf, mediaOfMessage } from '../media-ref'
@@ -34,6 +35,7 @@ import type {
   AnyChatMiddleware,
   AnyTool,
   ModelMessage,
+  RunAgentResumeItem,
   SchemaInput,
   ToolExecutionContext,
 } from '@tanstack/ai'
@@ -82,6 +84,13 @@ export abstract class SessionTurnParts<
     writer: LogWriter,
     toolCallId: string,
     run: RunContext,
+    /**
+     * `step.ask` of an agent tool (see `askInTurn`). The log keeps each
+     * answer as a step, so a run again after a later stop has it.
+     */
+    askInTurn?: (
+      question: StepQuestion<SchemaInput | undefined>,
+    ) => Promise<unknown>,
   ) {
     // The log keeps a step value without the secrets of the session. So a
     // value with a secret throws, before the log keeps it and on a replay
@@ -92,20 +101,24 @@ export abstract class SessionTurnParts<
         `step.do: the value of step ${JSON.stringify(name)} holds a secret of the session. A step result must not hold a secret. Read it outside step.do.`,
       )
     }
+    const recorded = (
+      name: string,
+    ): { found: true; value: unknown } | { found: false } => {
+      const key = stepKey(toolCallId, name)
+      if (!writer.state.steps.has(key)) return { found: false }
+      const value = writer.state.steps.get(key)
+      noSecret(name, value)
+      return { found: true, value }
+    }
+    const record = async (name: string, value: unknown) => {
+      noSecret(name, value)
+      await writer.append([
+        { type: 'harness.tool.step', toolCallId, name, value },
+      ])
+    }
     const step = createToolStep({
-      recorded: (name) => {
-        const key = stepKey(toolCallId, name)
-        if (!writer.state.steps.has(key)) return { found: false }
-        const value = writer.state.steps.get(key)
-        noSecret(name, value)
-        return { found: true, value }
-      },
-      record: async (name, value) => {
-        noSecret(name, value)
-        await writer.append([
-          { type: 'harness.tool.step', toolCallId, name, value },
-        ])
-      },
+      recorded,
+      record,
       run: (name) => {
         if (writer.fenced) throw new LogOwnedElsewhereError(writer.logId)
         return {
@@ -120,8 +133,17 @@ export abstract class SessionTurnParts<
           wakeAt,
           signal: run.signal,
         }),
-      ask: (question) =>
-        this.stepAsk({ writer, scope: toolCallId, run, question }),
+      ask: askInTurn
+        ? async (question) => {
+            const name = `ask:${question.name}`
+            const stored = recorded(name)
+            if (stored.found) return structuredClone(stored.value)
+            const value = jsonCopy(await askInTurn(question))
+            await record(name, value)
+            return value
+          }
+        : (question) =>
+            this.stepAsk({ writer, scope: toolCallId, run, question }),
     })
     const append = (records: ReadonlyArray<LogRecord>) => {
       checkHostRecords(records)
@@ -223,6 +245,64 @@ export abstract class SessionTurnParts<
           `step.ask: the question ${JSON.stringify(name)} was cancelled.`,
         )
     }
+  }
+
+  /**
+   * `step.ask` of an agent that the main model calls as a tool, in the
+   * steps of `scope`. The answer comes in `resume`, the answers that the
+   * agent run got. With no answer, the agent stops: core makes the question
+   * an interrupt with the wait id, and the turn waits for it. The resolve
+   * runs the agent again with the answer.
+   */
+  protected async askInTurn(
+    scope: string,
+    question: StepQuestion<SchemaInput | undefined>,
+    resume: ReadonlyArray<RunAgentResumeItem> | undefined,
+  ): Promise<unknown> {
+    const { name, schema } = question
+    const waitId = `${stepWaitPrefix(scope)}${name}`
+    const entry = resume?.find((item) => item.interruptId === waitId)
+    if (entry?.status === 'cancelled') {
+      throw new Error(
+        `step.ask: the question ${JSON.stringify(name)} was cancelled.`,
+      )
+    }
+    const jsonSchema =
+      schema !== undefined ? convertSchemaToJsonSchema(schema) : undefined
+    if (!entry) {
+      // ponytail: a secret answer would stay in the log as a step. Keep it
+      // with the credentials as `stepAsk` does, if an agent tool needs one.
+      if (question.secret) {
+        throw new Error(
+          `step.ask: an agent that the model calls as a tool cannot ask for a secret (${JSON.stringify(name)}).`,
+        )
+      }
+      // The shape of MCPInputRequiredError. Core stops the agent with it.
+      throw Object.assign(new Error(question.message), {
+        name: 'MCPInputRequiredError',
+        kind: 'form',
+        request: {
+          message: question.message,
+          ...(jsonSchema !== undefined ? { requestedSchema: jsonSchema } : {}),
+        },
+        interruptId: waitId,
+      })
+    }
+    // Nothing checked the answer on its way here.
+    const invalid = (issues: ReadonlyArray<{ message: string }>) =>
+      new Error(
+        `step.ask: the answer to ${JSON.stringify(name)} is invalid: ${issues.map((issue) => issue.message).join(', ')}`,
+      )
+    if (isStandardSchema(schema)) {
+      const result = await validateWithStandardSchema(schema, entry.payload)
+      if (!result.success) throw invalid(result.issues)
+      return result.data
+    }
+    if (jsonSchema !== undefined) {
+      const result = validateJsonSchema(jsonSchema, entry.payload)
+      if (result.issues) throw invalid(result.issues)
+    }
+    return entry.payload
   }
 
   /**

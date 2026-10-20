@@ -273,7 +273,7 @@ describe('plugin agentMiddleware', () => {
     await host.close()
   })
 
-  it('refuses a call that asks in a tool-mode subagent, without a wait', async () => {
+  it('refuses a call that asks in a tool-mode subagent, without a wait, with agentToolWaits false', async () => {
     const writes: Array<unknown> = []
     const writeFile = toolDefinition({
       name: 'write_file',
@@ -300,11 +300,11 @@ describe('plugin agentMiddleware', () => {
         plugins: () => [
           permissions({ rules: [{ tool: 'write_file', decision: 'ask' }] }),
         ],
+        durability: { agentToolWaits: false },
       }),
     )
 
-    // The answer to a wait of the child would not reach it when the turn
-    // resumes, so the child does not ask.
+    // The child does not wait, so it does not ask.
     await session.send('write it')
 
     expect(writes).toEqual([])

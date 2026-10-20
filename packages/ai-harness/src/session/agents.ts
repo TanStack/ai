@@ -446,8 +446,9 @@ export abstract class SessionAgents<
    * their tools read `run` as `ctx.context.run`. Their model calls count in
    * the usage of `principal`, the user of `run`. With `turn` (the subagents
    * of a turn), the agent tools can start them in the background, for
-   * `principal`, and a child does not stop for an approval or a question:
-   * the turn's resume does not reach it. A run that the turn starts keeps
+   * `principal`. A wait of a child (an approval, a question, `step.ask`)
+   * is a wait of the turn, and the turn's resume continues the child, unless
+   * `durability.agentToolWaits` is `false`. A run that the turn starts keeps
    * its plugins until it settles. A tool-mode child gets `ctx.harness`, and
    * its starts count against the turn's tree budget `turn.budget`. With
    * `handoffs` (the root agents of a routed turn), each root agent gets the
@@ -473,6 +474,10 @@ export abstract class SessionAgents<
       ...(runPlugins?.agentMiddleware ?? []),
     ]
     const agents = turn?.agents
+    // A wait of a tool-mode child is a wait of the turn, unless the app
+    // turned that off.
+    const childWaits =
+      agents !== undefined && this.harness.durability?.agentToolWaits !== false
     const plugins = turn?.plugins ? { plugins: turn.plugins } : {}
     // The child runs as a background agent of this session, and its end
     // starts a new turn. Core does not pass `start` to nested children.
@@ -522,11 +527,16 @@ export abstract class SessionAgents<
                 )
             : NO_SESSION_CONTEXT.handoff
         if (!turn) return { harness: { ...NO_SESSION_CONTEXT, handoff } }
+        // The steps of the child are in the log under its run id: the same
+        // id when it goes on after a wait of the turn.
+        const scope = `sub:${child.subagentRunId}`
         const harness: HarnessAgentContext = withHarnessChild(
           {
-            // ponytail: not durable. A tool-mode child runs again from its
-            // start when the turn runs again.
-            step: NO_SESSION_CONTEXT.step,
+            step: childWaits
+              ? this.durableBinding(this.writer, scope, run, (question) =>
+                  this.askInTurn(scope, question, child.resume),
+                ).step
+              : NO_SESSION_CONTEXT.step,
             agents: this.turnChildAgents(operation, principal, turn),
             state: (stateOptions) => this.sharedState(stateOptions),
             handoff,
@@ -561,7 +571,9 @@ export abstract class SessionAgents<
       chatMiddleware: [
         // First, so the plugin middleware after it reads the run too.
         runMiddleware(run),
-        ...(agents ? withoutBoundaryWaits(agentMiddleware) : agentMiddleware),
+        ...(agents && !childWaits
+          ? withoutBoundaryWaits(agentMiddleware)
+          : agentMiddleware),
         // A routed root agent gets the thread too, so a reset cuts it as well.
         resetCut,
         this.usageCounter(operation, principal),
@@ -583,6 +595,13 @@ export abstract class SessionAgents<
       // No `promptCache`: a tool-mode child then uses the retention of the
       // turn's chat() call, so a turn override reaches it.
       ...(start && { start }),
+      // As in the turn: the child stops for these, and the turn waits.
+      ...(childWaits && {
+        interrupts: [
+          ...BOUNDARY_INTERRUPTS,
+          ...(this.harness.interrupts ?? []),
+        ],
+      }),
       ...(turn && { budget: turn.budget }),
       ...(extend && { extend }),
     } satisfies SubagentBinding

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { toolDefinition } from '@tanstack/ai'
+import { defineAgent, toolDefinition } from '@tanstack/ai'
 import {
   memoryLogState,
   memoryLogStore,
@@ -489,6 +489,76 @@ describe('a human wait', () => {
     await expect(
       member.answer({ questionId: wait.waitId, value: 'yes' }),
     ).rejects.toBeInstanceOf(AccessDeniedError)
+    await host.close()
+  })
+})
+
+describe('the record of a turn that an agent tool stopped', () => {
+  it('keeps the cards of this turn only, and the resolve adds the history back', async () => {
+    const log = memoryLogStore()
+    const child = mockAdapter([
+      () => toolCall('remove', { path: 'a.txt' }, 'call_c'),
+      () => text('Removed a.txt'),
+    ])
+    const cleaner = defineAgent({
+      name: 'cleaner',
+      description: 'Removes files',
+      run: (ctx) => ctx.chat({ adapter: child.adapter, tools: [remove] }),
+    })
+    const lead = mockAdapter([
+      () => text('Hi.'),
+      () => toolCall('cleaner', { prompt: 'clean' }, 'call_p'),
+      () => text('All clean.'),
+    ])
+    const host = createHarnessHost({ persistence: { stores: { log } } })
+    const session = await host.open(
+      defineHarness({
+        name: NAME,
+        adapter: lead.adapter,
+        subagents: { agents: [cleaner] },
+      }),
+      { threadId: THREAD },
+    )
+    await session.send('hello')
+    const stopped = await session.send('clean up')
+
+    const { interrupted } = await storedThreadState(log, { threadId: THREAD })
+    expect(interrupted?.routed?.root).toBe(false)
+    // The message of this turn and the answer with the card. No history.
+    const kept = interrupted?.routed?.messages ?? []
+    expect(kept.map((message) => message.role)).toEqual(['user', 'assistant'])
+    expect(JSON.stringify(kept)).not.toContain('hello')
+    expect(kept[1]?.parts).toContainEqual(
+      expect.objectContaining({
+        type: 'subagent',
+        subagent: expect.objectContaining({
+          name: 'cleaner',
+          status: 'suspended',
+          parentToolCallId: 'call_p',
+        }),
+      }),
+    )
+
+    const receipt = await session.resolve({
+      resume: [
+        {
+          interruptId: stopped.interrupts?.[0]?.id ?? '',
+          status: 'resolved',
+          payload: true,
+        },
+      ],
+    })
+    await session.operation(receipt.operationId ?? '')
+    // The lead model gets the stored history again, the same messages as
+    // when it called the agent, so its prompt cache holds.
+    const [, called, resumed] = lead.calls
+    expect(
+      JSON.stringify(resumed.messages.slice(0, called.messages.length)),
+    ).toBe(JSON.stringify(called.messages))
+    expect(JSON.stringify(resumed.messages)).toContain('hello')
+    expect(
+      (await storedThreadState(log, { threadId: THREAD })).interrupted,
+    ).toBeFalsy()
     await host.close()
   })
 })

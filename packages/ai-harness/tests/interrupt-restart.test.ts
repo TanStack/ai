@@ -265,6 +265,87 @@ describe('a resolve after a restart', () => {
     await next.host.close()
   })
 
+  it('continues an agent tool that stopped for approval, from where it stopped', async () => {
+    const open = restartable()
+    const remove = removeTool()
+    const child = mockAdapter([
+      () => toolCall('remove', { path: 'a.txt' }, 'call_c'),
+      () => text('Removed a.txt'),
+    ])
+    const cleaner = defineAgent({
+      name: 'cleaner',
+      description: 'Removes files',
+      run: (ctx) => ctx.chat({ adapter: child.adapter, tools: [remove.tool] }),
+    })
+    const subagents = { agents: [cleaner] }
+    const first = await open({
+      subagents,
+      replies: [() => toolCall('cleaner', { prompt: 'clean' }, 'call_p')],
+    })
+    const stopped = await first.session.send('clean up')
+    const interrupt = stopped.interrupts?.[0]
+    if (!interrupt) throw new Error('The turn did not stop for approval.')
+    await first.host.close()
+
+    const next = await open({ subagents, replies: [() => text('All clean.')] })
+    expect(next.session.snapshot().pendingWaits).toEqual([
+      expect.objectContaining({ waitId: interrupt.id, agent: 'cleaner' }),
+    ])
+    const receipt = await next.session.resolve({
+      resume: [
+        { interruptId: interrupt.id, status: 'resolved', payload: true },
+      ],
+    })
+    expect(await next.session.operation(receipt.operationId ?? '')).toEqual({
+      text: 'All clean.',
+      media: [],
+    })
+    expect(remove.execute).toHaveBeenCalledTimes(1)
+    // The agent went on with its second model call. It did not start again.
+    expect(child.calls).toHaveLength(2)
+    expect(JSON.stringify(next.calls[0].messages)).toContain('Removed a.txt')
+    await next.host.close()
+  })
+
+  it('gives the step.ask answer of an agent tool to the agent on a new host', async () => {
+    const open = restartable()
+    const effect = vi.fn(() => 'once')
+    const namer = defineAgent({
+      name: 'namer',
+      description: 'Asks a name',
+      run: async (ctx) => {
+        const step = ctx.harness!.step
+        await step.do('effect', effect)
+        const name = await step.ask({ name: 'name', message: 'Name?' })
+        return `Hello, ${String(name)}.`
+      },
+    })
+    const subagents = { agents: [namer] }
+    const first = await open({
+      subagents,
+      replies: [() => toolCall('namer', {}, 'call_p')],
+    })
+    await first.session.send('greet me')
+    const [wait] = first.session.snapshot().pendingWaits
+    if (!wait) throw new Error('The turn did not stop for the question.')
+    await first.host.close()
+
+    const next = await open({ subagents, replies: [() => text('Greeted.')] })
+    const receipt = await next.session.resolve({
+      resume: [
+        { interruptId: wait.waitId, status: 'resolved', payload: 'Ada' },
+      ],
+    })
+    expect(await next.session.operation(receipt.operationId ?? '')).toEqual({
+      text: 'Greeted.',
+      media: [],
+    })
+    // The step value came from the log on the new host.
+    expect(effect).toHaveBeenCalledTimes(1)
+    expect(JSON.stringify(next.calls[0].messages)).toContain('Hello, Ada.')
+    await next.host.close()
+  })
+
   it('continues the plan of a root agent that stopped for approval', async () => {
     const open = restartable()
     const remove = removeTool()

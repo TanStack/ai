@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { toolDefinition } from '@tanstack/ai'
+import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogState, memoryLogStore } from '@tanstack/ai-persistence'
 import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import {
@@ -25,6 +25,7 @@ import type { AnyTool } from '@tanstack/ai'
 import type { LogStore } from '@tanstack/ai-persistence'
 import type { CredentialStore } from '@tanstack/ai/byok'
 import type {
+  AnyAgent,
   AnyHarness,
   HarnessHostOptions,
   HarnessPlugin,
@@ -297,6 +298,104 @@ describe('step.ask in a durable tool', () => {
         greet.execute?.({}, { toolCallId: 'c', emitCustomEvent: () => {} }),
       ),
     ).rejects.toThrow('step.ask needs a harness session')
+  })
+})
+
+describe('step.ask in an agent tool', () => {
+  /** An agent that asks a name, does a step, then asks a color. */
+  function namer() {
+    const sideEffect = vi.fn(() => 'side effect')
+    const runs = vi.fn()
+    const agent = defineAgent({
+      name: 'namer',
+      description: 'Asks a name and a color',
+      run: async (ctx) => {
+        runs()
+        const step = ctx.harness!.step
+        const name = await step.ask({
+          name: 'name',
+          message: 'Name?',
+          schema: z.object({ name: z.string() }),
+        })
+        await step.do('effect', sideEffect)
+        const color = await step.ask({ name: 'color', message: 'Color?' })
+        return `${name.name} likes ${String(color)}`
+      },
+    })
+    return { agent, sideEffect, runs }
+  }
+
+  function leadHarness(agent: AnyAgent, replies: Array<Reply>) {
+    const lead = mockAdapter(replies)
+    return {
+      lead,
+      harness: defineHarness({
+        name: NAME,
+        adapter: lead.adapter,
+        subagents: { agents: [agent] },
+      }),
+    }
+  }
+
+  /** Resolve the one wait of the stopped turn with `payload`. */
+  async function resolveWith(session: HarnessSession, payload: unknown) {
+    const [wait] = session.snapshot().pendingWaits
+    if (!wait) throw new Error('No wait.')
+    const receipt = await session.resolve({
+      resume: [{ interruptId: wait.waitId, status: 'resolved', payload }],
+    })
+    return session.operation(receipt.operationId ?? '')
+  }
+
+  it('stops the turn for each question, and the agent goes on with the answers', async () => {
+    const { agent, sideEffect, runs } = namer()
+    const { lead, harness } = leadHarness(agent, [
+      () => toolCall('namer', {}, 'call-n'),
+      () => text('done'),
+    ])
+    const { host, session } = await hostOn(memoryLogStore(), harness)
+
+    await session.send('ask me')
+    expect(session.snapshot().pendingWaits).toEqual([
+      expect.objectContaining({
+        kind: 'question',
+        turn: true,
+        agent: 'namer',
+        message: 'Name?',
+        schema: expect.objectContaining({ type: 'object' }),
+        waitId: expect.stringMatching(/^ask:sub:subagent-.+:name$/),
+      }),
+    ])
+    await resolveWith(session, { name: 'Ada' })
+    expect(session.snapshot().pendingWaits).toEqual([
+      expect.objectContaining({ agent: 'namer', message: 'Color?' }),
+    ])
+    const result = await resolveWith(session, 'teal')
+
+    expect(result).toMatchObject({ text: 'done' })
+    // The step of the first run again returned its logged value.
+    expect(sideEffect).toHaveBeenCalledTimes(1)
+    expect(runs).toHaveBeenCalledTimes(3)
+    expect(JSON.stringify(lead.calls[1].messages)).toContain('Ada likes teal')
+    await host.close()
+  })
+
+  it('gives the model a tool error for an answer that breaks the schema', async () => {
+    const { agent } = namer()
+    const { lead, harness } = leadHarness(agent, [
+      () => toolCall('namer', {}, 'call-n'),
+      () => text('done'),
+    ])
+    const { host, session } = await hostOn(memoryLogStore(), harness)
+
+    await session.send('ask me')
+    await resolveWith(session, { name: 7 })
+
+    expect(JSON.stringify(lead.calls[1].messages)).toContain(
+      'step.ask: the answer to \\"name\\" is invalid',
+    )
+    expect(session.snapshot().pendingWaits).toEqual([])
+    await host.close()
   })
 })
 

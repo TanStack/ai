@@ -12,14 +12,24 @@ import {
 import { mergeStreams } from '../../../utilities/merge-streams'
 import { SUBAGENT_INPUT_KEY } from '../../../utilities/subagent-wire'
 import { INTERRUPT_BINDING_METADATA_KEY } from '../../../interrupt-resume'
-import { EMIT_STREAM_CHUNK, SUBAGENT_TOOL } from '../tools/tool-calls'
+import { INTERRUPT_BINDING_VERSION } from '../../../interrupts'
+import { INTERRUPT_PAYLOAD_METADATA_KEY } from '../../../interrupt-definition'
+import {
+  EMIT_STREAM_CHUNK,
+  SUBAGENT_TOOL,
+  inputRequestReason,
+  isMcpInputRequired,
+} from '../tools/tool-calls'
 import {
   convertSchemaToJsonSchema,
   isStandardSchema,
 } from '../tools/schema-converter'
 import { getLoadChild } from '../middleware/load-child'
 import type { LoadChild } from '../middleware/load-child'
-import type { SubagentToolOutcome } from '../tools/tool-calls'
+import type {
+  McpInputRequiredThrow,
+  SubagentToolOutcome,
+} from '../tools/tool-calls'
 import type { SpecTokenUsage } from '../../../utilities/ag-ui-usage'
 import type {
   StandardJSONSchemaV1,
@@ -859,6 +869,19 @@ export async function* spawnAgentStream(
       timestamp: Date.now(),
     } satisfies SubagentFinishedEvent
   } catch (error) {
+    // `run` threw the shape of MCPInputRequiredError: the child stops for
+    // outside input, as a tool does. The parent run waits with it.
+    if (isMcpInputRequired(error) && !ctx.abortSignal?.aborted) {
+      const interrupt = inputInterrupt(error, id, agent.name)
+      sink?.interrupts.push(interrupt)
+      yield {
+        type: SUBAGENT_FINISHED,
+        subagentRunId: id,
+        outcome: { type: 'suspended', interruptIds: [interrupt.id] },
+        timestamp: Date.now(),
+      } satisfies SubagentFinishedEvent
+      return
+    }
     yield {
       type: SUBAGENT_ERROR,
       subagentRunId: id,
@@ -876,6 +899,43 @@ export async function* spawnAgentStream(
       // Child stream may already be closed or aborted.
     }
     link.dispose()
+  }
+}
+
+/**
+ * The interrupt of an input request that the `run` of child `subagentRunId`
+ * threw. It has the shape of an `mcp_input` interrupt, with no tool call.
+ * Its id is the request's `interruptId`, so a child that asks more than once
+ * names each question. The message is the error message.
+ */
+function inputInterrupt(
+  error: McpInputRequiredThrow,
+  subagentRunId: string,
+  agentName: string,
+): Interrupt {
+  const own = Reflect.get(error, 'interruptId')
+  const id = typeof own === 'string' ? own : `mcp_input_${subagentRunId}`
+  const message = Reflect.get(error, 'message')
+  const reason = inputRequestReason(error.reason)
+  return {
+    id,
+    reason: reason ?? 'mcp_input',
+    message:
+      typeof message === 'string' && message !== ''
+        ? message
+        : `Input required to run ${agentName}`,
+    subagentRunId,
+    metadata: {
+      [INTERRUPT_BINDING_METADATA_KEY]: {
+        v: INTERRUPT_BINDING_VERSION,
+        kind: 'generic',
+        interruptId: id,
+      },
+      [INTERRUPT_PAYLOAD_METADATA_KEY]: {
+        kind: error.kind,
+        request: error.request,
+      },
+    },
   }
 }
 

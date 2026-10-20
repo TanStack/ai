@@ -2497,13 +2497,18 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         // (which needs a parentRunId and the client message history the
         // persistence flow deliberately omits).
         if ((config.resume?.length ?? 0) > 0) {
+          // A subagent that a tool call started checks the answers to its own
+          // interrupts, with its own tools, in its own chat() call.
+          const parentPending = ownedPending.filter(
+            (record) => typeof record.payload.subagentRunId !== 'string',
+          )
           const resumeToolState = resumeToolStateFromPending(
-            ownedPending,
+            parentPending,
             resumeByInterruptId,
           )
           const genericResumeState = await durableGenericResumeState(
             ctx,
-            ownedPending,
+            parentPending,
             config.resume ?? [],
             config.tools,
             persistence.stores.interrupts,

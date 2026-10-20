@@ -554,7 +554,7 @@ export interface McpInputRequest {
   reason?: string
 }
 
-interface McpInputRequiredThrow {
+export interface McpInputRequiredThrow {
   name: 'MCPInputRequiredError'
   kind: 'form' | 'sampling'
   request: unknown
@@ -569,7 +569,7 @@ const RESERVED_INTERRUPT_REASONS = new Set([
 ])
 
 /** The reason a thrown input request names, when it can use it. */
-function inputRequestReason(reason: unknown) {
+export function inputRequestReason(reason: unknown) {
   return typeof reason === 'string' &&
     reason !== '' &&
     !RESERVED_INTERRUPT_REASONS.has(reason)
@@ -577,7 +577,9 @@ function inputRequestReason(reason: unknown) {
     : undefined
 }
 
-function isMcpInputRequired(value: unknown): value is McpInputRequiredThrow {
+export function isMcpInputRequired(
+  value: unknown,
+): value is McpInputRequiredThrow {
   if (typeof value !== 'object' || value === null) return false
   if (!('name' in value) || value.name !== 'MCPInputRequiredError') {
     return false

@@ -16,6 +16,7 @@ import { bindDurable } from '../durable-tool'
 import { NO_SESSION_CONTEXT } from '../agents'
 import { isHumanTarget } from '../log-records'
 import { BOUNDARY_INTERRUPTS } from '../boundary-waits'
+import { agentCardOf } from '../waits'
 import { mediaMiddleware } from '../media'
 import { mediaOfMessage } from '../media-ref'
 import { OperationImpl } from '../operation'
@@ -51,6 +52,7 @@ import {
   keepTurnTools,
   runNodeRecord,
   holdPlugins,
+  withChildRequests,
 } from './helpers'
 import { SessionAgents } from './agents'
 import { commandStepScope, stepWaitPrefix } from './turn-parts'
@@ -867,7 +869,10 @@ export abstract class SessionTurn<
         turn.message !== undefined
           ? await this.userMessage(turn.message, turn.wake)
           : undefined
-      let resume = turn.resume
+      let resume = withChildRequests(
+        turn.resume,
+        turn.answers?.interrupts ?? [],
+      )
       let parentRunId = runParent
       const { chatPersistence, checkpoint, toolRecorder } = this
       if (!chatPersistence || !checkpoint || !toolRecorder) {
@@ -1013,13 +1018,14 @@ export abstract class SessionTurn<
           continued = []
           // The store keeps each agent in its own thread, and chat() finds a
           // stopped agent in the cards that a client sends back. So the
-          // harness keeps the cards of a routed run, as a client does.
-          const cards = routed
-            ? new StreamProcessor({
-                initialMessages:
-                  routedFrom ?? modelMessagesToUIMessages(turnMessages),
-              })
-            : undefined
+          // harness keeps the cards of a run with agents, as a client does.
+          const cards =
+            routed || (bag && this.harness.durability?.agentToolWaits !== false)
+              ? new StreamProcessor({
+                  initialMessages:
+                    routedFrom ?? modelMessagesToUIMessages(turnMessages),
+                })
+              : undefined
           const binding =
             bag &&
             this.binding(
@@ -1187,7 +1193,18 @@ export abstract class SessionTurn<
               chunk.outcome?.type === 'interrupt'
             ) {
               interrupts = chunk.outcome.interrupts
-              const messages = cards?.getMessages()
+              const all = cards?.getMessages()
+              // A turn that is not routed keeps only this turn: the store
+              // has the history, and the resolve merges it back by id.
+              const messages =
+                all && !routed
+                  ? all.slice(
+                      Math.max(
+                        all.findLastIndex((entry) => entry.role === 'user'),
+                        0,
+                      ),
+                    )
+                  : all
               // A handoff of the part waits with its interrupts: the resolve
               // runs the target, or pauses for a person.
               const handoff = handoffs?.take()
@@ -1573,7 +1590,8 @@ export abstract class SessionTurn<
     // them. Offering its interrupts again would run the tools a second time.
     // A resume that failed before its tools ran stays open for a retry.
     const resumed = turn.resume ?? []
-    const resumedFrom = (turn.answers ?? this.interrupted)?.interrupts ?? []
+    const stoppedTurn = turn.answers ?? this.interrupted
+    const resumedFrom = stoppedTurn?.interrupts ?? []
     const didResumedToolsRun =
       !isResumeRefused &&
       resumed.length > 0 &&
@@ -1581,13 +1599,25 @@ export abstract class SessionTurn<
         const interrupt = resumedFrom.find(
           (candidate) => candidate.id === item.interruptId,
         )
-        const toolCallId = interrupt ? toolCallOf(interrupt) : undefined
-        if (toolCallId === undefined) return false
+        // A wait of an agent tool is used when that tool call got a result.
+        // A sign-in or an app interrupt of the agent names no tool call.
+        const agentCall =
+          interrupt?.subagentRunId === undefined
+            ? undefined
+            : agentCardOf(
+                stoppedTurn?.routed?.messages ?? [],
+                interrupt.subagentRunId,
+              )?.parentToolCallId
+        const toolCallIds = [
+          interrupt ? toolCallOf(interrupt) : undefined,
+          agentCall,
+        ].filter((id) => id !== undefined)
         // A stopped run gives the calls it did not run an error result.
-        return (
-          resultIds.has(toolCallId) ||
-          (!operation.abortController.signal.aborted &&
-            errorResultIds.has(toolCallId))
+        return toolCallIds.some(
+          (toolCallId) =>
+            resultIds.has(toolCallId) ||
+            (!operation.abortController.signal.aborted &&
+              errorResultIds.has(toolCallId)),
         )
       })
     // On a success, withPersistence committed them already, and this skips
