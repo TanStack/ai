@@ -1,15 +1,14 @@
-import { createServer } from 'node:http'
-import { once } from 'node:events'
+import { LLMock } from '@copilotkit/aimock'
 import { test, expect } from '@playwright/test'
 import { chat, toolDefinition } from '@tanstack/ai'
 import { createOpenRouterText } from '@tanstack/ai-openrouter'
 import { createLLMGatewayText } from '@tanstack/ai-llmgateway'
-import { VercelGatewayTextAdapter } from '../../../packages/ai-vercel-gateway/src/adapters/text'
+import { createVercelGatewayText } from '@tanstack/ai-vercel-gateway'
 import { z } from 'zod'
-import type { AddressInfo } from 'node:net'
 
-// Exercise chat's complete tool loop over HTTP, including reasoning emitted
-// by each real SDK on the first turn. No provider credentials are needed.
+// aimock's chat fixtures emit reasoning_content, but these gateway routes also
+// require reasoning_details and reasoning. Keep their exact SSE shapes inside
+// a narrow aimock mount. Each test has its own ephemeral server and tool loop.
 for (const provider of ['openrouter', 'vercel', 'llmgateway'] as const) {
   test(`MiniMax Flash retains reasoning and tool history through ${provider}`, async () => {
     const bodies: Array<Record<string, any>> = []
@@ -20,41 +19,50 @@ for (const provider of ['openrouter', 'vercel', 'llmgateway'] as const) {
           ? 'minimax/minimax-m3.1-flash'
           : 'minimax-m3.1-flash'
     const details = [{ type: 'reasoning.text', text: 'Look up the value' }]
-    const server = createServer(async (req, res) => {
-      let raw = ''
-      for await (const chunk of req) raw += chunk
-      bodies.push(JSON.parse(raw))
-      res.writeHead(200, { 'content-type': 'text/event-stream' })
-      const emit = (delta: unknown, finish: string | null = null) =>
-        res.write(
-          `data: ${JSON.stringify({ id: 'generation-1', object: 'chat.completion.chunk', created: 1, model, choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`,
-        )
-      if (bodies.length === 1) {
-        emit(
-          provider === 'openrouter'
-            ? { reasoning_details: details }
-            : provider === 'vercel'
-              ? { reasoning: 'Look up the value' }
-              : { reasoning_content: 'Look up the value' },
-        )
-        emit({
-          tool_calls: [
-            {
-              index: 0,
-              id: 'call_1',
-              type: 'function',
-              function: { name: 'lookup', arguments: '{"key":"x"}' },
-            },
-          ],
-        })
-        emit({}, 'tool_calls')
-      } else emit({ content: 'The value is 42' }, 'stop')
-      res.end('data: [DONE]\n\n')
+    const mock = new LLMock({ port: 0, host: '127.0.0.1', logLevel: 'silent' })
+    mock.mount('/minimax-flash', {
+      async handleRequest(req, res) {
+        let raw = ''
+        for await (const chunk of req) raw += chunk
+        try {
+          bodies.push(JSON.parse(raw))
+        } catch {
+          res.writeHead(400, { 'content-type': 'text/plain' })
+          res.end('Invalid JSON')
+          return true
+        }
+        res.writeHead(200, { 'content-type': 'text/event-stream' })
+        const emit = (delta: unknown, finish: string | null = null) =>
+          res.write(
+            `data: ${JSON.stringify({ id: 'generation-1', object: 'chat.completion.chunk', created: 1, model, choices: [{ index: 0, delta, finish_reason: finish }] })}\n\n`,
+          )
+        if (bodies.length === 1) {
+          emit(
+            provider === 'openrouter'
+              ? { reasoning_details: details }
+              : provider === 'vercel'
+                ? { reasoning: 'Look up the value' }
+                : { reasoning_content: 'Look up the value' },
+          )
+          emit({
+            tool_calls: [
+              {
+                index: 0,
+                id: 'call_1',
+                type: 'function',
+                function: { name: 'lookup', arguments: '{"key":"x"}' },
+              },
+            ],
+          })
+          emit({}, 'tool_calls')
+        } else emit({ content: 'The value is 42' }, 'stop')
+        res.end('data: [DONE]\n\n')
+        return true
+      },
     })
-    server.listen(0, '127.0.0.1')
-    await once(server, 'listening')
+    await mock.start()
     try {
-      const baseURL = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`
+      const baseURL = `${mock.url}/minimax-flash/v1`
       const adapter =
         provider === 'openrouter'
           ? createOpenRouterText(
@@ -63,9 +71,10 @@ for (const provider of ['openrouter', 'vercel', 'llmgateway'] as const) {
               { serverURL: baseURL },
             )
           : provider === 'vercel'
-            ? new VercelGatewayTextAdapter(
-                { apiKey: 'test-key', baseURL },
+            ? createVercelGatewayText(
                 'minimax/minimax-m3.1-flash',
+                'test-key',
+                { api: 'chat-completions', baseURL },
               )
             : createLLMGatewayText('minimax-m3.1-flash', 'test-key', {
                 baseURL,
@@ -109,8 +118,7 @@ for (const provider of ['openrouter', 'vercel', 'llmgateway'] as const) {
         }),
       )
     } finally {
-      server.closeAllConnections()
-      await new Promise<void>((resolve) => server.close(() => resolve()))
+      await mock.stop()
     }
   })
 }
