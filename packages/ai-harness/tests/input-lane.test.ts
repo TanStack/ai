@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { EventType, defineAgent } from '@tanstack/ai'
+import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import {
   memoryLogState,
   memoryLogStore,
@@ -16,6 +16,7 @@ import {
   definePlugin,
   logIdOf,
 } from '../src'
+import { permissions } from '../src/first-party'
 import { createHarnessHandler } from '../src/server'
 import {
   after,
@@ -26,6 +27,7 @@ import {
   ownershipExpired,
   questionsOf,
   text,
+  toolCall,
   untilAborted,
   wrapLogStore,
 } from './helpers'
@@ -320,6 +322,79 @@ describe('an input that reaches a host that does not own the log', () => {
     })
     expect(receipt.status).toBe('queued')
     expect(await running).toBe('signed in')
+    await owner.host.close()
+    await other.host.close()
+  })
+
+  it('answers the approval of an agent tool on the owner, and the main model gets the agent result', async () => {
+    const { a, b } = twoStores()
+    /** A lead model that calls a writer agent, and the writer writes a file. */
+    const build = () => {
+      const write = vi.fn(async () => 'written')
+      const writeFile = toolDefinition({
+        name: 'write_file',
+        description: 'Write a file',
+        inputSchema: z.object({ path: z.string() }),
+      }).server(write)
+      const writerModel = mockAdapter([
+        () => toolCall('write_file', { path: 'x.txt' }, 'call_write'),
+        () => text('writer done'),
+      ])
+      const writer = defineAgent({
+        name: 'writer',
+        description: 'Writes files',
+        run: (ctx) =>
+          ctx.chat({ adapter: writerModel.adapter, tools: [writeFile] }),
+      })
+      const lead = mockAdapter([
+        () => toolCall('writer', { prompt: 'Write x.txt.' }, 'call_writer'),
+        () => text('lead done'),
+      ])
+      const harness = defineHarness({
+        name: NAME,
+        adapter: lead.adapter,
+        subagents: { agents: [writer] },
+        plugins: () => [
+          permissions({ rules: [{ tool: 'write_file', decision: 'ask' }] }),
+        ],
+      })
+      return { harness, write, writerModel, lead }
+    }
+    const ownerSide = build()
+    const otherSide = build()
+    const owner = await hostOn(a, ownerSide.harness)
+    const other = await hostOn(b, otherSide.harness)
+
+    const stopped = await owner.session.send('Write it.')
+    expect(stopped.interrupts).toHaveLength(1)
+    const [wait] = owner.session.snapshot().pendingWaits
+    expect(wait).toMatchObject({
+      kind: 'approval',
+      turn: true,
+      agent: 'writer',
+    })
+
+    // The other host is live too: its answer goes to the owner in the lane.
+    const receipt = await other.session.resolve({
+      resume: [
+        { interruptId: wait!.waitId, status: 'resolved', payload: true },
+      ],
+    })
+    expect(receipt.status).toBe('queued')
+    expect(
+      (await other.session.settled({ inputId: receipt.inputId })).outcome,
+    ).toBe('completed')
+
+    expect(ownerSide.write).toHaveBeenCalledTimes(1)
+    // The agent went on from its approval: no new start.
+    expect(ownerSide.writerModel.calls).toHaveLength(2)
+    expect(JSON.stringify(ownerSide.lead.calls[1]?.messages)).toContain(
+      'writer done',
+    )
+    expect(owner.session.snapshot().pendingWaits).toEqual([])
+    expect(otherSide.lead.calls).toHaveLength(0)
+    expect(otherSide.writerModel.calls).toHaveLength(0)
+    expect(otherSide.write).not.toHaveBeenCalled()
     await owner.host.close()
     await other.host.close()
   })

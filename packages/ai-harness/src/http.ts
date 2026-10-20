@@ -48,7 +48,7 @@ import { wireFrame } from './wire'
 import type { ModelMessage, UIMessage, WebSocketLike } from '@tanstack/ai'
 import type { SessionIndexEntry, SessionMember } from '@tanstack/ai-persistence'
 import type { AnyHarness } from './define'
-import type { HarnessHost, HostEvent } from './host'
+import type { HarnessHost, HostEvent, PresenceEndReason } from './host'
 import type { InlineMediaRefusal } from './inline-media'
 import type { MediaSignerOptions } from './media-signing'
 import type { ControlFrame, HarnessErrorCode, HostFrame } from './protocol'
@@ -158,13 +158,14 @@ function requestIdFor(request: Request) {
  * An SSE response from `sseStream`: pull-based, with a heartbeat and a close
  * for a slow client (see `sse.ts`). `watch` gets the reader: aborting it
  * ends the stream. When the stream ends or the client leaves, the reader
- * aborts.
+ * aborts. `onSlow` runs before the close for a slow client.
  */
 function sseResponse(
   frames: (signal: AbortSignal) => AsyncIterable<SseFrame>,
   requestId: string,
   stream: StreamValues,
   watch?: (reader: AbortController) => void,
+  onSlow?: () => void,
 ) {
   // Not `request.signal`: some servers abort it once the body is read.
   const reader = new AbortController()
@@ -178,6 +179,7 @@ function sseResponse(
     requestId,
     signal: reader.signal,
     stream,
+    ...(onSlow ? { onSlow } : {}),
   })
   return new Response(body, { headers: SSE_HEADERS })
 }
@@ -1060,6 +1062,8 @@ export function createHarnessHandler<P extends Principal = Principal>(
         threadId,
       }
       let isRevoked = false
+      // A slow client is an error too.
+      let isFailed = false
       return sseResponse(
         async function* (signal) {
           const left = presenceOf(host)?.connect({
@@ -1067,7 +1071,6 @@ export function createHarnessHandler<P extends Principal = Principal>(
             transport: 'sse',
             resumed: from !== undefined,
           })
-          let isFailed = false
           try {
             yield { data: JSON.stringify(hello) }
             const events = view.events({ ...(from ? { from } : {}), signal })
@@ -1095,6 +1098,9 @@ export function createHarnessHandler<P extends Principal = Principal>(
               reader.abort()
             },
           ),
+        () => {
+          isFailed = true
+        },
       )
     }
 
@@ -1498,11 +1504,17 @@ export function handleHarnessSocket<P extends Principal = Principal>(
   // The id of the upgrade request, with the rule of `requestIdFor`. An error
   // frame of the socket itself, or of a frame with no `requestId`, names it.
   const socketId = requestIdFor(request)
+  /** Why the socket ends, for `presence.onDisconnect`. */
+  let endReason: PresenceEndReason = 'closed'
   const sender = socketSender({
     socket,
     requestId: socketId,
     signal: reader.signal,
     stream: values,
+    // A slow client is an error too.
+    onSlow: () => {
+      if (endReason === 'closed') endReason = 'error'
+    },
   })
   const who = usersOf(request).catch(() => null)
   // Set by the first subscribe, before its awaits, so a second subscribe is
@@ -1608,8 +1620,6 @@ export function handleHarnessSocket<P extends Principal = Principal>(
       message === 'unauthorized' ? 4401 : 4403,
     )
 
-  /** Why the socket ends, for `presence.onDisconnect`. */
-  let endReason: 'closed' | 'revoked' | 'error' = 'closed'
   socket.addEventListener('close', () => reader.abort())
   socket.addEventListener('error', () => {
     if (endReason === 'closed') endReason = 'error'

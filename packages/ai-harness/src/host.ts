@@ -267,7 +267,7 @@ export interface PresenceEvent<P extends Principal = Principal> {
 /**
  * Why a stream ended. `closed`: the client left, or the server closed the
  * stream. `revoked`: `host.revoke` or `unshare` took the access of the user.
- * `error`: the read of the events failed.
+ * `error`: the read of the events failed, or the client read too slowly.
  */
 export type PresenceEndReason = 'closed' | 'revoked' | 'error'
 

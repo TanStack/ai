@@ -108,9 +108,9 @@ const errorMessage = (error: unknown) =>
  * read enough: the queue holds at most `stream.sseQueueBytes`. A slow client
  * reads later, from the log. The stream also sends a `: ping` comment every
  * `stream.heartbeatMs`, and it closes with a `slow_consumer` error frame when
- * the queue stays full for `stream.slowConsumerMs`. When `frames` throws, the
- * stream sends an `internal` error frame and closes. Aborting `signal`
- * closes it.
+ * the queue stays full for `stream.slowConsumerMs`. Then it calls `onSlow`
+ * first. When `frames` throws, the stream sends an `internal` error frame and
+ * closes. Aborting `signal` closes it.
  *
  * @example
  * ```ts
@@ -125,6 +125,7 @@ export function sseStream({
   requestId,
   signal,
   stream = STREAM_DEFAULTS,
+  onSlow,
 }: {
   /** Gets the signal of the reader. The stream aborts it when it ends. */
   frames: (signal: AbortSignal) => AsyncIterable<SseFrame>
@@ -132,6 +133,8 @@ export function sseStream({
   signal?: AbortSignal
   /** The stream values. See `streamValues`. */
   stream?: StreamValues
+  /** Called before the stream closes for a client that reads too slowly. */
+  onSlow?: () => void
 }): ReadableStream<Uint8Array> {
   const reader = new AbortController()
   let iterator: AsyncIterator<SseFrame> | undefined
@@ -165,18 +168,13 @@ export function sseStream({
     controller: ReadableStreamDefaultController<Uint8Array>,
   ) => {
     if (slow !== undefined || (controller.desiredSize ?? 1) > 0) return
-    slow = setTimeout(
-      () =>
-        end(
-          controller,
-          errorFrame(
-            'slow_consumer',
-            'The client reads too slowly.',
-            requestId,
-          ),
-        ),
-      stream.slowConsumerMs,
-    )
+    slow = setTimeout(() => {
+      onSlow?.()
+      end(
+        controller,
+        errorFrame('slow_consumer', 'The client reads too slowly.', requestId),
+      )
+    }, stream.slowConsumerMs)
   }
 
   return new ReadableStream<Uint8Array>(
@@ -267,8 +265,8 @@ export function withHeartbeat(
  * frame it reads `socket.bufferedAmount`: above `stream.socketBufferBytes`
  * it waits, and checks again every `SOCKET_RECHECK_MS`. So the caller, which
  * awaits each send, stops reading the log. After `stream.slowConsumerMs` it
- * sends a `slow_consumer` error frame and closes the socket with code 4408.
- * It also sends a `harness.ping` frame every `stream.heartbeatMs`. Its timers
+ * calls `onSlow`, sends a `slow_consumer` error frame, and closes the socket
+ * with code 4408. It also sends a `harness.ping` frame every `stream.heartbeatMs`. Its timers
  * stop when the socket closes or fails, or when `signal` aborts.
  *
  * A socket without `bufferedAmount` gets no backpressure.
@@ -284,6 +282,7 @@ export function socketSender({
   requestId,
   signal,
   stream = STREAM_DEFAULTS,
+  onSlow,
 }: {
   socket: WebSocketLike
   /** Named in the `slow_consumer` error frame. */
@@ -291,6 +290,8 @@ export function socketSender({
   signal?: AbortSignal
   /** The stream values. See `streamValues`. */
   stream?: StreamValues
+  /** Called before the socket closes for a client that reads too slowly. */
+  onSlow?: () => void
 }): (frame: HostFrame | string) => Promise<boolean> {
   let isClosed = false
   let recheck: ReturnType<typeof setTimeout> | undefined
@@ -326,6 +327,7 @@ export function socketSender({
         if (isClosed) return resolve(false)
         if (!isFull()) return resolve(true)
         if (waited >= stream.slowConsumerMs) {
+          onSlow?.()
           const frame = errorFrame(
             'slow_consumer',
             'The client reads too slowly.',

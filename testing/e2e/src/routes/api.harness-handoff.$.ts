@@ -27,13 +27,16 @@ import type { SessionView } from '@tanstack/ai-harness/view'
  *   - `'agent'`: the main model calls the `handoff` tool to `billing`.
  *   - `'human'`: the harness has `routing.humans`, and the main model calls
  *     the `handoff` tool to a person.
+ *   - `'code'`: the router picks the `triage` agent, and its code hands off
+ *     to `billing` with `ctx.harness.handoff`. The main model never runs.
  * - `POST .../control?runId=` and `GET .../snapshot?runId=` go to the
  *   harness handler. The `authorization` header names the user.
  * - `GET .../settled?runId=&inputId=` waits until an input ends, and
  *   returns its outcome.
  * - `GET .../debug?runId=` returns what the test checks: the
  *   `harness.handoff` events of the session stream, the transcript, the
- *   messages of a session view, the open waits, and the model calls.
+ *   messages of a session view, the open waits, the model calls, and the
+ *   messages of the first request of `billing`.
  * - `POST .../stop?runId=` closes the host.
  *
  * A custom `fetch` answers with canned Anthropic streams, so no aimock
@@ -116,12 +119,14 @@ const reply = (text: string) => (id: string) =>
 
 /**
  * A model that answers with `answers`, in order. `calls` counts its
- * requests.
+ * requests, and `requests` keeps the body of each one.
  */
 function scriptedModel(prefix: string, answers: Array<(id: string) => string>) {
   const counter = { calls: 0 }
-  const scriptedFetch: typeof fetch = async () => {
+  const requests: Array<{ messages?: Array<unknown> }> = []
+  const scriptedFetch: typeof fetch = async (_url, init) => {
     counter.calls += 1
+    if (typeof init?.body === 'string') requests.push(JSON.parse(init.body))
     const answer = answers[counter.calls - 1] ?? reply('No more answers.')
     return new Response(answer(`msg_${prefix}_${counter.calls}`), {
       headers: { 'Content-Type': 'text/event-stream' },
@@ -130,10 +135,10 @@ function scriptedModel(prefix: string, answers: Array<(id: string) => string>) {
   const adapter = createAnthropicChat(MODEL, DUMMY_KEY, {
     fetch: scriptedFetch,
   })
-  return { adapter, counter }
+  return { adapter, counter, requests }
 }
 
-type Scenario = 'agent' | 'human'
+type Scenario = 'agent' | 'human' | 'code'
 
 /** The answers of the main model and of `billing`, per scenario. */
 const SCRIPTS: Record<
@@ -154,7 +159,22 @@ const SCRIPTS: Record<
     ],
     billing: [],
   },
+  code: {
+    main: [],
+    billing: [reply('Your refund is on its way.')],
+  },
 }
+
+/** An agent with no model: its code hands the turn to `billing`. */
+const triage = defineAgent({
+  name: 'triage',
+  description: 'Sorts requests',
+  run: async (ctx) => {
+    if (!ctx.harness) throw new Error('triage must run in a harness.')
+    await ctx.harness.handoff({ to: 'billing', note: 'Refund for order 42.' })
+    return 'Passing you to billing.'
+  },
+})
 
 interface User extends Principal {
   tenantId: string
@@ -193,6 +213,7 @@ async function start(request: Request) {
     name: NAME,
     adapter: main.adapter,
     agents: [
+      ...(scenario === 'code' ? [triage] : []),
       defineAgent({
         name: 'billing',
         description: 'Refunds and invoices',
@@ -203,8 +224,12 @@ async function start(request: Request) {
           }),
       }),
     ],
-    // The router picks nothing: the active agent answers.
-    routing: { router: () => undefined, humans: scenario === 'human' },
+    // The router picks nothing, so the active agent answers. In `code`, it
+    // picks `triage`.
+    routing: {
+      router: () => (scenario === 'code' ? 'triage' : undefined),
+      humans: scenario === 'human',
+    },
   })
   const host: HarnessHost<User> = createHarnessHost({
     persistence: memoryPersistence(),
@@ -284,6 +309,7 @@ async function debug(run: Run) {
     waits: snapshot.pendingWaits,
     mainCalls: run.main.counter.calls,
     billingCalls: run.billing.counter.calls,
+    billingMessages: run.billing.requests[0]?.messages ?? [],
   })
 }
 
