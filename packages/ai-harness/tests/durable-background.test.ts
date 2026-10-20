@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
@@ -206,6 +207,110 @@ describe('background work after a crash', () => {
       ]),
     )
     expect(attempts()).toBe(1)
+    await host.close()
+  })
+
+  /**
+   * Start `scout` with `background: true` from the model of a host that
+   * stops after the start of the child is in the log, and before the child
+   * runs: the host checks the child input last, and that check never ends.
+   * Returns the `subagentRunId` that the model got.
+   */
+  async function startScoutThatNeverRan(
+    persistence: Durable,
+    durability?: { resumeBackgroundAgents: boolean },
+  ) {
+    let checks = 0
+    let runs = 0
+    const scout = defineAgent({
+      name: 'scout',
+      description: 'Scouts',
+      // The tool call checks the input first. The host checks it again just
+      // before the child runs: there the first host stops. Zod calls this
+      // twice in each check: a sync pass, then an async pass.
+      inputSchema: z.object({ topic: z.string() }).refine(async () => {
+        checks += 1
+        if (checks === 4) await new Promise(() => {})
+        return true
+      }),
+      run: async () => {
+        runs += 1
+        return 'scouted'
+      },
+    })
+    const harness = (adapter: AnyTextAdapter) =>
+      defineHarness({
+        name: 'test/durable-background',
+        adapter,
+        subagents: { agents: [scout] },
+        ...(durability ? { durability } : {}),
+      })
+    const lead = mockAdapter([
+      () => toolCall('scout', { topic: 'Look', background: true }, 'call-1'),
+      () => text('Started.'),
+    ])
+    const crashed = await createHarnessHost({
+      persistence,
+      ownership: CRASHING_OWNERSHIP,
+    }).open(harness(lead.adapter), { threadId: THREAD })
+    await crashed.send('Scout')
+    await waitFor(() => expect(checks).toBe(4))
+    const result = (await crashed.transcript()).find(
+      (message) => message.role === 'tool',
+    )
+    const { subagentRunId } = JSON.parse(String(result?.content))
+    await ownershipExpired()
+    return { harness, subagentRunId, runs: () => runs }
+  }
+
+  it('starts a background agent of the model that never ran on the next host, as the same child', async () => {
+    const persistence = durablePersistence()
+    const { harness, subagentRunId, runs } =
+      await startScoutThatNeverRan(persistence)
+
+    const host = createHarnessHost({ persistence })
+    const next = mockAdapter(() => text('Noted.'))
+    const recovered = await host.open(harness(next.adapter), {
+      threadId: THREAD,
+    })
+
+    await waitFor(() =>
+      expect(recovered.agentRuns().map((run) => run.status)).toEqual([
+        'completed',
+      ]),
+    )
+    expect(runs()).toBe(1)
+    const [run] = recovered.agentRuns()
+    expect(run?.subagentRunId).toBe(subagentRunId)
+    const [record] = await agentRunRecords(persistence)
+    expect(record?.subagentRunId).toBe(subagentRunId)
+    // The run tree keeps the turn that started it as its parent.
+    const { tree } = await storedThreadState(persistence.stores.log, {
+      threadId: THREAD,
+    })
+    const turn = [...tree.values()].find((node) => node.kind === 'turn')
+    expect(run?.parentRunId).toBe(turn?.runId)
+    await host.close()
+  })
+
+  it('fails a background agent of the model that never ran on the next host with resumeBackgroundAgents false', async () => {
+    const persistence = durablePersistence()
+    const { harness, runs } = await startScoutThatNeverRan(persistence, {
+      resumeBackgroundAgents: false,
+    })
+
+    const host = createHarnessHost({ persistence })
+    const next = mockAdapter(() => text('Noted.'))
+    const recovered = await host.open(harness(next.adapter), {
+      threadId: THREAD,
+    })
+
+    await waitFor(() =>
+      expect(recovered.agentRuns().map((run) => run.status)).toEqual([
+        'failed',
+      ]),
+    )
+    expect(runs()).toBe(0)
     await host.close()
   })
 

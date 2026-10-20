@@ -424,7 +424,7 @@ For the tool input in plain `chat()`, see [The tool input](../chat/subagents#the
 
 When a background child ends, the session starts a new turn. Its message starts with `Background agent researcher finished:` or `Background agent researcher failed:`. While the child runs, it is in `session.agentRuns()`.
 
-When the host stops while a background child runs, the next host continues the child with the same `subagentRunId`, as a start with `resume: true` does:
+When the host stops while a background child runs, or before the child starts, the next host continues the child with the same `subagentRunId`, as a start with `resume: true` does:
 
 - The agent code runs again from its start.
 - `ctx.chat` continues from the saved transcript. A tool call that finished does not run again. A tool call that ran at the stop runs again.
