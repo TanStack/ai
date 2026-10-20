@@ -78,22 +78,26 @@ await host.sessions.share({
 })
 ```
 
-From the browser, the owner sends the same change to `POST sessions`:
+From the browser, the owner calls `client.sessions.share`:
 
 ```ts group=harness-shared-threads-invite
-export async function invite(userId: string, role: 'member' | 'operator' | 'viewer') {
-  const response = await fetch('/api/harness/sessions', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: 'Bearer token-ada' },
-    body: JSON.stringify({ op: 'share', threadId: 'team-thread', userId, role }),
-  })
-  if (!response.ok) throw new Error(`The share failed with ${response.status}.`)
-  return response.json()
-}
+import { createHarnessClient } from '@tanstack/ai-harness/client'
+import type { assistant } from './harness'
+
+const client = createHarnessClient<typeof assistant>({
+  url: '/api/harness',
+  threadId: 'team-thread',
+  headers: { authorization: 'Bearer token-ada' },
+})
+
+const entry = await client.sessions.share({ threadId: 'team-thread', userId: 'bob', role: 'member' })
+console.log(entry.members) // [{ userId: 'ada', role: 'owner' }, { userId: 'bob', role: 'member' }]
+
+await client.sessions.unshare({ threadId: 'team-thread', userId: 'bob' })
 ```
 
 - `share` adds a member, or changes the role of a member. It resolves to the changed entry.
-- `unshare` removes a member: `host.sessions.unshare({ threadId, userId, principal })` on the server, or `{ op: 'unshare', threadId, userId }` from the browser.
+- `unshare` removes a member: `host.sessions.unshare({ threadId, userId, principal })` on the server, or `client.sessions.unshare({ threadId, userId })` from the browser. It resolves to the changed entry.
 - Only the owner can share. Another user gets `AccessDeniedError`, and the handler answers `403`.
 - The owner cannot be removed.
 

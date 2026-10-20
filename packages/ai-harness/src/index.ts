@@ -182,6 +182,8 @@ export type {
 } from './turn'
 export { isTransientModelError, retryTransientErrors } from './turn'
 
+export type { HarnessErrorCode } from './protocol'
+
 export { HARNESS_EVENTS, InputRejectedError } from './types'
 export type {
   AgentRun,

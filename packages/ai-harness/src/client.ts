@@ -8,6 +8,7 @@ import type {
   LogRecord,
   SessionIndexEntry,
   SessionIndexPage,
+  SessionMember,
 } from '@tanstack/ai-persistence'
 import type { AgentInputOf } from './agents'
 import type {
@@ -47,6 +48,7 @@ export {
   mediaPart,
 } from './media-ref'
 export type { ForkPoint, MediaKind, MediaRecord } from './types'
+export type { HarnessErrorCode } from './protocol'
 export type {
   HostEvent,
   HostSessionDeletedEvent,
@@ -434,6 +436,25 @@ export interface HarnessClientSessions<THarness extends AnyHarness> {
     threadId: string
     at: ForkPoint
   }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
+  /**
+   * Add the user `userId` to the members of one of your sessions with
+   * `role`, or change the role of a member. The server needs
+   * `access.policy.members`, and you need the `share` action. Resolves to
+   * the changed entry.
+   */
+  share: (change: {
+    threadId: string
+    userId: string
+    role: SessionMember['role']
+  }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
+  /**
+   * Remove the user `userId` from the members of one of your sessions. The
+   * streams of that user close. Resolves to the changed entry.
+   */
+  unshare: (change: {
+    threadId: string
+    userId: string
+  }) => Promise<SessionIndexEntry<SessionMetadataOf<THarness>>>
 }
 
 /** The body of `POST sessions`. */
@@ -442,6 +463,13 @@ type SessionChange =
   | ({ op: 'update'; threadId: string } & SessionEntryChange<unknown>)
   | { op: 'delete'; threadId: string }
   | ({ op: 'fork'; threadId: string } & ForkPoint)
+  | {
+      op: 'share'
+      threadId: string
+      userId: string
+      role: SessionMember['role']
+    }
+  | { op: 'unshare'; threadId: string; userId: string }
 
 /** The longest wait before a reconnect of `events()`. */
 const MAX_RECONNECT_DELAY_MS = 30_000
@@ -680,7 +708,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
   const loadMedia = async ({ id }: { id: string }) =>
     new Uint8Array(await (await get('media', { id })).arrayBuffer())
 
-  // `POST sessions`: rename, delete, or fork a session of this user.
+  // `POST sessions`: rename, delete, fork, or share a session of this user.
   const changeSession = async (change: SessionChange) =>
     checked(
       'sessions',
@@ -692,7 +720,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
     )
 
   const sessionEntry = async (change: SessionChange) =>
-    // The handler answers a rename, an update, and a fork with the entry.
+    // The handler answers each op but a delete with the entry.
     // The server schema checked its metadata.
     (await (await changeSession(change)).json()) as SessionIndexEntry<
       SessionMetadataOf<THarness>
@@ -993,6 +1021,10 @@ export function createHarnessClient<THarness extends AnyHarness>(
         await changeSession({ op: 'delete', threadId })
       },
       fork: ({ threadId, at }) => sessionEntry({ op: 'fork', threadId, ...at }),
+      share: ({ threadId, userId, role }) =>
+        sessionEntry({ op: 'share', threadId, userId, role }),
+      unshare: ({ threadId, userId }) =>
+        sessionEntry({ op: 'unshare', threadId, userId }),
     },
   }
 }

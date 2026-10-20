@@ -92,7 +92,7 @@ For one session:
 For a list of sessions:
 
 - `GET sessions`: one page of the sessions that this user can list, newest first.
-- `POST sessions`: change a session with `{ op, threadId }`. The ops are `rename`, `update`, `delete`, `fork`, `share`, and `unshare`. See [List, rename, and fork sessions](./sessions) and [Share the thread](./shared-threads#2-share-the-thread).
+- `POST sessions`: change a session with `{ op, threadId }`. The ops are `rename`, `update`, `delete`, `fork`, `share`, and `unshare`. `client.sessions` has one method for each op. A thread that is not there throws `404`. See [List, rename, and fork sessions](./sessions) and [Share the thread](./shared-threads#2-share-the-thread).
 - `GET host-events`: the status changes and index changes of the sessions that this user can read, as SSE.
 
 A read of a thread that does not exist answers `404`. Only `GET run?threadId=` answers an empty thread, because `useChat` reads it before the first message.
