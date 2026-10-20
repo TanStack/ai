@@ -538,8 +538,9 @@ export abstract class SessionRequests<
 
   /**
    * Answer the interrupts of the last turn. One resume must answer every open
-   * interrupt of that turn (the AG-UI rule). `principal` means the same as in
-   * `prompt`: the turn that continues runs with its credentials.
+   * interrupt of that turn (the AG-UI rule). `principal` is who answers: the
+   * log keeps it. The turn that continues still runs as the user who sent
+   * it, with that user's credentials.
    *
    * @example
    * ```ts
@@ -707,13 +708,15 @@ export abstract class SessionRequests<
       }
       const operation = this.createTurnOperation(runId)
       this.bindTurn(inputId, operation)
-      // The turn goes on with the context its input sent.
+      // The turn goes on as its sender, with the context its input sent:
+      // an owner who answers the turn of a member does not lend the member
+      // the owner's keys. A copy from an older version has no sender.
       const turn: QueuedTurn = {
         operation,
         resume,
         inputId,
         answers,
-        principal,
+        principal: answers.principal ?? principal,
         context: answers.context,
       }
       if (isEnding) this.queue.unshift(turn)

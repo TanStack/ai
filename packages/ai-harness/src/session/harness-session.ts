@@ -1232,13 +1232,13 @@ export class SessionImpl<
           }),
         )
         // The same turn as a live `resolve()`: it answers the stopped turn,
-        // as the input's sender, with the context of the stopped turn.
+        // as the sender of the stopped turn, with its context.
         this.enqueueTurn({
           operation,
           inputId: input.inputId,
           resume: input.input.resume,
           answers: this.interrupted,
-          principal: input.principal,
+          principal: this.interrupted.principal ?? input.principal,
           context: this.interrupted.context,
           ...this.recoveredExtras(input.inputId, decision.overrides),
         })
