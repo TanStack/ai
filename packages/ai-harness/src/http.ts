@@ -10,33 +10,46 @@ import {
 } from '@tanstack/ai'
 import { parseRangeHeader, resolveBlobRange } from '@tanstack/ai-persistence'
 import { AccessDeniedError } from './access'
-import { accessOf, durableStoresOf, sessionOfTurn } from './host'
+import { accessOf, isSharedHost, sessionOfTurn, tenantEventsOf } from './host'
+import { tenantOfHostEvent } from './host-event-bus'
+import { activeRunIn } from './log-stores'
 import { MediaError } from './media'
-import { tenantStores } from './tenant-stores'
+import { maxBodyBytesOf, readBodyText, storeInlineMedia } from './inline-media'
+import { createMediaSigner } from './media-signing'
 import {
-  HARNESS_PROTOCOL_VERSION,
   applyInput,
   capabilitiesOf,
   describeForClient,
+  HARNESS_PROTOCOL_VERSION,
+  versionError,
   parseControlFrame,
   parseHarnessInput,
+  requestIdOf,
+  retriedMessage,
   turnReceipt,
 } from './protocol'
+import { socketSender, sseStream, streamValues, withHeartbeat } from './sse'
 import { base64url, isRecord } from './utils'
 import { SessionMetadataError } from './session-entry'
-import { SessionImpl } from './session/harness-session'
-import type {
-  ModelMessage,
-  RunStore,
-  UIMessage,
-  WebSocketLike,
-} from '@tanstack/ai'
+import { SessionImpl, scrubbedBy } from './session/harness-session'
+import {
+  liveSessionOf,
+  mediaStoreOf,
+  storedRunOf,
+  storedRunsOf,
+} from './session/observed-session'
+import { wireFrame } from './wire'
+import type { ModelMessage, UIMessage, WebSocketLike } from '@tanstack/ai'
 import type { SessionIndexEntry, SessionMember } from '@tanstack/ai-persistence'
 import type { AnyHarness } from './define'
 import type { HarnessHost, HostEvent } from './host'
-import type { HostFrame } from './protocol'
+import type { InlineMediaRefusal } from './inline-media'
+import type { MediaSignerOptions } from './media-signing'
+import type { ControlFrame, HarnessErrorCode, HostFrame } from './protocol'
+import type { HarnessStreamOptions, SseFrame, StreamValues } from './sse'
 import type { HarnessSession } from './session/index'
-import type { Principal, SessionEvent, UserInput } from './types'
+import type { ObservedSession } from './session/observed-session'
+import type { Cursor, Principal, SessionEvent, UserInput } from './types'
 
 /**
  * Who a handler or a socket serves when its host has no `access`. `true`:
@@ -62,24 +75,40 @@ export interface HarnessHandlerOptions<P extends Principal = Principal> {
    */
   openAccess?: OpenAccess<P>
   /**
-   * How the handler signs media URLs. Required on a durable host
-   * (`stores.log`), where another instance can serve the next request.
-   * Without a log store, leave it out to sign with a random key per handler,
-   * so signed URLs stop working after a restart.
+   * How the handler signs media URLs (HMAC SHA-256). Without it, the handler
+   * signs with a random key of its own, so a signed URL works only on this
+   * server, and only until it restarts. Set it when more than one server
+   * answers the same URL, so each server verifies the URLs of the others.
+   * On a host with `ownership` options it is required, else the handler
+   * throws at the start. Without it on another host, the first handler
+   * warns once.
+   *
+   * - `{ secret }`: one key. Use the same value on every server.
+   * - `{ keys }`: to rotate keys. The first key signs, and every key
+   *   verifies, so a URL that an old key signed works until it expires.
+   *
+   * Each key must be at least 32 bytes (UTF-8). A shorter key throws at the
+   * start.
    */
-  media?: {
-    /**
-     * The secret that signs media URLs (HMAC SHA-256). Use the same value on
-     * every server behind one URL.
-     */
-    secret: string
-  }
+  media?: MediaSignerOptions
+  /**
+   * Set `true` when the app also serves `handleHarnessSocket`, so the
+   * capabilities say that clients can use a WebSocket. Default `false`.
+   */
+  socket?: boolean
+  /**
+   * The values of the SSE streams: the heartbeat, the slow-client close, and
+   * the queue size. A value that you do not set keeps its default. See
+   * `HarnessStreamOptions`.
+   */
+  stream?: HarnessStreamOptions
 }
 
 /** How long a signed media URL works. */
 const SIGNED_URL_TTL_MS = 60 * 60 * 1000
 
-const HMAC = { name: 'HMAC', hash: 'SHA-256' }
+/** The most bytes one answer to an open-ended `Range` (`bytes=N-`) sends. */
+const OPEN_RANGE_MAX_BYTES = 8 * 1024 * 1024
 
 // Every media answer: a browser must not guess another type, and a `text/*`
 // document must not run as a page of this origin.
@@ -106,62 +135,88 @@ const json = (body: unknown, status = 200) =>
 const forbidden = () => json({ error: 'forbidden' }, 403)
 
 /**
- * An SSE response: one event per frame, with `data` as JSON and `id` when
- * the frame has one. `watch` gets the reader: aborting it ends the stream.
- * When the client leaves, the reader aborts.
+ * The id of a request, for its error frames and its `X-Request-Id` answer
+ * header. The rule: the `X-Request-Id` header of the request when it is a
+ * short safe id (1 to 128 letters, digits, `-`, `_`, `.`, or `:`), else a
+ * new UUID. So a proxy can trace a request, and a client cannot put other
+ * text into the logs.
  */
-function sseResponse(
-  frames: (
-    signal: AbortSignal,
-  ) => AsyncIterable<{ id?: string; data: unknown }>,
-  watch?: (reader: AbortController) => void,
-) {
-  // Not `request.signal`: some servers abort it once the body is read.
-  const reader = new AbortController()
-  let isCancelled = false
-  const body = new ReadableStream<Uint8Array>({
-    cancel: () => {
-      isCancelled = true
-      reader.abort()
-    },
-    async start(controller) {
-      watch?.(reader)
-      try {
-        for await (const { id, data } of frames(reader.signal)) {
-          const idLine = id === undefined ? '' : `id: ${id}\n`
-          controller.enqueue(
-            encoder.encode(`${idLine}data: ${JSON.stringify(data)}\n\n`),
-          )
-        }
-      } finally {
-        if (!isCancelled) controller.close()
-        // The watch ends with the stream.
-        reader.abort()
-      }
-    },
-  })
-  return new Response(body, { headers: SSE_HEADERS })
+function requestIdFor(request: Request) {
+  const sent = request.headers.get('X-Request-Id')
+  return sent !== null && /^[\w.:-]{1,128}$/.test(sent)
+    ? sent
+    : crypto.randomUUID()
 }
 
 /**
- * Session events as an AG-UI SSE response. With `withIds`, each event has its
- * cursor as `id`, so a client that loses the connection resumes with
- * `Last-Event-ID`. `watch` gets the reader, as in `sseResponse`. When the
- * client leaves, the read stops.
+ * An SSE response from `sseStream`: pull-based, with a heartbeat and a close
+ * for a slow client (see `sse.ts`). `watch` gets the reader: aborting it
+ * ends the stream. When the stream ends or the client leaves, the reader
+ * aborts.
  */
-function cursorResponse(
-  read: (signal: AbortSignal) => AsyncIterable<SessionEvent>,
-  withIds: boolean,
+function sseResponse(
+  frames: (signal: AbortSignal) => AsyncIterable<SseFrame>,
+  requestId: string,
+  stream: StreamValues,
   watch?: (reader: AbortController) => void,
 ) {
   // Not `request.signal`: some servers abort it once the body is read.
   const reader = new AbortController()
   watch?.(reader)
-  const cursors: Array<string> = []
+  const body = sseStream({
+    frames: (signal) => {
+      // The watch ends with the stream.
+      signal.addEventListener('abort', () => reader.abort(), { once: true })
+      return frames(signal)
+    },
+    requestId,
+    signal: reader.signal,
+    stream,
+  })
+  return new Response(body, { headers: SSE_HEADERS })
+}
+
+/** The error of a `?v=` that asks for another version. See `versionError`. */
+function versionOf(url: URL) {
+  const v = url.searchParams.get('v')
+  return versionError(v === null ? undefined : Number(v))
+}
+
+/**
+ * The answer to a stream with a `?v=` that the host does not speak: an SSE
+ * stream with one `unsupported_version` error frame. Then it closes.
+ */
+function versionRefused(
+  error: NonNullable<ReturnType<typeof versionError>>,
+  requestId: string,
+) {
+  const frame: HostFrame = { type: 'harness.error', requestId, ...error }
+  return new Response(encoder.encode(`data: ${JSON.stringify(frame)}\n\n`), {
+    headers: SSE_HEADERS,
+  })
+}
+
+/**
+ * Session events as an AG-UI SSE response. Each event has its cursor as
+ * `id`, so a client that loses the connection resumes with `Last-Event-ID`.
+ * `watch` gets the reader, as in `sseResponse`. When the client leaves, the
+ * read stops.
+ */
+function cursorResponse(
+  read: (signal: AbortSignal) => AsyncIterable<SessionEvent>,
+  stream: StreamValues,
+  watch?: (reader: AbortController) => void,
+) {
+  // Not `request.signal`: some servers abort it once the body is read.
+  const reader = new AbortController()
+  watch?.(reader)
+  // The stream encodes each event right after it pulls it, before the next
+  // pull, so the cursor of the last event is the only one it needs.
+  let cursor: string | undefined
   async function* chunks() {
     try {
       for await (const entry of read(reader.signal)) {
-        cursors.push(entry.cursor)
+        cursor = entry.cursor
         yield entry.event
       }
     } finally {
@@ -170,18 +225,36 @@ function cursorResponse(
     }
   }
   return new Response(
-    toServerSentEventsStream(
-      chunks(),
-      reader,
-      withIds ? (_chunk, index) => cursors.at(index) : undefined,
+    withHeartbeat(
+      toServerSentEventsStream(chunks(), reader, () => cursor),
+      { heartbeatMs: stream.heartbeatMs },
     ),
     { headers: SSE_HEADERS },
   )
 }
 
 /**
+ * The status of a content part that `storeInlineMedia` refused: 413 for too
+ * many bytes, 415 for a kind the harness does not take, else 400.
+ */
+const REFUSAL_STATUS: Record<InlineMediaRefusal, number> = {
+  media_too_large: 413,
+  media_not_allowed: 415,
+  media_invalid: 400,
+  media_url_not_allowed: 400,
+}
+
+/** True when `text` is more than `limit` bytes as UTF-8. */
+function isOverLimit(text: string, limit: number) {
+  // A UTF-16 code unit is 1 to 3 bytes, so only some texts need encoding.
+  if (text.length > limit) return true
+  if (text.length * 3 <= limit) return false
+  return encoder.encode(text).byteLength > limit
+}
+
+/**
  * A handler error as JSON: a refused action is 403, a `MediaError` keeps its
- * status, the rest is 400.
+ * status (413 for a body over `media.maxBodyBytes`), the rest is 400.
  */
 const failed = (error: unknown) => {
   if (error instanceof AccessDeniedError) return forbidden()
@@ -212,7 +285,10 @@ function lastUserInput(messages: Array<UIMessage | ModelMessage>) {
 }
 
 const isRole = (value: unknown): value is SessionMember['role'] =>
-  value === 'owner' || value === 'member' || value === 'viewer'
+  value === 'owner' ||
+  value === 'member' ||
+  value === 'viewer' ||
+  value === 'operator'
 
 /** A `POST sessions` body, or `undefined` when it is not a valid one. */
 function parseSessionOp(body: unknown) {
@@ -264,16 +340,6 @@ function parseSessionOp(body: unknown) {
   }
 }
 
-/** Base64url to bytes, or `undefined` for a value that is not base64url. */
-function fromBase64url(value: string) {
-  try {
-    const binary = atob(value.replace(/-/g, '+').replace(/_/g, '/'))
-    return Uint8Array.from(binary, (char) => char.charCodeAt(0))
-  } catch {
-    return undefined
-  }
-}
-
 /**
  * The bytes of a media file as a response, with `Range` support: 206 for a
  * slice, 416 for a range outside the file, and 404 for an id this thread
@@ -281,27 +347,42 @@ function fromBase64url(value: string) {
  */
 async function mediaResponse(
   request: Request,
-  session: HarnessSession,
+  view: ObservedSession,
   id: string,
 ) {
-  const record = await session.getMedia(id)
+  const record = await view.getMedia({ id })
   if (!record) return json({ error: 'not found' }, 404)
-  const range = parseRangeHeader(request.headers.get('Range'), record.size)
-  if (range === 'unsatisfiable') {
+  const asked = parseRangeHeader(request.headers.get('Range'), record.size)
+  if (asked === 'unsatisfiable') {
     return new Response(null, {
       status: 416,
       headers: { ...MEDIA_HEADERS, 'Content-Range': `bytes */${record.size}` },
     })
   }
-  const bytes = await session.loadMedia({ id, range })
+  // A range with no end (`bytes=N-`) gets at most OPEN_RANGE_MAX_BYTES. A
+  // 206 may send less than was asked: the client asks again for the rest.
+  const range =
+    asked && asked.length === undefined
+      ? {
+          offset: asked.offset,
+          length: Math.min(OPEN_RANGE_MAX_BYTES, record.size - asked.offset),
+        }
+      : asked
+  const length = range
+    ? resolveBlobRange(record.size, range).length
+    : record.size
+  // A stream, so a big file is not held in memory.
+  const body =
+    (await mediaStoreOf(view)?.open(id, range)) ??
+    (await view.loadMedia({ id, range }))
   const headers = {
     ...MEDIA_HEADERS,
     'Content-Type': record.mimeType,
-    'Content-Length': String(bytes.byteLength),
+    'Content-Length': String(length),
   }
-  if (!range) return new Response(bytes, { headers })
-  const { offset, length } = resolveBlobRange(record.size, range)
-  return new Response(bytes, {
+  if (!range) return new Response(body, { headers })
+  const { offset } = range
+  return new Response(body, {
     status: 206,
     headers: {
       ...headers,
@@ -340,6 +421,30 @@ function requestUsers<P extends Principal>(
   }
 }
 
+/**
+ * The view of `host.observe` for a read of the thread `threadId`, or
+ * `undefined` for a thread with no index entry on a host with access: the
+ * host refuses such a thread as it refuses a stranger, and a read of it is
+ * not found. Throws `AccessDeniedError` for a stranger.
+ */
+async function observeToRead<P extends Principal>(
+  host: HarnessHost<P>,
+  harness: AnyHarness,
+  { threadId, principal }: { threadId: string; principal: P | undefined },
+) {
+  const user = principal ? { principal } : {}
+  try {
+    return await host.observe(harness, { threadId, ...user })
+  } catch (error) {
+    if (!(error instanceof AccessDeniedError)) throw error
+    // `sessions.get` refuses a stranger too, and has no entry to give for a
+    // thread that does not exist. Only the refused path reads it.
+    const entry = await host.sessions.get({ threadId, ...user })
+    if (entry === undefined) return undefined
+    throw error
+  }
+}
+
 /** `event` is the revoke of `principal` on the thread `threadId`. */
 const isRevokeOf = (
   event: HostEvent,
@@ -366,14 +471,26 @@ function watchRevoke<P extends Principal>(
   onRevoke: () => void,
 ) {
   if (principal === undefined) return
+  const isRevoke = (event: HostEvent) => isRevokeOf(event, principal, threadId)
+  // Only the revokes of this principal, from the bus of its tenant: the
+  // filter runs before the queue, so other events cost this watch nothing,
+  // and the first revoke ends the watch, so its queue does not fill.
+  // A host that `createHarnessHost` did not make has `host.events()`.
+  const readTenant = tenantEventsOf(host)
+  const events = readTenant
+    ? readTenant({ tenantId: principal.tenantId, filter: isRevoke, signal })
+    : host.events({ signal })
   void (async () => {
-    for await (const event of host.events({ signal })) {
-      if (!isRevokeOf(event, principal, threadId)) continue
+    for await (const event of events) {
+      if (!isRevoke(event)) continue
       onRevoke()
       return
     }
   })()
 }
+
+/** A handler without `media` warned already. One warning per process. */
+let warnedMediaKey = false
 
 /**
  * A fetch handler for a harness. Mount it on a route that ends with any of
@@ -382,18 +499,18 @@ function watchRevoke<P extends Principal>(
  * - `GET  .../capabilities`: the AG-UI capabilities document.
  * - `POST .../run`: standard AG-UI. One request is one prompt (or one
  *   `resume`), streamed as SSE. The turn runs as the request's `runId`, and a
- *   retry with the same `runId` runs once. On a durable host, each event id
- *   is its log cursor, and a retry with `Last-Event-ID` streams from there. The prompt keeps every content
+ *   retry with the same `runId` runs once. Each event id is its log
+ *   cursor, and a retry with `Last-Event-ID` streams from there. The prompt keeps every content
  *   part of the last user message, and its `forwardedProps` are the input's
  *   `context`.
  * - `GET  .../run?threadId=`: the transcript, the running turn, and the
  *   waiting interrupts, as the `ChatHydrationResult` that a `ChatClient` with
  *   `persistence` reads.
- * - `GET  .../run?runId=` (or `X-Run-Id`): the chat turn with that run id, as
- *   SSE from its start, so a reloaded `ChatClient` joins it. Each event id is
- *   a cursor, so `Last-Event-ID` resumes it. On a durable host (`stores.log`
- *   and `stores.runs`), any instance finds the turn in the shared log.
- *   Without a log, 404 for a turn this host does not run.
+ * - `GET  .../run?runId=&threadId=` (or `X-Run-Id`): the chat turn with
+ *   that run id, as SSE from its start, so a reloaded `ChatClient` joins it.
+ *   Each event id is a cursor, so `Last-Event-ID` resumes it. Any instance
+ *   finds the turn in the log of `threadId`. Without `threadId`, only the
+ *   instance that runs the turn finds it, and another instance answers 400.
  * - `GET  .../events?threadId=&from=`: the session stream as SSE. Each event id
  *   is a cursor, so `Last-Event-ID` resumes it.
  * - `POST .../control`: `{ threadId, input }`. Returns the receipt.
@@ -422,7 +539,8 @@ function watchRevoke<P extends Principal>(
  *   pinned?, metadata? }` (each field replaces the stored one, and the
  *   harness `metadataSchema` checks `metadata`. Without a schema, a client
  *   cannot write `metadata`: 403 `not_exposed`), `{ op: 'delete', threadId }`
- *   (it removes the index entry only), `{ op: 'fork', threadId, before }`
+ *   (it deletes the thread and its child threads, as
+ *   `host.sessions.delete` does), `{ op: 'fork', threadId, before }`
  *   or `{ op: 'fork', threadId, through }` with a message id, and with
  *   `membersOnly()`, `{ op: 'share', threadId, userId, role }` and
  *   `{ op: 'unshare', threadId, userId }`. Rename, update, fork, share, and
@@ -434,6 +552,9 @@ function watchRevoke<P extends Principal>(
  *   read, as SSE: status changes, session index changes, and the revokes of
  *   this principal. First the current status of each open session.
  *
+ * The `GET` routes of a thread, except `describe`, read with `host.observe`:
+ * they open no session, mount no plugins, and write nothing.
+ *
  * With host `access`, `access.identify` reads the user of each request
  * (`null` is 401), and the host checks each action: a refused action is 403.
  * A read of a thread with no entry is 404, and it does not start a session.
@@ -442,8 +563,22 @@ function watchRevoke<P extends Principal>(
  * The streams of a user close when `host.revoke` or `unshare` takes their
  * access. Each chat input runs as the principal of its request.
  *
+ * Signed media URLs use the keys of `media`. Without it, they work only on
+ * this server (see `HarnessHandlerOptions.media`), so it is required on a
+ * host with `ownership` options. A URL of a deleted file is 404.
+ *
+ * A request body over `media.maxBodyBytes` (default 32 MiB) is 413. Inline
+ * media of `POST run` goes to the media store, as in `POST control`. A
+ * refused part is 413 (`media_too_large`), 415 (`media_not_allowed`), or
+ * 400 (`media_invalid`, `media_url_not_allowed`), with the reason as
+ * `error`.
+ *
+ * `stream` sets the values of the SSE streams (see `HarnessStreamOptions`).
+ *
  * Throws at the start for a host without `access` and without
- * `openAccess`, and for a host with both.
+ * `openAccess`, for a host with both, for a `stream` value that is not a
+ * finite number above 0, and without `media` on a host with `ownership`
+ * options.
  *
  * @example
  * ```ts
@@ -456,29 +591,32 @@ export function createHarnessHandler<P extends Principal = Principal>(
   const { host, harness, media } = options
   const usersOf = requestUsers('createHarnessHandler', host, options.openAccess)
   const hasAccess = accessOf(host) !== undefined
-  const durable = durableStoresOf(host)
-  if (media !== undefined && media.secret.length === 0) {
+  const stream = streamValues('createHarnessHandler', options.stream)
+  if (media === undefined && isSharedHost(host)) {
     throw new Error(
-      'createHarnessHandler needs a media.secret that is not empty.',
+      'createHarnessHandler needs media ({ secret } or { keys }) on a host with ownership options: another instance must verify the media URLs that this one signs. Set the same keys on every instance.',
     )
   }
-  if (media === undefined && durable) {
-    throw new Error(
-      'createHarnessHandler needs media.secret on a durable host (stores.log): another instance must verify the media URLs this one signs. Set the same secret on every instance.',
+  // ponytail: the handler cannot tell a log store that many instances
+  // share, so a host without ownership gets one warning, not an error.
+  if (media === undefined && !warnedMediaKey) {
+    warnedMediaKey = true
+    console.warn(
+      '[@tanstack/ai-harness] createHarnessHandler has no media ({ secret } or { keys }), so it signs media URLs with a random key of its own. When more than one instance serves this host, set the same media.secret on every instance, else a media URL works only on the instance that signed it.',
     )
   }
 
   const openFor = (principal: P | undefined, threadId: string) =>
     host.open(harness, { threadId, ...(principal ? { principal } : {}) })
 
-  /** The run store of a durable host, in the tenant of `principal`. */
-  const runsOf = (principal: P | undefined) =>
-    durable?.runs &&
-    tenantStores({ runs: durable.runs }, principal?.tenantId).runs
+  /** The view of a thread for a read route. See `observeToRead`. */
+  const viewFor = (principal: P | undefined, threadId: string) =>
+    observeToRead(host, harness, { threadId, principal })
 
   /**
-   * Open a thread for a read. With access, a thread with no entry is not
-   * found, so a read never starts a session: `undefined`.
+   * Open a thread for `describe`, which needs its plugins. With access, a
+   * thread with no entry is not found, so a read never starts a session:
+   * `undefined`.
    */
   const openToRead = async (principal: P | undefined, threadId: string) => {
     const isMissing =
@@ -497,18 +635,51 @@ export function createHarnessHandler<P extends Principal = Principal>(
         reader.abort(),
       )
 
-  // ponytail: without `media.secret` (only allowed without a log store), a
-  // random key per handler, so signed URLs stop working after a restart.
-  const secret =
-    media === undefined
-      ? crypto.getRandomValues(new Uint8Array(32))
-      : encoder.encode(media.secret)
-  let key: Promise<CryptoKey> | undefined
-  const mediaKey = () =>
-    (key ??= crypto.subtle.importKey('raw', secret, HMAC, false, [
-      'sign',
-      'verify',
-    ]))
+  /**
+   * The answer of a route that opened `session`, and the release of that
+   * handle when the answer is done. A stream answer calls `keep` for its
+   * watch: the handle is released when the stream ends or the client leaves.
+   */
+  const withSession = async (
+    session: HarnessSession,
+    answer: (
+      keep: (
+        watch: (reader: AbortController) => void,
+      ) => (reader: AbortController) => void,
+    ) => Promise<Response> | Response,
+  ) => {
+    let isKept = false
+    const keep =
+      (watch: (reader: AbortController) => void) =>
+      (reader: AbortController) => {
+        isKept = true
+        // Both stream helpers abort the reader when the stream ends.
+        reader.signal.addEventListener('abort', () => void session.close(), {
+          once: true,
+        })
+        watch(reader)
+      }
+    try {
+      return await answer(keep)
+    } catch (error) {
+      // The answer is a frame that leaves the session: no secret of it.
+      throw scrubbedBy(session, error)
+    } finally {
+      if (!isKept) void session.close()
+    }
+  }
+
+  // ponytail: without `media`, a random key per handler, so a signed URL
+  // works only on this server, until it restarts.
+  const signer = createMediaSigner(
+    media ?? { secret: base64url(crypto.getRandomValues(new Uint8Array(32))) },
+  )
+  /**
+   * A request body as JSON, read up to `media.maxBodyBytes`. A bigger body is
+   * a `MediaError` with 413.
+   */
+  const readJson = async (request: Request): Promise<unknown> =>
+    JSON.parse(await readBodyText(request, harness.media))
   /** What a signed media URL holds: who may read which file, until when. */
   interface SignedMedia {
     tenantId: string
@@ -517,28 +688,21 @@ export function createHarnessHandler<P extends Principal = Principal>(
     userId: string
     exp: string
   }
+  // The harness name and the user are in the signed text, so a URL works
+  // only for this harness and for the user that it was signed for.
   const signed = (media: SignedMedia) =>
-    encoder.encode(
-      [
-        harness.name,
-        media.tenantId,
-        media.threadId,
-        media.id,
-        media.userId,
-        media.exp,
-      ].join('\n'),
-    )
-  const sign = async (media: SignedMedia) => {
-    const signature = await crypto.subtle.sign(
-      'HMAC',
-      await mediaKey(),
-      signed(media),
-    )
-    return base64url(new Uint8Array(signature))
-  }
+    [
+      harness.name,
+      media.tenantId,
+      media.threadId,
+      media.id,
+      media.userId,
+      media.exp,
+    ].join('\n')
+  const sign = (media: SignedMedia) => signer.sign(signed(media))
 
   /**
-   * Serve a signed media URL. The URL names its user: the handle opens as
+   * Serve a signed media URL. The URL names its user: the read is checked as
    * that user, so a user who lost access (unshare, revoke) is refused.
    */
   const serveSigned = async (request: Request, url: URL) => {
@@ -550,17 +714,10 @@ export function createHarnessHandler<P extends Principal = Principal>(
       userId: param('userId'),
       exp: param('exp'),
     }
-    const signature = fromBase64url(param('sig'))
     const isValid =
-      signature !== undefined &&
       Number(payload.exp) > Date.now() &&
       // `verify` compares in constant time.
-      (await crypto.subtle.verify(
-        'HMAC',
-        await mediaKey(),
-        signature,
-        signed(payload),
-      ))
+      (await signer.verify(signed(payload), param('sig')))
     if (!isValid) return forbidden()
     const { tenantId, userId } = payload
     // A signed URL keeps the id and the tenant of its user, as the log does,
@@ -569,72 +726,83 @@ export function createHarnessHandler<P extends Principal = Principal>(
     const user = userId
       ? ({ id: userId, ...(tenantId ? { tenantId } : {}) } as P)
       : undefined
-    const session = await openToRead(user, payload.threadId)
-    if (!session) return json({ error: 'not found' }, 404)
-    return mediaResponse(request, session, payload.id)
+    const view = await viewFor(user, payload.threadId)
+    if (!view) return json({ error: 'not found' }, 404)
+    return mediaResponse(request, view, payload.id)
   }
 
   /**
    * Stream the chat turn `runId` from its start: the `joinRun` of a
    * ChatClient after a reload. Each event has its cursor as `id`, so
    * `Last-Event-ID` resumes after it. A turn that ended gives the events the
-   * feed still has.
+   * feed still has. `threadId` (from the query) names the log of the turn.
    */
   const joinTurn = async (
     request: Request,
     principal: P | undefined,
     runId: string,
   ) => {
+    const { searchParams } = new URL(request.url)
     // `offset=-1` is the start. A reconnect sends the last cursor it saw.
-    const offset = new URL(request.url).searchParams.get('offset')
+    const offset = searchParams.get('offset')
     const resumeFrom =
       request.headers.get('Last-Event-ID') ?? (offset === '-1' ? null : offset)
+    const named = searchParams.get('threadId')
     const running = await sessionOfTurn(host, {
       harness,
       tenantId: principal?.tenantId,
       operationId: runId,
     })
-    if (running?.operation(runId)) {
+    const turn = running?.operation(runId)
+    const isNamedThread = named === null || running?.threadId === named
+    if (running && turn && isNamedThread) {
       const { threadId } = running
-      const session = await openToRead(principal, threadId)
-      const turn = session?.operation(runId)
-      if (!session || !turn) return json({ error: 'unknown run' }, 404)
-      const startedCursor = session
+      // The view checks the read. The turn keeps its session busy, so the
+      // session does not close on idle while the turn streams.
+      const view = await viewFor(principal, threadId)
+      if (!view) return json({ error: 'unknown run' }, 404)
+      const startedCursor = running
         .snapshot()
         .activeOperations.find((item) => item.id === runId)?.startedCursor
       const from = resumeFrom ?? startedCursor ?? '0'
       return cursorResponse(
         (signal) => turn.events({ from, signal }),
-        true,
+        stream,
         closeOnRevoke(principal, threadId),
       )
     }
-    // Another instance runs the turn. A durable host finds its thread in the
-    // run store, and its events in the shared log. Not a child run or an
-    // agent run: only a chat turn of a thread.
-    const record = await runsOf(principal)?.get(runId)
+    // Another instance runs the turn: the log of the thread has its run
+    // and its events. Not a child run or an agent run: only a chat turn of
+    // the thread.
+    if (!named) {
+      return json(
+        { error: 'threadId is required to join a run of another instance' },
+        400,
+      )
+    }
+    const threadId = named
+    const view = await viewFor(principal, threadId)
+    if (!view) return json({ error: 'unknown run' }, 404)
+    const { record, start } = await storedRunOf(view, runId)
     const isChatTurn =
-      record != null &&
+      record !== undefined &&
+      record.threadId === threadId &&
       record.kind !== 'agent' &&
       record.parentRunId === undefined
-    if (!record || !isChatTurn) return json({ error: 'unknown run' }, 404)
-    const { threadId } = record
-    const user = principal ? { principal } : {}
-    const entry = await host.sessions.get({ threadId, ...user })
+    if (!isChatTurn) return json({ error: 'unknown run' }, 404)
+    const entry = await view.entry()
     if (entry?.harness !== undefined && entry.harness !== harness.name) {
       return json({ error: 'unknown run' }, 404)
     }
-    const shared = await openToRead(principal, threadId)
-    if (!shared) return json({ error: 'unknown run' }, 404)
-    // ponytail: from the start of the log without a cursor. Store the
-    // started position on the run record if long threads make this slow.
+    // Without a cursor, from the start of the run: its first input record.
+    // A fold snapshot from before input positions does not know it: from 0.
     return cursorResponse(
       (signal) =>
         followOperation(
-          shared.events({ from: resumeFrom ?? '0', signal }),
+          view.events({ from: resumeFrom ?? start ?? '0', signal }),
           runId,
         ),
-      true,
+      stream,
       closeOnRevoke(principal, threadId),
     )
   }
@@ -642,36 +810,63 @@ export function createHarnessHandler<P extends Principal = Principal>(
   /**
    * The `host.events()` that `principal` may read. With access, a thread
    * needs the `read` action. The decision of each thread is kept for the
-   * stream, until a revoke or an index change of that thread.
+   * stream, until a revoke or a delete of that thread. An index change of
+   * the thread drops only a decision that is not `true` (for example after
+   * a share), so the index changes of each turn read no store. `accepts`
+   * reads no store, so the host event bus runs it before the queue.
+   * `mayWatch` runs after the queue.
    */
   const watchedEvents = (principal: P | undefined) => {
     const user = principal ? { principal } : {}
     const decisions = new Map<string, Promise<boolean>>()
+    /** The threads whose kept decision is `true`. */
+    const readable = new Set<string>()
+    const forget = (threadId: string) => {
+      decisions.delete(threadId)
+      readable.delete(threadId)
+    }
     const mayRead = (threadId: string) => {
       const known = decisions.get(threadId)
       if (known) return known
-      const decision = host.sessions.get({ threadId, ...user }).then(
-        (entry) => entry !== undefined,
-        () => false,
-      )
+      const decision: Promise<boolean> = host.sessions
+        .get({ threadId, ...user })
+        .then(
+          (entry) => {
+            // A revoke while the read ran dropped this decision.
+            const isKept = decisions.get(threadId) === decision
+            if (entry !== undefined && isKept) readable.add(threadId)
+            return entry !== undefined
+          },
+          () => false,
+        )
       decisions.set(threadId, decision)
       return decision
     }
-    return async (event: HostEvent) => {
-      const tenantId =
-        event.type === 'session' || event.type === 'session-deleted'
-          ? event.entry.tenantId
-          : event.tenantId
-      if (tenantId !== principal?.tenantId) return false
+    const accepts = (event: HostEvent) => {
+      if (tenantOfHostEvent(event) !== principal?.tenantId) return false
       if (event.type === 'revoked') {
-        decisions.delete(event.threadId)
+        forget(event.threadId)
         // A user hears of their own revokes only.
         return event.principalId === principal?.id
       }
-      if (!hasAccess) return true
-      if (event.type === 'session') decisions.delete(event.threadId)
+      if (event.type === 'session-deleted') forget(event.threadId)
+      // A user who may read the thread keeps that until a revoke.
+      if (event.type === 'session' && !readable.has(event.threadId)) {
+        forget(event.threadId)
+      }
+      return true
+    }
+    const mayWatch = async (event: HostEvent) => {
+      if (!hasAccess || event.type === 'revoked') return true
+      // A transfer names two threads: the user must read both.
+      if (event.type === 'transferred') {
+        const reads = await Promise.all([
+          mayRead(event.from.threadId),
+          mayRead(event.to.threadId),
+        ])
+        return reads.every(Boolean)
+      }
       if (event.type === 'session-deleted') {
-        decisions.delete(event.threadId)
         // The entry is gone: decide on the removed one.
         const access = accessOf(host)
         return principal !== undefined && access !== undefined
@@ -684,19 +879,24 @@ export function createHarnessHandler<P extends Principal = Principal>(
       }
       return mayRead(event.threadId)
     }
+    return { accepts, mayWatch }
   }
 
-  const handle = async (request: Request, principal: P | undefined) => {
+  const handle = async (
+    request: Request,
+    principal: P | undefined,
+    requestId: string,
+  ) => {
     const url = new URL(request.url)
     const route = url.pathname.split('/').at(-1)
     const user = principal ? { principal } : {}
 
     if (request.method === 'GET' && route === 'capabilities') {
-      return json(capabilitiesOf(harness))
+      return json(capabilitiesOf(harness, { socket: options.socket === true }))
     }
 
     if (request.method === 'POST' && route === 'run') {
-      const params = await chatParamsFromRequestBody(await request.json())
+      const params = await chatParamsFromRequestBody(await readJson(request))
       const message = lastUserInput(params.messages)
       const session = await openFor(principal, params.threadId)
       // The turn runs as the request's run id, so an AG-UI client matches
@@ -705,54 +905,94 @@ export function createHarnessHandler<P extends Principal = Principal>(
       const ids = { inputId: params.runId, runId: params.runId, ...user }
       const lastEventId = request.headers.get('Last-Event-ID')
       const watch = closeOnRevoke(principal, params.threadId)
-      if (params.resume && params.resume.length > 0) {
-        const answers = { resume: params.resume, ...ids }
-        // Only the session class takes the run id. `host.open` gives one.
-        const receipt = await (session instanceof SessionImpl
-          ? session.resolveForRun(answers)
-          : session.resolve(answers))
-        if (receipt.status === 'rejected') {
-          return json({ error: receipt.reason }, 409)
+      return withSession(session, async (keep) => {
+        if (params.resume && params.resume.length > 0) {
+          const answers = { resume: params.resume, ...ids }
+          // Only the session class takes the run id. `host.open` gives one.
+          const receipt = await (session instanceof SessionImpl
+            ? session.resolveForRun(answers)
+            : session.resolve(answers))
+          if (receipt.status === 'rejected') {
+            return json({ error: receipt.reason }, 409)
+          }
+          if (!receipt.operationId) return json({ error: 'rejected' }, 409)
+          const { operationId } = receipt
+          // Without a cursor, from the start of the resumed run, not from
+          // the start of the log.
+          const from =
+            lastEventId ??
+            session
+              .snapshot()
+              .activeOperations.find((item) => item.id === operationId)
+              ?.startedCursor
+          return cursorResponse(
+            (signal) =>
+              followOperation(
+                session.events({ ...(from ? { from } : {}), signal }),
+                operationId,
+              ),
+            stream,
+            keep(watch),
+          )
         }
-        if (!receipt.operationId) return json({ error: 'rejected' }, 409)
-        const { operationId } = receipt
+        if (message === undefined) {
+          return json({ error: 'no user message' }, 400)
+        }
+        // Inline bytes go to the media store, and the message keeps a
+        // `harness-media:` reference, as `POST control` does. A retried run
+        // stores no media again.
+        const retry = retriedMessage(session, params.runId, message)
+        const checked =
+          retry !== undefined
+            ? { parts: retry }
+            : Array.isArray(message)
+              ? await storeInlineMedia(message, {
+                  options: harness.media,
+                  putMedia: (upload) => session.putMedia(upload),
+                })
+              : { parts: message }
+        if ('refused' in checked) {
+          return json(
+            { error: checked.refused },
+            REFUSAL_STATUS[checked.refused],
+          )
+        }
+        // AG-UI `forwardedProps` are the input's context.
+        const { forwardedProps } = params
+        // The span of the turn links the `traceparent` of the caller.
+        const traceparent = request.headers.get('traceparent')
+        const sent = {
+          ...ids,
+          ...(Object.keys(forwardedProps).length > 0
+            ? { context: forwardedProps }
+            : {}),
+          ...(traceparent ? { traceparent } : {}),
+        }
+        // Only the session class takes the run id. `host.open` gives one.
+        const operation =
+          session instanceof SessionImpl
+            ? session.sendForRun(checked.parts, sent)
+            : session.send(checked.parts, sent)
+        // A turn that the host refused throws, and the answer is 403.
+        const receipt = await turnReceipt(operation)
+        if (receipt.status === 'rejected') {
+          return json({ error: receipt.reason ?? 'rejected' }, 409)
+        }
+        // The host sends each log cursor as the event id. A client cut off
+        // sends the same request with `Last-Event-ID`, maybe to another
+        // instance: the run id finds the same turn, and it streams from
+        // there.
+        // Without it, the operation reads from its own start.
         return cursorResponse(
           (signal) =>
-            followOperation(
-              session.events({
-                ...(durable && lastEventId ? { from: lastEventId } : {}),
-                signal,
-              }),
-              operationId,
-            ),
-          durable !== undefined,
-          watch,
+            operation.events({
+              ...(lastEventId ? { from: lastEventId } : {}),
+              signal,
+            }),
+          stream,
+          keep(watch),
         )
-      }
-      if (message === undefined) return json({ error: 'no user message' }, 400)
-      // AG-UI `forwardedProps` are the input's context.
-      const { forwardedProps } = params
-      const operation = session.send(message, {
-        ...ids,
-        ...(Object.keys(forwardedProps).length > 0
-          ? { context: forwardedProps }
-          : {}),
       })
-      // A turn that the host refused throws, and the answer is 403.
-      const receipt = await turnReceipt(operation)
-      if (receipt.status === 'rejected') {
-        return json({ error: receipt.reason ?? 'rejected' }, 409)
-      }
-      // A durable host sends each log cursor as the event id. A client cut
-      // off sends the same request with `Last-Event-ID`, maybe to another
-      // instance: the run id finds the same turn, and it streams from there.
-      // Without a log a cursor means nothing on another instance, so no id.
-      const from = (durable && lastEventId) || '0'
-      return cursorResponse(
-        (signal) => operation.events({ from, signal }),
-        durable !== undefined,
-        watch,
-      )
     }
 
     if (request.method === 'GET' && route === 'run') {
@@ -761,47 +1001,80 @@ export function createHarnessHandler<P extends Principal = Principal>(
       if (runId) return await joinTurn(request, principal, runId)
       const threadId = url.searchParams.get('threadId')
       if (!threadId) return json({ error: 'threadId is required' }, 400)
-      const session = await openToRead(principal, threadId)
+      const view = await viewFor(principal, threadId)
       // A ChatClient hydrates a new thread before its first message, and a
       // non-OK answer is an error there. A new thread has nothing to load.
-      if (!session) {
+      if (!view) {
         return json({ messages: [], activeRun: null, interrupts: null })
       }
-      return json(await hydration(session, runsOf(principal)))
+      return json(await hydration(view))
     }
 
     if (request.method === 'GET' && route === 'events') {
       const threadId = url.searchParams.get('threadId')
       if (!threadId) return json({ error: 'threadId is required' }, 400)
-      const session = await openToRead(principal, threadId)
-      if (!session) return json({ error: 'not found' }, 404)
+      const view = await viewFor(principal, threadId)
+      if (!view) return json({ error: 'not found' }, 404)
       const from =
         request.headers.get('Last-Event-ID') ??
         url.searchParams.get('from') ??
         undefined
+      const refused = versionOf(url)
+      if (refused) return versionRefused(refused, requestId)
+      const hello: HostFrame = {
+        type: 'harness.hello',
+        v: HARNESS_PROTOCOL_VERSION,
+        threadId,
+      }
       return sseResponse(
         async function* (signal) {
-          const events = session.events({ ...(from ? { from } : {}), signal })
+          yield { data: JSON.stringify(hello) }
+          const events = view.events({ ...(from ? { from } : {}), signal })
+          // Each event goes out as an AG-UI wire chunk.
           for await (const entry of events) {
-            const frame: HostFrame = { type: 'harness.event', ...entry }
-            yield { id: entry.cursor, data: frame }
+            yield { id: entry.cursor, data: wireFrame(entry) }
           }
         },
+        requestId,
+        stream,
         closeOnRevoke(principal, threadId),
       )
     }
 
     if (request.method === 'GET' && route === 'host-events') {
-      const mayWatch = watchedEvents(principal)
-      return sseResponse(async function* (signal) {
-        for await (const event of host.events({ signal })) {
-          if (await mayWatch(event)) yield { data: event }
-        }
+      const refused = versionOf(url)
+      if (refused) return versionRefused(refused, requestId)
+      const { accepts, mayWatch } = watchedEvents(principal)
+      // The events of the principal's tenant only, from the host event bus.
+      // A host that `createHarnessHost` did not make has `host.events()`.
+      const readTenant = tenantEventsOf(host)
+      // The hello of `host-events` names no thread.
+      const hello = JSON.stringify({
+        type: 'harness.hello',
+        v: HARNESS_PROTOCOL_VERSION,
       })
+      return sseResponse(
+        async function* (signal) {
+          yield { data: hello }
+          const events = readTenant
+            ? readTenant({
+                tenantId: principal?.tenantId,
+                filter: accepts,
+                signal,
+              })
+            : host.events({ signal })
+          for await (const event of events) {
+            if (!readTenant && !accepts(event)) continue
+            if (await mayWatch(event)) yield { data: JSON.stringify(event) }
+          }
+        },
+        requestId,
+        stream,
+      )
     }
 
     if (request.method === 'POST' && route === 'control') {
-      const body: unknown = await request.json()
+      const body = await readJson(request)
       if (typeof body !== 'object' || body === null || !('threadId' in body)) {
         return json({ error: 'threadId is required' }, 400)
       }
@@ -810,21 +1083,29 @@ export function createHarnessHandler<P extends Principal = Principal>(
         return json({ error: 'threadId is required' }, 400)
       const input = parseHarnessInput('input' in body ? body.input : undefined)
       const session = await openFor(principal, threadId)
-      return json(await applyInput({ harness, session, input, ...user }))
+      const traceparent = request.headers.get('traceparent')
+      const traced = traceparent ? { traceparent } : {}
+      return withSession(session, async () =>
+        json(await applyInput({ harness, session, input, ...user, ...traced })),
+      )
     }
 
-    if (
-      request.method === 'GET' &&
-      (route === 'transcript' || route === 'describe')
-    ) {
+    if (request.method === 'GET' && route === 'transcript') {
+      const threadId = url.searchParams.get('threadId')
+      if (!threadId) return json({ error: 'threadId is required' }, 400)
+      const view = await viewFor(principal, threadId)
+      if (!view) return json({ error: 'not found' }, 404)
+      return json(await view.transcript())
+    }
+
+    // The only read that opens the session: it needs the plugins.
+    if (request.method === 'GET' && route === 'describe') {
       const threadId = url.searchParams.get('threadId')
       if (!threadId) return json({ error: 'threadId is required' }, 400)
       const session = await openToRead(principal, threadId)
       if (!session) return json({ error: 'not found' }, 404)
-      return json(
-        route === 'transcript'
-          ? await session.transcript()
-          : describeForClient(harness, session),
+      return withSession(session, () =>
+        json(describeForClient(harness, session)),
       )
     }
 
@@ -834,17 +1115,17 @@ export function createHarnessHandler<P extends Principal = Principal>(
       if (!threadId) return json({ error: 'threadId is required' }, 400)
       if (!subagentRunId)
         return json({ error: 'subagentRunId is required' }, 400)
-      const session = await openToRead(principal, threadId)
-      if (!session) return json({ error: 'not found' }, 404)
-      return json(await session.agentTranscript(subagentRunId))
+      const view = await viewFor(principal, threadId)
+      if (!view) return json({ error: 'not found' }, 404)
+      return json(await view.agentTranscript({ subagentRunId }))
     }
 
     if (request.method === 'GET' && route === 'snapshot') {
       const threadId = url.searchParams.get('threadId')
       if (!threadId) return json({ error: 'threadId is required' }, 400)
-      const session = await openToRead(principal, threadId)
-      if (!session) return json({ error: 'not found' }, 404)
-      return json(session.snapshot())
+      const view = await viewFor(principal, threadId)
+      if (!view) return json({ error: 'not found' }, 404)
+      return json(await view.snapshot())
     }
 
     if (request.method === 'GET' && route === 'sessions') {
@@ -879,7 +1160,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
     }
 
     if (request.method === 'POST' && route === 'sessions') {
-      const op = parseSessionOp(await request.json())
+      const op = parseSessionOp(await readJson(request))
       if (!op) return json({ error: 'not a valid sessions op' }, 400)
       const target = { threadId: op.threadId, ...user }
       const entry = await host.sessions.get(target)
@@ -947,12 +1228,15 @@ export function createHarnessHandler<P extends Principal = Principal>(
       if (!threadId || !name)
         return json({ error: 'threadId and name are required' }, 400)
       const session = await openFor(principal, threadId)
-      const record = await session.putMedia({
-        body: request.body ?? new Uint8Array(),
-        mimeType: request.headers.get('Content-Type') ?? '',
-        name,
-      })
-      return json(record)
+      return withSession(session, async () =>
+        json(
+          await session.putMedia({
+            body: request.body ?? new Uint8Array(),
+            mimeType: request.headers.get('Content-Type') ?? '',
+            name,
+          }),
+        ),
+      )
     }
 
     if (
@@ -963,11 +1247,12 @@ export function createHarnessHandler<P extends Principal = Principal>(
       const id = url.searchParams.get('id')
       if (!threadId || !id)
         return json({ error: 'threadId and id are required' }, 400)
-      const session = await openToRead(principal, threadId)
-      if (!session) return json({ error: 'not found' }, 404)
-      if (route === 'media') return await mediaResponse(request, session, id)
-      if (!(await session.getMedia(id)))
+      const view = await viewFor(principal, threadId)
+      if (!view) return json({ error: 'not found' }, 404)
+      if (route === 'media') return mediaResponse(request, view, id)
+      if (!(await view.getMedia({ id }))) {
         return json({ error: 'not found' }, 404)
+      }
       const expiresAt = Date.now() + SIGNED_URL_TTL_MS
       const payload: SignedMedia = {
         tenantId: principal?.tenantId ?? '',
@@ -987,7 +1272,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
     return json({ error: 'not found' }, 404)
   }
 
-  return async (request: Request) => {
+  const answer = async (request: Request, requestId: string) => {
     const url = new URL(request.url)
     const isSignedMedia =
       request.method === 'GET' &&
@@ -998,10 +1283,18 @@ export function createHarnessHandler<P extends Principal = Principal>(
       if (isSignedMedia) return await serveSigned(request, url)
       const user = await usersOf(request)
       if (!user) return json({ error: 'unauthorized' }, 401)
-      return await handle(request, user.principal)
+      return await handle(request, user.principal, requestId)
     } catch (error) {
       return failed(error)
     }
+  }
+
+  return async (request: Request) => {
+    const requestId = requestIdFor(request)
+    const response = await answer(request, requestId)
+    // Every answer names its request, so a client can find it in the logs.
+    response.headers.set('X-Request-Id', requestId)
+    return response
   }
 }
 
@@ -1009,27 +1302,31 @@ export function createHarnessHandler<P extends Principal = Principal>(
  * What a `ChatClient` with `persistence` reads when it loads a thread (a
  * `ChatHydrationResult`): the transcript, the running chat turn (the client
  * joins it with `GET run?runId=`), and the interrupts that the last turn
- * waits for. On a durable host, `runs` finds a turn that another instance
- * runs.
+ * waits for. The log has the turns that other instances run.
  */
-async function hydration(session: HarnessSession, runs?: RunStore) {
-  const { pendingInterrupts, activeOperations } = session.snapshot()
+async function hydration(view: ObservedSession) {
+  const { pendingWaits, activeOperations } = await view.snapshot()
+  const pendingInterrupts = pendingWaits.flatMap(({ interrupt, turn }) =>
+    interrupt && turn ? [interrupt] : [],
+  )
   const [first] = pendingInterrupts
   const runId = first
     ? readInterruptBinding(first)?.interruptedRunId
     : undefined
+  // Only a session that is open here runs operations.
+  const session = liveSessionOf(view)
   const running = activeOperations.find(
     (item) =>
       item.kind === 'chat' &&
-      session.operation(item.id)?.status() === 'running',
+      session?.operation(item.id)?.status() === 'running',
   )
   const remote = running
     ? undefined
-    : await runs?.findActiveRun(session.threadId)
+    : activeRunIn(await storedRunsOf(view), view.threadId)
   const runningId =
     running?.id ?? (remote?.kind !== 'agent' ? remote?.runId : undefined)
   return {
-    messages: modelMessagesToUIMessages(await session.transcript()),
+    messages: modelMessagesToUIMessages(await view.transcript()),
     activeRun: runningId ? { runId: runningId } : null,
     interrupts: runId ? { runId, pending: pendingInterrupts } : null,
   }
@@ -1063,7 +1360,16 @@ export interface HarnessSocketOptions<P extends Principal = Principal> {
   request: Request
   /** For a host without `access` only. See `HarnessHandlerOptions`. */
   openAccess?: OpenAccess<P>
+  /**
+   * The values of the socket: the heartbeat, the slow-client close, and the
+   * buffer size. A value that you do not set keeps its default. See
+   * `HarnessStreamOptions`.
+   */
+  stream?: HarnessStreamOptions
 }
+
+/** The close code of a socket after an `unsupported_version` error frame. */
+const UNSUPPORTED_VERSION_CLOSE_CODE = 4400
 
 /** The text of an error frame: a refused action is `forbidden`. */
 const errorMessage = (error: unknown) =>
@@ -1081,8 +1387,21 @@ const errorMessage = (error: unknown) =>
  * input. When `host.revoke` or `unshare` takes the access of the user, the
  * socket sends a `forbidden` error frame and closes.
  *
+ * The subscribe and the snapshots read with `host.observe`, so they open no
+ * session. The first input opens the session, and the socket holds it until
+ * it closes.
+ *
+ * `stream` sets the values of the socket (see `HarnessStreamOptions`).
+ *
+ * A frame over `media.maxBodyBytes` gets an error frame, and the socket
+ * closes with 1009. Your WebSocket server has read the whole frame by then,
+ * so this check saves only the parse. The memory cap is the frame limit of
+ * your server, for example `maxPayload` of `ws`. Set it to
+ * `media.maxBodyBytes` or lower.
+ *
  * Throws at the start for a host without `access` and without `openAccess`,
- * and for a host with both.
+ * for a host with both, and for a `stream` value that is not a finite number
+ * above 0.
  *
  * @example
  * ```ts
@@ -1094,64 +1413,201 @@ export function handleHarnessSocket<P extends Principal = Principal>(
 ) {
   const { host, harness, socket, request } = options
   const usersOf = requestUsers('handleHarnessSocket', host, options.openAccess)
+  const values = streamValues('handleHarnessSocket', options.stream)
   const reader = new AbortController()
+  // The id of the upgrade request, with the rule of `requestIdFor`. An error
+  // frame of the socket itself, or of a frame with no `requestId`, names it.
+  const socketId = requestIdFor(request)
+  const sender = socketSender({
+    socket,
+    requestId: socketId,
+    signal: reader.signal,
+    stream: values,
+  })
   const who = usersOf(request).catch(() => null)
   // Set by the first subscribe, before its awaits, so a second subscribe is
-  // refused and an input sent right after the subscribe waits for the open.
-  let opened: Promise<HarnessSession | undefined> | undefined
-  const send = (frame: HostFrame) => {
+  // refused and an input sent right after the subscribe waits for it. It
+  // resolves to `undefined` when the host refused the thread. The view is
+  // `undefined` for a thread with no index entry yet: its first input
+  // makes it.
+  let subscribed:
+    | Promise<
+        { threadId: string; view: ObservedSession | undefined } | undefined
+      >
+    | undefined
+  /** The session that the first input opens. The socket holds it. */
+  let held: Promise<HarnessSession> | undefined
+  /** `held`, once it opened. */
+  let holding: HarnessSession | undefined
+  let onHeld: (session: HarnessSession | undefined) => void = () => {}
+  const firstHeld = new Promise<HarnessSession | undefined>((resolve) => {
+    onHeld = resolve
+  })
+  reader.signal.addEventListener('abort', () => onHeld(undefined), {
+    once: true,
+  })
+  /** The held session, opened by the first input that needs it. */
+  const hold = (threadId: string, principal: P | undefined) => {
+    if (held) return held
+    const opening = host
+      .open(harness, { threadId, ...(principal ? { principal } : {}) })
+      .then((session) => {
+        // The socket holds the handle until it closes.
+        const release = () => void session.close()
+        if (reader.signal.aborted) release()
+        else reader.signal.addEventListener('abort', release, { once: true })
+        holding = session
+        onHeld(session)
+        return session
+      })
+    held = opening
+    // A failed open holds nothing, so the next input opens again.
+    opening.catch(() => {
+      if (held === opening) held = undefined
+    })
+    return opening
+  }
+  /**
+   * Send the events of the thread. The view follows the log while the socket
+   * is open. A thread with no index entry has no view yet: then the events
+   * of the session that the first input opens come.
+   */
+  const stream = async (
+    view: ObservedSession | undefined,
+    from: Cursor | undefined,
+  ) => {
+    let cursor = from
+    // Each event goes out as an AG-UI wire chunk. The send waits while the
+    // socket buffer is full, so a slow client stops the read of the log.
+    const forward = async (events: AsyncIterable<SessionEvent>) => {
+      for await (const entry of events) {
+        cursor = entry.cursor
+        if (!(await send(wireFrame(entry)))) return
+      }
+    }
+    const readOptions = () => ({
+      ...(cursor ? { from: cursor } : {}),
+      signal: reader.signal,
+    })
+    if (view) {
+      await forward(view.events(readOptions()))
+      return
+    }
+    if (reader.signal.aborted || holding !== undefined) return
+    const session = await firstHeld
+    if (!session) return
+    await forward(session.events(readOptions()))
+  }
+  /** Send a frame in order. False when the socket is gone. */
+  const send = async (frame: HostFrame | string) => {
+    if (await sender(frame)) return true
+    reader.abort()
+    return false
+  }
+  const fail = (code: HarnessErrorCode, message: string, requestId: string) =>
+    void send({ type: 'harness.error', message, code, requestId })
+  /**
+   * Send a last error frame and close. It goes out at once, before the
+   * frames that wait in the sender: the socket closes next.
+   */
+  const closeWith = (
+    frame: Extract<HostFrame, { type: 'harness.error' }>,
+    closeCode: number,
+  ) => {
     try {
       socket.send(JSON.stringify(frame))
     } catch {
-      reader.abort()
+      // The socket is gone already.
     }
-  }
-  const refuse = (message: 'unauthorized' | 'forbidden') => {
-    send({ type: 'harness.error', message })
-    socket.close(message === 'unauthorized' ? 4401 : 4403, message)
+    socket.close(closeCode, frame.code)
     reader.abort()
   }
+  const refuse = (message: 'unauthorized' | 'forbidden', requestId: string) =>
+    closeWith(
+      { type: 'harness.error', message, code: message, requestId },
+      message === 'unauthorized' ? 4401 : 4403,
+    )
 
   socket.addEventListener('close', () => reader.abort())
   socket.addEventListener('error', () => reader.abort())
+  const frameLimit = maxBodyBytesOf(harness.media)
+  // The frames of the socket run one after another, as the stdio worker
+  // runs them: an input with media to store does not let a later input
+  // reach the session first.
+  let frames = Promise.resolve()
   socket.addEventListener('message', (message) => {
-    void (async () => {
+    const data = String(message.data)
+    // A frame over `media.maxBodyBytes` is not parsed, so its error frame
+    // names the socket. The socket closes with 1009 (message too big). The
+    // server read the frame already: its own frame limit caps the memory.
+    if (isOverLimit(data, frameLimit)) {
+      closeWith(
+        {
+          type: 'harness.error',
+          message: `The frame is bigger than the limit of ${frameLimit} bytes.`,
+          code: 'invalid_frame',
+          requestId: socketId,
+        },
+        1009,
+      )
+      return
+    }
+    // Read before the full parse, so a frame with a bad `input` still names
+    // its request.
+    const requestId = requestIdOf(data) ?? socketId
+    frames = frames.then(async () => {
       try {
         const user = await who
-        if (!user) return refuse('unauthorized')
+        if (!user) return refuse('unauthorized', requestId)
         const { principal } = user
-        const frame = parseControlFrame(String(message.data))
+        let frame: ControlFrame
+        try {
+          frame = parseControlFrame(data)
+        } catch (error) {
+          return fail('invalid_frame', errorMessage(error), requestId)
+        }
         if (frame.type === 'harness.subscribe') {
-          if (opened) throw new Error('Already subscribed.')
+          if (subscribed)
+            return fail('invalid_frame', 'Already subscribed.', requestId)
+          const refused = versionError(frame.v)
+          if (refused) {
+            return closeWith(
+              { type: 'harness.error', requestId, ...refused },
+              UNSUPPORTED_VERSION_CLOSE_CODE,
+            )
+          }
           const { threadId } = frame
-          opened = host
-            .open(harness, { threadId, ...(principal ? { principal } : {}) })
-            .catch((error: unknown) => {
+          subscribed = observeToRead(host, harness, {
+            threadId,
+            principal,
+          }).then(
+            (view) => ({ threadId, view }),
+            (error: unknown) => {
               if (!(error instanceof AccessDeniedError)) throw error
               return undefined
-            })
-          const session = await opened
-          if (!session) return refuse('forbidden')
+            },
+          )
+          const subscription = await subscribed
+          if (!subscription) return refuse('forbidden', requestId)
           watchRevoke(
             host,
             { principal, threadId, signal: reader.signal },
-            () => refuse('forbidden'),
+            () => refuse('forbidden', requestId),
           )
-          send({
+          void send({
             type: 'harness.hello',
             v: HARNESS_PROTOCOL_VERSION,
-            threadId: frame.threadId,
+            threadId,
           })
-          const events = session.events({
-            ...(frame.from ? { from: frame.from } : {}),
-            signal: reader.signal,
-          })
-          void (async () => {
-            for await (const entry of events)
-              send({ type: 'harness.event', ...entry })
-          })()
+          void stream(subscription.view, frame.from)
+            // The close waits for this frame: it goes out first.
             .catch((error: unknown) =>
-              send({ type: 'harness.error', message: errorMessage(error) }),
+              send({
+                type: 'harness.error',
+                message: errorMessage(scrubbedBy(holding, error)),
+                code: 'internal',
+                requestId,
+              }),
             )
             // The feed ended while the socket is open: close it, so the
             // client subscribes again.
@@ -1160,26 +1616,41 @@ export function handleHarnessSocket<P extends Principal = Principal>(
             })
           return
         }
-        const session = await opened
-        if (!session) throw new Error('Send harness.subscribe first.')
+        const subscription = await subscribed
+        if (!subscription)
+          return fail(
+            'invalid_frame',
+            'Send harness.subscribe first.',
+            requestId,
+          )
         if (frame.type === 'harness.snapshot') {
-          send({ type: 'harness.snapshot', snapshot: session.snapshot() })
+          // The held session, else the view: a snapshot opens nothing.
+          const live = holding?.snapshot()
+          const snapshot = live ?? (await subscription.view?.snapshot())
+          if (!snapshot) throw new Error('not found')
+          void send({ type: 'harness.snapshot', snapshot })
           return
         }
+        const session = await hold(subscription.threadId, principal)
         const receipt = await applyInput({
           harness,
           session,
           input: frame.input,
           ...(principal ? { principal } : {}),
+          ...(frame.traceparent ? { traceparent: frame.traceparent } : {}),
         })
-        send({
+        void send({
           type: 'harness.receipt',
           requestId: frame.requestId,
           ...receipt,
         })
       } catch (error) {
-        send({ type: 'harness.error', message: errorMessage(error) })
+        const code =
+          error instanceof AccessDeniedError ? 'forbidden' : 'internal'
+        // The held session scrubs its secrets. Before the first input,
+        // no session is open, so there is none to scrub.
+        fail(code, errorMessage(scrubbedBy(holding, error)), requestId)
       }
-    })()
+    })
   })
 }

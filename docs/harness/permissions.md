@@ -55,21 +55,27 @@ const session = await host.open(notes, { threadId: 'notes-1' })
 
 The rule makes each `save_note` call wait for the user.
 
-## 2. Answer the first question
+## 2. Answer the first approval
 
-`session.onQuestion` calls you once for each question. Answer it with `session.answer`:
+The plugin decides each call before it runs. A call that asks opens one approval [wait](./waits), and the turn stops with status `requires_action`. Answer every approval of the turn in one `resolve`:
 
 ```ts group=harness-permissions
-const stopAnswering = session.onQuestion(({ question }) =>
-  // question.message is, for example: Allow save_note {"path":"meeting.md","text":"..."}?
-  session.answer({ questionId: question.questionId, value: 'once' }),
-)
-
 await session.send('Save a note with the time of the meeting.')
-stopAnswering()
+
+// wait.message is, for example: Allow save_note {"path":"meeting.md","text":"..."}?
+const waits = session.snapshot().pendingWaits
+await session.resolve({
+  inputId: 'approve-1',
+  resume: waits.map((wait) => ({
+    interruptId: wait.waitId,
+    status: 'resolved',
+    payload: 'once',
+  })),
+})
+await session.settled({ inputId: 'approve-1' })
 ```
 
-The listener says `once` to each question. The agent writes the file and continues.
+The answer `once` lets the call run. The agent writes the file and continues. No process waits for the user while the turn is stopped, so the answer can come from any server, also after a restart.
 
 ## Pick a mode
 
@@ -91,6 +97,8 @@ await session.command({ name: 'mode', input: 'plan' })
 ```
 
 `session.command({ name: 'mode' })` with no input shows the current mode. In `acceptEdits` mode, an edit outside `root` or of a `.env` file still asks.
+
+A mode change applies from the next turn. A turn that runs keeps the mode that it started with, so a switch to `bypass` does not change its later tool calls.
 
 ### Keep the mode on the server
 
@@ -155,6 +163,8 @@ Two more rules apply to each tool:
 - A tool with no rule runs without a question. To ask for each tool that has no rule, set `default: 'ask'`.
 - When the last rule of a tool is a `deny` with no `resource`, the model does not get the tool.
 
+The plugin decides each call in the guard hook, [`onGuardToolCall`](../advanced/middleware#onguardtoolcall). It runs after the input check and after every middleware that changes the arguments. So the rules see the arguments that the tool gets.
+
 ### Paths
 
 - Inside `root`, a rule matches the path from `root`, for example `src/app.ts`. Outside `root`, it matches the full path, for example `/etc/hosts`.
@@ -198,24 +208,28 @@ export const exampleEnv = permissions({
 - `websearch` has no rule, so it runs.
 - The path rules above also apply. For example, `read_file` asks for a `.env` file.
 - The coding tools check the real path of a link too, and the stricter decision wins. So a link `notes` to `.env` asks, like `.env`.
+- The rules decide a path outside `root` and the real path of a link before the call runs. A coding tool never asks while it runs.
 - `grep` skips each file that `read_file` asks about or denies, also after an `always` answer. A note gives the number of skipped files.
 - Your `rules` come after these rules, so they win. `{ tool: 'webfetch', decision: 'allow' }` lets `webfetch` run without a question.
 
 ### Formatters
 
-A formatter runs code from the project, for example `prettier.config.js` or a package in `node_modules`. The model can edit these files. So [`formatter()`](./coding-tools-backends#format-each-file-after-a-write) asks before each run, like `bash`.
+A formatter runs code from the project, for example `prettier.config.js` or a package in `node_modules`. The model can edit these files. So the rules decide each run of [`formatter()`](./coding-tools-backends#format-each-file-after-a-write), like `bash`.
 
 It adds one rule: `{ tool: 'formatter:*', decision: 'ask', kind: 'execute' }`. Each run is named `formatter:` and the formatter name, for example `formatter:prettier`.
 
-| Mode | What the formatter does |
-| --- | --- |
-| `default` | It asks before it runs. |
-| `acceptEdits` | It asks before it runs. The edit itself runs without a question. |
-| `bypass` | It runs without a question. |
-| `plan` | It does not run. No file changes in this mode. |
+The rules decide the formatter as a part of the call that writes, before that call runs. The call gets one approval for the write and its formatter. The formatter runs after the write, so no question comes in the middle of a call.
 
-- An `always` answer saves `formatter:prettier` for the project, so the user answers once.
-- A `reject` skips the formatter for that write. The file stays as the tool wrote it, and the tool result says that the formatter did not run.
+| Mode | What happens |
+| --- | --- |
+| `default` | The write asks, and the approval also lets the formatter run. |
+| `acceptEdits` | A write that a formatter formats asks, because the formatter asks. |
+| `bypass` | The write and the formatter run without a question. |
+| `plan` | Neither runs. No file changes in this mode. |
+
+- A `reject` stops the call. Nothing is written, and the formatter does not run.
+- An `always` answer also saves the formatter for the project, tied to a hash of its config files (`formatter:prettier@<hash>`). The user answers once, until those files change.
+- A rule that denies the formatter skips it. The write still runs, and the tool result says that the formatter did not run.
 - Without `permissions()`, the formatter runs without a question.
 
 This rule lets prettier run without a question:
@@ -227,19 +241,20 @@ export const trustedFormatter = permissions({
 })
 ```
 
-## Answer a question
+## Answer an approval
 
-A call that asks waits for one of three answers:
+The plugin decides every call of a model message before any of them runs. Each call that asks opens one approval wait of kind `approval`, and the turn stops. Send the answer as the `payload` of that wait in `session.resolve`. The turn continues when every wait of the turn has an answer.
 
 | Answer | What happens |
 | --- | --- |
-| `once` | This call runs. |
+| `once` or `true` | This call runs. |
 | `always` | This call runs, and the plugin saves an `allow` rule for it. |
-| `reject` | The call does not run. The model gets a tool error. |
+| `reject` or `false` | The call does not run. The model gets a tool error. |
 
-- Send the answer as a string, `'once'`, or as an object, `{ answer: 'once' }`.
+- Send the answer as a string, `'once'`, as an object, `{ answer: 'once' }`, or as `true` or `false`.
 - A reject can carry a `message` for the model: `{ answer: 'reject', message: 'Use pnpm, not npm.' }`. The model gets your message as the tool error.
-- Any other answer rejects the call. This includes `y` and `yes`.
+- Any other answer rejects the call. This includes `'y'` and `'yes'`.
+- The `schema` of the wait describes these answers, so a client can show a form for it.
 
 ### What `always` saves
 
@@ -285,9 +300,10 @@ if (first) await deleteSavedPermission(persistence.stores, root, first)
 The same check runs in every agent run of the session:
 
 - Each call in a child run gets the same rules and the same mode. This includes the agents that the model calls, the agents that plugins start, and their children.
-- A question from a child waits in the same session. Answer it the same way.
+- A background agent run that needs an approval stops with status `waiting`. Its approval is in `pendingWaits` of the same session. Answer it with `resolve`, and the run continues. See [When a background agent waits](./subagents#when-a-background-agent-waits).
+- An agent that the model calls as a tool inside a turn cannot stop for an approval. A call of it that asks gets the tool error `This call needs the approval of the user, and this run cannot ask for it.`
 - In `plan` mode, a child cannot change a file. Its call gets the tool error `This tool is not allowed in plan mode.`
-- The `permissions` of an [agent profile](./agents) count only while that profile is the primary agent. They do not apply when the profile runs as a subagent.
+- The `permissions` of an [agent profile](./agents) count while that profile is the primary agent, in its turns and in each child run. A child run does not use the rules of its own profile.
 - [Coding agents](./coding-agents#plan-mode) such as Claude Code start read-only in `plan` mode.
 
 ## Rules for your own tool
@@ -372,12 +388,12 @@ export const planTools = definePlugin({
 ## Known limits
 
 - `plan` denies only edits, commands, and calls that ask. A tool with no rule, or with an `allow` rule and no `kind`, still runs in `plan` mode. Give each tool that changes something a rule with a `kind`.
-- A client that can send inputs to the thread can answer the questions, also with `always`. Control who can open a thread.
+- A client that can answer the waits of the thread can answer the approvals, also with `always`. Control who can open a thread.
 - `permissions()` does not follow links. Your own tool can check the real path of a link with `PermissionDecisionCapability`.
 
 ## What you have now
 
-- A question before each risky tool call.
+- An approval before each risky tool call, that any server can answer.
 - Modes to plan, to edit fast, or to run everything.
 - A mode that a client cannot change, unless you expose it.
 - Rules for folders, files, and commands, and saved answers for each project that you can list and forget.

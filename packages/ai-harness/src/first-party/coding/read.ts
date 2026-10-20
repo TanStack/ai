@@ -13,9 +13,11 @@ const MAX_PAGE_BYTES = 50 * 1024
 const MAX_LINE_CHARS = 2000
 // A NUL byte in this many first bytes marks a binary file.
 const BINARY_CHECK_BYTES = 8 * 1024
-// ponytail: media goes to the model as inline base64, and it stays in the
-// transcript. Store it as harness media if big files make turns too large.
-const MAX_MEDIA_BYTES = 5 * 1024 * 1024
+// Media goes to the model as inline base64, and it stays in the transcript,
+// so every model call after it sends it again. 256 KiB keeps that small.
+// ponytail: a plugin cannot put a file in the media store of the session
+// yet. With that, big media could go there as a reference.
+const MAX_MEDIA_BYTES = 256 * 1024
 const MAX_SUGGESTIONS = 3
 
 // The first bytes of the files that go to the model as media parts. The
@@ -108,7 +110,7 @@ function linesOf(text: string, offset: number, limit: number) {
  * `limit` and the file goes on, a note says how to read the next page.
  */
 function page(
-  { lines: window, total }: { lines: Array<string>; total: number },
+  { lines: window, total }: { lines: Array<string>; total?: number },
   options: { path: string; offset: number; limit: number | undefined },
 ) {
   const { path, offset, limit } = options
@@ -122,12 +124,16 @@ function page(
     shown.push(row)
   }
   if (shown.length === 0) {
-    return `[No lines from line ${offset}. ${path} has ${total} lines.]`
+    const count = total === undefined ? '' : ` ${path} has ${total} lines.`
+    return `[No lines from line ${offset}.${count}]`
   }
   const last = offset + shown.length - 1
-  const isCut = shown.length < (limit ?? Infinity) && last < total
+  // Without `total`, the file has more lines after the page.
+  const goesOn = total === undefined || last < total
+  const isCut = shown.length < (limit ?? Infinity) && goesOn
   if (!isCut) return shown.join('\n')
-  return `${shown.join('\n')}\n\n[Showing lines ${offset}-${last} of ${total}. Read more with offset ${last + 1}.]`
+  const of = total === undefined ? '' : ` of ${total}`
+  return `${shown.join('\n')}\n\n[Showing lines ${offset}-${last}${of}. Read more with offset ${last + 1}.]`
 }
 
 /**
@@ -141,7 +147,7 @@ export function readTools(env: ToolEnv) {
     toolDefinition({
       name: 'read_file',
       description:
-        'Read a file in the workspace. Text comes back as lines numbered from 1, at most 2000 lines or 50 KiB a page. Use offset and limit to read other lines. Images (PNG, JPEG, GIF, WebP) and PDFs up to 5 MB come back as media.',
+        'Read a file in the workspace. Text comes back as lines numbered from 1, at most 2000 lines or 50 KiB a page. Use offset and limit to read other lines. Images (PNG, JPEG, GIF, WebP) and PDFs up to 256 KB come back as media.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -184,9 +190,9 @@ export function readTools(env: ToolEnv) {
         const media = MEDIA.find((item) => item.signature.test(start))
         if (media) {
           if (size > MAX_MEDIA_BYTES) {
-            const mb = (size / 1024 / 1024).toFixed(1)
+            const kb = Math.ceil(size / 1024)
             throw new Error(
-              `${path} is ${mb} MB. read_file sends images and PDFs up to 5 MB.`,
+              `${path} is ${kb} KB. read_file sends images and PDFs up to 256 KB. Make a smaller copy, for example with bash, and read that.`,
             )
           }
           const bytes = whole ?? (await backend.readFile(full))

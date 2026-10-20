@@ -1,4 +1,6 @@
 import { EventType } from '@tanstack/ai'
+import { loadLogState, logIdOf, sessionOf } from '../src/log'
+import { UNCHECKED_TIMING } from '../src/ownership'
 import type {
   AnyChatMiddleware,
   AnyTextAdapter,
@@ -6,8 +8,41 @@ import type {
   StreamChunk,
   WebSocketLike,
 } from '@tanstack/ai'
-import type { LogStore } from '@tanstack/ai-persistence'
+import type { LogRecord, LogStore, RunRecord } from '@tanstack/ai-persistence'
 import type { HostFrame } from '../src/protocol'
+import type { PendingQuestion, SessionSnapshot } from '../src'
+import type {
+  AttributeValue,
+  Exception,
+  Span,
+  SpanContext,
+  SpanStatus,
+} from '@opentelemetry/api'
+
+/** The interrupts of the stopped turn: the turn waits of `pendingWaits`. */
+export const turnInterrupts = ({ pendingWaits }: SessionSnapshot) =>
+  pendingWaits.flatMap(({ interrupt, turn }) =>
+    interrupt && turn ? [interrupt] : [],
+  )
+
+/** The questions of `pendingWaits`: the question waits that no turn holds. */
+export const questionsOf = ({
+  pendingWaits,
+}: SessionSnapshot): Array<PendingQuestion> =>
+  pendingWaits.flatMap(
+    ({ turn, kind, waitId, message, schema, secret, url }) =>
+      turn || kind !== 'question'
+        ? []
+        : [
+            {
+              questionId: waitId,
+              message: message ?? '',
+              ...(schema !== undefined ? { schema } : {}),
+              ...(secret ? { secret } : {}),
+              ...(url ? { url } : {}),
+            },
+          ],
+  )
 
 /**
  * A log store that calls `overrides` for the methods it has, and `inner` for
@@ -26,6 +61,7 @@ export function wrapLogStore(
     renew: overrides.renew ?? inner.renew.bind(inner),
     release: overrides.release ?? inner.release.bind(inner),
     setAffinity: overrides.setAffinity ?? inner.setAffinity.bind(inner),
+    heartbeat: overrides.heartbeat ?? inner.heartbeat.bind(inner),
     listOrphaned: overrides.listOrphaned ?? inner.listOrphaned.bind(inner),
     offer: overrides.offer ?? inner.offer.bind(inner),
     offered: overrides.offered ?? inner.offered.bind(inner),
@@ -33,6 +69,138 @@ export function wrapLogStore(
     putSnapshot: overrides.putSnapshot ?? inner.putSnapshot.bind(inner),
     truncate: overrides.truncate ?? inner.truncate.bind(inner),
     deleteLog: overrides.deleteLog ?? inner.deleteLog.bind(inner),
+  }
+}
+
+/** Where a thread's log is in the store: its thread id, and its tenant. */
+export interface StoredThread {
+  threadId: string
+  tenantId?: string
+}
+
+/**
+ * The thread state (settings, config, plugin state, and the rest) that the
+ * log of a thread folds to, as a new host reads it from the store.
+ */
+export async function storedThreadState(
+  log: LogStore,
+  { threadId, tenantId }: StoredThread,
+) {
+  const state = await loadLogState({
+    store: log,
+    logId: logIdOf({ tenantId, logId: threadId }),
+    rootThread: threadId,
+  })
+  return sessionOf(state, threadId).thread
+}
+
+/**
+ * The log record of run `runId` of thread `threadId`, as a host that stopped
+ * left it: `'running'`, and started a minute ago.
+ */
+export function stoppedRun(
+  runId: string,
+  threadId: string,
+  extra: Partial<Pick<RunRecord, 'kind' | 'agent' | 'checkpoint'>> = {},
+): LogRecord {
+  return {
+    type: 'harness.run',
+    run: {
+      runId,
+      threadId,
+      status: 'running',
+      startedAt: Date.now() - 60_000,
+      ...extra,
+    },
+  }
+}
+
+/** The run `runId` in the log of a thread, as a new host reads it. */
+export async function storedRun(
+  log: LogStore,
+  thread: StoredThread,
+  runId: string,
+) {
+  return (await storedThreadState(log, thread)).runs.get(runId)
+}
+
+/**
+ * The `ownership` option of a host that a test lets crash: it owns a log for
+ * 200 ms and never renews it in a test, like a process that stopped. After
+ * `ownershipExpired()`, another host can take its logs and recover its work.
+ */
+export const CRASHING_OWNERSHIP = {
+  ttlMs: 200,
+  renewMs: 60_000,
+  [UNCHECKED_TIMING]: true,
+}
+
+/** Wait until an ownership of {@link CRASHING_OWNERSHIP} expired. */
+export const ownershipExpired = () =>
+  new Promise<void>((resolve) => setTimeout(resolve, 220))
+
+/**
+ * Append `records` at the end of the log of a thread, as another host does:
+ * it acquires the log, appends at its epoch, and releases the log. Throws
+ * when a live host owns the log.
+ */
+export async function appendToLog(
+  log: LogStore,
+  thread: StoredThread,
+  records: Array<LogRecord>,
+) {
+  const logId = logIdOf({ tenantId: thread.tenantId, logId: thread.threadId })
+  await writeAsOtherHost(log, logId, async (epoch) => {
+    const { seq } = await loadLogState({
+      store: log,
+      logId,
+      rootThread: thread.threadId,
+    })
+    await log.append({ logId, seq: seq + 1, epoch, records })
+  })
+}
+
+/**
+ * Can another host acquire the log `logId` (a store log id) now? It gives
+ * the log back at once.
+ */
+export async function canOtherHostTake(log: LogStore, logId: string) {
+  const ownerId = 'other-host'
+  const owned = await log.acquire({
+    logId,
+    harness: 'other-host',
+    ownerId,
+    ttlMs: 60_000,
+  })
+  if (owned === null) return false
+  await log.release({ logId, ownerId, epoch: owned.epoch })
+  return true
+}
+
+/**
+ * Run `write` as another host that owns the log `logId` (a store log id)
+ * for the call: it acquires the log, and releases it after. Throws when a
+ * live host owns the log.
+ */
+export async function writeAsOtherHost(
+  log: LogStore,
+  logId: string,
+  write: (epoch: number) => Promise<void>,
+) {
+  const ownerId = 'other-host'
+  const owned = await log.acquire({
+    logId,
+    harness: 'other-host',
+    ownerId,
+    ttlMs: 60_000,
+  })
+  if (owned === null) {
+    throw new Error(`A live host owns the log ${JSON.stringify(logId)}.`)
+  }
+  try {
+    await write(owned.epoch)
+  } finally {
+    await log.release({ logId, ownerId, epoch: owned.epoch })
   }
 }
 
@@ -291,4 +459,36 @@ export const hideSecret: AnyChatMiddleware = {
       ),
     }
   },
+}
+
+/** An OpenTelemetry span that calls `on` for the calls that a test reads. */
+export function fakeSpan(
+  spanContext: SpanContext,
+  on: {
+    setAttribute?: (key: string, value: AttributeValue) => void
+    setStatus?: (status: SpanStatus) => void
+    recordException?: (exception: Exception) => void
+    end?: () => void
+  } = {},
+): Span {
+  const span: Span = {
+    spanContext: () => spanContext,
+    setAttribute: (key, value) => {
+      on.setAttribute?.(key, value)
+      return span
+    },
+    setAttributes: () => span,
+    addEvent: () => span,
+    addLink: () => span,
+    addLinks: () => span,
+    setStatus: (status) => {
+      on.setStatus?.(status)
+      return span
+    },
+    updateName: () => span,
+    end: () => on.end?.(),
+    isRecording: () => true,
+    recordException: (exception) => on.recordException?.(exception),
+  }
+  return span
 }

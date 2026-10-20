@@ -6,6 +6,7 @@ import { runLines } from './lines'
 import { loadOptional } from './optional'
 import { EXIT, runPrint } from './print'
 import { createToken, serve } from './serve'
+import { cancelTurn, stopOnSignals } from './signals'
 import type {
   AnyHarness,
   HarnessHost,
@@ -23,10 +24,10 @@ import type {
 } from '@tanstack/ai-harness/view'
 import type {
   AcpAgentModule,
-  DashboardConnectModule,
   McpHarnessModule,
   McpStdioModule,
 } from './optional'
+import type { SignalSource } from './signals'
 
 /** The error for a flag whose optional package is missing or too old. */
 function needs(flag: string, name: string): Error {
@@ -44,7 +45,7 @@ export interface RunCliOptions<P extends Principal = Principal> {
    */
   credentials?: CredentialStore
   /**
-   * Your own host, so the CLI keeps its hooks: leases, recovery, and stores.
+   * Your own host, so the CLI keeps its hooks: ownership, recovery, and stores.
    * You own it: the CLI does not close it. Do not set it with `persistence`
    * or `credentials`. With host `access`, give `principal` too. `--serve`
    * then reads the user of each request with `access.identify`, and `--mcp`
@@ -52,9 +53,9 @@ export interface RunCliOptions<P extends Principal = Principal> {
    */
   host?: HarnessHost<P>
   /**
-   * Who uses the CLI. Sessions open as this principal in every mode except
-   * `--dashboard`, so credentials and provider keys are theirs. On a host
-   * without access, `--serve` runs each request with the token as them.
+   * Who uses the CLI. Sessions open as this principal in every mode, so
+   * credentials and provider keys are theirs. On a host without access,
+   * `--serve` runs each request with the token as them.
    */
   principal?: P
   /** Default: `process.argv.slice(2)`. */
@@ -66,10 +67,43 @@ export interface RunCliOptions<P extends Principal = Principal> {
   /**
    * Your own screen for an interactive terminal, with any UI library. It gets
    * a ready session view and resolves when the user quits. Piped input and
-   * the other modes (`--print`, `--acp`, `--mcp`, `--serve`, `--dashboard`) do not use it.
+   * the other modes (`--print`, `--acp`, `--mcp`, `--serve`) do not use it.
    * `view.send(text)` sends each `@path` file in `text`, as line mode does.
+   * A saved child agent of a reopened thread shows only its card until the
+   * screen calls `view.loadAgent({ id })`.
    */
   ui?: (view: SessionView) => Promise<void> | void
+  /**
+   * Where the CLI hears SIGINT and SIGTERM. Default: `process`. A test can
+   * give an `EventEmitter` and emit the signals.
+   *
+   * In every mode, a signal cancels the running turn. A second signal, or a
+   * signal while no turn runs, closes what the CLI opened, and `runCli`
+   * resolves to 130 (SIGINT) or 143 (SIGTERM). A host that the CLI made
+   * closes with `recoverable: true`, so a durable host runs the cut work
+   * again. Your own `host` stays open: the CLI releases only its handle of
+   * the session, and does not wait for a turn that ignores the cancel.
+   */
+  signals?: SignalSource
+}
+
+/**
+ * Show `ui` on a view of `session`. Resolves when the ui ends, or when a
+ * signal stops the CLI (`stopped` resolves).
+ */
+async function showUi(
+  session: HarnessSession,
+  ui: NonNullable<RunCliOptions['ui']>,
+  stopped: Promise<number>,
+) {
+  const view = createSessionView(attachingSource(session))
+  try {
+    await view.ready
+    await Promise.race([ui(view), stopped])
+  } finally {
+    view.dispose()
+  }
+  return EXIT.ok
 }
 
 /**
@@ -105,14 +139,15 @@ function attachingSource(session: HarnessSession) {
     snapshot: () => session.snapshot(),
     transcript: () => session.transcript(),
     describe: () => session.describe(),
-    mediaUrl: (id) => session.mediaUrl(id),
+    mediaUrl: (options) => session.mediaUrl(options),
     loadMedia: (options) => session.loadMedia(options),
   }
   return source
 }
 
 /**
- * Run a harness from the terminal. Resolves to the process exit code.
+ * Run a harness from the terminal. Resolves to the process exit code: 130
+ * or 143 when SIGINT or SIGTERM stops it (see `signals`).
  *
  * @example
  * ```ts
@@ -157,6 +192,17 @@ export async function runCli<P extends Principal = Principal>(
     })
   const { principal } = options
   const approvals = args.yes ? 'auto' : 'ask'
+  // The session modes cancel the turn of their session. The other modes
+  // have no turn of their own, so a signal stops them at once.
+  let cancel = () => false
+  const stop = stopOnSignals(options.signals ?? process, () => cancel())
+  /** The handle of the session modes. The CLI releases it at the end. */
+  let session: HarnessSession | undefined
+  /**
+   * The run of --print waits for a person. A durable host keeps the wait,
+   * so a later run (or another machine) answers it.
+   */
+  let isWaiting = false
   try {
     if (args.acp) {
       const acp = await loadOptional<AcpAgentModule>(
@@ -165,8 +211,16 @@ export async function runCli<P extends Principal = Principal>(
       )
       if (!acp) throw needs('--acp', '@tanstack/ai-acp')
       const connection = acp.serveAcp({ host, harness, principal })
-      await connection.closed
-      return EXIT.ok
+      const code = await Promise.race([
+        connection.closed.then(() => EXIT.ok),
+        stop.stopped,
+      ])
+      connection.close()
+      // ponytail: serveAcp reads process.stdin and does not stop at close,
+      // and a stdin that flows keeps the process alive. Pause it here until
+      // the ACP stdio stream stops reading at close.
+      if (stop.signal.aborted) process.stdin.pause()
+      return code
     }
 
     if (args.mcp) {
@@ -198,105 +252,90 @@ export async function runCli<P extends Principal = Principal>(
         filePaths: [process.cwd()],
       })
       // stdout carries only MCP messages. The server stops when stdin ends.
-      const ended = new Promise<void>((resolve) => {
-        process.stdin.once('end', resolve)
+      const ended = new Promise<number>((resolve) => {
+        stdin.once('end', () => resolve(EXIT.ok))
       })
       const served = stdio.serveMCPStdio(server)
-      await ended
+      const code = await Promise.race([ended, stop.stopped])
       await served.close()
-      return EXIT.ok
-    }
-
-    if (args.dashboard) {
-      const dashboard = await loadOptional<DashboardConnectModule>(
-        '@tanstack/ai-dashboard/connect',
-        'connectDashboard',
-      )
-      if (!dashboard) throw needs('--dashboard', '@tanstack/ai-dashboard')
-      const savedToken = env.HARNESS_DASHBOARD_TOKEN
-      // ponytail: the dashboard takes no principal, so its sessions open
-      // without one.
-      const connection = await dashboard.connectDashboard({
-        host,
-        harness,
-        url: args.dashboard,
-        threads: [args.thread],
-        ...(savedToken ? { token: savedToken } : {}),
-        onPairingCode: (code) =>
-          stderr.write(
-            `Pair this host in the dashboard with the code ${code}. Waiting for approval...\n`,
-          ),
-        onToken: (token) =>
-          stderr.write(
-            `Paired. Set HARNESS_DASHBOARD_TOKEN=${token} to skip pairing next time.\n`,
-          ),
-      })
-      stderr.write(`Connected to ${args.dashboard}. Press Ctrl+C to stop.\n`)
-      await new Promise<void>((resolve) => {
-        process.once('SIGINT', resolve)
-        process.once('SIGTERM', resolve)
-      })
-      connection.close()
-      return EXIT.ok
+      return code
     }
 
     if (args.serve) {
       const token = args.token ?? env.HARNESS_TOKEN ?? createToken()
+      const mediaKey = args.mediaKey ?? env.HARNESS_MEDIA_KEY
       const server = await serve({
         host,
         harness,
         port: args.port,
         hostname: args.hostname,
         token,
+        ...(mediaKey !== undefined ? { mediaKey } : {}),
         threadId: args.thread,
         approvals,
         ...(principal ? { principal } : {}),
       })
       stderr.write(`Serving ${harness.name} at ${server.url}\n`)
       if (!args.token && !env.HARNESS_TOKEN) stderr.write(`Token: ${token}\n`)
-      await new Promise<void>((resolve) => {
-        process.once('SIGINT', resolve)
-        process.once('SIGTERM', resolve)
-      })
+      const code = await stop.stopped
       await server.close()
-      return EXIT.ok
+      return code
     }
 
-    const session = await host.open(harness, {
+    session = await host.open(harness, {
       threadId: args.thread,
       ...(principal ? { principal } : {}),
     })
+    cancel = cancelTurn(session)
     // Relative to the working folder, as a relative --media-dir is.
     const mediaDir = args.mediaDir ?? defaultMediaDir(harness.name)
-    if (args.print !== undefined) {
-      return await runPrint(session, args.print, {
-        output: args.output,
-        stdout,
-        stderr,
-        mediaDir,
-      })
+    const running =
+      args.print !== undefined
+        ? runPrint(session, args.print, {
+            output: args.output,
+            stdout,
+            stderr,
+            mediaDir,
+          })
+        : stdin.isTTY && options.ui
+          ? showUi(session, options.ui, stop.stopped)
+          : runLines(session, stdin, stdout, {
+              interactive: Boolean(stdin.isTTY),
+              mediaDir,
+              signal: stop.signal,
+              onCtrlC: () => stop.receive('SIGINT'),
+            }).then(() => EXIT.ok)
+    const code = await Promise.race([running, stop.stopped])
+    isWaiting = code === EXIT.needsAction
+    if (!stop.signal.aborted) {
+      // A signal that cancelled the turn of --print gives its exit code.
+      return code === EXIT.cancelled ? (stop.exitCode() ?? code) : code
     }
-    if (stdin.isTTY && options.ui) {
-      const view = createSessionView(attachingSource(session))
-      try {
-        await view.ready
-        await options.ui(view)
-      } finally {
-        view.dispose()
-      }
-    } else {
-      await runLines(session, stdin, stdout, {
-        openSignIns: Boolean(stdin.isTTY),
-        mediaDir,
-      })
+    // A host that the CLI made closes now, so the mode ends with its
+    // session, and its running work stops as on a crash: a durable host runs
+    // it again. On your own host, the CLI releases its handle and does not
+    // wait: a turn that ignores the cancel runs on in your host. Work that
+    // the close cuts can fail, and the signal gives the exit code.
+    if (options.host) {
+      await session.close()
+      running.catch(() => {})
+      return await stop.stopped
     }
-    return EXIT.ok
+    await host.close({ recoverable: true })
+    await running.catch(() => {})
+    return await stop.stopped
   } catch (error) {
     stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
     return EXIT.failed
   } finally {
-    // A host the caller gave stays open: the caller owns it.
-    if (!options.host) await host.close()
+    stop.dispose()
+    await session?.close()
+    // A host the caller gave stays open: the caller owns it. After a
+    // signal, its running work stops as on a crash, so a durable host runs
+    // it again.
+    if (!options.host) {
+      await host.close({ recoverable: stop.signal.aborted || isWaiting })
+    }
   }
 }
 

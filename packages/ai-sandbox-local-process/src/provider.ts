@@ -30,12 +30,23 @@ export interface LocalProcessSandboxConfig {
   /** Remove the backing dir on destroy. Defaults: true (generated), false (fixed `dir`). */
   removeOnDestroy?: boolean
   /**
-   * Env vars to remove from the inherited `process.env` before spawning. Use to
+   * Env vars to remove from the env of each command. A command gets only a
+   * few variables of this process (`PATH`, `HOME`, `LANG`, `LC_ALL`, `TMPDIR`,
+   * `TEMP`, `TMP`, and on Windows `SystemRoot`, `ComSpec`, `PATHEXT`, `WINDIR`,
+   * `USERPROFILE`), plus the env that `env.set` and the call give. Use it to
    * let a host CLI fall back to its own stored auth — e.g. scrub
    * `ANTHROPIC_API_KEY` so Claude Code uses your logged-in subscription instead
    * of billing the API.
    */
   scrubEnv?: Array<string>
+  /**
+   * More env vars of this process for each command, added to the short list
+   * above. Use it for what a host CLI or the network needs, for example
+   * `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `XDG_CONFIG_HOME`, `HTTPS_PROXY`,
+   * `NO_PROXY`, `NODE_EXTRA_CA_CERTS`, or `SSH_AUTH_SOCK`. `scrubEnv` still
+   * removes a name in both lists.
+   */
+  passEnv?: Array<string>
   /**
    * Sink for non-fatal teardown diagnostics — a `killTree` that could not
    * confirm the spawned process tree is gone. Teardown is total by construction
@@ -63,6 +74,7 @@ class LocalProcessProvider implements SandboxProvider {
       root,
       removeOnDestroy: this.removeDefault(),
       scrubEnv: this.config.scrubEnv,
+      passEnv: this.config.passEnv,
       logger: this.config.logger,
       forkFactory: async (sourceRoot) => {
         const dest = path.join(this.baseDir(), `fork-${randomUUID()}`)
@@ -71,6 +83,8 @@ class LocalProcessProvider implements SandboxProvider {
         return new LocalProcessHandle({
           root: dest,
           removeOnDestroy: true,
+          scrubEnv: this.config.scrubEnv,
+          passEnv: this.config.passEnv,
           logger: this.config.logger,
           forkFactory: () =>
             Promise.reject(new Error('nested fork unsupported')),

@@ -11,6 +11,7 @@ import type {
   ChatMiddlewareContext,
   ErrorInfo,
   FinishInfo,
+  GuardToolCallDecision,
   InterruptBoundaryPhase,
   InterruptResolutionCollection,
   InterruptToolResume,
@@ -532,6 +533,43 @@ export class MiddlewareRunner<
           })
         }
         if (hasTransform) {
+          return decision
+        }
+      }
+    }
+    return undefined
+  }
+
+  /**
+   * Run onGuardToolCall through middleware in order. Every guard runs until
+   * one returns a decision, so an earlier `onBeforeToolCall` decision never
+   * skips a guard. Returns that decision, or undefined to allow the call.
+   */
+  async runOnGuardToolCall(
+    ctx: ChatMiddlewareContext<TContext>,
+    hookCtx: ToolCallHookContext,
+  ): Promise<GuardToolCallDecision> {
+    for (const mw of this.middlewares) {
+      if (mw.onGuardToolCall) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
+        const decision = await mw.onGuardToolCall(ctx, hookCtx)
+        const decided = decision !== undefined && decision !== null
+        if (!skip) {
+          this.logger.middleware(
+            `hook=onGuardToolCall middleware=${mw.name ?? 'unnamed'}`,
+            { middleware: mw.name ?? 'unnamed', hook: 'onGuardToolCall' },
+          )
+          aiEventClient.emit('middleware:hook:executed', {
+            ...instrumentCtx(ctx),
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'onGuardToolCall',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform: decided,
+          })
+        }
+        if (decided) {
           return decision
         }
       }

@@ -146,7 +146,7 @@ Your users now save a key once, and every device and job uses it.
 
 ## Write a store for production
 
-A `CredentialStore` has four methods. You decide where the secrets live:
+A `CredentialStore` has four methods, and two optional ones for [compare-and-set](#add-compare-and-set). You decide where the secrets live:
 
 - A `credentials` table in the database that you already use, next to your chat tables.
 - A secrets manager, for example AWS Secrets Manager or Vault.
@@ -156,6 +156,7 @@ import type { CredentialScope } from "@tanstack/ai/byok";
 
 type Credential =
   | { type: "api_key"; value: string }
+  | { type: "secret_answer"; value: string; expiresAt: number } // epoch ms
   | {
       type: "oauth";
       accessToken: string;
@@ -181,6 +182,17 @@ interface CredentialStore {
   list(
     scope: CredentialScope,
   ): Promise<Array<{ id: string; type: Credential["type"]; expiresAt?: number }>>;
+  // Optional: compare-and-set.
+  getVersioned?(key: {
+    scope: CredentialScope;
+    id: string;
+  }): Promise<{ credential: Credential; revision: string } | null>;
+  setIf?(entry: {
+    scope: CredentialScope;
+    id: string;
+    credential: Credential;
+    expectedRevision: string | null;
+  }): Promise<{ ok: true; revision: string } | { ok: false; reason: "conflict" }>;
 }
 ```
 
@@ -192,12 +204,51 @@ Rules for the keys:
 - A user credential is not visible at the tenant scope. A tenant credential is not visible at the user scope.
 - A scope with no tenant and no user is one bucket that every caller shares. Get the scope from your server-side auth, never from the request body.
 - `client` is the OAuth client that the tokens belong to. A token refresh needs it.
+- A `secret_answer` row is not a user credential. The harness keeps a secret answer there for a short time. Leave this type out of a list of connected accounts. You can delete a row after its `expiresAt`.
 
 Rules for the secrets (`value`, `accessToken`, `refreshToken`, `client.clientSecret`):
 
 - Encrypt them at rest. Keep the encryption key in a KMS or a server-only env var, not in the same database.
 - `list` returns ids and types only. It never returns a secret, not even masked.
 - `delete` removes the row. Do not keep a soft-deleted copy of the secret.
-- Do not write a secret to a log, an error message, or a trace.
+- Do not write a secret to a log, an error message, or a trace. To remove known secrets from a text, use `scrubSecrets(text, secrets)` from `@tanstack/ai/byok`.
 
 The [harness](../harness/provider-keys) uses the same store: pass it to `createHarnessHost({ credentials })`.
+
+### Add compare-and-set
+
+Two servers can refresh the same OAuth token at the same time. If the service rotates refresh tokens, the second save then keeps a token that no longer works. Add `getVersioned` and `setIf`, so the second save does not remove the first:
+
+- `getVersioned` returns the credential and its revision, or `null` when the key is absent.
+- `setIf` writes only when the stored revision equals `expectedRevision`. Pass `null` to write only when the key is absent. Success returns `{ ok: true, revision }`. A different revision returns `{ ok: false, reason: "conflict" }` and does not write.
+- Every write gives the key a new revision. A plain `set` does this too. After `delete`, the deleted revision is never used again.
+- Add both methods or neither. `memoryCredentialStore()` has both.
+
+To refresh a token in your own route, read it with `readCredentialEntry`. It finds the credential like `readCredential` (the user first, then the tenant), and also returns the scope where it found it and its `revision`:
+
+```typescript
+import { readCredentialEntry } from "@tanstack/ai/byok/server";
+import type { Credential, CredentialStore } from "@tanstack/ai/byok";
+
+export async function refreshGithub(
+  store: CredentialStore,
+  scope: { tenantId: string; userId: string },
+  refresh: (current: Credential) => Promise<Credential>,
+) {
+  const entry = await readCredentialEntry(store, scope, "github");
+  if (!entry) return null;
+  const next = await refresh(entry.credential);
+  // Save to the scope where the credential was, also when it is the tenant's.
+  const key = { scope: entry.scope, id: "github", credential: next };
+  if (!store.setIf || entry.revision === undefined) {
+    await store.set(key);
+    return next;
+  }
+  const saved = await store.setIf({ ...key, expectedRevision: entry.revision });
+  if (saved.ok) return next;
+  // Another server saved first. Use its token, and do not refresh again.
+  return (await readCredentialEntry(store, scope, "github"))?.credential ?? null;
+}
+```
+
+In a harness, `run.credentials.refresh` does this for you. See [Refresh a token](../harness/auth#refresh-a-token).

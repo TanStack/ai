@@ -49,13 +49,16 @@ export const handler = createHarnessHandler({ host, harness: assistant })
 
 The user who opens a new thread is its owner. Nobody else can open it until the owner shares it. What each role can do:
 
-| Action | Owner | Member | Viewer |
-| --- | --- | --- | --- |
-| Read the thread and see it in a list | Yes | Yes | Yes |
-| Send messages, run commands, start agents | Yes | Yes | No |
-| Answer and cancel | Every run | Only the runs they started | No |
-| Fork | Yes | Yes | No |
-| Configure, share, delete, transfer | Yes | No | No |
+| Action | Owner | Member | Operator | Viewer |
+| --- | --- | --- | --- | --- |
+| Read the thread and see it in a list | Yes | Yes | Yes | Yes |
+| Send messages, run commands, start agents | Yes | Yes | No | No |
+| Answer and cancel | Every run | Only the runs they started | No | No |
+| Answer a `human` wait, and reply as an [operator](./handoffs#reply-as-the-operator) | No | No | Yes | No |
+| Fork | Yes | Yes | No | No |
+| Configure, share, delete, transfer | Yes | No | No | No |
+
+The user who waits for a person must not act as that person, so the owner does not get `operator`. To give it to other roles, pass `membersOnly({ operator: { roles: ['owner', 'operator'] } })`.
 
 A user who is not a member can do nothing. A child thread of a subagent uses the members of its root thread.
 
@@ -78,7 +81,7 @@ await host.sessions.share({
 From the browser, the owner sends the same change to `POST sessions`:
 
 ```ts group=harness-shared-threads-invite
-export async function invite(userId: string, role: 'member' | 'viewer') {
+export async function invite(userId: string, role: 'member' | 'operator' | 'viewer') {
   const response = await fetch('/api/harness/sessions', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: 'Bearer token-ada' },
@@ -96,9 +99,9 @@ export async function invite(userId: string, role: 'member' | 'viewer') {
 
 When `unshare` removes a user:
 
-- The queued and running work that the user started on this host stops. The log keeps who cancelled it.
-- The streams of the user on the thread close. A socket gets a `forbidden` error frame.
-- The open handles of the user throw `AccessDeniedError`.
+- The queued and running work that the user started stops, on every host. The log keeps who cancelled it. The schedules of the user on the thread are removed.
+- The streams of the user on the thread close. A socket gets a `forbidden` error frame. A running `events()` read of a handle or a view ends with `AccessDeniedError`.
+- The open handles and views of the user throw `AccessDeniedError`.
 - The signed media URLs of the user stop working.
 
 ## 3. Connect each person
@@ -156,7 +159,7 @@ export const myIssues = toolDefinition({
   description: 'List the Linear issues of the user',
 }).server<HarnessRunContext>(async (_args, ctx) => {
   const credential = await ctx.context.run.credentials.require('linear')
-  const key = credential.type === 'api_key' ? credential.value : credential.accessToken
+  const key = credential.type === 'oauth' ? credential.accessToken : credential.value
   const response = await fetch('https://api.linear.app/graphql', {
     method: 'POST',
     headers: { authorization: key, 'content-type': 'application/json' },
@@ -282,7 +285,7 @@ export async function shareKey(
 - A run reads the credential of its user first. If the user has none, the run reads the credential of the tenant.
 - A save from a run goes to its user only. This includes `connect:<id>` and `run.credentials.set`. The credential of the tenant does not change.
 - `run.credentials.list()` shows the credentials of the user and of the tenant. For the same id, the credential of the user wins.
-- Use an API key for a credential of the tenant. If a run refreshes an OAuth token of the tenant, the new token goes to its user only.
+- An OAuth token of the tenant works too. A refresh saves the new token for the tenant, so every user of the tenant gets it. See [Refresh a token](./auth#refresh-a-token).
 
 ## What you have now
 

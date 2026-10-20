@@ -8,6 +8,7 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
+  durableTool,
   membersOnly,
 } from '@tanstack/ai-harness'
 import { createHarnessHandler } from '@tanstack/ai-harness/server'
@@ -56,12 +57,12 @@ const host = createHarnessHost({
   persistence: memoryPersistence(),
   access: tenantAccess,
 })
-// A durable host: a session log and run leases. A request picks it with the
+// A durable host: a session log. A request picks it with the
 // `x-harness-durable: 1` header. Host access keeps the owner and the members
 // of each thread in `stores.sessions`.
-const { runs, sessions } = memoryPersistence().stores
+const { sessions } = memoryPersistence().stores
 const durableHost = createHarnessHost({
-  persistence: { stores: { log: memoryLogStore(), runs, sessions } },
+  persistence: { stores: { log: memoryLogStore(), sessions } },
   access: tenantAccess,
 })
 // Only the members of a thread may use it. A request picks this host with
@@ -69,6 +70,14 @@ const durableHost = createHarnessHost({
 const membersHost = createHarnessHost({
   persistence: memoryPersistence(),
   access: { identify, authorize: membersOnly() },
+})
+// A host that closes a session as soon as no handle holds it and it is idle.
+// A request picks it with the `x-harness-idle: close` header, so a read
+// after a turn finds a closed session.
+const idleHost = createHarnessHost({
+  persistence: memoryPersistence(),
+  access: tenantAccess,
+  lifecycle: { idleCloseMs: 0 },
 })
 // On the durable host, an `app.signal` record that a client appends becomes
 // a user message. The host without a log does not read it.
@@ -259,13 +268,15 @@ function harnessFor(request: Request) {
           ],
         }),
       }),
-      // A tool that waits for an answer, so a turn stays running.
+      // A tool that waits for an answer, so a turn stays running. The log
+      // keeps the question, so any server takes the answer.
       definePlugin({
         name: 'e2e/ask',
-        setup: (ctx) => ({
+        setup: () => ({
           tools: [
-            askName.server(async () => ({
-              name: await ctx.session.ask({
+            durableTool(askName, async (_args, { step }) => ({
+              name: await step.ask({
+                name: 'name',
                 message: 'What is your name?',
                 schema: z.string(),
               }),
@@ -309,9 +320,16 @@ function harnessFor(request: Request) {
   })
   const isMembersOnly = request.headers.get('x-harness-access') === 'members'
   const isDurable = request.headers.get('x-harness-durable') === '1'
+  const isIdleClose = request.headers.get('x-harness-idle') === 'close'
   return {
     harness,
-    host: isMembersOnly ? membersHost : isDurable ? durableHost : host,
+    host: isMembersOnly
+      ? membersHost
+      : isDurable
+        ? durableHost
+        : isIdleClose
+          ? idleHost
+          : host,
   }
 }
 
@@ -323,7 +341,7 @@ function handlerFor(request: Request) {
     harness,
     // Each request makes a new handler, so a fixed secret keeps a signed URL
     // working on the next request.
-    media: { secret: 'e2e-media-secret' },
+    media: { secret: 'e2e-media-secret-of-32-bytes-or-more' },
   })
 }
 

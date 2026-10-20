@@ -1,9 +1,16 @@
 import { createInterface } from 'node:readline'
 import { createSessionView } from '@tanstack/ai-harness/view'
 import { saveMediaLine } from './attach'
-import { handleLine } from './commands'
+import { firstQuestion, handleLine } from './commands'
 import { createPrinter } from './printer'
-import { approvalQuestion, openUrl, resolveAll, waitIdle } from './session-view'
+import {
+  answerOf,
+  openUrl,
+  turnWaits,
+  waitIdle,
+  waitQuestion,
+} from './session-view'
+import type { RunAgentResumeItem } from '@tanstack/ai'
 import type { HarnessSession } from '@tanstack/ai-harness'
 
 interface Output {
@@ -31,16 +38,16 @@ function typedText(raw: string) {
 
 /**
  * Hide what the user types in a terminal while a secret question (a key)
- * waits. Raw mode stops the echo. It also stops Ctrl+C, so this sends
- * SIGINT itself. Does nothing for a pipe.
+ * waits. Raw mode stops the echo. It also makes Ctrl+C a typed character
+ * and not SIGINT, so this calls `onCtrlC`. Does nothing for a pipe.
  */
-function secretTyping(input: NodeJS.ReadableStream) {
+function secretTyping(input: NodeJS.ReadableStream, onCtrlC: () => void) {
   const terminal = isTerminal(input) ? input : undefined
   let hidden = false
   const onKeys = (chunk: unknown) => {
     if (!String(chunk).includes('\u0003')) return
     show()
-    process.kill(process.pid, 'SIGINT')
+    onCtrlC()
   }
   const show = () => {
     if (!terminal || !hidden) return
@@ -62,25 +69,37 @@ function secretTyping(input: NodeJS.ReadableStream) {
 }
 
 /**
- * The line mode, for piped input: one message or command per line. Each
- * line waits for the turn it started. When a turn stops for approval, the
- * next line answers it (`y` approves, anything else rejects). In a
- * terminal, the answer to a secret question (a key) is not shown as the
- * user types. Line mode never prints the answer.
+ * The line mode: one message or command per line. When a turn stops for
+ * its waits, each next line answers one of them, by its kind and schema
+ * (see `answerOf`: `y` approves an approval). After the last one, the turn
+ * goes on. A question of a command or a durable tool takes the next line.
+ * In a terminal, the answer to a secret question (a key) is not shown as
+ * the user types. Line mode never prints the answer.
  *
- * `openSignIns`: open sign-in links in the browser (for an interactive terminal).
+ * `interactive`: the user types the lines (a terminal). Each line acts at
+ * once: `/cancel` cancels the running turn, and a message steers it. Sign-in
+ * links open in the browser. Without it (piped input), each line waits for
+ * the turn that the line before it started, so a script runs in order.
  * `mediaDir`: the folder for the media a turn makes. Each new file is saved
  * there, with one `[image saved: <path>]` line.
+ * `signal`: stop reading lines when it aborts.
+ * `onCtrlC`: runs on Ctrl+C while typing is hidden, as the terminal then
+ * sends no SIGINT.
  */
 export async function runLines(
   session: HarnessSession,
   input: NodeJS.ReadableStream,
   stdout: Output,
-  options: { openSignIns?: boolean; mediaDir: string },
+  options: {
+    interactive?: boolean
+    mediaDir: string
+    signal: AbortSignal
+    onCtrlC: () => void
+  },
 ) {
   const view = createSessionView(session)
   const saves: Array<Promise<unknown>> = []
-  const typing = secretTyping(input)
+  const typing = secretTyping(input, options.onCtrlC)
   const printer = createPrinter((text) => stdout.write(text), {
     onMedia: (part) => {
       const saved = saveMediaLine(session, part, options.mediaDir)
@@ -92,26 +111,57 @@ export async function runLines(
   // Line mode prints only what happens from now on.
   printer.mark(view.store.get())
   const printing = view.store.subscribe((state) => printer.print(state))
-  const stopOpening = options.openSignIns
+  const stopOpening = options.interactive
     ? view.on('signIn', (signIn) => {
         if (signIn.url) openUrl(signIn.url)
       })
     : () => {}
   const line = printer.line
 
-  const lines = createInterface({ input, crlfDelay: Infinity })
+  const lines = createInterface({
+    input,
+    crlfDelay: Infinity,
+    signal: options.signal,
+  })
   const pendingLater: Array<Promise<void>> = []
+  /** The answers to the waits of the stopped turn so far, by wait id. */
+  const decided = new Map<string, RunAgentResumeItem>()
+  /**
+   * Wait for the turn to end. Then ask for its next wait that has no
+   * answer, and hide the typing for a secret question. In a terminal, this
+   * runs while the next lines are read. Only one runs at a time, so each
+   * wait is asked once.
+   */
+  const afterTurn = async () => {
+    await waitIdle(session)
+    const after = session.snapshot()
+    const ask =
+      after.status === 'requires_action'
+        ? turnWaits(after).find(({ waitId }) => !decided.has(waitId))
+        : undefined
+    if (ask) line(waitQuestion(ask))
+    if (firstQuestion(after)?.secret) typing.hide()
+  }
+  let waiting: Promise<void> | undefined
   try {
     for await (const raw of lines) {
+      // Lines that came before the stop do not run.
+      if (options.signal.aborted) break
       const typed = typing.isHidden() ? typedText(raw) : raw
       typing.show()
       const snapshot = session.snapshot()
-      if (snapshot.status === 'requires_action') {
-        await resolveAll(
-          session,
-          snapshot.pendingInterrupts,
-          /^y(es)?$/i.test(typed.trim()),
-        )
+      const waits = turnWaits(snapshot)
+      const next = waits.find(({ waitId }) => !decided.has(waitId))
+      if (snapshot.status === 'requires_action' && next) {
+        decided.set(next.waitId, answerOf(next, typed))
+        // One resolve answers every wait of the turn.
+        if (waits.every(({ waitId }) => decided.has(waitId))) {
+          const resume = waits.flatMap(
+            ({ waitId }) => decided.get(waitId) ?? [],
+          )
+          decided.clear()
+          await session.resolve({ resume })
+        }
       } else {
         const result = await handleLine(session, typed)
         if (result.type === 'exit') break
@@ -120,17 +170,21 @@ export async function runLines(
           pendingLater.push(result.later.then((text) => line(text)))
         }
       }
-      await waitIdle(session)
-      const after = session.snapshot()
-      if (after.status === 'requires_action') {
-        line(approvalQuestion(after.pendingInterrupts))
+      if (!options.interactive) {
+        await afterTurn()
+        continue
       }
-      if (after.pendingQuestions[0]?.secret) typing.hide()
+      // A secret question that the line asked hides the next line at once.
+      if (firstQuestion(session.snapshot())?.secret) typing.hide()
+      waiting ??= afterTurn().finally(() => {
+        waiting = undefined
+      })
     }
   } finally {
     typing.show()
   }
   lines.close()
+  await waiting
   await Promise.allSettled(pendingLater)
   await waitIdle(session)
   stopOpening()

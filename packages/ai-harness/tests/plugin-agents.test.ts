@@ -101,7 +101,7 @@ describe('plugin services outside a session', () => {
           session: refused(() => ctx.session.snapshot()),
           run: refused(() => ctx.agents.run('painter')),
           start: refused(() => ctx.agents.start('painter')),
-          group: refused(() => ctx.agents.group({}, async () => 1)),
+          group: refused(() => ctx.agents.group({}, () => [])),
         }
         return {}
       },

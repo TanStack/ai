@@ -15,7 +15,7 @@ import {
   logIdOf,
 } from '../src'
 import { credentialsFor } from '../src/auth'
-import { after, gate, mockAdapter, text, toolCall } from './helpers'
+import { after, gate, mockAdapter, stoppedRun, text, toolCall } from './helpers'
 import type { LogRecord } from '@tanstack/ai-persistence'
 import type {
   HarnessPlugin,
@@ -25,6 +25,12 @@ import type {
   Operation,
   TurnInfo,
 } from '../src'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 const THREAD = 't1'
 /** The id of the log of `THREAD` in the store, and its key in the other stores. */
@@ -59,8 +65,8 @@ function whoami() {
 }
 
 function durablePersistence() {
-  const { runs, metadata } = memoryPersistence().stores
-  return { stores: { log: memoryLogStore(), runs, metadata } }
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log: memoryLogStore(), metadata } }
 }
 
 describe('the sender of each input', () => {
@@ -173,7 +179,7 @@ describe('the sender of each input', () => {
     release.open()
 
     expect(await turn).toEqual({ text: 'first', media: [] })
-    expect(await session.settled('in-bob')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-bob' })).toMatchObject({
       outcome: 'completed',
     })
     expect(candidates.length).toBeGreaterThan(0)
@@ -228,11 +234,11 @@ describe('the sender of each input', () => {
     release.open()
 
     expect(await turn).toEqual({ text: 'First.Joined.', media: [] })
-    expect(await session.settled('in-alice')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-alice' })).toMatchObject({
       operationId: turn.id,
     })
     expect(await bobs).toEqual({ text: 'Bob here.', media: [] })
-    const bobSettled = await session.settled('in-bob')
+    const bobSettled = await session.settled({ inputId: 'in-bob' })
     expect(bobSettled).toMatchObject({ outcome: 'completed' })
     expect(bobSettled.operationId).not.toBe(turn.id)
     expect(seen.map((entry) => entry.principal)).toEqual(['bob'])
@@ -278,11 +284,13 @@ describe('the sender of each input', () => {
     release.open()
 
     expect(await turn).toEqual({ text: 'First.Joined.', media: [] })
-    expect(await session.settled('in-alice')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-alice' })).toMatchObject({
       operationId: turn.id,
     })
     expect(await bobs).toEqual({ text: 'Bob here.', media: [] })
-    expect((await session.settled('in-bob')).operationId).not.toBe(turn.id)
+    expect((await session.settled({ inputId: 'in-bob' })).operationId).not.toBe(
+      turn.id,
+    )
     expect(seen.map((entry) => entry.principal)).toEqual(['bob'])
     await host.close()
   })
@@ -386,7 +394,7 @@ describe('the sender of each input', () => {
     )
 
     await session.send('Start the writer.', { principal: bob })
-    await vi.waitFor(() => expect(seen).toHaveLength(1))
+    await waitFor(() => expect(seen).toHaveLength(1))
     expect(seen.map((entry) => entry.principal)).toEqual(['bob'])
     await host.close()
   })
@@ -523,7 +531,7 @@ describe('recovery keeps the sender and the context', () => {
       },
     )
 
-    expect(await session.settled('in-1')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(turns).toEqual([
@@ -563,17 +571,10 @@ describe('recovery keeps the sender and the context', () => {
           keep: 0,
           add: [{ id: 'u1', role: 'user', content: 'go' }],
         },
+        stoppedRun('op-stopped', THREAD, {
+          checkpoint: { at: 1, pendingTools: [] },
+        }),
       ],
-    })
-    await persistence.stores.runs.createOrResume({
-      runId: 'op-stopped',
-      threadId: LOG,
-      startedAt: Date.now() - 60_000,
-    })
-    await persistence.stores.runs.update('op-stopped', {
-      leaseOwner: 'host-gone',
-      leaseExpiresAt: Date.now() - 1_000,
-      checkpoint: { at: 1, pendingTools: [] },
     })
     const { plugins, turns, seen } = recorder()
     const { adapter } = mockAdapter([
@@ -593,7 +594,7 @@ describe('recovery keeps the sender and the context', () => {
       },
     )
 
-    expect(await session.settled('in-1')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
     expect(turns).toEqual([

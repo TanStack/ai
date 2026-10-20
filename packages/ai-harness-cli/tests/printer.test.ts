@@ -12,6 +12,7 @@ const base: SessionViewState = {
   interrupts: [],
   questions: [],
   signIns: [],
+  waits: [],
   agents: [],
   queuedTurns: 0,
   waitingInputs: [],
@@ -241,5 +242,40 @@ describe('line printer', () => {
     )
     expect(out).toBe('')
     expect(onMedia).not.toHaveBeenCalled()
+  })
+
+  it('walks only new messages and parts, and writes only the new text', () => {
+    const writes: Array<string> = []
+    const printer = createPrinter((text) => writes.push(text))
+    let reads = 0
+    const oldParts: Array<ViewPart> = [{ type: 'text', text: 'Old.' }]
+    const old = {
+      id: 'turn-0',
+      role: 'assistant' as const,
+      get parts() {
+        reads += 1
+        return oldParts
+      },
+    }
+    const tool: ViewPart = {
+      type: 'tool-call',
+      id: 'c',
+      name: 'read',
+      argsText: '{}',
+      args: {},
+      status: 'done',
+    }
+    const turn = (text: string) => ({
+      id: 'turn-1',
+      role: 'assistant' as const,
+      parts: [tool, { type: 'text' as const, text }],
+    })
+
+    printer.print({ ...base, messages: [old] })
+    printer.print({ ...base, messages: [old, turn('Hi')] })
+    printer.print({ ...base, messages: [old, turn('Hi there')] })
+
+    expect(writes).toEqual(['Old.', '\n', '[tool read]\n', 'Hi', ' there'])
+    expect(reads).toBe(1)
   })
 })

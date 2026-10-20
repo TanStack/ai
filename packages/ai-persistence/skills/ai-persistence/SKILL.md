@@ -169,9 +169,10 @@ for a real one:
 
 **The persistence stores can hold secrets too:**
 
-- `inbox`: a user's answer to a secret question (a pasted key) can be stored
-  here, for example when another host owns the thread. The host deletes the
-  entry after it applies it. Your `delete` must really remove it.
+- `log`, the input lane: when another host owns the thread, a user's answer
+  to a secret question (a pasted key) waits here as an offer until the owner
+  applies it. The log records keep the answer as `[secret]`. Keep the offers
+  in a store you trust as much as the credentials.
 - `messages`, `log`: never put a key in a message, tool input, or metadata.
   The harness scrubs known secrets from the errors it sends, but it cannot
   scrub what it never saw as a secret.

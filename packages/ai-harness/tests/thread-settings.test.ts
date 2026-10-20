@@ -1,15 +1,20 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { EventType, toolDefinition } from '@tanstack/ai'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { EventType, createCapability, toolDefinition } from '@tanstack/ai'
+import {
+  memoryLogBackend,
+  memoryLogStore,
+  memoryPersistence,
+} from '@tanstack/ai-persistence'
 import {
   HARNESS_EVENTS,
   configOption,
   createHarnessHost,
   defineHarness,
   definePlugin,
+  logIdOf,
 } from '../src'
-import { mockAdapter, text } from './helpers'
+import { canOtherHostTake, mockAdapter, text } from './helpers'
 import type { AnyTool, ModelMessage } from '@tanstack/ai'
 import type { HarnessConfig, HarnessPersistence } from '../src'
 import type { Reply } from './helpers'
@@ -17,8 +22,8 @@ import type { Reply } from './helpers'
 const THREAD = 't1'
 
 function durablePersistence() {
-  const { runs, metadata } = memoryPersistence().stores
-  return { stores: { log: memoryLogStore(), runs, metadata } }
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log: memoryLogStore(), metadata } }
 }
 
 const toolNames = (call: { tools?: ReadonlyArray<AnyTool> }) =>
@@ -258,11 +263,42 @@ describe('thread settings', () => {
     await host.close()
   })
 
-  it.each([
-    { name: 'a host with a message store', durable: false },
-    { name: 'a durable host', durable: true },
-  ])('keeps the settings after a restart on $name', async ({ durable }) => {
-    const persistence = durable ? durablePersistence() : memoryPersistence()
+  it('refuses to remove a plugin whose capability a turn plugin or a harness middleware requires', async () => {
+    const Notes = createCapability<string>()('acme/notes-capability')
+    const { adapter } = mockAdapter(() => text('ok'))
+    const { host, session } = await open({
+      adapter,
+      middleware: [{ name: 'audit', requires: [Notes] }],
+      plugins: () => [
+        definePlugin({
+          name: 'acme/notes',
+          provides: [Notes],
+          setup: (ctx) => void ctx.provide(Notes, 'notes'),
+        }),
+        definePlugin({
+          name: 'acme/search',
+          lifetime: 'turn',
+          requires: [Notes],
+        }),
+      ],
+    })
+    const remove = (names: Array<string>) =>
+      session.configure({ settings: { plugins: { remove: names } } })
+
+    expect(await remove(['acme/notes'])).toMatchObject({
+      status: 'rejected',
+      reason: expect.stringContaining('plugin acme/search requires'),
+    })
+    expect(await remove(['acme/notes', 'acme/search'])).toMatchObject({
+      status: 'rejected',
+      reason: expect.stringContaining('harness middleware audit requires'),
+    })
+    expect(session.settings()).toEqual({})
+    await host.close()
+  })
+
+  it('keeps the settings after a restart', async () => {
+    const persistence = durablePersistence()
     const { base, strong } = models([() => text('strong')])
     const harness = defineHarness({
       name: 'test/settings',
@@ -376,5 +412,50 @@ describe('plugin config next to the settings', () => {
     expect(session.config().tone?.value).toBe('warm')
     expect(session.settings()).toEqual({ instructions: 'Be brief.' })
     await host.close()
+  })
+})
+
+describe('thread settings on two hosts', () => {
+  it('keeps the change of the other host, and a turn uses it', async () => {
+    const backend = memoryLogBackend()
+    const model = mockAdapter(() => text('ok'))
+    const harness = defineHarness({
+      name: 'test/settings',
+      adapter: model.adapter,
+    })
+    const hostOn = () =>
+      createHarnessHost({
+        persistence: { stores: { log: memoryLogStore({ backend }) } },
+      })
+    const hostA = hostOn()
+    const hostB = hostOn()
+    const a = await hostA.open(harness, { threadId: THREAD })
+    const b = await hostB.open(harness, { threadId: THREAD })
+
+    await a.configure({ settings: { reasoning: 'high' } })
+    // A gives the log back, so B owns it for its change.
+    const store = memoryLogStore({ backend })
+    await vi.waitFor(
+      async () =>
+        expect(await canOtherHostTake(store, logIdOf({ logId: THREAD }))).toBe(
+          true,
+        ),
+      { timeout: 5_000 },
+    )
+    expect(
+      await b.configure({ settings: { instructions: 'Answer in French.' } }),
+    ).toMatchObject({ status: 'accepted' })
+
+    // Each host reads the change of the other one from the log.
+    const both = { reasoning: 'high', instructions: 'Answer in French.' }
+    for (const session of [a, b]) {
+      await vi.waitFor(() => expect(session.settings()).toEqual(both), {
+        timeout: 5_000,
+      })
+    }
+    await b.send('Hello.')
+    expect(model.calls.map((call) => call.reasoning?.level)).toEqual(['high'])
+    await hostA.close()
+    await hostB.close()
   })
 })

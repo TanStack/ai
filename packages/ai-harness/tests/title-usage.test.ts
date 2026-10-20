@@ -9,6 +9,12 @@ import type { StreamChunk, TokenUsage } from '@tanstack/ai'
 import type { AnyAgent, HarnessPersistence, HarnessPlugin } from '../src'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 /**
  * Open thread `t`. The main model answers `answer` unless `reply` is given.
  * `agents` are the background agents of the session.
@@ -48,7 +54,7 @@ describe('title()', () => {
     const turn = await session.send('Plan a trip to Rome for me')
 
     expect(turn.text).toBe('answer')
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect((await host.sessions.get({ threadId: 't' }))?.title).toBe(
         'Trip to Rome',
       ),
@@ -66,7 +72,7 @@ describe('title()', () => {
     ])
     const { host, session } = await open([title({ adapter: titler.adapter })])
     await session.send('Plan a trip to Rome for me')
-    await vi.waitFor(async () =>
+    await waitFor(async () =>
       expect((await host.sessions.get({ threadId: 't' }))?.title).toBe(
         'Trip to Rome',
       ),
@@ -100,7 +106,7 @@ describe('title()', () => {
     const turn = await session.send('Plan a trip to Rome for me')
 
     expect(turn.text).toBe('answer')
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(failures).toEqual([{ message: 'title model down' }]),
     )
     expect((await host.sessions.get({ threadId: 't' }))?.title).toBeUndefined()
@@ -108,15 +114,46 @@ describe('title()', () => {
   })
 
   it('does nothing without a sessions store', async () => {
-    const { messages, runs, metadata } = memoryPersistence().stores
+    const { log, metadata } = memoryPersistence().stores
     const titler = mockAdapter(() => text('Trip to Rome'))
     const { host, session } = await open([title({ adapter: titler.adapter })], {
-      persistence: { stores: { messages, runs, metadata } },
+      persistence: { stores: { log, metadata } },
     })
 
     await session.send('Plan a trip to Rome for me')
 
     expect(titler.calls).toHaveLength(0)
+    await host.close()
+  })
+
+  it('counts the title call under plugin:tanstack/title', async () => {
+    const titler = mockAdapter(() =>
+      text('Trip to Rome').map(
+        (chunk): StreamChunk =>
+          chunk.type === EventType.RUN_FINISHED
+            ? {
+                ...chunk,
+                usage: {
+                  promptTokens: 9,
+                  completionTokens: 3,
+                  totalTokens: 12,
+                },
+              }
+            : chunk,
+      ),
+    )
+    const { host, session } = await open([title({ adapter: titler.adapter })])
+
+    await session.send('Plan a trip to Rome for me')
+
+    await waitFor(() =>
+      expect(session.usage().bySource).toEqual({
+        'plugin:tanstack/title': expect.objectContaining({
+          calls: 1,
+          totalTokens: 12,
+        }),
+      }),
+    )
     await host.close()
   })
 })

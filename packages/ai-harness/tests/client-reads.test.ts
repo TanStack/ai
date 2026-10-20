@@ -10,7 +10,7 @@ import {
 } from '../src'
 import { createHarnessHandler } from '../src/server'
 import { createHarnessClient } from '../src/client'
-import { mockAdapter, text, toolCall } from './helpers'
+import { mockAdapter, questionsOf, text, toolCall } from './helpers'
 
 const asker = definePlugin({
   name: 'test/asker',
@@ -20,7 +20,7 @@ const asker = definePlugin({
       confirm: defineCommand({
         description: 'Ask, then answer',
         run: async (_input, ctx) =>
-          `got ${String(await ctx.session.ask({ message: 'Sure?' }))}`,
+          `got ${String(await ctx.step.ask({ name: 'sure', message: 'Sure?' }))}`,
       }),
     },
   }),
@@ -87,9 +87,9 @@ describe('client reads and actions', () => {
 
     expect((await client.command({ name: 'confirm' })).status).toBe('accepted')
     await vi.waitFor(async () =>
-      expect((await client.snapshot()).pendingQuestions).toHaveLength(1),
+      expect(questionsOf(await client.snapshot())).toHaveLength(1),
     )
-    const [question] = (await client.snapshot()).pendingQuestions
+    const [question] = questionsOf(await client.snapshot())
     expect(
       (
         await client.answer({
@@ -99,7 +99,7 @@ describe('client reads and actions', () => {
       ).status,
     ).toBe('accepted')
     await vi.waitFor(async () =>
-      expect((await client.snapshot()).pendingQuestions).toHaveLength(0),
+      expect(questionsOf(await client.snapshot())).toHaveLength(0),
     )
 
     expect(
@@ -117,15 +117,15 @@ describe('client reads and actions', () => {
     )
     const [first] = await client.transcript()
 
-    const renamed = await client.renameSession({
+    const renamed = await client.sessions.rename({
       threadId: 'thread-r',
       title: 'Greeting',
     })
-    const pinned = await client.updateSession({
+    const pinned = await client.sessions.update({
       threadId: 'thread-r',
       pinned: true,
     })
-    const fork = await client.forkSession({
+    const fork = await client.sessions.fork({
       threadId: 'thread-r',
       at: { through: first?.id ?? '' },
     })
@@ -192,13 +192,15 @@ describe('client reads and actions', () => {
     const statusOf = async (path: string) =>
       (await handler(new Request(`http://local/api/harness/${path}`))).status
 
-    const transcript = await client.agentTranscript(childId)
+    const transcript = await client.agentTranscript({ subagentRunId: childId })
 
     expect(transcript.map((message) => message.content)).toEqual([
       'Take notes',
       'Note 1',
     ])
-    expect(await client.agentTranscript('unknown')).toEqual([])
+    expect(await client.agentTranscript({ subagentRunId: 'unknown' })).toEqual(
+      [],
+    )
     expect(await statusOf('agent-transcript?threadId=thread-a')).toBe(400)
     expect(
       await statusOf(
@@ -229,7 +231,10 @@ describe('client reads and actions', () => {
       return fetch(input, init)
     })
     // With host access, a thread with no session has no events to read.
-    await host.open(harness, { threadId: 'thread-r', principal: user })
+    const opened = await host.open(harness, {
+      threadId: 'thread-r',
+      principal: user,
+    })
     const states: Array<string> = []
     const reader = new AbortController()
     const reading = (async () => {
@@ -244,6 +249,7 @@ describe('client reads and actions', () => {
     await vi.waitFor(() => expect(states).toEqual(['reconnecting', 'open']))
     reader.abort()
     await reading
+    await opened.close()
     await host.close()
   })
 })

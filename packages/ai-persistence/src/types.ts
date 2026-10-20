@@ -641,76 +641,9 @@ export interface BlobStore {
 // Session stores
 // ===========================================================================
 //
-// Opt-in stores for a host that keeps long-lived sessions: the inputs it
-// accepted, an append-only log, turn leases, work claims,
-// and a list of sessions. `withPersistence` writes only `sessions`, an entry
+// Opt-in stores for a host that keeps long-lived sessions: an append-only
+// log, and a list of sessions. `withPersistence` writes only `sessions`, an entry
 // for each subagent child, in the tenant of its `tenantId` option.
-
-/** Lifecycle of one inbox entry. */
-export type InboxStatus = 'pending' | 'applied' | 'rejected'
-
-/**
- * One input a client sent to a session (a prompt, a steer message, a
- * follow-up, an interrupt answer, a command). The host writes it before it
- * answers with a receipt, so an accepted input survives a crash.
- */
-export interface InboxEntry {
-  /**
-   * Idempotency key, unique across all threads (for example a UUID). A second
-   * append with the same id is a no-op.
-   */
-  inputId: string
-  threadId: string
-  /** Who sent it, from the host's authorization. */
-  principal?: { id: string; tenantId?: string }
-  /** The input itself. The store keeps it as-is. The host validates it. */
-  input: unknown
-  status: InboxStatus
-  createdAt: number
-  expiresAt?: number
-  /** The operation that applied the input. */
-  operationId?: string
-  /** Why the input was rejected. */
-  reason?: string
-}
-
-/** Durable store for the inputs of a session. */
-export interface InboxStore {
-  /**
-   * Store a new entry as `'pending'`, or return the existing entry unchanged
-   * when `inputId` is already present.
-   */
-  append: (entry: Omit<InboxEntry, 'status'>) => Promise<InboxEntry>
-  /** Pending entries of a thread, oldest first. */
-  listPending: (threadId: string) => Promise<Array<InboxEntry>>
-  /** Mark an entry applied by `operationId`. A no-op for an unknown id. */
-  markApplied: (entry: {
-    threadId: string
-    inputId: string
-    operationId: string
-  }) => Promise<void>
-  /** Mark an entry rejected with `reason`. A no-op for an unknown id. */
-  markRejected: (entry: {
-    threadId: string
-    inputId: string
-    reason: string
-  }) => Promise<void>
-  /** The entry for `inputId` of `threadId`, or `null`. */
-  get: (entry: {
-    threadId: string
-    inputId: string
-  }) => Promise<InboxEntry | null>
-  /**
-   * Remove the entry. A no-op for an unknown id. The host removes an answer
-   * after it applies it, so a secret answer does not stay in the store.
-   */
-  delete: (entry: { threadId: string; inputId: string }) => Promise<void>
-}
-
-/** Type an {@link InboxStore} implementation inline. */
-export function defineInboxStore(store: InboxStore): InboxStore {
-  return store
-}
 
 /**
  * One record of a session log. `type` names the kind of record. The other
@@ -912,12 +845,15 @@ export interface LogStore {
    * - Returns `null` when another owner holds the log (not released, and not
    *   expired).
    * - Returns `null` when the log has an affinity that is not
-   *   `claim.affinity`.
+   *   `claim.affinity`, and the host of that affinity is alive (see
+   *   `heartbeat`). The pin of a host with no live heartbeat does not count.
    * - When `ownerId` already holds the log, extends the expiry and returns
    *   the same epoch.
    * - Else increments the epoch, stores `harness`, clears the wake time, and
    *   returns the new epoch. The epoch never goes down, also after `release`
    *   and `deleteLog`.
+   * - When the log had another owner whose ownership expired with no
+   *   `release`, the result has `expired: true`: that owner stopped.
    *
    * Rejects with a `RangeError` when `ttlMs` is not more than 0.
    */
@@ -927,7 +863,7 @@ export interface LogStore {
     ownerId: string
     ttlMs: number
     affinity?: string
-  }) => Promise<{ epoch: number } | null>
+  }) => Promise<{ epoch: number; expired?: boolean } | null>
   /**
    * Extend the ownership to `ttlMs` milliseconds from now. Returns `true` only
    * when the log is not released, `epoch` is the current epoch, and `ownerId`
@@ -966,6 +902,14 @@ export interface LogStore {
     affinity: string | null
   }) => Promise<void>
   /**
+   * Mark the host `hostId` alive for `ttlMs` milliseconds of the store
+   * clock. `hostId` is the affinity of its pins. A pin counts only while its
+   * host is alive, so the logs of a host that stopped go to other hosts.
+   *
+   * Rejects with a `RangeError` when `ttlMs` is not more than 0.
+   */
+  heartbeat: (beat: { hostId: string; ttlMs: number }) => Promise<void>
+  /**
    * The logs that have work and no live owner, at most `limit` of them. A log
    * is listed for the first reason that applies:
    *
@@ -974,7 +918,8 @@ export interface LogStore {
    * 3. `'wake'`: released, and the wake time is due.
    *
    * Only logs of `harnesses` are listed, when `harnesses` is given. A log with
-   * an affinity is listed only when `affinity` is equal. The log that is due
+   * an affinity is listed only when `affinity` is equal, or the host of the
+   * affinity is not alive (see `heartbeat`). The log that is due
    * first comes first. `limit: 0` gives `[]`.
    */
   listOrphaned: (query: {
@@ -990,8 +935,10 @@ export interface LogStore {
    * - An `inputId` that was offered before (pending or consumed) returns
    *   `'duplicate'` when the JSON of the record is equal, else `'conflict'`.
    *   Nothing changes.
-   * - A new `inputId` is stored with the store clock as `offeredAt`, records
-   *   `harness` for the log, calls the listeners, and returns `'offered'`.
+   * - A new `inputId` is stored with the store clock as `offeredAt`, calls
+   *   the listeners, and returns `'offered'`. `harness` names the harness of
+   *   the log only when the log has no owner and no earlier offer: the
+   *   harness of the owner, else of the first offer, stays.
    *
    * Rejects, and stores nothing, when the record cannot become JSON.
    */
@@ -1041,91 +988,15 @@ export function defineLogStore(store: LogStore): LogStore {
   return store
 }
 
-/** The id of one attempt of a turn. */
-export interface TurnLeaseKey {
-  threadId: string
-  inputId: string
-  /** The operation that runs the attempt. Also the AG-UI run id. */
-  operationId: string
-  /** 1 for the first run of the input, then 1 more after each crash. */
-  attempt: number
-}
-
-/** A lease on one attempt of a turn. */
-export interface TurnLease extends TurnLeaseKey {
-  /** The host that runs the attempt. */
-  ownerId: string
-  /** Epoch milliseconds. */
-  expiresAt: number
-}
-
-/**
- * Leases for turns, from a system that already has them (a job queue, a
- * submission table). A host takes a lease when an attempt starts, renews it
- * while the attempt runs, and releases it when the attempt ends. After a
- * crash, a host asks `isAlive` to find the attempts that nobody runs any more.
- */
-export interface LeaseStore {
-  acquire: (lease: TurnLease) => Promise<void>
-  renew: (lease: TurnLease) => Promise<void>
-  release: (lease: TurnLease) => Promise<void>
-  /** True while another host still runs the attempt. */
-  isAlive: (key: TurnLeaseKey) => Promise<boolean>
-}
-
-/** Type a {@link LeaseStore} implementation inline. */
-export function defineLeaseStore(store: LeaseStore): LeaseStore {
-  return store
-}
-
-/**
- * Claims on threads that have pending work. A host claims a thread while it
- * works on it and renews the claim. When the host stops, the claim expires,
- * and another host's sweep finds the thread with `listExpired` and takes it
- * over with `claim`.
- */
-export interface WorkClaimStore {
-  /**
-   * Claim `threadId` for `ownerId` until `until` (epoch ms). Renews when the
-   * owner already holds it. Returns false when another owner holds a claim
-   * that has not expired. Atomic: two callers never both get true for one
-   * thread and one moment.
-   */
-  claim: (entry: {
-    threadId: string
-    /** The name of the setup that runs the thread, so a sweep can open it. */
-    harness: string
-    ownerId: string
-    until: number
-  }) => Promise<boolean>
-  /** The thread is idle: remove the claim. Only its owner can. */
-  release: (claim: { threadId: string; ownerId: string }) => Promise<void>
-  /**
-   * The owner of the claim on `threadId` and when it expires, or `null` when
-   * no one holds it. A claim that expired can still come back: compare
-   * `until` with the time.
-   */
-  get: (threadId: string) => Promise<{ ownerId: string; until: number } | null>
-  /** Claims that expired before `now`: their host stopped. Oldest first. */
-  listExpired: (options: {
-    now: number
-    limit?: number
-  }) => Promise<Array<{ threadId: string; harness: string }>>
-}
-
-/** Type a {@link WorkClaimStore} implementation inline. */
-export function defineWorkClaimStore(store: WorkClaimStore): WorkClaimStore {
-  return store
-}
-
 /**
  * A user who can open a session, and the role of that user in it. The
  * `owner` is the user who opened the session. The host decides what a
- * `member` and a `viewer` can do.
+ * `member`, a `viewer`, and an `operator` (a person who takes over from an
+ * agent) can do.
  */
 export interface SessionMember {
   userId: string
-  role: 'owner' | 'member' | 'viewer'
+  role: 'owner' | 'member' | 'viewer' | 'operator'
 }
 
 /**
@@ -1331,14 +1202,8 @@ export interface AIPersistenceStores {
   generationRuns?: GenerationRunStore
   artifacts?: ArtifactStore
   blobs?: BlobStore
-  /** Session inputs. */
-  inbox?: InboxStore
   /** Append-only session log. */
   log?: LogStore
-  /** Turn leases from a system that already has them. */
-  leases?: LeaseStore
-  /** Claims on threads that have pending work. */
-  workClaims?: WorkClaimStore
   /** The session index. */
   sessions?: SessionIndexStore
 }
@@ -1519,10 +1384,7 @@ const storeKeys = [
   'metadata',
   'artifacts',
   'blobs',
-  'inbox',
   'log',
-  'leases',
-  'workClaims',
   'sessions',
 ] satisfies Array<StoreKey>
 

@@ -10,7 +10,7 @@ import {
   logIdOf,
 } from '../src'
 import { compact, modelPicker, providerKeys } from '../src/first-party'
-import { mockAdapter, text, toolCall } from './helpers'
+import { mockAdapter, questionsOf, text, toolCall } from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type {
   AnyAgent,
@@ -18,6 +18,12 @@ import type {
   HarnessSession,
   SessionEvent,
 } from '../src'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 const acme = defineByokProvider({
   id: 'acme',
@@ -109,10 +115,8 @@ function authRequired(events: ReadonlyArray<SessionEvent>) {
 /** Start `/connect acme`, and answer its question with `answer`. */
 async function connectWith(session: HarnessSession, answer: string) {
   const result = session.command({ name: 'connect:acme' })
-  await vi.waitFor(() =>
-    expect(session.snapshot().pendingQuestions).toHaveLength(1),
-  )
-  const [question] = session.snapshot().pendingQuestions
+  await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
+  const [question] = questionsOf(session.snapshot())
   const receipt = await session.answer({
     questionId: question?.questionId ?? '',
     value: answer,
@@ -307,10 +311,8 @@ describe('providerKeys', () => {
       plugins: [plugin()],
     })
     const connecting = session.command({ name: 'connect:acme' })
-    await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
-    const [question] = session.snapshot().pendingQuestions
+    await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
+    const [question] = questionsOf(session.snapshot())
     await connecting.cancel()
     await expect(connecting).rejects.toBeDefined()
     if (question)
@@ -423,12 +425,12 @@ describe('providerKeys', () => {
       plugins: [plugin()],
     })
     const connecting = session.command({ name: 'connect:acme' })
-    await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toMatchObject([
+    await waitFor(() =>
+      expect(questionsOf(session.snapshot())).toMatchObject([
         { message: 'Paste your Acme API key', secret: true },
       ]),
     )
-    const [question] = session.snapshot().pendingQuestions
+    const [question] = questionsOf(session.snapshot())
     if (question)
       await session.answer({
         questionId: question.questionId,
@@ -438,27 +440,25 @@ describe('providerKeys', () => {
     await close()
   })
 
-  it('keeps the key out of events, results, the inbox, and the transcript', async () => {
+  it('keeps the key out of events, results, the log, and the transcript', async () => {
     const keyed = keyedMock([() => text('hello')])
     const { session, persistence, events, close } = await open({
       adapter: keyed.adapter,
       plugins: [plugin()],
     })
-    const { receipt, result } = await connectWith(session, PASTED_KEY)
+    const { result } = await connectWith(session, PASTED_KEY)
     const results = [
       result,
       await session.command({ name: 'keys' }),
       await session.send('hi'),
     ]
     expect(keyed.keys).toEqual([PASTED_KEY])
-    // The key of the thread `t` in the stores, in the default tenant.
-    const key = logIdOf({ logId: 't' })
-    const inbox = await persistence.stores.inbox.get({
-      threadId: key,
-      inputId: receipt.inputId,
+    // The log of the thread `t`, in the default tenant: inputs and events.
+    const logged = await persistence.stores.log.read({
+      logId: logIdOf({ logId: 't' }),
     })
-    const transcript = await persistence.stores.messages.loadThread(key)
-    const everything = JSON.stringify({ events, results, inbox, transcript })
+    const transcript = await session.transcript()
+    const everything = JSON.stringify({ events, results, logged, transcript })
     expect(everything).not.toContain(PASTED_KEY)
     expect(everything).toContain('...5678')
     await close()

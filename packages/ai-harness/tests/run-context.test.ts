@@ -331,7 +331,7 @@ describe('the run context of each run', () => {
       },
       principal: bob,
     })
-    expect(await session.settled('in-1')).toMatchObject({
+    expect(await session.settled({ inputId: 'in-1' })).toMatchObject({
       outcome: 'completed',
     })
 
@@ -353,9 +353,9 @@ describe('the sender of each control input', () => {
 
   it('logs the principal that sent a cancel, an answer, a delivery change, a config change, and an agent run', async () => {
     const log = memoryLogStore()
-    const { runs, metadata } = memoryPersistence().stores
+    const { metadata } = memoryPersistence().stores
     const host = createHarnessHost({
-      persistence: { stores: { log, runs, metadata } },
+      persistence: { stores: { log, metadata } },
     })
     const noop = defineAgent({
       name: 'noop',

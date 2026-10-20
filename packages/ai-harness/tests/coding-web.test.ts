@@ -40,6 +40,8 @@ function resolves(host: string, ...answers: Array<Array<string>>) {
 
 const PUBLIC_IP = '93.184.216.34'
 const MB5 = 5 * 1024 * 1024
+/** The most of a page that the model gets. */
+const KB256 = 256 * 1024
 const REFUSED = 'webfetch does not read private or local hosts'
 
 type Route = (init: RequestInit | undefined) => Response | Promise<Response>
@@ -142,14 +144,30 @@ describe('webfetch formats', () => {
 })
 
 describe('webfetch limits', () => {
-  it('stops reading at 5 MB and says the page was cut', async () => {
-    const body = 'a'.repeat(MB5 + 100)
-    const result = await webfetch(
+  /** Fetch a text page of `body`. */
+  const fetchText = (body: string) =>
+    webfetch(
       { url: 'https://example.com/big.txt' },
       { 'https://example.com/big.txt': page(body, 'text/plain') },
     )
+  const MORE =
+    'To see more, save the page to a file with bash, then use grep or read_file with an offset.]'
+
+  it('gives the first 256 KB of a 1 MB page, and says how much was cut', async () => {
+    const result = await fetchText('a'.repeat(1024 * 1024))
     expect(result).toBe(
-      `${'a'.repeat(MB5)}\n\n[Cut at 5 MB. The rest was not read.]`,
+      `${'a'.repeat(KB256)}\n\n[Output cut. Showing the first 1 of 1 lines, 262144 of 1048576 bytes.]\n[webfetch gives at most the first 256 KB of a page. ${MORE}`,
+    )
+  })
+
+  it('gives a page of 256 KB as it is', async () => {
+    expect(await fetchText('a'.repeat(KB256))).toBe('a'.repeat(KB256))
+  })
+
+  it('stops reading at 5 MB and says the page was cut', async () => {
+    const result = await fetchText('a'.repeat(MB5 + 100))
+    expect(result).toBe(
+      `${'a'.repeat(KB256)}\n\n[Output cut. Showing the first 1 of 1 lines, 262144 of 5242880 bytes.]\n[webfetch gives at most the first 256 KB of a page. The page is over 5 MB. The rest was not read. ${MORE}`,
     )
   })
 

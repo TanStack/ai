@@ -9,8 +9,8 @@
  *
  * Covers the five chat state stores (`messages`, `activities`, `runs`,
  * `interrupts`, `metadata`), the three generation stores (`generationRuns`,
- * `artifacts`, `blobs`), and the opt-in session stores (`inbox`,
- * `workClaims`, `log`, `leases`, `sessions`). The session store cases run only
+ * `artifacts`, `blobs`), and the opt-in session stores (`log`,
+ * `sessions`). The session store cases run only
  * when the store is present, so they need no `skip` entry. Locks are not part of
  * this suite — they are a separate coordination concern (`LockStore` +
  * `withLocks`), not a store.
@@ -1615,205 +1615,6 @@ export function runPersistenceConformance(
 
     // The session stores below are opt-in. A backend without one skips its
     // cases and needs no `skip` entry.
-    describe('inbox', () => {
-      it('appends idempotently, lists pending oldest first, and settles entries', async (ctx) => {
-        const store = persistence.stores.inbox
-        if (!store) return ctx.skip('inbox store not provided')
-        // Own ids, because the suite shares one persistence.
-        const id = (name: string) => `${name}-${crypto.randomUUID()}`
-        const thread = id('inbox-thread')
-        const in1 = id('in-1')
-        const in2 = id('in-2')
-        const other = id('in-other')
-        const missing = id('missing')
-        const otherThread = id('other-thread')
-
-        const first = await store.append({
-          inputId: in1,
-          threadId: thread,
-          input: { op: 'prompt', message: 'hi' },
-          createdAt: 1,
-        })
-        expect(first.status).toBe('pending')
-        // Same id again: the stored entry wins, the new payload is ignored.
-        const again = await store.append({
-          inputId: in1,
-          threadId: thread,
-          input: { op: 'prompt', message: 'changed' },
-          createdAt: 5,
-        })
-        expect(again.input).toEqual({ op: 'prompt', message: 'hi' })
-
-        await store.append({
-          inputId: in2,
-          threadId: thread,
-          principal: { id: 'user-1' },
-          input: { op: 'steer', message: 'shorter' },
-          createdAt: 2,
-        })
-        await store.append({
-          inputId: other,
-          threadId: otherThread,
-          input: { op: 'prompt', message: 'x' },
-          createdAt: 0,
-        })
-
-        expect(
-          (await store.listPending(thread)).map((entry) => entry.inputId),
-        ).toEqual([in1, in2])
-
-        await store.markApplied({
-          threadId: thread,
-          inputId: in1,
-          operationId: 'op-1',
-        })
-        await store.markRejected({
-          threadId: thread,
-          inputId: in2,
-          reason: 'busy',
-        })
-        expect(await store.listPending(thread)).toEqual([])
-        expect(
-          await store.get({ threadId: thread, inputId: in1 }),
-        ).toMatchObject({
-          status: 'applied',
-          operationId: 'op-1',
-        })
-        expect(
-          await store.get({ threadId: thread, inputId: in2 }),
-        ).toMatchObject({
-          status: 'rejected',
-          reason: 'busy',
-          principal: { id: 'user-1' },
-        })
-
-        // Unknown ids are no-ops.
-        await store.markApplied({
-          threadId: thread,
-          inputId: missing,
-          operationId: 'op-x',
-        })
-        await store.markRejected({
-          threadId: thread,
-          inputId: missing,
-          reason: 'nope',
-        })
-        expect(
-          await store.get({ threadId: thread, inputId: missing }),
-        ).toBeNull()
-        // An id is found only with its own thread.
-        expect(await store.get({ threadId: thread, inputId: other })).toBeNull()
-
-        // A delete removes the entry. With another thread, or an unknown
-        // id, it does nothing.
-        await store.delete({ threadId: thread, inputId: other })
-        await store.delete({ threadId: thread, inputId: missing })
-        expect(
-          await store.get({ threadId: otherThread, inputId: other }),
-        ).toMatchObject({ status: 'pending' })
-        await store.delete({ threadId: thread, inputId: in1 })
-        expect(await store.get({ threadId: thread, inputId: in1 })).toBeNull()
-      })
-    })
-
-    // Each case uses its own threads, because the suite shares one persistence.
-    describe('workClaims', () => {
-      const newThread = () => `claims-${crypto.randomUUID()}`
-      const later = () => Date.now() + 60 * 60_000
-
-      it('claims, renews, refuses a second owner, and releases by the owner only', async (ctx) => {
-        const store = persistence.stores.workClaims
-        if (!store) return ctx.skip('workClaims store not provided')
-        const threadId = newThread()
-        const claim = (ownerId: string) =>
-          store.claim({ threadId, harness: 'h', ownerId, until: later() })
-
-        expect(await claim('a')).toBe(true)
-        // The owner renews.
-        expect(await claim('a')).toBe(true)
-        // Another owner is refused while the claim is live.
-        expect(await claim('b')).toBe(false)
-        expect(await store.get(threadId)).toMatchObject({ ownerId: 'a' })
-        // Only the owner releases.
-        await store.release({ threadId, ownerId: 'b' })
-        expect(await claim('b')).toBe(false)
-        await store.release({ threadId, ownerId: 'a' })
-        expect(await store.get(threadId)).toBeNull()
-        expect(await claim('b')).toBe(true)
-        await store.release({ threadId, ownerId: 'b' })
-      })
-
-      it('gives one of two concurrent claims', async (ctx) => {
-        const store = persistence.stores.workClaims
-        if (!store) return ctx.skip('workClaims store not provided')
-        const threadId = newThread()
-        const results = await Promise.all(
-          ['a', 'b'].map((ownerId) =>
-            store.claim({ threadId, harness: 'h', ownerId, until: later() }),
-          ),
-        )
-        expect(results.filter(Boolean)).toHaveLength(1)
-        await Promise.all(
-          ['a', 'b'].map((owner) =>
-            store.release({ threadId, ownerId: owner }),
-          ),
-        )
-      })
-
-      it('lists expired claims oldest first, with a limit, and lets another owner take one over', async (ctx) => {
-        const store = persistence.stores.workClaims
-        if (!store) return ctx.skip('workClaims store not provided')
-        const now = Date.now()
-        const older = newThread()
-        const newer = newThread()
-        const live = newThread()
-        await store.claim({
-          threadId: newer,
-          harness: 'h',
-          ownerId: 'gone',
-          until: now - 1_000,
-        })
-        await store.claim({
-          threadId: older,
-          harness: 'h2',
-          ownerId: 'gone',
-          until: now - 2_000,
-        })
-        await store.claim({
-          threadId: live,
-          harness: 'h',
-          ownerId: 'alive',
-          until: later(),
-        })
-
-        const ours = (await store.listExpired({ now })).filter((entry) =>
-          [older, newer, live].includes(entry.threadId),
-        )
-        expect(ours).toEqual([
-          { threadId: older, harness: 'h2' },
-          { threadId: newer, harness: 'h' },
-        ])
-        expect(await store.listExpired({ now, limit: 1 })).toHaveLength(1)
-
-        // A sweep takes an expired claim over.
-        expect(
-          await store.claim({
-            threadId: older,
-            harness: 'h2',
-            ownerId: 'sweeper',
-            until: later(),
-          }),
-        ).toBe(true)
-        expect(
-          (await store.listExpired({ now })).map((entry) => entry.threadId),
-        ).not.toContain(older)
-
-        await store.release({ threadId: older, ownerId: 'sweeper' })
-        await store.release({ threadId: newer, ownerId: 'gone' })
-        await store.release({ threadId: live, ownerId: 'alive' })
-      })
-    })
-
     // Each case uses its own log, because the suite shares one persistence.
     const newLog = () => `log-${crypto.randomUUID()}`
     // The suite shares one store. A case that lists orphans filters by its
@@ -2155,7 +1956,7 @@ export function runPersistenceConformance(
 
         const { taken } = await handOver(store)
 
-        expect(taken).toEqual({ epoch: 2 })
+        expect(taken).toEqual({ epoch: 2, expired: true })
       })
 
       it('fences a write from the previous owner', async (ctx) => {
@@ -2343,6 +2144,8 @@ export function runPersistenceConformance(
         const logId = newLog()
         const harness = newHarness()
         const claim = { ...claimOf(logId, 'a'), harness }
+        // A pin counts while its host is alive.
+        await store.heartbeat({ hostId: 'host-1', ttlMs: LIVE_MS })
         await store.acquire(claim)
         await store.setAffinity({ logId, epoch: 1, affinity: 'host-1' })
         await store.release({ logId, ownerId: 'a', epoch: 1, wakeInMs: 0 })
@@ -2365,6 +2168,31 @@ export function runPersistenceConformance(
         expect(
           await store.acquire({ ...claim, ownerId: 'b', affinity: 'host-1' }),
         ).toEqual({ epoch: 2 })
+      })
+
+      it('lets other hosts take a pinned log when the heartbeat of its host expired', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = newLog()
+        const harness = newHarness()
+        const host = `host-${logId}`
+        await store.heartbeat({ hostId: host, ttlMs: SHORT_MS })
+        await store.acquire({ ...claimOf(logId, 'a'), harness, affinity: host })
+        await store.setAffinity({ logId, epoch: 1, affinity: host })
+        await store.release({ logId, ownerId: 'a', epoch: 1, wakeInMs: 0 })
+        const other = { ...claimOf(logId, 'b'), harness }
+
+        // The host is alive: its idle log stays with it.
+        expect(
+          await store.listOrphaned({ limit: 10, harnesses: [harness] }),
+        ).toEqual([])
+        expect(await store.acquire(other)).toBeNull()
+
+        await waitPastShort()
+        expect(
+          await store.listOrphaned({ limit: 10, harnesses: [harness] }),
+        ).toEqual([{ logId, harness, reason: 'wake' }])
+        expect(await store.acquire(other)).toEqual({ epoch: 2 })
       })
 
       it('fences setAffinity', async (ctx) => {
@@ -2400,6 +2228,9 @@ export function runPersistenceConformance(
         ).rejects.toBeInstanceOf(RangeError)
         await expect(
           store.release({ logId, ownerId: 'a', epoch: 1, wakeInMs: -1 }),
+        ).rejects.toBeInstanceOf(RangeError)
+        await expect(
+          store.heartbeat({ hostId: 'host-1', ttlMs: 0 }),
         ).rejects.toBeInstanceOf(RangeError)
         // The refused release did not release the log.
         expect(await store.acquire(claimOf(logId, 'b'))).toBeNull()
@@ -2630,6 +2461,7 @@ export function runPersistenceConformance(
         // A pin applies to a log that no host acquired too.
         const pinned = newLog()
         const pinnedHarness = newHarness()
+        await store.heartbeat({ hostId: 'host-1', ttlMs: 10_000 })
         await store.setAffinity({
           logId: pinned,
           epoch: UNOWNED_EPOCH,
@@ -2648,6 +2480,39 @@ export function runPersistenceConformance(
         ).toEqual([
           { logId: pinned, harness: pinnedHarness, reason: 'offered' },
         ])
+      })
+
+      it('keeps the harness of the owner or the first offer for a log', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const first = newHarness()
+        const other = newHarness()
+        const orphans = (harness: string) =>
+          store.listOrphaned({ limit: 10, harnesses: [harness] })
+        // A later offer that names another harness does not move the log.
+        const offeredLog = newLog()
+        await store.offer({ ...offerOf(offeredLog, 'i1'), harness: first })
+        await store.offer({ ...offerOf(offeredLog, 'i2'), harness: other })
+        expect(await orphans(first)).toEqual([
+          { logId: offeredLog, harness: first, reason: 'offered' },
+        ])
+        expect(await orphans(other)).toEqual([])
+        // The owner names the harness of a log that it released.
+        const ownedLog = newLog()
+        await store.acquire({
+          logId: ownedLog,
+          harness: first,
+          ownerId: 'a',
+          ttlMs: 10_000,
+        })
+        await store.release({ logId: ownedLog, ownerId: 'a', epoch: 1 })
+        await store.offer({ ...offerOf(ownedLog, 'i1'), harness: other })
+        expect(await orphans(other)).toEqual([])
+        expect(await orphans(first)).toContainEqual({
+          logId: ownedLog,
+          harness: first,
+          reason: 'offered',
+        })
       })
 
       it('notifies subscribers of a new offer', async (ctx) => {
@@ -2841,6 +2706,7 @@ export function runPersistenceConformance(
         const harness = newHarness()
         const claim = { logId, harness, ttlMs: LIVE_MS }
         const input = { logId, harness, inputId: 'i1', record: { type: 'in' } }
+        await store.heartbeat({ hostId: 'host-1', ttlMs: LIVE_MS })
         await store.acquire({ ...claim, ownerId: 'a' })
         await store.setAffinity({ logId, epoch: 1, affinity: 'host-1' })
         await store.append({ logId, seq: 1, epoch: 1, records: recordsOf(2) })
@@ -3017,46 +2883,6 @@ export function runPersistenceConformance(
         await expect.poll(() => errors.mock.calls.length).toBeGreaterThan(0)
         stopThrower()
         counter.stop()
-      })
-    })
-
-    describe('leases', () => {
-      const keyOf = (attempt: number) => ({
-        threadId: `leases-${crypto.randomUUID()}`,
-        inputId: 'in-1',
-        operationId: 'op-1',
-        attempt,
-      })
-
-      it('is alive from acquire to release, by the owner only', async (ctx) => {
-        const store = persistence.stores.leases
-        if (!store) return ctx.skip('leases store not provided')
-        const key = keyOf(1)
-        const later = Date.now() + 60 * 60_000
-        expect(await store.isAlive(key)).toBe(false)
-        await store.acquire({ ...key, ownerId: 'a', expiresAt: later })
-        expect(await store.isAlive(key)).toBe(true)
-        // Another host cannot release it.
-        await store.release({ ...key, ownerId: 'b', expiresAt: later })
-        expect(await store.isAlive(key)).toBe(true)
-        await store.release({ ...key, ownerId: 'a', expiresAt: later })
-        expect(await store.isAlive(key)).toBe(false)
-      })
-
-      it('is not alive after expiresAt', async (ctx) => {
-        const store = persistence.stores.leases
-        if (!store) return ctx.skip('leases store not provided')
-        const key = keyOf(1)
-        await store.acquire({ ...key, ownerId: 'a', expiresAt: Date.now() - 1 })
-        expect(await store.isAlive(key)).toBe(false)
-        // A renewal by the owner brings it back.
-        await store.renew({
-          ...key,
-          ownerId: 'a',
-          expiresAt: Date.now() + 60_000,
-        })
-        expect(await store.isAlive(key)).toBe(true)
-        await store.release({ ...key, ownerId: 'a', expiresAt: 0 })
       })
     })
 

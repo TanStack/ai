@@ -39,6 +39,27 @@ export interface MediaOptions {
   accepts?: ReadonlyArray<MediaKind>
   /** Turns audio into text first when the model cannot read audio. */
   transcribe?: AnyTranscriptionAdapter
+  /**
+   * Whether a client input can send a content part with an `http:` or
+   * `https:` URL. The model provider can fetch that URL. Default `false`: the
+   * input is refused. A function decides for each URL.
+   */
+  externalUrls?: boolean | ((url: URL) => boolean)
+  /**
+   * Whether a client input can send a content part with a provider file
+   * handle (`source.type: 'file'`). The adapter reads that file with the
+   * server's provider key, so a client that knows another user's file id
+   * could make the model read it. Default `false`: the input is refused.
+   * Server code can always send file handles.
+   */
+  allowProviderFiles?: boolean
+  /**
+   * The largest request body or socket frame, in bytes. Default 32 MiB. A
+   * body stops being read at the limit. A socket frame is checked only after
+   * the WebSocket server read all of it, so set the frame limit of the server
+   * (for example `maxPayload` of `ws`) too.
+   */
+  maxBodyBytes?: number
 }
 
 /**
@@ -65,6 +86,18 @@ export type MediaStore = ReturnType<typeof createMediaStore>
 
 const DEFAULT_MAX_BYTES = 100 * 1024 * 1024
 const DATA_URL_MAX_BYTES = 1024 * 1024
+const DEFAULT_ENCODED_BYTES = 32 * 1024 * 1024
+/** The base64 LRU of `createMediaStore`, one for each blob store. */
+interface EncodedCache {
+  /** The most characters it keeps. */
+  cap: number
+  /** The characters it keeps now. */
+  size: number
+  /** By `<store key of the thread>/<media id>`, the oldest first. */
+  entries: Map<string, string>
+}
+const encodedCaches = new WeakMap<BlobStore, EncodedCache>()
+
 const ALL_KINDS: ReadonlyArray<MediaKind> = [
   'image',
   'audio',
@@ -83,6 +116,11 @@ const ALL_KINDS: ReadonlyArray<MediaKind> = [
 // `<operation>[:<subagentRunId>...]:<activity>-<n>`.
 function uploadRunId(storeThreadId: string) {
   return `upload:${storeThreadId}`
+}
+
+/** @internal The key prefix of the upload bytes of a thread in the blob store. */
+export function uploadBlobPrefix(storeThreadId: string) {
+  return `artifacts/${uploadRunId(storeThreadId)}/`
 }
 
 /** The media record of `record`, an artifact of the thread `threadId`. */
@@ -171,12 +209,18 @@ export function createMediaStore({
   threadId,
   tenantId,
   options = {},
+  encodedBytes,
 }: {
   persistence: MediaPersistence
   threadId: string
   /** The tenant of the thread. Without it, the default tenant. */
   tenantId?: string
   options?: MediaOptions
+  /**
+   * @internal How many characters of base64 to keep across turns, for all
+   * the media stores of this blob store. The largest value asked for wins.
+   */
+  encodedBytes?: number
 }) {
   const { artifacts, blobs } = persistence.stores
   const storeThreadId = logIdOf({ tenantId, logId: threadId })
@@ -199,7 +243,7 @@ export function createMediaStore({
     return record && kind ? toMediaRecord(record, kind, threadId) : null
   }
 
-  async function load(id: string, range?: BlobRange) {
+  async function blobOf(id: string, range?: BlobRange) {
     const record = await artifact(id)
     const blob = record
       ? await retrieveBlob(
@@ -209,7 +253,52 @@ export function createMediaStore({
         )
       : null
     if (!blob) throw new MediaError(404, `Media ${id} was not found.`)
-    return new Uint8Array(await blob.arrayBuffer())
+    return blob
+  }
+
+  async function load(id: string, range?: BlobRange) {
+    return new Uint8Array(await (await blobOf(id, range)).arrayBuffer())
+  }
+
+  // ponytail: an LRU of base64 text across turns, at most `encodedBytes`
+  // characters (default 32 MB). The media stores of one blob store (all the
+  // sessions of a host) share it, so the cap is for the host, not for each
+  // open session. The largest `encodedBytes` asked for is the cap. The key is
+  // the store key of the thread and the media id: the bytes of an id never
+  // change. Above the cap, each turn encodes the oldest files again. Send
+  // adapters a URL when that gets slow.
+  const cap = encodedBytes ?? DEFAULT_ENCODED_BYTES
+  let encoded = encodedCaches.get(blobs)
+  if (!encoded) {
+    encoded = { cap, size: 0, entries: new Map() }
+    encodedCaches.set(blobs, encoded)
+  }
+  encoded.cap = Math.max(encoded.cap, cap)
+  const cache = encoded
+
+  /** The base64 of the bytes of `id`. Call `get` first: a hit does not check the record. */
+  async function base64(id: string) {
+    const key = `${storeThreadId}/${id}`
+    const hit = cache.entries.get(key)
+    if (hit !== undefined) {
+      // Delete and set again, so the Map order puts it last (newest).
+      cache.entries.delete(key)
+      cache.entries.set(key, hit)
+      return hit
+    }
+    const value = toBase64(await load(id))
+    // Another call stored it while this one read the bytes.
+    if (value.length <= cache.cap && !cache.entries.has(key)) {
+      cache.entries.set(key, value)
+      cache.size += value.length
+      // The first keys of the Map are the oldest.
+      for (const [oldKey, old] of cache.entries) {
+        if (cache.size <= cache.cap) break
+        cache.entries.delete(oldKey)
+        cache.size -= old.length
+      }
+    }
+    return value
   }
 
   return {
@@ -230,7 +319,7 @@ export function createMediaStore({
 
       const id = crypto.randomUUID()
       const runId = uploadRunId(storeThreadId)
-      const blobKey = `artifacts/${runId}/${id}`
+      const blobKey = `${uploadBlobPrefix(storeThreadId)}${id}`
       // A stream has no length up front, so count it as the store reads it.
       let seen = 0
       const counted =
@@ -269,6 +358,12 @@ export function createMediaStore({
     get,
     /** The bytes of `id`, or one `range` of them. */
     load,
+    /** The bytes of `id`, or one `range` of them, as a stream. */
+    async open(id: string, range?: BlobRange) {
+      const blob = await blobOf(id, range)
+      return blob.body ?? new Blob([await blob.arrayBuffer()]).stream()
+    },
+    base64,
     /** A data URL for a file up to 1 MB. `undefined` above that. */
     async dataUrl(id: string) {
       const record = await get(id)
@@ -282,7 +377,7 @@ export function createMediaStore({
           (part, index) => index === 0 || /^[\w.+-]+=[\w.+-]+$/.test(part),
         )
         .join(';')
-      return `data:${mimeType};base64,${toBase64(await load(id))}`
+      return `data:${mimeType};base64,${await base64(id)}`
     },
   }
 }
@@ -431,10 +526,9 @@ export function mediaMiddleware({
   transcribe?: AnyTranscriptionAdapter
 }) {
   // ponytail: one cache per run, so the loop does not load or transcribe a
-  // file again at every model call. A new turn does it again for history:
-  // each turn loads and base64-encodes every media file of the thread (up to
-  // `maxBytes` each). Keep the encoded parts across turns by media id (an
-  // LRU), or send adapters a URL, when long media threads get slow.
+  // file again at every model call. Across turns, the store keeps the base64
+  // of each file (an LRU with a byte cap). A transcript is made again at each
+  // turn; keep it too when that gets slow.
   const runs = new WeakMap<object, Map<string, Promise<ContentPart>>>()
 
   async function resolve(
@@ -450,24 +544,26 @@ export function mediaMiddleware({
     if (!isAccepted && transcriber === undefined) {
       throw new Error(cannotRead(ctx.model, record.kind))
     }
-    const bytes = await store.load(id).catch((error: unknown) => {
+    const notFound = (error: unknown) => {
       if (error instanceof MediaError && error.status === 404) return undefined
       throw error
-    })
-    if (!bytes) return textPart(`[${record.kind} not found: ${record.name}]`)
+    }
     if (transcriber === undefined) {
+      // The store keeps the base64 across turns.
+      const value = await store.base64(id).catch(notFound)
+      if (value === undefined) {
+        return textPart(`[${record.kind} not found: ${record.name}]`)
+      }
       // The stored kind wins: a `video` part with an image id sends an image.
       const swapped: ContentPart = {
         ...part,
         type: record.kind,
-        source: {
-          type: 'data',
-          value: toBase64(bytes),
-          mimeType: record.mimeType,
-        },
+        source: { type: 'data', value, mimeType: record.mimeType },
       }
       return swapped
     }
+    const bytes = await store.load(id).catch(notFound)
+    if (!bytes) return textPart(`[${record.kind} not found: ${record.name}]`)
     const transcript = await generateTranscription({
       adapter: transcriber,
       audio: new Blob([bytes], { type: record.mimeType }),

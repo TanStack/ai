@@ -2,6 +2,7 @@ import { expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
 import { defineAgent } from '@tanstack/ai'
 import {
+  HARNESS_EVENTS,
   createHarnessHost,
   defineHarness,
   definePlugin,
@@ -13,8 +14,12 @@ import { mockAdapter } from './helpers'
 import type { AnyTextAdapter, KeyedAdapter } from '@tanstack/ai'
 import type { SessionIndexEntry } from '@tanstack/ai-persistence'
 import type {
+  AgentActions,
   AgentRun,
+  AgentSettled,
+  HarnessAgentContext,
   HarnessConfig,
+  HarnessEventValues,
   HarnessHost,
   HarnessInput,
   HarnessSession,
@@ -28,6 +33,8 @@ import type {
   SessionMetadataOf,
 } from '../src'
 import type { InputSettlement } from '../src/types'
+import type { ToolStep } from '../src/durable-tool'
+import type { PluginServices, PluginSetupContext } from '../src/plugins'
 
 const pricer = defineAgent({
   name: 'pricer',
@@ -54,9 +61,9 @@ declare const input: HarnessInput
 
 it('types agent input and result from the definition', () => {
   expectTypeOf(session.agents.pricer.run({ vendor: 'a' })).toEqualTypeOf<
-    Operation<{ vendor: string; cents: number }>
+    AgentRun<{ vendor: string; cents: number }>
   >()
-  expectTypeOf(session.agents.writer.run()).toEqualTypeOf<Operation<string>>()
+  expectTypeOf(session.agents.writer.run()).toEqualTypeOf<AgentRun<string>>()
   // @ts-expect-error unknown agent
   void session.agents.missing
   // @ts-expect-error wrong input
@@ -99,7 +106,7 @@ it('takes a harness without an adapter, and turn plugins', () => {
   expectTypeOf(picked.adapter).toEqualTypeOf<
     AnyTextAdapter | KeyedAdapter<AnyTextAdapter> | undefined
   >()
-  expectTypeOf<PluginLifetime>().toEqualTypeOf<'session' | 'turn'>()
+  expectTypeOf<PluginLifetime>().toEqualTypeOf<'session' | 'turn' | 'host'>()
 })
 
 it('takes attempt and time limits, and the log folds, on the harness', () => {
@@ -118,7 +125,7 @@ it('takes attempt and time limits, and the log folds, on the harness', () => {
       }
     | undefined
   >()
-  // The state type of `host.logState` comes from `initial` and `record`.
+  // The state type of `session.logState()` comes from `initial` and `record`.
   const counted = defineHarness({
     name: 'test/reduce',
     durability: {
@@ -128,9 +135,9 @@ it('takes attempt and time limits, and the log folds, on the harness', () => {
       },
     },
   })
-  expectTypeOf(
-    createHarnessHost().logState({ harness: counted, logId: 'log-1' }),
-  ).toEqualTypeOf<{ count: number } | undefined>()
+  expectTypeOf<
+    HarnessSession<typeof counted>['logState']
+  >().returns.resolves.toEqualTypeOf<{ count: number } | undefined>()
 })
 
 it('gives a started agent run send()', () => {
@@ -238,4 +245,110 @@ it('types the openAccess principal by the host, and needs an explicit login mode
   // @ts-expect-error `login` is required: no implicit loopback listener.
   oauthConnector({ id: 'svc', label: 'Service', oauth })
   oauthConnector({ id: 'svc', label: 'Service', oauth, login: 'device' })
+})
+
+it('has a value type for every harness event name, and no other', () => {
+  expectTypeOf<keyof HarnessEventValues>().toEqualTypeOf<
+    (typeof HARNESS_EVENTS)[keyof typeof HARNESS_EVENTS]
+  >()
+})
+
+type Priced = { vendor: string; cents: number }
+declare const agents: AgentActions
+
+it('types start and run from the worker, subject first', () => {
+  expectTypeOf(agents.start(pricer, { vendor: 'a' })).toEqualTypeOf<
+    AgentRun<Priced>
+  >()
+  expectTypeOf(agents.run(pricer, { vendor: 'a' })).toEqualTypeOf<
+    AgentRun<Priced>
+  >()
+  expectTypeOf(agents.start(writer)).toEqualTypeOf<AgentRun<string>>()
+  // A name the session knows gives an untyped run.
+  expectTypeOf(agents.start('pricer', { vendor: 1 })).toEqualTypeOf<
+    AgentRun<unknown>
+  >()
+  // @ts-expect-error wrong input
+  void agents.start(pricer, { vendor: 1 })
+  // @ts-expect-error the input of an agent with an inputSchema is required
+  void agents.run(pricer)
+  // @ts-expect-error an agent without an inputSchema takes no input
+  void agents.start(writer, { text: 'hi' })
+})
+
+it('takes the options grouped per concern', () => {
+  void agents.start(
+    pricer,
+    { vendor: 'a' },
+    {
+      key: 'price-a',
+      wake: true,
+      limits: { timeoutMs: 1000, maxAttempts: 2 },
+      budget: { maxTokens: 500, maxCost: 0.1 },
+      onModelError: ({ retries }) => (retries < 2 ? 'retry' : 'fail'),
+    },
+  )
+  // @ts-expect-error `run` never wakes the session
+  void agents.run(pricer, { vendor: 'a' }, { wake: true })
+  // @ts-expect-error limits are in `limits`
+  void agents.start(pricer, { vendor: 'a' }, { timeoutMs: 1000 })
+})
+
+it('resolves a group to the results in order', () => {
+  expectTypeOf(
+    agents.group({ concurrency: 2 }, (g) => [
+      g.start(pricer, { vendor: 'a' }),
+      g.start(writer),
+    ]),
+  ).toEqualTypeOf<Promise<[Priced, string]>>()
+  expectTypeOf(
+    agents.group({ onFailure: 'collect' }, async (g) => [
+      g.start(pricer, { vendor: 'a' }),
+      g.start('writer'),
+    ]),
+  ).toEqualTypeOf<Promise<[AgentSettled<Priced>, AgentSettled<unknown>]>>()
+  expectTypeOf(
+    agents.group({}, (g) =>
+      ['a', 'b'].map((vendor) => g.start(pricer, { vendor })),
+    ),
+  ).toEqualTypeOf<Promise<Array<Priced>>>()
+  // @ts-expect-error wrong input in a group
+  void agents.group({}, (g) => [g.start(pricer, { vendor: 1 })])
+})
+
+it('gives plugins and agent code the same agent actions', () => {
+  expectTypeOf<PluginServices['agents']>().toEqualTypeOf<AgentActions>()
+  expectTypeOf<HarnessAgentContext['agents']>().toEqualTypeOf<AgentActions>()
+  expectTypeOf<PluginSetupContext['agents']>().toExtend<AgentActions>()
+})
+
+it('always gives agent code ctx.harness', () => {
+  defineAgent({
+    name: 'boss',
+    description: 'Starts a worker',
+    run: async (ctx) => {
+      expectTypeOf(ctx.harness).toEqualTypeOf<HarnessAgentContext>()
+      const priced = await ctx.harness.agents.run(pricer, { vendor: 'a' })
+      expectTypeOf(priced).toEqualTypeOf<Priced>()
+      return `${priced.cents}`
+    },
+  })
+})
+
+it('takes only JSON values from step.do', () => {
+  interface Invoice {
+    id: string
+    total?: number
+  }
+  const run = async (step: ToolStep, invoice: Invoice) => {
+    expectTypeOf(
+      await step.do('invoice', () => invoice),
+    ).toEqualTypeOf<Invoice>()
+    expectTypeOf(await step.do('mail', async () => {})).toEqualTypeOf<void>()
+    // @ts-expect-error JSON turns a Date into a string.
+    await step.do('now', () => new Date())
+    // @ts-expect-error JSON turns a Map into {}.
+    await step.do('seen', () => ({ ids: new Map<string, number>() }))
+  }
+  expectTypeOf(run).toBeFunction()
 })

@@ -10,9 +10,16 @@ import {
   mockAdapter,
   text,
   toolCall,
+  turnInterrupts,
 } from './helpers'
 import type { StreamChunk } from '@tanstack/ai'
 import type { Reply } from './helpers'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 /** A client tool: the harness has no implementation, the client sends the result. */
 const openScreen = toolDefinition({
@@ -34,24 +41,22 @@ const fails: Reply = () =>
     throw new Error('model down')
   })()
 
-/** The stores of a host without a log, or of a durable host. */
-function persistenceFor(durable: boolean) {
-  const { stores } = memoryPersistence()
-  if (!durable) return { stores }
-  const { runs, metadata } = stores
-  return { stores: { log: memoryLogStore(), runs, metadata } }
+/**
+ * A log and metadata: a host that opens the thread after another one
+ * closed takes it at once, as after a restart.
+ */
+function persistenceFor() {
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log: memoryLogStore(), metadata } }
 }
 
-describe.each([
-  { host: 'a host without a log', durable: false },
-  { host: 'a durable host', durable: true },
-])('resolve on $host', ({ durable }) => {
+describe('resolve', () => {
   it('keeps the interrupt when the resume fails validation, so a correct resolve continues the turn', async () => {
     const { adapter, calls } = mockAdapter([
       () => toolCall('openScreen', { route: '/settings' }),
       () => text('Opened it.'),
     ])
-    const host = createHarnessHost({ persistence: persistenceFor(durable) })
+    const host = createHarnessHost({ persistence: persistenceFor() })
     const session = await host.open(
       defineHarness({
         name: 'test/bad-resume',
@@ -71,10 +76,12 @@ describe.each([
       resume: [{ interruptId, status: 'resolved', payload: true }],
       inputId: 'wrong',
     })
-    expect(await session.settled('wrong')).toMatchObject({ outcome: 'failed' })
+    expect(await session.settled({ inputId: 'wrong' })).toMatchObject({
+      outcome: 'failed',
+    })
     expect(session.snapshot()).toMatchObject({
       status: 'requires_action',
-      pendingInterrupts: [{ id: interruptId }],
+      pendingWaits: [{ waitId: interruptId, turn: true }],
     })
 
     const right = await session.resolve({
@@ -82,11 +89,11 @@ describe.each([
       inputId: 'right',
     })
     expect(right.status).toBe('accepted')
-    expect(await session.settled('right')).toMatchObject({
+    expect(await session.settled({ inputId: 'right' })).toMatchObject({
       outcome: 'completed',
     })
     expect(calls).toHaveLength(2)
-    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(session.snapshot())).toEqual([])
     await host.close()
   })
 
@@ -101,7 +108,7 @@ describe.each([
       seen.push(toolContext?.context)
       return Promise.resolve({ ok: true })
     })
-    const persistence = persistenceFor(durable)
+    const persistence = persistenceFor()
     const open = (replies: Array<Reply>) => {
       const host = createHarnessHost({ persistence })
       const harness = defineHarness({
@@ -126,7 +133,7 @@ describe.each([
       resume: [{ interruptId, status: 'resolved', payload: true }],
       inputId: 'approve',
     })
-    expect(await session.settled('approve')).toMatchObject({
+    expect(await session.settled({ inputId: 'approve' })).toMatchObject({
       outcome: 'completed',
     })
     // The harness adds the run of the turn to the context.
@@ -144,7 +151,7 @@ describe.each([
       inputSchema: z.object({ env: z.string() }),
     }).server(async () => ({ ok: true }))
     const { adapter } = mockAdapter([() => toolCall('deploy', { env: 'prod' })])
-    const host = createHarnessHost({ persistence: persistenceFor(durable) })
+    const host = createHarnessHost({ persistence: persistenceFor() })
     const session = await host.open(
       defineHarness({ name: 'test/waits', adapter, tools: [deploy] }),
       {
@@ -176,7 +183,7 @@ describe.each([
       () => toolCall('deploy', { env: 'prod' }),
       fails,
     ])
-    const host = createHarnessHost({ persistence: persistenceFor(durable) })
+    const host = createHarnessHost({ persistence: persistenceFor() })
     const session = await host.open(
       defineHarness({
         name: 'test/late-failure',
@@ -195,11 +202,11 @@ describe.each([
       resume: [{ interruptId, status: 'resolved', payload: true }],
       inputId: 'approve',
     })
-    expect(await session.settled('approve')).toMatchObject({
+    expect(await session.settled({ inputId: 'approve' })).toMatchObject({
       outcome: 'failed',
     })
     expect(execute).toHaveBeenCalledTimes(1)
-    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(session.snapshot())).toEqual([])
     expect(
       await session.resolve({
         resume: [{ interruptId, status: 'resolved', payload: true }],
@@ -225,7 +232,7 @@ describe.each([
       adapter,
       tools: [deploy],
     })
-    const persistence = persistenceFor(durable)
+    const persistence = persistenceFor()
     const first = createHarnessHost({ persistence })
     const session = await first.open(harness, { threadId: 't1' })
     const turn = await session.send('Deploy.')
@@ -235,7 +242,7 @@ describe.each([
       resume: [{ interruptId, status: 'resolved', payload: true }],
       inputId: 'approve',
     })
-    expect(await session.settled('approve')).toMatchObject({
+    expect(await session.settled({ inputId: 'approve' })).toMatchObject({
       outcome: 'failed',
     })
     await first.close()
@@ -243,7 +250,7 @@ describe.each([
     // A new host on the same storage, like a restart.
     const second = createHarnessHost({ persistence })
     const reopened = await second.open(harness, { threadId: 't1' })
-    expect(reopened.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(reopened.snapshot())).toEqual([])
     expect(
       await reopened.resolve({
         resume: [{ interruptId, status: 'resolved', payload: true }],
@@ -281,7 +288,7 @@ describe.each([
       () => toolCall('deploy', { env: 'prod' }),
       () => text('Deployed.'),
     ])
-    const host = createHarnessHost({ persistence: persistenceFor(durable) })
+    const host = createHarnessHost({ persistence: persistenceFor() })
     const session = await host.open(
       defineHarness({
         name: 'test/resolve-on-finished',
@@ -307,7 +314,7 @@ describe.each([
       }
     }
     await cleanup.opened
-    expect(session.snapshot().pendingInterrupts).toMatchObject([
+    expect(turnInterrupts(session.snapshot())).toMatchObject([
       { id: interruptId },
     ])
     const receipt = await session.resolve({
@@ -318,7 +325,7 @@ describe.each([
     release.open()
 
     expect((await turn).interrupts).toHaveLength(1)
-    expect(await session.settled('approve')).toMatchObject({
+    expect(await session.settled({ inputId: 'approve' })).toMatchObject({
       outcome: 'completed',
       operationId: receipt.operationId,
     })
@@ -326,7 +333,7 @@ describe.each([
     expect(calls).toHaveLength(2)
     expect(session.snapshot()).toMatchObject({
       status: 'idle',
-      pendingInterrupts: [],
+      pendingWaits: [],
     })
     await host.close()
   })
@@ -380,7 +387,7 @@ describe('a resolve and a waiting steer', () => {
     )
 
     const turn = session.send('Deploy.')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     const steer = session.send('And tell me.', {
       busy: 'steer',
       inputId: 'steer',
@@ -388,7 +395,7 @@ describe('a resolve and a waiting steer', () => {
     await steer.receipt
     held.open()
     await cleanup.opened
-    const interruptId = session.snapshot().pendingInterrupts[0]?.id ?? ''
+    const interruptId = turnInterrupts(session.snapshot())[0]?.id ?? ''
     await session.resolve({
       resume: [{ interruptId, status: 'resolved', payload: true }],
       inputId: 'approve',
@@ -396,7 +403,7 @@ describe('a resolve and a waiting steer', () => {
     release.open()
 
     await turn
-    expect(await session.settled('approve')).toMatchObject({
+    expect(await session.settled({ inputId: 'approve' })).toMatchObject({
       outcome: 'completed',
     })
     expect(await steer).toEqual({ text: 'Steered.', media: [] })
@@ -422,7 +429,7 @@ describe("prompt({ busy: 'steer' })", () => {
     )
 
     const turn = session.send('Start.')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     const joined = session.send('Steer by prompt.', {
       busy: 'steer',
       inputId: 'by-prompt',
@@ -439,7 +446,7 @@ describe("prompt({ busy: 'steer' })", () => {
     const result = await turn
     expect(result.text).toBe('First.Second.')
     expect(await joined).toEqual(result)
-    expect(await session.settled('by-prompt')).toMatchObject({
+    expect(await session.settled({ inputId: 'by-prompt' })).toMatchObject({
       outcome: 'completed',
       operationId: turn.id,
     })

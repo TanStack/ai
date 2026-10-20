@@ -1,6 +1,7 @@
 import { tmpdir } from 'node:os'
 import { join, relative, resolve, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { fileVersions } from '../src/first-party/coding/edit'
 import {
   parsePatch,
   patchPaths,
@@ -59,6 +60,8 @@ function workspace(
       const data = store.get(path)
       return data && { type: 'file', size: data.length, mtimeMs: 0 }
     },
+    // No links: each path is its own real path.
+    realpath: async (path) => path,
     readdir: async () => [],
     exec: async () => ({ exitCode: 0, stdout: '', stderr: '' }),
   }
@@ -77,7 +80,7 @@ function workspace(
     reach: async (path) => resolve(root, path),
     shown,
   }
-  const tools: Array<AnyTool> = patchTools(env)
+  const tools: Array<AnyTool> = patchTools(env, fileVersions(env))
   const [tool] = tools
   return {
     written,
