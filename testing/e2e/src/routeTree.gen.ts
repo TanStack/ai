@@ -130,6 +130,7 @@ import { Route as ApiMoonshotUsageDetailsRouteImport } from './routes/api.moonsh
 import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.multimodal-tool-result-wire'
 import { Route as ApiNonStreamingRunErrorRouteImport } from './routes/api.non-streaming-run-error'
 import { Route as ApiOpenaiCompletedResponseTextRouteImport } from './routes/api.openai-completed-response-text'
+import { Route as ApiOpenaiComputerUseWireRouteImport } from './routes/api.openai-computer-use-wire'
 import { Route as ApiOpenaiImage25ModelsRouteImport } from './routes/api.openai-image-2-5-models'
 import { Route as ApiOpenaiMalformedToolArgumentsRouteImport } from './routes/api.openai-malformed-tool-arguments'
 import { Route as ApiOpenaiResponsesUsageRouteImport } from './routes/api.openai-responses-usage'
@@ -815,6 +816,12 @@ const ApiOpenaiCompletedResponseTextRoute =
     path: '/api/openai-completed-response-text',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiOpenaiComputerUseWireRoute =
+  ApiOpenaiComputerUseWireRouteImport.update({
+    id: '/api/openai-computer-use-wire',
+    path: '/api/openai-computer-use-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOpenaiImage25ModelsRoute = ApiOpenaiImage25ModelsRouteImport.update({
   id: '/api/openai-image-2-5-models',
   path: '/api/openai-image-2-5-models',
@@ -1219,6 +1226,7 @@ export interface FileRoutesByFullPath {
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
+  '/api/openai-computer-use-wire': typeof ApiOpenaiComputerUseWireRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
   '/api/openai-malformed-tool-arguments': typeof ApiOpenaiMalformedToolArgumentsRoute
   '/api/openai-responses-usage': typeof ApiOpenaiResponsesUsageRoute
@@ -1395,6 +1403,7 @@ export interface FileRoutesByTo {
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
+  '/api/openai-computer-use-wire': typeof ApiOpenaiComputerUseWireRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
   '/api/openai-malformed-tool-arguments': typeof ApiOpenaiMalformedToolArgumentsRoute
   '/api/openai-responses-usage': typeof ApiOpenaiResponsesUsageRoute
@@ -1572,6 +1581,7 @@ export interface FileRoutesById {
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
+  '/api/openai-computer-use-wire': typeof ApiOpenaiComputerUseWireRoute
   '/api/openai-image-2-5-models': typeof ApiOpenaiImage25ModelsRoute
   '/api/openai-malformed-tool-arguments': typeof ApiOpenaiMalformedToolArgumentsRoute
   '/api/openai-responses-usage': typeof ApiOpenaiResponsesUsageRoute
@@ -1750,6 +1760,7 @@ export interface FileRouteTypes {
     | '/api/multimodal-tool-result-wire'
     | '/api/non-streaming-run-error'
     | '/api/openai-completed-response-text'
+    | '/api/openai-computer-use-wire'
     | '/api/openai-image-2-5-models'
     | '/api/openai-malformed-tool-arguments'
     | '/api/openai-responses-usage'
@@ -1926,6 +1937,7 @@ export interface FileRouteTypes {
     | '/api/multimodal-tool-result-wire'
     | '/api/non-streaming-run-error'
     | '/api/openai-completed-response-text'
+    | '/api/openai-computer-use-wire'
     | '/api/openai-image-2-5-models'
     | '/api/openai-malformed-tool-arguments'
     | '/api/openai-responses-usage'
@@ -2102,6 +2114,7 @@ export interface FileRouteTypes {
     | '/api/multimodal-tool-result-wire'
     | '/api/non-streaming-run-error'
     | '/api/openai-completed-response-text'
+    | '/api/openai-computer-use-wire'
     | '/api/openai-image-2-5-models'
     | '/api/openai-malformed-tool-arguments'
     | '/api/openai-responses-usage'
@@ -2279,6 +2292,7 @@ export interface RootRouteChildren {
   ApiMultimodalToolResultWireRoute: typeof ApiMultimodalToolResultWireRoute
   ApiNonStreamingRunErrorRoute: typeof ApiNonStreamingRunErrorRoute
   ApiOpenaiCompletedResponseTextRoute: typeof ApiOpenaiCompletedResponseTextRoute
+  ApiOpenaiComputerUseWireRoute: typeof ApiOpenaiComputerUseWireRoute
   ApiOpenaiImage25ModelsRoute: typeof ApiOpenaiImage25ModelsRoute
   ApiOpenaiMalformedToolArgumentsRoute: typeof ApiOpenaiMalformedToolArgumentsRoute
   ApiOpenaiResponsesUsageRoute: typeof ApiOpenaiResponsesUsageRoute
@@ -3179,6 +3193,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOpenaiCompletedResponseTextRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/openai-computer-use-wire': {
+      id: '/api/openai-computer-use-wire'
+      path: '/api/openai-computer-use-wire'
+      fullPath: '/api/openai-computer-use-wire'
+      preLoaderRoute: typeof ApiOpenaiComputerUseWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/openai-image-2-5-models': {
       id: '/api/openai-image-2-5-models'
       path: '/api/openai-image-2-5-models'
@@ -3737,6 +3758,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMultimodalToolResultWireRoute: ApiMultimodalToolResultWireRoute,
   ApiNonStreamingRunErrorRoute: ApiNonStreamingRunErrorRoute,
   ApiOpenaiCompletedResponseTextRoute: ApiOpenaiCompletedResponseTextRoute,
+  ApiOpenaiComputerUseWireRoute: ApiOpenaiComputerUseWireRoute,
   ApiOpenaiImage25ModelsRoute: ApiOpenaiImage25ModelsRoute,
   ApiOpenaiMalformedToolArgumentsRoute: ApiOpenaiMalformedToolArgumentsRoute,
   ApiOpenaiResponsesUsageRoute: ApiOpenaiResponsesUsageRoute,
