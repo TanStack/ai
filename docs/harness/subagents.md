@@ -665,7 +665,7 @@ In a session, the child is a run of the session tree. It opens a session of the 
 What you see in the parent session:
 
 - The model calls of the child count in `session.usage()` and in the budget of the parent.
-- A wait of the child, for example a sign-in or an approval, is in `snapshot().pendingWaits` of the root session. Answer it there, and the child goes on in the parent run. The receipt names the parent run, so a `POST run` resume streams that run to its end. A wait that expires lets the child go on by itself. This works while the child session is open on this host: another host and `host.observe` do not see the wait. A child that waits keeps its parent run running.
+- A wait of the child, for example a sign-in or an approval, is in `snapshot().pendingWaits` of the root session. Answer it there, and the child goes on in the parent run. The receipt names the parent run, so a `POST run` resume streams that run to its end. A wait that expires lets the child go on by itself. Every host sees the wait, and so does `host.observe`, because it is in the log of the root thread. An answer on another host goes to the host that runs the child. A child that waits keeps its parent run running.
 - The events of the child (text, reasoning, tool calls, and custom events) reach the parent stream with `parentRunId` in `metadata.tanstack`. A last `RUN_FINISHED` has the total usage of the child.
 - The child session closes, and its plugins are cleaned up, when the run settles.
 

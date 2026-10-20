@@ -33,6 +33,7 @@ import {
   customEvent,
   isOfferedInputRecord,
   scopeOf,
+  loggedChildWaits,
   snapshotFrom,
   storedPrincipal,
   changeSettings,
@@ -258,6 +259,10 @@ export abstract class SessionState<
       plugins: { ...this.stateDoc },
       usage: this.usage(),
       cursor: this.feed.head(),
+      // The waits of the children that another host runs.
+      childWaits: this.logWriter
+        ? loggedChildWaits(this.logWriter, this.threadId)
+        : [],
       live: {
         isRunning: this.activeTurn !== undefined,
         activeOperations: active.map((operation) => ({

@@ -2,7 +2,7 @@ import { loadChildTranscript } from '@tanstack/ai-persistence'
 import { runStartOf, visibleMessages } from '../log'
 import { createMediaStore } from '../media'
 import { untilRevoked } from './handle'
-import { jobsOf, snapshotFrom } from './helpers'
+import { jobsOf, loggedChildWaits, snapshotFrom } from './helpers'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
   BlobRange,
@@ -67,8 +67,8 @@ export interface ObservedSession<THarness extends AnyHarness = AnyHarness> {
    * - `status` is never `running`: a turn runs in memory. It is
    *   `requires_action` while the last turn waits for interrupts, else
    *   `idle`.
-   * - There are no active operations, queued turns, or waiting inputs, and
-   *   no waits of `harnessAgent` children.
+   * - There are no active operations, queued turns, or waiting inputs. The
+   *   waits of `harnessAgent` children come from the log.
    * - `plugins` has only the plugin state that the log keeps. The state of
    *   a plugin that never saved one is left out, because its first value
    *   comes from the plugin setup.
@@ -282,6 +282,7 @@ export function observedSession<THarness extends AnyHarness>(
             plugins: Object.fromEntries(saved),
             usage: reader.state.usage,
             cursor: reader.head(),
+            childWaits: loggedChildWaits(reader, threadId),
           }),
         )
       })
