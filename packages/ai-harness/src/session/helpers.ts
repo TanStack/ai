@@ -340,9 +340,9 @@ export const chainFields = (
   target: first.input.agent,
   input: first.input.input,
   options: {
-    wake: first.input.detached === true,
-    ...(first.input.resume ? { resume: true } : {}),
-    ...(first.input.attach ? { attach: first.input.attach } : {}),
+    startTurnWhenDone: first.input.detached === true,
+    ...(first.input.runAgainAfterCrash ? { runAgainAfterCrash: true } : {}),
+    ...(first.input.addResultNote === false ? { addResultNote: false } : {}),
     // The run tree keeps the start options that the input does not.
     ...(node?.key !== undefined ? { key: node.key } : {}),
     ...(node?.limits ? { limits: node.limits } : {}),

@@ -210,7 +210,7 @@ describe('a durable host with only a log', () => {
       },
     )
     await session.agents.pricer.run()
-    session.agents.waiter.start(undefined, { wake: true })
+    session.agents.waiter.start(undefined, { startTurnWhenDone: true })
     // Both runs are applied: the pricer ended, the waiter runs.
     await waitFor(async () =>
       expect(
@@ -540,7 +540,9 @@ describe('close({ recoverable: true })', () => {
       },
     })
     const first = await openOn(persistence, [], { agents: [worker] })
-    first.session.agent('worker')?.start(undefined, { resume: true })
+    first.session
+      .agent('worker')
+      ?.start(undefined, { runAgainAfterCrash: true })
     await waitFor(() => expect(started).toBe(1))
 
     await first.host.close({ recoverable: true })

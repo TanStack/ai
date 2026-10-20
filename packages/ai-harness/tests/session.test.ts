@@ -430,7 +430,10 @@ describe('agents', () => {
       },
     )
 
-    await session.agents.pricer.start({ vendor: 'acme' }, { wake: true })
+    await session.agents.pricer.start(
+      { vendor: 'acme' },
+      { startTurnWhenDone: true },
+    )
     await waitFor(() => expect(calls).toHaveLength(1))
     expect(messageTexts(calls[0]).at(-1)).toContain(
       'Background agent pricer finished',
@@ -465,7 +468,7 @@ describe('agents', () => {
     )
 
     await expect(
-      session.agents.failing.start(undefined, { wake: true }),
+      session.agents.failing.start(undefined, { startTurnWhenDone: true }),
     ).rejects.toThrow('no vendor')
     await waitFor(() => expect(calls).toHaveLength(1))
     expect(messageTexts(calls[0]).slice(-2)).toEqual([

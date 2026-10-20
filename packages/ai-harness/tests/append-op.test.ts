@@ -20,7 +20,7 @@ function setup() {
     name: 'test/append',
     adapter,
     expose: { records: ['app.signal'] },
-    durability: { project },
+    durability: { addRecordsToModelContext: project },
   })
   const host = createHarnessHost({ persistence: memoryPersistence() })
   return { harness, host, calls }

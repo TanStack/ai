@@ -214,7 +214,7 @@ export interface AgentActions {
 /** What a harness session adds to an agent run that it starts from code. */
 export interface HarnessAgentContext {
   /**
-   * The steps of the run. In a run started with `resume: true`, a
+   * The steps of the run. In a run started with `runAgainAfterCrash: true`, a
    * finished step returns its stored value when the run
    * runs again, and `fn` does not run again. Else `fn` runs each time,
    * and `sleep` waits its full time.
@@ -225,7 +225,7 @@ export interface HarnessAgentContext {
   /**
    * Hand the turn to another root agent, or to `'main'` (the main model).
    * The target answers next, in this turn, and the later turns go to it.
-   * `{ human: true }` hands it to a person, when `routing.humans` is true:
+   * `{ human: true }` hands it to a person, when `routing.allowHandoffToHuman` is true:
    * the turn ends `interrupted`, and the session pauses until an operator
    * answers the `human` wait.
    * It works in a root agent that answers a turn of a harness with

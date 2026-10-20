@@ -229,7 +229,12 @@ export type {
   WaitingInput,
 } from './types'
 
-export { isApproval, waitKind, waitOfInterrupt, waitOfQuestion } from './waits'
+export {
+  isApproval,
+  waitKind,
+  waitFromInterrupt,
+  waitFromQuestion,
+} from './waits'
 export type { PendingWait, Wait, WaitKind, WaitOutcome } from './waits'
 
 export { harnessText } from './harness-text'

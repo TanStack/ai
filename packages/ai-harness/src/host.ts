@@ -1582,31 +1582,31 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
     string,
     { log: SharedLog; reduce: ReduceOptions<unknown> | undefined }
   >()
-  /** The harness whose `project` and `reduce` fold each open shared log. */
+  /** The harness whose `addRecordsToModelContext` and `logState` fold each open shared log. */
   const foldedBy = new WeakMap<Promise<SharedLog>, AnyHarness>()
   /**
    * The shared log with the store log id `logId`, whose records with no
    * `thread` field belong to `rootThread`. The harness of the session that
-   * opens it gives the `project` and `reduce` that fold it. It throws when
-   * the log is open with another `project` or `reduce`.
+   * opens it gives the `addRecordsToModelContext` and `logState` that fold it. It throws when
+   * the log is open with another `addRecordsToModelContext` or `logState`.
    */
   const sharedLog = (
     store: LogStore,
     { logId, rootThread }: { logId: string; rootThread: string },
     harness: AnyHarness,
   ) => {
-    const project = harness.durability?.project
-    const reduce = harness.durability?.reduce
+    const project = harness.durability?.addRecordsToModelContext
+    const reduce = harness.durability?.logState
     const open = logs.get(logId)
     if (open) {
       const folder = foldedBy.get(open)
       if (
         folder &&
-        (folder.durability?.project !== project ||
-          folder.durability?.reduce !== reduce)
+        (folder.durability?.addRecordsToModelContext !== project ||
+          folder.durability?.logState !== reduce)
       ) {
         throw new Error(
-          `The harness "${harness.name}" has another durability.project or durability.reduce than the harness "${folder.name}", which folds the log of thread ${JSON.stringify(rootThread)}. Pass the same project and reduce objects to every harness that shares a log.`,
+          `The harness "${harness.name}" has another durability.addRecordsToModelContext or durability.logState than the harness "${folder.name}", which folds the log of thread ${JSON.stringify(rootThread)}. Pass the same addRecordsToModelContext and logState objects to every harness that shares a log.`,
         )
       }
       return open

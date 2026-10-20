@@ -101,9 +101,9 @@ export interface ObservedSession<THarness extends AnyHarness = AnyHarness> {
     SessionIndexEntry<SessionMetadataOf<THarness>> | undefined
   >
   /**
-   * The `durability.reduce` fold of the harness for the log of the thread,
+   * The `durability.logState` fold of the harness for the log of the thread,
    * as `session.logState()` gives it. For a child thread, it is the fold of
-   * the log of its root. `undefined` when the harness has no `reduce`.
+   * the log of its root. `undefined` when the harness has no `durability.logState`.
    */
   logState: () => Promise<HarnessLogStateOf<THarness> | undefined>
   /**
@@ -131,7 +131,7 @@ export interface ObservedSources<THarness extends AnyHarness> {
   media: MediaPersistence
   /**
    * A reader of the thread in the log of its session tree (the log of its
-   * root thread), and the `reduce` that folds the log. The caller closes
+   * root thread), and the `durability.logState` that folds the log. The caller closes
    * the reader.
    */
   readLog: () => Promise<{
@@ -341,7 +341,7 @@ export function observedSession<THarness extends AnyHarness>(
         // The open of a log with another reduce throws, so the reduce of
         // `harness` folded it, and the state has that type. A map of logs
         // cannot carry a state type per log.
-        reduce === harness.durability?.reduce
+        reduce === harness.durability?.logState
           ? (reader.reduced as HarnessLogStateOf<THarness> | undefined)
           : undefined,
       )

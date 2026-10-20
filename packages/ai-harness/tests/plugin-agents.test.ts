@@ -44,7 +44,7 @@ describe('ctx.agents inside a session', () => {
               await ctx.agents.start(
                 painter,
                 { subject: 'sun' },
-                { wake: false },
+                { startTurnWhenDone: false },
               ),
             ],
           }),
@@ -87,12 +87,12 @@ describe('ctx.agents inside a session', () => {
     const other = await host.open(harness, { threadId: 't2' })
     const ended = session.agents.painter.start(
       { subject: 'rain' },
-      { attach: 'none' },
+      { addResultNote: false },
     )
     await ended
     const foreign = other.agents.painter.start(
       { subject: 'sun' },
-      { attach: 'none' },
+      { addResultNote: false },
     )
     await foreign
 
@@ -100,7 +100,7 @@ describe('ctx.agents inside a session', () => {
       expect(() =>
         session.agents.painter.start(
           { subject: 'snow' },
-          { attach: 'none', parent: { runId } },
+          { addResultNote: false, parent: { runId } },
         ),
       ).toThrow(
         `parent names no running agent run of this session (${runId}). Pass parent: null for a root run.`,

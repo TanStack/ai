@@ -21,7 +21,7 @@ Set `durable: true`. Compaction then writes a `tanstack.compaction` record into 
 
 1. Create the compaction middleware with `durable: true`.
 2. Add it to `middleware` in `defineHarness`.
-3. Give the harness `projectCompaction` in its `durability.project` option.
+3. Give the harness `projectCompaction` in its `durability.addRecordsToModelContext` option.
 
 ```ts group=harness-compaction
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
@@ -50,7 +50,7 @@ const assistant = defineHarness({
   name: 'acme/assistant',
   adapter: openaiText('gpt-6.1-sol'),
   middleware: [compaction],
-  durability: { project: { version: 'v1', record: projectCompaction } },
+  durability: { addRecordsToModelContext: { version: 'v1', record: projectCompaction } },
 })
 
 const host = createHarnessHost({ persistence: memoryPersistence() })

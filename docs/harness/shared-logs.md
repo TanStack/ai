@@ -63,7 +63,7 @@ Here the child record and the link in the root land together, or not at all.
 
 ## Keep state for the whole tree
 
-Give the harness a `durability.reduce` option. It folds every host record of the log, from the root and from each child thread, in log order. Then `session.logState()` reads the result:
+Give the harness a `durability.logState` option. It folds every host record of the log, from the root and from each child thread, in log order. Then `session.logState()` reads the result:
 
 ```ts group=harness-shared-logs
 import type { ReduceOptions } from '@tanstack/ai-harness'
@@ -84,7 +84,7 @@ const reduce: ReduceOptions<Children> = {
 const tracker = defineHarness({
   name: 'acme/tracker',
   adapter: openaiText('gpt-6.1-sol'),
-  durability: { reduce },
+  durability: { logState: reduce },
 })
 const tracked = await host.open(tracker, { threadId: 'agent-2' })
 await tracked.appendRecords({
@@ -95,11 +95,11 @@ console.log((await tracked.logState())?.tasks)
 ```
 
 - `record` must be pure. It returns the next state, or the same state for no change.
-- The type of the state flows from `initial` and `record`. Here `logState()` resolves to `Children | undefined`. A harness without `reduce` gets `undefined`.
+- The type of the state flows from `initial` and `record`. Here `logState()` resolves to `Children | undefined`. A harness without `logState` gets `undefined`.
 - The fold comes from the log, so a session on another machine gets the same state.
 - Change `version` when you change `record`. A log snapshot with another version is not used, so the host folds the log again from the first record.
-- `durability.project` also works with `reduce`. It folds a host record into the messages of its own thread only.
-- Every harness that opens the same log must pass the same `project` and `reduce` objects. When a harness with other ones opens a log that is open, `host.open` throws, and so do the reads of `host.observe`.
+- `durability.addRecordsToModelContext` also works with `logState`. It folds a host record into the messages of its own thread only.
+- Every harness that opens the same log must pass the same `addRecordsToModelContext` and `logState` objects. When a harness with other ones opens a log that is open, `host.open` throws, and so do the reads of `host.observe`.
 
 A read route that opens no session gets the same state from a view:
 
@@ -129,4 +129,4 @@ Each thread id that you pass is the root of a tree. To read a child thread, use 
 
 - One durable log for a root thread and all of its child threads, each with its own transcript.
 - Appends that reach several threads and land all together or not at all.
-- One state for the whole tree, from `durability.reduce`, that you read with `session.logState()` on any machine.
+- One state for the whole tree, from `durability.logState`, that you read with `session.logState()` on any machine.

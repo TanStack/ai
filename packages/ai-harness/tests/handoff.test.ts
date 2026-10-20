@@ -49,9 +49,9 @@ async function openRouting(options: {
   tools?: ReadonlyArray<AnyTool>
   replies?: Array<Reply>
   adapter?: AnyTextAdapter
-  /** `routing.handoffs`. */
+  /** `routing.giveModelsHandoffTool`. */
   handoffs?: boolean
-  /** `routing.humans`. */
+  /** `routing.allowHandoffToHuman`. */
   humans?: boolean
   log?: LogStore
   ownership?: OwnershipOptions
@@ -76,9 +76,9 @@ async function openRouting(options: {
       routing: {
         router: options.router ?? (() => undefined),
         ...(options.handoffs !== undefined
-          ? { handoffs: options.handoffs }
+          ? { giveModelsHandoffTool: options.handoffs }
           : {}),
-        ...(options.humans ? { humans: true } : {}),
+        ...(options.humans ? { allowHandoffToHuman: true } : {}),
       },
     }),
     { threadId: THREAD, user: USER },
@@ -186,7 +186,7 @@ describe('handoffs', () => {
       'You are the main model.',
     )
     // Its handoff tool goes to the other agents and to the main model. A
-    // person needs `routing.humans`.
+    // person needs `routing.allowHandoffToHuman`.
     const tool = call.tools.find(
       (item: { name: string }) => item.name === 'handoff',
     )
@@ -395,7 +395,7 @@ describe('handoffs', () => {
     await host.close()
   })
 
-  it('gives no handoff tool with routing.handoffs false, so an app tool can be named handoff', async () => {
+  it('gives no handoff tool with routing.giveModelsHandoffTool false, so an app tool can be named handoff', async () => {
     const billing = modelAgent('billing', [() => text('Billed')])
     const { host, session, main } = await openRouting({
       agents: [billing.agent],
@@ -591,7 +591,7 @@ describe('handoffs', () => {
     await host.close()
   })
 
-  it('writes a plain note with routing.handoffs false', async () => {
+  it('writes a plain note with routing.giveModelsHandoffTool false', async () => {
     const billing = modelAgent('billing', [() => text('Billed')])
     const { host, session } = await openRouting({
       agents: [billing.agent],

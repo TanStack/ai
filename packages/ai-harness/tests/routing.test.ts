@@ -112,7 +112,7 @@ function scriptedRouter(...picks: Array<SubagentRouterPick>) {
 /** A session whose harness has `routing`. */
 async function openRouting(options: {
   router: HarnessRouting['router']
-  after?: HarnessRouting['after']
+  afterAgentsAnswer?: HarnessRouting['afterAgentsAnswer']
   agents?: ReadonlyArray<AnyAgent>
   subagents?: HarnessSubagents<ReadonlyArray<AnyAgent>>
   plugins?: () => ReadonlyArray<HarnessPlugin>
@@ -136,7 +136,9 @@ async function openRouting(options: {
       ...(options.turn ? { turn: options.turn } : {}),
       routing: {
         router: options.router,
-        ...(options.after ? { after: options.after } : {}),
+        ...(options.afterAgentsAnswer
+          ? { afterAgentsAnswer: options.afterAgentsAnswer }
+          : {}),
       },
     }),
     {
@@ -336,12 +338,12 @@ describe('routing.router', () => {
     await host.close()
   })
 
-  it("runs the main model after the agents with after: 'main', with its subagent tools", async () => {
+  it("runs the main model after the agents with afterAgentsAnswer: 'main-answers', with its subagent tools", async () => {
     const writer = textAgent('writer', 'Draft')
     const checker = textAgent('checker', 'Checked')
     const { host, session, main } = await openRouting({
       router: () => 'writer',
-      after: 'main',
+      afterAgentsAnswer: 'main-answers',
       agents: [writer.agent],
       subagents: { agents: [checker.agent] },
       replies: [() => text('Edited draft')],
@@ -363,7 +365,7 @@ describe('routing.router', () => {
     await host.close()
   })
 
-  it("retries a model error in the main part of after: 'main' with turn.onModelError", async () => {
+  it("retries a model error in the main part of afterAgentsAnswer: 'main-answers' with turn.onModelError", async () => {
     const writer = textAgent('writer', 'Draft')
     const onModelError = vi.fn(
       ({ retries }: { retries: number }): 'retry' | undefined =>
@@ -371,7 +373,7 @@ describe('routing.router', () => {
     )
     const { host, session, main } = await openRouting({
       router: () => 'writer',
-      after: 'main',
+      afterAgentsAnswer: 'main-answers',
       agents: [writer.agent],
       turn: { onModelError },
       replies: [
@@ -390,7 +392,7 @@ describe('routing.router', () => {
     await host.close()
   })
 
-  it("runs turn.beforeFinish in the main part of after: 'main'", async () => {
+  it("runs turn.beforeFinish in the main part of afterAgentsAnswer: 'main-answers'", async () => {
     const writer = textAgent('writer', 'Draft')
     const beforeFinish = vi.fn(({ cycle }: { cycle: number }) =>
       cycle === 0
@@ -399,7 +401,7 @@ describe('routing.router', () => {
     )
     const { host, session, main } = await openRouting({
       router: () => 'writer',
-      after: 'main',
+      afterAgentsAnswer: 'main-answers',
       agents: [writer.agent],
       turn: { beforeFinish },
       replies: [() => text('Edited draft'), () => text('Edited again')],
@@ -414,7 +416,7 @@ describe('routing.router', () => {
     await host.close()
   })
 
-  it("runs a steer sent during a routed turn with after: 'main' as its own routed turn", async () => {
+  it("runs a steer sent during a routed turn with afterAgentsAnswer: 'main-answers' as its own routed turn", async () => {
     const started = gate()
     const release = gate()
     const answers: Array<Array<string>> = []
@@ -431,7 +433,7 @@ describe('routing.router', () => {
     const { router, seen } = scriptedRouter('writer', 'writer')
     const { host, session, main } = await openRouting({
       router,
-      after: 'main',
+      afterAgentsAnswer: 'main-answers',
       agents: [writer],
       replies: [() => text('Main 1'), () => text('Main 2')],
     })
@@ -447,7 +449,7 @@ describe('routing.router', () => {
     expect(settled.operationId).not.toBe(turn.id)
     expect(seen.map((ctx) => ctx.input)).toEqual(['first', 'second'])
     expect(answers[1]?.at(-1)).toBe('second')
-    // The main model of after: 'main' does not get the steer in the first turn.
+    // The main model of afterAgentsAnswer: 'main-answers' does not get the steer in the first turn.
     expect(main.calls.slice(0, 1).flatMap(messageTexts)).not.toContain('second')
     await host.close()
   })
@@ -631,7 +633,7 @@ describe('routing.router', () => {
 
     const handle = session.agent('indexer')
     if (!handle) throw new Error('No indexer agent.')
-    await handle.start(undefined, { wake: true })
+    await handle.start(undefined, { startTurnWhenDone: true })
     await waitFor(() => expect(main.calls).toHaveLength(1))
     await waitFor(() => expect(session.snapshot().status).toBe('idle'))
 

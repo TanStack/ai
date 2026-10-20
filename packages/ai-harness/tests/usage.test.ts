@@ -281,7 +281,7 @@ describe('usage of each run', () => {
       { threadId: THREAD, user: alice },
     )
 
-    const run = session.agents.lead.start(undefined, { attach: 'none' })
+    const run = session.agents.lead.start(undefined, { addResultNote: false })
     expect(await run).toBe('worked')
     const workerRun = session
       .agentRuns()

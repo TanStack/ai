@@ -24,7 +24,7 @@ import {
   interruptOf,
   openWaits,
   signInOf,
-  waitOfInterrupt,
+  waitFromInterrupt,
 } from '../waits'
 import {
   agentKey,
@@ -501,8 +501,9 @@ export abstract class SessionAgents<
           agent,
           call.input,
           {
-            ...startOptions,
-            ...(resume ? { resume } : {}),
+            // Core passes `{ wake: true }`: start a new turn when the run ends.
+            startTurnWhenDone: startOptions.wake,
+            ...(resume ? { runAgainAfterCrash: resume } : {}),
             ...(user ? { user } : {}),
           },
           undefined,
@@ -1005,7 +1006,7 @@ export abstract class SessionAgents<
    * knows then binds to the old run, and does not start again.
    */
   protected agentStarter(chain: AgentChain, runInputId?: string): AgentActions {
-    const keyed = chain.options.resume ? runInputId : undefined
+    const keyed = chain.options.runAgainAfterCrash ? runInputId : undefined
     const startChild: AgentStartFn = (target, input, options) => {
       if (options.inputId !== undefined) {
         const name = typeof target === 'string' ? target : target.name
@@ -1038,7 +1039,7 @@ export abstract class SessionAgents<
       let index = 0
       return this.agentGroup(options, body, (target, input, childOptions) =>
         startChild(target, input, {
-          wake: false,
+          startTurnWhenDone: false,
           ...childOptions,
           inputId: `${groupId}:${index++}`,
         }),
@@ -1403,7 +1404,7 @@ export abstract class SessionAgents<
   }
 
   /**
-   * Run again an agent run with `resume: true` whose host stopped: a first
+   * Run again an agent run with `runAgainAfterCrash: true` whose host stopped: a first
    * run, or a follow-up run of the chain of `first`. The new run applies the
    * same input, so its attempt counts up, and it continues the chain's saved
    * transcript. `subagentRunId`: the child id of the run that stopped, so an
@@ -1451,7 +1452,7 @@ export abstract class SessionAgents<
   /**
    * Start an agent run whose start waited in the log when its host stopped:
    * a top-level run waited for a slot, or the host stopped before it
-   * started. It never ran, so nothing runs twice, also without `resume`. It
+   * started. It never ran, so nothing runs twice, also without `runAgainAfterCrash`. It
    * keeps the run id of its queued node, so the `operationId` of its receipt
    * stays valid. A top-level run waits for a slot again. A child of a turn
    * keeps its turn as its parent, and the child id that the model got.
@@ -1762,9 +1763,13 @@ export abstract class SessionAgents<
               op: 'agent',
               agent: name,
               input,
-              ...(options.wake ? { detached: true } : {}),
-              ...(options.resume ? { resume: true } : {}),
-              ...(options.attach === 'none' ? { attach: 'none' as const } : {}),
+              ...(options.startTurnWhenDone ? { detached: true } : {}),
+              ...(options.runAgainAfterCrash
+                ? { runAgainAfterCrash: true }
+                : {}),
+              ...(options.addResultNote === false
+                ? { addResultNote: false as const }
+                : {}),
               ...(chain.parentRunId ? { parentRunId: chain.parentRunId } : {}),
             },
             user,
@@ -1978,7 +1983,9 @@ export abstract class SessionAgents<
       const { plugins } = chain
       const runPlugins = plugins?.hold(operation) ? plugins.plugins : undefined
       const binding = this.binding(operation, [], user, run, runPlugins)
-      const durable = options.resume ? this.resumable(inputId, run) : undefined
+      const durable = options.runAgainAfterCrash
+        ? this.resumable(inputId, run)
+        : undefined
       const harnessContext: HarnessAgentContext = withHarnessChild(
         {
           step: durable?.step ?? NO_SESSION_CONTEXT.step,
@@ -2254,7 +2261,7 @@ export abstract class SessionAgents<
     const at = Date.now()
     await this.writeWait(
       ...interrupts.map((interrupt) => {
-        const wait = waitOfInterrupt({
+        const wait = waitFromInterrupt({
           interrupt,
           runId: operation.id,
           ...storedUser(user),
@@ -2559,7 +2566,7 @@ export abstract class SessionAgents<
 
   /**
    * Tell the main model how an agent ended: a transcript note (unless
-   * `attach: 'none'`), and a new chat turn when `wake` is set. The wake turn
+   * `addResultNote: false`), and a new chat turn when `startTurnWhenDone` is set. The new turn
    * runs as `user`, the user who started the agent.
    */
   protected async noteAgentEnd(
@@ -2570,10 +2577,10 @@ export abstract class SessionAgents<
     user?: HarnessUser,
   ): Promise<void> {
     const note = referenceNote(name, result, ended)
-    if ((options.attach ?? 'reference') === 'reference') {
+    if (options.addResultNote !== false) {
       await this.addNote(note)
     }
-    if (options.wake) {
+    if (options.startTurnWhenDone) {
       this.startTurn(
         {
           op: 'followUp',
@@ -2641,7 +2648,7 @@ export abstract class SessionAgents<
       stopped.agent,
       'failed',
       error.message,
-      { wake: stopped.wake === true },
+      { startTurnWhenDone: stopped.wake === true },
       stopped.user,
     )
   }

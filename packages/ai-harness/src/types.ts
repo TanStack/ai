@@ -268,10 +268,10 @@ export type HarnessInput = (
       agent: string
       input?: unknown
       detached?: boolean
-      /** Run again after a host stop. See `AgentStartOptions.resume`. */
-      resume?: boolean
-      /** `'none'`: no note for the main model. See `AgentRunOptions.attach`. */
-      attach?: 'none'
+      /** Run again after a host stop. See `AgentStartOptions.runAgainAfterCrash`. */
+      runAgainAfterCrash?: boolean
+      /** `false`: no note for the main model. See `AgentStartOptions.addResultNote`. */
+      addResultNote?: false
       /** The run whose agent code started this run. */
       parentRunId?: string
     }
@@ -601,7 +601,7 @@ export interface RunContext {
   keys: ProviderKeys
   /**
    * Hand the turn to another root agent, `'main'`, or a person (with
-   * `routing.humans`), as `ctx.harness.handoff` does. It works in a turn of a harness with
+   * `routing.allowHandoffToHuman`), as `ctx.harness.handoff` does. It works in a turn of a harness with
    * `routing`, for example in a tool of the main model. Anywhere else it
    * rejects.
    *

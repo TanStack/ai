@@ -413,7 +413,7 @@ describe('durable session log', () => {
         adapter,
         tools: [check],
         middleware: [hideSecret],
-        durability: { project },
+        durability: { addRecordsToModelContext: project },
       }),
       {
         threadId: THREAD,
@@ -456,7 +456,7 @@ describe('durable session log', () => {
         name: 'test/project',
         adapter,
         tools: [check],
-        durability: { project },
+        durability: { addRecordsToModelContext: project },
       }),
       {
         threadId: THREAD,
@@ -512,7 +512,7 @@ describe('durable session log', () => {
       defineHarness({
         name: 'test/compact',
         adapter,
-        durability: { project },
+        durability: { addRecordsToModelContext: project },
       }),
       {
         threadId: THREAD,
@@ -678,7 +678,7 @@ describe('LogRecordsCapability', () => {
         name: 'test/log-records',
         adapter,
         middleware: [signal],
-        durability: { project },
+        durability: { addRecordsToModelContext: project },
       }),
       {
         threadId: THREAD,
@@ -732,7 +732,7 @@ describe('LogRecordsCapability', () => {
         adapter,
         tools: [lookup],
         middleware: [signal],
-        durability: { project },
+        durability: { addRecordsToModelContext: project },
       }),
       {
         threadId: THREAD,
@@ -786,7 +786,7 @@ describe('LogRecordsCapability', () => {
         name: 'test/log-records-note',
         adapter,
         middleware: [note],
-        durability: { project },
+        durability: { addRecordsToModelContext: project },
       }),
       {
         threadId: THREAD,
@@ -874,7 +874,7 @@ describe('compaction-style host records from a middleware', () => {
         name: 'test/after-turn-record',
         adapter,
         middleware: [afterTurn],
-        durability: { project },
+        durability: { addRecordsToModelContext: project },
       }),
       {
         threadId: THREAD,
@@ -937,7 +937,7 @@ describe('compaction-style host records from a middleware', () => {
         name: 'test/before-call-record',
         adapter,
         middleware: [beforeCall],
-        durability: { project },
+        durability: { addRecordsToModelContext: project },
       }),
       {
         threadId: THREAD,
@@ -1000,7 +1000,7 @@ describe('compaction-style host records from a middleware', () => {
         adapter,
         tools: [lookup],
         middleware: [clearFirst],
-        durability: { project },
+        durability: { addRecordsToModelContext: project },
       }),
       {
         threadId: THREAD,

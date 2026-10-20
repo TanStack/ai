@@ -231,7 +231,7 @@ describe('client reads and actions', () => {
       threadId: 'thread-a',
       user,
     })
-    const run = session.agents.writer.start(undefined, { attach: 'none' })
+    const run = session.agents.writer.start(undefined, { addResultNote: false })
     await run
     const handler = createHarnessHandler({ host, harness })
     const client = createHarnessClient({

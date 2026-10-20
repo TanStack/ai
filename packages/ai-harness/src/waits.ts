@@ -171,11 +171,11 @@ export function timeOf(iso: string | undefined) {
  * @example
  * ```ts
  * const waits = interrupts.map((interrupt) =>
- *   waitOfInterrupt({ interrupt, runId }),
+ *   waitFromInterrupt({ interrupt, runId }),
  * )
  * ```
  */
-export function waitOfInterrupt({
+export function waitFromInterrupt({
   interrupt,
   runId,
   user,
@@ -214,7 +214,7 @@ export function waitOfInterrupt({
 }
 
 /** The wait of a question that the run `runId` asked. */
-export function waitOfQuestion({
+export function waitFromQuestion({
   question,
   runId,
   user,
@@ -338,7 +338,7 @@ export function snapshotWaits({
   const user = stopped?.user
   return [
     ...interrupts.map((interrupt) => {
-      const wait = waitOfInterrupt({
+      const wait = waitFromInterrupt({
         interrupt,
         runId,
         ...(user ? { user } : {}),

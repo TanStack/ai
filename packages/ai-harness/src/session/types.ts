@@ -66,8 +66,8 @@ export interface ScheduleOptions {
   user?: HarnessUser
 }
 
-/** Options for running an agent from code: the options of `start` without `wake`. */
-export type AgentRunOptions = Omit<AgentStartOptions, 'wake'>
+/** Options for running an agent from code: the options of `start` without `startTurnWhenDone`. */
+export type AgentRunOptions = Omit<AgentStartOptions, 'startTurnWhenDone'>
 
 /** What the `onModelError` option of an agent run gets. */
 export interface AgentModelErrorContext {
@@ -85,16 +85,16 @@ export interface AgentModelErrorContext {
 /** Options for starting an agent in the background. */
 export interface AgentStartOptions {
   /**
-   * How the main model learns about the result or the error on its next
-   * turn: `'reference'` (default) adds a short note to the transcript,
-   * `'none'` adds nothing.
+   * Add a short note with the result or the error to the transcript, so the
+   * main model learns about it on its next turn. `false` adds nothing.
+   * Default `true`.
    */
-  attach?: 'reference' | 'none'
+  addResultNote?: boolean
   /**
    * When the agent finishes or fails, start a new chat turn with its result
    * or its error. This also occurs when the host stopped during the run.
    */
-  wake?: boolean
+  startTurnWhenDone?: boolean
   /**
    * When the host stops during the run, the host that takes over runs the agent again with the same input, instead of failing
    * it. The agent code runs again from its start: put each side effect in
@@ -104,7 +104,7 @@ export interface AgentStartOptions {
    * `durability.maxAttempts` runs (default 10), the run fails with
    * `attempts_exhausted`.
    */
-  resume?: boolean
+  runAgainAfterCrash?: boolean
   /**
    * Who starts the agent. The run, its credentials, and its wake turn are
    * theirs. Default: the user that opened the session. In a tool, pass
@@ -128,7 +128,7 @@ export interface AgentStartOptions {
   parent?: { runId: string } | null
   /**
    * The durable name of the run in a group or in a run started with
-   * `resume: true`. When the parent runs again, a start with the same key
+   * `runAgainAfterCrash: true`. When the parent runs again, a start with the same key
    * gets the run it started before.
    */
   key?: string

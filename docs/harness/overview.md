@@ -162,7 +162,7 @@ console.log(price.cents)
 The session adds a short note about the result, or the error, to the transcript. The model sees it on the next turn. To run the agent in the background and start a new turn when it finishes or fails, use `start`:
 
 ```ts group=harness-first
-session.agents.pricer.start({ vendor: 'globex' }, { wake: true })
+session.agents.pricer.start({ vendor: 'globex' }, { startTurnWhenDone: true })
 ```
 
 ## 6. Add a plugin

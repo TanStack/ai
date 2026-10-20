@@ -312,7 +312,7 @@ Every model call of the turn uses the overrides:
 - each step of the tool loop
 - each `onModelError` retry
 - each `beforeFinish` cycle
-- the main model after the routed agents, with [`routing.after: 'main'`](./subagents#route-a-turn-to-an-agent)
+- the main model after the routed agents, with [`routing.afterAgentsAnswer: 'main-answers'`](./subagents#route-a-turn-to-an-agent)
 - the extra model call for steer messages that arrive at the final answer
 
 The `promptCache` of the overrides also reaches the agents that the model calls as tools in this turn.

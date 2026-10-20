@@ -85,7 +85,7 @@ function routingHarness(options: {
   agents: ReadonlyArray<AnyAgent>
   replies: Array<Reply>
   tools?: ReadonlyArray<AnyTool>
-  /** `routing.humans`. Default true. */
+  /** `routing.allowHandoffToHuman`. Default true. */
   humans?: boolean
   plugins?: ReadonlyArray<HarnessPlugin>
 }) {
@@ -96,7 +96,10 @@ function routingHarness(options: {
     agents: options.agents,
     ...(options.tools ? { tools: options.tools } : {}),
     ...(options.plugins ? { plugins: () => [...(options.plugins ?? [])] } : {}),
-    routing: { router: () => undefined, humans: options.humans ?? true },
+    routing: {
+      router: () => undefined,
+      allowHandoffToHuman: options.humans ?? true,
+    },
   })
   return { harness, main }
 }
@@ -627,7 +630,7 @@ describe('run.handoff', () => {
     await host.close()
   })
 
-  it('offers no person and rejects a handoff to one without routing.humans', async () => {
+  it('offers no person and rejects a handoff to one without routing.allowHandoffToHuman', async () => {
     const toPerson = toolDefinition({
       name: 'toPerson',
       description: 'Hand the user to a person',

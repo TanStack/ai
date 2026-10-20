@@ -25,7 +25,7 @@ import type { SessionView } from '@tanstack/ai-harness/view'
  * - `POST .../start` with `{ scenario }` opens the thread for olga and
  *   shares it with bea. Returns the run id and the thread id.
  *   - `'agent'`: the main model calls the `handoff` tool to `billing`.
- *   - `'human'`: the harness has `routing.humans`, and the main model calls
+ *   - `'human'`: the harness has `routing.allowHandoffToHuman`, and the main model calls
  *     the `handoff` tool to a person.
  *   - `'code'`: the router picks the `triage` agent, and its code hands off
  *     to `billing` with `ctx.harness.handoff`. The main model never runs.
@@ -228,7 +228,7 @@ async function start(request: Request) {
     // picks `triage`.
     routing: {
       router: () => (scenario === 'code' ? 'triage' : undefined),
-      humans: scenario === 'human',
+      allowHandoffToHuman: scenario === 'human',
     },
   })
   const host: HarnessHost<User> = createHarnessHost({

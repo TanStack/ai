@@ -16,7 +16,7 @@ export interface HandoffOptions {
   /**
    * The root agent that answers next, `'main'` for the main model, or
    * `{ human: true }` for a person. A handoff to a person needs
-   * `routing.humans`. It opens a `human` wait, and the session pauses until
+   * `routing.allowHandoffToHuman`. It opens a `human` wait, and the session pauses until
    * an operator answers it.
    */
   to: string | HumanTarget
@@ -130,9 +130,9 @@ export class TurnHandoffs {
       rootAgents: ReadonlyArray<AnyAgent>
       /** The names of the agents that are only subagents, for the error text. */
       subagents: ReadonlyArray<string>
-      /** `routing.humans`: a handoff can go to a person. */
+      /** `routing.allowHandoffToHuman`: a handoff can go to a person. */
       humans: boolean
-      /** `routing.handoffs`: the root agents get the `handoff` tool. */
+      /** `routing.giveModelsHandoffTool`: the root agents get the `handoff` tool. */
       tool: boolean
       /**
        * Append the record. A handoff to a person opens its `human` wait in
@@ -179,7 +179,7 @@ export class TurnHandoffs {
    * to `options.to`. The part of `from` ends, and the target answers next.
    * A handoff to a person ends the turn, and the session pauses. Throws for
    * a target that is not a root agent, for a person without
-   * `routing.humans`, and for a second handoff in the same part.
+   * `routing.allowHandoffToHuman`, and for a second handoff in the same part.
    */
   async handoff(
     options: HandoffOptions,
@@ -254,7 +254,7 @@ export class TurnHandoffs {
   /**
    * The `handoff` tool of `from`: the main model (`null`) or a root agent.
    * Its `to` lists the root agents, and `'main'` for an agent, but not
-   * `from`. With `routing.humans`, `{ human: true }` hands the conversation
+   * `from`. With `routing.allowHandoffToHuman`, `{ human: true }` hands the conversation
    * to a person.
    */
   tool(from: string | null) {
@@ -304,7 +304,7 @@ export class TurnHandoffs {
    * tool loop of the chat that made it, so the target answers next. Other
    * chats of the part (a sibling root agent, a tool-mode child) go on. With
    * `roots`, it also gives each routed root agent its `handoff` tool, unless
-   * `routing.handoffs` is false. A nested child of a root agent gets no
+   * `routing.giveModelsHandoffTool` is false. A nested child of a root agent gets no
    * tool, so it cannot move the whole session.
    */
   middleware(options: { roots?: boolean } = {}): AnyChatMiddleware {

@@ -70,7 +70,7 @@ export const steps = definePlugin({
 
 ## Fold records into the model context
 
-By default, the model does not see your records. Set `durability.project` on the harness to fold a record into the messages. Its `record` function gets one object, `{ messages, record }`, and returns the new list, or `undefined` for no change:
+By default, the model does not see your records. Set `durability.addRecordsToModelContext` on the harness to fold a record into the messages. Its `record` function gets one object, `{ messages, record }`, and returns the new list, or `undefined` for no change:
 
 ```ts group=harness-session-log
 import type { ProjectOptions } from '@tanstack/ai-harness'
@@ -88,7 +88,7 @@ const project: ProjectOptions = {
 export const projected = defineHarness({
   name: 'acme/projected',
   adapter: openaiText('gpt-6.1-sol'),
-  durability: { project },
+  durability: { addRecordsToModelContext: project },
 })
 ```
 
@@ -100,9 +100,9 @@ export const projected = defineHarness({
 
 ## Let a client add records
 
-A webhook or a browser knows something that the model needs: the build failed, or a payment arrived. Let it add a record to the thread, and the next turn reads the record through `durability.project`.
+A webhook or a browser knows something that the model needs: the build failed, or a payment arrived. Let it add a record to the thread, and the next turn reads the record through `durability.addRecordsToModelContext`.
 
-1. On the server, list the record types in `expose.records`, and set `durability.project` on the same harness:
+1. On the server, list the record types in `expose.records`, and set `durability.addRecordsToModelContext` on the same harness:
 
 ```ts group=harness-session-log
 import { createHarnessHandler } from '@tanstack/ai-harness/server'
@@ -111,7 +111,7 @@ export const watcher = defineHarness({
   name: 'acme/build-watcher',
   adapter: openaiText('gpt-6.1-sol'),
   expose: { records: ['app.signal'] },
-  durability: { project },
+  durability: { addRecordsToModelContext: project },
 })
 
 const watcherHost = createHarnessHost({
@@ -182,7 +182,7 @@ const handoffs = entries.filter((entry) => entry.record.type === 'harness.handof
 console.log(handoffs.at(-1)?.record.to)
 ```
 
-A reader outside a session that needs a `MessageStore`, for example `reconstructChat`, uses `logMessageStore`. It folds the log with the same `project`. Pass `tenantId` to read the threads of a tenant:
+A reader outside a session that needs a `MessageStore`, for example `reconstructChat`, uses `logMessageStore`. It folds the log with the same `addRecordsToModelContext`. Pass `tenantId` to read the threads of a tenant:
 
 ```ts group=harness-session-log
 import { logMessageStore } from '@tanstack/ai-harness'

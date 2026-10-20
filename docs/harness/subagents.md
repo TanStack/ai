@@ -58,7 +58,7 @@ export const review = definePlugin({
 ```
 
 - `ctx.agents.run(agent, input, options?)` runs one agent. Await it to get the result. It is an `AgentRun`, so you can also cancel it or send it a message.
-- `ctx.agents.start(agent, input, { wake: true })` runs it in the background and starts a turn when it finishes or fails.
+- `ctx.agents.start(agent, input, { startTurnWhenDone: true })` runs it in the background and starts a turn when it finishes or fails.
 - `ctx.agents.start(agent, input, { user })` runs it as that user. The wake turn runs as the same user.
 - Without `user`, a plugin with `lifetime: 'turn'` starts it as the user of its turn. A session plugin starts it as the user who opened the session. To start it for the user of a tool call, pass `user: ctx.context.run.user`.
 - In a tool that an agent run calls, `ctx.agents` starts the agent as a child of that run. It runs for the user of that run, and counts in its tree and budget. It takes no `maxConcurrent` slot, so the run can await it.
@@ -69,7 +69,7 @@ export const review = definePlugin({
 
 The input type comes from the `inputSchema` of the agent, and the result type comes from its output. A wrong input is a type error. An agent name instead of a definition gives a result of type `unknown`. `ctx.agents` in a plugin and `ctx.harness.agents` in agent code have the same type, `AgentActions`.
 
-The turn that `wake: true` starts sends the model a user message from the harness, for example `Background agent pricer finished: ...`. The user did not write it. So the transcript marks it with `metadata.harness.wake: true`, and a view from `createSessionView` does not show it. In your own chat UI, skip the user messages with this mark.
+The turn that `startTurnWhenDone: true` starts sends the model a user message from the harness, for example `Background agent pricer finished: ...`. The user did not write it. So the transcript marks it with `metadata.harness.wake: true`, and a view from `createSessionView` does not show it. In your own chat UI, skip the user messages with this mark.
 
 To track usage or apply a policy in each of these runs, see [Middleware in every agent](./plugins#middleware-in-every-agent).
 
@@ -119,7 +119,7 @@ const checker = defineAgent({
 
 ## Keep a background agent going after a crash
 
-A background agent can work for a long time. When its host stops, for example in a deploy, the next host fails the run. Start it with `resume: true`, and the next host runs it again instead. A background child that the model starts runs again by default (see [Let the model run agents in the background](#let-the-model-run-agents-in-the-background)):
+A background agent can work for a long time. When its host stops, for example in a deploy, the next host fails the run. Start it with `runAgainAfterCrash: true`, and the next host runs it again instead. A background child that the model starts runs again by default (see [Let the model run agents in the background](#let-the-model-run-agents-in-the-background)):
 
 ```ts group=harness-subagents
 // Your own services.
@@ -157,7 +157,7 @@ export const migrations = definePlugin({
         description: 'Move one customer',
         input: z.object({ customer: z.string() }),
         run: ({ customer }) => {
-          ctx.agents.start(migrator, { customer }, { resume: true, wake: true })
+          ctx.agents.start(migrator, { customer }, { runAgainAfterCrash: true, startTurnWhenDone: true })
           return `Moving ${customer}.`
         },
       }),
@@ -211,7 +211,7 @@ const auditor = defineAgent({
 })
 ```
 
-This works only for a run that started with `resume: true`, because only that run runs again on the next host.
+This works only for a run that started with `runAgainAfterCrash: true`, because only that run runs again on the next host.
 
 ## Message a running agent
 
@@ -350,8 +350,8 @@ A background run that a turn starts keeps the plugins of that turn, for example 
 
 When the host stops during a run, the messages that wait for the run are in the log:
 
-- If the run started with `resume: true`, the next host runs it again. The resumed run gets the messages that waited for it.
-- If the run started without `resume`, the waiting messages settle `aborted`. A steer that already joined the run settles `failed`, with the run.
+- If the run started with `runAgainAfterCrash: true`, the next host runs it again. The resumed run gets the messages that waited for it.
+- If the run started without `runAgainAfterCrash`, the waiting messages settle `aborted`. A steer that already joined the run settles `failed`, with the run.
 
 ### When a background agent waits
 
@@ -370,7 +370,7 @@ if (wait) {
 
 - The run continues after every wait of the run has an answer.
 - The log keeps the wait, so no host stays busy. An answer on any host, also after a restart, continues the run.
-- A run that started with `resume: true` can also ask with `ctx.harness.step.ask`. See [Wait for a person](./waits).
+- A run that started with `runAgainAfterCrash: true` can also ask with `ctx.harness.step.ask`. See [Wait for a person](./waits).
 - The `question` tool belongs to the lead turn. Agent runs do not get it.
 - An agent that the model calls as a tool inside a turn waits with the turn. See [When an agent tool waits](#when-an-agent-tool-waits).
 
@@ -424,7 +424,7 @@ For the tool input in plain `chat()`, see [The tool input](../chat/subagents#the
 
 When a background child ends, the session starts a new turn. Its message starts with `Background agent researcher finished:` or `Background agent researcher failed:`. While the child runs, it is in `session.agentRuns()`.
 
-When the host stops while a background child runs, or before the child starts, the next host continues the child with the same `subagentRunId`, as a start with `resume: true` does:
+When the host stops while a background child runs, or before the child starts, the next host continues the child with the same `subagentRunId`, as a start with `runAgainAfterCrash: true` does:
 
 - The agent code runs again from its start.
 - `ctx.chat` continues from the saved transcript. A tool call that finished does not run again. A tool call that ran at the stop runs again.
@@ -662,7 +662,7 @@ export const studio = defineHarness({
 
 The router can also return a pick of its own: `'main'`, a name, a list of names, `{ names, order }`, or `{ steps }`. Anywhere a name goes, `{ name, input }` can go too, for example `{ name: 'pricer', input: { vendor: 'Acme' } }`. If a picked agent has an `inputSchema` and no input, the turn fails with `Agent "pricer" needs input. Return { name: 'pricer', input } from the router.` See [Route, or let the model pick](../chat/subagents#route-or-let-the-model-pick) for each pick.
 
-The router also gets `session`, the `input` of the turn as the user sent it, `operationId`, `inputId`, `abortSignal`, `activeAgent`, and `model`. Next to `router`, `routing` takes `order`, `limits`, `sandbox`, `after`, `humans`, and `handoffs`. The first three work the same as in `subagents`. `handoffs: false` gives no model the `handoff` tool. See [Hand off a conversation](./handoffs).
+The router also gets `session`, the `input` of the turn as the user sent it, `operationId`, `inputId`, `abortSignal`, `activeAgent`, and `model`. Next to `router`, `routing` takes `order`, `limits`, `sandbox`, `afterAgentsAnswer`, `allowHandoffToHuman`, and `giveModelsHandoffTool`. The first three work the same as in `subagents`. `giveModelsHandoffTool: false` gives no model the `handoff` tool. See [Hand off a conversation](./handoffs).
 
 ### Count the model calls of the router
 
@@ -696,7 +696,7 @@ What the turn does with the pick:
 
 - `'main'`: the main model answers, with its `subagents` as usual.
 - Agent names: only those agents run. The harness does not call the main model. The turn text is their answer as the transcript keeps it, for example `pricer:\n...`.
-- `after: 'main'`: the agents run first. Then the main model answers in the same turn. It reads their text and keeps its subagent tools. With the default, `after: 'end'`, the turn ends after the agents.
+- `afterAgentsAnswer: 'main-answers'`: the agents run first. Then the main model answers in the same turn. It reads their text and keeps its subagent tools. With the default, `afterAgentsAnswer: 'end-turn'`, the turn ends after the agents.
 - An interrupt in a routed agent ends the turn. `session.resolve` continues the same plan, and it does not call the router again.
 
 A routed agent works like the main model in a turn:
@@ -710,7 +710,7 @@ Some limits:
 
 - An agent that makes no model call, for example plain code in `run`, gets a steer only as a late join.
 - When several agents run in parallel, the first one takes the steer.
-- With `after: 'main'`, the main model takes no steer. A steer sent during its part runs as its own turn, and the router picks for that turn too.
+- With `afterAgentsAnswer: 'main-answers'`, the main model takes no steer. A steer sent during its part runs as its own turn, and the router picks for that turn too.
 - After `session.resolve` continues a plan, the agents do not run again for a late join or a turn hook.
 
 ### Keep the agent that answers
@@ -828,7 +828,7 @@ Every way to start an agent takes these options: `start`, `run`, and `g.start`, 
 
 - `limits.timeoutMs`: the run fails with the code `timeout` after this time. A run again on another host keeps the first deadline. The deadline is never later than the deadline of the parent run, or `durability.timeoutMs`.
 - `limits.maxAttempts`: the attempts of this run. It replaces `durability.maxAttempts` for this run.
-- `budget.maxTokens` and `budget.maxCost`: the model use of the run and of all its children. The check runs after each model call, so a run stops after the first model call over the budget. Then it fails with the code `budget`. A run with `resume: true` that runs again after a host stop also counts the model use of the runs before.
+- `budget.maxTokens` and `budget.maxCost`: the model use of the run and of all its children. The check runs after each model call, so a run stops after the first model call over the budget. Then it fails with the code `budget`. A run with `runAgainAfterCrash: true` that runs again after a host stop also counts the model use of the runs before.
 - `onModelError`: what to do when a model call of the run fails before it streams output. Only that model call runs again, so a tool that ran before does not run twice. One model call runs at most 3 times. A tool that throws, or an error in the agent code, does not count.
 
 A budget holds for the whole tree under the run:

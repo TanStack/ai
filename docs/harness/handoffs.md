@@ -61,7 +61,7 @@ What the handoff does:
 - The main model and each root agent get a `handoff` tool. Its `to` lists the root agents. A root agent can also hand back to `'main'`, the main model.
 - One turn can hand off 10 times at most.
 - An agent that is only in `subagents` cannot be a target. A child that an agent starts cannot hand off either.
-- If the app has its own tool named `handoff`, the turn fails with a duplicate tool error. Set `routing: { router, handoffs: false }` to give no model the `handoff` tool. The router and your code can still hand off.
+- If the app has its own tool named `handoff`, the turn fails with a duplicate tool error. Set `routing: { router, giveModelsHandoffTool: false }` to give no model the `handoff` tool. The router and your code can still hand off.
 
 ## 2. Hand off from code
 
@@ -116,7 +116,7 @@ The `handoff` tool call of a model is in the transcript already. A handoff from 
 
 Both messages have `metadata.harness.handoff.by` (`'router'` or `'code'`). When an agent handed off, they also have its name in `metadata.harness.agent`. The messages go after the messages that the earlier model call got, so the prompt cache of the provider still holds.
 
-With `routing.handoffs: false`, the models have no `handoff` tool. Then the harness adds one assistant message with the same text and the note.
+With `routing.giveModelsHandoffTool: false`, the models have no `handoff` tool. Then the harness adds one assistant message with the same text and the note.
 
 The `agents()` plugin has its own primary agent, its `agent` config and `/agent`. That one changes the prompt and the tools of the main model. A handoff does not change it, and it does not change the active agent. See [Switch between agent profiles](./agents).
 
@@ -155,7 +155,7 @@ Each handoff also streams a `CUSTOM` event named `harness.handoff` (`HARNESS_EVE
 
 ## 4. Hand off to a person
 
-Some users need a person. Set `routing.humans: true`. Then the `handoff` tool also takes `{ human: true }`:
+Some users need a person. Set `routing.allowHandoffToHuman: true`. Then the `handoff` tool also takes `{ human: true }`:
 
 ```ts group=harness-handoffs
 import { membersOnly } from '@tanstack/ai-harness'
@@ -166,7 +166,7 @@ export const desk = defineHarness({
   adapter: openaiText('gpt-6.1-sol'),
   systemPrompts: ['If the user asks for a person, hand off to { human: true }.'],
   agents: [billing],
-  routing: { router: () => undefined, humans: true },
+  routing: { router: () => undefined, allowHandoffToHuman: true },
 })
 
 // Your own login check: a session token to a user.
@@ -192,7 +192,7 @@ When an agent hands off to a person:
 - The turn ends `interrupted`, and the session pauses.
 - A user message during the pause goes into the transcript. No model answers it.
 
-`ctx.harness.handoff({ to: { human: true } })` and `run.handoff` work the same way. Without `routing.humans`, a handoff to a person rejects.
+`ctx.harness.handoff({ to: { human: true } })` and `run.handoff` work the same way. Without `routing.allowHandoffToHuman`, a handoff to a person rejects.
 
 ### Reply as the operator
 

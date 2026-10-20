@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { isApproval, waitKind, waitOfInterrupt, waitOfQuestion } from '../src'
+import {
+  isApproval,
+  waitKind,
+  waitFromInterrupt,
+  waitFromQuestion,
+} from '../src'
 import type { Interrupt } from '@tanstack/ai'
 import type { Wait } from '../src'
 
@@ -129,11 +134,11 @@ describe('isApproval', () => {
   })
 })
 
-describe('waitOfInterrupt', () => {
+describe('waitFromInterrupt', () => {
   it('keeps the id, the kind, the schema, the message, and the expiry', () => {
     const user = { id: 'u1', tenantId: 'acme' }
     expect(
-      waitOfInterrupt({ interrupt: handoff, runId: 'run-1', user }),
+      waitFromInterrupt({ interrupt: handoff, runId: 'run-1', user }),
     ).toEqual({
       waitId: 'int-5',
       kind: 'human',
@@ -147,7 +152,7 @@ describe('waitOfInterrupt', () => {
 
   it('leaves out an expiry that is not a date, and the fields it lacks', () => {
     expect(
-      waitOfInterrupt({
+      waitFromInterrupt({
         interrupt: { ...plain, expiresAt: 'soon' },
         runId: 'run-2',
       }),
@@ -155,10 +160,10 @@ describe('waitOfInterrupt', () => {
   })
 })
 
-describe('waitOfQuestion', () => {
+describe('waitFromQuestion', () => {
   it('makes a question wait of the run that asks', () => {
     expect(
-      waitOfQuestion({
+      waitFromQuestion({
         question: {
           questionId: 'q1',
           message: 'How many?',
@@ -219,7 +224,7 @@ describe('the waits of the turn boundary', () => {
     })
     expect(waitKind(questionWait)).toBe('question')
     expect(
-      waitOfInterrupt({ interrupt: questionWait, runId: 'run-1' }),
+      waitFromInterrupt({ interrupt: questionWait, runId: 'run-1' }),
     ).toEqual({
       waitId: 'int-tanstack/harness:question',
       kind: 'question',

@@ -9,7 +9,7 @@ import {
 import {
   AccessDeniedError,
   InputRejectedError,
-  waitOfInterrupt,
+  waitFromInterrupt,
 } from '@tanstack/ai-harness'
 import { MediaError, kindOf, mediaPart } from '@tanstack/ai-harness/media'
 import type {
@@ -579,7 +579,7 @@ export function createAcpAgent<U extends HarnessUser = HarnessUser>(
   ): Promise<{ next?: Operation<unknown>; cancelled?: boolean }> => {
     const items = interrupts.map((interrupt) => ({
       interrupt,
-      wait: waitOfInterrupt({ interrupt, runId: sessionId }),
+      wait: waitFromInterrupt({ interrupt, runId: sessionId }),
       url: signInUrl(interrupt),
     }))
     const askable = await Promise.all(

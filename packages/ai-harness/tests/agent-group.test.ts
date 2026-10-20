@@ -65,7 +65,7 @@ async function open(
 /** Start the agent `lead` of `session`. */
 function startLead(
   session: Pick<HarnessSession, 'agent'>,
-  options?: { resume?: boolean },
+  options?: { runAgainAfterCrash?: boolean },
 ) {
   const run = session.agent('lead')?.start(undefined, options)
   if (!run) throw new Error('No lead agent.')
@@ -225,7 +225,7 @@ describe('run', () => {
 })
 
 /**
- * Host A runs the agent `lead` with `resume: true`, until `stopWhen` is
+ * Host A runs the agent `lead` with `runAgainAfterCrash: true`, until `stopWhen` is
  * true. Then host A stops: its log refuses writes. `hold` waits on host A,
  * and goes on at once on host B, which opens the thread on the same
  * stores. Returns how the run of `lead` ended on host B.
@@ -244,7 +244,7 @@ async function stopAndRunAgain(
   )
 
   const a = await open([lead, child], persistence)
-  const operation = startLead(a.session, { resume: true })
+  const operation = startLead(a.session, { runAgainAfterCrash: true })
   await waitFor(() => stopWhen(a.session))
   const refuse = vi
     .spyOn(log, 'append')

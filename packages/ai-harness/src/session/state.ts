@@ -27,7 +27,12 @@ import {
 } from '../plugins'
 import { HARNESS_EVENTS } from '../types'
 import { SECRET_ANSWER_PREFIX } from '../auth'
-import { expiryOf, interruptExpiry, openWaits, waitOfQuestion } from '../waits'
+import {
+  expiryOf,
+  interruptExpiry,
+  openWaits,
+  waitFromQuestion,
+} from '../waits'
 import {
   createInputId,
   customEvent,
@@ -833,9 +838,9 @@ export abstract class SessionState<
   }
 
   /**
-   * The `durability.reduce` fold of the harness for the log of this session:
+   * The `durability.logState` fold of the harness for the log of this session:
    * every host record of the root thread and of its child threads, in log
-   * order. `undefined` for a harness without `reduce`. A session of another
+   * order. `undefined` for a harness without `durability.logState`. A session of another
    * machine folds the same log, so it gets the same state.
    *
    * @example
@@ -846,7 +851,7 @@ export abstract class SessionState<
   async logState(): Promise<HarnessLogStateOf<THarness> | undefined> {
     // The reduce of `harness` folded the state, so it has that type. A log
     // cannot carry a state type.
-    return this.writer.reducedBy(this.harness.durability?.reduce) as
+    return this.writer.reducedBy(this.harness.durability?.logState) as
       | HarnessLogStateOf<THarness>
       | undefined
   }
@@ -2138,7 +2143,7 @@ export abstract class SessionState<
     }
     const { user } = run
     const expiresAt = expiryOf('question', question.expiresAt)
-    const wait = waitOfQuestion({
+    const wait = waitFromQuestion({
       question: pending,
       runId: operationId,
       ...storedUser(user),

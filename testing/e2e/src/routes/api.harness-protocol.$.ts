@@ -189,7 +189,7 @@ function harnessFor(request: Request) {
   const harness = defineHarness({
     name: 'e2e/protocol',
     adapter,
-    durability: { project: signalProject },
+    durability: { addRecordsToModelContext: signalProject },
     // App data in the session index entry: the context items a user pinned
     // in the composer. Each write over `POST sessions` checks it.
     metadataSchema: z.object({ chips: z.array(z.string()) }),

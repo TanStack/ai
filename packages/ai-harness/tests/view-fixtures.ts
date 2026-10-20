@@ -1,6 +1,6 @@
 import { EventType } from '@tanstack/ai'
 import { emptyUsage } from '../src/usage'
-import { waitOfInterrupt, waitOfQuestion } from '../src/waits'
+import { waitFromInterrupt, waitFromQuestion } from '../src/waits'
 import type { Interrupt, StreamChunk } from '@tanstack/ai'
 import type { PendingQuestion, SessionEvent, SessionSnapshot } from '../src'
 
@@ -62,12 +62,12 @@ export function sessionSnapshot({
     queuedTurns: 0,
     pendingWaits: [
       ...interrupts.map((interrupt) => ({
-        ...waitOfInterrupt({ interrupt, runId: 'op-1' }),
+        ...waitFromInterrupt({ interrupt, runId: 'op-1' }),
         interrupt,
         turn: true as const,
       })),
       ...questions.map(({ secret, url, ...question }) => ({
-        ...waitOfQuestion({ question, runId: 'op-1' }),
+        ...waitFromQuestion({ question, runId: 'op-1' }),
         ...(secret ? { secret: true as const } : {}),
         ...(url ? { url } : {}),
       })),

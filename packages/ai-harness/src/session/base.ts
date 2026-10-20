@@ -659,7 +659,11 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     const asUser = user ? { user } : {}
     return {
       run: (input?: unknown, options?: AgentRunOptions) =>
-        this.runAgent(name, input, { ...options, ...asUser, wake: false }),
+        this.runAgent(name, input, {
+          ...options,
+          ...asUser,
+          startTurnWhenDone: false,
+        }),
       start: (input?: unknown, options?: AgentStartOptions) =>
         this.runAgent(name, input, { ...options, ...asUser }),
     }
@@ -999,7 +1003,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
 
   /**
    * `start`, `run`, and `group` over one `start` function. `run` and the
-   * children of a group start with `wake: false`, unless the options say
+   * children of a group start with `startTurnWhenDone: false`, unless the options say
    * else.
    */
   protected agentActions(start: AgentStartFn): AgentActions {
@@ -1016,14 +1020,14 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       ) =>
         start(target, input, {
           ...options,
-          wake: false,
+          startTurnWhenDone: false,
         })) as AgentActions['run'],
       group: ((
         options: AgentGroupOptions,
         body: (g: AgentGroup) => GroupRuns | Promise<GroupRuns>,
       ) =>
         this.agentGroup(options, body, (target, input, childOptions) =>
-          start(target, input, { wake: false, ...childOptions }),
+          start(target, input, { startTurnWhenDone: false, ...childOptions }),
         )) as AgentActions['group'],
     }
   }

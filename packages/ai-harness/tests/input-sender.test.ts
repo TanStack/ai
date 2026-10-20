@@ -363,7 +363,7 @@ describe('the sender of each input', () => {
         tools: [
           startWriter.server<HarnessRunContext>((_input, toolContext) => {
             ctx.agents.start(writer, undefined, {
-              wake: true,
+              startTurnWhenDone: true,
               user: toolContext.context.run.user,
             })
             return Promise.resolve({})

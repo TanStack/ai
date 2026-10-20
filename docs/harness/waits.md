@@ -140,7 +140,7 @@ A run waits for a person only at these points:
 
 1. Before a tool call. [`permissions()`](./permissions) opens one approval wait for each call that asks.
 2. The `question` tool. The model asks the user to pick an option.
-3. `step.ask` in a durable tool, in a command, in an agent run that started with `resume: true`, or in an agent that the model calls as a tool.
+3. `step.ask` in a durable tool, in a command, in an agent run that started with `runAgainAfterCrash: true`, or in an agent that the model calls as a tool.
 4. Live waits: an MCP server that asks during a tool call (elicitation), and an OAuth sign-in. The host that runs the call keeps the thread until the answer comes. See [Answer a question from a server](./mcp#answer-a-question-from-a-server).
 
 `ctx.session.ask` in your own plugin throws an error that names these points. A command that called `step.ask` runs again from the top after a host stop, so put each side effect before the ask in `step.do`.

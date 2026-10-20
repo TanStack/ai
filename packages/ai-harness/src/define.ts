@@ -122,7 +122,7 @@ export type HarnessRouterPick =
 /**
  * The `routing` option. The other fields mean the same as in `subagents`.
  * `limits` defaults to `subagents.limits`. The `strategy` of `subagents` is
- * not here: use `after`.
+ * not here: use `afterAgentsAnswer`.
  */
 export interface HarnessRouting<TMetadataSchema = any> extends Pick<
   SubagentsBag,
@@ -138,12 +138,12 @@ export interface HarnessRouting<TMetadataSchema = any> extends Pick<
     ctx: HarnessRouterContext<TMetadataSchema>,
   ) => HarnessRouterPick | Promise<HarnessRouterPick>
   /**
-   * What happens after the picked agents answer. `'end'`: the turn ends.
-   * `'main'`: the main model answers next, in the same turn, with their
-   * answers in the transcript, and it keeps its `subagents`. Default
-   * `'end'`.
+   * What happens after the picked agents answer. `'end-turn'`: the turn
+   * ends. `'main-answers'`: the main model answers next, in the same turn,
+   * with their answers in the transcript, and it keeps its `subagents`.
+   * Default `'end-turn'`.
    */
-  after?: 'end' | 'main'
+  afterAgentsAnswer?: 'end-turn' | 'main-answers'
   /**
    * Let the models and your code hand the turn to a person. When true, the
    * `to` of the `handoff` tool also takes `{ human: true }`, and
@@ -151,14 +151,14 @@ export interface HarnessRouting<TMetadataSchema = any> extends Pick<
    * `human` wait. When false, the `handoff` tool offers only the agents and
    * `'main'`, and a handoff to a person rejects. Default `false`.
    */
-  humans?: boolean
+  allowHandoffToHuman?: boolean
   /**
    * Give the main model and each root agent the `handoff` tool. When false,
    * no model gets it, and an app tool can use the name `handoff`. The
    * router and your code (`ctx.harness.handoff`, `run.handoff`) can still
    * hand off. Default `true`.
    */
-  handoffs?: boolean
+  giveModelsHandoffTool?: boolean
 }
 
 /**
@@ -224,12 +224,12 @@ export interface HarnessDurability<
   /**
    * Run again an agent that the model started with `background: true`, when
    * the host stopped during the run. The next host continues it with the
-   * same `subagentRunId`, as a start with `resume: true`: the agent code runs
+   * same `subagentRunId`, as a start with `runAgainAfterCrash: true`: the agent code runs
    * again from its start, `ctx.chat` continues from its saved transcript,
    * and `ctx.harness.step` keeps its values. A tool call that finished does
    * not run again. A tool call that ran at the stop runs again. The turn
    * plugins of the turn that started it are gone. `false`: the run fails, as
-   * a start without `resume`. A child that did not start yet still starts.
+   * a start without `runAgainAfterCrash`. A child that did not start yet still starts.
    * Default `true`.
    */
   resumeBackgroundAgents?: boolean
@@ -247,14 +247,14 @@ export interface HarnessDurability<
    * How a durable host folds your own log records into the model context of
    * each session.
    */
-  project?: ProjectOptions
+  addRecordsToModelContext?: ProjectOptions
   /**
    * A fold of every host record of the log of a session tree: the root
    * thread and its child threads (agent chains and subagent runs), in log
    * order. Read it with `session.logState()`, or with `view.logState()` of
    * `host.observe`, on any machine.
    */
-  reduce?: ReduceOptions<TLogState>
+  logState?: ReduceOptions<TLogState>
 }
 
 /**
@@ -360,7 +360,7 @@ export interface HarnessConfig<
   busy?: BusyPolicy
   /**
    * Attempt and time limits for each input on a durable host, and how that
-   * host folds your own log records (`project` and `reduce`).
+   * host folds your own log records (`addRecordsToModelContext` and `logState`).
    */
   durability?: HarnessDurability<TMetadataSchema, TLogState>
   /** Hooks that control a chat turn: retries, joins, and the end of a turn. */
@@ -413,7 +413,7 @@ export interface HarnessConfig<
      * example a webhook that adds `{ type: 'app.signal', text }`. An input
      * with any other type, or with a `thread` field, is refused with
      * `not_exposed`. Server code that calls `session.appendRecords()` can add every
-     * type. The log keeps the records, and `durability.project` decides
+     * type. The log keeps the records, and `durability.addRecordsToModelContext` decides
      * what the model sees of them.
      */
     records?: ReadonlyArray<string>
@@ -459,7 +459,7 @@ export type SessionWithMetadata<TMetadataSchema> = HarnessSession<
   HarnessDefinition<any, any, any, TMetadataSchema, ReadonlyArray<AnyTool>, any>
 >
 
-// `durability.reduce` makes the log state type invariant, so each pattern
+// `durability.logState` makes the log state type invariant, so each pattern
 // below takes any log state (the last `any`).
 
 /** The type of the session index `metadata` of a harness. */
@@ -495,11 +495,11 @@ export type HarnessToolsOf<THarness> =
     : never
 
 /**
- * The state of the `durability.reduce` fold of a harness, as
- * `session.logState()` returns it. `undefined` for a harness without `reduce`.
+ * The state of the `durability.logState` fold of a harness, as
+ * `session.logState()` returns it. `undefined` for a harness without `durability.logState`.
  */
 export type HarnessLogStateOf<THarness> = THarness extends {
-  durability?: { reduce?: ReduceOptions<infer TLogState> }
+  durability?: { logState?: ReduceOptions<infer TLogState> }
 }
   ? TLogState
   : undefined

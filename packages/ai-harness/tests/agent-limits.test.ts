@@ -163,7 +163,7 @@ describe('limits of agent starts', () => {
     )
 
     const runs = [0, 1, 2, 3].map((n) =>
-      session.agents.worker.start({ n }, { attach: 'none' }),
+      session.agents.worker.start({ n }, { addResultNote: false }),
     )
     await waitFor(() => expect(started).toEqual([0, 1, 2]))
     const statusOf = (index: number) =>
@@ -243,7 +243,7 @@ describe('limits of agent starts', () => {
       agents.run('helper'),
     )
 
-    const run = session.agents.lead.start(undefined, { attach: 'none' })
+    const run = session.agents.lead.start(undefined, { addResultNote: false })
     await expect(run).resolves.toContain('done')
     const helped = session.agentRuns().find((item) => item.agent === 'helper')
     expect(helped).toMatchObject({ status: 'completed', parentRunId: run.id })
@@ -254,12 +254,12 @@ describe('limits of agent starts', () => {
     const answered = gate()
     const { host, session } = await pluginToolSession((agents) => {
       void agents
-        .start('helper', undefined, { parent: null, attach: 'none' })
+        .start('helper', undefined, { parent: null, addResultNote: false })
         .then(undefined, () => undefined)
       return Promise.resolve('started')
     }, answered.opened)
 
-    const run = session.agents.lead.start(undefined, { attach: 'none' })
+    const run = session.agents.lead.start(undefined, { addResultNote: false })
     const helperRun = () =>
       session.agentRuns().find((item) => item.agent === 'helper')
     await waitFor(() => expect(helperRun()?.status).toBe('queued'))
@@ -304,7 +304,7 @@ describe('limits of agent starts', () => {
       { threadId: THREAD },
     )
 
-    const run = session.agents.lead.start(undefined, { attach: 'none' })
+    const run = session.agents.lead.start(undefined, { addResultNote: false })
     await expect(run).resolves.toBe('helped')
     const helped = session.agentRuns().find((item) => item.agent === 'helper')
     expect(helped?.parentRunId).toBe(run.id)
@@ -332,8 +332,12 @@ describe('limits of agent starts', () => {
       { threadId: THREAD },
     )
 
-    const first = session.agents.worker.start(undefined, { attach: 'none' })
-    const second = session.agents.worker.start(undefined, { attach: 'none' })
+    const first = session.agents.worker.start(undefined, {
+      addResultNote: false,
+    })
+    const second = session.agents.worker.start(undefined, {
+      addResultNote: false,
+    })
     const statusOf = (id: string) =>
       session.agentRuns().find((run) => run.runId === id)?.status
     await waitFor(() => expect(statusOf(second.id)).toBe('queued'))
@@ -372,8 +376,14 @@ describe('limits of agent starts', () => {
     })
     const hostA = createHarnessHost({ persistence })
     const sessionA = await hostA.open(harness, { threadId: THREAD })
-    const first = sessionA.agents.worker.start({ n: 0 }, { attach: 'none' })
-    const queued = sessionA.agents.worker.start({ n: 1 }, { attach: 'none' })
+    const first = sessionA.agents.worker.start(
+      { n: 0 },
+      { addResultNote: false },
+    )
+    const queued = sessionA.agents.worker.start(
+      { n: 1 },
+      { addResultNote: false },
+    )
     await waitFor(() => expect(ran).toEqual([0]))
     const receipt = await queued.receipt
     expect(receipt.status).toBe('queued')
@@ -456,8 +466,8 @@ describe('limits of agent starts', () => {
     const hostA = createHarnessHost({ persistence })
     const sessionA = await hostA.open(harness, { threadId: THREAD })
     const running = sessionA.agents.lead.start(undefined, {
-      resume: true,
-      attach: 'none',
+      runAgainAfterCrash: true,
+      addResultNote: false,
     })
     await waitFor(() =>
       expect(
@@ -601,8 +611,8 @@ describe('the budget of an agent run after a restart', () => {
       threadId: THREAD,
     })
     const running = sessionA.agents.worker.start(undefined, {
-      resume: true,
-      attach: 'none',
+      runAgainAfterCrash: true,
+      addResultNote: false,
       budget: { maxTokens: 100 },
     })
     await waitFor(() => expect(first.calls).toHaveLength(2))
@@ -645,7 +655,7 @@ describe('per-run limits of an agent run', () => {
 
     const run = session.agents.worker.start(undefined, {
       limits: { timeoutMs: 20 },
-      attach: 'none',
+      addResultNote: false,
     })
     await expect(run).rejects.toMatchObject({ code: 'timeout' })
     expect(session.agentRuns()[0]).toMatchObject({
@@ -674,10 +684,10 @@ describe('per-run limits of an agent run', () => {
     const hostA = createHarnessHost({ persistence })
     const sessionA = await hostA.open(harness, { threadId: THREAD })
     const running = sessionA.agents.worker.start(undefined, {
-      resume: true,
+      runAgainAfterCrash: true,
       // Long enough that a slow CI coverage run takes the run over first.
       limits: { timeoutMs: 2_000 },
-      attach: 'none',
+      addResultNote: false,
     })
     await waitFor(() => expect(sessionA.agentRuns()[0]?.status).toBe('running'))
     await stopHost(log, sessionA, running)
@@ -743,7 +753,7 @@ describe('per-run limits of an agent run', () => {
     const asked: Array<{ message: string; retries: number }> = []
 
     const run = session.agents.mailer.start(undefined, {
-      attach: 'none',
+      addResultNote: false,
       onModelError: ({ error, retries }) => {
         asked.push({ message: error.message, retries })
         return 'retry'
@@ -776,7 +786,7 @@ describe('per-run limits of an agent run', () => {
     const onModelError = vi.fn(() => 'retry' as const)
 
     const run = session.agents.worker.start(undefined, {
-      attach: 'none',
+      addResultNote: false,
       onModelError,
     })
 
@@ -807,8 +817,8 @@ describe('per-run limits of an agent run', () => {
     const hostA = createHarnessHost({ persistence })
     const sessionA = await hostA.open(harness, { threadId: THREAD })
     const running = sessionA.agents.worker.start(undefined, {
-      resume: true,
-      attach: 'none',
+      runAgainAfterCrash: true,
+      addResultNote: false,
       onModelError: () => 'retry',
     })
     await waitFor(() => expect(sessionA.agentRuns()[0]?.status).toBe('running'))
@@ -867,7 +877,7 @@ describe('per-run limits of an agent run', () => {
     const first = await open(busy.agent)
     await expect(
       first.session.agents.worker.start(undefined, {
-        attach: 'none',
+        addResultNote: false,
         onModelError: { retries: 1 },
       }),
     ).resolves.toContain('done')
@@ -878,7 +888,7 @@ describe('per-run limits of an agent run', () => {
     const second = await open(denied.agent)
     await expect(
       second.session.agents.worker.start(undefined, {
-        attach: 'none',
+        addResultNote: false,
         onModelError: { retries: 2 },
       }),
     ).rejects.toThrow('invalid api key')
@@ -889,7 +899,7 @@ describe('per-run limits of an agent run', () => {
     const third = await open(retried.agent)
     await expect(
       third.session.agents.worker.start(undefined, {
-        attach: 'none',
+        addResultNote: false,
         onModelError: { retries: 1, transientOnly: false },
       }),
     ).resolves.toContain('done')
@@ -926,8 +936,8 @@ describe('per-run limits of an agent run', () => {
     const hostA = createHarnessHost({ persistence })
     const sessionA = await hostA.open(harness, { threadId: THREAD })
     const running = sessionA.agents.worker.start(undefined, {
-      resume: true,
-      attach: 'none',
+      runAgainAfterCrash: true,
+      addResultNote: false,
       onModelError: { retries: 1 },
     })
     await waitFor(() => expect(sessionA.agentRuns()[0]?.status).toBe('running'))

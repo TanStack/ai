@@ -240,7 +240,7 @@ export async function handleLine(
           text: 'The agent input must be JSON, for example {"vendor":"acme"}.',
         }
       }
-      const operation = handle.start(input, { wake: true })
+      const operation = handle.start(input, { startTurnWhenDone: true })
       operation.then(
         () => {},
         () => {},

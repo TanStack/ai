@@ -730,8 +730,8 @@ export abstract class SessionTurn<
               noteKey: turn.inputId ?? operation.id,
               rootAgents,
               subagents: subagentList.map((agent) => agent.name),
-              humans: this.harness.routing.humans === true,
-              tool: this.harness.routing.handoffs !== false,
+              humans: this.harness.routing.allowHandoffToHuman === true,
+              tool: this.harness.routing.giveModelsHandoffTool !== false,
               append: (record) =>
                 this.appendHandoff(record, storedUser(sender).user),
               publish: (record) =>
@@ -747,7 +747,7 @@ export abstract class SessionTurn<
       }
       // The settings of this turn. Every chat() call below uses them: the
       // tool loop, retries, `beforeFinish` cycles, the main part of
-      // `routing.after: 'main'`, and late joins.
+      // `routing.afterAgentsAnswer: 'main-answers'`, and late joins.
       const { overrides } = turn
       const picked = [
         ...(session?.adapters ?? []),
@@ -822,9 +822,9 @@ export abstract class SessionTurn<
       // here, so a middleware wrapper wraps the bound tool,
       // and again at each model call, for tools that a middleware returns.
       const bindTool = this.durableBinder(run)
-      // `routing.handoffs: false` gives the models no `handoff` tool.
+      // `routing.giveModelsHandoffTool: false` gives the models no `handoff` tool.
       const handoffTool =
-        handoffs && this.harness.routing?.handoffs !== false
+        handoffs && this.harness.routing?.giveModelsHandoffTool !== false
           ? handoffs.tool(null)
           : undefined
       const clash = handoffTool
@@ -925,9 +925,9 @@ export abstract class SessionTurn<
       const isRootTurn =
         turn.answers?.routed?.root === true || (pick ?? 'main') !== 'main'
       const {
-        after,
-        humans: _humans,
-        handoffs: _handoffs,
+        afterAgentsAnswer: after,
+        allowHandoffToHuman: _humans,
+        giveModelsHandoffTool: _handoffs,
         ...shared
       } = routing ?? {}
       const routedBag = routing
@@ -941,7 +941,7 @@ export abstract class SessionTurn<
               }
               return pick
             },
-            // The harness runs the main part of `after: 'main'`, so the main
+            // The harness runs the main part of `afterAgentsAnswer: 'main-answers'`, so the main
             // model keeps its subagents.
             strategy: 'exclusive' as const,
           }
@@ -1426,7 +1426,7 @@ export abstract class SessionTurn<
               startedAt: Date.now(),
             })
           }
-        } else if (isRootPart && after === 'main') {
+        } else if (isRootPart && after === 'main-answers') {
           // The agents answered. The main model answers next, with the
           // transcript that has their answer.
           isRootPart = false

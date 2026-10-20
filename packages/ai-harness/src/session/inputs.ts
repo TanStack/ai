@@ -267,7 +267,7 @@ export abstract class SessionInputs<
    * A record can name another session of the same log with `thread`. The
    * append is all or nothing.
    *
-   * With `project` on the host, a record can change the model context. The
+   * With `durability.addRecordsToModelContext` on the harness, a record can change the model context. The
    * running turn sees the change at its next model call.
    *
    * With `inputId`, the append is an input, as a `send` is: a second append
@@ -960,9 +960,9 @@ export abstract class SessionInputs<
         ignore(
           this.runAgent(input.agent, input.input, {
             ...asUser,
-            ...(input.detached ? { wake: true } : {}),
-            ...(input.resume ? { resume: true } : {}),
-            ...(input.attach ? { attach: input.attach } : {}),
+            ...(input.detached ? { startTurnWhenDone: true } : {}),
+            ...(input.runAgainAfterCrash ? { runAgainAfterCrash: true } : {}),
+            ...(input.addResultNote === false ? { addResultNote: false } : {}),
             offered: { inputId, ...run },
           }),
         )

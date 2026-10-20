@@ -123,7 +123,7 @@ What the view reads for the rest:
 - `getMedia({ id })` and `loadMedia({ id, range })`: a media file and its bytes.
 - `usage()`: the token totals of the thread.
 - `indexEntry()`: the index entry of the thread.
-- `logState()`: the `durability.reduce` fold of the log. See [One log for a session tree](./shared-logs#keep-state-for-the-whole-tree).
+- `logState()`: the `durability.logState` fold of the log. See [One log for a session tree](./shared-logs#keep-state-for-the-whole-tree).
 - `jobs()`: the background jobs that did not end. See [Watch background jobs](./coding-workspaces#4-watch-background-jobs).
 
 The view sets up no plugins, writes nothing, and never takes the log, so a read never fails because another host owns the thread. When the session is open on this host, the view reads through it, but it never holds the session open. The read paths of [`createHarnessHandler`](./connect) use the view, so a client that only reads starts no plugins. `GET describe` opens the session, because the plugins give the commands and the settings.
@@ -170,7 +170,7 @@ const trimmedHost = createHarnessHost({
 - A reader whose cursor is in the dropped part gets one `harness.gap` event, then the stream goes on. See [Cursors](./connect#cursors).
 - `session.revert()` still works. The snapshot keeps the last 500 file steps of [`snapshots()`](./snapshots#go-back-to-an-earlier-message).
 
-CAUTION: With `'since-snapshot'`, do not change `durability.reduce` or `durability.project` often. When the host cannot use the snapshot (its `reduce` version or its `project` changed, or the snapshot has a newer version), a thread with dropped records cannot open. The open rejects with `LogTruncatedError`. Keep `'all'` if you change `reduce` often.
+CAUTION: With `'since-snapshot'`, do not change `durability.logState` or `durability.addRecordsToModelContext` often. When the host cannot use the snapshot (its `logState` version or its `project` changed, or the snapshot has a newer version), a thread with dropped records cannot open. The open rejects with `LogTruncatedError`. Keep `'all'` if you change `reduce` often.
 
 ## Delete a thread for good
 

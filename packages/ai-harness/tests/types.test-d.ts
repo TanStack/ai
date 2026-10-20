@@ -128,8 +128,8 @@ it('takes attempt and time limits, and the log folds, on the harness', () => {
         continueCutOff?: boolean | { note?: string | ReadonlyArray<string> }
         resumeBackgroundAgents?: boolean
         agentToolWaits?: boolean
-        project?: ProjectOptions
-        reduce?: ReduceOptions<undefined>
+        addRecordsToModelContext?: ProjectOptions
+        logState?: ReduceOptions<undefined>
       }
     | undefined
   >()
@@ -137,7 +137,7 @@ it('takes attempt and time limits, and the log folds, on the harness', () => {
   const counted = defineHarness({
     name: 'test/reduce',
     durability: {
-      reduce: {
+      logState: {
         initial: { count: 0 },
         record: ({ state }) => ({ count: state.count + 1 }),
       },
@@ -292,14 +292,14 @@ it('takes the options grouped per concern', () => {
     { vendor: 'a' },
     {
       key: 'price-a',
-      wake: true,
+      startTurnWhenDone: true,
       limits: { timeoutMs: 1000, maxAttempts: 2 },
       budget: { maxTokens: 500, maxCost: 0.1 },
       onModelError: ({ retries }) => (retries < 2 ? 'retry' : 'fail'),
     },
   )
   // @ts-expect-error `run` never wakes the session
-  void agents.run(pricer, { vendor: 'a' }, { wake: true })
+  void agents.run(pricer, { vendor: 'a' }, { startTurnWhenDone: true })
   // @ts-expect-error limits are in `limits`
   void agents.start(pricer, { vendor: 'a' }, { timeoutMs: 1000 })
 })

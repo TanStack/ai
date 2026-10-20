@@ -518,7 +518,7 @@ export async function applyInput({
       // once.
       const inputId = input.inputId ?? createInputId()
       const options: AgentRunStartOptions = {
-        wake: input.detached === true,
+        startTurnWhenDone: input.detached === true,
         inputId,
         ...asUser,
       }

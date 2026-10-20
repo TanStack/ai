@@ -74,7 +74,7 @@ async function seedStoppedTurn(log: LogStore) {
 async function seedStoppedAgent(
   log: LogStore,
   agent: string,
-  input: { resume?: true } = {},
+  input: { runAgainAfterCrash?: true } = {},
 ) {
   await seed(log, [
     {
@@ -206,7 +206,7 @@ describe('host.resumePending', () => {
 
   it('continues a resumable background agent whose host stopped', async () => {
     const log = memoryLogStore()
-    await seedStoppedAgent(log, 'worker', { resume: true })
+    await seedStoppedAgent(log, 'worker', { runAgainAfterCrash: true })
     await expired()
     const agentModel = mockAdapter([() => text('Worked.')])
     const worker = defineAgent({

@@ -32,7 +32,7 @@ const alice = { id: 'alice' }
  * opens the thread on the same stores.
  */
 async function stopDuringAgent(options: {
-  resume: boolean
+  runAgainAfterCrash: boolean
   durability?: HarnessDurability
   /** The agent model of host B. */
   next: Parameters<typeof mockAdapter>[0]
@@ -84,8 +84,8 @@ async function stopDuringAgent(options: {
     },
   )
   const operation = sessionA.agent('worker')?.start(undefined, {
-    wake: true,
-    ...(options.resume ? { resume: true } : {}),
+    startTurnWhenDone: true,
+    ...(options.runAgainAfterCrash ? { runAgainAfterCrash: true } : {}),
   })
   if (!operation) throw new Error('No worker agent.')
   await waitFor(() => expect(first.calls).toHaveLength(2))
@@ -120,10 +120,10 @@ async function stopDuringAgent(options: {
   return { sessionB, hostB, inputId, effects, agentModel, main, stores, log }
 }
 
-describe('a background agent with resume: true', () => {
+describe('a background agent with runAgainAfterCrash: true', () => {
   it('runs again on the host that takes over, with its steps and transcript', async () => {
     const run = await stopDuringAgent({
-      resume: true,
+      runAgainAfterCrash: true,
       next: [() => text('Worked.')],
     })
 
@@ -153,7 +153,7 @@ describe('a background agent with resume: true', () => {
         (message) => message.role === 'tool' && message.toolCallId === 'call-1',
       ),
     ).toBe(true)
-    // `wake`: the main model gets the result in a new turn.
+    // `startTurnWhenDone`: the main model gets the result in a new turn.
     await waitFor(() => expect(run.main.calls).toHaveLength(1))
     expect(messageTexts(run.main.calls[0]).at(-1)).toContain(
       'Background agent worker finished',
@@ -163,7 +163,7 @@ describe('a background agent with resume: true', () => {
 
   it('fails with attempts_exhausted after durability.maxAttempts runs', async () => {
     const run = await stopDuringAgent({
-      resume: true,
+      runAgainAfterCrash: true,
       durability: { maxAttempts: 1 },
       next: [() => text('never')],
     })
@@ -177,9 +177,9 @@ describe('a background agent with resume: true', () => {
     await run.hostB.close()
   })
 
-  it('without resume, still fails the run that a stopped host left', async () => {
+  it('without runAgainAfterCrash, still fails the run that a stopped host left', async () => {
     const run = await stopDuringAgent({
-      resume: false,
+      runAgainAfterCrash: false,
       next: [() => text('never')],
     })
 
@@ -192,7 +192,7 @@ describe('a background agent with resume: true', () => {
   })
 })
 
-describe('the children of a run with resume: true', () => {
+describe('the children of a run with runAgainAfterCrash: true', () => {
   it('gives a keyed child and an unkeyed child their own ids, so each agent runs', async () => {
     const a = defineAgent({
       name: 'a',
@@ -223,7 +223,10 @@ describe('the children of a run with resume: true', () => {
     )
 
     await expect(
-      session.agents.lead.start(undefined, { resume: true, attach: 'none' }),
+      session.agents.lead.start(undefined, {
+        runAgainAfterCrash: true,
+        addResultNote: false,
+      }),
     ).resolves.toEqual(['from a', 'from b'])
     await host.close()
   })
@@ -254,8 +257,8 @@ describe('the children of a run with resume: true', () => {
       run: async (ctx) => {
         void ctx
           .harness!.agents.start('child', undefined, {
-            resume: true,
-            attach: 'none',
+            runAgainAfterCrash: true,
+            addResultNote: false,
           })
           .then(undefined, () => undefined)
         await reserved.opened
@@ -275,7 +278,10 @@ describe('the children of a run with resume: true', () => {
       threadId: THREAD,
     })
     await expect(
-      sessionA.agents.lead.start(undefined, { resume: true, attach: 'none' }),
+      sessionA.agents.lead.start(undefined, {
+        runAgainAfterCrash: true,
+        addResultNote: false,
+      }),
     ).resolves.toBe('started')
     await waitFor(() => expect(first.calls).toHaveLength(1))
     expect(effects).toEqual(['reserve'])
@@ -348,7 +354,9 @@ describe('the middleware of a resumable agent run', () => {
       { threadId: THREAD, user: alice },
     )
 
-    await session.agent('worker')?.start(undefined, { resume: true })
+    await session
+      .agent('worker')
+      ?.start(undefined, { runAgainAfterCrash: true })
 
     const stored = (await persistence.stores.log.read({ logId: LOG }))
       .map((entry) => entry.record)

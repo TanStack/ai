@@ -129,7 +129,7 @@ async function open(options: {
       adapter,
       tools: options.tools,
       turn: options.turn,
-      durability: { project },
+      durability: { addRecordsToModelContext: project },
     }),
     {
       threadId: THREAD,
@@ -897,7 +897,7 @@ describe('turn.beforeFinish', () => {
               : undefined
           },
         },
-        durability: { project: signalProject },
+        durability: { addRecordsToModelContext: signalProject },
       }),
       {
         threadId: THREAD,

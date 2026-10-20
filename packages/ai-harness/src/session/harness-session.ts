@@ -849,7 +849,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
    * `aborted` when an abort was asked, settles `failed` when no attempt or no
    * time is left, and else runs again as the next attempt. An agent run (a
    * first run or a follow-up run) whose host stopped runs again with
-   * `resume: true`, else settles `failed` with the steers that joined it. A
+   * `runAgainAfterCrash: true`, else settles `failed` with the steers that joined it. A
    * message that waited for such a run goes to the run again, else settles
    * `aborted`. An input that never ran runs now. One that a `setDelivery`
    * sent to `steer` joins the turn that runs, when one does. A `cancelInput`
@@ -1119,7 +1119,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
         }
         // A run that ended before its settle record landed did not stop.
         if (!run || run.status === 'running' || run.status === 'interrupted') {
-          const isResumable = first.input.resume === true
+          const isResumable = first.input.runAgainAfterCrash === true
           // `limits.maxAttempts` of the run wins over the harness's.
           const runMax =
             writer.state.thread.tree.get(input.operationId ?? '')?.limits

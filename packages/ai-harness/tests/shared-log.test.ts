@@ -33,14 +33,14 @@ const reduce: ReduceOptions<Record<string, unknown>> = {
 
 const hostFor = (persistence: Durable) => createHarnessHost({ persistence })
 
-/** A harness whose `reduce` folds the log of its sessions. */
+/** A harness whose `durability.logState` folds the log of its sessions. */
 const tracked = defineHarness({
   name: 'test/shared',
   adapter: mockAdapter([]).adapter,
-  durability: { reduce },
+  durability: { logState: reduce },
 })
 
-/** A harness with no `reduce`. */
+/** A harness with no `durability.logState`. */
 const plain = defineHarness({
   name: 'test/shared',
   adapter: mockAdapter([]).adapter,
@@ -148,11 +148,11 @@ describe('the log of a session tree', () => {
     })
 
     await expect(host.open(other, { threadId: ROOT })).rejects.toThrow(
-      'Pass the same project and reduce objects to every harness that shares a log.',
+      'Pass the same addRecordsToModelContext and logState objects to every harness that shares a log.',
     )
     // A view reads the log through the fold too.
     const view = await host.observe(plain, { threadId: ROOT })
-    await expect(view.logState()).rejects.toThrow('durability.reduce')
+    await expect(view.logState()).rejects.toThrow('durability.logState')
     await host.close()
   })
 
@@ -162,7 +162,7 @@ describe('the log of a session tree', () => {
       name: 'test/shared',
       adapter: mockAdapter([]).adapter,
       durability: {
-        project: {
+        addRecordsToModelContext: {
           record: ({ messages, record }) =>
             record.type === 'app.signal' && typeof record.text === 'string'
               ? [...messages, { role: 'user', content: record.text }]

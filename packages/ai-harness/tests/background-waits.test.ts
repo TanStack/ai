@@ -566,7 +566,9 @@ describe('step.ask in a background agent run', () => {
       { threadId: THREAD },
     )
 
-    const run = session.agents.asker.start(undefined, { resume: true })
+    const run = session.agents.asker.start(undefined, {
+      runAgainAfterCrash: true,
+    })
     const wait = await session.waitForRun({
       runId: run.id,
       signal: AbortSignal.timeout(5_000),

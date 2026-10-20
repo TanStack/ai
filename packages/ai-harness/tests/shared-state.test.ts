@@ -88,8 +88,8 @@ describe('ctx.harness.state', () => {
     })()
 
     await Promise.all([
-      session.agents.adder.start({ name: 'a' }, { attach: 'none' }),
-      session.agents.adder.start({ name: 'b' }, { attach: 'none' }),
+      session.agents.adder.start({ name: 'a' }, { addResultNote: false }),
+      session.agents.adder.start({ name: 'b' }, { addResultNote: false }),
     ])
 
     const stored = await storedThreadState(persistence.stores.log, {
@@ -118,7 +118,10 @@ describe('ctx.harness.state', () => {
     const persistence = durablePersistence()
     const harness = sharing()
     const first = await openOn(persistence, harness)
-    await first.session.agents.adder.start({ name: 'a' }, { attach: 'none' })
+    await first.session.agents.adder.start(
+      { name: 'a' },
+      { addResultNote: false },
+    )
     await first.host.close()
 
     const second = await openOn(persistence, harness)
@@ -137,7 +140,7 @@ describe('ctx.harness.state', () => {
     const { host, session } = await openOn(persistence, sharing(), {
       saveSnapshotAfter: { bytes: 1 },
     })
-    await session.agents.adder.start({ name: 'a' }, { attach: 'none' })
+    await session.agents.adder.start({ name: 'a' }, { addResultNote: false })
     await host.close()
     const head = (await log.read({ logId: LOG })).at(-1)?.seq
     await waitFor(async () =>

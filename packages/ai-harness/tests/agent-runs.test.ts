@@ -162,7 +162,7 @@ describe('the thread of an agent run', () => {
       persistence,
     )
 
-    const run = session.agents.writer.start(undefined, { attach: 'none' })
+    const run = session.agents.writer.start(undefined, { addResultNote: false })
     expect(typeof run.subagentRunId).toBe('string')
     await run
 
@@ -826,7 +826,9 @@ describe('messages to an agent run after its host stopped', () => {
       threadId: THREAD,
       user: alice,
     })
-    const run = sessionA.agents.writer.start(undefined, { resume: true })
+    const run = sessionA.agents.writer.start(undefined, {
+      runAgainAfterCrash: true,
+    })
     await waitFor(() => expect(first.calls).toHaveLength(1))
     await run.send('Cite the source.', { inputId: 'steer-1' })
     await stop(sessionA, run)
@@ -910,7 +912,9 @@ describe('messages to an agent run after its host stopped', () => {
       threadId: THREAD,
       user: alice,
     })
-    const run = sessionA.agents.writer.start(undefined, { resume: true })
+    const run = sessionA.agents.writer.start(undefined, {
+      runAgainAfterCrash: true,
+    })
     await run
     const receipt = await run.send('Add a title.', {
       mode: 'followUp',
