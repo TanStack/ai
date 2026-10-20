@@ -1649,7 +1649,23 @@ export class AnthropicTextAdapter<
           messageStartUsage = event.message.usage
         } else if (event.type === 'content_block_start') {
           currentBlockType = event.content_block.type
-          if (event.content_block.type === 'tool_use') {
+          if (currentBlockType === 'fallback') {
+            // Server-side fallback handoff. message_start named the declining
+            // model; the rest of the stream comes from `to.model`.
+            const block: unknown = event.content_block
+            const to =
+              block && typeof block === 'object' && 'to' in block
+                ? block.to
+                : undefined
+            if (
+              to &&
+              typeof to === 'object' &&
+              'model' in to &&
+              typeof to.model === 'string'
+            ) {
+              model = to.model
+            }
+          } else if (event.content_block.type === 'tool_use') {
             currentToolIndex++
             // A computer toolset call names its action. It runs as one
             // `computer` call with the action in `input.action`.

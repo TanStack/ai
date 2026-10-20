@@ -193,6 +193,11 @@ describe('Anthropic response served by a fallback model', () => {
     expect(runFinished(chunks)?.model).toBe(fallbackModel)
   })
 
+  it('names the fallback model after a mid-output handoff', async () => {
+    const { chunks } = await run(midOutputHandoff(), { fallbacks: 'default' })
+    expect(runFinished(chunks)?.model).toBe(fallbackModel)
+  })
+
   it('balances text message start and end across a mid-output handoff', async () => {
     const { chunks } = await run(midOutputHandoff(), { fallbacks: 'default' })
     const count = (type: string) =>
