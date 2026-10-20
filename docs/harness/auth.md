@@ -302,7 +302,7 @@ export const gitlabProjects = toolDefinition({
     // The user disconnected meanwhile: ask for a sign-in.
     credential = fresh ?? (await credentials.require('gitlab'))
   }
-  const token = credential.type === 'api_key' ? credential.value : credential.accessToken
+  const token = credential.type === 'oauth' ? credential.accessToken : credential.value
   const response = await fetch('https://gitlab.com/api/v4/projects?membership=true', {
     headers: { authorization: `Bearer ${token}` },
     signal,

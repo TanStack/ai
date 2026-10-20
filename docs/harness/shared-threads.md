@@ -159,7 +159,7 @@ export const myIssues = toolDefinition({
   description: 'List the Linear issues of the user',
 }).server<HarnessRunContext>(async (_args, ctx) => {
   const credential = await ctx.context.run.credentials.require('linear')
-  const key = credential.type === 'api_key' ? credential.value : credential.accessToken
+  const key = credential.type === 'oauth' ? credential.accessToken : credential.value
   const response = await fetch('https://api.linear.app/graphql', {
     method: 'POST',
     headers: { authorization: key, 'content-type': 'application/json' },

@@ -305,7 +305,7 @@ export const github = definePlugin({
       toolDefinition({ name: 'my_repos', description: 'List my GitHub repos' }).server<HarnessRunContext>(
         async (_args, ctx) => {
           const credential = await ctx.context.run.credentials.require('github')
-          const token = credential.type === 'api_key' ? credential.value : credential.accessToken
+          const token = credential.type === 'oauth' ? credential.accessToken : credential.value
           const response = await fetch('https://api.github.com/user/repos', {
             headers: { authorization: `Bearer ${token}` },
           })
