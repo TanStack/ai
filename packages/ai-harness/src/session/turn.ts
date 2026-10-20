@@ -729,6 +729,7 @@ export abstract class SessionTurn<
         this.harness.routing && rootAgents.length > 0
           ? new TurnHandoffs({
               runId: operation.id,
+              noteKey: turn.inputId ?? operation.id,
               rootAgents,
               subagents: subagentList.map((agent) => agent.name),
               humans: this.harness.routing.humans === true,
@@ -876,6 +877,12 @@ export abstract class SessionTurn<
       const durableTools = this.durableTools(bindTool)
       const signal = operation.abortController.signal
       const { routing } = this.harness
+      /**
+       * The messages that the next chat() call adds after `message`: the
+       * note of a handoff, or the partial answer and the note that a
+       * `'continue'` adds.
+       */
+      let continued: Array<ModelMessage> = []
       // A new turn asks the router once. A resolve does not: it continues the
       // turn it answers, the main model or the saved plan of the root agents.
       let pick: SubagentRouterPick | undefined
@@ -908,7 +915,11 @@ export abstract class SessionTurn<
           ...(activeAgent !== null ? { activeAgent } : {}),
         })
         // Before the agent runs, so a takeover goes on with the new agent.
-        pick = await handoffs.route(chosen, activeAgent)
+        const routedTo = await handoffs.route(chosen, activeAgent)
+        pick = routedTo.pick
+        // ponytail: the first chat() call saves the note. A crash before
+        // that call loses it: the log has the handoff, the transcript not.
+        continued = routedTo.messages
       }
       const isRootTurn =
         turn.answers?.routed?.root === true || (pick ?? 'main') !== 'main'
@@ -971,8 +982,6 @@ export abstract class SessionTurn<
       /** Retries since the last finished tool phase. The log keeps them. */
       let retries =
         this.writer.state.inputs.get(turn.inputId ?? '')?.retries ?? 0
-      /** The partial answer and the note that a `'continue'` adds. */
-      let continued: Array<ModelMessage> = []
       /** How many times `turn.beforeFinish` continued this turn. */
       let cycle = 0
       /** How many routed passes of this turn kept their answer. */
@@ -1361,12 +1370,25 @@ export abstract class SessionTurn<
         if (isFinished) break
         const handoff = handoffs?.take()
         const target = handoff?.to
+        // The note of a code handoff, for the transcript.
+        const note = handoff ? (handoffs?.messages(handoff) ?? []) : []
         if (isHumanTarget(target)) {
           // A person answers next. The turn ends, and the session pauses.
+          // No chat() call saves the note, so it is saved here, once.
+          if (note.length > 0) {
+            const history = await this.messages.loadThread(this.threadId)
+            const ids = new Set(history.map((entry) => entry.id))
+            await this.messages.saveThread(this.threadId, [
+              ...history,
+              ...note.filter((entry) => !ids.has(entry.id)),
+            ])
+          }
           isPaused = true
           break
         }
         if (target !== undefined) {
+          // The next chat() call saves the note before the target answers.
+          continued = note
           // The target answers in this turn, with its own prompt and tools,
           // from the saved thread. A routed target runs on the same run id,
           // so the answer of an earlier routed pass is kept below.

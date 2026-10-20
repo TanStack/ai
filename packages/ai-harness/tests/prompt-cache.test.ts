@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { defineAgent } from '@tanstack/ai'
+import { z } from 'zod'
+import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import { mockAdapter, text, toolCall } from './helpers'
 import type { PromptCacheOptions } from '@tanstack/ai'
+import type { HarnessRunContext } from '../src'
+import type { Reply } from './helpers'
 
 /** Run one chat turn and return the `promptCache` the adapter got. */
 async function cacheOfTurn(
@@ -76,6 +79,57 @@ describe('prompt cache', () => {
       retention: 'none',
       key: expect.stringMatching(/^t:writer:in-/),
     })
+    await host.close()
+  })
+
+  it('keeps the messages of the earlier call as the prefix of a handoff target, with the note after them', async () => {
+    // The messages of each call as the model got them, before a later call
+    // can change them.
+    const seen: Array<Array<unknown>> = []
+    const keep =
+      (reply: Reply): Reply =>
+      (options) => {
+        seen.push(structuredClone(options.messages))
+        return reply(options)
+      }
+    const escalate = toolDefinition({
+      name: 'escalate',
+      description: 'Hand the user to billing',
+      inputSchema: z.object({}),
+    }).server<HarnessRunContext>(async (_args, ctx) => {
+      await ctx.context.run.handoff({ to: 'billing' })
+      return 'moved'
+    })
+    const billingModel = mockAdapter([keep(() => text('Refunded'))])
+    const billing = defineAgent({
+      name: 'billing',
+      description: 'Billing',
+      run: (ctx) => ctx.chat({ adapter: billingModel.adapter }),
+    })
+    const main = mockAdapter([
+      keep(() => toolCall('escalate', {}, 'call_e')),
+      keep(() => text('never')),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/prompt-cache-handoff',
+        adapter: main.adapter,
+        tools: [escalate],
+        agents: [billing],
+        routing: { router: () => undefined },
+      }),
+      { threadId: 't' },
+    )
+    await session.send('refund please', { inputId: 'in-1' })
+
+    const [first, target] = seen
+    if (!first || !target) throw new Error('No model call of the target.')
+    expect(target.slice(0, first.length)).toEqual(first)
+    expect(target.slice(-2)).toMatchObject([
+      { role: 'assistant', toolCalls: [{ id: 'handoff_in-1_1' }] },
+      { role: 'tool', toolCallId: 'handoff_in-1_1' },
+    ])
     await host.close()
   })
 

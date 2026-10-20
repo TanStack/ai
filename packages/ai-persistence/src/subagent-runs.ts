@@ -181,6 +181,11 @@ function sameChildText(stored: string, incoming: string) {
   return blocks.every((block) => incoming.includes(block))
 }
 
+/** A tool result, or an assistant message that calls tools. */
+function isToolStep(message: ModelMessage) {
+  return message.role === 'tool' || (message.toolCalls?.length ?? 0) > 0
+}
+
 // A live client mints its own assistant id. The stored row uses
 // `assistant:${runId}`. When the client sends the turn again, copy `runId`
 // onto the new row so the cards still rebuild.
@@ -210,12 +215,17 @@ function keepSubagentRunIds(
       if (message.role !== 'assistant') return false
       if (readModelRunId(message) !== undefined) return false
       // No child text yet (a child waits for approval): match the first
-      // assistant reply to the same user message.
+      // assistant reply to the same user message. A finished tool call
+      // before it (a handoff) is not that reply.
       if (previousText === '') {
+        const before = merged
+          .slice(0, messageIndex)
+          .findLast((item) => !isToolStep(item))
         return (
           previousTurn !== undefined &&
           turnOf(merged, messageIndex) === previousTurn &&
-          merged[messageIndex - 1]?.role === 'user'
+          !isToolStep(message) &&
+          before?.role === 'user'
         )
       }
       return sameChildText(previousText, messageText(message))

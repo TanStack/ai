@@ -45,6 +45,66 @@ function targetName(to: HandoffRecord['to']) {
   return isHumanTarget(to) ? 'a person' : to
 }
 
+/** The result text of a `handoff` tool call to `to`. */
+function handoffText(to: string | HumanTarget) {
+  if (typeof to !== 'string') {
+    return 'Handed off to a person. The session waits for an operator.'
+  }
+  return `Handed off to ${to}. ${to} answers next.`
+}
+
+/**
+ * The messages that show a router or code handoff in the transcript, so the
+ * target knows that it got the conversation, and why. They look like a
+ * `handoff` tool call of the model and its result. With `asTool: false` (the
+ * models have no `handoff` tool) they are one plain assistant note, with
+ * the message id `id`.
+ */
+export function handoffMessages(
+  record: Handoff,
+  id: string,
+  asTool: boolean,
+): Array<ModelMessage> {
+  const to = isHumanTarget(record.to) ? HUMAN : (record.to ?? 'main')
+  const metadata = {
+    harness: {
+      ...(typeof record.from === 'string' ? { agent: record.from } : {}),
+      handoff: { by: record.by },
+    },
+  }
+  const result = handoffText(to)
+  if (!asTool) {
+    const note = record.note === undefined ? '' : ` Note: ${record.note}`
+    return [{ id, role: 'assistant', content: result + note, metadata }]
+  }
+  const args = {
+    to,
+    ...(record.note !== undefined ? { note: record.note } : {}),
+  }
+  return [
+    {
+      id,
+      role: 'assistant',
+      content: null,
+      toolCalls: [
+        {
+          id,
+          type: 'function',
+          function: { name: HANDOFF_TOOL, arguments: JSON.stringify(args) },
+        },
+      ],
+      metadata,
+    },
+    {
+      id: `${id}_result`,
+      role: 'tool',
+      toolCallId: id,
+      content: result,
+      metadata,
+    },
+  ]
+}
+
 /**
  * The handoffs of one turn of a harness with `routing`. The router, the
  * `handoff` tool, and `ctx.harness.handoff` go through it. Each handoff
@@ -61,6 +121,11 @@ export class TurnHandoffs {
     private readonly options: {
       /** The operation id of the turn. */
       runId: string
+      /**
+       * The key of the ids of the handoff notes: the input of the turn, which
+       * a run of the turn on the next host keeps.
+       */
+      noteKey: string
       /** The agents a handoff can go to. */
       rootAgents: ReadonlyArray<AnyAgent>
       /** The names of the agents that are only subagents, for the error text. */
@@ -80,19 +145,33 @@ export class TurnHandoffs {
 
   /**
    * The pick that `chat()` runs for a router answer. A pick that changes who
-   * answers the thread is a handoff with `by: 'router'`.
+   * answers the thread is a handoff with `by: 'router'`. `messages` show
+   * that handoff in the transcript.
    */
   async route(
     chosen: HarnessRouterPick,
     activeAgent: string | null,
-  ): Promise<SubagentRouterPick> {
+  ): Promise<{ pick: SubagentRouterPick; messages: Array<ModelMessage> }> {
     const { pick, handoff } = routerTarget(
       chosen,
       activeAgent,
       this.options.rootAgents,
     )
-    if (handoff) await this.write({ ...handoff, by: 'router' })
-    return pick
+    if (!handoff) return { pick, messages: [] }
+    const record = await this.write({ ...handoff, by: 'router' })
+    return { pick, messages: this.messages(record) }
+  }
+
+  /**
+   * The messages that show a router or code handoff in the transcript. None
+   * for a `handoff` tool call: the call of the model is there already.
+   */
+  messages(handoff: Handoff): Array<ModelMessage> {
+    if (handoff.by !== 'router' && handoff.by !== 'code') return []
+    // A turn that runs again after a crash makes the same ids, so the store
+    // keeps each note once.
+    const id = `handoff_${this.options.noteKey}_${this.count}`
+    return handoffMessages(handoff, id, this.options.tool)
   }
 
   /**
@@ -216,10 +295,7 @@ export class TurnHandoffs {
         from,
         'tool',
       )
-      if (typeof target !== 'string') {
-        return 'Handed off to a person. The session waits for an operator.'
-      }
-      return `Handed off to ${target}. ${target} answers next.`
+      return handoffText(target)
     })
   }
 

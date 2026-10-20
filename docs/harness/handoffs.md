@@ -106,8 +106,17 @@ The router can hand off too. Return `{ handoff: 'billing', note }` from `routing
 
 - Its own system prompts and tools. The tools of the agent that handed off do not go with it.
 - The saved transcript of the thread, the same messages that the members see.
-- The note, in the log and in the `harness.handoff` event.
+- The note, in the transcript, in the log, and in the `harness.handoff` event.
 - The provider keys of the user who sent the turn.
+
+The `handoff` tool call of a model is in the transcript already. A handoff from the router or from code adds the same two messages before the target answers:
+
+- An assistant message with a `handoff` tool call. Its arguments are `{ to, note }`.
+- The tool result, for example `Handed off to billing. billing answers next.`
+
+Both messages have `metadata.harness.handoff.by` (`'router'` or `'code'`). When an agent handed off, they also have its name in `metadata.harness.agent`. The messages go after the messages that the earlier model call got, so the prompt cache of the provider still holds.
+
+With `routing.handoffs: false`, the models have no `handoff` tool. Then the harness adds one assistant message with the same text and the note.
 
 The `agents()` plugin has its own primary agent, its `agent` config and `/agent`. That one changes the prompt and the tools of the main model. A handoff does not change it, and it does not change the active agent. See [Switch between agent profiles](./agents).
 

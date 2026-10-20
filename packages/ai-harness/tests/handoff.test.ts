@@ -1,5 +1,5 @@
 import { memoryCredentialStore } from '@tanstack/ai/byok/server'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { defineByokProvider, keyedAdapter } from '@tanstack/ai/byok'
@@ -16,12 +16,15 @@ import {
   messagesFromTranscript,
 } from '../src/view/reduce'
 import {
+  CRASHING_OWNERSHIP,
   gate,
   messageTexts,
   mockAdapter,
+  ownershipExpired,
   storedThreadState,
   text,
   toolCall,
+  untilAborted,
 } from './helpers'
 import type { AnyTextAdapter, AnyTool } from '@tanstack/ai'
 import type { LogStore } from '@tanstack/ai-persistence'
@@ -31,6 +34,7 @@ import type {
   HarnessSession,
   HarnessSubagents,
   Operation,
+  OwnershipOptions,
 } from '../src'
 import type { Reply } from './helpers'
 
@@ -47,14 +51,19 @@ async function openRouting(options: {
   adapter?: AnyTextAdapter
   /** `routing.handoffs`. */
   handoffs?: boolean
+  /** `routing.humans`. */
+  humans?: boolean
+  log?: LogStore
+  ownership?: OwnershipOptions
 }) {
   const { metadata } = memoryPersistence().stores
-  const log = memoryLogStore()
+  const log = options.log ?? memoryLogStore()
   const credentials = memoryCredentialStore()
   const main = mockAdapter(options.replies ?? [])
   const host = createHarnessHost({
     persistence: { stores: { log, metadata } },
     credentials,
+    ...(options.ownership ? { ownership: options.ownership } : {}),
   })
   const session = await host.open(
     defineHarness({
@@ -69,6 +78,7 @@ async function openRouting(options: {
         ...(options.handoffs !== undefined
           ? { handoffs: options.handoffs }
           : {}),
+        ...(options.humans ? { humans: true } : {}),
       },
     }),
     { threadId: THREAD, principal: USER },
@@ -261,17 +271,22 @@ describe('handoffs', () => {
     // The turn text is the answer of the target.
     expect((await turn).text).toBe('billing:\nRefunded')
     expect(main.calls).toHaveLength(0)
-    // Each routed pass keeps its answer as its own message.
+    // Each routed pass keeps its answer as its own message. A note of each
+    // handoff goes before the answer of its target.
     expect(await transcriptTexts(session)).toEqual([
       'refund please',
+      'null',
+      'Handed off to triage. triage answers next.',
       'triage:\nPassing you to billing.',
+      'null',
+      'Handed off to billing. billing answers next.',
       'billing:\nRefunded',
     ])
     expect(
       messagesFromTranscript(await session.transcript()).map((message) =>
         message.role === 'assistant' ? message.agent : message.role,
       ),
-    ).toEqual(['user', 'triage', 'billing'])
+    ).toEqual(['user', undefined, 'triage', 'triage', 'billing'])
     expect(
       (await handoffRecords(log)).map(({ from, to, by }) => ({ from, to, by })),
     ).toEqual([
@@ -486,6 +501,174 @@ describe('handoffs', () => {
     expect(JSON.stringify(await session.transcript())).toContain('Shipped')
     expect(main.calls).toHaveLength(1)
     await host.close()
+  })
+
+  it('puts a handoff call and its result in the transcript for a router and a code handoff', async () => {
+    const triage = defineAgent({
+      name: 'triage',
+      description: 'Sorts requests',
+      run: async (ctx) => {
+        await ctx.harness!.handoff({ to: 'billing', note: 'A refund' })
+        return 'Passing you to billing.'
+      },
+    })
+    const billing = modelAgent('billing', [() => text('Refunded')])
+    const { host, session } = await openRouting({
+      agents: [triage, billing.agent],
+      router: () => 'triage',
+    })
+
+    const inputId = 'in-refund'
+    await session.send('refund please', { inputId })
+
+    const call = (n: number, from: string | undefined, args: object) => {
+      const id = `handoff_${inputId}_${n}`
+      const metadata = {
+        harness: {
+          ...(from ? { agent: from } : {}),
+          handoff: { by: from ? 'code' : 'router' },
+        },
+      }
+      return [
+        {
+          id,
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id,
+              type: 'function',
+              function: { name: 'handoff', arguments: JSON.stringify(args) },
+            },
+          ],
+          metadata,
+        },
+        {
+          id: `${id}_result`,
+          role: 'tool',
+          toolCallId: id,
+          content: `Handed off to ${(args as { to: string }).to}. ${(args as { to: string }).to} answers next.`,
+          metadata,
+        },
+      ]
+    }
+    const notes = (await session.transcript()).filter((message) =>
+      message.id?.startsWith('handoff_'),
+    )
+    expect(notes).toEqual([
+      ...call(1, undefined, { to: 'triage' }),
+      ...call(2, 'triage', { to: 'billing', note: 'A refund' }),
+    ])
+    // The target gets the note of its handoff last.
+    expect(billing.model.calls[0].messages.slice(-2)).toMatchObject([
+      { role: 'assistant', toolCalls: [{ id: `handoff_${inputId}_2` }] },
+      { role: 'tool', toolCallId: `handoff_${inputId}_2` },
+    ])
+    await host.close()
+  })
+
+  it('saves the note of a code handoff to a person', async () => {
+    const triage = defineAgent({
+      name: 'triage',
+      description: 'Sorts requests',
+      run: async (ctx) => {
+        await ctx.harness!.handoff({ to: { human: true } })
+        return 'A person will help you.'
+      },
+    })
+    const { host, session } = await openRouting({
+      agents: [triage],
+      router: () => 'triage',
+      humans: true,
+    })
+
+    await session.send('a person please')
+
+    expect((await transcriptTexts(session)).slice(-2)).toEqual([
+      'null',
+      'Handed off to a person. The session waits for an operator.',
+    ])
+    await host.close()
+  })
+
+  it('writes a plain note with routing.handoffs false', async () => {
+    const billing = modelAgent('billing', [() => text('Billed')])
+    const { host, session } = await openRouting({
+      agents: [billing.agent],
+      handoffs: false,
+      router: () => 'billing',
+    })
+
+    await session.send('bill me')
+
+    const note = {
+      role: 'assistant',
+      content: 'Handed off to billing. billing answers next.',
+    }
+    expect(billing.model.calls[0].messages.at(-1)).toMatchObject(note)
+    expect(
+      (await session.transcript()).filter((message) =>
+        message.id?.startsWith('handoff_'),
+      ),
+    ).toMatchObject([note])
+    await host.close()
+  })
+
+  it('keeps each handoff note once when the next host runs the turn again', async () => {
+    const log = memoryLogStore()
+    const triage = defineAgent({
+      name: 'triage',
+      description: 'Sorts requests',
+      run: async (ctx) => {
+        await ctx.harness!.handoff({ to: 'billing' })
+        return 'Passing you to billing.'
+      },
+    })
+    // The first host stops while billing answers.
+    const stopped = modelAgent('billing', [untilAborted()])
+    const first = await openRouting({
+      agents: [triage, stopped.agent],
+      router: () => 'triage',
+      log,
+      ownership: CRASHING_OWNERSHIP,
+    })
+    void Promise.resolve(
+      first.session.send('refund please', { inputId: 'in-1' }),
+    ).catch(() => {})
+    await vi.waitFor(() => expect(stopped.model.calls).toHaveLength(1), {
+      timeout: 5_000,
+    })
+    await ownershipExpired()
+
+    const billing = modelAgent('billing', [() => text('Refunded')])
+    const next = await openRouting({
+      agents: [triage, billing.agent],
+      router: () => 'triage',
+      log,
+    })
+    expect(await next.session.settled({ inputId: 'in-1' })).toMatchObject({
+      outcome: 'completed',
+    })
+    const ids = (await next.session.transcript())
+      .map((message) => message.id ?? '')
+      .filter((id) => id.startsWith('handoff_'))
+    console.log(
+      JSON.stringify(
+        (await next.session.transcript()).map((m) => [m.id, m.role, m.content]),
+      ),
+    )
+    expect(ids).toHaveLength(4)
+    expect(new Set(ids).size).toBe(4)
+    // A new host reads the same transcript.
+    await next.host.close()
+    const reader = await openRouting({ agents: [triage], log })
+    expect(
+      (await reader.session.transcript())
+        .map((message) => message.id ?? '')
+        .filter((id) => id.startsWith('handoff_')),
+    ).toEqual(ids)
+    await first.host.close().catch(() => {})
+    await reader.host.close()
   })
 
   it('runs the target with the keys of the user who sent the turn', async () => {

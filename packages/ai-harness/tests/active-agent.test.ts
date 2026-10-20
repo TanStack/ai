@@ -265,6 +265,9 @@ describe('activeAgent', () => {
     expect(main.calls).toHaveLength(0)
     expect(messageTexts({ messages: await session.transcript() })).toEqual([
       'clean up',
+      // The note of the router handoff.
+      'null',
+      'Handed off to cleaner. cleaner answers next.',
       'cleaner:\nRemoved a.txt',
     ])
     await host.close()

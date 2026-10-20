@@ -34,6 +34,12 @@ const waitFor = <T>(
 const THREAD = 't1'
 
 /** An agent that answers `answer`, and keeps the messages of each run. */
+/** The texts of the note that a router handoff to `name` adds. */
+const routedTo = (name: string) => [
+  'null',
+  `Handed off to ${name}. ${name} answers next.`,
+]
+
 function textAgent(name: string, answer: string) {
   const runs: Array<Array<string>> = []
   const agent = defineAgent({
@@ -187,10 +193,11 @@ describe('routing.router', () => {
 
     expect(turn.text).toBe('writer:\nDraft')
     expect(main.calls).toHaveLength(0)
-    expect(writer.runs).toEqual([['write it']])
+    expect(writer.runs).toEqual([['write it', ...routedTo('writer')]])
     expect(seo.runs).toEqual([])
     expect(await transcriptTexts(session)).toEqual([
       'write it',
+      ...routedTo('writer'),
       'writer:\nDraft',
     ])
     await host.close()
@@ -344,7 +351,11 @@ describe('routing.router', () => {
 
     expect(turn.text).toBe('Edited draft')
     expect(main.calls).toHaveLength(1)
-    expect(messageTexts(main.calls[0])).toEqual(['write it', 'writer:\nDraft'])
+    expect(messageTexts(main.calls[0])).toEqual([
+      'write it',
+      ...routedTo('writer'),
+      'writer:\nDraft',
+    ])
     expect(
       main.calls[0].tools.map((tool: { name: string }) => tool.name),
     ).toContain('checker')
@@ -478,6 +489,7 @@ describe('routing.router', () => {
     expect(messageTexts(child.calls[1]).at(-1)).toBe('second')
     expect(await transcriptTexts(session)).toEqual([
       'first',
+      ...routedTo('writer'),
       'second',
       'writer:\nDraft with both',
     ])
@@ -515,6 +527,7 @@ describe('routing.router', () => {
     expect(answers[1]?.at(-1)).toBe('second')
     expect(await transcriptTexts(session)).toEqual([
       'first',
+      ...routedTo('writer'),
       'writer:\nDraft 1',
       'second',
       'writer:\nDraft 2',
@@ -542,6 +555,7 @@ describe('routing.router', () => {
     expect(writer.runs[1]?.at(-1)).toBe('one more')
     expect(await transcriptTexts(session)).toEqual([
       'write it',
+      ...routedTo('writer'),
       'writer:\nDraft',
       'one more',
       'writer:\nDraft',
@@ -747,6 +761,7 @@ describe('routing and ownership', () => {
     // The thread keeps one answer for the turn, and no rows of the agent.
     expect(await transcriptTexts(session)).toEqual([
       'clean up',
+      ...routedTo('cleaner'),
       'cleaner:\nRemoved a.txt',
     ])
     await host.close()
