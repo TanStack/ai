@@ -217,6 +217,17 @@ export interface HarnessDurability<
    */
   continueCutOff?: boolean | { note?: string | ReadonlyArray<string> }
   /**
+   * Run again an agent that the model started with `background: true`, when
+   * the host stopped during the run. The next host continues it with the
+   * same `subagentRunId`, as a start with `resume: true`: the agent code runs
+   * again from its start, `ctx.chat` continues from its saved transcript,
+   * and `ctx.harness.step` keeps its values. A tool call that finished does
+   * not run again. A tool call that ran at the stop runs again. The turn
+   * plugins of the turn that started it are gone. `false`: the run fails, as
+   * a start without `resume`. Default `true`.
+   */
+  resumeBackgroundAgents?: boolean
+  /**
    * How a durable host folds your own log records into the model context of
    * each session.
    */

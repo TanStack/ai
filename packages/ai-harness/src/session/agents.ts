@@ -483,10 +483,16 @@ export abstract class SessionAgents<
         const agent = agents.find((entry) => entry.name === call.agent)
         if (!agent) throw new Error(`Unknown agent "${call.agent}".`)
         const subagentRunId = createSubagentId()
+        // The next host continues the run after a stop, with the same id.
+        const resume = this.harness.durability?.resumeBackgroundAgents !== false
         const started = this.runAgent(
           agent,
           call.input,
-          { ...startOptions, ...(principal ? { principal } : {}) },
+          {
+            ...startOptions,
+            ...(resume ? { resume } : {}),
+            ...(principal ? { principal } : {}),
+          },
           undefined,
           {
             subagentRunId,
@@ -1349,9 +1355,14 @@ export abstract class SessionAgents<
    * Run again an agent run with `resume: true` whose host stopped: a first
    * run, or a follow-up run of the chain of `first`. The new run applies the
    * same input, so its attempt counts up, and it continues the chain's saved
-   * transcript.
+   * transcript. `subagentRunId`: the child id of the run that stopped, so an
+   * id that the model got stays valid.
    */
-  protected resumeAgent(input: InputState, first: AgentInputState) {
+  protected resumeAgent(
+    input: InputState,
+    first: AgentInputState,
+    subagentRunId?: string,
+  ) {
     this.warnLiveOnly(input.operationId)
     const operation = this.agentOperation(first.input.agent)
     const sender = input.principal ? { principal: input.principal } : {}
@@ -1369,6 +1380,7 @@ export abstract class SessionAgents<
     void this.executeAgent(operation, chain, {
       inputId: input.inputId,
       resumed: true,
+      ...(subagentRunId !== undefined ? { child: { subagentRunId } } : {}),
       ...(input.input.op === 'agentMessage'
         ? {
             message: {

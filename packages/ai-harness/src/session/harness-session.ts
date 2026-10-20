@@ -1115,7 +1115,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
                 },
               })
             }
-            this.resumeAgent(input, first)
+            this.resumeAgent(input, first, run?.subagentRunId)
             continue
           }
           await this.failStoppedAgent({

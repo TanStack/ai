@@ -118,7 +118,7 @@ const checker = defineAgent({
 
 ## Keep a background agent going after a crash
 
-A background agent can work for a long time. When its host stops, for example in a deploy, the next host fails the run. Start it with `resume: true`, and the next host runs it again instead:
+A background agent can work for a long time. When its host stops, for example in a deploy, the next host fails the run. Start it with `resume: true`, and the next host runs it again instead. A background child that the model starts runs again by default (see [Let the model run agents in the background](#let-the-model-run-agents-in-the-background)):
 
 ```ts group=harness-subagents
 // Your own services.
@@ -171,7 +171,7 @@ export const migrations = definePlugin({
 
 `ctx.harness` gives the agent `step`, `agents`, and `state`. A harness gives it to every agent run in a session:
 
-- A run that a session starts from code gets the full context.
+- A run that a session starts from code gets the full context. A background child that the model starts gets it too.
 - An agent that the model calls as a tool, and an agent that a router picks, get `agents` and `state`. Their `step.do` runs `fn` each time.
 - An agent in a plain `chat()` has no harness, so `ctx.harness` is `undefined`. Check it before you use it, as the samples on this page do.
 
@@ -414,6 +414,15 @@ The model gets a `researcher` tool and a `writer` tool. Each tool takes these fi
 For the tool input in plain `chat()`, see [The tool input](../chat/subagents#the-tool-input).
 
 When a background child ends, the session starts a new turn. Its message starts with `Background agent researcher finished:` or `Background agent researcher failed:`. While the child runs, it is in `session.agentRuns()`.
+
+When the host stops while a background child runs, the next host continues the child with the same `subagentRunId`, as a start with `resume: true` does:
+
+- The agent code runs again from its start.
+- `ctx.chat` continues from the saved transcript. A tool call that finished does not run again. A tool call that ran at the stop runs again.
+- `ctx.harness.step.do` keeps its values, so a finished step does not run again.
+- The plugins with `lifetime: 'turn'` of the turn that started the child are gone.
+
+To fail the child instead, set `durability: { resumeBackgroundAgents: false }` in `defineHarness`.
 
 With a session index, each child gets an entry with its `parentThreadId` and `parentToolCallId`. See [Turn on the session index](./sessions#turn-on-the-session-index).
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { toolDefinition } from '@tanstack/ai'
+import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import {
@@ -7,6 +7,7 @@ import {
   gate,
   mockAdapter,
   ownershipExpired,
+  storedThreadState,
   text,
   toolCall,
   untilAborted,
@@ -28,6 +29,13 @@ function durablePersistence() {
 }
 
 type Durable = ReturnType<typeof durablePersistence>
+
+/** A promise that resolves when `signal` aborts. */
+const untilAbort = (signal: AbortSignal | undefined) =>
+  new Promise<void>((resolve) => {
+    if (!signal || signal.aborted) return resolve()
+    signal.addEventListener('abort', () => resolve(), { once: true })
+  })
 
 /** The text of each assistant message in the transcript. */
 async function assistantTexts(session: HarnessSession) {
@@ -106,6 +114,99 @@ describe('background work after a crash', () => {
     ])
     await recovered.recover()
     expect(await assistantTexts(recovered)).toHaveLength(2)
+  })
+
+  /**
+   * Start `scout` with `background: true` from the model of a host that
+   * stops. Its first attempt waits until it is aborted.
+   */
+  async function startScout(
+    persistence: Durable,
+    durability?: { resumeBackgroundAgents: boolean },
+  ) {
+    let attempt = 0
+    const scout = defineAgent({
+      name: 'scout',
+      description: 'Scouts',
+      run: async (ctx) => {
+        attempt += 1
+        if (attempt === 1) await untilAbort(ctx.abortSignal)
+        return 'scouted'
+      },
+    })
+    const harness = (adapter: AnyTextAdapter) =>
+      defineHarness({
+        name: 'test/durable-background',
+        adapter,
+        subagents: { agents: [scout] },
+        ...(durability ? { durability } : {}),
+      })
+    const lead = mockAdapter([
+      () => toolCall('scout', { prompt: 'Look', background: true }, 'call-1'),
+      () => text('Started.'),
+    ])
+    const crashed = await createHarnessHost({
+      persistence,
+      ownership: CRASHING_OWNERSHIP,
+    }).open(harness(lead.adapter), { threadId: THREAD })
+    await crashed.send('Scout')
+    await waitFor(() => expect(crashed.agentRuns()[0]?.status).toBe('running'))
+    await ownershipExpired()
+    return { harness, attempts: () => attempt }
+  }
+
+  /** The agent runs of `THREAD` in the log, oldest first. */
+  async function agentRunRecords(persistence: Durable) {
+    const state = await storedThreadState(persistence.stores.log, {
+      threadId: THREAD,
+    })
+    return [...state.runs.values()]
+      .filter((run) => run.kind === 'agent')
+      .sort((a, b) => a.startedAt - b.startedAt)
+  }
+
+  it('continues a background agent of the model on the next host, with the same subagentRunId', async () => {
+    const persistence = durablePersistence()
+    const { harness, attempts } = await startScout(persistence)
+
+    const host = createHarnessHost({ persistence })
+    const next = mockAdapter(() => text('Noted.'))
+    const recovered = await host.open(harness(next.adapter), {
+      threadId: THREAD,
+    })
+
+    await waitFor(() =>
+      expect(recovered.agentRuns().map((run) => run.status)).toContain(
+        'completed',
+      ),
+    )
+    expect(attempts()).toBe(2)
+    const [stopped, resumed] = await agentRunRecords(persistence)
+    expect(stopped?.status).toBe('failed')
+    expect(resumed?.status).toBe('completed')
+    expect(resumed?.subagentRunId).toBe(stopped?.subagentRunId)
+    await host.close()
+  })
+
+  it('fails a background agent of the model on the next host with resumeBackgroundAgents false', async () => {
+    const persistence = durablePersistence()
+    const { harness, attempts } = await startScout(persistence, {
+      resumeBackgroundAgents: false,
+    })
+
+    const host = createHarnessHost({ persistence })
+    const next = mockAdapter(() => text('Noted.'))
+    const recovered = await host.open(harness(next.adapter), {
+      threadId: THREAD,
+    })
+
+    await waitFor(() =>
+      expect(recovered.agentRuns().map((run) => run.status)).toEqual([
+        'failed',
+      ]),
+    )
+    expect(attempts()).toBe(1)
+    await host.close()
   })
 
   it('adds a note that waited for a busy turn once', async () => {
