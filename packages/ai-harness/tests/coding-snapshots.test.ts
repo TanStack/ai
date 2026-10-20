@@ -932,8 +932,7 @@ describe.skipIf(!hasGit)('session.revert keeps the edits of the user', () => {
     await host.close()
   })
 
-  // flaky: took 7.4 s and failed in a 12-file batch under load; passes alone.
-  it.skip('adds a note that arrives during a revert after unrevert', async () => {
+  it('adds a note that arrives during a revert after unrevert', async () => {
     await put('a.txt', 'one')
     await mkdir(join(root, 'sub'))
     const { host, session } = await open(threeTurns())
