@@ -4,23 +4,12 @@ import type {
   AfterToolCallInfo,
   AnyChatMiddleware,
   ModelMessage,
-  RunRecord,
   RunStore,
 } from '@tanstack/ai'
 import type { MessageStore } from '@tanstack/ai-persistence'
+import type { Redactor } from './auth'
 import type { HarnessDurability } from './define'
 import type { RecoverContext } from './turn'
-
-/** How often a running host renews its lease, and when a lease expires. */
-export const LEASE = { renewMs: 10_000, ttlMs: 30_000 }
-
-/** Lease timing for a host. A missing field uses {@link LEASE}. */
-export interface LeaseOptions {
-  /** How long a lease lasts after each renewal, in milliseconds. */
-  ttlMs?: number
-  /** How often the running host renews its lease, in milliseconds. */
-  renewMs?: number
-}
 
 /** The tool result a crash leaves for a tool that must not run twice. */
 export const INTERRUPTED_TOOL_RESULT = {
@@ -82,75 +71,26 @@ export function truncationMiddleware(
 }
 
 /**
- * Hold the lease on run `runId` and renew it. Returns the function that stops
- * the renewal. A host that stops lets the lease expire, so recovery can tell
- * the run is dead.
- */
-export async function holdRunLease(
-  runs: RunStore | undefined,
-  runId: string,
-  hostId: string,
-  lease?: LeaseOptions,
-): Promise<() => void> {
-  if (!runs) return () => {}
-  const ttlMs = lease?.ttlMs ?? LEASE.ttlMs
-  const stamp = () =>
-    runs.update(runId, {
-      leaseOwner: hostId,
-      leaseExpiresAt: Date.now() + ttlMs,
-    })
-  await stamp()
-  // A renewal restamps only a run this host still drives. After a takeover
-  // (another owner, or the run ended), the timer stops instead.
-  const renew = async () => {
-    const record = await runs.get(runId)
-    const isMine =
-      record?.status === 'running' &&
-      (record.leaseOwner === undefined || record.leaseOwner === hostId)
-    if (isMine) await stamp()
-    else clearInterval(timer)
-  }
-  // A failed renewal is retried at the next tick. The lease expires if they
-  // keep failing.
-  const timer = setInterval(
-    () => void renew().catch(() => {}),
-    lease?.renewMs ?? LEASE.renewMs,
-  )
-  // A lease timer must not keep a CLI or a test process alive.
-  if (typeof timer === 'object' && 'unref' in timer) timer.unref()
-  return () => clearInterval(timer)
-}
-
-/**
  * Chat middleware that makes a turn resumable after a crash:
  *
- * - holds a lease on the run record and renews it while the turn runs;
  * - saves the transcript before and after each tool phase;
- * - records each tool call that started but has no result yet;
- * - gives `onToolResult` the tool message of each call that ends.
+ * - records each tool call that started but has no result yet.
+ *
+ * It does not record the results: a later `onAfterToolCall` can still
+ * replace them. {@link toolResultRecorder}, at the end of the list, does.
  */
 export function checkpointMiddleware(options: {
   runs?: RunStore
   messages: MessageStore
-  hostId: string
-  lease?: LeaseOptions
   /** Called before each tool call runs, after its checkpoint is saved. */
   onToolStart?: (info: {
     toolCallId: string
     name: string
     replay: 'safe' | 'never'
   }) => void | Promise<void>
-  /** Called after each tool call ends, with the tool message the model gets. */
-  onToolResult?: (info: {
-    toolCallId: string
-    message: ModelMessage
-  }) => void | Promise<void>
 }): AnyChatMiddleware {
-  const { runs, messages, hostId, onToolResult } = options
-  const state = new WeakMap<
-    object,
-    { stopLease: () => void; pending: Array<PendingTool> }
-  >()
+  const { runs, messages } = options
+  const state = new WeakMap<object, { pending: Array<PendingTool> }>()
 
   const saveCheckpoint = async (runId: string, pending: Array<PendingTool>) => {
     await runs?.update(runId, {
@@ -158,20 +98,13 @@ export function checkpointMiddleware(options: {
     })
   }
   const stop = (ctx: object) => {
-    state.get(ctx)?.stopLease()
     state.delete(ctx)
   }
 
   return {
     name: 'harness:checkpoint',
-    async onStart(ctx) {
-      const stopLease = await holdRunLease(
-        runs,
-        ctx.runId,
-        hostId,
-        options.lease,
-      )
-      state.set(ctx, { stopLease, pending: [] })
+    onStart(ctx) {
+      state.set(ctx, { pending: [] })
     },
     async onBeforeToolCall(ctx, hook) {
       const entry = state.get(ctx)
@@ -193,29 +126,12 @@ export function checkpointMiddleware(options: {
         replay: hook.tool?.replay ?? 'never',
       })
     },
-    async onAfterToolCall(ctx, info) {
+    onAfterToolCall(ctx, info) {
       const entry = state.get(ctx)
       if (!entry) return
       entry.pending = entry.pending.filter(
         (tool) => tool.toolCallId !== info.toolCallId,
       )
-      // A call cut at the output limit never ran: `truncationMiddleware`
-      // owns its text, and recovery writes the same one.
-      if (!onToolResult || isCutCall(info)) return
-      // The same content the engine puts in its tool message.
-      const message: ModelMessage = info.ok
-        ? {
-            role: 'tool',
-            toolCallId: info.toolCallId,
-            content: normalizeToolResult(info.result),
-          }
-        : {
-            role: 'tool',
-            toolCallId: info.toolCallId,
-            content: JSON.stringify({ error: errorText(info.error) }),
-            error: errorText(info.error),
-          }
-      await onToolResult({ toolCallId: info.toolCallId, message })
     },
     async onToolPhaseComplete(ctx) {
       const entry = state.get(ctx)
@@ -230,24 +146,81 @@ export function checkpointMiddleware(options: {
   }
 }
 
-/** Chat and agent runs of this thread that a crashed host left `running`. */
-export async function findCrashedRuns(
-  runs: RunStore | undefined,
-  threadId: string,
-  now = Date.now(),
-): Promise<Array<RunRecord>> {
-  if (!runs?.listByThread) return []
-  const records = await runs.listByThread(threadId)
-  return records.filter(
-    (record) =>
-      record.status === 'running' &&
-      (record.kind === undefined ||
-        record.kind === 'chat' ||
-        record.kind === 'agent') &&
-      // A run that crashed before its first lease stamp has no
-      // leaseExpiresAt: it is dead once a TTL passed since it started.
-      (record.leaseExpiresAt ?? record.startedAt + LEASE.ttlMs) < now,
-  )
+/** The error text the engine gives a tool message with an error result. */
+function toolErrorText(content: ModelMessage['content']): string {
+  const wire = typeof content === 'string' ? content : JSON.stringify(content)
+  let output: unknown = wire
+  try {
+    output = JSON.parse(wire)
+  } catch {
+    // Plain text stays a string.
+  }
+  if (isRecord(output) && typeof output.error === 'string') return output.error
+  return typeof output === 'string' ? output : 'Tool execution failed'
+}
+
+/**
+ * Chat middleware that scrubs the secrets of `redactor` from each tool
+ * result, so the model, the stream, and the log get the same scrubbed
+ * value. An error stays an error. Put it right before
+ * {@link toolResultRecorder}.
+ */
+export function scrubToolResults(redactor: Redactor): AnyChatMiddleware {
+  return {
+    name: 'harness:scrub-tool-results',
+    onAfterToolCall(_ctx, info) {
+      if (redactor.isEmpty) return undefined
+      if (info.ok || info.result !== undefined) {
+        const result = redactor.redact(info.result)
+        return result === info.result
+          ? undefined
+          : { type: 'replaceResult', result }
+      }
+      // An error with no replacement: the engine gives the model its text.
+      const text = errorText(info.error)
+      const scrubbed = redactor.scrub(text)
+      return scrubbed === text
+        ? undefined
+        : { type: 'replaceResult', result: { error: scrubbed } }
+    },
+  }
+}
+
+/**
+ * Chat middleware that gives `onToolResult` the tool message of each call
+ * that ends: the final result, after every other `onAfterToolCall` hook.
+ * Put it at the very end of the middleware list. Recovery after a crash
+ * puts this message back, so the model gets the result it saw before.
+ */
+export function toolResultRecorder(
+  onToolResult: (info: {
+    toolCallId: string
+    message: ModelMessage
+  }) => void | Promise<void>,
+): AnyChatMiddleware {
+  return {
+    name: 'harness:tool-result-recorder',
+    async onAfterToolCall(_ctx, info) {
+      // A call cut at the output limit never ran: `truncationMiddleware`
+      // owns its text, and recovery writes the same one.
+      if (isCutCall(info)) return
+      // A replacement made on an error wins over the error text.
+      const result = info.ok
+        ? info.result
+        : (info.result ?? { error: errorText(info.error) })
+      // The same content the engine puts in its tool message.
+      const content = normalizeToolResult(result)
+      const message: ModelMessage = info.ok
+        ? { role: 'tool', toolCallId: info.toolCallId, content }
+        : {
+            role: 'tool',
+            toolCallId: info.toolCallId,
+            content,
+            error: toolErrorText(content),
+          }
+      await onToolResult({ toolCallId: info.toolCallId, message })
+    },
+  }
 }
 
 /** A tool call that a repair closes with an error result, and why. */

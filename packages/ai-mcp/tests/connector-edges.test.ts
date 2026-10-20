@@ -201,6 +201,167 @@ describe('mcpConnector with a saved sign-in', () => {
     },
   )
 
+  it('keeps a token that another session saved while its refresh failed', async () => {
+    const { server, credentials, host } = await setup({
+      type: 'oauth',
+      accessToken: 'stale',
+      refreshToken: 'revoked',
+    })
+    // Another session refreshes and saves its new token while the server
+    // refuses this session's refresh token.
+    const racing: typeof fetch = async (input, init) => {
+      const target = new URL(input instanceof Request ? input.url : input)
+      if (target.pathname === '/token') {
+        await credentials.set({
+          scope,
+          id: 'demo',
+          credential: {
+            type: 'oauth',
+            accessToken: 'saved-by-other',
+            refreshToken: 'refresh-other',
+          },
+        })
+      }
+      return fetch(input, init)
+    }
+    const session = await host.open(
+      defineHarness({
+        name: 'test/connector',
+        adapter: recorder().adapter,
+        plugins: () => [
+          mcpConnector({
+            id: 'demo',
+            label: 'Demo',
+            url: server.url,
+            fetch: racing,
+          }),
+        ],
+      }),
+      { threadId: 't', principal: { id: 'user-1' } },
+    )
+    await session.send('hi')
+    expect(await credentials.get({ scope, id: 'demo' })).toMatchObject({
+      accessToken: 'saved-by-other',
+    })
+  })
+
+  it('asks for a sign-in, and saves nothing, when the user signs out while the SDK refreshes', async () => {
+    const { server, credentials, host } = await setup({
+      type: 'oauth',
+      accessToken: 'stale',
+      refreshToken: 'refresh-1',
+    })
+    // The user signs out while the refresh request is on its way.
+    const signingOut: typeof fetch = async (input, init) => {
+      const target = new URL(input instanceof Request ? input.url : input)
+      if (target.pathname === '/token') {
+        await credentials.delete({ scope, id: 'demo' })
+      }
+      return fetch(input, init)
+    }
+    const model = recorder()
+    const session = await host.open(
+      defineHarness({
+        name: 'test/connector',
+        adapter: model.adapter,
+        plugins: () => [
+          mcpConnector({
+            id: 'demo',
+            label: 'Demo',
+            url: server.url,
+            fetch: signingOut,
+          }),
+        ],
+      }),
+      { threadId: 't', principal: { id: 'user-1' } },
+    )
+
+    const seen = await promptAndCollect(session, 'hi')
+
+    expect(model.toolNames(0)).toEqual([])
+    expect(customValues(seen, HARNESS_EVENTS.authRequired)).toEqual([
+      { connector: 'demo' },
+    ])
+    expect(await credentials.get({ scope, id: 'demo' })).toBeNull()
+  })
+
+  it('saves one refreshed token when two sessions refresh at once', async () => {
+    const server = await startProtectedServer()
+    cleanups.push(() => server.close())
+    const store = memoryCredentialStore()
+    await store.set({
+      scope,
+      id: 'demo',
+      credential: {
+        type: 'oauth',
+        accessToken: 'stale',
+        refreshToken: 'refresh-1',
+        // With the issuer, so the SDK saves no tokens only to add it.
+        client: { clientId: 'client-1', issuer: server.issuer },
+      },
+    })
+    // Count the saves that change the store.
+    let writes = 0
+    const credentials = {
+      ...store,
+      set: async (entry: Parameters<typeof store.set>[0]) => {
+        writes++
+        await store.set(entry)
+      },
+      setIf: async (entry: Parameters<NonNullable<typeof store.setIf>>[0]) => {
+        const saved = await store.setIf!(entry)
+        if (saved.ok) writes++
+        return saved
+      },
+    }
+    // Hold each refresh request until both sessions sent theirs.
+    let requests = 0
+    let release = () => {}
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const holding: typeof fetch = async (input, init) => {
+      const target = new URL(input instanceof Request ? input.url : input)
+      if (target.pathname === '/token') {
+        requests++
+        await held
+      }
+      return fetch(input, init)
+    }
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      credentials,
+    })
+    cleanups.push(() => host.close())
+    const harness = defineHarness({
+      name: 'test/connector',
+      adapter: recorder().adapter,
+      plugins: () => [
+        mcpConnector({
+          id: 'demo',
+          label: 'Demo',
+          url: server.url,
+          fetch: holding,
+        }),
+      ],
+    })
+    const sessions = await Promise.all(
+      ['t1', 't2'].map((threadId) =>
+        host.open(harness, { threadId, principal: { id: 'user-1' } }),
+      ),
+    )
+    const sending = Promise.all(sessions.map((session) => session.send('hi')))
+    await vi.waitFor(() => expect(requests).toBe(2), { timeout: 5000 })
+    release()
+    await sending
+    // The second save sees that the token changed, and keeps it.
+    expect(writes).toBe(1)
+    expect(await store.get({ scope, id: 'demo' })).toMatchObject({
+      accessToken: 'access-2',
+      refreshToken: 'refresh-1',
+    })
+  })
+
   it('keeps the sign-in and a connection error when the network is down', async () => {
     const { server, credentials, host } = await setup({
       type: 'oauth',
@@ -223,7 +384,10 @@ describe('mcpConnector with a saved sign-in', () => {
           }),
         ],
       }),
-      { threadId: 't', principal: { id: 'user-1' } },
+      {
+        threadId: 't',
+        principal: { id: 'user-1' },
+      },
     )
     const seen = await promptAndCollect(session, 'hi')
     expect(model.toolNames(0)).toEqual([])
@@ -262,12 +426,17 @@ describe('mcpConnector /connect', () => {
           }),
         ],
       }),
-      { threadId: 't', principal: { id: 'user-1' } },
+      {
+        threadId: 't',
+        principal: { id: 'user-1' },
+      },
     )
     const browser = approveSignIns(session, 'code-1')
     cleanups.push(browser.stop)
 
-    expect(await session.command('connect:demo')).toBe('Connected to Demo.')
+    expect(await session.command({ name: 'connect:demo' })).toBe(
+      'Connected to Demo.',
+    )
     expect(browser.authorizationUrls[0]?.searchParams.get('scope')).toBe('read')
     expect(server.seen.registrations[0]).toMatchObject({
       client_name: 'Acme Agent',
@@ -308,7 +477,9 @@ describe('mcpConnector /connect', () => {
       const browser = approveSignIns(session, 'code-2')
       cleanups.push(browser.stop)
 
-      expect(await session.command('connect:demo')).toBe('Connected to Demo.')
+      expect(await session.command({ name: 'connect:demo' })).toBe(
+        'Connected to Demo.',
+      )
       expect(await credentials.get({ scope, id: 'demo' })).toEqual({
         type: 'oauth',
         accessToken: 'access-1',
@@ -330,7 +501,9 @@ describe('mcpConnector /connect', () => {
     const session = await openDemo(host, server.url, model)
     const browser = approveSignIns(session, 'code-1')
     cleanups.push(browser.stop)
-    expect(await session.command('connect:demo')).toBe('Connected to Demo.')
+    expect(await session.command({ name: 'connect:demo' })).toBe(
+      'Connected to Demo.',
+    )
 
     // The server stops taking the first token, so the next turn refreshes it.
     server.revoke('access-1')
@@ -350,6 +523,41 @@ describe('mcpConnector /connect', () => {
     )
   })
 
+  it('stops its OAuth requests when the command is cancelled', async () => {
+    const { server, host } = await setup()
+    let requested: () => void = () => {}
+    const firstRequest = new Promise<void>((resolve) => {
+      requested = resolve
+    })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/cancel',
+        adapter: recorder().adapter,
+        plugins: () => [
+          mcpConnector({
+            id: 'demo',
+            label: 'Demo',
+            url: server.url,
+            // The server never answers: only the signal ends a request.
+            fetch: (_input, init) =>
+              new Promise<Response>((_, reject) => {
+                requested()
+                const signal = init?.signal
+                if (signal?.aborted) return reject(signal.reason)
+                signal?.addEventListener('abort', () => reject(signal.reason))
+              }),
+          }),
+        ],
+      }),
+      { threadId: 't', principal: { id: 'user-1' } },
+    )
+    const connecting = session.command({ name: 'connect:demo' })
+    await firstRequest
+    await connecting.cancel()
+    await expect(connecting).rejects.toBeDefined()
+    expect(connecting.status()).toBe('cancelled')
+  })
+
   it('passes the iss of the callback on, for a server that sends one (RFC 9207)', async () => {
     const { server, credentials, host } = await setup(undefined, {
       issParameter: true,
@@ -357,7 +565,9 @@ describe('mcpConnector /connect', () => {
     const session = await openDemo(host, server.url, recorder())
     const browser = approveSignIns(session, 'code-1', server.issuer)
     cleanups.push(browser.stop)
-    expect(await session.command('connect:demo')).toBe('Connected to Demo.')
+    expect(await session.command({ name: 'connect:demo' })).toBe(
+      'Connected to Demo.',
+    )
     expect(await credentials.get({ scope, id: 'demo' })).toMatchObject({
       accessToken: 'access-1',
     })
@@ -390,7 +600,9 @@ describe('mcpConnector /connect', () => {
       const browser = approveSignIns(session, 'wrong-code')
       cleanups.push(browser.stop)
 
-      await expect(session.command('connect:demo')).rejects.toMatchObject({
+      await expect(
+        session.command({ name: 'connect:demo' }),
+      ).rejects.toMatchObject({
         code: 'invalid_grant',
       })
       expect(await credentials.get({ scope, id: 'demo' })).toEqual(
@@ -421,7 +633,7 @@ describe('mcpConnector stored credential shapes', () => {
     expect(model.toolNames(1)).toEqual(['demo_echo'])
 
     const fresh = await openDemo(host, server.url, recorder(), 't2')
-    expect(await fresh.command('disconnect:demo')).toBe(
+    expect(await fresh.command({ name: 'disconnect:demo' })).toBe(
       'Disconnected from Demo.',
     )
     expect(await credentials.get({ scope, id: 'demo' })).toBeNull()
@@ -500,7 +712,10 @@ describe('mcpConnector client options', () => {
           }),
         ],
       }),
-      { threadId: 't', principal: { id: 'user-1' } },
+      {
+        threadId: 't',
+        principal: { id: 'user-1' },
+      },
     )
     await session.send('hi')
     expect(model.toolNames(0)).toEqual(['mcp__demo__echo'])
@@ -540,7 +755,10 @@ describe('mcpConnector client options', () => {
           }),
         ],
       }),
-      { threadId: 't', principal: { id: 'user-1' } },
+      {
+        threadId: 't',
+        principal: { id: 'user-1' },
+      },
     )
     const seen = await promptAndCollect(session, 'hi')
     // Let the held answer finish before the server closes.

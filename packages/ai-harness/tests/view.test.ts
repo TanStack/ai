@@ -1,18 +1,30 @@
 import { describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
-  createHarnessHandler,
   createHarnessHost,
   createPluginEvent,
   defineCommand,
   defineHarness,
   definePlugin,
 } from '../src'
+import { createHarnessHandler } from '../src/server'
 import { createHarnessClient } from '../src/client'
 import { createSessionView } from '../src/view'
-import { after, gate, mockAdapter, text, toolCall } from './helpers'
+import {
+  after,
+  gate,
+  mockAdapter,
+  text,
+  toolCall,
+  turnInterrupts,
+} from './helpers'
 import type { Reply } from './helpers'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(check: () => T | Promise<T>) =>
+  vi.waitFor(check, { timeout: 5_000 })
 
 const Pinged = createPluginEvent<{ count: number }>('test/pinged')
 
@@ -141,10 +153,12 @@ describe('createSessionView', () => {
     second?.reject()
 
     expect(resolve).toHaveBeenCalledTimes(1)
-    expect(resolve.mock.calls[0]?.[0]).toEqual([
-      { interruptId: first?.id, status: 'resolved', payload: true },
-      { interruptId: second?.id, status: 'resolved', payload: false },
-    ])
+    expect(resolve.mock.calls[0]?.[0]).toEqual({
+      resume: [
+        { interruptId: first?.id, status: 'resolved', payload: true },
+        { interruptId: second?.id, status: 'resolved', payload: false },
+      ],
+    })
     await vi.waitFor(() => expect(view.store.get().status).toBe('idle'))
     view.dispose()
     await host.close()
@@ -158,9 +172,9 @@ describe('createSessionView', () => {
     await view.send('remove')
     await vi.waitFor(() => expect(view.store.get().approvals).toHaveLength(1))
     const id = view.store.get().approvals[0]?.id
-    const receipt = await session.resolve([
-      { interruptId: 'wrong', status: 'resolved', payload: true },
-    ])
+    const receipt = await session.resolve({
+      resume: [{ interruptId: 'wrong', status: 'resolved', payload: true }],
+    })
     await expect(session.operation(receipt.operationId ?? '')).rejects.toThrow()
     await vi.waitFor(() =>
       expect(view.store.get().approvals.map((item) => item.id)).toEqual([id]),
@@ -193,7 +207,7 @@ describe('createSessionView', () => {
     const resolve = vi.spyOn(session, 'resolve')
     view.approveAll()
     await vi.waitFor(() => expect(calls).toHaveLength(2))
-    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(session.snapshot())).toEqual([])
     expect(view.store.get().approvals).toEqual([])
     view.approveAll()
     expect(resolve).toHaveBeenCalledTimes(1)
@@ -201,7 +215,7 @@ describe('createSessionView', () => {
     await vi.waitFor(() => expect(errors.length).toBeGreaterThan(0))
     // The approved tool ran before the failure, so the approval is used up.
     // Offering it again would run the tool a second time.
-    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(session.snapshot())).toEqual([])
     expect(view.store.get().approvals).toEqual([])
     view.approveAll()
     expect(resolve).toHaveBeenCalledTimes(1)
@@ -238,7 +252,7 @@ describe('createSessionView', () => {
     const errors: Array<string> = []
     view.on('error', (message) => errors.push(message))
 
-    await view.command('nope')
+    await view.command({ name: 'nope' })
 
     await vi.waitFor(() =>
       expect(errors).toEqual(['Not accepted: unknown_command']),
@@ -255,7 +269,7 @@ describe('createSessionView', () => {
 
     const second = await open([], persistence)
     const view = createSessionView(second.session)
-    view.notice('Welcome back.')
+    view.notice({ text: 'Welcome back.' })
     await view.ready
 
     expect(view.store.get().messages).toEqual([
@@ -290,13 +304,13 @@ describe('createSessionView', () => {
     snapshot.mockClear()
 
     view.dispose()
-    await session.command('ping')
+    await session.command({ name: 'ping' })
     await new Promise((resolve) => setTimeout(resolve, 20))
 
     expect(view.store.get()).toEqual({ ...before, connection: 'closed' })
     expect(snapshot).not.toHaveBeenCalled()
     await expect(view.send('hi')).rejects.toThrow('disposed')
-    expect(() => view.approve('x')).toThrow('disposed')
+    expect(() => view.approve({ id: 'x' })).toThrow('disposed')
     await host.close()
   })
 
@@ -308,8 +322,7 @@ describe('createSessionView', () => {
     const handler = createHarnessHandler({
       host,
       harness,
-      canAccess: () => true,
-      authorize: () => ({ id: 'u' }),
+      openAccess: { principal: { id: 'u' } },
     })
     const client = createHarnessClient({
       url: 'http://local/api/harness',
@@ -345,8 +358,7 @@ describe('createSessionView', () => {
     const handler = createHarnessHandler({
       host,
       harness,
-      canAccess: () => true,
-      authorize: () => ({ id: 'u' }),
+      openAccess: { principal: { id: 'u' } },
     })
     const view = createSessionView(
       createHarnessClient({
@@ -364,7 +376,7 @@ describe('createSessionView', () => {
       expect(errors).toEqual(['Not accepted: unknown_config']),
     )
     await view.setConfig({ key: 'mode', value: 'bypass' })
-    await view.command('ping')
+    await view.command({ name: 'ping' })
     await view.send('/ping')
 
     const refused = 'Not accepted: not_exposed'
@@ -410,7 +422,9 @@ describe('the agents of a session view', () => {
         adapter: mockAdapter([]).adapter,
         agents: [writer],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     const run = session.agents.writer.start()
     return { hold, host, session, run }
@@ -436,6 +450,61 @@ describe('the agents of a session view', () => {
     await host.close()
   })
 
+  it('shows the wait of a background run, and answers it on its own', async () => {
+    const removed: Array<string> = []
+    const prune = toolDefinition({
+      name: 'prune',
+      description: 'Prune a file. Needs approval.',
+      needsApproval: true,
+      inputSchema: z.object({ path: z.string() }),
+    }).server(({ path }) => {
+      removed.push(path)
+      return Promise.resolve({ removed: true })
+    })
+    const model = mockAdapter([
+      () => toolCall('prune', { path: 'old.log' }),
+      () => text('Done.'),
+    ])
+    const cleaner = defineAgent({
+      name: 'cleaner',
+      description: 'Cleans up',
+      run: (ctx) => ctx.chat({ adapter: model.adapter, tools: [prune] }),
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/view-run-waits',
+        adapter: mockAdapter([]).adapter,
+        agents: [cleaner],
+      }),
+      { threadId: 't' },
+    )
+    const view = createSessionView(session)
+    await view.ready
+    const run = session.agents.cleaner.start()
+    const wait = await session.waitFor({
+      runId: run.id,
+      signal: AbortSignal.timeout(5_000),
+    })
+
+    await waitFor(() =>
+      expect(view.store.get().approvals.map(({ id }) => id)).toEqual([
+        wait.waitId,
+      ]),
+    )
+    expect(view.store.get().waits).toEqual([wait])
+    expect(view.store.get().agents).toMatchObject([
+      { id: run.id, status: 'waiting' },
+    ])
+    view.approve({ id: wait.waitId })
+    await expect(run).resolves.toBe('Done.')
+    expect(removed).toEqual(['old.log'])
+    await waitFor(() => expect(view.store.get().waits).toEqual([]))
+    expect(view.store.get().approvals).toEqual([])
+    view.dispose()
+    await host.close()
+  })
+
   it('shows what a child agent wrote after a reload', async () => {
     const writer = defineAgent({
       name: 'writer',
@@ -453,27 +522,33 @@ describe('the agents of a session view', () => {
         ]).adapter,
         subagents: { agents: [writer] },
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     await session.send('Notes, please')
 
     const view = createSessionView(session)
     await view.ready
+    const message = view.store.get().messages[1]
+    const card = message?.role === 'assistant' ? message.parts[1] : undefined
+    // Until it loads, the child shows only its card.
+    expect(card).toMatchObject({ type: 'agent', status: 'done', parts: [] })
 
-    await vi.waitFor(() =>
-      expect(view.store.get().messages[1]).toMatchObject({
-        role: 'assistant',
-        parts: [
-          { type: 'tool-call', id: 'call-1', status: 'done' },
-          {
-            type: 'agent',
-            name: 'writer',
-            status: 'done',
-            parts: [{ type: 'text', text: 'Note 1' }],
-          },
-        ],
-      }),
-    )
+    await view.loadAgent({ id: card?.type === 'agent' ? card.id : '' })
+
+    expect(view.store.get().messages[1]).toMatchObject({
+      role: 'assistant',
+      parts: [
+        { type: 'tool-call', id: 'call-1', status: 'done' },
+        {
+          type: 'agent',
+          name: 'writer',
+          status: 'done',
+          parts: [{ type: 'text', text: 'Note 1' }],
+        },
+      ],
+    })
     view.dispose()
     await host.close()
   })

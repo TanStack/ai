@@ -40,7 +40,9 @@ describe('plugin subagents', () => {
         subagents: { agents: [lead] },
         plugins: () => [fromSession, fromRun],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
 
     const turn = await session.send('paint a fox')
@@ -65,7 +67,9 @@ describe('plugin subagents', () => {
           definePlugin({ name: 'test/empty', setup: () => ({}) }),
         ],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     await session.send('hello')
     expect(toolNames(calls[0])).toEqual([])

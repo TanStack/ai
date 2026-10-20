@@ -6,7 +6,7 @@
 
 Run a harness tool with no model turn, add host records from a client, and add a per-run system preamble.
 
-- `session.tool(name, args?, options?)` runs one harness tool with no model
+- `session.tool({ name, args?, meta?, inputId?, principal? })` runs one harness tool with no model
   turn, for example from a schedule or a webhook. The call goes through the
   same middleware, input check, and `permissions()` rules as a model call, and
   the call and its result join the transcript. A tool that asks for approval
@@ -15,14 +15,14 @@ Run a harness tool with no model turn, add host records from a client, and add a
   event. `args` is typed from the input schema of a harness tool.
 - `expose.tools` lists the harness tools a client may run with a
   `{ op: 'tool', name, args?, meta? }` input, or with the new
-  `client.tool(name, args?, options?)`. The list is typed from the harness
+  `client.tool({ name, args?, meta?, inputId? })`. The list is typed from the harness
   `tools`, and `defineHarness` throws for a name that is not in `tools`. Any
   other tool is refused with `not_exposed`. The capabilities document marks
   each tool with `exposed`.
 - `expose.records` lists the host record types a client may add with an
-  `{ op: 'append', records }` input, or with the new `client.append(records)`.
+  `{ op: 'append', records }` input, or with the new `client.append({ records })`.
   A record of another type, or with a `thread` field, is refused with
-  `not_exposed`. The host must be durable (with `stores.log`).
+  `not_exposed`. The session log keeps the records.
 - `createHarnessMcpServer` adds a `tool_<name>` tool for each tool in
   `expose.tools`, and an `append` tool when `expose.records` has types. A tool
   input with its own `threadId` field now throws when the server is created,

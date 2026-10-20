@@ -1,43 +1,80 @@
 import {
   EventType,
   convertSchemaToJsonSchema,
-  readUnopenedInterruptBinding,
   toolDefinition,
 } from '@tanstack/ai'
 import {
+  AccessDeniedError,
   HARNESS_EVENTS,
-  applyInput,
+  isApproval,
+  waitKind,
+} from '@tanstack/ai-harness'
+import {
   isMediaRecord,
   kindOf,
   mediaPart,
   mimeTypeOf,
+} from '@tanstack/ai-harness/media'
+import {
+  applyInput,
   parseHarnessInput,
-} from '@tanstack/ai-harness'
+  requestUsers,
+} from '@tanstack/ai-harness/server'
+import {
+  OAuthError,
+  OAuthErrorCode,
+  bearerAuthChallengeResponse,
+} from '@modelcontextprotocol/server'
 // The inferred return type names `MCPHandleOptions`. Without an import of
 // `./server/index`, the .d.ts emit writes `./server.js`, which does not resolve.
 import { createMCPServer, resourceDefinition } from './server/index'
+import { isServedOverStdio } from './server/registry'
 import { toCallToolResult } from './server/tasks'
-import type { ContentPart, Interrupt, JSONSchema } from '@tanstack/ai'
+import type {
+  ContentPart,
+  Interrupt,
+  JSONSchema,
+  ToolExecutionContext,
+} from '@tanstack/ai'
 import type {
   AnyHarness,
-  Cursor,
   HarnessHost,
   HarnessSession,
   MediaRecord,
+  ObservedSession,
   Operation,
+  PendingWait,
+  Principal,
+  SessionSnapshot,
+  Wait,
+  WaitKind,
 } from '@tanstack/ai-harness'
+import type { OpenAccess } from '@tanstack/ai-harness/server'
 import type { ContentBlock } from '@modelcontextprotocol/server'
 import type { MCPToolContext } from './server/context'
+import type { MCPHandleOptions } from './server/index'
 
 export { mcp } from './harness-plugin'
 export type { McpServerConfig, McpServerStatus } from './harness-plugin'
 
 /** Options for {@link createHarnessMcpServer}. */
-export interface HarnessMcpServerOptions {
-  /** The host that runs the sessions, from `createHarnessHost`. */
-  host: HarnessHost
+export interface HarnessMcpServerOptions<P extends Principal = Principal> {
+  /**
+   * The host that runs the sessions, from `createHarnessHost`. With
+   * `access`, `access.identify` reads the user of each HTTP request, and the
+   * host checks each tool call of that user.
+   */
+  host: HarnessHost<P>
   /** The harness to serve. */
   harness: AnyHarness
+  /**
+   * For a host without `access` only: who the tool calls run as. `true`:
+   * with no principal (one user). `{ principal }`: as that principal, for
+   * example the one local user of a stdio server. Without host access and
+   * without this option, the server throws at the start, so it never serves
+   * every thread to everyone by mistake.
+   */
+  openAccess?: OpenAccess<P>
   /** The conversation of a tool call that names no `threadId`. Default `'main'`. */
   threadId?: string
   /**
@@ -84,6 +121,12 @@ const MEDIA_URI_PREFIX = 'harness-media://'
 
 /** The biggest image or audio file that a result carries inline. */
 const INLINE_MEDIA_MAX_BYTES = 5 * 1024 * 1024
+
+/** The `ctx.context` key of the token that names the user of a request. */
+const CALLER_KEY = 'harnessCaller'
+
+/** What a tool call of this server gets on `ctx.context`. */
+type CallContext = MCPToolContext<Record<string, unknown>>
 
 const threadIdSchema: JSONSchema = {
   type: 'string',
@@ -156,11 +199,31 @@ const attachmentsSchema: JSONSchema = {
  * `harness.expose.commands`, and `tool_<name>` for each tool in
  * `harness.expose.tools`.
  * Every tool takes an optional `threadId`. Sessions open with
- * `host.open(harness, { threadId })`.
+ * `host.open(harness, { threadId, principal })`, so the host checks each
+ * call. The `status` tool and the media resource only read: they use
+ * `host.observe`, so they open no session and mount no plugins.
  *
- * Each interrupt in a result has a `kind`: `approval`, `client-tool`, or
- * `generic`. `approve` and `reject` answer approvals only. `resolve` answers
- * every kind: `approved` for an approval, and `payload` for the others.
+ * Who makes the calls:
+ *
+ * - A host with `access`: the user that `access.identify` finds for each
+ *   HTTP request. `null` gets a 401. A refused action is a tool error. Each
+ *   spec 2025 session belongs to its user, and `handle` replaces the
+ *   `authInfo` of its options for that. Such a server needs HTTP: over stdio
+ *   it throws. The server lists the agents of the harness definition, and
+ *   no commands or agents of plugins, as it opens no session at the start.
+ * - A host without `access`: the `openAccess` principal, or no principal
+ *   with `openAccess: true`.
+ *
+ * The server throws at the start for a host without `access` and without
+ * `openAccess`, and for a host with both.
+ *
+ * A result lists the open waits of its work in `waits`, each with its
+ * `kind` (see `waitKind`): `approval`, `question`, `sign-in`,
+ * `client-tool`, or `human`. `interrupts` are the waits of a stopped turn,
+ * and `questions` the questions of the work. `approve` and `reject` answer
+ * the approvals of the turn only. `resolve` answers the interrupts of the
+ * turn, or the waits of a background agent run: `approved` for an
+ * approval, and `payload` for the others. `answer` answers a question.
  *
  * `chat` takes `attachments`: `{ path }` (only inside `filePaths`),
  * `{ url, mimeType? }` (the model reads the URL, the server does not fetch
@@ -172,29 +235,116 @@ const attachmentsSchema: JSONSchema = {
  * The result is the server from `createMCPServer`. Mount `server.fetch` on
  * an HTTP route, or pass the server to `serveMCPStdio`.
  *
- * @param options - The host, the harness, the default thread, the approval mode, and the folders for `path` attachments
+ * @param options - The host, the harness, who the calls run as, the default thread, the approval mode, and the folders for `path` attachments
  *
  * @example
  * ```ts
- * const server = await createHarnessMcpServer({ host, harness: assistant })
+ * const server = await createHarnessMcpServer({
+ *   host,
+ *   harness: assistant,
+ *   openAccess: { principal: { id: 'local-user' } },
+ * })
  * serveMCPStdio(server)
  * ```
  */
-export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
-  const { host, harness } = options
+export async function createHarnessMcpServer<P extends Principal = Principal>(
+  options: HarnessMcpServerOptions<P>,
+) {
+  const { host, harness, openAccess } = options
+  const access = host.hasAccess
+  // The same fail-closed rule as the HTTP handler of the harness.
+  const users = requestUsers('createHarnessMcpServer', host, openAccess)
+  const { fixed } = users
   const defaultThread = options.threadId ?? 'main'
   const approvals = options.approvals ?? 'ask'
   const filePaths = options.filePaths ?? []
-  // Work that stopped for a question, by question id. `answer` continues it.
+  // Work that waits for an answer, by the id of each of its waits (a
+  // question, or a wait of a background agent run). `answer` or `resolve`
+  // continues it.
   const waiting = new Map<string, Operation<unknown>>()
+  /**
+   * Keep `operation` for its wait `waitId`. The entry goes when the
+   * operation settles, also when the wait ended another way: answered by
+   * another client, expired, or cancelled.
+   */
+  const keepWaiting = (waitId: string, operation: Operation<unknown>) => {
+    waiting.set(waitId, operation)
+    const forget = () => {
+      if (waiting.get(waitId) === operation) waiting.delete(waitId)
+    }
+    void operation.then(forget, forget)
+  }
+  // The user of each request, by the token in its context. A token that
+  // this server did not make is in no map, so a context cannot name a user.
+  const callers = new WeakMap<object, P>()
 
-  const open = (args: unknown) =>
-    host.open(harness, {
-      threadId:
-        isRecord(args) && typeof args.threadId === 'string'
-          ? args.threadId
-          : defaultThread,
-    })
+  /**
+   * Who makes a tool call or a resource read: on a host with access, the
+   * user that `identify` found for its request. Else the `openAccess` one.
+   */
+  const principalOf = (context: Record<string, unknown>) => {
+    if (!access) return fixed
+    const token = context[CALLER_KEY]
+    const principal = isRecord(token) ? callers.get(token) : undefined
+    if (principal === undefined) {
+      throw new Error(
+        'This MCP server reads the user of each HTTP request. Call it with server.fetch or server.handle.',
+      )
+    }
+    return principal
+  }
+
+  const open = (threadId: string, context: Record<string, unknown>) =>
+    host.open(harness, { threadId, principal: principalOf(context) })
+
+  const observe = (threadId: string, context: Record<string, unknown>) =>
+    host.observe(harness, { threadId, principal: principalOf(context) })
+
+  /**
+   * The execute of a tool that works on the session of its thread. The
+   * session opens for the user of the call, so the host checks each action.
+   * A refused action becomes a tool error that says so. The call releases
+   * its handle at the end, and the session closes on idle.
+   */
+  const onSession =
+    <T>(
+      work: (
+        session: HarnessSession,
+        args: unknown,
+        context: CallContext,
+      ) => Promise<T>,
+    ) =>
+    async (args: unknown, ctx: ToolExecutionContext<CallContext>) => {
+      try {
+        const session = await open(threadOf(args, defaultThread), ctx.context)
+        try {
+          return await work(session, args, ctx.context)
+        } finally {
+          await session.close()
+        }
+      } catch (error) {
+        if (error instanceof AccessDeniedError) throw deniedError(error)
+        throw error
+      }
+    }
+
+  /**
+   * The execute of a tool that only reads its thread. It reads with
+   * `host.observe`, so it opens no session and mounts no plugins. A refused
+   * read becomes a tool error that says so.
+   */
+  const onView =
+    <T>(work: (view: ObservedSession) => Promise<T>) =>
+    async (args: unknown, ctx: ToolExecutionContext<CallContext>) => {
+      try {
+        return await work(
+          await observe(threadOf(args, defaultThread), ctx.context),
+        )
+      } catch (error) {
+        if (error instanceof AccessDeniedError) throw deniedError(error)
+        throw error
+      }
+    }
 
   // Answers the approvals with the approval mode. `undefined` means that the
   // client must answer. One resolve answers every interrupt, and only the
@@ -228,24 +378,25 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
   async function finish(
     session: HarnessSession,
     work: Operation<unknown>,
-    workFrom: Cursor,
     context: MCPToolContext,
   ) {
     let operation = work
-    let from = workFrom
     // The media of every operation that this call waited for.
     const media: Array<MediaRecord> = []
     while (true) {
-      const outcome = await settle(session, operation, from)
+      const outcome = await settle(session, operation)
       if (!outcome.done) {
-        waiting.set(outcome.questionId, operation)
-        return { status: 'waiting', ...pending(session) }
+        const snapshot = session.snapshot()
+        for (const wait of snapshot.pendingWaits) {
+          if (wait.runId === operation.id) keepWaiting(wait.waitId, operation)
+        }
+        return { status: 'waiting', ...pending(snapshot, operation.id) }
       }
       media.push(...(await mediaOf(operation)))
       if (operation.kind !== 'chat') {
         return withMedia(session, outcome.value, media)
       }
-      const interrupts = session.snapshot().pendingInterrupts
+      const interrupts = turnInterruptsOf(session.snapshot())
       const stopped =
         operation.status() === 'interrupted' && interrupts.length > 0
       const answers = stopped ? await decide(interrupts, context) : undefined
@@ -253,11 +404,10 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
         const result = {
           status: operation.status(),
           text: turnText(outcome.value),
-          ...pending(session),
+          ...pending(session.snapshot(), operation.id),
         }
         return withMedia(session, result, media)
       }
-      from = session.snapshot().cursor
       operation = (await resolveAll(session, answers)).turn
     }
   }
@@ -267,18 +417,16 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
     answers: Array<Answer>,
     context: MCPToolContext,
   ) {
-    const from = session.snapshot().cursor
     const { turn } = await resolveAll(session, answers)
-    return finish(session, turn, from, context)
+    return finish(session, turn, context)
   }
 
   async function decideAll(
-    args: unknown,
+    session: HarnessSession,
     approved: boolean,
     context: MCPToolContext,
   ) {
-    const session = await open(args)
-    const interrupts = session.snapshot().pendingInterrupts
+    const interrupts = turnInterruptsOf(session.snapshot())
     const other = interrupts.find((interrupt) => !isApproval(interrupt))
     if (other !== undefined) {
       throw new Error(`Use resolve: interrupt ${other.id} needs a payload.`)
@@ -303,13 +451,13 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
       },
       required: ['message'],
     }),
-  }).server<MCPToolContext>(async (args, ctx) => {
-    const session = await open(args)
-    const message = await userInputOf(session, args, filePaths)
-    const from = session.snapshot().cursor
-    const turn = session.send(message, { busy: 'queue' })
-    return finish(session, turn, from, ctx.context)
-  })
+  }).server<CallContext>(
+    onSession(async (session, args, context) => {
+      const message = await userInputOf(session, args, filePaths)
+      const turn = session.send(message, { busy: 'queue' })
+      return finish(session, turn, context)
+    }),
+  )
 
   const steer = toolDefinition({
     name: 'steer',
@@ -322,25 +470,28 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
       },
       required: ['message'],
     }),
-  }).server(
-    async (args) =>
-      (await open(args)).send(textArg(args, 'message'), { mode: 'steer' })
-        .receipt,
+  }).server<CallContext>(
+    onSession(
+      async (session, args) =>
+        session.send(textArg(args, 'message'), { mode: 'steer' }).receipt,
+    ),
   )
 
   const cancel = toolDefinition({
     name: 'cancel',
     description: 'Cancel the running turn.',
     inputSchema: withThreadId(undefined),
-  }).server(async (args) => (await open(args)).cancel())
+  }).server<CallContext>(onSession(async (session) => session.cancel()))
 
   const approve = toolDefinition({
     name: 'approve',
     description:
       'Approve every tool call that waits for approval, then wait for the turn to continue. When an interrupt of another kind also waits, use resolve.',
     inputSchema: withThreadId(undefined),
-  }).server<MCPToolContext>(async (args, ctx) =>
-    decideAll(args, true, ctx.context),
+  }).server<CallContext>(
+    onSession(async (session, _args, context) =>
+      decideAll(session, true, context),
+    ),
   )
 
   const reject = toolDefinition({
@@ -348,14 +499,16 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
     description:
       'Reject every tool call that waits for approval, then wait for the turn to continue. When an interrupt of another kind also waits, use resolve.',
     inputSchema: withThreadId(undefined),
-  }).server<MCPToolContext>(async (args, ctx) =>
-    decideAll(args, false, ctx.context),
+  }).server<CallContext>(
+    onSession(async (session, _args, context) =>
+      decideAll(session, false, context),
+    ),
   )
 
   const resolve = toolDefinition({
     name: 'resolve',
     description:
-      'Answer every interrupt that waits, then wait for the turn to continue. Give one decision for each interrupt. For an approval, set approved. For a client tool, set payload to the tool output. For a generic interrupt, set payload to a value that matches its responseSchema.',
+      'Answer every interrupt of the stopped turn, or every wait of a background agent run, then wait for the work to continue. Give one decision for each one, by its id (interruptId is the waitId). For an approval, set approved. For a client tool, set payload to the tool output. For any other kind, set payload to a value that matches its schema.',
     inputSchema: withThreadId({
       type: 'object',
       properties: {
@@ -375,7 +528,7 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
               },
               payload: {
                 description:
-                  'The answer. For a client tool, the tool output. For a generic interrupt, a value that matches its responseSchema.',
+                  'The answer. For a client tool, the tool output. For any other kind, a value that matches its schema.',
               },
             },
             required: ['interruptId'],
@@ -384,17 +537,58 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
       },
       required: ['decisions'],
     }),
-  }).server<MCPToolContext>(async (args, ctx) => {
-    const session = await open(args)
-    const interrupts = session.snapshot().pendingInterrupts
-    const answers = answersOf(decisionsOf(args), interrupts)
-    return resume(session, answers, ctx.context)
-  })
+  }).server<CallContext>(
+    onSession(async (session, args, context) => {
+      const decisions = decisionsOf(args)
+      const { pendingWaits } = session.snapshot()
+      // The log has every wait, also one that another server or a host
+      // before a restart opened. Only a wait with an interrupt takes resolve.
+      const runIds = new Set(
+        decisions.flatMap(({ interruptId }) =>
+          pendingWaits.flatMap((wait) =>
+            wait.waitId === interruptId && wait.interrupt ? [wait.runId] : [],
+          ),
+        ),
+      )
+      if (runIds.size > 1) {
+        throw new Error('One resolve answers the waits of one run.')
+      }
+      const [runId] = runIds
+      // The waits of that run, else of the stopped turn. Every decision
+      // must answer one of them.
+      const open = pendingWaits.filter(({ interrupt, turn, runId: run }) =>
+        runId === undefined ? interrupt && turn : interrupt && run === runId,
+      )
+      const answers = answersOf(
+        decisions,
+        open.map(({ waitId, kind }) => ({ id: waitId, kind })),
+      )
+      if (open.some(({ turn }) => turn) || open.length === 0) {
+        return resume(session, answers, context)
+      }
+      // The waits of a background agent run: the run goes on after them.
+      const receipt = await session.resolve({
+        resume: answers.map((answer) => ({ ...answer, status: 'resolved' })),
+      })
+      if (receipt.status === 'rejected') {
+        throw new Error(
+          `The harness refused the decisions: ${receipt.reason ?? 'no reason'}.`,
+        )
+      }
+      for (const wait of open) waiting.delete(wait.waitId)
+      const run = runId === undefined ? undefined : session.operation(runId)
+      // The run goes on on the host that owns the log.
+      if (run === undefined) {
+        return { status: 'resolved', ...pending(session.snapshot()) }
+      }
+      return finish(session, run, context)
+    }),
+  )
 
   const answer = toolDefinition({
     name: 'answer',
     description:
-      'Answer a question from the harness, then wait for the work that asked it.',
+      'Answer a question from the harness (in questions), then wait for the work that asked it.',
     inputSchema: withThreadId({
       type: 'object',
       properties: {
@@ -403,52 +597,75 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
       },
       required: ['questionId', 'value'],
     }),
-  }).server<MCPToolContext>(async (args, ctx) => {
-    const session = await open(args)
-    const questionId = textArg(args, 'questionId')
-    const from = session.snapshot().cursor
-    const receipt = await session.answer({
-      questionId,
-      value: isRecord(args) ? args.value : undefined,
-    })
-    if (receipt.status === 'rejected') {
-      throw new Error(
-        `The harness refused the answer: ${receipt.reason ?? 'no reason'}.`,
-      )
-    }
-    const operation = waiting.get(questionId)
-    waiting.delete(questionId)
-    // A question that no tool call waits on: nothing to continue.
-    if (operation === undefined) {
-      return { status: 'answered', ...pending(session) }
-    }
-    return finish(session, operation, from, ctx.context)
-  })
+  }).server<CallContext>(
+    onSession(async (session, args, context) => {
+      const questionId = textArg(args, 'questionId')
+      // Read before the answer: the work can settle at once after it, and
+      // then its entry is gone.
+      const operation = waiting.get(questionId)
+      const receipt = await session.answer({
+        questionId,
+        value: isRecord(args) ? args.value : undefined,
+      })
+      if (receipt.status === 'rejected') {
+        throw new Error(
+          `The harness refused the answer: ${receipt.reason ?? 'no reason'}.`,
+        )
+      }
+      waiting.delete(questionId)
+      // A question that no tool call waits on: nothing to continue.
+      if (operation === undefined) {
+        return { status: 'answered', ...pending(session.snapshot()) }
+      }
+      return finish(session, operation, context)
+    }),
+  )
 
   const status = toolDefinition({
     name: 'status',
     description:
-      'Show what the harness does now: the status, the interrupts and questions that wait, the background agents, and the queued turns.',
+      'Show what the harness does now: the status, every wait (the interrupts, the questions, and the waits of background agents), the background agents, and the queued turns.',
     inputSchema: withThreadId(undefined),
-  }).server(async (args) => {
-    const session = await open(args)
-    const snapshot = session.snapshot()
-    return {
-      status: snapshot.status,
-      ...pending(session),
-      agents: snapshot.activeOperations
-        .filter((operation) => operation.kind === 'agent')
-        .map(({ id, agent }) => ({ id, agent })),
-      queuedTurns: snapshot.queuedTurns,
-    }
-  })
+  }).server<CallContext>(
+    onView(async (view) => {
+      const snapshot = await view.snapshot()
+      return {
+        status: snapshot.status,
+        ...pending(snapshot),
+        agents: snapshot.activeOperations
+          .filter((operation) => operation.kind === 'agent')
+          .map(({ id, agent }) => ({
+            id,
+            agent,
+            // A run with an open wait waits for its answer.
+            status: snapshot.pendingWaits.some((wait) => wait.runId === id)
+              ? 'waiting'
+              : 'running',
+          })),
+        queuedTurns: snapshot.queuedTurns,
+      }
+    }),
+  )
 
-  // Agents and commands come from a session. Every thread has the same ones.
-  const session = await host.open(harness, { threadId: defaultThread })
+  // Agents and commands come from a session: every thread has the same
+  // ones. A host with access opens a session only for a user, so the server
+  // opens none at the start. It then has the agents of the definition, and
+  // no plugin commands.
+  const session = access
+    ? undefined
+    : await host.open(harness, { threadId: defaultThread, principal: fixed })
+  const defined = [
+    ...(harness.agents ?? []),
+    ...(harness.subagents?.agents ?? []),
+  ]
+  const agentNamed = (name: string) =>
+    session
+      ? session.registry.get(name)
+      : defined.find((agent) => agent.name === name)
 
   const exposed: ReadonlyArray<string> = harness.expose?.agents ?? []
   const agents = exposed.flatMap((name) => {
-    const agent = session.registry.get(name)
+    const agent = agentNamed(name)
     return agent === undefined
       ? []
       : [{ name, description: agent.description, agent }]
@@ -459,21 +676,23 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
         name: toolName,
         description,
         inputSchema: withThreadId(convertSchemaToJsonSchema(agent.inputSchema)),
-      }).server<MCPToolContext>(async (args, ctx) => {
-        const target = await open(args)
-        const handle = target.agent(name)
-        if (handle === undefined) throw new Error(`Unknown agent: ${name}`)
-        const from = target.snapshot().cursor
-        return finish(target, handle.start(inputOf(args)), from, ctx.context)
-      }),
+      }).server<CallContext>(
+        onSession(async (target, args, context) => {
+          const handle = target.agent(name)
+          if (handle === undefined) throw new Error(`Unknown agent: ${name}`)
+          return finish(target, handle.start(inputOf(args)), context)
+        }),
+      ),
   )
 
   // A command can change the session, for example `/mode bypass`, so an MCP
   // client runs only the commands in `expose.commands`, like a protocol client.
   const exposedCommands: ReadonlyArray<string> = harness.expose?.commands ?? []
-  const commands = session
-    .describe()
-    .commands.filter(({ name }) => exposedCommands.includes(name))
+  const commands = (session?.describe().commands ?? []).filter(({ name }) =>
+    exposedCommands.includes(name),
+  )
+  // The server read the agents and the commands, so it holds no session.
+  await session?.close()
   const commandTools = toolNames('command', commands).map(
     ({ item: command, toolName, description }) =>
       toolDefinition({
@@ -482,12 +701,15 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
         inputSchema: withThreadId(
           isJsonSchema(command.input) ? command.input : undefined,
         ),
-      }).server<MCPToolContext>(async (args, ctx) => {
-        const target = await open(args)
-        const from = target.snapshot().cursor
-        const operation = target.command(command.name, inputOf(args))
-        return finish(target, operation, from, ctx.context)
-      }),
+      }).server<CallContext>(
+        onSession(async (target, args, context) => {
+          const operation = target.command({
+            name: command.name,
+            input: inputOf(args),
+          })
+          return finish(target, operation, context)
+        }),
+      ),
   )
 
   // A tool runs with no model, so an MCP client runs only `expose.tools`.
@@ -501,12 +723,15 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
         name: toolName,
         description,
         inputSchema: withThreadId(convertSchemaToJsonSchema(tool.inputSchema)),
-      }).server<MCPToolContext>(async (args, ctx) => {
-        const target = await open(args)
-        const from = target.snapshot().cursor
-        const operation = target.tool(tool.name, inputOf(args))
-        return finish(target, operation, from, ctx.context)
-      }),
+      }).server<CallContext>(
+        onSession(async (target, args, context) => {
+          const operation = target.tool({
+            name: tool.name,
+            args: inputOf(args),
+          })
+          return finish(target, operation, context)
+        }),
+      ),
   )
 
   // A client adds only the record types in `expose.records`, and only to
@@ -536,21 +761,22 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
               },
               required: ['records'],
             }),
-          }).server(async (args) => {
-            const target = await open(args)
-            const records = isRecord(args) ? args.records : undefined
-            const receipt = await applyInput(
-              harness,
-              target,
-              parseHarnessInput({ op: 'append', records }),
-            )
-            if (receipt.status === 'rejected') {
-              throw new Error(
-                `The harness refused the records: ${receipt.reason}.`,
-              )
-            }
-            return { appended: Array.isArray(records) ? records.length : 0 }
-          }),
+          }).server<CallContext>(
+            onSession(async (target, args) => {
+              const records = isRecord(args) ? args.records : undefined
+              const receipt = await applyInput({
+                harness,
+                session: target,
+                input: parseHarnessInput({ op: 'append', records }),
+              })
+              if (receipt.status === 'rejected') {
+                throw new Error(
+                  `The harness refused the records: ${receipt.reason}.`,
+                )
+              }
+              return { appended: Array.isArray(records) ? records.length : 0 }
+            }),
+          ),
         ]
 
   // The bytes of a `resource_link` from a result. The link names its thread,
@@ -560,17 +786,23 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
     name: 'media',
     mimeType: 'application/octet-stream',
     argsSchema: { parse: mediaAddress },
-  }).read(async (_uri, { threadId, id }) => {
-    const target = await host.open(harness, { threadId })
-    const record = await target.getMedia(id)
-    if (record === null) {
-      throw new Error(`Media ${id} was not found in thread ${threadId}.`)
+  }).read(async (_uri, { threadId, id }, ctx) => {
+    try {
+      // A read: no session opens.
+      const view = await observe(threadId, ctx.context)
+      const record = await view.getMedia({ id })
+      if (record === null) {
+        throw new Error(`Media ${id} was not found in thread ${threadId}.`)
+      }
+      const blob = toBase64(await view.loadMedia({ id }))
+      return { blob, mimeType: record.mimeType }
+    } catch (error) {
+      if (error instanceof AccessDeniedError) throw deniedError(error)
+      throw error
     }
-    const blob = toBase64(await target.loadMedia(id))
-    return { blob, mimeType: record.mimeType }
   })
 
-  return createMCPServer({
+  const server = createMCPServer({
     name: options.name ?? harness.name,
     version: options.version ?? '1.0.0',
     // `approvals: 'ask'` asks by elicitation, and elicitation needs a spec 2025
@@ -593,14 +825,71 @@ export async function createHarnessMcpServer(options: HarnessMcpServerOptions) {
       ...appendTools,
     ],
   })
+
+  /**
+   * Serves one MCP HTTP request. On a host with access, the calls of the
+   * request run as the user that `identify` finds for it, and `null` gets a
+   * 401 with a bearer challenge.
+   */
+  const handle = async (request: Request, handleOptions?: MCPHandleOptions) => {
+    if (!access) return server.handle(request, handleOptions)
+    // stdio has no request with a login, so `identify` cannot find a user.
+    if (isServedOverStdio(served)) {
+      throw new Error(
+        'createHarnessMcpServer: a host with access reads the user of each HTTP request, so it cannot serve over stdio. For one local user, use a host without access and openAccess: { principal }.',
+      )
+    }
+    const principal = (await users.of(request))?.principal
+    if (principal === undefined) {
+      return bearerAuthChallengeResponse(
+        new OAuthError(OAuthErrorCode.InvalidToken, 'The request has no user.'),
+      )
+    }
+    const token = {}
+    callers.set(token, principal)
+    return server.handle(request, {
+      ...handleOptions,
+      authInfo: authInfoOf(principal),
+      context: { ...handleOptions?.context, [CALLER_KEY]: token },
+    })
+  }
+  const served = {
+    ...server,
+    fetch: (request: Request) => handle(request),
+    handle,
+  }
+  return served
+}
+
+/**
+ * The `authInfo` of a request of `principal`. The MCP server keeps each spec
+ * 2025 session for the client of its token, so no other user can use it.
+ */
+function authInfoOf(principal: Principal) {
+  const clientId = JSON.stringify([principal.tenantId ?? null, principal.id])
+  return { token: '', clientId, scopes: [] }
+}
+
+/** A refused action, as an error that tells the MCP client what it was. */
+function deniedError(error: AccessDeniedError) {
+  return new Error(
+    `Access denied: the user of this call may not ${error.action} on thread ${JSON.stringify(error.threadId)}.`,
+  )
+}
+
+/** The thread that the args of a tool call name, else `fallback`. */
+function threadOf(args: unknown, fallback: string) {
+  return isRecord(args) && typeof args.threadId === 'string'
+    ? args.threadId
+    : fallback
 }
 
 // The harness needs one resolve that answers every open interrupt. An async
 // function waits for an operation that it returns, so the turn is wrapped.
 async function resolveAll(session: HarnessSession, answers: Array<Answer>) {
-  const receipt = await session.resolve(
-    answers.map((answer) => ({ ...answer, status: 'resolved' })),
-  )
+  const receipt = await session.resolve({
+    resume: answers.map((answer) => ({ ...answer, status: 'resolved' })),
+  })
   const operation =
     receipt.operationId === undefined
       ? undefined
@@ -613,26 +902,36 @@ async function resolveAll(session: HarnessSession, answers: Array<Answer>) {
   return { turn: operation }
 }
 
+/** How the work of a call stands: done with its value, or waiting. */
+type Settled = { done: true; value: unknown } | { done: false; wait: Wait }
+
 /**
- * Waits for `operation`. Stops early when the session asks a question after
- * `from`, because the work waits for that answer.
+ * Waits for `operation`. Stops early when a wait of the operation opens that
+ * is not the stop of a turn: the work waits for its answer.
  */
 async function settle(
   session: HarnessSession,
   operation: Operation<unknown>,
-  from: Cursor,
-) {
+): Promise<Settled> {
   const stop = new AbortController()
-  const done = Promise.resolve(operation).then((value) => ({
-    done: true as const,
-    value,
-  }))
-  const asked = (async () => {
-    const questionId = await questionAfter(session, from, stop.signal)
-    // The feed closed without a question: only the work can end the wait.
-    if (questionId === undefined) return done
-    return { done: false as const, questionId }
-  })()
+  const done = Promise.resolve(operation).then(
+    (value): Settled => ({ done: true, value }),
+  )
+  const asked = session
+    .waitFor({ runId: operation.id, signal: stop.signal })
+    .then(
+      (wait): Settled | Promise<Settled> => {
+        // The interrupts of a turn come with its end.
+        const isTurnStop = session
+          .snapshot()
+          .pendingWaits.some(
+            ({ waitId, turn }) => turn && waitId === wait.waitId,
+          )
+        return isTurnStop ? done : { done: false, wait }
+      },
+      // The session closed: only the work can end the wait.
+      () => done,
+    )
   try {
     return await Promise.race([done, asked])
   } finally {
@@ -640,39 +939,64 @@ async function settle(
   }
 }
 
-async function questionAfter(
-  session: HarnessSession,
-  from: Cursor,
-  signal: AbortSignal,
-) {
-  const events = session.events({ from, signal })
-  for await (const entry of events) {
-    const event = entry.event
-    const isQuestion =
-      event.type === EventType.CUSTOM && event.name === HARNESS_EVENTS.question
-    if (!isQuestion || !isRecord(event.value)) continue
-    const questionId = event.value.questionId
-    if (typeof questionId === 'string') return questionId
-  }
-  return undefined
-}
-
-function pending(session: HarnessSession) {
-  const snapshot = session.snapshot()
+/**
+ * The open waits of `snapshot` for the client: of the run `runId`, or every
+ * one without it. `interrupts` are the waits of a stopped turn, `questions`
+ * the questions, and `waits` all of them, each with its kind.
+ */
+function pending(snapshot: SessionSnapshot, runId?: string) {
+  const waits = snapshot.pendingWaits.filter(
+    (wait) => runId === undefined || wait.runId === runId,
+  )
   return {
-    interrupts: snapshot.pendingInterrupts.map((interrupt) => ({
+    interrupts: turnInterruptsOf({ pendingWaits: waits }).map((interrupt) => ({
       id: interrupt.id,
-      kind: interruptKind(interrupt),
+      kind: waitKind(interrupt),
       tool: interrupt.metadata?.toolName,
       args: interrupt.metadata?.input,
       message: interrupt.message,
       responseSchema: interrupt.responseSchema,
     })),
-    questions: snapshot.pendingQuestions.map(({ questionId, ...question }) => ({
-      id: questionId,
-      ...question,
-    })),
+    questions: waits.flatMap(
+      ({ waitId, kind, turn, message, schema, secret, url }) =>
+        turn || kind !== 'question'
+          ? []
+          : [
+              {
+                id: waitId,
+                message: message ?? '',
+                ...(schema !== undefined ? { schema } : {}),
+                ...(secret ? { secret } : {}),
+                ...(url ? { url } : {}),
+              },
+            ],
+    ),
+    waits: waits.map(waitForClient),
   }
+}
+
+/** The interrupts of the stopped turn: the turn waits of `pendingWaits`. */
+function turnInterruptsOf({
+  pendingWaits,
+}: Pick<SessionSnapshot, 'pendingWaits'>) {
+  return pendingWaits.flatMap(({ interrupt, turn }) =>
+    interrupt && turn ? [interrupt] : [],
+  )
+}
+
+/**
+ * A wait as a result shows it: who started its run, its interrupt (in
+ * `interrupts`), and the fields of its question (in `questions`) stay out.
+ */
+function waitForClient({
+  principal: _principal,
+  interrupt: _interrupt,
+  turn: _turn,
+  secret: _secret,
+  url: _url,
+  ...wait
+}: PendingWait): Wait {
+  return wait
 }
 
 /**
@@ -714,7 +1038,11 @@ async function attachmentPart(
     const file = await readAllowedFile(attachment.path, filePaths)
     const name = attachment.name ?? file.name
     return mediaPart(
-      await session.putMedia(file.bytes, { mimeType: file.mimeType, name }),
+      await session.putMedia({
+        body: file.bytes,
+        mimeType: file.mimeType,
+        name,
+      }),
     )
   }
   if ('url' in attachment) return urlPart(attachment)
@@ -723,7 +1051,11 @@ async function attachmentPart(
   )
   const name = attachment.name ?? 'attachment'
   return mediaPart(
-    await session.putMedia(bytes, { mimeType: attachment.mimeType, name }),
+    await session.putMedia({
+      body: bytes,
+      mimeType: attachment.mimeType,
+      name,
+    }),
   )
 }
 
@@ -829,7 +1161,7 @@ async function mediaBlock(session: HarnessSession, record: MediaRecord) {
   const { kind } = record
   const isSmall = record.size <= INLINE_MEDIA_MAX_BYTES
   if (isSmall && (kind === 'image' || kind === 'audio')) {
-    const data = toBase64(await session.loadMedia(record.id))
+    const data = toBase64(await session.loadMedia({ id: record.id }))
     const inline: ContentBlock = { type: kind, data, mimeType: record.mimeType }
     return inline
   }
@@ -876,35 +1208,15 @@ function toBase64(bytes: Uint8Array) {
 }
 
 /**
- * How the client answers `interrupt`. `chat()` puts a binding on each
- * interrupt. The binding marks a tool approval (answer with `approved`) and a
- * client tool (answer with the tool output). Any other interrupt is generic:
- * answer with a value that matches its `responseSchema`.
- */
-function interruptKind(interrupt: Interrupt) {
-  const binding = readUnopenedInterruptBinding(interrupt)
-  switch (binding?.kind) {
-    case 'tool-approval':
-      return 'approval'
-    case 'client-tool-execution':
-      return 'client-tool'
-    case 'generic':
-    case undefined:
-      return 'generic'
-  }
-}
-
-function isApproval(interrupt: Interrupt) {
-  return interruptKind(interrupt) === 'approval'
-}
-
-/**
  * The answers of a `resolve` call. The decisions must answer every open
- * interrupt, and only those. An approval takes `approved` (or `payload`).
- * Every other interrupt takes `payload`.
+ * wait of `open`, and only those. An approval takes `approved` (or
+ * `payload`). Every other kind takes `payload`.
  */
-function answersOf(decisions: Array<Decision>, interrupts: Array<Interrupt>) {
-  const openIds = interrupts.map(({ id }) => id)
+function answersOf(
+  decisions: Array<Decision>,
+  open: Array<{ id: string; kind: WaitKind }>,
+) {
+  const openIds = open.map(({ id }) => id)
   const decidedIds = decisions.map(({ interruptId }) => interruptId)
   const missing = openIds.filter((id) => !decidedIds.includes(id))
   if (missing.length > 0) {
@@ -916,7 +1228,9 @@ function answersOf(decisions: Array<Decision>, interrupts: Array<Interrupt>) {
   if (unknown.length > 0) {
     throw new Error(`These interrupts are not open: ${unknown.join(', ')}.`)
   }
-  const approvalIds = interrupts.filter(isApproval).map(({ id }) => id)
+  const approvalIds = open
+    .filter(({ kind }) => kind === 'approval')
+    .map(({ id }) => id)
   return decisions.map(({ interruptId, approved, payload }) => {
     if (approvalIds.includes(interruptId)) {
       const answer = approved ?? payload

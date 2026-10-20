@@ -30,11 +30,15 @@ export default mergeConfig(
   tanstackViteConfig({
     entry: [
       './src/index.ts',
+      './src/server.ts',
+      './src/oauth.ts',
+      './src/media-entry.ts',
       './src/client.ts',
       './src/view/index.ts',
       './src/build.ts',
       './src/worker.ts',
       './src/first-party/index.ts',
+      './src/first-party/node.ts',
       './src/first-party/coding/index.ts',
     ],
     srcDir: './src',

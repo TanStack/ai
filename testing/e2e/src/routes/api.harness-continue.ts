@@ -115,7 +115,9 @@ export const Route = createFileRoute('/api/harness-continue')({
                 onModelError: retryTransientErrors({ baseDelayMs: 1 }),
               },
             }),
-            { threadId: 'e2e-harness-continue' },
+            {
+              threadId: 'e2e-harness-continue',
+            },
           )
           session.onEvent('TEXT_MESSAGE_CONTENT', ({ event }) => {
             deltas.push(event.delta)

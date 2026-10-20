@@ -3,76 +3,17 @@ import { z } from 'zod'
 import { EventType, chat, defineAgent } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, harnessText } from '../src'
-import {
-  INTERRUPTED_TOOL_RESULT,
-  findCrashedRuns,
-  repairTranscript,
-} from '../src/resume'
+import { INTERRUPTED_TOOL_RESULT, repairTranscript } from '../src/resume'
 import { mockAdapter, text, untilAborted } from './helpers'
-import type { RunRecord, RunStore, StreamChunk } from '@tanstack/ai'
+import type { RunRecord, StreamChunk } from '@tanstack/ai'
 
-async function crash(
-  persistence: ReturnType<typeof memoryPersistence>,
-  runId: string,
-  startedAt: number,
-  pendingTools: NonNullable<RunRecord['checkpoint']>['pendingTools'] = [],
-) {
-  await persistence.stores.runs.createOrResume({
-    runId,
-    threadId: 't1',
-    startedAt,
-  })
-  await persistence.stores.runs.update(runId, {
-    leaseOwner: 'host-gone',
-    leaseExpiresAt: Date.now() - 1_000,
-    checkpoint: { at: startedAt, pendingTools },
-  })
-}
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 describe('crash recovery edges', () => {
-  it('finds nothing when the run store cannot list a thread', async () => {
-    expect(await findCrashedRuns(undefined, 't1')).toEqual([])
-    const runs = memoryPersistence().stores.runs
-    // A store with only the required methods: no listByThread.
-    const noList: RunStore = {
-      createOrResume: (input) => runs.createOrResume(input),
-      update: (runId, patch) => runs.update(runId, patch),
-      get: (runId) => runs.get(runId),
-      findActiveRun: (threadId) => runs.findActiveRun(threadId),
-    }
-    expect(await findCrashedRuns(noList, 't1')).toEqual([])
-  })
-
-  it('continues only the newest crashed turn and fails the older ones', async () => {
-    const persistence = memoryPersistence()
-    await persistence.stores.messages.saveThread('t1', [
-      { id: 'u1', role: 'user', content: 'hello' },
-    ])
-    await crash(persistence, 'old-run', Date.now() - 120_000)
-    await crash(persistence, 'new-run', Date.now() - 60_000)
-    const { adapter, calls } = mockAdapter([() => text('picked up')])
-    const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({ name: 'test/two-crashes', adapter }),
-      { threadId: 't1' },
-    )
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
-
-    expect(await persistence.stores.runs.get('old-run')).toMatchObject({
-      status: 'failed',
-      error: { message: 'The host stopped during this turn.' },
-    })
-    expect(await persistence.stores.runs.get('new-run')).toMatchObject({
-      status: 'failed',
-      error: {
-        message:
-          'The host stopped. The session continued this turn in a new run.',
-      },
-    })
-    await host.close()
-  })
-
   it('leaves the transcript alone when no tool needs a note', async () => {
     const persistence = memoryPersistence()
     const history = [
@@ -140,7 +81,9 @@ describe('crash recovery edges', () => {
     const host = createHarnessHost({ persistence })
     const session = await host.open(
       defineHarness({ name: 'test/fails', adapter }),
-      { threadId: 't-fail' },
+      {
+        threadId: 't-fail',
+      },
     )
     const turn = session.send('hi')
     await expect(turn).rejects.toThrow('model down')
@@ -223,7 +166,7 @@ describe('harnessText edges', () => {
     } as never)
     const first = await stream[Symbol.asyncIterator]().next()
     expect(first.value).toMatchObject({ type: EventType.RUN_STARTED })
-    await vi.waitFor(() => expect(inner.calls).toHaveLength(1))
+    await waitFor(() => expect(inner.calls).toHaveLength(1))
     controller.abort()
     for await (const _chunk of stream) {
       // Drains until the cancelled inner turn ends.
@@ -247,7 +190,9 @@ describe('session agent and operation lookups', () => {
         adapter: mockAdapter([]).adapter,
         agents: [echo],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     expect(session.agent('missing')).toBeUndefined()
     const handle = session.agent('echo')

@@ -9,6 +9,12 @@ import type { StreamChunk, TokenUsage } from '@tanstack/ai'
 import type { AnyAgent, HarnessPersistence, HarnessPlugin } from '../src'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 /**
  * Open thread `t`. The main model answers `answer` unless `reply` is given.
  * `agents` are the background agents of the session.
@@ -33,7 +39,9 @@ async function open(
       agents,
       plugins: () => plugins,
     }),
-    { threadId: 't' },
+    {
+      threadId: 't',
+    },
   )
   return { host, session }
 }
@@ -46,8 +54,10 @@ describe('title()', () => {
     const turn = await session.send('Plan a trip to Rome for me')
 
     expect(turn.text).toBe('answer')
-    await vi.waitFor(async () =>
-      expect((await host.sessions.get('t'))?.title).toBe('Trip to Rome'),
+    await waitFor(async () =>
+      expect((await host.sessions.get({ threadId: 't' }))?.title).toBe(
+        'Trip to Rome',
+      ),
     )
     expect(messageTexts(titler.calls[0])[0]).toContain(
       'Plan a trip to Rome for me',
@@ -62,14 +72,18 @@ describe('title()', () => {
     ])
     const { host, session } = await open([title({ adapter: titler.adapter })])
     await session.send('Plan a trip to Rome for me')
-    await vi.waitFor(async () =>
-      expect((await host.sessions.get('t'))?.title).toBe('Trip to Rome'),
+    await waitFor(async () =>
+      expect((await host.sessions.get({ threadId: 't' }))?.title).toBe(
+        'Trip to Rome',
+      ),
     )
 
     await session.send('Add a day in Florence')
 
     expect(titler.calls).toHaveLength(1)
-    expect((await host.sessions.get('t'))?.title).toBe('Trip to Rome')
+    expect((await host.sessions.get({ threadId: 't' }))?.title).toBe(
+      'Trip to Rome',
+    )
     await host.close()
   })
 
@@ -92,23 +106,54 @@ describe('title()', () => {
     const turn = await session.send('Plan a trip to Rome for me')
 
     expect(turn.text).toBe('answer')
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(failures).toEqual([{ message: 'title model down' }]),
     )
-    expect((await host.sessions.get('t'))?.title).toBeUndefined()
+    expect((await host.sessions.get({ threadId: 't' }))?.title).toBeUndefined()
     await host.close()
   })
 
   it('does nothing without a sessions store', async () => {
-    const { messages, runs, metadata } = memoryPersistence().stores
+    const { log, metadata } = memoryPersistence().stores
     const titler = mockAdapter(() => text('Trip to Rome'))
     const { host, session } = await open([title({ adapter: titler.adapter })], {
-      persistence: { stores: { messages, runs, metadata } },
+      persistence: { stores: { log, metadata } },
     })
 
     await session.send('Plan a trip to Rome for me')
 
     expect(titler.calls).toHaveLength(0)
+    await host.close()
+  })
+
+  it('counts the title call under plugin:tanstack/title', async () => {
+    const titler = mockAdapter(() =>
+      text('Trip to Rome').map(
+        (chunk): StreamChunk =>
+          chunk.type === EventType.RUN_FINISHED
+            ? {
+                ...chunk,
+                usage: {
+                  promptTokens: 9,
+                  completionTokens: 3,
+                  totalTokens: 12,
+                },
+              }
+            : chunk,
+      ),
+    )
+    const { host, session } = await open([title({ adapter: titler.adapter })])
+
+    await session.send('Plan a trip to Rome for me')
+
+    await waitFor(() =>
+      expect(session.usage().bySource).toEqual({
+        'plugin:tanstack/title': expect.objectContaining({
+          calls: 1,
+          totalTokens: 12,
+        }),
+      }),
+    )
     await host.close()
   })
 })
@@ -162,7 +207,7 @@ describe('usage()', () => {
 
     // The lead call costs $3.25 from the lookup, the worker call $0.50 from
     // its provider.
-    expect(await session.command('usage')).toBe(
+    expect(await session.command({ name: 'usage' })).toBe(
       [
         '2 model calls, 2000000 input tokens (500000 cache read, 500000 cache write), 200000 output tokens, 2200000 total. Cost: $3.7500.',
         `mock/test-model: ${CALL_LINE}`,
@@ -179,7 +224,9 @@ describe('usage()', () => {
       cacheWriteTokens: 500_000,
       cost: 0.5,
     })
-    expect((await host.sessions.get('t'))?.usage?.cost).toBeCloseTo(3.75, 10)
+    expect(
+      (await host.sessions.get({ threadId: 't' }))?.usage?.cost,
+    ).toBeCloseTo(3.75, 10)
     await host.close()
   })
 
@@ -190,8 +237,10 @@ describe('usage()', () => {
 
     await session.send('one')
 
-    expect(await session.command('usage')).toBe(`${CALL_LINE} Cost: $0.5000.`)
-    expect((await host.sessions.get('t'))?.usage?.cost).toBe(0.5)
+    expect(await session.command({ name: 'usage' })).toBe(
+      `${CALL_LINE} Cost: $0.5000.`,
+    )
+    expect((await host.sessions.get({ threadId: 't' }))?.usage?.cost).toBe(0.5)
     await host.close()
   })
 
@@ -204,7 +253,9 @@ describe('usage()', () => {
     await session.send('two')
 
     // Two calls at $0.50. The host writes no cost of its own.
-    expect((await host.sessions.get('t'))?.usage?.cost).toBeCloseTo(1, 10)
+    expect(
+      (await host.sessions.get({ threadId: 't' }))?.usage?.cost,
+    ).toBeCloseTo(1, 10)
     await host.close()
   })
 
@@ -219,7 +270,7 @@ describe('usage()', () => {
     await session.send('two')
 
     // Two lead calls and one worker call.
-    expect((await host.sessions.get('t'))?.usage).toEqual({
+    expect((await host.sessions.get({ threadId: 't' }))?.usage).toEqual({
       turns: 3,
       promptTokens: 3_000_000,
       completionTokens: 300_000,
@@ -261,7 +312,7 @@ describe('usage()', () => {
     await session.send('one')
     await session.send('two')
 
-    expect(await session.command('usage')).toBe(
+    expect(await session.command({ name: 'usage' })).toBe(
       '2 model calls, 2000000 input tokens (500000 cache read, 500000 cache write), 200000 output tokens, 2200000 total. Cost: $6.5000.',
     )
     await host.close()
@@ -275,7 +326,7 @@ describe('usage()', () => {
     await session.send('one')
     await session.send('two')
 
-    expect((await host.sessions.get('t'))?.usage).toEqual({
+    expect((await host.sessions.get({ threadId: 't' }))?.usage).toEqual({
       turns: 2,
       promptTokens: 2_000_000,
       completionTokens: 200_000,
@@ -294,10 +345,10 @@ describe('usage()', () => {
 
     await session.send('one')
 
-    expect(await session.command('usage')).toBe(
+    expect(await session.command({ name: 'usage' })).toBe(
       `${CALL_LINE} Cost: $0.0000 (cost unknown for 1 call).`,
     )
-    expect((await host.sessions.get('t'))?.usage).toEqual({
+    expect((await host.sessions.get({ threadId: 't' }))?.usage).toEqual({
       turns: 1,
       promptTokens: 1_000_000,
       completionTokens: 100_000,

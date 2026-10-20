@@ -107,7 +107,9 @@ async function* serialized(
 export function codingAgents(options: CodingAgentsOptions) {
   const shared = (options.workspace ?? 'shared') === 'shared'
   const sandboxOptions = options.sandboxOptions ?? {}
-  // ponytail: an in-process lock per sandbox. Several hosts on one sandbox need a shared lock store.
+  // One agent at a time for each thread. Only the host that owns the log of
+  // a thread runs its agents, and a host that loses the log stops its runs.
+  // So a lock in this process holds across hosts too.
   const tails = new Map<string, Promise<void>>()
   const names = Object.keys(options.agents)
 

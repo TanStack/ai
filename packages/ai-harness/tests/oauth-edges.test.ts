@@ -1,28 +1,62 @@
 import { memoryCredentialStore } from '@tanstack/ai/byok/server'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   AuthRequiredError,
-  buildAuthorizationUrl,
   createHarnessHost,
   defineHarness,
+  oauthConnector,
+  scrubSecrets,
+} from '../src'
+import {
+  buildAuthorizationUrl,
   deviceLogin,
   exchangeCode,
   isExpired,
   loopbackLogin,
-  oauthConnector,
   refreshCredential,
-  scrubSecrets,
-} from '../src'
+} from '../src/oauth'
+import { credentialsFor, refreshFlights } from '../src/auth'
 import { mockAdapter, text, toolCall } from './helpers'
-import type { OAuthConfig } from '../src'
+import type { Credential } from '@tanstack/ai/byok'
+import type { HarnessRunContext, HarnessSession } from '../src'
+import type { OAuthConfig } from '../src/oauth'
 
 const oauth: OAuthConfig = {
   authorizationUrl: 'https://auth.example/authorize',
   tokenUrl: 'https://auth.example/token',
   deviceUrl: 'https://auth.example/device',
   clientId: 'client-1',
+}
+
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+/** A device-flow `sleep` that returns at once, and records each wait. */
+function recordedSleep() {
+  const waits: Array<number> = []
+  const sleep = async (ms: number) => {
+    waits.push(ms)
+  }
+  return { waits, sleep }
+}
+
+/** The first sign-in URL that `session` asks the user to open. */
+async function nextSignInUrl(session: HarnessSession) {
+  for await (const entry of session.events()) {
+    const value = entry.event.type === 'CUSTOM' ? entry.event.value : undefined
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      'url' in value &&
+      typeof value.url === 'string'
+    ) {
+      return new URL(value.url)
+    }
+  }
+  throw new Error('The session closed before it asked for a sign-in.')
 }
 
 /** A fetch that answers each call with the next body, and records the forms. */
@@ -49,7 +83,7 @@ describe('token requests', () => {
     const refreshed = await refreshCredential(
       { ...oauth, clientSecret: 'shh' },
       { type: 'oauth', accessToken: 'a1', refreshToken: 'r1' },
-      fake,
+      { fetch: fake },
     )
     expect(forms[0]?.get('client_secret')).toBe('shh')
     expect(refreshed).toMatchObject({
@@ -61,6 +95,22 @@ describe('token requests', () => {
     expect(refreshed.type === 'oauth' && refreshed.expiresAt).toBeGreaterThan(
       Date.now(),
     )
+  })
+
+  it('keeps the client of the tokens on a refresh', async () => {
+    const { fake } = replies([{ access_token: 'a2' }])
+    const client = { clientId: 'dcr-1', clientSecret: 'shh-1', issuer: 'iss' }
+    const refreshed = await refreshCredential(
+      oauth,
+      { type: 'oauth', accessToken: 'a1', refreshToken: 'r1', client },
+      { fetch: fake },
+    )
+    expect(refreshed).toEqual({
+      type: 'oauth',
+      accessToken: 'a2',
+      refreshToken: 'r1',
+      client,
+    })
   })
 
   it('refuses a credential without a refresh token', async () => {
@@ -115,12 +165,11 @@ describe('token requests', () => {
 describe('loopbackLogin edges', () => {
   async function login(
     callback: (redirect: URL, state: string) => string,
-    options: { timeoutMs?: number } = {},
+    config = oauth,
   ) {
     const { fake } = replies([{ access_token: 'token' }])
-    return loopbackLogin(oauth, {
+    return loopbackLogin(config, {
       fetch: fake,
-      ...options,
       onUrl: (value) => {
         const url = new URL(value)
         const redirect = new URL(url.searchParams.get('redirect_uri') ?? '')
@@ -150,6 +199,34 @@ describe('loopbackLogin edges', () => {
       loopbackLogin(oauth, { onUrl: () => {}, timeoutMs: 10 }),
     ).rejects.toThrow('Sign-in timed out.')
   })
+
+  it('refuses a code from another issuer (RFC 9207)', async () => {
+    const config = { ...oauth, issuer: 'https://auth.example' }
+    const sentBy = (iss: string) => (redirect: URL, state: string) =>
+      `${redirect}?code=c&state=${state}&iss=${encodeURIComponent(iss)}`
+    await expect(
+      login(sentBy('https://other.example'), config),
+    ).rejects.toThrow('Sign-in failed: the issuer does not match.')
+    await expect(
+      login(sentBy('https://auth.example'), config),
+    ).resolves.toMatchObject({ accessToken: 'token' })
+  })
+
+  it('stops listening and leaves no timer when onUrl throws', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    let redirect = ''
+    await expect(
+      loopbackLogin(oauth, {
+        onUrl: (value) => {
+          redirect = new URL(value).searchParams.get('redirect_uri') ?? ''
+          throw new Error('No browser here.')
+        },
+      }),
+    ).rejects.toThrow('No browser here.')
+    expect(vi.getTimerCount()).toBe(0)
+    vi.useRealTimers()
+    await expect(fetch(redirect)).rejects.toThrow()
+  })
 })
 
 describe('deviceLogin edges', () => {
@@ -169,7 +246,7 @@ describe('deviceLogin edges', () => {
   })
 
   it('slows down when asked, sends scopes, and falls back to the authorization URL', async () => {
-    const waits: Array<number> = []
+    const { waits, sleep } = recordedSleep()
     const shown: Array<string> = []
     const { fake, forms } = replies([
       { device_code: 'd', user_code: 'CODE' },
@@ -183,15 +260,47 @@ describe('deviceLogin edges', () => {
         onCode: (info) =>
           shown.push(`${info.userCode} ${info.verificationUri}`),
         fetch: fake,
-        sleep: async (ms) => {
-          waits.push(ms)
-        },
+        sleep,
       },
     )
     expect(forms[0]?.get('scope')).toBe('repo')
     expect(shown).toEqual(['CODE https://auth.example/authorize'])
     expect(waits).toEqual([5000, 10000, 10000])
     expect(credential).toMatchObject({ accessToken: 'granted' })
+  })
+
+  it('waits at least one second between polls', async () => {
+    const { waits, sleep } = recordedSleep()
+    const { fake } = replies([
+      { device_code: 'd', user_code: 'C', interval: 0 },
+      { access_token: 'granted' },
+    ])
+    await deviceLogin(oauth, { onCode: () => {}, fetch: fake, sleep })
+    expect(waits).toEqual([1000])
+  })
+
+  it('stops polling at once when the signal aborts', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const controller = new AbortController()
+    const reason = new Error('The user left.')
+    const { fake, forms } = replies([{ device_code: 'd', user_code: 'C' }])
+    let showCode: () => void = () => {}
+    const shown = new Promise<void>((resolve) => {
+      showCode = resolve
+    })
+    const login = deviceLogin(oauth, {
+      onCode: () => showCode(),
+      fetch: fake,
+      signal: controller.signal,
+    })
+    await shown
+    // The first poll waits its 5 seconds.
+    expect(vi.getTimerCount()).toBe(1)
+    controller.abort(reason)
+    await expect(login).rejects.toBe(reason)
+    // Only the device request went out, and no timer is left.
+    expect(forms).toHaveLength(1)
+    expect(vi.getTimerCount()).toBe(0)
   })
 
   it('stops when the device code expires', async () => {
@@ -213,12 +322,13 @@ describe('oauthConnector edges', () => {
       oauth,
       fetch: fetchFn,
       tools: (token) => [
-        toolDefinition({ name: 'whoami', description: 'Who am I' }).server(
-          async () => {
-            seen.push(await token())
-            return 'me'
-          },
-        ),
+        toolDefinition({
+          name: 'whoami',
+          description: 'Who am I',
+        }).server<HarnessRunContext>(async (_args, ctx) => {
+          seen.push(await token({ run: ctx.context.run }))
+          return 'me'
+        }),
       ],
     })
   }
@@ -274,53 +384,255 @@ describe('oauthConnector edges', () => {
     await host.close()
   })
 
-  it('signs in through the loopback and signs out', async () => {
-    const persistence = memoryPersistence()
+  /** A session of thread `t` with the loopback connector `svc`. */
+  async function openLoopback(fetchFn: typeof fetch) {
     const credentials = memoryCredentialStore()
-    const { fake } = replies([{ access_token: 'loop-token' }])
-    const host = createHarnessHost({ persistence, credentials })
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      credentials,
+    })
     const session = await host.open(
       defineHarness({
         name: 'test/loopback-connector',
         adapter: mockAdapter([]).adapter,
-        plugins: () => [connector(fake, [])],
+        plugins: () => [connector(fetchFn, [])],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
-    const controller = new AbortController()
-    const signIn = (async () => {
-      for await (const entry of session.events({ signal: controller.signal })) {
-        const value =
-          entry.event.type === 'CUSTOM' ? entry.event.value : undefined
-        if (
-          typeof value === 'object' &&
-          value !== null &&
-          'url' in value &&
-          typeof value.url === 'string'
-        ) {
-          const url = new URL(value.url)
-          const redirect = url.searchParams.get('redirect_uri') ?? ''
-          const state = url.searchParams.get('state') ?? ''
-          await fetch(`${redirect}?code=c&state=${state}`)
-          return
-        }
-      }
-    })()
-    expect(await session.command('connect:svc')).toBe('Connected to Service.')
-    controller.abort()
-    await signIn
+    return { credentials, host, session }
+  }
+
+  it('signs in through the loopback and signs out', async () => {
+    const { fake } = replies([{ access_token: 'loop-token' }])
+    const { credentials, host, session } = await openLoopback(fake)
+    const asked = nextSignInUrl(session)
+    const connecting = session.command({ name: 'connect:svc' })
+    const url = await asked
+    const redirect = url.searchParams.get('redirect_uri') ?? ''
+    const state = url.searchParams.get('state') ?? ''
+    await fetch(`${redirect}?code=c&state=${state}`)
+    expect(await connecting).toBe('Connected to Service.')
     expect(
       await credentials.get({
         scope: { threadId: 't' },
         id: 'svc',
       }),
     ).toMatchObject({ accessToken: 'loop-token' })
-    expect(await session.command('disconnect:svc')).toBe(
+    expect(await session.command({ name: 'disconnect:svc' })).toBe(
       'Disconnected from Service.',
     )
     expect(
       await credentials.get({
         scope: { threadId: 't' },
+        id: 'svc',
+      }),
+    ).toBeNull()
+    await host.close()
+  })
+
+  it('closes the session at once while /connect waits for the browser', async () => {
+    const { host, session } = await openLoopback(replies([]).fake)
+    const asked = nextSignInUrl(session)
+    const connecting = session.command({ name: 'connect:svc' })
+    const redirect = (await asked).searchParams.get('redirect_uri') ?? ''
+    await host.close()
+    expect(connecting.status()).toBe('cancelled')
+    // The sign-in stopped too: nothing listens for the redirect now.
+    await expect(fetch(redirect)).rejects.toThrow()
+  })
+})
+
+describe('oauthConnector refresh races', () => {
+  const expired = {
+    type: 'oauth',
+    accessToken: 'old',
+    refreshToken: 'r-0',
+    expiresAt: Date.now() - 1,
+  } as const
+
+  /**
+   * A token endpoint that holds each request until `open()`. Request `n`
+   * gives `fresh-<n>` and `r-<n>`. `used` has the refresh token of each
+   * request.
+   */
+  function heldTokenEndpoint() {
+    const used: Array<string | null> = []
+    let open = () => {}
+    const gate = new Promise<void>((resolve) => {
+      open = resolve
+    })
+    const fake: typeof fetch = async (_input, init) => {
+      used.push(
+        new URLSearchParams(String(init?.body ?? '')).get('refresh_token'),
+      )
+      const n = used.length
+      await gate
+      // A request whose signal aborted gets no answer, like a real fetch.
+      init?.signal?.throwIfAborted()
+      return new Response(
+        JSON.stringify({
+          access_token: `fresh-${n}`,
+          refresh_token: `r-${n}`,
+          expires_in: 3600,
+        }),
+      )
+    }
+    return { fake, used, open: () => open() }
+  }
+
+  /** A harness whose one tool reads the `svc` token once. */
+  function tokenHarness(
+    fetchFn: typeof fetch,
+    calls: { started: number; seen: Array<string> },
+  ) {
+    return defineHarness({
+      name: 'test/refresh-race',
+      adapter: mockAdapter([() => toolCall('whoami', {}), () => text('done')])
+        .adapter,
+      plugins: () => [
+        oauthConnector({
+          id: 'svc',
+          label: 'Service',
+          login: 'loopback',
+          oauth,
+          fetch: fetchFn,
+          tools: (token) => [
+            toolDefinition({
+              name: 'whoami',
+              description: 'Who am I',
+            }).server<HarnessRunContext>(async (_args, ctx) => {
+              calls.started++
+              calls.seen.push(await token({ run: ctx.context.run }))
+              return 'me'
+            }),
+          ],
+        }),
+      ],
+    })
+  }
+
+  it('refreshes once when two sessions of one host need a refresh at once', async () => {
+    const credentials = memoryCredentialStore()
+    await credentials.set({
+      scope: { userId: 'u1' },
+      id: 'svc',
+      credential: expired,
+    })
+    const endpoint = heldTokenEndpoint()
+    const calls = { started: 0, seen: new Array<string>() }
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      credentials,
+    })
+    const open = (threadId: string) =>
+      host.open(tokenHarness(endpoint.fake, calls), {
+        threadId,
+        principal: { id: 'u1' },
+      })
+    const [first, second] = await Promise.all([open('t1'), open('t2')])
+    const sending = Promise.all([first.send('who'), second.send('who')])
+    await vi.waitFor(() => expect(calls.started).toBe(2), { timeout: 5000 })
+    endpoint.open()
+    await sending
+    expect(endpoint.used).toEqual(['r-0'])
+    expect(calls.seen).toEqual(['fresh-1', 'fresh-1'])
+    expect(
+      await credentials.get({ scope: { userId: 'u1' }, id: 'svc' }),
+    ).toMatchObject({ accessToken: 'fresh-1', refreshToken: 'r-1' })
+    await host.close()
+  })
+
+  it('uses the token of the host that saved first when two hosts refresh at once', async () => {
+    const credentials = memoryCredentialStore()
+    await credentials.set({
+      scope: { userId: 'u1' },
+      id: 'svc',
+      credential: expired,
+    })
+    const endpoint = heldTokenEndpoint()
+    const calls = { started: 0, seen: new Array<string>() }
+    // Two hosts over one store, as two servers of one app.
+    const hosts = [1, 2].map(() =>
+      createHarnessHost({ persistence: memoryPersistence(), credentials }),
+    )
+    const sessions = await Promise.all(
+      hosts.map((host) =>
+        host.open(tokenHarness(endpoint.fake, calls), {
+          threadId: 't',
+          principal: { id: 'u1' },
+        }),
+      ),
+    )
+    const sending = Promise.all(sessions.map((session) => session.send('who')))
+    // Each host refreshes: they share no lock, only the store.
+    await vi.waitFor(() => expect(endpoint.used).toHaveLength(2), {
+      timeout: 5000,
+    })
+    endpoint.open()
+    await sending
+    const saved = await credentials.get({ scope: { userId: 'u1' }, id: 'svc' })
+    const winner = saved?.type === 'oauth' ? saved.accessToken : undefined
+    expect(['fresh-1', 'fresh-2']).toContain(winner)
+    // The host that lost the save uses the winner's token, not its own.
+    expect(calls.seen).toEqual([winner, winner])
+    await Promise.all(hosts.map((host) => host.close()))
+  })
+
+  it('goes on with the refresh for others when the caller that started it aborts', async () => {
+    const credentials = memoryCredentialStore()
+    const scope = { threadId: 't', userId: 'u1' }
+    await credentials.set({ scope, id: 'svc', credential: expired })
+    const endpoint = heldTokenEndpoint()
+    // Two accesses of one host: they share its refreshes.
+    const flights = refreshFlights()
+    const access = () =>
+      credentialsFor(credentials, scope, () => {}, { refreshes: flights })
+    const update = (current: Credential, signal: AbortSignal) =>
+      refreshCredential(oauth, current, { fetch: endpoint.fake, signal })
+    const stopFirst = new AbortController()
+    const first = access().refresh('svc', update, { signal: stopFirst.signal })
+    await vi.waitFor(() => expect(endpoint.used).toHaveLength(1), {
+      timeout: 5000,
+    })
+    const second = access().refresh('svc', update)
+    stopFirst.abort(new Error('first caller stopped'))
+    await expect(first).rejects.toThrow('first caller stopped')
+    endpoint.open()
+    expect(await second).toMatchObject({ accessToken: 'fresh-1' })
+    expect(endpoint.used).toEqual(['r-0'])
+    expect(await credentials.get({ scope, id: 'svc' })).toMatchObject({
+      accessToken: 'fresh-1',
+    })
+  })
+
+  it('saves a refreshed tenant token for the tenant, not for the user', async () => {
+    const credentials = memoryCredentialStore()
+    await credentials.set({
+      scope: { tenantId: 'acme' },
+      id: 'svc',
+      credential: expired,
+    })
+    const endpoint = heldTokenEndpoint()
+    endpoint.open()
+    const calls = { started: 0, seen: new Array<string>() }
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      credentials,
+    })
+    const session = await host.open(tokenHarness(endpoint.fake, calls), {
+      threadId: 't',
+      principal: { id: 'u1', tenantId: 'acme' },
+    })
+    await session.send('who')
+    expect(calls.seen).toEqual(['fresh-1'])
+    expect(
+      await credentials.get({ scope: { tenantId: 'acme' }, id: 'svc' }),
+    ).toMatchObject({ accessToken: 'fresh-1', refreshToken: 'r-1' })
+    expect(
+      await credentials.get({
+        scope: { tenantId: 'acme', userId: 'u1' },
         id: 'svc',
       }),
     ).toBeNull()

@@ -13,29 +13,26 @@ keywords:
   - undo
 ---
 
-You want your own coding agent in the terminal. It reads and edits files, and runs commands after you approve them. When a turn goes wrong, you undo it. The first-party plugins in `@tanstack/ai-harness/plugins` and `@tanstack/ai-harness/plugins/coding` give you those parts. You pick the model and the rules.
+You want your own coding agent in the terminal. It reads and edits files, and runs commands after you approve them. When a turn goes wrong, you undo it. The first-party plugins in `@tanstack/ai-harness/plugins`, `@tanstack/ai-harness/plugins/node`, and `@tanstack/ai-harness/plugins/coding` give you those parts. You pick the model and the rules.
 
 ## 1. Define the agent
 
 ```ts group=harness-coding-agent
+import { randomUUID } from 'node:crypto'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline/promises'
-import {
-  HARNESS_EVENTS,
-  createHarnessHost,
-  defineHarness,
-} from '@tanstack/ai-harness'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import type { RunAgentResumeItem } from '@tanstack/ai'
 import {
   compact,
-  fileCommands,
   modelPicker,
   permissions,
-  projectInstructions,
   title,
   todos,
   usage,
 } from '@tanstack/ai-harness/plugins'
+import { fileCommands, projectInstructions } from '@tanstack/ai-harness/plugins/node'
 import { snapshots, workspaceTools } from '@tanstack/ai-harness/plugins/coding'
 import { openaiText } from '@tanstack/ai-openai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
@@ -70,21 +67,27 @@ const terminal = createInterface({
   output: process.stdout,
 })
 
-// A risky call waits for an answer: once, always, or reject.
-// Calls can run in parallel. Ask one question at a time, each once.
-const asked = new Set<string>()
-let asking = Promise.resolve()
-const stopAsking = session.onEvent('CUSTOM', ({ event }) => {
-  if (event.name !== HARNESS_EVENTS.question) return
-  asking = asking.then(async () => {
-    for (const question of session.snapshot().pendingQuestions) {
-      if (asked.has(question.questionId)) continue
-      asked.add(question.questionId)
-      const answer = await terminal.question(`\n${question.message} `)
-      await session.answer({ questionId: question.questionId, value: answer })
-    }
-  })
+// Print the text of every turn, also of a turn that continues after an answer.
+const stopPrinting = session.onEvent('TEXT_MESSAGE_CONTENT', ({ event }) => {
+  process.stdout.write(event.delta)
 })
+
+// A risky call stops the turn before it runs. Ask about each approval:
+// once, always, or reject. Then send all the answers in one resolve.
+async function answerApprovals() {
+  let waits = session.snapshot().pendingWaits
+  while (waits.length > 0) {
+    const resume: Array<RunAgentResumeItem> = []
+    for (const wait of waits) {
+      const answer = await terminal.question(`\n${wait.message ?? wait.kind} (once/always/reject) `)
+      resume.push({ interruptId: wait.waitId, status: 'resolved', payload: answer })
+    }
+    const inputId = randomUUID()
+    await session.resolve({ resume, inputId })
+    await session.settled({ inputId })
+    waits = session.snapshot().pendingWaits
+  }
+}
 
 // Type `exit` to stop.
 let line = await terminal.question('\n> ')
@@ -92,14 +95,11 @@ while (line !== 'exit') {
   if (line.startsWith('/')) {
     // `/undo`, `/model fast`, `/mode plan`, and the other plugin commands.
     const [name = '', ...args] = line.slice(1).split(' ')
-    console.log(await session.command(name, args.join(' ') || undefined))
+    console.log(await session.command({ name, input: args.join(' ') || undefined }))
   } else {
-    const turn = session.send(line)
-    turn.onEvent('TEXT_MESSAGE_CONTENT', ({ event }) => {
-      process.stdout.write(event.delta)
-    })
     try {
-      await turn
+      await session.send(line)
+      await answerApprovals()
     } catch (error) {
       // A failed turn rejects. Show the error and keep the loop.
       console.error(error)
@@ -107,12 +107,12 @@ while (line !== 'exit') {
   }
   line = await terminal.question('\n> ')
 }
-stopAsking()
+stopPrinting()
 terminal.close()
 await host.close()
 ```
 
-Both plugin entries run only in Node. The coding tools use the file system and the shell of the machine. A line that starts with `/` runs a command of a plugin. Any other line is a prompt.
+The `plugins/node` and `plugins/coding` entries run only in Node. The coding tools use the file system and the shell of the machine. A line that starts with `/` runs a command of a plugin. Any other line is a prompt.
 
 ## 2. Run it
 

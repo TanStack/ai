@@ -9,6 +9,7 @@ import {
   toBase64,
 } from '../src/media'
 import { mediaPart } from '../src/media-ref'
+import { logIdOf } from '../src/log'
 import { mockAdapter, text } from './helpers'
 import type {
   ContentPart,
@@ -138,7 +139,11 @@ describe('createMediaStore', () => {
     await store
       .put(new Blob(['hello']).stream(), { mimeType: 'image/png', name: 'a' })
       .catch(() => undefined)
-    expect(await persistence.stores.artifacts.listForThread('t1')).toEqual([])
+    expect(
+      await persistence.stores.artifacts.listForThread(
+        logIdOf({ logId: 't1' }),
+      ),
+    ).toEqual([])
     expect((await persistence.stores.blobs.list()).objects).toEqual([])
   })
 
@@ -153,10 +158,13 @@ describe('createMediaStore', () => {
     ).rejects.toMatchObject({ status: 415 })
   })
 
-  it('does not show media of another thread', async () => {
+  it.each([
+    ['another thread', { threadId: 'b' }],
+    ['the same thread id in another tenant', { threadId: 'a', tenantId: 'x' }],
+  ])('does not show media of %s', async (_label, other) => {
     const persistence = memoryPersistence()
     const a = createMediaStore({ persistence, threadId: 'a' })
-    const b = createMediaStore({ persistence, threadId: 'b' })
+    const b = createMediaStore({ persistence, ...other })
     const record = await a.put(encoder.encode('secret'), {
       mimeType: 'image/png',
       name: 'a.png',
@@ -173,7 +181,22 @@ describe('createMediaStore', () => {
       name: 'cat.png',
     })
     const blobKey = (await persistence.stores.artifacts.get(record.id))?.blobKey
-    expect(blobKey).toBe(`artifacts/upload:..%2Fx/${record.id}`)
+    expect(blobKey).toBe(`artifacts/upload::..%2Fx/${record.id}`)
+  })
+
+  it('puts the tenant in the upload folder of the blob key', async () => {
+    const persistence = memoryPersistence()
+    const store = createMediaStore({
+      persistence,
+      threadId: 't1',
+      tenantId: 'org/1',
+    })
+    const record = await store.put(encoder.encode('hello'), {
+      mimeType: 'image/png',
+      name: 'cat.png',
+    })
+    const blobKey = (await persistence.stores.artifacts.get(record.id))?.blobKey
+    expect(blobKey).toBe(`artifacts/upload:org%2F1:t1/${record.id}`)
   })
 
   it('throws 404 for an id that does not exist', async () => {
@@ -192,6 +215,114 @@ describe('createMediaStore', () => {
       name: 'a.txt',
     })
     expect(decoder.decode(await store.load(record.id, range))).toBe(expected)
+  })
+
+  it.each([[undefined], [{ offset: 6 }], [{ offset: 0, length: 5 }]])(
+    'opens the same bytes as a stream for the range %j',
+    async (range) => {
+      const { store } = setup()
+      const record = await store.put('hello world', {
+        mimeType: 'text/plain',
+        name: 'a.txt',
+      })
+      const stream = await store.open(record.id, range)
+      expect(stream).toBeInstanceOf(ReadableStream)
+      expect(new Uint8Array(await new Response(stream).arrayBuffer())).toEqual(
+        await store.load(record.id, range),
+      )
+    },
+  )
+
+  it('keeps the base64 of a file, and drops the oldest over the cap', async () => {
+    const persistence = memoryPersistence()
+    const blobGet = vi.spyOn(persistence.stores.blobs, 'get')
+    // Each 5-byte file is 8 characters of base64: two fit in 16.
+    const store = createMediaStore({
+      persistence,
+      threadId: 't1',
+      encodedBytes: 16,
+    })
+    const put = (body: string) =>
+      store.put(body, { mimeType: 'image/png', name: `${body}.png` })
+    const [a, b, c] = [
+      await put('aaaaa'),
+      await put('bbbbb'),
+      await put('ccccc'),
+    ]
+    const reads = async (id: string) => {
+      const before = blobGet.mock.calls.length
+      await store.dataUrl(id)
+      return blobGet.mock.calls.length - before
+    }
+
+    expect(await reads(a.id)).toBe(1)
+    expect(await reads(a.id)).toBe(0)
+    expect(await reads(b.id)).toBe(1)
+    // `c` pushes out `a`, the oldest.
+    expect(await reads(c.id)).toBe(1)
+    expect(await reads(b.id)).toBe(0)
+    expect(await reads(c.id)).toBe(0)
+    expect(await reads(a.id)).toBe(1)
+    expect(await store.dataUrl(a.id)).toBe('data:image/png;base64,YWFhYWE=')
+  })
+
+  it('keeps one base64 cap for all the threads of a blob store', async () => {
+    const persistence = memoryPersistence()
+    const blobGet = vi.spyOn(persistence.stores.blobs, 'get')
+    // Each 5-byte file is 8 characters of base64: two fit in 16, for both
+    // threads together.
+    const one = createMediaStore({
+      persistence,
+      threadId: 't1',
+      encodedBytes: 16,
+    })
+    const two = createMediaStore({
+      persistence,
+      threadId: 't2',
+      encodedBytes: 16,
+    })
+    const put = (store: typeof one, body: string) =>
+      store.put(body, { mimeType: 'image/png', name: `${body}.png` })
+    const a = await put(one, 'aaaaa')
+    const b = await put(two, 'bbbbb')
+    const c = await put(one, 'ccccc')
+    const reads = async (store: typeof one, id: string) => {
+      const before = blobGet.mock.calls.length
+      await store.dataUrl(id)
+      return blobGet.mock.calls.length - before
+    }
+
+    expect(await reads(one, a.id)).toBe(1)
+    expect(await reads(two, b.id)).toBe(1)
+    // `c` pushes out `a`, the oldest, though `a` is of the other thread.
+    expect(await reads(one, c.id)).toBe(1)
+    expect(await reads(two, b.id)).toBe(0)
+    expect(await reads(one, a.id)).toBe(1)
+  })
+
+  it('takes the largest base64 cap that a store of the blob store asks for', async () => {
+    const persistence = memoryPersistence()
+    const blobGet = vi.spyOn(persistence.stores.blobs, 'get')
+    const one = createMediaStore({
+      persistence,
+      threadId: 't1',
+      encodedBytes: 16,
+    })
+    // A later store asks for more: three files of 8 characters fit in 24.
+    createMediaStore({ persistence, threadId: 't2', encodedBytes: 24 })
+    const put = (body: string) =>
+      one.put(body, { mimeType: 'image/png', name: `${body}.png` })
+    const ids = [
+      (await put('aaaaa')).id,
+      (await put('bbbbb')).id,
+      (await put('ccccc')).id,
+    ]
+    for (const id of ids) await one.dataUrl(id)
+    const before = blobGet.mock.calls.length
+
+    for (const id of ids) await one.dataUrl(id)
+
+    expect(blobGet.mock.calls.length).toBe(before)
   })
 
   it('makes a data URL up to 1 MB only', async () => {
@@ -353,6 +484,32 @@ describe('mediaMiddleware', () => {
         },
       },
     ])
+  })
+
+  it('does not load or encode the file again at the next turn', async () => {
+    const { persistence, store } = setup()
+    const record = await store.put(encoder.encode('hello'), {
+      mimeType: 'image/png',
+      name: 'cat.png',
+    })
+    const blobGet = vi.spyOn(persistence.stores.blobs, 'get')
+    // A harness makes a new middleware at each turn, on the same store.
+    const first = await runTurn(
+      persistence,
+      mediaMiddleware({ store }),
+      userMessage(mediaPart(record)),
+    )
+    const second = await runTurn(
+      persistence,
+      mediaMiddleware({ store }),
+      userMessage(mediaPart(record)),
+    )
+    expect(blobGet).toHaveBeenCalledTimes(1)
+    expect(second.sent).toEqual(first.sent)
+    expect(second.sent).toContainEqual({
+      type: 'image',
+      source: { type: 'data', value: 'aGVsbG8=', mimeType: 'image/png' },
+    })
   })
 
   it.each([

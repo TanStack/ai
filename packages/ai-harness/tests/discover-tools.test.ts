@@ -49,7 +49,9 @@ describe('discoverTools', () => {
         tools: [echoTool('lookup', 'local result')],
         plugins: () => [connector, broken],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     const names = (call: number) =>
       (calls[call].tools ?? []).map((tool: { name: string }) => tool.name)
@@ -85,6 +87,110 @@ describe('discoverTools', () => {
   })
 })
 
+describe('onTurnStart', () => {
+  it('runs once per turn, before the prompts, and a hook that throws does not stop the turn', async () => {
+    let turns = 0
+    const counter = definePlugin({
+      name: 'test/counter',
+      setup: () => ({
+        onTurnStart: (turn) => {
+          turns += 1
+          expect(turn.run.runId).toBe(turn.operationId)
+        },
+        prompts: [() => `Turn ${turns}.`],
+      }),
+    })
+    const broken = definePlugin({
+      name: 'test/broken-start',
+      setup: () => ({
+        onTurnStart: () => {
+          throw new Error('cannot start')
+        },
+      }),
+    })
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('lookup', {}),
+      () => text('one'),
+      () => text('two'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/turn-start',
+        adapter,
+        tools: [echoTool('lookup', 'found')],
+        plugins: () => [counter, broken],
+      }),
+      { threadId: 't' },
+    )
+
+    expect((await session.send('first')).text).toBe('one')
+    expect((await session.send('second')).text).toBe('two')
+
+    // Two model calls in the first turn, but one hook call per turn.
+    expect(turns).toBe(2)
+    expect(calls[0].systemPrompts).toContain('Turn 1.')
+    expect(calls[2].systemPrompts).toContain('Turn 2.')
+    await host.close()
+  })
+})
+
+describe('a tool name that two plugins give', () => {
+  it('keeps the tool of the earlier plugin and warns once with both names', async () => {
+    const finder = (name: string, reply: string) =>
+      definePlugin({
+        name,
+        setup: () => ({ discoverTools: () => [echoTool('search', reply)] }),
+      })
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('search', {}),
+      () => text('found'),
+      () => text('again'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/tool-clash',
+        adapter,
+        plugins: () => [
+          finder('test/first', 'first'),
+          finder('test/second', 'second'),
+        ],
+      }),
+      { threadId: 't' },
+    )
+    const seen: Array<SessionEvent> = []
+    const controller = new AbortController()
+    const reading = (async () => {
+      for await (const entry of session.events({ signal: controller.signal }))
+        seen.push(entry)
+    })()
+
+    await session.send('search')
+    await session.send('search again')
+
+    expect(JSON.stringify(calls[1].messages)).toContain('first')
+    expect(JSON.stringify(calls[1].messages)).not.toContain('second')
+    controller.abort()
+    await reading
+    const warnings = seen.filter(
+      (entry) =>
+        entry.event.type === EventType.CUSTOM &&
+        entry.event.name === 'harness.plugin.warning',
+    )
+    expect(warnings.map((entry) => entry.event)).toMatchObject([
+      {
+        value: {
+          plugin: 'test/second',
+          message:
+            'Two tools are named "search": the tool of plugin test/first is used, and the tool of plugin test/second is not.',
+        },
+      },
+    ])
+    await host.close()
+  })
+})
+
 describe('the default agent loop', () => {
   it('keeps calling the model past five steps', async () => {
     const steps = Array.from(
@@ -99,7 +205,9 @@ describe('the default agent loop', () => {
         adapter,
         tools: [echoTool('lookup', 'fact')],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     const turn = await session.send('dig deep')
     expect(calls).toHaveLength(8)

@@ -1,48 +1,75 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import {
-  createHarnessHandler,
-  createHarnessHost,
-  defineHarness,
-  isMediaRecord,
-  mediaPart,
-} from '../src'
+import { memoryPersistence } from '@tanstack/ai-persistence'
+import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHandler } from '../src/server'
+import { isMediaRecord, mediaPart } from '../src/media-entry'
 import { mockAdapter, text } from './helpers'
 import type { ContentPart } from '@tanstack/ai'
-import type { Authorize, MediaOptions, MediaRecord } from '../src'
+import type { MediaRecord } from '../src'
+import type { MediaOptions } from '../src/media-entry'
 
 const BASE = 'http://x/api/harness'
 const HOUR = 60 * 60 * 1000
 const NOW = 1_000_000
 
-const allowUser: Authorize = (request) =>
-  request.headers.get('authorization') === 'Bearer good'
-    ? { id: 'user-1' }
-    : null
+const user = { id: 'user-1' }
+
+/** Media signing keys: each one is 32 bytes or more. */
+const SHARED = 'a-shared-secret-of-32-bytes-or-more'
+const OLD_KEY = 'the-old-secret-of-32-bytes-or-more'
+
+const allowUser = (request: Request) =>
+  request.headers.get('authorization') === 'Bearer good' ? user : null
 
 /**
  * A handler for user-1, who can open only threads that start with `user-1`.
- * `handlerWith` makes another handler on the same host.
+ * `handlerWith` makes another handler, on the same host or on `hostWith`: a
+ * second host on the same stores, as another server instance.
  */
-function setup(options: { media?: MediaOptions; mediaSecret?: string } = {}) {
+function setup(options: { media?: MediaOptions; secret?: string } = {}) {
   const { adapter, calls } = mockAdapter(() => text('ok'))
   const harness = defineHarness({
     name: 'test/http-media',
     adapter,
     media: options.media,
   })
-  const host = createHarnessHost({ persistence: memoryPersistence() })
+  const persistence = memoryPersistence()
+  /** A host on the shared stores. `identify` reads the user of a request. */
+  const hostWith = (
+    identify: (request: Request) => { id: string; tenantId?: string } | null,
+  ) =>
+    createHarnessHost({
+      persistence,
+      access: {
+        identify: ({ request }) => identify(request),
+        policy: {
+          authorize: ({ principal, session }) =>
+            session.threadId.startsWith(principal.id),
+        },
+      },
+    })
+  const host = hostWith(allowUser)
+  /**
+   * `secret` or `keys` sign the media URLs. Without them, a random key per
+   * handler.
+   */
   const handlerWith = (
-    handlerOptions: { authorize?: Authorize; mediaSecret?: string } = {},
+    handlerOptions: {
+      host?: typeof host
+      secret?: string
+      keys?: Array<string>
+    } = {},
   ) =>
     createHarnessHandler({
-      host,
+      host: handlerOptions.host ?? host,
       harness,
-      authorize: handlerOptions.authorize ?? allowUser,
-      canAccess: (principal, threadId) => threadId.startsWith(principal.id),
-      mediaSecret: handlerOptions.mediaSecret,
+      ...(handlerOptions.secret
+        ? { media: { secret: handlerOptions.secret } }
+        : handlerOptions.keys
+          ? { media: { keys: handlerOptions.keys } }
+          : {}),
     })
-  const handler = handlerWith({ mediaSecret: options.mediaSecret })
+  const handler = handlerWith({ secret: options.secret })
   const call = (path: string, init: RequestInit = {}) =>
     handler(
       new Request(`${BASE}/${path}`, {
@@ -83,13 +110,19 @@ function setup(options: { media?: MediaOptions; mediaSecret?: string } = {}) {
     return body
   }
 
-  /** A GET with no Authorization header. */
-  const fetchSigned = (path: string, target = handler) =>
-    target(new Request(`${BASE}/${path}`))
+  /** A GET as user-1. `headers: {}` sends no Authorization header. */
+  const fetchSigned = (
+    path: string,
+    target = handler,
+    headers: Record<string, string> = { authorization: 'Bearer good' },
+  ) => target(new Request(`${BASE}/${path}`, { headers }))
 
   return {
     host,
+    harness,
+    persistence,
     calls,
+    hostWith,
     handlerWith,
     call,
     post,
@@ -127,30 +160,45 @@ afterEach(() => {
 })
 
 describe('media upload and signed URLs', () => {
-  it('needs mediaSecret on a durable host, where another instance verifies the URL', () => {
+  it('refuses an empty media.secret at the start', () => {
     const { adapter } = mockAdapter(() => text('ok'))
-    const harness = defineHarness({ name: 'test/http-media-durable', adapter })
-    const host = createHarnessHost({
-      persistence: {
-        stores: {
-          log: memoryLogStore(),
-          runs: memoryPersistence().stores.runs,
-        },
-      },
-    })
-    const options = {
-      host,
-      harness,
-      authorize: allowUser,
-      canAccess: () => true,
-    }
-    expect(() => createHarnessHandler(options)).toThrow(/mediaSecret/)
+    const harness = defineHarness({ name: 'test/http-media-empty', adapter })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
     expect(() =>
-      createHarnessHandler({ ...options, mediaSecret: 'shared' }),
-    ).not.toThrow()
+      createHarnessHandler({
+        host,
+        harness,
+        openAccess: true,
+        media: { secret: '' },
+      }),
+    ).toThrow(/at least 32 bytes/)
   })
 
-  it('stores an upload, signs its URL for 1 hour, and serves the signed URL without auth', async () => {
+  it('needs media at the start on a host with ownership, and warns once on another host', async () => {
+    // A fresh module, so no handler of another test warned before.
+    vi.resetModules()
+    const { createHarnessHandler: handlerOf } = await import('../src/server')
+    const { createHarnessHost: hostOf } = await import('../src')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { adapter } = mockAdapter(() => text('ok'))
+    const harness = defineHarness({ name: 'test/http-media-shared', adapter })
+    const persistence = memoryPersistence()
+    const handlerOn = (host: ReturnType<typeof hostOf>) => () =>
+      handlerOf({ host, harness, openAccess: true })
+
+    expect(
+      handlerOn(hostOf({ persistence, ownership: { hostId: 'pod-1' } })),
+    ).toThrow(/needs media/)
+    expect(warn).not.toHaveBeenCalled()
+    const host = hostOf({ persistence })
+    expect(handlerOn(host)).not.toThrow()
+    expect(handlerOn(host)).not.toThrow()
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('media.secret'))
+    warn.mockRestore()
+  })
+
+  it('stores an upload, signs its URL for 1 hour, and serves the signed URL to its user', async () => {
     vi.useFakeTimers({ toFake: ['Date'], now: NOW })
     const { host, upload, signedPath, fetchSigned } = setup()
 
@@ -179,26 +227,89 @@ describe('media upload and signed URLs', () => {
     await host.close()
   })
 
-  it('serves a signed URL through a handler whose authorize refuses everything', async () => {
-    const { host, upload, signedPath, fetchSigned, handlerWith } = setup({
-      mediaSecret: 'shared',
-    })
+  it('serves a signed URL on another instance with the same key', async () => {
+    const { host, upload, signedPath, fetchSigned, hostWith, handlerWith } =
+      setup({ secret: SHARED })
     const record = await upload('user-1-a')
     const { path } = await signedPath(record)
-    const refuseAll = handlerWith({
-      authorize: () => null,
-      mediaSecret: 'shared',
-    })
+    const other = hostWith(allowUser)
 
-    const signed = await fetchSigned(path, refuseAll)
-    const unsigned = await fetchSigned(
-      `media?threadId=user-1-a&id=${record.id}`,
-      refuseAll,
+    const signed = await fetchSigned(
+      path,
+      handlerWith({ host: other, secret: SHARED }),
     )
 
     expect(signed.status).toBe(200)
     expect(await signed.text()).toBe('hello')
-    expect(unsigned.status).toBe(401)
+    await other.close()
+    await host.close()
+  })
+
+  it('checks the user of a signed request: none is 401, a stranger or another tenant is 403', async () => {
+    const { host, upload, signedPath, fetchSigned, hostWith, handlerWith } =
+      setup({ secret: SHARED })
+    const record = await upload('user-1-a')
+    const { path } = await signedPath(record)
+    const as = (who: { id: string; tenantId?: string }) => {
+      const other = hostWith(() => who)
+      return {
+        other,
+        handler: handlerWith({ host: other, secret: SHARED }),
+      }
+    }
+    const stranger = as({ id: 'user-2' })
+    const elsewhere = as({ id: 'user-1', tenantId: 'other-tenant' })
+
+    expect((await fetchSigned(path, undefined, {})).status).toBe(401)
+    expect((await fetchSigned(path, stranger.handler)).status).toBe(403)
+    expect((await fetchSigned(path, elsewhere.handler)).status).toBe(403)
+    await stranger.other.close()
+    await elsewhere.other.close()
+    await host.close()
+  })
+
+  it('serves a signed URL with no login to the guest of access.anonymous, and only that route', async () => {
+    const { host, harness, persistence, upload, signedPath, fetchSigned } =
+      setup({ secret: SHARED })
+    const record = await upload('user-1-a')
+    const { path } = await signedPath(record)
+    /** A handler whose host gives a guest, and lets it read when `canRead`. */
+    const guestHandler = (canRead: boolean, anonymous = true) => {
+      const guestHost = createHarnessHost({
+        persistence,
+        access: {
+          identify: () => null,
+          ...(anonymous ? { anonymous: () => ({ id: 'guest' }) } : {}),
+          policy: {
+            authorize: ({ principal, action }) =>
+              canRead && principal.id === 'guest' && action === 'read',
+          },
+        },
+      })
+      const handler = createHarnessHandler({
+        host: guestHost,
+        harness,
+        media: { secret: SHARED },
+      })
+      return { guestHost, handler }
+    }
+    const allowed = guestHandler(true)
+    const refused = guestHandler(false)
+    const without = guestHandler(true, false)
+
+    const served = await fetchSigned(path, allowed.handler, {})
+    expect(served.status).toBe(200)
+    expect(await served.text()).toBe('hello')
+    expect((await fetchSigned(path, refused.handler, {})).status).toBe(403)
+    expect((await fetchSigned(path, without.handler, {})).status).toBe(401)
+    // The guest exists only on the signed media route.
+    expect(
+      (await fetchSigned('transcript?threadId=user-1-a', allowed.handler, {}))
+        .status,
+    ).toBe(401)
+    for (const entry of [allowed, refused, without]) {
+      await entry.guestHost.close()
+    }
     await host.close()
   })
 
@@ -217,6 +328,10 @@ describe('media upload and signed URLs', () => {
     {
       label: 'a later expiry',
       change: (query) => query.set('exp', String(Date.now() + 2 * HOUR)),
+    },
+    {
+      label: 'another tenant',
+      change: (query) => query.set('tenantId', 'other-tenant'),
     },
   ]
 
@@ -253,6 +368,40 @@ describe('media upload and signed URLs', () => {
     await host.close()
   })
 
+  it('serves a URL that an old key signed on a handler with keys [new, old]', async () => {
+    const { host, upload, signedPath, fetchSigned, handlerWith } = setup({
+      secret: OLD_KEY,
+    })
+    const record = await upload('user-1-a')
+    const { path } = await signedPath(record)
+
+    const rotated = handlerWith({ keys: [SHARED, OLD_KEY] })
+    const newOnly = handlerWith({ keys: [SHARED] })
+
+    expect((await fetchSigned(path, rotated)).status).toBe(200)
+    expect((await fetchSigned(path, newOnly)).status).toBe(403)
+    await host.close()
+  })
+
+  it('throws at the start for a signing key under 32 bytes', () => {
+    const { host, handlerWith } = setup()
+
+    expect(() => handlerWith({ secret: 'shared' })).toThrow(/at least 32/)
+    void host.close()
+  })
+
+  it('refuses a signed URL of a file whose thread was deleted (404)', async () => {
+    const { host, upload, signedPath, fetchSigned } = setup()
+    const record = await upload('user-1-a')
+    const { path } = await signedPath(record)
+
+    await host.sessions.delete({ threadId: 'user-1-a', principal: user })
+    const response = await fetchSigned(path)
+
+    expect(response.status).toBe(404)
+    await host.close()
+  })
+
   it('does not sign or serve the file of another thread (404)', async () => {
     const { host, call, upload } = setup()
     const record = await upload('user-1-a')
@@ -266,7 +415,11 @@ describe('media upload and signed URLs', () => {
   })
 
   it('serves an unsigned GET only to a principal that can open the thread', async () => {
-    const { host, call, upload, fetchSigned } = setup()
+    const { host, harness, call, upload, fetchSigned } = setup()
+    await host.open(harness, {
+      threadId: 'someone-else',
+      principal: { id: 'someone' },
+    })
     const record = await upload('user-1-a')
     const path = `media?threadId=user-1-a&id=${record.id}`
 
@@ -274,7 +427,7 @@ describe('media upload and signed URLs', () => {
 
     expect(owner.status).toBe(200)
     expect(await owner.text()).toBe('hello')
-    expect((await fetchSigned(path)).status).toBe(401)
+    expect((await fetchSigned(path, undefined, {})).status).toBe(401)
     expect(
       (await call(`media?threadId=someone-else&id=${record.id}`)).status,
     ).toBe(403)
@@ -330,6 +483,32 @@ describe('media bytes', () => {
     await host.close()
   })
 
+  it('sends at most 8 MB for a Range with no end', async () => {
+    const { host, call, upload } = setup()
+    const cap = 8 * 1024 * 1024
+    const record = await upload('user-1-a', 'x'.repeat(cap + 10))
+
+    const capped = await call(`media?threadId=user-1-a&id=${record.id}`, {
+      headers: { range: 'bytes=2-' },
+    })
+    expect(capped.status).toBe(206)
+    expect(capped.headers.get('content-range')).toBe(
+      `bytes 2-${cap + 1}/${cap + 10}`,
+    )
+    expect(capped.headers.get('content-length')).toBe(String(cap))
+    expect((await capped.arrayBuffer()).byteLength).toBe(cap)
+
+    // The rest is under the cap, so it comes whole.
+    const rest = await call(`media?threadId=user-1-a&id=${record.id}`, {
+      headers: { range: `bytes=${cap + 2}-` },
+    })
+    expect(rest.headers.get('content-range')).toBe(
+      `bytes ${cap + 2}-${cap + 9}/${cap + 10}`,
+    )
+    expect(await rest.text()).toBe('xxxxxxxx')
+    await host.close()
+  })
+
   it('answers a Range past the end with 416', async () => {
     const { host, call, upload } = setup()
     const record = await upload('user-1-a')
@@ -357,6 +536,7 @@ describe('media bytes', () => {
       'content-security-policy': "default-src 'none'; sandbox",
       'content-type': 'text/html',
       'x-content-type-options': 'nosniff',
+      'x-request-id': expect.any(String),
     })
     await host.close()
   })
@@ -375,12 +555,12 @@ describe('POST run with media parts', () => {
     label: string
     part: (record: MediaRecord) => ContentPart
   }> = [
-    { label: 'a harness-media URL, and keeps the URL', part: mediaPart },
-    { label: 'a data part, and keeps it as sent', part: () => data },
+    { label: 'a harness-media URL', part: mediaPart },
+    { label: 'a data part', part: () => data },
   ]
 
   it.each(cases)(
-    'gives the model the bytes of $label in the transcript',
+    'gives the model the bytes of $label, and keeps a harness-media URL in the transcript',
     async ({ part }) => {
       const { host, call, upload, calls } = setup()
       const record = await upload('user-1-run')
@@ -399,11 +579,110 @@ describe('POST run with media parts', () => {
         { type: 'text', content: 'What is this?' },
         data,
       ])
+      // A data part moved to the media store. Its URL names a new record.
       expect(transcript[0].content).toEqual([
         { type: 'text', content: 'What is this?' },
-        part(record),
+        {
+          type: 'image',
+          source: {
+            type: 'url',
+            value: expect.stringMatching(/^harness-media:/),
+            mimeType: 'image/png',
+          },
+        },
       ])
       await host.close()
     },
   )
+
+  const refused: Array<{
+    label: string
+    media?: MediaOptions
+    part: ContentPart
+    status: number
+    error: string
+  }> = [
+    {
+      label: 'bytes over media.maxBytes',
+      media: { maxBytes: 4 },
+      part: data,
+      status: 413,
+      error: 'media_too_large',
+    },
+    {
+      label: 'a kind not in media.kinds',
+      media: { kinds: ['audio'] },
+      part: data,
+      status: 415,
+      error: 'media_not_allowed',
+    },
+    {
+      label: 'an external URL',
+      part: {
+        type: 'image',
+        source: { type: 'url', value: 'https://example.com/cat.png' },
+      },
+      status: 400,
+      error: 'media_url_not_allowed',
+    },
+  ]
+
+  it.each(refused)(
+    'refuses $label with $status, and starts no turn',
+    async ({ media, part, status, error }) => {
+      const { host, call, calls } = setup(media ? { media } : {})
+
+      const response = await call('run', {
+        method: 'POST',
+        body: runBody('user-1-run', [question, part]),
+        headers: { 'content-type': 'application/json' },
+      })
+
+      expect(response.status).toBe(status)
+      expect(await response.json()).toEqual({ error })
+      expect(calls).toHaveLength(0)
+      await host.close()
+    },
+  )
+})
+
+describe('request bodies over media.maxBodyBytes', () => {
+  const routes = [
+    {
+      route: 'run',
+      body: runBody('user-1-run', [{ type: 'text', text: 'hi' }]),
+    },
+    {
+      route: 'control',
+      body: JSON.stringify({
+        threadId: 'user-1-run',
+        input: { op: 'prompt', message: 'hi' },
+      }),
+    },
+    {
+      route: 'sessions',
+      body: JSON.stringify({
+        op: 'rename',
+        threadId: 'user-1-run',
+        title: 'x',
+      }),
+    },
+  ]
+
+  it.each(routes)('answers POST $route with 413', async ({ route, body }) => {
+    const { host, call, calls } = setup({ media: { maxBodyBytes: 64 } })
+
+    const response = await call(route, {
+      method: 'POST',
+      body: body.padEnd(65, ' '),
+      headers: { 'content-type': 'application/json' },
+    })
+
+    expect(response.status).toBe(413)
+    expect(await response.json()).toEqual({
+      error: 'The body is bigger than the limit of 64 bytes.',
+    })
+    expect(calls).toHaveLength(0)
+    await host.close()
+  })
 })

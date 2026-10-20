@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
-import { createHarnessHandler, createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHandler } from '../src/server'
 import { createHarnessClient } from '../src/client'
 import { createSessionView } from '../src/view'
 import { mockAdapter, text, toolCall } from './helpers'
@@ -49,8 +50,7 @@ describe('session view client tools', () => {
     const handler = createHarnessHandler({
       host,
       harness,
-      canAccess: () => true,
-      authorize: () => ({ id: 'u' }),
+      openAccess: { principal: { id: 'u' } },
     })
     const controls: Array<unknown> = []
     const client = createHarnessClient({
@@ -86,6 +86,7 @@ describe('session view client tools', () => {
     )
     expect(controls.at(-1)).toEqual({
       op: 'resolve',
+      inputId: expect.any(String),
       resume: [
         {
           interruptId: call?.id,
@@ -125,16 +126,22 @@ describe('session view client tools', () => {
 
     approval?.approve()
     // A client tool id is not an approval, so a yes does not answer it.
-    view.approve(call?.id ?? '')
+    view.approve({ id: call?.id ?? '' })
     expect(resolve).not.toHaveBeenCalled()
     call?.resolve({ opened: true })
     call?.resolve({ opened: false })
 
     expect(resolve).toHaveBeenCalledTimes(1)
-    expect(resolve.mock.calls[0]?.[0]).toEqual([
-      { interruptId: approval?.id, status: 'resolved', payload: true },
-      { interruptId: call?.id, status: 'resolved', payload: { opened: true } },
-    ])
+    expect(resolve.mock.calls[0]?.[0]).toEqual({
+      resume: [
+        { interruptId: approval?.id, status: 'resolved', payload: true },
+        {
+          interruptId: call?.id,
+          status: 'resolved',
+          payload: { opened: true },
+        },
+      ],
+    })
     await vi.waitFor(() =>
       expect(JSON.stringify(view.store.get().messages)).toContain('Both done.'),
     )
@@ -157,14 +164,16 @@ describe('session view client tools', () => {
     const [call] = view.store.get().clientTools
     call?.fail('boom')
 
-    expect(resolve.mock.calls[0]?.[0]).toEqual([
-      {
-        interruptId: call?.id,
-        status: 'resolved',
-        payload: { error: 'boom' },
-        metadata: { tanstack: { state: 'output-error' } },
-      },
-    ])
+    expect(resolve.mock.calls[0]?.[0]).toEqual({
+      resume: [
+        {
+          interruptId: call?.id,
+          status: 'resolved',
+          payload: { error: 'boom' },
+          metadata: { tanstack: { state: 'output-error' } },
+        },
+      ],
+    })
     await vi.waitFor(() =>
       expect(JSON.stringify(view.store.get().messages)).toContain('It failed.'),
     )

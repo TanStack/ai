@@ -16,10 +16,7 @@ there is no separate enable list.
 | `generationRuns` | Generation run status and result metadata, keyed by its own `runId`. | `withGenerationPersistence`, required |
 | `artifacts` | File metadata. Needs `blobs`. | `withGenerationPersistence`, portable snapshots |
 | `blobs` | File bytes. Needs `artifacts`. | `withGenerationPersistence`, portable snapshots |
-| `inbox` | Inputs a host accepted, one entry per input id. | Your host code |
-| `log` | Append-only session log, with ownership, an input lane, and snapshots. | Your host code |
-| `leases` | Turn leases from a system that already has them. | Your host code |
-| `workClaims` | Claims on threads that have pending work. | Your host code |
+| `log` | Append-only session log, with ownership, an input lane, and snapshots. | A harness host, required |
 | `sessions` | One index entry per thread, for a list of sessions. | `withPersistence` (subagent children), your host code |
 
 Named groupings of the chat stores (`ChatTranscriptStores`, `ChatPersistenceStores`,
@@ -596,62 +593,24 @@ skips `blobs` altogether instead.
 ## Session stores
 
 A host that keeps long-lived sessions needs more than a transcript. It must remember
-the inputs it accepted, the keys a user saved, which host works on which thread, and a
-list of sessions to show. The session stores hold that data.
+the inputs it accepted, the state of each thread, which host works on which thread,
+and a list of sessions to show. Two stores hold that data:
 
-All of them are opt-in. `withPersistence` uses only `sessions`, to index subagent
-children. The other stores are for your host code.
+- `log`: one append-only log per session tree. A harness host needs it.
+- `sessions`: one index entry per thread. `withPersistence` also uses it, to index
+  subagent children.
 
-## InboxStore
-
-A client sends an input, and the host must not lose it in a crash or run it twice.
-Write the input to the inbox before you answer the client. `InboxStore` keeps one
-entry per `inputId`.
-
-```ts
-type InboxStatus = 'pending' | 'applied' | 'rejected'
-
-interface InboxEntry {
-  inputId: string // the idempotency key
-  threadId: string
-  principal?: { id: string; tenantId?: string } // who sent it
-  input: unknown // stored as-is
-  status: InboxStatus
-  createdAt: number // epoch ms
-  expiresAt?: number
-  operationId?: string // the operation that applied it
-  reason?: string // why it was rejected
-}
-
-interface InboxStore {
-  append(entry: Omit<InboxEntry, 'status'>): Promise<InboxEntry>
-  listPending(threadId: string): Promise<Array<InboxEntry>>
-  markApplied(entry: { threadId: string; inputId: string; operationId: string }): Promise<void>
-  markRejected(entry: { threadId: string; inputId: string; reason: string }): Promise<void>
-  get(entry: { threadId: string; inputId: string }): Promise<InboxEntry | null>
-  delete(entry: { threadId: string; inputId: string }): Promise<void>
-}
-```
-
-Rules for an implementation:
-
-- `inputId` is unique across all threads. Let the client send a UUID.
-- `append` stores a new entry as `'pending'`. For an `inputId` that is already
-  stored, it returns the stored entry and ignores the new payload.
-- `listPending` returns the pending entries of one thread, oldest `createdAt` first.
-- `markApplied` and `markRejected` do nothing for an unknown `inputId`.
-- `get` returns `null` for an unknown `inputId`, and for an `inputId` of another
-  thread.
-- `delete` removes the entry. It does nothing for an unknown `inputId`, or for
-  an `inputId` of another thread.
-
-In SQL, make `input_id` the primary key and write with `INSERT ... ON CONFLICT DO
-NOTHING`, then read the row back.
+A harness host keeps the data of each tenant apart. In `log`, `metadata`, and the
+media artifacts, it writes the id of the root thread as
+`logIdOf({ tenantId, logId: threadId })` from `@tanstack/ai-harness`: `acme:thread-1`,
+or `:thread-1` in the default tenant. Keep it as an opaque string. The session index
+is the one store that keeps `tenantId` and `threadId` as two fields.
 
 ## LogStore
 
-A host keeps the events, the transcript, the inputs, and the tool steps of a session
-in one append-only log. With the log, a turn survives a crash. When several machines
+A host keeps the events, the transcript, the inputs, the runs, the interrupts, the
+settings, the plugin state, and the tool steps of a session tree in one append-only
+log. The root thread and its child threads (agent runs and subagents) share it. With the log, a turn survives a crash. When several machines
 serve the sessions, the log also records which host runs each session, and it keeps
 the inputs that any machine accepts. `LogStore` stores all of this.
 
@@ -713,7 +672,7 @@ interface LogStore {
     ownerId: string
     ttlMs: number
     affinity?: string
-  }): Promise<{ epoch: number } | null>
+  }): Promise<{ epoch: number; expired?: boolean } | null>
   renew(claim: {
     logId: string
     ownerId: string
@@ -731,6 +690,7 @@ interface LogStore {
     epoch: number
     affinity: string | null
   }): Promise<void>
+  heartbeat(beat: { hostId: string; ttlMs: number }): Promise<void>
   listOrphaned(query: {
     limit: number
     harnesses?: ReadonlyArray<string>
@@ -760,19 +720,16 @@ interface LogStore {
 }
 ```
 
-`memoryLogStore()` is the reference store. It is not part of `memoryPersistence()`,
-so add it yourself:
+`memoryLogStore()` is the reference store. `memoryPersistence()` includes one. To
+run two store instances on one memory log, as two machines on one database, share a
+`memoryLogBackend()`:
 
 ```ts
-import {
-  defineAIPersistence,
-  memoryLogStore,
-  memoryPersistence,
-} from '@tanstack/ai-persistence'
+import { memoryLogBackend, memoryLogStore } from '@tanstack/ai-persistence'
 
-const persistence = defineAIPersistence({
-  stores: { ...memoryPersistence().stores, log: memoryLogStore() },
-})
+const backend = memoryLogBackend()
+const first = memoryLogStore({ backend })
+const second = memoryLogStore({ backend })
 ```
 
 ### Fence the writes with the epoch
@@ -843,10 +800,14 @@ or a `wakeInMs` less than 0, rejects with `RangeError`.
 
 - It returns `null` when another owner holds a live record: not released, and not
   expired.
-- It returns `null` when the log has an affinity that is not `claim.affinity`.
+- It returns `null` when the log has an affinity that is not `claim.affinity`, and
+  the host of that affinity is alive.
 - For the owner of a live record, it extends the expiry and returns the same epoch.
 - Else it adds 1 to the epoch, stores `harness`, clears the wake time, and returns
   `{ epoch }`.
+- When the record had another owner that did not release, it returns
+  `{ epoch, expired: true }`. That owner stopped. The harness then sends
+  `harness.ownership.changed` with `reason: taken_over`.
 
 For the other ownership methods:
 
@@ -858,9 +819,14 @@ For the other ownership methods:
   does nothing.
 - `setAffinity` pins the log to the workers with that affinity, or unpins it with
   `null`. It is fenced.
+- `heartbeat` marks the host `hostId` alive for `ttlMs` from now. `hostId` is the
+  affinity of its pins. A pin counts only while its host is alive, so the logs of a
+  host that stopped go to other hosts. A host that is alive keeps its pins, also on
+  the logs that it released.
 
-`listOrphaned` finds the logs that have work and no live owner. A worker sweep calls
-it, then calls `acquire` for each log. A log is listed for the first reason that
+`listOrphaned` finds the logs that have work and no live owner. A worker sweep
+([`createHarnessWorker`](../harness/workers) or `host.resumePending`) calls it, then
+calls `acquire` for each log. A log is listed for the first reason that
 applies:
 
 1. `'expired'`: the log is not released, and its expiry is due.
@@ -870,7 +836,8 @@ applies:
 Then:
 
 - With `harnesses`, the store lists only the logs with one of those harness names.
-- A log with an affinity is listed only when the query has the same `affinity`.
+- A log with an affinity is listed only when the query has the same `affinity`, or
+  when the host of the affinity is not alive.
 - The log that is due first comes first, and the store lists at most `limit` logs.
   `limit: 0` returns `[]`.
 
@@ -943,6 +910,11 @@ CREATE TABLE log_owner (
   wake_at TIMESTAMPTZ
 );
 
+CREATE TABLE log_hosts (
+  host_id TEXT PRIMARY KEY,
+  expires_at TIMESTAMPTZ NOT NULL -- the heartbeat expires
+);
+
 CREATE TABLE log_offers (
   id BIGSERIAL PRIMARY KEY, -- the offer order
   log_id TEXT NOT NULL,
@@ -985,6 +957,20 @@ For the other methods:
   only when the rules for `acquire` allow it.
 - Use the database clock (`now()`) for each expiry, wake time, and `offeredAt`. The
   clocks of the hosts can disagree.
+- `heartbeat` is one upsert into `log_hosts`. In `acquire` and `listOrphaned`, an
+  affinity counts only when its row has `expires_at > now()`:
+
+```sql
+INSERT INTO log_hosts (host_id, expires_at)
+VALUES (:host_id, now() + :ttl_ms * interval '1 millisecond')
+ON CONFLICT (host_id) DO UPDATE SET expires_at = EXCLUDED.expires_at;
+
+-- The pin of a log that `acquire` and `listOrphaned` respect.
+SELECT o.affinity FROM log_owner o
+JOIN log_hosts h ON h.host_id = o.affinity AND h.expires_at > now()
+WHERE o.log_id = :log_id;
+```
+
 - Keep the snapshot in one more table, with one row per log.
 - `deleteLog` deletes the rows of the log in the other tables, and resets its
   `log_owner` row: `head = 0`, `first_seq = 1`, `released = TRUE`, and no `wake_at`
@@ -998,152 +984,28 @@ Your store is done when the
 [conformance suite](#check-the-session-stores-with-the-conformance-suite) passes
 with `twin`.
 
-## LeaseStore
-
-Your system can already have leases: a job queue, or a submission table that says
-which worker owns a job. `LeaseStore` lets a host use them for each attempt of a turn.
-
-A host does four things with `leases`:
-
-- It takes a lease when a turn attempt starts.
-- It renews the lease while the attempt runs.
-- It releases the lease after the attempt ends.
-- After a crash, it calls `isAlive` to find attempts that nobody runs any more.
-
-```ts
-interface TurnLeaseKey {
-  threadId: string
-  inputId: string
-  operationId: string // the operation that runs the attempt, also the AG-UI run id
-  attempt: number // 1 for the first run of the input, then 1 more after each crash
-}
-
-interface TurnLease extends TurnLeaseKey {
-  ownerId: string // the host that runs the attempt
-  expiresAt: number // epoch ms
-}
-
-interface LeaseStore {
-  acquire(lease: TurnLease): Promise<void>
-  renew(lease: TurnLease): Promise<void>
-  release(lease: TurnLease): Promise<void>
-  isAlive(key: TurnLeaseKey): Promise<boolean>
-}
-```
-
-Rules for an implementation:
-
-- `isAlive` returns `true` while another host still runs the attempt. That means a
-  lease exists and has not expired.
-- `renew` and `release` for a lease you do not hold can do nothing.
-- Key a lease by input id and attempt. Two attempts of one input are two leases.
-
-`memoryLeaseStore()` is the reference store. It is not part of `memoryPersistence()`, so add it yourself. This store does the same with a `Map`:
-
-```ts
-import type {
-  LeaseStore,
-  TurnLease,
-  TurnLeaseKey,
-} from '@tanstack/ai-persistence'
-
-function createMemoryLeases(): LeaseStore {
-  const leases = new Map<string, TurnLease>()
-  const keyOf = (key: TurnLeaseKey) => `${key.inputId}:${key.attempt}`
-
-  return {
-    acquire: async (lease) => {
-      leases.set(keyOf(lease), lease)
-    },
-    renew: async (lease) => {
-      leases.set(keyOf(lease), lease)
-    },
-    release: async (lease) => {
-      leases.delete(keyOf(lease))
-    },
-    isAlive: async (key) => {
-      const lease = leases.get(keyOf(key))
-      return lease !== undefined && lease.expiresAt >= Date.now()
-    },
-  }
-}
-```
-
-The conformance suite has no `leases` cases. The rules depend on the system that
-issues the leases.
-
-## WorkClaimStore
-
-A host can stop while a thread still has work. Then another host must find that
-thread and finish the work. A host claims a thread while the thread has work, and
-renews the claim. When the host stops, the claim expires. Another host's sweep finds
-the thread with `listExpired` and takes it over with `claim`.
-
-```ts
-interface WorkClaimStore {
-  claim(entry: {
-    threadId: string
-    harness: string // the name of the setup that runs the thread
-    ownerId: string // the host that holds the claim
-    until: number // epoch ms
-  }): Promise<boolean>
-  release(claim: { threadId: string; ownerId: string }): Promise<void>
-  get(threadId: string): Promise<{ ownerId: string; until: number } | null>
-  listExpired(options: {
-    now: number // epoch ms
-    limit?: number
-  }): Promise<Array<{ threadId: string; harness: string }>>
-}
-```
-
-Rules for an implementation:
-
-- `claim` is atomic. Two callers never both get `true` for one thread at one moment.
-- `claim` returns `true` and sets `until` when nobody holds the thread, when
-  `ownerId` already holds it (a renewal), or when the claim expired (a takeover).
-- `claim` returns `false` while another owner holds a claim that has not expired.
-- `release` removes the claim only for its owner. For another `ownerId`, it does
-  nothing.
-- `get` returns the owner and the `until` of the claim, or `null` when no one holds
-  the thread. It can return a claim that expired.
-- `listExpired` returns the claims that expired before `now`, oldest first, at most
-  `limit`. Without `limit`, it returns all of them.
-
-In SQL, one row per thread and a conditional upsert give the atomic rule. The `WHERE`
-clause refuses a live claim of another owner:
-
-```sql
-CREATE TABLE work_claims (
-  thread_id TEXT PRIMARY KEY,
-  harness TEXT NOT NULL,
-  owner_id TEXT NOT NULL,
-  until INTEGER NOT NULL
-);
-
-INSERT INTO work_claims (thread_id, harness, owner_id, until)
-VALUES (:thread_id, :harness, :owner_id, :until)
-ON CONFLICT (thread_id) DO UPDATE
-  SET harness = excluded.harness, owner_id = excluded.owner_id, until = excluded.until
-  WHERE work_claims.owner_id = excluded.owner_id
-     OR work_claims.until <= :now;
-```
-
-The claim is `true` when the statement wrote one row. An index on `until` keeps
-`listExpired` fast.
-
-`memoryPersistence()` includes a memory `workClaims` store. It does not survive a
-restart.
-
 ## SessionIndexStore
 
 Your app shows a list of sessions: the title, the owner, the time of the last change,
 and the token totals. Reading every transcript to build that list is slow.
-`SessionIndexStore` keeps one small entry per thread. The index holds no messages.
-The data of each thread stays in the stores that hold it.
+`SessionIndexStore` keeps one small entry per tenant and thread. The index holds no
+messages. The data of each thread stays in the stores that hold it.
 
 ```ts
-interface SessionIndexEntry {
+interface SessionMember {
+  userId: string
+  role: 'owner' | 'member' | 'viewer' | 'operator'
+}
+
+interface SessionIndexKey {
+  tenantId?: string // without it, the default tenant
   threadId: string
+}
+
+interface SessionIndexEntry {
+  tenantId?: string // with `threadId`, the key of the entry
+  threadId: string
+  members: Array<SessionMember> // the users who can open the thread. The owner has the role `owner`. Empty for a subagent child
   harness?: string // the name of the setup that runs the thread
   title?: string
   parentThreadId?: string // the parent thread. A subagent child's own threadId is `subagent:<runId>`
@@ -1151,7 +1013,6 @@ interface SessionIndexEntry {
   createdAt: number // epoch ms, the first open
   updatedAt: number // epoch ms, the last change
   pinned?: boolean
-  principal?: { id: string; tenantId?: string } // the owner
   usage?: {
     turns: number // model calls
     promptTokens: number
@@ -1165,10 +1026,11 @@ interface SessionIndexEntry {
 }
 
 interface SessionIndexListOptions {
+  tenantId?: string // one tenant per list. Without it, the default tenant
+  memberId?: string // only the entries with this user in `members`
   limit?: number
   cursor?: string
   parentThreadId?: string | null
-  principal?: { id: string; tenantId?: string }
   search?: string
   harness?: string
   metadata?: Record<string, string>
@@ -1181,81 +1043,94 @@ interface SessionIndexPage {
 }
 
 interface SessionIndexStore {
-  upsert(entry: SessionIndexEntry): Promise<void>
-  get(threadId: string): Promise<SessionIndexEntry | undefined>
-  list(options?: SessionIndexListOptions): Promise<SessionIndexPage>
-  delete(threadId: string): Promise<void>
-  // Optional: compare-and-set. Add both, or neither.
-  getVersioned?(
-    threadId: string,
+  get(key: SessionIndexKey): Promise<SessionIndexEntry | undefined>
+  getVersioned(
+    key: SessionIndexKey,
   ): Promise<{ entry: SessionIndexEntry; revision: string } | undefined>
-  upsertIf?(write: {
+  upsert(entry: SessionIndexEntry): Promise<void>
+  upsertIf(input: {
     entry: SessionIndexEntry
-    expectedRevision: string | null
+    revision: string | null
   }): Promise<{ ok: true; revision: string } | { ok: false; reason: 'conflict' }>
+  list(options?: SessionIndexListOptions): Promise<SessionIndexPage>
+  delete(key: SessionIndexKey): Promise<void>
 }
 ```
 
-Rules for `upsert`, `get`, and `delete`:
+The key of an entry is its `tenantId` and its `threadId` together. A key without
+`tenantId` is in the default tenant. So one thread id in two tenants is two entries.
+In SQL, store the default tenant as `''`, and make `(tenant_id, thread_id)` the
+primary key.
 
-- `upsert` replaces the whole entry for `entry.threadId`. A field that the new entry
-  does not have is gone. Do not merge. To change one field, read the entry and write
-  a changed copy.
-- `get` returns `undefined` for an unknown thread, not `null`.
-- `delete` removes the entry only. The messages, the log, and the other data of the
-  thread stay. For an unknown thread, `delete` does nothing.
+Rules for `get`, `upsert`, and `delete`:
+
+- `get` returns `undefined` for an unknown key, not `null`.
+- `upsert` replaces the whole entry for the key of `entry`. A field that the new
+  entry does not have is gone. Do not merge. To change one field, read the entry and
+  write a changed copy with `upsertIf`.
+- Keep `members` as they are written. The host decides what each role can do.
+- `delete` is a hard delete. After it, `get` and `getVersioned` return `undefined`,
+  and `upsertIf` with revision `null` writes a new entry. The messages, the log, and
+  the other data of the thread stay. For an unknown key, `delete` does nothing.
 
 Rules for `list`:
 
+- Return the entries of one tenant only: the `tenantId` of the options, or the
+  default tenant without it. Never return an entry of another tenant.
 - Sort by `updatedAt`, the newest first. Entries with the same `updatedAt` go in
   `threadId` order. `pinned` gets no special place.
+- `memberId` returns only the entries whose `members` have that user id, with any
+  role. A subagent child has no members, so it never matches.
 - `parentThreadId: 'x'` returns only the entries whose parent is `x`. `null` returns
-  only the entries with no parent.
-- `principal` returns only the entries of that owner id. With a `tenantId`, the
-  tenant must match too. An entry without a `principal` never matches.
-- `search` returns only the entries whose `title` contains the text, without case.
-  `harness` and `metadata` match exact strings. All filters must match.
-- With `limit`, when more entries match, return `truncated: true` and a `cursor`. The
-  next call with that `cursor` returns the entries after the last entry of the page.
+  only the entries with no parent. `search` returns only the entries whose `title`
+  contains the text, without case. `harness` and `metadata` match exact strings.
+- All filters must match. With `limit`, when more entries match, return
+  `truncated: true` and a `cursor`. The next call with that `cursor` returns the
+  entries after the last entry of the page.
 
-With `stores.sessions`, `withPersistence` writes an entry for each subagent child. The
-entry has the parent thread, the tool call that started the child, and the owner and
-`harness` of the parent entry.
+With `stores.sessions`, `withPersistence` writes an entry for each subagent child, in
+the tenant of its `tenantId` option. The entry has the parent thread, the tool call
+that started the child, and the `harness` of the parent entry. It has no members:
+access to a child goes through its top-level thread.
 
 ### Keep the writes of several hosts
 
 Two hosts can write one entry at the same time. For example, one host writes the
-usage of a turn while another host writes the pinned files of the app. Without
-`getVersioned` and `upsertIf`, the second write can remove the change of the first.
+usage of a turn while another host writes the pinned files of the app. The host
+changes an entry with `getVersioned` and `upsertIf`, so the second write never removes
+the change of the first. Both methods are required: without them, `createHarnessHost`
+throws.
 
 Rules for `getVersioned` and `upsertIf`:
 
 - `getVersioned` returns the entry and its revision, or `undefined` for an unknown
-  thread. The format of the revision is yours.
+  key. The format of the revision is yours.
 - A write that changes the entry gives it a new revision: `upsert` and `upsertIf`
   both. A revision can be a hash of the content (an ETag of S3 or Netlify Blobs).
   Then the same entry, written again after a `delete`, gets the same revision back.
-- `upsertIf` writes only when the current revision is `expectedRevision`, and returns
-  `{ ok: true, revision }`. Pass `null` to write only when the thread has no entry.
+- `upsertIf` writes only when the current revision of the key is `revision`, and
+  returns `{ ok: true, revision }` with the new revision. Pass `null` to write only
+  when the key has no entry.
 - On any other revision, `upsertIf` writes nothing and returns
   `{ ok: false, reason: 'conflict' }`.
 
 In SQL, keep a revision column. Then:
 
-- For a revision, write with `UPDATE ... WHERE thread_id = ? AND revision = ?`.
-  When no row changed, return a conflict.
+- For a revision, write with
+  `UPDATE ... WHERE tenant_id = ? AND thread_id = ? AND revision = ?`. When no row
+  changed, return a conflict.
 - For `null`, write with `INSERT ... ON CONFLICT DO NOTHING`. When no row was
   added, return a conflict.
 
-`memoryPersistence()` has both methods. Its cursor is `<updatedAt>:<threadId>` of the
+`memoryPersistence()` has every method. Its cursor is `<updatedAt>:<threadId>` of the
 last entry of a page.
 
 ### Check the session stores with the conformance suite
 
-`runPersistenceConformance` runs the cases of `inbox`, `workClaims`,
-`log`, and `sessions` when your persistence has that store. A persistence without one
-needs no `skip` entry for it. The compare-and-set cases run only when `sessions` has
-`getVersioned` and `upsertIf`.
+`runPersistenceConformance` runs the cases of `log` and `sessions` when your
+persistence has that store. A persistence without one
+needs no `skip` entry for it. The `sessions` cases also check the tenants, the
+`memberId` filter, the hard delete, and compare-and-set.
 
 To check one session store alone, skip the stores that the suite reads by default:
 
@@ -1380,8 +1255,7 @@ erDiagram
 Each store has a `define*Store` helper (`defineMessageStore`,
 `defineRunStore`, `defineInterruptStore`, `defineMetadataStore`,
 `defineActivityStore`, `defineGenerationRunStore`, `defineArtifactStore`,
-`defineBlobStore`, `defineInboxStore`, `defineLogStore`,
-`defineWorkClaimStore`, `defineSessionIndexStore`, `defineLeaseStore`). They compose into `defineAIPersistence`, which tracks
+`defineBlobStore`, `defineLogStore`, `defineSessionIndexStore`). They compose into `defineAIPersistence`, which tracks
 exact presence: the stores you passed autocomplete on `persistence.stores`, and
 reading one you did not pass is a compile error.
 
@@ -1399,4 +1273,4 @@ To annotate the value instead, use a named shape:
 
 - [Build a chat adapter](./build-your-own-chat-adapter): these contracts implemented against SQLite.
 - [Build a generation adapter](./build-your-own-generation-adapter): the generation half.
-- [Build your own adapter](./build-your-own-adapter#verify-with-the-conformance-suite): check an implementation against the conformance suite.
+- [Build your own adapter](./build-your-own-adapter#prove-it-with-the-conformance-suite): check an implementation against the conformance suite.

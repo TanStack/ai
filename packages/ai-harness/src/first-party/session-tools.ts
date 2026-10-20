@@ -1,4 +1,3 @@
-import { chat } from '@tanstack/ai'
 import { defineCommand } from '../commands'
 import { definePlugin } from '../plugins'
 import { emptyUsage } from '../usage'
@@ -46,7 +45,8 @@ export function compact(options: {
       commands: {
         compact: defineCommand({
           description: 'Summarize the conversation to save tokens',
-          run: async () => {
+          // The summary call uses the key of the user who runs `/compact`.
+          run: async (_input, { run }) => {
             const messages = await ctx.session.transcript()
             const keep = options.keepLast ?? 0
             if (messages.length <= keep + 2)
@@ -58,12 +58,18 @@ export function compact(options: {
             if (cut < 2) return 'The conversation is already short.'
             const older = messages.slice(0, cut)
             const transcript = transcriptText(older)
-            const { text: summary } = await chat({
-              adapter: await ctx.keys.adapter(options.adapter),
-              messages: [
-                { role: 'user', content: `${SUMMARY_PROMPT}\n\n${transcript}` },
-              ],
-              stream: false,
+            const { text: summary } = await ctx.model.chat({
+              adapter: options.adapter,
+              run,
+              label: 'compact',
+              options: {
+                messages: [
+                  {
+                    role: 'user',
+                    content: `${SUMMARY_PROMPT}\n\n${transcript}`,
+                  },
+                ],
+              },
             })
             // An empty summary would replace the history with nothing.
             if (!summary.trim()) {
@@ -220,7 +226,7 @@ export function usage(
       // The host writes the token totals to the index entry at the end of
       // each turn. This plugin writes only `cost`, and keeps the tokens of
       // the entry.
-      // ponytail: a host with a log counts a call when its log write lands,
+      // ponytail: the host counts a call when its log write lands,
       // which can be after the run ends. Then the entry and the state get
       // that call at the end of the next run or call. Upgrade: the host
       // writes the cost at turn end.

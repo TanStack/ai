@@ -27,7 +27,7 @@ const asker = definePlugin({
     commands: {
       confirm: defineCommand({
         description: 'Asks, then returns the answer',
-        run: () => ctx.session.ask({ message: 'Go on?' }),
+        run: (_input, { step }) => step.ask({ name: 'go', message: 'Go on?' }),
       }),
       connect: defineCommand({
         description: 'Needs a sign-in',
@@ -47,7 +47,9 @@ async function open() {
       adapter: mockAdapter([() => withUsage(text('hi'))]).adapter,
       plugins: () => [asker],
     }),
-    { threadId: 't' },
+    {
+      threadId: 't',
+    },
   )
   return { host, session }
 }
@@ -60,7 +62,7 @@ describe('session event hooks', () => {
       expect(operationId).toBeTruthy()
       return session.answer({ questionId: question.questionId, value: 'yes' })
     })
-    await expect(session.command('confirm')).resolves.toBe('yes')
+    await expect(session.command({ name: 'confirm' })).resolves.toBe('yes')
     stop()
     await host.close()
   })
@@ -69,7 +71,7 @@ describe('session event hooks', () => {
     const { host, session } = await open()
     const seen: Array<AuthRequest> = []
     session.onAuthRequired(({ operationId: _, ...auth }) => seen.push(auth))
-    await session.command('connect')
+    await session.command({ name: 'connect' })
     expect(seen).toEqual([{ connector: 'github', userCode: 'AB-12' }])
     await host.close()
   })

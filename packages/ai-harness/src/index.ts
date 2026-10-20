@@ -6,6 +6,7 @@ export type {
   HarnessDefinition,
   HarnessDurability,
   HarnessRouterContext,
+  HarnessRouterPick,
   HarnessRouting,
   HarnessSubagents,
   HarnessToolInput,
@@ -24,35 +25,41 @@ export { durableTool } from './durable-tool'
 export type {
   DurableToolContext,
   DurableToolOptions,
+  StepRun,
   ToolStep,
 } from './durable-tool'
 
-export { LogVersionError, logMessageStore } from './log'
-export type { ProjectOptions, ProjectRecord, ReduceOptions } from './log'
-export type { LeaseOptions } from './resume'
+export { LogVersionError, logIdOf, logMessageStore } from './log'
+export { LogOwnedElsewhereError } from './ownership'
 export type {
-  LeaseStore,
-  TurnLease,
-  TurnLeaseKey,
-} from '@tanstack/ai-persistence'
+  LogRecordRetention,
+  ProjectOptions,
+  ProjectRecord,
+  ReduceOptions,
+  SnapshotTiming,
+} from './log'
+export type { OwnershipOptions } from './ownership'
 
 export { definePlugin } from './plugins'
 export type {
   HarnessPlugin,
+  HostPluginContext,
+  HostPluginContributions,
+  HostPluginDefinition,
   PluginContributions,
   PluginDefinition,
+  PluginResources,
   PluginLifetime,
   PluginPrompt,
-  AgentGroup,
-  PluginAgentActions,
   PluginCommands,
   PluginSetupContext,
   PluginState,
+  SessionPluginDefinition,
 } from './plugins'
 
 export { createExtensionPoint, createPluginEvent } from './extensions'
-// Portable (no Node imports), so edge-safe plugins such as code mode can read
-// the permission rules and resources without the Node-only `./plugins` entry.
+// Portable (no Node imports), so plugins such as code mode can read the
+// permission rules and resources from the root.
 export {
   PermissionDecisionCapability,
   PermissionResources,
@@ -85,49 +92,82 @@ export { AuthRequiredError, scrubSecrets } from './auth'
 export type { CredentialsAccess } from './auth'
 
 export type {
+  AgentActions,
+  AgentCall,
+  AgentGroup,
+  AgentGroupOptions,
   AgentInputOf,
   AgentRegistryView,
   AgentResultOf,
-  AgentStarter,
+  AgentSettled,
   AnyAgent,
   HarnessAgentContext,
 } from './agents'
+export type { HandoffOptions } from './handoff'
+export type { HumanTarget } from './log-records'
 
 export { createHarnessHost } from './host'
+export { createHarnessWorker } from './harness-worker'
+export type { HarnessWorkerPoolOptions } from './harness-worker'
 export type {
   ForkSessionOptions,
   HarnessHost,
   HarnessHostOptions,
   HarnessPersistence,
   HostEvent,
+  HostLifecycleOptions,
+  HostRevokedEvent,
   HostSessionDeletedEvent,
   HostSessionEvent,
   HostSessions,
   HostStatusEvent,
+  HostTransferredEvent,
   OpenSessionOptions,
+  ResumedThread,
   ResumePendingOptions,
+  RetentionLimits,
+  SubmitInput,
+  SubmitOptions,
 } from './host'
+export { AccessDeniedError, membersOnly } from './access'
+export type {
+  AccessAction,
+  AccessMembers,
+  AccessPolicy,
+  AccessRun,
+  AccessSession,
+  AccessWait,
+  Authorize,
+  AuthorizeInput,
+  HarnessAccess,
+  MembersOnlyOptions,
+} from './access'
 export type {
   SessionIndexEntry,
   SessionIndexListOptions,
   SessionIndexPage,
   SessionIndexStore,
+  SessionMember,
 } from '@tanstack/ai-persistence'
 
-export { HarnessSession } from './session/index'
 export type {
+  HarnessSession,
   AgentHandle,
   AgentHandles,
+  AgentModelErrorContext,
   AgentRunInfo,
   AgentRunOptions,
   AgentStartOptions,
   DynamicAgentHandle,
+  ScheduleOptions,
   SessionDescription,
   SessionInspection,
   SessionSnapshot,
 } from './session/index'
+export type { ObservedSession } from './session/observed-session'
 export type { SessionUsage, UsageCounts } from './usage'
 export type { OnHarnessEvent } from './feed'
+export type { ObservabilityOptions, OperationReport } from './observability'
 
 export type {
   FinishContext,
@@ -150,8 +190,12 @@ export type {
   BusyPolicy,
   ChatTurnResult,
   Cursor,
+  EventGap,
   ForkPoint,
+  HandoffEnvelope,
+  HarnessEventValues,
   HarnessInput,
+  HarnessRunContext,
   InputSettlement,
   LiveEvent,
   MediaKind,
@@ -163,12 +207,16 @@ export type {
   PendingQuestion,
   Principal,
   Receipt,
+  RunContext,
+  RunNode,
   SendOptions,
   SessionEvent,
   StreamChunkOf,
   StreamChunkType,
   ThreadSettings,
   ThreadSettingsChange,
+  TransferOptions,
+  TransferResult,
   TurnInfo,
   TurnOverrides,
   UsageUpdate,
@@ -176,50 +224,11 @@ export type {
   WaitingInput,
 } from './types'
 
-export {
-  MEDIA_URL_PREFIX,
-  isMediaRecord,
-  kindOf,
-  mediaIdOf,
-  mediaOfMessage,
-  mediaPart,
-  mimeTypeOf,
-} from './media-ref'
-
-export { MediaError } from './media'
-export type { MediaOptions } from './media'
-
-export {
-  HARNESS_PROTOCOL_VERSION,
-  applyInput,
-  capabilitiesOf,
-  parseControlFrame,
-  parseHarnessInput,
-} from './protocol'
-export type { ControlFrame, HostFrame } from './protocol'
-
-export { createHarnessHandler, handleHarnessSocket } from './http'
-export type {
-  Authorize,
-  CanAccess,
-  HarnessHandlerOptions,
-  HarnessSocketOptions,
-} from './http'
+export { isApproval, waitKind, waitOfInterrupt, waitOfQuestion } from './waits'
+export type { PendingWait, Wait, WaitKind, WaitOutcome } from './waits'
 
 export { harnessText } from './harness-text'
 export type { HarnessTextOptions, RemoteHarness } from './harness-text'
-
-export {
-  buildAuthorizationUrl,
-  createPkce,
-  deviceLogin,
-  exchangeCode,
-  isExpired,
-  loopbackLogin,
-  refreshCredential,
-  startLoopbackReceiver,
-} from './oauth'
-export type { OAuthConfig } from './oauth'
 
 export { oauthConnector } from './connectors'
 export type { OAuthConnectorOptions } from './connectors'

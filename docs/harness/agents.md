@@ -21,7 +21,8 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { toolDefinition } from '@tanstack/ai'
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
-import { agents, permissions } from '@tanstack/ai-harness/plugins'
+import { permissions } from '@tanstack/ai-harness/plugins'
+import { agents } from '@tanstack/ai-harness/plugins/node'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { z } from 'zod'
@@ -63,18 +64,18 @@ const coder = defineHarness({
 const host = createHarnessHost({ persistence: memoryPersistence() })
 const session = await host.open(coder, { threadId: 'dark-mode' })
 
-await session.command('agent', 'plan')
+await session.command({ name: 'agent', input: 'plan' })
 const plan = await session.send('How do I add a dark mode?')
 console.log(plan.text)
 
-await session.command('agent', 'build')
+await session.command({ name: 'agent', input: 'build' })
 await session.send('Do step 1.')
 ```
 
 1. The `plan` agent reads the code and gives numbered steps. It has no tool that changes a file.
 2. The `build` agent changes the files, after your answer to each [permission question](./permissions).
 
-- `session.command('agent')` with no input shows the current agent and the list: `Agent: build. Agents: build, plan.`
+- `session.command({ name: 'agent' })` with no input shows the current agent and the list: `Agent: build. Agents: build, plan.`
 - A switch applies at the next turn.
 
 The same switch is the `agent` setting. `session.describe().config` lists its options for a menu:
@@ -115,7 +116,7 @@ Give `agents()` a profile. This one reviews the changes with a stronger model:
 
 ```ts group=harness-agents
 import type { AnyTextAdapter } from '@tanstack/ai'
-import type { AgentProfile } from '@tanstack/ai-harness/plugins'
+import type { AgentProfile } from '@tanstack/ai-harness/plugins/node'
 
 const review: AgentProfile = {
   name: 'review',
@@ -142,10 +143,10 @@ export const withReview = agents({
 
 | Field | What it does |
 | --- | --- |
-| `model` | A model id. `adapter` turns it into an adapter. Without it, a primary agent keeps the harness model, and a subagent uses the model of the main turn. |
+| `model` | A model id. `adapter` turns it into an adapter. Without it, a primary agent keeps the harness model, and a subagent uses the model of the turn that started it. |
 | `system` | Text for the system prompt of each turn of this agent. |
 | `tools` | The tools that this agent can call, by name. A `*` matches any text, for example `todo_*`. Without it, the agent gets every tool. |
-| `permissions` | [Permission rules](./permissions#write-rules) that count while this agent is the primary agent. |
+| `permissions` | [Permission rules](./permissions#write-rules) that count while this agent is the primary agent. At that time, they also apply in each subagent run. |
 | `steps` | The step limit. See [Limit the steps](#limit-the-steps). |
 | `hidden` | `true` leaves the agent out of the `agent` command and setting. The model can still start it as a subagent. |
 
@@ -207,19 +208,20 @@ A profile with the mode `subagent` or `all` is also a subagent. The main model g
 
 A subagent run gets these parts of its profile:
 
-- The tools of the last main turn, filtered by its `tools`.
+- The tools of the turn that started it, filtered by its `tools`.
 - Its `system` prompt.
-- Its `model`, or the model of the main turn.
+- Its `model`, or the model of the turn that started it.
 - Its step limit.
 
-A subagent run stops after 50 model calls, or when an answer is cut at the output limit. The harness also limits the depth and the number of children. See [Stay within limits](./subagents#stay-within-limits).
+A subagent run stops after 50 model calls, or when an answer is cut at the output limit. The harness also limits the depth and the number of children. See [Stay within limits](./subagents#stay-within-limits). To give one run from code its own budget and time limit, see [Give one run a budget and a time limit](./subagents#give-one-run-a-budget-and-a-time-limit).
 
 ## Known limits
 
-- The `permissions` of a profile count only while it is the primary agent. When the profile runs as a subagent, its own rules do not apply. Put rules that must hold in every run in `permissions({ rules })`. See [Rules in subagents](./permissions#rules-in-subagents).
+- A subagent run uses the `permissions` of the primary agent, not the rules of its own profile. For example, when `build` is the primary agent and starts `review`, the `build` rules apply and the `review` rules do not. Put rules that must hold in every run in `permissions({ rules })`. See [Rules in subagents](./permissions#rules-in-subagents).
 - A Markdown agent cannot set `permissions`. Put those rules in a profile in code.
 - On Amazon Bedrock, the model can still call a tool on the last call. The tool does not run, but the turn can end with no text answer.
-- A subagent that starts before the first turn of the session has no tools. It also needs its own `model`.
+- A subagent run gets the tools and the model of its turn from the memory of the host that ran that turn. On another host, or after a restart, the run fails with `Agent <name> cannot go on here`. Start it again from a turn.
+- A subagent run that your code starts, not a turn, has no tools of a turn. Give its profile a `model`.
 
 ## What you have now
 

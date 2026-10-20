@@ -38,7 +38,7 @@ const session = await host.open(coder, { threadId: 'fix-tests' })
 ## 2. Give it a goal
 
 ```ts group=harness-goal
-await session.command('goal', 'all tests pass')
+await session.command({ name: 'goal', input: 'all tests pass' })
 ```
 
 The first turn starts. Each new turn tells the model the reason of the last check:
@@ -47,7 +47,9 @@ The first turn starts. Each new turn tells the model the reason of the last chec
 Keep working on the goal: all tests pass. Last check: The date parser test still fails.
 ```
 
-Run `session.command('goal')` to see the result:
+Each new turn runs as the user who set the goal. In a [shared thread](./shared-threads), the goal uses that user's credentials and keys, not the ones of the last person who wrote.
+
+Run `session.command({ name: 'goal' })` to see the result:
 
 ```text
 Goal: all tests pass

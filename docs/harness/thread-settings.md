@@ -41,18 +41,20 @@ const host = createHarnessHost({ persistence: memoryPersistence() })
 const session = await host.open(assistant, { threadId: 'review-thread' })
 
 const receipt = await session.configure({
-  model: 'strong',
-  reasoning: 'high',
-  instructions: 'Answer in French.',
+  settings: {
+    model: 'strong',
+    reasoning: 'high',
+    instructions: 'Answer in French.',
+  },
 })
 console.log(receipt.status) // 'accepted'
 console.log(session.settings()) // { model: 'strong', reasoning: 'high', instructions: 'Answer in French.' }
 ```
 
-The settings apply from the next turn. A field that you leave out stays as it is. Set a field to `null` to clear it:
+The settings apply from the next turn. A field that you leave out stays as it is. `configure` merges your fields into the latest stored settings, also when another host changed them. Set a field to `null` to clear it:
 
 ```ts group=harness-thread-settings
-await session.configure({ instructions: null })
+await session.configure({ settings: { instructions: null } })
 ```
 
 The six fields:
@@ -68,7 +70,7 @@ The six fields:
 
 An unknown field, model, or plugin, or a bad value, gets a receipt with `status: 'rejected'` and the reason. `stores.metadata` keeps the settings, so they stay after a restart. Without a metadata store, they stay in memory. A [fork](./fork-and-reset) copies them.
 
-`configure` is an input, so the log keeps who changed what. Each change sends a `harness.settings.changed` event with the new `settings`.
+`configure` is an input, so the log keeps who changed what. Each change sends a `harness.settings.changed` event with the new `settings`. A session on another host reads the change too, so its next turn uses the new settings.
 
 A client can change only the fields in `expose.settings` of the harness. See [Choose what clients can change](./connect#choose-what-clients-can-change).
 
@@ -81,7 +83,7 @@ const { models, settings } = session.describe()
 console.log(models) // ['fast', 'strong']
 console.log(settings.model) // 'strong'
 
-await session.configure({ model: 'fast' })
+await session.configure({ settings: { model: 'fast' } })
 ```
 
 ## What wins
@@ -99,8 +101,9 @@ For `reasoning`, the `overrides` of the prompt win, then the stored setting, the
 
 - A `tools` list keeps only the tools with those names. `{ remove }` drops the tools with those names. Either way, the tools of the prompt `overrides` stay.
 - The harness applies `tools` before the plugins prepare the tool list (`prepareTools`). So a plugin that wraps tools sees only the tools that a thread keeps.
-- `plugins: { remove }` leaves the tools, prompts, middleware, and model pick of those plugins out of the turn. Plugins that run once per session stay mounted.
-- The agents and subagents that a removed plugin gives stay available.
+- `plugins: { remove }` leaves everything that those plugins give out of the thread: tools, prompts, middleware, the model pick, agents, subagents, commands, and the items that they add for other plugins. For example, a thread without `agents()` gets no subagent tools, no `/agent` command, and no permission rules of its agent profiles. The thread also cannot run an agent of a removed plugin by its name.
+- Plugins that run once per session stay mounted, but they give the thread nothing.
+- If a plugin that stays (of any lifetime) or a harness `middleware` entry needs a capability of a removed plugin, the setting is rejected.
 
 ## The working folder
 
@@ -108,7 +111,7 @@ For `reasoning`, the `overrides` of the prompt win, then the stored setting, the
 
 ```ts group=harness-thread-settings
 const task = await host.open(assistant, { threadId: 'fix-login' })
-await task.configure({ cwd: 'web-app' })
+await task.configure({ settings: { cwd: 'web-app' } })
 console.log(task.settings().cwd) // 'web-app'
 ```
 
@@ -119,7 +122,7 @@ When `cwd` changes, the model gets a short note before its next call. So it stop
 - The same `cwd` again adds no note.
 - A thread with no messages yet gets no note.
 
-The note is an assistant message in the transcript, so it stays after a restart. A change while a turn runs adds the note before the next turn. On a durable host (one with `stores.log`), the log keeps that waiting note, and the next host adds it once after a crash. Without `stores.log`, a crash loses a note that waits.
+The note is an assistant message in the transcript, so it stays after a restart. A change while a turn runs adds the note before the next turn. The log keeps that waiting note, and the next host adds it once after a crash.
 
 ## What you have now
 

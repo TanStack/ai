@@ -30,6 +30,18 @@
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
     },
+    "./server": {
+      "types": "./dist/esm/server.d.ts",
+      "import": "./dist/esm/server.js"
+    },
+    "./oauth": {
+      "types": "./dist/esm/oauth.d.ts",
+      "import": "./dist/esm/oauth.js"
+    },
+    "./media": {
+      "types": "./dist/esm/media-entry.d.ts",
+      "import": "./dist/esm/media-entry.js"
+    },
     "./client": {
       "types": "./dist/esm/client.d.ts",
       "import": "./dist/esm/client.js"
@@ -50,6 +62,10 @@
       "types": "./dist/esm/first-party/index.d.ts",
       "import": "./dist/esm/first-party/index.js"
     },
+    "./plugins/node": {
+      "types": "./dist/esm/first-party/node.d.ts",
+      "import": "./dist/esm/first-party/node.js"
+    },
     "./plugins/coding": {
       "types": "./dist/esm/first-party/coding/index.d.ts",
       "import": "./dist/esm/first-party/coding/index.js"
@@ -67,9 +83,11 @@
     "test:types": "tsc"
   },
   "dependencies": {
+    "@tanstack/ai-utils": "workspace:^",
     "@tanstack/store": "^0.11.1"
   },
   "devDependencies": {
+    "@opentelemetry/api": "^1.9.0",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
     "@vitest/coverage-v8": "4.1.10",
@@ -78,12 +96,16 @@
     "zod": "^4.2.0"
   },
   "peerDependencies": {
+    "@opentelemetry/api": ">=1.9.0",
     "@tanstack/ai": "workspace:^",
     "@tanstack/ai-persistence": "workspace:^",
     "@vscode/ripgrep": "^1.15.0",
     "turndown": "^7.2.0"
   },
   "peerDependenciesMeta": {
+    "@opentelemetry/api": {
+      "optional": true
+    },
     "@vscode/ripgrep": {
       "optional": true
     },

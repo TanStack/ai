@@ -2,13 +2,29 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
-import { gate, messageTexts, mockAdapter, text, toolCall } from './helpers'
+import { createHarnessHost, defineHarness, logIdOf } from '../src'
+import {
+  canOtherHostTake,
+  gate,
+  messageTexts,
+  mockAdapter,
+  storedRun,
+  text,
+  toolCall,
+} from './helpers'
 import type { AnyTool, SubagentRouterPick } from '@tanstack/ai'
-import type { AnyAgent, HarnessSession } from '../src'
+import type { AnyAgent, HarnessSession, OwnershipOptions } from '../src'
 import type { Reply } from './helpers'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 const THREAD = 't1'
+/** The id of the log of `THREAD` in the store. */
+const LOG = logIdOf({ logId: THREAD })
 
 /** The writer agent. It keeps the messages of each run and answers `Draft <n>`. */
 function writerAgent() {
@@ -43,9 +59,9 @@ async function approveFirst(
 ) {
   const interrupt = turn.interrupts?.[0]
   if (!interrupt) throw new Error('The turn has no interrupt.')
-  const receipt = await session.resolve([
-    { interruptId: interrupt.id, status: 'resolved', payload: true },
-  ])
+  const receipt = await session.resolve({
+    resume: [{ interruptId: interrupt.id, status: 'resolved', payload: true }],
+  })
   const resumed = session.operation(receipt.operationId ?? '')
   if (!resumed) throw new Error('The resolve started no turn.')
   return resumed
@@ -53,26 +69,23 @@ async function approveFirst(
 
 /**
  * A session whose `subagents.router` always returns `pick`. The router keeps
- * the messages of each call. `durable` gives the host a log.
+ * the messages of each call.
  */
 async function openRouted(options: {
-  durable: boolean
   agent: AnyAgent
   pick: SubagentRouterPick
   replies?: Array<Reply>
-  lease?: { renewMs?: number; ttlMs?: number }
+  ownership?: OwnershipOptions
   tools?: ReadonlyArray<AnyTool>
 }) {
-  const { stores } = memoryPersistence()
-  const { runs, metadata } = stores
-  const persistence = options.durable
-    ? { stores: { log: memoryLogStore(), runs, metadata } }
-    : { stores }
+  const { metadata } = memoryPersistence().stores
+  const log = memoryLogStore()
+  const persistence = { stores: { log, metadata } }
   const main = mockAdapter(options.replies ?? [])
   const routerSaw: Array<Array<string>> = []
   const host = createHarnessHost({
     persistence,
-    ...(options.lease ? { lease: options.lease } : {}),
+    ...(options.ownership ? { ownership: options.ownership } : {}),
   })
   const session = await host.open(
     defineHarness({
@@ -87,19 +100,17 @@ async function openRouted(options: {
         },
       },
     }),
-    { threadId: THREAD },
+    {
+      threadId: THREAD,
+    },
   )
-  return { host, session, runs, routerSaw, calls: main.calls }
+  return { host, session, log, routerSaw, calls: main.calls }
 }
 
-describe.each([
-  { host: 'a host without a log', durable: false },
-  { host: 'a durable host', durable: true },
-])('subagents.router on $host', ({ durable }) => {
+describe('subagents.router', () => {
   it('gives the router the earlier turns', async () => {
     const { agent } = writerAgent()
     const { host, session, routerSaw } = await openRouted({
-      durable,
       agent,
       pick: 'writer',
     })
@@ -115,7 +126,6 @@ describe.each([
   it('gives a routed agent the earlier turns, and saves each message once', async () => {
     const { agent, seen } = writerAgent()
     const { host, session } = await openRouted({
-      durable,
       agent,
       pick: 'writer',
     })
@@ -134,7 +144,6 @@ describe.each([
   it('returns the text of the routed agent', async () => {
     const { agent } = writerAgent()
     const { host, session, calls } = await openRouted({
-      durable,
       agent,
       pick: 'writer',
     })
@@ -147,7 +156,6 @@ describe.each([
   it("runs the main model when the router returns 'main'", async () => {
     const { agent, seen } = writerAgent()
     const { host, session, calls } = await openRouted({
-      durable,
       agent,
       pick: 'main',
       replies: [() => text('Main 1'), () => text('Main 2')],
@@ -160,7 +168,7 @@ describe.each([
     await host.close()
   })
 
-  it('holds a run lease while a routed agent runs', async () => {
+  it('keeps the thread from other hosts while a routed agent runs', async () => {
     const started = gate()
     const release = gate()
     const agent = defineAgent({
@@ -172,36 +180,39 @@ describe.each([
         return 'Done.'
       },
     })
-    const { host, session, runs } = await openRouted({
-      durable,
+    const { host, session, log } = await openRouted({
       agent,
       pick: 'writer',
     })
     const turn = session.send('go')
     await started.opened
-    const running = await runs.get(turn.id)
-    expect(running?.leaseOwner).toMatch(/^host-/)
-    expect(running?.leaseExpiresAt).toBeGreaterThan(Date.now())
+    expect((await storedRun(log, { threadId: THREAD }, turn.id))?.status).toBe(
+      'running',
+    )
+    expect(await canOtherHostTake(log, LOG)).toBe(false)
     release.open()
     expect((await turn).text).toBe('writer:\nDone.')
     await host.close()
   })
 
-  it('stops the run lease when the turn ends', async () => {
+  it('gives the thread back when the turn ends', async () => {
     const { agent } = writerAgent()
-    const { host, session, runs } = await openRouted({
-      durable,
+    const { host, session, log } = await openRouted({
       agent,
       pick: 'writer',
-      lease: { renewMs: 5 },
+      ownership: { renewMs: 5 },
     })
-    const turn = session.send('go')
-    await turn
-    const ended = (await runs.get(turn.id))?.leaseExpiresAt
-    expect(ended).toBeTypeOf('number')
-    // A lease that still renews moves forward within a few renewals.
+    const renew = vi.spyOn(log, 'renew')
+
+    await session.send('go')
+
+    await waitFor(async () =>
+      expect(await canOtherHostTake(log, LOG)).toBe(true),
+    )
+    const renewals = renew.mock.calls.length
+    // A renewal that still runs would show within a few ticks.
     await new Promise((resolve) => setTimeout(resolve, 50))
-    expect((await runs.get(turn.id))?.leaseExpiresAt).toBe(ended)
+    expect(renew).toHaveBeenCalledTimes(renewals)
     await host.close()
   })
 
@@ -217,7 +228,6 @@ describe.each([
       run: (ctx) => ctx.chat({ adapter: child.adapter, tools: [remove.tool] }),
     })
     const { host, session, routerSaw, calls } = await openRouted({
-      durable,
       agent,
       pick: 'cleaner',
     })
@@ -240,7 +250,6 @@ describe.each([
     const remove = removeTool()
     const { agent } = writerAgent()
     const { host, session, calls } = await openRouted({
-      durable,
       agent,
       pick: 'main',
       tools: [remove.tool],

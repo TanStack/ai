@@ -567,9 +567,12 @@ import { maskKey } from "@tanstack/ai/byok";
 maskKey("sk-abcdefghij"); // "ghij"
 ```
 
-## `scrubSecrets(input, secrets)`
+## `scrubSecrets(text, secrets)`
 
-Replace each listed secret in `input` with `[redacted]`. Use this before you log an error string.
+Replace each listed secret in `text` with `[redacted]`. Use this before you log an error string.
+
+- It also replaces the JSON-escaped and the URL-encoded form of each secret.
+- It skips a secret shorter than 6 characters, so a short value does not remove common words.
 
 ```typescript
 import { scrubSecrets } from "@tanstack/ai/byok";

@@ -6,7 +6,7 @@ import {
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness, logIdOf } from '../src'
 import {
   after,
   gate,
@@ -18,12 +18,13 @@ import {
 import type { AnyChatMiddleware } from '@tanstack/ai'
 import type { Reply } from './helpers'
 
-/** The stores of a host without a log, or of a durable host. */
-function persistenceFor(durable: boolean) {
-  const { stores } = memoryPersistence()
-  if (!durable) return { stores }
-  const { runs, metadata } = stores
-  return { stores: { log: memoryLogStore(), runs, metadata } }
+/**
+ * A log and metadata: a host that opens the thread after another one
+ * closed takes it at once, as after a restart.
+ */
+function persistenceFor() {
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log: memoryLogStore(), metadata } }
 }
 
 const contents = (messages: ReadonlyArray<{ content: unknown }>) =>
@@ -33,13 +34,10 @@ const contents = (messages: ReadonlyArray<{ content: unknown }>) =>
       : JSON.stringify(message.content),
   )
 
-describe.each([
-  { host: 'a host without a log', durable: false },
-  { host: 'a durable host', durable: true },
-])('reset on $host', ({ durable }) => {
+describe('reset', () => {
   async function open(replies: Array<Reply>, extra = {}) {
     const { adapter, calls } = mockAdapter(replies)
-    const persistence = persistenceFor(durable)
+    const persistence = persistenceFor()
     const host = createHarnessHost({ persistence })
     const harness = defineHarness({ name: 'test/reset', adapter, ...extra })
     const session = await host.open(harness, { threadId: 't1' })
@@ -52,11 +50,14 @@ describe.each([
       () => text('Two.'),
     ])
     await session.send('First.')
-    const receipt = await session.reset('We agreed on plan B.', {
+    const receipt = await session.reset({
+      note: 'We agreed on plan B.',
       inputId: 'r1',
     })
     expect(receipt).toMatchObject({ status: 'accepted' })
-    expect(await session.settled('r1')).toMatchObject({ outcome: 'completed' })
+    expect(await session.settled({ inputId: 'r1' })).toMatchObject({
+      outcome: 'completed',
+    })
     await session.send('Second.')
 
     expect(messageTexts(calls[1])).toEqual(['We agreed on plan B.', 'Second.'])
@@ -105,7 +106,7 @@ describe.each([
       () => text('Four.'),
     ])
     await session.send('First.')
-    await session.reset('Note.')
+    await session.reset({ note: 'Note.' })
     await session.send('Second.')
     await session.send('Third.')
     await session.send('Fourth.')
@@ -135,7 +136,7 @@ describe.each([
     const first = session.send('First.')
     // Queued while the first turn runs, before the reset.
     const second = session.send('Second.')
-    const receipt = await session.reset('Note.')
+    const receipt = await session.reset({ note: 'Note.' })
     expect(receipt).toMatchObject({ status: 'queued' })
     release.open()
     await Promise.all([first, second])
@@ -170,7 +171,7 @@ describe.each([
       { tools: [lookup] },
     )
     await session.send('First.')
-    await session.reset('Note.')
+    await session.reset({ note: 'Note.' })
     const turn = session.send('Second.')
     await started.opened
     // Joins at the model call after the tool.
@@ -203,7 +204,7 @@ describe.each([
       { middleware: [watch] },
     )
     await session.send('First.')
-    await session.reset('Note.')
+    await session.reset({ note: 'Note.' })
     await session.send('Second.')
 
     expect(seen.at(-1)).toEqual(['Note.', 'Second.'])
@@ -213,12 +214,16 @@ describe.each([
   it('runs once for the same inputId and refuses another note', async () => {
     const { session, host } = await open([() => text('One.')])
     await session.send('First.')
-    await session.reset('Note.', { inputId: 'r1' })
-    await session.settled('r1')
-    expect(await session.reset('Note.', { inputId: 'r1' })).toMatchObject({
-      status: 'accepted',
-    })
-    expect(await session.reset('Other.', { inputId: 'r1' })).toMatchObject({
+    await session.reset({ note: 'Note.', inputId: 'r1' })
+    await session.settled({ inputId: 'r1' })
+    expect(await session.reset({ note: 'Note.', inputId: 'r1' })).toMatchObject(
+      {
+        status: 'accepted',
+      },
+    )
+    expect(
+      await session.reset({ note: 'Other.', inputId: 'r1' }),
+    ).toMatchObject({
       status: 'rejected',
       reason: 'conflict',
     })
@@ -240,7 +245,7 @@ describe.each([
       tools: [deploy],
     })
     await session.send('Deploy.')
-    expect(await session.reset('Note.')).toMatchObject({
+    expect(await session.reset({ note: 'Note.' })).toMatchObject({
       status: 'rejected',
       reason: 'pending_interrupts',
     })
@@ -248,25 +253,29 @@ describe.each([
   })
 })
 
-describe('reset on a durable host', () => {
+describe('reset after a restart', () => {
   it('keeps the cut context after a restart', async () => {
-    const persistence = persistenceFor(true)
+    const persistence = persistenceFor()
     const first = mockAdapter([() => text('One.')])
     const hostA = createHarnessHost({ persistence })
     const sessionA = await hostA.open(
       defineHarness({ name: 'test/reset', adapter: first.adapter }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
     await sessionA.send('First.')
-    await sessionA.reset('Note.', { inputId: 'r1' })
-    await sessionA.settled('r1')
+    await sessionA.reset({ note: 'Note.', inputId: 'r1' })
+    await sessionA.settled({ inputId: 'r1' })
     await hostA.close()
 
     const second = mockAdapter([() => text('Two.')])
     const hostB = createHarnessHost({ persistence })
     const sessionB = await hostB.open(
       defineHarness({ name: 'test/reset', adapter: second.adapter }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
     await sessionB.send('Second.')
     expect(messageTexts(second.calls[0])).toEqual(['Note.', 'Second.'])
@@ -282,10 +291,10 @@ describe('reset on a durable host', () => {
 
   it('applies a reset that a crash left in the log', async () => {
     const log = memoryLogStore()
-    const { runs, metadata } = memoryPersistence().stores
-    const persistence = { stores: { log, runs, metadata } }
+    const { metadata } = memoryPersistence().stores
+    const persistence = { stores: { log, metadata } }
     await log.append({
-      logId: 't1',
+      logId: logIdOf({ logId: 't1' }),
       seq: 1,
       epoch: UNOWNED_EPOCH,
       records: [
@@ -301,9 +310,13 @@ describe('reset on a durable host', () => {
     const host = createHarnessHost({ persistence })
     const session = await host.open(
       defineHarness({ name: 'test/reset', adapter }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
-    expect(await session.settled('r1')).toMatchObject({ outcome: 'completed' })
+    expect(await session.settled({ inputId: 'r1' })).toMatchObject({
+      outcome: 'completed',
+    })
     await session.send('Second.')
     expect(messageTexts(calls[0])).toEqual(['Note.', 'Second.'])
     await host.close()

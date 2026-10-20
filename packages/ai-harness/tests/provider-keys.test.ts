@@ -3,9 +3,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { EventType, defineAgent } from '@tanstack/ai'
 import { defineByokProvider, keyedAdapter } from '@tanstack/ai/byok'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { HARNESS_EVENTS, createHarnessHost, defineHarness } from '../src'
+import {
+  HARNESS_EVENTS,
+  createHarnessHost,
+  defineHarness,
+  logIdOf,
+} from '../src'
 import { compact, modelPicker, providerKeys } from '../src/first-party'
-import { mockAdapter, text, toolCall } from './helpers'
+import { mockAdapter, questionsOf, text, toolCall } from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type {
   AnyAgent,
@@ -13,6 +18,12 @@ import type {
   HarnessSession,
   SessionEvent,
 } from '../src'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 const acme = defineByokProvider({
   id: 'acme',
@@ -51,10 +62,18 @@ async function open(options: {
   plugins?: Array<HarnessPlugin>
   agents?: Array<AnyAgent>
   subagents?: Array<AnyAgent>
+  /** A host with access that allows each action, without `envKeys`. */
+  access?: boolean
 }) {
   const persistence = memoryPersistence()
   const credentials = memoryCredentialStore()
-  const host = createHarnessHost({ persistence, credentials })
+  const host = createHarnessHost({
+    persistence,
+    credentials,
+    ...(options.access
+      ? { access: { identify: () => null, policy: { authorize: () => true } } }
+      : {}),
+  })
   const session = await host.open(
     defineHarness({
       name: 'test/provider-keys',
@@ -63,7 +82,10 @@ async function open(options: {
       subagents: { agents: options.subagents ?? [] },
       plugins: () => options.plugins ?? [],
     }),
-    { threadId: 't', principal: { id: 'user-1' } },
+    {
+      threadId: 't',
+      principal: { id: 'user-1' },
+    },
   )
   const events: Array<SessionEvent> = []
   const reader = new AbortController()
@@ -100,11 +122,9 @@ function authRequired(events: ReadonlyArray<SessionEvent>) {
 
 /** Start `/connect acme`, and answer its question with `answer`. */
 async function connectWith(session: HarnessSession, answer: string) {
-  const result = session.command('connect:acme')
-  await vi.waitFor(() =>
-    expect(session.snapshot().pendingQuestions).toHaveLength(1),
-  )
-  const [question] = session.snapshot().pendingQuestions
+  const result = session.command({ name: 'connect:acme' })
+  await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
+  const [question] = questionsOf(session.snapshot())
   const receipt = await session.answer({
     questionId: question?.questionId ?? '',
     value: answer,
@@ -160,7 +180,7 @@ describe('a keyed main adapter', () => {
       ],
     })
     await saveKey(SAVED_KEY)
-    await session.command('model', 'acme')
+    await session.command({ name: 'model', input: 'acme' })
     expect(await session.send('hi')).toEqual({
       text: 'keyed answer',
       media: [],
@@ -224,7 +244,7 @@ describe('compact with a keyed adapter', () => {
     await saveKey(SAVED_KEY)
     await session.send('first')
     await session.send('second')
-    expect(await session.command('compact')).toBe(
+    expect(await session.command({ name: 'compact' })).toBe(
       'Compacted 4 messages into a summary.',
     )
     expect(summarizer.keys).toEqual([SAVED_KEY])
@@ -252,7 +272,7 @@ describe('providerKeys', () => {
       type: 'api_key',
       value: PASTED_KEY,
     })
-    expect(await session.command('keys')).toContain(
+    expect(await session.command({ name: 'keys' })).toContain(
       'Acme: connected (key ...5678)',
     )
     await close()
@@ -298,11 +318,9 @@ describe('providerKeys', () => {
       adapter: mockAdapter([]).adapter,
       plugins: [plugin()],
     })
-    const connecting = session.command('connect:acme')
-    await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
-    const [question] = session.snapshot().pendingQuestions
+    const connecting = session.command({ name: 'connect:acme' })
+    await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
+    const [question] = questionsOf(session.snapshot())
     await connecting.cancel()
     await expect(connecting).rejects.toBeDefined()
     if (question)
@@ -320,11 +338,11 @@ describe('providerKeys', () => {
       plugins: [plugin()],
     })
     await saveKey(SAVED_KEY)
-    expect(await session.command('disconnect:acme')).toBe(
+    expect(await session.command({ name: 'disconnect:acme' })).toBe(
       'Disconnected from Acme.',
     )
     expect(await credentials.get({ scope: USER, id: 'acme' })).toBeNull()
-    expect(await session.command('keys')).toContain(
+    expect(await session.command({ name: 'keys' })).toContain(
       'Acme: missing. Run /connect acme.',
     )
     await close()
@@ -365,7 +383,7 @@ describe('providerKeys', () => {
       adapter: mockAdapter([]).adapter,
       plugins: [providerKeys({ providers: [{ ...acme, signIn }] })],
     })
-    expect(await session.command('connect:acme')).toBe(
+    expect(await session.command({ name: 'connect:acme' })).toBe(
       'Connected to Acme (key ...9876).',
     )
     expect(authRequired(events)).toEqual([
@@ -378,7 +396,7 @@ describe('providerKeys', () => {
     await close()
   })
 
-  it('lists every provider with its state in the plugin state', async () => {
+  it('lists the env vars in the plugin state, and the keys of the user only in /keys', async () => {
     vi.stubEnv('BETA_TEST_KEY', 'sk-beta-env-4321')
     const { session, close } = await open({
       adapter: mockAdapter([]).adapter,
@@ -391,7 +409,7 @@ describe('providerKeys', () => {
         { id: 'gamma', label: 'Gamma', state: 'missing' },
       ],
     })
-    expect(await session.command('keys')).toBe(
+    expect(await session.command({ name: 'keys' })).toBe(
       [
         'Acme: missing. Run /connect acme.',
         'Beta: from the BETA_TEST_KEY env var',
@@ -399,13 +417,38 @@ describe('providerKeys', () => {
       ].join('\n'),
     )
     await connectWith(session, PASTED_KEY)
+    // Every member reads the state: the key of one user is not in it.
     expect(session.snapshot().plugins['tanstack/provider-keys']).toEqual({
       providers: [
-        { id: 'acme', label: 'Acme', state: 'connected' },
+        { id: 'acme', label: 'Acme', state: 'missing' },
         { id: 'beta', label: 'Beta', state: 'env' },
         { id: 'gamma', label: 'Gamma', state: 'missing' },
       ],
     })
+    expect(await session.command({ name: 'keys' })).toContain(
+      'Acme: connected (key ...5678)',
+    )
+    await close()
+  })
+
+  it('does not show an env var that a host with access does not read', async () => {
+    vi.stubEnv('BETA_TEST_KEY', 'sk-beta-env-4321')
+    const { session, close } = await open({
+      adapter: mockAdapter([]).adapter,
+      plugins: [plugin()],
+      access: true,
+    })
+
+    expect(session.snapshot().plugins['tanstack/provider-keys']).toEqual({
+      providers: [
+        { id: 'acme', label: 'Acme', state: 'missing' },
+        { id: 'beta', label: 'Beta', state: 'missing' },
+        { id: 'gamma', label: 'Gamma', state: 'missing' },
+      ],
+    })
+    expect(await session.command({ name: 'keys' })).toContain(
+      'Beta: missing. Run /connect beta.',
+    )
     await close()
   })
 
@@ -414,13 +457,13 @@ describe('providerKeys', () => {
       adapter: mockAdapter([]).adapter,
       plugins: [plugin()],
     })
-    const connecting = session.command('connect:acme')
-    await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toMatchObject([
+    const connecting = session.command({ name: 'connect:acme' })
+    await waitFor(() =>
+      expect(questionsOf(session.snapshot())).toMatchObject([
         { message: 'Paste your Acme API key', secret: true },
       ]),
     )
-    const [question] = session.snapshot().pendingQuestions
+    const [question] = questionsOf(session.snapshot())
     if (question)
       await session.answer({
         questionId: question.questionId,
@@ -430,25 +473,25 @@ describe('providerKeys', () => {
     await close()
   })
 
-  it('keeps the key out of events, results, the inbox, and the transcript', async () => {
+  it('keeps the key out of events, results, the log, and the transcript', async () => {
     const keyed = keyedMock([() => text('hello')])
     const { session, persistence, events, close } = await open({
       adapter: keyed.adapter,
       plugins: [plugin()],
     })
-    const { receipt, result } = await connectWith(session, PASTED_KEY)
+    const { result } = await connectWith(session, PASTED_KEY)
     const results = [
       result,
-      await session.command('keys'),
+      await session.command({ name: 'keys' }),
       await session.send('hi'),
     ]
     expect(keyed.keys).toEqual([PASTED_KEY])
-    const inbox = await persistence.stores.inbox.get({
-      threadId: 't',
-      inputId: receipt.inputId,
+    // The log of the thread `t`, in the default tenant: inputs and events.
+    const logged = await persistence.stores.log.read({
+      logId: logIdOf({ logId: 't' }),
     })
-    const transcript = await persistence.stores.messages.loadThread('t')
-    const everything = JSON.stringify({ events, results, inbox, transcript })
+    const transcript = await session.transcript()
+    const everything = JSON.stringify({ events, results, logged, transcript })
     expect(everything).not.toContain(PASTED_KEY)
     expect(everything).toContain('...5678')
     await close()

@@ -9,8 +9,8 @@ import {
   definePlugin,
 } from '../src'
 import { question } from '../src/first-party/question'
-import { mockAdapter, text, toolCall } from './helpers'
-import type { HarnessSession } from '../src'
+import { mockAdapter, questionsOf, text, toolCall } from './helpers'
+import type { ChatTurnResult, HarnessSession, Operation } from '../src'
 
 const database = {
   question: 'Which database?',
@@ -40,20 +40,39 @@ async function open(questions: Array<object>) {
       adapter,
       plugins: () => [question()],
     }),
-    { threadId: 't' },
+    {
+      threadId: 't',
+    },
   )
   const turn = session.send('ask me')
   return { host, session, calls, turn }
 }
 
-/** Wait for the one open question, then answer it. Returns the question. */
-async function reply(session: HarnessSession, value: unknown) {
-  await vi.waitFor(() =>
-    expect(session.snapshot().pendingQuestions).toHaveLength(1),
-  )
-  const [pending] = session.snapshot().pendingQuestions
-  if (!pending) throw new Error('No question.')
-  await session.answer({ questionId: pending.questionId, value })
+/**
+ * Wait for the turn to stop for its question waits, then answer each one
+ * with `values`, in order, and wait for the turn that goes on. Returns the
+ * waits.
+ */
+async function reply(
+  session: HarnessSession,
+  turn: Operation<ChatTurnResult>,
+  values: Array<unknown>,
+  status: 'resolved' | 'cancelled' = 'resolved',
+) {
+  await turn
+  const pending = session.snapshot().pendingWaits
+  expect(pending.map((wait) => wait.kind)).toEqual(values.map(() => 'question'))
+  await session.resolve({
+    resume: pending.map((wait, index) => ({
+      interruptId: wait.waitId,
+      status,
+      ...(status === 'resolved' ? { payload: values[index] } : {}),
+    })),
+    inputId: 'answers',
+  })
+  expect(await session.settled({ inputId: 'answers' })).toMatchObject({
+    outcome: 'completed',
+  })
   return pending
 }
 
@@ -65,22 +84,26 @@ function toolResult(
 }
 
 describe('question()', () => {
-  it('asks each question in turn and gives the model the picked labels', async () => {
+  it('stops the turn before the tool runs, with a wait for each question, and gives the model the picked labels', async () => {
     const { host, session, calls, turn } = await open([database, features])
 
-    const first = await reply(session, '2')
-    const second = await reply(session, ['billing', 'Auth'])
-    await turn
+    expect((await turn).interrupts).toHaveLength(2)
+    // The tool did not run: the model got no result yet.
+    expect(calls).toHaveLength(1)
+    const [first, second] = await reply(session, turn, [
+      '2',
+      ['billing', 'Auth'],
+    ])
 
-    expect(first.message).toBe(
+    expect(first?.message).toBe(
       'Database: Which database?\n1. Postgres - Relational, the default\n2. SQLite\nType a number or a label, or your own answer.',
     )
-    expect(first.schema).toEqual({
+    expect(first?.schema).toEqual({
       type: 'string',
       enum: ['Postgres', 'SQLite'],
     })
-    expect(second.message).toContain('3. Billing')
-    expect(second.schema).toEqual({
+    expect(second?.message).toContain('3. Billing')
+    expect(second?.schema).toEqual({
       type: 'array',
       items: { type: 'string', enum: ['Auth', 'Search', 'Billing'] },
       minItems: 1,
@@ -109,22 +132,37 @@ describe('question()', () => {
   ])('reads %s', async (_name, asked, value, expected) => {
     const { host, session, calls, turn } = await open([asked])
 
-    await reply(session, value)
-    await turn
+    await reply(session, turn, [value])
 
     expect(toolResult(calls)).toBe(`${asked.question}\n${expected}`)
     await host.close()
   })
 
-  it('gives the model a tool error when the reply is empty', async () => {
+  it('gives the model a tool error when a reply is empty', async () => {
     const { host, session, calls, turn } = await open([database, features])
 
-    await reply(session, '   ')
-    await turn
+    await reply(session, turn, ['   ', 'Auth'])
 
     expect(toolResult(calls)).toContain('The user did not answer.')
-    // The second question is not asked.
-    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(session.snapshot().pendingWaits).toEqual([])
+    await host.close()
+  })
+
+  it('gives the model a tool error when the user cancels the questions', async () => {
+    const { host, session, calls, turn } = await open([database])
+
+    await reply(session, turn, [undefined], 'cancelled')
+
+    expect(toolResult(calls)).toContain('The user did not answer.')
+    await host.close()
+  })
+
+  it('asks nothing for input that is not valid, and gives the model a tool error', async () => {
+    const { host, session, calls, turn } = await open([{ question: 'Hm?' }])
+
+    expect((await turn).interrupts ?? []).toEqual([])
+    expect(toolResult(calls)).toContain('Input validation failed')
+    expect(session.snapshot().pendingWaits).toEqual([])
     await host.close()
   })
 })
@@ -133,12 +171,13 @@ describe('ask with a url', () => {
   it('sends the url in the event and the snapshot', async () => {
     const asker = definePlugin({
       name: 'test/url-asker',
-      setup: (ctx) => ({
+      setup: () => ({
         commands: {
           verify: defineCommand({
             description: 'Asks the user to open a page',
-            run: () =>
-              ctx.session.ask({
+            run: (_input, { step }) =>
+              step.ask({
+                name: 'verify',
                 message: 'Open the page, then type done.',
                 url: 'https://example.com/verify',
               }),
@@ -153,18 +192,21 @@ describe('ask with a url', () => {
         adapter: mockAdapter([]).adapter,
         plugins: () => [asker],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
-    const running = session.command('verify')
+    const running = session.command({ name: 'verify' })
 
     await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
+      expect(questionsOf(session.snapshot())).toHaveLength(1),
     )
-    expect(session.snapshot().pendingQuestions[0]?.url).toBe(
+    expect(questionsOf(session.snapshot())[0]?.url).toBe(
       'https://example.com/verify',
     )
-    const pending = await reply(session, 'done')
-    expect(pending.url).toBe('https://example.com/verify')
+    const [pending] = questionsOf(session.snapshot())
+    if (!pending) throw new Error('No question.')
+    await session.answer({ questionId: pending.questionId, value: 'done' })
     expect(await running).toBe('done')
 
     const controller = new AbortController()

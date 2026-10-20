@@ -2083,7 +2083,7 @@ importers:
   packages/ai-acp:
     dependencies:
       '@agentclientprotocol/sdk':
-        specifier: ^1.5.0
+        specifier: ~1.8.0
         version: 1.8.0(zod@4.6.5)
     devDependencies:
       '@tanstack/ai':
@@ -2641,10 +2641,16 @@ importers:
 
   packages/ai-harness:
     dependencies:
+      '@tanstack/ai-utils':
+        specifier: workspace:^
+        version: link:../ai-utils
       '@tanstack/store':
         specifier: ^0.11.1
         version: 0.11.2
     devDependencies:
+      '@opentelemetry/api':
+        specifier: ^1.9.0
+        version: 1.9.1
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
@@ -2669,9 +2675,6 @@ importers:
       '@tanstack/ai-acp':
         specifier: workspace:^
         version: link:../ai-acp
-      '@tanstack/ai-mcp':
-        specifier: workspace:^
-        version: link:../ai-mcp
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -2679,6 +2682,9 @@ importers:
       '@tanstack/ai-harness':
         specifier: workspace:*
         version: link:../ai-harness
+      '@tanstack/ai-mcp':
+        specifier: workspace:*
+        version: link:../ai-mcp
       '@tanstack/ai-persistence':
         specifier: workspace:*
         version: link:../ai-persistence
@@ -3215,6 +3221,9 @@ importers:
       '@tanstack/ai-skills':
         specifier: workspace:^
         version: link:../ai-skills
+      '@tanstack/ai-utils':
+        specifier: workspace:^
+        version: link:../ai-utils
     devDependencies:
       '@ngrok/ngrok':
         specifier: ^1.7.0
@@ -3332,6 +3341,10 @@ importers:
         version: 4.1.10(vitest@4.1.11)
 
   packages/ai-sandbox-local-process:
+    dependencies:
+      '@tanstack/ai-utils':
+        specifier: workspace:^
+        version: link:../ai-utils
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*

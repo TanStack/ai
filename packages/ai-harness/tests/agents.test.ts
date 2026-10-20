@@ -1,11 +1,11 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import { permissions } from '../src/first-party'
 import { agents } from '../src/first-party/agents'
 import { splitFrontmatter } from '../src/first-party/files'
@@ -44,7 +44,9 @@ async function open(adapter: AnyTextAdapter, plugins: Array<HarnessPlugin>) {
       tools: [tool('read_file'), tool('write_file')],
       plugins: () => plugins,
     }),
-    { threadId: 't' },
+    {
+      threadId: 't',
+    },
   )
   return { host, session }
 }
@@ -53,6 +55,25 @@ async function open(adapter: AnyTextAdapter, plugins: Array<HarnessPlugin>) {
 function toolNames(call: { tools: Array<{ name: string }> }) {
   return call.tools.map((entry) => entry.name)
 }
+
+/** The names of the tools a subagent got on one call, also when none. */
+function childTools(call: { tools?: Array<{ name: string }> }) {
+  return (call.tools ?? []).map((entry) => entry.name)
+}
+
+/** A subagent with its own model, and every tool of the turn. */
+const helper: AgentProfile = {
+  name: 'helper',
+  description: 'Helps with a task',
+  mode: 'subagent',
+  model: 'child-model',
+}
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 /** The system prompts of one call, as one string. */
 function promptsOf(call: { systemPrompts: unknown }) {
@@ -96,7 +117,7 @@ describe('agents', () => {
       agents({ adapter: () => adapter }),
     ])
 
-    expect(await session.command('agent')).toBe(
+    expect(await session.command({ name: 'agent' })).toBe(
       'Agent: build. Agents: build, plan.',
     )
     await session.send('hi')
@@ -121,7 +142,7 @@ describe('agents', () => {
     ])
 
     await session.send('build it')
-    expect(await session.command('agent', 'plan')).toBe(
+    expect(await session.command({ name: 'agent', input: 'plan' })).toBe(
       'Agent: plan. It applies at the next turn.',
     )
     await session.send('plan it')
@@ -135,7 +156,7 @@ describe('agents', () => {
     expect(toolNames(calls[1])).toEqual(['read_file'])
     expect(promptsOf(calls[1])).toContain('You are the plan agent.')
     expect(promptsOf(calls[1])).not.toContain('You are the build agent.')
-    expect(await session.command('agent', 'nope')).toBe(
+    expect(await session.command({ name: 'agent', input: 'nope' })).toBe(
       'Unknown agent "nope". Agents: build, plan.',
     )
     await host.close()
@@ -181,7 +202,7 @@ describe('agents', () => {
       text: 'from main',
       media: [],
     })
-    await session.command('agent', 'quick')
+    await session.command({ name: 'agent', input: 'quick' })
     expect(await session.send('two')).toEqual({
       text: 'from fast',
       media: [],
@@ -299,9 +320,9 @@ describe('agents', () => {
       agents({ adapter: () => adapter, agents: [careful] }),
     ])
 
-    await session.command('agent', 'careful')
+    await session.command({ name: 'agent', input: 'careful' })
     await session.send('one')
-    await session.command('agent', 'build')
+    await session.command({ name: 'agent', input: 'build' })
     await session.send('two')
 
     expect(toolNames(calls[0])).toEqual(['read_file', 'general', 'explore'])
@@ -311,6 +332,42 @@ describe('agents', () => {
       'general',
       'explore',
     ])
+    await host.close()
+  })
+
+  it('gives a thread that removes agents() none of its subagents, rules, or commands', async () => {
+    const { adapter, calls } = mockAdapter([
+      () => text('one'),
+      () => text('two'),
+    ])
+    const careful: AgentProfile = {
+      name: 'careful',
+      description: 'Never writes',
+      mode: 'primary',
+      permissions: [{ tool: 'write_file', decision: 'deny' }],
+    }
+    const { host, session } = await open(adapter, [
+      permissions(),
+      agents({ adapter: () => adapter, agents: [careful], default: 'careful' }),
+    ])
+
+    await session.send('one')
+    expect(
+      await session.configure({
+        settings: { plugins: { remove: ['tanstack/agents'] } },
+      }),
+    ).toMatchObject({ status: 'accepted' })
+    await session.send('two')
+
+    expect(toolNames(calls[0])).toEqual(['read_file', 'general', 'explore'])
+    // No subagent tools, and the deny rule of `careful` is gone.
+    expect(toolNames(calls[1])).toEqual(['read_file', 'write_file'])
+    expect(session.commands().map((command) => command.name)).not.toContain(
+      'agent',
+    )
+    await expect(
+      session.command({ name: 'agent', input: 'build' }),
+    ).rejects.toThrow(/Unknown command: agent/)
     await host.close()
   })
 
@@ -326,10 +383,10 @@ describe('agents', () => {
       agents({ adapter: () => adapter, agents: [plan] }),
     ])
 
-    expect(await session.command('agent')).toBe(
+    expect(await session.command({ name: 'agent' })).toBe(
       'Agent: build. Agents: build, plan.',
     )
-    await session.command('agent', 'plan')
+    await session.command({ name: 'agent', input: 'plan' })
     await session.send('plan it')
 
     expect(toolNames(calls[0])).toEqual([
@@ -360,11 +417,94 @@ describe('agents', () => {
       }),
     ])
 
-    expect(await session.command('agent')).toBe('Agent: solo. Agents: solo.')
+    expect(await session.command({ name: 'agent' })).toBe(
+      'Agent: solo. Agents: solo.',
+    )
     await session.send('hi')
 
     expect(toolNames(calls[0])).toEqual(['read_file', 'write_file'])
     await host.close()
+  })
+  it("gives a subagent the tools of the turn that started it, never another user's", async () => {
+    // Each turn finds one tool of its user, as a sign-in to a server does.
+    const secrets = definePlugin({
+      name: 'test/secrets',
+      setup: () => ({
+        discoverTools: (turn) => [tool(`secret_${turn.principal?.id}`)],
+      }),
+    })
+    const lead = mockAdapter([
+      () => toolCall('helper', { prompt: 'Help.' }),
+      () => text('Olga is done.'),
+      () => text('Bea is done.'),
+    ])
+    const child = mockAdapter(() => text('Helped.'))
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const harness = defineHarness({
+      name: 'test/agents',
+      adapter: lead.adapter,
+      tools: [tool('read_file')],
+      plugins: () => [
+        secrets,
+        agents({ adapter: () => child.adapter, agents: [helper] }),
+      ],
+    })
+    const olga = await host.open(harness, {
+      threadId: 't',
+      principal: { id: 'olga' },
+    })
+    const bea = await host.open(harness, {
+      threadId: 't',
+      principal: { id: 'bea' },
+    })
+
+    await olga.send('Get help.')
+    await bea.send('Hi.')
+    // Code starts the agent after the turn of bea. No turn started it.
+    await olga.agent('helper')?.start('Again.')
+
+    expect(childTools(child.calls[0])).toEqual(['read_file', 'secret_olga'])
+    expect(childTools(child.calls[1])).toEqual([])
+    await host.close()
+  })
+
+  it('fails a subagent run whose turn ran on another host with a clear error', async () => {
+    const persistence = memoryPersistence()
+    const lead = mockAdapter([
+      () => toolCall('helper', { prompt: 'Help.', background: true }),
+      () => text('It runs.'),
+    ])
+    const child = mockAdapter(() => text('Helped.'))
+    const harness = defineHarness({
+      name: 'test/agents',
+      adapter: lead.adapter,
+      tools: [tool('read_file')],
+      plugins: () => [
+        agents({ adapter: () => child.adapter, agents: [helper] }),
+      ],
+    })
+    const first = createHarnessHost({ persistence })
+    const session = await first.open(harness, { threadId: 't' })
+    await session.send('Start a helper.')
+    await waitFor(() =>
+      expect(session.agentRuns().map((run) => run.status)).toEqual([
+        'completed',
+      ]),
+    )
+    const [started] = session.agentRuns()
+    await first.close()
+
+    // Another host has no turn of this thread in its memory.
+    const second = createHarnessHost({ persistence })
+    const again = await second.open(harness, { threadId: 't' })
+    const run = again.agentRun(started?.operationId ?? '')
+    const receipt = await run?.send('Go on.', { mode: 'followUp' })
+
+    await expect(again.operation(receipt?.operationId ?? '')).rejects.toThrow(
+      'only in the memory of the host that ran that turn',
+    )
+    expect(child.calls).toHaveLength(1)
+    await second.close()
   })
 })
 
@@ -404,7 +544,7 @@ describe('agents from Markdown files', () => {
       }),
     ])
 
-    expect(await session.command('agent')).toBe(
+    expect(await session.command({ name: 'agent' })).toBe(
       'Agent: build. Agents: build, plan, reviewer.',
     )
     await session.send('build it')
@@ -413,7 +553,7 @@ describe('agents from Markdown files', () => {
         (entry: { name: string }) => entry.name === 'reviewer',
       )?.description,
     ).toBe('Reviews code')
-    await session.command('agent', 'reviewer')
+    await session.command({ name: 'agent', input: 'reviewer' })
     await session.send('review it')
 
     expect(toolNames(smart.calls[0])).toEqual(['read_file'])
@@ -430,14 +570,14 @@ describe('agents from Markdown files', () => {
     const { host, session } = await open(adapter, [
       agents({ adapter: () => adapter, dirs: [root] }),
     ])
-    expect(await session.command('agent')).toBe(
+    expect(await session.command({ name: 'agent' })).toBe(
       'Agent: build. Agents: build, plan.',
     )
 
     await writeFile(join(root, 'writer.md'), 'You write docs.')
     await session.reload()
 
-    expect(await session.command('agent')).toBe(
+    expect(await session.command({ name: 'agent' })).toBe(
       'Agent: build. Agents: build, plan, writer.',
     )
     await host.close()

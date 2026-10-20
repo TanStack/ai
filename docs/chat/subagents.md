@@ -544,6 +544,20 @@ When the child calls `ctx.chat`, the context also has `subagentName`, the name o
 
 On a routed turn where a child runs and main does not, the parent's middleware does not run. Only `withPersistence` records that turn. A turn where main runs, including a handoff, runs the parent's middleware as usual.
 
+### Middleware and interrupts from a host
+
+A host that runs agents for you, such as a [harness](../harness/subagents), adds its own rules to each child. It sets `subagents.binding`:
+
+- `binding.chatMiddleware`: middleware for every `ctx.chat` call of the child, before the middleware of the call.
+- `binding.lastChatMiddleware`: middleware for every `ctx.chat` call of the child, after the middleware of the call. It sees the final model context and tool results, for example to remove secrets or to log results.
+- `binding.interrupts`: interrupt definitions for every `ctx.chat` call of the child. With them, the host middleware can stop the child, for example for an approval.
+
+For `binding.interrupts`:
+
+- The own `interrupts` of the call win. A host definition with the same id is not added.
+- A child's `ctx.chat({ subagents })` passes the definitions on to its own children.
+- A plain `chat()` call in the child does not get them.
+
 ## Run a child from code
 
 A server job can run an agent with no parent chat turn. Pass a sink when the job must read a pause or the token counts.

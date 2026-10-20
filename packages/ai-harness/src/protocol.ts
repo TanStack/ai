@@ -1,19 +1,48 @@
 import { convertSchemaToJsonSchema } from '@tanstack/ai'
+import { AccessDeniedError } from './access'
+import { parseTraceparent } from './observability'
 import { isRecord } from './utils'
 import { createInputId, errorText } from './session/helpers'
-import type { StreamChunk } from '@tanstack/ai'
+import { storeInlineMedia } from './inline-media'
+import { SessionImpl } from './session/harness-session'
+import { mediaIdOf } from './media-ref'
+import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { AnyAgent } from './agents'
 import type { AnyHarness } from './define'
+import type { InlineMediaContext } from './inline-media'
 import type { HarnessSession, SessionSnapshot } from './session/index'
-import type { Cursor, HarnessInput, Principal, Receipt } from './types'
+import type { AgentRunStartOptions } from './session/types'
+import type {
+  Cursor,
+  HarnessInput,
+  Operation,
+  Principal,
+  Receipt,
+  UserInput,
+} from './types'
 
 /** The session-tier protocol version. Sent in `subscribe` and `hello`. */
-export const HARNESS_PROTOCOL_VERSION = 1
+export const HARNESS_PROTOCOL_VERSION = 2
+
+/** What failed, in a `harness.error` frame. */
+export type HarnessErrorCode =
+  | 'unauthorized'
+  | 'forbidden'
+  | 'invalid_frame'
+  | 'unsupported_version'
+  | 'slow_consumer'
+  | 'internal'
 
 /** Client to host. */
 export type ControlFrame =
   | { type: 'harness.subscribe'; threadId: string; from?: Cursor; v?: number }
-  | { type: 'harness.input'; requestId: string; input: HarnessInput }
+  | {
+      type: 'harness.input'
+      requestId: string
+      input: HarnessInput
+      /** A W3C `traceparent` of the caller. An invalid value is dropped. */
+      traceparent?: string
+    }
   | { type: 'harness.snapshot' }
 
 /** Host to client. */
@@ -30,11 +59,25 @@ export type HostFrame =
   | {
       type: 'harness.event'
       cursor: Cursor
+      /** The thread of the event: the thread, or a child thread of its tree. */
+      threadId: string
       operationId: string
       event: StreamChunk
     }
   | { type: 'harness.snapshot'; snapshot: SessionSnapshot }
-  | { type: 'harness.error'; message: string }
+  | {
+      type: 'harness.error'
+      /** A short reason, for people. Read `code` in code. */
+      message: string
+      code: HarnessErrorCode
+      /**
+       * The `requestId` of the frame or the request that failed. A frame or
+       * a request with no id gets an id from the server.
+       */
+      requestId: string
+    }
+  /** A heartbeat. It keeps idle connections open. Ignore it. */
+  | { type: 'harness.ping' }
 
 const INPUT_OPS = new Set([
   'prompt',
@@ -59,6 +102,31 @@ const INPUT_OPS = new Set([
   'agentMessage',
 ])
 
+const PART_TYPES = new Set(['text', 'image', 'audio', 'video', 'document'])
+
+/**
+ * True for a content part with the fields the harness reads: a string
+ * `content` for text, else a `source` with a string `type` and `value`, and
+ * a string `mimeType` for a `data` source.
+ */
+function isContentPart(value: unknown) {
+  if (!isRecord(value) || typeof value.type !== 'string') return false
+  if (!PART_TYPES.has(value.type)) return false
+  if (value.type === 'text') return typeof value.content === 'string'
+  const { source } = value
+  if (!isRecord(source) || typeof source.type !== 'string') return false
+  if (typeof source.value !== 'string') return false
+  return source.type !== 'data' || typeof source.mimeType === 'string'
+}
+
+/** True for a string, or an array of content parts. */
+function isMessageContent(value: unknown) {
+  return (
+    typeof value === 'string' ||
+    (Array.isArray(value) && value.every(isContentPart))
+  )
+}
+
 /** Check the shape of a client input. Throws with a short reason. */
 export function parseHarnessInput(value: unknown): HarnessInput {
   if (
@@ -73,12 +141,17 @@ export function parseHarnessInput(value: unknown): HarnessInput {
     value.op === 'steer' ||
     value.op === 'followUp' ||
     value.op === 'agentMessage'
+  if (needsMessage && !isMessageContent(value.message)) {
+    throw new Error(
+      `Invalid input: ${value.op} needs a message: text, or content parts.`,
+    )
+  }
   if (
-    needsMessage &&
-    typeof value.message !== 'string' &&
-    !Array.isArray(value.message)
+    value.op === 'prompt' &&
+    value.as !== undefined &&
+    value.as !== 'operator'
   ) {
-    throw new Error(`Invalid input: ${value.op} needs a message.`)
+    throw new Error("Invalid input: the as of prompt must be 'operator'.")
   }
   if (value.op === 'resolve' && !Array.isArray(value.resume)) {
     throw new Error('Invalid input: resolve needs a resume array.')
@@ -159,7 +232,9 @@ export function parseHarnessInput(value: unknown): HarnessInput {
   // A client sends user messages only. An assistant or tool message from a
   // client could fake an answer or a tool result in the model context.
   const isUserMessage = (message: unknown) =>
-    isRecord(message) && message.role === 'user'
+    isRecord(message) &&
+    message.role === 'user' &&
+    (message.content === null || isMessageContent(message.content))
   if (
     (value.op === 'prompt' || value.op === 'continue') &&
     value.ephemeral !== undefined &&
@@ -186,10 +261,14 @@ export function parseControlFrame(data: string): ControlFrame {
     value.type === 'harness.subscribe' &&
     typeof value.threadId === 'string'
   ) {
+    if (value.v !== undefined && typeof value.v !== 'number') {
+      throw new Error('Invalid frame: v must be a number.')
+    }
     return {
       type: 'harness.subscribe',
       threadId: value.threadId,
       ...(typeof value.from === 'string' ? { from: value.from } : {}),
+      ...(value.v === undefined ? {} : { v: value.v }),
     }
   }
   if (value.type === 'harness.input' && typeof value.requestId === 'string') {
@@ -197,6 +276,11 @@ export function parseControlFrame(data: string): ControlFrame {
       type: 'harness.input',
       requestId: value.requestId,
       input: parseHarnessInput(value.input),
+      // As the W3C rules say, an invalid `traceparent` is dropped.
+      ...(typeof value.traceparent === 'string' &&
+      parseTraceparent(value.traceparent)
+        ? { traceparent: value.traceparent }
+        : {}),
     }
   }
   if (value.type === 'harness.snapshot') return { type: 'harness.snapshot' }
@@ -208,19 +292,44 @@ export function parseControlFrame(data: string): ControlFrame {
  * only the agents in `expose.agents`. It can run only the commands in
  * `expose.commands` and the tools in `expose.tools`, and change only the
  * settings in `expose.settings` and the config keys in `expose.config`.
- * Resolves to the receipt. `principal` is who
- * sent the input, from your `authorize`, never from the input itself. A chat
- * input runs with its credentials.
+ * Resolves to the receipt. `principal` is who sent the input, from the
+ * login of the request, never from the input itself. A chat input runs with
+ * its credentials. Rejects with `AccessDeniedError` when the host refuses
+ * the input.
+ *
+ * Media in a message, or in an `ephemeral` message, is checked first, as
+ * `storeInlineMedia` does: inline bytes go to the media store and the part
+ * becomes a `harness-media:` reference. An external URL needs
+ * `media.externalUrls`. A refused part gives a rejected receipt with the
+ * reason, for example `media_too_large`. An input with an `inputId` that the
+ * session has already sends the stored message again, so a retry stores no
+ * media.
+ *
+ * @example
+ * ```ts
+ * const receipt = await applyInput({ harness, session, input, principal })
+ * ```
  */
-export async function applyInput(
-  harness: AnyHarness,
-  session: HarnessSession,
-  input: HarnessInput,
-  principal?: Principal,
-): Promise<Receipt> {
+export async function applyInput({
+  harness,
+  session,
+  input,
+  principal,
+  traceparent,
+}: {
+  harness: AnyHarness
+  session: HarnessSession
+  input: HarnessInput
+  principal?: Principal
+  /** A W3C `traceparent` of the caller, for a message to the session. */
+  traceparent?: string
+}): Promise<Receipt> {
+  // The log keeps who sent each input, for every input kind.
+  const user = principal ? { principal } : {}
+  const traced = traceparent === undefined ? {} : { traceparent }
   const id = {
     ...(input.inputId === undefined ? {} : { inputId: input.inputId }),
-    ...(principal ? { principal } : {}),
+    ...user,
   }
   const sent = {
     ...id,
@@ -233,98 +342,121 @@ export async function applyInput(
     status: 'rejected',
     reason: 'not_exposed',
   }
+  const refused = (reason: string) => {
+    const receipt: Receipt = {
+      inputId: input.inputId ?? '',
+      status: 'rejected',
+      reason,
+    }
+    return receipt
+  }
+  const media: InlineMediaContext = {
+    options: harness.media,
+    putMedia: (upload) => session.putMedia(upload),
+  }
+  /** `message` with its inline media stored. A retry stores none again. */
+  const checkedMessage = async (message: UserInput) => {
+    const retry = retriedMessage(session, input.inputId, message)
+    if (retry !== undefined) return { content: retry, isRetry: true }
+    if (typeof message === 'string') return { content: message }
+    const checked = await storeInlineMedia(message, media)
+    return 'refused' in checked ? checked : { content: checked.parts }
+  }
   switch (input.op) {
     case 'prompt': {
-      const operation = session.send(input.message, {
-        ...(input.busy ? { busy: input.busy } : {}),
-        ...(input.ephemeral ? { ephemeral: input.ephemeral } : {}),
-        ...sent,
-      })
-      // Nobody may await a turn a client started. Its receipt is the answer.
-      operation.then(
-        () => {},
-        () => {},
+      const message = await checkedMessage(input.message)
+      if ('refused' in message) return refused(message.refused)
+      // A retry drops its ephemeral messages, as `session.send` does.
+      const ephemeral = message.isRetry
+        ? { options: {} }
+        : await checkedEphemeral(input.ephemeral, media)
+      if ('refused' in ephemeral) return refused(ephemeral.refused)
+      return turnReceipt(
+        session.send(message.content, {
+          ...(input.busy ? { busy: input.busy } : {}),
+          ...ephemeral.options,
+          // The host checks the `operator` action of the sender.
+          ...(input.as ? { as: input.as } : {}),
+          ...sent,
+          ...traced,
+        }),
       )
-      return operation.receipt
     }
     case 'continue': {
-      const operation = session.continue({
-        ...(input.ephemeral ? { ephemeral: input.ephemeral } : {}),
-        ...sent,
-      })
-      operation.then(
-        () => {},
-        () => {},
-      )
-      return operation.receipt
+      const ephemeral = await checkedEphemeral(input.ephemeral, media)
+      if ('refused' in ephemeral) return refused(ephemeral.refused)
+      return turnReceipt(session.continue({ ...ephemeral.options, ...sent }))
     }
     case 'steer':
     case 'followUp': {
-      const operation = session.send(input.message, { ...sent, mode: input.op })
-      operation.then(
-        () => {},
-        () => {},
+      const message = await checkedMessage(input.message)
+      if ('refused' in message) return refused(message.refused)
+      return turnReceipt(
+        session.send(message.content, { ...sent, ...traced, mode: input.op }),
       )
-      return operation.receipt
     }
     case 'resolve':
-      return session.resolve(input.resume, id)
+      return session.resolve({ resume: input.resume, ...id })
     case 'cancel':
-      return session.cancel(input.operationId)
-    // It runs no new code, so it needs no `expose` entry, like `cancel`.
+      return session.cancel({ operationId: input.operationId, ...user })
+    // It runs no new code, so it needs no `expose` entry, like `cancel`. It
+    // stores no input, so there is no sender to keep.
     case 'background':
-      return session.background(input.toolCallId)
+      return session.background(
+        input.toolCallId !== undefined ? { toolCallId: input.toolCallId } : {},
+      )
     case 'cancelInput':
-      return session.cancelInput(input.inputId)
+      return session.cancelInput({ inputId: input.inputId, ...user })
     case 'setDelivery':
       return session.setDelivery({
         inputId: input.inputId,
         delivery: input.delivery,
+        ...user,
       })
     case 'command': {
       // A command can change the session, for example `/mode bypass`.
       if (!(harness.expose?.commands ?? []).includes(input.name)) {
         return notExposed
       }
-      const operation = session.command(
-        input.name,
-        input.input,
-        principal ? { principal } : undefined,
-      )
+      // The client's id makes a resent command a duplicate, so it runs once.
+      const inputId = input.inputId ?? createInputId()
+      const operation = session.command({
+        name: input.name,
+        input: input.input,
+        inputId,
+        ...user,
+      })
+      // ponytail: a command has no receipt, so it is accepted at once. A
+      // command that the host refuses fails with a `RUN_ERROR` event.
       operation.then(
         () => {},
         () => {},
       )
-      return {
-        inputId: operation.id,
-        status: 'accepted',
-        operationId: operation.id,
-      }
+      return { inputId, status: 'accepted', operationId: operation.id }
     }
     case 'answer':
       return session.answer({
         questionId: input.questionId,
         value: input.value,
+        ...user,
       })
     case 'config':
       if (!(harness.expose?.config ?? []).includes(input.key)) {
         return notExposed
       }
-      return session.setConfig({ key: input.key, value: input.value })
+      return session.setConfig({ key: input.key, value: input.value, ...user })
     case 'tool': {
       if (!(harness.expose?.tools ?? []).includes(input.name)) {
         return notExposed
       }
-      const operation = session.tool(input.name, input.args, {
-        ...(input.meta ? { meta: input.meta } : {}),
-        ...id,
-      })
-      // Nobody may await a turn a client started. Its receipt is the answer.
-      operation.then(
-        () => {},
-        () => {},
+      return turnReceipt(
+        session.tool({
+          name: input.name,
+          args: input.args,
+          ...(input.meta ? { meta: input.meta } : {}),
+          ...id,
+        }),
       )
-      return operation.receipt
     }
     case 'append': {
       // A client adds only the exposed types, and only to this thread.
@@ -333,11 +465,16 @@ export async function applyInput(
         (record) => types.includes(record.type) && !('thread' in record),
       )
       if (!isExposed) return notExposed
-      const inputId = input.inputId ?? createInputId()
+      // The client's id makes a resent append a duplicate that writes
+      // nothing.
       try {
-        await session.append(input.records)
-        return { inputId, status: 'accepted' }
+        return await session.append({
+          records: input.records,
+          ...(input.inputId !== undefined ? { inputId: input.inputId } : {}),
+          ...user,
+        })
       } catch (error) {
+        const inputId = input.inputId ?? createInputId()
         return { inputId, status: 'rejected', reason: errorText(error) }
       }
     }
@@ -348,16 +485,16 @@ export async function applyInput(
         exposed.includes(key),
       )
       if (!isExposed) return notExposed
-      return session.configure(input.settings, id)
+      return session.configure({ settings: input.settings, ...id })
     }
     case 'reset':
-      return session.reset(input.note, id)
+      return session.reset({ note: input.note, ...id })
     // A revert puts files back, as `/undo` does.
     case 'revert':
     case 'unrevert':
       if (!(harness.expose?.commands ?? []).includes('undo')) return notExposed
       return input.op === 'revert'
-        ? session.revert(input.messageId)
+        ? session.revert({ messageId: input.messageId })
         : session.unrevert()
     case 'agent': {
       const exposed = (harness.expose?.agents ?? []).includes(input.agent)
@@ -368,14 +505,19 @@ export async function applyInput(
       if (!handle) {
         return { inputId: '', status: 'rejected', reason: 'unknown_agent' }
       }
-      const operation = handle.start(input.input, {
+      // The run is the client's: its credentials and keys are theirs.
+      // ponytail: accepted at once, as a command. A run that the host
+      // refuses fails with a `RUN_ERROR` event.
+      // The client's id makes a resent start a duplicate, so the agent runs
+      // once.
+      const inputId = input.inputId ?? createInputId()
+      const options: AgentRunStartOptions = {
         wake: input.detached === true,
-      })
-      return {
-        inputId: operation.id,
-        status: 'accepted',
-        operationId: operation.id,
+        inputId,
+        ...user,
       }
+      const operation = handle.start(input.input, options)
+      return { inputId, status: 'accepted', operationId: operation.id }
     }
     case 'agentMessage': {
       const run = session.agentRun(input.operationId)
@@ -395,18 +537,86 @@ export async function applyInput(
           reason: 'not_exposed',
         }
       }
-      const operation = session.send(input.message, {
-        to: input.operationId,
-        ...id,
-        ...(input.mode ? { mode: input.mode } : {}),
-      })
-      operation.then(
-        () => {},
-        () => {},
+      const message = await checkedMessage(input.message)
+      if ('refused' in message) return refused(message.refused)
+      return turnReceipt(
+        session.send(message.content, {
+          to: input.operationId,
+          ...id,
+          ...(input.mode ? { mode: input.mode } : {}),
+        }),
       )
-      return operation.receipt
     }
   }
+}
+
+/**
+ * `message` as a retry of the input `inputId` that `session` has in its log,
+ * or `undefined` for a new input. A part at the place of a stored
+ * `harness-media:` part, of the same type, becomes the stored part. So a
+ * retry stores no media again, and the duplicate check of the session
+ * matches. A retry that differs in another way gets `conflict`. Its parts are
+ * not checked or stored: the session refuses it before it runs.
+ */
+// ponytail: a retry with other inline bytes of the same type matches too.
+// The first input stands.
+export function retriedMessage(
+  session: HarnessSession,
+  inputId: string | undefined,
+  message: UserInput,
+): UserInput | undefined {
+  if (inputId === undefined || !(session instanceof SessionImpl)) {
+    return undefined
+  }
+  const known = session.knownMessage(inputId)
+  if (known === undefined) return undefined
+  if (typeof message === 'string' || typeof known === 'string') return message
+  return message.map((part, index) => {
+    const stored = known[index]
+    const isStoredMedia =
+      stored?.type === part.type && mediaIdOf(stored) !== undefined
+    return isStoredMedia ? stored : part
+  })
+}
+
+/**
+ * The `ephemeral` option of a turn, with the inline media of each message
+ * stored, or why a part was refused. No messages give no option.
+ */
+async function checkedEphemeral(
+  messages: ReadonlyArray<ModelMessage & { role: 'user' }> | undefined,
+  media: InlineMediaContext,
+) {
+  if (!messages) return { options: {} }
+  const ephemeral: Array<ModelMessage & { role: 'user' }> = []
+  for (const message of messages) {
+    if (!Array.isArray(message.content)) {
+      ephemeral.push(message)
+      continue
+    }
+    const checked = await storeInlineMedia(message.content, media)
+    if ('refused' in checked) return checked
+    ephemeral.push({ ...message, content: checked.parts })
+  }
+  return { options: { ephemeral } }
+}
+
+/**
+ * The receipt of a turn that a client started. Nobody may await the turn,
+ * so its failure is handled here. A turn that the host refused throws its
+ * `AccessDeniedError`, as the other inputs do, so a transport answers 403.
+ */
+export async function turnReceipt(operation: Operation<unknown>) {
+  const failure = operation.then(
+    () => undefined,
+    (error: unknown) => error,
+  )
+  const receipt = await operation.receipt
+  if (receipt.status !== 'rejected') return receipt
+  // A refused input fails its operation at once.
+  const error = await failure
+  if (error instanceof AccessDeniedError) throw error
+  return receipt
 }
 
 /**
@@ -430,8 +640,20 @@ export function describeForClient(
   }
 }
 
-/** The AG-UI capabilities document of a harness. */
-export function capabilitiesOf(harness: AnyHarness) {
+/**
+ * The AG-UI capabilities document of a harness. Pass `socket: true` when the
+ * app also serves `handleHarnessSocket`, so `transport.websocket` tells
+ * clients that they can use a WebSocket. Default `false`.
+ *
+ * @example
+ * ```ts
+ * const capabilities = capabilitiesOf(assistant, { socket: true })
+ * ```
+ */
+export function capabilitiesOf(
+  harness: AnyHarness,
+  { socket = false }: { socket?: boolean } = {},
+) {
   const exposed = new Set<string>(harness.expose?.agents ?? [])
   const subagents: ReadonlyArray<AnyAgent> = harness.subagents?.agents ?? []
   const agents: ReadonlyArray<AnyAgent> = [
@@ -440,7 +662,7 @@ export function capabilitiesOf(harness: AnyHarness) {
   ]
   return {
     identity: { name: harness.name, type: 'tanstack-ai-harness' },
-    transport: { streaming: true, websocket: true },
+    transport: { streaming: true, websocket: socket },
     tools: {
       supported: true,
       items: (harness.tools ?? []).map((tool) => ({
@@ -472,5 +694,38 @@ export function capabilitiesOf(harness: AnyHarness) {
           })),
       },
     },
+  }
+}
+
+/**
+ * The `unsupported_version` error of a `harness.subscribe` frame or a
+ * `?v=` query that asks for a version other than
+ * {@link HARNESS_PROTOCOL_VERSION}. No version asks for the current one.
+ * Send the error frame, then close the stream.
+ */
+export function versionError(requested: number | undefined) {
+  if (requested === undefined || requested === HARNESS_PROTOCOL_VERSION) {
+    return undefined
+  }
+  return {
+    message: `Protocol version ${requested} is not supported. This host speaks version ${HARNESS_PROTOCOL_VERSION}.`,
+    code: 'unsupported_version' as const,
+  }
+}
+
+/**
+ * The `requestId` of the raw text of a client frame, or `undefined`. It
+ * reads only that field, so the error frame of a frame that fails the full
+ * parse (for example, with a bad `input`) still names its request. It never
+ * throws.
+ */
+export function requestIdOf(data: string): string | undefined {
+  try {
+    const value: unknown = JSON.parse(data)
+    return isRecord(value) && typeof value.requestId === 'string'
+      ? value.requestId
+      : undefined
+  } catch {
+    return undefined
   }
 }

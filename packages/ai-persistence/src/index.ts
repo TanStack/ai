@@ -10,10 +10,7 @@ export {
   defineGenerationRunStore,
   defineArtifactStore,
   defineBlobStore,
-  defineInboxStore,
   defineLogStore,
-  defineWorkClaimStore,
-  defineLeaseStore,
   defineSessionIndexStore,
   LogConflictError,
   LogTruncatedError,
@@ -38,9 +35,6 @@ export type {
   InterruptStore,
   MetadataStore,
   // Session store contracts
-  InboxEntry,
-  InboxStatus,
-  InboxStore,
   LogEntry,
   LogRecord,
   LogSnapshot,
@@ -48,14 +42,12 @@ export type {
   OfferedInput,
   OfferResult,
   OrphanedLog,
-  LeaseStore,
-  TurnLease,
-  TurnLeaseKey,
-  WorkClaimStore,
   SessionIndexEntry,
+  SessionIndexKey,
   SessionIndexListOptions,
   SessionIndexPage,
   SessionIndexStore,
+  SessionMember,
   // Named product shapes (prefer these over a sparse bag)
   ChatTranscriptStores,
   ChatPersistenceStores,
@@ -138,12 +130,7 @@ export {
 export { parseRangeHeader, resolveBlobRange } from './blob-range'
 
 // Reference in-memory implementation
-export {
-  memoryLeaseStore,
-  memoryLogBackend,
-  memoryLogStore,
-  memoryPersistence,
-} from './memory'
+export { memoryLogBackend, memoryLogStore, memoryPersistence } from './memory'
 export type { MemoryLogBackend } from './memory'
 
 // Persistence-owned capabilities only. Locks: @tanstack/ai.

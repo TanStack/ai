@@ -45,8 +45,14 @@ async function open(persistence = memoryPersistence()) {
   const { adapter } = mockAdapter([() => text('hello back')])
   const host = createHarnessHost({ persistence })
   const session = await host.open(
-    defineHarness({ name: 'test/reads', adapter, plugins: () => [counter] }),
-    { threadId: 't' },
+    defineHarness({
+      name: 'test/reads',
+      adapter,
+      plugins: () => [counter],
+    }),
+    {
+      threadId: 't',
+    },
   )
   return { host, session }
 }
@@ -97,7 +103,7 @@ describe('session reads for UIs', () => {
     expect(first.session.snapshot().plugins).toEqual({
       'test/counter': { count: 0 },
     })
-    await first.session.command('bump', { by: 2 })
+    await first.session.command({ name: 'bump', input: { by: 2 } })
     expect(first.session.snapshot().plugins).toEqual({
       'test/counter': { count: 2 },
     })

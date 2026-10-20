@@ -209,7 +209,9 @@ async function firstToolNames(options: {
       tools: options.tools,
       plugins: () => options.plugins,
     }),
-    { threadId: 't' },
+    {
+      threadId: 't',
+    },
   )
   await session.send('hi')
   await host.close()
@@ -231,7 +233,9 @@ describe('codeMode', () => {
         tools: [tools.lookup, tools.remove, tools.askUser],
         plugins: () => [writes, notion, codeMode({ driver })],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     const turn = await session.send('look it up')
     expect(turn.text).toBe('done')
@@ -263,16 +267,18 @@ describe('codeMode', () => {
       defineHarness({
         name: 'test/code-mode-include',
         adapter,
-        tools: [tools.lookup, tools.remove],
+        tools: [tools.lookup, tools.notionSearch],
         plugins: () => [
-          codeMode({ driver, include: (tool) => tool.name === 'remove' }),
+          codeMode({ driver, include: (tool) => tool.name === 'lookup' }),
         ],
       }),
-      { threadId: 'picked' },
+      {
+        threadId: 'picked',
+      },
     )
     await picked.send('hi')
     expect(calls[0].tools.map((tool: { name: string }) => tool.name)).toEqual([
-      'lookup',
+      'notion_search',
       'execute_typescript',
     ])
 
@@ -283,7 +289,9 @@ describe('codeMode', () => {
         tools: [tools.remove],
         plugins: () => [codeMode({ driver })],
       }),
-      { threadId: 'none' },
+      {
+        threadId: 'none',
+      },
     )
     await none.send('hi')
     expect(calls[1].tools.map((tool: { name: string }) => tool.name)).toEqual([
@@ -309,7 +317,9 @@ describe('codeMode', () => {
         tools: [tools.lookup, tools.remove],
         plugins: () => [codeMode({ driver, lazy: true })],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     expect((await session.send('what can you call?')).text).toBe('found it')
 
@@ -362,7 +372,9 @@ describe('codeMode', () => {
         ],
         plugins: () => [codeMode({ driver })],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     await session.send('search')
     // web_search clashes with web-search after the rename, so it stays direct.
@@ -373,6 +385,65 @@ describe('codeMode', () => {
     expect(seen[0]).toEqual(['external__2fa', 'external_web_search'])
     expect(JSON.stringify(calls[1].messages)).toContain('from web-search')
     await host.close()
+  })
+
+  it('keeps a tool that needs approval, or that a rule asks for or denies, when include picks it, and warns once', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const denyDocs = definePlugin({
+      name: 'test/deny-docs',
+      setup: () => ({
+        contribute: [
+          PermissionRules.item({ tool: 'docs_deny', decision: 'deny' }),
+          PermissionRules.item({ tool: 'docs_ask', decision: 'ask' }),
+        ],
+      }),
+    })
+    const { adapter, calls } = scripted([textTurn('one'), textTurn('two')])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/code-mode-include-guard',
+        adapter,
+        tools: [
+          tools.lookup,
+          tools.remove,
+          toolDefinition({
+            name: 'docs_deny',
+            description: 'A tool that a rule denies',
+            inputSchema: z.object({}),
+          }).server(async () => 'denied'),
+          toolDefinition({
+            name: 'docs_ask',
+            description: 'A tool that a rule asks for',
+            inputSchema: z.object({}),
+          }).server(async () => 'asked'),
+        ],
+        plugins: () => [
+          denyDocs,
+          codeMode({ driver: fakeDriver().driver, include: () => true }),
+        ],
+      }),
+      { threadId: 't' },
+    )
+    await session.send('first')
+    await session.send('second')
+    await host.close()
+
+    for (const call of calls) {
+      expect(call.tools.map((tool: { name: string }) => tool.name)).toEqual([
+        'remove',
+        'docs_deny',
+        'docs_ask',
+        'execute_typescript',
+      ])
+    }
+    // One warning for each kept tool, not one for each turn.
+    expect(warn.mock.calls.map(([message]) => message)).toEqual([
+      '[@tanstack/ai-code-mode] include picked the tool "remove", but it needs approval, or a rule asks for it or denies it. A call inside code mode skips those checks, so the tool stays a normal tool call.',
+      '[@tanstack/ai-code-mode] include picked the tool "docs_deny", but it needs approval, or a rule asks for it or denies it. A call inside code mode skips those checks, so the tool stays a normal tool call.',
+      '[@tanstack/ai-code-mode] include picked the tool "docs_ask", but it needs approval, or a rule asks for it or denies it. A call inside code mode skips those checks, so the tool stays a normal tool call.',
+    ])
+    warn.mockRestore()
   })
 
   it('moves a marked tool that include does not pick, unless a rule or an approval stops it', async () => {
@@ -404,6 +475,40 @@ describe('codeMode', () => {
       'docs_write',
       'execute_typescript',
     ])
+  })
+
+  it('keeps a tool that include picks and that edits as a tool call in plan mode', async () => {
+    const { adapter, calls } = scripted([textTurn('ok'), textTurn('ok')])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/code-mode-include-plan',
+        adapter,
+        tools: [tools.lookup],
+        plugins: () => [
+          permissions({
+            rules: [{ tool: 'lookup', decision: 'allow', kind: 'edit' }],
+          }),
+          codeMode({
+            driver: fakeDriver().driver,
+            include: (tool) => tool.name === 'lookup',
+          }),
+        ],
+      }),
+      { threadId: 't' },
+    )
+    const namesOf = (call: number) =>
+      calls[call].tools.map((tool: { name: string }) => tool.name)
+    await session.send('hi')
+    // In the default mode, the rule allows it, so it moves.
+    expect(namesOf(0)).toEqual(['execute_typescript'])
+
+    await session.command({ name: 'mode', input: 'plan' })
+    await session.send('plan it')
+    // Plan mode denies an edit, so a call inside the isolate must not run
+    // it. No tool moves, so code mode adds no tool.
+    expect(namesOf(1)).toEqual(['lookup'])
+    await host.close()
   })
 
   it('keeps a tool that a rule of permissions() asks for as a tool call', async () => {
@@ -503,9 +608,12 @@ describe('codeMode', () => {
             codeMode({ driver }),
           ],
         }),
-        { threadId: 't' },
+        {
+          threadId: 't',
+        },
       )
-      if (mode === 'plan') await session.command('mode', 'plan')
+      if (mode === 'plan')
+        await session.command({ name: 'mode', input: 'plan' })
       expect((await session.send('look it up')).text).toBe('done')
       // The program ran: a question would wait, and plan mode would deny it.
       expect(seen).toHaveLength(1)
@@ -530,20 +638,34 @@ describe('codeMode', () => {
           codeMode({ driver }),
         ],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
-    const turn = session.send('look it up')
-    await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
+    // The approval is a turn wait at the boundary: the turn stops, and a
+    // `resolve` answers it.
+    void session.send('look it up')
+    await vi.waitFor(
+      () => expect(session.snapshot().pendingWaits).toHaveLength(1),
+      { timeout: 5_000 },
     )
-    const [question] = session.snapshot().pendingQuestions
-    if (!question) throw new Error('No question.')
-    expect(question.message).toContain('execute_typescript')
-    await session.answer({
-      questionId: question.questionId,
-      value: { answer: 'reject' },
+    const [wait] = session.snapshot().pendingWaits
+    if (!wait) throw new Error('No approval.')
+    expect(wait.kind).toBe('approval')
+    expect(wait.message).toContain('execute_typescript')
+    const inputId = `answer:${wait.waitId}`
+    await session.resolve({
+      resume: [
+        { interruptId: wait.waitId, status: 'resolved', payload: 'reject' },
+      ],
+      inputId,
     })
-    expect((await turn).text).toBe('done')
+    await session.settled({ inputId })
+    const messages = await session.transcript()
+    expect(messages.at(-1)).toMatchObject({
+      role: 'assistant',
+      content: 'done',
+    })
     expect(seen).toEqual([])
     await host.close()
   })
@@ -568,7 +690,9 @@ describe('codeMode', () => {
           }),
         ],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     await session.send('first')
     expect(JSON.stringify(calls[0].systemPrompts)).toContain('external_lookup')

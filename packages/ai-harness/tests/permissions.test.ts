@@ -4,7 +4,6 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import {
   PermissionDecisionCapability,
-  PermissionPrompt,
   PermissionResources,
   PermissionRules,
   decidePermission,
@@ -12,8 +11,14 @@ import {
   listSavedPermissions,
   permissions,
 } from '../src/first-party/permissions'
-import { mockAdapter, text, toolCall } from './helpers'
-import type { HarnessPersistence, HarnessPlugin, HarnessSession } from '../src'
+import { gate, mockAdapter, questionsOf, text, toolCall } from './helpers'
+import type { MetadataStore } from '@tanstack/ai-persistence'
+import type {
+  HarnessPersistence,
+  HarnessPlugin,
+  HarnessSession,
+  Principal,
+} from '../src'
 import type {
   CallResources,
   PermissionDecision,
@@ -21,6 +26,12 @@ import type {
   PermissionRule,
 } from '../src/first-party/permissions'
 import type { Reply } from './helpers'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 const ROOT = '/work/repo'
 const WINDOWS_ROOT = 'C:\\work\\repo'
@@ -279,6 +290,7 @@ async function open(
   plugins: Array<HarnessPlugin>,
   replies: Array<Reply>,
   threadId = 't',
+  principal?: Principal,
 ) {
   const { adapter, calls } = mockAdapter([...replies, () => text('done')])
   const host = createHarnessHost({ persistence })
@@ -288,20 +300,30 @@ async function open(
       adapter,
       plugins: () => plugins,
     }),
-    { threadId },
+    {
+      threadId,
+      ...(principal ? { principal } : {}),
+    },
   )
   return { host, session, calls }
 }
 
-/** Wait for the one open question, then answer it. Returns its message. */
+/**
+ * Wait for the one open approval of the turn, then answer it through
+ * `resolve`, and wait for the turn that resumes. Returns its message.
+ */
 async function answer(session: HarnessSession, value: unknown) {
-  await vi.waitFor(() =>
-    expect(session.snapshot().pendingQuestions).toHaveLength(1),
-  )
-  const [question] = session.snapshot().pendingQuestions
-  if (!question) throw new Error('No question.')
-  await session.answer({ questionId: question.questionId, value })
-  return question.message
+  await waitFor(() => expect(session.snapshot().pendingWaits).toHaveLength(1))
+  const [wait] = session.snapshot().pendingWaits
+  if (!wait) throw new Error('No approval.')
+  expect(wait.kind).toBe('approval')
+  const inputId = `answer:${wait.waitId}`
+  await session.resolve({
+    resume: [{ interruptId: wait.waitId, status: 'resolved', payload: value }],
+    inputId,
+  })
+  await session.settled({ inputId })
+  return wait.message ?? ''
 }
 
 describe('permissions()', () => {
@@ -322,7 +344,7 @@ describe('permissions()', () => {
     expect(
       await persistence.stores.metadata.get(
         'tanstack/permissions',
-        'permissions:saved:/work/repo',
+        'permissions:saved::/work/repo',
       ),
     ).toEqual([{ tool: 'read_file', resource: '.env', decision: 'allow' }])
     await first.host.close()
@@ -347,11 +369,48 @@ describe('permissions()', () => {
     await second.host.close()
   })
 
+  it('decides on the final arguments: a middleware before it cannot rewrite a call past a deny', async () => {
+    const tools = fakeTools()
+    // It runs before permissions(), and its onBeforeToolCall wins first.
+    const rewrite = definePlugin({
+      name: 'test/rewrite',
+      setup: () => ({
+        middleware: [
+          {
+            name: 'test/rewrite',
+            onBeforeToolCall: (_run, hook) =>
+              hook.toolName === 'read_file'
+                ? { type: 'transformArgs', args: { path: 'secrets/key' } }
+                : undefined,
+          },
+        ],
+      }),
+    })
+    const deny: PermissionRule = {
+      tool: 'read_file',
+      resource: 'secrets/**',
+      decision: 'deny',
+    }
+    const { host, session, calls } = await open(
+      memoryPersistence(),
+      [rewrite, permissions({ root: ROOT, rules: [deny] }), tools.plugin],
+      [() => toolCall('read_file', { path: 'src/a.ts' }, 'c1')],
+    )
+
+    await session.send('Read a file.')
+
+    expect(tools.ran).toEqual([])
+    expect(JSON.stringify(calls[1].messages)).toContain(
+      'A permission rule denies this tool.',
+    )
+    await host.close()
+  })
+
   it('keeps an always answer for the session when there is no metadata store', async () => {
     const { stores } = memoryPersistence()
     const tools = fakeTools()
     const { host, session } = await open(
-      { stores: { messages: stores.messages, runs: stores.runs } },
+      { stores: { log: stores.log } },
       [permissions({ root: ROOT }), tools.plugin],
       [
         () => toolCall('read_file', { path: '../shared.txt' }, 'c1'),
@@ -364,7 +423,63 @@ describe('permissions()', () => {
     await turn
 
     expect(tools.ran).toEqual(['read_file', 'read_file'])
-    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(session.snapshot().pendingWaits).toEqual([])
+    await host.close()
+  })
+
+  it('takes a yes or a no, as every approval does', async () => {
+    const tools = fakeTools()
+    const { host, session } = await open(
+      memoryPersistence(),
+      [permissions({ root: ROOT }), tools.plugin],
+      [
+        () => toolCall('read_file', { path: '../a.txt' }, 'c1'),
+        () => toolCall('read_file', { path: '../b.txt' }, 'c2'),
+      ],
+    )
+
+    const turn = session.send('read two files')
+    // A client that knows only yes or no (a view, the CLI, ACP, MCP).
+    await answer(session, true)
+    await answer(session, false)
+    await turn
+
+    expect(tools.ran).toEqual(['read_file'])
+    await host.close()
+  })
+
+  it('keeps the mode of a turn until it ends: a change applies at the next turn', async () => {
+    const tools = fakeTools()
+    const started = gate()
+    const release = gate()
+    const { host, session } = await open(
+      memoryPersistence(),
+      [permissions({ root: ROOT }), tools.plugin],
+      [
+        () =>
+          (async function* () {
+            started.open()
+            await release.opened
+            yield* toolCall('bash', { command: 'ls' }, 'c1')
+          })(),
+        () => text('listed'),
+        () => toolCall('bash', { command: 'ls' }, 'c2'),
+      ],
+    )
+
+    const turn = session.send('list it')
+    await started.opened
+    await session.setConfig({ key: 'mode', value: 'bypass' })
+    expect(session.config().mode?.value).toBe('bypass')
+    release.open()
+    // The running turn still has the default mode, so bash asks.
+    await answer(session, { answer: 'once' })
+    await turn
+
+    // The next turn has bypass, so bash runs with no question.
+    await session.send('list it again')
+    expect(questionsOf(session.snapshot())).toHaveLength(0)
+    expect(tools.ran).toEqual(['bash', 'bash'])
     await host.close()
   })
 
@@ -400,7 +515,7 @@ describe('permissions()', () => {
     )
 
     const turn = session.send('run it')
-    const message = await answer(session, 'reject')
+    const message = await answer(session, { answer: 'reject' })
     await turn
 
     expect(message).toMatch(/\.\.\. \(\d+ more characters not shown\)\?/)
@@ -470,7 +585,7 @@ describe('permissions()', () => {
     await session.send('read nothing')
 
     expect(tools.ran).toEqual([])
-    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(session.snapshot().pendingWaits).toEqual([])
     expect(JSON.stringify(calls[1].messages)).toContain(
       'Cannot check the permissions of this call: No path.',
     )
@@ -556,7 +671,7 @@ describe('permissions()', () => {
     expect(decide?.('deploy', 'default')).toBe('ask')
 
     // Plan mode denies what would ask.
-    await session.command('mode', 'plan')
+    await session.command({ name: 'mode', input: 'plan' })
     await session.send('again, in plan mode')
     expect(ran).toEqual(['lookup', 'lookup'])
     expect(JSON.stringify(calls.at(-1).messages)).toContain(
@@ -608,7 +723,7 @@ describe('permissions()', () => {
     const persistence = memoryPersistence()
     await persistence.stores.metadata.set(
       'tanstack/permissions',
-      'permissions:saved:/work/repo',
+      'permissions:saved::/work/repo',
       [{ tool: 'read_file', resource: 'secret.txt', decision: 'allow' }],
     )
     const tools = fakeTools()
@@ -630,6 +745,91 @@ describe('permissions()', () => {
 
     expect(tools.ran).toEqual([])
     await host.close()
+  })
+
+  it('keeps the saved rules of each tenant apart', async () => {
+    const persistence = memoryPersistence()
+    const tools = fakeTools()
+    const first = await open(
+      persistence,
+      [permissions({ root: ROOT }), tools.plugin],
+      [() => toolCall('read_file', { path: '.env' }, 'c1')],
+      't',
+      { id: 'u-1', tenantId: 'org-a' },
+    )
+    const turn = first.session.send('read it')
+    await answer(first.session, { answer: 'always' })
+    await turn
+    await first.host.close()
+
+    const saved = [{ tool: 'read_file', resource: '.env', decision: 'allow' }]
+    expect(
+      await listSavedPermissions(persistence.stores, ROOT, {
+        tenantId: 'org-a',
+      }),
+    ).toEqual(saved)
+    expect(await listSavedPermissions(persistence.stores, ROOT)).toEqual([])
+
+    // The same project in another tenant asks again.
+    const other = await open(
+      persistence,
+      [permissions({ root: ROOT }), tools.plugin],
+      [() => toolCall('read_file', { path: '.env' }, 'c2')],
+      't',
+      { id: 'u-2', tenantId: 'org-b' },
+    )
+    const otherTurn = other.session.send('read it')
+    expect(await answer(other.session, { answer: 'once' })).toContain('.env')
+    await otherTurn
+    await other.host.close()
+    expect(
+      await listSavedPermissions(persistence.stores, ROOT, {
+        tenantId: 'org-b',
+      }),
+    ).toEqual([])
+  })
+
+  it('keeps a rule that another host saves while a delete runs', async () => {
+    const base = memoryPersistence().stores.metadata
+    const { getVersioned, setIf } = base
+    if (!getVersioned || !setIf) throw new Error('No compare-and-set.')
+    const kept: PermissionRule = {
+      tool: 'bash',
+      resource: 'git status',
+      decision: 'allow',
+    }
+    const gone: PermissionRule = {
+      tool: 'read_file',
+      resource: '.env',
+      decision: 'allow',
+    }
+    const added: PermissionRule = { tool: 'deploy', decision: 'allow' }
+    let raced = false
+    // After the delete reads, another host saves `added`.
+    const racing: MetadataStore = {
+      get: (namespace, key) => base.get(namespace, key),
+      set: (namespace, key, value) => base.set(namespace, key, value),
+      delete: (namespace, key) => base.delete(namespace, key),
+      getVersioned: async (namespace, key) => {
+        const read = await getVersioned.call(base, namespace, key)
+        if (!raced) {
+          raced = true
+          await base.set(namespace, key, [kept, gone, added])
+        }
+        return read
+      },
+      setIf: (namespace, key, value, revision) =>
+        setIf.call(base, namespace, key, value, revision),
+    }
+    const stores = { metadata: racing }
+    await base.set('tanstack/permissions', 'permissions:saved::/work/repo', [
+      kept,
+      gone,
+    ])
+
+    await deleteSavedPermission(stores, ROOT, gone)
+
+    expect(await listSavedPermissions(stores, ROOT)).toEqual([kept, added])
   })
 
   it('lists the saved rules of a project, and deletes one by its fields', async () => {
@@ -675,7 +875,7 @@ describe('permissions()', () => {
     const persistence = memoryPersistence()
     await persistence.stores.metadata.set(
       'tanstack/permissions',
-      'permissions:saved:/work/repo',
+      'permissions:saved::/work/repo',
       [
         { tool: 'bash', resource: 'git status', decision: 'allow' },
         { tool: 'deploy', decision: 'allow' },
@@ -688,20 +888,22 @@ describe('permissions()', () => {
       [],
     )
 
-    expect(await session.command('permissions')).toBe(
+    expect(await session.command({ name: 'permissions' })).toBe(
       'Saved rules:\n1. bash git status\n2. deploy',
     )
-    expect(await session.command('permissions', 'forget 3')).toBe(
-      'No saved rule 3. Run /permissions to see the list.',
-    )
-    expect(await session.command('permissions', 'forget 1')).toBe(
-      'Forgot rule 1: bash git status.',
-    )
+    expect(
+      await session.command({ name: 'permissions', input: 'forget 3' }),
+    ).toBe('No saved rule 3. Run /permissions to see the list.')
+    expect(
+      await session.command({ name: 'permissions', input: 'forget 1' }),
+    ).toBe('Forgot rule 1: bash git status.')
     expect(await listSavedPermissions(persistence.stores, ROOT)).toEqual([
       { tool: 'deploy', decision: 'allow' },
     ])
-    await session.command('permissions', 'forget 1')
-    expect(await session.command('permissions')).toBe('No saved rules.')
+    await session.command({ name: 'permissions', input: 'forget 1' })
+    expect(await session.command({ name: 'permissions' })).toBe(
+      'No saved rules.',
+    )
     await host.close()
   })
 
@@ -720,9 +922,9 @@ describe('permissions()', () => {
     const first = session.send('run it')
     await answer(session, { answer: 'always' })
     await first
-    expect(await session.command('permissions', 'forget 1')).toBe(
-      'Forgot rule 1: bash git status.',
-    )
+    expect(
+      await session.command({ name: 'permissions', input: 'forget 1' }),
+    ).toBe('Forgot rule 1: bash git status.')
 
     const second = session.send('run it again')
     expect(await answer(session, { answer: 'once' })).toContain('git status')
@@ -731,27 +933,48 @@ describe('permissions()', () => {
     await host.close()
   })
 
-  it('asks about an action that is not a tool call, like a formatter, by the mode', async () => {
+  it('decides the other actions of a call, like a formatter, with the call, by the mode', async () => {
     const persistence = memoryPersistence()
-    let prompt:
-      | ((tool: string, message: string) => Promise<boolean>)
-      | undefined
-    // A plugin like formatter(): it adds an ask rule, and asks before it runs.
+    const ran: Array<string> = []
+    // A tool that writes, and a plugin like formatter(): it adds an ask
+    // rule, and names the action that the call runs after the write.
+    const writer = definePlugin({
+      name: 'test/writer',
+      setup: () => ({
+        tools: [
+          toolDefinition({ name: 'write_doc', description: 'Write' }).server(
+            async () => {
+              ran.push('write_doc')
+              return 'written'
+            },
+          ),
+        ],
+        contribute: [
+          PermissionRules.item({
+            tool: 'write_doc',
+            decision: 'allow',
+            kind: 'edit',
+          }),
+          PermissionResources.item({ write_doc: { paths: () => ['a.md'] } }),
+        ],
+      }),
+    })
     const runner = definePlugin({
       name: 'test/runner',
-      optionalRequires: [PermissionPrompt],
-      setup: (ctx) => {
-        prompt = ctx.getOptional(PermissionPrompt)
-        return {
-          contribute: [
-            PermissionRules.item({
-              tool: 'formatter:*',
-              decision: 'ask',
-              kind: 'execute',
-            }),
-          ],
-        }
-      },
+      setup: () => ({
+        contribute: [
+          PermissionRules.item({
+            tool: 'formatter:*',
+            decision: 'ask',
+            kind: 'execute',
+          }),
+          PermissionResources.item({
+            write_doc: {
+              actions: async (input) => [`formatter:${field(input, 'with')}`],
+            },
+          }),
+        ],
+      }),
     })
     const { host, session } = await open(
       persistence,
@@ -760,39 +983,132 @@ describe('permissions()', () => {
           root: ROOT,
           rules: [{ tool: 'formatter:biome', decision: 'allow' }],
         }),
+        writer,
         runner,
       ],
-      [],
+      [
+        () => toolCall('write_doc', { with: 'biome' }, 'c1'),
+        () => toolCall('write_doc', { with: 'prettier' }, 'c2'),
+        () => text('done'),
+        () => toolCall('write_doc', { with: 'prettier' }, 'c3'),
+        () => text('done'),
+        () => toolCall('write_doc', { with: 'prettier' }, 'c4'),
+        () => text('done'),
+      ],
     )
-    if (!prompt) throw new Error('No PermissionPrompt.')
+    await session.command({ name: 'mode', input: 'acceptEdits' })
 
-    // A user rule allows biome. prettier asks, also in acceptEdits mode.
-    expect(await prompt('formatter:biome', 'Run biome?')).toBe(true)
-    await session.command('mode', 'acceptEdits')
-    const first = prompt('formatter:prettier', 'Run prettier?')
-    expect(await answer(session, { answer: 'reject' })).toBe(
-      'Run prettier? Answer once, always, or reject.',
+    // A user rule allows biome. prettier asks, also in acceptEdits mode,
+    // before the call runs: one approval for the call and its formatter.
+    await session.send('write twice')
+    expect(ran).toEqual(['write_doc'])
+    expect(await answer(session, { answer: 'reject' })).toContain(
+      'Allow write_doc {"with":"prettier"}?',
     )
-    expect(await first).toBe(false)
+    expect(ran).toEqual(['write_doc'])
 
-    // always saves the rule for the project, so it asks no more.
-    const second = prompt('formatter:prettier', 'Run prettier?')
+    // always saves the rule of the formatter for the project.
+    await session.send('write again')
     await answer(session, { answer: 'always' })
-    expect(await second).toBe(true)
-    expect(await prompt('formatter:prettier', 'Run prettier?')).toBe(true)
+    expect(ran).toEqual(['write_doc', 'write_doc'])
     expect(
       await persistence.stores.metadata.get(
         'tanstack/permissions',
-        'permissions:saved:/work/repo',
+        'permissions:saved::/work/repo',
       ),
-    ).toEqual([{ tool: 'formatter:prettier', decision: 'allow' }])
+    ).toEqual([
+      { tool: 'write_doc', resource: 'a.md', decision: 'allow' },
+      { tool: 'formatter:prettier', decision: 'allow' },
+    ])
+    await session.send('and again')
+    expect(ran).toHaveLength(3)
+    expect(session.snapshot().pendingWaits).toEqual([])
+    await host.close()
+  })
 
-    // bypass runs everything. plan runs no command.
-    await session.command('mode', 'bypass')
-    expect(await prompt('formatter:oxfmt', 'Run oxfmt?')).toBe(true)
-    await session.command('mode', 'plan')
-    expect(await prompt('formatter:prettier', 'Run prettier?')).toBe(false)
-    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+  it('tells other plugins the decision for the actions of a call', async () => {
+    let decide:
+      | ((
+          tool: string,
+          mode: PermissionMode,
+          resources?: CallResources,
+        ) => PermissionDecision)
+      | undefined
+    const reader = definePlugin({
+      name: 'test/reader',
+      optionalRequires: [PermissionDecisionCapability],
+      setup: (ctx) => {
+        decide = ctx.getOptional(PermissionDecisionCapability)
+        return {}
+      },
+    })
+    const { host } = await open(
+      memoryPersistence(),
+      [
+        permissions({
+          rules: [
+            { tool: 'write_doc', decision: 'allow', kind: 'edit' },
+            { tool: 'formatter:*', decision: 'ask', kind: 'execute' },
+            { tool: 'formatter:biome', decision: 'allow' },
+          ],
+        }),
+        reader,
+      ],
+      [],
+    )
+    const actions = (name: string) => ({ actions: [`formatter:${name}`] })
+    expect(decide?.('write_doc', 'default', actions('biome'))).toBe('allow')
+    expect(decide?.('write_doc', 'acceptEdits', actions('oxfmt'))).toBe('ask')
+    expect(decide?.('write_doc', 'plan', actions('oxfmt'))).toBe('deny')
+    expect(decide?.('write_doc', 'bypass', actions('oxfmt'))).toBe('allow')
+    await host.close()
+  })
+})
+
+describe('permissions() at the turn boundary', () => {
+  it('stops the turn before the tools run, with one approval for each call that asks, and runs only the approved call', async () => {
+    const tools = fakeTools()
+    const first = toolCall('bash', { command: 'ls' }, 'c1')
+    const second = toolCall('bash', { command: 'rm x' }, 'c2')
+    const { host, session, calls } = await open(
+      memoryPersistence(),
+      [permissions({ root: ROOT }), tools.plugin],
+      // One model message with both calls.
+      [() => [...first.slice(0, -1), ...second.slice(1)]],
+    )
+
+    const turn = await session.send('clean up')
+    expect(turn.interrupts).toHaveLength(2)
+    // No tool ran, and no process waits: the turn ended for the waits.
+    expect(tools.ran).toEqual([])
+    const waits = session.snapshot().pendingWaits
+    expect(waits.map((wait) => wait.kind)).toEqual(['approval', 'approval'])
+    expect(waits.map((wait) => wait.message)).toEqual([
+      expect.stringContaining('ls'),
+      expect.stringContaining('rm x'),
+    ])
+
+    await session.resolve({
+      resume: [
+        {
+          interruptId: waits[0]!.waitId,
+          status: 'resolved',
+          payload: { answer: 'once' },
+        },
+        {
+          interruptId: waits[1]!.waitId,
+          status: 'resolved',
+          payload: { answer: 'reject' },
+        },
+      ],
+      inputId: 'answers',
+    })
+    await session.settled({ inputId: 'answers' })
+
+    expect(tools.ran).toEqual(['bash'])
+    const seen = JSON.stringify(calls[1]?.messages)
+    expect(seen).toContain('bash done')
+    expect(seen).toContain('The user denied this tool call.')
     await host.close()
   })
 })

@@ -693,7 +693,8 @@ function* valueResultChunks(
 
 /**
  * Build the context `run` receives: the spawn input plus `forward`, the
- * provider keys, and the bound activity functions.
+ * provider keys, the bound activity functions, and the fields of
+ * `binding.extend`.
  */
 function runContext(
   agentName: string,

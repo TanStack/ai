@@ -11,19 +11,29 @@ import {
   createHarnessHost,
   createPluginEvent,
   defineCommand,
+  durableTool,
   defineHarness,
   definePlugin,
 } from '../src'
+import { compact, modelPicker, todos, usage } from '../src/first-party'
+import { fileCommands, projectInstructions } from '../src/first-party/node'
+import { loadLogState, logIdOf, sessionOf } from '../src/log'
 import {
-  compact,
-  fileCommands,
-  modelPicker,
-  projectInstructions,
-  todos,
-  usage,
-} from '../src/first-party'
-import { gate, mockAdapter, text, toolCall } from './helpers'
-import type { PluginState, SessionEvent } from '../src'
+  after,
+  appendToLog,
+  gate,
+  mockAdapter,
+  questionsOf,
+  text,
+  toolCall,
+} from './helpers'
+import type { PluginSessionApi, PluginState, SessionEvent } from '../src'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 const settings = definePlugin({
   name: 'test/settings',
@@ -60,10 +70,11 @@ describe('config values', () => {
 
   it('rejects unknown keys and bad values, and loads saved values in a new session', async () => {
     const persistence = memoryPersistence()
-    await persistence.stores.metadata.set('harness:config', 't', {
-      verbose: 'not a boolean',
-      gone: 'old key',
-    })
+    await appendToLog(persistence.stores.log, { threadId: 't' }, [
+      { type: 'harness.config', key: 'verbose', value: 'not a boolean' },
+      { type: 'harness.config', key: 'gone', value: 'old key' },
+      { type: 'harness.config', key: 'retries', value: 3 },
+    ])
     const { adapter } = mockAdapter([])
     const host = createHarnessHost({ persistence })
     const harness = defineHarness({
@@ -72,8 +83,10 @@ describe('config values', () => {
       plugins: () => [settings],
     })
     const session = await host.open(harness, { threadId: 't' })
-    // The saved values were invalid or unknown, so the defaults apply.
+    // An invalid or unknown saved value falls back to the default.
     expect(session.config().verbose?.value).toBe(false)
+    expect(session.config().retries?.value).toBe(3)
+    expect(session.config()).not.toHaveProperty('gone')
     expect(await session.setConfig({ key: 'missing', value: 1 })).toMatchObject(
       {
         status: 'rejected',
@@ -99,7 +112,7 @@ describe('config values', () => {
     expect(reopened.config()).toMatchObject({
       level: { value: 'high', owner: 'test/settings' },
       label: { value: 'mine' },
-      retries: { value: 1 },
+      retries: { value: 3 },
     })
     await again.close()
   })
@@ -143,7 +156,9 @@ describe('commands', () => {
         adapter: mockAdapter([]).adapter,
         plugins: () => [tools],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     const listed = session.commands()
     expect(listed.find((command) => command.name === 'greet')).toMatchObject({
@@ -154,16 +169,20 @@ describe('commands', () => {
       listed.find((command) => command.name === 'boom')?.input,
     ).toBeUndefined()
 
-    expect(await session.command('greet', { name: 'Ada' })).toBe('hello Ada')
-    await expect(session.command('greet', { name: 1 })).rejects.toThrow(
-      'Input validation failed for command greet',
-    )
-    await expect(session.command('nope')).rejects.toThrow(
+    expect(
+      await session.command({ name: 'greet', input: { name: 'Ada' } }),
+    ).toBe('hello Ada')
+    await expect(
+      session.command({ name: 'greet', input: { name: 1 } }),
+    ).rejects.toThrow('Input validation failed for command greet')
+    await expect(session.command({ name: 'nope' })).rejects.toThrow(
       'Unknown command: nope',
     )
-    await expect(session.command('boom')).rejects.toThrow('command broke')
+    await expect(session.command({ name: 'boom' })).rejects.toThrow(
+      'command broke',
+    )
 
-    const waiting = session.command('wait')
+    const waiting = session.command({ name: 'wait' })
     await release.opened
     await waiting.cancel()
     await waiting.then(
@@ -173,18 +192,57 @@ describe('commands', () => {
     expect(waiting.status()).toBe('cancelled')
     await host.close()
   })
+
+  it('gives a command without a schema the input as sent, typed unknown', async () => {
+    // Defined on their own, with no contextual type from a plugin's `setup`.
+    const peek = defineCommand({
+      description: 'Reads a field without a check',
+      // @ts-expect-error Without a schema, narrow the input before use.
+      run: (input) => input.foo,
+    })
+    const shout = defineCommand({
+      description: 'Shouts the text it gets',
+      run: (input) =>
+        typeof input === 'string' ? input.toUpperCase() : 'no text',
+    })
+    const raw = definePlugin({
+      name: 'test/raw-commands',
+      setup: () => ({ commands: { peek, shout } }),
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/raw-cmds',
+        adapter: mockAdapter([]).adapter,
+        plugins: () => [raw],
+      }),
+      {
+        threadId: 't',
+      },
+    )
+
+    expect(await session.command({ name: 'peek', input: { foo: 'bar' } })).toBe(
+      'bar',
+    )
+    expect(await session.command({ name: 'shout', input: 'hi' })).toBe('HI')
+    expect(
+      await session.command({ name: 'shout', input: { text: 'hi' } }),
+    ).toBe('no text')
+    await host.close()
+  })
 })
 
 describe('questions', () => {
   it('asks with a schema, checks answers, and rejects open questions on close', async () => {
     const asker = definePlugin({
       name: 'test/asker',
-      setup: (ctx) => ({
+      setup: () => ({
         commands: {
           pick: defineCommand({
             description: 'Pick a number',
-            run: async () => {
-              const answer = await ctx.session.ask({
+            run: async (_input, { step }) => {
+              const answer = await step.ask({
+                name: 'count',
                 message: 'How many?',
                 schema: z.object({ count: z.number() }),
               })
@@ -193,7 +251,8 @@ describe('questions', () => {
           }),
           open: defineCommand({
             description: 'Asks and never gets an answer',
-            run: () => ctx.session.ask({ message: 'Still there?' }),
+            run: (_input, { step }) =>
+              step.ask({ name: 'there', message: 'Still there?' }),
           }),
         },
       }),
@@ -205,13 +264,13 @@ describe('questions', () => {
         adapter: mockAdapter([]).adapter,
         plugins: () => [asker],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
-    const picking = session.command('pick')
-    await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
-    const [question] = session.snapshot().pendingQuestions
+    const picking = session.command({ name: 'pick' })
+    await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
+    const [question] = questionsOf(session.snapshot())
     expect(question).toMatchObject({
       message: 'How many?',
       schema: { type: 'object' },
@@ -241,24 +300,25 @@ describe('questions', () => {
     ).toBe('accepted')
     expect(await picking).toBe(4)
 
-    const open = session.command('open')
-    await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
-    await session.close()
-    await expect(open).rejects.toThrow('Session closed.')
+    const open = session.command({ name: 'open' })
+    await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
     await host.close()
+    // The close cancels the command that waits for its answer.
+    await expect(open).rejects.toBeDefined()
+    expect(open.status()).toBe('cancelled')
+    expect(questionsOf(session.snapshot())).toEqual([])
   })
 
   it('rejects the questions of a turn when the turn is cancelled', async () => {
     let asked: Promise<unknown> | undefined
     const asker = definePlugin({
       name: 'test/turn-asker',
-      setup: (ctx) => ({
+      setup: () => ({
         tools: [
-          toolDefinition({ name: 'confirm', description: 'Ask' }).server(
-            async () => {
-              asked = ctx.session.ask({ message: 'Sure?' })
+          durableTool(
+            toolDefinition({ name: 'confirm', description: 'Ask' }),
+            async (_args, { step }) => {
+              asked = step.ask({ name: 'sure', message: 'Sure?' })
               return asked
             },
           ),
@@ -272,17 +332,17 @@ describe('questions', () => {
         adapter: mockAdapter([() => toolCall('confirm', {})]).adapter,
         plugins: () => [asker],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     const turn = session.send('Go.')
-    await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
+    await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
 
-    await session.cancel(turn.id)
+    await session.cancel({ operationId: turn.id })
 
     await expect(asked).rejects.toThrow('Cancelled.')
-    expect(session.snapshot().pendingQuestions).toEqual([])
+    expect(questionsOf(session.snapshot())).toEqual([])
     await host.close()
   })
 
@@ -294,8 +354,8 @@ describe('questions', () => {
         commands: {
           confirm: defineCommand({
             description: 'Ask',
-            run: (_input, { session }) => {
-              asked = session.ask({ message: 'Sure?' })
+            run: (_input, { step }) => {
+              asked = step.ask({ name: 'sure', message: 'Sure?' })
               return asked
             },
           }),
@@ -309,62 +369,17 @@ describe('questions', () => {
         adapter: mockAdapter([]).adapter,
         plugins: () => [asker],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
-    const command = session.command('confirm')
-    await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
+    const command = session.command({ name: 'confirm' })
+    await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
 
-    await session.cancel(command.id)
+    await session.cancel({ operationId: command.id })
 
     await expect(asked).rejects.toThrow('Cancelled.')
-    expect(session.snapshot().pendingQuestions).toEqual([])
-    await host.close()
-  })
-
-  it('keeps a question when the answer cannot be stored', async () => {
-    let asked: Promise<unknown> | undefined
-    const asker = definePlugin({
-      name: 'test/answer-asker',
-      setup: () => ({
-        commands: {
-          confirm: defineCommand({
-            description: 'Ask',
-            run: (_input, { session }) => {
-              asked = session.ask({ message: 'Sure?' })
-              return asked
-            },
-          }),
-        },
-      }),
-    })
-    const persistence = memoryPersistence()
-    const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({
-        name: 'test/answer-store',
-        adapter: mockAdapter([]).adapter,
-        plugins: () => [asker],
-      }),
-      { threadId: 't' },
-    )
-    void session.command('confirm')
-    await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
-    )
-    const [question] = session.snapshot().pendingQuestions
-    vi.spyOn(persistence.stores.inbox, 'markApplied').mockRejectedValueOnce(
-      new Error('store down'),
-    )
-
-    await expect(
-      session.answer({ questionId: question!.questionId, value: 'yes' }),
-    ).rejects.toThrow('store down')
-    expect(session.snapshot().pendingQuestions).toHaveLength(1)
-
-    await session.answer({ questionId: question!.questionId, value: 'yes' })
-    await expect(asked).resolves.toBe('yes')
+    expect(questionsOf(session.snapshot())).toEqual([])
     await host.close()
   })
 })
@@ -400,84 +415,47 @@ describe('plugin state and events', () => {
     })
   }
 
-  it('keeps state with a plain metadata store and with none', async () => {
+  it('keeps state in the log, with no metadata store', async () => {
     const base = memoryPersistence()
-    const plain = {
-      ...base,
-      stores: {
-        ...base.stores,
-        metadata: {
-          get: (namespace: string, key: string) =>
-            base.stores.metadata.get(namespace, key),
-          set: (namespace: string, key: string, value: unknown) =>
-            base.stores.metadata.set(namespace, key, value),
-        },
-      },
-    }
-    const none = { ...base, stores: { ...base.stores, metadata: undefined } }
-    for (const persistence of [plain, none]) {
-      const seen: Array<number> = []
-      const host = createHarnessHost({ persistence: persistence as never })
-      const session = await host.open(
-        defineHarness({
-          name: 'test/state-store',
-          adapter: mockAdapter([]).adapter,
-          plugins: () => [statePlugin((value) => seen.push(value))],
-        }),
-        { threadId: 't' },
-      )
-      expect(await session.command('bump')).toBe(1)
-      expect(await session.command('bump')).toBe(2)
-      expect(seen).toEqual([1, 2])
-      await host.close()
-    }
-  })
-
-  it('gives up after five conflicting updates', async () => {
-    const base = memoryPersistence()
-    const conflicting = {
-      ...base,
-      stores: {
-        ...base.stores,
-        metadata: {
-          get: async () => null,
-          set: async () => {},
-          getVersioned: async () => ({ value: { count: 0 }, revision: 'r1' }),
-          setIf: async () => ({ ok: false }),
-        },
-      },
-    }
-    const host = createHarnessHost({ persistence: conflicting as never })
-    const session = await host.open(
-      defineHarness({
-        name: 'test/state-conflict',
-        adapter: mockAdapter([]).adapter,
-        plugins: () => [statePlugin(() => {})],
-      }),
-      { threadId: 't' },
-    )
-    await expect(session.command('bump')).rejects.toThrow(
-      'state update conflicted 5 times',
-    )
+    const { metadata: _metadata, ...stores } = base.stores
+    const harness = defineHarness({
+      name: 'test/state-store',
+      adapter: mockAdapter([]).adapter,
+      plugins: () => [statePlugin(() => {})],
+    })
+    const host = createHarnessHost({ persistence: { stores } })
+    const session = await host.open(harness, { threadId: 't' })
+    expect(await session.command({ name: 'bump' })).toBe(1)
+    expect(await session.command({ name: 'bump' })).toBe(2)
     await host.close()
+
+    const again = createHarnessHost({ persistence: { stores } })
+    const reopened = await again.open(harness, { threadId: 't' })
+    expect(reopened.snapshot().plugins).toEqual({ 'test/state': { count: 2 } })
+    expect(await reopened.command({ name: 'bump' })).toBe(3)
+    await again.close()
   })
 
-  it('keeps both of two concurrent updates with a store without setIf', async () => {
+  it('refuses a metadata store with no compare-and-set at the start', () => {
     const base = memoryPersistence()
     const plain = {
-      ...base,
-      stores: {
-        ...base.stores,
-        metadata: {
-          get: (namespace: string, key: string) =>
-            base.stores.metadata.get(namespace, key),
-          set: (namespace: string, key: string, value: unknown) =>
-            base.stores.metadata.set(namespace, key, value),
-        },
-      },
+      get: (namespace: string, key: string) =>
+        base.stores.metadata.get(namespace, key),
+      set: (namespace: string, key: string, value: unknown) =>
+        base.stores.metadata.set(namespace, key, value),
+      delete: (namespace: string, key: string) =>
+        base.stores.metadata.delete(namespace, key),
     }
+    expect(() =>
+      createHarnessHost({
+        persistence: { stores: { ...base.stores, metadata: plain } },
+      }),
+    ).toThrow('stores.metadata needs getVersioned and setIf')
+  })
+
+  it('keeps both of two concurrent updates', async () => {
     let state: PluginState<{ count: number }> | undefined
-    const host = createHarnessHost({ persistence: plain as never })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
     await host.open(
       defineHarness({
         name: 'test/state-race',
@@ -491,7 +469,9 @@ describe('plugin state and events', () => {
           }),
         ],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     if (!state) throw new Error('The plugin did not set up.')
     const bump = (value: { count: number }) => ({ count: value.count + 1 })
@@ -527,16 +507,18 @@ describe('plugin state and events', () => {
           }),
         ],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     const warnings: Array<unknown> = []
     session.onEvent(EventType.CUSTOM, ({ event }) => {
       if (event.name === 'harness.plugin.warning') warnings.push(event.value)
     })
 
-    await session.command('ping')
+    await session.command({ name: 'ping' })
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(warnings).toEqual([
         { plugin: 'harness:events', message: 'listener broke' },
       ]),
@@ -546,9 +528,13 @@ describe('plugin state and events', () => {
 
   it('loads the saved state of a plugin whose name is an Object key', async () => {
     const persistence = memoryPersistence()
-    await persistence.stores.metadata.set('plugin:constructor', 't', {
-      saved: true,
-    })
+    await appendToLog(persistence.stores.log, { threadId: 't' }, [
+      {
+        type: 'harness.plugin.state',
+        plugin: 'constructor',
+        delta: { path: [], value: { saved: true } },
+      },
+    ])
     const host = createHarnessHost({ persistence })
     const session = await host.open(
       defineHarness({
@@ -563,7 +549,9 @@ describe('plugin state and events', () => {
           }),
         ],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
 
     expect(session.snapshot().plugins).toEqual({
@@ -601,7 +589,10 @@ describe('the plugin session API and inspect', () => {
         adapter,
         plugins: () => [probe, settings],
       }),
-      { threadId: 't', principal: { id: 'u1' } },
+      {
+        threadId: 't',
+        principal: { id: 'u1' },
+      },
     )
     expect(api.threadId).toBe('t')
     expect(api.principal).toEqual({ id: 'u1' })
@@ -614,8 +605,8 @@ describe('the plugin session API and inspect', () => {
       { role: 'user', content: 'replaced' },
     ])
     api.send('queued by a plugin')
-    await vi.waitFor(() => expect(calls).toHaveLength(2))
-    await vi.waitFor(() => expect(api.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(calls).toHaveLength(2))
+    await waitFor(() => expect(api.snapshot().status).toBe('idle'))
     expect(JSON.stringify(calls[1].messages)).toContain('replaced')
 
     const inspected = session.inspect()
@@ -668,7 +659,9 @@ describe('first-party plugin edges', () => {
           }),
         ],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     const described = session.commands()
     expect(
@@ -677,14 +670,16 @@ describe('first-party plugin edges', () => {
       ['plain', 'Run plain.md'],
       ['review', 'Review a file'],
     ])
-    expect(await session.command('review', 'src/a.ts')).toBe('Sent /review.')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
-    await session.command('plain', { who: 'Ada' })
-    await vi.waitFor(() => expect(calls).toHaveLength(2))
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
-    await session.command('plain')
-    await vi.waitFor(() => expect(calls).toHaveLength(3))
+    expect(await session.command({ name: 'review', input: 'src/a.ts' })).toBe(
+      'Sent /review.',
+    )
+    await waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await session.command({ name: 'plain', input: { who: 'Ada' } })
+    await waitFor(() => expect(calls).toHaveLength(2))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await session.command({ name: 'plain' })
+    await waitFor(() => expect(calls).toHaveLength(3))
 
     // A missing folder gives no commands.
     const empty = await host.open(
@@ -693,7 +688,9 @@ describe('first-party plugin edges', () => {
         adapter,
         plugins: () => [fileCommands({ dir: join(dir, 'missing') })],
       }),
-      { threadId: 'empty' },
+      {
+        threadId: 'empty',
+      },
     )
     expect(empty.commands()).toEqual([])
 
@@ -716,8 +713,14 @@ describe('first-party plugin edges', () => {
     ])
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const session = await host.open(
-      defineHarness({ name: 'test/todos', adapter, plugins: () => [todos()] }),
-      { threadId: 't' },
+      defineHarness({
+        name: 'test/todos',
+        adapter,
+        plugins: () => [todos()],
+      }),
+      {
+        threadId: 't',
+      },
     )
     const before = session.snapshot().plugins
     await session.send('plan')
@@ -727,12 +730,16 @@ describe('first-party plugin edges', () => {
       'Input validation failed for tool todo_write',
     )
     expect(session.snapshot().plugins).toEqual(before)
-    expect(await session.command('todos')).toBe('The todo list is empty.')
+    expect(await session.command({ name: 'todos' })).toBe(
+      'The todo list is empty.',
+    )
     await session.send('clear')
     expect(JSON.stringify(calls[3].messages)).toContain(
       'The todo list is empty.',
     )
-    expect(await session.command('todos')).toBe('The todo list is empty.')
+    expect(await session.command({ name: 'todos' })).toBe(
+      'The todo list is empty.',
+    )
     await host.close()
   })
 
@@ -747,17 +754,19 @@ describe('first-party plugin edges', () => {
         adapter: smart,
         plugins: () => [modelPicker({ choices: { smart, fast } })],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
-    expect(await session.command('model')).toBe(
+    expect(await session.command({ name: 'model' })).toBe(
       'Model: smart. Choices: smart, fast.',
     )
-    expect(await session.command('model', 'slow')).toBe(
+    expect(await session.command({ name: 'model', input: 'slow' })).toBe(
       'Unknown model "slow". Choices: smart, fast.',
     )
-    expect(await session.command('model', { name: 'fast' })).toBe(
-      'Model: fast. It applies at the next turn.',
-    )
+    expect(
+      await session.command({ name: 'model', input: { name: 'fast' } }),
+    ).toBe('Model: fast. It applies at the next turn.')
     await host.close()
   })
 
@@ -770,11 +779,13 @@ describe('first-party plugin edges', () => {
         adapter: mockAdapter([() => text('one'), () => text('two')]).adapter,
         plugins: () => [compact({ adapter: summarizer.adapter })],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     await session.send('first')
     await session.send('second')
-    await expect(session.command('compact')).rejects.toThrow(
+    await expect(session.command({ name: 'compact' })).rejects.toThrow(
       'The summary model returned no text.',
     )
     expect(await session.transcript()).toHaveLength(4)
@@ -806,20 +817,22 @@ describe('first-party plugin edges', () => {
           usage(),
         ],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
-    expect(await session.command('compact')).toBe(
+    expect(await session.command({ name: 'compact' })).toBe(
       'The conversation is already short.',
     )
     await session.send([{ type: 'text', content: 'first question' }] as never)
     await session.send('second question')
-    expect(await session.command('compact')).toBe(
+    expect(await session.command({ name: 'compact' })).toBe(
       'Compacted 3 messages into a summary.',
     )
     expect(JSON.stringify(summarizer.calls[0].messages)).toContain(
       'first question',
     )
-    expect(await session.command('usage')).toBe(
+    expect(await session.command({ name: 'usage' })).toBe(
       '2 model calls, 6 input tokens, 4 output tokens, 10 total.',
     )
     await host.close()
@@ -835,7 +848,9 @@ describe('session events', () => {
         adapter: mockAdapter([]).adapter,
         plugins: () => [settings],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     const seen: Array<SessionEvent> = []
     const controller = new AbortController()
@@ -847,7 +862,7 @@ describe('session events', () => {
         seen.push(entry)
     })()
     await session.setConfig({ key: 'verbose', value: true })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         seen.some(
           (entry) =>
@@ -861,6 +876,69 @@ describe('session events', () => {
     )
     controller.abort()
     await reading
+    await host.close()
+  })
+})
+
+describe('the turns that a session plugin starts', () => {
+  it('run as the owner, or as the principal that the plugin passes, not as the sender of the running turn', async () => {
+    let api: PluginSessionApi | undefined
+    const notes = definePlugin({
+      name: 'test/notes',
+      setup: (ctx) => {
+        api = ctx.session
+      },
+    })
+    const release = gate()
+    const { adapter, calls } = mockAdapter([
+      after(release.opened, 'Bea is done.'),
+      () => text('One.'),
+      () => text('Two.'),
+      () => text('Three.'),
+    ])
+    const persistence = memoryPersistence()
+    const host = createHarnessHost({ persistence })
+    const harness = defineHarness({
+      name: 'test/notes',
+      adapter,
+      plugins: () => [notes],
+    })
+    // Olga opens the thread first, so she owns it.
+    await host.open(harness, { threadId: 't', principal: { id: 'olga' } })
+    const bea = await host.open(harness, {
+      threadId: 't',
+      principal: { id: 'bea' },
+    })
+    const turn = bea.send('Start a job.')
+    await waitFor(() => expect(turn.status()).toBe('running'))
+    if (!api) throw new Error('No plugin context.')
+
+    // A job of olga ends while the turn of bea runs.
+    await api.note('The job of olga ended.', { wake: true })
+    await api.note('The job of carl ended.', {
+      wake: true,
+      principal: { id: 'carl' },
+    })
+    api.send('Go on, carl.', { principal: { id: 'carl' } })
+    release.open()
+    await turn
+    await waitFor(() => expect(calls).toHaveLength(4))
+
+    const state = await loadLogState({
+      store: persistence.stores.log,
+      logId: logIdOf({ logId: 't' }),
+      rootThread: 't',
+    })
+    const senders = [...sessionOf(state, 't').inputs.values()].map((logged) => [
+      logged.input.op,
+      logged.principal?.id,
+    ])
+    expect(senders).toEqual([
+      ['prompt', 'bea'],
+      ['followUp', 'olga'],
+      ['followUp', 'carl'],
+      ['prompt', 'carl'],
+    ])
     await host.close()
   })
 })

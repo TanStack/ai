@@ -1,21 +1,31 @@
 import { randomBytes } from 'node:crypto'
-import { auth } from '@modelcontextprotocol/client'
+import { auth, createFetchWithInit } from '@modelcontextprotocol/client'
 import {
   AuthRequiredError,
   defineCommand,
   definePlugin,
-  startLoopbackReceiver,
 } from '@tanstack/ai-harness'
+import { startLoopbackReceiver } from '@tanstack/ai-harness/oauth'
 import { connectTransport } from './client'
 import { MCPConnectionError } from './errors'
-import { askForInput, elicitFor, harnessClientOptions } from './harness-plugin'
+import {
+  askForInput,
+  elicitFor,
+  harnessClientOptions,
+  trackCaller,
+} from './harness-plugin'
+import type { Caller } from './harness-plugin'
 import type {
   OAuthClientProvider,
   OAuthDiscoveryState,
   StoredOAuthClientInformation,
 } from '@modelcontextprotocol/client'
 import type { AnyTool } from '@tanstack/ai'
-import type { CredentialsAccess, Principal } from '@tanstack/ai-harness'
+import type {
+  CredentialsAccess,
+  RunContext,
+  TurnInfo,
+} from '@tanstack/ai-harness'
 import type { MCPClient } from './client'
 import type { MCPClientOptions } from './types'
 
@@ -69,6 +79,8 @@ function credentialProvider(
   let client: StoredOAuthClientInformation | undefined
   let verifier = ''
   let discovery: OAuthDiscoveryState | undefined
+  /** The access token this provider last gave the SDK or saved. */
+  let seenToken: string | undefined
   const stored = async () => {
     const credential = await credentials.get(id)
     return credential?.type === 'oauth' ? credential : undefined
@@ -109,6 +121,7 @@ function credentialProvider(
       if (options.onRedirect) return undefined
       const credential = await stored()
       if (!credential) return undefined
+      seenToken = credential.accessToken
       return {
         access_token: credential.accessToken,
         token_type: 'Bearer',
@@ -135,37 +148,64 @@ function credentialProvider(
       if (!information) {
         throw new Error('The MCP SDK saved OAuth tokens before the client.')
       }
-      // A new sign-in replaces the old one, with all its tokens. On a
-      // refresh, the SDK passes the old refresh token itself.
-      await credentials.set({
-        id,
-        credential: {
-          type: 'oauth',
-          accessToken: tokens.access_token,
-          ...(tokens.refresh_token
-            ? { refreshToken: tokens.refresh_token }
+      // On a refresh, the SDK passes the old refresh token itself.
+      const credential = {
+        type: 'oauth' as const,
+        accessToken: tokens.access_token,
+        ...(tokens.refresh_token ? { refreshToken: tokens.refresh_token } : {}),
+        ...(tokens.expires_in
+          ? { expiresAt: Date.now() + tokens.expires_in * 1000 }
+          : {}),
+        ...(tokens.scope ? { scopes: tokens.scope.split(' ') } : {}),
+        client: {
+          clientId: information.client_id,
+          ...(information.client_secret
+            ? { clientSecret: information.client_secret }
             : {}),
-          ...(tokens.expires_in
-            ? { expiresAt: Date.now() + tokens.expires_in * 1000 }
-            : {}),
-          ...(tokens.scope ? { scopes: tokens.scope.split(' ') } : {}),
-          client: {
-            clientId: information.client_id,
-            ...(information.client_secret
-              ? { clientSecret: information.client_secret }
-              : {}),
-            redirectUri: options.redirectUri,
-            issuer: information.issuer,
-          },
+          redirectUri: options.redirectUri,
+          issuer: information.issuer,
         },
-      })
+      }
+      if (options.onRedirect) {
+        // A new sign-in replaces the old one, with all its tokens.
+        await credentials.set({ id, credential })
+        seenToken = credential.accessToken
+        return
+      }
+      // A refresh. The SDK sends the refresh request itself, so two
+      // sessions can both refresh: only the save is single-flight and
+      // compare-and-set. `refresh` saves where the credential is (a tenant
+      // token stays the tenant's). When the saved token is not the one this
+      // session refreshed, another session saved first: its token stays, and
+      // the next connect uses it. This connection keeps the SDK's new token.
+      const saved = await credentials.refresh(id, (current) =>
+        Promise.resolve(
+          current.type === 'oauth' &&
+            seenToken !== undefined &&
+            current.accessToken !== seenToken
+            ? current
+            : credential,
+        ),
+      )
+      // The user signed out while the SDK refreshed. The new tokens are not
+      // saved, so the sign-out holds, and the call asks for a sign-in.
+      if (!saved) throw new AuthRequiredError(id)
+      // The token this connection uses, also when another one was saved.
+      seenToken = credential.accessToken
     },
     // The SDK calls this with 'client' or 'tokens' when the server refuses
     // the saved client or refresh token, for example a revoked refresh token.
     // Both are in one saved credential, so either scope deletes it, and the
     // user signs in again. A new sign-in keeps the old one until it works.
+    // Another session can save a new token after this one read its token,
+    // for example after a refresh. Then the saved token is not the one the
+    // server refused, so it stays.
     invalidateCredentials: async () => {
-      if (!options.onRedirect) await credentials.delete(id)
+      if (options.onRedirect) return
+      const saved = await stored()
+      if (saved && seenToken !== undefined && saved.accessToken !== seenToken)
+        return
+      await credentials.delete(id)
     },
     redirectToAuthorization: (url) => {
       // Outside `/connect`, a missing or revoked sign-in stops the tool.
@@ -190,6 +230,10 @@ interface Connection {
   connected: boolean
   client?: MCPClient
   tools?: ReadonlyArray<AnyTool>
+  /** The server sent `tools/list_changed`: the next turn lists again. */
+  stale?: boolean
+  /** Wraps a tool list of `client` for the session. */
+  wrap?: (tools: ReadonlyArray<AnyTool>) => ReadonlyArray<AnyTool>
 }
 
 /**
@@ -203,6 +247,8 @@ interface Connection {
  * - After sign-in, the next turn has the server's tools, named
  *   `<prefix>_<tool>` by default. `toolName` can change the names.
  *   Tools that can change data ask for approval.
+ * - When the connection closes, the next turn connects again. When the
+ *   server sends `tools/list_changed`, the next turn lists its tools again.
  *
  * @example
  * ```ts
@@ -216,10 +262,11 @@ export function mcpConnector(options: McpConnectorOptions) {
   return definePlugin({
     name: `connector/${id}`,
     setup: async (ctx) => {
-      // One sign-in per sender: in a shared thread, one person's sign-in,
-      // client, and tools never serve another person's turn.
+      // One sign-in per user of a run, by tenant and id: in a shared thread,
+      // one person's sign-in, client, and tools never serve another
+      // person's turn.
       const connections = new Map<string, Connection>()
-      const keyOf = (principal: Principal | undefined) =>
+      const keyOf = (principal: RunContext['principal']) =>
         principal
           ? JSON.stringify([principal.tenantId ?? null, principal.id])
           : ''
@@ -228,7 +275,7 @@ export function mcpConnector(options: McpConnectorOptions) {
       }
       /** Set the sign-in of `principal`, and drop its old client and tools. */
       const signedIn = async (
-        principal: Principal | undefined,
+        principal: RunContext['principal'],
         connected: boolean,
       ) => {
         const key = keyOf(principal)
@@ -245,20 +292,22 @@ export function mcpConnector(options: McpConnectorOptions) {
         prompts: [
           {
             id: `connector/${id}:status`,
-            // Read after `discoverTools`, which finds the sender's state.
-            text: () =>
-              connections.get(keyOf(ctx.session.principal))?.connected
+            // Read after `discoverTools`, which finds the state of the
+            // turn's user.
+            text: (turn: TurnInfo) =>
+              connections.get(keyOf(turn.run.principal))?.connected
                 ? ''
                 : `${label} is not connected. If the user asks for ${label}, tell them to run /connect ${id}.`,
           },
         ],
-        // Runs in a turn, so `ctx.session.principal` and `ctx.credentials`
-        // are the turn's sender.
-        discoverTools: async () => {
-          const key = keyOf(ctx.session.principal)
+        // Runs for each turn, with the run of that turn: its user and that
+        // user's credentials.
+        discoverTools: async (turn: TurnInfo) => {
+          const { principal, credentials } = turn.run
+          const key = keyOf(principal)
           let connection = connections.get(key)
           if (!connection) {
-            connection = { connected: (await ctx.credentials.get(id)) !== null }
+            connection = { connected: (await credentials.get(id)) !== null }
             connections.set(key, connection)
           }
           if (!connection.connected) return []
@@ -266,18 +315,22 @@ export function mcpConnector(options: McpConnectorOptions) {
             // The SDK only refreshes tokens for a client with a redirect URL.
             // Without one it treats the client as machine-to-machine. A new
             // browser sign-in still happens only through /connect.
-            const saved = await ctx.credentials.get(id)
+            const saved = await credentials.get(id)
             const redirectUri =
               (saved?.type === 'oauth'
                 ? saved.client?.redirectUri
                 : undefined) ?? 'http://127.0.0.1/callback'
+            // The tool calls of this client that run now, newest last.
+            const calling: Array<Caller> = []
+            const current = connection
+            let opened: MCPClient | undefined
             try {
-              connection.client = await connectTransport(
+              opened = await connectTransport(
                 {
                   transport: {
                     type: 'http',
                     url,
-                    authProvider: credentialProvider(id, ctx.credentials, {
+                    authProvider: credentialProvider(id, credentials, {
                       redirectUri,
                       clientName,
                       scopes: options.scopes,
@@ -291,9 +344,20 @@ export function mcpConnector(options: McpConnectorOptions) {
                     options.needsApproval ??
                     ((tool) => tool.annotations?.readOnlyHint !== true),
                   clientOptions: harnessClientOptions,
+                  // A dropped connection: the next turn connects again.
+                  onClose: () => {
+                    if (current.client !== opened) return
+                    current.client = undefined
+                    current.tools = undefined
+                  },
+                  onToolListChanged: () => {
+                    if (current.client === opened) current.stale = true
+                  },
                 },
-                elicitFor(ctx.session),
+                elicitFor(calling),
               )
+              connection.client = opened
+              connection.stale = false
             } catch (error) {
               // The server wants a new sign-in: ask the user to run /connect.
               // Other failures, for example a server that is down, stay
@@ -306,7 +370,7 @@ export function mcpConnector(options: McpConnectorOptions) {
               ctx.session.authRequired({ connector: id })
               throw error.cause
             }
-            const client = connection.client
+            const client = opened
             // A failed tool list closes the client: the next turn connects
             // again, and must not leave this one open.
             const listed = await client
@@ -316,36 +380,52 @@ export function mcpConnector(options: McpConnectorOptions) {
                 await client.close().catch(() => {})
                 throw error
               })
-            connection.tools = askForInput(
-              listed as ReadonlyArray<AnyTool>,
-              ctx.session,
-            )
+            const wrap = (found: ReadonlyArray<AnyTool>) =>
+              askForInput(trackCaller(found, ctx.session, calling), ctx.session)
+            connection.wrap = wrap
+            connection.tools = wrap(listed as ReadonlyArray<AnyTool>)
+          } else if (connection.stale && connection.client) {
+            // After `tools/list_changed`: list the tools again. On a
+            // failure, the old list stays, and the next turn tries again.
+            connection.stale = false
+            const client = connection.client
+            const listed = await client.tools().catch(() => undefined)
+            if (listed === undefined) connection.stale = true
+            else if (connection.client === client && connection.wrap) {
+              connection.tools = connection.wrap(
+                listed as ReadonlyArray<AnyTool>,
+              )
+            }
           }
           return connection.tools
         },
         commands: {
           [`connect:${id}`]: defineCommand({
             description: `Sign in to ${label}`,
-            // The sign-in belongs to the user who runs the command.
-            run: async (_input, { credentials, principal }) => {
-              const receiver = await startLoopbackReceiver()
+            // The sign-in belongs to the user who runs the command. A cancel
+            // or a session close stops it at once: the loopback stops
+            // listening, and the OAuth requests abort. The `session` of the
+            // command makes the sign-in a wait of the command run.
+            run: async (_input, { run, session }) => {
+              const { signal } = run
+              const receiver = await startLoopbackReceiver({ signal })
               const state = randomBytes(16).toString('base64url')
               try {
-                const provider = credentialProvider(id, credentials, {
+                const provider = credentialProvider(id, run.credentials, {
                   redirectUri: receiver.redirectUri,
                   clientName,
                   scopes: options.scopes,
                   state,
                   onRedirect: (authorizationUrl) =>
-                    ctx.session.authRequired({
+                    session.authRequired({
                       connector: id,
                       url: authorizationUrl.href,
                     }),
                 })
-                const fetchFn = options.fetch ? { fetchFn: options.fetch } : {}
+                const fetchFn = createFetchWithInit(options.fetch, { signal })
                 // A new sign-in has no tokens, so this always ends in a
                 // redirect to the browser.
-                await auth(provider, { serverUrl: url, ...fetchFn })
+                await auth(provider, { serverUrl: url, fetchFn })
                 // The error names the service: a sign-in can end minutes later.
                 const { code, iss } = await receiver
                   .waitForCode(state)
@@ -360,20 +440,20 @@ export function mcpConnector(options: McpConnectorOptions) {
                   serverUrl: url,
                   authorizationCode: code,
                   ...(iss ? { iss } : {}),
-                  ...fetchFn,
+                  fetchFn,
                 })
               } finally {
                 receiver.close()
               }
-              await signedIn(principal, true)
+              await signedIn(run.principal, true)
               return `Connected to ${label}.`
             },
           }),
           [`disconnect:${id}`]: defineCommand({
             description: `Sign out of ${label}`,
-            run: async (_input, { credentials, principal }) => {
-              await credentials.delete(id)
-              await signedIn(principal, false)
+            run: async (_input, { run }) => {
+              await run.credentials.delete(id)
+              await signedIn(run.principal, false)
               return `Disconnected from ${label}.`
             },
           }),

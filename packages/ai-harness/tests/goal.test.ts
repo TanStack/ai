@@ -4,8 +4,10 @@ import { toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import { GoalMet, goal, selectGoal } from '../src/first-party'
+import { loadLogState, logIdOf, sessionOf } from '../src/log'
 import {
   after,
+  appendToLog,
   gate,
   messageTexts,
   mockAdapter,
@@ -14,8 +16,18 @@ import {
   untilAborted,
 } from './helpers'
 import type { AnyTextAdapter, AnyTool } from '@tanstack/ai'
-import type { HarnessSession } from '../src'
+import type {
+  HarnessPersistence,
+  HarnessRunContext,
+  HarnessSession,
+} from '../src'
 import type { Goal } from '../src/first-party'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 interface Verdict {
   met: boolean
@@ -46,7 +58,7 @@ async function start(options: {
   judge?: AnyTextAdapter
   maxRounds?: number
   tools?: Array<AnyTool>
-  persistence?: ReturnType<typeof memoryPersistence>
+  persistence?: HarnessPersistence
   busy?: 'queue' | 'reject'
 }) {
   const main = mockAdapter(options.replies)
@@ -74,7 +86,9 @@ async function start(options: {
         listener,
       ],
     }),
-    { threadId: 't' },
+    {
+      threadId: 't',
+    },
   )
   return {
     host,
@@ -88,13 +102,16 @@ async function start(options: {
 
 /** What `/goal` shows. */
 async function status(session: HarnessSession) {
-  return session.command('goal')
+  return session.command({ name: 'goal' })
 }
 
 /** Wait until `/goal` shows `expected`. */
 async function waitForStatus(session: HarnessSession, expected: string) {
-  await vi.waitFor(async () => expect(await status(session)).toBe(expected))
+  await waitFor(async () => expect(await status(session)).toBe(expected))
 }
+
+/** The goal prompt: a `'context'` prompt, the last system prompt. */
+const GOAL_PROMPT = 'You work toward this goal:'
 
 /** The last message the main model got on `call`. */
 function lastMessage(call: unknown) {
@@ -116,9 +133,9 @@ describe('goal', () => {
       ],
     })
 
-    expect(await session.command('goal', 'all tests pass')).toBe(
-      'Goal: all tests pass\nStatus: active, round 0 of 20.',
-    )
+    expect(
+      await session.command({ name: 'goal', input: 'all tests pass' }),
+    ).toBe('Goal: all tests pass\nStatus: active, round 0 of 20.')
     await waitForStatus(
       session,
       'Goal: all tests pass\nStatus: met, round 3 of 20.\nLast check: All tests pass.',
@@ -129,15 +146,47 @@ describe('goal', () => {
     expect(lastMessage(calls[2])).toBe(
       'Keep working on the goal: all tests pass. Last check: One test still fails.',
     )
-    expect(JSON.stringify(calls[0].systemPrompts)).toContain(
-      'You work toward this goal: all tests pass.',
+    // The goal prompt is the last system prompt, not a message.
+    expect(JSON.stringify(calls[0].systemPrompts.at(-1))).toContain(
+      `${GOAL_PROMPT} all tests pass.`,
     )
+    expect(JSON.stringify(calls[0].messages)).not.toContain(GOAL_PROMPT)
     expect(read).toHaveLength(3)
     expect(read[0]).toContain('Goal: all tests pass')
     expect(read[0]).toContain('assistant: wrote the test')
     expect(met).toEqual([{ goal: 'all tests pass', reason: 'All tests pass.' }])
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(session.snapshot().queuedTurns).toBe(0)
+    await host.close()
+  })
+
+  it('counts each judge call under plugin:tanstack/goal', async () => {
+    const { adapter } = mockAdapter([])
+    const judge: AnyTextAdapter = {
+      ...adapter,
+      structuredOutput: async () => ({
+        data: { met: true, reason: 'Done.' },
+        rawText: '{}',
+        usage: { promptTokens: 30, completionTokens: 5, totalTokens: 35 },
+      }),
+    }
+    const { host, session } = await start({
+      replies: [() => text('done')],
+      judge,
+    })
+
+    await session.command({ name: 'goal', input: 'finish' })
+    await waitForStatus(
+      session,
+      'Goal: finish\nStatus: met, round 1 of 20.\nLast check: Done.',
+    )
+
+    expect(session.usage().bySource).toEqual({
+      'plugin:tanstack/goal': expect.objectContaining({
+        calls: 1,
+        totalTokens: 35,
+      }),
+    })
     await host.close()
   })
 
@@ -151,7 +200,7 @@ describe('goal', () => {
       busy: 'reject',
     })
 
-    await session.command('goal', 'finish')
+    await session.command({ name: 'goal', input: 'finish' })
     await waitForStatus(
       session,
       'Goal: finish\nStatus: met, round 2 of 20.\nLast check: Done.',
@@ -170,12 +219,12 @@ describe('goal', () => {
       maxRounds: 2,
     })
 
-    await session.command('goal', 'all tests pass')
+    await session.command({ name: 'goal', input: 'all tests pass' })
     await waitForStatus(
       session,
       'Goal: all tests pass\nStatus: stopped, round 2 of 2.\nThe round limit (2) is reached. Run /goal resume for more rounds.\nLast check: One test fails.',
     )
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(calls).toHaveLength(2)
     await host.close()
   })
@@ -190,18 +239,20 @@ describe('goal', () => {
     expect(await status(session)).toBe(
       'No goal. Start one with /goal <what done looks like>.',
     )
-    expect(await session.command('goal', 'stop')).toBe('No goal is running.')
+    expect(await session.command({ name: 'goal', input: 'stop' })).toBe(
+      'No goal is running.',
+    )
 
-    await session.command('goal', 'create hello.txt')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
-    expect(await session.command('goal', 'stop')).toBe(
+    await session.command({ name: 'goal', input: 'create hello.txt' })
+    await waitFor(() => expect(calls).toHaveLength(1))
+    expect(await session.command({ name: 'goal', input: 'stop' })).toBe(
       'Goal: create hello.txt\nStatus: stopped, round 1 of 20.\nYou stopped the goal.',
     )
     hold.open()
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(read).toHaveLength(0)
 
-    expect(await session.command('goal', 'resume')).toBe(
+    expect(await session.command({ name: 'goal', input: 'resume' })).toBe(
       'Goal: create hello.txt\nStatus: active, round 0 of 20.',
     )
     await waitForStatus(
@@ -223,19 +274,19 @@ describe('goal', () => {
     })
 
     const question = session.send('what time is it?')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
-    await session.command('goal', 'finish')
-    await vi.waitFor(() => expect(session.inputs()).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
+    await session.command({ name: 'goal', input: 'finish' })
+    await waitFor(() => expect(session.inputs()).toHaveLength(1))
     const [waiting] = session.inputs()
-    if (waiting) await session.cancelInput(waiting.inputId)
+    if (waiting) await session.cancelInput({ inputId: waiting.inputId })
     hold.open()
     await question
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(await status(session)).toBe(
       'Goal: finish\nStatus: active, round 0 of 20.',
     )
 
-    await session.command('goal', 'resume')
+    await session.command({ name: 'goal', input: 'resume' })
     await waitForStatus(
       session,
       'Goal: finish\nStatus: met, round 1 of 20.\nLast check: Done.',
@@ -258,8 +309,8 @@ describe('goal', () => {
       ],
     })
 
-    await session.command('goal', 'all tests pass')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await session.command({ name: 'goal', input: 'all tests pass' })
+    await waitFor(() => expect(calls).toHaveLength(1))
     const question = session.send('what time is it?')
     hold.open()
     await question
@@ -270,7 +321,7 @@ describe('goal', () => {
     expect(calls).toHaveLength(2)
     expect(lastMessage(calls[1])).toBe('what time is it?')
 
-    await session.command('goal', 'resume')
+    await session.command({ name: 'goal', input: 'resume' })
     await waitForStatus(
       session,
       'Goal: all tests pass\nStatus: met, round 1 of 20.\nLast check: Done.',
@@ -294,8 +345,8 @@ describe('goal', () => {
       verdicts: [{ met: false, reason: 'Not yet.' }],
     })
 
-    await session.command('goal', 'all tests pass')
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await session.command({ name: 'goal', input: 'all tests pass' })
+    await waitFor(() => expect(calls).toHaveLength(1))
     // The last model call of the turn is in flight, so the steer comes too late.
     await session.send('what time is it?', { mode: 'steer' }).receipt
     hold.open()
@@ -304,7 +355,7 @@ describe('goal', () => {
       session,
       'Goal: all tests pass\nStatus: paused, round 1 of 20.\nYou sent a message, so the goal paused. Run /goal resume to continue.\nLast check: Not yet.',
     )
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(session.snapshot().status).toBe('idle')
       expect(session.snapshot().queuedTurns).toBe(0)
     })
@@ -324,7 +375,13 @@ describe('goal', () => {
       note: '',
       queued: '',
     }
-    await persistence.stores.metadata.set('plugin:tanstack/goal', 't', active)
+    await appendToLog(persistence.stores.log, { threadId: 't' }, [
+      {
+        type: 'harness.plugin.state',
+        plugin: 'tanstack/goal',
+        delta: { path: [], value: active },
+      },
+    ])
     const { host, session, calls, read } = await start({
       persistence,
       replies: [() => text('Hello.')],
@@ -351,8 +408,8 @@ describe('goal', () => {
       tools: [remove],
     })
 
-    await session.command('goal', 'clean the folder')
-    await vi.waitFor(() =>
+    await session.command({ name: 'goal', input: 'clean the folder' })
+    await waitFor(() =>
       expect(session.snapshot().status).toBe('requires_action'),
     )
     expect(await status(session)).toBe(
@@ -364,6 +421,31 @@ describe('goal', () => {
     await host.close()
   })
 
+  it('says the turn waits for input when it waits for something else than an approval', async () => {
+    const listIssues = toolDefinition({
+      name: 'list_issues',
+      description: 'List issues',
+    }).server(async (_args, ctx) => {
+      const { run } = ctx?.context as HarnessRunContext
+      await run.credentials.require('github', { wait: true })
+      return ['#1']
+    })
+    const { host, session, calls } = await start({
+      replies: [() => toolCall('list_issues', {})],
+      tools: [listIssues],
+    })
+
+    await session.command({ name: 'goal', input: 'triage the issues' })
+    await waitFor(() =>
+      expect(session.snapshot().status).toBe('requires_action'),
+    )
+    expect(await status(session)).toBe(
+      'Goal: triage the issues\nStatus: paused, round 1 of 20.\nThe last turn waits for input. Answer it, then run /goal resume.',
+    )
+    expect(calls).toHaveLength(1)
+    await host.close()
+  })
+
   it('pauses when the judge does not answer with a verdict', async () => {
     const { adapter: judge } = mockAdapter([])
     const { host, session, calls } = await start({
@@ -371,7 +453,7 @@ describe('goal', () => {
       judge,
     })
 
-    await session.command('goal', 'all tests pass')
+    await session.command({ name: 'goal', input: 'all tests pass' })
     await waitForStatus(
       session,
       'Goal: all tests pass\nStatus: paused, round 1 of 20.\nThe judge failed: The judge did not answer with met and reason.',
@@ -381,14 +463,17 @@ describe('goal', () => {
   })
 
   it('keeps the goal and its state across a restart', async () => {
-    const persistence = memoryPersistence()
+    // The first host closed, so the second host takes the log at once, as
+    // after a restart.
+    const { log, metadata } = memoryPersistence().stores
+    const persistence = { stores: { log, metadata } }
     const first = await start({
       persistence,
       replies: [() => text('step one'), untilAborted()],
       verdicts: [{ met: false, reason: 'Half done.' }],
     })
-    await first.session.command('goal', 'all tests pass')
-    await vi.waitFor(() => expect(first.calls).toHaveLength(2))
+    await first.session.command({ name: 'goal', input: 'all tests pass' })
+    await waitFor(() => expect(first.calls).toHaveLength(2))
     await first.host.close()
 
     const second = await start({
@@ -399,7 +484,7 @@ describe('goal', () => {
     expect(await status(second.session)).toBe(
       'Goal: all tests pass\nStatus: paused, round 2 of 20.\nThe last turn was cancelled. Run /goal resume to continue.\nLast check: Half done.',
     )
-    await second.session.command('goal', 'resume')
+    await second.session.command({ name: 'goal', input: 'resume' })
     await waitForStatus(
       second.session,
       'Goal: all tests pass\nStatus: met, round 1 of 20.\nLast check: All tests pass.',
@@ -417,9 +502,9 @@ describe('goal', () => {
     })
     expect(selectGoal(session.snapshot())).toBeNull()
 
-    await session.command('goal', 'finish')
+    await session.command({ name: 'goal', input: 'finish' })
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(selectGoal(session.snapshot())).toMatchObject({
         text: 'finish',
         status: 'met',
@@ -432,5 +517,46 @@ describe('goal', () => {
     const state = { plugins: { 'tanstack/goal': { text: 'finish' } } }
 
     expect(selectGoal(state)).toBeNull()
+  })
+})
+
+describe('goal with two users', () => {
+  it('runs each round as the user who set the goal, not as the owner of the thread', async () => {
+    const main = mockAdapter([
+      () => text('Round one.'),
+      () => text('Round two.'),
+    ])
+    const { judge } = scriptedJudge([
+      { met: false, reason: 'Not yet.' },
+      { met: true, reason: 'Done.' },
+    ])
+    const persistence = memoryPersistence()
+    const host = createHarnessHost({ persistence })
+    const harness = defineHarness({
+      name: 'test/goal',
+      adapter: main.adapter,
+      plugins: () => [goal({ judge })],
+    })
+    // Olga opens the thread first, so she owns it.
+    await host.open(harness, { threadId: 't', principal: { id: 'olga' } })
+    const bea = await host.open(harness, {
+      threadId: 't',
+      principal: { id: 'bea' },
+    })
+
+    await bea.command({ name: 'goal', input: 'ship it' })
+    await waitFor(() => expect(main.calls).toHaveLength(2))
+    await bea.whenIdle()
+
+    const state = await loadLogState({
+      store: persistence.stores.log,
+      logId: logIdOf({ logId: 't' }),
+      rootThread: 't',
+    })
+    const prompts = [...sessionOf(state, 't').inputs.values()]
+      .filter((logged) => logged.input.op === 'prompt')
+      .map((logged) => logged.principal?.id)
+    expect(prompts).toEqual(['bea', 'bea'])
+    await host.close()
   })
 })

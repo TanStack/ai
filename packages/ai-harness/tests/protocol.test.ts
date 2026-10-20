@@ -3,17 +3,42 @@ import { z } from 'zod'
 import { defineAgent } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
-  createHarnessHandler,
   createHarnessHost,
+  defineCommand,
   defineHarness,
+  definePlugin,
+  logIdOf,
+} from '../src'
+import {
+  applyInput,
+  createHarnessHandler,
   handleHarnessSocket,
   parseControlFrame,
   parseHarnessInput,
-} from '../src'
-import { after, gate, mockAdapter, text, wakeMessages } from './helpers'
-import type { WebSocketLike } from '@tanstack/ai'
-import type { HostFrame } from '../src'
+} from '../src/server'
+import {
+  after,
+  fakeSocket,
+  gate,
+  mockAdapter,
+  readSse,
+  text,
+  wakeMessages,
+} from './helpers'
+import {
+  HARNESS_PROTOCOL_VERSION,
+  requestIdOf,
+  versionError,
+} from '../src/protocol'
+import type { Receipt } from '../src'
+import type { HostFrame } from '../src/server'
 import type { Reply } from './helpers'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 const pricer = defineAgent({
   name: 'pricer',
@@ -37,20 +62,24 @@ function setup(
     agents: [pricer, secret],
     expose: { agents: ['pricer'] },
   })
-  const host = createHarnessHost({ persistence: memoryPersistence() })
-  const handler = createHarnessHandler({
-    host,
-    harness,
-    authorize: (request) =>
-      request.headers.get('authorization') === 'Bearer good'
-        ? { id: 'user-1' }
-        : null,
-    canAccess: (principal, threadId) => threadId.startsWith(principal.id),
+  const host = createHarnessHost({
+    persistence: memoryPersistence(),
+    access: {
+      identify: ({ request }) =>
+        request.headers.get('authorization') === 'Bearer good' ? user : null,
+      // A user may use the threads whose id starts with the user id.
+      policy: {
+        authorize: ({ principal, session }) =>
+          session.threadId.startsWith(principal.id),
+      },
+    },
   })
+  const handler = createHarnessHandler({ host, harness })
   return { handler, host, harness, calls }
 }
 
 const auth = { authorization: 'Bearer good' }
+const user = { id: 'user-1' }
 
 type Handler = ReturnType<typeof setup>['handler']
 
@@ -73,39 +102,6 @@ const isTurnEnd = (frame: HostFrame) =>
   frame.event.type === 'CUSTOM' &&
   frame.event.name === 'harness.operation.finished'
 
-async function readSse(
-  response: Response,
-  until: (frame: HostFrame) => boolean,
-) {
-  if (!response.body) throw new Error('The response has no body.')
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  const frames: Array<HostFrame> = []
-  let buffer = ''
-  while (true) {
-    const { value, done } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    const blocks = buffer.split('\n\n')
-    buffer = blocks.pop() ?? ''
-    for (const block of blocks) {
-      const data = block
-        .split('\n')
-        .find((line) => line.startsWith('data: '))
-        ?.slice(6)
-      if (!data) continue
-      // The handler writes each frame as JSON.
-      const parsed: HostFrame = JSON.parse(data)
-      frames.push(parsed)
-      if (until(parsed)) {
-        await reader.cancel()
-        return frames
-      }
-    }
-  }
-  return frames
-}
-
 describe('HTTP handler', () => {
   it('refuses requests that authorize rejects', async () => {
     const { handler, host } = setup()
@@ -117,7 +113,11 @@ describe('HTTP handler', () => {
   })
 
   it('refuses threads the principal cannot access', async () => {
-    const { handler, host } = setup()
+    const { handler, host, harness } = setup()
+    await host.open(harness, {
+      threadId: 'other-thread',
+      principal: { id: 'user-2' },
+    })
     const response = await handler(
       new Request('http://x/api/harness/snapshot?threadId=other-thread', {
         headers: auth,
@@ -183,7 +183,15 @@ describe('HTTP handler', () => {
       ),
       isTurnEnd,
     )
-    expect(first.every((frame) => frame.type === 'harness.event')).toBe(true)
+    // The hello comes first, then the events.
+    expect(first[0]).toEqual({
+      type: 'harness.hello',
+      v: 2,
+      threadId: 'user-1-t',
+    })
+    expect(
+      first.slice(1).every((frame) => frame.type === 'harness.event'),
+    ).toBe(true)
     const last = first.at(-1)
     const cursor = last?.type === 'harness.event' ? last.cursor : ''
 
@@ -197,11 +205,13 @@ describe('HTTP handler', () => {
       isTurnEnd,
     )
     expect(
-      second.every(
-        (frame) =>
-          frame.type === 'harness.event' &&
-          Number(frame.cursor) > Number(cursor),
-      ),
+      second
+        .slice(1)
+        .every(
+          (frame) =>
+            frame.type === 'harness.event' &&
+            Number(frame.cursor) > Number(cursor),
+        ),
     ).toBe(true)
     expect(JSON.stringify(second)).toContain('again')
     await host.close()
@@ -216,13 +226,95 @@ describe('HTTP handler', () => {
 
     expect(first).toMatchObject({ inputId: 'c-1', status: 'accepted' })
     expect(retry).toEqual(first)
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     expect(
       await control({ op: 'prompt', message: 'another', inputId: 'c-1' }),
     ).toMatchObject({ status: 'rejected', reason: 'conflict' })
     expect(await control({ op: 'prompt', message: 'x', inputId: 7 })).toEqual({
       error: 'Invalid input: inputId must be a string.',
     })
+    await host.close()
+  })
+
+  it('runs a resent command or agent start with the same inputId once', async () => {
+    const runs = { command: 0, agent: 0 }
+    const counter = defineAgent({
+      name: 'counter',
+      description: 'Counts its runs',
+      run: async () => ++runs.agent,
+    })
+    const harness = defineHarness({
+      name: 'test/protocol-resend',
+      adapter: mockAdapter([]).adapter,
+      agents: [counter],
+      plugins: () => [
+        definePlugin({
+          name: 'test/count',
+          setup: () => ({
+            commands: {
+              count: defineCommand({
+                description: 'Counts its runs',
+                run: () => ++runs.command,
+              }),
+            },
+          }),
+        }),
+      ],
+      expose: { agents: ['counter'], commands: ['count'] },
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(harness, { threadId: 'resend' })
+
+    // The operation of a receipt ends, also as a duplicate.
+    const settled = (receipt: Receipt) =>
+      receipt.operationId === undefined
+        ? undefined
+        : session.operation(receipt.operationId)?.then(
+            () => {},
+            () => {},
+          )
+    const command = { op: 'command', name: 'count', inputId: 'c-1' } as const
+    const first = await applyInput({ harness, session, input: command })
+    expect(first).toMatchObject({ inputId: 'c-1', status: 'accepted' })
+    await vi.waitFor(() => expect(runs.command).toBe(1), { timeout: 5000 })
+    await settled(await applyInput({ harness, session, input: command }))
+
+    const agent = { op: 'agent', agent: 'counter', inputId: 'a-1' } as const
+    expect(await applyInput({ harness, session, input: agent })).toMatchObject({
+      inputId: 'a-1',
+      status: 'accepted',
+    })
+    await vi.waitFor(() => expect(runs.agent).toBe(1), { timeout: 5000 })
+    await settled(await applyInput({ harness, session, input: agent }))
+
+    expect(runs).toEqual({ command: 1, agent: 1 })
+    await host.close()
+  })
+
+  it('writes the records of a resent append with the same inputId once', async () => {
+    const persistence = memoryPersistence()
+    const harness = defineHarness({
+      name: 'test/protocol-append',
+      adapter: mockAdapter([]).adapter,
+      expose: { records: ['app.signal'] },
+    })
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(harness, { threadId: 'append' })
+    const input = {
+      op: 'append' as const,
+      records: [{ type: 'app.signal', text: 'The build failed.' }],
+      inputId: 'ap-1',
+    }
+
+    const first = await applyInput({ harness, session, input })
+    const again = await applyInput({ harness, session, input })
+
+    expect(first).toEqual({ inputId: 'ap-1', status: 'accepted' })
+    expect(again).toEqual(first)
+    const signals = (
+      await persistence.stores.log.read({ logId: logIdOf({ logId: 'append' }) })
+    ).filter(({ record }) => record.type === 'app.signal')
+    expect(signals).toHaveLength(1)
     await host.close()
   })
 
@@ -272,7 +364,10 @@ describe('HTTP handler', () => {
       }),
     ).toMatchObject({ status: expect.stringMatching(/^(accepted|queued)$/) })
 
-    const session = await host.open(harness, { threadId: 'user-1-m' })
+    const session = await host.open(harness, {
+      threadId: 'user-1-m',
+      principal: user,
+    })
     const hidden = session.agent('secret')?.start()
     expect(
       await control({
@@ -308,7 +403,7 @@ describe('HTTP handler', () => {
       ).json()
     await control({ op: 'prompt', message: 'hi' })
     // The model call runs, so a steer can join only at a later call.
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
+    await waitFor(() => expect(calls).toHaveLength(1))
     await control({ op: 'followUp', message: 'later', inputId: 'f-1' })
 
     expect(
@@ -335,9 +430,12 @@ describe('HTTP handler', () => {
 
     await control({ op: 'followUp', message: 'I am real', wake: true })
 
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
-    const session = await host.open(harness, { threadId: 'user-1-wake' })
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
+    await waitFor(() => expect(calls).toHaveLength(1))
+    const session = await host.open(harness, {
+      threadId: 'user-1-wake',
+      principal: user,
+    })
+    await waitFor(() => expect(session.snapshot().status).toBe('idle'))
     expect(wakeMessages(await session.transcript())).toEqual([])
     await host.close()
   })
@@ -372,6 +470,50 @@ describe('parseHarnessInput', () => {
     ).toThrow("Invalid input: setDelivery needs 'steer' or 'queue'.")
   })
 
+  it('refuses a message part without the fields the harness reads', () => {
+    // An image with no source, then a data source with no MIME type.
+    for (const part of [
+      { type: 'image' },
+      { type: 'image', source: { type: 'data', value: 'aGVsbG8=' } },
+    ]) {
+      expect(() =>
+        parseHarnessInput({ op: 'prompt', message: [part] }),
+      ).toThrow(
+        'Invalid input: prompt needs a message: text, or content parts.',
+      )
+    }
+    expect(() =>
+      parseHarnessInput({
+        op: 'continue',
+        ephemeral: [{ role: 'user', content: [{ type: 'audio' }] }],
+      }),
+    ).toThrow('Invalid input: ephemeral must be an array of user messages.')
+  })
+
+  it('reports the WebSocket in capabilities only when the app serves it', async () => {
+    const { host, harness } = setup()
+    const transportOf = async (socket?: boolean) => {
+      const handler = createHarnessHandler({
+        host,
+        harness,
+        ...(socket === undefined ? {} : { socket }),
+      })
+      const response = await handler(
+        new Request('http://x/api/harness/capabilities', { headers: auth }),
+      )
+      const body: unknown = await response.json()
+      return body
+    }
+
+    expect(await transportOf()).toMatchObject({
+      transport: { streaming: true, websocket: false },
+    })
+    expect(await transportOf(true)).toMatchObject({
+      transport: { streaming: true, websocket: true },
+    })
+    await host.close()
+  })
+
   it('checks the ephemeral messages of prompt and continue', () => {
     const refused =
       'Invalid input: ephemeral must be an array of user messages.'
@@ -396,23 +538,6 @@ describe('parseHarnessInput', () => {
 })
 
 describe('WebSocket', () => {
-  function fakeSocket() {
-    const handlers: Record<string, Array<(event?: any) => void>> = {}
-    const sent: Array<HostFrame> = []
-    const socket: WebSocketLike = {
-      send: (data) => sent.push(JSON.parse(data)),
-      close: () => handlers.close?.forEach((handler) => handler()),
-      addEventListener: (type: string, handler: (event?: any) => void) => {
-        ;(handlers[type] ??= []).push(handler)
-      },
-    }
-    const receive = (frame: unknown) =>
-      handlers.message?.forEach((handler) =>
-        handler({ data: JSON.stringify(frame) }),
-      )
-    return { socket, sent, receive }
-  }
-
   it('subscribes, applies inputs with receipts, and streams events', async () => {
     const { host, harness } = setup()
     const { socket, sent, receive } = fakeSocket()
@@ -420,8 +545,7 @@ describe('WebSocket', () => {
       host,
       harness,
       socket,
-      principal: { id: 'user-1' },
-      canAccess: () => true,
+      request: new Request('http://x/api/harness/socket', { headers: auth }),
     })
 
     receive({
@@ -429,10 +553,10 @@ describe('WebSocket', () => {
       requestId: 'r0',
       input: { op: 'prompt', message: 'x' },
     })
-    await vi.waitFor(() => expect(sent.at(-1)?.type).toBe('harness.error'))
+    await waitFor(() => expect(sent.at(-1)?.type).toBe('harness.error'))
 
     receive({ type: 'harness.subscribe', threadId: 'user-1-ws' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(sent.some((frame) => frame.type === 'harness.hello')).toBe(true),
     )
     receive({
@@ -441,7 +565,7 @@ describe('WebSocket', () => {
       input: { op: 'prompt', message: 'hi' },
     })
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         sent.some(
           (frame) =>
@@ -458,12 +582,59 @@ describe('WebSocket', () => {
       status: 'accepted',
     })
     receive({ type: 'harness.snapshot' })
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(sent.at(-1)).toMatchObject({
         type: 'harness.snapshot',
         snapshot: { status: 'idle' },
       }),
     )
+    socket.close()
+    await host.close()
+  })
+})
+
+describe('WebSocket frame order', () => {
+  it('applies the inputs of one socket in the order they came', async () => {
+    const { host, harness } = setup()
+    const { socket, sent, receive } = fakeSocket()
+    handleHarnessSocket({
+      host,
+      harness,
+      socket,
+      request: new Request('http://x/api/harness/socket', { headers: auth }),
+    })
+    receive({ type: 'harness.subscribe', threadId: 'user-1-order' })
+    await vi.waitFor(
+      () =>
+        expect(sent.some((frame) => frame.type === 'harness.hello')).toBe(true),
+      { timeout: 5000 },
+    )
+
+    // The first input stores its image before it reaches the session. The
+    // second is text only, so it is faster on its own.
+    const image = {
+      type: 'image',
+      source: { type: 'data', value: 'aGVsbG8=', mimeType: 'image/png' },
+    }
+    receive({
+      type: 'harness.input',
+      requestId: 'first',
+      input: { op: 'prompt', inputId: 'first', message: [image] },
+    })
+    receive({
+      type: 'harness.input',
+      requestId: 'second',
+      input: { op: 'prompt', inputId: 'second', message: 'B' },
+    })
+
+    const receipts = () =>
+      sent.flatMap((frame) =>
+        frame.type === 'harness.receipt' ? [frame.requestId] : [],
+      )
+    await vi.waitFor(() => expect(receipts()).toHaveLength(2), {
+      timeout: 5000,
+    })
+    expect(receipts()).toEqual(['first', 'second'])
     socket.close()
     await host.close()
   })
@@ -475,5 +646,95 @@ describe('parseControlFrame', () => {
     expect(() =>
       parseControlFrame('{"type":"harness.input","requestId":"1","input":{}}'),
     ).toThrow('Invalid input')
+  })
+
+  it('keeps the v of a subscribe, and refuses a v that is not a number', () => {
+    expect(
+      parseControlFrame('{"type":"harness.subscribe","threadId":"t","v":2}'),
+    ).toEqual({ type: 'harness.subscribe', threadId: 't', v: 2 })
+    expect(() =>
+      parseControlFrame('{"type":"harness.subscribe","threadId":"t","v":"2"}'),
+    ).toThrow('v must be a number')
+  })
+
+  it('keeps a valid traceparent of an input, and drops an invalid one', () => {
+    const traceparent =
+      '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
+    const frame = (value: string) =>
+      parseControlFrame(
+        JSON.stringify({
+          type: 'harness.input',
+          requestId: 'r1',
+          input: { op: 'prompt', message: 'hi' },
+          traceparent: value,
+        }),
+      )
+    expect(frame(traceparent)).toMatchObject({ traceparent })
+    expect(frame('not-a-traceparent')).not.toHaveProperty('traceparent')
+  })
+})
+
+describe('versionError', () => {
+  it('takes the current version, and no version', () => {
+    expect(HARNESS_PROTOCOL_VERSION).toBe(2)
+    expect(versionError(undefined)).toBeUndefined()
+    expect(versionError(2)).toBeUndefined()
+  })
+
+  it('refuses another version', () => {
+    expect(versionError(1)).toEqual({
+      message:
+        'Protocol version 1 is not supported. This host speaks version 2.',
+      code: 'unsupported_version',
+    })
+  })
+})
+
+describe('requestIdOf', () => {
+  it('reads the requestId of a frame that fails the full parse', () => {
+    const badInput = '{"type":"harness.input","requestId":"r9","input":{}}'
+    expect(() => parseControlFrame(badInput)).toThrow('Invalid input')
+    expect(requestIdOf(badInput)).toBe('r9')
+  })
+
+  it('never throws', () => {
+    expect(requestIdOf('{not json')).toBeUndefined()
+    expect(requestIdOf('null')).toBeUndefined()
+    expect(requestIdOf('{"requestId":7}')).toBeUndefined()
+  })
+})
+
+describe('traceparent on an input', () => {
+  const traceparent = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
+
+  it('applyInput passes the traceparent to the send of a message', async () => {
+    const { host, harness } = setup()
+    const session = await host.open(harness, {
+      threadId: 'user-1-trace',
+      principal: user,
+    })
+    const send = vi.spyOn(session, 'send')
+
+    await applyInput({
+      harness,
+      session,
+      input: { op: 'prompt', message: 'hi' },
+      principal: user,
+      traceparent,
+    })
+    await applyInput({
+      harness,
+      session,
+      input: { op: 'steer', message: 'more' },
+      principal: user,
+      traceparent,
+    })
+
+    expect(send.mock.calls.map(([, options]) => options?.traceparent)).toEqual([
+      traceparent,
+      traceparent,
+    ])
+    await session.close()
+    await host.close()
   })
 })

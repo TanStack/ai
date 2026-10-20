@@ -62,12 +62,12 @@ export const sandboxed = defineHarness({
 
 3. When you are done, stop the sandbox with `await sandbox.destroy()`.
 
-Every provider works. Get the handle from `create()`, or from `resume()` for a sandbox that runs already. See [Providers](../sandbox/providers).
+Every provider works. Get the handle from `create()`, or from `resume()` for a sandbox that runs already. See [Providers](../sandbox/providers). To create a sandbox for each thread, and resume it on another server, see [Run the coding tools for many threads](./coding-workspaces).
 
 In a sandbox, some things are different:
 
 - Paths are POSIX paths in the sandbox, like `/workspace/src/a.ts`, also on a Windows host.
-- The tools do not check where links lead. The sandbox backend has no `realpath`.
+- The tools check where links lead with `lstat` and `readlink` in the sandbox. A sandbox without `lstat` cannot find links, so the tools refuse every path.
 - `background: true` needs a sandbox with `capabilities.backgroundProcesses`.
 - A sandbox with `capabilities.killableProcesses` off cannot stop a command after the time limit. The call returns, and the command continues in the sandbox.
 - `list_files` and `grep` use `rg` in the sandbox. The `@vscode/ripgrep` binary is a host file, so the sandbox does not use it.
@@ -82,11 +82,15 @@ The backend must have:
 | --- | --- |
 | `readFile(path)` | Gives the bytes of a file. Throws when there is no file. |
 | `writeFile(path, data)` | Creates or replaces a file. Creates the missing parent folders. |
-| `stat(path)` | Gives `{ type, size, mtimeMs }`, or `undefined` when nothing is at `path`. |
+| `stat(path)` | Gives `{ type, size, mtimeMs }`, or `undefined` when nothing is at `path`. It does not read the file. |
+| `realpath(path)` | Gives the path with every link resolved, or `undefined` when nothing is at `path`. Throws when it cannot resolve a path. |
 | `readdir(path)` | Gives the entries of a folder. A link has the type `'link'`. |
 | `exec(command, options)` | Runs a shell command and waits. Gives `{ exitCode, stdout, stderr }`. |
 
-`exec` resolves with the exit code of a command that fails. It does not throw. After `options.timeoutMs`, it stops the command with every process that it started, and gives exit code 124.
+- `exec` resolves with the exit code of a command that fails. It does not throw.
+- After `options.timeoutMs`, `exec` stops the command with every process that it started, and gives exit code 124. `options.signal` stops it too.
+- `options.env` holds the variables to add. Give a command only these and the few variables that it needs to start. Do not give it the variables of your server.
+- When `realpath` throws, the tool call fails. So a path with a link that the backend cannot resolve is never used.
 
 The backend can also have:
 
@@ -95,8 +99,18 @@ The backend can also have:
 | `shell` | `'sh'` or `'cmd'`. Sets the path style and how arguments are quoted. | `sh` quotes, and the path style of this machine. |
 | `remove(path)` | Removes one file. | `patch` cannot delete or move files. |
 | `readLines(path, { offset, limit })` | Gives one page of a file: `{ head, size, lines, total }`. `head` is the first 8 KiB. | `read_file` reads the whole file for each page. |
-| `realpath(path)` | Gives the path with every link resolved. | The tools do not check links. |
-| `spawn(command, options)` | Starts a command in the background. | `background: true` gives an error. |
+
+For background jobs and for threads that move to another server:
+
+| Member | What it does | Without it |
+| --- | --- | --- |
+| `spawn(command, options)` | Starts a command in the background. Gives `{ wait, kill, output, jobId? }`. `jobId` resolves with the id of the process, for `killJob`. | `background: true` gives an error. |
+| `killJob(jobId)` | Stops a job that `spawn` started, also on an earlier process or machine. Resolves `false` when no such job runs. Rejects when it cannot check that the process is the job: then the log keeps the job. | A job that a crash left running is not stopped. |
+| `exec` option `onStart(jobId)` | Gives the id of a foreground command when it starts, so a command that moves to the background can be stopped by a later host too. | A moved command has no id in the log. |
+| `binding()` | Gives `{ kind: 'sandbox', provider, sandboxId }` for a sandbox that another machine can resume. | The workspace is a folder on this host. |
+| `close({ reason })` | Releases the backend. `'closed'`: the session closed. `'moved'`: the session continues on another machine, so keep what it can resume. | Nothing to release. |
+
+`close` must never destroy a sandbox that the backend did not create.
 
 The fastest start is to wrap `hostBackend`. This backend logs each command before it runs:
 
@@ -212,8 +226,9 @@ export const withToml = formatter({
 - `builtins: false` turns the built-in formatters off.
 - `timeoutMs` limits each run. The default is 20 seconds.
 - In a sandbox or on your own backend, give `formatter()` the same `backend` as `workspaceTools()`.
+- With [`workspaceTools({ workspace: { bind } })`](./coding-workspaces) before it, `formatter()` runs in the workspace of each thread. Leave out `root` and `backend`.
 
-A formatter that fails, stops at the time limit, or is not installed does not fail the tool call. The file stays as the tool wrote it, and the plugin sends `FormatFailed`:
+A formatter that fails, stops at the time limit, or is not installed does not fail the tool call. The file stays as the tool wrote it, and the plugin sends `FormatFailed`. A formatter that changes the file sends `FormatterRewrote` with `{ path, formatter }`:
 
 ```ts group=harness-coding-tools-backends
 import { FormatFailed } from '@tanstack/ai-harness/plugins/coding'
@@ -228,16 +243,19 @@ export const formatAlerts = definePlugin({
 })
 ```
 
-Clients get the same event as a `harness.plugin.event` with the name `tanstack/formatter:failed`.
+Clients get the same events as a `harness.plugin.event` with the name `tanstack/formatter:failed` or `tanstack/formatter:rewrote`.
 
-### Each run asks first
+### One approval covers the write and its formatter
 
-A formatter runs code from the project, like `prettier.config.js`. The model can change that code with an edit. So with `permissions()`, the formatter asks before each run, also in `acceptEdits` mode. The question names the run `formatter:prettier`, `formatter:biome`, and so on.
+A formatter runs code from the project, like `prettier.config.js`. The model can change that code with an edit. So with `permissions()`, the rules decide the formatter as a part of the call that writes. The rule names the run `formatter:prettier`, `formatter:biome`, and so on.
 
-- Answer `always` once, and the formatter runs without a question in this project.
-- A `reject` keeps the write. The tool result says that the formatter did not run.
-- A rule can allow a formatter: `{ tool: 'formatter:prettier', decision: 'allow' }`.
-- Without `permissions()`, the formatter runs without a question.
+The rules decide before the call runs, and the formatter runs after the write. The call never stops in the middle to ask.
+
+- When the formatter asks, the call asks one time for the write and the formatter, also in `acceptEdits` mode. Answer that [approval](./permissions#answer-an-approval) with `resolve`.
+- A `reject` stops the call. Nothing is written, and the formatter does not run.
+- Answer `always` once, and the formatter runs without a question in this project. The answer is tied to a hash of the formatter config files, like `prettier.config.js` and `package.json`. When they change, the next write asks again.
+- A rule that denies the formatter keeps the write. The tool result says that the formatter did not run.
+- A rule can allow a formatter: `{ tool: 'formatter:prettier', decision: 'allow' }`. Without `permissions()`, the formatter runs without a question.
 
 [Formatters](./permissions#formatters) shows what each mode does.
 
@@ -246,7 +264,7 @@ A formatter runs code from the project, like `prettier.config.js`. The model can
 One tool result with a full log or a big JSON file fills the context of the model. `boundToolOutput()` cuts every tool result that is too long:
 
 ```ts group=harness-coding-tools-backends
-import { boundToolOutput } from '@tanstack/ai-harness/plugins'
+import { boundToolOutput } from '@tanstack/ai-harness/plugins/node'
 
 export const bounded = defineHarness({
   name: 'acme/bounded-coder',

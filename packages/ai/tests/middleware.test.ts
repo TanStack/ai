@@ -1505,6 +1505,198 @@ describe('chat() middleware', () => {
   })
 
   // ==========================================================================
+  // onGuardToolCall
+  // ==========================================================================
+  describe('onGuardToolCall', () => {
+    function oneCallAdapter(args: string) {
+      return createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('tc-1', 'myTool'),
+            ev.toolArgs('tc-1', args),
+            ev.toolEnd('tc-1', 'myTool', { input: JSON.parse(args) }),
+            ev.runFinished('tool_calls'),
+          ],
+          [ev.runStarted(), ev.textContent('ok'), ev.runFinished('stop')],
+        ],
+      })
+    }
+
+    it('runs after a transformArgs decision and sees the final checked args', async () => {
+      const executeFn = vi.fn(() => ({ result: 'done' }))
+      const tool = {
+        name: 'myTool',
+        description: 'Test tool',
+        inputSchema: z.object({ x: z.number(), unit: z.string().default('c') }),
+        execute: executeFn,
+      }
+      const { adapter } = oneCallAdapter('{"x":1}')
+      const guard = vi.fn()
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        tools: [tool],
+        middleware: [
+          {
+            name: 'transformer',
+            onBeforeToolCall: () => ({
+              type: 'transformArgs' as const,
+              args: { x: 42 },
+            }),
+          },
+          { name: 'guard', onGuardToolCall: guard },
+        ],
+      })
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      expect(guard).toHaveBeenCalledOnce()
+      expect(guard.mock.calls[0]![1]).toMatchObject({
+        toolName: 'myTool',
+        toolCallId: 'tc-1',
+        args: { x: 42, unit: 'c' },
+      })
+      expect(executeFn).toHaveBeenCalledWith(
+        { x: 42, unit: 'c' },
+        expect.anything(),
+      )
+    })
+
+    it('a deny stops execute and the model gets it like an onBeforeToolCall skip', async () => {
+      const denial = { error: 'blocked by policy' }
+
+      async function toolMessage(middleware: ChatMiddleware) {
+        const executeFn = vi.fn(() => ({ result: 'should not run' }))
+        const onAfterToolCall = vi.fn()
+        const { adapter, calls } = oneCallAdapter('{}')
+        const stream = chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Hi' }],
+          tools: [serverTool('myTool', executeFn)],
+          middleware: [{ ...middleware, onAfterToolCall }],
+        })
+        await collectChunks(stream as AsyncIterable<StreamChunk>)
+        expect(executeFn).not.toHaveBeenCalled()
+        expect(onAfterToolCall).toHaveBeenCalledOnce()
+        expect(onAfterToolCall.mock.calls[0]![1]).toMatchObject({
+          ok: true,
+          result: denial,
+        })
+        const messages = calls[1]!.messages as Array<{ role: string }>
+        return messages.find((m) => m.role === 'tool')
+      }
+
+      const fromGuard = await toolMessage({
+        name: 'guard',
+        onGuardToolCall: () => ({ type: 'skip' as const, result: denial }),
+      })
+      const fromBefore = await toolMessage({
+        name: 'before',
+        onBeforeToolCall: () => ({ type: 'skip' as const, result: denial }),
+      })
+
+      expect(fromGuard).toBeDefined()
+      expect(fromGuard).toEqual(fromBefore)
+    })
+
+    it('runs the guard of every middleware in order until one denies', async () => {
+      const executeFn = vi.fn(() => ({ result: 'done' }))
+      const order: Array<string> = []
+      const { adapter } = oneCallAdapter('{}')
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        tools: [serverTool('myTool', executeFn)],
+        middleware: [
+          { name: 'a', onGuardToolCall: () => void order.push('a') },
+          { name: 'b', onGuardToolCall: () => void order.push('b') },
+          {
+            name: 'c',
+            onGuardToolCall: () => {
+              order.push('c')
+              return { type: 'skip' as const, result: { error: 'no' } }
+            },
+          },
+          { name: 'd', onGuardToolCall: () => void order.push('d') },
+        ],
+      })
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      expect(order).toEqual(['a', 'b', 'c'])
+      expect(executeFn).not.toHaveBeenCalled()
+    })
+
+    it('guards each call of a parallel batch', async () => {
+      const executeA = vi.fn(() => ({ a: 'ran' }))
+      const executeB = vi.fn(() => ({ b: 'ran' }))
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('tc-1', 'toolA'),
+            ev.toolArgs('tc-1', '{}'),
+            ev.toolEnd('tc-1', 'toolA', { input: {} }),
+            ev.toolStart('tc-2', 'toolB'),
+            ev.toolArgs('tc-2', '{}'),
+            ev.toolEnd('tc-2', 'toolB', { input: {} }),
+            ev.runFinished('tool_calls'),
+          ],
+          [ev.runStarted(), ev.textContent('done'), ev.runFinished('stop')],
+        ],
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        tools: [serverTool('toolA', executeA), serverTool('toolB', executeB)],
+        toolExecution: 'parallel',
+        middleware: [
+          {
+            name: 'guard',
+            onGuardToolCall: (_ctx, hookCtx) =>
+              hookCtx.toolName === 'toolA'
+                ? { type: 'skip' as const, result: { error: 'no' } }
+                : undefined,
+          },
+        ],
+      })
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      expect(executeA).not.toHaveBeenCalled()
+      expect(executeB).toHaveBeenCalledOnce()
+    })
+
+    it('an abort from the guard ends the run', async () => {
+      const executeFn = vi.fn(() => ({ result: 'should not run' }))
+      const onAbort = vi.fn()
+      const { adapter } = oneCallAdapter('{}')
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Hi' }],
+        tools: [serverTool('myTool', executeFn)],
+        middleware: [
+          {
+            name: 'guard',
+            onGuardToolCall: () => ({
+              type: 'abort' as const,
+              reason: 'policy violation',
+            }),
+            onAbort,
+          },
+        ],
+      })
+      await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+      expect(executeFn).not.toHaveBeenCalled()
+      expect(onAbort).toHaveBeenCalledOnce()
+      expect(onAbort.mock.calls[0]![1].reason).toBe('policy violation')
+    })
+  })
+
+  // ==========================================================================
   // onConfig tools transform
   // ==========================================================================
   describe('onConfig tools transform', () => {

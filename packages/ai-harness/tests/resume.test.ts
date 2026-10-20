@@ -1,20 +1,32 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { EventType, chat, defineAgent, toolDefinition } from '@tanstack/ai'
+import { chat, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { HARNESS_EVENTS, createHarnessHost, defineHarness } from '../src'
+import { createHarnessHost, defineHarness } from '../src'
+import { logIdOf } from '../src/log'
 import {
   INTERRUPTED_TOOL_RESULT,
-  LEASE,
   TRUNCATED_TOOL_RESULT,
-  checkpointMiddleware,
-  findCrashedRuns,
-  holdRunLease,
   repairTranscript,
+  scrubToolResults,
+  toolResultRecorder,
 } from '../src/resume'
-import { gate, mockAdapter, text, toolCall } from './helpers'
+import { createRedactor } from '../src/auth'
+import {
+  canOtherHostTake,
+  gate,
+  mockAdapter,
+  storedRun,
+  text,
+  toolCall,
+} from './helpers'
 import type { AnyChatMiddleware, AnyTool, ModelMessage } from '@tanstack/ai'
-import type { SessionEvent } from '../src'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
 /** Run one chat() turn with the checkpoint middleware and a fresh run record. */
 async function runWithCheckpoint(options: {
@@ -22,7 +34,7 @@ async function runWithCheckpoint(options: {
   tools?: Array<AnyTool>
   middleware: (
     stores: ReturnType<typeof memoryPersistence>['stores'],
-  ) => AnyChatMiddleware
+  ) => AnyChatMiddleware | Array<AnyChatMiddleware>
 }) {
   const { stores } = memoryPersistence()
   await stores.runs.createOrResume({
@@ -35,7 +47,7 @@ async function runWithCheckpoint(options: {
     adapter,
     messages: [{ role: 'user', content: 'go' }],
     tools: options.tools ?? [],
-    middleware: [options.middleware(stores)],
+    middleware: [options.middleware(stores)].flat(),
     threadId: 't1',
     runId: 'run-1',
     stream: true,
@@ -56,22 +68,18 @@ const waiter = defineAgent({
     ),
 })
 
-/** The event names of `operationId`, up to its `operationFinished` event. */
-async function operationEvents(
-  events: AsyncIterable<SessionEvent>,
-  operationId: string,
-) {
-  const names: Array<string> = []
-  for await (const { event, operationId: id } of events) {
-    if (id !== operationId) continue
-    names.push(event.type === EventType.CUSTOM ? event.name : event.type)
-    if (names.at(-1) === HARNESS_EVENTS.operationFinished) return names
-  }
-  return names
-}
+/** The run `runId` in the log of thread `t1`. */
+const runIn = (
+  persistence: ReturnType<typeof memoryPersistence>,
+  runId: string,
+) => storedRun(persistence.stores.log, { threadId: 't1' }, runId)
 
-describe('checkpoints and leases', () => {
-  it('holds a lease and records the running tool with its replay mode', async () => {
+/** Can another host acquire the log of thread `t1` now? */
+const isTakeable = (persistence: ReturnType<typeof memoryPersistence>) =>
+  canOtherHostTake(persistence.stores.log, logIdOf({ logId: 't1' }))
+
+describe('checkpoints and ownership', () => {
+  it('owns the log and records the running tool with its replay mode', async () => {
     const persistence = memoryPersistence()
     const host = createHarnessHost({ persistence })
     const started = gate()
@@ -92,158 +100,62 @@ describe('checkpoints and leases', () => {
     ])
     const session = await host.open(
       defineHarness({ name: 'test/lease', adapter, tools: [lookup] }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
 
     const turn = session.send('go')
     await started.opened
-    const running = await persistence.stores.runs.get(turn.id)
-    expect(running?.leaseOwner).toMatch(/^host-/)
-    expect(running?.leaseExpiresAt).toBeGreaterThan(Date.now())
-    expect(running?.leaseExpiresAt).toBeLessThanOrEqual(
-      Date.now() + LEASE.ttlMs,
-    )
+    // Another host cannot take the thread while the turn runs.
+    expect(await isTakeable(persistence)).toBe(false)
+    const running = await runIn(persistence, turn.id)
     expect(running?.checkpoint?.pendingTools).toEqual([
       { toolCallId: 'call-1', name: 'lookup', replay: 'safe' },
     ])
     // The assistant message with the tool call is saved before the tool runs.
-    const saved = await persistence.stores.messages.loadThread('t1')
+    const saved = await session.transcript()
     expect(saved.at(-1)?.toolCalls?.[0]?.function.name).toBe('lookup')
 
     release.open()
     await turn
-    const finished = await persistence.stores.runs.get(turn.id)
+    const finished = await runIn(persistence, turn.id)
     expect(finished?.checkpoint?.pendingTools).toEqual([])
     await host.close()
   })
 
-  it('holds a lease on a background agent run', async () => {
+  it('owns the log while a background agent runs, and gives it back after', async () => {
     const persistence = memoryPersistence()
     const host = createHarnessHost({ persistence })
     const { adapter } = mockAdapter([])
     const session = await host.open(
-      defineHarness({ name: 'test/agent-lease', adapter, agents: [waiter] }),
-      { threadId: 't1' },
+      defineHarness({
+        name: 'test/agent-lease',
+        adapter,
+        agents: [waiter],
+      }),
+      {
+        threadId: 't1',
+      },
     )
 
     const run = session.agents.waiter.start()
-    await vi.waitFor(async () =>
-      expect(
-        (await persistence.stores.runs.get(run.id))?.leaseExpiresAt,
-      ).toBeGreaterThan(Date.now()),
+    await waitFor(async () =>
+      expect((await runIn(persistence, run.id))?.status).toBe('running'),
     )
-    expect((await persistence.stores.runs.get(run.id))?.leaseOwner).toMatch(
-      /^host-/,
+    expect(await isTakeable(persistence)).toBe(false)
+
+    await session.cancel({ operationId: run.id })
+    await run.then(
+      () => {},
+      () => {},
     )
+    await waitFor(async () => expect(await isTakeable(persistence)).toBe(true))
     await host.close()
   })
 })
 
 describe('crash resume', () => {
-  it('continues a crashed turn, runs safe tools again, and notes the others', async () => {
-    const persistence = memoryPersistence()
-    await persistence.stores.messages.saveThread('t1', [
-      { id: 'u1', role: 'user', content: 'refund and look up' },
-      {
-        id: 'a1',
-        role: 'assistant',
-        content: '',
-        toolCalls: [
-          {
-            id: 'call-charge',
-            type: 'function',
-            function: { name: 'charge', arguments: '{"cents":100}' },
-          },
-          {
-            id: 'call-lookup',
-            type: 'function',
-            function: { name: 'lookup', arguments: '{"q":"x"}' },
-          },
-        ],
-      },
-    ])
-    await persistence.stores.runs.createOrResume({
-      runId: 'crashed-run',
-      threadId: 't1',
-      startedAt: Date.now() - 60_000,
-    })
-    await persistence.stores.runs.update('crashed-run', {
-      leaseOwner: 'host-gone',
-      leaseExpiresAt: Date.now() - 1_000,
-      checkpoint: {
-        at: Date.now() - 2_000,
-        pendingTools: [
-          { toolCallId: 'call-charge', name: 'charge', replay: 'never' },
-          { toolCallId: 'call-lookup', name: 'lookup', replay: 'safe' },
-        ],
-      },
-    })
-
-    const charge = vi.fn(async () => 'charged')
-    const lookup = vi.fn(async () => 'found')
-    const tools = [
-      toolDefinition({
-        name: 'charge',
-        description: 'Charge a card',
-        inputSchema: z.object({ cents: z.number() }),
-      }).server(charge),
-      toolDefinition({
-        name: 'lookup',
-        description: 'Look up a fact',
-        inputSchema: z.object({ q: z.string() }),
-        replay: 'safe',
-      }).server(lookup),
-    ]
-    const { adapter, calls } = mockAdapter([() => text('recovered')])
-    const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({ name: 'test/resume', adapter, tools }),
-      { threadId: 't1' },
-    )
-
-    const seen: Array<SessionEvent> = []
-    const controller = new AbortController()
-    const reading = (async () => {
-      for await (const entry of session.events({
-        from: '0',
-        signal: controller.signal,
-      })) {
-        seen.push(entry)
-      }
-    })()
-    await vi.waitFor(() => expect(session.snapshot().status).toBe('idle'))
-    await vi.waitFor(() => expect(calls).toHaveLength(1))
-    controller.abort()
-    await reading
-
-    expect(lookup).toHaveBeenCalledTimes(1)
-    expect(charge).not.toHaveBeenCalled()
-    const transcript = await persistence.stores.messages.loadThread('t1')
-    const chargeResult = transcript.find(
-      (message) =>
-        message.role === 'tool' && message.toolCallId === 'call-charge',
-    )
-    expect(chargeResult?.content).toBe(JSON.stringify(INTERRUPTED_TOOL_RESULT))
-    // The model gets the note as a tool error.
-    expect(chargeResult?.error).toBe(
-      'The tool may or may not have run. Check before you retry.',
-    )
-    expect(transcript.at(-1)?.content).toBe('recovered')
-
-    expect((await persistence.stores.runs.get('crashed-run'))?.status).toBe(
-      'failed',
-    )
-    const resumed = seen.find(
-      (entry) =>
-        entry.event.type === EventType.CUSTOM &&
-        entry.event.name === HARNESS_EVENTS.operationResumed,
-    )
-    expect(resumed?.event).toMatchObject({
-      value: { resumedFrom: 'crashed-run' },
-    })
-    await host.close()
-  })
-
   it('keeps the result of a tool that finished before the crash', async () => {
     const { stores } = memoryPersistence()
     await stores.messages.saveThread('t1', [
@@ -465,190 +377,34 @@ describe('crash resume', () => {
       error: 'lookup call-a cut',
     })
   })
-
-  it('fails a background agent that a crashed host left running, and notes it', async () => {
-    const persistence = memoryPersistence()
-    await persistence.stores.runs.createOrResume({
-      runId: 'crashed-agent',
-      threadId: 't1',
-      startedAt: Date.now() - 60_000,
-      kind: 'agent',
-      agent: 'waiter',
-    })
-    await persistence.stores.runs.update('crashed-agent', {
-      leaseOwner: 'host-gone',
-      leaseExpiresAt: Date.now() - 1_000,
-    })
-    const { adapter, calls } = mockAdapter([])
-    const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({ name: 'test/agent-crash', adapter, agents: [waiter] }),
-      { threadId: 't1' },
-    )
-
-    expect(
-      await operationEvents(session.events({ from: '0' }), 'crashed-agent'),
-    ).toEqual([EventType.RUN_ERROR, HARNESS_EVENTS.operationFinished])
-    expect(await persistence.stores.runs.get('crashed-agent')).toMatchObject({
-      status: 'failed',
-      error: { message: 'The host stopped during this agent run.' },
-    })
-    const transcript = await persistence.stores.messages.loadThread('t1')
-    expect(transcript.at(-1)?.content).toBe(
-      '[waiter failed] The host stopped during this agent run.',
-    )
-    // Without a log, the session does not know if the agent was to wake it.
-    expect(calls).toHaveLength(0)
-    await host.close()
-  })
-
-  it('leaves a turn and an agent alone while their leases are still valid', async () => {
-    const persistence = memoryPersistence()
-    await persistence.stores.runs.createOrResume({
-      runId: 'live-run',
-      threadId: 't1',
-      startedAt: Date.now(),
-    })
-    await persistence.stores.runs.createOrResume({
-      runId: 'live-agent',
-      threadId: 't1',
-      startedAt: Date.now(),
-      kind: 'agent',
-      agent: 'waiter',
-    })
-    for (const runId of ['live-run', 'live-agent']) {
-      await persistence.stores.runs.update(runId, {
-        leaseOwner: 'host-other',
-        leaseExpiresAt: Date.now() + 20_000,
-      })
-    }
-    const { adapter, calls } = mockAdapter([])
-    const host = createHarnessHost({ persistence })
-    const session = await host.open(
-      defineHarness({ name: 'test/live', adapter }),
-      {
-        threadId: 't1',
-      },
-    )
-    expect(session.snapshot().status).toBe('idle')
-    expect(calls).toHaveLength(0)
-    expect((await persistence.stores.runs.get('live-run'))?.status).toBe(
-      'running',
-    )
-    expect((await persistence.stores.runs.get('live-agent'))?.status).toBe(
-      'running',
-    )
-    await host.close()
-  })
 })
 
-describe('checkpoint middleware options', () => {
-  it('keeps renewing the run lease after a renewal fails', async () => {
-    const unhandled = vi.fn()
-    process.on('unhandledRejection', unhandled)
-    const { runs } = memoryPersistence().stores
-    await runs.createOrResume({
-      runId: 'run-1',
-      threadId: 't1',
-      startedAt: Date.now(),
-    })
-    // Not a vi.spyOn: its mock handles the rejection itself.
-    let calls = 0
-    const update = runs.update.bind(runs)
-    runs.update = (runId, patch) => {
-      calls += 1
-      return calls === 2
-        ? Promise.reject(new Error('store down'))
-        : update(runId, patch)
-    }
-    const stop = await holdRunLease(runs, 'run-1', 'host-1', { renewMs: 1 })
+/** A tool that returns `echoed`, and one that throws `boom failed`. */
+const echoAndBoom = () => [
+  toolDefinition({ name: 'echo', description: 'Echo' }).server(
+    async () => 'echoed',
+  ),
+  toolDefinition({ name: 'boom', description: 'Fail' }).server(async () => {
+    throw new Error('boom failed')
+  }),
+]
 
-    await vi.waitFor(() => expect(calls).toBeGreaterThanOrEqual(3))
-    stop()
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    process.off('unhandledRejection', unhandled)
+/** The model calls `echo`, then `boom`, then answers. */
+const echoThenBoom = [
+  () => toolCall('echo', {}, 'call-echo'),
+  () => toolCall('boom', {}, 'call-boom'),
+  () => text('done'),
+]
 
-    expect(unhandled).not.toHaveBeenCalled()
-  })
-
-  it('stops renewing after another host took the run over', async () => {
-    const { runs } = memoryPersistence().stores
-    await runs.createOrResume({
-      runId: 'run-1',
-      threadId: 't1',
-      startedAt: Date.now(),
-    })
-    const stop = await holdRunLease(runs, 'run-1', 'host-1', { renewMs: 1 })
-    await runs.update('run-1', {
-      leaseOwner: 'host-2',
-      leaseExpiresAt: Date.now() + 60_000,
-    })
-    await new Promise((resolve) => setTimeout(resolve, 20))
-    expect((await runs.get('run-1'))?.leaseOwner).toBe('host-2')
-    stop()
-  })
-
-  it('finds a running run that crashed before its first lease stamp', async () => {
-    const { runs } = memoryPersistence().stores
-    await runs.createOrResume({
-      runId: 'run-1',
-      threadId: 't1',
-      startedAt: Date.now() - LEASE.ttlMs - 1,
-    })
-    await runs.createOrResume({
-      runId: 'run-2',
-      threadId: 't1',
-      startedAt: Date.now(),
-    })
-    const crashed = await findCrashedRuns(runs, 't1')
-    expect(crashed.map((run) => run.runId)).toEqual(['run-1'])
-  })
-
-  it('uses the lease time it gets', async () => {
-    const startedAt = Date.now()
-    const stores = await runWithCheckpoint({
-      replies: [() => text('done')],
-      middleware: ({ runs, messages }) =>
-        checkpointMiddleware({
-          runs,
-          messages,
-          hostId: 'host-a',
-          lease: { ttlMs: 5_000 },
-        }),
-    })
-
-    const record = await stores.runs.get('run-1')
-    expect(record?.leaseOwner).toBe('host-a')
-    // 5 seconds, not the default 30 seconds.
-    expect(record?.leaseExpiresAt).toBeGreaterThanOrEqual(startedAt + 5_000)
-    expect(record?.leaseExpiresAt).toBeLessThan(startedAt + 15_000)
-  })
-
+describe('toolResultRecorder', () => {
   it('gives onToolResult the tool message of each call that ends', async () => {
     const seen: Array<{ toolCallId: string; message: ModelMessage }> = []
-    const tools = [
-      toolDefinition({ name: 'echo', description: 'Echo' }).server(
-        async () => 'echoed',
-      ),
-      toolDefinition({ name: 'boom', description: 'Fail' }).server(async () => {
-        throw new Error('boom failed')
-      }),
-    ]
     await runWithCheckpoint({
-      replies: [
-        () => toolCall('echo', {}, 'call-echo'),
-        () => toolCall('boom', {}, 'call-boom'),
-        () => text('done'),
-      ],
-      tools,
-      middleware: ({ runs, messages }) =>
-        checkpointMiddleware({
-          runs,
-          messages,
-          hostId: 'host-a',
-          onToolResult: (info) => {
-            seen.push(info)
-          },
+      replies: echoThenBoom,
+      tools: echoAndBoom(),
+      middleware: () =>
+        toolResultRecorder((info) => {
+          seen.push(info)
         }),
     })
 
@@ -665,6 +421,76 @@ describe('checkpoint middleware options', () => {
           content: JSON.stringify({ error: 'boom failed' }),
           error: 'boom failed',
         },
+      },
+    ])
+  })
+
+  it('records the result after an earlier middleware replaced it, also on an error', async () => {
+    const seen: Array<ModelMessage> = []
+    const replace: AnyChatMiddleware = {
+      name: 'test:replace',
+      onAfterToolCall: (_ctx, info) => ({
+        type: 'replaceResult',
+        result: info.ok ? 'replaced' : { error: 'replaced error' },
+      }),
+    }
+    await runWithCheckpoint({
+      replies: echoThenBoom,
+      tools: echoAndBoom(),
+      middleware: () => [
+        replace,
+        toolResultRecorder(({ message }) => {
+          seen.push(message)
+        }),
+      ],
+    })
+
+    expect(seen).toEqual([
+      { role: 'tool', toolCallId: 'call-echo', content: 'replaced' },
+      {
+        role: 'tool',
+        toolCallId: 'call-boom',
+        content: JSON.stringify({ error: 'replaced error' }),
+        error: 'replaced error',
+      },
+    ])
+  })
+
+  it('records the result without the secrets after scrubToolResults', async () => {
+    const secret = 'sk-test-0123456789'
+    const redactor = createRedactor()
+    redactor.add(secret)
+    const seen: Array<ModelMessage> = []
+    const tools = [
+      toolDefinition({ name: 'echo', description: 'Echo' }).server(
+        async () => ({ key: secret }),
+      ),
+      toolDefinition({ name: 'boom', description: 'Fail' }).server(async () => {
+        throw new Error(`The key ${secret} was refused.`)
+      }),
+    ]
+    await runWithCheckpoint({
+      replies: echoThenBoom,
+      tools,
+      middleware: () => [
+        scrubToolResults(redactor),
+        toolResultRecorder(({ message }) => {
+          seen.push(message)
+        }),
+      ],
+    })
+
+    expect(seen).toEqual([
+      {
+        role: 'tool',
+        toolCallId: 'call-echo',
+        content: JSON.stringify({ key: '[redacted]' }),
+      },
+      {
+        role: 'tool',
+        toolCallId: 'call-boom',
+        content: JSON.stringify({ error: 'The key [redacted] was refused.' }),
+        error: 'The key [redacted] was refused.',
       },
     ])
   })

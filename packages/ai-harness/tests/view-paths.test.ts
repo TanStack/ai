@@ -16,6 +16,12 @@ import type {
 } from '../src'
 import type { SessionView, SessionViewSource } from '../src/view'
 
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
 type StreamOptions = Parameters<SessionViewSource['events']>[0]
 
 const accepted: Receipt = { inputId: 'i', status: 'accepted' }
@@ -90,11 +96,11 @@ function createFake(overrides: Partial<SessionViewSource>) {
   const source: SessionViewSource = {
     send: (message, options) =>
       accept({ op: options?.mode ?? 'prompt', message }),
-    resolve: (resume) => accept({ op: 'resolve', resume }),
+    resolve: ({ resume }) => accept({ op: 'resolve', resume }),
     cancel: () => accept({ op: 'cancel' }),
     answer: ({ questionId, value }) =>
       accept({ op: 'answer', questionId, value }),
-    command: (name, input) => accept({ op: 'command', name, input }),
+    command: ({ name, input }) => accept({ op: 'command', name, input }),
     setConfig: ({ key, value }) => accept({ op: 'config', key, value }),
     events: (options) => stream.open(options),
     snapshot: () => sessionSnapshot(),
@@ -165,7 +171,7 @@ const deleteFile: Interrupt = {
 const plain: Interrupt = { id: 'b', reason: 'confirm' }
 const waiting = sessionSnapshot({
   status: 'requires_action',
-  pendingInterrupts: [deleteFile, plain],
+  interrupts: [deleteFile, plain],
 })
 const confirm = {
   questionId: 'q1',
@@ -211,7 +217,7 @@ describe('session view start', () => {
 
       stream.push(says('Still here.'))
 
-      await vi.waitFor(() => expect(assistantText(view)).toBe('Still here.'))
+      await waitFor(() => expect(assistantText(view)).toBe('Still here.'))
       expect(errors).toEqual([`${read} down`])
       expect(notices(view)).toEqual([{ kind: 'error', text: `${read} down` }])
       expect(stream.opened[0]?.from).toBe(from)
@@ -244,7 +250,7 @@ describe('session view events', () => {
     // A source can throw a value that is not an Error.
     stream.fail('socket closed')
 
-    await vi.waitFor(() => expect(view.store.get().connection).toBe('closed'))
+    await waitFor(() => expect(view.store.get().connection).toBe('closed'))
     expect(errors).toEqual(['socket closed'])
     expect(notices(view)).toEqual([{ kind: 'error', text: 'socket closed' }])
   })
@@ -254,7 +260,7 @@ describe('session view events', () => {
 
     stream.end()
 
-    await vi.waitFor(() => expect(view.store.get().connection).toBe('closed'))
+    await waitFor(() => expect(view.store.get().connection).toBe('closed'))
     expect(errors).toEqual([])
   })
 
@@ -282,7 +288,7 @@ describe('session view events', () => {
       }),
     )
 
-    await vi.waitFor(() => expect(stream.closed()).toBe(true))
+    await waitFor(() => expect(stream.closed()).toBe(true))
     expect(calls).toEqual([])
     expect(view.store.get().messages).toEqual([])
   })
@@ -294,7 +300,7 @@ describe('session view events', () => {
 
     stream.push(at(childRun.started), at(childRun.finished), runFinished())
 
-    await vi.waitFor(() => expect(view.store.get().queuedTurns).toBe(1))
+    await waitFor(() => expect(view.store.get().queuedTurns).toBe(1))
     await drain()
     expect(snapshot).toHaveBeenCalledTimes(2)
   })
@@ -315,10 +321,10 @@ describe('session view events', () => {
       custom(HARNESS_EVENTS.operationFinished, { operationId: 'op-1' }),
       says('Done.'),
     )
-    await vi.waitFor(() => expect(assistantText(view)).toBe('Done.'))
+    await waitFor(() => expect(assistantText(view)).toBe('Done.'))
     hold.open()
 
-    await vi.waitFor(() => expect(view.store.get().queuedTurns).toBe(2))
+    await waitFor(() => expect(view.store.get().queuedTurns).toBe(2))
     await drain()
     expect(snapshot).toHaveBeenCalledTimes(3)
   })
@@ -332,7 +338,7 @@ describe('session view events', () => {
 
     stream.push(runFinished())
 
-    await vi.waitFor(() => expect(errors).toEqual(['snapshot down']))
+    await waitFor(() => expect(errors).toEqual(['snapshot down']))
     expect(notices(view)).toEqual([{ kind: 'error', text: 'snapshot down' }])
   })
 
@@ -349,7 +355,7 @@ describe('session view events', () => {
       custom(HARNESS_EVENTS.configChanged, { key: 'mode', value: 'plan' }),
     )
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(view.store.get().commands).toEqual([planCommand]),
     )
   })
@@ -365,7 +371,7 @@ describe('session view events', () => {
       custom(HARNESS_EVENTS.configChanged, { key: 'mode', value: 'plan' }),
     )
 
-    await vi.waitFor(() => expect(errors).toEqual(['describe down']))
+    await waitFor(() => expect(errors).toEqual(['describe down']))
   })
 
   it('ignores reads that end after dispose', async () => {
@@ -391,7 +397,7 @@ describe('session view events', () => {
       runFinished(),
       custom(HARNESS_EVENTS.configChanged, { key: 'mode', value: 'plan' }),
     )
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(snapshot).toHaveBeenCalledTimes(2)
       expect(describeSession).toHaveBeenCalledTimes(2)
     })
@@ -481,7 +487,7 @@ describe('session view actions', () => {
 
       await act(view)
 
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(errors).toEqual(['Harness request failed (500): down']),
       )
       expect(notices(view)).toEqual([
@@ -555,17 +561,15 @@ describe('session view approvals', () => {
   it('ignores a decision for an approval that is not open, also when it opens later', async () => {
     const late: Interrupt = { id: 'late', reason: 'confirm' }
     const snapshot = vi.fn(() =>
-      sessionSnapshot({ pendingInterrupts: [deleteFile, late] }),
+      sessionSnapshot({ interrupts: [deleteFile, late] }),
     )
-    snapshot.mockReturnValueOnce(
-      sessionSnapshot({ pendingInterrupts: [deleteFile] }),
-    )
+    snapshot.mockReturnValueOnce(sessionSnapshot({ interrupts: [deleteFile] }))
     const { view, stream, inputs } = await openView({ snapshot })
 
-    view.approve('late')
+    view.approve({ id: 'late' })
     stream.push(runFinished())
-    await vi.waitFor(() => expect(view.store.get().approvals).toHaveLength(2))
-    view.approve('a')
+    await waitFor(() => expect(view.store.get().approvals).toHaveLength(2))
+    view.approve({ id: 'a' })
 
     // `late` still waits for its own answer.
     expect(inputs).toEqual([])
@@ -581,7 +585,7 @@ describe('session view approvals', () => {
     view.approveAll()
     expect(view.store.get().approvals).toEqual([])
 
-    await vi.waitFor(() => expect(view.store.get().approvals).toHaveLength(2))
+    await waitFor(() => expect(view.store.get().approvals).toHaveLength(2))
     expect(errors).toEqual(['resolve down'])
     expect(snapshot).toHaveBeenCalledTimes(2)
   })
@@ -635,7 +639,7 @@ describe('session view on()', () => {
       }),
     )
 
-    await vi.waitFor(() => expect(pings).toEqual([{ count: 3 }]))
+    await waitFor(() => expect(pings).toEqual([{ count: 3 }]))
     expect(numbered).toEqual([])
   })
 
@@ -676,7 +680,7 @@ describe('session view on()', () => {
       }),
     )
 
-    await vi.waitFor(() => expect(agents).toHaveLength(5))
+    await waitFor(() => expect(agents).toHaveLength(5))
     expect(calls).toEqual([{ id: 'c1', name: 'read' }])
     expect(agents).toEqual([
       { id: 's1', name: 'helper', status: 'running' },
@@ -690,10 +694,10 @@ describe('session view on()', () => {
   it('fires each question once, and answers it through the source', async () => {
     const named = { questionId: 'q2', message: 'Name?' }
     const snapshot = vi.fn(() =>
-      sessionSnapshot({ pendingQuestions: [confirm, named], queuedTurns: 1 }),
+      sessionSnapshot({ questions: [confirm, named], queuedTurns: 1 }),
     )
     snapshot.mockReturnValueOnce(
-      sessionSnapshot({ pendingQuestions: [confirm, named] }),
+      sessionSnapshot({ questions: [confirm, named] }),
     )
     const { view, stream, inputs } = startView({ snapshot })
     const asked: Array<string> = []
@@ -701,7 +705,7 @@ describe('session view on()', () => {
     await view.ready
 
     stream.push(runFinished())
-    await vi.waitFor(() => expect(view.store.get().queuedTurns).toBe(1))
+    await waitFor(() => expect(view.store.get().queuedTurns).toBe(1))
 
     expect(asked).toEqual(['q1', 'q2'])
     // Strict: a question without a schema has no `schema` key.
@@ -732,7 +736,7 @@ describe('session view on()', () => {
       says('Waiting.'),
     )
 
-    await vi.waitFor(() => expect(assistantText(view)).toBe('Waiting.'))
+    await waitFor(() => expect(assistantText(view)).toBe('Waiting.'))
     expect(signIns).toEqual([
       {
         connector: 'notion',
@@ -760,7 +764,7 @@ describe('session view on()', () => {
       custom(HARNESS_EVENTS.operationFinished, { operationId: 'op-t' }),
     )
 
-    await vi.waitFor(() => expect(ended).toEqual(['op-t']))
+    await waitFor(() => expect(ended).toEqual(['op-t']))
   })
 
   it('reports a lead run error and a rejected input, not a child run error', async () => {
@@ -772,7 +776,7 @@ describe('session view on()', () => {
       at({ type: EventType.RUN_ERROR, message: 'boom' }),
     )
 
-    await vi.waitFor(() => expect(errors).toHaveLength(2))
+    await waitFor(() => expect(errors).toHaveLength(2))
     expect(errors).toEqual(['Not accepted: unknown reason', 'Error: boom'])
   })
 })
@@ -811,7 +815,7 @@ const regionInput: Interrupt = {
 }
 const stopped = sessionSnapshot({
   status: 'requires_action',
-  pendingInterrupts: [removeApproval, regionInput],
+  interrupts: [removeApproval, regionInput],
 })
 
 /** A source call that records its name and arguments in `calls`. */
@@ -841,24 +845,24 @@ describe('session view inputs', () => {
 
     await view.followUp('then the tests')
     await view.continue()
-    await view.cancel('op-2')
-    await view.cancelInput('in-1')
+    await view.cancel({ operationId: 'op-2' })
+    await view.cancelInput({ inputId: 'in-1' })
     await view.setDelivery({ inputId: 'in-2', delivery: 'steer' })
-    await view.configure({ model: 'strong' })
-    await view.reset('Start over.')
-    await view.revert('m1')
+    await view.configure({ settings: { model: 'strong' } })
+    await view.reset({ note: 'Start over.' })
+    await view.revert({ messageId: 'm1' })
     await view.unrevert()
     await drain()
 
     expect(calls).toEqual([
       ['followUp', 'then the tests', { mode: 'followUp' }],
       ['continue'],
-      ['cancel', 'op-2'],
-      ['cancelInput', 'in-1'],
+      ['cancel', { operationId: 'op-2' }],
+      ['cancelInput', { inputId: 'in-1' }],
       ['setDelivery', { inputId: 'in-2', delivery: 'steer' }],
-      ['configure', { model: 'strong' }],
-      ['reset', 'Start over.'],
-      ['revert', 'm1'],
+      ['configure', { settings: { model: 'strong' } }],
+      ['reset', { note: 'Start over.' }],
+      ['revert', { messageId: 'm1' }],
       ['unrevert'],
     ])
     expect(view.store.get().messages).toEqual([
@@ -896,11 +900,17 @@ describe('session view inputs', () => {
     const { view } = await openView({ putMedia })
     const bare = await openView()
 
-    expect(await view.upload(new Uint8Array([1]), info)).toBe(file)
-    expect(putMedia).toHaveBeenCalledWith(new Uint8Array([1]), info)
-    await expect(bare.view.upload(new Uint8Array([1]), info)).rejects.toThrow(
-      'This view source cannot store media.',
+    expect(await view.putMedia({ body: new Uint8Array([1]), ...info })).toBe(
+      file,
     )
+    expect(putMedia).toHaveBeenCalledWith({
+      body: new Uint8Array([1]),
+      name: 'a.png',
+      mimeType: 'image/png',
+    })
+    await expect(
+      bare.view.putMedia({ body: new Uint8Array([1]), ...info }),
+    ).rejects.toThrow('This view source cannot store media.')
   })
 })
 
@@ -955,7 +965,7 @@ describe('session view interrupts', () => {
     snapshot.mockReturnValueOnce(stopped)
     const { view, inputs } = await openView({ snapshot })
 
-    view.reject('ap-1', { reason: 'wrong file' })
+    view.reject({ id: 'ap-1', payload: { reason: 'wrong file' } })
     view.store.get().interrupts[0]?.cancel()
 
     expect(inputs).toEqual([
@@ -984,7 +994,7 @@ describe('session view interrupts', () => {
 
     stream.push(...turn('op-a', 'interrupted'), ...turn('op-b', 'completed'))
 
-    await vi.waitFor(() => expect(ended).toEqual(['op-b']))
+    await waitFor(() => expect(ended).toEqual(['op-b']))
   })
 })
 
@@ -993,7 +1003,12 @@ const entry = (
   cursor: number,
   event: StreamChunk,
   operationId = 'op-1',
-): SessionEvent => ({ cursor: String(cursor), operationId, event })
+): SessionEvent => ({
+  cursor: String(cursor),
+  threadId: 't1',
+  operationId,
+  event,
+})
 
 describe('session view reload', () => {
   it('shows a running turn from its start, without what the transcript has', async () => {
@@ -1051,7 +1066,7 @@ describe('session view reload', () => {
       }),
     )
 
-    await vi.waitFor(() => expect(assistantText(view)).toBe('Looking.Done.'))
+    await waitFor(() => expect(assistantText(view)).toBe('Looking.Done.'))
     expect(stream.opened[0]?.from).toBe('0')
     expect(view.store.get().messages).toMatchObject([
       { role: 'user', text: 'Clean up' },
@@ -1131,7 +1146,7 @@ describe('session view reload', () => {
       entry(12, says('m3', 'C.')),
     )
 
-    await vi.waitFor(() => expect(assistantText(view)).toBe('A.B.C.'))
+    await waitFor(() => expect(assistantText(view)).toBe('A.B.C.'))
     expect(view.store.get().messages.at(-1)).toMatchObject({
       id: 'turn-op-1',
       parts: [
@@ -1169,7 +1184,7 @@ describe('session view reload', () => {
       }),
     )
 
-    await vi.waitFor(() => expect(assistantText(view)).toBe('Answer.'))
+    await waitFor(() => expect(assistantText(view)).toBe('Answer.'))
     expect(view.store.get().messages).toMatchObject([
       { parts: [{ type: 'text', text: 'Answer.' }] },
     ])
@@ -1192,7 +1207,7 @@ describe('session view reload', () => {
       entry(2, says('m1', 'Still working.')),
     )
 
-    await vi.waitFor(() => expect(assistantText(view)).toBe('Still working.'))
+    await waitFor(() => expect(assistantText(view)).toBe('Still working.'))
   })
 
   it('shows how a background child ended, from its saved card', async () => {
@@ -1217,7 +1232,7 @@ describe('session view reload', () => {
         started('c1', 's1'),
         started('c2', 's2'),
       ],
-      agentTranscript: async (id) => [
+      agentTranscript: async ({ subagentRunId: id }) => [
         {
           role: 'assistant',
           content: id === 's1' ? 'All done.' : '',
@@ -1232,8 +1247,10 @@ describe('session view reload', () => {
         },
       ],
     })
+    await view.loadAgent({ id: 's1' })
+    await view.loadAgent({ id: 's2' })
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(view.store.get().messages[0]).toMatchObject({
         parts: [
           { type: 'tool-call', id: 'c1' },
@@ -1279,6 +1296,7 @@ describe('session view reload', () => {
       ],
       snapshot: () => sessionSnapshot({ cursor: '3' }),
     })
+    await view.loadAgent({ id: 's1' })
     const child = { subagentRunId: 's1' }
 
     stream.push(
@@ -1291,7 +1309,7 @@ describe('session view reload', () => {
       entry(5, { ...child, type: EventType.SUBAGENT_FINISHED, result: 2 }),
     )
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(view.store.get().messages[0]).toMatchObject({
         parts: [
           { type: 'tool-call', id: 'c1' },
@@ -1307,7 +1325,7 @@ describe('session view reload', () => {
     )
   })
 
-  it('fills the agent part of a saved agent call from its own messages', async () => {
+  it('fills the agent part of a saved agent call from its own messages, only on loadAgent', async () => {
     const asked: Array<string> = []
     const { view } = await openView({
       transcript: async () => [
@@ -1329,7 +1347,7 @@ describe('session view reload', () => {
           content: JSON.stringify({ subagentRunId: 's1', result: 'Note 1' }),
         },
       ],
-      agentTranscript: async (id) => {
+      agentTranscript: async ({ subagentRunId: id }) => {
         asked.push(id)
         return [
           { role: 'user', content: 'Notes' },
@@ -1337,24 +1355,31 @@ describe('session view reload', () => {
         ]
       },
     })
+    await drain()
+    // Until it loads, the child shows its card from the saved result.
+    expect(asked).toEqual([])
+    expect(view.store.get().messages[0]).toMatchObject({
+      parts: [{ type: 'tool-call' }, { type: 'agent', id: 's1', parts: [] }],
+    })
 
-    await vi.waitFor(() =>
-      expect(view.store.get().messages).toMatchObject([
-        {
-          role: 'assistant',
-          parts: [
-            { type: 'tool-call', id: 'c1', status: 'done' },
-            {
-              type: 'agent',
-              id: 's1',
-              name: 'writer',
-              status: 'done',
-              parts: [{ type: 'text', text: 'Note 1' }],
-            },
-          ],
-        },
-      ]),
-    )
+    await view.loadAgent({ id: 's1' })
+    await view.loadAgent({ id: 's1' })
+
+    expect(view.store.get().messages).toMatchObject([
+      {
+        role: 'assistant',
+        parts: [
+          { type: 'tool-call', id: 'c1', status: 'done' },
+          {
+            type: 'agent',
+            id: 's1',
+            name: 'writer',
+            status: 'done',
+            parts: [{ type: 'text', text: 'Note 1' }],
+          },
+        ],
+      },
+    ])
     expect(asked).toEqual(['s1'])
   })
 
@@ -1384,7 +1409,69 @@ describe('session view reload', () => {
     })
     stream.push(custom(HARNESS_EVENTS.usage, { model: 'fast' }))
 
-    await vi.waitFor(() => expect(view.store.get().usage?.total.calls).toBe(2))
+    await waitFor(() => expect(view.store.get().usage?.total.calls).toBe(2))
+  })
+
+  it('adds the next usage call from its event, with its source, and no new snapshot read', async () => {
+    const counts = (calls: number) => ({
+      ...emptyUsage().total,
+      calls,
+      totalTokens: calls * 10,
+    })
+    const snapshot = vi.fn(() =>
+      sessionSnapshot({ usage: { ...emptyUsage(), total: counts(1) } }),
+    )
+    const { view, stream } = await openView({ snapshot })
+    const call = { ...counts(1), calls: undefined }
+    const usage = (calls: number) =>
+      custom(HARNESS_EVENTS.usage, {
+        model: 'fast',
+        sender: 'ada',
+        source: 'plugin:tanstack/title',
+        usage: call,
+        total: counts(calls),
+      })
+
+    // The first call is in the snapshot already (a replay). The second is new.
+    stream.push(usage(1), usage(2))
+    await drain()
+
+    expect(snapshot).toHaveBeenCalledTimes(1)
+    expect(view.store.get().usage).toMatchObject({
+      total: { calls: 2, totalTokens: 20 },
+      byModel: { fast: { calls: 1, totalTokens: 10 } },
+      bySender: { ada: { calls: 1 } },
+      bySource: { 'plugin:tanstack/title': { calls: 1 } },
+    })
+  })
+
+  it('walks only the messages that changed on a commit', async () => {
+    const { view, stream } = await openView({
+      transcript: async () => [
+        { id: 'm0', role: 'assistant', content: 'Old.' },
+      ],
+    })
+    const old = view.store.get().messages[0]
+    let reads = 0
+    if (old?.role === 'assistant') {
+      const { parts } = old
+      Object.defineProperty(old, 'parts', {
+        get: () => {
+          reads += 1
+          return parts
+        },
+      })
+    }
+
+    stream.push(says('Hello'), says(' there'))
+
+    await vi.waitFor(() =>
+      expect(view.store.get().messages[1]).toMatchObject({
+        parts: [{ type: 'text', text: 'Hello there' }],
+      }),
+    )
+    expect(view.store.get().messages[0]).toBe(old)
+    expect(reads).toBe(0)
   })
 })
 
@@ -1402,8 +1489,8 @@ describe('session view dispose', () => {
     action: string
     act: (view: SessionView) => unknown
   }> = [
-    { action: 'notice', act: (view) => view.notice('hi') },
-    { action: 'command', act: (view) => view.command('ping') },
+    { action: 'notice', act: (view) => view.notice({ text: 'hi' }) },
+    { action: 'command', act: (view) => view.command({ name: 'ping' }) },
     {
       action: 'setConfig',
       act: (view) => view.setConfig({ key: 'mode', value: 'plan' }),
@@ -1418,7 +1505,7 @@ describe('session view dispose', () => {
 
   it.each(afterDispose)('$action throws after dispose', async ({ act }) => {
     const { view, inputs } = await openView({
-      snapshot: () => sessionSnapshot({ pendingQuestions: [confirm] }),
+      snapshot: () => sessionSnapshot({ questions: [confirm] }),
     })
 
     view.dispose()

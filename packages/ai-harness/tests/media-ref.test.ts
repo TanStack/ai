@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { kindOf, mediaIdOf, mediaOfMessage, mediaPart } from '../src'
+import {
+  kindOf,
+  mediaIdOf,
+  mediaOfMessage,
+  mediaPart,
+} from '../src/media-entry'
 import type { ModelMessage } from '@tanstack/ai'
 import type { MediaKind, MediaRecord } from '../src'
 

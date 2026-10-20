@@ -1,5 +1,14 @@
 import { attach } from './attach'
-import type { HarnessSession, UserInput } from '@tanstack/ai-harness'
+import type {
+  HarnessSession,
+  SessionSnapshot,
+  UserInput,
+} from '@tanstack/ai-harness'
+
+/** The first question wait of `snapshot` that no turn holds: `answer` takes it. */
+export function firstQuestion({ pendingWaits }: SessionSnapshot) {
+  return pendingWaits.find(({ turn, kind }) => !turn && kind === 'question')
+}
 
 export const HELP_TEXT = [
   'Type a message and press Enter. While the agent works, a new message steers it.',
@@ -8,7 +17,7 @@ export const HELP_TEXT = [
   '  /agent <name> [json]     run an agent in the background',
   '  /config [key value]      show or change a setting',
   '  /connect <id>            sign in to a connector (and /disconnect <id>)',
-  '  /cancel                  cancel the running turn (or press Esc)',
+  '  /cancel                  cancel the running turn',
   '  /status                  show the session status',
   '  /exit                    quit',
 ].join('\n')
@@ -55,23 +64,26 @@ async function runCommand(
     outcome.ok
       ? show(outcome.value)
       : `/${name} failed: ${outcome.error instanceof Error ? outcome.error.message : String(outcome.error)}`
+  const operation = session.command({ name, input })
   const settled = Promise.resolve(
-    session.command(name, input).then(
+    operation.then(
       (value) => ({ ok: true as const, value }),
       (error: unknown) => ({ ok: false as const, error }),
     ),
   )
   // A command that asks a question waits for the next line, so return now
   // and print its result when it is done.
-  let done = false
-  void settled.then(() => {
-    done = true
-  })
-  while (!done) {
-    if (session.snapshot().pendingQuestions.length > 0) {
-      return { type: 'notice', text: '', later: settled.then(describe) }
-    }
-    await new Promise((resolve) => setTimeout(resolve, 10))
+  const stop = new AbortController()
+  const asked = session
+    .waitFor({ runId: operation.id, signal: stop.signal })
+    .then(
+      () => true,
+      () => false,
+    )
+  const isAsking = await Promise.race([settled.then(() => false), asked])
+  stop.abort()
+  if (isAsking) {
+    return { type: 'notice', text: '', later: settled.then(describe) }
   }
   return { type: 'notice', text: describe(await settled) }
 }
@@ -94,11 +106,11 @@ export async function handleLine(
 ): Promise<LineResult> {
   const text = line.trim()
   if (text === '') return { type: 'notice', text: '' }
-  const [question] = session.snapshot().pendingQuestions
+  const question = firstQuestion(session.snapshot())
   if (question) {
     // A secret (a key) is the text as typed: `123456` stays a string.
     const receipt = await session.answer({
-      questionId: question.questionId,
+      questionId: question.waitId,
       value: question.secret ? text : parseAnswer(text, question.schema),
     })
     return {
@@ -120,9 +132,14 @@ export async function handleLine(
         text: error instanceof Error ? error.message : String(error),
       }
     }
-    if (session.snapshot().status === 'running')
-      await session.send(input, { mode: 'steer' }).receipt
-    else void session.send(input)
+    // While a turn runs, the message joins it. Else it starts a turn. The
+    // session decides this when it stores the message, so there is no race.
+    const operation = session.send(input, { busy: 'steer' })
+    // The view shows a failed turn from its events.
+    operation.then(undefined, () => {})
+    const receipt = await operation.receipt
+    if (receipt.status === 'rejected')
+      return { type: 'notice', text: `Not sent: ${receipt.reason}` }
     return { type: 'sent' }
   }
   const [name = '', ...rest] = text.slice(1).split(' ')

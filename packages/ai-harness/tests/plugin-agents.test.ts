@@ -58,15 +58,17 @@ describe('ctx.agents inside a session', () => {
         agents: [painter],
         plugins: () => [director],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
-    expect(await session.command('survey')).toEqual({
+    expect(await session.command({ name: 'survey' })).toEqual({
       names: ['painter'],
       byName: 'Paints',
       byOutput: 'painter',
       none: undefined,
     })
-    expect(await session.command('paint')).toEqual([
+    expect(await session.command({ name: 'paint' })).toEqual([
       'a painting of rain',
       'a painting of sun',
     ])
@@ -99,7 +101,7 @@ describe('plugin services outside a session', () => {
           session: refused(() => ctx.session.snapshot()),
           run: refused(() => ctx.agents.run('painter')),
           start: refused(() => ctx.agents.start('painter')),
-          group: refused(() => ctx.agents.group({}, async () => 1)),
+          group: refused(() => ctx.agents.group({}, () => [])),
         }
         return {}
       },

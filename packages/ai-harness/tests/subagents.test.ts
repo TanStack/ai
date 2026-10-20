@@ -83,29 +83,26 @@ describe('ctx.agents in plugins', () => {
           both: defineCommand({
             description: 'Run two echoes',
             run: () =>
-              ctx.agents.group({}, (group) =>
-                Promise.all([
-                  group.run(echo, { text: 'a' }),
-                  group.run('echo', { text: 'b' }),
-                ]),
-              ),
+              ctx.agents.group({}, (group) => [
+                group.start(echo, { text: 'a' }),
+                group.start('echo', { text: 'b' }),
+              ]),
           }),
           failFast: defineCommand({
             description: 'One fails, the other is cancelled',
             run: () =>
-              ctx.agents.group({ onFailure: 'cancel-siblings' }, (group) =>
-                Promise.all([group.run(slow), group.run(failing)]),
-              ),
+              ctx.agents.group({ onFailure: 'cancel-siblings' }, (group) => [
+                group.start(slow),
+                group.start(failing),
+              ]),
           }),
           collect: defineCommand({
             description: 'Collect every outcome',
             run: () =>
-              ctx.agents.group({ onFailure: 'collect' }, (group) =>
-                Promise.all([
-                  group.runSettled(echo, { text: 'ok' }),
-                  group.runSettled(failing),
-                ]),
-              ),
+              ctx.agents.group({ onFailure: 'collect' }, (group) => [
+                group.start(echo, { text: 'ok' }),
+                group.start(failing),
+              ]),
           }),
         },
       }),
@@ -119,14 +116,16 @@ describe('ctx.agents in plugins', () => {
         agents: [echo, failing, slow],
         plugins: () => [orchestrator],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
 
-    expect(await session.command('one')).toBe('HI')
-    expect(await session.command('both')).toEqual(['A', 'B'])
-    await expect(session.command('failFast')).rejects.toThrow('boom')
+    expect(await session.command({ name: 'one' })).toBe('HI')
+    expect(await session.command({ name: 'both' })).toEqual(['A', 'B'])
+    await expect(session.command({ name: 'failFast' })).rejects.toThrow('boom')
     expect(slowStopped).toBe(true)
-    const collected = await session.command('collect')
+    const collected = await session.command({ name: 'collect' })
     expect(collected).toMatchObject([{ ok: true, value: 'OK' }, { ok: false }])
     await host.close()
   })
@@ -153,7 +152,9 @@ describe('default limits', () => {
         adapter: outer.adapter,
         subagents: { agents: [worker], limits: { maxCalls: 1 } },
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     await session.send('work twice')
     expect(run).toHaveBeenCalledTimes(1)

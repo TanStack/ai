@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures'
+import { openHarnessThread } from './helpers'
 
 test.describe('harness protocol', () => {
   const headers = (testId: string, aimockPort: number) => ({
@@ -400,11 +401,7 @@ test.describe('harness protocol', () => {
     // The stream ends with the turn.
     await run.text()
     // The second thread only opens.
-    const opened = await request.get(
-      `/api/harness-protocol/snapshot?threadId=${second}`,
-      { headers: auth },
-    )
-    expect(opened.status()).toBe(200)
+    await openHarnessThread(request, auth, second)
 
     const sessions = (body: object) =>
       request.post('/api/harness-protocol/sessions', {
@@ -509,11 +506,7 @@ test.describe('harness protocol', () => {
       [`search-c-${testId}`]: `Trip budget ${testId}`,
     }
     for (const [threadId, title] of Object.entries(titles)) {
-      const opened = await request.get(
-        `/api/harness-protocol/snapshot?threadId=${threadId}`,
-        { headers: auth },
-      )
-      expect(opened.status()).toBe(200)
+      await openHarnessThread(request, auth, threadId)
       const renamed = await request.post('/api/harness-protocol/sessions', {
         headers: json,
         data: { op: 'rename', threadId, title },
@@ -554,9 +547,7 @@ test.describe('harness protocol', () => {
     const auth = headers(testId, aimockPort)
     const threadId = `status-${testId}`
     // Open the session first, so the feed starts with its status.
-    await request.get(`/api/harness-protocol/snapshot?threadId=${threadId}`, {
-      headers: auth,
-    })
+    await openHarnessThread(request, auth, threadId)
     const feed = await fetch(`${baseURL}/api/harness-protocol/host-events`, {
       headers: auth,
     })
@@ -592,5 +583,35 @@ test.describe('harness protocol', () => {
     }
     await reader.cancel()
     expect(statuses).toEqual(['idle', 'running', 'idle'])
+  })
+
+  test('an unsupported v gets an error frame with a requestId', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    const auth = headers(testId, aimockPort)
+    const threadId = `version-${testId}`
+    await openHarnessThread(request, auth, threadId)
+
+    // The host sends one error frame, then closes the stream.
+    const response = await request.get(
+      `/api/harness-protocol/events?threadId=${threadId}&v=9`,
+      { headers: { ...auth, 'x-request-id': 'e2e-version-9' } },
+    )
+    expect(response.headers()['x-request-id']).toBe('e2e-version-9')
+    const frames = (await response.text())
+      .split('\n')
+      .filter((line) => line.startsWith('data: '))
+      .map((line) => JSON.parse(line.slice('data: '.length)))
+    expect(frames).toEqual([
+      {
+        type: 'harness.error',
+        message:
+          'Protocol version 9 is not supported. This host speaks version 2.',
+        code: 'unsupported_version',
+        requestId: 'e2e-version-9',
+      },
+    ])
   })
 })

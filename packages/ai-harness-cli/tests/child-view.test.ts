@@ -117,7 +117,9 @@ describe('line mode with a child agent', () => {
         adapter: lead,
         subagents: { agents: [helper] },
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
     const input = new PassThrough()
     let out = ''
@@ -126,7 +128,11 @@ describe('line mode with a child agent', () => {
       session,
       input,
       { write: (text: string) => (out += text) },
-      { mediaDir: join(tmpdir(), 'child-view-media') },
+      {
+        mediaDir: join(tmpdir(), 'child-view-media'),
+        signal: new AbortController().signal,
+        onCtrlC: () => {},
+      },
     )
     input.end('go\n')
     await running

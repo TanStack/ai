@@ -45,6 +45,8 @@ function workspace(
         files.set(path, data)
       },
       stat: async () => undefined,
+      // No links: each path is its own real path.
+      realpath: async (path) => path,
       readdir: async () => [],
       exec: async (command, options) => {
         execs.push({ command, options })
@@ -158,7 +160,13 @@ describe('bash', () => {
     expect(execs).toEqual([
       {
         command: 'make',
-        options: { cwd: root, env: { AGENT: '1' }, timeoutMs: 120_000 },
+        options: {
+          cwd: root,
+          env: { AGENT: '1' },
+          timeoutMs: 120_000,
+          signal: expect.any(AbortSignal),
+          onStart: expect.any(Function),
+        },
       },
     ])
   })
@@ -204,6 +212,23 @@ describe('bash', () => {
     expect(dirname(path)).toBe(join(root, '.agent', 'bash'))
     expect(files.get(path)).toBe(LONG.stdout)
     expect(result).toBe(`${LONG_RESULT}\n[Full output saved to ${path}.]`)
+  })
+
+  it('saves the output that scrub gives, so the file keeps no secret', async () => {
+    const { env, files } = workspace({
+      ...LONG,
+      stdout: 'key=sk-secret\n'.repeat(3000),
+    })
+    await bash(
+      env,
+      { command: 'test' },
+      {
+        spillDir: '.agent/bash',
+        scrub: (text) => text.replaceAll('sk-secret', '[redacted]'),
+      },
+    )
+    const [saved] = files.values()
+    expect(saved).toBe('key=[redacted]\n'.repeat(3000))
   })
 
   it('saves it with a POSIX path in a sandbox, also on a Windows host', async () => {

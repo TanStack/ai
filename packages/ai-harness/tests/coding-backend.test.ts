@@ -7,9 +7,9 @@ import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import {
   WorkspaceHooks,
   hostBackend,
+  workspaceRoot,
   workspaceTools,
 } from '../src/first-party/coding'
-import { commandEnv } from '../src/first-party/coding/backend'
 import { mockAdapter, text, toolCall } from './helpers'
 
 let dir = ''
@@ -21,6 +21,22 @@ afterEach(async () => {
 })
 
 const decoder = new TextDecoder()
+
+/** Run `fn` with `vars` set in the env of this process, then put it back. */
+async function withEnv(vars: Record<string, string>, fn: () => Promise<void>) {
+  const before = Object.keys(vars).map(
+    (name) => [name, process.env[name]] as const,
+  )
+  Object.assign(process.env, vars)
+  try {
+    await fn()
+  } finally {
+    for (const [name, value] of before) {
+      if (value === undefined) delete process.env[name]
+      else process.env[name] = value
+    }
+  }
+}
 
 describe('hostBackend', () => {
   it('writes into new folders, then reads, stats, and lists them', async () => {
@@ -97,6 +113,40 @@ describe('hostBackend', () => {
     expect((await job.wait()).exitCode).not.toBe(0)
   })
 
+  it('keeps the newest 1 MiB of the output of a background command', async () => {
+    // 1 MiB of x, then `end`: 3 bytes too many.
+    const job = hostBackend.spawn(
+      `node --no-warnings -e "process.stdout.write('x'.repeat(1048576) + 'end')"`,
+    )
+    await job.wait()
+    const marker = '[3 earlier bytes were dropped.]\n'
+    const output = job.output()
+    expect(output.length).toBe(marker.length + 1024 * 1024)
+    expect(output.startsWith(marker)).toBe(true)
+    expect(output.endsWith('xxend')).toBe(true)
+  })
+
+  // `start /b` runs node, and `cmd.exe` ends at once. Node keeps the output
+  // pipes open, so the job does not end. `taskkill /T` cannot find node from
+  // the shell that ended.
+  it.runIf(process.platform === 'win32')(
+    'kills a command that its shell left running',
+    async () => {
+      const job = hostBackend.spawn(
+        `start /b node --no-warnings -e "console.log(process.pid); setTimeout(function () {}, 60000)"`,
+      )
+      let pid = Number.NaN
+      for (let tries = 0; tries < 100 && Number.isNaN(pid); tries++) {
+        await new Promise((done) => setTimeout(done, 100))
+        pid = Number.parseInt(job.output(), 10)
+      }
+      job.kill()
+      await job.wait()
+      expect(() => process.kill(pid, 0)).toThrow()
+    },
+    20_000,
+  )
+
   // cmd.exe looks in the current folder before the PATH. A cloned repo can
   // put an `rg.cmd` there, and grep runs `rg` with no question.
   it.runIf(process.platform === 'win32')(
@@ -118,33 +168,45 @@ describe('hostBackend', () => {
     },
   )
 
-  it('sets NoDefaultCurrentDirectoryInExePath in the env of commands on Windows only', () => {
-    expect(commandEnv(undefined, 'win32')).toMatchObject({
-      NoDefaultCurrentDirectoryInExePath: '1',
-    })
-    expect(
-      commandEnv(
-        { AGENT: '1', NoDefaultCurrentDirectoryInExePath: '' },
-        'win32',
-      ),
-    ).toMatchObject({ AGENT: '1', NoDefaultCurrentDirectoryInExePath: '1' })
-    // Off Windows, only `env` is added to the environment of this process.
-    expect(commandEnv(undefined, 'linux')).toBeUndefined()
-    expect(commandEnv({ AGENT: '1' }, 'linux')).toEqual({
-      ...process.env,
-      AGENT: '1',
+  it('does not give a variable of the server to a command', async () => {
+    const print = `node -e "console.log(process.env.SECRET_TOKEN || 'unset')"`
+    await withEnv({ SECRET_TOKEN: 'hunter2' }, async () => {
+      const run = await hostBackend.exec(print, { cwd: dir })
+      expect(run.stdout).toBe('unset\n')
+      const job = hostBackend.spawn(print, { cwd: dir })
+      await job.wait()
+      expect(job.output()).toBe('unset\n')
     })
   })
 })
 
+describe('workspaceRoot', () => {
+  it('keeps each thread id from a client in its own folder in base', () => {
+    expect(workspaceRoot('/srv/work', 'acme', '../other-tenant/t-1')).toBe(
+      '/srv/work/acme/..%2Fother-tenant%2Ft-1',
+    )
+    // A child thread id has `/agent/` in it.
+    expect(workspaceRoot('/srv/work', 'acme', 't-1/agent/c-2')).toBe(
+      '/srv/work/acme/t-1%2Fagent%2Fc-2',
+    )
+    expect(() => workspaceRoot('/srv/work', 'acme', '..')).toThrow(
+      'cannot name a workspace folder',
+    )
+  })
+})
+
 describe('hostBackend.readLines', () => {
-  /** The page and the line count of a whole-file read, as `read_file` makes them. */
+  /**
+   * The page of a whole-file read, as `read_file` makes it, and the line
+   * count when the page gets to the end of the file.
+   */
   const expected = (text: string, offset: number, limit: number) => {
     const all = text.replace(/^﻿/, '').split('\n')
     if (text.endsWith('\n')) all.pop()
+    const isLast = offset - 1 + limit >= all.length
     return {
       lines: all.slice(offset - 1, offset - 1 + limit),
-      total: all.length,
+      total: isLast ? all.length : undefined,
     }
   }
   // 1 MiB is the read size: `é` is split over the edge of the first read.
@@ -170,12 +232,44 @@ describe('hostBackend.readLines', () => {
     expect(read.head).toEqual(Buffer.from(text).subarray(0, 8 * 1024))
   })
 
-  it('stops after 64 KiB of lines, and still counts every line', async () => {
+  it('stops after 64 KiB of lines, and does not count the lines after it', async () => {
     const file = join(dir, 'long.txt')
     await writeFile(file, `${'y'.repeat(40 * 1024)}\n`.repeat(4))
     const read = await hostBackend.readLines(file, { offset: 1, limit: 10 })
     expect(read.lines).toHaveLength(2)
-    expect(read.total).toBe(4)
+    expect(read.total).toBeUndefined()
+  })
+
+  /** A file of 300,000 lines of 10 bytes: 3 MB, more than one read. */
+  async function manyLines() {
+    const file = join(dir, 'many.txt')
+    const lines = Array.from(
+      { length: 300_000 },
+      (_, index) => `line${String(index + 1).padStart(6, '0')}`,
+    )
+    await writeFile(file, `${lines.join('\n')}\n`)
+    return file
+  }
+
+  it('stops after the first page of a big file, so the line count is not known', async () => {
+    const read = await hostBackend.readLines(await manyLines(), {
+      offset: 1,
+      limit: 3,
+    })
+    expect(read).toMatchObject({
+      size: 3_300_000,
+      lines: ['line000001', 'line000002', 'line000003'],
+    })
+    expect(read.total).toBeUndefined()
+  })
+
+  it('counts the lines when the page gets to the end of a big file', async () => {
+    const read = await hostBackend.readLines(await manyLines(), {
+      offset: 299_999,
+      limit: 5,
+    })
+    expect(read.lines).toEqual(['line299999', 'line300000'])
+    expect(read.total).toBe(300_000)
   })
 })
 
@@ -211,7 +305,9 @@ describe('workspace hooks', () => {
         // when they run.
         plugins: () => [workspaceTools({ root: dir }), hooks],
       }),
-      { threadId: 't' },
+      {
+        threadId: 't',
+      },
     )
 
     await session.send('work')

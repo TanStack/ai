@@ -1,27 +1,23 @@
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
-import {
-  UNOWNED_EPOCH,
-  memoryLogStore,
-  memoryPersistence,
-} from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, logMessageStore } from '../src'
-import {
-  gate,
-  messageTexts,
-  mockAdapter,
-  text,
-  untilAborted,
-  wrapLogStore,
-} from './helpers'
+import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
+import { createHarnessHost, defineHarness, logIdOf } from '../src'
+import { appendToLog, mockAdapter, wrapLogStore } from './helpers'
 import type { LogRecord, LogStore } from '@tanstack/ai-persistence'
-import type { HarnessHost, ReduceOptions } from '../src'
-import type { Reply } from './helpers'
+import type { ReduceOptions } from '../src'
 
-const LOG = 'agent-1'
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
+
+const ROOT = 'agent-1'
+/** The id of the log of `ROOT` in the store. */
+const STORE_LOG = logIdOf({ logId: ROOT })
 
 function durablePersistence(log: LogStore = memoryLogStore()) {
-  const { runs, metadata } = memoryPersistence().stores
-  return { stores: { log, runs, metadata } }
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log, metadata } }
 }
 
 type Durable = ReturnType<typeof durablePersistence>
@@ -35,255 +31,189 @@ const reduce: ReduceOptions<Record<string, unknown>> = {
       : state,
 }
 
-function hostFor(persistence: Durable) {
-  return createHarnessHost({ persistence, reduce })
-}
+const hostFor = (persistence: Durable) => createHarnessHost({ persistence })
 
-const harnessWith = (replies: Array<Reply>) => {
-  const { adapter, calls } = mockAdapter(replies)
-  return { harness: defineHarness({ name: 'test/shared', adapter }), calls }
-}
+/** A harness whose `reduce` folds the log of its sessions. */
+const tracked = defineHarness({
+  name: 'test/shared',
+  adapter: mockAdapter([]).adapter,
+  durability: { reduce },
+})
 
-const expireLease = (persistence: Durable, runId: string) =>
-  persistence.stores.runs.update(runId, { leaseExpiresAt: Date.now() - 1 })
+/** A harness with no `reduce`. */
+const plain = defineHarness({
+  name: 'test/shared',
+  adapter: mockAdapter([]).adapter,
+})
 
-describe('sessions that share one log', () => {
-  it('run turns at the same time and each rebuilds its own transcript after a crash', async () => {
-    const persistence = durablePersistence()
-    const release = gate()
-    const host = hostFor(persistence)
-    const rootModel = harnessWith([
-      () =>
-        (async function* () {
-          await release.opened
-          yield* text('root answer')
-        })(),
-    ])
-    const childModel = harnessWith([() => text('child answer'), untilAborted()])
-    const root = await host.open(rootModel.harness, { threadId: LOG })
-    const child = await host.open(childModel.harness, {
-      threadId: 'task-1',
-      logId: LOG,
-    })
-
-    const rootTurn = root.send('root question', { inputId: 'root-1' })
-    // The child answers while the root turn still waits.
-    expect(await child.send('child question')).toEqual({
-      text: 'child answer',
-      media: [],
-    })
-    release.open()
-    expect(await rootTurn).toEqual({ text: 'root answer', media: [] })
-    const childTurn = child.send('second child question', {
-      inputId: 'child-2',
-    })
-    await vi.waitFor(() => expect(childModel.calls).toHaveLength(2))
-    await expireLease(persistence, childTurn.id)
-
-    const next = hostFor(persistence)
-    const rootAgain = await next.open(harnessWith([]).harness, {
-      threadId: LOG,
-    })
-    const childNext = harnessWith([() => text('child recovered')])
-    const childAgain = await next.open(childNext.harness, {
-      threadId: 'task-1',
-      logId: LOG,
-    })
-
-    expect(
-      (await rootAgain.transcript()).map((message) => message.content),
-    ).toEqual(['root question', 'root answer'])
-    expect(await childAgain.settled('child-2')).toMatchObject({
-      outcome: 'completed',
-    })
-    expect(messageTexts(childNext.calls[0])).toEqual([
-      'child question',
-      'child answer',
-      'second child question',
-    ])
-    expect(await persistence.stores.log.read({ logId: 'task-1' })).toEqual([])
-    await host.close().catch(() => {})
-    await next.close()
-  })
-
-  it('lands a child record and a parent record in one append, or neither', async () => {
+describe('the log of a session tree', () => {
+  it('lands a child record and a root record in one append, or neither', async () => {
     const inner = memoryLogStore()
+    // The app record types of each store append.
+    const batches: Array<Array<string>> = []
     // A plain object, so the test can swap `append` below.
-    const log = wrapLogStore(inner, {})
-    const persistence = durablePersistence(log)
-    const host = hostFor(persistence)
-    const root = await host.open(harnessWith([]).harness, { threadId: LOG })
+    const log = wrapLogStore(inner, {
+      append: async (batch) => {
+        await inner.append(batch)
+        batches.push(
+          batch.records
+            .map((record) => record.type)
+            .filter((type) => type.startsWith('app.')),
+        )
+      },
+    })
+    const host = hostFor(durablePersistence(log))
+    const root = await host.open(plain, { threadId: ROOT })
     const pair: Array<LogRecord> = [
       { type: 'app.child_created', thread: 'task-1', task: 'research' },
       { type: 'app.child_linked', child: 'task-1' },
     ]
 
-    await root.append(pair)
-    const types = async () =>
-      (await inner.read({ logId: LOG })).map((entry) => entry.record.type)
-    expect(await types()).toEqual(['app.child_created', 'app.child_linked'])
+    await root.append({ records: pair })
+    // The append is an input, so the log has its input records too. The app
+    // records are in one store append.
+    const appTypes = async () =>
+      (await inner.read({ logId: STORE_LOG }))
+        .map((entry) => entry.record.type)
+        .filter((type) => type.startsWith('app.'))
+    expect(await appTypes()).toEqual(['app.child_created', 'app.child_linked'])
+    expect(batches.filter((types) => types.length > 0)).toEqual([
+      ['app.child_created', 'app.child_linked'],
+    ])
 
     // The writer tries twice, so both tries fail.
     const original = log.append
     log.append = async () => {
       throw new Error('store down')
     }
-    await expect(root.append(pair)).rejects.toThrow('store down')
+    await expect(root.append({ records: pair })).rejects.toThrow('store down')
     log.append = original
-    expect(await types()).toEqual(['app.child_created', 'app.child_linked'])
+    expect(await appTypes()).toEqual(['app.child_created', 'app.child_linked'])
     await host.close().catch(() => {})
   })
 
-  it('folds state writes from two sessions in log order, also after a rebuild', async () => {
+  it('folds the records of the root and of its child threads with session.logState(), on any machine', async () => {
     const persistence = durablePersistence()
     const host = hostFor(persistence)
-    const root = await host.open(harnessWith([]).harness, { threadId: LOG })
-    const child = await host.open(harnessWith([]).harness, {
-      threadId: 'task-1',
-      logId: LOG,
+    const root = await host.open(tracked, { threadId: ROOT })
+
+    await root.append({
+      records: [{ type: 'app.state_write', name: 'plan', value: 'a' }],
+    })
+    await root.append({
+      records: [
+        { type: 'app.state_write', thread: 'task-1', name: 'plan', value: 'b' },
+      ],
+    })
+    await root.append({
+      records: [{ type: 'app.state_write', name: 'done', value: true }],
     })
 
-    await root.append([{ type: 'app.state_write', name: 'plan', value: 'a' }])
-    await child.append([{ type: 'app.state_write', name: 'plan', value: 'b' }])
-    await root.append([{ type: 'app.state_write', name: 'done', value: true }])
-
-    expect(host.logState(LOG)).toEqual({ plan: 'b', done: true })
-    expectTypeOf(host).toExtend<HarnessHost>()
-    expectTypeOf(
-      createHarnessHost({ persistence: durablePersistence() }).logState('x'),
-    ).toEqualTypeOf<undefined>()
+    const folded = { plan: 'b', done: true }
+    expect(await root.logState()).toEqual(folded)
+    expectTypeOf(root.logState).returns.resolves.toEqualTypeOf<
+      Record<string, unknown> | undefined
+    >()
     await host.close()
+
+    // Another host folds the same log from the store.
     const next = hostFor(persistence)
-    await next.open(harnessWith([]).harness, { threadId: 'task-1', logId: LOG })
-    expect(next.logState(LOG)).toEqual({ plan: 'b', done: true })
-    expect(next.logState('another-log')).toBeUndefined()
+    const view = await next.observe(tracked, { threadId: ROOT })
+    expect(await view.logState()).toEqual(folded)
+    const again = await next.open(tracked, { threadId: ROOT })
+    expect(await again.logState()).toEqual(folded)
     await next.close()
   })
 
-  it('gives project only the records of its own session', async () => {
-    const host = createHarnessHost({
-      persistence: durablePersistence(),
-      project: {
-        record: ({ messages, record }) =>
-          record.type === 'app.signal' && typeof record.text === 'string'
-            ? [...messages, { role: 'user', content: record.text }]
-            : undefined,
+  it('gives undefined from session.logState() for a harness without reduce', async () => {
+    const host = hostFor(durablePersistence())
+    const root = await host.open(plain, { threadId: ROOT })
+    await root.append({
+      records: [{ type: 'app.state_write', name: 'plan', value: 'a' }],
+    })
+
+    expect(await root.logState()).toBeUndefined()
+    expectTypeOf(root.logState).returns.resolves.toEqualTypeOf<undefined>()
+    await host.close()
+  })
+
+  it('refuses to open a log with another reduce than the one that folds it', async () => {
+    const host = hostFor(durablePersistence())
+    await host.open(tracked, { threadId: ROOT })
+    const other = defineHarness({
+      name: 'test/other',
+      adapter: mockAdapter([]).adapter,
+    })
+
+    await expect(host.open(other, { threadId: ROOT })).rejects.toThrow(
+      'Pass the same project and reduce objects to every harness that shares a log.',
+    )
+    // A view reads the log through the fold too.
+    const view = await host.observe(plain, { threadId: ROOT })
+    await expect(view.logState()).rejects.toThrow('durability.reduce')
+    await host.close()
+  })
+
+  it('gives project only the records of its own thread', async () => {
+    const host = createHarnessHost({ persistence: durablePersistence() })
+    const harness = defineHarness({
+      name: 'test/shared',
+      adapter: mockAdapter([]).adapter,
+      durability: {
+        project: {
+          record: ({ messages, record }) =>
+            record.type === 'app.signal' && typeof record.text === 'string'
+              ? [...messages, { role: 'user', content: record.text }]
+              : undefined,
+        },
       },
     })
-    const root = await host.open(harnessWith([]).harness, { threadId: LOG })
-    const child = await host.open(harnessWith([]).harness, {
-      threadId: 'task-1',
-      logId: LOG,
+    const root = await host.open(harness, { threadId: ROOT })
+    await root.append({
+      records: [
+        { type: 'app.signal', thread: 'task-1', text: 'for the child' },
+        { type: 'app.signal', text: 'for the root' },
+      ],
     })
-    await root.append([
-      { type: 'app.signal', thread: 'task-1', text: 'for the child' },
-      { type: 'app.signal', text: 'for the root' },
-    ])
 
     expect((await root.transcript()).map((m) => m.content)).toEqual([
       'for the root',
     ])
-    expect((await child.transcript()).map((m) => m.content)).toEqual([
-      'for the child',
-    ])
     await host.close()
   })
 
-  it('stops both sessions of the log when another host writes to it', async () => {
+  it('keeps the session open when another host writes to its log', async () => {
     const persistence = durablePersistence()
     const host = hostFor(persistence)
-    const root = await host.open(harnessWith([]).harness, { threadId: LOG })
-    const child = await host.open(harnessWith([]).harness, {
-      threadId: 'task-1',
-      logId: LOG,
-    })
-    await root.append([{ type: 'app.signal' }])
+    const root = await host.open(plain, { threadId: ROOT })
+    await root.append({ records: [{ type: 'app.signal' }] })
 
-    // Another writer takes the next position of the log.
-    const written = await persistence.stores.log.read({ logId: LOG })
-    await persistence.stores.log.append({
-      logId: LOG,
-      seq: written.length + 1,
-      epoch: UNOWNED_EPOCH,
-      records: [{ type: 'app.other' }],
-    })
-
-    await expect(root.append([{ type: 'app.signal' }])).rejects.toThrow(
-      'Log conflict',
-    )
-    await expect(child.append([{ type: 'app.signal' }])).rejects.toThrow(
-      'Log conflict',
+    // The session has no work, so the host gave the log up. Another host
+    // takes it and writes.
+    await waitFor(() =>
+      appendToLog(persistence.stores.log, { threadId: ROOT }, [
+        { type: 'app.other', thread: 'task-1' },
+      ]),
     )
 
-    // The host replaces a stopped session on the next open.
-    await vi.waitFor(async () =>
-      expect(
-        await host.open(harnessWith([]).harness, { threadId: LOG }),
-      ).not.toBe(root),
-    )
-    await vi.waitFor(async () =>
-      expect(
-        await host.open(harnessWith([]).harness, {
-          threadId: 'task-1',
-          logId: LOG,
-        }),
-      ).not.toBe(child),
-    )
+    expect(host.isOpen(plain, { threadId: ROOT })).toBe(true)
+    // The next write acquires the log again, after the record of the other
+    // host.
+    await root.append({ records: [{ type: 'app.root' }] })
+    const records = await persistence.stores.log.read({ logId: STORE_LOG })
+    const types = records
+      .map((entry) => entry.record.type)
+      .filter((type) => type.startsWith('app.'))
+    expect(types).toEqual(['app.signal', 'app.other', 'app.root'])
     await host.close().catch(() => {})
-  })
-
-  it('keeps the other session running when one closes', async () => {
-    const persistence = durablePersistence()
-    const host = hostFor(persistence)
-    const root = await host.open(
-      harnessWith([() => text('still here')]).harness,
-      {
-        threadId: LOG,
-      },
-    )
-    const child = await host.open(harnessWith([]).harness, {
-      threadId: 'task-1',
-      logId: LOG,
-    })
-
-    await child.close()
-
-    expect(await root.send('are you there?')).toEqual({
-      text: 'still here',
-      media: [],
-    })
-    await host.close()
-  })
-
-  it('reads one thread of a shared log with logMessageStore', async () => {
-    const persistence = durablePersistence()
-    const host = hostFor(persistence)
-    const child = await host.open(
-      harnessWith([() => text('child answer')]).harness,
-      {
-        threadId: 'task-1',
-        logId: LOG,
-      },
-    )
-    await child.send('child question')
-
-    const messages = logMessageStore({
-      store: persistence.stores.log,
-      logId: LOG,
-    })
-    expect((await messages.loadThread('task-1')).map((m) => m.content)).toEqual(
-      ['child question', 'child answer'],
-    )
-    expect(await messages.loadThread(LOG)).toEqual([])
-    await host.close()
   })
 
   it('refuses a record whose thread field is not a string', async () => {
     const host = hostFor(durablePersistence())
-    const root = await host.open(harnessWith([]).harness, { threadId: LOG })
+    const root = await host.open(plain, { threadId: ROOT })
 
     await expect(
-      root.append([{ type: 'app.signal', thread: 7 }]),
+      root.append({ records: [{ type: 'app.signal', thread: 7 }] }),
     ).rejects.toThrow('thread')
     await host.close()
   })

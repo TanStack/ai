@@ -5,7 +5,7 @@ import {
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, definePlugin } from '../src'
+import { createHarnessHost, defineHarness, definePlugin, logIdOf } from '../src'
 import { loadLogState, sessionOf } from '../src/log'
 import {
   gate,
@@ -21,12 +21,20 @@ import type { LogStore } from '@tanstack/ai-persistence'
 import type { HarnessSession, ProjectOptions, SessionEvent } from '../src'
 import type { Reply } from './helpers'
 
-const THREAD = 't1'
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(
+  check: () => T | Promise<T>,
+  options?: { timeout?: number; interval?: number },
+) => vi.waitFor(check, { timeout: 5_000, ...options })
 
-/** The stores of a durable host: a log, runs, and metadata. */
+const THREAD = 't1'
+/** The id of the log of `THREAD` in the store. */
+const LOG = logIdOf({ logId: THREAD })
+
+/** The stores of a durable host: a log and metadata. */
 function durablePersistence(log: LogStore = memoryLogStore()) {
-  const { runs, metadata } = memoryPersistence().stores
-  return { stores: { log, runs, metadata } }
+  const { metadata } = memoryPersistence().stores
+  return { stores: { log, metadata } }
 }
 
 /** Signals become user messages. A compaction keeps a summary and a tail. */
@@ -197,42 +205,40 @@ function thinkCallThinkCall(): Array<StreamChunk> {
 // The types refuse these store sets. The runtime check is for JavaScript
 // callers and dynamic store bags, so these tests pass them with `as never`.
 describe('durable host stores', () => {
-  it('needs runs next to the log', () => {
-    const { metadata } = memoryPersistence().stores
-    expect(() =>
-      createHarnessHost({
-        persistence: { stores: { log: memoryLogStore(), metadata } } as never,
-      }),
-    ).toThrow('needs stores.runs')
+  it('runs a session with only a log store', async () => {
+    const { adapter } = mockAdapter([() => text('from the log only')])
+    const host = createHarnessHost({
+      persistence: { stores: { log: memoryLogStore() } },
+    })
+    const session = await host.open(
+      defineHarness({ name: 'test/log-only', adapter }),
+      { threadId: THREAD },
+    )
+
+    expect((await session.send('hi')).text).toBe('from the log only')
+    await host.close()
   })
 
-  it('refuses a message store next to the log', () => {
+  it('needs a log store, and names the memory default', () => {
     const { messages, runs } = memoryPersistence().stores
     expect(() =>
       createHarnessHost({
-        persistence: {
-          stores: { log: memoryLogStore(), runs, messages },
-        } as never,
+        persistence: { stores: { messages, runs } } as never,
       }),
-    ).toThrow('Remove stores.messages.')
+    ).toThrow(
+      'The harness needs stores.log: each session keeps its events, transcript, and inputs there. In development, use memoryPersistence() from @tanstack/ai-persistence.',
+    )
   })
 
-  it('refuses host records without a log, and harness record types', async () => {
+  it('refuses harness record types', async () => {
     const { adapter } = mockAdapter([])
     const harness = defineHarness({ name: 'test/append', adapter })
-    const today = await createHarnessHost({
-      persistence: memoryPersistence(),
-    }).open(harness, { threadId: THREAD })
-    await expect(today.append([{ type: 'app.x' }])).rejects.toThrow(
-      'session.append needs a durable host',
-    )
-
     const durable = await createHarnessHost({
       persistence: durablePersistence(),
     }).open(harness, { threadId: THREAD })
-    await expect(durable.append([{ type: 'harness.event' }])).rejects.toThrow(
-      'reserved for the harness',
-    )
+    await expect(
+      durable.append({ records: [{ type: 'harness.event' }] }),
+    ).rejects.toThrow('reserved for the harness')
   })
 })
 
@@ -269,13 +275,13 @@ describe('durable session log', () => {
       streamsThenWaits('m-live', ['Hello, ', 'wor'], release.opened),
     ])
     const harness = defineHarness({ name: 'test/crash-mid-text', adapter })
-    const first = createHarnessHost({ persistence, coalesceMs: 5 })
+    const first = createHarnessHost({ persistence, log: { coalesceMs: 5 } })
     const session = await first.open(harness, { threadId: THREAD })
     const turn = session.send('say hello')
 
     // The deltas reach the log after the coalescing window.
-    await vi.waitFor(async () => {
-      const entries = await persistence.stores.log.read({ logId: THREAD })
+    await waitFor(async () => {
+      const entries = await persistence.stores.log.read({ logId: LOG })
       const events = entries.map((entry) => entry.record.event)
       expect(JSON.stringify(events)).toContain('wor')
     })
@@ -302,7 +308,33 @@ describe('durable session log', () => {
     await next.close()
   })
 
-  it('writes host records in the same batch as the waiting events, in order', async () => {
+  it('logs an append with no inputId as an input, with the id of its receipt', async () => {
+    const persistence = durablePersistence()
+    const host = createHarnessHost({ persistence })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/append',
+        adapter: mockAdapter(() => text('ok')).adapter,
+      }),
+      { threadId: THREAD },
+    )
+
+    const { inputId } = await session.append({
+      records: [{ type: 'app.note' }],
+    })
+
+    const state = await loadLogState({
+      store: persistence.stores.log,
+      logId: LOG,
+      rootThread: THREAD,
+    })
+    expect(sessionOf(state, THREAD).inputs.get(inputId)?.input.op).toBe(
+      'append',
+    )
+    await host.close()
+  })
+
+  it('writes host records after the waiting events, in order', async () => {
     const inner = memoryLogStore()
     const batches: Array<Array<unknown>> = []
     const log = wrapLogStore(inner, {
@@ -321,25 +353,33 @@ describe('durable session log', () => {
     ])
     const host = createHarnessHost({
       persistence: durablePersistence(log),
-      coalesceMs: 60_000,
+      log: { coalesceMs: 60_000 },
     })
     const session = await host.open(
       defineHarness({ name: 'test/batch', adapter }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
     const turn = session.send('go')
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(JSON.stringify(batches)).toContain('TEXT_MESSAGE_START'),
     )
 
-    await session.append([{ type: 'app.note', n: 1 }])
+    await session.append({ records: [{ type: 'app.note', n: 1 }] })
 
-    expect(batches.at(-1)).toEqual([
+    // The input record of the append takes the waiting events with it, and
+    // the records come after them.
+    expect(batches).toContainEqual([
       expect.objectContaining({
         type: EventType.TEXT_MESSAGE_CONTENT,
         delta: 'partial',
       }),
+      expect.objectContaining({ type: 'harness.input' }),
+    ])
+    expect(batches.at(-2)).toEqual([
       { type: 'app.note', n: 1 },
+      expect.objectContaining({ type: 'harness.input.applied' }),
     ])
     release.open()
     await Promise.resolve(turn).catch(() => {})
@@ -353,9 +393,9 @@ describe('durable session log', () => {
       name: 'check',
       description: 'Check the build',
     }).server(async () => {
-      await session?.append([
-        { type: 'app.signal', text: '[signal] tests failed' },
-      ])
+      await session?.append({
+        records: [{ type: 'app.signal', text: '[signal] tests failed' }],
+      })
       await session?.send('more', { busy: 'steer' }).receipt
       return 'checked'
     })
@@ -363,15 +403,18 @@ describe('durable session log', () => {
       () => toolCall('check', {}),
       () => text('done'),
     ])
-    const host = createHarnessHost({ persistence, project })
+    const host = createHarnessHost({ persistence })
     session = await host.open(
       defineHarness({
         name: 'test/project',
         adapter,
         tools: [check],
         middleware: [hideSecret],
+        durability: { project },
       }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
 
     await session.send('secret')
@@ -394,9 +437,9 @@ describe('durable session log', () => {
       name: 'check',
       description: 'Check the build',
     }).server(async () => {
-      await session?.append([
-        { type: 'app.signal', text: '[signal] tests failed' },
-      ])
+      await session?.append({
+        records: [{ type: 'app.signal', text: '[signal] tests failed' }],
+      })
       return 'checked'
     })
     const { adapter, calls } = mockAdapter([
@@ -404,17 +447,24 @@ describe('durable session log', () => {
       () => toolCall('check', {}),
       () => text('second answer'),
     ])
-    const host = createHarnessHost({ persistence, project })
+    const host = createHarnessHost({ persistence })
     session = await host.open(
-      defineHarness({ name: 'test/project', adapter, tools: [check] }),
-      { threadId: THREAD },
+      defineHarness({
+        name: 'test/project',
+        adapter,
+        tools: [check],
+        durability: { project },
+      }),
+      {
+        threadId: THREAD,
+      },
     )
 
     await session.send('one')
     // Between turns: the next turn starts with it.
-    await session.append([
-      { type: 'app.signal', text: '[signal] build failed' },
-    ])
+    await session.append({
+      records: [{ type: 'app.signal', text: '[signal] build failed' }],
+    })
     await session.send('two')
 
     expect(messageTexts(calls[1])).toEqual([
@@ -434,7 +484,8 @@ describe('durable session log', () => {
     const rebuilt = sessionOf(
       await loadLogState({
         store: persistence.stores.log,
-        logId: THREAD,
+        logId: LOG,
+        rootThread: THREAD,
         project,
       }),
       THREAD,
@@ -453,17 +504,25 @@ describe('durable session log', () => {
       () => text('a2'),
       () => text('a3'),
     ])
-    const host = createHarnessHost({ persistence, project })
+    const host = createHarnessHost({ persistence })
     const session = await host.open(
-      defineHarness({ name: 'test/compact', adapter }),
-      { threadId: THREAD },
+      defineHarness({
+        name: 'test/compact',
+        adapter,
+        durability: { project },
+      }),
+      {
+        threadId: THREAD,
+      },
     )
     await session.send('q1')
     await session.send('q2')
 
-    await session.append([
-      { type: 'app.compact', summary: 'Earlier: q1 and a1.', firstKept: 2 },
-    ])
+    await session.append({
+      records: [
+        { type: 'app.compact', summary: 'Earlier: q1 and a1.', firstKept: 2 },
+      ],
+    })
     await session.send('q3')
 
     expect(messageTexts(calls[2])).toEqual([
@@ -475,7 +534,8 @@ describe('durable session log', () => {
     const rebuilt = sessionOf(
       await loadLogState({
         store: persistence.stores.log,
-        logId: THREAD,
+        logId: LOG,
+        rootThread: THREAD,
         project,
       }),
       THREAD,
@@ -490,27 +550,28 @@ describe('durable session log', () => {
     await host.close()
   })
 
-  it('stops the session when another host wrote to the thread', async () => {
+  it('folds what another host wrote before its first write, and stays open', async () => {
     const inner = memoryLogStore()
     // This host does not see the other writer, like one in another process.
     const log = wrapLogStore(inner, { subscribe: () => () => {} })
-    const { adapter } = mockAdapter([() => text('never saved')])
+    const { adapter } = mockAdapter([() => text('saved after the other host')])
     const host = createHarnessHost({ persistence: durablePersistence(log) })
     const harness = defineHarness({ name: 'test/conflict', adapter })
     const session = await host.open(harness, { threadId: THREAD })
     await inner.append({
-      logId: THREAD,
+      logId: LOG,
       seq: 1,
       epoch: UNOWNED_EPOCH,
       records: [{ type: 'app.from-another-host' }],
     })
 
-    await expect(session.send('hi')).rejects.toThrow('Another host wrote')
+    const result = await session.send('hi')
 
-    // The host opens a new session, which folds the log again.
-    await vi.waitFor(async () =>
-      expect(await host.open(harness, { threadId: THREAD })).not.toBe(session),
-    )
+    expect(result.text).toBe('saved after the other host')
+    expect(host.isOpen(harness, { threadId: THREAD })).toBe(true)
+    const entries = await inner.read({ logId: LOG })
+    expect(entries[0]?.record.type).toBe('app.from-another-host')
+    expect(entries.length).toBeGreaterThan(1)
     await host.close()
   })
 
@@ -577,7 +638,11 @@ describe('durable session log', () => {
 
     // A fold of the log gives the same messages.
     const rebuilt = sessionOf(
-      await loadLogState({ store: persistence.stores.log, logId: THREAD }),
+      await loadLogState({
+        store: persistence.stores.log,
+        logId: LOG,
+        rootThread: THREAD,
+      }),
       THREAD,
     )
     expect(rebuilt.messages).toEqual(transcript)
@@ -604,14 +669,17 @@ describe('LogRecordsCapability', () => {
         ])
       },
     }
-    const host = createHarnessHost({ persistence, project })
+    const host = createHarnessHost({ persistence })
     const session = await host.open(
       defineHarness({
         name: 'test/log-records',
         adapter,
         middleware: [signal],
+        durability: { project },
       }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
 
     await session.send('q1')
@@ -621,7 +689,8 @@ describe('LogRecordsCapability', () => {
     const rebuilt = sessionOf(
       await loadLogState({
         store: persistence.stores.log,
-        logId: THREAD,
+        logId: LOG,
+        rootThread: THREAD,
         project,
       }),
       THREAD,
@@ -653,15 +722,18 @@ describe('LogRecordsCapability', () => {
         ])
       },
     }
-    const host = createHarnessHost({ persistence, project })
+    const host = createHarnessHost({ persistence })
     const session = await host.open(
       defineHarness({
         name: 'test/log-records-tool-phase',
         adapter,
         tools: [lookup],
         middleware: [signal],
+        durability: { project },
       }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
 
     await session.send('Weather in Berlin?')
@@ -673,7 +745,7 @@ describe('LogRecordsCapability', () => {
       '[signal] saved',
     )
     const entries = await persistence.stores.log.read({
-      logId: THREAD,
+      logId: LOG,
       after: 0,
     })
     expect(entries.some((entry) => entry.record.type === 'app.signal')).toBe(
@@ -682,7 +754,8 @@ describe('LogRecordsCapability', () => {
     const rebuilt = sessionOf(
       await loadLogState({
         store: persistence.stores.log,
-        logId: THREAD,
+        logId: LOG,
+        rootThread: THREAD,
         project,
       }),
       THREAD,
@@ -704,14 +777,17 @@ describe('LogRecordsCapability', () => {
         await getLogRecords(ctx).append([{ type: 'app.note' }])
       },
     }
-    const host = createHarnessHost({ persistence, project })
+    const host = createHarnessHost({ persistence })
     const session = await host.open(
       defineHarness({
         name: 'test/log-records-note',
         adapter,
         middleware: [note],
+        durability: { project },
       }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
 
     await session.send('q1')
@@ -744,38 +820,15 @@ describe('LogRecordsCapability', () => {
         adapter,
         middleware: [bad],
       }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
 
     await session.send('q1')
 
     expect(failure).toBeInstanceOf(Error)
     expect(String(failure)).toContain('reserved for the harness')
-    await host.close()
-  })
-
-  it('gives nothing on a host without a log', async () => {
-    let seen: unknown = 'not called'
-    const probe: ChatMiddleware = {
-      name: 'test:probe',
-      onConfig: (ctx) => {
-        seen = getLogRecords(ctx, { optional: true })
-      },
-    }
-    const { adapter } = mockAdapter([() => text('a1')])
-    const host = createHarnessHost({ persistence: memoryPersistence() })
-    const session = await host.open(
-      defineHarness({
-        name: 'test/log-records-none',
-        adapter,
-        middleware: [probe],
-      }),
-      { threadId: THREAD },
-    )
-
-    await session.send('q1')
-
-    expect(seen).toBeUndefined()
     await host.close()
   })
 })
@@ -788,7 +841,8 @@ describe('compaction-style host records from a middleware', () => {
   async function rebuild(persistence: ReturnType<typeof durablePersistence>) {
     const state = await loadLogState({
       store: persistence.stores.log,
-      logId: THREAD,
+      logId: LOG,
+      rootThread: THREAD,
       project,
     })
     return sessionOf(state, THREAD).messages
@@ -811,14 +865,17 @@ describe('compaction-style host records from a middleware', () => {
         await getLogRecords(ctx).append([compactRecord])
       },
     }
-    const host = createHarnessHost({ persistence, project })
+    const host = createHarnessHost({ persistence })
     const session = await host.open(
       defineHarness({
         name: 'test/after-turn-record',
         adapter,
         middleware: [afterTurn],
+        durability: { project },
       }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
 
     await session.send('q1')
@@ -826,7 +883,7 @@ describe('compaction-style host records from a middleware', () => {
 
     // (a) The record comes after the transcript record that saved the reply.
     const entries = await persistence.stores.log.read({
-      logId: THREAD,
+      logId: LOG,
       after: 0,
     })
     const replyAt = entries.findIndex(
@@ -871,14 +928,17 @@ describe('compaction-style host records from a middleware', () => {
         await getLogRecords(ctx).append([compactRecord])
       },
     }
-    const host = createHarnessHost({ persistence, project })
+    const host = createHarnessHost({ persistence })
     const session = await host.open(
       defineHarness({
         name: 'test/before-call-record',
         adapter,
         middleware: [beforeCall],
+        durability: { project },
       }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
 
     await session.send('q1')
@@ -930,15 +990,18 @@ describe('compaction-style host records from a middleware', () => {
         ])
       },
     }
-    const host = createHarnessHost({ persistence, project })
+    const host = createHarnessHost({ persistence })
     const session = await host.open(
       defineHarness({
         name: 'test/tool-phase-record',
         adapter,
         tools: [lookup],
         middleware: [clearFirst],
+        durability: { project },
       }),
-      { threadId: THREAD },
+      {
+        threadId: THREAD,
+      },
     )
 
     await session.send('Weather in Berlin and Paris?')

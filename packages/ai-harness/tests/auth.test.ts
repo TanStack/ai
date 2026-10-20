@@ -4,21 +4,24 @@ import { EventType, defineAgent, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   HARNESS_EVENTS,
-  buildAuthorizationUrl,
   createHarnessHost,
-  createPkce,
   defineCommand,
   defineHarness,
   definePlugin,
+  oauthConnector,
+  scrubSecrets,
+} from '../src'
+import {
+  buildAuthorizationUrl,
+  createPkce,
   deviceLogin,
   exchangeCode,
   loopbackLogin,
-  oauthConnector,
   refreshCredential,
-  scrubSecrets,
-} from '../src'
+} from '../src/oauth'
 import { mockAdapter, text, toolCall } from './helpers'
-import type { OAuthConfig, SessionEvent } from '../src'
+import type { HarnessRunContext, SessionEvent } from '../src'
+import type { OAuthConfig } from '../src/oauth'
 
 const oauth: OAuthConfig = {
   authorizationUrl: 'https://auth.example/authorize',
@@ -92,7 +95,7 @@ describe('token exchange', () => {
     })
     expect(bodies[0]?.get('code_verifier')).toBe('v1')
 
-    const refreshed = await refreshCredential(oauth, first, fake)
+    const refreshed = await refreshCredential(oauth, first, { fetch: fake })
     // The old refresh token stays when the server sends no new one.
     expect(refreshed).toMatchObject({ accessToken: 'a2', refreshToken: 'r1' })
     expect(bodies[1]?.get('grant_type')).toBe('refresh_token')
@@ -165,6 +168,7 @@ describe('device login', () => {
     expect(onCode).toHaveBeenCalledWith({
       userCode: 'ABCD-1234',
       verificationUri: 'https://auth.example/device',
+      expiresAt: expect.any(Number),
     })
     expect(credential).toMatchObject({ accessToken: 'device-token' })
   })
@@ -196,8 +200,8 @@ describe('oauthConnector', () => {
         toolDefinition({
           name: 'list_issues',
           description: 'List issues',
-        }).server(async () => {
-          seenTokens.push(await token())
+        }).server<HarnessRunContext>(async (_args, ctx) => {
+          seenTokens.push(await token({ run: ctx.context.run }))
           return ['#1']
         }),
       ],
@@ -217,7 +221,10 @@ describe('oauthConnector', () => {
         adapter,
         plugins: () => [github],
       }),
-      { threadId: 't', principal: { id: 'user-1' } },
+      {
+        threadId: 't',
+        principal: { id: 'user-1' },
+      },
     )
     const events: Array<SessionEvent> = []
     const reader = new AbortController()
@@ -238,7 +245,7 @@ describe('oauthConnector', () => {
       ),
     ).toBe(true)
 
-    await expect(session.command('connect:github')).resolves.toBe(
+    await expect(session.command({ name: 'connect:github' })).resolves.toBe(
       'Connected to GitHub.',
     )
     const saved = await credentials.get({
@@ -250,12 +257,11 @@ describe('oauthConnector', () => {
     await session.send('list my issues again')
     expect(seenTokens).toEqual(['gh-token'])
     // The model never sees the token.
-    const transcript = JSON.stringify(
-      await persistence.stores.messages.loadThread('t'),
-    )
+    const transcript = JSON.stringify(await session.transcript())
+    expect(transcript).toContain('list my issues again')
     expect(transcript).not.toContain('gh-token')
 
-    await session.command('disconnect:github')
+    await session.command({ name: 'disconnect:github' })
     expect(
       await credentials.list({
         threadId: 't',
@@ -265,6 +271,45 @@ describe('oauthConnector', () => {
     reader.abort()
     await reading
     await host.close()
+  })
+})
+
+describe('commands on close', () => {
+  it('ends a command that ignores its signal when the session closes', async () => {
+    let started: () => void = () => {}
+    const running = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    const plugin = definePlugin({
+      name: 'test/stuck',
+      setup: () => ({
+        commands: {
+          stuck: defineCommand({
+            description: 'Waits for ever',
+            run: () => {
+              started()
+              return new Promise(() => {})
+            },
+          }),
+        },
+      }),
+    })
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      credentials: memoryCredentialStore(),
+    })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/stuck',
+        adapter: mockAdapter(() => text('ok')).adapter,
+        plugins: () => [plugin],
+      }),
+      { threadId: 't1' },
+    )
+    const command = session.command({ name: 'stuck' })
+    await running
+    await host.close()
+    expect(command.status()).toBe('cancelled')
   })
 })
 
@@ -307,15 +352,21 @@ describe('errors a session publishes', () => {
     const { adapter } = mockAdapter(() => text('ok'))
     const host = createHarnessHost({ persistence, credentials })
     const session = await host.open(
-      defineHarness({ name: 'test/scrub', adapter, plugins: () => [plugin] }),
-      { threadId: 't1' },
+      defineHarness({
+        name: 'test/scrub',
+        adapter,
+        plugins: () => [plugin],
+      }),
+      {
+        threadId: 't1',
+      },
     )
     const errors: Array<string> = []
     session.onEvent(EventType.RUN_ERROR, ({ event }) => {
       errors.push(event.message)
     })
 
-    await expect(session.command('leak')).rejects.toThrow()
+    await expect(session.command({ name: 'leak' })).rejects.toThrow()
 
     expect(errors).toEqual([
       'fetch failed: Bearer [redacted] {"value":"[redacted]"}',
@@ -344,7 +395,9 @@ describe('errors a session publishes', () => {
     const host = createHarnessHost({ persistence, credentials })
     const session = await host.open(
       defineHarness({ name: 'test/scrub', adapter, agents: [leaky] }),
-      { threadId: 't1' },
+      {
+        threadId: 't1',
+      },
     )
     const errors: Array<string> = []
     session.onEvent(EventType.RUN_ERROR, ({ event }) => {

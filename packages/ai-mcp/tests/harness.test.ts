@@ -15,9 +15,11 @@ import {
   defineCommand,
   defineHarness,
   definePlugin,
+  logIdOf,
+  membersOnly,
 } from '@tanstack/ai-harness'
 import { memoryLogStore, memoryPersistence } from '@tanstack/ai-persistence'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { createHarnessMcpServer } from '../src/harness'
 import type {
@@ -28,6 +30,10 @@ import type {
 } from '@tanstack/ai'
 import type { AnyHarness, HarnessSession } from '@tanstack/ai-harness'
 import type { HarnessMcpServerOptions } from '../src/harness'
+
+// Coverage runs in CI are slow, so polled checks wait up to 5 s.
+const waitFor = <T>(check: () => T | Promise<T>) =>
+  vi.waitFor(check, { timeout: 5_000 })
 
 const serverUrl = new URL('https://harness.example.com/mcp')
 const now = () => Date.now()
@@ -334,7 +340,7 @@ const broken = defineAgent({
 
 const commands = definePlugin({
   name: 'test/commands',
-  setup: (ctx) => ({
+  setup: () => ({
     commands: {
       'connect:notion': defineCommand({
         description: 'Sign in to Notion',
@@ -346,8 +352,9 @@ const commands = definePlugin({
       }),
       confirm: defineCommand({
         description: 'Ask first',
-        run: async () => {
-          const sure = await ctx.session.ask({
+        run: async (_input, { step }) => {
+          const sure = await step.ask({
+            name: 'sure',
             message: 'Really?',
             schema: { type: 'boolean' },
           })
@@ -379,8 +386,32 @@ type ServerOptions = Omit<HarnessMcpServerOptions, 'host' | 'harness'>
 async function serve(harness: AnyHarness, options: ServerOptions = {}) {
   const host = createHarnessHost({ persistence: memoryPersistence() })
   cleanups.push(() => host.close())
-  const server = await createHarnessMcpServer({ host, harness, ...options })
+  const server = await createHarnessMcpServer({
+    host,
+    harness,
+    openAccess: true,
+    ...options,
+  })
   return { server, host }
+}
+
+const olga = { id: 'olga', tenantId: 'acme' }
+const bea = { id: 'bea', tenantId: 'acme' }
+const cid = { id: 'cid', tenantId: 'acme' }
+const users = new Map([olga, bea, cid].map((user) => [user.id, user]))
+
+/** A membersOnly() host whose users come from the `x-user` header. */
+function accessHost() {
+  const host = createHarnessHost({
+    persistence: memoryPersistence(),
+    access: {
+      identify: ({ request }) =>
+        users.get(request.headers.get('x-user') ?? '') ?? null,
+      policy: membersOnly(),
+    },
+  })
+  cleanups.push(() => host.close())
+  return host
 }
 
 /**
@@ -464,12 +495,13 @@ function accepted(value: string): ElicitReply {
  * A real MCP client on `server.fetch`. With `reply`, the client supports
  * elicitation and gives that reply to every question (spec 2025 sessions
  * only). Without it, the client speaks spec 2026 and has no elicitation.
+ * `user` goes in the `x-user` header of each request.
  */
 async function connect(
   server: { fetch: (request: Request) => Promise<Response> },
-  options: { reply?: ElicitReply } = {},
+  options: { reply?: ElicitReply; user?: string } = {},
 ) {
-  const reply = options.reply
+  const { reply, user } = options
   const client = new Client(
     { name: 'tester', version: '1.0.0' },
     reply === undefined
@@ -485,6 +517,9 @@ async function connect(
   }
   const transport = new StreamableHTTPClientTransport(serverUrl, {
     fetch: async (input, init) => server.fetch(new Request(input, init)),
+    ...(user === undefined
+      ? {}
+      : { requestInit: { headers: { 'x-user': user } } }),
   })
   await client.connect(transport)
   cleanups.push(() => client.close())
@@ -492,6 +527,33 @@ async function connect(
 }
 
 describe('createHarnessMcpServer', () => {
+  it('holds no session after the start or after a tool call', async () => {
+    // A session that no handle holds closes at once when it is idle.
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      lifecycle: { idleCloseMs: 0 },
+    })
+    cleanups.push(() => host.close())
+    const harness = defineHarness({
+      name: 'test/mcp-handles',
+      adapter: scripted([]).adapter,
+    })
+    const isOpen = () => host.isOpen(harness, { threadId: 'main' })
+    const server = await createHarnessMcpServer({
+      host,
+      harness,
+      openAccess: true,
+    })
+    // The server read the agents and the commands of the session.
+    expect(isOpen()).toBe(false)
+    const { client } = await connect(server)
+
+    const status = await client.callTool({ name: 'status', arguments: {} })
+
+    expect(status.isError).not.toBe(true)
+    expect(isOpen()).toBe(false)
+  })
+
   it('lists the control tools, one tool per exposed agent, and one per exposed command', async () => {
     const { server } = await harnessServer([])
     const { client } = await connect(server)
@@ -583,13 +645,17 @@ describe('createHarnessMcpServer', () => {
       adapter: model.adapter,
       expose: { records: ['app.signal'] },
     })
-    const { runs, metadata } = memoryPersistence().stores
+    const { metadata } = memoryPersistence().stores
     const log = memoryLogStore()
     const host = createHarnessHost({
-      persistence: { stores: { log, runs, metadata } },
+      persistence: { stores: { log, metadata } },
     })
     cleanups.push(() => host.close())
-    const server = await createHarnessMcpServer({ host, harness })
+    const server = await createHarnessMcpServer({
+      host,
+      harness,
+      openAccess: true,
+    })
     const { client } = await connect(server)
 
     const ok = await client.callTool({
@@ -597,7 +663,7 @@ describe('createHarnessMcpServer', () => {
       arguments: { threadId: 't-sig', records: [{ type: 'app.signal', n: 1 }] },
     })
     expect(ok.isError).toBeFalsy()
-    const stored = await log.read({ logId: 't-sig' })
+    const stored = await log.read({ logId: logIdOf({ logId: 't-sig' }) })
     expect(JSON.stringify(stored)).toContain('"type":"app.signal"')
     const refused = await client.callTool({
       name: 'append',
@@ -764,6 +830,7 @@ describe('createHarnessMcpServer', () => {
       text: 'Hello from the harness.',
       interrupts: [],
       questions: [],
+      waits: [],
     })
   })
 
@@ -803,6 +870,7 @@ describe('createHarnessMcpServer', () => {
         },
       ],
       questions: [],
+      waits: [expect.objectContaining({ kind: 'approval' })],
     })
     expect(removed).toEqual([])
 
@@ -820,6 +888,7 @@ describe('createHarnessMcpServer', () => {
       text: 'Removed a.txt.',
       interrupts: [],
       questions: [],
+      waits: [],
     })
     expect(removed).toEqual(['a.txt'])
   })
@@ -841,6 +910,7 @@ describe('createHarnessMcpServer', () => {
       text: 'Kept a.txt.',
       interrupts: [],
       questions: [],
+      waits: [],
     })
     expect(removed).toEqual([])
   })
@@ -949,6 +1019,7 @@ describe('createHarnessMcpServer', () => {
       text: 'Removed a.txt.',
       interrupts: [],
       questions: [],
+      waits: [],
     })
     expect(removed).toEqual(['a.txt'])
   })
@@ -990,6 +1061,7 @@ describe('createHarnessMcpServer', () => {
       text: 'Kept a.txt.',
       interrupts: [],
       questions: [],
+      waits: [],
     })
     expect(removed).toEqual([])
   })
@@ -1031,12 +1103,13 @@ describe('createHarnessMcpServer', () => {
       interrupts: [
         {
           id: expect.any(String),
-          kind: 'generic',
+          kind: 'human',
           message: 'Review the plan',
           responseSchema: reviewSchema,
         },
       ],
       questions: [],
+      waits: [expect.objectContaining({ kind: 'human' })],
     })
     const [id] = interruptIds(pending)
 
@@ -1056,6 +1129,7 @@ describe('createHarnessMcpServer', () => {
       text: 'Plan approved.',
       interrupts: [],
       questions: [],
+      waits: [],
     })
     expect(notes).toEqual([{ note: 'Ship it.' }])
   })
@@ -1073,7 +1147,7 @@ describe('createHarnessMcpServer', () => {
     })
     expect(reply.structuredContent).toMatchObject({
       status: 'interrupted',
-      interrupts: [{ kind: 'generic', message: 'Review the plan' }],
+      interrupts: [{ kind: 'human', message: 'Review the plan' }],
     })
     expect(notes).toEqual([])
   })
@@ -1092,7 +1166,7 @@ describe('createHarnessMcpServer', () => {
     // 'auto' answers approvals only. The review is open, so both wait.
     expect(pending.structuredContent).toMatchObject({
       status: 'interrupted',
-      interrupts: [{ kind: 'approval', tool: 'remove' }, { kind: 'generic' }],
+      interrupts: [{ kind: 'approval', tool: 'remove' }, { kind: 'human' }],
     })
     expect(removed).toEqual([])
     const [approval, reviewId] = interruptIds(pending)
@@ -1111,6 +1185,7 @@ describe('createHarnessMcpServer', () => {
       text: 'Removed a.txt.',
       interrupts: [],
       questions: [],
+      waits: [],
     })
     expect(removed).toEqual(['a.txt'])
     expect(notes).toEqual([{ note: 'Go ahead.' }])
@@ -1162,7 +1237,7 @@ describe('createHarnessMcpServer', () => {
       const status = await client.callTool({ name: 'status', arguments: {} })
       expect(status.structuredContent).toMatchObject({
         status: 'requires_action',
-        interrupts: [{ kind: 'approval' }, { kind: 'generic' }],
+        interrupts: [{ kind: 'approval' }, { kind: 'human' }],
       })
       expect(removed).toEqual([])
       expect(notes).toEqual([])
@@ -1229,6 +1304,9 @@ describe('createHarnessMcpServer', () => {
           schema: { type: 'boolean' },
         },
       ],
+      waits: [
+        expect.objectContaining({ kind: 'question', message: 'Really?' }),
+      ],
     })
     const [question] = pendingShape.parse(waiting.structuredContent).questions
     if (question === undefined) throw new Error('The command asked nothing')
@@ -1240,11 +1318,164 @@ describe('createHarnessMcpServer', () => {
     expect(answered.content).toEqual([{ type: 'text', text: 'Confirmed.' }])
   })
 
+  it('forgets a waiting question when another client answers it', async () => {
+    // The server keeps the waiting work in a Map that it does not export.
+    // Find it: the Map that gets the question id with an operation.
+    const sets = vi.spyOn(Map.prototype, 'set')
+    const { server, session } = await harnessServer([])
+    const { client } = await connect(server)
+    const waiting = await client.callTool({
+      name: 'command_confirm',
+      arguments: {},
+    })
+    const [question] = pendingShape.parse(waiting.structuredContent).questions
+    if (question === undefined) throw new Error('The command asked nothing')
+    const index = sets.mock.calls.findIndex(
+      ([key, value]) =>
+        key === question.id &&
+        typeof value === 'object' &&
+        value !== null &&
+        'stream' in value,
+    )
+    const map: unknown = sets.mock.contexts[index]
+    sets.mockRestore()
+    if (!(map instanceof Map)) throw new Error('No waiting map found')
+    expect(map.has(question.id)).toBe(true)
+
+    // Another client answers, so the MCP `answer` tool never runs.
+    const live = await session()
+    await live.answer({ questionId: question.id, value: true })
+    await waitFor(() => expect(map.has(question.id)).toBe(false))
+  })
+
+  it('returns the result of its own turn when another operation asks a question', async () => {
+    const held = heldTurn(textTurn('Done.'))
+    const { server, session } = await harnessServer([held])
+    const { client } = await connect(server)
+
+    const reply = client.callTool({
+      name: 'chat',
+      arguments: { message: 'work' },
+    })
+    await held.hold.reached
+    const live = await session()
+    const confirm = live.command({ name: 'confirm' })
+    await waitFor(() => expect(live.snapshot().pendingWaits).toHaveLength(1))
+    held.hold.release()
+
+    // The question of the command is not a wait of the chat turn.
+    expect((await reply).structuredContent).toEqual({
+      status: 'completed',
+      text: 'Done.',
+      interrupts: [],
+      questions: [],
+      waits: [],
+    })
+    const [question] = live.snapshot().pendingWaits
+    await live.answer({ questionId: question!.waitId, value: true })
+    expect(await confirm).toBe('Confirmed.')
+  })
+
+  it('returns the wait of a background agent run, and resolve continues the run', async () => {
+    const removed: Array<string> = []
+    const remove = toolDefinition({
+      name: 'remove',
+      description: 'Remove a file',
+      needsApproval: true,
+      inputSchema: z.object({ path: z.string() }),
+    }).server(async ({ path }) => {
+      removed.push(path)
+      return `removed ${path}`
+    })
+    const model = scripted([removeTurn('old.log'), textTurn('Cleaned.')])
+    const cleaner = defineAgent({
+      name: 'cleaner',
+      description: 'Cleans up',
+      run: (ctx) => ctx.chat({ adapter: model.adapter, tools: [remove] }),
+    })
+    const { server } = await serve(
+      defineHarness({
+        name: 'test/mcp-run-waits',
+        adapter: scripted([]).adapter,
+        agents: [cleaner],
+        expose: { agents: ['cleaner'] },
+      }),
+    )
+    const { client } = await connect(server)
+
+    const waiting = await client.callTool({
+      name: 'agent_cleaner',
+      arguments: {},
+    })
+    expect(waiting.structuredContent).toEqual({
+      status: 'waiting',
+      interrupts: [],
+      questions: [],
+      waits: [
+        expect.objectContaining({
+          kind: 'approval',
+          runId: expect.any(String),
+        }),
+      ],
+    })
+    const status = await client.callTool({ name: 'status', arguments: {} })
+    expect(status.structuredContent).toMatchObject({
+      agents: [{ agent: 'cleaner', status: 'waiting' }],
+    })
+    const [wait] = z
+      .object({ waits: z.array(z.object({ waitId: z.string() })) })
+      .parse(waiting.structuredContent).waits
+
+    const done = await client.callTool({
+      name: 'resolve',
+      arguments: { decisions: [{ interruptId: wait!.waitId, approved: true }] },
+    })
+    expect(done.content).toEqual([{ type: 'text', text: 'Cleaned.' }])
+    expect(removed).toEqual(['old.log'])
+  })
+
+  it('resolve finds the wait of a background agent run that it did not start, from the log', async () => {
+    const remove = toolDefinition({
+      name: 'remove',
+      description: 'Remove a file',
+      needsApproval: true,
+      inputSchema: z.object({ path: z.string() }),
+    }).server(async ({ path }) => `removed ${path}`)
+    const model = scripted([removeTurn('old.log'), textTurn('Cleaned.')])
+    const cleaner = defineAgent({
+      name: 'cleaner',
+      description: 'Cleans up',
+      run: (ctx) => ctx.chat({ adapter: model.adapter, tools: [remove] }),
+    })
+    const harness = defineHarness({
+      name: 'test/mcp-log-waits',
+      adapter: scripted([]).adapter,
+      agents: [cleaner],
+    })
+    const { server, host } = await serve(harness)
+    const { client } = await connect(server)
+    // Another client starts the run: this server never saw its wait open.
+    const session = await host.open(harness, { threadId: 'main' })
+    const run = session.agents.cleaner.start()
+    const wait = await waitFor(() => {
+      const [open] = session.snapshot().pendingWaits
+      expect(open).toBeDefined()
+      return open!
+    })
+
+    const done = await client.callTool({
+      name: 'resolve',
+      arguments: { decisions: [{ interruptId: wait.waitId, approved: true }] },
+    })
+    expect(done.content).toEqual([{ type: 'text', text: 'Cleaned.' }])
+    expect(await run).toBe('Cleaned.')
+  })
+
   it('answer returns answered for a question that no tool call waits on', async () => {
     const { server, session } = await harnessServer([])
     const { client } = await connect(server)
     const live = await session()
-    const confirm = live.command('confirm')
+    const confirm = live.command({ name: 'confirm' })
     const questionId = await nextQuestionId(live)
 
     const answered = await client.callTool({
@@ -1255,6 +1486,7 @@ describe('createHarnessMcpServer', () => {
       status: 'answered',
       interrupts: [],
       questions: [],
+      waits: [],
     })
     expect(await confirm).toBe('Confirmed.')
   })
@@ -1410,7 +1642,8 @@ describe('createHarnessMcpServer', () => {
       status: 'running',
       interrupts: [],
       questions: [],
-      agents: [{ id: expect.any(String), agent: 'waiter' }],
+      waits: [],
+      agents: [{ id: expect.any(String), agent: 'waiter', status: 'running' }],
       queuedTurns: 1,
     })
     held.hold.release()
@@ -1458,4 +1691,140 @@ describe('createHarnessMcpServer', () => {
       expect(userTexts(calls[1])).toEqual(['first', 'second'])
     },
   )
+})
+
+describe('createHarnessMcpServer access', () => {
+  /** A harness whose model answers the first call with "Hello.". */
+  const greeter = () =>
+    defineHarness({
+      name: 'test/access',
+      adapter: scripted([textTurn('Hello.')]).adapter,
+    })
+
+  it('throws at the start for a host without access and without openAccess', async () => {
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    cleanups.push(() => host.close())
+
+    await expect(
+      createHarnessMcpServer({ host, harness: greeter() }),
+    ).rejects.toThrow(
+      'createHarnessMcpServer needs host access ({ identify, policy }) or openAccess: true or { principal }.',
+    )
+  })
+
+  it('throws at the start for openAccess on a host with access', async () => {
+    const server = createHarnessMcpServer({
+      host: accessHost(),
+      harness: greeter(),
+      openAccess: { principal: olga },
+    })
+
+    await expect(server).rejects.toThrow(
+      'createHarnessMcpServer: the host has access, so access.identify reads the user of each request. Remove openAccess.',
+    )
+  })
+
+  it('runs every call as the openAccess principal', async () => {
+    const ana = { id: 'ana', tenantId: 'globex' }
+    const { server, host } = await serve(greeter(), {
+      openAccess: { principal: ana },
+    })
+    const { client } = await connect(server)
+
+    await client.callTool({
+      name: 'chat',
+      arguments: { threadId: 't-ana', message: 'Hi' },
+    })
+    expect(
+      await host.sessions.get({ threadId: 't-ana', principal: ana }),
+    ).toMatchObject({
+      tenantId: 'globex',
+      members: [{ userId: 'ana', role: 'owner' }],
+    })
+    expect(await host.sessions.get({ threadId: 't-ana' })).toBeUndefined()
+  })
+
+  it('answers a request that identify refuses with a 401 bearer challenge', async () => {
+    const server = await createHarnessMcpServer({
+      host: accessHost(),
+      harness: greeter(),
+    })
+
+    const response = await server.fetch(
+      new Request(serverUrl, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          accept: 'application/json, text/event-stream',
+          'x-user': 'nobody',
+        },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+      }),
+    )
+    expect(response.status).toBe(401)
+    expect(response.headers.get('www-authenticate')).toMatch(/^Bearer /)
+  })
+
+  it('runs each request as its user, and returns a refused action as a tool error', async () => {
+    const host = accessHost()
+    const server = await createHarnessMcpServer({ host, harness: greeter() })
+    const { client: asOlga } = await connect(server, { user: 'olga' })
+    const { client: asBea } = await connect(server, { user: 'bea' })
+    const { client: asCid } = await connect(server, { user: 'cid' })
+
+    const reply = await asOlga.callTool({
+      name: 'chat',
+      arguments: { threadId: 't1', message: 'Hi' },
+    })
+    expect(reply.structuredContent).toMatchObject({
+      status: 'completed',
+      text: 'Hello.',
+    })
+    expect(
+      await host.sessions.get({ threadId: 't1', principal: olga }),
+    ).toMatchObject({ members: [{ userId: 'olga', role: 'owner' }] })
+    await host.sessions.share({
+      threadId: 't1',
+      userId: 'bea',
+      role: 'viewer',
+      principal: olga,
+    })
+
+    const stranger = await asCid.callTool({
+      name: 'status',
+      arguments: { threadId: 't1' },
+    })
+    expect(stranger).toMatchObject(
+      toolError(
+        'Access denied: the user of this call may not read on thread "t1".',
+      ),
+    )
+    const viewer = await asBea.callTool({
+      name: 'chat',
+      arguments: { threadId: 't1', message: 'Hi' },
+    })
+    expect(viewer).toMatchObject(
+      toolError(
+        'Access denied: the user of this call may not send on thread "t1".',
+      ),
+    )
+  })
+
+  it('lists the agents of the harness definition on a host with access, and no plugin commands', async () => {
+    const harness = defineHarness({
+      name: 'test/access-tools',
+      adapter: scripted([]).adapter,
+      agents: [pricer],
+      expose: { agents: ['pricer'], commands: ['greet'] },
+      plugins: () => [commands],
+    })
+    const server = await createHarnessMcpServer({ host: accessHost(), harness })
+    const { client } = await connect(server, { user: 'olga' })
+
+    const listed = await client.listTools()
+    expect(listed.tools.map((tool) => tool.name).sort()).toEqual([
+      'agent_pricer',
+      ...controlTools,
+    ])
+  })
 })

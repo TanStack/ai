@@ -11,7 +11,9 @@ async function open(replies: Array<Reply>, tools: Array<AnyTool> = []) {
   const host = createHarnessHost({ persistence: memoryPersistence() })
   const session = await host.open(
     defineHarness({ name: 'test/send', adapter, tools }),
-    { threadId: 't1' },
+    {
+      threadId: 't1',
+    },
   )
   return { host, session, calls }
 }
@@ -43,7 +45,7 @@ describe('session.send', () => {
     expect((await steer).text).toBe('both answered')
     expect((await turn).text).toBe('both answered')
     expect(calls).toHaveLength(2)
-    expect(await session.settled('join')).toMatchObject({
+    expect(await session.settled({ inputId: 'join' })).toMatchObject({
       outcome: 'completed',
       operationId: turn.id,
     })

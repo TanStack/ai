@@ -31,6 +31,36 @@ octane: @tanstack/ai @tanstack/ai-harness @tanstack/ai-persistence @tanstack/ai-
 
 <!-- ::end:tabs -->
 
+## Which import to use
+
+Import each name from the entry that holds it. Only four entries load Node modules: `plugins/node`, `plugins/coding`, `build`, and `worker`. All other entries also load on an edge runtime. One exception at run time: the loopback helpers of `oauth` (`startLoopbackReceiver` and `loopbackLogin`) start a local Node server, so call them only on Node.
+
+For your app and its routes:
+
+| Import | Holds |
+| --- | --- |
+| `@tanstack/ai-harness` | `defineHarness`, `createHarnessHost`, `definePlugin`, `durableTool`, `harnessText`, `oauthConnector`, and the session and agent types. |
+| `@tanstack/ai-harness/server` | `createHarnessHandler` and `handleHarnessSocket`. For your own transport: `applyInput`, `parseHarnessInput`, `parseControlFrame`, `capabilitiesOf`, and `HARNESS_PROTOCOL_VERSION`. |
+| `@tanstack/ai-harness/client` | `createHarnessClient`, a typed client for a browser or another process. |
+| `@tanstack/ai-harness/view` | `createSessionView`, the live state of a session for a UI. |
+
+For plugins:
+
+| Import | Holds |
+| --- | --- |
+| `@tanstack/ai-harness/plugins` | The first-party plugins that load no Node module: `permissions`, `modelPicker`, `todos`, `goal`, `providerKeys`, and more. |
+| `@tanstack/ai-harness/plugins/node` | The first-party plugins that read files. Node only: `agents`, `builtInAgents`, `fileCommands`, `projectInstructions`, and `boundToolOutput`. |
+| `@tanstack/ai-harness/plugins/coding` | The coding tools. Node only: `workspaceTools`, `snapshots`, and `formatter`. |
+
+For helpers and builds:
+
+| Import | Holds |
+| --- | --- |
+| `@tanstack/ai-harness/oauth` | The OAuth helpers: `loopbackLogin`, `deviceLogin`, `exchangeCode`, `refreshCredential`, and more. |
+| `@tanstack/ai-harness/media` | The media helpers: `mediaPart`, `mediaOfMessage`, `MediaError`, and more. |
+| `@tanstack/ai-harness/build` | `buildHarness` and `artifactText`, to ship a harness as a worker. Node only. |
+| `@tanstack/ai-harness/worker` | `runHarnessWorker`, which runs a harness on stdin and stdout. Node only. |
+
 ## 1. Define the harness
 
 `defineHarness` takes the `chat()` options you know (`adapter`, `systemPrompts`, `tools`, `middleware`, `subagents`), plus a `name`. Importing it starts nothing.
@@ -72,7 +102,9 @@ const host = createHarnessHost({ persistence: memoryPersistence() })
 const session = await host.open(assistant, { threadId: 'thread-1' })
 ```
 
-Opening the same `threadId` again returns the live session.
+Opening the same `threadId` again gives another handle to the same live session. Release a handle with `await session.close()`, or open it with `await using`, so an idle session can close. See [Lifecycle and retention](./lifecycle).
+
+Does the host serve many users? Give it `access`, so each user reaches only their own sessions. See [Access and tenants](./access).
 
 ## 3. Send a message
 
@@ -159,23 +191,21 @@ export const withClock = defineHarness({
 })
 ```
 
-`plugins` is a function, so every session gets its own plugin instances. Set `lifetime: 'turn'` on a plugin to set it up again for each turn.
+`plugins` is a function, so every session gets its own plugin instances. Set `lifetime: 'turn'` on a plugin to set it up again for each turn, or `lifetime: 'host'` to share one setup between all the sessions of the host.
 
 If two plugins add a tool with the same name, `host.open` fails and names both plugins. To write your own, see [Write a harness plugin](./plugins).
 
 ## Keep sessions across restarts
 
-The host takes the same stores as `withPersistence`. Add an `inbox` store and the session also keeps the messages it accepted but did not start yet. When the session opens again, it runs them.
+Each host keeps every thread in a session log: the transcript, the inputs, the runs, the approvals that wait, the settings, and the plugin state. The host needs one store for it, `log`:
 
-- `messages`: the transcript. Required.
-- `runs`: the record of every turn and agent run. When the host stops during a background agent run, the next session ends that run `failed` and notes it in the transcript.
-- `interrupts`: approvals that wait for a user.
-- `inbox`: accepted messages that did not run yet.
-- `metadata`: the session config, plugin state, and the interrupts that the last turn waits on. With it, `session.resolve` continues that turn after a restart, also a turn that a router sent to agents.
+- `log`: the session log. Required.
+- `sessions`: one index entry per thread, for a list of sessions. See [List, rename, and fork sessions](./sessions).
+- `metadata`: data wider than one thread, for example the saved rules of `permissions()`, and a fold checkpoint so a long thread opens faster.
 
-`memoryPersistence()` has every store, but it keeps them in memory only. Write your own stores to keep data in your database. See [Build your own adapter](../persistence/build-your-own-adapter).
+`memoryPersistence()` has every store, but it keeps them in memory only. To keep the log in your database, implement the [`LogStore` contract](../persistence/store-reference#logstore). Then a turn continues after a crash or a deploy. See [Durable sessions](./durable-sessions).
 
-To continue a turn after a crash or a deploy, give the host a session log. See [Durable sessions](./durable-sessions).
+Before you run many servers or long threads, read the [known limits](./deploy#known-limits).
 
 ## Prompt caching
 
@@ -198,7 +228,7 @@ const support = await host.open(assistant, {
 })
 ```
 
-If the `threadId` already has a live session, `host.open` returns that session with its first `promptCache` value. The agents that the model calls as tools use the retention of the turn. `session.usage()` shows the cache reads and writes, see [Track usage and cost](./usage). For the options and the cost, see [Prompt Caching](../advanced/prompt-caching).
+If the `threadId` already has a live session, `host.open` gives a handle to that session, which keeps its first `promptCache` value. The agents that the model calls as tools use the retention of the turn. `session.usage()` shows the cache reads and writes, see [Track usage and cost](./usage). For the options and the cost, see [Prompt Caching](../advanced/prompt-caching).
 
 To change it for one prompt, pass `overrides.promptCache`. See [Give one prompt its own settings](./turn-control#give-one-prompt-its-own-settings).
 

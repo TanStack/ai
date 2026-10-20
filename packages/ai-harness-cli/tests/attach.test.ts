@@ -10,11 +10,8 @@ import {
   it,
   vi,
 } from 'vitest'
-import {
-  createHarnessHost,
-  defineHarness,
-  mediaIdOf,
-} from '@tanstack/ai-harness'
+import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import { mediaIdOf } from '@tanstack/ai-harness/media'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { attach, defaultMediaDir, saveMedia } from '../src/attach'
 import type { AnyTextAdapter } from '@tanstack/ai'
@@ -78,7 +75,9 @@ beforeAll(async () => {
   host = createHarnessHost({ persistence: memoryPersistence() })
   session = await host.open(
     defineHarness({ name: 'test/attach', adapter: idleModel() }),
-    { threadId: 't' },
+    {
+      threadId: 't',
+    },
   )
 })
 
@@ -97,8 +96,8 @@ async function storedFiles(input: UserInput) {
   const ids = parts.flatMap((part) => mediaIdOf(part) ?? [])
   return Promise.all(
     ids.map(async (id) => ({
-      name: (await session.getMedia(id))?.name,
-      text: new TextDecoder().decode(await session.loadMedia(id)),
+      name: (await session.getMedia({ id }))?.name,
+      text: new TextDecoder().decode(await session.loadMedia({ id })),
     })),
   )
 }
@@ -161,7 +160,8 @@ describe('attach', () => {
 
 describe('saveMedia', () => {
   it('makes the folder and adds a number instead of overwriting a file', async () => {
-    const record = await session.putMedia(new TextEncoder().encode('hello'), {
+    const record = await session.putMedia({
+      body: new TextEncoder().encode('hello'),
       mimeType: 'image/png',
       name: 'cat.png',
     })
@@ -184,7 +184,8 @@ describe('saveMedia', () => {
   it.each(['../escaped.png', 'sub/escaped.png', 'sub\\escaped.png', '..'])(
     'refuses the name %s',
     async (name) => {
-      const record = await session.putMedia(new TextEncoder().encode('x'), {
+      const record = await session.putMedia({
+        body: new TextEncoder().encode('x'),
         mimeType: 'image/png',
         name,
       })

@@ -4,6 +4,7 @@ import * as https from 'node:https'
 import { BlockList, isIP } from 'node:net'
 import { toolDefinition } from '@tanstack/ai'
 import { isRecord } from '../../utils'
+import { boundText } from '../bound-output'
 import { optionalString, stringArg } from './backend'
 import type { IncomingMessage } from 'node:http'
 import type { LookupFunction } from 'node:net'
@@ -12,6 +13,11 @@ const DEFAULT_TIMEOUT_MS = 30_000
 const MAX_TIMEOUT_MS = 120_000
 /** `webfetch` stops reading a body after this many bytes. */
 const MAX_BYTES = 5 * 1024 * 1024
+/**
+ * The model gets at most this many bytes of a page: its start. The result
+ * stays in the transcript, so each model call after it sends it again.
+ */
+const MAX_RESULT_BYTES = 256 * 1024
 const MAX_REDIRECTS = 5
 /** A NUL byte in this many first bytes marks a binary body. */
 const BINARY_CHECK_BYTES = 8 * 1024
@@ -353,7 +359,13 @@ async function readPage(
   // content type if other charsets matter.
   const text = new TextDecoder().decode(bytes)
   const page = isHtml ? await convert(text, format) : text
-  return isCut ? `${page}\n\n[Cut at 5 MB. The rest was not read.]` : page
+  const kept = boundText(page, {
+    maxLines: Number.MAX_SAFE_INTEGER,
+    maxBytes: MAX_RESULT_BYTES,
+  })
+  if (!kept.truncated && !isCut) return page
+  const notRead = isCut ? ' The page is over 5 MB. The rest was not read.' : ''
+  return `${kept.text}\n[webfetch gives at most the first 256 KB of a page.${notRead} To see more, save the page to a file with bash, then use grep or read_file with an offset.]`
 }
 
 /**
@@ -361,9 +373,10 @@ async function readPage(
  *
  * - `webfetch` reads a URL. HTML comes back as Markdown when the optional
  *   `turndown` package is installed, else as text. Text and JSON come back
- *   as they are. Other content types are refused. It reads at most 5 MB,
- *   stops after 30 seconds (the model can ask for up to 120), and follows
- *   at most 5 redirects.
+ *   as they are. Other content types are refused. The model gets the
+ *   first 256 KB of the page, with a note when there is more. It reads at
+ *   most 5 MB, stops after 30 seconds (the model can ask for up to 120),
+ *   and follows at most 5 redirects.
  * - `websearch` searches with `options.search`. Without a provider, there
  *   is no `websearch` tool.
  *
@@ -386,7 +399,7 @@ export function webTools(options: WebToolsOptions = {}) {
   const webfetch = toolDefinition({
     name: 'webfetch',
     description:
-      'Read a web page by its http or https URL. HTML comes back as Markdown by default, or set format to text or html. Text and JSON come back as they are. At most 5 MB is read.',
+      'Read a web page by its http or https URL. HTML comes back as Markdown by default, or set format to text or html. Text and JSON come back as they are. You get at most the first 256 KB of the page.',
     inputSchema: {
       type: 'object',
       properties: {

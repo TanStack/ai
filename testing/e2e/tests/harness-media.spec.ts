@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures'
+import { openHarnessThread } from './helpers'
 import type { APIRequestContext } from '@playwright/test'
 import type { MediaRecord } from '@tanstack/ai-harness'
 
@@ -54,15 +55,17 @@ function mediaApi(
 }
 
 test.describe('harness media', () => {
-  test('serves an uploaded image from its signed URL without auth', async ({
+  test('serves an uploaded image from its signed URL to its user, and 401 without a user', async ({
     request,
     testId,
     aimockPort,
   }) => {
     const api = mediaApi(request, testId, aimockPort)
     const record = await api.upload(`media-${testId}`, RED_DOT)
+    const url = await api.signedUrl(record)
 
-    const response = await request.get(await api.signedUrl(record))
+    const response = await request.get(url, { headers: api.headers })
+    const anonymous = await request.get(url)
 
     expect(record).toMatchObject({
       threadId: `media-${testId}`,
@@ -72,6 +75,7 @@ test.describe('harness media', () => {
       size: RED_DOT.byteLength,
       source: 'user',
     })
+    expect(anonymous.status()).toBe(401)
     expect(response.status()).toBe(200)
     expect(await response.body()).toEqual(RED_DOT)
     expect(response.headers()).toMatchObject({
@@ -166,7 +170,9 @@ test.describe('harness media', () => {
       subagentRunId: expect.stringMatching(/^subagent-/),
     })
 
-    const image = await request.get(await api.signedUrl(painted))
+    const image = await request.get(await api.signedUrl(painted), {
+      headers: api.headers,
+    })
 
     expect(image.status()).toBe(200)
     expect(image.headers()['content-type']).toBe('image/png')
@@ -184,6 +190,8 @@ test.describe('harness media', () => {
       return JSON.stringify(await response.json())
     }
     expect(await childOf(threadId)).toContain('Painted one image.')
-    expect(await childOf(`media-other-${testId}`)).toBe('[]')
+    const other = `media-other-${testId}`
+    await openHarnessThread(request, api.headers, other)
+    expect(await childOf(other)).toBe('[]')
   })
 })

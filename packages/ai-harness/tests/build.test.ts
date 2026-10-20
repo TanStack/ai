@@ -6,12 +6,8 @@ import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
 import { EventType, chat } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import {
-  createHarnessHandler,
-  createHarnessHost,
-  defineHarness,
-  harnessText,
-} from '../src'
+import { createHarnessHost, defineHarness, harnessText } from '../src'
+import { createHarnessHandler } from '../src/server'
 import { artifactText, buildHarness, readManifest } from '../src/build'
 import { runHarnessWorker } from '../src/worker'
 import { mockAdapter, text } from './helpers'
@@ -68,15 +64,19 @@ describe('worker mode', () => {
 describe('harnessText({ url })', () => {
   it('uses a harness served over HTTP as a model', async () => {
     const { adapter } = mockAdapter([() => text('from far away')])
-    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      access: {
+        identify: ({ request }) =>
+          request.headers.get('authorization') === 'Bearer t'
+            ? { id: 'u' }
+            : null,
+        policy: { authorize: () => true },
+      },
+    })
     const handler = createHarnessHandler({
       host,
       harness: defineHarness({ name: 'test/remote', adapter }),
-      canAccess: () => true,
-      authorize: (request) =>
-        request.headers.get('authorization') === 'Bearer t'
-          ? { id: 'u' }
-          : null,
     })
     const remote = harnessText({
       url: 'http://remote.test/api',

@@ -41,13 +41,19 @@ export function mockTextAdapter(chatStream: AnyTextAdapter['chatStream']) {
   return adapter
 }
 
-/** A model that records the calls it gets, calls `tool` once, then stops. */
-export function recorder(tool?: string) {
+/**
+ * A model that records the calls it gets, calls `tool` on the calls that
+ * `callsTool` picks (by default only the first one), and else stops.
+ */
+export function recorder(
+  tool?: string,
+  callsTool: (call: number) => boolean = (call) => call === 1,
+) {
   const calls: Array<TextOptions> = []
   const now = () => Date.now()
   const adapter = mockTextAdapter((options) => {
     calls.push(options)
-    const first = calls.length === 1 && tool !== undefined
+    const first = tool !== undefined && callsTool(calls.length)
     return (async function* (): AsyncGenerator<StreamChunk> {
       yield {
         type: EventType.RUN_STARTED,
