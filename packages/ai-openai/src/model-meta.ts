@@ -1314,7 +1314,6 @@ const O3_MINI = {
       'code_interpreter',
       'mcp',
       'computer_use',
-      'computer',
       'local_shell',
       'shell',
       'apply_patch',

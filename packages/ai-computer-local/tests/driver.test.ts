@@ -210,6 +210,27 @@ describe('localComputer keyboard', () => {
     ])
   })
 
+  it('releases the pressed keys when a later key is not valid', async () => {
+    const { robot, calls } = fakeRobot()
+    const keyToggle = robot.keyToggle
+    robot.keyToggle = (key, down) => {
+      if (key === 'not_a_key') throw new Error('Invalid key code specified.')
+      keyToggle(key, down)
+    }
+    const press = localComputer({ robot }).press([
+      'Control',
+      'Shift',
+      'NOT_A_KEY',
+    ])
+    await expect(press).rejects.toThrow('Invalid key code specified.')
+    expect(calls).toEqual([
+      'keyToggle control down',
+      'keyToggle shift down',
+      'keyToggle shift up',
+      'keyToggle control up',
+    ])
+  })
+
   it('sends robotjs key names', async () => {
     const { robot, calls } = fakeRobot()
     const driver = localComputer({ robot })
@@ -271,5 +292,24 @@ describe('localComputer screen', () => {
       colorType: 2,
       rows: [0, 0, 0, 255, 0, 0, 255, 0, 0, 0, 255, 0, 0, 255],
     })
+  })
+
+  it.each([
+    [
+      'past the bottom right',
+      { x: 1, y: 0, width: 5, height: 3 },
+      'capture 2 0 2 2',
+    ],
+    [
+      'before the top left',
+      { x: -3, y: -1, width: 1, height: 1 },
+      'capture 0 0 1 1',
+    ],
+  ])('keeps a zoom region %s on the screen', async (_, region, expected) => {
+    const { robot, calls } = fakeRobot({ width: 4, height: 2 })
+    await localComputer({ robot, display: { width: 2, height: 1 } }).zoom(
+      region,
+    )
+    expect(calls).toEqual([expected])
   })
 })

@@ -1,8 +1,8 @@
 /**
  * Type-level checks for the generic `'computer'` tool kind.
  *
- * A model that lists `computer_use` also accepts the generic computer tool.
- * A model without `computer_use` rejects it at compile time.
+ * A model that lists `computer` accepts the generic computer tool. A model
+ * without it rejects it at compile time.
  */
 import { beforeAll, describe, it } from 'vitest'
 import { brandProviderTool } from '@tanstack/ai'
@@ -40,6 +40,13 @@ describe('OpenAI computer tool kind', () => {
   it('gpt-4o rejects the computer tool', () => {
     typedTools(openaiText('gpt-4o'), [
       // @ts-expect-error - gpt-4o does not list computer_use
+      computerTool,
+    ])
+  })
+
+  it('o3-mini rejects the computer tool, because it has no image input', () => {
+    typedTools(openaiText('o3-mini'), [
+      // @ts-expect-error - o3-mini cannot read the screenshots
       computerTool,
     ])
   })

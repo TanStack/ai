@@ -153,9 +153,16 @@ export function localComputer(options: LocalComputerOptions = {}) {
       robot.keyToggle(toRobotKey(key), 'up')
     },
     async press(keys) {
-      const names = keys.map(toRobotKey)
-      for (const name of names) robot.keyToggle(name, 'down')
-      for (const name of [...names].reverse()) robot.keyToggle(name, 'up')
+      // Release the pressed keys also when a later key is not valid.
+      const pressed: Array<string> = []
+      try {
+        for (const name of keys.map(toRobotKey)) {
+          robot.keyToggle(name, 'down')
+          pressed.push(name)
+        }
+      } finally {
+        for (const name of pressed.reverse()) robot.keyToggle(name, 'up')
+      }
     },
     async type(text) {
       robot.typeString(text)
@@ -168,9 +175,17 @@ export function localComputer(options: LocalComputerOptions = {}) {
       }
     },
     async zoom(region) {
+      // robotjs does not check the region. A region off the screen can crash Node.
       const start = toScreen(region.x, region.y)
-      const size = toScreen(region.width, region.height)
-      const bitmap = robot.screen.capture(start.x, start.y, size.x, size.y)
+      const end = toScreen(region.x + region.width, region.y + region.height)
+      const x = Math.min(Math.max(start.x, 0), screen.width - 1)
+      const y = Math.min(Math.max(start.y, 0), screen.height - 1)
+      const bitmap = robot.screen.capture(
+        x,
+        y,
+        Math.max(1, Math.min(end.x, screen.width) - x),
+        Math.max(1, Math.min(end.y, screen.height) - y),
+      )
       return toPng(bitmap, bitmap.width, bitmap.height)
     },
   } satisfies ComputerDriver
