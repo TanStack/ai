@@ -129,7 +129,7 @@ if (process.env[childEnv] === '1') {
       expect(model.toolNames(0)).toEqual(['good_echo'])
       const error =
         'Failed to connect to MCP server: Version negotiation probe failed: connection refused'
-      await expect(session.command({ name: 'mcp' })).resolves.toBe(
+      await expect(session.runCommand({ name: 'mcp' })).resolves.toBe(
         `good: connected (1 tool)\nbad: failed: ${error}`,
       )
       expect(session.snapshot().plugins['tanstack/mcp']).toEqual({
@@ -159,7 +159,7 @@ if (process.env[childEnv] === '1') {
       await session.send('hi')
 
       expect(model.toolNames(0)).toEqual([])
-      await expect(session.command({ name: 'mcp' })).resolves.toMatch(
+      await expect(session.runCommand({ name: 'mcp' })).resolves.toMatch(
         /^slow: failed: .*timed out/i,
       )
     })
@@ -184,7 +184,7 @@ if (process.env[childEnv] === '1') {
       await session.send('hi')
 
       expect(model.toolNames(0)).toEqual(['good_echo'])
-      await expect(session.command({ name: 'mcp' })).resolves.toBe(
+      await expect(session.runCommand({ name: 'mcp' })).resolves.toBe(
         'good: connected (1 tool)\nsilent: failed: Failed to connect to MCP server: Version negotiation probe timed out after 100ms',
       )
       expect(signals.length).toBeGreaterThan(0)
@@ -317,7 +317,7 @@ if (process.env[childEnv] === '1') {
         ['echo', 'First echo'],
         ['second_echo', 'Second echo'],
       ])
-      await expect(session.command({ name: 'mcp' })).resolves.toBe(
+      await expect(session.runCommand({ name: 'mcp' })).resolves.toBe(
         [
           'first: connected (1 tool)',
           'second: connected (1 tool)',
@@ -569,20 +569,20 @@ if (process.env[childEnv] === '1') {
         demo: { type: 'http', url: protectedServer.url, oauth: true },
       })
       await session.send('before')
-      await expect(session.command({ name: 'mcp' })).resolves.toBe(
+      await expect(session.runCommand({ name: 'mcp' })).resolves.toBe(
         'demo: failed: Not signed in. Run /connect demo.',
       )
 
       const browser = approveSignIns(session, 'code-1')
       cleanups.push(browser.stop)
-      await expect(session.command({ name: 'connect:demo' })).resolves.toBe(
+      await expect(session.runCommand({ name: 'connect:demo' })).resolves.toBe(
         'Connected to demo.',
       )
       await session.send('after')
 
       expect(model.toolNames(0)).toEqual([])
       expect(model.toolNames(1)).toEqual(['demo_echo'])
-      await expect(session.command({ name: 'mcp' })).resolves.toBe(
+      await expect(session.runCommand({ name: 'mcp' })).resolves.toBe(
         'demo: connected (1 tool)',
       )
     })

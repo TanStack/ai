@@ -183,19 +183,22 @@ export interface SessionViewSource {
   resolve: (options: ResolveOptions) => Promise<Receipt>
   cancel: (options?: CancelOptions) => Promise<Receipt>
   // Both sources have these. Without one, its view action shows an error.
-  continue?: () => unknown
+  continueWithoutMessage?: () => unknown
   cancelInput?: (options: { inputId: string }) => Promise<Receipt>
-  setDelivery?: (change: {
+  changeInputDelivery?: (change: {
     inputId: string
     delivery: WaitingInput['delivery']
   }) => Promise<Receipt>
-  configure?: (options: ConfigureOptions) => Promise<Receipt>
+  updateThreadSettings?: (options: ConfigureOptions) => Promise<Receipt>
   reset?: (options?: ResetOptions) => Promise<Receipt>
   revert?: (options: { messageId: string }) => Promise<Receipt>
   unrevert?: () => Promise<Receipt>
   answer: (answer: { questionId: string; value: unknown }) => Promise<Receipt>
-  command: (options: CommandOptions) => unknown
-  setConfig: (change: { key: string; value: unknown }) => Promise<Receipt>
+  runCommand: (options: CommandOptions) => unknown
+  setPluginSetting: (change: {
+    key: string
+    value: unknown
+  }) => Promise<Receipt>
   events: (options: {
     from?: Cursor
     signal?: AbortSignal
@@ -276,7 +279,7 @@ export interface SessionView {
     attachments?: ReadonlyArray<MediaRecord>,
   ) => Promise<void>
   /** Start a turn from the saved messages, with no new message. */
-  continue: () => Promise<void>
+  continueWithoutMessage: () => Promise<void>
   /**
    * Store a file. Send its record with `send(text, [record])`.
    *
@@ -291,26 +294,26 @@ export interface SessionView {
    *
    * @example
    * ```ts
-   * await view.command({ name: 'mode', input: 'plan' })
+   * await view.runCommand({ name: 'mode', input: 'plan' })
    * ```
    */
-  command: (options: CommandOptions) => Promise<void>
-  setConfig: (change: { key: string; value: unknown }) => Promise<void>
+  runCommand: (options: CommandOptions) => Promise<void>
+  setPluginSetting: (change: { key: string; value: unknown }) => Promise<void>
   /**
    * Change the stored settings of the thread, for example the model.
    *
    * @example
    * ```ts
-   * await view.configure({ settings: { model: 'strong' } })
+   * await view.updateThreadSettings({ settings: { model: 'strong' } })
    * ```
    */
-  configure: (options: ConfigureOptions) => Promise<void>
+  updateThreadSettings: (options: ConfigureOptions) => Promise<void>
   /** Stop the running turn, or the operation `operationId`. */
   cancel: (options?: CancelOptions) => Promise<void>
   /** Drop an input from `waitingInputs` before it runs. */
   cancelInput: (options: { inputId: string }) => Promise<void>
   /** Move a waiting input: `'steer'` joins the running turn, `'queue'` waits for its own turn. */
-  setDelivery: (change: {
+  changeInputDelivery: (change: {
     inputId: string
     delivery: WaitingInput['delivery']
   }) => Promise<void>
@@ -1239,7 +1242,7 @@ export function createSessionView(source: SessionViewSource) {
         const [name = '', ...rest] = line.slice(1).split(' ')
         const input = rest.join(' ').trim()
         settle(
-          source.command({ name, input: input === '' ? undefined : input }),
+          source.runCommand({ name, input: input === '' ? undefined : input }),
         )
         return
       }
@@ -1262,23 +1265,29 @@ export function createSessionView(source: SessionViewSource) {
       const message = userInput(line, attachments)
       await act(() => receiptOf(source.send(message, { mode: 'followUp' })))
     },
-    continue: async () => {
+    continueWithoutMessage: async () => {
       alive()
-      settle(source.continue ? source.continue() : missing('continue'))
+      settle(
+        source.continueWithoutMessage
+          ? source.continueWithoutMessage()
+          : missing('continue'),
+      )
     },
     putMedia: (file) => {
       alive()
       if (source.putMedia) return source.putMedia(file)
       return Promise.reject(new Error('This view source cannot store media.'))
     },
-    command: async (options) => {
+    runCommand: async (options) => {
       alive()
-      settle(source.command(options))
+      settle(source.runCommand(options))
     },
-    setConfig: (change) => act(() => source.setConfig(change)),
-    configure: (options) =>
+    setPluginSetting: (change) => act(() => source.setPluginSetting(change)),
+    updateThreadSettings: (options) =>
       act(() =>
-        source.configure ? source.configure(options) : missing('configure'),
+        source.updateThreadSettings
+          ? source.updateThreadSettings(options)
+          : missing('configure'),
       ),
     cancel: (options) => act(() => source.cancel(options)),
     cancelInput: ({ inputId }) =>
@@ -1287,10 +1296,10 @@ export function createSessionView(source: SessionViewSource) {
           ? source.cancelInput({ inputId })
           : missing('cancel inputs'),
       ),
-    setDelivery: (change) =>
+    changeInputDelivery: (change) =>
       act(() =>
-        source.setDelivery
-          ? source.setDelivery(change)
+        source.changeInputDelivery
+          ? source.changeInputDelivery(change)
           : missing('move inputs'),
       ),
     reset: (options) =>

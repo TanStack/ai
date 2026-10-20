@@ -859,7 +859,7 @@ export function permissions(
             run: async (input: unknown) => {
               const next = typeof input === 'string' ? input.trim() : ''
               if (!next) return `Mode: ${mode()}.`
-              const receipt = await ctx.session.setConfig({
+              const receipt = await ctx.session.setPluginSetting({
                 key: 'mode',
                 value: next,
               })

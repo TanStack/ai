@@ -122,7 +122,7 @@ function authRequired(events: ReadonlyArray<SessionEvent>) {
 
 /** Start `/connect acme`, and answer its question with `answer`. */
 async function connectWith(session: HarnessSession, answer: string) {
-  const result = session.command({ name: 'connect:acme' })
+  const result = session.runCommand({ name: 'connect:acme' })
   await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
   const [question] = questionsOf(session.snapshot())
   const receipt = await session.answer({
@@ -180,7 +180,7 @@ describe('a keyed main adapter', () => {
       ],
     })
     await saveKey(SAVED_KEY)
-    await session.command({ name: 'model', input: 'acme' })
+    await session.runCommand({ name: 'model', input: 'acme' })
     expect(await session.send('hi')).toEqual({
       text: 'keyed answer',
       media: [],
@@ -244,7 +244,7 @@ describe('compact with a keyed adapter', () => {
     await saveKey(SAVED_KEY)
     await session.send('first')
     await session.send('second')
-    expect(await session.command({ name: 'compact' })).toBe(
+    expect(await session.runCommand({ name: 'compact' })).toBe(
       'Compacted 4 messages into a summary.',
     )
     expect(summarizer.keys).toEqual([SAVED_KEY])
@@ -272,7 +272,7 @@ describe('providerKeys', () => {
       type: 'api_key',
       value: PASTED_KEY,
     })
-    expect(await session.command({ name: 'keys' })).toContain(
+    expect(await session.runCommand({ name: 'keys' })).toContain(
       'Acme: connected (key ...5678)',
     )
     await close()
@@ -318,7 +318,7 @@ describe('providerKeys', () => {
       adapter: mockAdapter([]).adapter,
       plugins: [plugin()],
     })
-    const connecting = session.command({ name: 'connect:acme' })
+    const connecting = session.runCommand({ name: 'connect:acme' })
     await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
     const [question] = questionsOf(session.snapshot())
     await connecting.cancel()
@@ -338,11 +338,11 @@ describe('providerKeys', () => {
       plugins: [plugin()],
     })
     await saveKey(SAVED_KEY)
-    expect(await session.command({ name: 'disconnect:acme' })).toBe(
+    expect(await session.runCommand({ name: 'disconnect:acme' })).toBe(
       'Disconnected from Acme.',
     )
     expect(await credentials.get({ scope: USER, id: 'acme' })).toBeNull()
-    expect(await session.command({ name: 'keys' })).toContain(
+    expect(await session.runCommand({ name: 'keys' })).toContain(
       'Acme: missing. Run /connect acme.',
     )
     await close()
@@ -383,7 +383,7 @@ describe('providerKeys', () => {
       adapter: mockAdapter([]).adapter,
       plugins: [providerKeys({ providers: [{ ...acme, signIn }] })],
     })
-    expect(await session.command({ name: 'connect:acme' })).toBe(
+    expect(await session.runCommand({ name: 'connect:acme' })).toBe(
       'Connected to Acme (key ...9876).',
     )
     expect(authRequired(events)).toEqual([
@@ -409,7 +409,7 @@ describe('providerKeys', () => {
         { id: 'gamma', label: 'Gamma', state: 'missing' },
       ],
     })
-    expect(await session.command({ name: 'keys' })).toBe(
+    expect(await session.runCommand({ name: 'keys' })).toBe(
       [
         'Acme: missing. Run /connect acme.',
         'Beta: from the BETA_TEST_KEY env var',
@@ -425,7 +425,7 @@ describe('providerKeys', () => {
         { id: 'gamma', label: 'Gamma', state: 'missing' },
       ],
     })
-    expect(await session.command({ name: 'keys' })).toContain(
+    expect(await session.runCommand({ name: 'keys' })).toContain(
       'Acme: connected (key ...5678)',
     )
     await close()
@@ -446,7 +446,7 @@ describe('providerKeys', () => {
         { id: 'gamma', label: 'Gamma', state: 'missing' },
       ],
     })
-    expect(await session.command({ name: 'keys' })).toContain(
+    expect(await session.runCommand({ name: 'keys' })).toContain(
       'Beta: missing. Run /connect beta.',
     )
     await close()
@@ -457,7 +457,7 @@ describe('providerKeys', () => {
       adapter: mockAdapter([]).adapter,
       plugins: [plugin()],
     })
-    const connecting = session.command({ name: 'connect:acme' })
+    const connecting = session.runCommand({ name: 'connect:acme' })
     await waitFor(() =>
       expect(questionsOf(session.snapshot())).toMatchObject([
         { message: 'Paste your Acme API key', secret: true },
@@ -482,7 +482,7 @@ describe('providerKeys', () => {
     const { result } = await connectWith(session, PASTED_KEY)
     const results = [
       result,
-      await session.command({ name: 'keys' }),
+      await session.runCommand({ name: 'keys' }),
       await session.send('hi'),
     ]
     expect(keyed.keys).toEqual([PASTED_KEY])

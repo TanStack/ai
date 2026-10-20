@@ -52,7 +52,7 @@ export function title(options: {
         { run }: HarnessRunContext,
       ) => {
         const first = messages.find((message) => message.role === 'user')
-        const entry = await ctx.session.entry()
+        const entry = await ctx.session.indexEntry()
         // No sessions store, or the session has a title (also after a restart).
         if (!first || !entry || entry.title) return
         // ponytail: the first 2000 characters are enough for a title.
@@ -68,7 +68,7 @@ export function title(options: {
           },
         })
         const text = cleanTitle(answer.text)
-        if (text) await ctx.session.updateEntry({ title: text })
+        if (text) await ctx.session.updateIndexEntry({ title: text })
       }
       return {
         middleware: [

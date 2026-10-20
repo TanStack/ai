@@ -109,7 +109,7 @@ export interface PluginSessionApi<TMetadata = Record<string, unknown>> {
    * The session index entry of this thread. `undefined` when the host has
    * no `stores.sessions`, or the thread has no entry.
    */
-  entry: () => Promise<SessionIndexEntry<TMetadata> | undefined>
+  indexEntry: () => Promise<SessionIndexEntry<TMetadata> | undefined>
   /**
    * Change the session index entry of this thread. Each field you pass
    * replaces the stored one. Pass a function of the current entry to change
@@ -121,10 +121,10 @@ export interface PluginSessionApi<TMetadata = Record<string, unknown>> {
    *
    * @example
    * ```ts
-   * await ctx.session.updateEntry({ title: 'Fix the login bug' })
+   * await ctx.session.updateIndexEntry({ title: 'Fix the login bug' })
    * ```
    */
-  updateEntry: (
+  updateIndexEntry: (
     update: SessionEntryUpdate<
       TMetadata,
       Omit<SessionEntryChange<TMetadata>, 'pinned'> &
@@ -165,13 +165,16 @@ export interface PluginSessionApi<TMetadata = Record<string, unknown>> {
     expiresAt?: number
   }) => void
   /** Change a session setting, the same as a client. Applies at the next turn. */
-  setConfig: (change: { key: string; value: unknown }) => Promise<Receipt>
+  setPluginSetting: (change: {
+    key: string
+    value: unknown
+  }) => Promise<Receipt>
   /**
-   * The stored settings of the thread (`session.configure`). Read them at
+   * The stored settings of the thread (`session.updateThreadSettings`). Read them at
    * each call, for example the working folder `cwd`: a change applies from
    * the next turn.
    */
-  settings: () => ThreadSettings
+  threadSettings: () => ThreadSettings
 }
 
 /** What a command handler receives besides its input. */

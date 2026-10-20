@@ -69,7 +69,7 @@ describe('the log of a session tree', () => {
       { type: 'app.child_linked', child: 'task-1' },
     ]
 
-    await root.append({ records: pair })
+    await root.appendRecords({ records: pair })
     // The append is an input, so the log has its input records too. The app
     // records are in one store append.
     const appTypes = async () =>
@@ -86,7 +86,9 @@ describe('the log of a session tree', () => {
     log.append = async () => {
       throw new Error('store down')
     }
-    await expect(root.append({ records: pair })).rejects.toThrow('store down')
+    await expect(root.appendRecords({ records: pair })).rejects.toThrow(
+      'store down',
+    )
     log.append = original
     expect(await appTypes()).toEqual(['app.child_created', 'app.child_linked'])
     await host.close().catch(() => {})
@@ -97,15 +99,15 @@ describe('the log of a session tree', () => {
     const host = hostFor(persistence)
     const root = await host.open(tracked, { threadId: ROOT })
 
-    await root.append({
+    await root.appendRecords({
       records: [{ type: 'app.state_write', name: 'plan', value: 'a' }],
     })
-    await root.append({
+    await root.appendRecords({
       records: [
         { type: 'app.state_write', thread: 'task-1', name: 'plan', value: 'b' },
       ],
     })
-    await root.append({
+    await root.appendRecords({
       records: [{ type: 'app.state_write', name: 'done', value: true }],
     })
 
@@ -128,7 +130,7 @@ describe('the log of a session tree', () => {
   it('gives undefined from session.logState() for a harness without reduce', async () => {
     const host = hostFor(durablePersistence())
     const root = await host.open(plain, { threadId: ROOT })
-    await root.append({
+    await root.appendRecords({
       records: [{ type: 'app.state_write', name: 'plan', value: 'a' }],
     })
 
@@ -169,7 +171,7 @@ describe('the log of a session tree', () => {
       },
     })
     const root = await host.open(harness, { threadId: ROOT })
-    await root.append({
+    await root.appendRecords({
       records: [
         { type: 'app.signal', thread: 'task-1', text: 'for the child' },
         { type: 'app.signal', text: 'for the root' },
@@ -186,7 +188,7 @@ describe('the log of a session tree', () => {
     const persistence = durablePersistence()
     const host = hostFor(persistence)
     const root = await host.open(plain, { threadId: ROOT })
-    await root.append({ records: [{ type: 'app.signal' }] })
+    await root.appendRecords({ records: [{ type: 'app.signal' }] })
 
     // The session has no work, so the host gave the log up. Another host
     // takes it and writes.
@@ -199,7 +201,7 @@ describe('the log of a session tree', () => {
     expect(host.isOpen(plain, { threadId: ROOT })).toBe(true)
     // The next write acquires the log again, after the record of the other
     // host.
-    await root.append({ records: [{ type: 'app.root' }] })
+    await root.appendRecords({ records: [{ type: 'app.root' }] })
     const records = await persistence.stores.log.read({ logId: STORE_LOG })
     const types = records
       .map((entry) => entry.record.type)
@@ -213,7 +215,7 @@ describe('the log of a session tree', () => {
     const root = await host.open(plain, { threadId: ROOT })
 
     await expect(
-      root.append({ records: [{ type: 'app.signal', thread: 7 }] }),
+      root.appendRecords({ records: [{ type: 'app.signal', thread: 7 }] }),
     ).rejects.toThrow('thread')
     await host.close()
   })

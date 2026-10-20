@@ -278,7 +278,7 @@ const REOPENING_READS: ReadonlySet<PropertyKey> = new Set([
   'transcript',
   'agentTranscript',
   'logState',
-  'entry',
+  'indexEntry',
   'settled',
 ])
 
@@ -545,18 +545,21 @@ export function sessionHandle<THarness extends AnyHarness>({
       // through this handle too.
       operation: (id: string) => operationOf((target) => target.operation(id)),
       agentRun: (id: string) => operationOf((target) => target.agentRun(id)),
-      tool: (options: Parameters<Session<THarness>['tool']>[0]) =>
-        storingOperation('chat', (target) => target.tool(as(options))),
-      continue: (options?: Parameters<Session<THarness>['continue']>[0]) =>
+      runTool: (options: Parameters<Session<THarness>['runTool']>[0]) =>
+        storingOperation('chat', (target) => target.runTool(as(options))),
+      continueWithoutMessage: (
+        options?: Parameters<Session<THarness>['continueWithoutMessage']>[0],
+      ) =>
         storingOperation('chat', (target) =>
-          target.continue(as(options ?? {})),
+          target.continueWithoutMessage(as(options ?? {})),
         ),
-      command: (options: Parameters<Session<THarness>['command']>[0]) =>
-        storingOperation('command', (target) => target.command(as(options))),
+      runCommand: (options: Parameters<Session<THarness>['runCommand']>[0]) =>
+        storingOperation('command', (target) => target.runCommand(as(options))),
       reset: (options?: Parameters<Session<THarness>['reset']>[0]) =>
         storing('send', (target) => target.reset(as(options ?? {}))),
-      setDelivery: (options: Parameters<Session<THarness>['setDelivery']>[0]) =>
-        storing('send', (target) => target.setDelivery(as(options))),
+      changeInputDelivery: (
+        options: Parameters<Session<THarness>['changeInputDelivery']>[0],
+      ) => storing('send', (target) => target.changeInputDelivery(as(options))),
       resolve: (options: Parameters<Session<THarness>['resolve']>[0]) =>
         storing('answer', (target) => target.resolve(as(options))),
       resolveForRun: (
@@ -567,10 +570,16 @@ export function sessionHandle<THarness extends AnyHarness>({
       cancel,
       cancelInput: (options: Parameters<Session<THarness>['cancelInput']>[0]) =>
         storing('cancel', (target) => target.cancelInput(as(options))),
-      configure: (options: Parameters<Session<THarness>['configure']>[0]) =>
-        storing('configure', (target) => target.configure(as(options))),
-      setConfig: (options: Parameters<Session<THarness>['setConfig']>[0]) =>
-        storing('configure', (target) => target.setConfig(as(options))),
+      updateThreadSettings: (
+        options: Parameters<Session<THarness>['updateThreadSettings']>[0],
+      ) =>
+        storing('configure', (target) =>
+          target.updateThreadSettings(as(options)),
+        ),
+      setPluginSetting: (
+        options: Parameters<Session<THarness>['setPluginSetting']>[0],
+      ) =>
+        storing('configure', (target) => target.setPluginSetting(as(options))),
       agents,
       agent: (name: string) => {
         live('read')
@@ -582,15 +591,22 @@ export function sessionHandle<THarness extends AnyHarness>({
       revert: (options: Parameters<Session<THarness>['revert']>[0]) =>
         acting('send', (target) => target.revert(as(options))),
       unrevert: () => acting('send', (target) => target.unrevert()),
-      background: (options?: Parameters<Session<THarness>['background']>[0]) =>
-        acting('send', (target) => target.background(as(options ?? {}))),
-      append: (options: Parameters<Session<THarness>['append']>[0]) =>
-        acting('send', (target) => target.append(as(options))),
+      moveToolCallToBackground: (
+        options?: Parameters<Session<THarness>['moveToolCallToBackground']>[0],
+      ) =>
+        acting('send', (target) =>
+          target.moveToolCallToBackground(as(options ?? {})),
+        ),
+      appendRecords: (
+        options: Parameters<Session<THarness>['appendRecords']>[0],
+      ) => acting('send', (target) => target.appendRecords(as(options))),
       putMedia: (upload: Parameters<Session<THarness>['putMedia']>[0]) =>
         acting('send', (target) => target.putMedia(upload)),
-      updateEntry: (update: Parameters<Session<THarness>['updateEntry']>[0]) =>
-        acting('configure', (target) => target.updateEntry(update)),
-      reload: () => acting('configure', (target) => target.reload()),
+      updateIndexEntry: (
+        update: Parameters<Session<THarness>['updateIndexEntry']>[0],
+      ) => acting('configure', (target) => target.updateIndexEntry(update)),
+      reloadPlugins: () =>
+        acting('configure', (target) => target.reloadPlugins()),
       // A schedule needs the action of the input it runs later. An answer or
       // a cancel is checked with its run from the log, which must exist now.
       schedule: (options: Parameters<Session<THarness>['schedule']>[0]) =>

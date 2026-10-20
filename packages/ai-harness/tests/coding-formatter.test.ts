@@ -406,7 +406,7 @@ describe('formatter with a workspace for each thread', () => {
       { threadId: 't' },
     )
     // Not bypass: the rules check the formatter of the call before it runs.
-    await session.command({ name: 'mode', input: 'acceptEdits' })
+    await session.runCommand({ name: 'mode', input: 'acceptEdits' })
 
     await session.send('write it')
     expect(session.snapshot().pendingWaits).toEqual([])
@@ -502,7 +502,7 @@ describe('formatter with permissions()', () => {
         threadId: 't',
       },
     )
-    await session.command({ name: 'mode', input: mode })
+    await session.runCommand({ name: 'mode', input: mode })
     return { host, session, runs, calls, backend }
   }
 

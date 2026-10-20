@@ -97,7 +97,7 @@ export interface ObservedSession<THarness extends AnyHarness = AnyHarness> {
   /** The token usage of the thread, as `session.usage()` gives it. */
   usage: () => Promise<SessionUsage>
   /** The session index entry of the thread, or `undefined` when it has none. */
-  entry: () => Promise<
+  indexEntry: () => Promise<
     SessionIndexEntry<SessionMetadataOf<THarness>> | undefined
   >
   /**
@@ -328,7 +328,7 @@ export function observedSession<THarness extends AnyHarness>(
       if (session) return session.usage()
       return (await storedTotals()).usage
     },
-    async entry() {
+    async indexEntry() {
       check()
       // The schema checked the metadata on each write.
       return (await index.get({ tenantId, threadId })) as

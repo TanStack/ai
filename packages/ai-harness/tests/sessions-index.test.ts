@@ -472,7 +472,9 @@ describe('host.sessions', () => {
       threadId: 't1',
       user: { id: 'u1' },
     })
-    await session.configure({ settings: { instructions: 'Be brief.' } })
+    await session.updateThreadSettings({
+      settings: { instructions: 'Be brief.' },
+    })
     await session.send('first')
     await session.send('second')
     await host.sessions.rename({ threadId: 't1', title: 'Chat' })
@@ -520,7 +522,7 @@ describe('host.sessions', () => {
     ])
     for (const { threadId } of [before, through]) {
       const fork = await host.open(harness, { threadId })
-      expect(fork.settings()).toEqual({ instructions: 'Be brief.' })
+      expect(fork.threadSettings()).toEqual({ instructions: 'Be brief.' })
     }
     await host.close()
   })
@@ -528,7 +530,9 @@ describe('host.sessions', () => {
   it('forks before the first message into a thread with no messages, but with the settings', async () => {
     const { persistence, host, harness } = hostWith()
     const session = await host.open(harness, { threadId: 't1' })
-    await session.configure({ settings: { instructions: 'Be brief.' } })
+    await session.updateThreadSettings({
+      settings: { instructions: 'Be brief.' },
+    })
     await session.send('first')
     const [first] = await session.transcript()
 
@@ -544,7 +548,7 @@ describe('host.sessions', () => {
       [],
     )
     const forked = await host.open(harness, { threadId: fork.threadId })
-    expect(forked.settings()).toEqual({ instructions: 'Be brief.' })
+    expect(forked.threadSettings()).toEqual({ instructions: 'Be brief.' })
     await host.close()
   })
 
@@ -778,15 +782,15 @@ describe('child sessions', () => {
   })
 })
 
-describe('ctx.session.entry and updateEntry', () => {
+describe('ctx.session.indexEntry and updateIndexEntry', () => {
   it('reads and changes the entry of the thread of the plugin', async () => {
     const { host, api } = await openWithApi(memoryPersistence())
 
-    expect(await api.entry()).toMatchObject({
+    expect(await api.indexEntry()).toMatchObject({
       threadId: 'p1',
       harness: 'test/sessions-plugin',
     })
-    const changed = await api.updateEntry({
+    const changed = await api.updateIndexEntry({
       title: 'From a plugin',
       metadata: { model: 'm-1' },
     })
@@ -829,11 +833,11 @@ describe('ctx.session.entry and updateEntry', () => {
     const [api] = apis
     if (!api) throw new Error('The chips plugin was not set up.')
 
-    await api.updateEntry({ metadata: { chips: ['a.ts', 'b.ts'] } })
+    await api.updateIndexEntry({ metadata: { chips: ['a.ts', 'b.ts'] } })
 
-    expect((await api.entry())?.metadata?.chips).toEqual(['a.ts', 'b.ts'])
+    expect((await api.indexEntry())?.metadata?.chips).toEqual(['a.ts', 'b.ts'])
     await expect(
-      api.updateEntry((entry) => ({
+      api.updateIndexEntry((entry) => ({
         metadata: { chips: [...(entry.metadata?.chips ?? []), 'c.ts'] },
       })),
     ).rejects.toBeInstanceOf(SessionMetadataError)
@@ -870,7 +874,7 @@ describe('ctx.session.entry and updateEntry', () => {
     const [api] = apis
     if (!api) throw new Error('The chips plugin was not set up.')
 
-    await api.updateEntry((entry) => ({
+    await api.updateIndexEntry((entry) => ({
       metadata: { ...entry.metadata, chips: ['a.ts'] },
     }))
 
@@ -903,8 +907,8 @@ describe('ctx.session.entry and updateEntry', () => {
     expect(
       await host.sessions.rename({ threadId: 'p1', title: 'x' }),
     ).toBeUndefined()
-    expect(await api.entry()).toBeUndefined()
-    expect(await api.updateEntry({ title: 'x' })).toBeUndefined()
+    expect(await api.indexEntry()).toBeUndefined()
+    expect(await api.updateIndexEntry({ title: 'x' })).toBeUndefined()
     await host.close()
   })
 })

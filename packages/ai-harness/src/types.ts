@@ -276,7 +276,7 @@ export type HarnessInput = (
       parentRunId?: string
     }
   | { op: 'cancel'; operationId?: string }
-  /** Move a running tool call to the background. See `session.background`. */
+  /** Move a running tool call to the background. See `session.moveToolCallToBackground`. */
   | { op: 'background'; toolCallId?: string }
   | { op: 'cancelInput'; inputId: string }
   | {
@@ -291,9 +291,9 @@ export type HarnessInput = (
    */
   | { op: 'answer'; questionId: string; value: unknown }
   | { op: 'config'; key: string; value: unknown }
-  /** Run one tool in `expose.tools` with no model. See `session.tool`. */
+  /** Run one tool in `expose.tools` with no model. See `session.runTool`. */
   | { op: 'tool'; name: string; args?: unknown; meta?: Record<string, unknown> }
-  /** Add host records of the types in `expose.records`. See `session.append`. */
+  /** Add host records of the types in `expose.records`. See `session.appendRecords`. */
   | { op: 'append'; records: Array<LogRecord> }
   | { op: 'configure'; settings: ThreadSettingsChange }
   | { op: 'reset'; note?: string }
@@ -322,7 +322,7 @@ export type OfferedHarnessInput =
   | (Extract<HarnessInput, { op: 'answer' }> & { ref?: string })
 
 /**
- * An input that waits to run. `session.inputs()` lists them. Change one with
+ * An input that waits to run. `session.waitingInputs()` lists them. Change one with
  * the `cancelInput` and `setDelivery` inputs.
  */
 export interface WaitingInput {
@@ -436,13 +436,13 @@ export interface CancelOptions {
   operationId?: string
 }
 
-/** What `command` takes: the plugin command `name`, and its `input`. */
+/** What `runCommand` takes: the plugin command `name`, and its `input`. */
 export interface CommandOptions {
   name: string
   input?: unknown
 }
 
-/** What `configure` takes: the change to the stored settings of the thread. */
+/** What `updateThreadSettings` takes: the change to the stored settings of the thread. */
 export interface ConfigureOptions {
   settings: ThreadSettingsChange
   /** An id you choose: a second call with the same id is a duplicate. */
@@ -837,12 +837,12 @@ export const HARNESS_EVENTS = {
   operationFinished: 'harness.operation.finished',
   operationResumed: 'harness.operation.resumed',
   configChanged: 'harness.config.changed',
-  /** `session.configure` changed the settings. The value has `settings`. */
+  /** `session.updateThreadSettings` changed the settings. The value has `settings`. */
   settingsChanged: 'harness.settings.changed',
   /** A plugin added or removed a command with `ctx.commands`. */
   commandsChanged: 'harness.commands.changed',
   /**
-   * `session.reload()` set the plugins up again. The value is empty, or has
+   * `session.reloadPlugins()` set the plugins up again. The value is empty, or has
    * the `error` message when the new setup failed. Read the commands, the
    * config, and the agents again.
    */

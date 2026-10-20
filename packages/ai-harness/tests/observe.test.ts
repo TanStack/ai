@@ -102,7 +102,7 @@ describe('host.observe of an idle thread', () => {
     const view = await host.observe(harness, { threadId: THREAD })
     const transcript = await view.transcript()
     const snapshot = await view.snapshot()
-    const entry = await view.entry()
+    const entry = await view.indexEntry()
 
     expect(transcript.map((message) => message.content)).toEqual([
       'Hello.',

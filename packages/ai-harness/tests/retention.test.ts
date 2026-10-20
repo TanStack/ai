@@ -76,7 +76,9 @@ describe('retention', () => {
     for (let index = 0; index < 10; index += 1) {
       // Nothing runs, so each cancel is refused.
       await session.cancel()
-      await session.configure({ settings: { instructions: `Rule ${index}.` } })
+      await session.updateThreadSettings({
+        settings: { instructions: `Rule ${index}.` },
+      })
     }
 
     const again = session.send('Hi', { inputId: 't-0' })

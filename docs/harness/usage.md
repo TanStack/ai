@@ -204,7 +204,7 @@ export const priced = defineHarness({
 })
 ```
 
-`session.command({ name: 'usage' })` reads `session.usage()` and shows the total. When the thread used more than one model, it also shows a line for each model:
+`session.runCommand({ name: 'usage' })` reads `session.usage()` and shows the total. When the thread used more than one model, it also shows a line for each model:
 
 ```text
 3 model calls, 41200 input tokens (30000 cache read, 0 cache write), 2100 output tokens, 43300 total. Cost: $0.0432.

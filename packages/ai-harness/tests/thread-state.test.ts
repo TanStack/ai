@@ -128,10 +128,10 @@ describe('thread state in the log', () => {
     const shared = sharedStores()
     const config = { models: { strong: mockAdapter([]).adapter } }
     const first = await openOn(shared, config)
-    await first.session.configure({
+    await first.session.updateThreadSettings({
       settings: { model: 'strong', instructions: 'Answer in French.' },
     })
-    const refused = await first.session.configure({
+    const refused = await first.session.updateThreadSettings({
       settings: { model: 'missing' },
     })
     expect(refused).toMatchObject({ status: 'rejected' })
@@ -139,7 +139,7 @@ describe('thread state in the log', () => {
 
     const second = await openOn(shared, config)
 
-    expect(second.session.settings()).toEqual({
+    expect(second.session.threadSettings()).toEqual({
       model: 'strong',
       instructions: 'Answer in French.',
     })
@@ -151,12 +151,12 @@ describe('thread state in the log', () => {
     const shared = sharedStores()
     const config = { plugins: () => [level] }
     const first = await openOn(shared, config)
-    await first.session.setConfig({ key: 'level', value: 'high' })
+    await first.session.setPluginSetting({ key: 'level', value: 'high' })
     await first.host.close()
 
     const second = await openOn(shared, config)
 
-    expect(second.session.config().level?.value).toBe('high')
+    expect(second.session.pluginSettings().level?.value).toBe('high')
     expect(shared.written).toEqual([])
     await second.host.close()
   })
@@ -165,8 +165,8 @@ describe('thread state in the log', () => {
     const shared = sharedStores()
     const config = { plugins: () => [counter] }
     const first = await openOn(shared, config)
-    expect(await first.session.command({ name: 'bump' })).toBe(1)
-    expect(await first.session.command({ name: 'bump' })).toBe(2)
+    expect(await first.session.runCommand({ name: 'bump' })).toBe(1)
+    expect(await first.session.runCommand({ name: 'bump' })).toBe(2)
     await first.host.close()
 
     const second = await openOn(shared, config)
@@ -174,7 +174,7 @@ describe('thread state in the log', () => {
     expect(second.session.snapshot().plugins).toEqual({
       'test/counter': { count: 2, label: 'none' },
     })
-    expect(await second.session.command({ name: 'bump' })).toBe(3)
+    expect(await second.session.runCommand({ name: 'bump' })).toBe(3)
     expect(shared.written).toEqual([])
     await second.host.close()
   })

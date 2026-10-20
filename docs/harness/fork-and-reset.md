@@ -48,7 +48,7 @@ export async function branch(threadId: string, messageId: string) {
 The fork copies:
 
 - The transcript, up to and including the message `at`.
-- The [stored settings](./thread-settings) of the thread, and the values that `setConfig` stored for its plugins.
+- The [stored settings](./thread-settings) of the thread, and the values that `setPluginSetting` stored for its plugins.
 - The media that the copied messages use. The copies get new ids.
 
 The fork does not copy plugin state, pending interrupts, queued inputs, running work, or [usage totals](./usage). If `newThreadId` already has messages, `host.fork` throws. It also throws for an `at` that the thread does not have.

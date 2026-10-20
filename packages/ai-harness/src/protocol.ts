@@ -385,7 +385,9 @@ export async function applyInput({
     case 'continue': {
       const ephemeral = await checkedEphemeral(input.ephemeral, media)
       if ('refused' in ephemeral) return refused(ephemeral.refused)
-      return turnReceipt(session.continue({ ...ephemeral.options, ...sent }))
+      return turnReceipt(
+        session.continueWithoutMessage({ ...ephemeral.options, ...sent }),
+      )
     }
     case 'steer':
     case 'followUp': {
@@ -402,13 +404,13 @@ export async function applyInput({
     // It runs no new code, so it needs no `expose` entry, like `cancel`. It
     // stores no input, so there is no sender to keep.
     case 'background':
-      return session.background(
+      return session.moveToolCallToBackground(
         input.toolCallId !== undefined ? { toolCallId: input.toolCallId } : {},
       )
     case 'cancelInput':
       return session.cancelInput({ inputId: input.inputId, ...asUser })
     case 'setDelivery':
-      return session.setDelivery({
+      return session.changeInputDelivery({
         inputId: input.inputId,
         delivery: input.delivery,
         ...asUser,
@@ -420,7 +422,7 @@ export async function applyInput({
       }
       // The client's id makes a resent command a duplicate, so it runs once.
       const inputId = input.inputId ?? createInputId()
-      const operation = session.command({
+      const operation = session.runCommand({
         name: input.name,
         input: input.input,
         inputId,
@@ -444,7 +446,7 @@ export async function applyInput({
       if (!(harness.expose?.config ?? []).includes(input.key)) {
         return notExposed
       }
-      return session.setConfig({
+      return session.setPluginSetting({
         key: input.key,
         value: input.value,
         ...asUser,
@@ -454,7 +456,7 @@ export async function applyInput({
         return notExposed
       }
       return turnReceipt(
-        session.tool({
+        session.runTool({
           name: input.name,
           args: input.args,
           ...(input.meta ? { meta: input.meta } : {}),
@@ -472,7 +474,7 @@ export async function applyInput({
       // The client's id makes a resent append a duplicate that writes
       // nothing.
       try {
-        return await session.append({
+        return await session.appendRecords({
           records: input.records,
           ...(input.inputId !== undefined ? { inputId: input.inputId } : {}),
           ...asUser,
@@ -489,7 +491,7 @@ export async function applyInput({
         exposed.includes(key),
       )
       if (!isExposed) return notExposed
-      return session.configure({ settings: input.settings, ...id })
+      return session.updateThreadSettings({ settings: input.settings, ...id })
     }
     case 'reset':
       return session.reset({ note: input.note, ...id })

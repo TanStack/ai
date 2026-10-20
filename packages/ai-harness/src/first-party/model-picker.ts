@@ -58,7 +58,7 @@ export function modelPicker(options: {
               return `Model: ${String(ctx.config.get('model'))}. Choices: ${names.join(', ')}.`
             if (!names.includes(name))
               return `Unknown model "${name}". Choices: ${names.join(', ')}.`
-            await ctx.session.setConfig({ key: 'model', value: name })
+            await ctx.session.setPluginSetting({ key: 'model', value: name })
             return `Model: ${name}. It applies at the next turn.`
           },
         }),

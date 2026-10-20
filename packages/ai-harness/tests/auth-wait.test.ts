@@ -187,7 +187,7 @@ describe('require with wait', () => {
     expect(seenTokens).toEqual([])
 
     const ended = nextEnd(session)
-    await expect(session.command({ name: 'connect:github' })).resolves.toBe(
+    await expect(session.runCommand({ name: 'connect:github' })).resolves.toBe(
       'Connected to GitHub.',
     )
     expect(await ended).toMatchObject({ outcome: 'completed' })
@@ -228,7 +228,7 @@ describe('require with wait', () => {
       { reason: 'auth_required' },
     ])
     const ended = nextEnd(session)
-    await session.command({ name: 'connect:github' })
+    await session.runCommand({ name: 'connect:github' })
     expect(await ended).toMatchObject({ outcome: 'completed' })
     expect(seen).toEqual(['user-1-key'])
     await b.host.close()
@@ -301,7 +301,7 @@ describe('require with wait', () => {
     )
 
     // A credential saved later starts nothing.
-    await session.command({ name: 'connect:github' })
+    await session.runCommand({ name: 'connect:github' })
     expect(calls).toHaveLength(2)
     expect(seen).toEqual([])
     await host.close()
@@ -343,7 +343,7 @@ describe('require with wait', () => {
     )
     const turn = session.send('Work.')
     await started.opened
-    await session.command({ name: 'check' })
+    await session.runCommand({ name: 'check' })
     release.open()
     await turn
 
@@ -386,9 +386,9 @@ describe('sign-ins in a shared thread', () => {
     expect(turn.interrupts?.[0]?.reason).toBe('auth_required')
 
     // Saves for alice, while bob's turn waits for bob's sign-in.
-    await session.command({ name: 'note' })
+    await session.runCommand({ name: 'note' })
     expect(turnInterrupts(session.snapshot())).toHaveLength(1)
-    await session.command({ name: 'connect:github', user: alice })
+    await session.runCommand({ name: 'connect:github', user: alice })
 
     expect(seen).toEqual([])
     expect(calls).toHaveLength(1)
@@ -560,7 +560,7 @@ describe('sign-ins in a shared thread', () => {
       { reason: 'auth_required' },
     ])
     const ended = nextEnd(session)
-    await session.command({ name: 'connect:github' })
+    await session.runCommand({ name: 'connect:github' })
     expect(await ended).toMatchObject({ outcome: 'completed' })
     expect(seen).toEqual(['alice-key'])
     await b.host.close()

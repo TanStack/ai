@@ -96,7 +96,7 @@ async function stopDuringAgent(options: {
     .spyOn(log, 'append')
     .mockRejectedValue(new Error('the host is gone'))
   await expect(
-    sessionA.append({ records: [{ type: 'app.ping' }] }),
+    sessionA.appendRecords({ records: [{ type: 'app.ping' }] }),
   ).rejects.toThrow()
   await expect(operation).rejects.toThrow()
   refuse.mockRestore()
@@ -285,7 +285,7 @@ describe('the children of a run with resume: true', () => {
       .spyOn(log, 'append')
       .mockRejectedValue(new Error('the host is gone'))
     await expect(
-      sessionA.append({ records: [{ type: 'app.ping' }] }),
+      sessionA.appendRecords({ records: [{ type: 'app.ping' }] }),
     ).rejects.toThrow()
     refuse.mockRestore()
     const record = (await log.read({ logId: LOG }))

@@ -273,7 +273,7 @@ export abstract class SessionState<
         })),
         // A steer that waits to join the running turn waits too.
         queuedTurns: this.queue.length + this.steerQueue.length,
-        waitingInputs: this.inputs(),
+        waitingInputs: this.waitingInputs(),
         // The waits of the `harnessAgent` children of the runs: an answer
         // here goes to the child (see `resolve`). No turn of this session
         // holds them.
@@ -414,10 +414,10 @@ export abstract class SessionState<
    * this thread. Only a fork calls it: a transfer never moves them.
    */
   private async adoptSettings(source: SessionImpl): Promise<void> {
-    this.threadSettings = source.settings()
+    this.currentSettings = source.threadSettings()
     const records: Array<ThreadRecord> = []
-    if (Object.keys(this.threadSettings).length > 0) {
-      records.push({ type: 'harness.settings', settings: this.threadSettings })
+    if (Object.keys(this.currentSettings).length > 0) {
+      records.push({ type: 'harness.settings', settings: this.currentSettings })
     }
     for (const [key, value] of source.configValues) {
       if (!this.sessionPlugins?.config.has(key)) continue
@@ -490,7 +490,7 @@ export abstract class SessionState<
     user: HarnessUser | undefined,
     messages: ReadonlyArray<ModelMessage>,
   ): Promise<string> {
-    const named = this.threadSettings.model
+    const named = this.currentSettings.model
     const model =
       (named === undefined ? undefined : this.harness.models?.[named]) ??
       this.harness.adapter
@@ -540,7 +540,7 @@ export abstract class SessionState<
   // ===========================
 
   /** Every session setting, with its option and current value. */
-  config(): Record<
+  pluginSettings(): Record<
     string,
     { option: ConfigOption; value: unknown; owner: string }
   > {
@@ -564,7 +564,7 @@ export abstract class SessionState<
    * who changes it. Default: the user that opened the session. The log
    * keeps it.
    */
-  setConfig(options: {
+  setPluginSetting(options: {
     key: string
     value: unknown
     user?: HarnessUser
@@ -573,7 +573,7 @@ export abstract class SessionState<
   }
 
   /**
-   * `setConfig`, with `controlId`: the id of an offered input, so a replay
+   * `setPluginSetting`, with `controlId`: the id of an offered input, so a replay
    * is a duplicate.
    */
   protected override async applyConfig({
@@ -620,9 +620,9 @@ export abstract class SessionState<
     return { inputId, status: 'accepted' }
   }
 
-  /** The stored settings of this thread. See `configure`. */
-  settings(): ThreadSettings {
-    return structuredClone(this.threadSettings)
+  /** The stored settings of this thread. See `updateThreadSettings`. */
+  threadSettings(): ThreadSettings {
+    return structuredClone(this.currentSettings)
   }
 
   /**
@@ -637,12 +637,12 @@ export abstract class SessionState<
    *
    * @example
    * ```ts
-   * await session.configure({
+   * await session.updateThreadSettings({
    *   settings: { model: 'strong', instructions: 'Answer in French.' },
    * })
    * ```
    */
-  async configure(
+  async updateThreadSettings(
     options: ConfigureOptions & { user?: HarnessUser },
   ): Promise<Receipt> {
     const { settings } = options
@@ -667,7 +667,7 @@ export abstract class SessionState<
       return this.keep({ inputId, status: 'rejected', reason })
     }
     const movedFrom = current.cwd
-    this.threadSettings = next
+    this.currentSettings = next
     // Tell the model about a new folder, so it stops using the old paths.
     // A new thread gets no note: some providers refuse a conversation that
     // starts with an assistant message.
@@ -763,7 +763,7 @@ export abstract class SessionState<
    * harness `metadataSchema`. `undefined` without `stores.sessions`, or for
    * a thread with no entry.
    */
-  async entry(): Promise<
+  async indexEntry(): Promise<
     SessionIndexEntry<SessionMetadataOf<THarness>> | undefined
   > {
     // The schema checked the metadata on each write.
@@ -779,7 +779,7 @@ export abstract class SessionState<
    * `metadata`. Resolves to the changed entry, or `undefined` when there is
    * no entry.
    */
-  async updateEntry(
+  async updateIndexEntry(
     update: SessionEntryUpdate<SessionMetadataOf<THarness>>,
   ): Promise<SessionIndexEntry<SessionMetadataOf<THarness>> | undefined> {
     return (await this.index.update(this.indexKey, (entry) =>
@@ -1017,12 +1017,12 @@ export abstract class SessionState<
   describe() {
     return {
       commands: this.commands(),
-      config: Object.entries(this.config()).map(([key, entry]) => ({
+      config: Object.entries(this.pluginSettings()).map(([key, entry]) => ({
         key,
         ...entry,
       })),
       tools: this.inspect().tools,
-      settings: this.settings(),
+      settings: this.threadSettings(),
       models: Object.keys(this.harness.models ?? {}),
     } satisfies SessionDescription
   }
@@ -1575,11 +1575,11 @@ export abstract class SessionState<
    * @example
    * ```ts
    * const turn = session.send('Delete the old logs.')
-   * const wait = await session.waitFor({ runId: turn.id })
+   * const wait = await session.waitForRun({ runId: turn.id })
    * if (isApproval(wait)) console.log('Approve or reject:', wait.message)
    * ```
    */
-  waitFor({
+  waitForRun({
     runId,
     signal,
   }: { runId?: string; signal?: AbortSignal } = {}): Promise<Wait> {
@@ -1873,7 +1873,7 @@ export abstract class SessionState<
 
   /** Read the stored settings of this thread from the log. */
   protected loadSettings() {
-    this.threadSettings = this.settingsFromLog(this.threadSettings)
+    this.currentSettings = this.settingsFromLog(this.currentSettings)
   }
 
   /** The stored settings in the fold of the log, over `base`. */
@@ -1902,7 +1902,7 @@ export abstract class SessionState<
   protected syncFromLog() {
     // While the plugins mount (an open or a reload), the open reads them.
     if (!this.sessionPlugins) return
-    this.threadSettings = this.settingsFromLog()
+    this.currentSettings = this.settingsFromLog()
     this.configValues.clear()
     for (const [key, value] of this.configSnapshot()) {
       this.configValues.set(key, value)

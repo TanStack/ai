@@ -91,12 +91,12 @@ The `mode` setting decides how much runs without a question:
 Switch the mode from server code:
 
 ```ts group=harness-permissions
-await session.setConfig({ key: 'mode', value: 'plan' })
+await session.setPluginSetting({ key: 'mode', value: 'plan' })
 // Or run the command. It returns 'Mode: plan.'
-await session.command({ name: 'mode', input: 'plan' })
+await session.runCommand({ name: 'mode', input: 'plan' })
 ```
 
-`session.command({ name: 'mode' })` with no input shows the current mode. In `acceptEdits` mode, an edit outside `root` or of a `.env` file still asks.
+`session.runCommand({ name: 'mode' })` with no input shows the current mode. In `acceptEdits` mode, an edit outside `root` or of a `.env` file still asks.
 
 A mode change applies from the next turn. A turn that runs keeps the mode that it started with, so a switch to `bypass` does not change its later tool calls.
 
@@ -266,7 +266,7 @@ The plugin decides every call of a model message before any of them runs. Each c
 
 ### See and forget saved answers
 
-1. Run `session.command({ name: 'permissions' })`. The command lists the saved rules of the project:
+1. Run `session.runCommand({ name: 'permissions' })`. The command lists the saved rules of the project:
 
 ```text
 Saved rules:
@@ -274,7 +274,7 @@ Saved rules:
 2. read_file .env
 ```
 
-2. Run `session.command({ name: 'permissions', input: 'forget 2' })` to delete rule 2. The open session asks again at the next `read_file` call for `.env`.
+2. Run `session.runCommand({ name: 'permissions', input: 'forget 2' })` to delete rule 2. The open session asks again at the next `read_file` call for `.env`.
 
 A client can run the command only when `expose.commands` has `permissions`.
 

@@ -64,7 +64,7 @@ async function runCommand(
     outcome.ok
       ? show(outcome.value)
       : `/${name} failed: ${outcome.error instanceof Error ? outcome.error.message : String(outcome.error)}`
-  const operation = session.command({ name, input })
+  const operation = session.runCommand({ name, input })
   const settled = Promise.resolve(
     operation.then(
       (value) => ({ ok: true as const, value }),
@@ -75,7 +75,7 @@ async function runCommand(
   // and print its result when it is done.
   const stop = new AbortController()
   const asked = session
-    .waitFor({ runId: operation.id, signal: stop.signal })
+    .waitForRun({ runId: operation.id, signal: stop.signal })
     .then(
       () => true,
       () => false,
@@ -160,7 +160,7 @@ export async function handleLine(
     case 'config': {
       const [key = '', ...valueParts] = argText.split(' ')
       if (!key) {
-        const entries = Object.entries(session.config())
+        const entries = Object.entries(session.pluginSettings())
         return {
           type: 'notice',
           text:
@@ -174,7 +174,7 @@ export async function handleLine(
                   .join('\n'),
         }
       }
-      const receipt = await session.setConfig({
+      const receipt = await session.setPluginSetting({
         key,
         value: parseArg(valueParts.join(' ').trim()),
       })

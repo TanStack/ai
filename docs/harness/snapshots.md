@@ -50,9 +50,9 @@ const session = await host.open(coder, { threadId: 'fix-login' })
 ## 2. Undo and redo a turn
 
 1. Send a prompt that changes files: `await session.send('Fix the login form.')`.
-2. Run `await session.command({ name: 'undo' })`. It returns the number of files that it put back, for example `Undid the last turn. Files restored: 3.`
+2. Run `await session.runCommand({ name: 'undo' })`. It returns the number of files that it put back, for example `Undid the last turn. Files restored: 3.`
 3. Look at the files that the turn changed: they are as they were before the turn. The turn is gone from the conversation too.
-4. To bring back the files and the turn, run `await session.command({ name: 'redo' })`. It returns `Redid the last turn.`
+4. To bring back the files and the turn, run `await session.runCommand({ name: 'redo' })`. It returns `Redid the last turn.`
 
 In a terminal app, the user types `/undo` and `/redo`. See [Build a coding agent](./coding-agent).
 
@@ -67,7 +67,7 @@ When someone else edits the same files:
 - A step keeps only the files that its own run changed. So when another agent or session edits a file during the turn, `/undo` keeps that edit.
 - A `bash` command does not tell which files it changed. So its step keeps every file that changed while the command ran.
 
-In your own UI, add `expose: { commands: ['undo', 'redo'] }` to `defineHarness`. A client can run only the commands that the harness exposes. Then call `client.command({ name: 'undo' })`. The result text arrives as a `harness.command.result` event.
+In your own UI, add `expose: { commands: ['undo', 'redo'] }` to `defineHarness`. A client can run only the commands that the harness exposes. Then call `client.runCommand({ name: 'undo' })`. The result text arrives as a `harness.command.result` event.
 
 ## See what a step changed
 

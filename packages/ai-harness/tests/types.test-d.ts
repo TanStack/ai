@@ -160,7 +160,7 @@ const chipsPlugin = definePlugin({
   name: 'test/chips',
   metadataSchema: chipsSchema,
   setup: (ctx) => {
-    expectTypeOf(ctx.session.entry).returns.resolves.toEqualTypeOf<
+    expectTypeOf(ctx.session.indexEntry).returns.resolves.toEqualTypeOf<
       SessionIndexEntry<Chips> | undefined
     >()
   },
@@ -174,7 +174,7 @@ it('types the session metadata from the harness metadataSchema', () => {
     plugins: () => [chipsPlugin, untypedPlugin],
     turn: {
       beforeFinish: async ({ session: hooked }) => {
-        expectTypeOf(await hooked.entry()).toEqualTypeOf<
+        expectTypeOf(await hooked.indexEntry()).toEqualTypeOf<
           SessionIndexEntry<Chips> | undefined
         >()
         return undefined

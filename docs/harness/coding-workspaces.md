@@ -130,7 +130,7 @@ Two agents, or two sessions, can work in the same folder. No edit is lost:
 
 With `background: true`, `bash` returns at once with a job id like `bash-1`. Two limits keep jobs small:
 
-- At most 8 background jobs run at a time in a session. One more gives the model a tool error. Set another limit with `maxJobs`. A running command that `session.background()` moves counts too, and at the limit it does not move.
+- At most 8 background jobs run at a time in a session. One more gives the model a tool error. Set another limit with `maxJobs`. A running command that `session.moveToolCallToBackground()` moves counts too, and at the limit it does not move.
 - Each job keeps the newest 1 MiB of its output.
 
 When a job ends, the model gets a note, and the wake turn runs as the user whose run started the job.
@@ -150,7 +150,7 @@ export function listJobs(session: HarnessSession) {
 Each entry has:
 
 - `jobId` and `threadId`: the job, and the thread of the workspace that runs it.
-- `label`: the command, or the name of the tool that `session.background()` moved.
+- `label`: the command, or the name of the tool that `session.moveToolCallToBackground()` moved.
 - `user` and `startedAt`: who moved the call to the background, and when the job started.
 - `running`: `true` when this host runs the job. A job of another host, or one that a crash stopped, has `false`.
 - `backendId`: the id of the process in the workspace backend, when it has one.

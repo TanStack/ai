@@ -249,15 +249,15 @@ describe('codingAgents', () => {
     ])
     await session.send('a')
     await session.send('b')
-    expect(await session.command({ name: 'fresh', input: 'nope' })).toBe(
+    expect(await session.runCommand({ name: 'fresh', input: 'nope' })).toBe(
       'Unknown coding agent "nope". Agents: claude_code, codex.',
     )
-    expect(await session.command({ name: 'fresh', input: 'claude_code' })).toBe(
-      'claude_code starts a new session next time.',
-    )
+    expect(
+      await session.runCommand({ name: 'fresh', input: 'claude_code' }),
+    ).toBe('claude_code starts a new session next time.')
     await session.send('c')
     expect(claude.calls[1].modelOptions?.sessionId).toBeUndefined()
-    expect(await session.command({ name: 'fresh' })).toBe(
+    expect(await session.runCommand({ name: 'fresh' })).toBe(
       'Every coding agent starts a new session next time.',
     )
     await host.close()
@@ -367,7 +367,7 @@ describe('codingAgents', () => {
         },
       },
     })
-    await session.setConfig({ key: 'mode', value: 'plan' })
+    await session.setPluginSetting({ key: 'mode', value: 'plan' })
     await session.send('plan it')
     expect(claude.calls[0].modelOptions).toMatchObject({
       permissionMode: 'plan',

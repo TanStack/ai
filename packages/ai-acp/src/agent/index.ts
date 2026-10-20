@@ -644,7 +644,7 @@ export function createAcpAgent<U extends HarnessUser = HarnessUser>(
   }) => {
     while (!signal.aborted) {
       const wait = await session
-        .waitFor({ runId: operationId, signal })
+        .waitForRun({ runId: operationId, signal })
         .catch(() => undefined)
       if (!wait) return
       // A question that no turn holds takes an answer.

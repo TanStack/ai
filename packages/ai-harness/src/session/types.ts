@@ -281,7 +281,7 @@ export interface AgentRunInfo {
 
 /**
  * A background job that started and did not end, as `session.jobs()` lists
- * it: a `bash` job, or a call that `session.background()` moved.
+ * it: a `bash` job, or a call that `session.moveToolCallToBackground()` moved.
  */
 export interface JobInfo {
   jobId: string
@@ -319,7 +319,7 @@ export interface SessionSnapshot {
   }>
   queuedTurns: number
   /**
-   * The inputs that wait, in the order they run: `session.inputs()`. A
+   * The inputs that wait, in the order they run: `session.waitingInputs()`. A
    * session always sets it. A snapshot built by hand (a test fixture) can
    * leave it out.
    */
@@ -372,7 +372,7 @@ export interface SessionDescription {
     option: ConfigOption
   }>
   tools: SessionInspection['tools']
-  /** The stored settings of the thread (`session.configure`). */
+  /** The stored settings of the thread (`session.updateThreadSettings`). */
   settings?: ThreadSettings
   /** The names of `defineHarness({ models })`, for a model menu. */
   models?: Array<string>
@@ -496,7 +496,7 @@ export interface QueuedTurn {
   inputId?: string
   /** Per-run system/developer messages prepended ahead of harness prompts. */
   systemPreamble?: Array<string>
-  /** A `tool()`: its only model call asks for this tool. */
+  /** A `runTool()`: its only model call asks for this tool. */
   tool?: ToolTurn
   /** The settings of this one turn. The log keeps the JSON ones. */
   overrides?: TurnOverrides
@@ -515,7 +515,7 @@ export interface QueuedTurn {
   sentMessage?: UserInput
   /** A `reset()`: it adds its marker to the transcript and runs no model. */
   reset?: { note?: string }
-  /** A `continue()`: it runs only when the model can answer the transcript. */
+  /** A `continueWithoutMessage()`: it runs only when the model can answer the transcript. */
   isContinue?: boolean
   /**
    * `send(text, { as: 'operator' })`: `message` goes in the transcript as

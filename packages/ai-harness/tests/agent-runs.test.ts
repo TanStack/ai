@@ -802,14 +802,14 @@ function durable() {
     stores: { log, metadata: stores.metadata },
   }
   const stop = async (
-    session: Pick<HarnessSession, 'append'>,
+    session: Pick<HarnessSession, 'appendRecords'>,
     run: Operation<unknown>,
   ) => {
     const refuse = vi
       .spyOn(log, 'append')
       .mockRejectedValue(new Error('the host is gone'))
     await expect(
-      session.append({ records: [{ type: 'app.ping' }] }),
+      session.appendRecords({ records: [{ type: 'app.ping' }] }),
     ).rejects.toThrow()
     await expect(run).rejects.toThrow()
     refuse.mockRestore()

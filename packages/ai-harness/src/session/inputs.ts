@@ -278,12 +278,12 @@ export abstract class SessionInputs<
    *
    * @example
    * ```ts
-   * await session.append({
+   * await session.appendRecords({
    *   records: [{ type: 'app.signal', text: 'The build failed.' }],
    * })
    * ```
    */
-  async append({
+  async appendRecords({
     records,
     inputId = createInputId(),
     user,
@@ -323,11 +323,11 @@ export abstract class SessionInputs<
    *
    * @example
    * ```ts
-   * await session.background()
-   * await session.background({ toolCallId: 'call_1' })
+   * await session.moveToolCallToBackground()
+   * await session.moveToolCallToBackground({ toolCallId: 'call_1' })
    * ```
    */
-  async background({
+  async moveToolCallToBackground({
     toolCallId,
     user,
   }: {
@@ -349,18 +349,18 @@ export abstract class SessionInputs<
   /**
    * The inputs that wait, in the order they run: first the steers for the
    * running turn, then the queued turns. Change one with `cancelInput` or
-   * `setDelivery`.
+   * `changeInputDelivery`.
    *
    * @example
    * ```ts
-   * for (const input of session.inputs()) {
+   * for (const input of session.waitingInputs()) {
    *   if (input.delivery === 'queue') {
    *     await session.cancelInput({ inputId: input.inputId })
    *   }
    * }
    * ```
    */
-  inputs() {
+  waitingInputs() {
     const waiting: Array<WaitingInput> = []
     // A steer with an abort request never runs. It settles with the turn.
     for (const steer of this.steerQueue) {
@@ -557,7 +557,7 @@ export abstract class SessionInputs<
     return taken
   }
 
-  /** Take a queued `continue()` out of the queue, for `cancelInput`. */
+  /** Take a queued `continueWithoutMessage()` out of the queue, for `cancelInput`. */
   protected takeQueuedContinue(
     inputId: string,
   ): Pick<WaitingSteer, 'operation'> | undefined {
@@ -913,7 +913,7 @@ export abstract class SessionInputs<
         )
         return
       case 'continue':
-        ignore(session.continue({ ...sent, ...turn }))
+        ignore(session.continueWithoutMessage({ ...sent, ...turn }))
         return
       case 'steer':
         ignore(
@@ -943,7 +943,9 @@ export abstract class SessionInputs<
         ignore(session.reset({ note: input.note, ...sent }))
         return
       case 'configure':
-        ignore(session.configure({ settings: input.settings, ...sent }))
+        ignore(
+          session.updateThreadSettings({ settings: input.settings, ...sent }),
+        )
         return
       case 'agentMessage':
         ignore(
@@ -995,7 +997,7 @@ export abstract class SessionInputs<
         return
       case 'command':
         ignore(
-          session.command({
+          session.runCommand({
             name: input.name,
             input: input.input,
             inputId,
@@ -1026,7 +1028,7 @@ export abstract class SessionInputs<
         return
       case 'tool':
         ignore(
-          session.tool({
+          session.runTool({
             name: input.name,
             // Wire args are unknown here. The tool's input schema checks them.
             args: input.args as never,
@@ -1038,7 +1040,9 @@ export abstract class SessionInputs<
         return
       case 'append':
         // Only an append with an input id is an input that a host offers.
-        ignore(session.append({ records: input.records, inputId, ...asUser }))
+        ignore(
+          session.appendRecords({ records: input.records, inputId, ...asUser }),
+        )
         return
       case 'revert':
       case 'unrevert':

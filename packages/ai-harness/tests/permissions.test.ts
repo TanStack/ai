@@ -469,8 +469,8 @@ describe('permissions()', () => {
 
     const turn = session.send('list it')
     await started.opened
-    await session.setConfig({ key: 'mode', value: 'bypass' })
-    expect(session.config().mode?.value).toBe('bypass')
+    await session.setPluginSetting({ key: 'mode', value: 'bypass' })
+    expect(session.pluginSettings().mode?.value).toBe('bypass')
     release.open()
     // The running turn still has the default mode, so bash asks.
     await answer(session, { answer: 'once' })
@@ -671,7 +671,7 @@ describe('permissions()', () => {
     expect(decide?.('deploy', 'default')).toBe('ask')
 
     // Plan mode denies what would ask.
-    await session.command({ name: 'mode', input: 'plan' })
+    await session.runCommand({ name: 'mode', input: 'plan' })
     await session.send('again, in plan mode')
     expect(ran).toEqual(['lookup', 'lookup'])
     expect(JSON.stringify(calls.at(-1).messages)).toContain(
@@ -888,20 +888,20 @@ describe('permissions()', () => {
       [],
     )
 
-    expect(await session.command({ name: 'permissions' })).toBe(
+    expect(await session.runCommand({ name: 'permissions' })).toBe(
       'Saved rules:\n1. bash git status\n2. deploy',
     )
     expect(
-      await session.command({ name: 'permissions', input: 'forget 3' }),
+      await session.runCommand({ name: 'permissions', input: 'forget 3' }),
     ).toBe('No saved rule 3. Run /permissions to see the list.')
     expect(
-      await session.command({ name: 'permissions', input: 'forget 1' }),
+      await session.runCommand({ name: 'permissions', input: 'forget 1' }),
     ).toBe('Forgot rule 1: bash git status.')
     expect(await listSavedPermissions(persistence.stores, ROOT)).toEqual([
       { tool: 'deploy', decision: 'allow' },
     ])
-    await session.command({ name: 'permissions', input: 'forget 1' })
-    expect(await session.command({ name: 'permissions' })).toBe(
+    await session.runCommand({ name: 'permissions', input: 'forget 1' })
+    expect(await session.runCommand({ name: 'permissions' })).toBe(
       'No saved rules.',
     )
     await host.close()
@@ -923,7 +923,7 @@ describe('permissions()', () => {
     await answer(session, { answer: 'always' })
     await first
     expect(
-      await session.command({ name: 'permissions', input: 'forget 1' }),
+      await session.runCommand({ name: 'permissions', input: 'forget 1' }),
     ).toBe('Forgot rule 1: bash git status.')
 
     const second = session.send('run it again')
@@ -996,7 +996,7 @@ describe('permissions()', () => {
         () => text('done'),
       ],
     )
-    await session.command({ name: 'mode', input: 'acceptEdits' })
+    await session.runCommand({ name: 'mode', input: 'acceptEdits' })
 
     // A user rule allows biome. prettier asks, also in acceptEdits mode,
     // before the call runs: one approval for the call and its formatter.

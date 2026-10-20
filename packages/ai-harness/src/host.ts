@@ -840,7 +840,7 @@ export interface HarnessHost<U extends HarnessUser = HarnessUser> {
     options: ResumePendingOptions,
   ) => Promise<Array<ResumedThread>>
   /**
-   * Run `session.recover()` on the open sessions of `threadId`, or on every
+   * Run `session.recoverPendingWork()` on the open sessions of `threadId`, or on every
    * open session without it. Work that another host ran when its session
    * opened runs here once that host's ownership of the log expires.
    *
@@ -851,7 +851,7 @@ export interface HarnessHost<U extends HarnessUser = HarnessUser> {
    */
   recover: (threadId?: string) => Promise<void>
   /**
-   * Run `session.reload()` on every open session of `harness`. Rejects when
+   * Run `session.reloadPlugins()` on every open session of `harness`. Rejects when
    * one of them fails. The other sessions still reload.
    *
    * @example
@@ -3202,7 +3202,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
         opened.flatMap((entry) =>
           entry.status === 'fulfilled' &&
           (threadId === undefined || entry.value.threadId === threadId)
-            ? [entry.value.recover()]
+            ? [entry.value.recoverPendingWork()]
             : [],
         ),
       )
@@ -3216,7 +3216,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
       )
       const results = await Promise.allSettled(
         opened.flatMap((entry) =>
-          entry.status === 'fulfilled' ? [entry.value.reload()] : [],
+          entry.status === 'fulfilled' ? [entry.value.reloadPlugins()] : [],
         ),
       )
       for (const result of results) {

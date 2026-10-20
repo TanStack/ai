@@ -117,7 +117,7 @@ describe('agents', () => {
       agents({ adapter: () => adapter }),
     ])
 
-    expect(await session.command({ name: 'agent' })).toBe(
+    expect(await session.runCommand({ name: 'agent' })).toBe(
       'Agent: build. Agents: build, plan.',
     )
     await session.send('hi')
@@ -142,7 +142,7 @@ describe('agents', () => {
     ])
 
     await session.send('build it')
-    expect(await session.command({ name: 'agent', input: 'plan' })).toBe(
+    expect(await session.runCommand({ name: 'agent', input: 'plan' })).toBe(
       'Agent: plan. It applies at the next turn.',
     )
     await session.send('plan it')
@@ -156,7 +156,7 @@ describe('agents', () => {
     expect(toolNames(calls[1])).toEqual(['read_file'])
     expect(promptsOf(calls[1])).toContain('You are the plan agent.')
     expect(promptsOf(calls[1])).not.toContain('You are the build agent.')
-    expect(await session.command({ name: 'agent', input: 'nope' })).toBe(
+    expect(await session.runCommand({ name: 'agent', input: 'nope' })).toBe(
       'Unknown agent "nope". Agents: build, plan.',
     )
     await host.close()
@@ -169,11 +169,12 @@ describe('agents', () => {
     ])
 
     expect(
-      (await session.setConfig({ key: 'agent', value: 'plan' })).status,
+      (await session.setPluginSetting({ key: 'agent', value: 'plan' })).status,
     ).toBe('accepted')
     // A subagent is not a primary agent.
     expect(
-      (await session.setConfig({ key: 'agent', value: 'general' })).status,
+      (await session.setPluginSetting({ key: 'agent', value: 'general' }))
+        .status,
     ).toBe('rejected')
     await session.send('plan it')
 
@@ -202,7 +203,7 @@ describe('agents', () => {
       text: 'from main',
       media: [],
     })
-    await session.command({ name: 'agent', input: 'quick' })
+    await session.runCommand({ name: 'agent', input: 'quick' })
     expect(await session.send('two')).toEqual({
       text: 'from fast',
       media: [],
@@ -320,9 +321,9 @@ describe('agents', () => {
       agents({ adapter: () => adapter, agents: [careful] }),
     ])
 
-    await session.command({ name: 'agent', input: 'careful' })
+    await session.runCommand({ name: 'agent', input: 'careful' })
     await session.send('one')
-    await session.command({ name: 'agent', input: 'build' })
+    await session.runCommand({ name: 'agent', input: 'build' })
     await session.send('two')
 
     expect(toolNames(calls[0])).toEqual(['read_file', 'general', 'explore'])
@@ -353,7 +354,7 @@ describe('agents', () => {
 
     await session.send('one')
     expect(
-      await session.configure({
+      await session.updateThreadSettings({
         settings: { plugins: { remove: ['tanstack/agents'] } },
       }),
     ).toMatchObject({ status: 'accepted' })
@@ -366,7 +367,7 @@ describe('agents', () => {
       'agent',
     )
     await expect(
-      session.command({ name: 'agent', input: 'build' }),
+      session.runCommand({ name: 'agent', input: 'build' }),
     ).rejects.toThrow(/Unknown command: agent/)
     await host.close()
   })
@@ -383,10 +384,10 @@ describe('agents', () => {
       agents({ adapter: () => adapter, agents: [plan] }),
     ])
 
-    expect(await session.command({ name: 'agent' })).toBe(
+    expect(await session.runCommand({ name: 'agent' })).toBe(
       'Agent: build. Agents: build, plan.',
     )
-    await session.command({ name: 'agent', input: 'plan' })
+    await session.runCommand({ name: 'agent', input: 'plan' })
     await session.send('plan it')
 
     expect(toolNames(calls[0])).toEqual([
@@ -417,7 +418,7 @@ describe('agents', () => {
       }),
     ])
 
-    expect(await session.command({ name: 'agent' })).toBe(
+    expect(await session.runCommand({ name: 'agent' })).toBe(
       'Agent: solo. Agents: solo.',
     )
     await session.send('hi')
@@ -544,7 +545,7 @@ describe('agents from Markdown files', () => {
       }),
     ])
 
-    expect(await session.command({ name: 'agent' })).toBe(
+    expect(await session.runCommand({ name: 'agent' })).toBe(
       'Agent: build. Agents: build, plan, reviewer.',
     )
     await session.send('build it')
@@ -553,7 +554,7 @@ describe('agents from Markdown files', () => {
         (entry: { name: string }) => entry.name === 'reviewer',
       )?.description,
     ).toBe('Reviews code')
-    await session.command({ name: 'agent', input: 'reviewer' })
+    await session.runCommand({ name: 'agent', input: 'reviewer' })
     await session.send('review it')
 
     expect(toolNames(smart.calls[0])).toEqual(['read_file'])
@@ -565,19 +566,19 @@ describe('agents from Markdown files', () => {
     await host.close()
   })
 
-  it('reads the folder again on session.reload()', async () => {
+  it('reads the folder again on session.reloadPlugins()', async () => {
     const { adapter } = mockAdapter([])
     const { host, session } = await open(adapter, [
       agents({ adapter: () => adapter, dirs: [root] }),
     ])
-    expect(await session.command({ name: 'agent' })).toBe(
+    expect(await session.runCommand({ name: 'agent' })).toBe(
       'Agent: build. Agents: build, plan.',
     )
 
     await writeFile(join(root, 'writer.md'), 'You write docs.')
-    await session.reload()
+    await session.reloadPlugins()
 
-    expect(await session.command({ name: 'agent' })).toBe(
+    expect(await session.runCommand({ name: 'agent' })).toBe(
       'Agent: build. Agents: build, plan, writer.',
     )
     await host.close()

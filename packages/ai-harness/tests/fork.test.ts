@@ -181,10 +181,10 @@ describe('host.fork', () => {
     })
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const source = await host.open(harness, { threadId: SOURCE })
-    await source.configure({
+    await source.updateThreadSettings({
       settings: { model: 'main', instructions: 'Be brief.' },
     })
-    await source.setConfig({ key: 'tone', value: 'warm' })
+    await source.setPluginSetting({ key: 'tone', value: 'warm' })
     await source.send('Count.')
     await source.send('Deploy.')
     expect(turnInterrupts(source.snapshot())).toHaveLength(1)
@@ -194,11 +194,11 @@ describe('host.fork', () => {
       threadId: SOURCE,
       newThreadId: FORK,
     })
-    expect(fork.settings()).toEqual({
+    expect(fork.threadSettings()).toEqual({
       model: 'main',
       instructions: 'Be brief.',
     })
-    expect(fork.config().tone?.value).toBe('warm')
+    expect(fork.pluginSettings().tone?.value).toBe('warm')
     expect(fork.snapshot().plugins['test/counter']).toEqual({ count: 0 })
     expect(turnInterrupts(fork.snapshot())).toEqual([])
     await host.close()

@@ -87,7 +87,9 @@ describe('client reads and actions', () => {
   it('runs a command, answers its question, and changes a setting', async () => {
     const { host, client } = setup()
 
-    expect((await client.command({ name: 'confirm' })).status).toBe('accepted')
+    expect((await client.runCommand({ name: 'confirm' })).status).toBe(
+      'accepted',
+    )
     await vi.waitFor(async () =>
       expect(questionsOf(await client.snapshot())).toHaveLength(1),
     )
@@ -105,7 +107,7 @@ describe('client reads and actions', () => {
     )
 
     expect(
-      (await client.setConfig({ key: 'tone', value: 'warm' })).status,
+      (await client.setPluginSetting({ key: 'tone', value: 'warm' })).status,
     ).toBe('accepted')
     expect((await client.describe()).config[0]?.value).toBe('warm')
     await host.close()

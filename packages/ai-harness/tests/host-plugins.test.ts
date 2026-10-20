@@ -250,8 +250,8 @@ describe('lifetime host', () => {
     const first = await host.open(harness, { threadId: 'a' })
     const second = await host.open(harness, { threadId: 'b' })
 
-    await expect(first.command({ name: 'thread' })).resolves.toBe('a')
-    await expect(second.command({ name: 'thread' })).resolves.toBe('b')
+    await expect(first.runCommand({ name: 'thread' })).resolves.toBe('a')
+    await expect(second.runCommand({ name: 'thread' })).resolves.toBe('b')
     await first.close()
 
     expect(closed).toEqual(['a'])

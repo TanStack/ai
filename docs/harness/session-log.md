@@ -32,12 +32,12 @@ const assistant = defineHarness({
 const host = createHarnessHost({ persistence })
 const session = await host.open(assistant, { threadId: 'thread-1' })
 
-await session.append({ records: [{ type: 'app.signal', text: 'The build failed.' }] })
+await session.appendRecords({ records: [{ type: 'app.signal', text: 'The build failed.' }] })
 ```
 
-- A record is JSON with a `type`. Types that start with `harness.` belong to the harness, so `append` refuses them.
-- `append` resolves with a receipt when the records are in the log. When another host owns the thread, the receipt is `queued`, and the owner writes the records. See [One host drives a thread](./durable-sessions#one-host-drives-a-thread).
-- Pass `inputId` to make the append safe to send again: `session.append({ records, inputId: 'signal-7' })`. A second append with the same id writes nothing. Without `inputId`, the append gets a new id. The receipt has the id, as the log keeps it. `user` sets who appends. The default is the user who opened the session.
+- A record is JSON with a `type`. Types that start with `harness.` belong to the harness, so `appendRecords` refuses them.
+- `appendRecords` resolves with a receipt when the records are in the log. When another host owns the thread, the receipt is `queued`, and the owner writes the records. See [One host drives a thread](./durable-sessions#one-host-drives-a-thread).
+- Pass `inputId` to make the append safe to send again: `session.appendRecords({ records, inputId: 'signal-7' })`. A second append with the same id writes nothing. Without `inputId`, the append gets a new id. The receipt has the id, as the log keeps it. `user` sets who appends. The default is the user who opened the session.
 - A record can belong to a child thread of the same log. See [One log for a session tree](./shared-logs).
 - In a tool, use `append` from [`durableTool`](./durable-tools), so the records land with the tool batch.
 - A key or a token of the session in a record goes into the log as `[redacted]`. See [Keep tokens out of the log and the model](./auth#keep-tokens-out-of-the-log-and-the-model).
@@ -149,8 +149,8 @@ const client = createHarnessClient<typeof watcher>({
   headers: { authorization: 'Bearer my-token' },
 })
 
-await client.append({ records: [{ type: 'app.signal', text: 'The build failed.' }] })
-await client.continue()
+await client.appendRecords({ records: [{ type: 'app.signal', text: 'The build failed.' }] })
+await client.continueWithoutMessage()
 ```
 
 - A record of another type is refused with `not_exposed`. So is a record with a `thread` field: a client writes only to its own thread.

@@ -144,15 +144,15 @@ export const team = defineHarness({
 | Field | What a client can do |
 | --- | --- |
 | `agents` | Run these agents, for example with `client.agents.<name>.start(input)`. |
-| `settings` | Change these [thread settings](./thread-settings) with `client.configure({ settings })`. |
-| `config` | Set these plugin config keys with `client.setConfig({ key, value })`. |
-| `commands` | Run these commands with `client.command({ name })`, or with `/name` in a [session view](./custom-ui) on a client. |
-| `tools` | Run these harness tools with no model turn, with `client.tool({ name, args })`. See [Run a tool without a model](./tool-runs). |
-| `records` | Add records of these types to the thread with `client.append({ records })`. See [Let a client add records](./session-log#let-a-client-add-records). |
+| `settings` | Change these [thread settings](./thread-settings) with `client.updateThreadSettings({ settings })`. |
+| `config` | Set these plugin config keys with `client.setPluginSetting({ key, value })`. |
+| `commands` | Run these commands with `client.runCommand({ name })`, or with `/name` in a [session view](./custom-ui) on a client. |
+| `tools` | Run these harness tools with no model turn, with `client.runTool({ name, args })`. See [Run a tool without a model](./tool-runs). |
+| `records` | Add records of these types to the thread with `client.appendRecords({ records })`. See [Let a client add records](./session-log#let-a-client-add-records). |
 
 - Any other input of these kinds gets `{ status: 'rejected', reason: 'not_exposed' }`.
 - `GET describe` and `client.describe()` list only the exposed commands and config keys. A UI built from them shows only what a client can use.
-- Server code that calls the session is not limited. `session.setConfig()` and `session.command()` work for every key and command, and `session.describe()` lists all of them.
+- Server code that calls the session is not limited. `session.setPluginSetting()` and `session.runCommand()` work for every key and command, and `session.describe()` lists all of them.
 - `defineHarness` checks the names in `agents` and `tools`, and TypeScript suggests them. Plugins add their config keys and commands when a session opens, so it does not check those names.
 
 ## Talk to it from a web app

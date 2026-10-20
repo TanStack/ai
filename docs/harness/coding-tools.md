@@ -300,7 +300,7 @@ const repos = defineHarness({
 
 const host = createHarnessHost({ persistence: memoryPersistence() })
 const session = await host.open(repos, { threadId: 'fix-login' })
-await session.configure({ settings: { cwd: 'web-app' } })
+await session.updateThreadSettings({ settings: { cwd: 'web-app' } })
 ```
 
 - Relative paths start in `/srv/repos/web-app`, and `bash` runs there.

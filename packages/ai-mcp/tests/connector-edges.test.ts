@@ -434,7 +434,7 @@ describe('mcpConnector /connect', () => {
     const browser = approveSignIns(session, 'code-1')
     cleanups.push(browser.stop)
 
-    expect(await session.command({ name: 'connect:demo' })).toBe(
+    expect(await session.runCommand({ name: 'connect:demo' })).toBe(
       'Connected to Demo.',
     )
     expect(browser.authorizationUrls[0]?.searchParams.get('scope')).toBe('read')
@@ -477,7 +477,7 @@ describe('mcpConnector /connect', () => {
       const browser = approveSignIns(session, 'code-2')
       cleanups.push(browser.stop)
 
-      expect(await session.command({ name: 'connect:demo' })).toBe(
+      expect(await session.runCommand({ name: 'connect:demo' })).toBe(
         'Connected to Demo.',
       )
       expect(await credentials.get({ scope, id: 'demo' })).toEqual({
@@ -501,7 +501,7 @@ describe('mcpConnector /connect', () => {
     const session = await openDemo(host, server.url, model)
     const browser = approveSignIns(session, 'code-1')
     cleanups.push(browser.stop)
-    expect(await session.command({ name: 'connect:demo' })).toBe(
+    expect(await session.runCommand({ name: 'connect:demo' })).toBe(
       'Connected to Demo.',
     )
 
@@ -551,7 +551,7 @@ describe('mcpConnector /connect', () => {
       }),
       { threadId: 't', user: { id: 'user-1' } },
     )
-    const connecting = session.command({ name: 'connect:demo' })
+    const connecting = session.runCommand({ name: 'connect:demo' })
     await firstRequest
     await connecting.cancel()
     await expect(connecting).rejects.toBeDefined()
@@ -565,7 +565,7 @@ describe('mcpConnector /connect', () => {
     const session = await openDemo(host, server.url, recorder())
     const browser = approveSignIns(session, 'code-1', server.issuer)
     cleanups.push(browser.stop)
-    expect(await session.command({ name: 'connect:demo' })).toBe(
+    expect(await session.runCommand({ name: 'connect:demo' })).toBe(
       'Connected to Demo.',
     )
     expect(await credentials.get({ scope, id: 'demo' })).toMatchObject({
@@ -601,7 +601,7 @@ describe('mcpConnector /connect', () => {
       cleanups.push(browser.stop)
 
       await expect(
-        session.command({ name: 'connect:demo' }),
+        session.runCommand({ name: 'connect:demo' }),
       ).rejects.toMatchObject({
         code: 'invalid_grant',
       })
@@ -633,7 +633,7 @@ describe('mcpConnector stored credential shapes', () => {
     expect(model.toolNames(1)).toEqual(['demo_echo'])
 
     const fresh = await openDemo(host, server.url, recorder(), 't2')
-    expect(await fresh.command({ name: 'disconnect:demo' })).toBe(
+    expect(await fresh.runCommand({ name: 'disconnect:demo' })).toBe(
       'Disconnected from Demo.',
     )
     expect(await credentials.get({ scope, id: 'demo' })).toBeNull()

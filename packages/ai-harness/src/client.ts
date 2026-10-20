@@ -168,9 +168,9 @@ export interface HarnessClient<THarness extends AnyHarness> {
   send: (message: UserInput, options?: ClientSendOptions) => Promise<Receipt>
   /**
    * Start a turn from the stored transcript, with no new message. See
-   * `session.continue`.
+   * `session.continueWithoutMessage`.
    */
-  continue: (options?: {
+  continueWithoutMessage: (options?: {
     inputId?: string
     ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
   }) => Promise<Receipt>
@@ -211,7 +211,7 @@ export interface HarnessClient<THarness extends AnyHarness> {
    * Move an input that waits: `'steer'` joins the running turn, `'queue'`
    * runs it as its own turn later.
    */
-  setDelivery: (change: {
+  changeInputDelivery: (change: {
     inputId: string
     delivery: WaitingInput['delivery']
   }) => Promise<Receipt>
@@ -229,51 +229,54 @@ export interface HarnessClient<THarness extends AnyHarness> {
    *
    * @example
    * ```ts
-   * await client.command({ name: 'mode', input: 'plan' })
+   * await client.runCommand({ name: 'mode', input: 'plan' })
    * ```
    */
-  command: (options: CommandOptions) => Promise<Receipt>
+  runCommand: (options: CommandOptions) => Promise<Receipt>
   /**
-   * Run a harness tool with no model turn, as `session.tool` does. The
+   * Run a harness tool with no model turn, as `session.runTool` does. The
    * harness must list it in `expose.tools`. `args` is typed from the
    * tool's input schema.
    *
    * @example
    * ```ts
-   * await client.tool({ name: 'sync_inbox', args: { folder: 'INBOX' } })
+   * await client.runTool({ name: 'sync_inbox', args: { folder: 'INBOX' } })
    * ```
    */
-  tool: <TName extends HarnessToolsOf<THarness>['name']>(options: {
+  runTool: <TName extends HarnessToolsOf<THarness>['name']>(options: {
     name: TName
     args?: HarnessToolInput<THarness, TName>
     meta?: Record<string, unknown>
     inputId?: string
   }) => Promise<Receipt>
   /**
-   * Add host records to the session log, as `session.append` does. The
+   * Add host records to the session log, as `session.appendRecords` does. The
    * harness must list each record type in `expose.records`. With `inputId`,
    * a second append with the same id is a duplicate and writes nothing.
    *
    * @example
    * ```ts
-   * await client.append({ records: [{ type: 'app.signal', text: 'Saved.' }] })
+   * await client.appendRecords({ records: [{ type: 'app.signal', text: 'Saved.' }] })
    * ```
    */
-  append: (options: {
+  appendRecords: (options: {
     records: ReadonlyArray<LogRecord>
     inputId?: string
   }) => Promise<Receipt>
   /** Change a session setting. */
-  setConfig: (change: { key: string; value: unknown }) => Promise<Receipt>
+  setPluginSetting: (change: {
+    key: string
+    value: unknown
+  }) => Promise<Receipt>
   /**
-   * Change the stored settings of the thread. See `session.configure`.
+   * Change the stored settings of the thread. See `session.updateThreadSettings`.
    *
    * @example
    * ```ts
-   * await client.configure({ settings: { model: 'strong' } })
+   * await client.updateThreadSettings({ settings: { model: 'strong' } })
    * ```
    */
-  configure: (options: ConfigureOptions) => Promise<Receipt>
+  updateThreadSettings: (options: ConfigureOptions) => Promise<Receipt>
   /**
    * Start a fresh model context from the next turn. The model sees `note`
    * first, when you give one. The transcript keeps every message.
@@ -935,7 +938,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
         traceparent,
       )
     },
-    continue: (continueOptions) =>
+    continueWithoutMessage: (continueOptions) =>
       send({
         op: 'continue',
         ...(continueOptions?.inputId
@@ -950,13 +953,13 @@ export function createHarnessClient<THarness extends AnyHarness>(
     cancel: ({ operationId } = {}) =>
       send({ op: 'cancel', ...(operationId ? { operationId } : {}) }),
     cancelInput: ({ inputId }) => send({ op: 'cancelInput', inputId }),
-    setDelivery: ({ inputId, delivery }) =>
+    changeInputDelivery: ({ inputId, delivery }) =>
       send({ op: 'setDelivery', inputId, delivery }),
     agents,
     answer: ({ questionId, value }) =>
       send({ op: 'answer', questionId, value }),
-    command: ({ name, input }) => send({ op: 'command', name, input }),
-    tool: ({ name, args, meta, inputId }) =>
+    runCommand: ({ name, input }) => send({ op: 'command', name, input }),
+    runTool: ({ name, args, meta, inputId }) =>
       send({
         op: 'tool',
         name,
@@ -964,14 +967,14 @@ export function createHarnessClient<THarness extends AnyHarness>(
         ...(meta ? { meta } : {}),
         ...(inputId ? { inputId } : {}),
       }),
-    append: ({ records, inputId }) =>
+    appendRecords: ({ records, inputId }) =>
       send({
         op: 'append',
         records: [...records],
         ...(inputId ? { inputId } : {}),
       }),
-    setConfig: ({ key, value }) => send({ op: 'config', key, value }),
-    configure: ({ settings, inputId }) =>
+    setPluginSetting: ({ key, value }) => send({ op: 'config', key, value }),
+    updateThreadSettings: ({ settings, inputId }) =>
       send({ op: 'configure', settings, ...(inputId ? { inputId } : {}) }),
     reset: ({ note, inputId } = {}) =>
       send({

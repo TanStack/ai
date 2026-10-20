@@ -73,7 +73,7 @@ describe('a background agent run waits', () => {
     const { host, session } = await open(harness, memoryPersistence())
 
     const run = session.agents.cleaner.start()
-    const wait = await session.waitFor({
+    const wait = await session.waitForRun({
       runId: run.id,
       signal: AbortSignal.timeout(5_000),
     })
@@ -109,7 +109,7 @@ describe('a background agent run waits', () => {
       () => {},
       () => {},
     )
-    const wait = await a.session.waitFor({ runId: run.id })
+    const wait = await a.session.waitForRun({ runId: run.id })
     await a.host.close()
 
     const second = cleaning()
@@ -142,7 +142,7 @@ describe('a background agent run waits', () => {
       () => {},
       () => {},
     )
-    const wait = await session.waitFor({ runId: run.id })
+    const wait = await session.waitForRun({ runId: run.id })
 
     await expect(
       session.cancel({ operationId: run.id }),
@@ -166,7 +166,7 @@ describe('a background agent run waits', () => {
       () => {},
       () => {},
     )
-    const wait = await a.session.waitFor({ runId: run.id })
+    const wait = await a.session.waitForRun({ runId: run.id })
     await a.host.close()
 
     const second = cleaning()
@@ -227,7 +227,7 @@ describe('a background agent run waits', () => {
       () => {},
       () => {},
     )
-    const wait = await a.session.waitFor({ runId: run.id })
+    const wait = await a.session.waitForRun({ runId: run.id })
     await a.host.close()
     // Another host answered, and stopped before it resumed the run.
     await appendToLog(persistence.stores.log, { threadId: THREAD }, [
@@ -322,7 +322,7 @@ describe('a background agent run waits for a sign-in', () => {
 
     const before = Date.now()
     const run = session.agents.triager.start()
-    const wait = await session.waitFor({
+    const wait = await session.waitForRun({
       runId: run.id,
       signal: AbortSignal.timeout(5_000),
     })
@@ -330,7 +330,7 @@ describe('a background agent run waits for a sign-in', () => {
     expect(wait.expiresAt).toBeGreaterThanOrEqual(before + 15 * 60_000)
     expect(seen).toEqual([])
 
-    await session.command({ name: 'connect:github' })
+    await session.runCommand({ name: 'connect:github' })
     await expect(run).resolves.toBe('One issue.')
     expect(seen).toEqual(['alice-key'])
     expect(session.snapshot().pendingWaits).toEqual([])
@@ -345,7 +345,7 @@ describe('a background agent run waits for a sign-in', () => {
       user: alice,
     })
     const run = session.agents.triager.start()
-    const wait = await session.waitFor({ runId: run.id })
+    const wait = await session.waitForRun({ runId: run.id })
 
     await session.resolve({
       resume: [{ interruptId: wait.waitId, status: 'cancelled' }],
@@ -415,7 +415,7 @@ describe('a wait with expiresAt', () => {
       () => {},
       () => {},
     )
-    const wait = await session.waitFor({ runId: run.id })
+    const wait = await session.waitForRun({ runId: run.id })
     expect(wait).toMatchObject({ kind: 'human', runId: run.id })
     expect(wait.expiresAt).toBeLessThanOrEqual(Date.now() + 200)
 
@@ -472,7 +472,7 @@ describe('a background agent run asks through permissions()', () => {
     })
 
     const run = session.agents.deployer.start()
-    const wait = await session.waitFor({
+    const wait = await session.waitForRun({
       runId: run.id,
       signal: AbortSignal.timeout(5_000),
     })
@@ -506,7 +506,7 @@ describe('a background agent run asks through permissions()', () => {
       () => {},
       () => {},
     )
-    const wait = await a.session.waitFor({
+    const wait = await a.session.waitForRun({
       runId: run.id,
       signal: AbortSignal.timeout(5_000),
     })
@@ -567,7 +567,7 @@ describe('step.ask in a background agent run', () => {
     )
 
     const run = session.agents.asker.start(undefined, { resume: true })
-    const wait = await session.waitFor({
+    const wait = await session.waitForRun({
       runId: run.id,
       signal: AbortSignal.timeout(5_000),
     })

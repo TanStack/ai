@@ -250,7 +250,7 @@ async function stopAndRunAgain(
     .spyOn(log, 'append')
     .mockRejectedValue(new Error('the host is gone'))
   await expect(
-    a.session.append({ records: [{ type: 'app.ping' }] }),
+    a.session.appendRecords({ records: [{ type: 'app.ping' }] }),
   ).rejects.toThrow()
   await expect(operation).rejects.toThrow()
   refuse.mockRestore()

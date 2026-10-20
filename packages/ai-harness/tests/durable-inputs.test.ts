@@ -865,7 +865,7 @@ describe('recovery of a durable input', () => {
   })
 })
 
-describe('session.recover()', () => {
+describe('session.recoverPendingWork()', () => {
   /**
    * A turn that another live host runs: it owns the log. `stop` gives the
    * log up, as that host does when it stops.
@@ -934,7 +934,7 @@ describe('session.recover()', () => {
     expect(calls).toHaveLength(0)
     await other.stop()
 
-    await Promise.all([session.recover(), host.recover(THREAD)])
+    await Promise.all([session.recoverPendingWork(), host.recover(THREAD)])
     await session.settled({ inputId: 'in-1' })
     // A second run of the turn would run before this one.
     await session.send('later')
@@ -965,7 +965,7 @@ describe('session.recover()', () => {
     await two.receipt
     await waitFor(() => expect(calls).toHaveLength(1))
 
-    await session.recover()
+    await session.recoverPendingWork()
     release.open()
     await Promise.all([one, two])
     // A second run of `two` would run before this one.
@@ -1057,7 +1057,7 @@ describe('waiting inputs', () => {
       .receipt
     await session.send('third', { inputId: 'third', mode: 'steer' }).receipt
 
-    expect(session.inputs()).toEqual([
+    expect(session.waitingInputs()).toEqual([
       { inputId: 'third', delivery: 'steer', message: 'third' },
       { inputId: 'second', delivery: 'queue', message: 'second' },
     ])
@@ -1067,7 +1067,7 @@ describe('waiting inputs', () => {
     expect(await session.settled({ inputId: 'second' })).toMatchObject({
       outcome: 'aborted',
     })
-    expect(session.inputs()).toEqual([
+    expect(session.waitingInputs()).toEqual([
       { inputId: 'third', delivery: 'steer', message: 'third' },
     ])
     expect(await logRecords(persistence)).toContainEqual({
@@ -1103,7 +1103,7 @@ describe('waiting inputs', () => {
     await host.close()
   })
 
-  it('joins a queued input to the running turn with setDelivery steer', async () => {
+  it('joins a queued input to the running turn with changeInputDelivery steer', async () => {
     const { host, session, calls, persistence, release } = await openHolding([
       () => text('done'),
     ])
@@ -1112,11 +1112,14 @@ describe('waiting inputs', () => {
     await session.send('later', { inputId: 'later', mode: 'followUp' }).receipt
 
     expect(
-      await session.setDelivery({ inputId: 'later', delivery: 'steer' }),
+      await session.changeInputDelivery({
+        inputId: 'later',
+        delivery: 'steer',
+      }),
     ).toMatchObject({
       status: 'accepted',
     })
-    expect(session.inputs()).toEqual([
+    expect(session.waitingInputs()).toEqual([
       { inputId: 'later', delivery: 'steer', message: 'later' },
     ])
     expect(await logRecords(persistence)).toContainEqual({
@@ -1136,7 +1139,7 @@ describe('waiting inputs', () => {
     await host.close()
   })
 
-  it('runs a waiting input as its own turn with setDelivery steer when no turn runs', async () => {
+  it('runs a waiting input as its own turn with changeInputDelivery steer when no turn runs', async () => {
     const persistence = durablePersistence()
     const { host, session, calls } = await openDurable({
       persistence,
@@ -1145,7 +1148,7 @@ describe('waiting inputs', () => {
     // A turn that holds the queue: the follow-up waits behind it.
     await session.reset()
     await session.send('later', { inputId: 'later', mode: 'followUp' }).receipt
-    await session.setDelivery({ inputId: 'later', delivery: 'steer' })
+    await session.changeInputDelivery({ inputId: 'later', delivery: 'steer' })
 
     expect(await session.settled({ inputId: 'later' })).toMatchObject({
       outcome: 'completed',
@@ -1160,7 +1163,7 @@ describe('waiting inputs', () => {
     ])
     const first = session.send('first', { inputId: 'first' })
     await waitFor(() => expect(session.snapshot().status).toBe('running'))
-    const queued = session.continue({ inputId: 'c-1' })
+    const queued = session.continueWithoutMessage({ inputId: 'c-1' })
     await waitFor(async () =>
       expect(await recordTypesOf(persistence, 'c-1')).toContain(
         'harness.input',
@@ -1180,7 +1183,7 @@ describe('waiting inputs', () => {
     await host.close()
   })
 
-  it('runs a steer as its own turn with setDelivery queue', async () => {
+  it('runs a steer as its own turn with changeInputDelivery queue', async () => {
     const { host, session, calls, release } = await openHolding([
       () => text('done'),
       () => text('own turn'),
@@ -1190,11 +1193,11 @@ describe('waiting inputs', () => {
     await session.send('now', { inputId: 'now', mode: 'steer' }).receipt
 
     expect(
-      await session.setDelivery({ inputId: 'now', delivery: 'queue' }),
+      await session.changeInputDelivery({ inputId: 'now', delivery: 'queue' }),
     ).toMatchObject({
       status: 'accepted',
     })
-    expect(session.inputs()).toEqual([
+    expect(session.waitingInputs()).toEqual([
       { inputId: 'now', delivery: 'queue', message: 'now' },
     ])
 
@@ -1401,7 +1404,9 @@ describe('input ids', () => {
       expect(await recordTypes(persistence)).toContain('harness.transcript'),
     )
     // An input applied during the turn does not cut the turn's text.
-    await first.session.configure({ settings: { instructions: 'Be brief.' } })
+    await first.session.updateThreadSettings({
+      settings: { instructions: 'Be brief.' },
+    })
     release.open()
     await one
     await first.session.send('two', { inputId: 'new-1' })
@@ -1446,7 +1451,7 @@ describe('input ids', () => {
   })
 })
 
-describe('session.continue()', () => {
+describe('session.continueWithoutMessage()', () => {
   const user: ModelMessage = { id: 'u1', role: 'user', content: 'go' }
   const transcript = (...add: Array<ModelMessage>): LogRecord => ({
     type: 'harness.transcript',
@@ -1490,7 +1495,7 @@ describe('session.continue()', () => {
         replies: [() => text('went')],
       })
 
-      expect(await session.continue({ inputId: 'c-1' })).toEqual({
+      expect(await session.continueWithoutMessage({ inputId: 'c-1' })).toEqual({
         text: 'went',
         media: [],
       })
@@ -1518,8 +1523,8 @@ describe('session.continue()', () => {
       replies: [() => text('once'), () => text('twice')],
     })
 
-    const first = session.continue({ inputId: 'c-1' })
-    const again = session.continue({ inputId: 'c-1' })
+    const first = session.continueWithoutMessage({ inputId: 'c-1' })
+    const again = session.continueWithoutMessage({ inputId: 'c-1' })
 
     expect(again).toBe(first)
     await first
@@ -1579,7 +1584,7 @@ describe('session.continue()', () => {
         replies: [() => text('never')],
       })
 
-      const turn = session.continue({ inputId: 'c-1' })
+      const turn = session.continueWithoutMessage({ inputId: 'c-1' })
 
       await expect(turn).rejects.toBeInstanceOf(InputRejectedError)
       await expect(session.settled({ inputId: 'c-1' })).rejects.toMatchObject({

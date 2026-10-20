@@ -307,7 +307,7 @@ describe('settled operations', () => {
     )
     const ids: Array<string> = []
     for (let index = 0; index < 501; index += 1) {
-      const command = session.command({ name: 'unknown' })
+      const command = session.runCommand({ name: 'unknown' })
       ids.push(command.id)
       await command.then(
         () => undefined,

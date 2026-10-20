@@ -87,8 +87,10 @@ describe('host.sessions.delete', () => {
 
     const session = await host.open(harness, { threadId: 't1' })
     await session.send('hi')
-    await session.configure({ settings: { instructions: 'Be brief.' } })
-    await session.setConfig({ key: 'level', value: 'high' })
+    await session.updateThreadSettings({
+      settings: { instructions: 'Be brief.' },
+    })
+    await session.setPluginSetting({ key: 'level', value: 'high' })
     const upload = await session.putMedia({
       body: encoder.encode('cat'),
       mimeType: 'image/png',
@@ -121,8 +123,8 @@ describe('host.sessions.delete', () => {
     expect(await artifacts.get(upload.id)).toBeNull()
     // The settings and config were in the log, so they went with it.
     const reopened = await host.open(harness, { threadId: 't1' })
-    expect(reopened.settings()).toEqual({})
-    expect(reopened.config().level?.value).toBe('low')
+    expect(reopened.threadSettings()).toEqual({})
+    expect(reopened.pluginSettings().level?.value).toBe('low')
     await reopened.close()
     await host.close()
   })
@@ -191,7 +193,7 @@ describe('host.sessions.delete', () => {
     const other = { id: 'u2', tenantId: 'acme' }
     const kept = await host.open(harness, { threadId: 't1', user: other })
     await kept.send('keep me')
-    await kept.configure({ settings: { instructions: 'Stay.' } })
+    await kept.updateThreadSettings({ settings: { instructions: 'Stay.' } })
     await kept.close()
     const mine = await host.open(harness, { threadId: 't1' })
     await mine.send('delete me')
@@ -204,7 +206,7 @@ describe('host.sessions.delete', () => {
       threadId: 't1',
       user: other,
     })
-    expect(reopened.settings()).toEqual({ instructions: 'Stay.' })
+    expect(reopened.threadSettings()).toEqual({ instructions: 'Stay.' })
     await reopened.close()
     expect(
       await host.sessions.get({ threadId: 't1', user: other }),

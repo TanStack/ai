@@ -72,18 +72,18 @@ describe('ctx.commands', () => {
     expect(
       session.describe().commands.find((command) => command.name === 'hello'),
     ).toMatchObject({ owner: 'test/live', description: 'Says hi' })
-    expect(await session.command({ name: 'hello' })).toBe('hi')
+    expect(await session.runCommand({ name: 'hello' })).toBe('hi')
 
     const settled: Array<unknown> = []
     session.onEvent(EventType.CUSTOM, ({ event }) => {
       if (event.name === 'harness.input.settled') settled.push(event.value)
     })
-    expect(await session.command({ name: 'hello' })).toBe('hi')
+    expect(await session.runCommand({ name: 'hello' })).toBe('hi')
     expect(settled).toMatchObject([{ outcome: 'completed' }])
 
     live.live().delete('hello')
     expect(names()).not.toContain('hello')
-    await expect(session.command({ name: 'hello' })).rejects.toThrow(
+    await expect(session.runCommand({ name: 'hello' })).rejects.toThrow(
       'Unknown command: hello',
     )
   })
@@ -101,7 +101,7 @@ describe('ctx.commands', () => {
     )
     // A JSON Schema is not checked, as a JSON Schema tool input is not.
     expect(
-      await session.command({ name: 'raw', input: { n: 'not a number' } }),
+      await session.runCommand({ name: 'raw', input: { n: 'not a number' } }),
     ).toEqual({
       n: 'not a number',
     })
@@ -117,7 +117,7 @@ describe('ctx.commands', () => {
       'Command "model" belongs to test/other. test/live cannot replace it.',
     )
     live.live().delete('model')
-    expect(await session.command({ name: 'model' })).toBe('test/other ran')
+    expect(await session.runCommand({ name: 'model' })).toBe('test/other ran')
   })
 
   it('is ready after the plugins that come later are set up', async () => {

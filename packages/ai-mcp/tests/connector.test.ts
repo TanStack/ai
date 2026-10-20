@@ -113,7 +113,7 @@ describe('mcpConnector', () => {
     const browser = approveSignIns(session, 'code-1')
     cleanups.push(browser.stop)
 
-    await expect(session.command({ name: 'connect:demo' })).resolves.toBe(
+    await expect(session.runCommand({ name: 'connect:demo' })).resolves.toBe(
       'Connected to Demo.',
     )
     const authorizationUrl = browser.authorizationUrls.at(-1)
@@ -153,7 +153,7 @@ describe('mcpConnector', () => {
     // The model never sees the token.
     expect(JSON.stringify(await session.transcript())).not.toContain('access-1')
 
-    await session.command({ name: 'disconnect:demo' })
+    await session.runCommand({ name: 'disconnect:demo' })
     expect(
       await credentials.get({
         scope: { threadId: 't', userId: 'user-1' },
@@ -193,7 +193,7 @@ describe('mcpConnector', () => {
         id: 'demo',
       })
 
-    await session.command({ name: 'connect:demo', user: bob })
+    await session.runCommand({ name: 'connect:demo', user: bob })
     expect(await savedFor('bob')).not.toBeNull()
     expect(await savedFor('alice')).toBeNull()
 
@@ -209,7 +209,7 @@ describe('mcpConnector', () => {
     expect(model.toolNames(2)).toEqual(['demo_echo'])
 
     // Alice signs in for her own turns.
-    await session.command({ name: 'connect:demo', user: alice })
+    await session.runCommand({ name: 'connect:demo', user: alice })
     await session.send('hi', { user: alice })
     expect(await savedFor('alice')).not.toBeNull()
     expect(model.toolNames(3)).toEqual(['demo_echo'])

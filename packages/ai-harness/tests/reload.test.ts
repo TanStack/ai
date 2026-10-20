@@ -86,7 +86,7 @@ describe('session.reload', () => {
     expect(session.agent('helper')).toBeUndefined()
 
     plugins.push(extra)
-    await session.reload()
+    await session.reloadPlugins()
 
     expect(session.agent('helper')).toBeDefined()
     expect(session.inspect().plugins.map((plugin) => plugin.name)).toEqual([
@@ -120,7 +120,7 @@ describe('session.reload', () => {
     expect(session.agent('helper')).toBeDefined()
 
     plugins.splice(0)
-    await session.reload()
+    await session.reloadPlugins()
 
     expect(closed).toBe(1)
     expect(session.agent('helper')).toBeUndefined()
@@ -139,7 +139,7 @@ describe('session.reload', () => {
 
     plugins.push(extra)
     let reloaded = false
-    const reload = session.reload().then(() => (reloaded = true))
+    const reload = session.reloadPlugins().then(() => (reloaded = true))
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(reloaded).toBe(false)
     expect(session.agent('helper')).toBeUndefined()
@@ -169,7 +169,7 @@ describe('session.reload', () => {
     const running = session.send('first')
     await running.receipt
 
-    const reload = session.reload()
+    const reload = session.reloadPlugins()
     // The reload waits for the running turn now.
     await new Promise((resolve) => setTimeout(resolve, 10))
     await host.close()
@@ -228,7 +228,7 @@ describe('session.reload', () => {
         },
       }),
     )
-    await expect(session.reload()).rejects.toThrow('broken setup')
+    await expect(session.reloadPlugins()).rejects.toThrow('broken setup')
 
     expect(session.inspect().plugins).toEqual([])
     expect(session.agent('helper')).toBeUndefined()
@@ -310,9 +310,9 @@ describe('reload keeps session work', () => {
       }),
     )
     const session = await host.open(harness, { threadId: 't' })
-    await session.reload()
-    await session.reload()
-    await session.reload()
+    await session.reloadPlugins()
+    await session.reloadPlugins()
+    await session.reloadPlugins()
 
     latest?.emit(Pinged, {})
     expect(heard).toBe(1)

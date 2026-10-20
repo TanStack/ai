@@ -349,7 +349,7 @@ describe('a handoff to a person', () => {
     const [wait] = owner.session.snapshot().pendingWaits
     if (!wait) throw new Error('No human wait.')
     // A tool turn runs while a person answers, so the owner keeps the log.
-    const busy = owner.session.tool({ name: 'slow' })
+    const busy = owner.session.runTool({ name: 'slow' })
     await busy.receipt
 
     const other = await hostOn(memoryLogStore({ state: logState }), harness)

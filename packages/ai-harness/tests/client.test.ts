@@ -132,7 +132,7 @@ describe('createHarnessClient', () => {
       fetch: (input, init) => handler(new Request(input, init)),
     })
 
-    const receipt = await client.continue({ inputId: 'c-1' })
+    const receipt = await client.continueWithoutMessage({ inputId: 'c-1' })
 
     expect(receipt).toMatchObject({ inputId: 'c-1', status: 'accepted' })
     await waitFor(() => expect(calls).toHaveLength(1))
@@ -167,14 +167,14 @@ describe('createHarnessClient', () => {
     })
 
     expect(
-      await client.tool({
+      await client.runTool({
         name: 'fetch_stats',
         args: { queue: 'billing' },
         inputId: 't-1',
       }),
     ).toMatchObject({ inputId: 't-1', status: 'accepted' })
     void client
-      .tool({
+      .runTool({
         name: 'fetch_stats',
         // @ts-expect-error `queue` must be a string.
         args: { queue: 1 },
@@ -191,7 +191,7 @@ describe('createHarnessClient', () => {
     )
     expect(calls).toHaveLength(0)
     expect(
-      await client.append({ records: [{ type: 'app.signal' }] }),
+      await client.appendRecords({ records: [{ type: 'app.signal' }] }),
     ).toMatchObject({
       status: 'rejected',
       reason: 'not_exposed',
@@ -222,7 +222,9 @@ describe('createHarnessClient', () => {
       fetch: (input, init) => handler(new Request(input, init)),
     })
 
-    await client.continue({ ephemeral: [{ role: 'user', content: 'note 1' }] })
+    await client.continueWithoutMessage({
+      ephemeral: [{ role: 'user', content: 'note 1' }],
+    })
     await client.send('again', {
       ephemeral: [{ role: 'user', content: 'note 2' }],
     })

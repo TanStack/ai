@@ -73,7 +73,7 @@ const host = createHarnessHost({ persistence: memoryPersistence() })
 const session = await host.open(support, { threadId: 'ticket-7' })
 
 const turn = session.send('Refund order A-17.')
-const wait = await session.waitFor({
+const wait = await session.waitForRun({
   runId: turn.id,
   signal: AbortSignal.timeout(60_000),
 })

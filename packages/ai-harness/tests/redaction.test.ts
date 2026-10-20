@@ -259,9 +259,9 @@ describe('the edges of a session', () => {
     // The user pastes the key that the session read. The log keeps the
     // input without it.
     const options = { name: 'note', input: { text: KEY }, inputId: 'note-1' }
-    expect(await session.command(options)).toBe('noted')
+    expect(await session.runCommand(options)).toBe('noted')
 
-    await expect(Promise.resolve(session.command(options))).resolves.toBe(
+    await expect(Promise.resolve(session.runCommand(options))).resolves.toBe(
       undefined,
     )
     await host.close()

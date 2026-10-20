@@ -95,7 +95,7 @@ while (line !== 'exit') {
   if (line.startsWith('/')) {
     // `/undo`, `/model fast`, `/mode plan`, and the other plugin commands.
     const [name = '', ...args] = line.slice(1).split(' ')
-    console.log(await session.command({ name, input: args.join(' ') || undefined }))
+    console.log(await session.runCommand({ name, input: args.join(' ') || undefined }))
   } else {
     try {
       await session.send(line)

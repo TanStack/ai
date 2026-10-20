@@ -237,7 +237,7 @@ export interface SessionViewState {
   tools: Array<{ name: string; owner: string }>
   /** The names of `defineHarness({ models })`, for a model menu. */
   models: Array<string>
-  /** The stored settings of the thread, from `configure`. */
+  /** The stored settings of the thread, from `updateThreadSettings`. */
   settings?: ThreadSettings
   /** The token usage of the thread. */
   usage?: SessionUsage

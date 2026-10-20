@@ -47,7 +47,8 @@ async function* codingTurn(
         threadId: scenario,
       },
     )
-    if (formatAsk) await session.command({ name: 'mode', input: 'acceptEdits' })
+    if (formatAsk)
+      await session.runCommand({ name: 'mode', input: 'acceptEdits' })
     yield* session.send(`[${scenario}] run test`).stream()
     // In acceptEdits mode, the write asks before it runs, for the write and
     // its formatter. The turn stops with one approval wait. Reject it, and

@@ -93,7 +93,7 @@ const stopAsking = session.onEvent('CUSTOM', async ({ event }) => {
   if (question) await session.answer({ questionId: question.waitId, value: 'sk-proj-...' })
 })
 
-console.log(await session.command({ name: 'connect:openai' })) // Connected to OpenAI (key ...abcd).
+console.log(await session.runCommand({ name: 'connect:openai' })) // Connected to OpenAI (key ...abcd).
 stopAsking()
 ```
 

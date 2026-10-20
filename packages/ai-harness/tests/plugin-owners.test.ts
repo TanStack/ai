@@ -227,7 +227,7 @@ describe('a thread that removes a plugin', () => {
     const byName = session.agent('worker')
     expect(await byName?.run()).toBe('worked')
 
-    await session.configure({
+    await session.updateThreadSettings({
       settings: { plugins: { remove: ['test/workers'] } },
     })
 

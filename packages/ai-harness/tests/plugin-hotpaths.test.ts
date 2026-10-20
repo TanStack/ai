@@ -78,16 +78,16 @@ describe('ctx.collect', () => {
     const plugins = [reader, writer('test/a', 'bash')]
     const { session } = await open(plugins)
 
-    const first = await session.command({ name: 'snap' })
-    const second = await session.command({ name: 'snap' })
+    const first = await session.runCommand({ name: 'snap' })
+    const second = await session.runCommand({ name: 'snap' })
     expect(second).toBe(first)
     expect(first).toEqual([{ tool: 'bash' }])
     // The view from setup filled as the later plugin set up.
     expect([...view]).toEqual([{ tool: 'bash' }])
 
     plugins.push(writer('test/b', 'write_file'))
-    await session.reload()
-    const changed = await session.command({ name: 'snap' })
+    await session.reloadPlugins()
+    const changed = await session.runCommand({ name: 'snap' })
     expect(changed).not.toBe(first)
     expect(changed).toEqual([{ tool: 'bash' }, { tool: 'write_file' }])
   })

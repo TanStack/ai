@@ -821,7 +821,7 @@ export function createHarnessHandler<U extends HarnessUser = HarnessUser>(
       record.kind !== 'agent' &&
       record.parentRunId === undefined
     if (!isChatTurn) return json({ error: 'unknown run' }, 404)
-    const entry = await view.entry()
+    const entry = await view.indexEntry()
     if (entry?.harness !== undefined && entry.harness !== harness.name) {
       return json({ error: 'unknown run' }, 404)
     }

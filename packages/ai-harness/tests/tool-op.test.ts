@@ -130,10 +130,12 @@ describe('{ op: "tool" }', () => {
     ])
     const session = await host.open(harness, { threadId: 't-rules' })
 
-    await session.tool({ name: 'fetch_stats', args: { ticketId: 'T-1' } }).then(
-      () => {},
-      () => {},
-    )
+    await session
+      .runTool({ name: 'fetch_stats', args: { ticketId: 'T-1' } })
+      .then(
+        () => {},
+        () => {},
+      )
     const transcript = await session.transcript()
     const result = transcript.find((message) => message.role === 'tool')
     expect(JSON.stringify(result?.content)).not.toContain('"count":42')
@@ -147,7 +149,7 @@ describe('{ op: "tool" }', () => {
     ])
     const session = await host.open(harness, { threadId: 't-ask' })
 
-    const operation = session.tool({
+    const operation = session.runTool({
       name: 'fetch_stats',
       args: { ticketId: 'T-2' },
     })
@@ -231,7 +233,7 @@ describe('{ op: "tool" }', () => {
     const session = await host.open(harness, { threadId: 't-waiting' })
     await session.send('go')
 
-    const operation = session.tool({
+    const operation = session.runTool({
       name: 'fetch_stats',
       args: { ticketId: 'T-3' },
     })
@@ -271,7 +273,7 @@ describe('{ op: "tool" }', () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const session = await host.open(harness, { threadId: 't-tool-steer' })
 
-    const operation = session.tool({ name: 'slow_sync', args: {} })
+    const operation = session.runTool({ name: 'slow_sync', args: {} })
     await started.opened
     const receipt = await session.send('are you there?', { mode: 'steer' })
       .receipt
@@ -307,9 +309,9 @@ describe('{ op: "tool" }', () => {
     const check = async () => {
       const session = await host.open(harness, { threadId: 't-types' })
       // @ts-expect-error `ticketId` must be a string.
-      void session.tool({ name: 'fetch_stats', args: { ticketId: 1 } })
+      void session.runTool({ name: 'fetch_stats', args: { ticketId: 1 } })
       // A plugin tool takes any args.
-      void session.tool({ name: 'plugin_tool', args: { anything: true } })
+      void session.runTool({ name: 'plugin_tool', args: { anything: true } })
     }
     expect(check).toBeTypeOf('function')
   })

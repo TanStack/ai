@@ -93,7 +93,7 @@ export interface PluginContributions {
    * also added to `session.agents`.
    */
   subagents?: ReadonlyArray<AnyAgent>
-  /** User actions, keyed by name. Run with `session.command({ name, input })`. */
+  /** User actions, keyed by name. Run with `session.runCommand({ name, input })`. */
   commands?: Record<string, AnyCommand>
   /** Session settings, keyed by name. Read with `ctx.config.get(name)`. */
   config?: Record<string, ConfigOption>
@@ -405,8 +405,8 @@ interface PluginDefinitionBase {
   name: string
   /**
    * The shape of the session index `metadata` this plugin uses, as a
-   * Standard Schema. It types `ctx.session.entry()` and
-   * `ctx.session.updateEntry()`, and checks each write of this plugin. Pass
+   * Standard Schema. It types `ctx.session.indexEntry()` and
+   * `ctx.session.updateIndexEntry()`, and checks each write of this plugin. Pass
    * the same schema as the harness `metadataSchema`: a harness whose
    * metadata type does not fit is a type error.
    */
@@ -751,12 +751,12 @@ const NO_SESSION: PluginSessionApi = {
   transcript: unavailable('ctx.session'),
   keptRecords: unavailable('ctx.session'),
   replaceTranscript: unavailable('ctx.session'),
-  entry: unavailable('ctx.session'),
-  updateEntry: unavailable('ctx.session'),
+  indexEntry: unavailable('ctx.session'),
+  updateIndexEntry: unavailable('ctx.session'),
   ask: unavailable('ctx.session'),
   authRequired: unavailable('ctx.session'),
-  setConfig: unavailable('ctx.session'),
-  settings: unavailable('ctx.session'),
+  setPluginSetting: unavailable('ctx.session'),
+  threadSettings: unavailable('ctx.session'),
 }
 
 const NO_SERVICES: PluginServices = {

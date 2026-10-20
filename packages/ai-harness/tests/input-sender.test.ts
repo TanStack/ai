@@ -335,7 +335,7 @@ describe('the sender of each input', () => {
     const turn = session.send('Start.')
     await started.opened
     // Bob runs a command while alice's turn runs.
-    await session.command({ name: 'again', user: bob })
+    await session.runCommand({ name: 'again', user: bob })
     release.open()
 
     expect(await turn).toEqual({ text: 'First.', media: [] })

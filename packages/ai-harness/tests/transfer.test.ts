@@ -271,10 +271,10 @@ describe('host.transfer to a new thread', () => {
       threadId: SOURCE,
       user: olga,
     })
-    await source.configure({
+    await source.updateThreadSettings({
       settings: { model: 'main', instructions: 'Be brief.' },
     })
-    await source.setConfig({ key: 'tone', value: 'warm' })
+    await source.setPluginSetting({ key: 'tone', value: 'warm' })
     const bytes = new Uint8Array([1, 2, 3, 4])
     const record = await source.putMedia({
       body: bytes,
@@ -324,8 +324,8 @@ describe('host.transfer to a new thread', () => {
     expect(await target.loadMedia({ id })).toEqual(bytes)
     expect(await target.getMedia({ id: record.id })).toBeNull()
     // Nothing else moved.
-    expect(target.settings()).toEqual({})
-    expect(target.config().tone?.value).toBe('plain')
+    expect(target.threadSettings()).toEqual({})
+    expect(target.pluginSettings().tone?.value).toBe('plain')
     expect(target.snapshot().plugins['test/counter']).toEqual({ count: 0 })
     expect(turnInterrupts(target.snapshot())).toEqual([])
     const types = new Set(

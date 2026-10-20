@@ -108,7 +108,7 @@ describe('a plugin prompt with placement', () => {
     const session = await host.open(harness, { threadId: 't1' })
 
     await session.send('One.')
-    await session.configure({
+    await session.updateThreadSettings({
       settings: { plugins: { remove: ['test/notes'] } },
     })
     await session.send('Two.')

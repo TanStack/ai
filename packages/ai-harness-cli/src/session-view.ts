@@ -90,7 +90,7 @@ export function openUrl(url: string) {
 
 /**
  * Resolves when no chat turn runs or waits in the queue, or when a wait is
- * open (see `session.waitFor`): the user answers it on the next line.
+ * open (see `session.waitForRun`): the user answers it on the next line.
  */
 export async function waitIdle(session: HarnessSession) {
   while (true) {

@@ -110,7 +110,7 @@ describe('ownership of a log by two hosts', () => {
     })
     // An append is an input too: it waits for A, and A writes it.
     expect(
-      await b.session.append({
+      await b.session.appendRecords({
         records: [{ type: 'app.from-b' }],
         inputId: 'in-append',
       }),

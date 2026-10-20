@@ -142,7 +142,7 @@ const NO_NAMES: ReadonlySet<string> = new Set()
 export class InputRecords {
   /**
    * The input and its sender as JSON, by input id: the duplicate check.
-   * `recover()` skips these inputs.
+   * `recoverPendingWork()` skips these inputs.
    */
   readonly admitted = new Map<string, string>()
   /** The inputs that joined each turn or agent run, by operation id. */
@@ -422,7 +422,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected activeResume = false
   protected plugins: ReadonlyArray<HarnessPlugin> = []
   protected sessionPlugins: MountedPlugins | undefined
-  /** The last `reload()`. The calls run one at a time. */
+  /** The last `reloadPlugins()`. The calls run one at a time. */
   protected reloads: Promise<void> = Promise.resolve()
   /**
    * The reloads and reverts that run. No new turn starts while one runs: a
@@ -434,7 +434,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected closing: Promise<void> | undefined
   /** Aborts on close, not on a reload. See {@link SessionSignal}. */
   protected readonly lifetime = new AbortController()
-  /** The last `recover()`. The calls run one at a time. */
+  /** The last `recoverPendingWork()`. The calls run one at a time. */
   protected recovery: Promise<void> = Promise.resolve()
   protected readonly onClose: () => void
   /** Tells the host each time the thread goes idle. See `SessionDependencies`. */
@@ -463,8 +463,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * uses them until it ends.
    */
   protected turnConfig: ReadonlyMap<string, unknown> | undefined
-  /** The stored settings of this thread: `session.configure`. */
-  protected threadSettings: ThreadSettings = {}
+  /** The stored settings of this thread: `session.updateThreadSettings`. */
+  protected currentSettings: ThreadSettings = {}
   protected readonly questions = new Map<
     string,
     {
@@ -832,7 +832,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
 
   /** The plugins that the `plugins.remove` setting of this thread names. */
   protected removedPlugins(): ReadonlySet<string> {
-    const settings = this.threadSettings
+    const settings = this.currentSettings
     const remove = settings.plugins?.remove ?? []
     if (remove.length === 0) return NO_NAMES
     if (this.threadPluginsCache?.settings !== settings) {
@@ -1374,7 +1374,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
 
   /**
    * The background jobs of this thread and of its child threads that did
-   * not end: `bash` jobs, and calls that `background()` moved. It reads the
+   * not end: `bash` jobs, and calls that `moveToolCallToBackground()` moved. It reads the
    * log, so it also lists the jobs of other hosts, and after a restart.
    * `running` is `true` for a job that this host runs.
    */

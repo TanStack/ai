@@ -252,7 +252,7 @@ describe('an input that reaches a host that does not own the log', () => {
     const stored = owner.session.send('From A.', { inputId: 'in-x' })
     expect((await stored.receipt).status).toBe('queued')
     isLaneOpen = true
-    await owner.session.recover()
+    await owner.session.recoverPendingWork()
 
     await expect(settled).rejects.toMatchObject({
       name: 'InputRejectedError',
@@ -311,7 +311,7 @@ describe('an input that reaches a host that does not own the log', () => {
     const owner = await hostOn(a, harness)
     const other = await hostOn(b, harness)
 
-    const running = owner.session.command({ name: 'ask' })
+    const running = owner.session.runCommand({ name: 'ask' })
     await waitFor(() =>
       expect(questionsOf(owner.session.snapshot())).toHaveLength(1),
     )
@@ -462,7 +462,7 @@ describe('an input that reaches a host that does not own the log', () => {
 
     /** The owner asks for the password. Resolves with its question id. */
     async function ask(session: HarnessSession, log: LogStore) {
-      const running = session.command({ name: 'ask' })
+      const running = session.runCommand({ name: 'ask' })
       await waitFor(() =>
         expect(questionsOf(session.snapshot())).toHaveLength(1),
       )
@@ -667,7 +667,9 @@ describe('an input that reaches a host that does not own the log', () => {
     await waitFor(() => expect(ownerModel.calls).toHaveLength(1))
     cancelIn = operationId
     // A write of the owner while its turn runs, with no write after it.
-    await owner.session.configure({ settings: { instructions: 'Be brief.' } })
+    await owner.session.updateThreadSettings({
+      settings: { instructions: 'Be brief.' },
+    })
     expect(cancelIn).toBeUndefined()
 
     await expect(Promise.resolve(turn)).rejects.toThrow()
@@ -810,7 +812,7 @@ describe('an input that reaches a host that does not own the log', () => {
 
     // A drain finds the input in the log: the offer goes, and the input
     // does not run again.
-    await owner.session.recover()
+    await owner.session.recoverPendingWork()
     expect(await waiting(a)).toEqual([])
     expect(ownerModel.calls).toHaveLength(2)
     await owner.host.close()

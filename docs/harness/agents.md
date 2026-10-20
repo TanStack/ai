@@ -64,18 +64,18 @@ const coder = defineHarness({
 const host = createHarnessHost({ persistence: memoryPersistence() })
 const session = await host.open(coder, { threadId: 'dark-mode' })
 
-await session.command({ name: 'agent', input: 'plan' })
+await session.runCommand({ name: 'agent', input: 'plan' })
 const plan = await session.send('How do I add a dark mode?')
 console.log(plan.text)
 
-await session.command({ name: 'agent', input: 'build' })
+await session.runCommand({ name: 'agent', input: 'build' })
 await session.send('Do step 1.')
 ```
 
 1. The `plan` agent reads the code and gives numbered steps. It has no tool that changes a file.
 2. The `build` agent changes the files, after your answer to each [permission question](./permissions).
 
-- `session.command({ name: 'agent' })` with no input shows the current agent and the list: `Agent: build. Agents: build, plan.`
+- `session.runCommand({ name: 'agent' })` with no input shows the current agent and the list: `Agent: build. Agents: build, plan.`
 - A switch applies at the next turn.
 
 The same switch is the `agent` setting. `session.describe().config` lists its options for a menu:
@@ -86,7 +86,7 @@ if (setting?.option.type === 'select') {
   console.log(setting.value, setting.option.options) // 'build' ['build', 'plan']
 }
 
-await session.setConfig({ key: 'agent', value: 'plan' })
+await session.setPluginSetting({ key: 'agent', value: 'plan' })
 ```
 
 A client can change the setting only when the harness exposes it. Add `expose: { config: ['agent'] }` to `defineHarness`.
@@ -184,7 +184,7 @@ export const fromFiles = agents({
 - The body is the system prompt.
 - The frontmatter sets `description`, `mode`, `model`, `tools`, `steps`, and `hidden: true`. The default `mode` is `all`.
 - An unknown `mode`, or a `steps` that is not a whole number, stops `host.open` with an error, for example `Agent file review.md: "mode" is not valid.`
-- The plugin reads the folder when a session opens, and again at each `session.reload()`. A folder that it cannot read gives no agents.
+- The plugin reads the folder when a session opens, and again at each `session.reloadPlugins()`. A folder that it cannot read gives no agents.
 
 ## Limit the steps
 

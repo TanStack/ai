@@ -120,7 +120,7 @@ const storedWaits = async (log: LogStore) =>
 
 /** Ask with the command `name`. Resolves with its operation and its wait. */
 async function asked(session: HarnessSession, name: string) {
-  const running = session.command({ name })
+  const running = session.runCommand({ name })
   running.then(
     () => {},
     () => {},
@@ -310,32 +310,32 @@ describe('session.settled', () => {
   })
 })
 
-describe('session.waitFor', () => {
+describe('session.waitForRun', () => {
   it('resolves with the wait of the run, now or when it opens', async () => {
     const { host, session } = await hostOn(memoryLogStore(), {}, [
       () => toolCall('remove', { path: 'a.txt' }),
     ])
 
     const turn = session.send('Remove a.txt.')
-    const approval = await session.waitFor({ runId: turn.id })
+    const approval = await session.waitForRun({ runId: turn.id })
     expect(approval).toMatchObject({ kind: 'approval', runId: turn.id })
     expect((await turn).interrupts?.[0]?.id).toBe(approval.waitId)
     // Open now: it resolves at once.
-    expect(await session.waitFor()).toEqual(approval)
+    expect(await session.waitForRun()).toEqual(approval)
     await host.close()
   })
 
   it('rejects with the reason of the signal, and when the session closes', async () => {
     const { host, session } = await hostOn(memoryLogStore())
     const stop = new AbortController()
-    const waiting = session.waitFor({
+    const waiting = session.waitForRun({
       runId: 'no-such-run',
       signal: stop.signal,
     })
     stop.abort(new Error('No wait.'))
     await expect(waiting).rejects.toThrow('No wait.')
 
-    const forever = session.waitFor({ runId: 'no-such-run' })
+    const forever = session.waitForRun({ runId: 'no-such-run' })
     await host.close()
     await expect(forever).rejects.toThrow('Session closed.')
   })

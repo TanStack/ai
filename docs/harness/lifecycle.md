@@ -122,7 +122,7 @@ What the view reads for the rest:
 
 - `getMedia({ id })` and `loadMedia({ id, range })`: a media file and its bytes.
 - `usage()`: the token totals of the thread.
-- `entry()`: the index entry of the thread.
+- `indexEntry()`: the index entry of the thread.
 - `logState()`: the `durability.reduce` fold of the log. See [One log for a session tree](./shared-logs#keep-state-for-the-whole-tree).
 - `jobs()`: the background jobs that did not end. See [Watch background jobs](./coding-workspaces#4-watch-background-jobs).
 

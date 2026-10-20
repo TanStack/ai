@@ -98,10 +98,10 @@ export abstract class SessionTurn<
    *
    * @example
    * ```ts
-   * await session.command({ name: 'mode', input: 'plan' })
+   * await session.runCommand({ name: 'mode', input: 'plan' })
    * ```
    */
-  command(
+  runCommand(
     options: CommandOptions & { user?: HarnessUser; inputId?: string },
   ): Operation<unknown> {
     const { name, input } = options
@@ -171,7 +171,7 @@ export abstract class SessionTurn<
       }
       checked = result.data
     }
-    await this.runCommand({
+    await this.runCommandEntry({
       operation,
       name,
       command: entry.command,
@@ -203,14 +203,14 @@ export abstract class SessionTurn<
     this.track(operation)
     // The input was checked when it came. A store write that throws (the
     // log) still ends the command.
-    this.runCommand({ ...input, operation, command: entry.command }).catch(
+    this.runCommandEntry({ ...input, operation, command: entry.command }).catch(
       (error: unknown) => this.failOperation(operation, error),
     )
     return true
   }
 
   /** Apply the checked input of a command, run it, and settle the input. */
-  private async runCommand({
+  private async runCommandEntry({
     operation,
     name,
     command,
@@ -653,7 +653,7 @@ export abstract class SessionTurn<
     try {
       await this.flushNotes()
       // The stored settings of the thread, as they are when the turn starts.
-      const stored = this.threadSettings
+      const stored = this.currentSettings
       // A removed session plugin stays mounted, but gives this turn nothing:
       // no tools, prompts, middleware, agents, extension items, or
       // capabilities, also for the turn plugins below.
@@ -949,7 +949,7 @@ export abstract class SessionTurn<
       /** The bag of the root agents, while a part of them runs. */
       let rootBag = isRootTurn ? routedBag : undefined
       isRootPart = rootBag !== undefined
-      // A `session.tool()` turn takes no steer and no late join: it has no
+      // A `session.runTool()` turn takes no steer and no late join: it has no
       // model to answer them. They wait and run as their own turn.
       const isToolTurn = turn.tool !== undefined
       /**

@@ -207,7 +207,7 @@ describe('usage()', () => {
 
     // The lead call costs $3.25 from the lookup, the worker call $0.50 from
     // its provider.
-    expect(await session.command({ name: 'usage' })).toBe(
+    expect(await session.runCommand({ name: 'usage' })).toBe(
       [
         '2 model calls, 2000000 input tokens (500000 cache read, 500000 cache write), 200000 output tokens, 2200000 total. Cost: $3.7500.',
         `mock/test-model: ${CALL_LINE}`,
@@ -237,7 +237,7 @@ describe('usage()', () => {
 
     await session.send('one')
 
-    expect(await session.command({ name: 'usage' })).toBe(
+    expect(await session.runCommand({ name: 'usage' })).toBe(
       `${CALL_LINE} Cost: $0.5000.`,
     )
     expect((await host.sessions.get({ threadId: 't' }))?.usage?.cost).toBe(0.5)
@@ -312,7 +312,7 @@ describe('usage()', () => {
     await session.send('one')
     await session.send('two')
 
-    expect(await session.command({ name: 'usage' })).toBe(
+    expect(await session.runCommand({ name: 'usage' })).toBe(
       '2 model calls, 2000000 input tokens (500000 cache read, 500000 cache write), 200000 output tokens, 2200000 total. Cost: $6.5000.',
     )
     await host.close()
@@ -345,7 +345,7 @@ describe('usage()', () => {
 
     await session.send('one')
 
-    expect(await session.command({ name: 'usage' })).toBe(
+    expect(await session.runCommand({ name: 'usage' })).toBe(
       `${CALL_LINE} Cost: $0.0000 (cost unknown for 1 call).`,
     )
     expect((await host.sessions.get({ threadId: 't' }))?.usage).toEqual({

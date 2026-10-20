@@ -245,7 +245,7 @@ describe('oauthConnector', () => {
       ),
     ).toBe(true)
 
-    await expect(session.command({ name: 'connect:github' })).resolves.toBe(
+    await expect(session.runCommand({ name: 'connect:github' })).resolves.toBe(
       'Connected to GitHub.',
     )
     const saved = await credentials.get({
@@ -261,7 +261,7 @@ describe('oauthConnector', () => {
     expect(transcript).toContain('list my issues again')
     expect(transcript).not.toContain('gh-token')
 
-    await session.command({ name: 'disconnect:github' })
+    await session.runCommand({ name: 'disconnect:github' })
     expect(
       await credentials.list({
         threadId: 't',
@@ -306,7 +306,7 @@ describe('commands on close', () => {
       }),
       { threadId: 't1' },
     )
-    const command = session.command({ name: 'stuck' })
+    const command = session.runCommand({ name: 'stuck' })
     await running
     await host.close()
     expect(command.status()).toBe('cancelled')
@@ -366,7 +366,7 @@ describe('errors a session publishes', () => {
       errors.push(event.message)
     })
 
-    await expect(session.command({ name: 'leak' })).rejects.toThrow()
+    await expect(session.runCommand({ name: 'leak' })).rejects.toThrow()
 
     expect(errors).toEqual([
       'fetch failed: Bearer [redacted] {"value":"[redacted]"}',

@@ -86,7 +86,7 @@ async function openSessions(count: number) {
 }
 
 function statusOf(session: HarnessSession) {
-  return session.command({ name: 'mcp' })
+  return session.runCommand({ name: 'mcp' })
 }
 
 /** The text of the last model call: it has the result of the tool call. */

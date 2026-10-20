@@ -340,10 +340,10 @@ export abstract class SessionRequests<
    *
    * @example
    * ```ts
-   * const turn = session.tool({ name: 'sync_inbox', args: { folder: 'INBOX' } })
+   * const turn = session.runTool({ name: 'sync_inbox', args: { folder: 'INBOX' } })
    * ```
    */
-  tool<
+  runTool<
     TName extends HarnessToolsOf<THarness>['name'] | (string & {}),
   >(options: {
     name: TName
@@ -426,13 +426,13 @@ export abstract class SessionRequests<
    *
    * @example
    * ```ts
-   * await session.append({
+   * await session.appendRecords({
    *   records: [{ type: 'app.signal', text: 'The build failed.' }],
    * })
-   * await session.continue({ inputId: 'after-signal' })
+   * await session.continueWithoutMessage({ inputId: 'after-signal' })
    * ```
    */
-  continue(options?: {
+  continueWithoutMessage(options?: {
     inputId?: string
     overrides?: TurnOverrides
     user?: HarnessUser
@@ -929,10 +929,10 @@ export abstract class SessionRequests<
    * @example
    * ```ts
    * await session.send('Use tabs, not spaces.', { mode: 'followUp', inputId: 'style' })
-   * await session.setDelivery({ inputId: 'style', delivery: 'steer' })
+   * await session.changeInputDelivery({ inputId: 'style', delivery: 'steer' })
    * ```
    */
-  setDelivery(options: {
+  changeInputDelivery(options: {
     inputId: string
     delivery: WaitingInput['delivery']
     user?: HarnessUser
@@ -941,7 +941,7 @@ export abstract class SessionRequests<
   }
 
   /**
-   * `setDelivery`, with `controlId`: the id of an offered input, so a replay
+   * `changeInputDelivery`, with `controlId`: the id of an offered input, so a replay
    * is a duplicate.
    */
   protected override async applySetDelivery({
@@ -962,7 +962,9 @@ export abstract class SessionRequests<
       user,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
-    const current = this.inputs().find((input) => input.inputId === target)
+    const current = this.waitingInputs().find(
+      (input) => input.inputId === target,
+    )
     if (current?.delivery !== delivery) {
       const taken = this.takeWaiting(target)
       if (!taken) return this.reject(inputId, 'not_waiting')
@@ -1094,8 +1096,8 @@ export abstract class SessionRequests<
       keptRecords: async (type) => this.keptRecords(type),
       replaceTranscript: (messages) =>
         this.messages.saveThread(this.threadId, messages),
-      entry: () => this.index.get(this.indexKey),
-      updateEntry: (update) => {
+      indexEntry: () => this.index.get(this.indexKey),
+      updateIndexEntry: (update) => {
         // Only these fields: a plugin cannot change the owner, the parent,
         // or the pin.
         const pick = (
@@ -1131,8 +1133,9 @@ export abstract class SessionRequests<
         // The OAuth login of a command is a live wait of that command.
         if (operationId !== undefined) this.openSignIn(info, operationId)
       },
-      setConfig: (change) => this.setConfig({ ...change, user: owner() }),
-      settings: () => this.settings(),
+      setPluginSetting: (change) =>
+        this.setPluginSetting({ ...change, user: owner() }),
+      threadSettings: () => this.threadSettings(),
     }
   }
 

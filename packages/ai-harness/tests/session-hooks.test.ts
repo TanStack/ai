@@ -62,7 +62,7 @@ describe('session event hooks', () => {
       expect(operationId).toBeTruthy()
       return session.answer({ questionId: question.questionId, value: 'yes' })
     })
-    await expect(session.command({ name: 'confirm' })).resolves.toBe('yes')
+    await expect(session.runCommand({ name: 'confirm' })).resolves.toBe('yes')
     stop()
     await host.close()
   })
@@ -71,7 +71,7 @@ describe('session event hooks', () => {
     const { host, session } = await open()
     const seen: Array<AuthRequest> = []
     session.onAuthRequired(({ operationId: _, ...auth }) => seen.push(auth))
-    await session.command({ name: 'connect' })
+    await session.runCommand({ name: 'connect' })
     expect(seen).toEqual([{ connector: 'github', userCode: 'AB-12' }])
     await host.close()
   })

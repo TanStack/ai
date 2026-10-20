@@ -100,8 +100,8 @@ function createFake(overrides: Partial<SessionViewSource>) {
     cancel: () => accept({ op: 'cancel' }),
     answer: ({ questionId, value }) =>
       accept({ op: 'answer', questionId, value }),
-    command: ({ name, input }) => accept({ op: 'command', name, input }),
-    setConfig: ({ key, value }) => accept({ op: 'config', key, value }),
+    runCommand: ({ name, input }) => accept({ op: 'command', name, input }),
+    setPluginSetting: ({ key, value }) => accept({ op: 'config', key, value }),
     events: (options) => stream.open(options),
     snapshot: () => sessionSnapshot(),
     transcript: async () => [],
@@ -432,7 +432,7 @@ describe('session view actions', () => {
   it('sends settings, cancels, and slash commands with input to the source', async () => {
     const { view, inputs } = await openView()
 
-    await view.setConfig({ key: 'mode', value: 'plan' })
+    await view.setPluginSetting({ key: 'mode', value: 'plan' })
     await view.cancel()
     await view.send('/goal ship it')
 
@@ -452,8 +452,8 @@ describe('session view actions', () => {
   }> = [
     {
       action: 'setConfig',
-      overrides: { setConfig: down },
-      act: (view) => view.setConfig({ key: 'mode', value: 'plan' }),
+      overrides: { setPluginSetting: down },
+      act: (view) => view.setPluginSetting({ key: 'mode', value: 'plan' }),
     },
     {
       action: 'cancel',
@@ -475,7 +475,7 @@ describe('session view actions', () => {
     },
     {
       action: 'a remote command',
-      overrides: { command: down },
+      overrides: { runCommand: down },
       act: (view) => view.send('/ping'),
     },
   ]
@@ -595,26 +595,26 @@ describe('session view on()', () => {
   const configDown = () => Promise.reject(new Error('config down'))
 
   it('stops calling a handler after it unsubscribes', async () => {
-    const { view, errors } = await openView({ setConfig: configDown })
+    const { view, errors } = await openView({ setPluginSetting: configDown })
     const heard: Array<string> = []
     const stop = view.on('error', (message) => heard.push(message))
 
     stop()
-    await view.setConfig({ key: 'mode', value: 'plan' })
+    await view.setPluginSetting({ key: 'mode', value: 'plan' })
 
     expect(errors).toEqual(['config down'])
     expect(heard).toEqual([])
   })
 
   it('calls the next handler when one throws', async () => {
-    const { view } = await openView({ setConfig: configDown })
+    const { view } = await openView({ setPluginSetting: configDown })
     const heard: Array<string> = []
     view.on('error', () => {
       throw new Error('broken handler')
     })
     view.on('error', (message) => heard.push(message))
 
-    await view.setConfig({ key: 'mode', value: 'plan' })
+    await view.setPluginSetting({ key: 'mode', value: 'plan' })
 
     expect(heard).toEqual(['config down'])
   })
@@ -833,22 +833,22 @@ describe('session view inputs', () => {
     const record = recorder(calls)
     const { view, errors } = await openView({
       send: record('followUp'),
-      continue: record('continue'),
+      continueWithoutMessage: record('continue'),
       cancel: record('cancel'),
       cancelInput: record('cancelInput'),
-      setDelivery: record('setDelivery'),
-      configure: record('configure'),
+      changeInputDelivery: record('setDelivery'),
+      updateThreadSettings: record('configure'),
       reset: record('reset'),
       revert: record('revert'),
       unrevert: record('unrevert'),
     })
 
     await view.followUp('then the tests')
-    await view.continue()
+    await view.continueWithoutMessage()
     await view.cancel({ operationId: 'op-2' })
     await view.cancelInput({ inputId: 'in-1' })
-    await view.setDelivery({ inputId: 'in-2', delivery: 'steer' })
-    await view.configure({ settings: { model: 'strong' } })
+    await view.changeInputDelivery({ inputId: 'in-2', delivery: 'steer' })
+    await view.updateThreadSettings({ settings: { model: 'strong' } })
     await view.reset({ note: 'Start over.' })
     await view.revert({ messageId: 'm1' })
     await view.unrevert()
@@ -875,7 +875,7 @@ describe('session view inputs', () => {
     const { view, errors } = await openView()
 
     await view.reset()
-    await view.continue()
+    await view.continueWithoutMessage()
     await drain()
 
     expect(errors).toEqual([
@@ -1490,10 +1490,10 @@ describe('session view dispose', () => {
     act: (view: SessionView) => unknown
   }> = [
     { action: 'notice', act: (view) => view.notice({ text: 'hi' }) },
-    { action: 'command', act: (view) => view.command({ name: 'ping' }) },
+    { action: 'command', act: (view) => view.runCommand({ name: 'ping' }) },
     {
       action: 'setConfig',
-      act: (view) => view.setConfig({ key: 'mode', value: 'plan' }),
+      act: (view) => view.setPluginSetting({ key: 'mode', value: 'plan' }),
     },
     { action: 'cancel', act: (view) => view.cancel() },
     { action: 'approveAll', act: (view) => view.approveAll() },

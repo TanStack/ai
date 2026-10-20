@@ -98,7 +98,9 @@ describe('background work after a crash', () => {
     )
     const turn = crashed.send('Wait')
     await started.opened
-    expect(await crashed.background({ toolCallId: 'call-1' })).toMatchObject({
+    expect(
+      await crashed.moveToolCallToBackground({ toolCallId: 'call-1' }),
+    ).toMatchObject({
       status: 'accepted',
     })
     await turn
@@ -113,7 +115,7 @@ describe('background work after a crash', () => {
       'Moved.',
       'Background job call-1 stopped when the host restarted.',
     ])
-    await recovered.recover()
+    await recovered.recoverPendingWork()
     expect(await assistantTexts(recovered)).toHaveLength(2)
   })
 
@@ -371,7 +373,7 @@ describe('background work after a crash', () => {
     await waitFor(async () =>
       expect(await assistantTexts(recovered)).toContain('Remember the milk.'),
     )
-    await recovered.recover()
+    await recovered.recoverPendingWork()
     const texts = await assistantTexts(recovered)
     expect(texts.filter((each) => each === 'Remember the milk.')).toEqual([
       'Remember the milk.',

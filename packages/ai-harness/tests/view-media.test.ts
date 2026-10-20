@@ -136,10 +136,10 @@ async function openView(over: Partial<SessionViewSource> = {}) {
     resolve: async () => receipt,
     cancel: async () => receipt,
     answer: async () => receipt,
-    command: ({ name, input }) => {
+    runCommand: ({ name, input }) => {
       commands.push({ name, input })
     },
-    setConfig: async () => receipt,
+    setPluginSetting: async () => receipt,
     events: ({ signal }) => replay([], signal),
     snapshot: () => sessionSnapshot(),
     transcript: async () => [],

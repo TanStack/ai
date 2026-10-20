@@ -63,18 +63,18 @@ describe('thread settings', () => {
     })
 
     expect(
-      await session.configure({ settings: { model: 'strong' } }),
+      await session.updateThreadSettings({ settings: { model: 'strong' } }),
     ).toMatchObject({
       status: 'accepted',
     })
-    expect(session.settings()).toEqual({ model: 'strong' })
+    expect(session.threadSettings()).toEqual({ model: 'strong' })
     expect((await session.send('Hi.')).text).toBe('ok')
     expect(strong.calls).toHaveLength(1)
     expect(base.calls).toHaveLength(0)
 
     // `null` clears the field: the harness adapter answers again.
-    await session.configure({ settings: { model: null } })
-    expect(session.settings()).toEqual({})
+    await session.updateThreadSettings({ settings: { model: null } })
+    expect(session.threadSettings()).toEqual({})
     expect((await session.send('Again.')).text).toBe('base')
     await host.close()
   })
@@ -93,17 +93,17 @@ describe('thread settings', () => {
         }),
       ],
     })
-    await session.configure({ settings: { model: 'fast' } })
+    await session.updateThreadSettings({ settings: { model: 'fast' } })
 
     const overridden = await session.send('One.', {
       overrides: { adapter: override.adapter },
     })
     expect(overridden.text).toBe('override')
     expect((await session.send('Two.')).text).toBe('fast')
-    await session.configure({ settings: { model: null } })
+    await session.updateThreadSettings({ settings: { model: null } })
     expect((await session.send('Three.')).text).toBe('picked')
     // A removed plugin's pick is left out too.
-    await session.configure({
+    await session.updateThreadSettings({
       settings: { plugins: { remove: ['test/picker'] } },
     })
     expect((await session.send('Four.')).text).toBe('base')
@@ -116,23 +116,23 @@ describe('thread settings', () => {
     const from = session.snapshot().cursor
     const reader = new AbortController()
 
-    const first = await session.configure({
+    const first = await session.updateThreadSettings({
       settings: { instructions: 'Be short.' },
       inputId: 'set-1',
     })
     expect(
-      await session.configure({
+      await session.updateThreadSettings({
         settings: { instructions: 'Be short.' },
         inputId: 'set-1',
       }),
     ).toEqual(first)
     expect(
-      await session.configure({
+      await session.updateThreadSettings({
         settings: { instructions: 'Be long.' },
         inputId: 'set-1',
       }),
     ).toMatchObject({ status: 'rejected', reason: 'conflict' })
-    expect(session.settings()).toEqual({ instructions: 'Be short.' })
+    expect(session.threadSettings()).toEqual({ instructions: 'Be short.' })
 
     for await (const entry of session.events({ from, signal: reader.signal })) {
       const { event } = entry
@@ -150,7 +150,7 @@ describe('thread settings', () => {
   it('sends the settings reasoning unless the turn overrides it', async () => {
     const { adapter, calls } = mockAdapter(() => text('ok'))
     const { host, session } = await open({ adapter })
-    await session.configure({ settings: { reasoning: 'high' } })
+    await session.updateThreadSettings({ settings: { reasoning: 'high' } })
 
     await session.send('One.')
     await session.send('Two.', { overrides: { reasoning: 'low' } })
@@ -170,7 +170,9 @@ describe('thread settings', () => {
         }),
       ],
     })
-    await session.configure({ settings: { instructions: 'Answer in French.' } })
+    await session.updateThreadSettings({
+      settings: { instructions: 'Answer in French.' },
+    })
 
     await session.send('Hi.')
     const prompts: Array<unknown> = calls[0].systemPrompts
@@ -186,9 +188,11 @@ describe('thread settings', () => {
       tools: [echo('alpha'), echo('beta'), echo('gamma')],
     })
 
-    await session.configure({ settings: { tools: ['alpha'] } })
+    await session.updateThreadSettings({ settings: { tools: ['alpha'] } })
     await session.send('One.')
-    await session.configure({ settings: { tools: { remove: ['alpha'] } } })
+    await session.updateThreadSettings({
+      settings: { tools: { remove: ['alpha'] } },
+    })
     await session.send('Two.')
     // A tool of the turn override is kept.
     await session.send('Three.', { overrides: { tools: [echo('delta')] } })
@@ -226,7 +230,7 @@ describe('thread settings', () => {
     })
 
     await session.send('One.')
-    await session.configure({
+    await session.updateThreadSettings({
       settings: { plugins: { remove: ['acme/notes'] } },
     })
     await session.send('Two.')
@@ -246,20 +250,20 @@ describe('thread settings', () => {
     })
 
     expect(
-      await session.configure({ settings: { model: 'huge' } }),
+      await session.updateThreadSettings({ settings: { model: 'huge' } }),
     ).toMatchObject({
       status: 'rejected',
       reason: expect.stringContaining('huge'),
     })
     expect(
-      await session.configure({
+      await session.updateThreadSettings({
         settings: { plugins: { remove: ['acme/none'] } },
       }),
     ).toMatchObject({
       status: 'rejected',
       reason: expect.stringContaining('acme/none'),
     })
-    expect(session.settings()).toEqual({})
+    expect(session.threadSettings()).toEqual({})
     await host.close()
   })
 
@@ -283,7 +287,7 @@ describe('thread settings', () => {
       ],
     })
     const remove = (names: Array<string>) =>
-      session.configure({ settings: { plugins: { remove: names } } })
+      session.updateThreadSettings({ settings: { plugins: { remove: names } } })
 
     expect(await remove(['acme/notes'])).toMatchObject({
       status: 'rejected',
@@ -293,7 +297,7 @@ describe('thread settings', () => {
       status: 'rejected',
       reason: expect.stringContaining('harness middleware audit requires'),
     })
-    expect(session.settings()).toEqual({})
+    expect(session.threadSettings()).toEqual({})
     await host.close()
   })
 
@@ -308,12 +312,14 @@ describe('thread settings', () => {
     const first = createHarnessHost({ persistence })
     await (
       await first.open(harness, { threadId: THREAD })
-    ).configure({ settings: { model: 'strong', instructions: 'Be short.' } })
+    ).updateThreadSettings({
+      settings: { model: 'strong', instructions: 'Be short.' },
+    })
     await first.close()
 
     const second = createHarnessHost({ persistence })
     const session = await second.open(harness, { threadId: THREAD })
-    expect(session.settings()).toEqual({
+    expect(session.threadSettings()).toEqual({
       model: 'strong',
       instructions: 'Be short.',
     })
@@ -330,7 +336,7 @@ describe('the working folder note', () => {
     const { adapter, calls } = mockAdapter(() => text('ok'))
     const { host, session } = await open({ adapter })
 
-    await session.configure({ settings: { cwd: '/repo/app' } })
+    await session.updateThreadSettings({ settings: { cwd: '/repo/app' } })
     await session.send('Hi.')
     const roles = calls[0]?.messages.map(
       (message: ModelMessage) => message.role,
@@ -345,7 +351,7 @@ describe('the working folder note', () => {
     const { host, session } = await open({ adapter })
 
     await session.send('First.')
-    await session.configure({ settings: { cwd: '/repo/app' } })
+    await session.updateThreadSettings({ settings: { cwd: '/repo/app' } })
     await session.send('Hi.')
     expect(sent(calls[1])).toContain(
       'The working folder is now /repo/app. Paths are relative to it.',
@@ -362,9 +368,11 @@ describe('the working folder note', () => {
     const { host, session } = await open({ adapter })
 
     await session.send('First.')
-    await session.configure({ settings: { cwd: '/repo/app' } })
-    await session.configure({ settings: { cwd: '/repo/app' } })
-    await session.configure({ settings: { instructions: 'Be short.' } })
+    await session.updateThreadSettings({ settings: { cwd: '/repo/app' } })
+    await session.updateThreadSettings({ settings: { cwd: '/repo/app' } })
+    await session.updateThreadSettings({
+      settings: { instructions: 'Be short.' },
+    })
     await session.send('Hi.')
     expect(sent(calls[1]).split('The working folder is now')).toHaveLength(2)
     await host.close()
@@ -374,12 +382,12 @@ describe('the working folder note', () => {
     const { adapter, calls } = mockAdapter(() => text('ok'))
     const { host, session } = await open({ adapter })
 
-    await session.configure({ settings: { cwd: null } })
+    await session.updateThreadSettings({ settings: { cwd: null } })
     await session.send('Hi.')
     expect(sent(calls[0])).not.toContain('working folder')
 
-    await session.configure({ settings: { cwd: '/repo/app' } })
-    await session.configure({ settings: { cwd: null } })
+    await session.updateThreadSettings({ settings: { cwd: '/repo/app' } })
+    await session.updateThreadSettings({ settings: { cwd: null } })
     await session.send('Again.')
     expect(sent(calls[1])).toContain(
       'The working folder is the default folder again.',
@@ -407,10 +415,12 @@ describe('plugin config next to the settings', () => {
         }),
       ],
     })
-    await session.setConfig({ key: 'tone', value: 'warm' })
-    await session.configure({ settings: { instructions: 'Be brief.' } })
-    expect(session.config().tone?.value).toBe('warm')
-    expect(session.settings()).toEqual({ instructions: 'Be brief.' })
+    await session.setPluginSetting({ key: 'tone', value: 'warm' })
+    await session.updateThreadSettings({
+      settings: { instructions: 'Be brief.' },
+    })
+    expect(session.pluginSettings().tone?.value).toBe('warm')
+    expect(session.threadSettings()).toEqual({ instructions: 'Be brief.' })
     await host.close()
   })
 })
@@ -432,7 +442,7 @@ describe('thread settings on two hosts', () => {
     const a = await hostA.open(harness, { threadId: THREAD })
     const b = await hostB.open(harness, { threadId: THREAD })
 
-    await a.configure({ settings: { reasoning: 'high' } })
+    await a.updateThreadSettings({ settings: { reasoning: 'high' } })
     // A gives the log back, so B owns it for its change.
     const store = memoryLogStore({ state: logState })
     await vi.waitFor(
@@ -443,13 +453,15 @@ describe('thread settings on two hosts', () => {
       { timeout: 5_000 },
     )
     expect(
-      await b.configure({ settings: { instructions: 'Answer in French.' } }),
+      await b.updateThreadSettings({
+        settings: { instructions: 'Answer in French.' },
+      }),
     ).toMatchObject({ status: 'accepted' })
 
     // Each host reads the change of the other one from the log.
     const both = { reasoning: 'high', instructions: 'Answer in French.' }
     for (const session of [a, b]) {
-      await vi.waitFor(() => expect(session.settings()).toEqual(both), {
+      await vi.waitFor(() => expect(session.threadSettings()).toEqual(both), {
         timeout: 5_000,
       })
     }

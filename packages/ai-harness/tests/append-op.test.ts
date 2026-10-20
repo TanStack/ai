@@ -40,7 +40,7 @@ describe('{ op: "append" }', () => {
       inputId: 'hook-1',
       status: 'accepted',
     })
-    await session.continue()
+    await session.continueWithoutMessage()
 
     expect(messageTexts(calls[0])).toEqual(['[webhook] build failed'])
     await host.close()

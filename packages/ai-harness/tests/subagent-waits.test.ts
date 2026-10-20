@@ -223,7 +223,7 @@ describe('a wait of an agent tool', () => {
       expect.objectContaining({ kind: 'sign-in', agent: 'tracker' }),
     ])
     const ended = turnEnd(session)
-    await session.command({ name: 'connect:github' })
+    await session.runCommand({ name: 'connect:github' })
 
     expect(await ended).toMatchObject({ outcome: 'completed' })
     expect(seen).toEqual(['key-1'])

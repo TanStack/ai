@@ -703,7 +703,7 @@ export async function createHarnessMcpServer<
         ),
       }).server<CallContext>(
         onSession(async (target, args, context) => {
-          const operation = target.command({
+          const operation = target.runCommand({
             name: command.name,
             input: inputOf(args),
           })
@@ -725,7 +725,7 @@ export async function createHarnessMcpServer<
         inputSchema: withThreadId(convertSchemaToJsonSchema(tool.inputSchema)),
       }).server<CallContext>(
         onSession(async (target, args, context) => {
-          const operation = target.tool({
+          const operation = target.runTool({
             name: tool.name,
             args: inputOf(args),
           })
@@ -918,7 +918,7 @@ async function settle(
     (value): Settled => ({ done: true, value }),
   )
   const asked = session
-    .waitFor({ runId: operation.id, signal: stop.signal })
+    .waitForRun({ runId: operation.id, signal: stop.signal })
     .then(
       (wait): Settled | Promise<Settled> => {
         // The interrupts of a turn come with its end.

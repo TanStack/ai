@@ -214,9 +214,9 @@ describe('host access with membersOnly()', () => {
     expect(await viewer.transcript()).toEqual([])
     await expect(viewer.send('Hi.')).rejects.toBeInstanceOf(AccessDeniedError)
     await expect(
-      member.configure({ settings: { instructions: 'Be short.' } }),
+      member.updateThreadSettings({ settings: { instructions: 'Be short.' } }),
     ).rejects.toBeInstanceOf(AccessDeniedError)
-    expect(member.settings()).toEqual({})
+    expect(member.threadSettings()).toEqual({})
     await host.close()
   })
 
@@ -616,7 +616,7 @@ describe('access to the inputs of the input lane', () => {
       threadId: THREAD,
       user: bea,
     })
-    const running = member.command({ name: 'ask' })
+    const running = member.runCommand({ name: 'ask' })
     await waitFor(() => expect(questionsOf(member.snapshot())).toHaveLength(1))
     const [question] = questionsOf(member.snapshot())
     const answer = (user: User, value: string) =>

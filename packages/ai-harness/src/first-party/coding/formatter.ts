@@ -480,7 +480,7 @@ export function formatter(options: FormatterOptions) {
       }
       /** The working folder of `place`, as `workspaceTools` reads it. */
       const here = ({ paths, root }: ReturnType<typeof formattersOf>) => {
-        const cwd = ctx.session.settings().cwd
+        const cwd = ctx.session.threadSettings().cwd
         return cwd ? paths.resolve(root, cwd) : root
       }
       /**

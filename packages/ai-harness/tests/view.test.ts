@@ -252,7 +252,7 @@ describe('createSessionView', () => {
     const errors: Array<string> = []
     view.on('error', (message) => errors.push(message))
 
-    await view.command({ name: 'nope' })
+    await view.runCommand({ name: 'nope' })
 
     await vi.waitFor(() =>
       expect(errors).toEqual(['Not accepted: unknown_command']),
@@ -304,7 +304,7 @@ describe('createSessionView', () => {
     snapshot.mockClear()
 
     view.dispose()
-    await session.command({ name: 'ping' })
+    await session.runCommand({ name: 'ping' })
     await new Promise((resolve) => setTimeout(resolve, 20))
 
     expect(view.store.get()).toEqual({ ...before, connection: 'closed' })
@@ -371,12 +371,12 @@ describe('createSessionView', () => {
     const errors: Array<string> = []
     view.on('error', (message) => errors.push(message))
 
-    await view.setConfig({ key: 'missing', value: 1 })
+    await view.setPluginSetting({ key: 'missing', value: 1 })
     await vi.waitFor(() =>
       expect(errors).toEqual(['Not accepted: unknown_config']),
     )
-    await view.setConfig({ key: 'mode', value: 'bypass' })
-    await view.command({ name: 'ping' })
+    await view.setPluginSetting({ key: 'mode', value: 'bypass' })
+    await view.runCommand({ name: 'ping' })
     await view.send('/ping')
 
     const refused = 'Not accepted: not_exposed'
@@ -482,7 +482,7 @@ describe('the agents of a session view', () => {
     const view = createSessionView(session)
     await view.ready
     const run = session.agents.cleaner.start()
-    const wait = await session.waitFor({
+    const wait = await session.waitForRun({
       runId: run.id,
       signal: AbortSignal.timeout(5_000),
     })

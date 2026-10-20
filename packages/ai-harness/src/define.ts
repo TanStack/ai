@@ -282,7 +282,7 @@ export interface HarnessConfig<
    */
   adapter?: TAdapter | KeyedAdapter<TAdapter>
   /**
-   * Models a thread can pick by name with `session.configure({ model })`.
+   * Models a thread can pick by name with `session.updateThreadSettings({ model })`.
    * The stored name picks the model of each turn, after `overrides.adapter`
    * and before a plugin `adapter()`.
    */
@@ -350,9 +350,9 @@ export interface HarnessConfig<
    * The shape of the `metadata` of the session index entry of each thread,
    * as a Standard Schema (for example a zod object). Each write checks it:
    * `host.sessions.update`, the `update` op of `POST sessions`, and
-   * `updateEntry` of plugins and sessions. A write it refuses throws
+   * `updateIndexEntry` of plugins and sessions. A write it refuses throws
    * `SessionMetadataError` and writes nothing. It also types the metadata
-   * of those writes, of `session.entry()`, of the hooks, and of a client
+   * of those writes, of `session.indexEntry()`, of the hooks, and of a client
    * made with `createHarnessClient<typeof harness>`.
    */
   metadataSchema?: TMetadataSchema
@@ -377,25 +377,25 @@ export interface HarnessConfig<
     /**
      * The thread settings a client may change with a `configure` input. An
      * input with any other field is refused with `not_exposed`. Server code
-     * that calls `session.configure()` can change every field. `plugins` and
+     * that calls `session.updateThreadSettings()` can change every field. `plugins` and
      * `instructions` let a client turn off a plugin and write into the
      * system prompt, so expose them only to clients you trust.
      */
     settings?: ReadonlyArray<keyof ThreadSettings>
     /**
      * The plugin config keys a client may set with a `config` input, for
-     * example `client.setConfig({ key: 'model', value: 'fast' })`. An input with any other
+     * example `client.setPluginSetting({ key: 'model', value: 'fast' })`. An input with any other
      * key is refused with `not_exposed`. Server code that calls
-     * `session.setConfig()` can set every key. Warning: `mode` of
+     * `session.setPluginSetting()` can set every key. Warning: `mode` of
      * `permissions()` lets a client turn approvals off with `bypass`. Keep
      * `mode` on the server, or expose it only to clients you trust.
      */
     config?: ReadonlyArray<string>
     /**
      * The commands a client may run with a `command` input, for example
-     * `client.command({ name: 'undo' })`, or `/undo` in a session view on a
+     * `client.runCommand({ name: 'undo' })`, or `/undo` in a session view on a
      * client. An input with any other command is refused with `not_exposed`.
-     * Server code that calls `session.command()` can run every command. Warning:
+     * Server code that calls `session.runCommand()` can run every command. Warning:
      * `/mode bypass` of `permissions()` turns approvals off, so expose `mode`
      * only to clients you trust. Plugins add their commands when a session
      * opens, so `defineHarness` does not check these names.
@@ -412,7 +412,7 @@ export interface HarnessConfig<
      * The host record types a client may add with an `append` input, for
      * example a webhook that adds `{ type: 'app.signal', text }`. An input
      * with any other type, or with a `thread` field, is refused with
-     * `not_exposed`. Server code that calls `session.append()` can add every
+     * `not_exposed`. Server code that calls `session.appendRecords()` can add every
      * type. The log keeps the records, and `durability.project` decides
      * what the model sees of them.
      */

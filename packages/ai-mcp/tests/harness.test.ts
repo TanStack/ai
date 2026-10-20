@@ -1359,7 +1359,7 @@ describe('createHarnessMcpServer', () => {
     })
     await held.hold.reached
     const live = await session()
-    const confirm = live.command({ name: 'confirm' })
+    const confirm = live.runCommand({ name: 'confirm' })
     await waitFor(() => expect(live.snapshot().pendingWaits).toHaveLength(1))
     held.hold.release()
 
@@ -1475,7 +1475,7 @@ describe('createHarnessMcpServer', () => {
     const { server, session } = await harnessServer([])
     const { client } = await connect(server)
     const live = await session()
-    const confirm = live.command({ name: 'confirm' })
+    const confirm = live.runCommand({ name: 'confirm' })
     const questionId = await nextQuestionId(live)
 
     const answered = await client.callTool({

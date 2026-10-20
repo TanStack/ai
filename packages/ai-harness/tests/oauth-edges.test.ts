@@ -411,7 +411,7 @@ describe('oauthConnector edges', () => {
     const { fake } = replies([{ access_token: 'loop-token' }])
     const { credentials, host, session } = await openLoopback(fake)
     const asked = nextSignInUrl(session)
-    const connecting = session.command({ name: 'connect:svc' })
+    const connecting = session.runCommand({ name: 'connect:svc' })
     const url = await asked
     const redirect = url.searchParams.get('redirect_uri') ?? ''
     const state = url.searchParams.get('state') ?? ''
@@ -423,7 +423,7 @@ describe('oauthConnector edges', () => {
         id: 'svc',
       }),
     ).toMatchObject({ accessToken: 'loop-token' })
-    expect(await session.command({ name: 'disconnect:svc' })).toBe(
+    expect(await session.runCommand({ name: 'disconnect:svc' })).toBe(
       'Disconnected from Service.',
     )
     expect(
@@ -438,7 +438,7 @@ describe('oauthConnector edges', () => {
   it('closes the session at once while /connect waits for the browser', async () => {
     const { host, session } = await openLoopback(replies([]).fake)
     const asked = nextSignInUrl(session)
-    const connecting = session.command({ name: 'connect:svc' })
+    const connecting = session.runCommand({ name: 'connect:svc' })
     const redirect = (await asked).searchParams.get('redirect_uri') ?? ''
     await host.close()
     expect(connecting.status()).toBe('cancelled')

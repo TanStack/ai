@@ -237,7 +237,7 @@ describe('durable host stores', () => {
       persistence: durablePersistence(),
     }).open(harness, { threadId: THREAD })
     await expect(
-      durable.append({ records: [{ type: 'harness.event' }] }),
+      durable.appendRecords({ records: [{ type: 'harness.event' }] }),
     ).rejects.toThrow('reserved for the harness')
   })
 })
@@ -322,7 +322,7 @@ describe('durable session log', () => {
       { threadId: THREAD },
     )
 
-    const { inputId } = await session.append({
+    const { inputId } = await session.appendRecords({
       records: [{ type: 'app.note' }],
     })
 
@@ -369,7 +369,7 @@ describe('durable session log', () => {
       expect(JSON.stringify(batches)).toContain('TEXT_MESSAGE_START'),
     )
 
-    await session.append({ records: [{ type: 'app.note', n: 1 }] })
+    await session.appendRecords({ records: [{ type: 'app.note', n: 1 }] })
 
     // The input record of the append takes the waiting events with it, and
     // the records come after them.
@@ -396,7 +396,7 @@ describe('durable session log', () => {
       name: 'check',
       description: 'Check the build',
     }).server(async () => {
-      await session?.append({
+      await session?.appendRecords({
         records: [{ type: 'app.signal', text: '[signal] tests failed' }],
       })
       await session?.send('more', { busy: 'steer' }).receipt
@@ -440,7 +440,7 @@ describe('durable session log', () => {
       name: 'check',
       description: 'Check the build',
     }).server(async () => {
-      await session?.append({
+      await session?.appendRecords({
         records: [{ type: 'app.signal', text: '[signal] tests failed' }],
       })
       return 'checked'
@@ -465,7 +465,7 @@ describe('durable session log', () => {
 
     await session.send('one')
     // Between turns: the next turn starts with it.
-    await session.append({
+    await session.appendRecords({
       records: [{ type: 'app.signal', text: '[signal] build failed' }],
     })
     await session.send('two')
@@ -521,7 +521,7 @@ describe('durable session log', () => {
     await session.send('q1')
     await session.send('q2')
 
-    await session.append({
+    await session.appendRecords({
       records: [
         { type: 'app.compact', summary: 'Earlier: q1 and a1.', firstKept: 2 },
       ],

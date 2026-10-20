@@ -47,7 +47,7 @@ console.log((await host.sessions.get({ threadId: 'chat-1' }))?.members) // [{ us
 
 What an entry holds:
 
-- `title`: the name of the chat. Set it with `host.sessions.rename`, or from a plugin with `ctx.session.updateEntry({ title })`.
+- `title`: the name of the chat. Set it with `host.sessions.rename`, or from a plugin with `ctx.session.updateIndexEntry({ title })`.
 - `updatedAt`: the time of the last change. The list sorts by it.
 - `members`: the users who can open the thread, each with a role. The user who opened the thread first is the member with the role `owner`.
 - `tenantId`: the tenant of the thread. Without it, the thread is in the default tenant. See [Access and tenants](./access).
@@ -149,7 +149,7 @@ await session.unrevert()
 ```
 
 - While a revert stands, `transcript()` hides the messages after that message. The session keeps them.
-- The next turn drops the hidden messages for good. A steer, a follow-up, and `continue` are turns too.
+- The next turn drops the hidden messages for good. A steer, a follow-up, and `continueWithoutMessage` are turns too.
 - The session saves the revert in the log. A restart keeps it.
 - Each change sends a `harness.revert` event. Read the transcript again when it arrives.
 - `revert` and `unrevert` refuse with `busy` when the session is not idle, or when another host runs the thread. `revert` refuses with `unknown_message` for an id that is not in the transcript.
@@ -206,7 +206,7 @@ A turn on one server writes the usage of the thread. At the same time, the app o
 
 ### Read and write the metadata in a plugin
 
-Give the plugin the same schema. Then `ctx.session.entry()` and `ctx.session.updateEntry()` are typed, and the schema checks each write of the plugin:
+Give the plugin the same schema. Then `ctx.session.indexEntry()` and `ctx.session.updateIndexEntry()` are typed, and the schema checks each write of the plugin:
 
 ```ts group=harness-sessions
 import { defineCommand, definePlugin } from '@tanstack/ai-harness'
@@ -220,7 +220,7 @@ export const pins = definePlugin({
         description: 'Unpin a file from this chat',
         input: z.object({ file: z.string() }),
         run: ({ file }) =>
-          ctx.session.updateEntry((entry) => ({
+          ctx.session.updateIndexEntry((entry) => ({
             metadata: {
               pinnedFiles: (entry.metadata?.pinnedFiles ?? []).filter(
                 (pinned) => pinned !== file,
@@ -233,7 +233,7 @@ export const pins = definePlugin({
 })
 ```
 
-Add `pins` to the `plugins` of the harness. If the harness metadata does not fit the schema of a plugin, TypeScript shows an error. The turn hooks of the harness also get a typed `session.entry()`.
+Add `pins` to the `plugins` of the harness. If the harness metadata does not fit the schema of a plugin, TypeScript shows an error. The turn hooks of the harness also get a typed `session.indexEntry()`.
 
 ## Show a live status
 

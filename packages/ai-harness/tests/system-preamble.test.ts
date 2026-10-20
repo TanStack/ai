@@ -103,7 +103,7 @@ describe('tool execution context carries the calling thread', () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const session = await host.open(harness, { threadId: 't-oob' })
 
-    await session.tool({ name: 'capture_ctx' })
+    await session.runTool({ name: 'capture_ctx' })
 
     expect(seen).toHaveLength(1)
     expect(seen[0].threadId).toBe('t-oob')

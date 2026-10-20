@@ -83,7 +83,7 @@ const reminded = defineHarness({
 - The transcript, the session log, and the message store never keep them.
 - A return with only `ephemeral` messages also sends the model back to work, and it counts for `maxFinishCycles`.
 - `onJoin` can return `ephemeral` messages too. They go to the model call of the join.
-- A reminder that you send in your own loop, one turn at a time, does not count for `maxFinishCycles`. Pass it as `ephemeral` to `send` or `continue`. Each model call of that turn gets it, and no store keeps it. See [Give the model a note for one turn](./inputs#give-the-model-a-note-for-one-turn).
+- A reminder that you send in your own loop, one turn at a time, does not count for `maxFinishCycles`. Pass it as `ephemeral` to `send` or `continueWithoutMessage`. Each model call of that turn gets it, and no store keeps it. See [Give the model a note for one turn](./inputs#give-the-model-a-note-for-one-turn).
 
 ## Retry model errors
 
@@ -191,7 +191,7 @@ The join stops at the first message that:
 
 That message and the ones after it wait. `canJoin` runs again before each model call and at each final answer, so it can run more than once for one message. Keep it a quick check with no side effects. What still waits when the turn ends runs as its own turn, before other queued turns. A cancelled one settles `aborted` and does not run.
 
-A `session.tool()` turn takes no messages. It runs no model, so nothing could answer them. A message that arrives while it runs waits, and then runs as its own turn. See [Run a tool without a model](./tool-runs).
+A `session.runTool()` turn takes no messages. It runs no model, so nothing could answer them. A message that arrives while it runs waits, and then runs as its own turn. See [Run a tool without a model](./tool-runs).
 
 A turn that `routing` sends to root agents takes messages, the same as the main model. The root agents get them at each model call.
 

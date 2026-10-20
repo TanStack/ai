@@ -104,7 +104,7 @@ describe('the HarnessSession type', () => {
       runId: 'run-1',
     }
     void sent
-    const config: Parameters<typeof session.setConfig>[0] = {
+    const config: Parameters<typeof session.setPluginSetting>[0] = {
       key: 'model',
       value: 'fast',
       // @ts-expect-error only an offered input has its own control id.

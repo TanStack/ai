@@ -503,7 +503,7 @@ describe('codeMode', () => {
     // In the default mode, the rule allows it, so it moves.
     expect(namesOf(0)).toEqual(['execute_typescript'])
 
-    await session.command({ name: 'mode', input: 'plan' })
+    await session.runCommand({ name: 'mode', input: 'plan' })
     await session.send('plan it')
     // Plan mode denies an edit, so a call inside the isolate must not run
     // it. No tool moves, so code mode adds no tool.
@@ -613,7 +613,7 @@ describe('codeMode', () => {
         },
       )
       if (mode === 'plan')
-        await session.command({ name: 'mode', input: 'plan' })
+        await session.runCommand({ name: 'mode', input: 'plan' })
       expect((await session.send('look it up')).text).toBe('done')
       // The program ran: a question would wait, and plan mode would deny it.
       expect(seen).toHaveLength(1)

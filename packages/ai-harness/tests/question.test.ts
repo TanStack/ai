@@ -196,7 +196,7 @@ describe('ask with a url', () => {
         threadId: 't',
       },
     )
-    const running = session.command({ name: 'verify' })
+    const running = session.runCommand({ name: 'verify' })
 
     await vi.waitFor(() =>
       expect(questionsOf(session.snapshot())).toHaveLength(1),

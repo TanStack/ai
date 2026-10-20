@@ -319,7 +319,7 @@ describe.skipIf(!hasGit)('snapshots', () => {
     await session.send('Hello')
     await session.send('Edit the files')
 
-    expect(await session.command({ name: 'undo' })).toBe(
+    expect(await session.runCommand({ name: 'undo' })).toBe(
       'Undid the last turn. Files restored: 3.',
     )
     expect(await read('a.txt')).toBe('one')
@@ -329,7 +329,7 @@ describe.skipIf(!hasGit)('snapshots', () => {
       { role: 'user', content: 'Hello' },
       { role: 'assistant', content: 'Hi.' },
     ])
-    expect(await session.command({ name: 'undo' })).toBe('Nothing to undo.')
+    expect(await session.runCommand({ name: 'undo' })).toBe('Nothing to undo.')
     await host.close()
   })
 
@@ -346,14 +346,16 @@ describe.skipIf(!hasGit)('snapshots', () => {
     })
     await session.send('Edit the files')
     const edited = await session.transcript()
-    await session.command({ name: 'undo' })
+    await session.runCommand({ name: 'undo' })
 
-    expect(await session.command({ name: 'redo' })).toBe('Redid the last turn.')
+    expect(await session.runCommand({ name: 'redo' })).toBe(
+      'Redid the last turn.',
+    )
     expect(await read('a.txt')).toBe('two')
     expect(await read('new/c.txt')).toBe('added')
     expect(await session.transcript()).toEqual(edited)
     // The turn is back, so it can be undone again.
-    await session.command({ name: 'undo' })
+    await session.runCommand({ name: 'undo' })
     expect(await read('a.txt')).toBe('one')
     await host.close()
   })
@@ -370,7 +372,7 @@ describe.skipIf(!hasGit)('snapshots', () => {
     await put('b.txt', 'mine')
     await put('c.txt', 'mine')
 
-    expect(await session.command({ name: 'undo' })).toBe(
+    expect(await session.runCommand({ name: 'undo' })).toBe(
       'Undid the last turn. Files restored: 1.',
     )
     expect(await read('a.txt')).toBe('one')
@@ -378,7 +380,9 @@ describe.skipIf(!hasGit)('snapshots', () => {
     expect(await read('c.txt')).toBe('mine')
 
     await put('c.txt', 'later')
-    expect(await session.command({ name: 'redo' })).toBe('Redid the last turn.')
+    expect(await session.runCommand({ name: 'redo' })).toBe(
+      'Redid the last turn.',
+    )
     expect(await read('a.txt')).toBe('two')
     expect(await read('b.txt')).toBe('mine')
     expect(await read('c.txt')).toBe('later')
@@ -393,11 +397,11 @@ describe.skipIf(!hasGit)('snapshots', () => {
     })
     await session.send('Add a file')
 
-    await session.command({ name: 'undo' })
+    await session.runCommand({ name: 'undo' })
     expect(await readdir(root)).toEqual(['a.txt'])
     // A file that the user adds between /undo and /redo stays.
     await put('mine.txt', 'mine')
-    await session.command({ name: 'redo' })
+    await session.runCommand({ name: 'redo' })
     expect(await read('new/c.txt')).toBe('added')
     expect(await read('mine.txt')).toBe('mine')
     await host.close()
@@ -421,7 +425,7 @@ describe.skipIf(!hasGit)('snapshots', () => {
     // git must read it as a plain name.
     await rm(join(root, '[x].txt'))
 
-    expect(await session.command({ name: 'undo' })).toBe(
+    expect(await session.runCommand({ name: 'undo' })).toBe(
       'Undid the last turn. Files restored: 2.',
     )
     expect(await read('my file.txt')).toBe('one')
@@ -437,10 +441,10 @@ describe.skipIf(!hasGit)('snapshots', () => {
       changes: [() => put('a.txt', 'two')],
     })
     await session.send('Edit a.txt')
-    await session.command({ name: 'undo' })
+    await session.runCommand({ name: 'undo' })
     await session.send('Something else')
 
-    expect(await session.command({ name: 'redo' })).toBe('Nothing to redo.')
+    expect(await session.runCommand({ name: 'redo' })).toBe('Nothing to redo.')
     expect(await read('a.txt')).toBe('one')
     await host.close()
   })
@@ -457,14 +461,14 @@ describe.skipIf(!hasGit)('snapshots', () => {
     await first.host.close()
 
     const second = await open({ replies: [], persistence })
-    expect(await second.session.command({ name: 'undo' })).toBe(
+    expect(await second.session.runCommand({ name: 'undo' })).toBe(
       'Undid the last turn. Files restored: 1.',
     )
     expect(await read('a.txt')).toBe('one')
     await second.host.close()
 
     const third = await open({ replies: [], persistence })
-    expect(await third.session.command({ name: 'redo' })).toBe(
+    expect(await third.session.runCommand({ name: 'redo' })).toBe(
       'Redid the last turn.',
     )
     expect(await read('a.txt')).toBe('two')
@@ -487,7 +491,7 @@ describe.skipIf(!hasGit)('snapshots', () => {
     })
 
     await session.send('Add b.txt')
-    await session.command({ name: 'undo' })
+    await session.runCommand({ name: 'undo' })
 
     expect(await savedSteps(log)).toMatchObject([{ files: ['b.txt'] }])
     expect(await filesUnder(projectGit)).toEqual(before)
@@ -523,7 +527,7 @@ describe.skipIf(!hasGit)('snapshots with a workspace for each thread', () => {
 
     await session.send('Write a.txt')
     expect(await readFile(join(own, 'a.txt'), 'utf8')).toBe('two')
-    expect(await session.command({ name: 'undo' })).toBe(
+    expect(await session.runCommand({ name: 'undo' })).toBe(
       'Undid the last turn. Files restored: 1.',
     )
     expect(await readFile(join(own, 'a.txt'), 'utf8')).toBe('one')
@@ -602,7 +606,7 @@ describe.skipIf(!hasGit)('snapshots of many runs', () => {
     await runA.session.send('Write a.txt')
     expect(await read('b.txt')).toBe('B')
     expect(await savedSteps(runA.log)).toMatchObject([{ files: ['a.txt'] }])
-    expect(await runA.session.command({ name: 'undo' })).toBe(
+    expect(await runA.session.runCommand({ name: 'undo' })).toBe(
       'Undid the last turn. Files restored: 1.',
     )
 
@@ -919,7 +923,7 @@ describe.skipIf(!hasGit)('session.revert keeps the edits of the user', () => {
     const { firstId } = await runThreeTurns(session)
     await session.revert({ messageId: firstId })
 
-    await session.configure({ settings: { cwd: 'sub' } })
+    await session.updateThreadSettings({ settings: { cwd: 'sub' } })
     await session.send('Four')
 
     expect(
@@ -939,7 +943,7 @@ describe.skipIf(!hasGit)('session.revert keeps the edits of the user', () => {
     const { transcript, firstId } = await runThreeTurns(session)
     await session.revert({ messageId: firstId })
 
-    await session.configure({ settings: { cwd: 'sub' } })
+    await session.updateThreadSettings({ settings: { cwd: 'sub' } })
     await session.unrevert()
 
     expect(
@@ -958,8 +962,8 @@ describe.skipIf(!hasGit)('session.revert keeps the edits of the user', () => {
     await session.revert({ messageId: firstId })
 
     const refused = 'A revert stands. Run unrevert, or send a prompt, first.'
-    expect(await session.command({ name: 'undo' })).toBe(refused)
-    expect(await session.command({ name: 'redo' })).toBe(refused)
+    expect(await session.runCommand({ name: 'undo' })).toBe(refused)
+    expect(await session.runCommand({ name: 'redo' })).toBe(refused)
 
     expect(await read('a.txt')).toBe('two')
     await session.unrevert()

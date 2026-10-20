@@ -178,7 +178,7 @@ async function openOn(
   const session = await host.open(harness, { threadId })
   const names = () => session.commands().map((command) => command.name)
   // `/skills` syncs the commands with the folders first.
-  const list = async () => String(await session.command({ name: 'skills' }))
+  const list = async () => String(await session.runCommand({ name: 'skills' }))
   return { session, names, list }
 }
 
@@ -251,7 +251,7 @@ describe('skills()', () => {
       expect.arrayContaining(['skill:model', 'skill:help', 'alpha']),
     )
     expect(names()).not.toContain('help')
-    expect(await session.command({ name: 'model' })).toBe('picked')
+    expect(await session.runCommand({ name: 'model' })).toBe('picked')
     expect(listed).toContain(`/skill:model  ${dir} (/model is taken)`)
   })
 
@@ -261,7 +261,7 @@ describe('skills()', () => {
     const { session, list, requests } = await open({ dirs: [dir] })
     await list()
 
-    await session.command({ name: 'alpha', input: 'make a banner' })
+    await session.runCommand({ name: 'alpha', input: 'make a banner' })
     await vi.waitFor(() => expect(requests).toHaveLength(1))
     expect(JSON.stringify(requests[0]?.messages)).toContain(
       'Use the alpha skill: make a banner',
@@ -269,7 +269,7 @@ describe('skills()', () => {
     expect(promptOf(requests[0])).toContain('Helps with alpha.')
     expect(promptOf(requests[0])).not.toContain('Second sentence here.')
 
-    await session.command({ name: 'alpha' })
+    await session.runCommand({ name: 'alpha' })
     await vi.waitFor(() => expect(requests).toHaveLength(2))
     expect(JSON.stringify(requests[1]?.messages)).toContain(
       'Use the alpha skill.',
@@ -348,7 +348,7 @@ describe('skills()', () => {
     expect(promptOf(requests[0])).toContain('alpha')
     expect(promptOf(requests[0])).not.toContain('zeta')
 
-    await session.command({ name: 'zeta' })
+    await session.runCommand({ name: 'zeta' })
     await vi.waitFor(() => expect(requests).toHaveLength(2))
     expect(promptOf(requests[1])).toContain('zeta')
   })

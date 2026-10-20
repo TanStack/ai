@@ -170,20 +170,20 @@ Send work:
 
 - `view.send(text)`: sends a prompt. While a turn runs, the text steers that turn. Text that starts with `/` runs a command, for example `/goal all tests pass`. With `{ as: 'operator' }`, it sends the [reply of an operator](./handoffs#reply-as-the-operator), and no model runs.
 - `view.followUp(text)`: the message waits, and runs as its own turn after the current work.
-- `view.continue()`: starts a turn from the saved messages, with no new message.
-- `view.command({ name, input })`: runs a command, for example from a button.
+- `view.continueWithoutMessage()`: starts a turn from the saved messages, with no new message.
+- `view.runCommand({ name, input })`: runs a command, for example from a button.
 - `view.putMedia({ body, mimeType, name })`: stores a file. Send the record you get back with `view.send(text, [record])`. See [Show media](#show-media).
 Change the session:
 
-- `view.setConfig({ key, value })`: changes a config value, for example `view.setConfig({ key: 'mode', value: 'plan' })`.
-- `view.configure({ settings })`: changes the stored settings of the thread, for example `view.configure({ settings: { model: 'strong' } })`.
+- `view.setPluginSetting({ key, value })`: changes a config value, for example `view.setPluginSetting({ key: 'mode', value: 'plan' })`.
+- `view.updateThreadSettings({ settings })`: changes the stored settings of the thread, for example `view.updateThreadSettings({ settings: { model: 'strong' } })`.
 - `view.reset({ note })`: the model starts fresh from the next turn, with your `note` first. See [Reset with a handoff note](./fork-and-reset#reset-with-a-handoff-note).
 - `view.revert({ messageId })` and `view.unrevert()`: go back to a message, and undo that.
 
 Stop work:
 
 - `view.cancel()`: cancels the running turn. `view.cancel({ operationId })` cancels one operation, for example a background agent.
-- `view.cancelInput({ inputId })`: drops a message from `waitingInputs` before it runs. `view.setDelivery({ inputId, delivery: 'steer' })` moves it into the running turn instead.
+- `view.cancelInput({ inputId })`: drops a message from `waitingInputs` before it runs. `view.changeInputDelivery({ inputId, delivery: 'steer' })` moves it into the running turn instead.
 - `view.dispose()`: stops the view when your screen closes. After that, each action throws an error.
 
 On a view with a [`HarnessClient`](#a-ui-in-the-browser), two actions need `expose` in the harness:
@@ -233,12 +233,12 @@ A session and a `HarnessClient` can do all of this. You can also give `createSes
 
 A source must have these members:
 
-- Inputs: `send`, `resolve`, `cancel`, `answer`, `command`, and `setConfig`.
+- Inputs: `send`, `resolve`, `cancel`, `answer`, `runCommand`, and `setPluginSetting`.
 - Reads: `events`, `snapshot`, `transcript`, and `describe`.
 
 These members are optional:
 
-- `continue`, `cancelInput`, `setDelivery`, `configure`, `reset`, `revert`, and `unrevert`. Without one, its view action adds an `error` notice.
+- `continueWithoutMessage`, `cancelInput`, `changeInputDelivery`, `updateThreadSettings`, `reset`, `revert`, and `unrevert`. Without one, its view action adds an `error` notice.
 - `putMedia`. Without it, `view.putMedia` rejects.
 - `mediaUrl` and `loadMedia`. Without `mediaUrl`, media parts have no `url`. Without `loadMedia`, `load()` rejects.
 - `agentTranscript`. Without it, `view.loadAgent` does nothing, so a saved child shows only its card.

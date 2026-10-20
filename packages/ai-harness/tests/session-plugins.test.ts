@@ -84,32 +84,32 @@ describe('config values', () => {
     })
     const session = await host.open(harness, { threadId: 't' })
     // An invalid or unknown saved value falls back to the default.
-    expect(session.config().verbose?.value).toBe(false)
-    expect(session.config().retries?.value).toBe(3)
-    expect(session.config()).not.toHaveProperty('gone')
-    expect(await session.setConfig({ key: 'missing', value: 1 })).toMatchObject(
-      {
-        status: 'rejected',
-        reason: 'unknown_config',
-      },
-    )
-    expect(await session.setConfig({ key: 'retries', value: 9 })).toMatchObject(
-      {
-        status: 'rejected',
-        reason: expect.stringContaining('<= 5'),
-      },
-    )
+    expect(session.pluginSettings().verbose?.value).toBe(false)
+    expect(session.pluginSettings().retries?.value).toBe(3)
+    expect(session.pluginSettings()).not.toHaveProperty('gone')
     expect(
-      (await session.setConfig({ key: 'level', value: 'high' })).status,
+      await session.setPluginSetting({ key: 'missing', value: 1 }),
+    ).toMatchObject({
+      status: 'rejected',
+      reason: 'unknown_config',
+    })
+    expect(
+      await session.setPluginSetting({ key: 'retries', value: 9 }),
+    ).toMatchObject({
+      status: 'rejected',
+      reason: expect.stringContaining('<= 5'),
+    })
+    expect(
+      (await session.setPluginSetting({ key: 'level', value: 'high' })).status,
     ).toBe('accepted')
     expect(
-      (await session.setConfig({ key: 'label', value: 'mine' })).status,
+      (await session.setPluginSetting({ key: 'label', value: 'mine' })).status,
     ).toBe('accepted')
     await host.close()
 
     const again = createHarnessHost({ persistence })
     const reopened = await again.open(harness, { threadId: 't' })
-    expect(reopened.config()).toMatchObject({
+    expect(reopened.pluginSettings()).toMatchObject({
       level: { value: 'high', owner: 'test/settings' },
       label: { value: 'mine' },
       retries: { value: 3 },
@@ -170,19 +170,19 @@ describe('commands', () => {
     ).toBeUndefined()
 
     expect(
-      await session.command({ name: 'greet', input: { name: 'Ada' } }),
+      await session.runCommand({ name: 'greet', input: { name: 'Ada' } }),
     ).toBe('hello Ada')
     await expect(
-      session.command({ name: 'greet', input: { name: 1 } }),
+      session.runCommand({ name: 'greet', input: { name: 1 } }),
     ).rejects.toThrow('Input validation failed for command greet')
-    await expect(session.command({ name: 'nope' })).rejects.toThrow(
+    await expect(session.runCommand({ name: 'nope' })).rejects.toThrow(
       'Unknown command: nope',
     )
-    await expect(session.command({ name: 'boom' })).rejects.toThrow(
+    await expect(session.runCommand({ name: 'boom' })).rejects.toThrow(
       'command broke',
     )
 
-    const waiting = session.command({ name: 'wait' })
+    const waiting = session.runCommand({ name: 'wait' })
     await release.opened
     await waiting.cancel()
     await waiting.then(
@@ -221,12 +221,12 @@ describe('commands', () => {
       },
     )
 
-    expect(await session.command({ name: 'peek', input: { foo: 'bar' } })).toBe(
-      'bar',
-    )
-    expect(await session.command({ name: 'shout', input: 'hi' })).toBe('HI')
     expect(
-      await session.command({ name: 'shout', input: { text: 'hi' } }),
+      await session.runCommand({ name: 'peek', input: { foo: 'bar' } }),
+    ).toBe('bar')
+    expect(await session.runCommand({ name: 'shout', input: 'hi' })).toBe('HI')
+    expect(
+      await session.runCommand({ name: 'shout', input: { text: 'hi' } }),
     ).toBe('no text')
     await host.close()
   })
@@ -268,7 +268,7 @@ describe('questions', () => {
         threadId: 't',
       },
     )
-    const picking = session.command({ name: 'pick' })
+    const picking = session.runCommand({ name: 'pick' })
     await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
     const [question] = questionsOf(session.snapshot())
     expect(question).toMatchObject({
@@ -300,7 +300,7 @@ describe('questions', () => {
     ).toBe('accepted')
     expect(await picking).toBe(4)
 
-    const open = session.command({ name: 'open' })
+    const open = session.runCommand({ name: 'open' })
     await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
     await host.close()
     // The close cancels the command that waits for its answer.
@@ -373,7 +373,7 @@ describe('questions', () => {
         threadId: 't',
       },
     )
-    const command = session.command({ name: 'confirm' })
+    const command = session.runCommand({ name: 'confirm' })
     await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
 
     await session.cancel({ operationId: command.id })
@@ -425,14 +425,14 @@ describe('plugin state and events', () => {
     })
     const host = createHarnessHost({ persistence: { stores } })
     const session = await host.open(harness, { threadId: 't' })
-    expect(await session.command({ name: 'bump' })).toBe(1)
-    expect(await session.command({ name: 'bump' })).toBe(2)
+    expect(await session.runCommand({ name: 'bump' })).toBe(1)
+    expect(await session.runCommand({ name: 'bump' })).toBe(2)
     await host.close()
 
     const again = createHarnessHost({ persistence: { stores } })
     const reopened = await again.open(harness, { threadId: 't' })
     expect(reopened.snapshot().plugins).toEqual({ 'test/state': { count: 2 } })
-    expect(await reopened.command({ name: 'bump' })).toBe(3)
+    expect(await reopened.runCommand({ name: 'bump' })).toBe(3)
     await again.close()
   })
 
@@ -516,7 +516,7 @@ describe('plugin state and events', () => {
       if (event.name === 'harness.plugin.warning') warnings.push(event.value)
     })
 
-    await session.command({ name: 'ping' })
+    await session.runCommand({ name: 'ping' })
 
     await waitFor(() =>
       expect(warnings).toEqual([
@@ -670,15 +670,15 @@ describe('first-party plugin edges', () => {
       ['plain', 'Run plain.md'],
       ['review', 'Review a file'],
     ])
-    expect(await session.command({ name: 'review', input: 'src/a.ts' })).toBe(
-      'Sent /review.',
-    )
+    expect(
+      await session.runCommand({ name: 'review', input: 'src/a.ts' }),
+    ).toBe('Sent /review.')
     await waitFor(() => expect(calls).toHaveLength(1))
     await waitFor(() => expect(session.snapshot().status).toBe('idle'))
-    await session.command({ name: 'plain', input: { who: 'Ada' } })
+    await session.runCommand({ name: 'plain', input: { who: 'Ada' } })
     await waitFor(() => expect(calls).toHaveLength(2))
     await waitFor(() => expect(session.snapshot().status).toBe('idle'))
-    await session.command({ name: 'plain' })
+    await session.runCommand({ name: 'plain' })
     await waitFor(() => expect(calls).toHaveLength(3))
 
     // A missing folder gives no commands.
@@ -730,14 +730,14 @@ describe('first-party plugin edges', () => {
       'Input validation failed for tool todo_write',
     )
     expect(session.snapshot().plugins).toEqual(before)
-    expect(await session.command({ name: 'todos' })).toBe(
+    expect(await session.runCommand({ name: 'todos' })).toBe(
       'The todo list is empty.',
     )
     await session.send('clear')
     expect(JSON.stringify(calls[3].messages)).toContain(
       'The todo list is empty.',
     )
-    expect(await session.command({ name: 'todos' })).toBe(
+    expect(await session.runCommand({ name: 'todos' })).toBe(
       'The todo list is empty.',
     )
     await host.close()
@@ -758,14 +758,14 @@ describe('first-party plugin edges', () => {
         threadId: 't',
       },
     )
-    expect(await session.command({ name: 'model' })).toBe(
+    expect(await session.runCommand({ name: 'model' })).toBe(
       'Model: smart. Choices: smart, fast.',
     )
-    expect(await session.command({ name: 'model', input: 'slow' })).toBe(
+    expect(await session.runCommand({ name: 'model', input: 'slow' })).toBe(
       'Unknown model "slow". Choices: smart, fast.',
     )
     expect(
-      await session.command({ name: 'model', input: { name: 'fast' } }),
+      await session.runCommand({ name: 'model', input: { name: 'fast' } }),
     ).toBe('Model: fast. It applies at the next turn.')
     await host.close()
   })
@@ -785,7 +785,7 @@ describe('first-party plugin edges', () => {
     )
     await session.send('first')
     await session.send('second')
-    await expect(session.command({ name: 'compact' })).rejects.toThrow(
+    await expect(session.runCommand({ name: 'compact' })).rejects.toThrow(
       'The summary model returned no text.',
     )
     expect(await session.transcript()).toHaveLength(4)
@@ -821,18 +821,18 @@ describe('first-party plugin edges', () => {
         threadId: 't',
       },
     )
-    expect(await session.command({ name: 'compact' })).toBe(
+    expect(await session.runCommand({ name: 'compact' })).toBe(
       'The conversation is already short.',
     )
     await session.send([{ type: 'text', content: 'first question' }] as never)
     await session.send('second question')
-    expect(await session.command({ name: 'compact' })).toBe(
+    expect(await session.runCommand({ name: 'compact' })).toBe(
       'Compacted 3 messages into a summary.',
     )
     expect(JSON.stringify(summarizer.calls[0].messages)).toContain(
       'first question',
     )
-    expect(await session.command({ name: 'usage' })).toBe(
+    expect(await session.runCommand({ name: 'usage' })).toBe(
       '2 model calls, 6 input tokens, 4 output tokens, 10 total.',
     )
     await host.close()
@@ -861,7 +861,7 @@ describe('session events', () => {
       }))
         seen.push(entry)
     })()
-    await session.setConfig({ key: 'verbose', value: true })
+    await session.setPluginSetting({ key: 'verbose', value: true })
     await waitFor(() =>
       expect(
         seen.some(

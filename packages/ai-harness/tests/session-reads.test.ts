@@ -103,7 +103,7 @@ describe('session reads for UIs', () => {
     expect(first.session.snapshot().plugins).toEqual({
       'test/counter': { count: 0 },
     })
-    await first.session.command({ name: 'bump', input: { by: 2 } })
+    await first.session.runCommand({ name: 'bump', input: { by: 2 } })
     expect(first.session.snapshot().plugins).toEqual({
       'test/counter': { count: 2 },
     })
@@ -149,7 +149,7 @@ describe('session.jobs', () => {
 
     const turn = session.send('Look around for me')
     await vi.waitFor(() => expect(child.calls).toHaveLength(1))
-    await session.background()
+    await session.moveToolCallToBackground()
     await turn
 
     const job = {

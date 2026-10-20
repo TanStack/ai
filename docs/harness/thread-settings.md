@@ -6,13 +6,13 @@ description: "Store the model, reasoning, instructions, tools, plugins, and work
 keywords:
   - tanstack ai
   - harness
-  - settings
-  - configure
+  - threadSettings
+  - updateThreadSettings
   - model picker
   - cwd
 ---
 
-Each conversation in your app has its own choices: a faster model for one chat, extra instructions for another, a folder for a coding task. These choices must stay after a reload and a restart. `session.configure()` stores them with the thread, and every next turn uses them.
+Each conversation in your app has its own choices: a faster model for one chat, extra instructions for another, a folder for a coding task. These choices must stay after a reload and a restart. `session.updateThreadSettings()` stores them with the thread, and every next turn uses them.
 
 ## 1. Name the models a thread can pick
 
@@ -40,7 +40,7 @@ const host = createHarnessHost({ persistence: memoryPersistence() })
 ```ts group=harness-thread-settings
 const session = await host.open(assistant, { threadId: 'review-thread' })
 
-const receipt = await session.configure({
+const receipt = await session.updateThreadSettings({
   settings: {
     model: 'strong',
     reasoning: 'high',
@@ -48,13 +48,13 @@ const receipt = await session.configure({
   },
 })
 console.log(receipt.status) // 'accepted'
-console.log(session.settings()) // { model: 'strong', reasoning: 'high', instructions: 'Answer in French.' }
+console.log(session.threadSettings()) // { model: 'strong', reasoning: 'high', instructions: 'Answer in French.' }
 ```
 
-The settings apply from the next turn. A field that you leave out stays as it is. `configure` merges your fields into the latest stored settings, also when another host changed them. Set a field to `null` to clear it:
+The settings apply from the next turn. A field that you leave out stays as it is. `updateThreadSettings` merges your fields into the latest stored settings, also when another host changed them. Set a field to `null` to clear it:
 
 ```ts group=harness-thread-settings
-await session.configure({ settings: { instructions: null } })
+await session.updateThreadSettings({ settings: { instructions: null } })
 ```
 
 The six fields:
@@ -70,7 +70,7 @@ The six fields:
 
 An unknown field, model, or plugin, or a bad value, gets a receipt with `status: 'rejected'` and the reason. The settings are in the log, so a durable log store keeps them after a restart. A [fork](./fork-and-reset) copies them.
 
-`configure` is an input, so the log keeps who changed what. Each change sends a `harness.settings.changed` event with the new `settings`. A session on another host reads the change too, so its next turn uses the new settings.
+`updateThreadSettings` stores an input, so the log keeps who changed what. Each change sends a `harness.settings.changed` event with the new `settings`. A session on another host reads the change too, so its next turn uses the new settings.
 
 A client can change only the fields in `expose.settings` of the harness. See [Choose what clients can change](./connect#choose-what-clients-can-change).
 
@@ -83,7 +83,7 @@ const { models, settings } = session.describe()
 console.log(models) // ['fast', 'strong']
 console.log(settings.model) // 'strong'
 
-await session.configure({ settings: { model: 'fast' } })
+await session.updateThreadSettings({ settings: { model: 'fast' } })
 ```
 
 ## What wins
@@ -107,12 +107,12 @@ For `reasoning`, the `overrides` of the prompt win, then the stored setting, the
 
 ## The working folder
 
-`cwd` is the working folder of the thread, for the plugins whose tools work in a folder. A plugin reads it at each call with `ctx.session.settings().cwd`, so a change applies from the next turn:
+`cwd` is the working folder of the thread, for the plugins whose tools work in a folder. A plugin reads it at each call with `ctx.session.threadSettings().cwd`, so a change applies from the next turn:
 
 ```ts group=harness-thread-settings
 const task = await host.open(assistant, { threadId: 'fix-login' })
-await task.configure({ settings: { cwd: 'web-app' } })
-console.log(task.settings().cwd) // 'web-app'
+await task.updateThreadSettings({ settings: { cwd: 'web-app' } })
+console.log(task.threadSettings().cwd) // 'web-app'
 ```
 
 When `cwd` changes, the model gets a short note before its next call. So it stops using the paths of the old folder:

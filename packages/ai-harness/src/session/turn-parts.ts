@@ -538,7 +538,7 @@ export abstract class SessionTurnParts<
 
   /**
    * Middleware that gives each tool call of a turn `threadId`, `runId`, and
-   * `detach` in its context. `detach` lets `background()` move the call to
+   * `detach` in its context. `detach` lets `moveToolCallToBackground()` move the call to
    * the background. A tool that calls `detach` supports it. The wake turn of
    * a detached job runs as `user`, the sender of the turn.
    */
@@ -602,7 +602,7 @@ export abstract class SessionTurnParts<
   /**
    * Each turn's chat run gets `LogRecordsCapability`. A middleware, for
    * example a durable compaction, appends host records with it. They land in the log at once and fold, with the checks of
-   * `session.append`. The engine's new messages go in the same append, so a
+   * `session.appendRecords`. The engine's new messages go in the same append, so a
    * record that counts the tool results of the last phase lands after them.
    * Agent runs do not get it: a child writes to its own thread.
    */
@@ -769,7 +769,7 @@ export abstract class SessionTurnParts<
     const { run, options } = call
     // The setting names a key of `harness.models`: a setting is checked
     // when it is set, and a stored one that the harness lost is dropped.
-    const named = this.threadSettings.model
+    const named = this.currentSettings.model
     const model =
       call.adapter ??
       (named === undefined ? undefined : this.harness.models?.[named]) ??

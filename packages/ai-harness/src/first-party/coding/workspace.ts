@@ -131,7 +131,7 @@ export interface OutsideAccess {
   mode: () => unknown
   /**
    * The working folder of the thread, from `root` (the `cwd` setting of
-   * `session.configure`). Relative paths start there. Read at each call. A
+   * `session.updateThreadSettings`). Relative paths start there. Read at each call. A
    * folder outside the workspace is refused.
    */
   cwd?: () => string | undefined
@@ -1018,7 +1018,7 @@ export function workspaceTools(options: WorkspaceToolsOptions) {
           access: {
             mode: () => ctx.config.get('mode'),
             // The working folder is the thread's `cwd` setting, read at each call.
-            cwd: () => ctx.session.settings().cwd,
+            cwd: () => ctx.session.threadSettings().cwd,
             // Read at each call, so permissions() can come after this plugin.
             rules: () => {
               const decide = ctx.getOptional(PermissionDecisionCapability)

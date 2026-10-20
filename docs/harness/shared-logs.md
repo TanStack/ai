@@ -48,7 +48,7 @@ const root = await host.open(assistant, { threadId: 'agent-1' })
 `session.append` adds records to the root thread. A record with `thread: '<other threadId>'` belongs to that thread of the same log. The whole append is all or nothing:
 
 ```ts group=harness-shared-logs
-await root.append({
+await root.appendRecords({
   records: [
     { type: 'app.child_created', thread: 'task-1', task: 'research' },
     { type: 'app.child_linked', child: 'task-1' },
@@ -58,7 +58,7 @@ await root.append({
 
 Here the child record and the link in the root land together, or not at all.
 
-- `thread` must be a string. Any other value makes `append` throw.
+- `thread` must be a string. Any other value makes `appendRecords` throw.
 - A record without `thread` belongs to the root thread.
 
 ## Keep state for the whole tree
@@ -87,7 +87,7 @@ const tracker = defineHarness({
   durability: { reduce },
 })
 const tracked = await host.open(tracker, { threadId: 'agent-2' })
-await tracked.append({
+await tracked.appendRecords({
   records: [{ type: 'app.child_created', thread: 'task-2', task: 'research' }],
 })
 

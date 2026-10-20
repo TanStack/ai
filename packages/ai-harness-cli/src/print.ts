@@ -93,7 +93,7 @@ export async function runPrint(
   const stop = new AbortController()
   // A wait of the turn ends the run of --print: nobody can answer it here.
   const opened = session
-    .waitFor({ runId: operation.id, signal: stop.signal })
+    .waitForRun({ runId: operation.id, signal: stop.signal })
     .then(
       (wait) => ({ type: 'wait' as const, wait }),
       () => new Promise<never>(() => {}),

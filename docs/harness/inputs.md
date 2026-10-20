@@ -11,8 +11,8 @@ keywords:
   - settled
   - steer
   - cancelInput
-  - setDelivery
-  - background
+  - changeInputDelivery
+  - moveToolCallToBackground
 ---
 
 A network retry can send the same prompt twice, and a client that reconnects does not know how its last prompt ended. Give each input your own id. A retry with the same id runs nothing again, and the session tells you how the input ended.
@@ -104,30 +104,30 @@ for await (const entry of client.events()) {
 
 ## Continue without a new message
 
-Sometimes the transcript already holds what the model must answer, for example a tool result that your own system stored. Start a turn with `continue`, and the model answers the stored transcript. No new user message goes in:
+Sometimes the transcript already holds what the model must answer, for example a tool result that your own system stored. Start a turn with `continueWithoutMessage`, and the model answers the stored transcript. No new user message goes in:
 
 ```ts group=harness-inputs
-const continued = session.continue({ inputId: 'req-43' })
+const continued = session.continueWithoutMessage({ inputId: 'req-43' })
 await continued
 ```
 
 From the client:
 
 ```ts group=harness-inputs-client
-const continuedReceipt = await client.continue({ inputId: 'req-43' })
+const continuedReceipt = await client.continueWithoutMessage({ inputId: 'req-43' })
 ```
 
 - `inputId` works as for `send`: a retry with the same id runs once.
-- `continue` takes `overrides`, `user`, and `context` too, as `send` does. On a host with [`access`](./access), a session acts only as the user that opened it, so leave out `user`.
+- `continueWithoutMessage` takes `overrides`, `user`, and `context` too, as `send` does. On a host with [`access`](./access), a session acts only as the user that opened it, so leave out `user`.
 - When the turn starts, the last message of the transcript must be a user message or a tool result. Else the input is rejected with the reason `nothing_to_continue`, and `await continued` rejects with `InputRejectedError`.
-- A `continue` that a host left after a crash runs on the next host, as a prompt does.
+- A `continueWithoutMessage` that a host left after a crash runs on the next host, as a prompt does.
 
 ## Give the model a note for one turn
 
-A reminder such as "call `finish` or `give_up`" helps the model in one turn, but it does not belong in the transcript. Pass it as `ephemeral` to `send` or `continue`:
+A reminder such as "call `finish` or `give_up`" helps the model in one turn, but it does not belong in the transcript. Pass it as `ephemeral` to `send` or `continueWithoutMessage`:
 
 ```ts group=harness-inputs
-const reminded = session.continue({
+const reminded = session.continueWithoutMessage({
   inputId: 'req-44',
   ephemeral: [{ role: 'user', content: 'Call finish or give_up now.' }],
 })
@@ -143,7 +143,7 @@ const remindedReceipt = await client.send('Summarize the report.', {
 })
 ```
 
-- Each model call of the turn gets the messages right after the turn's own message (or the last stored message, for `continue`), before the answers and tool results of the turn.
+- Each model call of the turn gets the messages right after the turn's own message (or the last stored message, for `continueWithoutMessage`), before the answers and tool results of the turn.
 - The transcript, the session log, and the message store never keep them.
 - A retry with the same `inputId` gets the first input, also when its `ephemeral` messages are different.
 - A turn that recovery runs again after a crash has no `ephemeral` messages, because the log does not keep them.
@@ -199,7 +199,7 @@ To choose which inputs join, or to add records when they join, see [Choose which
 
 ## Cancel or move a waiting message
 
-A user sends two more messages while a turn runs. Before they run, the user wants to cancel one, and wants the other to reach the running turn now. `session.inputs()` lists the inputs that wait. `cancelInput` cancels one, and `setDelivery` moves one:
+A user sends two more messages while a turn runs. Before they run, the user wants to cancel one, and wants the other to reach the running turn now. `session.waitingInputs()` lists the inputs that wait. `cancelInput` cancels one, and `changeInputDelivery` moves one:
 
 ```ts group=harness-inputs
 const migration = session.send('Plan the migration.', { inputId: 'req-45' })
@@ -208,16 +208,16 @@ const tests = session.send('Then write the tests.', { inputId: 'req-46', mode: '
 const style = session.send('Use tabs, not spaces.', { inputId: 'req-47', mode: 'followUp' })
 await Promise.all([tests.receipt, style.receipt])
 
-for (const input of session.inputs()) {
+for (const input of session.waitingInputs()) {
   console.log(input.inputId, input.delivery, input.message)
 }
 
 await session.cancelInput({ inputId: 'req-46' })
-await session.setDelivery({ inputId: 'req-47', delivery: 'steer' })
+await session.changeInputDelivery({ inputId: 'req-47', delivery: 'steer' })
 await migration
 ```
 
-- `inputs()` lists the inputs in the order they run: first the steers for the running turn, then the queued turns.
+- `waitingInputs()` lists the inputs in the order they run: first the steers for the running turn, then the queued turns.
 - `delivery: 'steer'`: the input joins the running turn at the next model call. `'queue'`: it runs as its own turn, after the turns before it.
 - A cancelled input never runs, also after a restart. It settles `aborted`.
 - The log keeps a new delivery, and a restart obeys it.
@@ -232,19 +232,19 @@ for (const input of waitingInputs) {
 }
 
 await client.cancelInput({ inputId: 'req-46' })
-await client.setDelivery({ inputId: 'req-47', delivery: 'steer' })
+await client.changeInputDelivery({ inputId: 'req-47', delivery: 'steer' })
 ```
 
 Over `POST control`, they are `{ op: 'cancelInput', inputId }` and `{ op: 'setDelivery', inputId, delivery }`. In these two inputs, `inputId` is the id of the input that waits. A move sends a `harness.input.delivery` event with `inputId` and `delivery`, so every client can update its list.
 
 ## Move a running tool call to the background
 
-A long command or a subagent blocks the turn, and the user wants to go on. `session.background()` moves the running tool call to the background:
+A long command or a subagent blocks the turn, and the user wants to go on. `session.moveToolCallToBackground()` moves the running tool call to the background:
 
 ```ts group=harness-inputs
 const build = session.send('Run the full test suite.', { inputId: 'req-48' })
 // Later, while the `bash` call of that turn runs:
-const moved = await session.background()
+const moved = await session.moveToolCallToBackground()
 console.log(moved.status) // 'accepted', or 'rejected' with 'not_running'
 await build
 ```

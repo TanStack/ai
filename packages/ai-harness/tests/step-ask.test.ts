@@ -436,7 +436,7 @@ describe('step.ask in a command', () => {
       credentials,
       ownership: CRASHING_OWNERSHIP,
     })
-    const running = first.session.command({
+    const running = first.session.runCommand({
       name: 'connect',
       inputId: 'connect-1',
     })
@@ -502,7 +502,7 @@ describe('step.ask in a command', () => {
       log,
       harnessWith({ plugins: [plugin] }),
     )
-    const running = session.command({ name: 'ask' })
+    const running = session.runCommand({ name: 'ask' })
     const wait = await openWait(session)
 
     await session.cancel({ operationId: running.id })
@@ -536,7 +536,9 @@ describe('ctx.session.ask', () => {
       harnessWith({ plugins: [plugin] }),
     )
 
-    await expect(session.command({ name: 'ask' })).rejects.toThrow('step.ask')
+    await expect(session.runCommand({ name: 'ask' })).rejects.toThrow(
+      'step.ask',
+    )
     expect(session.snapshot().pendingWaits).toEqual([])
     await host.close()
   })
@@ -571,7 +573,7 @@ describe('ctx.session.ask', () => {
     )
     const turn = session.send('Go.')
     await turn.receipt
-    const command = session.command({ name: 'ask' })
+    const command = session.runCommand({ name: 'ask' })
     const wait = await openWait(session)
     expect(wait.runId).toBe(command.id)
 

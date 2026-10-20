@@ -82,7 +82,7 @@ describe('ctx.model.chat', () => {
         seen.push(entry)
     })()
 
-    expect(await session.command({ name: 'check' })).toBe('looks fine')
+    expect(await session.runCommand({ name: 'check' })).toBe('looks fine')
 
     const usage = session.usage()
     expect(usage.total).toMatchObject({ calls: 1, totalTokens: 10 })
@@ -179,7 +179,7 @@ describe('ctx.model.chat', () => {
     })
     const { host, session } = await open([plugin], [])
 
-    expect(await session.command({ name: 'slow' })).toBe('TimeoutError')
+    expect(await session.runCommand({ name: 'slow' })).toBe('TimeoutError')
     expect(slow.calls).toHaveLength(1)
     await host.close()
   })
@@ -203,7 +203,7 @@ describe('ctx.model.chat', () => {
     })
     const { host, session } = await open([plugin], [])
 
-    await session.command({ name: 'go' })
+    await session.runCommand({ name: 'go' })
 
     expect(String(failure)).toContain(
       'ctx.model.chat of test/no-run needs a run',
@@ -248,7 +248,7 @@ describe('ctx.model.chat', () => {
         seen.push(entry)
     })()
 
-    await session.command({ name: 'go' })
+    await session.runCommand({ name: 'go' })
     late.open()
     await call
 

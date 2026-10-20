@@ -623,7 +623,7 @@ describe('ephemeral input', () => {
       { persistence },
     )
 
-    expect(await session.continue({ ephemeral: note })).toEqual({
+    expect(await session.continueWithoutMessage({ ephemeral: note })).toEqual({
       text: 'done',
       media: [],
     })

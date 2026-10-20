@@ -54,53 +54,53 @@ type PublicSessionMember =
   | 'agentTranscript'
   | 'agents'
   | 'answer'
-  | 'append'
-  | 'background'
+  | 'appendRecords'
   | 'cancel'
   | 'cancelInput'
   | 'cancelSchedule'
-  | 'command'
+  | 'changeInputDelivery'
   | 'commands'
-  | 'config'
-  | 'configure'
-  | 'continue'
+  | 'continueWithoutMessage'
   | 'describe'
-  | 'entry'
   | 'events'
   | 'getMedia'
-  | 'inputs'
+  | 'indexEntry'
   | 'inspect'
   | 'jobs'
   | 'loadMedia'
   | 'logState'
   | 'mediaUrl'
+  | 'moveToolCallToBackground'
   | 'onAuthRequired'
   | 'onEvent'
   | 'onMedia'
   | 'onQuestion'
   | 'onUsage'
   | 'operation'
+  | 'pluginSettings'
   | 'putMedia'
-  | 'recover'
+  | 'recoverPendingWork'
   | 'registry'
-  | 'reload'
+  | 'reloadPlugins'
   | 'reset'
   | 'resolve'
   | 'revert'
+  | 'runCommand'
+  | 'runTool'
   | 'schedule'
   | 'send'
-  | 'setConfig'
-  | 'setDelivery'
-  | 'settings'
+  | 'setPluginSetting'
   | 'settled'
   | 'snapshot'
   | 'threadId'
-  | 'tool'
+  | 'threadSettings'
   | 'transcript'
   | 'unrevert'
-  | 'updateEntry'
+  | 'updateIndexEntry'
+  | 'updateThreadSettings'
   | 'usage'
-  | 'waitFor'
+  | 'waitForRun'
+  | 'waitingInputs'
   | 'whenIdle'
 
 /**
@@ -303,15 +303,15 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
    * settings stay. Clients get a `harness.reloaded` event.
    *
    * When the new setup throws, the session keeps working with no plugins,
-   * and the promise rejects with the error. Call `reload()` again after a
+   * and the promise rejects with the error. Call `reloadPlugins()` again after a
    * fix.
    *
    * @example
    * ```ts
-   * await session.reload()
+   * await session.reloadPlugins()
    * ```
    */
-  reload(): Promise<void> {
+  reloadPlugins(): Promise<void> {
     const run = this.reloads.then(() => this.runReload())
     this.reloads = run.catch(() => {})
     return run
@@ -360,10 +360,10 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
    *
    * @example
    * ```ts
-   * await session.recover()
+   * await session.recoverPendingWork()
    * ```
    */
-  async recover(): Promise<void> {
+  async recoverPendingWork(): Promise<void> {
     if (this.closing) return
     const { writer } = this
     const run = this.recovery.then(async () => {
@@ -386,7 +386,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
    * live host owns the log.
    */
   async takeOver(): Promise<boolean> {
-    await this.recover()
+    await this.recoverPendingWork()
     // A log that a worker took for its wake has a schedule that is due.
     await this.runDueSchedules()
     const isOwner = await this.writer.own()
@@ -581,7 +581,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
       }
       await writer.append([{ type: 'harness.schedule.done', scheduleId }])
     }
-    if (hasWake) await this.recover()
+    if (hasWake) await this.recoverPendingWork()
     await this.drainOffers()
     // A schedule that started no work gives the log back.
     void writer.rest()
@@ -855,7 +855,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
    * sent to `steer` joins the turn that runs, when one does. A `cancelInput`
    * or `setDelivery` that a crash cut before it was applied applies first.
    * Other inputs are rejected with `expired_on_restart`. An input that this
-   * session stored or took already is skipped, so `recover()` can run this
+   * session stored or took already is skipped, so `recoverPendingWork()` can run this
    * again.
    */
   protected async recoverFromLog(writer: LogWriter): Promise<void> {
@@ -873,7 +873,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
       return
     }
     // True for an input that this session stored or took. Else the session
-    // takes it now, so `recover()` does not take it again.
+    // takes it now, so `recoverPendingWork()` does not take it again.
     const taken: Array<string> = []
     const isTaken = (input: InputState) => {
       if (this.admitted.has(input.inputId)) return true
@@ -895,7 +895,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
           span?.recordException(error instanceof Error ? error : String(error))
           span?.setStatus({ code: 2 })
         })
-        // Not recovered, so the next `recover()` takes them again.
+        // Not recovered, so the next `recoverPendingWork()` takes them again.
         for (const inputId of taken) {
           if (!this.turnOperations.has(inputId)) this.admitted.delete(inputId)
         }
@@ -1042,7 +1042,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
           continue
         }
         if (input.input.op === 'continue') {
-          // It runs from the transcript, as `continue()` does.
+          // It runs from the transcript, as `continueWithoutMessage()` does.
           const operation = this.createTurnOperation()
           this.bindTurn(input.inputId, operation)
           this.enqueueTurn({

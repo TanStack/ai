@@ -75,7 +75,9 @@ describe('session.background', () => {
 
     const turn = session.send('Look around for me')
     await vi.waitFor(() => expect(child.calls).toHaveLength(1))
-    expect(await session.background()).toMatchObject({ status: 'accepted' })
+    expect(await session.moveToolCallToBackground()).toMatchObject({
+      status: 'accepted',
+    })
     await turn
 
     expect(JSON.parse(toolResultIn(model.calls[1], 'call-1'))).toEqual({
@@ -114,7 +116,9 @@ describe('session.background', () => {
 
     const turn = session.send('Look around for me')
     await vi.waitFor(() => expect(child.calls).toHaveLength(1))
-    expect(await session.background()).toMatchObject({ status: 'accepted' })
+    expect(await session.moveToolCallToBackground()).toMatchObject({
+      status: 'accepted',
+    })
     await turn
     // No handle holds the session now, but its job still runs.
     await session.close()
@@ -159,7 +163,9 @@ describe('session.background', () => {
     })
     const turn = session.send('Look around for me')
     await vi.waitFor(() => expect(child.calls).toHaveLength(1))
-    expect(await session.background()).toMatchObject({ status: 'accepted' })
+    expect(await session.moveToolCallToBackground()).toMatchObject({
+      status: 'accepted',
+    })
     await turn
 
     // The job runs on the owner, so the other host notes nothing.
@@ -201,7 +207,7 @@ describe('session.background', () => {
 
     const turn = session.send('Wait')
     await started.opened
-    expect(await session.background()).toMatchObject({
+    expect(await session.moveToolCallToBackground()).toMatchObject({
       status: 'rejected',
       reason: 'not_running',
     })

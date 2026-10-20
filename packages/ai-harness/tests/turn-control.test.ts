@@ -171,7 +171,7 @@ describe('turn.onModelError', () => {
       turn: {
         onModelError: async ({ session: current, error, retries }) => {
           if (retries > 0 || error.code !== CONTEXT_OVERFLOW_CODE) return
-          await current.append({
+          await current.appendRecords({
             records: [
               { type: 'app.compaction', summary: 'summary of the chat' },
             ],

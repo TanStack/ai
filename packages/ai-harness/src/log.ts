@@ -142,7 +142,7 @@ export type HarnessRecord =
    * A background job started, or it ended. `backendId` is the id of its
    * process in the workspace backend, so a later host can stop it.
    * `user` is who moved a running call to the background
-   * (`session.background`). A start has `at`, its time in epoch ms, and
+   * (`session.moveToolCallToBackground`). A start has `at`, its time in epoch ms, and
    * `label`, the command or the tool name.
    */
   | {

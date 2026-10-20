@@ -236,7 +236,7 @@ export function usage(
         // A change function: it runs again on the new entry when another
         // write landed first, so the tokens of that write stay. Before the
         // first turn ends, the entry has no usage.
-        await ctx.session.updateEntry((entry) => ({
+        await ctx.session.updateIndexEntry((entry) => ({
           usage: { ...(entry.usage ?? NO_TOKENS), cost },
         }))
       }

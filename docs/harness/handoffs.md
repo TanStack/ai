@@ -247,7 +247,7 @@ if (wait) {
 - `{ handBack: 'billing' }` gives it to that agent. `{ handBack: 'main' }` gives it to the main model.
 - Any other value is `rejected` with `invalid_answer`. An unknown agent is `rejected` with `unknown_agent`.
 - The wait can also end with `session.resolve` or a cancel. Then the agent that answered before the handoff gets the thread back. Each of these needs the `operator` action.
-- The answer starts no turn. The held user messages wait for the next message, or for `session.continue()`.
+- The answer starts no turn. The held user messages wait for the next message, or for `session.continueWithoutMessage()`.
 
 ## 5. Move a conversation to another harness
 

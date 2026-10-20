@@ -371,7 +371,7 @@ setInterval(() => {
 ```
 
 - `host.recover()` checks every session that this host has open. `host.recover(threadId)` checks one thread.
-- `session.recover()` does the same for one session.
+- `session.recoverPendingWork()` does the same for one session.
 - Each call first reads the log records that other hosts wrote. Then it runs the turns whose owner stopped.
 - The turns that this session already runs or queues stay as they are. Two calls at the same time run a turn once.
 

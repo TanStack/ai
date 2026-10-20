@@ -67,7 +67,7 @@ async function agentProfiles(host: HarnessHost, model: () => AnyTextAdapter) {
     },
   )
   const first = (await session.send('[first-party-agents] first')).text
-  const switched = await session.command({ name: 'agent', input: 'brief' })
+  const switched = await session.runCommand({ name: 'agent', input: 'brief' })
   const second = (await session.send('[first-party-agents] second')).text
   return { first, switched, second }
 }
@@ -124,7 +124,7 @@ async function planSubagent(host: HarnessHost, model: () => AnyTextAdapter) {
       threadId: 'e2e-plan',
     },
   )
-  await session.command({ name: 'mode', input: 'plan' })
+  await session.runCommand({ name: 'mode', input: 'plan' })
   const turn = await session.send('[first-party-plan] write x.txt')
   return { writes, results, text: turn.text }
 }
@@ -236,7 +236,7 @@ async function connectedKey(host: HarnessHost, testId: string | undefined) {
       user: { id: 'ada' },
     },
   )
-  const connecting = session.command({ name: 'connect:openai' })
+  const connecting = session.runCommand({ name: 'connect:openai' })
   const deadline = Date.now() + 5_000
   while (
     session.snapshot().pendingWaits.length === 0 &&
@@ -278,7 +278,7 @@ async function goalLoop(
       threadId: 'e2e-goal',
     },
   )
-  await session.command({
+  await session.runCommand({
     name: 'goal',
     input: '[first-party-goal] finish the report',
   })
@@ -291,7 +291,7 @@ async function goalLoop(
   }
   return {
     goal: selectGoal(session.snapshot()),
-    shown: await session.command({ name: 'goal' }),
+    shown: await session.runCommand({ name: 'goal' }),
   }
 }
 

@@ -121,11 +121,13 @@ describe('ctx.agents in plugins', () => {
       },
     )
 
-    expect(await session.command({ name: 'one' })).toBe('HI')
-    expect(await session.command({ name: 'both' })).toEqual(['A', 'B'])
-    await expect(session.command({ name: 'failFast' })).rejects.toThrow('boom')
+    expect(await session.runCommand({ name: 'one' })).toBe('HI')
+    expect(await session.runCommand({ name: 'both' })).toEqual(['A', 'B'])
+    await expect(session.runCommand({ name: 'failFast' })).rejects.toThrow(
+      'boom',
+    )
     expect(slowStopped).toBe(true)
-    const collected = await session.command({ name: 'collect' })
+    const collected = await session.runCommand({ name: 'collect' })
     expect(collected).toMatchObject([{ ok: true, value: 'OK' }, { ok: false }])
     await host.close()
   })

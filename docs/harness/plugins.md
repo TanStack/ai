@@ -134,8 +134,8 @@ export const greeter = definePlugin({
 })
 ```
 
-- `session.command({ name: 'greet', input: { name: 'Ada' } })` runs the command. A Standard Schema input (zod here) is checked, and the command gets the parsed value. A JSON Schema input is not checked, the same as a JSON Schema tool input.
-- `session.setConfig({ key: 'tone', value: 'warm' })` changes the setting. A value the option does not accept is rejected.
+- `session.runCommand({ name: 'greet', input: { name: 'Ada' } })` runs the command. A Standard Schema input (zod here) is checked, and the command gets the parsed value. A JSON Schema input is not checked, the same as a JSON Schema tool input.
+- `session.setPluginSetting({ key: 'tone', value: 'warm' })` changes the setting. A value the option does not accept is rejected.
 - `step.ask` waits for `session.answer({ questionId, value })`. The log keeps the question as a [wait](./waits), so a user on any server can answer it. The question goes to `session.onQuestion` listeners, and it stays in `session.snapshot().pendingWaits` until someone answers.
 - When the host stops while the command waits, the next host runs the command again from the top. Put each side effect before the ask in `command.step.do`, so it does not run twice.
 - `ctx.session.ask` is only for an MCP server that asks during a tool call. Anywhere else it throws. Use `step.ask`, the `question` tool, or a [permission rule](./permissions#rules-for-your-own-tool).
@@ -580,7 +580,7 @@ The [MCP plugin](./mcp) works this way for `stdio` servers: one process serves e
 
 ## Reload plugins
 
-You changed a plugin, an agent file, or the list that `plugins()` returns, and an open session still runs the old setup. `session.reload()` sets the plugins up again:
+You changed a plugin, an agent file, or the list that `plugins()` returns, and an open session still runs the old setup. `session.reloadPlugins()` sets the plugins up again:
 
 ```ts group=harness-plugins
 import { watch } from 'node:fs'
@@ -590,7 +590,7 @@ const host = createHarnessHost()
 const session = await host.open(assistant, { threadId: 'thread-1' })
 
 // One session.
-await session.reload()
+await session.reloadPlugins()
 
 // Every open session of the harness, each time a file in the folder changes.
 watch('./plugins', () => void host.reload(assistant))
@@ -607,7 +607,7 @@ The transcript, the log, the thread settings, and the inputs that wait stay. The
 
 The harness does not watch files. Your host decides when to reload, as the `watch` call above does.
 
-If a `setup` throws, the session keeps working with no plugins. The promise rejects with the error, and the `harness.reloaded` event has its `error` message. Fix the plugin and call `reload()` again.
+If a `setup` throws, the session keeps working with no plugins. The promise rejects with the error, and the `harness.reloaded` event has its `error` message. Fix the plugin and call `reloadPlugins()` again.
 
 ## See the plan
 

@@ -702,7 +702,7 @@ describe('permission rules, links, and grep', () => {
       workspaceTools({ root: '/workspace', backend, web: false }),
     ])
     if (options.mode)
-      await session.command({ name: 'mode', input: options.mode })
+      await session.runCommand({ name: 'mode', input: options.mode })
     /** Everything the model saw in its last call. */
     const seen = () => JSON.stringify(calls.at(-1)?.messages)
     /** The result of the tool call with id `id`, as the model saw it. */

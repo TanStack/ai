@@ -90,7 +90,7 @@ describe('the sign-in of a command is a live wait', () => {
       ),
     )
 
-    const command = session.command({ name: 'connect:github' })
+    const command = session.runCommand({ name: 'connect:github' })
     await waitFor(() => expect(session.snapshot().pendingWaits).toHaveLength(1))
     const [wait] = session.snapshot().pendingWaits
     expect(wait).toMatchObject({
@@ -131,7 +131,7 @@ describe('the sign-in of a command is a live wait', () => {
       ),
     )
 
-    const command = session.command({ name: 'connect:github' })
+    const command = session.runCommand({ name: 'connect:github' })
     command.then(
       () => {},
       () => {},
@@ -331,7 +331,7 @@ describe('a live wait of a tool call', () => {
       user: alice,
     })
     const run = session.agents.booker.start()
-    const wait = await session.waitFor({
+    const wait = await session.waitForRun({
       runId: run.id,
       signal: AbortSignal.timeout(5_000),
     })
@@ -366,7 +366,7 @@ describe('a live wait of a tool call', () => {
       () => {},
       () => {},
     )
-    const wait = await session.waitFor({ runId: run.id })
+    const wait = await session.waitForRun({ runId: run.id })
 
     await session.cancel({ operationId: run.id })
     await expect(run).rejects.toThrow()

@@ -59,7 +59,7 @@ describe('extension points', () => {
         threadId: 't',
       },
     )
-    await session.command({ name: 'rules' })
+    await session.runCommand({ name: 'rules' })
     expect(read).toEqual([{ tool: 'write_file' }, { tool: 'bash' }])
     expect(session.inspect().extensionPoints['test/rules']).toEqual([
       'test/a',
@@ -112,7 +112,7 @@ describe('extension points', () => {
       },
     )
 
-    await session.command({ name: 'rules' })
+    await session.runCommand({ name: 'rules' })
 
     expect(seen).toEqual({
       has: true,
@@ -178,13 +178,13 @@ describe('events and state', () => {
     })()
 
     expect(
-      await session.command({ name: 'add', input: { text: 'milk' } }),
+      await session.runCommand({ name: 'add', input: { text: 'milk' } }),
     ).toBe(1)
     expect(
-      await session.command({ name: 'add', input: { text: 'eggs' } }),
+      await session.runCommand({ name: 'add', input: { text: 'eggs' } }),
     ).toBe(2)
     await expect(
-      session.command({ name: 'add', input: { text: 3 } }),
+      session.runCommand({ name: 'add', input: { text: 3 } }),
     ).rejects.toThrow('Input validation failed')
     expect(heard).toEqual(['milk', 'eggs'])
     const stored = await storedThreadState(persistence.stores.log, {
@@ -248,23 +248,23 @@ describe('session config', () => {
 
     await session.send('one')
     expect(
-      await session.setConfig({ key: 'thinking', value: 'extreme' }),
+      await session.setPluginSetting({ key: 'thinking', value: 'extreme' }),
     ).toMatchObject({
       status: 'rejected',
     })
-    expect(await session.setConfig({ key: 'missing', value: 1 })).toMatchObject(
-      {
-        reason: 'unknown_config',
-      },
-    )
     expect(
-      await session.setConfig({ key: 'thinking', value: 'high' }),
+      await session.setPluginSetting({ key: 'missing', value: 1 }),
+    ).toMatchObject({
+      reason: 'unknown_config',
+    })
+    expect(
+      await session.setPluginSetting({ key: 'thinking', value: 'high' }),
     ).toMatchObject({
       status: 'accepted',
     })
     await session.send('two')
     expect(seenThinking).toEqual(['low', 'high'])
-    expect(session.config().thinking).toMatchObject({
+    expect(session.pluginSettings().thinking).toMatchObject({
       value: 'high',
       owner: 'test/thinking',
     })
@@ -274,7 +274,7 @@ describe('session config', () => {
     const again = await createHarnessHost({ persistence }).open(harness, {
       threadId: 't',
     })
-    expect(again.config().thinking?.value).toBe('high')
+    expect(again.pluginSettings().thinking?.value).toBe('high')
     await again.close()
   })
 })
@@ -312,7 +312,7 @@ describe('commands and questions', () => {
       },
     )
 
-    const running = session.command({ name: 'deploy' })
+    const running = session.runCommand({ name: 'deploy' })
     await waitFor(() => expect(questionsOf(session.snapshot())).toHaveLength(1))
     const [question] = questionsOf(session.snapshot())
     expect(question?.message).toBe('Deploy to production?')
@@ -407,14 +407,14 @@ describe('adapter override and credentials', () => {
       },
     )
 
-    await session.setConfig({ key: 'model', value: 'other' })
+    await session.setPluginSetting({ key: 'model', value: 'other' })
     expect(await session.send('hi')).toEqual({
       text: 'from other',
       media: [],
     })
     expect(main.calls).toHaveLength(0)
 
-    await expect(session.command({ name: 'token' })).rejects.toThrow(
+    await expect(session.runCommand({ name: 'token' })).rejects.toThrow(
       'Sign in to github first',
     )
     expect(token).toBeUndefined()
