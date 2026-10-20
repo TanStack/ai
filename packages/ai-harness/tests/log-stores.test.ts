@@ -7,7 +7,13 @@ import { createHarnessHost, defineHarness } from '../src'
 import { SharedLog, emptySharedLogState, logIdOf } from '../src/log'
 import { logChatStores } from '../src/log-stores'
 import { HostOwnership } from '../src/ownership'
-import { mockAdapter, storedThreadState, text, toolCall } from './helpers'
+import {
+  mockAdapter,
+  storedThreadState,
+  text,
+  toolCall,
+  turnInterrupts,
+} from './helpers'
 import type { LogStore } from '@tanstack/ai-persistence'
 import type { Reply } from './helpers'
 import type { SessionImpl } from '../src/session/harness-session'
@@ -140,7 +146,7 @@ describe('runs and interrupts of a session', () => {
 
     const next = await openOn(log, [() => text('Deployed.')])
     expect(
-      next.session.snapshot().pendingInterrupts.map((item) => item.id),
+      turnInterrupts(next.session.snapshot()).map((item) => item.id),
     ).toEqual([approval.id])
     const stored = await storedThreadState(log, { threadId: THREAD })
     expect(stored.runs.get(stopped.id)).toMatchObject({

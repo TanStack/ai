@@ -10,6 +10,39 @@ import type {
 } from '@tanstack/ai'
 import type { LogRecord, LogStore, RunRecord } from '@tanstack/ai-persistence'
 import type { HostFrame } from '../src/protocol'
+import type { PendingQuestion, SessionSnapshot } from '../src'
+import type {
+  AttributeValue,
+  Exception,
+  Span,
+  SpanContext,
+  SpanStatus,
+} from '@opentelemetry/api'
+
+/** The interrupts of the stopped turn: the turn waits of `pendingWaits`. */
+export const turnInterrupts = ({ pendingWaits }: SessionSnapshot) =>
+  pendingWaits.flatMap(({ interrupt, turn }) =>
+    interrupt && turn ? [interrupt] : [],
+  )
+
+/** The questions of `pendingWaits`: the question waits that no turn holds. */
+export const questionsOf = ({
+  pendingWaits,
+}: SessionSnapshot): Array<PendingQuestion> =>
+  pendingWaits.flatMap(
+    ({ turn, kind, waitId, message, schema, secret, url }) =>
+      turn || kind !== 'question'
+        ? []
+        : [
+            {
+              questionId: waitId,
+              message: message ?? '',
+              ...(schema !== undefined ? { schema } : {}),
+              ...(secret ? { secret } : {}),
+              ...(url ? { url } : {}),
+            },
+          ],
+  )
 
 /**
  * A log store that calls `overrides` for the methods it has, and `inner` for
@@ -28,6 +61,7 @@ export function wrapLogStore(
     renew: overrides.renew ?? inner.renew.bind(inner),
     release: overrides.release ?? inner.release.bind(inner),
     setAffinity: overrides.setAffinity ?? inner.setAffinity.bind(inner),
+    heartbeat: overrides.heartbeat ?? inner.heartbeat.bind(inner),
     listOrphaned: overrides.listOrphaned ?? inner.listOrphaned.bind(inner),
     offer: overrides.offer ?? inner.offer.bind(inner),
     offered: overrides.offered ?? inner.offered.bind(inner),
@@ -425,4 +459,36 @@ export const hideSecret: AnyChatMiddleware = {
       ),
     }
   },
+}
+
+/** An OpenTelemetry span that calls `on` for the calls that a test reads. */
+export function fakeSpan(
+  spanContext: SpanContext,
+  on: {
+    setAttribute?: (key: string, value: AttributeValue) => void
+    setStatus?: (status: SpanStatus) => void
+    recordException?: (exception: Exception) => void
+    end?: () => void
+  } = {},
+): Span {
+  const span: Span = {
+    spanContext: () => spanContext,
+    setAttribute: (key, value) => {
+      on.setAttribute?.(key, value)
+      return span
+    },
+    setAttributes: () => span,
+    addEvent: () => span,
+    addLink: () => span,
+    addLinks: () => span,
+    setStatus: (status) => {
+      on.setStatus?.(status)
+      return span
+    },
+    updateName: () => span,
+    end: () => on.end?.(),
+    isRecording: () => true,
+    recordException: (exception) => on.recordException?.(exception),
+  }
+  return span
 }

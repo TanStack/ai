@@ -4,6 +4,8 @@ import { parseTraceparent } from './observability'
 import { isRecord } from './utils'
 import { createInputId, errorText } from './session/helpers'
 import { storeInlineMedia } from './inline-media'
+import { SessionImpl } from './session/harness-session'
+import { mediaIdOf } from './media-ref'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { AnyAgent } from './agents'
 import type { AnyHarness } from './define'
@@ -21,11 +23,6 @@ import type {
 
 /** The session-tier protocol version. Sent in `subscribe` and `hello`. */
 export const HARNESS_PROTOCOL_VERSION = 2
-
-/** The protocol versions that this host speaks. */
-export const SUPPORTED_PROTOCOL_VERSIONS: ReadonlyArray<number> = [
-  HARNESS_PROTOCOL_VERSION,
-]
 
 /** What failed, in a `harness.error` frame. */
 export type HarnessErrorCode =
@@ -65,8 +62,6 @@ export type HostFrame =
       /** The thread of the event: the thread, or a child thread of its tree. */
       threadId: string
       operationId: string
-      /** The run that started the operation, for a child run. */
-      parentRunId?: string
       event: StreamChunk
     }
   | { type: 'harness.snapshot'; snapshot: SessionSnapshot }
@@ -80,8 +75,6 @@ export type HostFrame =
        * a request with no id gets an id from the server.
        */
       requestId: string
-      /** With `unsupported_version`: the versions that the host speaks. */
-      supported?: ReadonlyArray<number>
     }
   /** A heartbeat. It keeps idle connections open. Ignore it. */
   | { type: 'harness.ping' }
@@ -308,7 +301,9 @@ export function parseControlFrame(data: string): ControlFrame {
  * `storeInlineMedia` does: inline bytes go to the media store and the part
  * becomes a `harness-media:` reference. An external URL needs
  * `media.externalUrls`. A refused part gives a rejected receipt with the
- * reason, for example `media_too_large`.
+ * reason, for example `media_too_large`. An input with an `inputId` that the
+ * session has already sends the stored message again, so a retry stores no
+ * media.
  *
  * @example
  * ```ts
@@ -359,11 +354,22 @@ export async function applyInput({
     options: harness.media,
     putMedia: (upload) => session.putMedia(upload),
   }
+  /** `message` with its inline media stored. A retry stores none again. */
+  const checkedMessage = async (message: UserInput) => {
+    const retry = retriedMessage(session, input.inputId, message)
+    if (retry !== undefined) return { content: retry, isRetry: true }
+    if (typeof message === 'string') return { content: message }
+    const checked = await storeInlineMedia(message, media)
+    return 'refused' in checked ? checked : { content: checked.parts }
+  }
   switch (input.op) {
     case 'prompt': {
-      const message = await checkedMessage(input.message, media)
+      const message = await checkedMessage(input.message)
       if ('refused' in message) return refused(message.refused)
-      const ephemeral = await checkedEphemeral(input.ephemeral, media)
+      // A retry drops its ephemeral messages, as `session.send` does.
+      const ephemeral = message.isRetry
+        ? { options: {} }
+        : await checkedEphemeral(input.ephemeral, media)
       if ('refused' in ephemeral) return refused(ephemeral.refused)
       return turnReceipt(
         session.send(message.content, {
@@ -383,7 +389,7 @@ export async function applyInput({
     }
     case 'steer':
     case 'followUp': {
-      const message = await checkedMessage(input.message, media)
+      const message = await checkedMessage(input.message)
       if ('refused' in message) return refused(message.refused)
       return turnReceipt(
         session.send(message.content, { ...sent, ...traced, mode: input.op }),
@@ -531,7 +537,7 @@ export async function applyInput({
           reason: 'not_exposed',
         }
       }
-      const message = await checkedMessage(input.message, media)
+      const message = await checkedMessage(input.message)
       if ('refused' in message) return refused(message.refused)
       return turnReceipt(
         session.send(message.content, {
@@ -544,11 +550,33 @@ export async function applyInput({
   }
 }
 
-/** `message` with its inline media stored, or why a part was refused. */
-async function checkedMessage(message: UserInput, media: InlineMediaContext) {
-  if (typeof message === 'string') return { content: message }
-  const checked = await storeInlineMedia(message, media)
-  return 'refused' in checked ? checked : { content: checked.parts }
+/**
+ * `message` as a retry of the input `inputId` that `session` has in its log,
+ * or `undefined` for a new input. A part at the place of a stored
+ * `harness-media:` part, of the same type, becomes the stored part. So a
+ * retry stores no media again, and the duplicate check of the session
+ * matches. A retry that differs in another way gets `conflict`. Its parts are
+ * not checked or stored: the session refuses it before it runs.
+ */
+// ponytail: a retry with other inline bytes of the same type matches too.
+// The first input stands.
+export function retriedMessage(
+  session: HarnessSession,
+  inputId: string | undefined,
+  message: UserInput,
+): UserInput | undefined {
+  if (inputId === undefined || !(session instanceof SessionImpl)) {
+    return undefined
+  }
+  const known = session.knownMessage(inputId)
+  if (known === undefined) return undefined
+  if (typeof message === 'string' || typeof known === 'string') return message
+  return message.map((part, index) => {
+    const stored = known[index]
+    const isStoredMedia =
+      stored?.type === part.type && mediaIdOf(stored) !== undefined
+    return isStoredMedia ? stored : part
+  })
 }
 
 /**
@@ -670,34 +698,18 @@ export function capabilitiesOf(
 }
 
 /**
- * Pick the protocol version for a `harness.subscribe` frame or a `?v=`
- * query. No `requested` version means the current version. A version that
- * this host does not speak gets the parts of an `unsupported_version` error
- * frame: send it, then close the stream.
- *
- * @example
- * ```ts
- * const picked = negotiateVersion({ requested: frame.v })
- * if ('error' in picked) send({ type: 'harness.error', requestId, ...picked.error })
- * ```
+ * The `unsupported_version` error of a `harness.subscribe` frame or a
+ * `?v=` query that asks for a version other than
+ * {@link HARNESS_PROTOCOL_VERSION}. No version asks for the current one.
+ * Send the error frame, then close the stream.
  */
-export function negotiateVersion({ requested }: { requested?: number }):
-  | { v: number }
-  | {
-      error: {
-        message: string
-        code: 'unsupported_version'
-        supported: ReadonlyArray<number>
-      }
-    } {
-  if (requested === undefined) return { v: HARNESS_PROTOCOL_VERSION }
-  if (SUPPORTED_PROTOCOL_VERSIONS.includes(requested)) return { v: requested }
+export function versionError(requested: number | undefined) {
+  if (requested === undefined || requested === HARNESS_PROTOCOL_VERSION) {
+    return undefined
+  }
   return {
-    error: {
-      message: `Protocol version ${requested} is not supported.`,
-      code: 'unsupported_version',
-      supported: SUPPORTED_PROTOCOL_VERSIONS,
-    },
+    message: `Protocol version ${requested} is not supported. This host speaks version ${HARNESS_PROTOCOL_VERSION}.`,
+    code: 'unsupported_version' as const,
   }
 }
 

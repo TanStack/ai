@@ -10,7 +10,7 @@ import {
 } from '../src'
 import { createHarnessHandler } from '../src/server'
 import { createHarnessClient } from '../src/client'
-import { mockAdapter, text, toolCall } from './helpers'
+import { mockAdapter, questionsOf, text, toolCall } from './helpers'
 
 const asker = definePlugin({
   name: 'test/asker',
@@ -34,7 +34,9 @@ const accessHost = () =>
     persistence: memoryPersistence(),
     access: {
       identify: () => user,
-      authorize: ({ session }) => session.threadId !== 'someone-else',
+      policy: {
+        authorize: ({ session }) => session.threadId !== 'someone-else',
+      },
     },
   })
 
@@ -87,9 +89,9 @@ describe('client reads and actions', () => {
 
     expect((await client.command({ name: 'confirm' })).status).toBe('accepted')
     await vi.waitFor(async () =>
-      expect((await client.snapshot()).pendingQuestions).toHaveLength(1),
+      expect(questionsOf(await client.snapshot())).toHaveLength(1),
     )
-    const [question] = (await client.snapshot()).pendingQuestions
+    const [question] = questionsOf(await client.snapshot())
     expect(
       (
         await client.answer({
@@ -99,7 +101,7 @@ describe('client reads and actions', () => {
       ).status,
     ).toBe('accepted')
     await vi.waitFor(async () =>
-      expect((await client.snapshot()).pendingQuestions).toHaveLength(0),
+      expect(questionsOf(await client.snapshot())).toHaveLength(0),
     )
 
     expect(
@@ -231,7 +233,10 @@ describe('client reads and actions', () => {
       return fetch(input, init)
     })
     // With host access, a thread with no session has no events to read.
-    await host.open(harness, { threadId: 'thread-r', principal: user })
+    const opened = await host.open(harness, {
+      threadId: 'thread-r',
+      principal: user,
+    })
     const states: Array<string> = []
     const reader = new AbortController()
     const reading = (async () => {
@@ -246,6 +251,7 @@ describe('client reads and actions', () => {
     await vi.waitFor(() => expect(states).toEqual(['reconnecting', 'open']))
     reader.abort()
     await reading
+    await opened.close()
     await host.close()
   })
 })

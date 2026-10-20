@@ -1,7 +1,27 @@
-import { defineInterrupt } from '@tanstack/ai'
-import { standardJsonSchema } from './json-schema'
+import { defineInterrupt, validateJsonSchema } from '@tanstack/ai'
 import { isRecord } from './utils'
-import type { AnyChatMiddleware } from '@tanstack/ai'
+import type {
+  AnyChatMiddleware,
+  StandardJSONSchemaV1,
+  StandardSchemaV1,
+} from '@tanstack/ai'
+
+/**
+ * A plain JSON Schema as a Standard Schema with a JSON Schema export, so a
+ * core interrupt can name it as a schema. `validateJsonSchema` checks values.
+ */
+function standardJsonSchema(
+  json: Record<string, unknown>,
+): StandardSchemaV1 & StandardJSONSchemaV1 {
+  return {
+    '~standard': {
+      version: 1,
+      vendor: 'tanstack-harness',
+      validate: (value) => validateJsonSchema(json, value),
+      jsonSchema: { input: () => json, output: () => json },
+    },
+  }
+}
 
 /** The id of the interrupt that asks the user to approve one tool call. */
 export const APPROVAL_INTERRUPT_ID = 'tanstack/harness:approval'
@@ -51,7 +71,7 @@ export const APPROVAL_ANSWER_SCHEMA: Record<string, unknown> = {
  */
 export const approvalInterrupt = defineInterrupt({
   id: APPROVAL_INTERRUPT_ID,
-  payloadSchema: standardJsonSchema<{ toolCallId: string; tool: string }>({
+  payloadSchema: standardJsonSchema({
     type: 'object',
     properties: {
       toolCallId: { type: 'string' },
@@ -59,9 +79,7 @@ export const approvalInterrupt = defineInterrupt({
     },
     required: ['toolCallId', 'tool'],
   }),
-  responseSchema: standardJsonSchema<
-    ApprovalAnswer | 'once' | 'always' | 'reject' | boolean
-  >(APPROVAL_ANSWER_SCHEMA),
+  responseSchema: standardJsonSchema(APPROVAL_ANSWER_SCHEMA),
 })
 
 /** The id of the interrupt that asks one question of the `question` tool. */
@@ -76,11 +94,7 @@ export const QUESTION_INTERRUPT_ID = 'tanstack/harness:question'
  */
 export const questionInterrupt = defineInterrupt({
   id: QUESTION_INTERRUPT_ID,
-  payloadSchema: standardJsonSchema<{
-    toolCallId: string
-    index: number
-    schema: Record<string, unknown>
-  }>({
+  payloadSchema: standardJsonSchema({
     type: 'object',
     properties: {
       toolCallId: { type: 'string' },

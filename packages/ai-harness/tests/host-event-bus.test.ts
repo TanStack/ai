@@ -84,6 +84,26 @@ describe('the host event bus', () => {
     expect(bus.readers).toBe(0)
   })
 
+  it('does not count the initial events against maxQueue', async () => {
+    const bus = new HostEventBus()
+    const read = bus.read({
+      initial: [status('t0'), status('t1')],
+      maxQueue: 1,
+    })
+    bus.emit(status('t2'))
+
+    expect((await take(read, 3)).map(threadOf)).toEqual(['t0', 't1', 't2'])
+  })
+
+  it('keeps an event emitted after the read starts but before the first pull', async () => {
+    const bus = new HostEventBus()
+    const read = bus.read({ initial: [status('t0')] })
+    bus.emit(status('t1'))
+
+    expect((await take(read, 2)).map(threadOf)).toEqual(['t0', 't1'])
+    expect(bus.readers).toBe(0)
+  })
+
   it('stops a read when its signal aborts', async () => {
     const bus = new HostEventBus()
     const controller = new AbortController()

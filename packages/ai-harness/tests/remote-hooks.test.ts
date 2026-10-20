@@ -1,14 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, toolDefinition } from '@tanstack/ai'
-import { memoryLogBackend, memoryLogStore } from '@tanstack/ai-persistence'
+import { memoryLogState, memoryLogStore } from '@tanstack/ai-persistence'
 import {
   createHarnessHost,
   defineHarness,
   definePlugin,
   durableTool,
 } from '../src'
-import { mockAdapter, text, toolCall } from './helpers'
+import { mockAdapter, questionsOf, text, toolCall } from './helpers'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type { LogStore } from '@tanstack/ai-persistence'
 import type { LiveEvent, SessionEvent } from '../src'
@@ -86,14 +86,14 @@ const customNames = (events: ReadonlyArray<LiveEvent>) =>
 
 describe('hooks on a host that does not own the log', () => {
   it('fire once for each event that the owner writes, and the status follows', async () => {
-    const backend = memoryLogBackend()
+    const logState = memoryLogState()
     const owner = await hostOn(
-      memoryLogStore({ backend }),
+      memoryLogStore({ state: logState }),
       mockAdapter([() => toolCall('probe', {}), () => withUsage('Done.')])
         .adapter,
     )
     const other = await hostOn(
-      memoryLogStore({ backend }),
+      memoryLogStore({ state: logState }),
       mockAdapter([]).adapter,
     )
     const from = owner.session.snapshot().cursor
@@ -108,11 +108,11 @@ describe('hooks on a host that does not own the log', () => {
 
     const turn = owner.session.send('Go.')
     await waitFor(() =>
-      expect(owner.session.snapshot().pendingQuestions).toHaveLength(1),
+      expect(questionsOf(owner.session.snapshot())).toHaveLength(1),
     )
     await waitFor(() => expect(questions).toEqual(['Sure?']))
     await waitFor(() => expect(other.statuses.at(-1)).toBe('waiting'))
-    const [question] = owner.session.snapshot().pendingQuestions
+    const [question] = questionsOf(owner.session.snapshot())
     await owner.session.answer({
       questionId: question?.questionId ?? '',
       value: 'yes',

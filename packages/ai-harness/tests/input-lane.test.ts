@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, defineAgent } from '@tanstack/ai'
-import { memoryLogBackend, memoryLogStore } from '@tanstack/ai-persistence'
+import {
+  memoryLogState,
+  memoryLogStore,
+  memoryPersistence,
+} from '@tanstack/ai-persistence'
 import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import { credentialsFor } from '../src/auth'
 import {
@@ -14,12 +18,13 @@ import {
 } from '../src'
 import { createHarnessHandler } from '../src/server'
 import {
-  CRASHING_OWNERSHIP,
   after,
+  CRASHING_OWNERSHIP,
   gate,
   messageTexts,
   mockAdapter,
   ownershipExpired,
+  questionsOf,
   text,
   untilAborted,
   wrapLogStore,
@@ -49,8 +54,11 @@ const NAME = 'test/input-lane'
 
 /** Two log stores on one backend: two servers on one database. */
 function twoStores() {
-  const backend = memoryLogBackend()
-  return { a: memoryLogStore({ backend }), b: memoryLogStore({ backend }) }
+  const logState = memoryLogState()
+  return {
+    a: memoryLogStore({ state: logState }),
+    b: memoryLogStore({ state: logState }),
+  }
 }
 
 function harnessWith(
@@ -303,9 +311,9 @@ describe('an input that reaches a host that does not own the log', () => {
 
     const running = owner.session.command({ name: 'ask' })
     await waitFor(() =>
-      expect(owner.session.snapshot().pendingQuestions).toHaveLength(1),
+      expect(questionsOf(owner.session.snapshot())).toHaveLength(1),
     )
-    const [question] = owner.session.snapshot().pendingQuestions
+    const [question] = questionsOf(owner.session.snapshot())
     const receipt = await other.session.answer({
       questionId: question!.questionId,
       value: 'hunter2',
@@ -381,9 +389,9 @@ describe('an input that reaches a host that does not own the log', () => {
     async function ask(session: HarnessSession, log: LogStore) {
       const running = session.command({ name: 'ask' })
       await waitFor(() =>
-        expect(session.snapshot().pendingQuestions).toHaveLength(1),
+        expect(questionsOf(session.snapshot())).toHaveLength(1),
       )
-      const [question] = session.snapshot().pendingQuestions
+      const [question] = questionsOf(session.snapshot())
       // The other host reads the question from the log.
       await waitFor(async () =>
         expect(JSON.stringify(await log.read({ logId: LOG }))).toContain(
@@ -454,7 +462,11 @@ describe('an input that reaches a host that does not own the log', () => {
       // A ref saved for another user is refused, and stays for that user.
       const theirs = `harness:answer:${questionId}:theirs`
       const scope = { userId: 'someone-else' }
-      const credential = { type: 'api_key' as const, value: '"theirs"' }
+      const credential = {
+        type: 'secret_answer' as const,
+        value: '"theirs"',
+        expiresAt: Date.now() + 60_000,
+      }
       await credentials.set({ scope, id: theirs, credential })
       const wrongUser = await laneAnswer(owner.session, {
         questionId,
@@ -464,6 +476,21 @@ describe('an input that reaches a host that does not own the log', () => {
       })
       expect(wrongUser).toMatchObject({ reason: 'unknown_secret_answer' })
       expect(await credentials.get({ scope, id: theirs })).toEqual(credential)
+      // A ref that expired is refused, and deleted.
+      const expired = `harness:answer:${questionId}:expired`
+      await credentials.set({
+        scope: {},
+        id: expired,
+        credential: { ...credential, expiresAt: Date.now() - 1 },
+      })
+      const late = await laneAnswer(owner.session, {
+        questionId,
+        value: '[secret]',
+        ref: expired,
+        controlId: 'expired',
+      })
+      expect(late).toMatchObject({ reason: 'unknown_secret_answer' })
+      expect(await credentials.get({ scope: {}, id: expired })).toBeNull()
       await owner.host.close()
       await other.host.close()
     })
@@ -483,7 +510,7 @@ describe('an input that reaches a host that does not own the log', () => {
         reason: 'secret_answer_needs_credentials',
       })
       expect(await waiting(a)).toEqual([])
-      expect(owner.session.snapshot().pendingQuestions).toHaveLength(1)
+      expect(questionsOf(owner.session.snapshot())).toHaveLength(1)
       // The owner can still take the answer itself.
       await owner.session.answer({ questionId, value: PASSWORD })
       expect(await running).toBe('signed in')
@@ -500,7 +527,11 @@ describe('an input that reaches a host that does not own the log', () => {
       await store.set({
         scope,
         id: 'harness:answer:q-1:i-1',
-        credential: { type: 'api_key', value: '"secret"' },
+        credential: {
+          type: 'secret_answer',
+          value: '"secret"',
+          expiresAt: Date.now() + 60_000,
+        },
       })
       await store.set({
         scope,
@@ -797,6 +828,46 @@ describe('host.submit', () => {
       status: 'rejected',
       reason: 'conflict',
     })
+    await host.close()
+  })
+
+  it('refuses an input to a deleted thread, and offers nothing', async () => {
+    const log = memoryLogStore()
+    const host = createHarnessHost({ persistence: { stores: { log } } })
+    await log.deleteLog({ logId: LOG })
+
+    const receipt = await host.submit({
+      harness: harnessWith(mockAdapter([]).adapter),
+      threadId: THREAD,
+      input: { op: 'prompt', message: 'Write the report.' },
+      inputId: 'in-1',
+    })
+
+    expect(receipt).toEqual({
+      inputId: 'in-1',
+      status: 'rejected',
+      reason: 'deleted',
+    })
+    expect(await waiting(log)).toEqual([])
+    await host.close()
+  })
+
+  it('refuses a thread of another harness, and offers nothing', async () => {
+    const persistence = memoryPersistence()
+    const { adapter } = mockAdapter([() => text('Hi.')])
+    const support = defineHarness({ name: 'test/support', adapter })
+    const billing = defineHarness({ name: 'test/billing', adapter })
+    const host = createHarnessHost({ persistence })
+    await (await host.open(support, { threadId: THREAD })).close()
+
+    await expect(
+      host.submit({
+        harness: billing,
+        threadId: THREAD,
+        input: { op: 'prompt', message: 'Pay the bill.' },
+      }),
+    ).rejects.toThrow(/belongs to harness "test\/support"/)
+    expect(await waiting(persistence.stores.log)).toEqual([])
     await host.close()
   })
 })

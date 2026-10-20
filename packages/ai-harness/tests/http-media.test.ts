@@ -35,13 +35,17 @@ function setup(options: { media?: MediaOptions; secret?: string } = {}) {
   })
   const persistence = memoryPersistence()
   /** A host on the shared stores. `identify` reads the user of a request. */
-  const hostWith = (identify: (request: Request) => typeof user | null) =>
+  const hostWith = (
+    identify: (request: Request) => { id: string; tenantId?: string } | null,
+  ) =>
     createHarnessHost({
       persistence,
       access: {
         identify: ({ request }) => identify(request),
-        authorize: ({ principal, session }) =>
-          session.threadId.startsWith(principal.id),
+        policy: {
+          authorize: ({ principal, session }) =>
+            session.threadId.startsWith(principal.id),
+        },
       },
     })
   const host = hostWith(allowUser)
@@ -106,13 +110,17 @@ function setup(options: { media?: MediaOptions; secret?: string } = {}) {
     return body
   }
 
-  /** A GET with no Authorization header. */
-  const fetchSigned = (path: string, target = handler) =>
-    target(new Request(`${BASE}/${path}`))
+  /** A GET as user-1. `headers: {}` sends no Authorization header. */
+  const fetchSigned = (
+    path: string,
+    target = handler,
+    headers: Record<string, string> = { authorization: 'Bearer good' },
+  ) => target(new Request(`${BASE}/${path}`, { headers }))
 
   return {
     host,
     harness,
+    persistence,
     calls,
     hostWith,
     handlerWith,
@@ -166,7 +174,31 @@ describe('media upload and signed URLs', () => {
     ).toThrow(/at least 32 bytes/)
   })
 
-  it('stores an upload, signs its URL for 1 hour, and serves the signed URL without auth', async () => {
+  it('needs media at the start on a host with ownership, and warns once on another host', async () => {
+    // A fresh module, so no handler of another test warned before.
+    vi.resetModules()
+    const { createHarnessHandler: handlerOf } = await import('../src/server')
+    const { createHarnessHost: hostOf } = await import('../src')
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const { adapter } = mockAdapter(() => text('ok'))
+    const harness = defineHarness({ name: 'test/http-media-shared', adapter })
+    const persistence = memoryPersistence()
+    const handlerOn = (host: ReturnType<typeof hostOf>) => () =>
+      handlerOf({ host, harness, openAccess: true })
+
+    expect(
+      handlerOn(hostOf({ persistence, ownership: { hostId: 'pod-1' } })),
+    ).toThrow(/needs media/)
+    expect(warn).not.toHaveBeenCalled()
+    const host = hostOf({ persistence })
+    expect(handlerOn(host)).not.toThrow()
+    expect(handlerOn(host)).not.toThrow()
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('media.secret'))
+    warn.mockRestore()
+  })
+
+  it('stores an upload, signs its URL for 1 hour, and serves the signed URL to its user', async () => {
     vi.useFakeTimers({ toFake: ['Date'], now: NOW })
     const { host, upload, signedPath, fetchSigned } = setup()
 
@@ -187,7 +219,7 @@ describe('media upload and signed URLs', () => {
     expect(expiresAt).toBe(NOW + HOUR)
     expect(path).toMatch(
       new RegExp(
-        `^media\\?threadId=user-1-a&id=${record.id}&userId=user-1&exp=${NOW + HOUR}&sig=[\\w-]+$`,
+        `^media\\?threadId=user-1-a&id=${record.id}&exp=${NOW + HOUR}&sig=[\\w-]+$`,
       ),
     )
     expect(response.status).toBe(200)
@@ -195,24 +227,89 @@ describe('media upload and signed URLs', () => {
     await host.close()
   })
 
-  it('serves a signed URL on another instance whose identify refuses everyone', async () => {
+  it('serves a signed URL on another instance with the same key', async () => {
     const { host, upload, signedPath, fetchSigned, hostWith, handlerWith } =
       setup({ secret: SHARED })
     const record = await upload('user-1-a')
     const { path } = await signedPath(record)
-    const other = hostWith(() => null)
-    const refuseAll = handlerWith({ host: other, secret: SHARED })
+    const other = hostWith(allowUser)
 
-    const signed = await fetchSigned(path, refuseAll)
-    const unsigned = await fetchSigned(
-      `media?threadId=user-1-a&id=${record.id}`,
-      refuseAll,
+    const signed = await fetchSigned(
+      path,
+      handlerWith({ host: other, secret: SHARED }),
     )
 
     expect(signed.status).toBe(200)
     expect(await signed.text()).toBe('hello')
-    expect(unsigned.status).toBe(401)
     await other.close()
+    await host.close()
+  })
+
+  it('checks the user of a signed request: none is 401, a stranger or another tenant is 403', async () => {
+    const { host, upload, signedPath, fetchSigned, hostWith, handlerWith } =
+      setup({ secret: SHARED })
+    const record = await upload('user-1-a')
+    const { path } = await signedPath(record)
+    const as = (who: { id: string; tenantId?: string }) => {
+      const other = hostWith(() => who)
+      return {
+        other,
+        handler: handlerWith({ host: other, secret: SHARED }),
+      }
+    }
+    const stranger = as({ id: 'user-2' })
+    const elsewhere = as({ id: 'user-1', tenantId: 'other-tenant' })
+
+    expect((await fetchSigned(path, undefined, {})).status).toBe(401)
+    expect((await fetchSigned(path, stranger.handler)).status).toBe(403)
+    expect((await fetchSigned(path, elsewhere.handler)).status).toBe(403)
+    await stranger.other.close()
+    await elsewhere.other.close()
+    await host.close()
+  })
+
+  it('serves a signed URL with no login to the guest of access.anonymous, and only that route', async () => {
+    const { host, harness, persistence, upload, signedPath, fetchSigned } =
+      setup({ secret: SHARED })
+    const record = await upload('user-1-a')
+    const { path } = await signedPath(record)
+    /** A handler whose host gives a guest, and lets it read when `canRead`. */
+    const guestHandler = (canRead: boolean, anonymous = true) => {
+      const guestHost = createHarnessHost({
+        persistence,
+        access: {
+          identify: () => null,
+          ...(anonymous ? { anonymous: () => ({ id: 'guest' }) } : {}),
+          policy: {
+            authorize: ({ principal, action }) =>
+              canRead && principal.id === 'guest' && action === 'read',
+          },
+        },
+      })
+      const handler = createHarnessHandler({
+        host: guestHost,
+        harness,
+        media: { secret: SHARED },
+      })
+      return { guestHost, handler }
+    }
+    const allowed = guestHandler(true)
+    const refused = guestHandler(false)
+    const without = guestHandler(true, false)
+
+    const served = await fetchSigned(path, allowed.handler, {})
+    expect(served.status).toBe(200)
+    expect(await served.text()).toBe('hello')
+    expect((await fetchSigned(path, refused.handler, {})).status).toBe(403)
+    expect((await fetchSigned(path, without.handler, {})).status).toBe(401)
+    // The guest exists only on the signed media route.
+    expect(
+      (await fetchSigned('transcript?threadId=user-1-a', allowed.handler, {}))
+        .status,
+    ).toBe(401)
+    for (const entry of [allowed, refused, without]) {
+      await entry.guestHost.close()
+    }
     await host.close()
   })
 
@@ -231,10 +328,6 @@ describe('media upload and signed URLs', () => {
     {
       label: 'a later expiry',
       change: (query) => query.set('exp', String(Date.now() + 2 * HOUR)),
-    },
-    {
-      label: 'another user',
-      change: (query) => query.set('userId', 'user-1-admin'),
     },
     {
       label: 'another tenant',
@@ -334,7 +427,7 @@ describe('media upload and signed URLs', () => {
 
     expect(owner.status).toBe(200)
     expect(await owner.text()).toBe('hello')
-    expect((await fetchSigned(path)).status).toBe(401)
+    expect((await fetchSigned(path, undefined, {})).status).toBe(401)
     expect(
       (await call(`media?threadId=someone-else&id=${record.id}`)).status,
     ).toBe(403)

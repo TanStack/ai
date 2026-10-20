@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineAgent, toolDefinition } from '@tanstack/ai'
 import {
-  memoryLogBackend,
+  memoryLogState,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -133,7 +133,7 @@ describe('session.background', () => {
   })
 
   it('opens on another host while the owner runs a job', async () => {
-    const backend = memoryLogBackend()
+    const logState = memoryLogState()
     const finish = gate()
     const woke = gate()
     const child = mockAdapter(after(finish.opened, 'Found it'))
@@ -151,7 +151,7 @@ describe('session.background', () => {
       })
     const hostOf = () =>
       createHarnessHost({
-        persistence: { stores: { log: memoryLogStore({ backend }) } },
+        persistence: { stores: { log: memoryLogStore({ state: logState }) } },
       })
     const owner = hostOf()
     const session = await owner.open(harnessOf(model.adapter), {

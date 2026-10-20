@@ -17,7 +17,7 @@ Several people work in one thread: a team in one chat, or a customer and a suppo
 
 ## 1. Turn on members
 
-Use `membersOnly()` as the `authorize` of the host. [Access and tenants](./access) explains `identify`:
+Use `membersOnly()` as the `policy` of the host `access`. [Access and tenants](./access) explains `identify`:
 
 ```ts group=harness-shared-threads
 import { createHarnessHost, defineHarness, membersOnly } from '@tanstack/ai-harness'
@@ -40,7 +40,7 @@ export const host = createHarnessHost({
   persistence: memoryPersistence(),
   access: {
     identify: ({ request }) => users.get(request.headers.get('authorization') ?? '') ?? null,
-    authorize: membersOnly(),
+    policy: membersOnly(),
   },
 })
 
@@ -49,15 +49,16 @@ export const handler = createHarnessHandler({ host, harness: assistant })
 
 The user who opens a new thread is its owner. Nobody else can open it until the owner shares it. What each role can do:
 
-| Action | Owner | Member | Viewer |
-| --- | --- | --- | --- |
-| Read the thread and see it in a list | Yes | Yes | Yes |
-| Send messages, run commands, start agents | Yes | Yes | No |
-| Answer and cancel | Every run | Only the runs they started | No |
-| Answer a `human` wait (`operator`) | Yes | Yes | No |
-| Fork | Yes | Yes | No |
-| Reply as an [operator](./handoffs#reply-as-the-operator) | Yes | Yes | No |
-| Configure, share, delete, transfer | Yes | No | No |
+| Action | Owner | Member | Operator | Viewer |
+| --- | --- | --- | --- | --- |
+| Read the thread and see it in a list | Yes | Yes | Yes | Yes |
+| Send messages, run commands, start agents | Yes | Yes | No | No |
+| Answer and cancel | Every run | Only the runs they started | No | No |
+| Answer a `human` wait, and reply as an [operator](./handoffs#reply-as-the-operator) | No | No | Yes | No |
+| Fork | Yes | Yes | No | No |
+| Configure, share, delete, transfer | Yes | No | No | No |
+
+The user who waits for a person must not act as that person, so the owner does not get `operator`. To give it to other roles, pass `membersOnly({ operator: { roles: ['owner', 'operator'] } })`.
 
 A user who is not a member can do nothing. A child thread of a subagent uses the members of its root thread.
 
@@ -80,7 +81,7 @@ await host.sessions.share({
 From the browser, the owner sends the same change to `POST sessions`:
 
 ```ts group=harness-shared-threads-invite
-export async function invite(userId: string, role: 'member' | 'viewer') {
+export async function invite(userId: string, role: 'member' | 'operator' | 'viewer') {
   const response = await fetch('/api/harness/sessions', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: 'Bearer token-ada' },
@@ -144,6 +145,7 @@ Each message, command, and agent runs as the person who started it:
 - The log keeps the sender of each input, also of a cancel, an answer, and a change of settings. After a restart, a message runs again as its sender.
 - Tools and middleware read the run as `ctx.context.run`. It has the user, the credentials, and the provider keys of the sender.
 - The model call uses the provider key of the sender. So the sender pays for the call.
+- An answer does not change the sender. When the owner approves a tool in the turn of Bob, the rest of that turn still runs as Bob.
 - A command runs as the person who runs it. So a sign-in, for example `connect:github`, belongs to the person who signed in.
 - A background agent runs as the person who started it, also after the turn ends. The wake turn after the agent runs as that person too.
 
@@ -158,7 +160,7 @@ export const myIssues = toolDefinition({
   description: 'List the Linear issues of the user',
 }).server<HarnessRunContext>(async (_args, ctx) => {
   const credential = await ctx.context.run.credentials.require('linear')
-  const key = credential.type === 'api_key' ? credential.value : credential.accessToken
+  const key = credential.type === 'oauth' ? credential.accessToken : credential.value
   const response = await fetch('https://api.linear.app/graphql', {
     method: 'POST',
     headers: { authorization: key, 'content-type': 'application/json' },
@@ -235,7 +237,7 @@ const fork = await host.sessions.fork({
   members: 'all',
   principal: bob,
 })
-console.log(fork.ownerId) // 'bob'
+console.log(fork.members[0]) // { userId: 'bob', role: 'owner' }
 ```
 
 `members` picks who else is in the fork:

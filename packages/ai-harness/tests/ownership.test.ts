@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { toolDefinition } from '@tanstack/ai'
 import {
-  memoryLogBackend,
+  memoryLogState,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -63,10 +63,10 @@ async function openOn(
 
 /** Two hosts on one database: two log stores on one memory backend. */
 function twoHosts() {
-  const backend = memoryLogBackend()
+  const logState = memoryLogState()
   return {
-    logA: memoryLogStore({ backend }),
-    logB: memoryLogStore({ backend }),
+    logA: memoryLogStore({ state: logState }),
+    logB: memoryLogStore({ state: logState }),
   }
 }
 
@@ -79,7 +79,7 @@ const assistantTexts = (
     .map((message) => message.content)
 
 describe('ownership of a log by two hosts', () => {
-  it('refuses the writes of a host while another host owns the log and renews it', async () => {
+  it('sends the inputs of a host to the owner of the log, and refuses its other writes', async () => {
     const { logA, logB } = twoHosts()
     const release = gate()
     // A renews well before its ownership would expire.
@@ -99,8 +99,19 @@ describe('ownership of a log by two hosts', () => {
       inputId: 'in-b',
       status: 'queued',
     })
+    // An append is an input too: it waits for A, and A writes it.
+    expect(
+      await b.session.append({
+        records: [{ type: 'app.from-b' }],
+        inputId: 'in-append',
+      }),
+    ).toEqual({ inputId: 'in-append', status: 'queued' })
+    // A write that is not an input is refused.
     await expect(
-      b.session.append({ records: [{ type: 'app.from-b' }] }),
+      b.session.schedule({
+        at: Date.now() + 60_000,
+        input: { op: 'prompt', message: 'later' },
+      }),
     ).rejects.toThrow('Another host owns the log')
 
     // B still reads: it gets the answers of A.
@@ -113,10 +124,10 @@ describe('ownership of a log by two hosts', () => {
       ]),
     )
     expect(b.calls).toHaveLength(0)
-    const types = (await logA.read({ logId: LOG })).map(
-      (entry) => entry.record.type,
-    )
-    expect(types).not.toContain('app.from-b')
+    const types = async () =>
+      (await logA.read({ logId: LOG })).map((entry) => entry.record.type)
+    await waitFor(async () => expect(await types()).toContain('app.from-b'))
+    expect(await types()).not.toContain('harness.schedule')
     await a.host.close()
     await b.host.close()
   })

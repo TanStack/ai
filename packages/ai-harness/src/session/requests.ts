@@ -538,8 +538,9 @@ export abstract class SessionRequests<
 
   /**
    * Answer the interrupts of the last turn. One resume must answer every open
-   * interrupt of that turn (the AG-UI rule). `principal` means the same as in
-   * `prompt`: the turn that continues runs with its credentials.
+   * interrupt of that turn (the AG-UI rule). `principal` is who answers: the
+   * log keeps it. The turn that continues still runs as the user who sent
+   * it, with that user's credentials.
    *
    * @example
    * ```ts
@@ -621,27 +622,65 @@ export abstract class SessionRequests<
       // The waits of a background agent run: the log ends them, and the
       // run goes on (see `resumeWaitingRuns`).
       const logged = resume.map((item) => this.loggedWait(item.interruptId))
-      const isLogged = logged.every(
-        (state) =>
-          state !== undefined &&
-          state.outcome === undefined &&
-          state.live === undefined,
+      const open = logged.flatMap((state) =>
+        state !== undefined &&
+        state.outcome === undefined &&
+        state.live === undefined
+          ? [state]
+          : [],
       )
-      if (resume.length > 0 && isLogged) {
-        // The input ends here, in the append that ends the waits.
-        await this.settleWith(
-          [{ inputId, outcome: 'completed' }],
-          resume.flatMap((item) =>
-            item.status === 'resolved'
-              ? this.waitEndRecords(item.interruptId, 'answered', item.payload)
-              : this.waitEndRecords(item.interruptId, 'cancelled'),
-          ),
+      const interrupts = this.logWriter?.state.thread.interrupts
+      // A `step.ask` question and the `human` wait of a handoff have no
+      // interrupt: `answer` checks their schema, keeps a secret out of the
+      // log, and ends the handoff.
+      if (
+        open.some(
+          ({ wait }) => interrupts?.get(wait.waitId)?.status !== 'pending',
         )
+      ) {
+        this.reject(inputId, 'use_answer')
+        return { inputId, status: 'rejected', reason: 'use_answer' }
+      }
+      if (open.length > 0) {
+        // The access check saw the run of the first item: every item must
+        // be a wait of that run.
+        const runId = open[0]?.wait.runId
+        const isOneRun =
+          open.length === resume.length &&
+          open.every(({ wait }) => wait.runId === runId)
+        if (!isOneRun) {
+          this.reject(inputId, 'mixed_runs')
+          return { inputId, status: 'rejected', reason: 'mixed_runs' }
+        }
+        // Another answer ends one of these waits now.
+        if (open.some(({ wait }) => this.answering.has(wait.waitId))) {
+          this.reject(inputId, 'unknown_question')
+          return { inputId, status: 'rejected', reason: 'unknown_question' }
+        }
+        const ids = open.map(({ wait }) => wait.waitId)
+        for (const id of ids) this.answering.add(id)
+        try {
+          // The input ends here, in the append that ends the waits.
+          await this.settleWith(
+            [{ inputId, outcome: 'completed' }],
+            resume.flatMap((item) =>
+              item.status === 'resolved'
+                ? this.waitEndRecords(
+                    item.interruptId,
+                    'answered',
+                    item.payload,
+                  )
+                : this.waitEndRecords(item.interruptId, 'cancelled'),
+            ),
+          )
+        } finally {
+          for (const id of ids) this.answering.delete(id)
+        }
         for (const item of resume) await this.afterWaitEnd(item.interruptId)
         return this.keep({
           inputId,
           status: 'accepted',
-          ...(logged[0] ? { operationId: logged[0].wait.runId } : {}),
+          ...(runId !== undefined ? { operationId: runId } : {}),
         })
       }
       const answers = this.interrupted
@@ -669,13 +708,15 @@ export abstract class SessionRequests<
       }
       const operation = this.createTurnOperation(runId)
       this.bindTurn(inputId, operation)
-      // The turn goes on with the context its input sent.
+      // The turn goes on as its sender, with the context its input sent:
+      // an owner who answers the turn of a member does not lend the member
+      // the owner's keys. A copy from an older version has no sender.
       const turn: QueuedTurn = {
         operation,
         resume,
         inputId,
         answers,
-        principal,
+        principal: answers.principal ?? principal,
         context: answers.context,
       }
       if (isEnding) this.queue.unshift(turn)
@@ -1052,6 +1093,7 @@ export abstract class SessionRequests<
         }
       },
       transcript: () => this.transcript(),
+      keptRecords: async (type) => this.keptRecords(type),
       replaceTranscript: (messages) =>
         this.messages.saveThread(this.threadId, messages),
       entry: () => this.index.get(this.indexKey),

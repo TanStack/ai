@@ -318,6 +318,11 @@ function formOf(wait: Wait) {
   }
 }
 
+/** The waits of the stopped turn of `session`. */
+function turnWaitsOf(session: HarnessSession) {
+  return session.snapshot().pendingWaits.filter(({ turn }) => turn)
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -385,6 +390,12 @@ export function createAcpAgent<P extends Principal = Principal>(
    * order that they came in.
    */
   const tails = new Map<string, Promise<void>>()
+  /**
+   * The sessions that this agent opened in this connection. They are known
+   * without the session index, so a host with no `stores.sessions` still
+   * takes their prompts after the agent released their handles.
+   */
+  const opened = new Set<string>()
 
   /** The handle of a session: the one that the agent holds, or a new one. */
   const live = (sessionId: string) => {
@@ -393,9 +404,12 @@ export function createAcpAgent<P extends Principal = Principal>(
     const opening = host.open(harness, { threadId: sessionId, principal })
     handles.set(sessionId, opening)
     // A failed open holds nothing, so the next request opens again.
-    opening.catch(() => {
-      if (handles.get(sessionId) === opening) handles.delete(sessionId)
-    })
+    opening.then(
+      () => opened.add(sessionId),
+      () => {
+        if (handles.get(sessionId) === opening) handles.delete(sessionId)
+      },
+    )
     return opening
   }
 
@@ -420,13 +434,14 @@ export function createAcpAgent<P extends Principal = Principal>(
   }
 
   /**
-   * Throw unless this agent or the session index knows the id. A subagent
+   * Throw unless this agent or the session index knows the id. The agent
+   * knows the sessions that it opened in this connection. A subagent
    * child is not a session of its own: ACP reaches it through its parent. A
    * session that the principal may not read gets the same answer as an
    * unknown id. It reads the index only: no session opens.
    */
   const checkKnown = async (sessionId: string) => {
-    if (handles.has(sessionId)) return
+    if (handles.has(sessionId) || opened.has(sessionId)) return
     try {
       const entry = await host.sessions.get({ threadId: sessionId, principal })
       const isOwnSession =
@@ -632,9 +647,13 @@ export function createAcpAgent<P extends Principal = Principal>(
         .waitFor({ runId: operationId, signal })
         .catch(() => undefined)
       if (!wait) return
+      // A question that no turn holds takes an answer.
       const isQuestion = session
         .snapshot()
-        .pendingQuestions.some(({ questionId }) => questionId === wait.waitId)
+        .pendingWaits.some(
+          ({ waitId, kind, turn }) =>
+            !turn && kind === 'question' && waitId === wait.waitId,
+        )
       if (!isQuestion) return
       const reply = await askEditor({ client, sessionId, wait })
       if (signal.aborted) return
@@ -654,11 +673,11 @@ export function createAcpAgent<P extends Principal = Principal>(
    * when the client cancelled that turn: its interrupts stay open.
    */
   const closeInterrupts = async (session: HarnessSession) => {
-    const open = session.snapshot().pendingInterrupts
+    const open = turnWaitsOf(session)
     if (open.length === 0) return true
     const receipt = await session.resolve({
-      resume: open.map((interrupt) => ({
-        interruptId: interrupt.id,
+      resume: open.map(({ waitId }) => ({
+        interruptId: waitId,
         status: 'cancelled' as const,
       })),
     })
@@ -676,7 +695,7 @@ export function createAcpAgent<P extends Principal = Principal>(
     )
     if (turn?.status() === 'cancelled') return false
     if (turn?.status() === 'failed') throw failure
-    if (session.snapshot().pendingInterrupts.length > 0) {
+    if (turnWaitsOf(session).length > 0) {
       throw new Error(
         'The model asked again for input that the client cannot give.',
       )
@@ -786,10 +805,12 @@ export function createAcpAgent<P extends Principal = Principal>(
           )
         }
         connected = true
-        // The handles of the sessions go with the connection.
-        void connection.closed.then(() =>
-          Promise.all([...handles.keys()].map(release)),
-        )
+        // The handles of the sessions go with the connection. A session
+        // with a prompt that runs keeps its handle until that prompt ends:
+        // a closed handle throws.
+        void connection.closed.then(() => {
+          for (const sessionId of handles.keys()) releaseIfIdle(sessionId)
+        })
       })
       .onRequest('initialize', () => {
         return {

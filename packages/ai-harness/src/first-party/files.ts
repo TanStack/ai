@@ -214,12 +214,8 @@ export function projectInstructions(options: {
       }
 
       return {
-        // The harness calls this at the start of each turn, before it reads
-        // the prompts. The check finds no tools, it only updates `sections`.
-        discoverTools: async () => {
-          await refresh()
-          return []
-        },
+        // At the start of each turn, before the harness reads the prompts.
+        onTurnStart: refresh,
         // One prompt per slot. Empty slots are left out.
         prompts: Array.from(
           { length: slots },

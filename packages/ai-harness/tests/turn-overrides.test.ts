@@ -21,7 +21,6 @@ import {
   messageTexts,
   mockAdapter,
   ownershipExpired,
-  storedThreadState,
   text,
   toolCall,
   untilAborted,
@@ -66,10 +65,13 @@ type Durable = ReturnType<typeof durablePersistence>
 
 /** The ephemeral messages that the overrides record of the log keeps. */
 async function loggedEphemeral(persistence: Durable) {
-  const { turnOverrides } = await storedThreadState(persistence.stores.log, {
-    threadId: THREAD,
-  })
-  return [...turnOverrides.values()].flatMap((named) => named.ephemeral ?? [])
+  // The fold drops the overrides of a settled turn, so read the records.
+  const entries = await persistence.stores.log.read({ logId: LOG })
+  return entries.flatMap(({ record }) =>
+    record.type === 'harness.input.turn' && isRecord(record.overrides)
+      ? ((record.overrides.ephemeral as Array<ModelMessage> | undefined) ?? [])
+      : [],
+  )
 }
 
 /** Open a session whose default adapter answers with `replies`. */

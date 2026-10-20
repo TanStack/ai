@@ -714,12 +714,11 @@ describe('subagent run recorder', () => {
     ).toBeUndefined()
   })
 
-  it('writes each child in the tenant of the recorder, with the owner of its parent thread', async () => {
+  it('writes each child in the tenant of the recorder, with no members', async () => {
     const { stores } = memoryPersistence()
     await stores.sessions.upsert({
       tenantId: 'org-1',
       threadId: 'desk',
-      ownerId: 'alice',
       members: [{ userId: 'alice', role: 'owner' }],
       createdAt: t,
       updatedAt: t,
@@ -744,7 +743,7 @@ describe('subagent run recorder', () => {
       ),
     )
     // No members: access to a child goes through its top-level thread.
-    const child = { tenantId: 'org-1', ownerId: 'alice', members: [] }
+    const child = { tenantId: 'org-1', members: [] }
     expect(children).toEqual([
       expect.objectContaining(child),
       expect.objectContaining(child),
@@ -1028,14 +1027,13 @@ describe('agent tools with persistence', () => {
     })
   })
 
-  it('gives a child entry the tenant, harness, and owner of its parent entry', async () => {
+  it('gives a child entry the tenant and harness of its parent entry', async () => {
     const persistence = memoryPersistence()
     const sessions = persistence.stores.sessions
     await sessions.upsert({
       tenantId: 'org-1',
       threadId: 'desk',
       harness: 'notes/desk',
-      ownerId: 'alice',
       members: [{ userId: 'alice', role: 'owner' }],
       createdAt: 1,
       updatedAt: 1,
@@ -1052,7 +1050,6 @@ describe('agent tools with persistence', () => {
     expect(await sessions.get({ tenantId: 'org-1', threadId })).toMatchObject({
       tenantId: 'org-1',
       harness: 'notes/desk',
-      ownerId: 'alice',
       members: [],
     })
   })

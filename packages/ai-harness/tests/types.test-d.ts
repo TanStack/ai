@@ -33,6 +33,7 @@ import type {
   SessionMetadataOf,
 } from '../src'
 import type { InputSettlement } from '../src/types'
+import type { ToolStep } from '../src/durable-tool'
 import type { PluginServices, PluginSetupContext } from '../src/plugins'
 
 const pricer = defineAgent({
@@ -201,9 +202,11 @@ it('types the principal of the host from what access.identify returns', () => {
   const host = createHarnessHost({
     access: {
       identify: ({ request }) => userOf(request),
-      authorize: ({ principal }) => {
-        expectTypeOf(principal).toEqualTypeOf<User>()
-        return principal.role === 'admin'
+      policy: {
+        authorize: ({ principal }) => {
+          expectTypeOf(principal).toEqualTypeOf<User>()
+          return principal.role === 'admin'
+        },
       },
     },
   })
@@ -218,7 +221,7 @@ it('types the principal of the host from what access.identify returns', () => {
   // membersOnly() fits any principal type.
   expectTypeOf(
     createHarnessHost({
-      access: { identify: () => user, authorize: membersOnly() },
+      access: { identify: () => user, policy: membersOnly() },
     }),
   ).toEqualTypeOf<HarnessHost<User>>()
   // Without access, the principal is the plain one.
@@ -321,15 +324,34 @@ it('gives plugins and agent code the same agent actions', () => {
   expectTypeOf<PluginSetupContext['agents']>().toExtend<AgentActions>()
 })
 
-it('always gives agent code ctx.harness', () => {
+it('types ctx.harness as optional, since a plain chat() run has none', () => {
   defineAgent({
     name: 'boss',
     description: 'Starts a worker',
     run: async (ctx) => {
-      expectTypeOf(ctx.harness).toEqualTypeOf<HarnessAgentContext>()
+      expectTypeOf(ctx.harness).toEqualTypeOf<HarnessAgentContext | undefined>()
+      if (!ctx.harness) throw new Error('This agent must run in a harness.')
       const priced = await ctx.harness.agents.run(pricer, { vendor: 'a' })
       expectTypeOf(priced).toEqualTypeOf<Priced>()
       return `${priced.cents}`
     },
   })
+})
+
+it('takes only JSON values from step.do', () => {
+  interface Invoice {
+    id: string
+    total?: number
+  }
+  const run = async (step: ToolStep, invoice: Invoice) => {
+    expectTypeOf(
+      await step.do('invoice', () => invoice),
+    ).toEqualTypeOf<Invoice>()
+    expectTypeOf(await step.do('mail', async () => {})).toEqualTypeOf<void>()
+    // @ts-expect-error JSON turns a Date into a string.
+    await step.do('now', () => new Date())
+    // @ts-expect-error JSON turns a Map into {}.
+    await step.do('seen', () => ({ ids: new Map<string, number>() }))
+  }
+  expectTypeOf(run).toBeFunction()
 })

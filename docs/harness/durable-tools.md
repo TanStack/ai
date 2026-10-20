@@ -48,14 +48,15 @@ export const checkout = durableTool(
 
 Add it to `tools` in `defineHarness`, as any other tool. Each finished step is in the [session log](./durable-sessions) before `step.do` resolves.
 
-The log keeps a step value without the secrets of the session, and `step.do` returns that same value. So a token in a step value comes back as `[redacted]`, also on the first run. Return an id, not a token. See [Keep tokens out of the log and the model](./auth#keep-tokens-out-of-the-log-and-the-model).
+A step value must not hold a secret of the session, for example a key that a tool read. The log must not keep it, so `step.do` throws: on the first run, and on a run again after a crash. Read the secret outside `step.do`, and return an id, not a token. See [Keep tokens out of the log and the model](./auth#keep-tokens-out-of-the-log-and-the-model).
 
 ## Rules for steps
 
 - Give each step a name that is the same on every run, for example `charge:${orderId}`.
 - The same name twice in one tool call throws.
-- A step value must be JSON. Keep it small: store big data somewhere else and return its id.
+- A step value must be JSON. A `Date`, a `Map`, or a class instance is a type error, so return `date.toISOString()`, not `date`. `step.do` returns the JSON copy, the same value that a run again gets. Keep it small: store big data somewhere else and return its id.
 - A step is stored once, but it can run more than once: a crash after `fn` ends and before the value is stored runs `fn` again. `fn` gets `{ idempotencyKey }`. Pass it to the system that does the side effect, so that system refuses the second call.
+- The key is `${logId}:${toolCallId}:${name}`. It has no attempt part, so each run of the step gets the same key.
 - To wait inside a tool, for minutes or for days, use `step.sleep`. See [Wait inside a tool](./workers#4-wait-inside-a-tool).
 - To ask the user inside a tool, use `step.ask({ name, message, schema })`. The log keeps the question, so a user on any server can answer it. After a crash, `step.ask` returns the logged answer. See [Wait for a person](./waits).
 

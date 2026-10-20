@@ -154,12 +154,6 @@ export interface SessionEvent {
   threadId: string
   /** The operation that produced the event. It is also the AG-UI `runId`. */
   operationId: string
-  /**
-   * The run that started the operation, when the operation is a child run:
-   * an agent run that agent code or a tool of a turn started. A top-level
-   * run has none. With `operationId`, it gives the run tree.
-   */
-  parentRunId?: string
   event: StreamChunk
 }
 
@@ -292,9 +286,8 @@ export type HarnessInput = (
     }
   | { op: 'command'; name: string; input?: unknown }
   /**
-   * Answer one wait that no turn holds, by its `waitId`: a question of
-   * `pendingQuestions` (a `step.ask` wait, a live MCP question), or a
-   * `human` wait.
+   * Answer one wait of `pendingWaits` that no turn holds, by its `waitId`:
+   * a question (a `step.ask` wait, a live MCP question), or a `human` wait.
    */
   | { op: 'answer'; questionId: string; value: unknown }
   | { op: 'config'; key: string; value: unknown }
@@ -522,6 +515,7 @@ function rejectionMessage(reason: string) {
   if (reason === 'conflict') {
     return 'An earlier input has this inputId and another payload.'
   }
+  if (reason === 'deleted') return 'The thread was deleted.'
   return `The session rejected the input: ${reason}.`
 }
 
@@ -997,7 +991,10 @@ export interface HarnessEventValues {
   'harness.ownership.changed': {
     /** The ownership epoch of the new owner. */
     epoch: number
-    /** `taken_over`: the old owner stopped, and this host took the log. */
+    /**
+     * `taken_over`: the ownership of the old owner expired with no release,
+     * so it stopped, and this host took the log.
+     */
     reason: 'acquired' | 'taken_over'
   }
   'harness.stranded': { operationId?: string; hostId?: string }

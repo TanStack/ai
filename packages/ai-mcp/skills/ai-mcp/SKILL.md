@@ -836,31 +836,32 @@ import { defineHarness } from '@tanstack/ai-harness'
 import { openaiText } from '@tanstack/ai-openai'
 import { mcp } from '@tanstack/ai-mcp/harness'
 
+// Once, outside `plugins`, so the sessions share the stdio server.
+const tools = mcp({
+  servers: {
+    files: {
+      type: 'stdio',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-filesystem', '.'],
+    },
+    docs: {
+      type: 'http',
+      url: 'https://mcp.example.com/mcp',
+      headers: { authorization: `Bearer ${process.env.DOCS_TOKEN}` },
+      timeoutMs: 10_000,
+    },
+    notion: {
+      type: 'http',
+      url: 'https://mcp.notion.com/mcp',
+      oauth: true,
+    },
+  },
+})
+
 const agent = defineHarness({
   name: 'acme/agent',
   adapter: openaiText('gpt-6.1-sol'),
-  plugins: () => [
-    mcp({
-      servers: {
-        files: {
-          type: 'stdio',
-          command: 'npx',
-          args: ['-y', '@modelcontextprotocol/server-filesystem', '.'],
-        },
-        docs: {
-          type: 'http',
-          url: 'https://mcp.example.com/mcp',
-          headers: { authorization: `Bearer ${process.env.DOCS_TOKEN}` },
-          timeoutMs: 10_000,
-        },
-        notion: {
-          type: 'http',
-          url: 'https://mcp.notion.com/mcp',
-          oauth: true,
-        },
-      },
-    }),
-  ],
+  plugins: () => [tools],
 })
 ```
 
@@ -875,9 +876,9 @@ How it works:
   `snapshot().plugins['tanstack/mcp'].servers`.
 - When a server closes, `mcp()` connects again with backoff. It lists the
   tools again on `list_changed`.
-- A `stdio` server runs as a child process (Node only). The host starts it
-  one time for each harness, and every session of that harness shares it. It
-  stops when the last session that uses it closes, or at `host.close()`.
+- A `stdio` server runs as one child process (Node only) for the sessions
+  of the host that use the same `mcp()` object. It stops when the last of
+  them closes. An `mcp()` call inside `plugins` starts one per session.
 - A server request for input (MCP elicitation, spec 2025 and 2026) becomes
   a session question. The tool call waits for
   `session.answer({ questionId, value })`.

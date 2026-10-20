@@ -37,14 +37,15 @@ import { defineHarness } from '@tanstack/ai-harness'
 import { openaiText } from '@tanstack/ai-openai'
 import { skills } from '@tanstack/ai-skills/harness'
 
+// One time, outside `plugins`, so the sessions share the folder watchers.
+const agentSkills = skills({
+  dirs: ['./.agents/skills', join(homedir(), '.acme', 'skills')],
+})
+
 export const assistant = defineHarness({
   name: 'acme/assistant',
   adapter: openaiText('gpt-6.1-sol'),
-  plugins: () => [
-    skills({
-      dirs: ['./.agents/skills', join(homedir(), '.acme', 'skills')],
-    }),
-  ],
+  plugins: () => [agentSkills],
 })
 ```
 
@@ -82,9 +83,9 @@ The plugin watches the folders, and the commands follow them:
 
 Each change sends a `harness.commands.changed` event, so a UI can show the new command list at once.
 
-The plugin watches each folder once for each host. All sessions of the harness on that host share the watchers, so many open sessions still use one watcher for each folder. The plugin keeps the skills of each folder, and it reads a folder again only after the folder changes.
+The plugin watches each folder once for each host. All sessions of the harness on that host share the watchers, so many open sessions still use one watcher for each folder. A change only tells the sessions to update. The plugin reads the folders again at the start of each turn.
 
-If the plugin cannot watch a folder, it logs one warning with the folder and the reason. An example is a Linux system with no free file watchers. Then the plugin reads that folder from disk each time it needs the skills, so changes still show at the next turn.
+If the plugin cannot watch a folder, it logs one warning with the folder and the reason. An example is a Linux system with no free file watchers. Changes in that folder still show at the next turn.
 
 ## Many skills
 

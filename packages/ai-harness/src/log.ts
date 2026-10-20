@@ -13,6 +13,7 @@ import {
   applyRunNode,
   emptyThreadState,
   foldThreadRecord,
+  pruneThreadState,
   isHumanTarget,
   isEnded,
   rejectRunNode,
@@ -70,8 +71,6 @@ export type HarnessRecord =
   | {
       type: 'harness.event'
       operationId: string
-      /** The run that started the operation, for a child run. */
-      parentRunId?: string
       event: StreamChunk
     }
   | { type: 'harness.transcript'; keep: number; add: Array<ModelMessage> }
@@ -130,13 +129,28 @@ export type HarnessRecord =
       value: unknown
     }
   | ({ type: 'harness.usage' } & UsageCall)
-  /** A revert that stands, or `null` when it ended. */
-  | { type: 'harness.revert'; revert: RevertState | null }
+  /**
+   * A revert that stands, or `null` when it ended. `principal` is who
+   * reverted, on the record of `session.revert`.
+   */
+  | {
+      type: 'harness.revert'
+      revert: RevertState | null
+      principal?: { id: string; tenantId?: string }
+    }
   /**
    * A background job started, or it ended. `backendId` is the id of its
    * process in the workspace backend, so a later host can stop it.
+   * `principal` is who moved a running call to the background
+   * (`session.background`).
    */
-  | { type: 'harness.job'; jobId: string; ended: boolean; backendId?: string }
+  | {
+      type: 'harness.job'
+      jobId: string
+      ended: boolean
+      backendId?: string
+      principal?: { id: string; tenantId?: string }
+    }
   /** A note for the transcript. `noteId` is the id of its message. */
   | { type: 'harness.note'; noteId: string; note: string }
   /** Thread state: settings, config, plugin state, and the rest. */
@@ -316,9 +330,9 @@ export interface LogState {
   /** Notes that are not in the transcript yet, by message id. */
   notes: Map<string, string>
   /**
-   * The last host records of the types in {@link KEPT_HOST_RECORDS}, oldest
-   * first. The snapshot keeps them, so a truncate of the log does not drop
-   * what `session.revert` reads.
+   * The last host records of the types that the plugins keep (their
+   * `keepRecords`), oldest first. The snapshot keeps them, so a truncate of
+   * the log does not drop what `session.revert` reads.
    */
   keptRecords: Array<LogEntry>
   /** The thread state that the thread-state records fold to. */
@@ -326,24 +340,43 @@ export interface LogState {
 }
 
 /**
- * The host records that the fold keeps, by type, with how many of each it
- * keeps: the file steps that `session.revert` reads.
+ * The host records that a fold keeps, by type, with how many of each it
+ * keeps. The `keepRecords` of the plugins give it.
  */
-const KEPT_HOST_RECORDS: ReadonlyMap<string, number> = new Map([
-  ['tanstack/snapshots:step', 500],
-])
+export type KeptRecords = ReadonlyMap<string, number>
 
-/** Keep `entry` in `state` when its type is a kept host record type. */
-function keepHostRecord(state: LogState, entry: LogEntry) {
-  const limit = KEPT_HOST_RECORDS.get(entry.record.type)
+/** The count of each type in a `keptRecords` list, made at its first use. */
+const keptCounts = new WeakMap<Array<LogEntry>, Map<string, number>>()
+
+/** Keep `entry` in `state` when `keep` keeps its type. */
+function keepHostRecord(
+  state: LogState,
+  entry: LogEntry,
+  keep: KeptRecords | undefined,
+) {
+  const { type } = entry.record
+  const limit = keep?.get(type)
   if (limit === undefined) return
-  state.keptRecords.push(entry)
-  const ofType = state.keptRecords.filter(
-    (kept) => kept.record.type === entry.record.type,
-  )
-  if (ofType.length <= limit) return
-  const oldest = ofType[0]
-  state.keptRecords = state.keptRecords.filter((kept) => kept !== oldest)
+  const kept = state.keptRecords
+  let counts = keptCounts.get(kept)
+  if (!counts) {
+    counts = new Map()
+    for (const { record } of kept) {
+      counts.set(record.type, (counts.get(record.type) ?? 0) + 1)
+    }
+    keptCounts.set(kept, counts)
+  }
+  kept.push(entry)
+  let count = (counts.get(type) ?? 0) + 1
+  // ponytail: the splice is O(n), only when a type is full. A list for
+  // each type if many types are kept.
+  for (; count > limit; count--) {
+    kept.splice(
+      kept.findIndex((each) => each.record.type === type),
+      1,
+    )
+  }
+  counts.set(type, count)
 }
 
 /**
@@ -487,11 +520,20 @@ function addRunUsage(state: LogState, call: UsageCall) {
   }
 }
 
-/** Drop the usage sums of the runs that ended. */
+/**
+ * Drop the usage sums of the runs that ended. A run whose input is still
+ * applied runs again (its host stopped): its sum stays, for the next run of
+ * that input.
+ */
 function dropEndedUsage(state: LogState) {
   for (const runId of state.runUsage.keys()) {
     const node = state.thread.tree.get(runId)
-    if (!node || isEnded(node.status)) state.runUsage.delete(runId)
+    const input =
+      node?.inputId === undefined ? undefined : state.inputs.get(node.inputId)
+    const runsAgain = input?.status === 'applied'
+    if (!node || (isEnded(node.status) && !runsAgain)) {
+      state.runUsage.delete(runId)
+    }
   }
 }
 
@@ -509,11 +551,12 @@ export function foldEntry(
   state: LogState,
   entry: LogEntry,
   project?: ProjectRecord,
+  keep?: KeptRecords,
 ) {
   state.seq = entry.seq
   const { record } = entry
   if (!record.type.startsWith('harness.')) {
-    keepHostRecord(state, entry)
+    keepHostRecord(state, entry, keep)
     const next = project
       ? hostFold(
           entry.seq,
@@ -564,11 +607,24 @@ export function foldEntry(
       return
     case 'harness.input.applied': {
       const appliedAt = state.messages.length
+      const previous = state.inputs.get(record.inputId)?.operationId
       state.thread = applyRunNode(state.thread, {
         inputId: record.inputId,
         operationId: record.operationId,
-        previous: state.inputs.get(record.inputId)?.operationId,
+        previous,
       })
+      // A run again of the input takes the place of the run before, and its
+      // usage too: the budget of the run counts every attempt.
+      const carried =
+        previous === undefined || state.thread.tree.has(previous)
+          ? undefined
+          : state.runUsage.get(previous)
+      if (previous !== undefined && carried) {
+        state.runUsage.delete(previous)
+        const counts = state.runUsage.get(record.operationId) ?? emptyCounts()
+        addCounts(counts, carried)
+        state.runUsage.set(record.operationId, counts)
+      }
       updateInput(state, record.inputId, (input) => ({
         ...input,
         status: 'applied',
@@ -595,6 +651,9 @@ export function foldEntry(
         reason: record.reason,
       }))
       state.thread = rejectRunNode(state.thread, record)
+      // A refused input never runs: its turn needs no overrides.
+      state.thread.turnOverrides.delete(record.inputId)
+      pruneThreadState(state.thread)
       dropEndedUsage(state)
       return
     case 'harness.input.abort':
@@ -617,9 +676,11 @@ export function foldEntry(
       return
     case 'harness.input.settled': {
       // An agent run keeps its calls under `agent:<inputId>` (agentKey). A
-      // settled run never resumes. ponytail: agent runs `x` and `x:y` share
-      // this prefix, so the settle of `x` also drops what `x:y` stored.
-      // Generated input ids have no colon.
+      // settled run never resumes. The child ids of a run are
+      // `<inputId>/...` (see `agentStarter`), so this prefix matches none of
+      // them: a child that outlives its parent keeps its calls. ponytail: an
+      // app input id `x:y` shares the prefix of `x`, so the settle of `x`
+      // also drops what `x:y` stored. Generated input ids have no colon.
       const key = `agent:${record.inputId}`
       forgetCalls(
         state,
@@ -637,6 +698,10 @@ export function foldEntry(
         },
       }))
       state.thread = settleRunNode(state.thread, record)
+      // A settled input never runs again: its turn needs no overrides. A
+      // resolve of an interrupted turn is a new input with its own.
+      state.thread.turnOverrides.delete(record.inputId)
+      pruneThreadState(state.thread)
       dropEndedUsage(state)
       return
     }
@@ -687,6 +752,7 @@ export function foldEntry(
     case 'harness.state':
     case 'harness.workspace.bound':
       state.thread = foldThreadRecord(state.thread, record)
+      pruneThreadState(state.thread)
       if (state.runUsage.size > 0) dropEndedUsage(state)
       return
   }
@@ -783,6 +849,7 @@ interface FoldOptions<TState> {
   rootThread: string
   project?: ProjectRecord
   reduce?: ReduceOptions<TState>
+  keep?: KeptRecords
 }
 
 /** Fold one entry of a shared log. */
@@ -809,6 +876,7 @@ export function foldLogEntry<TState>(
     sessionOf(state, threadOf(record, options.rootThread)),
     entry,
     options.project,
+    options.keep,
   )
 }
 
@@ -1061,8 +1129,10 @@ export async function loadLogState<TState = unknown>(options: {
   rootThread: string
   project?: ProjectOptions
   reduce?: ReduceOptions<TState>
+  /** The host records to keep. See {@link KeptRecords}. */
+  keep?: KeptRecords
 }) {
-  const { store, logId, rootThread, project, reduce } = options
+  const { store, logId, rootThread, project, reduce, keep } = options
   // A snapshot that does not load only makes the fold longer.
   const snapshot = await store.getSnapshot({ logId }).catch(() => null)
   const state =
@@ -1072,6 +1142,7 @@ export async function loadLogState<TState = unknown>(options: {
     rootThread,
     ...(project ? { project: project.record } : {}),
     ...(reduce ? { reduce } : {}),
+    ...(keep ? { keep } : {}),
   }
   await readAll(store, logId, state, (entry) =>
     foldLogEntry(state, entry, fold),
@@ -1160,10 +1231,35 @@ export async function loggedTargetOf({
     }
     case 'resolve': {
       const stopped = root.thread.interrupted
+      const logged = input.resume.flatMap((item) => {
+        const state = root.thread.waits.get(item.interruptId)
+        return state ? [state.wait] : []
+      })
+      // A resolve that ends a `human` wait needs an operator, as an answer.
+      const human = logged.find((wait) => wait.kind === 'human')
+      const answered = human
+        ? { wait: { waitId: human.waitId, kind: human.kind } }
+        : {}
+      const [first] = logged
+      if (!first) {
+        return {
+          run: stopped
+            ? { runId: stopped.runId, ...by(stopped.principal) }
+            : null,
+          ...answered,
+        }
+      }
+      // The waits of a background agent run: the log keeps them with their
+      // run. One resolve answers the waits of one run.
+      const isOneRun =
+        logged.length === input.resume.length &&
+        logged.every((wait) => wait.runId === first.runId)
+      if (!isOneRun) return { run: null, ...answered }
       return {
-        run: stopped
-          ? { runId: stopped.runId, ...by(stopped.principal) }
-          : null,
+        run: first.principal
+          ? { runId: first.runId, ...by(first.principal) }
+          : startedBy(first.runId),
+        ...answered,
       }
     }
   }
@@ -1502,6 +1598,8 @@ export class SharedLog<TState = unknown> {
     eventBytes: number
     project?: ProjectOptions
     reduce?: ReduceOptions<TState>
+    /** The host records to keep. See {@link KeptRecords}. */
+    keep?: KeptRecords
     /** When the owner writes a snapshot. */
     snapshot?: SnapshotTiming
     /** Which records the log keeps after a snapshot. Default `'all'`. */
@@ -1527,6 +1625,7 @@ export class SharedLog<TState = unknown> {
       rootThread: options.rootThread,
       ...(options.project ? { project: options.project.record } : {}),
       ...(options.reduce ? { reduce: options.reduce } : {}),
+      ...(options.keep ? { keep: options.keep } : {}),
     }
     this.versions = versionsOf(options.project, options.reduce)
     this.tail = new EventRing({
@@ -1668,9 +1767,8 @@ export class SharedLog<TState = unknown> {
         reduce !== undefined && reduce === this.fold.reduce
           ? shared.reduced
           : undefined,
-      publish: (operationId, event, parentRunId) => {
-        if (!isDropped())
-          this.publish(threadId, operationId, event, parentRunId)
+      publish: (operationId, event) => {
+        if (!isDropped()) this.publish(threadId, operationId, event)
       },
       append: (records, appendOptions) =>
         isDropped()
@@ -1832,12 +1930,7 @@ export class SharedLog<TState = unknown> {
   // Writes
   // ===========================
 
-  private publish(
-    thread: string,
-    operationId: string,
-    event: StreamChunk,
-    parentRunId: string | undefined,
-  ) {
+  private publish(thread: string, operationId: string, event: StreamChunk) {
     const normalized = normalize(event)
     const key = deltaKey(thread, operationId, normalized)
     const last = this.pending.at(-1)
@@ -1851,12 +1944,7 @@ export class SharedLog<TState = unknown> {
     else {
       this.pending.push(
         this.stamp(
-          {
-            type: 'harness.event',
-            operationId,
-            ...(parentRunId !== undefined ? { parentRunId } : {}),
-            event: normalized,
-          },
+          { type: 'harness.event', operationId, event: normalized },
           thread,
         ),
       )
@@ -1980,7 +2068,9 @@ export class SharedLog<TState = unknown> {
         this.offeredHere.delete(inputId)
         throw error
       })
-    if (offered === 'conflict') this.offeredHere.delete(inputId)
+    if (offered === 'conflict' || offered === 'deleted') {
+      this.offeredHere.delete(inputId)
+    }
     return offered
   }
 
@@ -2049,14 +2139,11 @@ export class SharedLog<TState = unknown> {
     const held = this.heldEpoch
     this.heldEpoch = epoch
     if (held === undefined || epoch > held + 1) {
-      // The old owner left inputs that did not end: it stopped, and this
-      // host takes over its work.
-      const isTakeover = [...this.state.sessions.values()].some((session) =>
-        [...session.inputs.values()].some(
-          (input) => input.status === 'pending' || input.status === 'applied',
-        ),
-      )
-      const reason = isTakeover ? 'taken_over' : 'acquired'
+      // The store says whether the old owner stopped: its ownership expired
+      // with no release.
+      const reason = this.ownership.tookOver(this.logId)
+        ? 'taken_over'
+        : 'acquired'
       queueMicrotask(() => this.notifyOwned({ epoch, reason }))
     }
     return epoch
@@ -2510,8 +2597,7 @@ function mergeDelta(first: StreamChunk, second: StreamChunk): StreamChunk {
 
 /**
  * The session event of `entry`, or `undefined` when it is not an event. A
- * record with no `thread` is an event of `rootThread`. An event of a root run
- * has no `parentRunId`.
+ * record with no `thread` is an event of `rootThread`.
  */
 function sessionEventOf(entry: LogEntry, rootThread: string) {
   const { record } = entry
@@ -2522,9 +2608,6 @@ function sessionEventOf(entry: LogEntry, rootThread: string) {
     cursor: String(entry.seq),
     threadId: threadOf(record, rootThread),
     operationId: record.operationId,
-    ...(typeof record.parentRunId === 'string'
-      ? { parentRunId: record.parentRunId }
-      : {}),
     event: record.event,
   }
   return event
@@ -2689,7 +2772,7 @@ export function engineMessageStore(options: SessionLogView) {
  * subagent run) is in the log of its root: read it through `host.observe`.
  * `loadThread` folds the log. `saveThread` appends the change as one
  * transcript record, with no owner: the store refuses it on a log that a
- * host acquired.
+ * host acquired, and on a deleted log.
  *
  * @example
  * ```ts

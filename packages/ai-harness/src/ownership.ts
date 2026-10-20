@@ -21,6 +21,10 @@ export interface OwnershipOptions {
    * folder is pinned to this host, and another host refuses the thread with
    * the pinned error. When you do not set it, threads are not pinned, and
    * every host can continue every thread.
+   *
+   * A host with an id sends a heartbeat to the log store each `renewMs`,
+   * also when it owns no log. A pin counts while its host is alive: when no
+   * heartbeat came for `ttlMs`, other hosts take its threads.
    */
   hostId?: string
   /**
@@ -94,7 +98,8 @@ export class LogOwnedElsewhereError extends Error {
 /**
  * The logs that one host owns, with their epochs. The host acquires a log
  * the first time it must write to it, and releases it when it has no work
- * on it. One timer renews every owned log. With no owned log, there is no
+ * on it. One timer renews every owned log, and sends the heartbeat of a
+ * host with an `affinity`. With no owned log and no affinity, there is no
  * timer and no store call.
  */
 export class HostOwnership {
@@ -110,6 +115,8 @@ export class HostOwnership {
   private readonly renewMs: number
   /** The epoch of each log that this host owns, by store log id. */
   private readonly owned = new Map<string, number>()
+  /** The owned logs that the store gave over an owner that stopped. */
+  private readonly takenOver = new Set<string>()
   private readonly lostListeners = new Map<
     string,
     Set<(error: OwnershipLostError) => void>
@@ -142,11 +149,33 @@ export class HostOwnership {
     const { ttlMs, renewMs } = ownershipTiming(options.timing)
     this.ttlMs = ttlMs
     this.renewMs = renewMs
+    // The pins of this host count only while it is alive.
+    if (this.affinity !== undefined) {
+      void this.beat()
+      this.startTimer()
+    }
+  }
+
+  /** Tell the store that this host is alive. Tries again at the next tick. */
+  private beat() {
+    const hostId = this.affinity
+    if (hostId === undefined) return Promise.resolve()
+    return Promise.resolve()
+      .then(() => this.store.heartbeat({ hostId, ttlMs: this.ttlMs }))
+      .catch(() => {})
   }
 
   /** The epoch of `logId` while this host owns it. */
   epochOf(logId: string) {
     return this.owned.get(logId)
+  }
+
+  /**
+   * True when this host owns `logId` because the ownership of another
+   * owner expired: that owner stopped with no release.
+   */
+  tookOver(logId: string) {
+    return this.takenOver.has(logId)
   }
 
   /**
@@ -165,6 +194,7 @@ export class HostOwnership {
     })
     if (got === null) return null
     this.owned.set(logId, got.epoch)
+    if (got.expired) this.takenOver.add(logId)
     this.startTimer()
     return got.epoch
   }
@@ -178,10 +208,46 @@ export class HostOwnership {
     return this.store.setAffinity({ logId, epoch, affinity: hostId })
   }
 
+  /**
+   * Unpin `logId` from the host `hostId`. The pin lets only that host
+   * acquire the log, so this host acquires it with that affinity, clears
+   * the pin, and gives the log up with a wake time of now: a sweep then
+   * takes the work that the old host left. `false` when a live host owns
+   * the log.
+   */
+  async unpin(logId: string, harness: string, hostId: string) {
+    const owned = this.owned.get(logId)
+    if (owned !== undefined) {
+      await this.pin(logId, owned, null)
+      return true
+    }
+    await this.releasing.get(logId)?.catch(() => {})
+    const got = await this.store.acquire({
+      logId,
+      harness,
+      ownerId: this.ownerId,
+      ttlMs: this.ttlMs,
+      affinity: hostId,
+    })
+    if (got === null) return false
+    try {
+      await this.pin(logId, got.epoch, null)
+    } finally {
+      await this.store.release({
+        logId,
+        ownerId: this.ownerId,
+        epoch: got.epoch,
+        wakeInMs: 0,
+      })
+    }
+    return true
+  }
+
   /** Stop owning `logId` with no store call: the store refused its epoch. */
   forget(logId: string) {
     this.owned.delete(logId)
-    if (this.owned.size === 0) this.stopTimer()
+    this.takenOver.delete(logId)
+    if (this.owned.size === 0 && this.affinity === undefined) this.stopTimer()
   }
 
   /**
@@ -265,9 +331,10 @@ export class HostOwnership {
     this.renewing = true
     try {
       const owned = [...this.owned]
-      await Promise.all(
-        owned.map(([logId, epoch]) => this.renewOne(logId, epoch)),
-      )
+      await Promise.all([
+        this.beat(),
+        ...owned.map(([logId, epoch]) => this.renewOne(logId, epoch)),
+      ])
     } finally {
       this.renewing = false
     }

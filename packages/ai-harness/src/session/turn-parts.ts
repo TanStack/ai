@@ -38,7 +38,7 @@ import type {
   ToolExecutionContext,
 } from '@tanstack/ai'
 import type { LogRecord } from '@tanstack/ai-persistence'
-import type { DurableBind, StepQuestion, ToolStep } from '../durable-tool'
+import type { DurableBind, StepQuestion } from '../durable-tool'
 import type { WaitState } from '../log-records'
 import type { LogWriter } from '../log'
 import type { UsageCall } from '../usage'
@@ -54,6 +54,12 @@ import type {
   UserInput,
 } from '../types'
 import type { QueuedTurn, AgentRunImpl, AgentChain } from './types'
+
+/**
+ * A `step.sleep` longer than this, in milliseconds, ends the attempt of a
+ * session that only a worker holds (see `sleepUntil`).
+ */
+const LONG_SLEEP_MS = 30_000
 
 /** How long a `ctx.model.chat` call runs before it stops, by default. */
 const MODEL_CALL_TIMEOUT_MS = 120_000
@@ -77,15 +83,29 @@ export abstract class SessionTurnParts<
     toolCallId: string,
     run: RunContext,
   ) {
-    const stored = createToolStep({
+    // The log keeps a step value without the secrets of the session. So a
+    // value with a secret throws, before the log keeps it and on a replay
+    // alike: a tool never gets a value that the log scrubbed.
+    const noSecret = (name: string, value: unknown) => {
+      if (this.redactor.redact(value) === value) return
+      throw new Error(
+        `step.do: the value of step ${JSON.stringify(name)} holds a secret of the session. A step result must not hold a secret. Read it outside step.do.`,
+      )
+    }
+    const step = createToolStep({
       recorded: (name) => {
         const key = stepKey(toolCallId, name)
-        return writer.state.steps.has(key)
-          ? { found: true, value: writer.state.steps.get(key) }
-          : { found: false }
+        if (!writer.state.steps.has(key)) return { found: false }
+        const value = writer.state.steps.get(key)
+        noSecret(name, value)
+        return { found: true, value }
       },
-      record: (name, value) =>
-        writer.append([{ type: 'harness.tool.step', toolCallId, name, value }]),
+      record: async (name, value) => {
+        noSecret(name, value)
+        await writer.append([
+          { type: 'harness.tool.step', toolCallId, name, value },
+        ])
+      },
       run: (name) => {
         if (writer.fenced) throw new LogOwnedElsewhereError(writer.logId)
         return {
@@ -103,13 +123,6 @@ export abstract class SessionTurnParts<
       ask: (question) =>
         this.stepAsk({ writer, scope: toolCallId, run, question }),
     })
-    // The log keeps a step value without the secrets of the session, and a
-    // replay returns that value. So the first run returns it too: a caller
-    // never gets a value that the log scrubbed.
-    const step: ToolStep = {
-      ...stored,
-      do: async (name, fn) => this.redactor.redact(await stored.do(name, fn)),
-    }
     const append = (records: ReadonlyArray<LogRecord>) => {
       checkHostRecords(records)
       writer.stage(records, toolCallId)
@@ -186,7 +199,7 @@ export abstract class SessionTurnParts<
           : { value: ended.value }
         if (!answer) {
           throw new Error(
-            `step.ask: the secret answer to ${JSON.stringify(name)} is gone. The host that took it stopped, and the app has no credential store.`,
+            `step.ask: the secret answer to ${JSON.stringify(name)} is gone. It expired, or the host that took it stopped and the app has no credential store.`,
           )
         }
         if (!isStandardSchema(schema)) return answer.value
@@ -266,20 +279,20 @@ export abstract class SessionTurnParts<
     })
   }
 
+  /** The `step.sleep` calls that wait now. */
+  protected sleeping = 0
+
   /**
    * Wait for a `step.sleep` until `wakeAt`. While it waits, the log keeps a
    * wake schedule (no input) with `scheduleId`: a host that stops releases
    * the log with that wake, so a worker takes the log at the wake time and
    * recovery runs the call again. The schedule ends when the sleep ends.
    *
-   * ponytail: the sleep waits in this process, and the host keeps the log
-   * while it waits. It does not end the attempt and free the host: the log
-   * view cannot drop the writes of one turn only. The wake makes it durable
-   * when the host stops.
+   * A sleep longer than `LONG_SLEEP_MS` tells the host (`onLongSleep`). A
+   * session that only a worker holds then closes as on a deploy: the log
+   * goes back with the wake, and the worker slot is free. A shorter sleep,
+   * or a session that the app holds, waits in this process.
    */
-  /** The `step.sleep` calls that wait now. */
-  protected sleeping = 0
-
   protected async sleepUntil({
     writer,
     scheduleId,
@@ -299,6 +312,11 @@ export abstract class SessionTurnParts<
         ])
       }
       this.sleeping += 1
+      // ponytail: the close stops the other work of the session too, as a
+      // deploy does, and the next host runs it again. A job keeps the host.
+      if (wakeAt - Date.now() > LONG_SLEEP_MS && this.jobs.size === 0) {
+        this.onLongSleep?.()
+      }
       try {
         await waitUntil(wakeAt, signal)
       } finally {
@@ -307,6 +325,24 @@ export abstract class SessionTurnParts<
     }
     if (isWaiting()) {
       await writer.append([{ type: 'harness.schedule.done', scheduleId }])
+    }
+  }
+
+  /**
+   * Run the `onTurnStart` hook of each plugin, in order, for `turn`. A hook
+   * that fails is skipped, and clients get a `harness.plugin.warning` event.
+   */
+  protected async runTurnStarts(
+    turnStarts: MountedPlugins['turnStarts'],
+    operation: OperationImpl<ChatTurnResult>,
+    turn: TurnInfo,
+  ) {
+    for (const { start, owner } of turnStarts) {
+      try {
+        await start(turn)
+      } catch (error) {
+        this.warn(operation, owner, error)
+      }
     }
   }
 
@@ -444,8 +480,8 @@ export abstract class SessionTurnParts<
           context.runId = runId
           context.detach = (work) =>
             new Promise((moved) => {
-              this.detachable.set(id, () => {
-                this.logJob({ jobId: id }, false)
+              this.detachable.set(id, (mover) => {
+                this.logJob({ jobId: id, principal: mover }, false)
                 moved(
                   `The job moved to the background. Its id is ${id}. You get a note when it ends.`,
                 )
@@ -527,6 +563,34 @@ export abstract class SessionTurnParts<
           }).then(() => this.checkBudget(operation)),
         )
       },
+    }
+  }
+
+  /**
+   * Middleware that keeps the tool calls of `operation` that run now in
+   * `toolCalls`, so a plugin start knows the run that calls it.
+   */
+  protected toolCallTracker(
+    operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
+  ): AnyChatMiddleware {
+    const { id } = operation
+    // One key per tracker: a turn and its tool-mode children have their own.
+    const key = {}
+    const add = (delta: number) => {
+      const count = (this.toolCalls.get(key)?.count ?? 0) + delta
+      if (count > 0) this.toolCalls.set(key, { id, count })
+      else this.toolCalls.delete(key)
+    }
+    // A skipped or waiting call has no end: the end of the batch clears it.
+    const clear = () => void this.toolCalls.delete(key)
+    return {
+      name: 'harness:tool-calls',
+      onBeforeToolCall: () => add(1),
+      onAfterToolCall: () => add(-1),
+      onToolPhaseComplete: clear,
+      onFinish: clear,
+      onAbort: clear,
+      onError: clear,
     }
   }
 
@@ -623,6 +687,8 @@ export abstract class SessionTurnParts<
    */
   protected async modelChat(call: PluginModelCall): Promise<unknown> {
     const { run, options } = call
+    // The setting names a key of `harness.models`: a setting is checked
+    // when it is set, and a stored one that the harness lost is dropped.
     const named = this.threadSettings.model
     const model =
       call.adapter ??
@@ -682,12 +748,12 @@ export abstract class SessionTurnParts<
 
   /**
    * Count one model call of `ctx.model.chat` for the run `runId`, then
-   * check the budgets. A run that this session no longer keeps gets the
-   * record only.
+   * check the budgets. A run that settled, or that this session no longer
+   * keeps, gets the record only: a run sends no event after RUN_FINISHED.
    */
   private async countModelCall(runId: string, call: UsageCall) {
     const operation = this.operations.get(runId)
-    if (operation) {
+    if (operation && !operation.isSettled()) {
       await this.countUsage(operation, call)
       this.checkBudget(operation)
       return

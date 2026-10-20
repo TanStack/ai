@@ -10,13 +10,43 @@ import { jsonCopy, waitUntil } from './utils'
 import type { LogRecord } from '@tanstack/ai-persistence'
 import type { AnswerOf, Question } from './commands'
 
+/**
+ * `T` when JSON keeps it as it is, with each part that JSON changes (a
+ * `Date`, a `Map`, a class with methods, a function) as `never`. So a
+ * `step.do` value that is not JSON is a type error. `undefined` (an absent
+ * field, or no value) is allowed.
+ */
+export type AsJson<T> = T extends
+  | string
+  | number
+  | boolean
+  | null
+  | undefined
+  | void
+  ? T
+  : T extends
+        | ((...args: Array<never>) => unknown)
+        | Date
+        | Map<unknown, unknown>
+        | Set<unknown>
+        | bigint
+        | symbol
+    ? never
+    : T extends object
+      ? { [K in keyof T]: AsJson<T[K]> }
+      : never
+
+/** `T`, checked by {@link AsJson}. `T` is inferred from the value alone. */
+type JsonOf<T> = T & AsJson<NoInfer<T>>
+
 /** What the `fn` of one `step.do` gets. */
 export interface StepRun {
   /**
    * A key for the side effect of this step. Give it to a system that refuses
    * a second call with the same key. In a harness session it is
-   * `${logId}:${toolCallId}:${name}:${attempt}` (see
-   * `RunContext.idempotencyKey`). Outside a session it is the step name.
+   * `${logId}:${toolCallId}:${name}` (`RunContext.idempotencyKey` with the
+   * tool call id as scope). It has no attempt part: a run again of the call
+   * gets the same key. Outside a session it is the step name.
    */
   idempotencyKey: string
   /**
@@ -33,6 +63,8 @@ export interface ToolStep {
    * session log before `do` resolves. When a crash makes the harness run the
    * call again, a stored step returns its value and `fn` does not run again.
    * `do` returns the JSON copy of the value, the same value a replay gives.
+   * So the value must be JSON (see {@link AsJson}): a `Date`, a `Map`, or a
+   * class instance is a type error. Return `date.toISOString()`, not `date`.
    *
    * A step runs at least once, and is stored once: a crash after `fn` ends
    * but before the value is stored runs `fn` again. So pass
@@ -41,6 +73,9 @@ export interface ToolStep {
    * nothing is stored. Use a name that is the same on every run (for example
    * `charge:${orderId}`). The same name twice in one call throws. A step
    * does not start after the host lost the session log to another host.
+   * In a harness session, a value that holds a secret of the session (a key
+   * it read, a secret answer) throws too, on the first run and on a replay:
+   * the log never keeps a secret. Read the secret outside `step.do`.
    *
    * @example
    * ```ts
@@ -49,7 +84,10 @@ export interface ToolStep {
    * )
    * ```
    */
-  do: <T>(name: string, fn: (step: StepRun) => T | Promise<T>) => Promise<T>
+  do: <T>(
+    name: string,
+    fn: (step: StepRun) => JsonOf<T> | Promise<JsonOf<T>>,
+  ) => Promise<T>
   /**
    * Wait `ms` milliseconds, once for `name` in this tool call. The first
    * run stores the wake time in the session log. A run again after a crash
@@ -178,7 +216,7 @@ export function createToolStep(options: {
         )
       }
       await options.record(name, copy)
-      // JSON of `fn`'s own value: the type of `T`, as a replay gives it.
+      // `T` is JSON (see `AsJson`), so the copy has its type, as on a replay.
       return copy as T
     },
     ask: async (question) => {

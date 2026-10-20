@@ -278,6 +278,10 @@ export function projectFormatters(
    * `package.json`. With `written`, as the files are after a call writes
    * them. A written config file with no known text gives a new random value,
    * so no saved answer matches it.
+   *
+   * A write of such a file below the root folder, or of any file under
+   * `node_modules`, gives `unsaved:<random>`: the formatter can load that
+   * code, and the root hash does not see it, so the user is asked again.
    */
   const configHash = async (name: string, written: WrittenFiles) => {
     const candidate = candidates.find((each) => each.name === name)
@@ -299,6 +303,15 @@ export function projectFormatters(
       },
     })
     const lower = name.toLowerCase()
+    const isUnsaved = [...written.keys()].some((path) => {
+      const parts = path.split(/[\\/]/)
+      const file = (parts.at(-1) ?? '').toLowerCase()
+      const isConfig = file.includes(lower) || read.has(file)
+      return (
+        parts.includes('node_modules') || (isConfig && dirname(path) !== root)
+      )
+    })
+    if (isUnsaved) return `unsaved:${randomUUID()}`
     const config = [
       ...new Set([
         ...files.filter((file) => file.toLowerCase().includes(lower)),
@@ -475,7 +488,8 @@ export function formatter(options: FormatterOptions) {
        * rules ask for a formatter, the call gets a second action with a
        * hash of the formatter config, `formatter:<name>@<hash>`. An
        * `always` answer saves both, so a changed config, like a new
-       * `prettier.config.js`, asks again.
+       * `prettier.config.js`, asks again. A write of a config below the
+       * root, or under `node_modules`, asks each time (see `configHash`).
        */
       const actionsOf = async (
         written: ReadonlyArray<readonly [string, string | undefined]>,

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { EventType, toolDefinition } from '@tanstack/ai'
 import {
-  memoryLogBackend,
+  memoryLogState,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -24,6 +24,7 @@ import {
   storedThreadState,
   text,
   toolCall,
+  turnInterrupts,
   wrapLogStore,
 } from './helpers'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
@@ -123,7 +124,7 @@ function accessHost({
   const persistence = memoryPersistence()
   const host: HarnessHost<User> = createHarnessHost({
     persistence,
-    access: { identify: (): User | null => null, authorize: membersOnly() },
+    access: { identify: (): User | null => null, policy: membersOnly() },
   })
   const supportModel = mockAdapter(support)
   const billingModel = mockAdapter(billing)
@@ -186,7 +187,6 @@ describe('host.transfer to a new thread', () => {
     expect(entry).toMatchObject({
       tenantId: 'acme',
       harness: 'test/billing',
-      ownerId: 'olga',
       members: [{ userId: 'olga', role: 'owner' }],
       metadata: {
         'harness:transferredFrom': [
@@ -287,7 +287,7 @@ describe('host.transfer to a new thread', () => {
     ])
     await source.send('Count.')
     await source.send('Deploy.')
-    expect(source.snapshot().pendingInterrupts).toHaveLength(1)
+    expect(turnInterrupts(source.snapshot())).toHaveLength(1)
 
     const { threadId } = await host.transfer({
       from: { harness: support, threadId: SOURCE },
@@ -327,7 +327,7 @@ describe('host.transfer to a new thread', () => {
     expect(target.settings()).toEqual({})
     expect(target.config().tone?.value).toBe('plain')
     expect(target.snapshot().plugins['test/counter']).toEqual({ count: 0 })
-    expect(target.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(target.snapshot())).toEqual([])
     const types = new Set(
       (
         await log.read({
@@ -452,8 +452,8 @@ describe('host.transfer retries', () => {
   })
 
   it('writes only the source record on a retry after the source write failed', async () => {
-    const backend = memoryLogBackend()
-    const log = memoryLogStore({ backend })
+    const logState = memoryLogState()
+    const log = memoryLogStore({ state: logState })
     const { sessions } = memoryPersistence().stores
     // The first host cannot write the source end of a transfer.
     const failing = wrapLogStore(log, {
@@ -537,6 +537,29 @@ describe('host.transfer access', () => {
     await host.close()
   })
 
+  it('throws for a source thread that does not exist, also with no access', async () => {
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const support = defineHarness({
+      name: 'test/support',
+      adapter: mockAdapter(() => text('ok')).adapter,
+    })
+    const billing = defineHarness({
+      name: 'test/billing',
+      adapter: mockAdapter(() => text('billing here')).adapter,
+    })
+
+    await expect(
+      host.transfer({
+        from: { harness: support, threadId: 'case-42 ' },
+        to: { harness: billing, threadId: 'target' },
+        envelope: { note: NOTE, messages: 'all' },
+      }),
+    ).rejects.toThrow('Thread "case-42 " does not exist.')
+    expect(await host.sessions.get({ threadId: 'case-42 ' })).toBeUndefined()
+    expect(await host.sessions.get({ threadId: 'target' })).toBeUndefined()
+    await host.close()
+  })
+
   it('refuses an existing target of another harness, or one the principal cannot send to, and keeps the members of a target it can', async () => {
     const { host, support, billing } = accessHost()
     const source = await host.open(support, {
@@ -577,7 +600,6 @@ describe('host.transfer access', () => {
       threadId: 'bea-billing',
       principal: bea,
     })
-    expect(entry?.ownerId).toBe('bea')
     expect(entry?.members).toEqual([
       { userId: 'bea', role: 'owner' },
       { userId: 'olga', role: 'member' },
@@ -588,7 +610,7 @@ describe('host.transfer access', () => {
 
 describe('host.transfer across hosts', () => {
   it('writes the source record through the input lane when another host owns the source', async () => {
-    const backend = memoryLogBackend()
+    const logState = memoryLogState()
     const { sessions } = memoryPersistence().stores
     const release = gate()
     const support = defineHarness({
@@ -601,9 +623,11 @@ describe('host.transfer across hosts', () => {
       adapter: mockAdapter(() => text('billing here')).adapter,
     })
     const one = createHarnessHost({
-      persistence: { stores: { log: memoryLogStore({ backend }), sessions } },
+      persistence: {
+        stores: { log: memoryLogStore({ state: logState }), sessions },
+      },
     })
-    const twoLog = memoryLogStore({ backend })
+    const twoLog = memoryLogStore({ state: logState })
     const two = createHarnessHost({
       persistence: { stores: { log: twoLog, sessions } },
     })

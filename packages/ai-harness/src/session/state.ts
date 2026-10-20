@@ -1,20 +1,17 @@
 import {
   INTERRUPT_BINDING_METADATA_KEY,
   convertSchemaToJsonSchema,
+  validateJsonSchema,
   validateWithStandardSchema,
 } from '@tanstack/ai'
-import {
-  LogTruncatedError,
-  UNOWNED_EPOCH,
-  loadChildTranscript,
-} from '@tanstack/ai-persistence'
+import { UNOWNED_EPOCH, loadChildTranscript } from '@tanstack/ai-persistence'
+import { ownerOf } from '../access'
 import { checkConfigValue } from '../config'
 import { transcriptText } from '../first-party/session-tools'
 import { LogOwnedElsewhereError } from '../ownership'
 import { isRecord } from '../utils'
-import { jsonSchemaIssues } from '../json-schema'
 import { changedEntry } from '../session-entry'
-import { stableJson, threadOf, visibleMessages } from '../log'
+import { stableJson, visibleMessages } from '../log'
 import { isHumanTarget } from '../log-records'
 import { mediaIdOf, mediaOfMessage, mediaPart } from '../media-ref'
 import {
@@ -30,19 +27,13 @@ import {
 } from '../plugins'
 import { HARNESS_EVENTS } from '../types'
 import { SECRET_ANSWER_PREFIX } from '../auth'
-import {
-  expiryOf,
-  openWaits,
-  snapshotWaits,
-  timeOf,
-  waitKind,
-  waitOfQuestion,
-} from '../waits'
+import { expiryOf, interruptExpiry, openWaits, waitOfQuestion } from '../waits'
 import {
   createInputId,
   customEvent,
   isOfferedInputRecord,
   scopeOf,
+  snapshotFrom,
   storedPrincipal,
   changeSettings,
 } from './helpers'
@@ -96,6 +87,7 @@ import type {
 } from './types'
 import type { SettingNames } from './helpers'
 import type { HarnessSession, SessionImpl } from './harness-session'
+import type { Credential } from '@tanstack/ai/byok'
 
 /** What the model of the source gets for a `'summary'` transfer. */
 const TRANSFER_SUMMARY_PROMPT =
@@ -125,6 +117,11 @@ export abstract class SessionState<
   protected readonly waitEnds = new Map<string, () => void>()
   /** The secret answers to `step.ask` waits that this host kept, by wait id. */
   protected readonly keptAnswers = new Map<string, unknown>()
+  /**
+   * The logged waits that an answer of this host ends now, by wait id. A
+   * second answer to one of them is refused, so only one gets `accepted`.
+   */
+  protected readonly answering = new Set<string>()
   /** The handlers that plugins added to `ThreadEnds`, oldest first. */
   protected readonly threadEnds = new Set<ThreadEndHandler>()
 
@@ -205,22 +202,20 @@ export abstract class SessionState<
         parent === undefined &&
         principal !== undefined &&
         (entry === undefined ||
-          (current.ownerId === undefined && !this.hasAccess))
+          (ownerOf(current) === undefined && !this.hasAccess))
       return {
         ...current,
         harness: current.harness ?? this.harness.name,
         updatedAt: now,
         ...(isClaim
-          ? {
-              ownerId: principal.id,
-              members: [{ userId: principal.id, role: 'owner' as const }],
-            }
+          ? { members: [{ userId: principal.id, role: 'owner' as const }] }
           : {}),
       }
     })
-    if (opened?.ownerId !== undefined) {
+    const ownerId = opened && ownerOf(opened)
+    if (ownerId !== undefined) {
       this.owner = {
-        id: opened.ownerId,
+        id: ownerId,
         ...(tenantId !== undefined ? { tenantId } : {}),
       }
     }
@@ -254,47 +249,35 @@ export abstract class SessionState<
       this.activeResume && !this.activeTurn?.isSettled()
         ? []
         : (stopped?.interrupts ?? [])
-    const waits = snapshotWaits({
-      stopped,
-      // With the expiry of each wait, also the default one of its kind.
-      interrupts: pendingInterrupts.map((interrupt) => {
-        const expiresAt = this.interruptExpiry(interrupt)
-        return expiresAt === undefined || interrupt.expiresAt !== undefined
-          ? interrupt
-          : { ...interrupt, expiresAt: new Date(expiresAt).toISOString() }
-      }),
-      waits: this.logWriter?.state.thread.waits,
-    })
-    return {
+    return snapshotFrom({
       threadId: this.threadId,
-      status: this.activeTurn
-        ? 'running'
-        : stopped
-          ? 'requires_action'
-          : 'idle',
-      activeOperations: active.map((operation) => ({
-        id: operation.id,
-        kind: operation.kind,
-        ...(operation.agent ? { agent: operation.agent } : {}),
-        startedCursor: operation.startedCursor,
-      })),
-      // A steer that waits to join the running turn waits too.
-      queuedTurns: this.queue.length + this.steerQueue.length,
-      waitingInputs: this.inputs(),
-      pendingInterrupts,
-      pendingQuestions: waits.pendingQuestions,
-      // The waits of the `harnessAgent` children of the runs too: an answer
-      // here goes to the child (see `resolve`).
-      pendingWaits: [
-        ...waits.pendingWaits,
-        ...[...this.harnessChildren.values()].flatMap(
-          (child) => child.session.snapshot().pendingWaits,
-        ),
-      ],
+      thread: this.logWriter?.state.thread,
+      stopped,
+      interrupts: pendingInterrupts,
       plugins: { ...this.stateDoc },
       usage: this.usage(),
       cursor: this.feed.head(),
-    }
+      live: {
+        isRunning: this.activeTurn !== undefined,
+        activeOperations: active.map((operation) => ({
+          id: operation.id,
+          kind: operation.kind,
+          ...(operation.agent ? { agent: operation.agent } : {}),
+          startedCursor: operation.startedCursor,
+        })),
+        // A steer that waits to join the running turn waits too.
+        queuedTurns: this.queue.length + this.steerQueue.length,
+        waitingInputs: this.inputs(),
+        // The waits of the `harnessAgent` children of the runs: an answer
+        // here goes to the child (see `resolve`). No turn of this session
+        // holds them.
+        childWaits: [...this.harnessChildren.values()].flatMap((child) =>
+          child.session
+            .snapshot()
+            .pendingWaits.map(({ turn: _turn, ...wait }) => wait),
+        ),
+      },
+    })
   }
 
   // ===========================
@@ -478,6 +461,11 @@ export abstract class SessionState<
       if (!(error instanceof LogOwnedElsewhereError)) throw error
     }
     const offered = await this.writer.offer(inputId, record)
+    if (offered === 'deleted') {
+      throw new Error(
+        `The thread ${JSON.stringify(this.threadId)} was deleted.`,
+      )
+    }
     if (offered === 'conflict') {
       throw new Error(
         `The input lane has another record with id ${JSON.stringify(inputId)}.`,
@@ -704,11 +692,39 @@ export abstract class SessionState<
 
   /**
    * Throws when the plugins that `settings` removes provide a capability
-   * that a kept session plugin requires.
+   * that a kept plugin (of any lifetime) or a harness middleware requires.
    */
   protected checkRemovable(settings: ThreadSettings) {
-    const remove = settings.plugins?.remove ?? []
-    if (remove.length > 0) this.sessionPlugins?.withoutOwners(remove)
+    const removed = new Set(settings.plugins?.remove ?? [])
+    if (removed.size === 0) return
+    const owners = new Map(
+      this.plugins.flatMap((plugin) =>
+        (plugin.provides ?? []).map((handle) => [handle, plugin.name] as const),
+      ),
+    )
+    const needs = [
+      ...this.plugins
+        .filter((plugin) => !removed.has(plugin.name))
+        .map((plugin) => ({
+          who: `plugin ${plugin.name}`,
+          requires: plugin.requires,
+        })),
+      ...(this.harness.middleware ?? []).map((middleware) => ({
+        who: middleware.name
+          ? `harness middleware ${middleware.name}`
+          : 'a harness middleware',
+        requires: middleware.requires,
+      })),
+    ]
+    for (const { who, requires } of needs) {
+      for (const handle of requires ?? []) {
+        const owner = owners.get(handle)
+        if (owner === undefined || !removed.has(owner)) continue
+        throw new Error(
+          `Cannot remove plugin ${owner}: ${who} requires its capability "${handle.capabilityName}".`,
+        )
+      }
+    }
   }
 
   /** The model and plugin names that a setting can use. */
@@ -834,8 +850,10 @@ export abstract class SessionState<
    * hidden messages for good. The revert state is saved, so it survives a
    * restart. Refused while the session is not idle, or another host runs
    * the thread (`'busy'`), and for a message that is not in the transcript
-   * (`'unknown_message'`). `principal` is who reverts. A handle of
-   * `host.open` checks that it is the principal of the handle.
+   * (`'unknown_message'`). `principal` is who reverts. Default: the
+   * principal that opened the session. The `harness.revert` record keeps
+   * it. A handle of `host.open` checks that it is the principal of the
+   * handle.
    *
    * @example
    * ```ts
@@ -844,6 +862,7 @@ export abstract class SessionState<
    */
   async revert({
     messageId,
+    principal,
   }: {
     messageId: string
     principal?: Principal
@@ -860,13 +879,15 @@ export abstract class SessionState<
       // A revert that stands ends first, so its files come back.
       await this.endRevert()
       const handler = this.sessionPlugins?.values.get(RevertFiles)
-      const files = await handler?.revert(messages.slice(at + 1), (type) =>
-        this.hostRecords(type),
+      const files = await handler?.revert(
+        messages.slice(at + 1),
+        async (type) => this.keptRecords(type),
+        this.revertRun(principal ?? this.principal),
       )
-      await this.saveRevert({
-        messageId,
-        ...(files !== undefined ? { files } : {}),
-      })
+      await this.saveRevert(
+        { messageId, ...(files !== undefined ? { files } : {}) },
+        principal ?? this.principal,
+      )
       return { inputId, status: 'accepted' }
     })
   }
@@ -893,9 +914,22 @@ export abstract class SessionState<
     if (reverted.files !== undefined) {
       await this.sessionPlugins?.values
         .get(RevertFiles)
-        ?.unrevert(reverted.files)
+        ?.unrevert(reverted.files, this.revertRun(this.principal))
     }
     await this.saveRevert(undefined)
+  }
+
+  /**
+   * A run for the files of a revert, in the thread of this session. It is
+   * part of no turn, so a workspace that no turn opened on this host (after
+   * a restart) opens again from the log.
+   */
+  protected revertRun(principal: Principal | undefined) {
+    return this.runContext({
+      principal,
+      runId: `revert:${this.threadId}`,
+      signal: this.lifetime.signal,
+    })
   }
 
   /** Run `fn` while no new turn starts. A held turn starts after it. */
@@ -931,11 +965,18 @@ export abstract class SessionState<
     await this.saveRevert(undefined)
   }
 
-  /** Keep the revert state in the log. */
-  protected async saveRevert(revert: RevertState | undefined) {
+  /** Keep the revert state in the log, with who reverted. */
+  protected async saveRevert(
+    revert: RevertState | undefined,
+    principal?: Principal,
+  ) {
     this.reverted = revert
     await this.writer.append([
-      { type: 'harness.revert', revert: revert ?? null },
+      {
+        type: 'harness.revert',
+        revert: revert ?? null,
+        ...storedPrincipal(principal),
+      },
     ])
     this.feed.publish(
       'session',
@@ -946,41 +987,14 @@ export abstract class SessionState<
   }
 
   /**
-   * The host records of `type` of this thread, from the log, oldest first.
-   * When a truncate dropped the first records, the fold has the kept ones
-   * of them (see `keptRecords`), and the read goes on after the cut.
+   * The kept host records of `type` of this thread, oldest first: the last
+   * ones that the `keepRecords` of the plugins name. The log snapshot keeps
+   * them, so they stay after a truncate of the log.
    */
-  protected async hostRecords(type: string) {
-    const found: Array<Record<string, unknown>> = []
-    let after = 0
-    for (;;) {
-      let entries
-      try {
-        entries = await this.log.store.read({
-          logId: this.storeLogId,
-          after,
-          limit: 256,
-        })
-      } catch (error) {
-        const resumeAt =
-          error instanceof LogTruncatedError ? error.firstSeq - 1 : after
-        if (resumeAt <= after) throw error
-        for (const { seq, record } of this.writer.state.keptRecords) {
-          const isDropped = seq > after && seq <= resumeAt
-          if (isDropped && record.type === type) found.push(record)
-        }
-        after = resumeAt
-        continue
-      }
-      for (const { seq, record } of entries) {
-        after = seq
-        const isOwn = threadOf(record, this.threadId) === this.threadId
-        if (isOwn && record.type === type) found.push(record)
-      }
-      // A store can return fewer than `limit` before the end: stop only at
-      // an empty page.
-      if (entries.length === 0) return found
-    }
+  protected keptRecords(type: string): Array<LogRecord> {
+    return this.writer.state.keptRecords.flatMap(({ record }) =>
+      record.type === type ? [record] : [],
+    )
   }
 
   /** The commands, settings, and tools of this session, for a UI. */
@@ -1036,7 +1050,7 @@ export abstract class SessionState<
     const logged = this.loggedWait(questionId)
     const isSecret = asked?.secret ?? (!logged || logged.secret === true)
     const isHidden = ref !== undefined || isSecret
-    if (asked?.secret && typeof value === 'string') this.redactor.add(value)
+    if (asked?.secret) this.redactor.add(value)
     const sender = principal ?? this.principal
     let admission
     try {
@@ -1125,29 +1139,42 @@ export abstract class SessionState<
       logged !== undefined &&
       logged.outcome === undefined &&
       logged.live === undefined
-    if (!isOpen) return this.reject(inputId, 'unknown_question')
+    // Claimed before the first await: a second answer is refused.
+    if (!isOpen || this.answering.has(waitId)) {
+      return this.reject(inputId, 'unknown_question')
+    }
     const handBack = this.humanHandoffEnd(logged.wait, value)
     if (handBack && 'reason' in handBack) {
       return this.reject(inputId, handBack.reason)
     }
     // The log has the JSON Schema of the wait: the answer must fit it.
-    const issues = jsonSchemaIssues(logged.wait.schema, value)
-    if (issues.length > 0) {
-      return this.reject(inputId, `Invalid answer: ${issues.join(', ')}`)
+    const { schema } = logged.wait
+    const checked =
+      isRecord(schema) || typeof schema === 'boolean'
+        ? validateJsonSchema(schema, value)
+        : undefined
+    if (checked?.issues) {
+      const reason = checked.issues.map((issue) => issue.message).join(', ')
+      return this.reject(inputId, `Invalid answer: ${reason}`)
     }
-    // A secret never goes in the log. The run reads it from the store.
-    if (logged.secret) await this.keepSecretAnswer(logged, value)
-    // The end of a handoff to a person goes in the same append.
-    await this.applied(inputId, 'session', [
-      ...this.waitEndRecords(
-        waitId,
-        'answered',
-        logged.secret ? undefined : value,
-      ),
-      ...(handBack
-        ? [{ type: 'harness.handoff' as const, ...handBack.record }]
-        : []),
-    ])
+    this.answering.add(waitId)
+    try {
+      // A secret never goes in the log. The run reads it from the store.
+      if (logged.secret) await this.keepSecretAnswer(logged, value)
+      // The end of a handoff to a person goes in the same append.
+      await this.applied(inputId, 'session', [
+        ...this.waitEndRecords(
+          waitId,
+          'answered',
+          logged.secret ? undefined : value,
+        ),
+        ...(handBack
+          ? [{ type: 'harness.handoff' as const, ...handBack.record }]
+          : []),
+      ])
+    } finally {
+      this.answering.delete(waitId)
+    }
     if (handBack) {
       this.feed.publish(
         'session',
@@ -1182,11 +1209,15 @@ export abstract class SessionState<
     const { handBack } = answer
     let to: string | null
     if (typeof handBack === 'string') {
-      // ponytail: the agents of turn plugins are not known outside a turn.
+      // The agents that the turn which handed off offered (with those of
+      // its turn plugins), and the ones this session has now.
       const names = [
-        ...(this.harness.agents ?? []),
-        ...(this.threadPlugins()?.agents ?? []),
-      ].map((agent) => agent.name)
+        ...(active.agents ?? []),
+        ...[
+          ...(this.harness.agents ?? []),
+          ...(this.threadPlugins()?.agents ?? []),
+        ].map((agent) => agent.name),
+      ]
       if (handBack !== 'main' && !names.includes(handBack)) {
         return { reason: 'unknown_agent' }
       }
@@ -1209,12 +1240,12 @@ export abstract class SessionState<
    */
   private async keepSecretAnswer(logged: WaitState, value: unknown) {
     const { waitId, principal } = logged.wait
-    if (typeof value === 'string') this.redactor.add(value)
+    this.redactor.add(value)
     this.keptAnswers.set(waitId, value)
     await this.sharedCredentials?.set({
       scope: scopeOf(this.threadId, principal),
       id: keptAnswerId(waitId),
-      credential: { type: 'api_key', value: JSON.stringify(value) },
+      credential: secretAnswerCredential(value),
     })
   }
 
@@ -1233,16 +1264,11 @@ export abstract class SessionState<
       scope: scopeOf(this.threadId, principal),
       id: keptAnswerId(waitId),
     })
-    if (saved?.type !== 'api_key') return undefined
-    let value: unknown
-    try {
-      value = JSON.parse(saved.value)
-    } catch {
-      return undefined
-    }
-    if (typeof value === 'string') this.redactor.add(value)
-    this.keptAnswers.set(waitId, value)
-    return { value }
+    const answer = answerIn(saved)
+    if (!answer) return undefined
+    this.redactor.add(answer.value)
+    this.keptAnswers.set(waitId, answer.value)
+    return answer
   }
 
   /**
@@ -1301,7 +1327,7 @@ export abstract class SessionState<
     await store.set({
       scope: scopeOf(this.threadId, sender),
       id: ref,
-      credential: { type: 'api_key', value: JSON.stringify(value) },
+      credential: secretAnswerCredential(value),
     })
     return { op: 'answer', questionId, value: SECRET_ANSWER, ref }
   }
@@ -1327,16 +1353,11 @@ export abstract class SessionState<
     }
     const key = { scope: scopeOf(this.threadId, sender), id: ref }
     const saved = await store.get(key)
-    if (saved?.type !== 'api_key') return undefined
+    if (saved?.type !== 'secret_answer') return undefined
     await store.delete(key)
-    let value: unknown
-    try {
-      value = JSON.parse(saved.value)
-    } catch {
-      return undefined
-    }
-    if (typeof value === 'string') this.redactor.add(value)
-    return { value }
+    const answer = answerIn(saved)
+    if (answer) this.redactor.add(answer.value)
+    return answer
   }
 
   // ===========================
@@ -1401,7 +1422,7 @@ export abstract class SessionState<
       },
       { runId: ended.wait.runId, startTime: ended.at },
     )
-    span?.end(ended.settledAt)
+    this.tracing?.safely(() => span?.end(ended.settledAt))
   }
 
   /** After the log ended the wait `waitId`: drop its secrets, and move the timer. */
@@ -1921,6 +1942,11 @@ export abstract class SessionState<
             previous.routed
               ? { routed: previous.routed }
               : {}),
+            ...(previous !== undefined &&
+            previous.runId === runId &&
+            previous.handoff
+              ? { handoff: previous.handoff }
+              : {}),
             ...storedPrincipal(
               previous !== undefined && previous.runId === runId
                 ? previous.principal
@@ -1998,12 +2024,7 @@ export abstract class SessionState<
    * `undefined`: never.
    */
   protected interruptExpiry(interrupt: Interrupt): number | undefined {
-    const own = timeOf(interrupt.expiresAt)
-    if (own !== undefined) return own
-    const opened = this.logWriter?.state.thread.interrupts.get(interrupt.id)
-    return (
-      opened && expiryOf(waitKind(interrupt), undefined, opened.requestedAt)
-    )
+    return interruptExpiry(interrupt, this.logWriter?.state.thread.interrupts)
   }
 
   /**
@@ -2123,6 +2144,36 @@ export abstract class SessionState<
  * refs that `dropAnswerRefs` deletes when the wait ends.
  */
 const keptAnswerId = (waitId: string) => `${SECRET_ANSWER_PREFIX}${waitId}#kept`
+
+/**
+ * How long a secret answer stays good in the credential store. The session
+ * deletes it once read, or when its wait or run ends. The expiry is for one
+ * that a host which stopped left there.
+ */
+// ponytail: one expiry for a ref and a kept answer. A run again after it
+// finds no answer, and its `step.ask` throws.
+const SECRET_ANSWER_TTL_MS = 24 * 60 * 60 * 1000
+
+/** A secret answer as the credential store keeps it, with its expiry. */
+const secretAnswerCredential = (value: unknown): Credential => ({
+  type: 'secret_answer',
+  value: JSON.stringify(value),
+  expiresAt: Date.now() + SECRET_ANSWER_TTL_MS,
+})
+
+/** The answer in `saved`, when it is a secret answer that did not expire. */
+function answerIn(
+  saved: Credential | null | undefined,
+): { value: unknown } | undefined {
+  if (saved?.type !== 'secret_answer' || saved.expiresAt <= Date.now()) {
+    return undefined
+  }
+  try {
+    return { value: JSON.parse(saved.value) }
+  } catch {
+    return undefined
+  }
+}
 
 /** Why `ctx.session.ask` throws outside a live wait. */
 export const ASK_OUTSIDE_WAITS =

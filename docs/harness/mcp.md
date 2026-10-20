@@ -38,32 +38,33 @@ import { defineHarness } from '@tanstack/ai-harness'
 import { mcp } from '@tanstack/ai-mcp/harness'
 import { openaiText } from '@tanstack/ai-openai'
 
+// One time, outside `plugins`, so the sessions share the stdio server.
+const tools = mcp({
+  servers: {
+    files: {
+      type: 'stdio',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-filesystem', '.'],
+    },
+    docs: {
+      type: 'http',
+      url: 'https://mcp.example.com/mcp',
+      headers: { authorization: `Bearer ${process.env.DOCS_TOKEN}` },
+    },
+    linear: { type: 'http', url: 'https://mcp.linear.app/mcp', oauth: true },
+  },
+})
+
 export const assistant = defineHarness({
   name: 'acme/assistant',
   adapter: openaiText('gpt-6.1-sol'),
-  plugins: () => [
-    mcp({
-      servers: {
-        files: {
-          type: 'stdio',
-          command: 'npx',
-          args: ['-y', '@modelcontextprotocol/server-filesystem', '.'],
-        },
-        docs: {
-          type: 'http',
-          url: 'https://mcp.example.com/mcp',
-          headers: { authorization: `Bearer ${process.env.DOCS_TOKEN}` },
-        },
-        linear: { type: 'http', url: 'https://mcp.linear.app/mcp', oauth: true },
-      },
-    }),
-  ],
+  plugins: () => [tools],
 })
 ```
 
 The name of a server is the prefix of its tools. A `search` tool of the `docs` server is `docs_search` for the model. To choose other names, see [Rename the tools of a server](#rename-the-tools-of-a-server).
 
-- `stdio`: the server runs as a child process on this machine (Node only). The host starts it one time for each harness, and every session of that harness shares it. It stops when the last session that uses it closes, or at `host.close()`.
+- `stdio`: the server runs as a child process on this machine (Node only). The host starts it one time for each harness, and every session that uses the same `mcp()` object shares it. It stops when the last session that uses it closes, or at `host.close()`. A `plugins` function that calls `mcp()` for each session starts a process for each session.
 - `http`: a server that speaks Streamable HTTP. Send an API key in `headers`. Each session connects on its own.
 - `oauth: true`: the user signs in with `/connect linear`. Each user connects with their own sign-in. See [Sign in to an OAuth server](#3-sign-in-to-an-oauth-server).
 
@@ -90,6 +91,7 @@ In your own UI, read the same list from `session.snapshot().plugins['tanstack/mc
 A `stdio` server can crash, and a connection can close. Then `/mcp` shows `files: reconnecting`, and the turns run without the tools of that server. `mcp()` connects a server without `oauth: true` again:
 
 - It waits 0.5 s, then 1 s, then 2 s, and so on, up to 30 s between tries. A random part makes each wait shorter, so many sessions do not connect at the same moment.
+- The waits start again at 0.5 s only after a connection stays open for 30 s. A server that crashes right after it connects waits longer each time.
 - It tries until the server connects, or until the session closes. For a `stdio` server, it tries until the host stops the server.
 - The next turn after the new connection has the tools again. All sessions that share a `stdio` server use the new process.
 - A server that fails its first connect shows `failed`, and tries again with the same waits. A server that is not up yet, like a slow `npx`, gets its tools at a later turn.
@@ -165,6 +167,17 @@ export const renamed = mcp({
 
 When two servers still give the same tool name, the model gets the tool of the server that comes first in `servers`. The other tool is dropped, and the console shows one warning with the names of both servers.
 
+To treat a clash as a config error, set `onDuplicateTool: 'error'`. Then the later server shows `failed` with an error that names both servers and the tool, and the model gets none of its tools. The other servers keep working:
+
+```ts group=harness-mcp
+export const strict = mcp({
+  onDuplicateTool: 'error',
+  servers: {
+    docs: { type: 'http', url: 'https://mcp.example.com/mcp' },
+  },
+})
+```
+
 ## Answer a question from a server
 
 An MCP server can ask the user for input in the middle of a tool call. MCP calls this elicitation. The session asks the user, and the tool call waits for the answer.
@@ -201,7 +214,7 @@ export function answerWithCity(session: HarnessSession) {
 }
 ```
 
-Open questions also stay in `session.snapshot().pendingQuestions`, so a client that connects later still sees them.
+Open questions also stay in `session.snapshot().pendingWaits`, so a client that connects later still sees them.
 
 ## Set a time limit
 

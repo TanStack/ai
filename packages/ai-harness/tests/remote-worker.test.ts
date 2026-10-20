@@ -37,7 +37,7 @@ describe('harnessText for a remote harness', () => {
           request.headers.get('authorization') === 'Bearer secret'
             ? { id: 'u' }
             : null,
-        authorize: () => true,
+        policy: { authorize: () => true },
       },
     })
     const handler = createHarnessHandler({
@@ -257,10 +257,10 @@ describe('runHarnessWorker edges', () => {
     expect(frames).toEqual([
       {
         type: 'harness.error',
-        message: 'Protocol version 1 is not supported.',
+        message:
+          'Protocol version 1 is not supported. This host speaks version 2.',
         code: 'unsupported_version',
         requestId: 's1',
-        supported: [2],
       },
     ])
   })

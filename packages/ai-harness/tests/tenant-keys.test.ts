@@ -14,7 +14,7 @@ import {
   definePlugin,
   logIdOf,
 } from '../src'
-import { mockAdapter, text, toolCall } from './helpers'
+import { mockAdapter, text, toolCall, turnInterrupts } from './helpers'
 import type { ModelMessage } from '@tanstack/ai'
 import type { Reply } from './helpers'
 
@@ -157,7 +157,7 @@ describe('one thread id in two tenants', () => {
     expect((await a.send('Deploy.')).interrupts).toHaveLength(1)
 
     const b = await host.open(harness, { threadId: THREAD, principal: globex })
-    expect(b.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(b.snapshot())).toEqual([])
     await host.close()
 
     // A new host finds the interrupt of acme again.
@@ -166,7 +166,7 @@ describe('one thread id in two tenants', () => {
       threadId: THREAD,
       principal: acme,
     })
-    expect(reopened.snapshot().pendingInterrupts).toHaveLength(1)
+    expect(turnInterrupts(reopened.snapshot())).toHaveLength(1)
     await again.close()
   })
 

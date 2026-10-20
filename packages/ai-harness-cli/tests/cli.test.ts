@@ -65,7 +65,7 @@ function accessHost() {
     access: {
       identify: ({ request }) =>
         users.get(request.headers.get('x-user') ?? '') ?? null,
-      authorize: membersOnly(),
+      policy: membersOnly(),
     },
   })
 }
@@ -601,13 +601,13 @@ describe('a host and a principal', () => {
         const snapshot = await fetch(`${server.url}/snapshot?threadId=t`, {
           headers: { authorization: 'Bearer secret' },
         })
-        const [pending] = (await snapshot.json()).pendingQuestions
+        const [pending] = (await snapshot.json()).pendingWaits
         expect(pending).toBeDefined()
         return pending
       })
       await control({
         op: 'answer',
-        questionId: question.questionId,
+        questionId: question.waitId,
         value: 'sk-ada',
       })
       await vi.waitFor(async () =>
@@ -648,7 +648,7 @@ describe('a host and a principal', () => {
       await client.callTool('chat', { threadId: 't-mcp', message: 'hi' })
 
       expect(await host.sessions.get({ threadId: 't-mcp' })).toMatchObject({
-        ownerId: 'ada',
+        members: [{ userId: 'ada', role: 'owner' }],
       })
     } finally {
       await client.close()
@@ -742,6 +742,32 @@ describe('serve mode', () => {
     }
   })
 
+  it('signs media URLs with --media-key, never with the token', async () => {
+    expect(parseCliArgs(['--serve', '--media-key', 'k'])).toMatchObject({
+      mediaKey: 'k',
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const start = (mediaKey?: string) =>
+      serve({
+        host,
+        harness: defineHarness({
+          name: 'test/serve-key',
+          adapter: scripted([]).adapter,
+        }),
+        port: 0,
+        hostname: '127.0.0.1',
+        token: 'secret',
+        ...(mediaKey !== undefined ? { mediaKey } : {}),
+      })
+
+    // The key is checked: a short one is refused at the start.
+    await expect(start('short')).rejects.toThrow('Media signing key 0 is 5')
+    // A short token is fine: it does not sign anything.
+    const server = await start()
+    await server.close()
+    await host.close()
+  })
+
   it('reads the user of each request with identify on a host with access, behind the token', async () => {
     const host = accessHost()
     const server = await serve({
@@ -780,7 +806,7 @@ describe('serve mode', () => {
       expect(stranger.status).toBe(403)
       expect(
         await host.sessions.get({ threadId: 't1', principal: olga }),
-      ).toMatchObject({ ownerId: 'olga' })
+      ).toMatchObject({ members: [{ userId: 'olga', role: 'owner' }] })
     } finally {
       await server.close()
       await host.close()

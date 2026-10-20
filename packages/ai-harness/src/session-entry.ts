@@ -28,8 +28,7 @@ export interface SessionEntryChange<TMetadata = Record<string, unknown>> {
  * A change, or a function that makes the change from the current entry. Use
  * the function to change part of `metadata`: when another host writes the
  * entry first, the function runs again on the new entry, so neither change
- * is lost. Return `undefined` to write
- * nothing.
+ * is lost. Return `undefined` to write nothing.
  */
 export type SessionEntryUpdate<
   TMetadata = Record<string, unknown>,

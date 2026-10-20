@@ -67,7 +67,7 @@ export function memoryCredentialStore(): CredentialStore {
           ([id, { credential }]) => ({
             id,
             type: credential.type,
-            ...(credential.type === 'oauth' &&
+            ...(credential.type !== 'api_key' &&
             credential.expiresAt !== undefined
               ? { expiresAt: credential.expiresAt }
               : {}),

@@ -11,7 +11,7 @@ import {
   listSavedPermissions,
   permissions,
 } from '../src/first-party/permissions'
-import { gate, mockAdapter, text, toolCall } from './helpers'
+import { gate, mockAdapter, questionsOf, text, toolCall } from './helpers'
 import type { MetadataStore } from '@tanstack/ai-persistence'
 import type {
   HarnessPersistence,
@@ -478,7 +478,7 @@ describe('permissions()', () => {
 
     // The next turn has bypass, so bash runs with no question.
     await session.send('list it again')
-    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(questionsOf(session.snapshot())).toHaveLength(0)
     expect(tools.ran).toEqual(['bash', 'bash'])
     await host.close()
   })

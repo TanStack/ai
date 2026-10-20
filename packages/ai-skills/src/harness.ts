@@ -31,15 +31,6 @@ interface FoundSkill {
   dir: string
 }
 
-/** The watcher of one skill folder. */
-interface FolderWatch {
-  watcher: FSWatcher
-  /** The folder itself, or its nearest parent that exists. */
-  path: string
-  /** True when the watcher sees each change in the folder, so its skills can be kept. */
-  sees: boolean
-}
-
 /** The `code` of a Node.js error, for example `ENOENT`. */
 function codeOf(error: unknown) {
   const hasCode = error instanceof Error && 'code' in error
@@ -67,30 +58,25 @@ function skillPrompt(name: string, input: unknown) {
 
 /**
  * The part of {@link skills} that every session of a harness on a host
- * shares: one watcher for each folder, and the skills of each folder.
- *
- * The skills of a folder are kept until its watcher sees a change. A folder
- * that does not exist yet, or that cannot be watched, is read from disk on
- * each use.
+ * shares: the watchers of the folders. A change only tells the sessions to
+ * sync. Each sync reads the skills from disk again.
  */
 async function sharedFolders(
   dirs: ReadonlyArray<string>,
   resources: PluginResources,
 ) {
-  const watches = await resources.acquire(
-    () => new Map<string, FolderWatch>(),
+  /** The watcher of each folder, and the path it watches. */
+  const watchers = await resources.acquire(
+    () => new Map<string, { watcher: FSWatcher; path: string }>(),
     (open) => {
       for (const { watcher } of open.values()) watcher.close()
       open.clear()
     },
   )
-  /** The kept skills of each folder. `undefined` when the folder failed. */
-  const kept = new Map<string, Promise<Array<SkillMetadata> | undefined>>()
   /** The folders that cannot be watched. They were warned about once. */
   const failed = new Set<string>()
   /** The sessions to tell when a folder changed. */
   const listeners = new Set<() => void>()
-  const closed = () => resources.signal.aborted
 
   // A save often fires several watch events: wait until they stop.
   let timer: ReturnType<typeof setTimeout> | undefined
@@ -104,33 +90,19 @@ async function sharedFolders(
   resources.signal.addEventListener('abort', () => clearTimeout(timer))
 
   const drop = (dir: string) => {
-    watches.get(dir)?.watcher.close()
-    watches.delete(dir)
-    kept.delete(dir)
-  }
-
-  /** Warn once, and read `dir` from disk on each use from now on. */
-  const fail = (dir: string, reason: string) => {
-    drop(dir)
-    failed.add(dir)
-    console.warn(
-      `skills: cannot watch ${dir} (${reason}). Its skills are read from disk on each use.`,
-    )
+    watchers.get(dir)?.watcher.close()
+    watchers.delete(dir)
   }
 
   /** Watch `path` for the folder `dir`. Throws when `watch` throws. */
   const start = (dir: string, path: string, recursive: boolean) => {
-    // ponytail: Windows also reports a new access time as a change, so a
-    // read can clear the kept skills once. Access times change at most about
-    // once an hour there, so that costs one more read, not a loop.
     const watcher = watch(
       path,
       { recursive, persistent: false },
       (event, name) => {
         // The watched folder itself went away (a delete or a move). Its
-        // watcher is dead, so the next read watches it again.
+        // watcher is dead, so the next sync watches it again.
         if (event === 'rename' && name === basename(path)) drop(dir)
-        kept.delete(dir)
         soon()
       },
     )
@@ -138,36 +110,23 @@ async function sharedFolders(
       drop(dir)
       soon()
     })
-    return watcher
+    watchers.set(dir, { watcher, path })
   }
 
   /** Watch the folder `dir` at `path`: the folder itself, or a parent. */
   const watchAt = (dir: string, path: string) => {
     const isOwn = path === dir
     try {
-      watches.set(dir, { path, sees: isOwn, watcher: start(dir, path, isOwn) })
-      return
+      return start(dir, path, isOwn)
     } catch (error) {
-      const code = codeOf(error)
-      // The folder went away since the check. The next read tries again.
-      if (code === 'ENOENT') return
-      const isUnavailable = code === 'ERR_FEATURE_UNAVAILABLE_ON_PLATFORM'
-      if (!isOwn || !isUnavailable) {
-        return fail(dir, error instanceof Error ? error.message : String(error))
-      }
-    }
-    // ponytail: Linux has no recursive watch before Node 19.1. Then only the
-    // folder is watched: an added or removed skill shows at once, an edited
-    // SKILL.md at the next read. Watch each skill folder too if edits must
-    // show at once there.
-    try {
-      watches.set(dir, { path, sees: false, watcher: start(dir, path, false) })
+      // ponytail: Linux has no recursive watch before Node 19.1. Then only
+      // the folder is watched: an added or removed skill shows at once, an
+      // edited SKILL.md at the next turn.
+      if (codeOf(error) !== 'ERR_FEATURE_UNAVAILABLE_ON_PLATFORM') throw error
       console.warn(
-        `skills: cannot watch the subfolders of ${dir} on this platform. Its skills are read from disk on each use.`,
+        `skills: cannot watch the subfolders of ${dir} on this platform. An edited SKILL.md shows at the next turn.`,
       )
-    } catch (error) {
-      if (codeOf(error) === 'ENOENT') return
-      fail(dir, error instanceof Error ? error.message : String(error))
+      return start(dir, path, false)
     }
   }
 
@@ -177,34 +136,27 @@ async function sharedFolders(
    * folders, one level at a time.
    */
   const watchFolders = () => {
-    if (closed()) return
+    if (resources.signal.aborted) return
     for (const dir of dirs) {
       if (failed.has(dir)) continue
       // Some watchers stop with no event when their folder goes away, so
       // check that the folder is still there.
       let path = dir
       while (!existsSync(path) && dirname(path) !== path) path = dirname(path)
-      if (watches.get(dir)?.path === path) continue
+      if (watchers.get(dir)?.path === path) continue
       drop(dir)
-      watchAt(dir, path)
+      try {
+        watchAt(dir, path)
+      } catch (error) {
+        // The folder went away since the check. The next sync tries again.
+        if (codeOf(error) === 'ENOENT') continue
+        failed.add(dir)
+        const reason = error instanceof Error ? error.message : String(error)
+        console.warn(
+          `skills: cannot watch ${dir} (${reason}). Its skills change at the next turn.`,
+        )
+      }
     }
-  }
-
-  /** The skills of `dir`: the kept ones, or read from disk. */
-  const listOf = (dir: string) => {
-    const known = kept.get(dir)
-    if (known) return known
-    // A folder that throws, at once or later, gives no skills, and is read
-    // again the next time.
-    const listing = Promise.resolve()
-      .then(() => skillDirectory(dir, { strict: false }).list())
-      .catch(() => undefined)
-    if (watches.get(dir)?.sees !== true) return listing
-    kept.set(dir, listing)
-    void listing.then((listed) => {
-      if (!listed && kept.get(dir) === listing) kept.delete(dir)
-    })
-    return listing
   }
 
   /**
@@ -216,7 +168,10 @@ async function sharedFolders(
     watchFolders()
     const found = new Map<string, FoundSkill>()
     for (const dir of dirs) {
-      const listed = (await listOf(dir)) ?? []
+      // A folder that throws, at once or later, gives no skills.
+      const listed = await Promise.resolve()
+        .then(() => skillDirectory(dir, { strict: false }).list())
+        .catch(() => [])
       for (const skill of listed) {
         if (!found.has(skill.name)) found.set(skill.name, { skill, dir })
       }
@@ -224,53 +179,29 @@ async function sharedFolders(
     return found
   }
 
-  /** The folder that has the skill `name` now. */
+  /** The source of the folder that has the skill `name` now. */
   const folderOf = async (name: string) => {
     const entry = (await read()).get(name)
     if (!entry) {
       throw new Error(`No skill named "${name}" in ${dirs.join(', ')}.`)
     }
-    return entry.dir
-  }
-
-  /**
-   * Run `use` with the source of the folder that has the skill `name`. When
-   * it fails, the kept skills can be older than the folder (its watch event
-   * did not come yet), so it reads the folder again and tries once more.
-   */
-  const inFolder = async <T>(
-    name: string,
-    use: (folder: SkillSource) => Promise<T>,
-  ) => {
-    const dir = await folderOf(name)
-    try {
-      return await use(skillDirectory(dir, { strict: false }))
-    } catch {
-      kept.delete(dir)
-    }
-    return use(skillDirectory(await folderOf(name), { strict: false }))
+    return skillDirectory(entry.dir, { strict: false })
   }
 
   const source: SkillSource = {
     list: async () => [...(await read()).values()].map((entry) => entry.skill),
-    load: (name) => inFolder(name, (folder) => folder.load(name)),
-    listResources: (name) =>
-      inFolder(
-        name,
-        async (folder) => (await folder.listResources?.(name)) ?? [],
-      ),
-    listScripts: (name) =>
-      inFolder(
-        name,
-        async (folder) => (await folder.listScripts?.(name)) ?? [],
-      ),
-    readResource: (name, path) =>
-      inFolder(name, (folder) => {
-        if (!folder.readResource) {
-          throw new Error(`Skill "${name}" has no resource files.`)
-        }
-        return folder.readResource(name, path)
-      }),
+    load: async (name) => (await folderOf(name)).load(name),
+    listResources: async (name) =>
+      (await (await folderOf(name)).listResources?.(name)) ?? [],
+    listScripts: async (name) =>
+      (await (await folderOf(name)).listScripts?.(name)) ?? [],
+    readResource: async (name, path) => {
+      const folder = await folderOf(name)
+      if (!folder.readResource) {
+        throw new Error(`Skill "${name}" has no resource files.`)
+      }
+      return folder.readResource(name, path)
+    },
   }
 
   watchFolders()
@@ -443,11 +374,11 @@ async function sessionPart(
  * `/skills` lists every skill, its folder, and its command.
  *
  * The plugin watches each folder once for each host, and every session of
- * the harness shares the watchers. It keeps the skills of each folder until
- * the folder changes. A skill that you add, change, or remove while a session
- * runs changes the commands at once, with no restart. When a folder cannot
- * be watched, the plugin warns once and reads that folder from disk on each
- * use.
+ * the harness that uses this plugin object shares the watchers. Create it
+ * once, outside the `plugins` factory. It reads the folders again at the start
+ * of each turn. A skill that you add, change, or remove while a session runs
+ * changes the commands at once, with no restart. When a folder cannot be
+ * watched, the plugin warns once, and its skills change at the next turn.
  *
  * The model's skill list has one line for each skill: its name and the first
  * sentence of its description. When the list is longer than
@@ -463,12 +394,14 @@ async function sessionPart(
  * import { join } from 'node:path'
  * import { skills } from '@tanstack/ai-skills/harness'
  *
+ * const agentSkills = skills({
+ *   dirs: ['./.agents/skills', join(homedir(), '.acme', 'skills')],
+ * })
+ *
  * defineHarness({
  *   name: 'acme/agent',
  *   adapter,
- *   plugins: () => [
- *     skills({ dirs: ['./.agents/skills', join(homedir(), '.acme', 'skills')] }),
- *   ],
+ *   plugins: () => [agentSkills],
  * })
  * ```
  */

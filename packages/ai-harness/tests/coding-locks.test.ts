@@ -1,4 +1,11 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import {
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  unlink,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -26,13 +33,19 @@ afterEach(async () => {
 const put = (path: string, text: string) => writeFile(join(root, path), text)
 const read = (path: string) => readFile(join(root, path), 'utf8')
 
-/** The workspace tools of one session on `root`. Runs a tool by its name. */
-function openSession(backend: WorkspaceBackend = hostBackend) {
-  const { tools } = createWorkspaceTools({ root, backend, web: false })
-  return async (name: string, args: object) => {
+/**
+ * The workspace tools of one session on `at` (default: `root`). Runs a tool
+ * by its name. With `signal`, the call runs in the chat run of that signal.
+ */
+function openSession(backend: WorkspaceBackend = hostBackend, at = root) {
+  const { tools } = createWorkspaceTools({ root: at, backend, web: false })
+  return async (name: string, args: object, signal?: AbortSignal) => {
     const tool = tools.find((each) => each.name === name)
     if (!tool?.execute) throw new Error(`No tool ${name}.`)
-    const result: unknown = await tool.execute(args)
+    const result: unknown = await tool.execute(
+      args,
+      signal && { emitCustomEvent: () => undefined, abortSignal: signal },
+    )
     return result
   }
 }
@@ -114,6 +127,41 @@ describe('file locks across sessions', () => {
     expect(await read('a.txt')).toBe('first\n')
   })
 
+  it('makes an edit through another spelling of the root wait for the lock', async () => {
+    await put('a.txt', 'one\n')
+    const link = `${root}-link`
+    await symlink(root, link, 'junction')
+    try {
+      const first = watchedBackend({ held: true })
+      const firstCall = openSession(first.backend)
+      const secondCall = openSession(hostBackend, link)
+      await firstCall('read_file', { path: 'a.txt' })
+      await secondCall('read_file', { path: 'a.txt' })
+
+      const firstEdit = firstCall('edit_file', {
+        path: 'a.txt',
+        old: 'one',
+        new: 'first',
+      })
+      await first.reached
+      const secondEdit = tracked(
+        secondCall('edit_file', { path: 'a.txt', old: 'one', new: 'second' }),
+      )
+      // One folder, one lock: the second edit waits for the first.
+      await settle()
+      expect(secondEdit.state.settled).toBe(false)
+
+      first.release()
+      await firstEdit
+      await expect(secondEdit.done).rejects.toThrow(
+        'a.txt changed since it was read.',
+      )
+      expect(await read('a.txt')).toBe('first\n')
+    } finally {
+      await unlink(link)
+    }
+  })
+
   it('lets the second session edit after it reads the file again', async () => {
     await put('a.txt', 'one two\n')
     const firstCall = openSession()
@@ -157,6 +205,23 @@ describe('file locks across sessions', () => {
       'new.txt was created while the tool waited. Read it before you edit it.',
     )
     expect(await read('new.txt')).toBe('first')
+  })
+})
+
+describe('the unchanged check of each chat run', () => {
+  it('fails a write of the lead after a subagent of the session changed the file', async () => {
+    await put('a.txt', 'one\n')
+    const call = openSession()
+    const lead = new AbortController().signal
+    const subagent = new AbortController().signal
+    await call('read_file', { path: 'a.txt' }, lead)
+    await call('read_file', { path: 'a.txt' }, subagent)
+    await call('write_file', { path: 'a.txt', content: 'the fix\n' }, subagent)
+
+    await expect(
+      call('write_file', { path: 'a.txt', content: 'one, again\n' }, lead),
+    ).rejects.toThrow('a.txt changed since it was read.')
+    expect(await read('a.txt')).toBe('the fix\n')
   })
 })
 

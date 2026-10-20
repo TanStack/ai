@@ -33,6 +33,7 @@ import type {
   Principal,
   Receipt,
   SessionEvent,
+  UserInput,
   WaitingInput,
 } from '../types'
 import type { OfferedInputRecord, TurnExtras } from './helpers'
@@ -42,7 +43,13 @@ import type { QueuedTurn, WaitingSteer } from './types'
  * How `accept` took an input. `offered`: another host owns the log, and the
  * input waits for that host in the input lane of the log.
  */
-export type Admission = 'new' | 'duplicate' | 'conflict' | 'closed' | 'offered'
+export type Admission =
+  | 'new'
+  | 'duplicate'
+  | 'conflict'
+  | 'closed'
+  | 'offered'
+  | 'deleted'
 
 /** What `accept` stores with an input besides the input itself. */
 interface AcceptOptions {
@@ -122,6 +129,18 @@ export abstract class SessionInputs<
   }
 
   /**
+   * @internal The message of the input `inputId` in the log, or `undefined`.
+   * A client that sends an input again sends this message, so its inline
+   * media is not stored again and the duplicate check matches.
+   */
+  // ponytail: reads the log only. A retry that comes while the first copy
+  // is still being stored stores its media again.
+  knownMessage(inputId: string): UserInput | undefined {
+    const input = this.writer.state.inputs.get(inputId)?.input
+    return input && 'message' in input ? input.message : undefined
+  }
+
+  /**
    * The run that `input` answers or cancels, and who started it, when the
    * session knows. Other inputs target no run.
    */
@@ -180,12 +199,20 @@ export abstract class SessionInputs<
 
   /**
    * The wait that `input` answers, for the access check. An operator reply
-   * goes to the `human` wait of the handoff to a person.
+   * goes to the `human` wait of the handoff to a person. A resolve goes to
+   * a `human` wait that it ends.
    */
   protected waitOf(input: HarnessInput): AccessWait | undefined {
     if (input.op === 'prompt' && input.as === 'operator') {
       const paused = this.humanHandoff()
       return paused ? { waitId: paused.waitId, kind: 'human' } : undefined
+    }
+    // A resolve that ends a `human` wait needs an operator too.
+    if (input.op === 'resolve') {
+      const human = input.resume
+        .map((item) => this.loggedWait(item.interruptId)?.wait)
+        .find((wait) => wait?.kind === 'human')
+      return human ? { waitId: human.waitId, kind: 'human' } : undefined
     }
     if (input.op !== 'answer') return undefined
     const wait = this.loggedWait(input.questionId)?.wait
@@ -243,8 +270,9 @@ export abstract class SessionInputs<
    *
    * With `inputId`, the append is an input, as a `send` is: a second append
    * with the same id is a duplicate and writes nothing, so a client can
-   * send it again after a lost answer. `principal` is who appends. Default:
-   * the principal that opened the session. The receipt has the input id.
+   * send it again after a lost answer. Without it, the append gets a new
+   * input id. `principal` is who appends. Default: the principal that
+   * opened the session. The receipt has the input id, as the log keeps it.
    *
    * @example
    * ```ts
@@ -255,7 +283,7 @@ export abstract class SessionInputs<
    */
   async append({
     records,
-    inputId,
+    inputId = createInputId(),
     principal,
   }: {
     records: ReadonlyArray<LogRecord>
@@ -263,10 +291,6 @@ export abstract class SessionInputs<
     principal?: Principal
   }): Promise<Receipt> {
     checkHostRecords(records)
-    if (inputId === undefined) {
-      await this.writer.append(records)
-      return { inputId: createInputId(), status: 'accepted' }
-    }
     const admission = await this.accept(
       inputId,
       { op: 'append', records: [...records] },
@@ -290,8 +314,10 @@ export abstract class SessionInputs<
    * wakes an idle session. Without `toolCallId`, it moves every running
    * call that supports it, such as `bash` and the agent tools.
    * With no such call, the receipt is rejected with `not_running`.
-   * `principal` is who moves it. A handle of `host.open` checks that it is
-   * the principal of the handle. The move stores no input.
+   * `principal` is who moves it. Default: the principal that opened the
+   * session. The `harness.job` record of each moved call keeps it. A handle
+   * of `host.open` checks that it is the principal of the handle. The move
+   * stores no input.
    *
    * @example
    * ```ts
@@ -301,6 +327,7 @@ export abstract class SessionInputs<
    */
   async background({
     toolCallId,
+    principal,
   }: {
     toolCallId?: string
     principal?: Principal
@@ -313,7 +340,7 @@ export abstract class SessionInputs<
       return { inputId, status: 'rejected', reason: 'not_running' }
     }
     for (const id of ids) this.detachable.delete(id)
-    for (const move of moves) move()
+    for (const move of moves) move(principal ?? this.principal)
     return { inputId, status: 'accepted' }
   }
 
@@ -676,15 +703,20 @@ export abstract class SessionInputs<
     return 'new'
   }
 
-  /** `duplicate` or `conflict` for an input id that is known, else `undefined`. */
+  /**
+   * `duplicate` or `conflict` for an input id that is known, else
+   * `undefined`. The log keeps an input without the secrets of the session,
+   * so both sides are compared without them: a retry with a secret in it is
+   * a duplicate.
+   */
   private knownAdmission(inputId: string, payload: string) {
-    const local = this.admitted.get(inputId)
-    if (local !== undefined) return local === payload ? 'duplicate' : 'conflict'
     const logged = this.writer.state.inputs.get(inputId)
-    if (!logged) return undefined
-    return inputKey(logged.input, logged.principal) === payload
-      ? 'duplicate'
-      : 'conflict'
+    const known =
+      this.admitted.get(inputId) ??
+      (logged ? inputKey(logged.input, logged.principal) : undefined)
+    if (known === undefined) return undefined
+    const { scrub } = this.redactor
+    return scrub(known) === scrub(payload) ? 'duplicate' : 'conflict'
   }
 
   /**
@@ -710,7 +742,8 @@ export abstract class SessionInputs<
       ...extras,
     })
     const offered = await this.writer.offer(inputId, record)
-    if (offered === 'conflict') return 'conflict'
+    // The thread was deleted: the input is refused with the reason `deleted`.
+    if (offered === 'conflict' || offered === 'deleted') return offered
     this.offeredInputs.add(inputId)
     dropOldest(this.offeredInputs, this.retention.settledOperations)
     return 'offered'

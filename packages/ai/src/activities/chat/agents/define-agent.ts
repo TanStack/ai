@@ -72,6 +72,8 @@ export type SubagentRunContext<TInput extends SchemaInput | undefined = any> =
 /**
  * What a host adds to `ctx` through `SubagentBinding.extend`. Empty here: a
  * host package augments it, so its fields type-check on `ctx` in every `run`.
+ * Make each field optional: a run that a plain `chat()` starts has no host,
+ * so it has none of them.
  */
 export interface SubagentContextExtension {}
 

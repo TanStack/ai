@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import {
-  memoryLogBackend,
+  memoryLogState,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -17,11 +17,12 @@ import {
   membersOnly,
 } from '../src'
 import {
-  CRASHING_OWNERSHIP,
   canOtherHostTake,
+  CRASHING_OWNERSHIP,
   gate,
   mockAdapter,
   ownershipExpired,
+  questionsOf,
   storedThreadState,
   text,
   toolCall,
@@ -136,7 +137,7 @@ describe('a question is a wait in the log', () => {
 
     const { running, wait } = await asked(session, 'ask')
     expect(wait).toEqual({
-      waitId: session.snapshot().pendingQuestions[0]?.questionId,
+      waitId: questionsOf(session.snapshot())[0]?.questionId,
       kind: 'question',
       runId: running.id,
       schema: { type: 'string' },
@@ -152,7 +153,7 @@ describe('a question is a wait in the log', () => {
     await session.answer({ questionId: wait.waitId, value: 'Ada' })
     expect(await running).toBe('Ada')
     expect(session.snapshot().pendingWaits).toEqual([])
-    expect(session.snapshot().pendingQuestions).toEqual([])
+    expect(questionsOf(session.snapshot())).toEqual([])
     await waitFor(async () =>
       expect((await storedWaits(log)).get(wait.waitId)).toMatchObject({
         outcome: 'answered',
@@ -162,10 +163,10 @@ describe('a question is a wait in the log', () => {
   })
 
   it('shows on another host that reads the log', async () => {
-    const backend = memoryLogBackend()
-    const owner = await hostOn(memoryLogStore({ backend }))
+    const logState = memoryLogState()
+    const owner = await hostOn(memoryLogStore({ state: logState }))
     const reader = createHarnessHost({
-      persistence: { stores: { log: memoryLogStore({ backend }) } },
+      persistence: { stores: { log: memoryLogStore({ state: logState }) } },
     })
 
     const { running, wait } = await asked(owner.session, 'ask')
@@ -173,7 +174,7 @@ describe('a question is a wait in the log', () => {
     await waitFor(async () =>
       expect((await view.snapshot()).pendingWaits).toEqual([wait]),
     )
-    expect((await view.snapshot()).pendingQuestions).toEqual([
+    expect(questionsOf(await view.snapshot())).toEqual([
       { questionId: wait.waitId, message: 'Name?', schema: { type: 'string' } },
     ])
 
@@ -220,8 +221,8 @@ describe('a question is a wait in the log', () => {
   })
 
   it('ends cancelled on the next owner when the host that asked stopped', async () => {
-    const backend = memoryLogBackend()
-    const log = memoryLogStore({ backend })
+    const logState = memoryLogState()
+    const log = memoryLogStore({ state: logState })
     // The first host never renews its ownership, as after a crash.
     const first = await hostOn(log, { ownership: CRASHING_OWNERSHIP })
     const { wait } = await asked(first.session, 'ask')
@@ -231,9 +232,9 @@ describe('a question is a wait in the log', () => {
 
     await ownershipExpired()
     // No promise of this host holds the question: no answer can reach it.
-    const next = await hostOn(memoryLogStore({ backend }))
+    const next = await hostOn(memoryLogStore({ state: logState }))
     await waitFor(() =>
-      expect(next.session.snapshot().pendingQuestions).toEqual([]),
+      expect(questionsOf(next.session.snapshot())).toEqual([]),
     )
     await waitFor(async () =>
       expect((await storedWaits(log)).get(wait.waitId)).toMatchObject({
@@ -347,14 +348,18 @@ interface User {
 const olga: User = { id: 'olga', tenantId: 'acme' }
 const bea: User = { id: 'bea', tenantId: 'acme' }
 const vic: User = { id: 'vic', tenantId: 'acme' }
+const oto: User = { id: 'oto', tenantId: 'acme' }
 
 describe('a human wait', () => {
-  /** A host with access, where olga owns `THREAD`, bea is a member, and vic a viewer. */
+  /**
+   * A host with access, where olga owns `THREAD`, bea is a member, vic a
+   * viewer, and oto an operator.
+   */
   async function sharedThread() {
     const persistence = memoryPersistence()
     const host = createHarnessHost({
       persistence,
-      access: { identify: (): User | null => null, authorize: membersOnly() },
+      access: { identify: (): User | null => null, policy: membersOnly() },
     })
     const harness = harnessWith()
     const open = (principal: User) =>
@@ -363,6 +368,7 @@ describe('a human wait', () => {
     for (const [userId, role] of [
       ['bea', 'member'],
       ['vic', 'viewer'],
+      ['oto', 'operator'],
     ] as const) {
       await host.sessions.share({
         threadId: THREAD,
@@ -399,23 +405,28 @@ describe('a human wait', () => {
     await host.close()
   })
 
-  it('takes the answer of a member as an operator, and refuses a viewer', async () => {
+  it('takes the answer of an operator, and refuses the owner, a member, and a viewer', async () => {
     const { host, log, owner, open } = await sharedThread()
     const wait = await openWait(owner, {
       kind: 'human',
       runId: 'run-1',
       principal: olga,
     })
-    const member = await open(bea)
-    const viewer = await open(vic)
+    const operator = await open(oto)
+    const answer = { questionId: wait.waitId, value: { resume: true } }
 
+    // The owner started the run, but waits for a person: not one by default.
+    for (const user of [olga, bea, vic]) {
+      await expect((await open(user)).answer(answer)).rejects.toBeInstanceOf(
+        AccessDeniedError,
+      )
+    }
     await expect(
-      viewer.answer({ questionId: wait.waitId, value: { resume: true } }),
+      owner.resolve({
+        resume: [{ interruptId: wait.waitId, status: 'cancelled' }],
+      }),
     ).rejects.toBeInstanceOf(AccessDeniedError)
-    // bea did not start the run, but a member may reply as an operator.
-    expect(
-      await member.answer({ questionId: wait.waitId, value: { resume: true } }),
-    ).toMatchObject({ status: 'accepted' })
+    expect(await operator.answer(answer)).toMatchObject({ status: 'accepted' })
     expect(owner.snapshot().pendingWaits).toEqual([])
     const stored = await storedThreadState(log, {
       threadId: THREAD,
@@ -426,9 +437,10 @@ describe('a human wait', () => {
       value: { resume: true },
     })
     // A wait ends once.
-    expect(
-      await owner.answer({ questionId: wait.waitId, value: { resume: true } }),
-    ).toMatchObject({ status: 'rejected', reason: 'unknown_question' })
+    expect(await operator.answer(answer)).toMatchObject({
+      status: 'rejected',
+      reason: 'unknown_question',
+    })
     await host.close()
   })
 
@@ -442,7 +454,7 @@ describe('a human wait', () => {
     // Another host that does not own the log.
     const submitter = createHarnessHost({
       persistence,
-      access: { identify: (): User | null => null, authorize: membersOnly() },
+      access: { identify: (): User | null => null, policy: membersOnly() },
     })
     const submit = (principal: User) =>
       submitter.submit({
@@ -457,8 +469,8 @@ describe('a human wait', () => {
       })
 
     await expect(submit(vic)).rejects.toBeInstanceOf(AccessDeniedError)
-    // bea did not start the run, but a member may reply as an operator.
-    expect(await submit(bea)).toMatchObject({ status: 'queued' })
+    await expect(submit(olga)).rejects.toBeInstanceOf(AccessDeniedError)
+    expect(await submit(oto)).toMatchObject({ status: 'queued' })
     // The wait left the log free: a sweep runs the answer.
     await host.resumePending({ harnesses: [harnessWith()] })
     await waitFor(() => expect(owner.snapshot().pendingWaits).toEqual([]))

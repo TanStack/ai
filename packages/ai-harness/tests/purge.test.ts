@@ -1,11 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
+  AccessDeniedError,
   configOption,
   createHarnessHost,
   defineHarness,
   definePlugin,
   logIdOf,
+  membersOnly,
 } from '../src'
 import { mockAdapter, text } from './helpers'
 import type { HarnessPersistence } from '../src'
@@ -134,6 +136,53 @@ describe('host.sessions.delete', () => {
 
     expect(host.isOpen(harness, { threadId: 't1' })).toBe(false)
     expect(await storedTranscript(persistence, 't1')).toEqual([])
+    await host.close()
+  })
+
+  it('refuses an open of the thread while the purge runs, and a live handle opens an empty thread after it', async () => {
+    const { host, harness, persistence } = setup()
+    const held = await host.open(harness, { threadId: 't1' })
+    await held.send('hi')
+    // The purge waits in the log delete, after it closed the session.
+    let resume = () => {}
+    const paused = new Promise<void>((resolve) => {
+      resume = resolve
+    })
+    const { log } = persistence.stores
+    const deleteLog = log.deleteLog.bind(log)
+    const deleting = vi
+      .spyOn(log, 'deleteLog')
+      .mockImplementation(async (key) => {
+        await paused
+        return deleteLog(key)
+      })
+
+    const deleted = host.sessions.delete({ threadId: 't1' })
+    await vi.waitFor(() => expect(deleting).toHaveBeenCalled())
+
+    await expect(host.open(harness, { threadId: 't1' })).rejects.toThrow(
+      'is being deleted',
+    )
+    await expect(held.send('again').receipt).rejects.toThrow('is being deleted')
+    resume()
+    await deleted
+
+    expect(await held.transcript()).toEqual([])
+    await held.close()
+    await host.close()
+  })
+
+  it('refuses a thread with no index entry on a host with access', async () => {
+    const { persistence } = persistenceOf(true)
+    const host = createHarnessHost({
+      persistence,
+      access: { identify: () => null, policy: membersOnly() },
+    })
+    const ann = { id: 'ann', tenantId: 'acme' }
+
+    await expect(
+      host.sessions.delete({ threadId: 't-new', principal: ann }),
+    ).rejects.toBeInstanceOf(AccessDeniedError)
     await host.close()
   })
 

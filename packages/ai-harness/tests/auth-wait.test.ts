@@ -21,6 +21,7 @@ import {
   storedThreadState,
   text,
   toolCall,
+  turnInterrupts,
 } from './helpers'
 import type { HarnessRunContext, HarnessSession } from '../src'
 import type { OAuthConfig } from '../src/oauth'
@@ -193,7 +194,7 @@ describe('require with wait', () => {
     expect(seenTokens).toEqual(['gh-token'])
     // No new prompt: the second model call is the answer of the same turn.
     expect(calls).toHaveLength(2)
-    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(session.snapshot())).toEqual([])
     reader.abort()
     await host.close()
   })
@@ -223,7 +224,7 @@ describe('require with wait', () => {
 
     const b = start([() => text('One issue.')])
     const session = await b.open()
-    expect(session.snapshot().pendingInterrupts).toMatchObject([
+    expect(turnInterrupts(session.snapshot())).toMatchObject([
       { reason: 'auth_required' },
     ])
     const ended = nextEnd(session)
@@ -264,7 +265,7 @@ describe('require with wait', () => {
       outcome: 'completed',
     })
     expect(seen).toEqual([])
-    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(session.snapshot())).toEqual([])
     // The model got the tool error, as without `wait`.
     expect(JSON.stringify(calls[1]?.messages)).toContain(
       'Sign in to github first',
@@ -386,12 +387,12 @@ describe('sign-ins in a shared thread', () => {
 
     // Saves for alice, while bob's turn waits for bob's sign-in.
     await session.command({ name: 'note' })
-    expect(session.snapshot().pendingInterrupts).toHaveLength(1)
+    expect(turnInterrupts(session.snapshot())).toHaveLength(1)
     await session.command({ name: 'connect:github', principal: alice })
 
     expect(seen).toEqual([])
     expect(calls).toHaveLength(1)
-    expect(session.snapshot().pendingInterrupts).toMatchObject([
+    expect(turnInterrupts(session.snapshot())).toMatchObject([
       { reason: 'auth_required' },
     ])
     await host.close()
@@ -412,7 +413,7 @@ describe('sign-ins in a shared thread', () => {
         identify: ({ request }) => ({
           id: request.headers.get('x-user') ?? '',
         }),
-        authorize: () => true,
+        policy: { authorize: () => true },
       },
     })
     const harness = defineHarness({
@@ -557,7 +558,7 @@ describe('sign-ins in a shared thread', () => {
 
     const b = start([() => text('One issue.')])
     const session = await b.open()
-    expect(session.snapshot().pendingInterrupts).toMatchObject([
+    expect(turnInterrupts(session.snapshot())).toMatchObject([
       { reason: 'auth_required' },
     ])
     const ended = nextEnd(session)

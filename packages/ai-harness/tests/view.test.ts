@@ -12,7 +12,14 @@ import {
 import { createHarnessHandler } from '../src/server'
 import { createHarnessClient } from '../src/client'
 import { createSessionView } from '../src/view'
-import { after, gate, mockAdapter, text, toolCall } from './helpers'
+import {
+  after,
+  gate,
+  mockAdapter,
+  text,
+  toolCall,
+  turnInterrupts,
+} from './helpers'
 import type { Reply } from './helpers'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
@@ -200,7 +207,7 @@ describe('createSessionView', () => {
     const resolve = vi.spyOn(session, 'resolve')
     view.approveAll()
     await vi.waitFor(() => expect(calls).toHaveLength(2))
-    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(session.snapshot())).toEqual([])
     expect(view.store.get().approvals).toEqual([])
     view.approveAll()
     expect(resolve).toHaveBeenCalledTimes(1)
@@ -208,7 +215,7 @@ describe('createSessionView', () => {
     await vi.waitFor(() => expect(errors.length).toBeGreaterThan(0))
     // The approved tool ran before the failure, so the approval is used up.
     // Offering it again would run the tool a second time.
-    expect(session.snapshot().pendingInterrupts).toEqual([])
+    expect(turnInterrupts(session.snapshot())).toEqual([])
     expect(view.store.get().approvals).toEqual([])
     view.approveAll()
     expect(resolve).toHaveBeenCalledTimes(1)

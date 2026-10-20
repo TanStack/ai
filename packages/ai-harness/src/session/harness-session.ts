@@ -41,6 +41,67 @@ import type { HarnessInput, SettlementOutcome, TurnOverrides } from '../types'
 import type { ScheduleOptions, WaitingSteer } from './types'
 
 /**
+ * The members of the session class that {@link HarnessSession} has. Only
+ * these are public: a new member of a layer stays off the public type until
+ * it is listed here.
+ */
+type PublicSessionMember =
+  | 'agent'
+  | 'agentResult'
+  | 'agentRun'
+  | 'agentRuns'
+  | 'agentTranscript'
+  | 'agents'
+  | 'answer'
+  | 'append'
+  | 'background'
+  | 'cancel'
+  | 'cancelInput'
+  | 'cancelSchedule'
+  | 'command'
+  | 'commands'
+  | 'config'
+  | 'configure'
+  | 'continue'
+  | 'describe'
+  | 'entry'
+  | 'events'
+  | 'getMedia'
+  | 'inputs'
+  | 'inspect'
+  | 'loadMedia'
+  | 'logState'
+  | 'mediaUrl'
+  | 'onAuthRequired'
+  | 'onEvent'
+  | 'onMedia'
+  | 'onQuestion'
+  | 'onUsage'
+  | 'operation'
+  | 'putMedia'
+  | 'recover'
+  | 'registry'
+  | 'reload'
+  | 'reset'
+  | 'resolve'
+  | 'revert'
+  | 'schedule'
+  | 'send'
+  | 'setConfig'
+  | 'setDelivery'
+  | 'settings'
+  | 'settled'
+  | 'snapshot'
+  | 'threadId'
+  | 'tool'
+  | 'transcript'
+  | 'unrevert'
+  | 'updateEntry'
+  | 'usage'
+  | 'waitFor'
+  | 'whenIdle'
+
+/**
  * A handle to a live harness session: one conversation (`threadId`) with its
  * plugins, operations, inputs, and event stream. Open one with `host.open()`.
  * Each open gives its own handle. Release it with `close()`, or with
@@ -48,33 +109,7 @@ import type { ScheduleOptions, WaitingSteer } from './types'
  */
 export interface HarnessSession<
   THarness extends AnyHarness = AnyHarness,
-> extends Omit<
-  SessionImpl<THarness>,
-  // The public members that only the host and the handler call.
-  | 'open'
-  | 'adoptFork'
-  | 'adoptMessages'
-  | 'transferOf'
-  | 'recordTransfer'
-  | 'transferSummary'
-  | 'onIdle'
-  | 'resolveForRun'
-  | 'sendForRun'
-  | 'checked'
-  | 'cancelWorkOf'
-  | 'agentHandle'
-  | 'isIdle'
-  | 'isClosing'
-  | 'openWait'
-  | 'openToEnd'
-  | 'endThread'
-  | 'scrubError'
-  | 'takeOver'
-  | 'scheduleRun'
-  | 'loggedRun'
-  // A handle closes itself, not the session.
-  | 'close'
-> {
+> extends Pick<SessionImpl<THarness>, PublicSessionMember> {
   /**
    * Release this handle. The session stays open while another handle holds
    * it. When no handle holds it and it is idle, the host closes it after
@@ -108,9 +143,10 @@ export interface HarnessSession<
  * The session class. The package does not export it: apps get the
  * {@link HarnessSession} type from `host.open()`.
  */
-export class SessionImpl<
-  THarness extends AnyHarness = AnyHarness,
-> extends SessionTurn<THarness> {
+export class SessionImpl<THarness extends AnyHarness = AnyHarness>
+  extends SessionTurn<THarness>
+  implements HarnessSession<THarness>
+{
   /** The recoveries that run. The host keeps the log while one runs. */
   private recovering = 0
   /** The timer of the next schedule of this thread. See `armSchedules`. */
@@ -153,6 +189,7 @@ export class SessionImpl<
 
   /** @internal Mount session plugins and recover the work in the log. */
   async open(): Promise<void> {
+    await this.tracing?.ready()
     // First: plugins publish events while they mount.
     await this.openLog()
     try {
@@ -591,7 +628,6 @@ export class SessionImpl<
       this.notifyHost,
       this.eventListeners,
       this.redactor,
-      (operationId) => this.parentRunOf(operationId),
     )
     // The child threads (agent chains and subagent runs) are in this log.
     const view = { writer }
@@ -852,8 +888,10 @@ export class SessionImpl<
       try {
         await this.recoverInputs(writer, isTaken)
       } catch (error) {
-        span?.recordException(error instanceof Error ? error : String(error))
-        span?.setStatus({ code: 2 })
+        this.tracing?.safely(() => {
+          span?.recordException(error instanceof Error ? error : String(error))
+          span?.setStatus({ code: 2 })
+        })
         // Not recovered, so the next `recover()` takes them again.
         for (const inputId of taken) {
           if (!this.turnOperations.has(inputId)) this.admitted.delete(inputId)
@@ -870,7 +908,7 @@ export class SessionImpl<
       await this.resumeWaitingRuns()
     } finally {
       this.recovering -= 1
-      span?.end()
+      this.tracing?.safely(() => span?.end())
       // A recovery that left no work gives the log back.
       void writer.rest()
     }
@@ -1049,13 +1087,18 @@ export class SessionImpl<
       const run = input.operationId ? await runs.get(input.operationId) : null
       const now = Date.now()
       if (first) {
-        // A run that waits for answers waits on here.
-        if (run?.status === 'interrupted') {
+        // A run that waits for answers waits on here. A crash after the run
+        // store marked it `interrupted` and before its waits landed leaves
+        // nothing to answer: that run stopped, as a running one.
+        const hasWaits = [...writer.state.thread.waits.values()].some(
+          ({ wait }) => wait.runId === input.operationId,
+        )
+        if (run?.status === 'interrupted' && hasWaits) {
           this.adoptWaitingRun(input, first, run)
           continue
         }
         // A run that ended before its settle record landed did not stop.
-        if (!run || run.status === 'running') {
+        if (!run || run.status === 'running' || run.status === 'interrupted') {
           const isResumable = first.input.resume === true
           // `limits.maxAttempts` of the run wins over the harness's.
           const runMax =
@@ -1224,13 +1267,13 @@ export class SessionImpl<
           }),
         )
         // The same turn as a live `resolve()`: it answers the stopped turn,
-        // as the input's sender, with the context of the stopped turn.
+        // as the sender of the stopped turn, with its context.
         this.enqueueTurn({
           operation,
           inputId: input.inputId,
           resume: input.input.resume,
           answers: this.interrupted,
-          principal: input.principal,
+          principal: this.interrupted.principal ?? input.principal,
           context: this.interrupted.context,
           ...this.recoveredExtras(input.inputId, decision.overrides),
         })

@@ -57,6 +57,8 @@ export interface InterruptedTurnRecord {
   interrupts: Array<Interrupt>
   /** A routed turn stopped: the messages a resolve continues from. */
   routed?: { messages: Array<UIMessage>; root: boolean }
+  /** The part that stopped handed off too: the resolve acts on it. */
+  handoff?: Omit<HandoffRecord, 'runId'>
   /** Who sent the input of the stopped turn. */
   principal?: RecordPrincipal
   /** The `context` of the stopped turn's input. JSON. */
@@ -180,15 +182,22 @@ export type HandoffRecord = {
   by: 'tool' | 'code' | 'router' | 'operator'
   /** The `human` wait that a handoff to a person opens. */
   waitId?: string
+  /**
+   * The root agents of the turn that handed off to a person. An operator
+   * can hand the thread back to one of them.
+   */
+  agents?: Array<string>
 }
 
 /**
  * A person answers the turns of a thread: the `human` wait `waitId` of a
- * handoff is open. `from` answered before the handoff.
+ * handoff is open. `from` answered before the handoff. `agents` are the
+ * root agents an operator can hand back to.
  */
 export type HumanAnswerer = HumanTarget & {
   waitId: string
   from: string | null
+  agents?: Array<string>
 }
 
 /**
@@ -208,19 +217,22 @@ export type WorkspaceBinding =
 /**
  * A run of the run tree, with what the session needs to find its input: the
  * input that the run applies, and for an agent run, the `agent` input of the
- * first run of its chain.
+ * first run of its chain. The fields after `RunNode` are bookkeeping of the
+ * session, and can change.
  */
 export type RunTreeNode = RunNode & {
+  /** @internal The input that the run applies. */
   inputId?: string
+  /** @internal The `agent` input of the first run of the chain. */
   chainInputId?: string
   /**
-   * The `agent` input of the chain whose code started this run. The tree
-   * budget of that chain counts this run, also after a restart.
+   * @internal The `agent` input of the chain whose code started this run.
+   * The tree budget of that chain counts this run, also after a restart.
    */
   parentChainInputId?: string
   /**
-   * The start options that the log cannot keep: a function. A run that
-   * another host takes over runs without them.
+   * @internal The start options that the log cannot keep: a function. A run
+   * that another host takes over runs without them.
    */
   liveOnly?: Array<'onModelError'>
 }
@@ -450,17 +462,63 @@ export function pluginStateDeltas(current: unknown, next: unknown) {
     .map((key) => ({ path: [key], value: next[key] }))
 }
 
-/** A copy of `map` with `key` set to `value`. */
+// ponytail: the fold changes the maps of its state in place, so a step costs
+// O(1), not a copy of the map. Each log folds its own state, and a snapshot
+// is a JSON copy, so no other state shares a map. The entries are new
+// objects on each change, so an entry that a caller holds does not change.
+
+/** `map` with `key` set to `value`. */
 function withEntry<V>(map: Map<string, V>, key: string, value: V) {
-  return new Map(map).set(key, value)
+  return map.set(key, value)
 }
 
-/** A copy of `map` without `key`, or `map` when it has no `key`. */
+/** `map` without `key`. */
 function withoutEntry<V>(map: Map<string, V>, key: string) {
-  if (!map.has(key)) return map
-  const next = new Map(map)
-  next.delete(key)
-  return next
+  map.delete(key)
+  return map
+}
+
+/**
+ * How many ended runs, run nodes, interrupts, and agent results the fold
+ * keeps, for the history views. Older ended ones leave the fold, so a long
+ * thread does not grow its fold and its snapshot with each turn.
+ */
+export const KEPT_ENDED = 100
+
+/**
+ * Drop the oldest entries of `map` (in insertion order) that `isOver` says
+ * ended, until `KEPT_ENDED` ended entries stay. ponytail: a scan of the
+ * map, which holds `KEPT_ENDED` entries and the live ones.
+ */
+function trimEnded<V>(map: Map<string, V>, isOver: (value: V) => boolean) {
+  let extra = -KEPT_ENDED
+  for (const value of map.values()) if (isOver(value)) extra += 1
+  for (const [key, value] of map) {
+    if (extra <= 0) return
+    if (!isOver(value)) continue
+    map.delete(key)
+    extra -= 1
+  }
+}
+
+const isRunOver = (run: RunRecord) =>
+  run.status === 'completed' ||
+  run.status === 'failed' ||
+  run.status === 'aborted'
+const isNodeOver = (node: RunTreeNode) => isEnded(node.status)
+const isInterruptOver = (interrupt: InterruptRecord) =>
+  interrupt.status !== 'pending'
+
+/**
+ * Drop what the fold of a thread no longer needs: the ended runs, run
+ * nodes, interrupts, and agent results past the last `KEPT_ENDED` of each.
+ * The log calls it after each record that can end one of them.
+ */
+export function pruneThreadState(state: ThreadStateFold) {
+  trimEnded(state.runs, isRunOver)
+  trimEnded(state.tree, isNodeOver)
+  trimEnded(state.interrupts, isInterruptOver)
+  trimEnded(state.agentResults, () => true)
 }
 
 /** The status of a run node for each status of a run record. */
@@ -618,9 +676,10 @@ function endedNode(node: RunTreeNode, ended: AgentResultRecord) {
 }
 
 /**
- * Fold one log record into the thread state. It is pure: it returns a new
- * state, or `state` itself for a record type it does not fold. It never
- * changes `state`. So the same records always fold to the same state.
+ * Fold one log record into the thread state. It returns the next state, or
+ * `state` itself for a record type it does not fold. It changes the maps of
+ * `state` in place (see `withEntry`), so fold each log into its own state.
+ * The same records always fold to the same state.
  *
  * @example
  * ```ts
@@ -775,7 +834,15 @@ export function foldThreadRecord(state: ThreadStateFold, record: LogRecord) {
         settledAt: record.at,
         ...(record.value !== undefined ? { value: record.value } : {}),
       }
-      return { ...state, waits: withEntry(state.waits, record.waitId, ended) }
+      // The `human` wait of a handoff to a person ended (answered,
+      // resolved, cancelled, expired): the agent before the handoff answers.
+      const active = state.activeAgent
+      const isPause = isHumanTarget(active) && active.waitId === record.waitId
+      return {
+        ...state,
+        waits: withEntry(state.waits, record.waitId, ended),
+        ...(isPause ? { activeAgent: active.from } : {}),
+      }
     }
     case 'harness.transferred': {
       const { type: _type, transferId, ...transfer } = record
@@ -789,12 +856,19 @@ export function foldThreadRecord(state: ThreadStateFold, record: LogRecord) {
       if (!isHumanTarget(record.to)) {
         return { ...state, activeAgent: record.to }
       }
+      // A pause on a wait that nobody can answer: the record is corrupt.
+      if (record.waitId === undefined) {
+        throw new Error(
+          `A harness.handoff record to a person (run ${JSON.stringify(record.runId)}) has no waitId.`,
+        )
+      }
       // Who answered before stays, for an operator answer `{ resume: true }`.
       const from = isHumanTarget(record.from) ? null : record.from
       const human: HumanAnswerer = {
         human: true,
-        waitId: record.waitId ?? '',
+        waitId: record.waitId,
         from,
+        ...(record.agents ? { agents: record.agents } : {}),
       }
       return { ...state, activeAgent: human }
     }

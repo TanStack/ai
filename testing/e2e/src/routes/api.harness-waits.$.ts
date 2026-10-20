@@ -10,7 +10,7 @@ import {
 } from '@tanstack/ai-harness'
 import { permissions } from '@tanstack/ai-harness/plugins'
 import { createHarnessHandler } from '@tanstack/ai-harness/server'
-import { memoryLogBackend, memoryLogStore } from '@tanstack/ai-persistence'
+import { memoryLogState, memoryLogStore } from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import type { HarnessHost } from '@tanstack/ai-harness'
 import type { LogStore } from '@tanstack/ai-persistence'
@@ -230,11 +230,11 @@ async function start(request: Request) {
   const { scenario }: { scenario: Scenario } = await request.json()
   const runId = crypto.randomUUID()
   const threadId = `e2e-harness-waits-${scenario}-${runId}`
-  const backend = memoryLogBackend()
-  const log = memoryLogStore({ backend })
+  const logState = memoryLogState()
+  const log = memoryLogStore({ state: logState })
   const hostA = createHarnessHost({ persistence: { stores: { log } } })
   const hostB = createHarnessHost({
-    persistence: { stores: { log: memoryLogStore({ backend }) } },
+    persistence: { stores: { log: memoryLogStore({ state: logState }) } },
   })
   const a = harnessWith(scenario)
   const b = harnessWith(scenario)

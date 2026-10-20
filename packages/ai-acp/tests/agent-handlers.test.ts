@@ -379,6 +379,38 @@ describe('ACP agent handlers', () => {
     })
   })
 
+  it('takes the prompts of its new sessions on a host with no session index', async () => {
+    const { harness, editor, states, textOf } = setup()
+    // Only a log store: `host.sessions.get` finds no session.
+    const host = createHarnessHost({
+      persistence: { stores: { log: memoryPersistence().stores.log } },
+      lifecycle: { idleCloseMs: 0 },
+    })
+    close = () => host.close()
+    await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
+      await ctx.request('initialize', {
+        protocolVersion: 2,
+        info: { name: 'editor', version: '1.0.0' },
+      })
+      const { sessionId } = await ctx.request('session/new', {
+        cwd: '/tmp',
+        mcpServers: [],
+      })
+      await vi.waitFor(() =>
+        expect(host.isOpen(harness, { threadId: sessionId })).toBe(false),
+      )
+
+      await ctx.request('session/prompt', {
+        sessionId,
+        prompt: [{ type: 'text', text: 'hello' }],
+      })
+      await vi.waitFor(() =>
+        expect(states(sessionId)).toContain('idle:end_turn'),
+      )
+      expect(textOf(sessionId)).toBe('echo: hello')
+    })
+  })
+
   it('keeps the order of two prompts when the first one uploads a file', async () => {
     const { harness, host, persistence, editor, updates, states, textOf } =
       setup()
@@ -901,7 +933,7 @@ describe('ACP agent handlers', () => {
     // The agent runs for one local user, so no request is identified.
     const access: HarnessAccess = {
       identify: () => null,
-      authorize: membersOnly(),
+      policy: membersOnly(),
     }
 
     it('throws at the start without a principal', () => {
@@ -936,7 +968,7 @@ describe('ACP agent handlers', () => {
         expect(textOf(sessionId)).toBe('echo: hello')
         expect(
           await host.sessions.get({ threadId: sessionId, principal: olga }),
-        ).toMatchObject({ ownerId: 'olga' })
+        ).toMatchObject({ members: [{ userId: 'olga', role: 'owner' }] })
         const listed = await ctx.request('session/list', {})
         expect(listed.sessions.map((session) => session.sessionId)).toEqual([
           sessionId,

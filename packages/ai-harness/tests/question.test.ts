@@ -9,7 +9,7 @@ import {
   definePlugin,
 } from '../src'
 import { question } from '../src/first-party/question'
-import { mockAdapter, text, toolCall } from './helpers'
+import { mockAdapter, questionsOf, text, toolCall } from './helpers'
 import type { ChatTurnResult, HarnessSession, Operation } from '../src'
 
 const database = {
@@ -199,12 +199,12 @@ describe('ask with a url', () => {
     const running = session.command({ name: 'verify' })
 
     await vi.waitFor(() =>
-      expect(session.snapshot().pendingQuestions).toHaveLength(1),
+      expect(questionsOf(session.snapshot())).toHaveLength(1),
     )
-    expect(session.snapshot().pendingQuestions[0]?.url).toBe(
+    expect(questionsOf(session.snapshot())[0]?.url).toBe(
       'https://example.com/verify',
     )
-    const [pending] = session.snapshot().pendingQuestions
+    const [pending] = questionsOf(session.snapshot())
     if (!pending) throw new Error('No question.')
     await session.answer({ questionId: pending.questionId, value: 'done' })
     expect(await running).toBe('done')

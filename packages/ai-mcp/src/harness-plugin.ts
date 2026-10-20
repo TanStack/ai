@@ -81,14 +81,18 @@ export type McpServerStatus = {
  * - `/mcp` lists the servers and their status. UIs read the same list from
  *   the plugin state.
  * - A `stdio` server runs as one child process (Node only) for every
- *   session of the harness on the host. It stops when the last of those
- *   sessions closes, or at `host.close()`. The other servers connect for
- *   each session.
+ *   session of the harness on the host that uses this `mcp()` object. It
+ *   stops when the last of those sessions closes, or at `host.close()`.
+ *   Create the plugin once, outside the `plugins` factory: a factory that
+ *   calls `mcp()` for each session starts a process for each session. The
+ *   other servers connect for each session.
  * - An `http` server with `oauth: true` signs in through `/connect <name>`.
  * - When the connection of a server closes, the server is `reconnecting`.
  *   The plugin connects again after 0.5 s, 1 s, 2 s, and so on (at most
- *   30 s), until it is connected or its session or host closes. The next
- *   turn gets the tools of the new connection. A server that fails its
+ *   30 s), until it is connected or its session or host closes. The wait
+ *   starts again at 0.5 s only after a connection stayed open for 30 s, so a
+ *   server that crashes right after it connects waits longer each time. The
+ *   next turn gets the tools of the new connection. A server that fails its
  *   first connect is `failed`, and connects again the same way.
  * - A spec 2025 server that asks for input (`elicitation/create`) does not
  *   name the tool call that asks. The user of the call is asked only when
@@ -98,27 +102,36 @@ export type McpServerStatus = {
  *   again.
  * - When two servers give a tool with the same name, the model gets the
  *   tool of the server that comes first in `servers`. The plugin warns once.
+ *   With `onDuplicateTool: 'error'`, the later server fails instead.
  *
  * @param options.servers - The servers, keyed by name. The name is the tool
  *   prefix.
+ * @param options.onDuplicateTool - What happens when a server gives a tool
+ *   name that a server earlier in `servers` gives too. `'warn'` (default):
+ *   the model does not get that one tool, and the plugin warns once.
+ *   `'error'`: the later server gets the status `failed` with an error that
+ *   names both servers and the tool, and the model gets none of its tools.
+ *   The other servers keep working.
  *
  * @example
  * ```ts
  * import { mcp } from '@tanstack/ai-mcp/harness'
  *
- * plugins: () => [
- *   mcp({
- *     servers: {
- *       files: { type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '.'] },
- *       docs: { type: 'http', url: 'https://mcp.example.com/mcp', timeoutMs: 10_000 },
- *       notion: { type: 'http', url: 'https://mcp.notion.com/mcp', oauth: true },
- *     },
- *   }),
- * ]
+ * // Once, so the sessions share the stdio process.
+ * const tools = mcp({
+ *   servers: {
+ *     files: { type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '.'] },
+ *     docs: { type: 'http', url: 'https://mcp.example.com/mcp', timeoutMs: 10_000 },
+ *     notion: { type: 'http', url: 'https://mcp.notion.com/mcp', oauth: true },
+ *   },
+ * })
+ *
+ * plugins: () => [tools]
  * ```
  */
 export function mcp(options: {
   servers: Readonly<Record<string, McpServerConfig>>
+  onDuplicateTool?: 'warn' | 'error'
 }) {
   const servers = Object.entries(options.servers)
   return definePlugin({
@@ -138,8 +151,10 @@ export function mcp(options: {
       }
       // The tool name clashes that were warned about, for all sessions.
       const warned = new Set<string>()
+      const onDuplicate = options.onDuplicateTool ?? 'warn'
       return {
-        session: (ctx) => sessionPart(ctx, servers, shared, calling, warned),
+        session: (ctx) =>
+          sessionPart(ctx, servers, shared, calling, warned, onDuplicate),
       }
     },
   })
@@ -152,6 +167,7 @@ async function sessionPart(
   shared: ReadonlyMap<string, SharedServer>,
   calling: Array<Caller>,
   warned: Set<string>,
+  onDuplicate: 'warn' | 'error',
 ) {
   const statuses = new Map<string, McpServerStatus>()
   for (const [name] of servers) {
@@ -276,7 +292,9 @@ async function sessionPart(
           tools: await list(turn),
         })),
       )
-      return keepFirstTools(found, warned)
+      return onDuplicate === 'error'
+        ? failOnDuplicate(found, setStatus)
+        : keepFirstTools(found, warned)
     },
   }
 }
@@ -308,6 +326,11 @@ function openServer(
   // Set by tools/list_changed. The next `tools()` lists the tools again.
   let stale = false
   let listing: Promise<void> | undefined
+  // The backoff goes on across drops, so a server that crashes right after
+  // it connects waits longer each time. It resets only after a connection
+  // stayed open for `stableMs`.
+  let attempt = 0
+  let openedAt = 0
 
   const setStatus = (next: McpServerStatus) => {
     status = next
@@ -352,6 +375,7 @@ function openServer(
     client = next
     tools = listed
     stale = false
+    openedAt = Date.now()
     setStatus({ name, status: 'connected', toolCount: listed.length })
   }
 
@@ -360,13 +384,14 @@ function openServer(
     if (status.status !== 'connected' || signal.aborted) return
     client = undefined
     tools = []
+    if (Date.now() - openedAt >= stableMs) attempt = 0
     setStatus({ name, status: 'reconnecting', toolCount: 0 })
     void reconnect()
   }
 
   const reconnect = async () => {
-    for (let attempt = 0; ; attempt++) {
-      await delay(backoffMs(attempt), signal)
+    for (;;) {
+      await delay(backoffMs(attempt++), signal)
       if (signal.aborted) return
       const isOpen = await open().then(
         () => true,
@@ -439,6 +464,9 @@ function openServer(
     .catch((error: unknown) => new Error(errorText(error)))
 }
 
+/** How long a connection stays open before the backoff starts again at 0.5 s. */
+const stableMs = 30_000
+
 /**
  * The wait before reconnect `attempt` (0 is the first): 0.5 s, 1 s, 2 s,
  * and so on, at most 30 s. A random part of up to half the wait keeps the
@@ -452,6 +480,8 @@ function backoffMs(attempt: number) {
 /** Resolves after `ms`, or at once when `signal` aborts. */
 function delay(ms: number, signal: AbortSignal) {
   return new Promise<void>((resolve) => {
+    // An aborted signal never fires `abort` again.
+    if (signal.aborted) return resolve()
     const done = () => {
       clearTimeout(timer)
       signal.removeEventListener('abort', done)
@@ -494,6 +524,34 @@ function keepFirstTools(
         `[@tanstack/ai-mcp] The MCP servers ${JSON.stringify(owner)} and ${JSON.stringify(name)} both give the tool ${JSON.stringify(tool.name)}. The model gets the tool of ${JSON.stringify(owner)}. Set toolName on one of the servers to rename its tools.`,
       )
     }
+  }
+  return kept
+}
+
+/**
+ * The tools of all servers, in server order. A server that gives a tool name
+ * of an earlier server gets the status `failed`, and none of its tools.
+ */
+async function failOnDuplicate(
+  found: ReadonlyArray<{ name: string; tools: ReadonlyArray<AnyTool> }>,
+  setStatus: (status: McpServerStatus) => Promise<void>,
+) {
+  const owners = new Map<string, string>()
+  const kept: Array<AnyTool> = []
+  for (const { name, tools } of found) {
+    const clash = tools.find((tool) => owners.has(tool.name))
+    if (clash) {
+      const owner = owners.get(clash.name)
+      await setStatus({
+        name,
+        status: 'failed',
+        error: `The MCP servers ${JSON.stringify(owner)} and ${JSON.stringify(name)} both give the tool ${JSON.stringify(clash.name)}. Set toolName on one of the servers to rename its tools.`,
+        toolCount: 0,
+      })
+      continue
+    }
+    for (const tool of tools) owners.set(tool.name, name)
+    kept.push(...tools)
   }
   return kept
 }

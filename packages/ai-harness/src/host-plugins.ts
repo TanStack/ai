@@ -35,16 +35,20 @@ export function hostPluginContext(
 }
 
 /**
- * @internal The plugins with `lifetime: 'host'` of one host. Each one is
- * set up once for each harness definition and plugin name, and shared by a
+ * @internal The plugins with `lifetime: 'host'` of one host. Each plugin
+ * object is set up once for each harness definition, and shared by a
  * reference count. The last release disposes it, and so does `close()`.
  *
- * The key is the harness object, not its name. An app that builds a new
- * definition (with other plugin options) under the same name gets its own
- * setup, never the one of the older definition.
+ * The keys are the objects, not their names. A `plugins` factory that
+ * builds a new plugin for each session (`() => [mcp({...})]`) gets a setup
+ * for each session, with its own options. To share one setup, create the
+ * plugin once, outside the factory.
  */
 export class HostPlugins {
-  private readonly entries = new Map<AnyHarness, Map<string, Entry>>()
+  private readonly entries = new Map<
+    AnyHarness,
+    Map<HostPluginDefinition<any>, Entry>
+  >()
   private closed = false
 
   /** The shared setup of `plugin` for `harness`. */
@@ -55,9 +59,10 @@ export class HostPlugins {
     if (this.closed) {
       throw new Error('The host is closed. Create a new host to open sessions.')
     }
-    const plugins = this.entries.get(harness) ?? new Map<string, Entry>()
+    const plugins =
+      this.entries.get(harness) ?? new Map<HostPluginDefinition<any>, Entry>()
     this.entries.set(harness, plugins)
-    const key = plugin.name
+    const key = plugin
     /** Drop `entry` when it is still the one of `key`. */
     const forget = (entry: Entry) => {
       if (plugins.get(key) !== entry) return false

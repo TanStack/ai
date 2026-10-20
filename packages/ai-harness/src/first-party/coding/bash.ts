@@ -1,9 +1,9 @@
 import { toolDefinition } from '@tanstack/ai'
+import { createOutputTail } from '@tanstack/ai-utils'
 import { isRecord } from '../../utils'
 import { boundText } from '../bound-output'
 import { pathsOf, runOf, stringArg } from './backend'
 import { JobEnded, JobOutput, JobStarted } from './events'
-import { createOutputTail } from './ring-buffer'
 import type { PluginEvent } from '../../extensions'
 import type { BackgroundJobsApi } from '../../plugins'
 import type { RunContext } from '../../types'
@@ -199,8 +199,10 @@ function jobsOf(signal: AbortSignal | undefined) {
  * `tanstack/workspace-tools:job-ended`.
  *
  * A command that runs in the foreground supports `detach` of the tool
- * context: the host can move it to the background while it runs. Then the
- * end of the run does not stop it, and `signal` kills it like a job.
+ * context, while fewer than `maxJobs` jobs run: the host can move it to the
+ * background while it runs. Then the end of the run does not stop it,
+ * `signal` kills it like a job, and `jobs` gets the id of its process in
+ * the backend, when the backend gave one.
  */
 export function bashTools(
   env: ToolEnv,
@@ -393,6 +395,8 @@ export function bashTools(
       if (runSignal?.aborted) stop.abort()
       const job = { kill: () => stop.abort() }
       let isDone = false
+      // The id of the process, so a later host can stop a moved command.
+      let backendId: string | undefined
       const work = env.backend
         .exec(command, {
           cwd,
@@ -401,6 +405,9 @@ export function bashTools(
             ? Math.min(requested, MAX_TIMEOUT_MS)
             : defaultTimeoutMs,
           signal: stop.signal,
+          onStart: (id) => {
+            backendId = id
+          },
         })
         .finally(() => {
           isDone = true
@@ -411,14 +418,29 @@ export function bashTools(
           report(exitCode, `${stdout}${stderr ? `\nstderr:\n${stderr}` : ''}`),
         )
       // The host can move the command to the background. The timeout still
-      // applies to it.
-      const detach = context?.detach
+      // applies to it. A moved command is a job, so only under the limit.
+      // ponytail: the limit is checked at the start. Jobs that start before
+      // the move can go over it by the moved commands.
+      const detach = jobs.running.size < maxJobs ? context?.detach : undefined
       if (!detach) return work
       const moved = detach(work).then((text) => {
         // The run can end now, and the command goes on as a job of the
         // session. The session signal kills it, not the run.
         runSignal?.removeEventListener('abort', onRunAbort)
-        if (!isDone) jobs.running.add(job)
+        const jobId = context?.toolCallId
+        if (!isDone) {
+          jobs.running.add(job)
+          // The session logged the move. Add the backend id, so a later
+          // host can report and stop the command.
+          if (jobId !== undefined && backendId !== undefined) {
+            const { threadId } = context ?? {}
+            options.jobs?.started({
+              jobId,
+              backendId,
+              ...(threadId !== undefined ? { threadId } : {}),
+            })
+          }
+        }
         // The session closed already, so its listener does not run again.
         if (signal?.aborted) job.kill()
         return text

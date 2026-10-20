@@ -56,6 +56,8 @@ The session also has:
 - `loadMedia({ id, range })`: the bytes, or one range of them. `range` is optional.
 - `mediaUrl({ id })`: `{ url }`, with a data URL for a file up to 1 MB. A bigger file gets `{}`. Use `loadMedia` for it, and serve the bytes from your own route.
 
+Over HTTP, `createHarnessClient` gets a signed URL from the handler instead. The request for that URL still needs the login of the user, for example the cookies that an `<img>` on the same site sends. A request with no user gets `401`, unless `access.anonymous` gives a guest that `authorize` lets read. See [Serve media to a request with no login](./access#serve-media-to-a-request-with-no-login).
+
 ## Media that agents make
 
 The harness saves the result of each of these calls in an agent. You do not change the agent code:
@@ -206,11 +208,12 @@ On the server, the harness does this for each part:
 
 - Base64 bytes (a `data` source, or a base64 `data:` URL) go to the media store. The message keeps a `harness-media:` reference, the same as a file from `putMedia`. `maxBytes`, `kinds`, and the model check apply.
 - An `http:` or `https:` URL is refused. Set `externalUrls` to allow it.
+- A provider file handle (`source: { type: 'file' }`) is refused. The adapter reads the file with your provider key, so a client that knows the file id of another user could make the model read it. Set `allowProviderFiles: true` to allow it.
 - A URL with another scheme, for example `file:`, is always refused.
 
 `POST run` (the route of `useChat`) checks the parts of the last user message the same way.
 
-Two options control this:
+Three options control this:
 
 ```ts group=harness-media-inline
 import { defineHarness } from '@tanstack/ai-harness'
@@ -221,26 +224,28 @@ export const assistant = defineHarness({
   adapter: openaiText('gpt-6.1-sol'),
   media: {
     externalUrls: (url) => url.hostname === 'cdn.acme.com',
+    allowProviderFiles: false,
     maxBodyBytes: 8 * 1024 * 1024,
   },
 })
 ```
 
 - `externalUrls`: `true` allows every `http:` and `https:` URL. A function decides for each URL. Default `false`.
-- `maxBodyBytes`: the largest request body or socket frame, in bytes. Default 32 MiB. A bigger body answers `413`. A bigger frame closes the socket.
+- `allowProviderFiles`: `true` allows provider file handles. Default `false`.
+- `maxBodyBytes`: the largest request body or socket frame, in bytes. Default 32 MiB. A bigger body answers `413`. A bigger frame closes the socket. The socket checks a frame only after your WebSocket server read it, so also set the frame limit of your server, for example `maxPayload` of `ws`.
 
 If the harness refuses a part, no turn starts. The receipt is `rejected`, and its `reason` tells you why:
 
-| `reason`                | Why                                                   |
-| ----------------------- | ----------------------------------------------------- |
-| `media_too_large`       | The bytes are bigger than `maxBytes`.                 |
-| `media_not_allowed`     | The kind is not in `kinds`, or the type has no kind.  |
-| `media_invalid`         | The bytes are not base64.                             |
-| `media_url_not_allowed` | `externalUrls` refuses the URL, or the scheme is bad. |
+| `reason`                | Why                                                                                                            |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `media_too_large`       | The bytes are bigger than `maxBytes`.                                                                          |
+| `media_not_allowed`     | The kind is not in `kinds`, or the type has no kind.                                                           |
+| `media_invalid`         | The bytes are not base64.                                                                                      |
+| `media_url_not_allowed` | `externalUrls` refuses the URL, the scheme is bad, or it is a file handle and `allowProviderFiles` is not set. |
 
 `POST run` has no receipt. It answers with the `reason` as `error`, and with `413` for `media_too_large`, `415` for `media_not_allowed`, or `400` for the other two.
 
-Server code that calls `session.send` directly is not checked. The checks are for inputs from a client.
+Server code that calls `session.send` directly is not checked, so it can send file handles. The checks are for inputs from a client.
 
 ## Keep media across restarts
 

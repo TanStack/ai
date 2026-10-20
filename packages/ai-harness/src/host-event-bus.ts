@@ -56,9 +56,13 @@ export class HostEventBus {
   /**
    * The events from now on, after `initial`. With `tenant`, only the events
    * of that tenant (`undefined` is the default tenant). The read ends when
-   * `signal` aborts, the loop ends, or more than `maxQueue` events wait.
+   * `signal` aborts, the loop ends, or more than `maxQueue` live events wait
+   * (`initial` does not count).
+   *
+   * The reader listens from this call, not from the first pull, so no event
+   * between the read of `initial` and the loop is lost.
    */
-  async *read(
+  read(
     options: {
       tenant?: { tenantId: string | undefined }
       filter?: (event: HostEvent) => boolean
@@ -69,41 +73,56 @@ export class HostEventBus {
   ): AsyncIterable<HostEvent> {
     const { tenant, filter, signal } = options
     const maxQueue = options.maxQueue ?? HOST_EVENT_QUEUE_MAX
-    const queue: Array<HostEvent> = [...(options.initial ?? [])]
+    const initial = [...(options.initial ?? [])]
+    const queue: Array<HostEvent> = []
     let isFull = false
     let wake = () => {}
-    const reader: Reader = {
-      ...(filter ? { filter } : {}),
-      push: (event) => {
-        if (queue.length >= maxQueue) isFull = true
-        else queue.push(event)
-        wake()
-      },
-    }
     const set = tenant ? this.tenantSet(tenant.tenantId) : this.everyTenant
-    const onAbort = () => wake()
-    set.add(reader)
-    signal?.addEventListener('abort', onAbort)
-    try {
-      while (!signal?.aborted) {
-        const next = queue.shift()
-        if (next) {
-          yield next
-          continue
-        }
-        // The events that waited went out, so the reader saw each one up
-        // to the drop. It ends now, and reads again for the current state.
-        if (isFull) return
-        await new Promise<void>((resolve) => {
-          wake = resolve
-        })
-      }
-    } finally {
-      // A loop that ends (break, return, throw, abort) stops listening.
+    const stop = () => {
       set.delete(reader)
       if (tenant && set.size === 0) this.tenants.delete(tenant.tenantId)
       signal?.removeEventListener('abort', onAbort)
     }
+    const onAbort = () => {
+      stop()
+      wake()
+    }
+    const reader: Reader = {
+      ...(filter ? { filter } : {}),
+      push: (event) => {
+        if (queue.length < maxQueue) queue.push(event)
+        else {
+          // ponytail: a full reader stops listening at once, so a read that
+          // nobody loops over holds at most `maxQueue` events.
+          isFull = true
+          stop()
+        }
+        wake()
+      },
+    }
+    set.add(reader)
+    signal?.addEventListener('abort', onAbort)
+    if (signal?.aborted) stop()
+    return (async function* () {
+      try {
+        while (!signal?.aborted) {
+          const next = initial.shift() ?? queue.shift()
+          if (next) {
+            yield next
+            continue
+          }
+          // The events that waited went out, so the reader saw each one up
+          // to the drop. It ends now, and reads again for the current state.
+          if (isFull) return
+          await new Promise<void>((resolve) => {
+            wake = resolve
+          })
+        }
+      } finally {
+        // A loop that ends (break, return, throw, abort) stops listening.
+        stop()
+      }
+    })()
   }
 
   private tenantSet(tenantId: string | undefined) {

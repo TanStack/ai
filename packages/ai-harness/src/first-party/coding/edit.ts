@@ -118,19 +118,36 @@ export function findMatches(content: string, find: string) {
 }
 
 /**
- * What one workspace binding saw of each file: its size and change time
- * when a tool read it or wrote it. A write checks that the file is still as
- * the binding saw it, so an edit of another session or agent is never lost.
- * Call each function under the lock of the path. The paths come from
- * `env.reach`.
+ * What each chat run of one workspace binding saw of each file: its size and
+ * change time when a tool read it or wrote it. A write checks that the file
+ * is still as its own chat run saw it, so an edit of another session, of a
+ * subagent, or of a parallel agent is never lost. `chatOf` gives the chat run
+ * of the call that runs now. Without one, the calls share one record. Call
+ * each function under the lock of the path. The paths come from `env.reach`.
  *
  * ponytail: a change that keeps the size and the `mtimeMs` is not seen.
  */
-export function fileVersions(env: ToolEnv) {
-  const seen = new Map<string, { size: number; mtimeMs: number }>()
+export function fileVersions(
+  env: ToolEnv,
+  chatOf: () => object | undefined = () => undefined,
+) {
+  type Seen = Map<string, { size: number; mtimeMs: number }>
+  const shared: Seen = new Map()
+  const byChat = new WeakMap<object, Seen>()
+  /** The record of the chat run of the call that runs now. */
+  const records = () => {
+    const chat = chatOf()
+    if (!chat) return shared
+    const known = byChat.get(chat)
+    if (known) return known
+    const created: Seen = new Map()
+    byChat.set(chat, created)
+    return created
+  }
   return {
     /** Remember the file at `path` as it is now: a tool read or wrote it. */
     saw: async (path: string) => {
+      const seen = records()
       const info = await env.backend.stat(path)
       if (info?.type === 'file') {
         seen.set(path, { size: info.size, mtimeMs: info.mtimeMs })
@@ -140,7 +157,7 @@ export function fileVersions(env: ToolEnv) {
     },
     /** Forget `path`: a tool removed it. */
     forget: (path: string) => {
-      seen.delete(path)
+      records().delete(path)
     },
     /** Is something at `path`? Call it before the lock. */
     exists: async (path: string) =>
@@ -151,7 +168,7 @@ export function fileVersions(env: ToolEnv) {
      * there before the lock (`missing`), and a file is there now.
      */
     check: async (path: string, { missing }: { missing: boolean }) => {
-      const known = seen.get(path)
+      const known = records().get(path)
       const now = await env.backend.stat(path)
       const shown = env.shown(path)
       if (known) {

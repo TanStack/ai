@@ -140,7 +140,7 @@ test.describe('harness lifecycle', () => {
       NOT_FOUND,
     )
     // The signature is still good, but the thread is gone.
-    const signed = await request.get(url)
+    const signed = await request.get(url, { headers: api.headers })
     expect({ status: signed.status(), body: await signed.json() }).toEqual(
       NOT_FOUND,
     )
@@ -203,7 +203,7 @@ test.describe('harness lifecycle', () => {
         threadId,
         status: 'idle',
         activeOperations: [],
-        pendingInterrupts: [],
+        pendingWaits: [],
       },
     })
     expect(await api.transcript(threadId)).toEqual({

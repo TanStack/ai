@@ -4,14 +4,17 @@ import { describe, expect, it, vi } from 'vitest'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import { workspaceTools } from '../src/first-party/coding'
-import { permissions } from '../src/first-party/permissions'
+import {
+  listSavedPermissions,
+  permissions,
+} from '../src/first-party/permissions'
 import {
   FormatFailed,
   formatter,
   projectFormatters,
 } from '../src/first-party/coding/formatter'
 import { FormatterRewrote } from '../src/first-party/coding/events'
-import { mockAdapter, text, toolCall } from './helpers'
+import { mockAdapter, questionsOf, text, toolCall } from './helpers'
 import type { HarnessSession } from '../src'
 import type { PermissionRule } from '../src/first-party/permissions'
 import type { WorkspaceBackend } from '../src/first-party/coding/backend'
@@ -402,9 +405,11 @@ describe('formatter with a workspace for each thread', () => {
       }),
       { threadId: 't' },
     )
-    await session.command({ name: 'mode', input: 'bypass' })
+    // Not bypass: the rules check the formatter of the call before it runs.
+    await session.command({ name: 'mode', input: 'acceptEdits' })
 
     await session.send('write it')
+    expect(session.snapshot().pendingWaits).toEqual([])
     await host.close()
 
     expect(runs).toEqual([
@@ -574,7 +579,7 @@ describe('formatter with permissions()', () => {
       `npx --no-install prettier --write ${quoted('prettier.config.js')}`,
       `npx --no-install prettier --write ${quoted('a.ts')}`,
     ])
-    expect(first.session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(questionsOf(first.session.snapshot())).toHaveLength(0)
     await first.host.close()
 
     const second = await openWith('acceptEdits', ['b.ts'], persistence, {
@@ -615,6 +620,47 @@ describe('formatter with permissions()', () => {
     await second.host.close()
   })
 
+  it('asks again after an always answer for a write of a config below the root', async () => {
+    const persistence = memoryPersistence()
+    const first = await openWith('acceptEdits', ['a.ts'], persistence, prettier)
+    await first.session.send('write it')
+    await answer(first.session, { answer: 'always' })
+    await first.host.close()
+
+    // Prettier loads the nested config, and runs its code. The root
+    // config did not change.
+    const second = await openWith(
+      'acceptEdits',
+      ['src/prettier.config.js'],
+      persistence,
+      prettier,
+      [],
+      'second-',
+    )
+    await second.session.send('write the nested config')
+    const message = await answer(second.session, { answer: 'once' })
+    expect(message).toContain('Allow write_file')
+    await second.host.close()
+  })
+
+  it('saves no rule for the formatter of a nested config on an always answer', async () => {
+    const persistence = memoryPersistence()
+    const { host, session } = await openWith(
+      'acceptEdits',
+      ['src/prettier.config.js'],
+      persistence,
+      prettier,
+    )
+    await session.send('write the nested config')
+
+    await answer(session, { answer: 'always' })
+
+    const saved = await listSavedPermissions(persistence.stores, root)
+    expect(saved.map((rule) => rule.tool)).toContain('formatter:prettier')
+    expect(saved.some((rule) => rule.tool.includes('@unsaved:'))).toBe(false)
+    await host.close()
+  })
+
   it('runs with no question in bypass', async () => {
     const { host, session, runs } = await openWith('bypass', [
       'prettier.config.js',
@@ -623,7 +669,7 @@ describe('formatter with permissions()', () => {
     expect(runs.map((run) => run.command)).toEqual([
       `npx --no-install prettier --write ${quoted('prettier.config.js')}`,
     ])
-    expect(session.snapshot().pendingQuestions).toHaveLength(0)
+    expect(questionsOf(session.snapshot())).toHaveLength(0)
     await host.close()
   })
 

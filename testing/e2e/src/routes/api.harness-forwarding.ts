@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
 import { createHarnessHandler } from '@tanstack/ai-harness/server'
-import { memoryLogBackend, memoryLogStore } from '@tanstack/ai-persistence'
+import { memoryLogState, memoryLogStore } from '@tanstack/ai-persistence'
 
 /**
  * Two hosts on one log backend, as two instances of a serverless app on one
@@ -119,12 +119,12 @@ async function twoHosts(
   ownerModel: ReturnType<typeof scriptedModel>,
   otherModel: ReturnType<typeof scriptedModel>,
 ) {
-  const backend = memoryLogBackend()
+  const logState = memoryLogState()
   const ownerHost = createHarnessHost({
-    persistence: { stores: { log: memoryLogStore({ backend }) } },
+    persistence: { stores: { log: memoryLogStore({ state: logState }) } },
   })
   const otherHost = createHarnessHost({
-    persistence: { stores: { log: memoryLogStore({ backend }) } },
+    persistence: { stores: { log: memoryLogStore({ state: logState }) } },
   })
   const close = async () => {
     await ownerHost.close()

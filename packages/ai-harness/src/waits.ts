@@ -5,6 +5,7 @@ import {
 import { isRecord } from './utils'
 import { APPROVAL_INTERRUPT_ID, QUESTION_INTERRUPT_ID } from './boundary-waits'
 import type { Interrupt } from '@tanstack/ai'
+import type { InterruptRecord } from '@tanstack/ai-persistence'
 import type { WaitState } from './log-records'
 import type { PendingQuestion } from './types'
 
@@ -49,10 +50,43 @@ export interface Wait {
   message?: string
 }
 
+/**
+ * An open wait, as `snapshot().pendingWaits` lists it: the wait, with what
+ * a client needs to show and answer it.
+ */
+export interface PendingWait extends Wait {
+  /**
+   * The interrupt of the wait: a wait of the stopped turn, or of a stopped
+   * background agent run. Answer it with `resolve`. A wait without one (a
+   * `step.ask` question, the `human` wait of a handoff) takes `answer`.
+   */
+  interrupt?: Interrupt
+  /**
+   * `true`: a wait of the stopped turn. One `resolve` answers every wait of
+   * the turn, and the turn goes on.
+   */
+  turn?: true
+  /** The answer is a secret (a key or a password). Hide it as the user types. */
+  secret?: true
+  /** A page the user must open before they answer. Show the link. */
+  url?: string
+}
+
 /** A wait, or an interrupt that is one. */
 type WaitLike = Wait | Interrupt
 
 const isWait = (item: WaitLike): item is Wait => 'waitId' in item
+
+/** The interrupt that an interrupt record of the log keeps. */
+export function interruptOf(record: InterruptRecord): Interrupt {
+  const { payload } = record
+  return {
+    ...payload,
+    id: record.interruptId,
+    reason: typeof payload.reason === 'string' ? payload.reason : '',
+    message: typeof payload.message === 'string' ? payload.message : '',
+  }
+}
 
 /**
  * The sign-in that an interrupt waits for, from
@@ -86,8 +120,10 @@ export function signInOf(
  *
  * @example
  * ```ts
- * for (const interrupt of session.snapshot().pendingInterrupts) {
- *   if (waitKind(interrupt) === 'client-tool') runInBrowser(interrupt)
+ * for (const { interrupt } of session.snapshot().pendingWaits) {
+ *   if (interrupt && waitKind(interrupt) === 'client-tool') {
+ *     runInBrowser(interrupt)
+ *   }
  * }
  * ```
  */
@@ -127,7 +163,7 @@ export function timeOf(iso: string | undefined) {
  *
  * @example
  * ```ts
- * const waits = snapshot.pendingInterrupts.map((interrupt) =>
+ * const waits = interrupts.map((interrupt) =>
  *   waitOfInterrupt({ interrupt, runId }),
  * )
  * ```
@@ -209,6 +245,21 @@ export function expiryOf(
   return ms === undefined ? undefined : now + ms
 }
 
+/**
+ * When the interrupt `interrupt` expires: its `expiresAt`, else the default
+ * of its kind (a sign-in: 15 minutes) from when `records` say it opened.
+ * `undefined`: never.
+ */
+export function interruptExpiry(
+  interrupt: Interrupt,
+  records: ReadonlyMap<string, InterruptRecord> | undefined,
+) {
+  const own = timeOf(interrupt.expiresAt)
+  if (own !== undefined) return own
+  const opened = records?.get(interrupt.id)
+  return opened && expiryOf(waitKind(interrupt), undefined, opened.requestedAt)
+}
+
 /** The waits of `waits` that did not end, oldest first. */
 export function openWaits(waits: ReadonlyMap<string, WaitState> | undefined) {
   return [...(waits?.values() ?? [])].filter(
@@ -216,47 +267,52 @@ export function openWaits(waits: ReadonlyMap<string, WaitState> | undefined) {
   )
 }
 
-/** The question of an open wait of kind `question`, as a snapshot lists it. */
-function questionOf({ wait, secret, url }: WaitState): Array<PendingQuestion> {
-  if (wait.kind !== 'question') return []
-  return [
-    {
-      questionId: wait.waitId,
-      message: wait.message ?? '',
-      ...(wait.schema !== undefined ? { schema: wait.schema } : {}),
-      ...(secret ? { secret: true } : {}),
-      ...(url ? { url } : {}),
-    },
-  ]
-}
-
 /**
  * The waits of a snapshot: the interrupts that the turn `stopped` waits
- * for, then the open waits of the log. The questions are a view of them.
+ * for, then the open waits of the log, each with its interrupt from
+ * `records` while that interrupt is pending. `expiry` gives the expiry of a
+ * turn wait whose interrupt names none. The interrupt stays as it is.
  */
 export function snapshotWaits({
   stopped,
   interrupts,
   waits,
+  records,
+  expiry,
 }: {
   stopped: { runId: string; principal?: Wait['principal'] } | null | undefined
   interrupts: ReadonlyArray<Interrupt>
   waits: ReadonlyMap<string, WaitState> | undefined
-}) {
-  const open = openWaits(waits)
+  records: ReadonlyMap<string, InterruptRecord> | undefined
+  expiry?: (interrupt: Interrupt) => number | undefined
+}): Array<PendingWait> {
   const runId = stopped?.runId ?? 'session'
   const principal = stopped?.principal
-  return {
-    pendingQuestions: open.flatMap(questionOf),
-    pendingWaits: [
-      ...interrupts.map((interrupt) =>
-        waitOfInterrupt({
-          interrupt,
-          runId,
-          ...(principal ? { principal } : {}),
-        }),
-      ),
-      ...open.map(({ wait }) => wait),
-    ],
-  }
+  return [
+    ...interrupts.map((interrupt) => {
+      const wait = waitOfInterrupt({
+        interrupt,
+        runId,
+        ...(principal ? { principal } : {}),
+      })
+      const expiresAt = wait.expiresAt ?? expiry?.(interrupt)
+      return {
+        ...wait,
+        ...(expiresAt !== undefined ? { expiresAt } : {}),
+        interrupt,
+        turn: true as const,
+      }
+    }),
+    ...openWaits(waits).map(({ wait, secret, url }) => {
+      const opened = records?.get(wait.waitId)
+      return {
+        ...wait,
+        ...(opened?.status === 'pending'
+          ? { interrupt: interruptOf(opened) }
+          : {}),
+        ...(secret ? { secret: true as const } : {}),
+        ...(url ? { url } : {}),
+      }
+    }),
+  ]
 }

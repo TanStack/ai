@@ -500,6 +500,8 @@ export function snapshots(options: SnapshotsOptions) {
     },
     provides: [RevertFiles],
     optionalRequires: [ThreadWorkspace],
+    // The fold keeps the steps that a revert reads, also after a truncate.
+    keepRecords: { [STEP_RECORD]: MAX_STEPS },
     setup: async (ctx) => {
       const thread = {
         tenantId: ctx.session.principal?.tenantId,
@@ -567,15 +569,23 @@ export function snapshots(options: SnapshotsOptions) {
           return
         }
       }
-      /**
-       * The repository of the workspace of `run`. Without a run (a revert),
-       * the workspace of the thread of the session, when it is bound.
-       */
+      /** The repository of the workspace of `run`. It binds the thread first. */
       const placeFor = async (run: RunContext | undefined) => {
         if (fixed) return fixed
-        const workspace = run
-          ? await threads?.of(run)
-          : threads?.bound(ctx.session.threadId)
+        const workspace = run && (await threads?.of(run))
+        if (!workspace) {
+          throw new Error('the workspace of this thread is not bound yet.')
+        }
+        return placeOf(workspace, workspace.root)
+      }
+      /**
+       * The repository of the thread of the session for a revert: the open
+       * workspace, or the one that the log binds, opened again (after a
+       * restart, no turn opened it on this host).
+       */
+      const revertPlaceFor = async (run: RunContext) => {
+        if (fixed) return fixed
+        const workspace = await threads?.ending(run)
         if (!workspace) {
           throw new Error('the workspace of this thread is not bound yet.')
         }
@@ -611,7 +621,7 @@ export function snapshots(options: SnapshotsOptions) {
       const initial: SnapshotState = { steps: [] }
       const state = ctx.state(initial)
       ctx.provide(RevertFiles, {
-        revert: async (hidden, records) => {
+        revert: async (hidden, records, run) => {
           const calls = new Set(
             hidden.flatMap((message) =>
               (message.toolCalls ?? []).map((call) => call.id),
@@ -631,7 +641,7 @@ export function snapshots(options: SnapshotsOptions) {
           // before the first of them. The edits of the user in other files
           // stay. `now` keeps all files for `unrevert`.
           const files = [...new Set(later.flatMap((step) => step.files))]
-          const { repo } = await placeFor(undefined)
+          const { repo } = await revertPlaceFor(run)
           const now = await repo.track()
           const groups = firstTrees(later)
           for (const [tree, group] of groups) {
@@ -639,9 +649,9 @@ export function snapshots(options: SnapshotsOptions) {
           }
           return { now, files }
         },
-        unrevert: async (saved) => {
+        unrevert: async (saved, run) => {
           if (!isReverted(saved)) return
-          const { repo } = await placeFor(undefined)
+          const { repo } = await revertPlaceFor(run)
           await repo.restore(
             saved.now,
             await repo.track(),

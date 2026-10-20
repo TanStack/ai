@@ -10,7 +10,7 @@ import {
 } from '@tanstack/ai'
 import { parseRangeHeader, resolveBlobRange } from '@tanstack/ai-persistence'
 import { AccessDeniedError } from './access'
-import { accessOf, sessionOfTurn, tenantEventsOf } from './host'
+import { accessOf, isSharedHost, sessionOfTurn, tenantEventsOf } from './host'
 import { tenantOfHostEvent } from './host-event-bus'
 import { activeRunIn } from './log-stores'
 import { MediaError } from './media'
@@ -20,10 +20,12 @@ import {
   applyInput,
   capabilitiesOf,
   describeForClient,
-  negotiateVersion,
+  HARNESS_PROTOCOL_VERSION,
+  versionError,
   parseControlFrame,
   parseHarnessInput,
   requestIdOf,
+  retriedMessage,
   turnReceipt,
 } from './protocol'
 import { socketSender, sseStream, streamValues, withHeartbeat } from './sse'
@@ -77,6 +79,9 @@ export interface HarnessHandlerOptions<P extends Principal = Principal> {
    * signs with a random key of its own, so a signed URL works only on this
    * server, and only until it restarts. Set it when more than one server
    * answers the same URL, so each server verifies the URLs of the others.
+   * On a host with `ownership` options it is required, else the handler
+   * throws at the start. Without it on another host, the first handler
+   * warns once.
    *
    * - `{ secret }`: one key. Use the same value on every server.
    * - `{ keys }`: to rotate keys. The first key signs, and every key
@@ -171,10 +176,10 @@ function sseResponse(
   return new Response(body, { headers: SSE_HEADERS })
 }
 
-/** The protocol version that `?v=` asks for. See `negotiateVersion`. */
+/** The error of a `?v=` that asks for another version. See `versionError`. */
 function versionOf(url: URL) {
   const v = url.searchParams.get('v')
-  return negotiateVersion(v === null ? {} : { requested: Number(v) })
+  return versionError(v === null ? undefined : Number(v))
 }
 
 /**
@@ -182,10 +187,7 @@ function versionOf(url: URL) {
  * stream with one `unsupported_version` error frame. Then it closes.
  */
 function versionRefused(
-  error: Omit<
-    Extract<HostFrame, { type: 'harness.error' }>,
-    'type' | 'requestId'
-  >,
+  error: NonNullable<ReturnType<typeof versionError>>,
   requestId: string,
 ) {
   const frame: HostFrame = { type: 'harness.error', requestId, ...error }
@@ -283,7 +285,10 @@ function lastUserInput(messages: Array<UIMessage | ModelMessage>) {
 }
 
 const isRole = (value: unknown): value is SessionMember['role'] =>
-  value === 'owner' || value === 'member' || value === 'viewer'
+  value === 'owner' ||
+  value === 'member' ||
+  value === 'viewer' ||
+  value === 'operator'
 
 /** A `POST sessions` body, or `undefined` when it is not a valid one. */
 function parseSessionOp(body: unknown) {
@@ -387,33 +392,39 @@ async function mediaResponse(
 }
 
 /**
- * Who sends each request of a handler or a socket: the host's
- * `access.identify`, else the `openAccess` principal. Throws for a host
- * without access and without `openAccess`, and for a host with access and
- * `openAccess`. Resolves to `null` for a request that `identify` refuses.
+ * Who sends each request of a server of `host`: the host's
+ * `access.identify`, else the `openAccess` principal. The HTTP handler, the
+ * socket, and `createHarnessMcpServer` share it, so the rule stays one rule.
+ * Throws for a host without access and without `openAccess`, and for a host
+ * with access and `openAccess`. `of` resolves to `null` for a request that
+ * `identify` refuses. `fixed` is the principal of a host without access.
+ *
+ * @param call - The name of the caller, for the errors.
  */
-function requestUsers<P extends Principal>(
+export function requestUsers<P extends Principal>(
   call: string,
   host: HarnessHost<P>,
   openAccess: OpenAccess<P> | undefined,
 ) {
-  const access = accessOf(host)
-  if (access && openAccess !== undefined) {
+  if (host.hasAccess && openAccess !== undefined) {
     throw new Error(
       `${call}: the host has access, so access.identify reads the user of each request. Remove openAccess.`,
     )
   }
-  if (!access && openAccess === undefined) {
+  if (!host.hasAccess && openAccess === undefined) {
     throw new Error(
-      `${call} needs host access ({ identify, authorize }) or openAccess: true`,
+      `${call} needs host access ({ identify, policy }) or openAccess: true or { principal }.`,
     )
   }
   const fixed = openAccess === true ? undefined : openAccess?.principal
-  return async (request: Request) => {
-    if (!access) return { principal: fixed }
-    const principal = await access.identify({ request })
+  const of = async (
+    request: Request,
+  ): Promise<{ principal: P | undefined } | null> => {
+    if (!host.hasAccess) return { principal: fixed }
+    const principal = await host.identify({ request })
     return principal === null ? null : { principal }
   }
+  return { fixed, of }
 }
 
 /**
@@ -484,6 +495,9 @@ function watchRevoke<P extends Principal>(
   })()
 }
 
+/** A handler without `media` warned already. One warning per process. */
+let warnedMediaKey = false
+
 /**
  * A fetch handler for a harness. Mount it on a route that ends with any of
  * these paths:
@@ -518,11 +532,12 @@ function watchRevoke<P extends Principal>(
  *   413 when it is over `media.maxBytes`, 415 for a type the harness does not
  *   take.
  * - `GET  .../media-url?threadId=&id=`: `{ path, expiresAt }`, a signed path
- *   to the file, relative to the handler. It works for 1 hour, and only for
- *   the user that it was signed for: each request checks that user again.
- * - `GET  .../media?threadId=&id=[&exp=&sig=]`: the bytes, with `Range`
- *   support. A signed request needs no login, and a bad or expired
- *   signature is 403.
+ *   to the file, relative to the handler. It works for 1 hour.
+ * - `GET  .../media?threadId=&id=[&tenantId=&exp=&sig=]`: the bytes, with
+ *   `Range` support. A bad or expired signature is 403. A signed request
+ *   still needs a user from `identify`, or a guest from `access.anonymous`
+ *   (401 without one), and it needs the `read` action on the thread, in
+ *   the tenant of the URL.
  * - `GET  .../sessions?limit=&cursor=&parentThreadId=`: one page of the
  *   session index, newest first: the sessions that `host.sessions.list`
  *   gives this principal. Default: top-level sessions only.
@@ -534,7 +549,7 @@ function watchRevoke<P extends Principal>(
  *   (it deletes the thread and its child threads, as
  *   `host.sessions.delete` does), `{ op: 'fork', threadId, before }`
  *   or `{ op: 'fork', threadId, through }` with a message id, and with
- *   `membersOnly()`, `{ op: 'share', threadId, userId, role }` and
+ *   `access.policy.members`, `{ op: 'share', threadId, userId, role }` and
  *   `{ op: 'unshare', threadId, userId }`. Rename, update, fork, share, and
  *   unshare answer with the entry, delete with 204. 400
  *   (`invalid_metadata`, with `issues`) for metadata the schema refuses, 404
@@ -556,8 +571,8 @@ function watchRevoke<P extends Principal>(
  * access. Each chat input runs as the principal of its request.
  *
  * Signed media URLs use the keys of `media`. Without it, they work only on
- * this server (see `HarnessHandlerOptions.media`). A URL of a deleted file
- * is 404.
+ * this server (see `HarnessHandlerOptions.media`), so it is required on a
+ * host with `ownership` options. A URL of a deleted file is 404.
  *
  * A request body over `media.maxBodyBytes` (default 32 MiB) is 413. Inline
  * media of `POST run` goes to the media store, as in `POST control`. A
@@ -568,8 +583,9 @@ function watchRevoke<P extends Principal>(
  * `stream` sets the values of the SSE streams (see `HarnessStreamOptions`).
  *
  * Throws at the start for a host without `access` and without
- * `openAccess`, for a host with both, and for a `stream` value that is not
- * a finite number above 0.
+ * `openAccess`, for a host with both, for a `stream` value that is not a
+ * finite number above 0, and without `media` on a host with `ownership`
+ * options.
  *
  * @example
  * ```ts
@@ -580,12 +596,41 @@ export function createHarnessHandler<P extends Principal = Principal>(
   options: HarnessHandlerOptions<P>,
 ) {
   const { host, harness, media } = options
-  const usersOf = requestUsers('createHarnessHandler', host, options.openAccess)
-  const hasAccess = accessOf(host) !== undefined
+  const usersOf = requestUsers(
+    'createHarnessHandler',
+    host,
+    options.openAccess,
+  ).of
+  const { hasAccess } = host
   const stream = streamValues('createHarnessHandler', options.stream)
+  if (media === undefined && isSharedHost(host)) {
+    throw new Error(
+      'createHarnessHandler needs media ({ secret } or { keys }) on a host with ownership options: another instance must verify the media URLs that this one signs. Set the same keys on every instance.',
+    )
+  }
+  // ponytail: the handler cannot tell a log store that many instances
+  // share, so a host without ownership gets one warning, not an error.
+  if (media === undefined && !warnedMediaKey) {
+    warnedMediaKey = true
+    console.warn(
+      '[@tanstack/ai-harness] createHarnessHandler has no media ({ secret } or { keys }), so it signs media URLs with a random key of its own. When more than one instance serves this host, set the same media.secret on every instance, else a media URL works only on the instance that signed it.',
+    )
+  }
 
   const openFor = (principal: P | undefined, threadId: string) =>
     host.open(harness, { threadId, ...(principal ? { principal } : {}) })
+
+  /**
+   * `openFor` for `POST run`, which passes its run id. Only the session class
+   * takes it, and `host.open` gives a handle of that class.
+   */
+  const openForRun = async (principal: P | undefined, threadId: string) => {
+    const session = await openFor(principal, threadId)
+    if (session instanceof SessionImpl) return session
+    throw new Error(
+      'The host gave a session of another copy of @tanstack/ai-harness. Install one copy of the package.',
+    )
+  }
 
   /** The view of a thread for a read route. See `observeToRead`. */
   const viewFor = (principal: P | undefined, threadId: string) =>
@@ -658,30 +703,27 @@ export function createHarnessHandler<P extends Principal = Principal>(
    */
   const readJson = async (request: Request): Promise<unknown> =>
     JSON.parse(await readBodyText(request, harness.media))
-  /** What a signed media URL holds: who may read which file, until when. */
+  /** What a signed media URL holds: which file of which tenant, until when. */
   interface SignedMedia {
     tenantId: string
     threadId: string
     id: string
-    userId: string
     exp: string
   }
-  // The harness name and the user are in the signed text, so a URL works
-  // only for this harness and for the user that it was signed for.
+  // The harness name is in the signed text, so a URL works only for this
+  // harness.
   const signed = (media: SignedMedia) =>
-    [
-      harness.name,
-      media.tenantId,
-      media.threadId,
-      media.id,
-      media.userId,
-      media.exp,
-    ].join('\n')
+    [harness.name, media.tenantId, media.threadId, media.id, media.exp].join(
+      '\n',
+    )
   const sign = (media: SignedMedia) => signer.sign(signed(media))
 
   /**
-   * Serve a signed media URL. The URL names its user: the read is checked as
-   * that user, so a user who lost access (unshare, revoke) is refused.
+   * Serve a signed media URL. The signature proves only that this handler
+   * made the URL. `identify` reads the user of the request, as on the other
+   * routes, else `access.anonymous` gives a guest. The read is checked as
+   * that principal, so a user who lost access (unshare, revoke) is refused.
+   * A principal of another tenant is refused too.
    */
   const serveSigned = async (request: Request, url: URL) => {
     const param = (name: string) => url.searchParams.get(name) ?? ''
@@ -689,7 +731,6 @@ export function createHarnessHandler<P extends Principal = Principal>(
       tenantId: param('tenantId'),
       threadId: param('threadId'),
       id: param('id'),
-      userId: param('userId'),
       exp: param('exp'),
     }
     const isValid =
@@ -697,14 +738,17 @@ export function createHarnessHandler<P extends Principal = Principal>(
       // `verify` compares in constant time.
       (await signer.verify(signed(payload), param('sig')))
     if (!isValid) return forbidden()
-    const { tenantId, userId } = payload
-    // A signed URL keeps the id and the tenant of its user, as the log does,
-    // and `authorize` gets those. The other fields of the principal are not
-    // in the URL.
-    const user = userId
-      ? ({ id: userId, ...(tenantId ? { tenantId } : {}) } as P)
-      : undefined
-    const view = await viewFor(user, payload.threadId)
+    const user = await usersOf(request)
+    // Only here, after the signature: a guest reaches no other route.
+    const guest = user
+      ? null
+      : await accessOf(host)?.anonymous?.({
+          tenantId: payload.tenantId === '' ? undefined : payload.tenantId,
+        })
+    if (!user && !guest) return json({ error: 'unauthorized' }, 401)
+    const principal = user ? user.principal : (guest ?? undefined)
+    if ((principal?.tenantId ?? '') !== payload.tenantId) return forbidden()
+    const view = await viewFor(principal, payload.threadId)
     if (!view) return json({ error: 'not found' }, 404)
     return mediaResponse(request, view, payload.id)
   }
@@ -787,11 +831,13 @@ export function createHarnessHandler<P extends Principal = Principal>(
   /**
    * The `host.events()` that `principal` may read. With access, a thread
    * needs the `read` action. The decision of each thread is kept for the
-   * stream, until a revoke or a delete of that thread. An index change of
-   * the thread drops only a decision that is not `true` (for example after
-   * a share), so the index changes of each turn read no store. `accepts`
-   * reads no store, so the host event bus runs it before the queue.
-   * `mayWatch` runs after the queue.
+   * stream, until a revoke or a delete of that thread. A revoke of this
+   * principal drops every kept decision: the child threads of the revoked
+   * thread are read through it. An index change of the thread drops only a
+   * decision that is not `true` (for example after a share), so the index
+   * changes of each turn read no store. `accepts` reads no store, so the
+   * host event bus runs it before the queue. `mayWatch` runs after the
+   * queue.
    */
   const watchedEvents = (principal: P | undefined) => {
     const user = principal ? { principal } : {}
@@ -822,9 +868,16 @@ export function createHarnessHandler<P extends Principal = Principal>(
     const accepts = (event: HostEvent) => {
       if (tenantOfHostEvent(event) !== principal?.tenantId) return false
       if (event.type === 'revoked') {
-        forget(event.threadId)
         // A user hears of their own revokes only.
-        return event.principalId === principal?.id
+        const isOwn = event.principalId === principal?.id
+        // ponytail: all of them, not only the children of the thread.
+        if (isOwn) {
+          decisions.clear()
+          readable.clear()
+        } else {
+          forget(event.threadId)
+        }
+        return isOwn
       }
       if (event.type === 'session-deleted') forget(event.threadId)
       // A user who may read the thread keeps that until a revoke.
@@ -844,10 +897,14 @@ export function createHarnessHandler<P extends Principal = Principal>(
         return reads.every(Boolean)
       }
       if (event.type === 'session-deleted') {
-        // The entry is gone: decide on the removed one.
+        // A child is read through its root, which the parent still reaches:
+        // the purge removes the children first.
+        const parent = event.entry.parentThreadId
+        if (parent !== undefined) return mayRead(parent)
+        // The entry of a root is gone: decide on the removed one.
         const access = accessOf(host)
         return principal !== undefined && access !== undefined
-          ? access.authorize({
+          ? access.policy.authorize({
               principal,
               action: 'read',
               session: event.entry,
@@ -875,7 +932,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
     if (request.method === 'POST' && route === 'run') {
       const params = await chatParamsFromRequestBody(await readJson(request))
       const message = lastUserInput(params.messages)
-      const session = await openFor(principal, params.threadId)
+      const session = await openForRun(principal, params.threadId)
       // The turn runs as the request's run id, so an AG-UI client matches
       // its events and interrupts. The run id is the input id too, so a
       // retried request runs once. It runs as this request's principal.
@@ -885,10 +942,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
       return withSession(session, async (keep) => {
         if (params.resume && params.resume.length > 0) {
           const answers = { resume: params.resume, ...ids }
-          // Only the session class takes the run id. `host.open` gives one.
-          const receipt = await (session instanceof SessionImpl
-            ? session.resolveForRun(answers)
-            : session.resolve(answers))
+          const receipt = await session.resolveForRun(answers)
           if (receipt.status === 'rejected') {
             return json({ error: receipt.reason }, 409)
           }
@@ -916,13 +970,18 @@ export function createHarnessHandler<P extends Principal = Principal>(
           return json({ error: 'no user message' }, 400)
         }
         // Inline bytes go to the media store, and the message keeps a
-        // `harness-media:` reference, as `POST control` does.
-        const checked = Array.isArray(message)
-          ? await storeInlineMedia(message, {
-              options: harness.media,
-              putMedia: (upload) => session.putMedia(upload),
-            })
-          : { parts: message }
+        // `harness-media:` reference, as `POST control` does. A retried run
+        // stores no media again.
+        const retry = retriedMessage(session, params.runId, message)
+        const checked =
+          retry !== undefined
+            ? { parts: retry }
+            : Array.isArray(message)
+              ? await storeInlineMedia(message, {
+                  options: harness.media,
+                  putMedia: (upload) => session.putMedia(upload),
+                })
+              : { parts: message }
         if ('refused' in checked) {
           return json(
             { error: checked.refused },
@@ -940,11 +999,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
             : {}),
           ...(traceparent ? { traceparent } : {}),
         }
-        // Only the session class takes the run id. `host.open` gives one.
-        const operation =
-          session instanceof SessionImpl
-            ? session.sendForRun(checked.parts, sent)
-            : session.send(checked.parts, sent)
+        const operation = session.sendForRun(checked.parts, sent)
         // A turn that the host refused throws, and the answer is 403.
         const receipt = await turnReceipt(operation)
         if (receipt.status === 'rejected') {
@@ -991,9 +1046,13 @@ export function createHarnessHandler<P extends Principal = Principal>(
         request.headers.get('Last-Event-ID') ??
         url.searchParams.get('from') ??
         undefined
-      const picked = versionOf(url)
-      if ('error' in picked) return versionRefused(picked.error, requestId)
-      const hello: HostFrame = { type: 'harness.hello', v: picked.v, threadId }
+      const refused = versionOf(url)
+      if (refused) return versionRefused(refused, requestId)
+      const hello: HostFrame = {
+        type: 'harness.hello',
+        v: HARNESS_PROTOCOL_VERSION,
+        threadId,
+      }
       return sseResponse(
         async function* (signal) {
           yield { data: JSON.stringify(hello) }
@@ -1010,14 +1069,17 @@ export function createHarnessHandler<P extends Principal = Principal>(
     }
 
     if (request.method === 'GET' && route === 'host-events') {
-      const picked = versionOf(url)
-      if ('error' in picked) return versionRefused(picked.error, requestId)
+      const refused = versionOf(url)
+      if (refused) return versionRefused(refused, requestId)
       const { accepts, mayWatch } = watchedEvents(principal)
       // The events of the principal's tenant only, from the host event bus.
       // A host that `createHarnessHost` did not make has `host.events()`.
       const readTenant = tenantEventsOf(host)
       // The hello of `host-events` names no thread.
-      const hello = JSON.stringify({ type: 'harness.hello', v: picked.v })
+      const hello = JSON.stringify({
+        type: 'harness.hello',
+        v: HARNESS_PROTOCOL_VERSION,
+      })
       return sseResponse(
         async function* (signal) {
           yield { data: hello }
@@ -1223,7 +1285,6 @@ export function createHarnessHandler<P extends Principal = Principal>(
         tenantId: principal?.tenantId ?? '',
         threadId,
         id,
-        userId: principal?.id ?? '',
         exp: String(expiresAt),
       }
       // An empty field stays out of the URL. The served URL reads it as ''.
@@ -1244,7 +1305,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
       url.pathname.split('/').at(-1) === 'media' &&
       url.searchParams.has('sig')
     try {
-      // Before `identify`: a signed URL is its own login.
+      // A bad signature is 403 before `identify` runs.
       if (isSignedMedia) return await serveSigned(request, url)
       const user = await usersOf(request)
       if (!user) return json({ error: 'unauthorized' }, 401)
@@ -1270,7 +1331,10 @@ export function createHarnessHandler<P extends Principal = Principal>(
  * waits for. The log has the turns that other instances run.
  */
 async function hydration(view: ObservedSession) {
-  const { pendingInterrupts, activeOperations } = await view.snapshot()
+  const { pendingWaits, activeOperations } = await view.snapshot()
+  const pendingInterrupts = pendingWaits.flatMap(({ interrupt, turn }) =>
+    interrupt && turn ? [interrupt] : [],
+  )
   const [first] = pendingInterrupts
   const runId = first
     ? readInterruptBinding(first)?.interruptedRunId
@@ -1355,6 +1419,12 @@ const errorMessage = (error: unknown) =>
  *
  * `stream` sets the values of the socket (see `HarnessStreamOptions`).
  *
+ * A frame over `media.maxBodyBytes` gets an error frame, and the socket
+ * closes with 1009. Your WebSocket server has read the whole frame by then,
+ * so this check saves only the parse. The memory cap is the frame limit of
+ * your server, for example `maxPayload` of `ws`. Set it to
+ * `media.maxBodyBytes` or lower.
+ *
  * Throws at the start for a host without `access` and without `openAccess`,
  * for a host with both, and for a `stream` value that is not a finite number
  * above 0.
@@ -1368,7 +1438,11 @@ export function handleHarnessSocket<P extends Principal = Principal>(
   options: HarnessSocketOptions<P>,
 ) {
   const { host, harness, socket, request } = options
-  const usersOf = requestUsers('handleHarnessSocket', host, options.openAccess)
+  const usersOf = requestUsers(
+    'handleHarnessSocket',
+    host,
+    options.openAccess,
+  ).of
   const values = streamValues('handleHarnessSocket', options.stream)
   const reader = new AbortController()
   // The id of the upgrade request, with the rule of `requestIdFor`. An error
@@ -1494,7 +1568,8 @@ export function handleHarnessSocket<P extends Principal = Principal>(
   socket.addEventListener('message', (message) => {
     const data = String(message.data)
     // A frame over `media.maxBodyBytes` is not parsed, so its error frame
-    // names the socket. The socket closes with 1009 (message too big).
+    // names the socket. The socket closes with 1009 (message too big). The
+    // server read the frame already: its own frame limit caps the memory.
     if (isOverLimit(data, frameLimit)) {
       closeWith(
         {
@@ -1524,10 +1599,10 @@ export function handleHarnessSocket<P extends Principal = Principal>(
         if (frame.type === 'harness.subscribe') {
           if (subscribed)
             return fail('invalid_frame', 'Already subscribed.', requestId)
-          const picked = negotiateVersion({ requested: frame.v })
-          if ('error' in picked) {
+          const refused = versionError(frame.v)
+          if (refused) {
             return closeWith(
-              { type: 'harness.error', requestId, ...picked.error },
+              { type: 'harness.error', requestId, ...refused },
               UNSUPPORTED_VERSION_CLOSE_CODE,
             )
           }
@@ -1549,7 +1624,11 @@ export function handleHarnessSocket<P extends Principal = Principal>(
             { principal, threadId, signal: reader.signal },
             () => refuse('forbidden', requestId),
           )
-          void send({ type: 'harness.hello', v: picked.v, threadId })
+          void send({
+            type: 'harness.hello',
+            v: HARNESS_PROTOCOL_VERSION,
+            threadId,
+          })
           void stream(subscription.view, frame.from)
             // The close waits for this frame: it goes out first.
             .catch((error: unknown) =>

@@ -52,7 +52,6 @@ export {
   validateInterruptResumeBatch,
 } from './interrupt-resume'
 export type { PendingInterruptResumeRecord } from './interrupt-resume'
-export { registerSubagentContextDefaults } from './activities/chat/agents/context-defaults'
 export {
   assertUniqueToolNames,
   DuplicateToolNameError,

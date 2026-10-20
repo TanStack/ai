@@ -110,6 +110,34 @@ describe('lifetime host', () => {
     await host.close()
   })
 
+  it('gives each plugin object that the factory builds its own setup', async () => {
+    const setups: Array<string> = []
+    let built = 0
+    // A new plugin for each session, as `() => [mcp({...})]` builds one.
+    const { host, harness } = setup(() => {
+      built += 1
+      const own = `plugin-${built}`
+      return [
+        definePlugin({
+          name: 'test/per-session',
+          lifetime: 'host',
+          setup: () => {
+            setups.push(own)
+          },
+        }),
+      ]
+    })
+
+    const first = await host.open(harness, { threadId: 'a' })
+    const second = await host.open(harness, { threadId: 'b' })
+
+    expect(setups).toHaveLength(2)
+    expect(new Set(setups).size).toBe(2)
+    await first.close()
+    await second.close()
+    await host.close()
+  })
+
   it('disposes at host.close() while sessions are open', async () => {
     const { plugin, counts } = countedPlugin()
     const { host, harness } = setup(() => [plugin], 60_000)

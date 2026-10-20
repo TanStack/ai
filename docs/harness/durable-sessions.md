@@ -293,7 +293,7 @@ const ownedHost = createHarnessHost({
 
 - `ttlMs`: how long the ownership lasts after each renewal. The default is 30 000. After it, another host can take the thread.
 - `renewMs`: how often the timer renews. The default is 10 000. When you set only `ttlMs`, the default is a third of `ttlMs`. It must be less than `ttlMs`, else `createHarnessHost` throws a `RangeError`.
-- `hostId`: a stable id for this host, for example the machine or pod name. With it, a thread whose coding tools use a folder on this host stays on this host. Other hosts refuse its tool calls. See [A folder on one server](./coding-workspaces#a-folder-on-one-server).
+- `hostId`: a stable id for this host, for example the machine or pod name. With it, a thread whose coding tools use a folder on this host stays on this host. Other hosts refuse its tool calls. The host sends a heartbeat to the log store each `renewMs`. When no heartbeat came for `ttlMs`, other hosts can take its threads. See [A folder on one server](./coding-workspaces#a-folder-on-one-server).
 
 An input that waits for the owner keeps its JSON overrides (`model`, `modelOptions`, `reasoning`, and `promptCache`). The `adapter` and `tools` overrides are objects, so the owner runs the input without them.
 
@@ -317,9 +317,13 @@ If the host does not find the question in the log, it treats the answer as a sec
 Pass the same `credentials` store to every host. A secret answer can be rejected:
 
 - `secret_answer_needs_credentials`: the host has no `credentials` store, so it cannot send the answer.
-- `unknown_secret_answer`: the reference was used before, or it belongs to another user.
+- `unknown_secret_answer`: the reference was used before, it expired, or it belongs to another user.
 
-The ids of the references start with `harness:answer:`. `run.credentials.list()` does not show them. A reference that the owner never reads stays in the store.
+The store keeps each reference as a credential of the type `secret_answer`:
+
+- Its id starts with `harness:answer:`, and its `expiresAt` is 24 hours later. After that time, the harness does not read it.
+- The owner deletes it when it reads it. The references that nobody read go when the question ends.
+- `run.credentials.list()` does not show it. Leave the `secret_answer` type out of your own `store.list` results too, for example on a page of connected accounts.
 
 ### When a host loses a thread
 

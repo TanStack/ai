@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  memoryLogBackend,
+  memoryLogState,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -16,12 +16,12 @@ import type { SnapshotTiming } from '../src/log'
  * log stores are two connections to one database.
  */
 function twoHosts(options: { snapshot?: SnapshotTiming } = {}) {
-  const backend = memoryLogBackend()
+  const logState = memoryLogState()
   const { metadata, sessions } = memoryPersistence().stores
   /** The `after` of each log read of host B. */
   const readsOfB: Array<number> = []
   const persistenceOf = (reads?: Array<number>) => {
-    const inner = memoryLogStore({ backend })
+    const inner = memoryLogStore({ state: logState })
     const log = reads
       ? wrapLogStore(inner, {
           read: (query) => {
@@ -56,8 +56,10 @@ function twoHosts(options: { snapshot?: SnapshotTiming } = {}) {
           id: request.headers.get('x-user') ?? 'user-1',
         }),
         // A user may use the threads whose id starts with the user id.
-        authorize: ({ principal, session }) =>
-          session.threadId.startsWith(principal.id),
+        policy: {
+          authorize: ({ principal, session }) =>
+            session.threadId.startsWith(principal.id),
+        },
       },
     })
     const handler = createHarnessHandler({
@@ -84,7 +86,7 @@ function twoHosts(options: { snapshot?: SnapshotTiming } = {}) {
       }),
     })
   const close = () => Promise.all([a.host.close(), b.host.close()])
-  return { a, b, post, release, calls, close, backend, readsOfB }
+  return { a, b, post, release, calls, close, logState, readsOfB }
 }
 
 /** SSE events with their `id:` lines. */
@@ -144,7 +146,7 @@ describe('a run on a durable host, across instances', () => {
   })
 
   it('reads the log on host B from the start of the run, not from the start of the log', async () => {
-    const { a, b, post, release, close, backend, readsOfB } = twoHosts({
+    const { a, b, post, release, close, logState, readsOfB } = twoHosts({
       // Host A writes a snapshot at each write, so host B folds from it.
       snapshot: { afterBytes: 1 },
     })
@@ -154,7 +156,7 @@ describe('a run on a durable host, across instances', () => {
       n,
     }))
     await appendToLog(
-      memoryLogStore({ backend }),
+      memoryLogStore({ state: logState }),
       { threadId: 'user-1-t' },
       history,
     )

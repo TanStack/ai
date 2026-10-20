@@ -40,8 +40,10 @@ import type { UsageCall } from './usage'
  *   as an index, a watcher, or an LSP server stay up across turns.
  * - `turn`: set up for each chat turn, disposed when that turn ends.
  * - `host`: set up once for each harness on a host, and shared by every
- *   session of that harness. Disposed when the last session that uses it
- *   closes, or at `host.close()`. See {@link HostPluginContext}.
+ *   session of that harness that uses the same plugin object. Create the
+ *   plugin once, outside the `plugins` factory, to share it. Disposed when
+ *   the last session that uses it closes, or at `host.close()`. See
+ *   {@link HostPluginContext}.
  */
 export type PluginLifetime = 'session' | 'turn' | 'host'
 
@@ -55,12 +57,11 @@ export interface PluginPrompt {
   text: string | ((turn: TurnInfo) => string)
   /**
    * Where the model gets the text. `'system'` (default): in the system
-   * prompts, before the history. `'context'`: in one user message after the
-   * history, at each model call. Use `'context'` for text that changes
-   * often, such as a todo list or a mode. A change of system prompts makes
-   * the provider prompt cache miss for the whole conversation. A change
-   * after the history keeps the cached prefix. The log does not keep the
-   * `'context'` text.
+   * prompts, in plugin order. `'context'`: in one system prompt after all
+   * the others, made again at each model call. Use `'context'` for text that
+   * changes often, such as a todo list or a mode: a change makes the
+   * provider prompt cache miss only from that last prompt on. The log does
+   * not keep the `'context'` text.
    */
   placement?: 'system' | 'context'
 }
@@ -108,6 +109,13 @@ export interface PluginContributions {
   adapter?: (
     turn: TurnInfo,
   ) => AnyTextAdapter | KeyedAdapter<AnyTextAdapter> | undefined
+  /**
+   * Runs once at the start of each turn, before the adapter pick, the tools,
+   * and the prompts. `turn.run` has the turn's user and that user's
+   * credentials. Use it to refresh state that a prompt reads. A hook that
+   * throws is skipped, and clients get a `harness.plugin.warning` event.
+   */
+  onTurnStart?: (turn: TurnInfo) => void | Promise<void>
   /**
    * Tools found at run time, for example the tools of an MCP server the user
    * signed in to after the session opened. Called before each chat turn,
@@ -167,10 +175,10 @@ export interface PluginResources {
 
 /**
  * What the `setup` of a plugin with `lifetime: 'host'` receives. The setup
- * runs once for each harness on a host, so it has no session, no user, no
- * credentials, no keys, and no commands. Open the shared resource here (a
- * pool, a child process, a watcher). A tool reads the user of its call from
- * `ctx.context.run`.
+ * runs once for each harness and plugin object on a host, so it has no
+ * session, no user, no credentials, no keys, and no commands. Open the
+ * shared resource here (a pool, a child process, a watcher). A tool reads
+ * the user of its call from `ctx.context.run`.
  */
 export interface HostPluginContext {
   /** The name of the harness that the plugin is set up for. */
@@ -411,6 +419,19 @@ interface PluginDefinitionBase {
   optionalRequires?: ReadonlyArray<CapabilityHandle>
   /** Agent outputs this plugin needs the session to have. */
   needs?: { produces?: ReadonlyArray<AgentProduces> }
+  /**
+   * The host records of this plugin that the log fold keeps, by record
+   * type, with how many of each: the last ones. The fold snapshot keeps
+   * them, so they stay readable after a truncate of the log. The plugins
+   * of the harness that opens the log first (its root thread) decide. With
+   * one type in two plugins, the larger count wins.
+   *
+   * @example
+   * ```ts
+   * definePlugin({ name: 'acme/steps', keepRecords: { 'acme/steps:step': 100 } })
+   * ```
+   */
+  keepRecords?: Readonly<Record<string, number>>
 }
 
 /** A plugin that is set up for each session (default) or for each turn. */
@@ -425,7 +446,9 @@ export interface SessionPluginDefinition<
 
 /**
  * A plugin that is set up once for each harness on a host, and shared by
- * every session of that harness. See {@link HostPluginContext}.
+ * every session of that harness that uses this plugin object. A `plugins`
+ * factory that builds a new object for each session gets a setup for each
+ * session. See {@link HostPluginContext}.
  */
 export interface HostPluginDefinition<
   TMetadata = Record<string, unknown>,
@@ -468,6 +491,7 @@ const SETUP_KEYS: ReadonlySet<string> = new Set<
   'commands',
   'config',
   'contribute',
+  'onTurnStart',
   'discoverTools',
   'prepareTools',
   'session',
@@ -551,10 +575,29 @@ interface Owned<T> {
   owner: string
 }
 
-/** Agents, with the owner of each agent at the same index. */
-interface AgentList {
-  items: Array<AnyAgent>
-  owners: Array<string>
+/** The contributions that `withoutOwners` filters, each with its owner. */
+interface OwnedLists {
+  /** The `'system'` and the `'context'` prompts. */
+  prompts: Array<Owned<PluginPrompt>>
+  middleware: Array<Owned<AnyChatMiddleware>>
+  agentMiddleware: Array<Owned<AnyChatMiddleware>>
+  generationMiddleware: Array<Owned<AnyGenerationMiddleware>>
+  adapters: Array<Owned<NonNullable<PluginContributions['adapter']>>>
+  /** Root agents. `ctx.agents.set` and `delete` change them after setup. */
+  agents: Array<Owned<AnyAgent>>
+  subagents: Array<Owned<AnyAgent>>
+}
+
+/** The values of `list`, without the owners. */
+const valuesIn = <T>(list: ReadonlyArray<Owned<T>>) =>
+  list.map((entry) => entry.value)
+
+/** The `'system'` prompts of `prompts`, then the `'context'` prompts. */
+function splitPrompts(prompts: ReadonlyArray<Owned<PluginPrompt>>) {
+  return {
+    system: prompts.filter((entry) => entry.value.placement !== 'context'),
+    context: prompts.filter((entry) => entry.value.placement === 'context'),
+  }
 }
 
 /** Everything a set of mounted plugins contributes, plus its cleanup. */
@@ -562,7 +605,7 @@ export interface MountedPlugins {
   tools: Array<AnyTool>
   /** The `'system'` prompts: strings, or functions to call for each turn. */
   prompts: Array<string | ((turn: TurnInfo) => string)>
-  /** The `'context'` prompts, with their owners. They go after the history. */
+  /** The `'context'` prompts, with their owners. They go last in the system prompts. */
   contextPrompts: Array<{
     text: string | ((turn: TurnInfo) => string)
     owner: string
@@ -572,6 +615,10 @@ export interface MountedPlugins {
   /** Contributions to extension points, by point name. */
   extensions: Map<string, Array<{ value: unknown; owner: string }>>
   adapters: Array<NonNullable<PluginContributions['adapter']>>
+  turnStarts: Array<{
+    start: NonNullable<PluginContributions['onTurnStart']>
+    owner: string
+  }>
   discoverers: Array<{
     discover: NonNullable<PluginContributions['discoverTools']>
     owner: string
@@ -593,23 +640,8 @@ export interface MountedPlugins {
       provides: Array<string>
     }>
     tools: Array<{ name: string; owner: string }>
-    /**
-     * The owner of each prompt. The items of `prompts` come first, at the
-     * same index, then the items of `contextPrompts`.
-     */
+    /** The owner of each `'system'` prompt, then of each `'context'` prompt. */
     prompts: Array<{ id: string; owner: string }>
-    /** The owner of each item of `middleware`, at the same index. */
-    middleware: Array<string>
-    /** The owner of each item of `adapters`, at the same index. */
-    adapters: Array<string>
-    /** The owner of each item of `agentMiddleware`, at the same index. */
-    agentMiddleware: Array<string>
-    /** The owner of each item of `generationMiddleware`, at the same index. */
-    generationMiddleware: Array<string>
-    /** The owner of each item of `agents`, at the same index. */
-    agents: Array<string>
-    /** The owner of each item of `subagents`, at the same index. */
-    subagents: Array<string>
     /** The plugin that provided each capability of `values`. */
     capabilities: Array<{ name: string; owner: string }>
   }
@@ -702,6 +734,14 @@ export const SESSION_PLUGIN_KEYS: ProviderKeys = {
   adapter: noUser('keys'),
 }
 
+/**
+ * @internal The same, on a host whose keys never fall back to env vars
+ * (access without `envKeys`). `providerKeys()` tells the two apart.
+ */
+export const SESSION_PLUGIN_KEYS_NO_ENV: ProviderKeys = {
+  ...SESSION_PLUGIN_KEYS,
+}
+
 const NO_SESSION: PluginSessionApi = {
   threadId: '',
   principal: undefined,
@@ -709,6 +749,7 @@ const NO_SESSION: PluginSessionApi = {
   send: unavailable('ctx.session'),
   note: unavailable('ctx.session'),
   transcript: unavailable('ctx.session'),
+  keptRecords: unavailable('ctx.session'),
   replaceTranscript: unavailable('ctx.session'),
   entry: unavailable('ctx.session'),
   updateEntry: unavailable('ctx.session'),
@@ -762,15 +803,18 @@ export interface RevertFilesHandler {
   /**
    * Put back the files that the tool calls of `hidden` changed. Other files
    * stay as they are. `records` reads the host records of one type from the
-   * session log. Resolves to what `unrevert` needs (JSON), or `undefined`
-   * when no file changed.
+   * session log. `run` is a run of the revert in the thread of the session,
+   * so a workspace that is not open on this host opens again from the log.
+   * Resolves to what `unrevert` needs (JSON), or `undefined` when no file
+   * changed.
    */
   revert: (
     hidden: ReadonlyArray<ModelMessage>,
     records: (type: string) => Promise<Array<Record<string, unknown>>>,
+    run: RunContext,
   ) => Promise<unknown>
-  /** Put the files back as they were before `revert`. */
-  unrevert: (saved: unknown) => Promise<void>
+  /** Put the files back as they were before `revert`. `run` as in `revert`. */
+  unrevert: (saved: unknown, run: RunContext) => Promise<void>
 }
 
 /** @internal See {@link RevertFilesHandler}. */
@@ -947,6 +991,7 @@ interface MountRecord {
   plugins: ReadonlyArray<HarnessPlugin>
   /** The plugin that provided each capability. */
   capabilityOwners: ReadonlyMap<CapabilityHandle, string>
+  owned: OwnedLists
 }
 
 /** `mounted` without what the plugins in `names` contributed. */
@@ -958,9 +1003,7 @@ function withoutOwnersOf(
   const removed = new Set(names)
   const isKept = (owner: string | undefined) =>
     owner === undefined || !removed.has(owner)
-  /** The items of `items` whose owner, at the same index, is kept. */
-  const keep = <T>(items: ReadonlyArray<T>, owners: ReadonlyArray<string>) =>
-    items.filter((_item, index) => isKept(owners[index]))
+  const isKeptEntry = (entry: { owner: string }) => isKept(entry.owner)
   const plugins = record.plugins.filter((plugin) => isKept(plugin.name))
   for (const plugin of plugins) {
     for (const handle of plugin.requires ?? []) {
@@ -978,73 +1021,66 @@ function withoutOwnersOf(
   const values = mounted.values.without(removedHandles)
   const { owners } = mounted
   const keptTools = new Set(
-    owners.tools
-      .filter((entry) => isKept(entry.owner))
-      .map((entry) => entry.name),
+    owners.tools.filter(isKeptEntry).map((entry) => entry.name),
   )
   const extensions = new Map<string, Array<{ value: unknown; owner: string }>>()
   for (const [point, items] of mounted.extensions) {
-    extensions.set(
-      point,
-      items.filter((item) => isKept(item.owner)),
-    )
+    extensions.set(point, items.filter(isKeptEntry))
+  }
+  const { owned } = record
+  const kept: OwnedLists = {
+    prompts: owned.prompts.filter(isKeptEntry),
+    middleware: owned.middleware.filter(isKeptEntry),
+    agentMiddleware: owned.agentMiddleware.filter(isKeptEntry),
+    generationMiddleware: owned.generationMiddleware.filter(isKeptEntry),
+    adapters: owned.adapters.filter(isKeptEntry),
+    // Agents are read at each use: a kept plugin can change them later
+    // (`ctx.agents.set`), and this thread must see that.
+    get agents() {
+      return owned.agents.filter(isKeptEntry)
+    },
+    get subagents() {
+      return owned.subagents.filter(isKeptEntry)
+    },
   }
   const next: MountedPlugins = {
     tools: mounted.tools.filter((tool) => keptTools.has(tool.name)),
-    // `owners.prompts` has the owners of `prompts` first, at the same index.
-    prompts: keep(
-      mounted.prompts,
-      owners.prompts.map((entry) => entry.owner),
-    ),
-    contextPrompts: mounted.contextPrompts.filter((item) => isKept(item.owner)),
-    middleware: keep(mounted.middleware, owners.middleware),
-    agentMiddleware: keep(mounted.agentMiddleware, owners.agentMiddleware),
-    generationMiddleware: keep(
-      mounted.generationMiddleware,
-      owners.generationMiddleware,
-    ),
-    // Commands and agents are read at each use: a kept plugin can change
-    // them later (`ctx.commands.set`, `ctx.agents.set`), and this thread
-    // must see that.
+    prompts: splitPrompts(kept.prompts).system.map((entry) => entry.value.text),
+    contextPrompts: mounted.contextPrompts.filter(isKeptEntry),
+    middleware: valuesIn(kept.middleware),
+    agentMiddleware: valuesIn(kept.agentMiddleware),
+    generationMiddleware: valuesIn(kept.generationMiddleware),
+    // Commands are read at each use, as agents are (`ctx.commands.set`).
     get commands() {
       return new Map(
-        [...mounted.commands].filter(([, entry]) => isKept(entry.owner)),
+        [...mounted.commands].filter(([, entry]) => isKeptEntry(entry)),
       )
     },
     config: new Map(
-      [...mounted.config].filter(([, entry]) => isKept(entry.owner)),
+      [...mounted.config].filter(([, entry]) => isKeptEntry(entry)),
     ),
     extensions,
-    adapters: keep(mounted.adapters, owners.adapters),
-    discoverers: mounted.discoverers.filter((item) => isKept(item.owner)),
-    preparers: mounted.preparers.filter((item) => isKept(item.owner)),
+    adapters: valuesIn(kept.adapters),
+    turnStarts: mounted.turnStarts.filter(isKeptEntry),
+    discoverers: mounted.discoverers.filter(isKeptEntry),
+    preparers: mounted.preparers.filter(isKeptEntry),
     get agents() {
-      return keep(mounted.agents, owners.agents)
+      return valuesIn(kept.agents)
     },
     get subagents() {
-      return keep(mounted.subagents, owners.subagents)
+      return valuesIn(kept.subagents)
     },
     owners: {
       plugins: owners.plugins.filter((plugin) => isKept(plugin.name)),
-      tools: owners.tools.filter((entry) => isKept(entry.owner)),
-      prompts: owners.prompts.filter((entry) => isKept(entry.owner)),
-      middleware: owners.middleware.filter(isKept),
-      adapters: owners.adapters.filter(isKept),
-      agentMiddleware: owners.agentMiddleware.filter(isKept),
-      generationMiddleware: owners.generationMiddleware.filter(isKept),
-      get agents() {
-        return owners.agents.filter(isKept)
-      },
-      get subagents() {
-        return owners.subagents.filter(isKept)
-      },
-      capabilities: owners.capabilities.filter((entry) => isKept(entry.owner)),
+      tools: owners.tools.filter(isKeptEntry),
+      prompts: owners.prompts.filter(isKeptEntry),
+      capabilities: owners.capabilities.filter(isKeptEntry),
     },
     capabilityBridge: capabilityBridgeOf(values),
     values,
     dispose: mounted.dispose,
     withoutOwners: (more) =>
-      withoutOwnersOf(next, { ...record, plugins }, more),
+      withoutOwnersOf(next, { ...record, plugins, owned: kept }, more),
   }
   return next
 }
@@ -1142,14 +1178,16 @@ export async function mountPlugins(
     value: tool,
     owner: 'the harness',
   }))
-  const prompts: Array<Owned<PluginPrompt>> = []
-  const middleware: Array<AnyChatMiddleware> = []
-  const middlewareOwners: Array<string> = []
-  const adapterOwners: Array<string> = []
-  const agentMiddleware: Array<AnyChatMiddleware> = []
-  const agentMiddlewareOwners: Array<string> = []
-  const generationMiddleware: Array<AnyGenerationMiddleware> = []
-  const generationMiddlewareOwners: Array<string> = []
+  const owned: OwnedLists = {
+    prompts: [],
+    middleware: [],
+    agentMiddleware: [],
+    generationMiddleware: [],
+    adapters: [],
+    agents: [],
+    subagents: [],
+  }
+  const { prompts, agents: roots, subagents: subs } = owned
   const capabilityOwners = new Map<CapabilityHandle, string>()
   const commands = new Map<string, { command: AnyCommand; owner: string }>()
   const config = new Map<string, { option: ConfigOption; owner: string }>()
@@ -1157,18 +1195,15 @@ export async function mountPlugins(
   for (const [point, items] of env.inheritedExtensions ?? []) {
     extensions.set(point, [...items])
   }
-  const adapters: MountedPlugins['adapters'] = []
+  const turnStarts: MountedPlugins['turnStarts'] = []
   const discoverers: MountedPlugins['discoverers'] = []
   const preparers: MountedPlugins['preparers'] = []
-  // Each list keeps the owner of each agent at the same index.
-  const roots: AgentList = { items: [], owners: [] }
-  const subs: AgentList = { items: [], owners: [] }
   const services = env.services ?? NO_SERVICES
-  const remove = (name: string, list: AgentList) => {
-    const at = list.items.findIndex((item) => item.name === name)
-    if (at < 0) return
-    list.items.splice(at, 1)
-    list.owners.splice(at, 1)
+  const indexIn = (name: string, list: Array<Owned<AnyAgent>>) =>
+    list.findIndex((entry) => entry.value.name === name)
+  const remove = (name: string, list: Array<Owned<AnyAgent>>) => {
+    const at = indexIn(name, list)
+    if (at >= 0) list.splice(at, 1)
   }
   // `ctx.commands.ready`: resolves after the last plugin is set up. A failed
   // mount leaves it pending, so no plugin acts on a session that never opens.
@@ -1255,10 +1290,11 @@ export async function mountPlugins(
             env.registry.set(agent, plugin.name)
             const list = options?.subagent ? subs : roots
             remove(agent.name, options?.subagent ? roots : subs)
-            const at = list.items.findIndex((item) => item.name === agent.name)
-            const index = at < 0 ? list.items.length : at
-            list.items.splice(index, 1, agent)
-            list.owners.splice(index, 1, plugin.name)
+            const at = indexIn(agent.name, list)
+            list.splice(at < 0 ? list.length : at, 1, {
+              value: agent,
+              owner: plugin.name,
+            })
           },
           delete: (name) => {
             env.registry.delete(name, plugin.name)
@@ -1386,18 +1422,14 @@ export async function mountPlugins(
           }
           prompts.push({ value: section, owner: plugin.name })
         })
-        for (const item of contributions.middleware ?? []) {
-          middleware.push(item)
-          middlewareOwners.push(plugin.name)
-        }
-        for (const item of contributions.agentMiddleware ?? []) {
-          agentMiddleware.push(item)
-          agentMiddlewareOwners.push(plugin.name)
-        }
-        for (const item of contributions.generationMiddleware ?? []) {
-          generationMiddleware.push(item)
-          generationMiddlewareOwners.push(plugin.name)
-        }
+        const own = <T>(value: T) => ({ value, owner: plugin.name })
+        owned.middleware.push(...(contributions.middleware ?? []).map(own))
+        owned.agentMiddleware.push(
+          ...(contributions.agentMiddleware ?? []).map(own),
+        )
+        owned.generationMiddleware.push(
+          ...(contributions.generationMiddleware ?? []).map(own),
+        )
         // The session reads commands and config only from its session plugins.
         const isSessionOnly =
           Object.keys(contributions.commands ?? {}).length > 0 ||
@@ -1433,9 +1465,13 @@ export async function mountPlugins(
           }
           items.push({ value: item.value, owner: plugin.name })
         }
-        if (contributions.adapter) {
-          adapters.push(contributions.adapter)
-          adapterOwners.push(plugin.name)
+        if (contributions.adapter)
+          owned.adapters.push(own(contributions.adapter))
+        if (contributions.onTurnStart) {
+          turnStarts.push({
+            start: contributions.onTurnStart,
+            owner: plugin.name,
+          })
         }
         if (contributions.discoverTools) {
           discoverers.push({
@@ -1451,13 +1487,11 @@ export async function mountPlugins(
         }
         for (const agent of contributions.agents ?? []) {
           env.registry.add(agent, plugin.name)
-          roots.items.push(agent)
-          roots.owners.push(plugin.name)
+          roots.push(own(agent))
         }
         for (const agent of contributions.subagents ?? []) {
           env.registry.add(agent, plugin.name)
-          subs.items.push(agent)
-          subs.owners.push(plugin.name)
+          subs.push(own(agent))
         }
       }
     }
@@ -1486,13 +1520,9 @@ export async function mountPlugins(
   settled = true
   markReady()
   let disposed: Promise<void> | undefined
-  const record: MountRecord = { plugins, capabilityOwners }
-  const systemPrompts = prompts.filter(
-    (entry) => entry.value.placement !== 'context',
-  )
-  const contextPrompts = prompts.filter(
-    (entry) => entry.value.placement === 'context',
-  )
+  const record: MountRecord = { plugins, capabilityOwners, owned }
+  const { system: systemPrompts, context: contextPrompts } =
+    splitPrompts(prompts)
   const mounted: MountedPlugins = {
     tools: tools
       .filter((entry) => entry.owner !== 'the harness')
@@ -1502,17 +1532,23 @@ export async function mountPlugins(
       text: entry.value.text,
       owner: entry.owner,
     })),
-    middleware,
-    agentMiddleware,
-    generationMiddleware,
+    middleware: valuesIn(owned.middleware),
+    agentMiddleware: valuesIn(owned.agentMiddleware),
+    generationMiddleware: valuesIn(owned.generationMiddleware),
     commands,
     config,
     extensions,
-    adapters,
+    adapters: valuesIn(owned.adapters),
+    turnStarts,
     discoverers,
     preparers,
-    agents: roots.items,
-    subagents: subs.items,
+    // Read at each use: `ctx.agents.set` and `delete` change them later.
+    get agents() {
+      return valuesIn(roots)
+    },
+    get subagents() {
+      return valuesIn(subs)
+    },
     owners: {
       plugins: plugins.map((plugin) => ({
         name: plugin.name,
@@ -1532,12 +1568,6 @@ export async function mountPlugins(
         id: entry.value.id,
         owner: entry.owner,
       })),
-      middleware: middlewareOwners,
-      adapters: adapterOwners,
-      agentMiddleware: agentMiddlewareOwners,
-      generationMiddleware: generationMiddlewareOwners,
-      agents: roots.owners,
-      subagents: subs.owners,
       capabilities: [...capabilityOwners].map(([handle, owner]) => ({
         name: handle.capabilityName,
         owner,

@@ -14,8 +14,8 @@ const THREAD = 't1'
 const waitFor = <T>(check: () => T | Promise<T>) =>
   vi.waitFor(check, { timeout: 5_000 })
 
-/** The run tags of an event or a frame. */
-type Tagged = Pick<SessionEvent, 'threadId' | 'operationId' | 'parentRunId'>
+/** What the tree reads of an event or a frame. */
+type Tagged = Pick<SessionEvent, 'operationId' | 'event'>
 
 const helper = defineAgent({
   name: 'helper',
@@ -27,7 +27,7 @@ const helper = defineAgent({
 const nester = defineAgent({
   name: 'nester',
   description: 'Starts a helper',
-  run: async (ctx) => await ctx.harness.agents.run('helper'),
+  run: async (ctx) => await ctx.harness!.agents.run('helper'),
 })
 
 /** Runs a helper and a nester in a parallel group. */
@@ -35,7 +35,7 @@ const lead = defineAgent({
   name: 'lead',
   description: 'Runs a group',
   run: async (ctx) => {
-    const results = await ctx.harness.agents.group({}, (g) => [
+    const results = await ctx.harness!.agents.group({}, (g) => [
       g.start('helper'),
       g.start('nester'),
     ])
@@ -61,14 +61,15 @@ const isEndOf = (
   entry.event.name === 'harness.operation.finished'
 
 /**
- * The run tree that the events give: the parent of each operation, from
- * the tags alone. Every event of one operation names the same parent.
+ * The run tree that the events give: the parent of each operation, from the
+ * `parentRunId` of its AG-UI RUN_STARTED.
  */
 function treeOf(events: ReadonlyArray<Tagged>) {
   const tree = new Map<string, string | undefined>()
-  for (const { operationId, parentRunId } of events) {
-    if (tree.has(operationId)) expect(tree.get(operationId)).toBe(parentRunId)
-    tree.set(operationId, parentRunId)
+  for (const { operationId, event } of events) {
+    if (event.type === EventType.RUN_STARTED) {
+      tree.set(operationId, event.parentRunId)
+    }
   }
   return tree
 }

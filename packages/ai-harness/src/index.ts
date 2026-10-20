@@ -129,9 +129,11 @@ export type {
   SubmitInput,
   SubmitOptions,
 } from './host'
-export { AccessDeniedError, membersOnly, membersOnlyPolicyOf } from './access'
+export { AccessDeniedError, membersOnly } from './access'
 export type {
   AccessAction,
+  AccessMembers,
+  AccessPolicy,
   AccessRun,
   AccessSession,
   AccessWait,
@@ -139,7 +141,6 @@ export type {
   AuthorizeInput,
   HarnessAccess,
   MembersOnlyOptions,
-  MembersOnlyPolicy,
 } from './access'
 export type {
   SessionIndexEntry,
@@ -166,16 +167,7 @@ export type {
 export type { ObservedSession } from './session/observed-session'
 export type { SessionUsage, UsageCounts } from './usage'
 export type { OnHarnessEvent } from './feed'
-export type {
-  HarnessAttributeValue,
-  HarnessContext,
-  HarnessSpan,
-  HarnessSpanContext,
-  HarnessSpanOptions,
-  HarnessTracer,
-  ObservabilityOptions,
-  OperationReport,
-} from './observability'
+export type { ObservabilityOptions, OperationReport } from './observability'
 
 export type {
   FinishContext,
@@ -233,7 +225,7 @@ export type {
 } from './types'
 
 export { isApproval, waitKind, waitOfInterrupt, waitOfQuestion } from './waits'
-export type { Wait, WaitKind, WaitOutcome } from './waits'
+export type { PendingWait, Wait, WaitKind, WaitOutcome } from './waits'
 
 export { harnessText } from './harness-text'
 export type { HarnessTextOptions, RemoteHarness } from './harness-text'

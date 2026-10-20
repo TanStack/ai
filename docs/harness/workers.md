@@ -16,7 +16,7 @@ keywords:
 
 Some work has no user who waits for it: a report that a cron job asks for, a reminder in one day, a tool that waits for a payment, or a turn that a deploy cut. Nobody opens these threads, so nothing runs them. A worker finds each thread in the session log that has work and no live host, takes it, runs the work, and gives it back.
 
-Every host on this page shares one log store. In production, that is your [`LogStore`](../persistence/store-reference#logstore). Here, `memoryLogBackend()` gives two hosts one memory log, the same as two servers on one database.
+Every host on this page shares one log store. In production, that is your [`LogStore`](../persistence/store-reference#logstore). Here, `memoryLogState()` gives two hosts one memory log, the same as two servers on one database.
 
 ## 1. Start a worker
 
@@ -28,7 +28,7 @@ import {
   createHarnessWorker,
   defineHarness,
 } from '@tanstack/ai-harness'
-import { memoryLogBackend, memoryLogStore } from '@tanstack/ai-persistence'
+import { memoryLogState, memoryLogStore } from '@tanstack/ai-persistence'
 import { openaiText } from '@tanstack/ai-openai'
 
 const assistant = defineHarness({
@@ -37,9 +37,9 @@ const assistant = defineHarness({
 })
 
 // One log store for every host. Swap in your own store.
-const backend = memoryLogBackend()
+const state = memoryLogState()
 const hostOn = () =>
-  createHarnessHost({ persistence: { stores: { log: memoryLogStore({ backend }) } } })
+  createHarnessHost({ persistence: { stores: { log: memoryLogStore({ state }) } } })
 
 const workerHost = hostOn()
 const worker = createHarnessWorker({ host: workerHost, harnesses: [assistant] })
@@ -51,6 +51,8 @@ const worker = createHarnessWorker({ host: workerHost, harnesses: [assistant] })
 - `signal`: an `AbortSignal` that stops the worker, the same as `stop()`.
 
 Run as many workers as you want, on as many machines. Each thread goes to one of them. Each thread opens in its own tenant, with no principal.
+
+If a thread fails to open, the worker logs the error and skips that thread for a time. The time doubles after each failure in a row, up to 5 minutes. The other threads still run.
 
 ## 2. Submit an input from any server
 
@@ -132,8 +134,9 @@ export const remind = durableTool(
 )
 ```
 
-- The sleep waits in the process. The host keeps the thread while it waits, so no worker takes it.
-- If the host stops, the log keeps a wake at the wake time. Then a worker runs the tool call again. The finished steps return their stored values, and the sleep waits only for the time that is left.
+- A sleep of 30 seconds or less waits in the process. The host keeps the thread while it waits.
+- A longer sleep on a thread that only a worker runs gives the thread back to the log store with a wake. The worker slot is free, and `worker.stop()` does not wait for the sleep. On a thread that your app has open, the sleep waits in the process.
+- At the wake time, or when the host stops, a worker runs the tool call again. The finished steps return their stored values, and the sleep waits only for the time that is left.
 - `name` is a step name. Use the same name on every run, and not the name of a `do` step of the same call.
 - Agent code has the same `step.sleep` on `ctx.harness.step`, in a run started with `resume: true`. See [Keep a background agent going after a crash](./subagents#keep-a-background-agent-going-after-a-crash).
 

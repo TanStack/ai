@@ -18,15 +18,20 @@ interface Debug {
   transcript: Array<{ role: string; content: unknown }>
   events: Array<unknown>
   records: Array<unknown>
-  modelBodies: Array<string>
-  otherModelCalls: number
   saved: Array<string>
   stored: Array<{ id: string }> | null
 }
 
 /** Open the thread on hosts A and B, and start the turn on host A. */
-async function start(request: APIRequestContext, credentials: boolean) {
-  const res = await request.post(`${ROUTE}/start`, { data: { credentials } })
+async function start(
+  request: APIRequestContext,
+  testId: string,
+  credentials: boolean,
+) {
+  const res = await request.post(`${ROUTE}/start`, {
+    headers: { 'x-test-id': testId },
+    data: { credentials },
+  })
   expect(res.ok()).toBe(true)
   const started: Started = await res.json()
   expect(started.error ?? null).toBeNull()
@@ -74,11 +79,37 @@ async function answerOnB(
 const stop = (request: APIRequestContext, runId: string) =>
   request.post(`${ROUTE}/stop?runId=${runId}`)
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null
+
+/**
+ * The bodies of the model calls with the test id `testId`, in order, from
+ * the aimock journal. Host B calls with `${testId}:b`.
+ */
+async function modelBodies(
+  request: APIRequestContext,
+  aimockPort: number,
+  testId: string,
+) {
+  const res = await request.get(`http://127.0.0.1:${aimockPort}/v1/_requests`)
+  const entries: unknown = await res.json()
+  return (Array.isArray(entries) ? entries : [])
+    .filter(
+      (entry) =>
+        isRecord(entry) &&
+        isRecord(entry.headers) &&
+        entry.headers['x-test-id'] === testId,
+    )
+    .map((entry) => JSON.stringify(isRecord(entry) ? entry.body : null))
+}
+
 test.describe('harness: a secret answer sent to a host that does not run the thread', () => {
   test('reaches the turn, and never shows in the transcript, the events, the log, or the model calls', async ({
     request,
+    testId,
+    aimockPort,
   }) => {
-    const started = await start(request, true)
+    const started = await start(request, testId, true)
     try {
       const asked = await readUntil(
         request,
@@ -96,19 +127,20 @@ test.describe('harness: a secret answer sent to a host that does not run the thr
       )
       expect(read.turn).toEqual({ text: 'Signed in.' })
       // Both model calls ran on host A.
-      expect(read.modelBodies).toHaveLength(2)
-      expect(read.otherModelCalls).toBe(0)
+      const bodies = await modelBodies(request, aimockPort, testId)
+      expect(bodies).toHaveLength(2)
+      expect(await modelBodies(request, aimockPort, `${testId}:b`)).toEqual([])
 
       // The secret is nowhere.
       expect(JSON.stringify(read.transcript)).not.toContain(SECRET)
       expect(JSON.stringify(read.events)).not.toContain(SECRET)
       expect(JSON.stringify(read.records)).not.toContain(SECRET)
-      expect(JSON.stringify(read.modelBodies)).not.toContain(SECRET)
+      expect(JSON.stringify(bodies)).not.toContain(SECRET)
       // The tool put the secret in its result. The harness scrubbed it in
       // the transcript, and in the second model call.
       const toolResult = read.transcript.find((m) => m.role === 'tool')
       expect(toolResult?.content).toContain('password was [redacted]')
-      expect(read.modelBodies[1]).toContain('password was [redacted]')
+      expect(bodies[1]).toContain('password was [redacted]')
 
       // The answer went through the credential store, and host A deleted
       // it after it read it. Host A kept it in the scope of the thread, for
@@ -125,8 +157,9 @@ test.describe('harness: a secret answer sent to a host that does not run the thr
 
   test('is refused when the hosts have no credential store', async ({
     request,
+    testId,
   }) => {
-    const started = await start(request, false)
+    const started = await start(request, testId, false)
     try {
       const asked = await readUntil(
         request,

@@ -147,6 +147,13 @@ export interface HarnessRouting<TMetadataSchema = any> extends Pick<
    * `'main'`, and a handoff to a person rejects. Default `false`.
    */
   humans?: boolean
+  /**
+   * Give the main model and each root agent the `handoff` tool. When false,
+   * no model gets it, and an app tool can use the name `handoff`. The
+   * router and your code (`ctx.harness.handoff`, `run.handoff`) can still
+   * hand off. Default `true`.
+   */
+  handoffs?: boolean
 }
 
 /**
@@ -359,9 +366,9 @@ export interface HarnessConfig<
     config?: ReadonlyArray<string>
     /**
      * The commands a client may run with a `command` input, for example
-     * `client.command('undo')`, or `/undo` in a session view on a client.
-     * An input with any other command is refused with `not_exposed`. Server
-     * code that calls `session.command()` can run every command. Warning:
+     * `client.command({ name: 'undo' })`, or `/undo` in a session view on a
+     * client. An input with any other command is refused with `not_exposed`.
+     * Server code that calls `session.command()` can run every command. Warning:
      * `/mode bypass` of `permissions()` turns approvals off, so expose `mode`
      * only to clients you trust. Plugins add their commands when a session
      * opens, so `defineHarness` does not check these names.

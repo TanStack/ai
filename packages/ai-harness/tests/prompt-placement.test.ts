@@ -5,10 +5,17 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import { createExtensionPoint } from '../src/extensions'
 import { definePlugin } from '../src/plugins'
-import { messageTexts, mockAdapter, text, toolCall } from './helpers'
+import { mockAdapter, text, toolCall } from './helpers'
+import type { SystemPrompt } from '@tanstack/ai'
+
+/** The text of the last system prompt of a model call. */
+const lastSystem = (call: { systemPrompts?: Array<SystemPrompt> }) => {
+  const prompt = call.systemPrompts?.at(-1)
+  return typeof prompt === 'string' ? prompt : prompt?.content
+}
 
 describe('a plugin prompt with placement', () => {
-  it('keeps the default in the system prompts, and puts a context prompt after the history', async () => {
+  it('keeps the default in the system prompts, and puts a context prompt last, once per call', async () => {
     let step = 0
     const tick = toolDefinition({
       name: 'tick',
@@ -49,20 +56,16 @@ describe('a plugin prompt with placement', () => {
     expect(calls).toHaveLength(2)
     const [first, second] = calls
     // The default placement stays in the system prompts. The context prompt
-    // is not there.
+    // is the last system prompt, not a user message.
     expect(first.systemPrompts).toContain('Be brief.')
-    expect(JSON.stringify(first.systemPrompts)).not.toContain('Current step')
-    // The context prompt is the last message, after the history.
-    expect(messageTexts(first).at(-1)).toBe('Current step: 0')
-    expect(messageTexts(second).at(-1)).toBe('Current step: 1')
-    // The text changed, but the system prompts and the history before it
-    // are byte for byte the same: the cached prefix holds.
-    expect(JSON.stringify(second.systemPrompts)).toBe(
-      JSON.stringify(first.systemPrompts),
-    )
-    const history = first.messages.slice(0, -1)
-    expect(JSON.stringify(second.messages.slice(0, history.length))).toBe(
-      JSON.stringify(history),
+    expect(lastSystem(first)).toBe('Current step: 0')
+    expect(lastSystem(second)).toBe('Current step: 1')
+    expect(JSON.stringify(first.messages)).not.toContain('Current step')
+    // The second call replaces the prompt of the first. The system prompts
+    // before it are byte for byte the same.
+    expect(second.systemPrompts).toHaveLength(first.systemPrompts.length)
+    expect(JSON.stringify(second.systemPrompts.slice(0, -1))).toBe(
+      JSON.stringify(first.systemPrompts.slice(0, -1)),
     )
     // The log does not keep the context prompt.
     expect(JSON.stringify(await session.transcript())).not.toContain(
@@ -111,11 +114,11 @@ describe('a plugin prompt with placement', () => {
     await session.send('Two.')
 
     expect(calls).toHaveLength(2)
-    expect(messageTexts(calls[0]).at(-1)).toBe('Notes on.\n\nRules: notes rule')
+    expect(lastSystem(calls[0])).toBe('Notes on.\n\nRules: notes rule')
     // The removed plugin adds no context prompt, and `collect` does not give
     // its items from the list that it cached before the change.
-    expect(messageTexts(calls[1]).at(-1)).toBe('Rules: none')
-    expect(JSON.stringify(calls[1].messages)).not.toContain('Notes on.')
+    expect(lastSystem(calls[1])).toBe('Rules: none')
+    expect(JSON.stringify(calls[1].systemPrompts)).not.toContain('Notes on.')
     await host.close()
   })
 })

@@ -209,9 +209,9 @@ describe('request ids, versions, and heartbeats', () => {
 
     const refused = {
       type: 'harness.error',
-      message: 'Protocol version 9 is not supported.',
+      message:
+        'Protocol version 9 is not supported. This host speaks version 2.',
       code: 'unsupported_version',
-      supported: [2],
     }
     expect(frames).toEqual([{ ...refused, requestId: 'req-9' }])
     expect(hostFrames).toEqual([{ ...refused, requestId: expect.any(String) }])
@@ -247,9 +247,9 @@ describe('request ids, versions, and heartbeats', () => {
     })
     expect(bad.sent.at(-1)).toEqual({
       type: 'harness.error',
-      message: 'Protocol version 1 is not supported.',
+      message:
+        'Protocol version 1 is not supported. This host speaks version 2.',
       code: 'unsupported_version',
-      supported: [2],
       // The subscribe has no requestId, so the id of the upgrade request.
       requestId: 'up-1',
     })

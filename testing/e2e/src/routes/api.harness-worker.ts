@@ -5,7 +5,7 @@ import {
   createHarnessWorker,
   defineHarness,
 } from '@tanstack/ai-harness'
-import { memoryLogBackend, memoryLogStore } from '@tanstack/ai-persistence'
+import { memoryLogState, memoryLogStore } from '@tanstack/ai-persistence'
 import type { HarnessHost } from '@tanstack/ai-harness'
 
 /**
@@ -110,10 +110,12 @@ export const Route = createFileRoute('/api/harness-worker')({
         }
         const runId = crypto.randomUUID()
         const threadId = `e2e-harness-worker-${scenario}-${runId}`
-        const backend = memoryLogBackend()
+        const logState = memoryLogState()
         const hostOn = () =>
           createHarnessHost({
-            persistence: { stores: { log: memoryLogStore({ backend }) } },
+            persistence: {
+              stores: { log: memoryLogStore({ state: logState }) },
+            },
           })
         // Host A must not run the thread, so its model has another answer.
         const a = harnessWith('Not on host A.')

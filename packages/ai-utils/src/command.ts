@@ -1,3 +1,56 @@
+/**
+ * The variables of this process that a command gets. The others, like
+ * provider keys and `DATABASE_URL`, stay in the server.
+ */
+const KEPT_ENV = ['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'TEMP', 'TMP']
+/** On Windows, a command also gets these, so programs can start. */
+const KEPT_WINDOWS_ENV = [
+  'SystemRoot',
+  'ComSpec',
+  'PATHEXT',
+  'WINDIR',
+  'USERPROFILE',
+]
+
+/**
+ * The environment of a command that this process starts: the variables of
+ * this process in a short list (`PATH`, `HOME`, `LANG`, `LC_ALL`, `TMPDIR`,
+ * `TEMP`, `TMP`, and on Windows `SystemRoot`, `ComSpec`, `PATHEXT`, `WINDIR`,
+ * `USERPROFILE`), plus the variables named in `passEnv`, plus `env`. No
+ * other variable of this process goes to the command. On Windows it sets
+ * `NoDefaultCurrentDirectoryInExePath`, so `cmd.exe` takes a program name
+ * from the PATH only, and not from the current folder, where a cloned repo
+ * can put an `rg.cmd`. Without `process` (a browser), only `env`.
+ *
+ * @example
+ * ```ts
+ * spawn(command, {
+ *   shell: true,
+ *   env: commandEnv({ AGENT: '1' }, process.platform, ['HTTPS_PROXY']),
+ * })
+ * ```
+ */
+export function commandEnv(
+  env: Record<string, string> | undefined,
+  platform: string,
+  passEnv: ReadonlyArray<string> = [],
+) {
+  const isWindows = platform === 'win32'
+  const names = isWindows
+    ? [...KEPT_ENV, ...KEPT_WINDOWS_ENV, ...passEnv]
+    : [...KEPT_ENV, ...passEnv]
+  const own: Record<string, string | undefined> =
+    typeof process !== 'undefined' ? process.env : {}
+  const kept: Record<string, string> = {}
+  for (const name of names) {
+    // On Windows, `process.env` finds a name in any letter case.
+    const value = own[name]
+    if (value !== undefined) kept[name] = value
+  }
+  if (!isWindows) return { ...kept, ...env }
+  return { ...kept, ...env, NoDefaultCurrentDirectoryInExePath: '1' }
+}
+
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
 
@@ -8,9 +61,6 @@ const isContinuation = (byte: number) => (byte & 0xc0) === 0x80
  * The newest output of a command, at most `maxBytes` bytes. When more comes,
  * the oldest bytes are dropped. `text()` gives the output as UTF-8 text, and
  * starts with a line that tells how many bytes were dropped.
- *
- * The `ai-sandbox` package has a copy of this function in
- * `workspace-backend.ts`. Change both.
  *
  * @example
  * ```ts
@@ -51,7 +101,12 @@ export function createOutputTail(maxBytes: number) {
   }
 
   const text = () => {
-    let bytes = Buffer.concat(chunks.slice(start))
+    let bytes = new Uint8Array(size)
+    let at = 0
+    for (const chunk of chunks.slice(start)) {
+      bytes.set(chunk, at)
+      at += chunk.byteLength
+    }
     if (dropped === 0) return decoder.decode(bytes)
     // The cut can be in a character. Start at the next whole one.
     let from = 0

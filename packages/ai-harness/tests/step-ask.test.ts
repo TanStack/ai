@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
-import { memoryLogBackend, memoryLogStore } from '@tanstack/ai-persistence'
+import { memoryLogState, memoryLogStore } from '@tanstack/ai-persistence'
 import { memoryCredentialStore } from '@tanstack/ai/byok/server'
 import {
   createHarnessHost,
@@ -143,8 +143,61 @@ describe('step.ask in a durable tool', () => {
     await host.close()
   })
 
+  it('refuses an answer that breaks a pattern, a resolve, and a second answer', async () => {
+    const log = memoryLogStore()
+    const code = durableTool(
+      toolDefinition({
+        name: 'code',
+        description: 'Ask for a code',
+        inputSchema: z.object({}),
+      }),
+      async (_args, { step }) =>
+        step.ask({
+          name: 'code',
+          message: 'Code?',
+          schema: z.string().regex(/^key-/),
+        }),
+    )
+    const { host, session } = await hostOn(
+      log,
+      harnessWith({
+        replies: [() => toolCall('code', {}, 'call-1'), () => text('ok')],
+        tools: [code],
+      }),
+    )
+    const turn = session.send('ask me')
+    const wait = await openWait(session)
+
+    // The whole JSON Schema of the wait counts, `pattern` too.
+    expect(
+      await session.answer({ questionId: wait.waitId, value: 'secret' }),
+    ).toMatchObject({
+      status: 'rejected',
+      reason: expect.stringContaining('Invalid answer'),
+    })
+    // A question of `step.ask` takes `answer`, which checks its schema.
+    expect(
+      await session.resolve({
+        resume: [
+          { interruptId: wait.waitId, status: 'resolved', payload: 'secret' },
+        ],
+      }),
+    ).toMatchObject({ status: 'rejected', reason: 'use_answer' })
+    // Two answers at once: one ends the wait, the other is refused.
+    const receipts = await Promise.all([
+      session.answer({ questionId: wait.waitId, value: 'key-1' }),
+      session.answer({ questionId: wait.waitId, value: 'key-2' }),
+    ])
+    expect(receipts.map(({ status }) => status).sort()).toEqual([
+      'accepted',
+      'rejected',
+    ])
+    await turn
+    await host.close()
+  })
+
   it('waits across a crash: the next host runs the call again, and its answer reaches the call', async () => {
-    const backend = memoryLogBackend()
+    const logState = memoryLogState()
     const reserve = vi.fn(async () => 'r-1')
     const book = durableTool(
       toolDefinition({
@@ -162,7 +215,7 @@ describe('step.ask in a durable tool', () => {
       harnessWith({ replies, tools: [book] })
     // The first host never renews its ownership, as after a crash.
     const first = await hostOn(
-      memoryLogStore({ backend }),
+      memoryLogStore({ state: logState }),
       harness([() => toolCall('book', {}, 'call-book')]),
       { ownership: CRASHING_OWNERSHIP },
     )
@@ -172,7 +225,7 @@ describe('step.ask in a durable tool', () => {
     await ownershipExpired()
     // The next host runs the cut call again, then calls the model.
     const next = await hostOn(
-      memoryLogStore({ backend }),
+      memoryLogStore({ state: logState }),
       harness([() => text('done')]),
     )
     // The wait stays open: the call runs again and waits for it.
@@ -194,6 +247,50 @@ describe('step.ask in a durable tool', () => {
     await first.host.close()
   })
 
+  it('scrubs each field of a secret object answer from the tool result and the next model call', async () => {
+    const PASSWORD = 'hunter2-correct-horse'
+    const signIn = durableTool(
+      toolDefinition({
+        name: 'signIn',
+        description: 'Ask for a login',
+        inputSchema: z.object({}),
+      }),
+      async (_args, { step }) => {
+        const login = await step.ask({
+          name: 'login',
+          message: 'Login?',
+          schema: z.object({ user: z.string(), password: z.string() }),
+          secret: true,
+        })
+        // On purpose: a careless tool puts the password in its result.
+        return `Signed in ${login.user} with ${login.password}.`
+      },
+    )
+    const model = mockAdapter([
+      () => toolCall('signIn', {}, 'call-1'),
+      () => text('ok'),
+    ])
+    const { host, session } = await hostOn(
+      memoryLogStore(),
+      defineHarness({ name: NAME, adapter: model.adapter, tools: [signIn] }),
+    )
+
+    const turn = session.send('sign me in')
+    const wait = await openWait(session)
+    await session.answer({
+      questionId: wait.waitId,
+      value: { user: 'ada', password: PASSWORD },
+    })
+    await turn
+
+    const result = (await session.transcript()).find(
+      (message) => message.role === 'tool',
+    )
+    expect(result?.content).toBe('Signed in ada with [redacted].')
+    expect(JSON.stringify(model.calls[1]?.messages)).not.toContain(PASSWORD)
+    await host.close()
+  })
+
   it('throws outside a harness session', async () => {
     await expect(
       Promise.resolve(
@@ -205,7 +302,7 @@ describe('step.ask in a durable tool', () => {
 
 describe('step.ask in a command', () => {
   it('runs the command again after a crash, and a secret answer reaches the run again through the credential store', async () => {
-    const backend = memoryLogBackend()
+    const logState = memoryLogState()
     const credentials: CredentialStore = memoryCredentialStore()
     const saved = vi.fn(async () => 'saved')
     const hostStops = gate()
@@ -236,7 +333,7 @@ describe('step.ask in a command', () => {
       }),
     })
     const harness = harnessWith({ plugins: [plugin] })
-    const first = await hostOn(memoryLogStore({ backend }), harness, {
+    const first = await hostOn(memoryLogStore({ state: logState }), harness, {
       credentials,
       ownership: CRASHING_OWNERSHIP,
     })
@@ -258,11 +355,11 @@ describe('step.ask in a command', () => {
     ).toMatchObject({ status: 'accepted' })
 
     await ownershipExpired()
-    const next = await hostOn(memoryLogStore({ backend }), harness, {
+    const next = await hostOn(memoryLogStore({ state: logState }), harness, {
       credentials,
     })
     // The next host runs the command again, and it ends.
-    const log = memoryLogStore({ backend })
+    const log = memoryLogStore({ state: logState })
     await waitFor(async () =>
       expect(
         (await log.read({ logId: LOG })).map((entry) => entry.record),

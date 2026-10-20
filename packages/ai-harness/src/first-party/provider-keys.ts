@@ -1,7 +1,8 @@
 import { maskKey } from '@tanstack/ai/byok'
 import { envKeyEntry } from '@tanstack/ai/byok/server'
 import { defineCommand } from '../commands'
-import { definePlugin } from '../plugins'
+import { SESSION_PLUGIN_KEYS_NO_ENV, definePlugin } from '../plugins'
+import type { ProviderKeys } from '@tanstack/ai'
 import type { ByokProvider } from '@tanstack/ai/byok'
 import type { CredentialsAccess } from '../auth'
 import type { AnyCommand, CommandContext } from '../commands'
@@ -29,7 +30,11 @@ export interface ProviderKeyStatus {
   state: 'connected' | 'env' | 'missing'
 }
 
-/** What UIs read from `state.plugins['tanstack/provider-keys']`. */
+/**
+ * What UIs read from `state.plugins['tanstack/provider-keys']`. Every member
+ * of the thread reads it, so it has no user's own keys: each provider is
+ * `env` or `missing`. `/keys` shows the keys of the user who runs it.
+ */
 export interface ProviderKeysState {
   providers: Array<ProviderKeyStatus>
 }
@@ -52,15 +57,17 @@ function untilAborted<T>(promise: Promise<T>, signal: AbortSignal) {
 
 /**
  * The state of one provider, and its `/keys` line. The key shows masked only.
- * Without `credentials` (no user), only the env var counts.
+ * Without a user, only the env var counts. An env var counts only when the
+ * keys of the session read env vars (`envKeys`).
  */
 async function describeKey(
-  credentials: CredentialsAccess | undefined,
+  user: { credentials: CredentialsAccess; keys: ProviderKeys } | undefined,
   provider: ByokProvider,
+  readsEnv: boolean,
 ) {
   const { id, label } = provider
   const status = (state: ProviderKeyStatus['state']) => ({ id, label, state })
-  const saved = await credentials?.get(id)
+  const saved = await user?.credentials.get(id)
   if (saved?.type === 'api_key') {
     return {
       status: status('connected'),
@@ -68,7 +75,9 @@ async function describeKey(
     }
   }
   const env = envKeyEntry(provider)
-  if (env) {
+  // The keys of the user read the env var only when the session allows it.
+  const isRead = user ? (await user.keys.get(provider)) !== null : readsEnv
+  if (env && isRead) {
     return {
       status: status('env'),
       line: `${label}: from the ${env.name} env var`,
@@ -88,7 +97,9 @@ async function describeKey(
  * host opens the browser), else it asks the user to paste the key. The key
  * is saved in the credential store of the user who runs `/connect`. A
  * `keyedAdapter(...)` for that provider then uses it. The env var still works
- * when no key is saved. Keys show masked only (the last 4 characters).
+ * when no key is saved, unless the host has access without `envKeys`. Keys
+ * show masked only (the last 4 characters). The plugin state lists only the
+ * env vars that the session reads, as every member reads it.
  *
  * @param options.providers - BYOK descriptors, for example `openaiByok`. Add
  *   `signIn` for a provider with a browser sign-in, for example
@@ -117,21 +128,24 @@ export function providerKeys(options: {
     name: 'tanstack/provider-keys',
     setup: async (ctx) => {
       const state = ctx.state<ProviderKeysState>({ providers: [] })
-      /**
-       * Check every provider, keep the result for UIs, and return the `/keys`
-       * lines. A command passes the credentials of the user who runs it. At
-       * setup there is no user, so the state shows the env vars only.
-       */
-      const refresh = async (credentials?: CredentialsAccess) => {
-        const described = await Promise.all(
-          providers.map((provider) => describeKey(credentials, provider)),
+      // ponytail: the session tells it with the identity of `ctx.keys`.
+      const readsEnv = ctx.keys !== SESSION_PLUGIN_KEYS_NO_ENV
+      /** Check every provider for `user`, or for no user. */
+      const describe = (user?: Parameters<typeof describeKey>[0]) =>
+        Promise.all(
+          providers.map((provider) => describeKey(user, provider, readsEnv)),
         )
-        await state.update(() => ({
-          providers: described.map((entry) => entry.status),
-        }))
-        return described.map((entry) => entry.line).join('\n')
-      }
-      await refresh()
+      // No user at setup: the state shows the env vars only, and no command
+      // writes the keys of one user into it.
+      const described = await describe()
+      await state.update(() => ({
+        providers: described.map((entry) => entry.status),
+      }))
+      /** The `/keys` lines of the user who runs a command. */
+      const linesOf = async ({ credentials, run }: CommandContext) =>
+        (await describe({ credentials, keys: run.keys }))
+          .map((entry) => entry.line)
+          .join('\n')
 
       /**
        * The key from the provider's sign-in, else the one the user pastes.
@@ -160,7 +174,7 @@ export function providerKeys(options: {
         keys: defineCommand({
           description:
             'Show the model providers and where their keys come from',
-          run: (_input, { credentials }) => refresh(credentials),
+          run: (_input, command) => linesOf(command),
         }),
       }
       for (const provider of providers) {
@@ -180,7 +194,6 @@ export function providerKeys(options: {
               id,
               credential: { type: 'api_key', value: key },
             })
-            await refresh(credentials)
             return `Connected to ${label} (key ...${maskKey(key)}).`
           },
         })
@@ -188,7 +201,6 @@ export function providerKeys(options: {
           description: `Remove your ${label} key`,
           run: async (_input, { credentials }) => {
             await credentials.delete(id)
-            await refresh(credentials)
             return `Disconnected from ${label}.`
           },
         })

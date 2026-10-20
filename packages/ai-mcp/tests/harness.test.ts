@@ -407,7 +407,7 @@ function accessHost() {
     access: {
       identify: ({ request }) =>
         users.get(request.headers.get('x-user') ?? '') ?? null,
-      authorize: membersOnly(),
+      policy: membersOnly(),
     },
   })
   cleanups.push(() => host.close())
@@ -1360,9 +1360,7 @@ describe('createHarnessMcpServer', () => {
     await held.hold.reached
     const live = await session()
     const confirm = live.command({ name: 'confirm' })
-    await waitFor(() =>
-      expect(live.snapshot().pendingQuestions).toHaveLength(1),
-    )
+    await waitFor(() => expect(live.snapshot().pendingWaits).toHaveLength(1))
     held.hold.release()
 
     // The question of the command is not a wait of the chat turn.
@@ -1373,8 +1371,8 @@ describe('createHarnessMcpServer', () => {
       questions: [],
       waits: [],
     })
-    const [question] = live.snapshot().pendingQuestions
-    await live.answer({ questionId: question!.questionId, value: true })
+    const [question] = live.snapshot().pendingWaits
+    await live.answer({ questionId: question!.waitId, value: true })
     expect(await confirm).toBe('Confirmed.')
   })
 
@@ -1434,6 +1432,43 @@ describe('createHarnessMcpServer', () => {
     })
     expect(done.content).toEqual([{ type: 'text', text: 'Cleaned.' }])
     expect(removed).toEqual(['old.log'])
+  })
+
+  it('resolve finds the wait of a background agent run that it did not start, from the log', async () => {
+    const remove = toolDefinition({
+      name: 'remove',
+      description: 'Remove a file',
+      needsApproval: true,
+      inputSchema: z.object({ path: z.string() }),
+    }).server(async ({ path }) => `removed ${path}`)
+    const model = scripted([removeTurn('old.log'), textTurn('Cleaned.')])
+    const cleaner = defineAgent({
+      name: 'cleaner',
+      description: 'Cleans up',
+      run: (ctx) => ctx.chat({ adapter: model.adapter, tools: [remove] }),
+    })
+    const harness = defineHarness({
+      name: 'test/mcp-log-waits',
+      adapter: scripted([]).adapter,
+      agents: [cleaner],
+    })
+    const { server, host } = await serve(harness)
+    const { client } = await connect(server)
+    // Another client starts the run: this server never saw its wait open.
+    const session = await host.open(harness, { threadId: 'main' })
+    const run = session.agents.cleaner.start()
+    const wait = await waitFor(() => {
+      const [open] = session.snapshot().pendingWaits
+      expect(open).toBeDefined()
+      return open!
+    })
+
+    const done = await client.callTool({
+      name: 'resolve',
+      arguments: { decisions: [{ interruptId: wait.waitId, approved: true }] },
+    })
+    expect(done.content).toEqual([{ type: 'text', text: 'Cleaned.' }])
+    expect(await run).toBe('Cleaned.')
   })
 
   it('answer returns answered for a question that no tool call waits on', async () => {
@@ -1673,7 +1708,7 @@ describe('createHarnessMcpServer access', () => {
     await expect(
       createHarnessMcpServer({ host, harness: greeter() }),
     ).rejects.toThrow(
-      'createHarnessMcpServer needs host access ({ identify, authorize }) or openAccess: true or { principal }.',
+      'createHarnessMcpServer needs host access ({ identify, policy }) or openAccess: true or { principal }.',
     )
   })
 
@@ -1702,7 +1737,10 @@ describe('createHarnessMcpServer access', () => {
     })
     expect(
       await host.sessions.get({ threadId: 't-ana', principal: ana }),
-    ).toMatchObject({ tenantId: 'globex', ownerId: 'ana' })
+    ).toMatchObject({
+      tenantId: 'globex',
+      members: [{ userId: 'ana', role: 'owner' }],
+    })
     expect(await host.sessions.get({ threadId: 't-ana' })).toBeUndefined()
   })
 
@@ -1744,7 +1782,7 @@ describe('createHarnessMcpServer access', () => {
     })
     expect(
       await host.sessions.get({ threadId: 't1', principal: olga }),
-    ).toMatchObject({ ownerId: 'olga' })
+    ).toMatchObject({ members: [{ userId: 'olga', role: 'owner' }] })
     await host.sessions.share({
       threadId: 't1',
       userId: 'bea',

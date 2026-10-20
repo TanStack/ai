@@ -6,7 +6,6 @@ import type {
   StreamChunk,
   SubagentRunContext,
 } from '@tanstack/ai'
-import { registerSubagentContextDefaults } from '@tanstack/ai/adapter-internals'
 import { askWithoutSession, stepRunWithoutSession } from './durable-tool'
 import { waitUntil } from './utils'
 import type { ToolStep } from './durable-tool'
@@ -273,8 +272,8 @@ const noTurnHandoff = () =>
   )
 
 /**
- * `ctx.harness` outside a run that a session started from code (a tool-mode
- * child of a chat turn, or a run that a plain `chat()` starts): `step.do`
+ * The parts of `ctx.harness` that a tool-mode child of a chat turn gets in
+ * place of a durable session context: `step.do`
  * runs `fn` each time, `step.sleep` waits its full time, `step.ask`
  * throws, and each call of `agents`, `state`, and `handoff` throws.
  */
@@ -343,23 +342,22 @@ export function harnessChildOf(context: HarnessAgentContext | undefined) {
   return context ? childRuns.get(context) : undefined
 }
 
-// A run that a plain chat() starts gets NO_SESSION_CONTEXT, so ctx.harness is
-// always there. The sideEffects field of package.json keeps this module.
-registerSubagentContextDefaults(() => ({ harness: NO_SESSION_CONTEXT }))
-
 declare module '@tanstack/ai' {
   /**
    * `ctx.harness` in the `run` of an agent: `step`, `agents`, `state`, and
-   * `handoff`. A harness
-   * session gives them to each agent run it starts from code (a session
-   * agent, `ctx.harness.agents.start`, a background child), and to the
-   * children those runs start through `ctx.chat({ subagents })`. Any
-   * other run, for example one that a plain `chat()` starts, gets
-   * `NO_SESSION_CONTEXT`: `step.do` runs `fn` each time, and each call of
-   * `agents` and `state` throws. `handoff` works only in a root agent that
-   * answers a turn of a harness with `routing`.
+   * `handoff`. A harness gives it to every agent run in a session, and to
+   * the children those runs start through `ctx.chat({ subagents })`. A run
+   * that a plain `chat()` starts has no `ctx.harness`, so check it before
+   * you use it. `handoff` works only in a root agent that answers a turn of
+   * a harness with `routing`.
+   *
+   * @example
+   * ```ts
+   * if (!ctx.harness) throw new Error('This agent must run in a harness.')
+   * const total = await ctx.harness.step.do('sum', () => 1 + 2)
+   * ```
    */
   interface SubagentContextExtension {
-    harness: HarnessAgentContext
+    harness?: HarnessAgentContext
   }
 }

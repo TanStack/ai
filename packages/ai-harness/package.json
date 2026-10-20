@@ -22,9 +22,7 @@
     "src"
   ],
   "type": "module",
-  "sideEffects": [
-    "./dist/esm/agents.js"
-  ],
+  "sideEffects": false,
   "module": "./dist/esm/index.js",
   "types": "./dist/esm/index.d.ts",
   "exports": {
@@ -85,9 +83,11 @@
     "test:types": "tsc"
   },
   "dependencies": {
+    "@tanstack/ai-utils": "workspace:^",
     "@tanstack/store": "^0.11.1"
   },
   "devDependencies": {
+    "@opentelemetry/api": "^1.9.0",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
     "@vitest/coverage-v8": "4.1.10",
@@ -96,12 +96,16 @@
     "zod": "^4.2.0"
   },
   "peerDependencies": {
+    "@opentelemetry/api": ">=1.9.0",
     "@tanstack/ai": "workspace:^",
     "@tanstack/ai-persistence": "workspace:^",
     "@vscode/ripgrep": "^1.15.0",
     "turndown": "^7.2.0"
   },
   "peerDependenciesMeta": {
+    "@opentelemetry/api": {
+      "optional": true
+    },
     "@vscode/ripgrep": {
       "optional": true
     },

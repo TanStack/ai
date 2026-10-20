@@ -9,8 +9,9 @@ import type { WaitKind } from './waits'
  * - `list`: see the session in a list of sessions.
  * - `send`: prompt, steer, follow up, start agents, and run commands.
  * - `answer`: answer a question or an approval of a run.
- * - `operator`: answer a `human` wait of any run, as an operator who takes
- *   over from the agent. A `human` wait takes `answer` or `operator`.
+ * - `operator`: answer a `human` wait of any run, and reply as an operator
+ *   who takes over from the agent. A `human` wait takes only `operator`,
+ *   so the user who waits for a person cannot answer it.
  * - `cancel`: stop a run.
  * - `configure`: change the settings of the thread.
  * - `share`: add or remove members.
@@ -36,10 +37,12 @@ export type AccessAction =
 export interface AccessSession {
   threadId: string
   tenantId?: string
-  /** The user id of the owner. Without it, the session has no owner. */
-  ownerId?: string
   /** The thread that started this one. Set on a subagent child. */
   parentThreadId?: string
+  /**
+   * The users of the session. The owner is the member with the role
+   * `owner`. Without one, the session has no owner.
+   */
   members: ReadonlyArray<SessionMember>
 }
 
@@ -73,8 +76,55 @@ export type Authorize<P extends Principal = Principal> = (
 ) => boolean | Promise<boolean>
 
 /**
+ * What the host does with the members list of a session: `share` and
+ * `unshare` change it, and a fork copies it.
+ */
+export interface AccessMembers {
+  /**
+   * Who is a member of the new session after a fork without a `members`
+   * option.
+   *
+   * - `'self'` (default): only the user who forked it, as the owner.
+   * - `'all'`: the members of the source session too.
+   */
+  fork?: 'self' | 'all'
+}
+
+/**
+ * The rules of a host: the `policy` of {@link HarnessAccess}.
+ * {@link membersOnly} returns one, or write your own with only `authorize`.
+ */
+export interface AccessPolicy<P extends Principal = Principal> {
+  /**
+   * What a principal may do. Called for every action. The harness checks
+   * the tenant before it calls this.
+   */
+  authorize: Authorize<P>
+  /**
+   * A filter that `host.sessions.list` passes to the sessions store, so a
+   * page holds only sessions that the user can list. `authorize` still
+   * checks each entry. Without it, the store gives every session of the
+   * tenant, and `authorize` drops the others, so a page can come back short.
+   */
+  listFilter?: (principal: P) => { memberId?: string }
+  /**
+   * Turn on `host.sessions.share` and `unshare`, which change the members
+   * list of a session, and set the members of a fork. Without it, `share`
+   * and `unshare` throw: change your own access tables and call
+   * `host.revoke`.
+   */
+  members?: AccessMembers
+}
+
+/**
  * Who may use the sessions of a host, and what they may do. The type of the
  * principal comes from the return value of `identify`.
+ *
+ * @example
+ * access: {
+ *   identify: ({ request }) => getUser(request),
+ *   policy: membersOnly(),
+ * }
  */
 export interface HarnessAccess<P extends Principal = Principal> {
   /**
@@ -83,10 +133,24 @@ export interface HarnessAccess<P extends Principal = Principal> {
    */
   identify: (input: { request: Request }) => P | null | Promise<P | null>
   /**
-   * What they may do. Called for every action. The harness checks the
-   * tenant before it calls this.
+   * What each user may do: `membersOnly()`, or your own
+   * `{ authorize, listFilter?, members? }`.
    */
-  authorize: Authorize<P>
+  policy: AccessPolicy<P>
+  /**
+   * A guest for a signed media URL with no login, for example an `<img>`
+   * that sends no cookies. The handler calls it only on the signed media
+   * route, after the signature checks out, and only when `identify` finds no
+   * user. `tenantId` is the tenant of the URL. `authorize` then decides
+   * `read` for the guest. Return null, or leave it out, to answer 401. A
+   * guest never reaches another route.
+   *
+   * @example
+   * anonymous: ({ tenantId }) => ({ id: 'guest', tenantId, isGuest: true })
+   */
+  anonymous?: (input: {
+    tenantId: string | undefined
+  }) => P | null | Promise<P | null>
   /**
    * Let keyed (BYOK) adapters and `ctx.keys` fall back to the server's env
    * vars. Default `false` when access is on.
@@ -129,36 +193,43 @@ export interface MembersOnlyOptions {
      */
     members?: 'self' | 'all'
   }
-}
-
-/**
- * The options of a {@link membersOnly} authorize, with the defaults filled
- * in. The host reads it with {@link membersOnlyPolicyOf}.
- */
-export interface MembersOnlyPolicy {
-  readonly fork: { readonly members: 'self' | 'all' }
+  operator?: {
+    /**
+     * The roles that have the `operator` action: they answer a `human` wait
+     * and reply as an operator. Default `['operator']`: only members with
+     * the role `operator`. The owner and plain members do not have it, so
+     * the user who waits for a person cannot act as that person.
+     */
+    roles?: ReadonlyArray<SessionMember['role']>
+  }
 }
 
 type Role = SessionMember['role']
 
-/**
- * The role of a user in a session. The `ownerId` makes a user the owner,
- * also when `members` has no entry for that user.
- */
+/** The role of a user in a session. */
 function roleOf(session: AccessSession, userId: string) {
-  if (session.ownerId === userId) return 'owner'
   return session.members.find((member) => member.userId === userId)?.role
 }
 
-function allows(role: Role, { principal, action, run }: AuthorizeInput) {
+/** The user id of the owner of a session, or `undefined` for no owner. */
+export function ownerOf(session: Pick<AccessSession, 'members'>) {
+  return session.members.find((member) => member.role === 'owner')?.userId
+}
+
+function allows(
+  role: Role,
+  { principal, action, run }: AuthorizeInput,
+  operators: ReadonlyArray<Role>,
+) {
   switch (action) {
     case 'read':
     case 'list':
       return true
     case 'send':
     case 'fork':
+      return role === 'owner' || role === 'member'
     case 'operator':
-      return role !== 'viewer'
+      return operators.includes(role)
     case 'answer':
     case 'cancel': {
       const startedTheRun = run?.principalId === principal.id
@@ -173,54 +244,47 @@ function allows(role: Role, { principal, action, run }: AuthorizeInput) {
 }
 
 /**
- * A ready-made `authorize`: only the members of a session may use it, each
- * with the limits of the member's role.
+ * Ready-made access rules: only the members of a session may use it, each
+ * with the limits of the member's role. Use it as the `policy` of `access`.
  *
- * - Owner: every action.
- * - Member: read, list, send, fork, and operator (answer a `human` wait).
- *   Answer and cancel only the runs that the member started.
+ * - Owner: every action but `operator`.
+ * - Member: read, list, send, and fork. Answer and cancel only the runs
+ *   that the member started.
+ * - Operator: read, list, and `operator` (answer a `human` wait, and reply
+ *   as an operator).
  * - Viewer: read and list.
  * - Not a member: no action.
  *
- * The owner is the `ownerId` of the session, or a member with the role
- * `owner`. This function does not check the tenant: the host does that
- * before it calls `authorize`. For a child thread, the host passes the root
- * session, so this function has no special rules for children.
+ * `operator.roles` changes who has `operator`.
  *
- * The function also has a `membersOnly` property with its options. The host
- * reads it to list only the sessions of a member, and to get the default of
- * a fork.
+ * The owner is the member with the role `owner`. `authorize` does not check
+ * the tenant: the host does that before it calls it. For a child thread, the
+ * host passes the root session, so it has no special rules for children.
+ *
+ * It also lists only the sessions of a member (`listFilter`), and turns on
+ * `host.sessions.share` and `unshare` (`members`).
  *
  * @param options - `fork.members` sets who is a member of a forked session.
- *   The default is `'self'`.
+ *   The default is `'self'`. `operator.roles` sets the roles with the
+ *   `operator` action. The default is `['operator']`.
  *
  * @example
  * access: {
  *   identify: ({ request }) => getUser(request),
- *   authorize: membersOnly({ fork: { members: 'self' } }),
+ *   policy: membersOnly({ fork: { members: 'self' } }),
  * }
  */
-export function membersOnly(options: MembersOnlyOptions = {}) {
-  const marker: { readonly membersOnly: MembersOnlyPolicy } = {
-    membersOnly: { fork: { members: options.fork?.members ?? 'self' } },
+export function membersOnly(
+  options: MembersOnlyOptions = {},
+): Required<AccessPolicy> {
+  const operators = options.operator?.roles ?? ['operator']
+  return {
+    authorize: (input) => {
+      const role = roleOf(input.session, input.principal.id)
+      if (role === undefined) return false
+      return allows(role, input, operators)
+    },
+    listFilter: (principal) => ({ memberId: principal.id }),
+    members: { fork: options.fork?.members ?? 'self' },
   }
-  // A new function on each call, so each one keeps its own marker.
-  const authorize: Authorize = (input) => {
-    const role = roleOf(input.session, input.principal.id)
-    if (role === undefined) return false
-    return allows(role, input)
-  }
-  return Object.assign(authorize, marker)
-}
-
-/**
- * The options of an `authorize` that {@link membersOnly} made, or
- * `undefined` for any other `authorize`.
- *
- * @param authorize - The `authorize` of the host's `access`.
- */
-export function membersOnlyPolicyOf<P extends Principal>(
-  authorize: Authorize<P> & { readonly membersOnly?: MembersOnlyPolicy },
-) {
-  return authorize.membersOnly
 }

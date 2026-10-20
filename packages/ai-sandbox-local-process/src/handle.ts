@@ -18,6 +18,7 @@ import {
   UnsupportedCapabilityError,
   createExecBackedGit,
 } from '@tanstack/ai-sandbox'
+import { commandEnv } from '@tanstack/ai-utils'
 import type { ChildProcess } from 'node:child_process'
 import type { Readable } from 'node:stream'
 import type {
@@ -109,45 +110,6 @@ function prependShellPath(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
       .join(path.delimiter)
   }
   return env
-}
-
-/**
- * The variables of this process that a command gets. The others, like
- * provider keys and `DATABASE_URL`, stay in the server.
- */
-const KEPT_ENV = ['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'TEMP', 'TMP']
-/** On Windows, a command also gets these, so programs can start. */
-const KEPT_WINDOWS_ENV = [
-  'SystemRoot',
-  'ComSpec',
-  'PATHEXT',
-  'WINDIR',
-  'USERPROFILE',
-]
-
-/**
- * The environment of a command: the variables of this process in a short
- * list (`PATH`, `HOME`, `LANG`, `LC_ALL`, `TMPDIR`, `TEMP`, `TMP`, and on
- * Windows `SystemRoot`, `ComSpec`, `PATHEXT`, `WINDIR`, `USERPROFILE`), plus
- * `env`. No other variable of this process goes to the command. On Windows
- * it sets `NoDefaultCurrentDirectoryInExePath`, so a program name is found
- * on the PATH only, and not in the current folder.
- *
- * A copy of `commandEnv` in `@tanstack/ai-harness`
- * (`src/first-party/coding/backend.ts`). This package does not depend on
- * that one. Change both.
- */
-function commandEnv(env: Record<string, string>, platform: NodeJS.Platform) {
-  const isWindows = platform === 'win32'
-  const names = isWindows ? [...KEPT_ENV, ...KEPT_WINDOWS_ENV] : KEPT_ENV
-  const kept: Record<string, string> = {}
-  for (const name of names) {
-    // On Windows, `process.env` finds a name in any letter case.
-    const value = process.env[name]
-    if (value !== undefined) kept[name] = value
-  }
-  if (!isWindows) return { ...kept, ...env }
-  return { ...kept, ...env, NoDefaultCurrentDirectoryInExePath: '1' }
 }
 
 export const LOCAL_PROCESS_CAPS: SandboxCapabilities = {
@@ -622,6 +584,8 @@ export interface LocalProcessHandleOptions {
   forkFactory: (sourceRoot: string) => Promise<SandboxHandle>
   /** Env vars to delete from the env of each command (see `commandEnv`). */
   scrubEnv?: Array<string>
+  /** Env vars of this process that each command also gets (see `commandEnv`). */
+  passEnv?: Array<string>
   /**
    * Sink for non-fatal teardown diagnostics — currently a `killTree` that could
    * not confirm the process tree is gone. Teardown never throws, so without a
@@ -886,6 +850,7 @@ export class LocalProcessHandle implements SandboxHandle {
     const env: NodeJS.ProcessEnv = commandEnv(
       { ...this.envVars, ...extra },
       process.platform,
+      this.options.passEnv,
     )
     // Drop scrubbed vars so a host CLI falls back to its own stored auth
     // (e.g. remove ANTHROPIC_API_KEY → Claude Code uses the logged-in

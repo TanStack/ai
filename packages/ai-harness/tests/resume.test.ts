@@ -11,7 +11,7 @@ import {
   scrubToolResults,
   toolResultRecorder,
 } from '../src/resume'
-import { Redactor } from '../src/auth'
+import { createRedactor } from '../src/auth'
 import {
   canOtherHostTake,
   gate,
@@ -470,7 +470,7 @@ describe('toolResultRecorder', () => {
 
   it('records the result without the secrets after scrubToolResults', async () => {
     const secret = 'sk-test-0123456789'
-    const redactor = new Redactor()
+    const redactor = createRedactor()
     redactor.add(secret)
     const seen: Array<ModelMessage> = []
     const tools = [

@@ -166,7 +166,7 @@ function starting(child: ReturnType<typeof hanging>) {
     description: 'Starts a child, then waits',
     run: (ctx) => {
       // The test reads the end of the child from the session.
-      Promise.resolve(ctx.harness.agents.start(child)).catch(() => {})
+      Promise.resolve(ctx.harness!.agents.start(child)).catch(() => {})
       return ctx.chat({ adapter: mockAdapter(untilAborted()).adapter })
     },
   })
@@ -224,7 +224,7 @@ describe('the signal of a child run', () => {
       name: 'lead',
       description: 'Starts a child, then uses its budget',
       run: (ctx) => {
-        Promise.resolve(ctx.harness.agents.start(child)).catch(() => {})
+        Promise.resolve(ctx.harness!.agents.start(child)).catch(() => {})
         return ctx.chat({ adapter: model.adapter })
       },
     })
@@ -255,7 +255,7 @@ describe('the signal of a child run', () => {
       name: 'lead',
       description: 'Starts a child, then ends',
       run: async (ctx) => {
-        ctx.harness.agents.start(child)
+        ctx.harness!.agents.start(child)
         return 'lead done'
       },
     })
@@ -314,7 +314,7 @@ describe('ctx.harness in a tool-mode child', () => {
       description: 'Runs a helper',
       run: async (ctx) => {
         try {
-          const result = await ctx.harness.agents.run(helper)
+          const result = await ctx.harness!.agents.run(helper)
           seen.push(String(result))
         } catch (error) {
           seen.push(error instanceof Error ? error.message : String(error))

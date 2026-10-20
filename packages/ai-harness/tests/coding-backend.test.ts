@@ -7,9 +7,9 @@ import { createHarnessHost, defineHarness, definePlugin } from '../src'
 import {
   WorkspaceHooks,
   hostBackend,
+  workspaceRoot,
   workspaceTools,
 } from '../src/first-party/coding'
-import { commandEnv } from '../src/first-party/coding/backend'
 import { mockAdapter, text, toolCall } from './helpers'
 
 let dir = ''
@@ -178,31 +178,20 @@ describe('hostBackend', () => {
       expect(job.output()).toBe('unset\n')
     })
   })
+})
 
-  it('gives a command only the listed variables of this process, plus env', async () => {
-    const server = {
-      SECRET_TOKEN: 'hunter2',
-      LANG: 'C.UTF-8',
-      SystemRoot: 'C:\\Windows',
-    }
-    await withEnv(server, async () => {
-      const linux = commandEnv({ AGENT: '1' }, 'linux')
-      expect(linux).toMatchObject({ LANG: 'C.UTF-8', AGENT: '1' })
-      expect(linux).not.toHaveProperty('SECRET_TOKEN')
-      // The Windows variables and setting are for Windows only.
-      expect(linux).not.toHaveProperty('SystemRoot')
-      expect(linux).not.toHaveProperty('NoDefaultCurrentDirectoryInExePath')
-      const windows = commandEnv(
-        { AGENT: '1', NoDefaultCurrentDirectoryInExePath: '' },
-        'win32',
-      )
-      expect(windows).toMatchObject({
-        SystemRoot: 'C:\\Windows',
-        AGENT: '1',
-        NoDefaultCurrentDirectoryInExePath: '1',
-      })
-      expect(windows).not.toHaveProperty('SECRET_TOKEN')
-    })
+describe('workspaceRoot', () => {
+  it('keeps each thread id from a client in its own folder in base', () => {
+    expect(workspaceRoot('/srv/work', 'acme', '../other-tenant/t-1')).toBe(
+      '/srv/work/acme/..%2Fother-tenant%2Ft-1',
+    )
+    // A child thread id has `/agent/` in it.
+    expect(workspaceRoot('/srv/work', 'acme', 't-1/agent/c-2')).toBe(
+      '/srv/work/acme/t-1%2Fagent%2Fc-2',
+    )
+    expect(() => workspaceRoot('/srv/work', 'acme', '..')).toThrow(
+      'cannot name a workspace folder',
+    )
   })
 })
 

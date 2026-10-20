@@ -1,11 +1,8 @@
 import { encodeWsFrame } from '@tanstack/ai'
 import { test, expect } from './fixtures'
 import type { APIRequestContext } from '@playwright/test'
-import type {
-  HarnessAttributeValue,
-  OperationReport,
-  SessionEvent,
-} from '@tanstack/ai-harness'
+import type { AttributeValue } from '@opentelemetry/api'
+import type { OperationReport, SessionEvent } from '@tanstack/ai-harness'
 
 type Scenario = 'wire' | 'gap' | 'tree' | 'lifecycle' | 'tracing'
 
@@ -18,14 +15,18 @@ interface Read {
     cursor?: string
     threadId?: string
     operationId?: string
-    parentRunId?: string
-    event?: { type: string; name?: string; value?: unknown }
+    event?: {
+      type: string
+      name?: string
+      value?: unknown
+      parentRunId?: string
+    }
   }
 }
 
 interface RecordedSpan {
   name: string
-  attributes: Record<string, HarnessAttributeValue>
+  attributes: Record<string, AttributeValue>
   links: Array<{ context: unknown }> | null
   hasParent: boolean
   ended: boolean
@@ -243,15 +244,13 @@ test.describe('harness observability', () => {
           ),
       )
 
-      // The tree from the run tags of the frames alone. Every frame of one
-      // operation names the same parent.
+      // The tree from the frames alone: the `parentRunId` of the AG-UI
+      // RUN_STARTED of each operation.
       const tree = new Map<string, string | null>()
       for (const { frame } of frames.slice(1)) {
         expect(frame.threadId).toBe(threadId)
-        const operationId = frame.operationId ?? ''
-        const parent = frame.parentRunId ?? null
-        if (tree.has(operationId)) expect(tree.get(operationId)).toBe(parent)
-        tree.set(operationId, parent)
+        if (frame.event?.type !== 'RUN_STARTED') continue
+        tree.set(frame.operationId ?? '', frame.event.parentRunId ?? null)
       }
       // The session has operations of its own, for example its inputs.
       const agentTree = Object.fromEntries(

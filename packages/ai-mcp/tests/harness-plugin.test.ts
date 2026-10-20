@@ -281,6 +281,51 @@ if (process.env[childEnv] === '1') {
       ])
     })
 
+    it("fails the later server when two servers give one tool name, with onDuplicateTool 'error'", async () => {
+      const first = echoServer('First echo')
+      const second = echoServer('Second echo')
+      const third = echoServer('Third echo')
+      const model = recorder()
+      const host = createHarnessHost({ persistence: memoryPersistence() })
+      cleanups.push(() => host.close())
+      const harness = defineHarness({
+        name: 'test/mcp-plugin',
+        adapter: model.adapter,
+        plugins: () => [
+          mcp({
+            onDuplicateTool: 'error',
+            servers: {
+              first: httpServer((request) => first.fetch(request), {
+                toolName: (tool) => tool.name,
+              }),
+              second: httpServer((request) => second.fetch(request)),
+              third: httpServer((request) => third.fetch(request), {
+                toolName: (tool) => tool.name,
+              }),
+            },
+          }),
+        ],
+      })
+      const session = await host.open(harness, { threadId: 't' })
+      await session.send('hi')
+
+      const tools = (model.calls[0]?.tools ?? []).map((tool) => [
+        tool.name,
+        tool.description,
+      ])
+      expect(tools).toEqual([
+        ['echo', 'First echo'],
+        ['second_echo', 'Second echo'],
+      ])
+      await expect(session.command({ name: 'mcp' })).resolves.toBe(
+        [
+          'first: connected (1 tool)',
+          'second: connected (1 tool)',
+          'third: failed: The MCP servers "first" and "third" both give the tool "echo". Set toolName on one of the servers to rename its tools.',
+        ].join('\n'),
+      )
+    })
+
     it.each([
       [
         'accepts',
@@ -300,14 +345,14 @@ if (process.env[childEnv] === '1') {
         )
         const turn = session.send('book a trip')
         await vi.waitFor(() =>
-          expect(session.snapshot().pendingQuestions).toHaveLength(1),
+          expect(session.snapshot().pendingWaits).toHaveLength(1),
         )
-        const [question] = session.snapshot().pendingQuestions
+        const [question] = session.snapshot().pendingWaits
 
         expect(question?.message).toBe('Which city?')
         expect(question?.schema).toMatchObject(tripForm.requestedSchema)
         expect(question?.url).toBeUndefined()
-        await session.answer({ questionId: question?.questionId ?? '', value })
+        await session.answer({ questionId: question?.waitId ?? '', value })
         await turn
         expect(trips.answers).toEqual([expected])
         expect(JSON.stringify(model.calls[1]?.messages)).toContain('booked')
@@ -327,16 +372,16 @@ if (process.env[childEnv] === '1') {
       )
       const turn = session.send('book a trip')
       await vi.waitFor(() =>
-        expect(session.snapshot().pendingQuestions).toHaveLength(1),
+        expect(session.snapshot().pendingWaits).toHaveLength(1),
       )
-      const [question] = session.snapshot().pendingQuestions
+      const [question] = session.snapshot().pendingWaits
 
       expect(question).toMatchObject({
         message: 'Pay for the trip, then come back.',
         url: 'https://pay.example.com/trip',
       })
       await session.answer({
-        questionId: question?.questionId ?? '',
+        questionId: question?.waitId ?? '',
         value: 'done',
       })
       await turn
@@ -362,13 +407,13 @@ if (process.env[childEnv] === '1') {
         )
         const turn = session.send('book a trip')
         await vi.waitFor(() =>
-          expect(session.snapshot().pendingQuestions).toHaveLength(1),
+          expect(session.snapshot().pendingWaits).toHaveLength(1),
         )
-        const [question] = session.snapshot().pendingQuestions
+        const [question] = session.snapshot().pendingWaits
 
         expect(question?.message).toBe('Which city?')
         expect(question?.schema).toMatchObject(tripForm.requestedSchema)
-        await session.answer({ questionId: question?.questionId ?? '', value })
+        await session.answer({ questionId: question?.waitId ?? '', value })
         await turn
         expect(trips.answers).toEqual([expected])
         expect(JSON.stringify(model.calls[1]?.messages)).toContain('booked')
@@ -390,16 +435,16 @@ if (process.env[childEnv] === '1') {
       )
       const turn = session.send('book a trip')
       await vi.waitFor(() =>
-        expect(session.snapshot().pendingQuestions).toHaveLength(1),
+        expect(session.snapshot().pendingWaits).toHaveLength(1),
       )
-      const [question] = session.snapshot().pendingQuestions
+      const [question] = session.snapshot().pendingWaits
 
       expect(question).toMatchObject({
         message: 'Pay for the trip, then come back.',
         url: 'https://pay.example.com/trip',
       })
       await session.answer({
-        questionId: question?.questionId ?? '',
+        questionId: question?.waitId ?? '',
         value: 'done',
       })
       await turn
@@ -430,10 +475,10 @@ if (process.env[childEnv] === '1') {
         ['Which seat?', { seat: '12A' }],
       ] as const) {
         await vi.waitFor(() =>
-          expect(session.snapshot().pendingQuestions[0]?.message).toBe(message),
+          expect(session.snapshot().pendingWaits[0]?.message).toBe(message),
         )
-        const [question] = session.snapshot().pendingQuestions
-        await session.answer({ questionId: question?.questionId ?? '', value })
+        const [question] = session.snapshot().pendingWaits
+        await session.answer({ questionId: question?.waitId ?? '', value })
       }
       await turn
       expect(trips.answers).toEqual([
@@ -455,11 +500,11 @@ if (process.env[childEnv] === '1') {
       const turn = session.send('book a trip')
       for (let round = 0; round < 5; round++) {
         await vi.waitFor(() =>
-          expect(session.snapshot().pendingQuestions).toHaveLength(1),
+          expect(session.snapshot().pendingWaits).toHaveLength(1),
         )
-        const [question] = session.snapshot().pendingQuestions
+        const [question] = session.snapshot().pendingWaits
         await session.answer({
-          questionId: question?.questionId ?? '',
+          questionId: question?.waitId ?? '',
           value: { city: 'Paris' },
         })
       }
@@ -489,13 +534,14 @@ if (process.env[childEnv] === '1') {
         lifecycle: { idleCloseMs: 0 },
       })
       cleanups.push(() => host.close())
-      // One harness definition, so one shared setup. The model calls the
-      // tool on the first call of each turn: calls 1 and 3.
+      // One plugin object, so one shared setup. The model calls the tool on
+      // the first call of each turn: calls 1 and 3.
       const model = recorder('local_pid', (call) => call % 2 === 1)
+      const tools = mcp({ servers: { local: stdioServer() } })
       const harness = defineHarness({
         name: 'test/mcp-plugin',
         adapter: model.adapter,
-        plugins: () => [mcp({ servers: { local: stdioServer() } })],
+        plugins: () => [tools],
       })
       const [first, second] = await Promise.all([
         host.open(harness, { threadId: 't-0' }),

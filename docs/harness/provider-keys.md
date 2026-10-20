@@ -88,9 +88,9 @@ const session = await host.open(assistant, {
 ```ts group=harness-provider-keys
 const stopAsking = session.onEvent('CUSTOM', async ({ event }) => {
   if (event.name !== 'harness.question') return
-  const [question] = session.snapshot().pendingQuestions
+  const [question] = session.snapshot().pendingWaits
   // question.secret is true. Read the key without showing it.
-  if (question) await session.answer({ questionId: question.questionId, value: 'sk-proj-...' })
+  if (question) await session.answer({ questionId: question.waitId, value: 'sk-proj-...' })
 })
 
 console.log(await session.command({ name: 'connect:openai' })) // Connected to OpenAI (key ...abcd).
@@ -110,7 +110,7 @@ fal.ai: missing. Run /connect fal.
 OpenRouter: missing. Run /connect openrouter.
 ```
 
-In your own UI, read the same list from `session.snapshot().plugins['tanstack/provider-keys'].providers`. Each entry has an `id`, a `label`, and a `state`: `connected`, `env`, or `missing`.
+In your own UI, read the providers from `session.snapshot().plugins['tanstack/provider-keys'].providers`. Each entry has an `id`, a `label`, and a `state`: `env` or `missing`. Every member of a thread reads this list, so it shows only the env vars that the session reads, not the keys of one user. A host with access reads no env vars without `envKeys: true`. To show the keys of the user, run `/keys`.
 
 ### Sign in with OpenRouter
 

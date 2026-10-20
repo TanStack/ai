@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { EventType } from '@tanstack/ai'
+import { z } from 'zod'
+import { EventType, toolDefinition } from '@tanstack/ai'
 import { memoryPersistence } from '@tanstack/ai-persistence'
 import {
   AccessDeniedError,
@@ -10,7 +11,7 @@ import {
 } from '../src'
 import { createHarnessHandler, handleHarnessSocket } from '../src/server'
 import { hostCountsOf } from '../src/host'
-import { fakeSocket, mockAdapter, readSse, text } from './helpers'
+import { fakeSocket, mockAdapter, readSse, text, toolCall } from './helpers'
 import type { HarnessHostOptions, Principal, SessionEvent } from '../src'
 
 /**
@@ -112,13 +113,52 @@ describe('host.observe of an idle thread', () => {
       threadId: THREAD,
       status: 'idle',
       activeOperations: [],
-      pendingInterrupts: [],
+      pendingWaits: [],
       plugins: { 'test/stdio-like': { mounts: 1 } },
     })
     expect(entry?.harness).toBe('test/observe')
     expect(setups.count).toBe(0)
     expect(writes()).toBe(0)
     expect(isOpen()).toBe(false)
+    await host.close()
+  })
+})
+
+describe('host.observe snapshot', () => {
+  it('matches session.snapshot() of the same thread state', async () => {
+    const deploy = toolDefinition({
+      name: 'deploy',
+      description: 'Deploy',
+      inputSchema: z.object({}),
+      needsApproval: true,
+    }).server(async () => 'deployed')
+    const { plugin } = stdioLikePlugin()
+    const harness = defineHarness({
+      name: 'test/observe-snapshot',
+      adapter: mockAdapter([() => toolCall('deploy', {}, 'c1')]).adapter,
+      tools: [deploy],
+      plugins: () => [plugin],
+    })
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      log: { coalesceMs: 0 },
+      lifecycle: { idleCloseMs: 0 },
+    })
+    const session = await host.open(harness, { threadId: THREAD })
+    await session.send('Deploy.')
+    const live = session.snapshot()
+    expect(live.status).toBe('requires_action')
+    expect(live.pendingWaits).toHaveLength(1)
+    await session.close()
+    expect(host.isOpen(harness, { threadId: THREAD })).toBe(false)
+
+    const view = await host.observe(harness, { threadId: THREAD })
+
+    // The close appends to the log, so only the cursor moved on.
+    expect(await view.snapshot()).toEqual({
+      ...live,
+      cursor: expect.any(String),
+    })
     await host.close()
   })
 })
@@ -187,7 +227,7 @@ describe('host.observe with access', () => {
 
   it('refuses a stranger and a thread with no entry, and checks a child through its root', async () => {
     const { host, harness, persistence, seed } = setup({
-      access: { identify: () => null, authorize: membersOnly() },
+      access: { identify: () => null, policy: membersOnly() },
     })
     await seed(olga)
     await persistence.stores.sessions.upsert({
@@ -215,6 +255,39 @@ describe('host.observe with access', () => {
     ).toBeUndefined()
     const child = await observe('subagent:run-1', olga)
     expect(await child.transcript()).toEqual([])
+    await host.close()
+  })
+})
+
+describe('host.observe of a child thread', () => {
+  it('throws when the parent of the child has no index entry', async () => {
+    const { host, harness, persistence } = setup()
+    await persistence.stores.sessions.upsert({
+      threadId: 'subagent:run-1',
+      parentThreadId: 't-gone',
+      harness: harness.name,
+      members: [],
+      createdAt: 1,
+      updatedAt: 1,
+    })
+
+    await expect(
+      host.observe(harness, { threadId: 'subagent:run-1' }),
+    ).rejects.toThrow(/no entry for thread "t-gone"/)
+    await host.close()
+  })
+
+  it('throws on a host without stores.sessions', async () => {
+    const { log } = memoryPersistence().stores
+    const host = createHarnessHost({ persistence: { stores: { log } } })
+    const harness = defineHarness({
+      name: 'test/observe',
+      adapter: mockAdapter([]).adapter,
+    })
+
+    await expect(
+      host.observe(harness, { threadId: `${THREAD}/agent/run-1` }),
+    ).rejects.toThrow(/a child thread needs stores.sessions/)
     await host.close()
   })
 })

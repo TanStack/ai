@@ -15,7 +15,11 @@ import {
   mediaPart,
   mimeTypeOf,
 } from '@tanstack/ai-harness/media'
-import { applyInput, parseHarnessInput } from '@tanstack/ai-harness/server'
+import {
+  applyInput,
+  parseHarnessInput,
+  requestUsers,
+} from '@tanstack/ai-harness/server'
 import {
   OAuthError,
   OAuthErrorCode,
@@ -39,6 +43,7 @@ import type {
   MediaRecord,
   ObservedSession,
   Operation,
+  PendingWait,
   Principal,
   SessionSnapshot,
   Wait,
@@ -247,17 +252,9 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
 ) {
   const { host, harness, openAccess } = options
   const access = host.hasAccess
-  if (access && openAccess !== undefined) {
-    throw new Error(
-      'createHarnessMcpServer: the host has access, so access.identify reads the user of each request. Remove openAccess.',
-    )
-  }
-  if (!access && openAccess === undefined) {
-    throw new Error(
-      'createHarnessMcpServer needs host access ({ identify, authorize }) or openAccess: true or { principal }.',
-    )
-  }
-  const fixed = openAccess === true ? undefined : openAccess?.principal
+  // The same fail-closed rule as the HTTP handler of the harness.
+  const users = requestUsers('createHarnessMcpServer', host, openAccess)
+  const { fixed } = users
   const defaultThread = options.threadId ?? 'main'
   const approvals = options.approvals ?? 'ask'
   const filePaths = options.filePaths ?? []
@@ -399,7 +396,7 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
       if (operation.kind !== 'chat') {
         return withMedia(session, outcome.value, media)
       }
-      const interrupts = session.snapshot().pendingInterrupts
+      const interrupts = turnInterruptsOf(session.snapshot())
       const stopped =
         operation.status() === 'interrupted' && interrupts.length > 0
       const answers = stopped ? await decide(interrupts, context) : undefined
@@ -429,7 +426,7 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
     approved: boolean,
     context: MCPToolContext,
   ) {
-    const interrupts = session.snapshot().pendingInterrupts
+    const interrupts = turnInterruptsOf(session.snapshot())
     const other = interrupts.find((interrupt) => !isApproval(interrupt))
     if (other !== undefined) {
       throw new Error(`Use resolve: interrupt ${other.id} needs a payload.`)
@@ -543,33 +540,48 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
   }).server<CallContext>(
     onSession(async (session, args, context) => {
       const decisions = decisionsOf(args)
-      const snapshot = session.snapshot()
-      // The waits of a background agent run: the run goes on after them.
-      const run = waiting.get(decisions[0]?.interruptId ?? '')
-      if (run !== undefined) {
-        const waits = snapshot.pendingWaits.filter(
-          (wait) => wait.runId === run.id,
-        )
-        const answers = answersOf(
-          decisions,
-          waits.map(({ waitId, kind }) => ({ id: waitId, kind })),
-        )
-        const receipt = await session.resolve({
-          resume: answers.map((answer) => ({ ...answer, status: 'resolved' })),
-        })
-        if (receipt.status === 'rejected') {
-          throw new Error(
-            `The harness refused the decisions: ${receipt.reason ?? 'no reason'}.`,
-          )
-        }
-        for (const wait of waits) waiting.delete(wait.waitId)
-        return finish(session, run, context)
+      const { pendingWaits } = session.snapshot()
+      // The log has every wait, also one that another server or a host
+      // before a restart opened. Only a wait with an interrupt takes resolve.
+      const runIds = new Set(
+        decisions.flatMap(({ interruptId }) =>
+          pendingWaits.flatMap((wait) =>
+            wait.waitId === interruptId && wait.interrupt ? [wait.runId] : [],
+          ),
+        ),
+      )
+      if (runIds.size > 1) {
+        throw new Error('One resolve answers the waits of one run.')
       }
-      const interrupts = snapshot.pendingInterrupts.map((interrupt) => ({
-        id: interrupt.id,
-        kind: waitKind(interrupt),
-      }))
-      return resume(session, answersOf(decisions, interrupts), context)
+      const [runId] = runIds
+      // The waits of that run, else of the stopped turn. Every decision
+      // must answer one of them.
+      const open = pendingWaits.filter(({ interrupt, turn, runId: run }) =>
+        runId === undefined ? interrupt && turn : interrupt && run === runId,
+      )
+      const answers = answersOf(
+        decisions,
+        open.map(({ waitId, kind }) => ({ id: waitId, kind })),
+      )
+      if (open.some(({ turn }) => turn) || open.length === 0) {
+        return resume(session, answers, context)
+      }
+      // The waits of a background agent run: the run goes on after them.
+      const receipt = await session.resolve({
+        resume: answers.map((answer) => ({ ...answer, status: 'resolved' })),
+      })
+      if (receipt.status === 'rejected') {
+        throw new Error(
+          `The harness refused the decisions: ${receipt.reason ?? 'no reason'}.`,
+        )
+      }
+      for (const wait of open) waiting.delete(wait.waitId)
+      const run = runId === undefined ? undefined : session.operation(runId)
+      // The run goes on on the host that owns the log.
+      if (run === undefined) {
+        return { status: 'resolved', ...pending(session.snapshot()) }
+      }
+      return finish(session, run, context)
     }),
   )
 
@@ -827,8 +839,8 @@ export async function createHarnessMcpServer<P extends Principal = Principal>(
         'createHarnessMcpServer: a host with access reads the user of each HTTP request, so it cannot serve over stdio. For one local user, use a host without access and openAccess: { principal }.',
       )
     }
-    const principal = await host.identify({ request })
-    if (principal === null) {
+    const principal = (await users.of(request))?.principal
+    if (principal === undefined) {
       return bearerAuthChallengeResponse(
         new OAuthError(OAuthErrorCode.InvalidToken, 'The request has no user.'),
       )
@@ -912,7 +924,9 @@ async function settle(
         // The interrupts of a turn come with its end.
         const isTurnStop = session
           .snapshot()
-          .pendingInterrupts.some((interrupt) => interrupt.id === wait.waitId)
+          .pendingWaits.some(
+            ({ waitId, turn }) => turn && waitId === wait.waitId,
+          )
         return isTurnStop ? done : { done: false, wait }
       },
       // The session closed: only the work can end the wait.
@@ -934,30 +948,54 @@ function pending(snapshot: SessionSnapshot, runId?: string) {
   const waits = snapshot.pendingWaits.filter(
     (wait) => runId === undefined || wait.runId === runId,
   )
-  const ids = new Set(waits.map(({ waitId }) => waitId))
   return {
-    interrupts: snapshot.pendingInterrupts
-      .filter((interrupt) => runId === undefined || ids.has(interrupt.id))
-      .map((interrupt) => ({
-        id: interrupt.id,
-        kind: waitKind(interrupt),
-        tool: interrupt.metadata?.toolName,
-        args: interrupt.metadata?.input,
-        message: interrupt.message,
-        responseSchema: interrupt.responseSchema,
-      })),
-    questions: snapshot.pendingQuestions
-      .filter(({ questionId }) => runId === undefined || ids.has(questionId))
-      .map(({ questionId, ...question }) => ({
-        id: questionId,
-        ...question,
-      })),
+    interrupts: turnInterruptsOf({ pendingWaits: waits }).map((interrupt) => ({
+      id: interrupt.id,
+      kind: waitKind(interrupt),
+      tool: interrupt.metadata?.toolName,
+      args: interrupt.metadata?.input,
+      message: interrupt.message,
+      responseSchema: interrupt.responseSchema,
+    })),
+    questions: waits.flatMap(
+      ({ waitId, kind, turn, message, schema, secret, url }) =>
+        turn || kind !== 'question'
+          ? []
+          : [
+              {
+                id: waitId,
+                message: message ?? '',
+                ...(schema !== undefined ? { schema } : {}),
+                ...(secret ? { secret } : {}),
+                ...(url ? { url } : {}),
+              },
+            ],
+    ),
     waits: waits.map(waitForClient),
   }
 }
 
-/** A wait as a result shows it: who started its run stays out. */
-function waitForClient({ principal: _principal, ...wait }: Wait) {
+/** The interrupts of the stopped turn: the turn waits of `pendingWaits`. */
+function turnInterruptsOf({
+  pendingWaits,
+}: Pick<SessionSnapshot, 'pendingWaits'>) {
+  return pendingWaits.flatMap(({ interrupt, turn }) =>
+    interrupt && turn ? [interrupt] : [],
+  )
+}
+
+/**
+ * A wait as a result shows it: who started its run, its interrupt (in
+ * `interrupts`), and the fields of its question (in `questions`) stay out.
+ */
+function waitForClient({
+  principal: _principal,
+  interrupt: _interrupt,
+  turn: _turn,
+  secret: _secret,
+  url: _url,
+  ...wait
+}: PendingWait): Wait {
   return wait
 }
 

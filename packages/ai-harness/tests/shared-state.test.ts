@@ -33,7 +33,7 @@ function sharing(ready?: () => Promise<void>) {
     description: 'Adds a name to the shared list',
     inputSchema: z.object({ name: z.string() }),
     run: async (ctx) => {
-      const seen = ctx.harness.state({
+      const seen = ctx.harness!.state({
         key: 'seen',
         initial: [] as Array<string>,
       })
@@ -45,7 +45,7 @@ function sharing(ready?: () => Promise<void>) {
     name: 'reader',
     description: 'Reads the shared list',
     run: (ctx) =>
-      ctx.harness.state({ key: 'seen', initial: [] as Array<string> }).get(),
+      ctx.harness!.state({ key: 'seen', initial: [] as Array<string> }).get(),
   })
   return defineHarness({
     name: 'test/shared-state',

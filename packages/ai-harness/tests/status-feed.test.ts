@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { toolDefinition } from '@tanstack/ai'
 import {
-  memoryLogBackend,
+  memoryLogState,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -12,7 +12,15 @@ import {
   definePlugin,
   durableTool,
 } from '../src'
-import { mockAdapter, text, toolCall } from './helpers'
+import {
+  CRASHING_OWNERSHIP,
+  mockAdapter,
+  ownershipExpired,
+  questionsOf,
+  text,
+  toolCall,
+  untilAborted,
+} from './helpers'
 import type { HostEvent } from '../src'
 
 // Coverage runs in CI are slow, so polled checks wait up to 5 s.
@@ -85,9 +93,9 @@ describe('host.events', () => {
     const b = await host.open(plainHarness(), { threadId: 'b' })
 
     const turn = a.send('go')
-    await waitFor(() => expect(a.snapshot().pendingQuestions).toHaveLength(1))
+    await waitFor(() => expect(questionsOf(a.snapshot())).toHaveLength(1))
     await b.send('hi')
-    const [question] = a.snapshot().pendingQuestions
+    const [question] = questionsOf(a.snapshot())
     await a.answer({ questionId: question?.questionId ?? '', value: 'yes' })
     await turn
 
@@ -110,7 +118,7 @@ describe('host.events', () => {
     const a = await host.open(askingHarness(), { threadId: 'a' })
     await host.open(plainHarness(), { threadId: 'b' })
     void a.send('go')
-    await waitFor(() => expect(a.snapshot().pendingQuestions).toHaveLength(1))
+    await waitFor(() => expect(questionsOf(a.snapshot())).toHaveLength(1))
 
     const feed = watch((signal) => host.events({ signal }))
 
@@ -166,10 +174,10 @@ describe('host.events', () => {
 
 describe('host.events on a host that does not own the log', () => {
   it('shows running, then idle, for a turn that another host runs', async () => {
-    const backend = memoryLogBackend()
+    const logState = memoryLogState()
     const hostOn = () =>
       createHarnessHost({
-        persistence: { stores: { log: memoryLogStore({ backend }) } },
+        persistence: { stores: { log: memoryLogStore({ state: logState }) } },
       })
     const owner = hostOn()
     const other = hostOn()
@@ -191,5 +199,41 @@ describe('host.events on a host that does not own the log', () => {
     await running.close()
     await other.close()
     await owner.close()
+  })
+
+  it('shows idle after it takes the log of a host that stopped in a turn', async () => {
+    const logState = memoryLogState()
+    const harnessOf = (replies: Parameters<typeof mockAdapter>[0]) =>
+      defineHarness({
+        name: 'test/status-takeover',
+        adapter: mockAdapter(replies).adapter,
+      })
+    const stopped = createHarnessHost({
+      persistence: { stores: { log: memoryLogStore({ state: logState }) } },
+      ownership: CRASHING_OWNERSHIP,
+    })
+    const other = createHarnessHost({
+      persistence: { stores: { log: memoryLogStore({ state: logState }) } },
+    })
+    const first = await stopped.open(harnessOf([untilAborted()]), {
+      threadId: 's',
+    })
+    const second = await other.open(harnessOf([() => text('two')]), {
+      threadId: 's',
+    })
+    const feed = watch((signal) => other.events({ signal }))
+    void Promise.resolve(first.send('one', { inputId: 'in-1' })).catch(() => {})
+    await waitFor(() => expect(statusesOf(feed.seen, 's')).toContain('running'))
+    // The first host stops: its ownership of the log expires.
+    await ownershipExpired()
+
+    // The next send takes the log from the stopped host, and runs.
+    await second.send('two')
+
+    await waitFor(() => expect(statusesOf(feed.seen, 's').at(-1)).toBe('idle'))
+    await feed.stop()
+    await second.close()
+    await stopped.close().catch(() => {})
+    await other.close()
   })
 })

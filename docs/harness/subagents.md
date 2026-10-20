@@ -61,6 +61,9 @@ export const review = definePlugin({
 - `ctx.agents.start(agent, input, { wake: true })` runs it in the background and starts a turn when it finishes or fails.
 - `ctx.agents.start(agent, input, { principal })` runs it as that user. The wake turn runs as the same user.
 - Without `principal`, a plugin with `lifetime: 'turn'` starts it as the user of its turn. A session plugin starts it as the user who opened the session. To start it for the user of a tool call, pass `principal: ctx.context.run.principal`.
+- In a tool that an agent run calls, `ctx.agents` starts the agent as a child of that run. It runs for the user of that run, and counts in its tree and budget. It takes no `maxConcurrent` slot, so the run can await it.
+- When tools of two runs run at the same time, the plugin cannot tell which run calls it. Then pass `parent: ctx.context.run` to name the run.
+- Pass `parent: null` to start a root run instead. It takes a `maxConcurrent` slot.
 - `ctx.agents.group(options, (g) => runs)` runs several. See [Run agents in parallel or in series](#run-agents-in-parallel-or-in-series).
 
 The input type comes from the `inputSchema` of the agent, and the result type comes from its output. A wrong input is a type error. An agent name instead of a definition gives a result of type `unknown`. `ctx.agents` in a plugin and `ctx.harness.agents` in agent code have the same type, `AgentActions`.
@@ -81,6 +84,7 @@ const researcher = defineAgent({
   description: 'Explores each topic, two at a time',
   inputSchema: z.object({ topics: z.array(z.string()) }),
   run: async (ctx) => {
+    if (!ctx.harness) throw new Error('This agent must run in a harness.')
     const notes = await ctx.harness.agents.group({ concurrency: 2 }, (g) =>
       ctx.input.topics.map((topic) => g.start(explorer, { task: topic })),
     )
@@ -104,6 +108,7 @@ const checker = defineAgent({
   description: 'Explores a topic, then checks the notes',
   inputSchema: z.object({ topic: z.string() }),
   run: async (ctx) => {
+    if (!ctx.harness) throw new Error('This agent must run in a harness.')
     const { agents } = ctx.harness
     const notes = await agents.run(explorer, { task: ctx.input.topic })
     return await agents.run(explorer, { task: `Find the errors in these notes:\n${notes}` })
@@ -129,6 +134,7 @@ const migrator = defineAgent({
   description: 'Moves the data of one customer to the new region',
   inputSchema: z.object({ customer: z.string() }),
   run: async (ctx) => {
+    if (!ctx.harness) throw new Error('This agent must run in a harness.')
     const { step } = ctx.harness
     // Each side effect is a step. A finished step does not run again.
     const exportId = await step.do('export', () => startExport(ctx.input.customer))
@@ -163,11 +169,11 @@ export const migrations = definePlugin({
 2. Put each side effect in `ctx.harness.step.do(name, fn)`. The agent code runs again from its start, and a finished step returns its stored value.
 3. Give each step a name that is the same on every run, and return a JSON value from `fn`.
 
-`ctx.harness` gives the agent `step`, `agents`, and `state`. When your app loads `@tanstack/ai-harness`, every agent run has it:
+`ctx.harness` gives the agent `step`, `agents`, and `state`. A harness gives it to every agent run in a session:
 
 - A run that a session starts from code gets the full context.
 - An agent that the model calls as a tool, and an agent that a router picks, get `agents` and `state`. Their `step.do` runs `fn` each time.
-- An agent in a plain `chat()` has no session. Its `step.do` runs `fn` each time, and each call of `agents` and `state` throws an error.
+- An agent in a plain `chat()` has no harness, so `ctx.harness` is `undefined`. Check it before you use it, as the samples on this page do.
 
 What the next host does:
 
@@ -182,7 +188,9 @@ The agent code runs again from its start, so it calls `start`, `run`, and `group
 
 - A child that started before the host stopped is the same child. Its run gives the result that the log stored, or it goes on if it did not end.
 - Only the children that did not start yet start now.
-- The harness finds each child by its place in the run: the order of the `start` and `run` calls, the order of the `group` calls, and the order of the children in each group.
+- The harness finds each child by its `key`. A call with no `key` is found by its place among the calls with no `key`: the order of the `start` and `run` calls, the order of the `group` calls, and the order of the children in each group.
+- When the log has another agent at that place or key, the start throws.
+- A background child that outlives its parent keeps its steps and finished tool calls.
 
 If the order of the `start`, `run`, or `group` calls can change between runs, give each call a `key`. The children in one group always keep their order:
 
@@ -192,6 +200,7 @@ const auditor = defineAgent({
   description: 'Explores the services, then writes a summary',
   inputSchema: z.object({ services: z.array(z.string()) }),
   run: async (ctx) => {
+    if (!ctx.harness) throw new Error('This agent must run in a harness.')
     const { agents } = ctx.harness
     const notes = await agents.group({ key: 'services' }, (g) =>
       ctx.input.services.map((service) => g.start(explorer, { task: service })),
@@ -300,6 +309,7 @@ const editor = defineAgent({
   name: 'editor',
   description: 'Starts two drafts and joins them',
   run: async (ctx) => {
+    if (!ctx.harness) throw new Error('This agent must run in a harness.')
     const { agents } = ctx.harness
     const intro = agents.start(drafter)
     const outro = agents.start(drafter)
@@ -543,7 +553,7 @@ export const studio = defineHarness({
 
 The router can also return a pick of its own: `'main'`, a name, a list of names, `{ names, order }`, or `{ steps }`. Anywhere a name goes, `{ name, input }` can go too, for example `{ name: 'pricer', input: { vendor: 'Acme' } }`. If a picked agent has an `inputSchema` and no input, the turn fails with `Agent "pricer" needs input. Return { name: 'pricer', input } from the router.` See [Route, or let the model pick](../chat/subagents#route-or-let-the-model-pick) for each pick.
 
-The router also gets `session`, the `input` of the turn as the user sent it, `operationId`, `inputId`, `abortSignal`, `activeAgent`, and `model`. Next to `router`, `routing` takes `order`, `limits`, `sandbox`, `after`, and `humans`. The first three work the same as in `subagents`.
+The router also gets `session`, the `input` of the turn as the user sent it, `operationId`, `inputId`, `abortSignal`, `activeAgent`, and `model`. Next to `router`, `routing` takes `order`, `limits`, `sandbox`, `after`, `humans`, and `handoffs`. The first three work the same as in `subagents`. `handoffs: false` gives no model the `handoff` tool. See [Hand off a conversation](./handoffs).
 
 ### Count the model calls of the router
 
@@ -655,7 +665,7 @@ In a session, the child is a run of the session tree. It opens a session of the 
 What you see in the parent session:
 
 - The model calls of the child count in `session.usage()` and in the budget of the parent.
-- A wait of the child, for example a sign-in or an approval, is in `snapshot().pendingWaits` of the root session. Answer it there, and the child goes on. This works while the child session is open on this host: another host and `host.observe` do not see the wait. A child that waits keeps its parent run running.
+- A wait of the child, for example a sign-in or an approval, is in `snapshot().pendingWaits` of the root session. Answer it there, and the child goes on in the parent run. The receipt names the parent run, so a `POST run` resume streams that run to its end. A wait that expires lets the child go on by itself. This works while the child session is open on this host: another host and `host.observe` do not see the wait. A child that waits keeps its parent run running.
 - The events of the child (text, reasoning, tool calls, and custom events) reach the parent stream with `parentRunId` in `metadata.tanstack`. A last `RUN_FINISHED` has the total usage of the child.
 - The child session closes, and its plugins are cleaned up, when the run settles.
 
@@ -680,7 +690,7 @@ See [Limit the tree](../chat/subagents#limit-the-tree) for what each limit does.
 
 - `maxDepth` and `maxCalls` count per tree. An agent that a session, a plugin, or a wake starts is the root of its own tree.
 - `maxConcurrent` counts the root agent runs of the whole session, and the children of each run.
-- Over `maxConcurrent`, a root start waits with the status `queued`. It starts when a slot is free. A run that waits for a person keeps its slot.
+- Over `maxConcurrent`, a root start waits with the status `queued`. It starts when a slot is free. A run that waits for a person keeps its slot. A plugin start in a tool of an agent run is a child of that run, not a root, unless it passes `parent: null`.
 - Over a limit, a child start throws, and no child starts. A child of a `group` with `concurrency` waits in its group instead.
 - A start that fails before its run starts, for example with an unknown agent or an input that is not valid, gives its call back.
 
@@ -709,8 +719,8 @@ Every way to start an agent takes these options: `start`, `run`, and `g.start`, 
 
 - `limits.timeoutMs`: the run fails with the code `timeout` after this time. A run again on another host keeps the first deadline. The deadline is never later than the deadline of the parent run, or `durability.timeoutMs`.
 - `limits.maxAttempts`: the attempts of this run. It replaces `durability.maxAttempts` for this run.
-- `budget.maxTokens` and `budget.maxCost`: the model use of the run and of all its children. The check runs after each model call, so a run stops after the first model call over the budget. Then it fails with the code `budget`.
-- `onModelError`: called when a model call of the run fails. Return `'retry'` to call the model again, or `'fail'` to fail the run.
+- `budget.maxTokens` and `budget.maxCost`: the model use of the run and of all its children. The check runs after each model call, so a run stops after the first model call over the budget. Then it fails with the code `budget`. A run with `resume: true` that runs again after a host stop also counts the model use of the runs before.
+- `onModelError`: called when a model call of the run fails before it streams output. Return `'retry'` to call the model again after a short backoff, or `'fail'` to let the error go on. Only that model call runs again, so a tool that ran before does not run twice. One model call runs at most 3 times. A tool that throws, or an error in the agent code, does not call it.
 
 A budget holds for the whole tree under the run:
 
@@ -740,6 +750,7 @@ const reader = defineAgent({
   description: 'Reads one page, once per session',
   inputSchema: z.object({ url: z.string() }),
   run: async (ctx) => {
+    if (!ctx.harness) throw new Error('This agent must run in a harness.')
     const seen = ctx.harness.state<Array<string>>({ key: 'seen-urls', initial: [] })
     if ((await seen.get()).includes(ctx.input.url)) return 'Already read.'
     await seen.update((urls) => [...urls, ctx.input.url])
@@ -756,7 +767,7 @@ const reader = defineAgent({
 - `get` and `update` work like [plugin state](./plugins#keep-state). The updates of one key run one at a time, and the value is JSON.
 - The log keeps the value. It survives a restart, and a [fork](./fork-and-reset) copies it.
 - Clients see each change in the AG-UI `STATE_SNAPSHOT` event, under `shared`. Plugin state is under `plugins`.
-- An agent in a plain `chat()` has no session, so `ctx.harness.state` throws there.
+- An agent in a plain `chat()` has no `ctx.harness`, so it has no shared state.
 
 ## What you have now
 

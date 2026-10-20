@@ -515,7 +515,7 @@ describe('media in results', () => {
       access: {
         identify: ({ request }) =>
           users.get(request.headers.get('x-user') ?? '') ?? null,
-        authorize: membersOnly(),
+        policy: membersOnly(),
       },
     })
     cleanups.push(() => host.close())

@@ -71,7 +71,7 @@ describe('harnessText({ url })', () => {
           request.headers.get('authorization') === 'Bearer t'
             ? { id: 'u' }
             : null,
-        authorize: () => true,
+        policy: { authorize: () => true },
       },
     })
     const handler = createHarnessHandler({

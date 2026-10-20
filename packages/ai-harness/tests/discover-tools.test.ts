@@ -87,6 +87,54 @@ describe('discoverTools', () => {
   })
 })
 
+describe('onTurnStart', () => {
+  it('runs once per turn, before the prompts, and a hook that throws does not stop the turn', async () => {
+    let turns = 0
+    const counter = definePlugin({
+      name: 'test/counter',
+      setup: () => ({
+        onTurnStart: (turn) => {
+          turns += 1
+          expect(turn.run.runId).toBe(turn.operationId)
+        },
+        prompts: [() => `Turn ${turns}.`],
+      }),
+    })
+    const broken = definePlugin({
+      name: 'test/broken-start',
+      setup: () => ({
+        onTurnStart: () => {
+          throw new Error('cannot start')
+        },
+      }),
+    })
+    const { adapter, calls } = mockAdapter([
+      () => toolCall('lookup', {}),
+      () => text('one'),
+      () => text('two'),
+    ])
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(
+      defineHarness({
+        name: 'test/turn-start',
+        adapter,
+        tools: [echoTool('lookup', 'found')],
+        plugins: () => [counter, broken],
+      }),
+      { threadId: 't' },
+    )
+
+    expect((await session.send('first')).text).toBe('one')
+    expect((await session.send('second')).text).toBe('two')
+
+    // Two model calls in the first turn, but one hook call per turn.
+    expect(turns).toBe(2)
+    expect(calls[0].systemPrompts).toContain('Turn 1.')
+    expect(calls[2].systemPrompts).toContain('Turn 2.')
+    await host.close()
+  })
+})
+
 describe('a tool name that two plugins give', () => {
   it('keeps the tool of the earlier plugin and warns once with both names', async () => {
     const finder = (name: string, reply: string) =>

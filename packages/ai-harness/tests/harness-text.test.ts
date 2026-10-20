@@ -6,8 +6,11 @@ import {
   createHarnessHost,
   defineHarness,
   definePlugin,
+  AccessDeniedError,
   harnessText,
+  membersOnly,
 } from '../src'
+import { innerThreadOf, throughOuterThread } from '../src/host'
 import {
   messageTexts,
   mockAdapter,
@@ -184,8 +187,11 @@ describe('harnessText', () => {
       persistence: memoryPersistence(),
       lifecycle: { idleCloseMs: 0 },
     })
-    const threadId = 'outer-kept:test/inner'
-    const held = await host.open(studio, { threadId })
+    const threadId = innerThreadOf('outer-kept', studio.name)
+    const held = await host.open(
+      studio,
+      throughOuterThread({ threadId }, 'outer-kept'),
+    )
 
     for await (const _chunk of chat({
       adapter: harnessText(studio, { host }),
@@ -373,6 +379,88 @@ describe('harnessText', () => {
     expect(seen).toEqual([{ id: 'alice' }, { id: 'bob' }])
     await host.close()
     await innerHost.close()
+  })
+
+  it('lets every member of a shared outer thread use the inner session, and no one else', async () => {
+    const inner = mockAdapter([() => text('one'), () => text('two')])
+    const studio = defineHarness({ name: 'test/inner', adapter: inner.adapter })
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      access: { identify: () => null, policy: membersOnly() },
+    })
+    // The inner session runs on the host of the outer thread.
+    const lead = defineHarness({
+      name: 'test/lead',
+      adapter: harnessText(studio, { host }),
+    })
+    const ada = { id: 'ada' }
+    const bob = { id: 'bob' }
+    const cid = { id: 'cid' }
+    const asAda = await host.open(lead, { threadId: 'a', principal: ada })
+    await asAda.send('hello')
+    await host.sessions.share({
+      threadId: 'a',
+      userId: 'bob',
+      role: 'member',
+      principal: ada,
+    })
+    await host.open(lead, { threadId: 'c', principal: cid })
+    const asBob = await host.open(lead, { threadId: 'a', principal: bob })
+
+    await expect(asBob.send('again')).resolves.toMatchObject({ text: 'two' })
+    const innerOfA = innerThreadOf('a', studio.name)
+    const openInner = (outerThread?: string) => {
+      const openOptions = { threadId: innerOfA, principal: cid }
+      return host.open(
+        studio,
+        outerThread
+          ? throughOuterThread(openOptions, outerThread)
+          : openOptions,
+      )
+    }
+    // Cid reads his own thread `c`, not `a`: no path opens the inner thread of `a`.
+    await expect(openInner()).rejects.toThrow(/harnessText inner session/)
+    await expect(openInner('c')).rejects.toThrow(/harnessText inner session/)
+    await expect(openInner('a')).rejects.toBeInstanceOf(AccessDeniedError)
+    await host.close()
+  })
+
+  it('checks an inner thread linked to another outer thread on its own members', async () => {
+    const inner = mockAdapter([() => text('one'), () => text('two')])
+    const studio = defineHarness({ name: 'test/inner', adapter: inner.adapter })
+    const host = createHarnessHost({
+      persistence: memoryPersistence(),
+      access: { identify: () => null, policy: membersOnly() },
+    })
+    const lead = defineHarness({
+      name: 'test/lead',
+      adapter: harnessText(studio, { host }),
+    })
+    const ada = { id: 'ada' }
+    const bob = { id: 'bob' }
+    const asAda = await host.open(lead, { threadId: 'a', principal: ada })
+    await asAda.send('hello')
+    await host.sessions.share({
+      threadId: 'a',
+      userId: 'bob',
+      role: 'member',
+      principal: ada,
+    })
+    // The link of the inner entry names another outer thread now.
+    await host.sessions.update({
+      harness: studio,
+      threadId: innerThreadOf('a', studio.name),
+      principal: ada,
+      update: (entry) => ({
+        metadata: { ...entry.metadata, 'harness:outerThread': 'other' },
+      }),
+    })
+    const asBob = await host.open(lead, { threadId: 'a', principal: bob })
+
+    await expect(asBob.send('again')).rejects.toThrow(
+      'Access denied: read on thread "a/inner/test/inner".',
+    )
+    await host.close()
   })
 
   it('gives the outer run the usage of every inner model call', async () => {

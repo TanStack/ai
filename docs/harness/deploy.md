@@ -29,7 +29,7 @@ Give every server the same log store. Then any server can take a request for any
 - A [worker](./workers) runs the threads that no server has open: submitted inputs, schedules, and the work that a deploy cut.
 - Set the same `media: { secret }` on the handler of each server, so each server checks the media URLs of the others. See [Serve the session over HTTP](./connect#serve-the-session-over-http).
 - Stop each server with `host.close({ recoverable: true })`. A worker takes its cut work at once. See [Stop a host for a deploy](./durable-sessions#stop-a-host-for-a-deploy).
-- If your agents use the [coding tools](./coding-tools) on the disk of a server, set `ownership: { hostId }` on each host. Then a thread stays on the server that has its folder. See [Move a thread to another server](./coding-workspaces#5-move-a-thread-to-another-server).
+- If your agents use the [coding tools](./coding-tools) on the disk of a server, set `ownership: { hostId }` on each host. Then a thread stays on the server that has its folder, while that server sends heartbeats. Use an id that stays the same after a restart, like the pod name of a StatefulSet, and keep a restart shorter than `ownership.ttlMs`. See [Move a thread to another server](./coding-workspaces#5-move-a-thread-to-another-server).
 
 ## Build a worker artifact
 
@@ -103,7 +103,7 @@ Bun can build for another platform with `target`, for example `bun-darwin-arm64`
 
 A turn is slow or fails on one of your servers, and you cannot see which run or which server. Give the host a tracer and an `onOperation` listener. The host then writes a span for each run, and tells your listener when each run starts and ends.
 
-Pass an OpenTelemetry tracer as it is:
+Pass an OpenTelemetry tracer as it is. Install `@opentelemetry/api` in your app first. It is an optional peer dependency of the harness.
 
 ```ts
 import { trace } from '@opentelemetry/api'
@@ -172,7 +172,6 @@ Across servers and restarts:
 Users and plugins:
 
 - With an [OAuth MCP server](./mcp#3-sign-in-to-an-oauth-server), the MCP SDK sends its own refresh request for each session. Only the save of the new token is single-flight, so two sessions can use a rotating refresh token at the same time.
-- The `principal` on `revert` and `background` is checked against `access`, but the log does not keep it.
 - Plugin tools do not reach background agents. The `question` tool works only in a turn of the lead agent.
 
 ## What you have now

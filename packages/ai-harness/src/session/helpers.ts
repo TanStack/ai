@@ -5,7 +5,7 @@ import {
   readInterruptBinding,
 } from '@tanstack/ai'
 import { isRecord, jsonCopy } from '../utils'
-import { signInOf } from '../waits'
+import { interruptExpiry, signInOf, snapshotWaits } from '../waits'
 import type {
   AnyChatMiddleware,
   AnyTool,
@@ -16,6 +16,7 @@ import type {
   Scope,
   StreamChunk,
   SubagentsBag,
+  SystemPrompt,
 } from '@tanstack/ai'
 import type { LogRecord, MessageStore } from '@tanstack/ai-persistence'
 import type { Redactor } from '../auth'
@@ -26,6 +27,7 @@ import type {
   NamedTurnOverrides,
   RunTreeNode,
   ThreadRecord,
+  ThreadStateFold,
 } from '../log-records'
 import type { MountedPlugins } from '../plugins'
 import type {
@@ -43,7 +45,67 @@ import type {
   AgentMessage,
   AgentInputState,
   AgentStartOptions,
+  SessionSnapshot,
 } from './types'
+
+/**
+ * @internal The snapshot of a thread. An open session and a `host.observe`
+ * view both build it here, so they give one shape with one status rule.
+ * `thread` is the fold of the log, and `stopped` the turn that waits for
+ * `interrupts`. `live` is what only an open session knows: its running
+ * turn, its operations, its queues, and the waits of its `harnessAgent`
+ * children. A view has none of these.
+ */
+export function snapshotFrom({
+  threadId,
+  thread,
+  stopped,
+  interrupts = stopped?.interrupts ?? [],
+  plugins,
+  usage,
+  cursor,
+  live,
+}: {
+  threadId: string
+  thread: ThreadStateFold | undefined
+  stopped:
+    | (Parameters<typeof snapshotWaits>[0]['stopped'] & {
+        interrupts: ReadonlyArray<Interrupt>
+      })
+    | null
+    | undefined
+  interrupts?: ReadonlyArray<Interrupt>
+  plugins: SessionSnapshot['plugins']
+  usage: SessionSnapshot['usage']
+  cursor: SessionSnapshot['cursor']
+  live?: {
+    isRunning: boolean
+    activeOperations: SessionSnapshot['activeOperations']
+    queuedTurns: number
+    waitingInputs: NonNullable<SessionSnapshot['waitingInputs']>
+    childWaits: SessionSnapshot['pendingWaits']
+  }
+}): SessionSnapshot {
+  const waits = snapshotWaits({
+    stopped,
+    interrupts,
+    // With the expiry of each wait, also the default one of its kind.
+    expiry: (interrupt) => interruptExpiry(interrupt, thread?.interrupts),
+    waits: thread?.waits,
+    records: thread?.interrupts,
+  })
+  return {
+    threadId,
+    status: live?.isRunning ? 'running' : stopped ? 'requires_action' : 'idle',
+    activeOperations: live?.activeOperations ?? [],
+    queuedTurns: live?.queuedTurns ?? 0,
+    waitingInputs: live?.waitingInputs ?? [],
+    pendingWaits: [...waits, ...(live?.childWaits ?? [])],
+    plugins,
+    usage,
+    cursor,
+  }
+}
 
 /**
  * The log record of how the agent run `runId` ended. Its result is a JSON
@@ -614,15 +676,22 @@ export function ephemeralCall(pending: Array<ModelMessage>): AnyChatMiddleware {
 }
 
 /**
- * Gives each model call the `'context'` plugin prompts after the history,
- * as one user message. It changes only what the adapter gets
- * (`providerMessages`), so no save keeps them. A change of them leaves the
- * system prompts and the history as they were, so the provider prompt
- * cache keeps its prefix.
+ * Gives each model call the `'context'` plugin prompts as one system prompt,
+ * after all other system prompts. The text has system authority, not user
+ * authority. Each call takes out the prompt of the call before, so a change
+ * replaces it and the stable system prompts before it stay the same.
+ *
+ * ponytail: a `ModelMessage` has no `system` role, so the prompt cannot go
+ * after the history. A change of it changes the cached prefix from the
+ * system prompts on. A system message in the history needs a core change.
+ *
+ * `texts` must be scrubbed of the session secrets already: a redacted copy
+ * is a new object, and the next call could not find it to take it out.
  */
 export function contextPromptCall(
   texts: () => ReadonlyArray<string>,
 ): AnyChatMiddleware {
+  let last: SystemPrompt | undefined
   return {
     name: 'harness:context-prompts',
     onConfig: (ctx, config) => {
@@ -630,10 +699,11 @@ export function contextPromptCall(
       const text = texts()
         .filter((item) => item !== '')
         .join('\n\n')
-      if (text === '') return undefined
-      const messages = config.providerMessages ?? config.messages
-      const note: ModelMessage = { role: 'user', content: text }
-      return { providerMessages: [...messages, note] }
+      const kept = config.systemPrompts.filter((prompt) => prompt !== last)
+      if (text === '' && kept.length === config.systemPrompts.length)
+        return undefined
+      last = text === '' ? undefined : { content: text }
+      return { systemPrompts: last ? [...kept, last] : kept }
     },
   }
 }
@@ -886,25 +956,21 @@ export function notifyListeners(
  * is how the host and `onEvent` see events. The caller keeps `listeners`, so
  * they survive a new tap of another feed. Each event goes through
  * `redactor` first, so no one of them gets a secret of the session.
- * `parentOf` gives the parent run of an operation, so each event of a child
- * run names its parent.
  */
 export function tapFeed(
   feed: EventFeed,
   notifyHost: (event: StreamChunk) => void,
   listeners: Set<EventListener>,
   redactor: Redactor,
-  parentOf: (operationId: string) => string | undefined,
 ): ListenedFeed {
   return {
-    publish: (operationId, raw, parentRunId) => {
+    publish: (operationId, raw) => {
       const event = redactor.redact(raw)
-      // Core sends the whole transcript as a MESSAGES_SNAPSHOT at each
-      // interrupt. The log has the transcript already, so the snapshot goes
-      // to the live listeners only, and the log does not keep a copy.
-      if (event.type !== EventType.MESSAGES_SNAPSHOT) {
-        feed.publish(operationId, event, parentRunId ?? parentOf(operationId))
-      }
+      // ponytail: core sends a MESSAGES_SNAPSHOT only when a run pauses at
+      // an interrupt, so the log keeps each one. A rejoin from the log (the
+      // run route, `Last-Event-ID`) needs it: ai-client rebuilds the paused
+      // run from it. If core sends it at other times, filter here.
+      feed.publish(operationId, event)
       notifyListeners(notifyHost, listeners, { operationId, event })
     },
     listen: (listener) => {

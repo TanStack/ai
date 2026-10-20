@@ -4,7 +4,8 @@ import { createHarnessHost } from './host'
 import { scrubbedBy } from './session/harness-session'
 import {
   applyInput,
-  negotiateVersion,
+  HARNESS_PROTOCOL_VERSION,
+  versionError,
   parseControlFrame,
   requestIdOf,
 } from './protocol'
@@ -85,14 +86,18 @@ export async function runHarnessWorker(
             fail(new Error('Already subscribed.'), requestId, 'invalid_frame')
             continue
           }
-          const picked = negotiateVersion({ requested: frame.v })
-          if ('error' in picked) {
+          const refused = versionError(frame.v)
+          if (refused) {
             // The worker speaks no other version, so it stops.
-            send({ type: 'harness.error', requestId, ...picked.error })
+            send({ type: 'harness.error', requestId, ...refused })
             break
           }
           session = await host.open(harness, { threadId: frame.threadId })
-          send({ type: 'harness.hello', v: picked.v, threadId: frame.threadId })
+          send({
+            type: 'harness.hello',
+            v: HARNESS_PROTOCOL_VERSION,
+            threadId: frame.threadId,
+          })
           const events = session.events({
             ...(frame.from ? { from: frame.from } : {}),
             signal: reader.signal,

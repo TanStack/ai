@@ -31,7 +31,7 @@ Add it with `plugins: () => [today]` in `defineHarness`. `setup` runs once per s
 For the model:
 
 - `tools`: tools for the model, made with `toolDefinition`.
-- `prompts`: text for the system prompt. A function runs for each turn, so it can show current state. For text that changes often, see [Put changing text after the history](#put-changing-text-after-the-history).
+- `prompts`: text for the system prompt. A function runs for each turn, so it can show current state. For text that changes often, see [Put changing text last](#put-changing-text-last).
 - `middleware`: chat middleware for the lead turn, the same type as `chat({ middleware })`. `agentMiddleware` is for agent runs, see [Middleware in every agent](#middleware-in-every-agent).
 - `generationMiddleware`: middleware for the activities agents call.
 - `adapter`: a picker for the model of each turn, see [Pick the model of a turn](#pick-the-model-of-a-turn).
@@ -48,7 +48,7 @@ If two plugins add the same tool, command, setting, or prompt id, `host.open` fa
 
 Return these from `setup`, not from the top level of `definePlugin`. A key like `adapter` or `tools` at the top level is a type error, and `definePlugin` throws for it. Other keys at the top level stay on the plugin object, so a plugin can give your code its own functions.
 
-### Put changing text after the history
+### Put changing text last
 
 Set `placement: 'context'` on a prompt whose text changes often:
 
@@ -69,12 +69,37 @@ export const tickets = definePlugin({
 })
 ```
 
-A provider caches the start of each request: the system prompts, then the history. If a system prompt changes, the cache misses for the whole conversation. A `'context'` prompt does not change that start.
+A provider caches the start of each request: the system prompts, then the history. A change of a system prompt makes the cache miss from that prompt on. A `'context'` prompt is the last system prompt, so the system prompts before it stay in the cache.
 
-- The model gets `'context'` text in one user message after the history, at each model call.
-- The default is `'system'`: the text goes in the system prompts.
+- The model gets all `'context'` text as one system prompt, after the other system prompts. The harness makes it again at each model call.
+- The text has the authority of a system prompt, not of a user message.
+- The default is `'system'`: the text goes in the system prompts, in plugin order.
 - The log does not keep `'context'` text.
 - The first-party todos, goal, and plan mode prompts use `'context'`.
+
+### Refresh state at the start of a turn
+
+A prompt function must return at once, so it cannot read a file or call a server. Do that work in `onTurnStart`. The harness calls it once at the start of each turn, before it reads the prompts:
+
+```ts group=harness-plugins
+import { readFile } from 'node:fs/promises'
+
+let rules = ''
+
+export const projectRules = definePlugin({
+  name: 'acme/project-rules',
+  setup: () => ({
+    onTurnStart: async () => {
+      rules = await readFile('RULES.md', 'utf8')
+    },
+    prompts: [() => rules],
+  }),
+})
+```
+
+- `onTurnStart` gets the turn. `turn.run` has the user of the turn and the credentials of that user.
+- It runs one time for each turn, also when the turn makes many model calls.
+- If it throws, the turn continues, and clients get a `harness.plugin.warning` event.
 
 ## Add commands and settings
 
@@ -111,7 +136,7 @@ export const greeter = definePlugin({
 
 - `session.command({ name: 'greet', input: { name: 'Ada' } })` runs the command. A Standard Schema input (zod here) is checked, and the command gets the parsed value. A JSON Schema input is not checked, the same as a JSON Schema tool input.
 - `session.setConfig({ key: 'tone', value: 'warm' })` changes the setting. A value the option does not accept is rejected.
-- `step.ask` waits for `session.answer({ questionId, value })`. The log keeps the question as a [wait](./waits), so a user on any server can answer it. The question goes to `session.onQuestion` listeners, and it stays in `session.snapshot().pendingQuestions` until someone answers.
+- `step.ask` waits for `session.answer({ questionId, value })`. The log keeps the question as a [wait](./waits), so a user on any server can answer it. The question goes to `session.onQuestion` listeners, and it stays in `session.snapshot().pendingWaits` until someone answers.
 - When the host stops while the command waits, the next host runs the command again from the top. Put each side effect before the ask in `command.step.do`, so it does not run twice.
 - `ctx.session.ask` is only for an MCP server that asks during a tool call. Anywhere else it throws. Use `step.ask`, the `question` tool, or a [permission rule](./permissions#rules-for-your-own-tool).
 
@@ -224,6 +249,7 @@ export const counter = definePlugin({
 - A key or a token of the session in the state goes into the log as `[redacted]`. `update` resolves with that same value. See [Keep tokens out of the log and the model](./auth#keep-tokens-out-of-the-log-and-the-model).
 - The updates of one plugin run one at a time. Each `update` function gets the value that the update before it wrote.
 - [`host.sessions.delete`](./lifecycle#delete-a-thread-for-good) deletes the state with the log. A fork does not copy it.
+- For a long list of records, such as one record for each step, append records to the log and set `keepRecords`. Read them with `ctx.session.keptRecords(type)`. See [Keep records after a truncate](./session-log#keep-records-after-a-truncate).
 - Agents get a state with the same `get` and `update` from `ctx.harness.state({ key, initial })`. See [Share state between agents](./subagents#share-state-between-agents).
 
 ## Middleware in every agent
@@ -279,7 +305,7 @@ export const github = definePlugin({
       toolDefinition({ name: 'my_repos', description: 'List my GitHub repos' }).server<HarnessRunContext>(
         async (_args, ctx) => {
           const credential = await ctx.context.run.credentials.require('github')
-          const token = credential.type === 'api_key' ? credential.value : credential.accessToken
+          const token = credential.type === 'oauth' ? credential.accessToken : credential.value
           const response = await fetch('https://api.github.com/user/repos', {
             headers: { authorization: `Bearer ${token}` },
           })
@@ -299,7 +325,7 @@ Where each part of a plugin reads the run:
 - A session plugin (the default lifetime): `ctx.credentials` and `ctx.keys` have no user, so each call throws. `ctx.session.principal` is the owner of the session.
 - A plugin with `lifetime: 'host'`: its setup has no user and no session. Its tools read the user of each call from `ctx.context.run`.
 
-`prepareTools` gets `run` too: the run of the turn, with its id and its user.
+`prepareTools` gets `run` too: the run of the turn, with its id and its user. `onTurnStart` gets the turn, with its run in `turn.run`.
 
 A plugin that starts a turn picks its user. `ctx.session.send(text, { principal })` and `ctx.session.note(text, { wake: true, principal })` run that turn as `principal`. Without it, the turn runs as `ctx.session.principal`. To continue the work of a run, pass the `principal` of that run.
 
@@ -518,7 +544,8 @@ export const orders = definePlugin({
 })
 ```
 
-- The host sets the plugin up one time for each harness. Every session of that harness shares this setup.
+- The host sets the plugin up one time for each harness and plugin object. Every session of that harness that uses the same object shares this setup.
+- Create the plugin one time, outside the `plugins` function, as `orders` is above. Then use it with `plugins: () => [orders]`. A `plugins` function that calls `definePlugin` or `mcp()` for each session gives each session its own setup.
 - The host cleans it up when the last session that uses it closes, or at `host.close()`.
 - Its setup context has no session, no credentials, no keys, and no commands. It has `harness`, the name of the harness, and `resources`.
 - A tool of the plugin reads the user of its call from `ctx.context.run`. See [Act as the user of a run](#act-as-the-user-of-a-run).

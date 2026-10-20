@@ -6,7 +6,7 @@ import {
   untilFinishReason,
 } from '@tanstack/ai'
 import {
-  Redactor,
+  createRedactor,
   credentialsFor,
   providerKeysFor,
   refreshFlights,
@@ -24,7 +24,11 @@ import { runStartOf } from '../log'
 import { createMediaStore } from '../media'
 import { OperationTracing } from '../observability'
 import { pluginStateDeltas } from '../log-records'
-import { SESSION_PLUGIN_CREDENTIALS, SESSION_PLUGIN_KEYS } from '../plugins'
+import {
+  SESSION_PLUGIN_CREDENTIALS,
+  SESSION_PLUGIN_KEYS,
+  SESSION_PLUGIN_KEYS_NO_ENV,
+} from '../plugins'
 import { HARNESS_EVENTS } from '../types'
 import {
   DEFAULT_SUBAGENT_LIMITS,
@@ -352,6 +356,14 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected readonly agentChains = new Map<string, AgentChain>()
   /** The chain of each agent run operation, by operation id. */
   protected readonly chainOf = new Map<string, AgentChain>()
+  /**
+   * The tool calls that run now: for each chat call that runs tools, the
+   * operation of the call, and how many of its tools run.
+   */
+  protected readonly toolCalls = new Map<
+    object,
+    { id: string; count: number }
+  >()
   protected readonly queue: Array<QueuedTurn> = []
   protected readonly steerQueue: Array<WaitingSteer> = []
   /**
@@ -366,7 +378,10 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /** Background jobs that run on this host. Recovery skips them. */
   protected readonly jobs = new Set<string>()
   /** Running tool calls that support `detach`: id to the move. */
-  protected readonly detachable = new Map<string, () => void>()
+  protected readonly detachable = new Map<
+    string,
+    (principal: Principal | undefined) => void
+  >()
   protected activeTurn: OperationImpl<ChatTurnResult> | undefined
   /** The open skipped recovery: another host owned the thread then. */
   protected recoveryDeferred = false
@@ -422,6 +437,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   protected readonly onClose: () => void
   /** Tells the host each time the thread goes idle. See `SessionDependencies`. */
   protected readonly notifyIdle: (() => void) | undefined
+  /** See `SessionDependencies.onLongSleep`. */
+  protected readonly onLongSleep: (() => void) | undefined
   protected checkpoint: AnyChatMiddleware | undefined
   /**
    * Writes the final result of each tool call to the log. It goes at the
@@ -482,7 +499,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * handed out. Every log record, feed event, and model call of the session
    * goes through it. Call `redactor.add` for a new secret value.
    */
-  protected readonly redactor = new Redactor()
+  protected readonly redactor = createRedactor()
   /** The credential store of the app, for secret answers. See `SessionDependencies`. */
   protected readonly sharedCredentials: CredentialStore | undefined
   /**
@@ -504,6 +521,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * `/connect <provider>`, else the env var.
    */
   protected readonly keysOf: (principal: Principal | undefined) => ProviderKeys
+  /** `ctx.keys` of a session plugin: it says if keys read env vars. */
+  protected readonly sessionPluginKeys: ProviderKeys
   /** What session plugins get. A turn plugin gets `pluginServices(turn)`. */
   protected readonly services: PluginServices
   protected readonly media: SessionDependencies['media']
@@ -562,10 +581,10 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       deps.onEvent,
       this.eventListeners,
       this.redactor,
-      (operationId) => this.parentRunOf(operationId),
     )
     this.onClose = deps.onClose
     this.notifyIdle = deps.onIdle
+    this.onLongSleep = deps.onLongSleep
     this.index = deps.index
     this.log = deps.log
     this.openChild = deps.openChild
@@ -607,6 +626,9 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     this.hasAccess = deps.access !== undefined
     // Without access, one user runs the host, so the env vars are theirs.
     const envFallback = deps.access?.envKeys ?? true
+    this.sessionPluginKeys = envFallback
+      ? SESSION_PLUGIN_KEYS
+      : SESSION_PLUGIN_KEYS_NO_ENV
     this.keysOf = (principal) =>
       providerKeysFor(this.credentialsOf(principal), onMissing, {
         secrets: this.redactor,
@@ -924,7 +946,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       config: { get: (key) => this.configValue(key) },
       state: (plugin, initial) => this.pluginState(plugin, initial),
       credentials: turn?.run.credentials ?? SESSION_PLUGIN_CREDENTIALS,
-      keys: turn?.run.keys ?? SESSION_PLUGIN_KEYS,
+      keys: turn?.run.keys ?? this.sessionPluginKeys,
       session: this.pluginApi(principal, undefined, operationId),
       sessionWith: (metadataSchema) =>
         this.pluginApi(principal, metadataSchema, operationId),
@@ -941,12 +963,36 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /**
    * `ctx.agents` of a plugin. The runs are for `principal`, else for the
    * principal that opened the session. A `principal` option of `start` wins.
+   * With no `parent` option, a start in a tool call of an agent run is a
+   * child of that run (see `toolCallRun`).
    */
   protected pluginAgents(principal?: Principal): AgentActions {
     const user = principal ? { principal } : {}
-    return this.agentActions((target, input, options) =>
-      this.runAgent(target, input, { ...user, ...options }),
-    )
+    return this.agentActions((target, input, options) => {
+      const runId =
+        options.parent === undefined ? this.toolCallRun() : undefined
+      return this.runAgent(target, input, {
+        ...user,
+        ...options,
+        ...(runId !== undefined ? { parent: { runId } } : {}),
+      })
+    })
+  }
+
+  /**
+   * The agent run whose tool call runs now, when it is the only operation
+   * of this session in a tool call. ponytail: plugin code has no async
+   * context here, so tool calls of two runs at once give no run. Pass
+   * `parent` then.
+   */
+  protected toolCallRun(): string | undefined {
+    const running = [
+      ...new Set([...this.toolCalls.values()].map(({ id }) => id)),
+    ].filter((id) => this.operations.get(id)?.status() === 'running')
+    const [only] = running
+    return running.length === 1 && only !== undefined && this.chainOf.has(only)
+      ? only
+      : undefined
   }
 
   /**
@@ -1328,12 +1374,18 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * Track a background job of this host. The log also has its start and
    * end, so recovery can note a job that a crash stopped. The record goes
    * to `threadId`, the thread of the workspace that runs the job.
+   * `principal` is who moved the job to the background.
    */
   protected logJob(
-    job: { jobId: string; backendId?: string; threadId?: string },
+    job: {
+      jobId: string
+      backendId?: string
+      threadId?: string
+      principal?: Principal
+    },
     ended: boolean,
   ) {
-    const { jobId, backendId, threadId } = job
+    const { jobId, backendId, threadId, principal } = job
     if (ended) this.jobs.delete(jobId)
     else this.jobs.add(jobId)
     const isOtherThread = threadId !== undefined && threadId !== this.threadId
@@ -1342,6 +1394,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       jobId,
       ended,
       ...(!ended && backendId !== undefined ? { backendId } : {}),
+      ...storedPrincipal(principal),
       ...(isOtherThread ? { thread: threadId } : {}),
     }
     // No one waits for a job record. A failed log write fails the session.

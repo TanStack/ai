@@ -1,8 +1,8 @@
 import * as childProcess from 'node:child_process'
 import * as fs from 'node:fs/promises'
 import * as nodePath from 'node:path'
+import { commandEnv, createOutputTail } from '@tanstack/ai-utils'
 import { isRecord } from '../../utils'
-import { createOutputTail } from './ring-buffer'
 import type { RunContext } from '../../types'
 import type { WorkspaceHooks } from '../workspace-hooks'
 
@@ -78,7 +78,10 @@ export interface WorkspaceBackend {
    * Run a shell command and wait for it to end. `env` is added to the
    * environment. A command that fails resolves with its exit code. On
    * {@link hostBackend}, a command gets only a few variables of this
-   * process (see {@link commandEnv}), plus `env`.
+   * process (see `commandEnv` of `@tanstack/ai-utils`), plus `env`. `onStart` gets the id of
+   * the process when it started, like the `jobId` of `spawn`, for
+   * {@link killJob}: the host can move a running command to the background.
+   * A backend that has no id does not call it.
    */
   exec: (
     command: string,
@@ -87,6 +90,7 @@ export interface WorkspaceBackend {
       env?: Record<string, string>
       timeoutMs?: number
       signal?: AbortSignal
+      onStart?: (jobId: string) => void
     },
   ) => Promise<{ exitCode: number; stdout: string; stderr: string }>
   /**
@@ -120,8 +124,9 @@ export interface WorkspaceBackend {
    * Stop the job with the `jobId` that `spawn` gave, also a job of an
    * earlier process or machine, with every command it started. Resolves
    * `true` when the job ran and was stopped, and `false` when no such job
-   * runs. Optional: without it, a job that a crash left running is not
-   * stopped.
+   * runs. Rejects when it cannot check that the process is the job, for
+   * example when `ps` is missing: then the job may still run. Optional:
+   * without it, a job that a crash left running is not stopped.
    */
   killJob?: (jobId: string) => Promise<boolean>
   /**
@@ -210,44 +215,37 @@ export function pathsOf(backend: WorkspaceBackend) {
 }
 
 /**
- * The variables of this process that a command gets. The others, like
- * provider keys and `DATABASE_URL`, stay in the server. The
- * `ai-sandbox-local-process` package has a copy of these lists and of
- * {@link commandEnv} in `handle.ts`. Change both.
+ * A workspace folder in `base` for `parts`, like a tenant and a thread id:
+ * `base/part/part`. Each part is URL-encoded, so a `/`, a `\`, or a `..` in
+ * an id from a client cannot leave `base` or reach the folder of another
+ * thread. Throws for an empty part, `.`, or `..`, and when the result is not
+ * a folder in `base`. A POSIX `base` (like `/srv/work`) gives a POSIX path,
+ * also on Windows.
+ *
+ * @example
+ * ```ts
+ * workspaceRoot('/srv/work', 'acme', '../other/t-1')
+ * // '/srv/work/acme/..%2Fother%2Ft-1'
+ * ```
  */
-const KEPT_ENV = ['PATH', 'HOME', 'LANG', 'LC_ALL', 'TMPDIR', 'TEMP', 'TMP']
-/** On Windows, a command also gets these, so programs can start. */
-const KEPT_WINDOWS_ENV = [
-  'SystemRoot',
-  'ComSpec',
-  'PATHEXT',
-  'WINDIR',
-  'USERPROFILE',
-]
-
-/**
- * The environment of a command: the variables of this process in a short
- * list (`PATH`, `HOME`, `LANG`, `LC_ALL`, `TMPDIR`, `TEMP`, `TMP`, and on
- * Windows `SystemRoot`, `ComSpec`, `PATHEXT`, `WINDIR`, `USERPROFILE`), plus
- * `env`. No other variable of this process goes to the command. On Windows
- * it sets `NoDefaultCurrentDirectoryInExePath`. Then `cmd.exe` takes a
- * program name like `rg` from the PATH only, and not from the current
- * folder, where a cloned repo can put an `rg.cmd`.
- */
-export function commandEnv(
-  env: Record<string, string> | undefined,
-  platform: NodeJS.Platform,
-) {
-  const isWindows = platform === 'win32'
-  const names = isWindows ? [...KEPT_ENV, ...KEPT_WINDOWS_ENV] : KEPT_ENV
-  const kept: Record<string, string> = {}
-  for (const name of names) {
-    // On Windows, `process.env` finds a name in any letter case.
-    const value = process.env[name]
-    if (value !== undefined) kept[name] = value
-  }
-  if (!isWindows) return { ...kept, ...env }
-  return { ...kept, ...env, NoDefaultCurrentDirectoryInExePath: '1' }
+export function workspaceRoot(base: string, ...parts: Array<string>) {
+  const path = base.startsWith('/') ? nodePath.posix : nodePath
+  const names = parts.map((part) => {
+    const name = encodeURIComponent(part)
+    if (name === '' || name === '.' || name === '..') {
+      throw new Error(`${JSON.stringify(part)} cannot name a workspace folder.`)
+    }
+    return name
+  })
+  const full = path.resolve(base, ...names)
+  const inBase = path.relative(path.resolve(base), full)
+  const isIn =
+    inBase !== '' &&
+    inBase !== '..' &&
+    !inBase.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(inBase)
+  if (!isIn) throw new Error(`${full} is not a folder in ${base}.`)
+  return full
 }
 
 /** True for the error of a path that is not there. */
@@ -600,6 +598,10 @@ export const hostBackend = {
   exec: (command, options = {}) =>
     new Promise((done) => {
       const { child, kill } = startShell(command, options)
+      // The same id as `spawn` gives, so `killJob` stops a moved command.
+      if (child.pid !== undefined) {
+        options.onStart?.(`${child.pid}:${Date.now()}`)
+      }
       const stdout: Array<Buffer> = []
       const stderr: Array<Buffer> = []
       let size = 0
@@ -683,9 +685,13 @@ export const hostBackend = {
     // Only the process that started with the job. Another process can have
     // its pid now.
     const start = await processStart(pid)
-    const isJob =
-      start !== undefined && Math.abs(start - startedAt) <= START_SLACK_MS
-    if (!isJob) return false
+    // Not `false`: the job can be this process, and still run.
+    if (start === undefined) {
+      throw new Error(
+        `Cannot check that process ${pid} is the job: no start time from ps.`,
+      )
+    }
+    if (Math.abs(start - startedAt) > START_SLACK_MS) return false
     if (process.platform === 'win32') {
       await taskkill(pid)
       return true

@@ -245,6 +245,46 @@ describe('mcpConnector with a saved sign-in', () => {
     })
   })
 
+  it('asks for a sign-in, and saves nothing, when the user signs out while the SDK refreshes', async () => {
+    const { server, credentials, host } = await setup({
+      type: 'oauth',
+      accessToken: 'stale',
+      refreshToken: 'refresh-1',
+    })
+    // The user signs out while the refresh request is on its way.
+    const signingOut: typeof fetch = async (input, init) => {
+      const target = new URL(input instanceof Request ? input.url : input)
+      if (target.pathname === '/token') {
+        await credentials.delete({ scope, id: 'demo' })
+      }
+      return fetch(input, init)
+    }
+    const model = recorder()
+    const session = await host.open(
+      defineHarness({
+        name: 'test/connector',
+        adapter: model.adapter,
+        plugins: () => [
+          mcpConnector({
+            id: 'demo',
+            label: 'Demo',
+            url: server.url,
+            fetch: signingOut,
+          }),
+        ],
+      }),
+      { threadId: 't', principal: { id: 'user-1' } },
+    )
+
+    const seen = await promptAndCollect(session, 'hi')
+
+    expect(model.toolNames(0)).toEqual([])
+    expect(customValues(seen, HARNESS_EVENTS.authRequired)).toEqual([
+      { connector: 'demo' },
+    ])
+    expect(await credentials.get({ scope, id: 'demo' })).toBeNull()
+  })
+
   it('saves one refreshed token when two sessions refresh at once', async () => {
     const server = await startProtectedServer()
     cleanups.push(() => server.close())

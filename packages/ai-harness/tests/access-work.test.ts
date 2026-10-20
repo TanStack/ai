@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { defineAgent } from '@tanstack/ai'
 import {
-  memoryLogBackend,
+  memoryLogState,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -13,7 +13,13 @@ import {
   membersOnly,
 } from '../src'
 import { loadLogState, logIdOf, sessionOf } from '../src/log'
-import { mockAdapter, storedThreadState, text, untilAborted } from './helpers'
+import {
+  mockAdapter,
+  storedThreadState,
+  text,
+  untilAborted,
+  wrapLogStore,
+} from './helpers'
 import type { LogStore } from '@tanstack/ai-persistence'
 import type { AgentActions, Operation } from '../src'
 
@@ -67,7 +73,7 @@ function accessHost() {
   const persistence = memoryPersistence()
   const host = createHarnessHost({
     persistence,
-    access: { identify: (): User | null => null, authorize: membersOnly() },
+    access: { identify: (): User | null => null, policy: membersOnly() },
   })
   const harness = defineHarness({
     name: NAME,
@@ -175,6 +181,23 @@ describe('operations that a handle returns', () => {
     await expect(run).rejects.toThrow()
     await host.close()
   })
+
+  it('refuses cancel on an operation of a revoked handle, also of its own run', async () => {
+    const { host, open, share } = accessHost()
+    await open(olga)
+    await share('bea', 'member')
+    const member = await open(bea)
+    const own = member.agents.slow.start()
+    await running(own)
+    const found = member.agentRun(own.id)
+    if (!found) throw new Error('The member does not see the run.')
+
+    await host.revoke({ threadId: THREAD, principal: bea })
+
+    await expect(found.cancel()).rejects.toBeInstanceOf(AccessDeniedError)
+    await expect(own.cancel()).rejects.toBeInstanceOf(AccessDeniedError)
+    await host.close()
+  })
 })
 
 describe('a user that loses access', () => {
@@ -208,6 +231,66 @@ describe('a user that loses access', () => {
     await host.close()
   })
 
+  it('ends an events() read that is first pulled after the revoke', async () => {
+    const { host, open, share } = accessHost()
+    await open(olga)
+    await share('bea', 'member')
+    const member = await open(bea)
+    const events = member.events()
+
+    await host.revoke({ threadId: THREAD, principal: bea })
+
+    const read = (async () => {
+      for await (const _event of events) {
+        // Read until the read ends.
+      }
+    })()
+    await expect(read).rejects.toBeInstanceOf(AccessDeniedError)
+    await host.close()
+  })
+
+  it('rejects host.revoke when the work of the user did not stop', async () => {
+    const persistence = memoryPersistence()
+    let isDown = false
+    const log = wrapLogStore(persistence.stores.log, {
+      offer: (input) =>
+        isDown
+          ? Promise.reject(new Error('The store is down.'))
+          : persistence.stores.log.offer(input),
+    })
+    const host = createHarnessHost({
+      persistence: { ...persistence, stores: { ...persistence.stores, log } },
+      access: { identify: (): User | null => null, policy: membersOnly() },
+    })
+    const harness = defineHarness({
+      name: NAME,
+      adapter: mockAdapter(() => text('ok')).adapter,
+    })
+    await host.open(harness, { threadId: THREAD, principal: olga })
+    await host.sessions.share({
+      threadId: THREAD,
+      userId: 'bea',
+      role: 'member',
+      principal: olga,
+    })
+    const member = await host.open(harness, {
+      threadId: THREAD,
+      principal: bea,
+    })
+    await member.schedule({
+      at: Date.now() + 3_600_000,
+      input: { op: 'prompt', message: 'Write the daily summary.' },
+    })
+    isDown = true
+
+    await expect(
+      host.revoke({ threadId: THREAD, principal: bea }),
+    ).rejects.toThrow('their work did not stop')
+    // The access is gone already.
+    expect(() => member.transcript()).toThrow(AccessDeniedError)
+    await host.close()
+  })
+
   it('has their running work cancelled by host.revoke', async () => {
     const { host, open, share } = accessHost()
     await open(olga)
@@ -224,7 +307,7 @@ describe('a user that loses access', () => {
   })
 
   it('has their work and their schedules stopped by an unshare on another host', async () => {
-    const backend = memoryLogBackend()
+    const logState = memoryLogState()
     const shared = memoryPersistence()
     const on = (log: LogStore) => ({
       ...shared,
@@ -232,7 +315,7 @@ describe('a user that loses access', () => {
     })
     const access = {
       identify: (): User | null => null,
-      authorize: membersOnly(),
+      policy: membersOnly(),
     }
     const main = mockAdapter(() => text('ran'))
     const harness = defineHarness({
@@ -240,10 +323,10 @@ describe('a user that loses access', () => {
       adapter: main.adapter,
       agents: [slow],
     })
-    const log = memoryLogStore({ backend })
+    const log = memoryLogStore({ state: logState })
     const hostA = createHarnessHost({ persistence: on(log), access })
     const hostB = createHarnessHost({
-      persistence: on(memoryLogStore({ backend })),
+      persistence: on(memoryLogStore({ state: logState })),
       access,
     })
     await hostA.open(harness, { threadId: THREAD, principal: olga })

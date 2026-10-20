@@ -1,6 +1,6 @@
 // The `@tanstack/ai-harness/server` entry: the HTTP and WebSocket transport,
 // and the protocol helpers that a custom transport uses.
-export { createHarnessHandler, handleHarnessSocket } from './http'
+export { createHarnessHandler, handleHarnessSocket, requestUsers } from './http'
 export type {
   HarnessHandlerOptions,
   HarnessSocketOptions,

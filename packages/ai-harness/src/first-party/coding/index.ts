@@ -2,7 +2,7 @@
 // plugins use the file system and the shell.
 export { workspaceTools } from './workspace'
 export type { WorkspaceBinder, WorkspaceToolsOptions } from './workspace'
-export { hostBackend } from './backend'
+export { hostBackend, workspaceRoot } from './backend'
 export type {
   BoundWorkspace,
   WorkspaceBackend,

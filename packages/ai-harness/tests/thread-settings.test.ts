@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
-import { EventType, toolDefinition } from '@tanstack/ai'
+import { EventType, createCapability, toolDefinition } from '@tanstack/ai'
 import {
-  memoryLogBackend,
+  memoryLogState,
   memoryLogStore,
   memoryPersistence,
 } from '@tanstack/ai-persistence'
@@ -263,6 +263,40 @@ describe('thread settings', () => {
     await host.close()
   })
 
+  it('refuses to remove a plugin whose capability a turn plugin or a harness middleware requires', async () => {
+    const Notes = createCapability<string>()('acme/notes-capability')
+    const { adapter } = mockAdapter(() => text('ok'))
+    const { host, session } = await open({
+      adapter,
+      middleware: [{ name: 'audit', requires: [Notes] }],
+      plugins: () => [
+        definePlugin({
+          name: 'acme/notes',
+          provides: [Notes],
+          setup: (ctx) => void ctx.provide(Notes, 'notes'),
+        }),
+        definePlugin({
+          name: 'acme/search',
+          lifetime: 'turn',
+          requires: [Notes],
+        }),
+      ],
+    })
+    const remove = (names: Array<string>) =>
+      session.configure({ settings: { plugins: { remove: names } } })
+
+    expect(await remove(['acme/notes'])).toMatchObject({
+      status: 'rejected',
+      reason: expect.stringContaining('plugin acme/search requires'),
+    })
+    expect(await remove(['acme/notes', 'acme/search'])).toMatchObject({
+      status: 'rejected',
+      reason: expect.stringContaining('harness middleware audit requires'),
+    })
+    expect(session.settings()).toEqual({})
+    await host.close()
+  })
+
   it('keeps the settings after a restart', async () => {
     const persistence = durablePersistence()
     const { base, strong } = models([() => text('strong')])
@@ -383,7 +417,7 @@ describe('plugin config next to the settings', () => {
 
 describe('thread settings on two hosts', () => {
   it('keeps the change of the other host, and a turn uses it', async () => {
-    const backend = memoryLogBackend()
+    const logState = memoryLogState()
     const model = mockAdapter(() => text('ok'))
     const harness = defineHarness({
       name: 'test/settings',
@@ -391,7 +425,7 @@ describe('thread settings on two hosts', () => {
     })
     const hostOn = () =>
       createHarnessHost({
-        persistence: { stores: { log: memoryLogStore({ backend }) } },
+        persistence: { stores: { log: memoryLogStore({ state: logState }) } },
       })
     const hostA = hostOn()
     const hostB = hostOn()
@@ -400,7 +434,7 @@ describe('thread settings on two hosts', () => {
 
     await a.configure({ settings: { reasoning: 'high' } })
     // A gives the log back, so B owns it for its change.
-    const store = memoryLogStore({ backend })
+    const store = memoryLogStore({ state: logState })
     await vi.waitFor(
       async () =>
         expect(await canOtherHostTake(store, logIdOf({ logId: THREAD }))).toBe(

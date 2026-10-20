@@ -1,7 +1,7 @@
 import { createInterface } from 'node:readline'
 import { createSessionView } from '@tanstack/ai-harness/view'
 import { saveMediaLine } from './attach'
-import { handleLine } from './commands'
+import { firstQuestion, handleLine } from './commands'
 import { createPrinter } from './printer'
 import {
   answerOf,
@@ -140,7 +140,7 @@ export async function runLines(
         ? turnWaits(after).find(({ waitId }) => !decided.has(waitId))
         : undefined
     if (ask) line(waitQuestion(ask))
-    if (after.pendingQuestions[0]?.secret) typing.hide()
+    if (firstQuestion(after)?.secret) typing.hide()
   }
   let waiting: Promise<void> | undefined
   try {
@@ -175,7 +175,7 @@ export async function runLines(
         continue
       }
       // A secret question that the line asked hides the next line at once.
-      if (session.snapshot().pendingQuestions[0]?.secret) typing.hide()
+      if (firstQuestion(session.snapshot())?.secret) typing.hide()
       waiting ??= afterTurn().finally(() => {
         waiting = undefined
       })

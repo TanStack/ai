@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { noopTracer, parseTraceparent, withSpan } from '../src/observability'
-import type { HarnessSpan, HarnessTracer } from '../src/observability'
+import { fakeSpan } from './helpers'
+import type { Tracer } from '@opentelemetry/api'
 
 const TRACEPARENT = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
 
@@ -8,24 +9,21 @@ const TRACEPARENT = '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'
 function recordingTracer() {
   const spans: Array<{ name: string; options: unknown; calls: Array<string> }> =
     []
-  const tracer: HarnessTracer = {
+  const tracer: Pick<Tracer, 'startSpan'> = {
     startSpan: (name, options) => {
       const calls: Array<string> = []
       spans.push({ name, options, calls })
-      const span: HarnessSpan = {
-        setAttribute: (key) => calls.push(`setAttribute:${key}`),
-        setStatus: ({ code, message }) =>
-          calls.push(`setStatus:${code}:${message}`),
-        recordException: (error) =>
-          calls.push(`recordException:${String(error)}`),
-        end: () => calls.push('end'),
-        spanContext: () => ({
-          traceId: 'a'.repeat(32),
-          spanId: 'b'.repeat(16),
-          traceFlags: 1,
-        }),
-      }
-      return span
+      return fakeSpan(
+        { traceId: 'a'.repeat(32), spanId: 'b'.repeat(16), traceFlags: 1 },
+        {
+          setAttribute: (key) => calls.push(`setAttribute:${key}`),
+          setStatus: ({ code, message }) =>
+            calls.push(`setStatus:${code}:${message}`),
+          recordException: (error) =>
+            calls.push(`recordException:${String(error)}`),
+          end: () => calls.push('end'),
+        },
+      )
     },
   }
   return { tracer, spans }

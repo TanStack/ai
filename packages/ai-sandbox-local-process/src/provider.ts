@@ -40,6 +40,14 @@ export interface LocalProcessSandboxConfig {
    */
   scrubEnv?: Array<string>
   /**
+   * More env vars of this process for each command, added to the short list
+   * above. Use it for what a host CLI or the network needs, for example
+   * `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `XDG_CONFIG_HOME`, `HTTPS_PROXY`,
+   * `NO_PROXY`, `NODE_EXTRA_CA_CERTS`, or `SSH_AUTH_SOCK`. `scrubEnv` still
+   * removes a name in both lists.
+   */
+  passEnv?: Array<string>
+  /**
    * Sink for non-fatal teardown diagnostics — a `killTree` that could not
    * confirm the spawned process tree is gone. Teardown is total by construction
    * (it never throws), so without a logger such a failure is silent.
@@ -66,6 +74,7 @@ class LocalProcessProvider implements SandboxProvider {
       root,
       removeOnDestroy: this.removeDefault(),
       scrubEnv: this.config.scrubEnv,
+      passEnv: this.config.passEnv,
       logger: this.config.logger,
       forkFactory: async (sourceRoot) => {
         const dest = path.join(this.baseDir(), `fork-${randomUUID()}`)
@@ -74,6 +83,8 @@ class LocalProcessProvider implements SandboxProvider {
         return new LocalProcessHandle({
           root: dest,
           removeOnDestroy: true,
+          scrubEnv: this.config.scrubEnv,
+          passEnv: this.config.passEnv,
           logger: this.config.logger,
           forkFactory: () =>
             Promise.reject(new Error('nested fork unsupported')),

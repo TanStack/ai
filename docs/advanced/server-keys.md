@@ -156,6 +156,7 @@ import type { CredentialScope } from "@tanstack/ai/byok";
 
 type Credential =
   | { type: "api_key"; value: string }
+  | { type: "secret_answer"; value: string; expiresAt: number } // epoch ms
   | {
       type: "oauth";
       accessToken: string;
@@ -203,6 +204,7 @@ Rules for the keys:
 - A user credential is not visible at the tenant scope. A tenant credential is not visible at the user scope.
 - A scope with no tenant and no user is one bucket that every caller shares. Get the scope from your server-side auth, never from the request body.
 - `client` is the OAuth client that the tokens belong to. A token refresh needs it.
+- A `secret_answer` row is not a user credential. The harness keeps a secret answer there for a short time. Leave this type out of a list of connected accounts. You can delete a row after its `expiresAt`.
 
 Rules for the secrets (`value`, `accessToken`, `refreshToken`, `client.clientSecret`):
 

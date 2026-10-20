@@ -38,12 +38,13 @@ function setup() {
     name: 'test/http-access',
     adapter: mockAdapter(() => text('ok')).adapter,
   })
+  const persistence = memoryPersistence()
   const host = createHarnessHost({
-    persistence: memoryPersistence(),
+    persistence,
     access: {
       identify: ({ request }) =>
         users.get(request.headers.get('x-user') ?? '') ?? null,
-      authorize: membersOnly(),
+      policy: membersOnly(),
     },
   })
   const handler = createHarnessHandler({ host, harness })
@@ -59,7 +60,7 @@ function setup() {
     })
   const share = (userId: string, role: 'member' | 'viewer') =>
     host.sessions.share({ threadId: 't1', userId, role, principal: olga })
-  return { host, harness, handler, call, prompt, share }
+  return { host, harness, handler, call, prompt, share, persistence }
 }
 
 /** The thread of a host event, from its own field or its entry. */
@@ -76,7 +77,7 @@ describe('handlers and sockets fail closed', () => {
     const harness = defineHarness({ name: 'test/open' })
 
     expect(() => createHarnessHandler({ host, harness })).toThrow(
-      'createHarnessHandler needs host access ({ identify, authorize }) or openAccess: true',
+      'createHarnessHandler needs host access ({ identify, policy }) or openAccess: true',
     )
     expect(() =>
       handleHarnessSocket({
@@ -86,7 +87,7 @@ describe('handlers and sockets fail closed', () => {
         request: requestAs('olga'),
       }),
     ).toThrow(
-      'handleHarnessSocket needs host access ({ identify, authorize }) or openAccess: true',
+      'handleHarnessSocket needs host access ({ identify, policy }) or openAccess: true',
     )
   })
 
@@ -175,7 +176,7 @@ describe('the handler on a host with access', () => {
     await share('bea', 'viewer')
     const signed = await call('bea', `media-url?threadId=t1&id=${record.id}`)
     const { path }: { path: string } = await signed.json()
-    const fetchSigned = () => handler(new Request(`${BASE}/${path}`))
+    const fetchSigned = () => handler(requestAs('bea', path))
     expect(await (await fetchSigned()).text()).toBe('hello')
 
     await host.sessions.unshare({
@@ -246,6 +247,56 @@ describe('the handler on a host with access', () => {
     await host.close()
   })
 
+  it('forgets the reads of child threads in host-events when the user is revoked', async () => {
+    const { host, call, prompt, share, persistence } = setup()
+    await prompt('olga', 't1')
+    await prompt('bea', 'b1')
+    await share('bea', 'member')
+    await persistence.stores.sessions?.upsert({
+      tenantId: 'acme',
+      threadId: 'subagent:c1',
+      parentThreadId: 't1',
+      members: [],
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    const rename = (threadId: string, title: string, principal = olga) =>
+      host.sessions.rename({ threadId, title, principal })
+    const steps: Array<Promise<unknown>> = []
+    const titleOf = (frame: { type: string } | HostEvent) =>
+      'entry' in frame ? frame.entry.title : undefined
+
+    const frames = await readSse(
+      await call('bea', 'host-events'),
+      (frame: { type: string } | HostEvent) => {
+        if (frame.type === 'harness.hello') {
+          steps.push(rename('subagent:c1', 'before'))
+        }
+        // The child was readable. Now the owner takes the access of bea.
+        if (titleOf(frame) === 'before') {
+          steps.push(
+            (async () => {
+              await host.sessions.unshare({
+                threadId: 't1',
+                userId: 'bea',
+                principal: olga,
+              })
+              await rename('subagent:c1', 'after')
+              await rename('b1', 'end', bea)
+            })(),
+          )
+        }
+        return titleOf(frame) === 'end'
+      },
+    )
+
+    await Promise.all(steps)
+    const titles = frames.map(titleOf)
+    expect(titles).toContain('before')
+    expect(titles).not.toContain('after')
+    await host.close()
+  })
+
   it('never shows the threads of another tenant in host-events', async () => {
     const { host, call, prompt } = setup()
     const reading = readSse(
@@ -286,6 +337,24 @@ describe('a new thread and a deleted thread', () => {
 
     expect(await first).toBeDefined()
     reading.abort()
+  })
+
+  it('refuses POST sessions delete of a stranger, and of a thread with no entry', async () => {
+    const { host, call, prompt } = setup()
+    await prompt('olga', 't1')
+    const remove = (userId: string, threadId: string) =>
+      call(userId, 'sessions', {
+        method: 'POST',
+        body: JSON.stringify({ op: 'delete', threadId }),
+      })
+
+    expect((await remove('cid', 't1')).status).toBe(403)
+    expect((await remove('cid', 't-none')).status).toBe(404)
+    expect(
+      await host.sessions.get({ threadId: 't1', principal: olga }),
+    ).toBeDefined()
+    expect((await remove('olga', 't1')).status).toBe(204)
+    await host.close()
   })
 
   it('deletes the transcript with the entry, so the next opener reads nothing', async () => {

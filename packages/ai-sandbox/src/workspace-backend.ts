@@ -1,4 +1,5 @@
 import { posix } from 'node:path'
+import { createOutputTail } from '@tanstack/ai-utils'
 import { shellQuote } from './journal'
 import type { WorkspaceBackend } from '@tanstack/ai-harness/plugins/coding'
 import type { ExecResult, SandboxFs, SandboxHandle } from './contracts'
@@ -13,66 +14,6 @@ const HEAD_BYTES = 8 * 1024
 const MAX_PAGE_BYTES = 64 * 1024
 /** The line in the output of `readLines` between the head and the lines. */
 const LINES_MARK = '@lines'
-
-const encoder = new TextEncoder()
-const decoder = new TextDecoder()
-
-/** True for a byte in the middle of a UTF-8 character (`10xxxxxx`). */
-const isContinuation = (byte: number) => (byte & 0xc0) === 0x80
-
-/**
- * The newest output of a command, at most `maxBytes` bytes. When more comes,
- * the oldest bytes are dropped. `text()` gives the output as UTF-8 text, and
- * starts with a line that tells how many bytes were dropped.
- *
- * A copy of `createOutputTail` in `@tanstack/ai-harness`
- * (`src/first-party/coding/ring-buffer.ts`). That package does not export
- * it. Change both.
- */
-function createOutputTail(maxBytes: number) {
-  // The chunks from `start` on are the output. The ones before are dropped.
-  const chunks: Array<Uint8Array> = []
-  let start = 0
-  let size = 0
-  let dropped = 0
-
-  const push = (chunk: Uint8Array | string) => {
-    const bytes = typeof chunk === 'string' ? encoder.encode(chunk) : chunk
-    // A copy of the end only, so a big chunk is not kept whole.
-    const kept = bytes.byteLength > maxBytes ? bytes.slice(-maxBytes) : bytes
-    dropped += bytes.byteLength - kept.byteLength
-    chunks.push(kept)
-    size += kept.byteLength
-    while (size > maxBytes) {
-      const first = chunks[start]
-      if (first === undefined) break
-      const over = size - maxBytes
-      const cut = Math.min(over, first.byteLength)
-      if (cut === first.byteLength) start += 1
-      else chunks[start] = first.subarray(cut)
-      size -= cut
-      dropped += cut
-    }
-    // Remove the dropped chunks from the array now and then, not each time.
-    if (start > 1024 && start * 2 > chunks.length) {
-      chunks.splice(0, start)
-      start = 0
-    }
-  }
-
-  const text = () => {
-    let bytes = Buffer.concat(chunks.slice(start))
-    if (dropped === 0) return decoder.decode(bytes)
-    // The cut can be in a character. Start at the next whole one.
-    let from = 0
-    while (from < 3 && from < bytes.length && isContinuation(bytes[from] ?? 0))
-      from += 1
-    bytes = bytes.subarray(from)
-    return `[${dropped + from} earlier bytes were dropped.]\n${decoder.decode(bytes)}`
-  }
-
-  return { push, text }
-}
 
 /**
  * The page in the output of the `readLines` command, for a page from line
@@ -136,8 +77,11 @@ function parsePage(stdout: string, first: number) {
  * - `binding()` gives the provider and the id of the sandbox. The session
  *   log keeps them, so `reattach` of `workspace` can resume the sandbox on
  *   another machine.
- * - The id of a job is its pid in the sandbox. `killJob` stops it, also
- *   from a backend over the same sandbox on another machine.
+ * - The id of a job is its pid in the sandbox and its start time from
+ *   `ps`. `killJob` stops it, also from a backend over the same sandbox on
+ *   another machine, and only when the process with that pid started at
+ *   that time. A sandbox without a `ps -o lstart` cannot check it, so
+ *   `killJob` rejects for a job that runs.
  *
  * @param handle - The sandbox, from `provider.create()` or `provider.resume()`.
  * @param options - `owned: true` when the backend owns the sandbox. Then
@@ -358,8 +302,12 @@ export function sandboxWorkspaceBackend(
         started.then((each) => each.kill()).catch(() => undefined)
       },
       output: output.text,
+      // The pid and the start time: a later process can get the same pid.
       jobId: started.then(
-        (each) => String(each.pid),
+        async (each) => {
+          const start = await processStart(String(each.pid))
+          return start === undefined ? String(each.pid) : `${each.pid}:${start}`
+        },
         () => undefined,
       ),
     }
@@ -377,13 +325,41 @@ export function sandboxWorkspaceBackend(
     await destroyed
   }
 
-  // ponytail: a pid only. A sandbox that restarted can give the pid to
-  // another process, and this stops that process.
+  /**
+   * When the process `pid` in the sandbox started, as `ps` gives it, or
+   * `undefined` when `ps` gives nothing: no such process, or no `ps` that
+   * can tell (busybox).
+   */
+  const processStart = async (pid: string) => {
+    const result = await handle.process
+      .exec(`LC_ALL=C ps -o lstart= -p ${pid}`)
+      .catch(() => undefined)
+    const start = result?.exitCode === 0 ? result.stdout.trim() : ''
+    return start === '' ? undefined : start
+  }
+
+  // The id is `pid:start`. Only the process that started with the job is
+  // stopped: after a restart (also of the host of a local-process
+  // sandbox), another process can have its pid.
   const killJob: NonNullable<WorkspaceBackend['killJob']> = async (jobId) => {
-    if (!/^\d+$/.test(jobId)) return false
+    const match = /^(\d+)(?::(.+))?$/.exec(jobId)
+    const pid = match?.[1]
+    if (pid === undefined) return false
+    const start = await processStart(pid)
+    if (start === undefined) {
+      // No start time: no such process, or no `ps` to check it with.
+      const alive = await handle.process.exec(`kill -0 ${pid}`)
+      if (alive.exitCode !== 0) return false
+    }
+    if (start === undefined || match?.[2] === undefined) {
+      throw new Error(
+        `Cannot check that process ${pid} in the sandbox is the job: no start time from ps.`,
+      )
+    }
+    if (start !== match[2]) return false
     // The process group first, so the commands of the job stop too.
     const { exitCode } = await handle.process.exec(
-      `kill -9 -- -${jobId} 2>/dev/null || kill -9 ${jobId}`,
+      `kill -9 -- -${pid} 2>/dev/null || kill -9 ${pid}`,
     )
     return exitCode === 0
   }

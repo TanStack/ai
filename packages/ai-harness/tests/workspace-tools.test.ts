@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os'
 import * as nodePath from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import { createHarnessHost, defineHarness, definePlugin } from '../src'
+import {
+  createHarnessHost,
+  defineHarness,
+  definePlugin,
+  harnessAgent,
+} from '../src'
 import { permissions } from '../src/first-party/permissions'
 import { hostBackend } from '../src/first-party/coding/backend'
 import {
@@ -1301,6 +1306,108 @@ describe('a workspace for each thread', () => {
 
     // The purge reattached the sandbox from the log, then destroyed it.
     expect(reattached).toEqual(['sb-a'])
+    expect(closed).toEqual(['moved', 'closed'])
+    await host.close()
+  })
+
+  it('destroys the sandbox on a host that never opened the harness, when its harnesses option has it, and warns when not', async () => {
+    const { workspace } = threadWorkspaces()
+    const closed: Array<string> = []
+    const sandbox = async (input: Parameters<WorkspaceBinder['bind']>[0]) => ({
+      ...(await workspace.bind(input)),
+      binding: () => ({
+        kind: 'sandbox' as const,
+        provider: 'test',
+        sandboxId: `sb-${input.run.threadId}`,
+      }),
+      close: async ({ reason }: { reason: 'closed' | 'moved' }) => {
+        closed.push(`${input.run.threadId}:${reason}`)
+      },
+    })
+    const owned: WorkspaceBinder = {
+      bind: sandbox,
+      reattach: async ({ run }) => sandbox({ run }),
+    }
+    const { adapter } = mockAdapter([
+      () => toolCall('read_file', { path: 'mine.txt' }, 'c0'),
+      () => text('done'),
+      () => toolCall('read_file', { path: 'mine.txt' }, 'c1'),
+      () => text('done'),
+    ])
+    const harness = defineHarness({
+      name: 'test/workspace-delete',
+      adapter,
+      plugins: () => [workspaceTools({ workspace: owned, web: false })],
+    })
+    const persistence = memoryPersistence()
+    const first = createHarnessHost({ persistence })
+    for (const threadId of ['a', 'b']) {
+      const session = await first.open(harness, { threadId })
+      await session.send('read')
+    }
+    await first.close()
+    closed.length = 0
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    // A new host, after a deploy: it never opened the harness.
+    const knows = createHarnessHost({ persistence, harnesses: [harness] })
+    await knows.sessions.delete({ threadId: 'a' })
+    const blind = createHarnessHost({ persistence })
+    await blind.sessions.delete({ threadId: 'b' })
+
+    expect(closed).toEqual(['a:closed'])
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('does not know the harness'),
+    )
+    warn.mockRestore()
+    await knows.close()
+    await blind.close()
+  })
+
+  it('destroys the sandbox of a harness child thread when host.sessions.delete purges its root', async () => {
+    const { workspace } = threadWorkspaces()
+    const closed: Array<string> = []
+    const sandbox = async (input: Parameters<WorkspaceBinder['bind']>[0]) => ({
+      ...(await workspace.bind(input)),
+      binding: () => ({
+        kind: 'sandbox' as const,
+        provider: 'test',
+        sandboxId: `sb-${input.run.threadId}`,
+      }),
+      close: async ({ reason }: { reason: 'closed' | 'moved' }) => {
+        closed.push(reason)
+      },
+    })
+    const child = defineHarness({
+      name: 'test/workspace-child',
+      adapter: mockAdapter([
+        () => toolCall('read_file', { path: 'mine.txt' }, 'c0'),
+        () => text('Child done.'),
+      ]).adapter,
+      plugins: () => [
+        workspaceTools({
+          workspace: { bind: sandbox, reattach: ({ run }) => sandbox({ run }) },
+          web: false,
+        }),
+      ],
+    })
+    const agent = harnessAgent(child)
+    const lead = defineHarness({
+      name: 'test/workspace-lead',
+      adapter: mockAdapter([
+        () => toolCall(agent.name, { prompt: 'Read it.' }),
+        () => text('Done.'),
+      ]).adapter,
+      subagents: { agents: [agent] },
+    })
+    const host = createHarnessHost({ persistence: memoryPersistence() })
+    const session = await host.open(lead, { threadId: 't' })
+    await session.send('Go.')
+    await waitFor(() => expect(closed).toEqual(['moved']))
+
+    await host.sessions.delete({ threadId: 't' })
+
+    // The child lives in the log of its root: the purge reads it there.
     expect(closed).toEqual(['moved', 'closed'])
     await host.close()
   })

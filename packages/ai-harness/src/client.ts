@@ -1,7 +1,8 @@
 // Browser-safe: this module has type-only imports from the rest of the
-// package, plus `media-ref`, which has type-only imports itself. So no server
-// code (adapters, stores, secrets) reaches a client.
+// package, plus `media-ref` and `utils`, which have no runtime imports
+// themselves. So no server code (adapters, stores, secrets) reaches a client.
 import { isMediaRecord } from './media-ref'
+import { isRecord } from './utils'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
   LogRecord,
@@ -17,6 +18,7 @@ import type {
   SessionMetadataOf,
 } from './define'
 import type { HostEvent } from './host'
+import type { HarnessErrorCode } from './protocol'
 import type { SessionDescription, SessionSnapshot } from './session/index'
 import type { SessionEntryChange } from './session-entry'
 import type {
@@ -52,6 +54,36 @@ export type {
   HostStatusEvent,
 } from './host'
 
+/**
+ * A `harness.error` frame that ended a stream of the client: `code` says
+ * what failed. `events()` and `hostEvents()` throw it. A `slow_consumer`
+ * error is not thrown: they connect again.
+ */
+export class HarnessProtocolError extends Error {
+  readonly code: HarnessErrorCode
+  constructor(code: HarnessErrorCode, message: string) {
+    super(message)
+    this.name = 'HarnessProtocolError'
+    this.code = code
+  }
+}
+
+/**
+ * The error of a `harness.error` frame. Undefined for another frame and
+ * for `slow_consumer`: the stream ends, and the client connects again.
+ */
+function protocolErrorOf(frame: unknown): HarnessProtocolError | undefined {
+  if (!isRecord(frame) || frame.type !== 'harness.error') return undefined
+  if (frame.code === 'slow_consumer') return undefined
+  const code =
+    typeof frame.code === 'string'
+      ? (frame.code as HarnessErrorCode)
+      : 'internal'
+  const message =
+    typeof frame.message === 'string' ? frame.message : 'Harness stream failed'
+  return new HarnessProtocolError(code, message)
+}
+
 export interface HarnessClientOptions {
   /** The base URL of `createHarnessHandler`, for example `/api/harness`. */
   url: string
@@ -65,6 +97,14 @@ export interface HarnessClientOptions {
    * A read from the server sets the wait back to this value.
    */
   reconnectDelayMs?: number
+  /**
+   * A connection of `events()` that gets no bytes for this long is dead,
+   * for example after a laptop sleeps or a NAT drops the mapping. The
+   * client closes it and connects again from its last cursor. Default
+   * 60 000 ms. Keep it larger than the `stream.heartbeatMs` of the server
+   * (default 20 000 ms), or the client reconnects in a loop.
+   */
+  idleTimeoutMs?: number
 }
 
 type StartArgs<TAgent> =
@@ -133,11 +173,11 @@ export interface HarnessClient<THarness extends AnyHarness> {
     ephemeral?: ReadonlyArray<ModelMessage & { role: 'user' }>
   }) => Promise<Receipt>
   /**
-   * Answer the interrupts of the last turn, as `session.resolve` does: the
+   * Answer the waits of `snapshot().pendingWaits` that have an
+   * `interrupt`, as `session.resolve` does. The waits of the last turn (the
    * approvals, the `question` tool calls, the client tools, and the
-   * sign-ins of `snapshot().pendingInterrupts`, all in one resume. A wait of
-   * a background agent run (in `pendingWaits` only) takes a resolve of its
-   * own. A `step.ask` question takes `answer`.
+   * sign-ins) go in one resume. A wait of a background agent run takes a
+   * resolve of its own. A wait with no interrupt takes `answer`.
    *
    * @example
    * ```ts
@@ -175,10 +215,10 @@ export interface HarnessClient<THarness extends AnyHarness> {
   }) => Promise<Receipt>
   agents: ClientAgentHandles<THarness>
   /**
-   * Answer a question of `snapshot().pendingQuestions`, as `session.answer`
-   * does: a `step.ask` wait of a command, a durable tool, or an agent run,
-   * or an MCP question. A `human` wait that no turn holds takes it too. The
-   * other waits take `resolve`.
+   * Answer a wait of `snapshot().pendingWaits` that no turn holds, as
+   * `session.answer` does: a `step.ask` wait of a command, a durable tool,
+   * or an agent run, an MCP question, or a `human` wait. The waits of the
+   * stopped turn take `resolve`.
    */
   answer: (answer: { questionId: string; value: unknown }) => Promise<Receipt>
   /**
@@ -407,13 +447,8 @@ type SessionChange =
 const MAX_RECONNECT_DELAY_MS = 30_000
 
 /**
- * A connection of `events()` that gets no bytes for this long is dead, for
- * example after a laptop sleeps or a NAT drops the mapping. The client
- * closes it and connects again from its last cursor. The server sends a
- * ping every `stream.heartbeatMs` (default 20 s), so a live connection
- * always sends bytes before this time.
- * ponytail: 3 times the default heartbeat. Add a client option when a
- * server sets `stream.heartbeatMs` above 20 s.
+ * The default `idleTimeoutMs`: 3 times the default `stream.heartbeatMs` of
+ * the server, so a live connection always sends bytes before it.
  */
 const IDLE_TIMEOUT_MS = 60_000
 
@@ -545,6 +580,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
 ): HarnessClient<THarness> {
   const base = options.url.replace(/\/$/, '')
   const doFetch = options.fetch ?? fetch
+  const idleTimeoutMs = options.idleTimeoutMs ?? IDLE_TIMEOUT_MS
   const headers = () =>
     typeof options.headers === 'function'
       ? options.headers()
@@ -674,7 +710,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
     // Ends the wait before a reconnect.
     let wake: (() => void) | undefined
-    // Closes a connection that sends nothing for `IDLE_TIMEOUT_MS`.
+    // Closes a connection that sends nothing for `idleTimeoutMs`.
     let idle: ReturnType<typeof setTimeout> | undefined
     // One listener for all the connections: it stops the current read or
     // the current wait.
@@ -684,6 +720,8 @@ export function createHarnessClient<THarness extends AnyHarness>(
     })
     // The tries since the last read from the server, for the next wait.
     let attempt = 0
+    // The error of a /snapshot answer with the wrong shape. It is not retried.
+    let badSnapshot: Error | undefined
     try {
       while (!signal?.aborted) {
         try {
@@ -699,8 +737,15 @@ export function createHarnessClient<THarness extends AnyHarness>(
             else if (!head.ok) {
               throw new Error(`Harness snapshot failed (${head.status})`)
             } else {
-              // The handler answers /snapshot with a SessionSnapshot.
-              cursor = ((await head.json()) as SessionSnapshot).cursor
+              const body: unknown = await head.json()
+              if (!isRecord(body) || typeof body.cursor !== 'string') {
+                // A retry gets the same answer, so stop the read.
+                badSnapshot = new Error(
+                  `Harness snapshot has no string "cursor". Is ${base} a harness handler?`,
+                )
+                throw badSnapshot
+              }
+              cursor = body.cursor
             }
           }
           if (cursor) query.set('from', cursor)
@@ -718,7 +763,7 @@ export function createHarnessClient<THarness extends AnyHarness>(
           // cancel ends the read, and the loop below connects again.
           const isAlive = () => {
             clearTimeout(idle)
-            idle = setTimeout(() => cancelReader(connection), IDLE_TIMEOUT_MS)
+            idle = setTimeout(() => cancelReader(connection), idleTimeoutMs)
           }
           isAlive()
           const frames = sseFrames(reader, () => {
@@ -726,6 +771,8 @@ export function createHarnessClient<THarness extends AnyHarness>(
             isAlive()
           })
           for await (const frame of frames) {
+            const failure = protocolErrorOf(frame)
+            if (failure) throw failure
             if (
               typeof frame === 'object' &&
               frame !== null &&
@@ -744,6 +791,8 @@ export function createHarnessClient<THarness extends AnyHarness>(
           }
         } catch (error) {
           if (signal?.aborted) return
+          if (error === badSnapshot) throw error
+          if (error instanceof HarnessProtocolError) throw error
           // A 404 means that the thread has no entry yet: a new chat, before
           // its first message. Try again, the same as after a network error.
           if (error instanceof Error && /\((401|403)\)/.test(error.message))
@@ -773,26 +822,33 @@ export function createHarnessClient<THarness extends AnyHarness>(
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
     const stopListening = whenAborted(signal, () => cancelReader(reader))
     try {
-      const response = await checked(
-        'host-events',
-        await doFetch(`${base}/host-events`, {
-          headers: headers(),
-          ...(signal ? { signal } : {}),
-        }),
-      )
-      if (!response.body)
-        throw new Error('Harness host-events failed: the answer has no body')
-      reader = response.body.getReader()
-      for await (const frame of sseFrames(reader)) {
-        // The handler sends `HostEvent` frames, and `harness.*` frames (the
-        // hello first, an error last) that are not host events.
-        const isHarnessFrame =
-          typeof frame === 'object' &&
-          frame !== null &&
-          'type' in frame &&
-          typeof frame.type === 'string' &&
-          frame.type.startsWith('harness.')
-        if (!isHarnessFrame) yield frame as HostEvent
+      // A `slow_consumer` error ends the stream: connect again. The current
+      // statuses come first again.
+      let isSlow = true
+      while (isSlow && !signal?.aborted) {
+        isSlow = false
+        const response = await checked(
+          'host-events',
+          await doFetch(`${base}/host-events`, {
+            headers: headers(),
+            ...(signal ? { signal } : {}),
+          }),
+        )
+        if (!response.body)
+          throw new Error('Harness host-events failed: the answer has no body')
+        reader = response.body.getReader()
+        for await (const frame of sseFrames(reader)) {
+          // The handler sends `HostEvent` frames, and `harness.*` frames
+          // (the hello first, an error last) that are not host events.
+          const type = isRecord(frame) ? frame.type : undefined
+          if (type === 'harness.error') {
+            const failure = protocolErrorOf(frame)
+            if (failure) throw failure
+            isSlow = true
+          } else if (typeof type !== 'string' || !type.startsWith('harness.')) {
+            yield frame as HostEvent
+          }
+        }
       }
     } catch (error) {
       if (signal?.aborted) return

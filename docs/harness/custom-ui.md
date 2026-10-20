@@ -273,7 +273,7 @@ The view calls your handler after the item is in the state, so the handler can r
 
 The view also keeps its state right on its own:
 
-- Each event from `client.events()` or `session.events()` has the `threadId` it belongs to, and a `parentRunId` when a child run sent it. Use them to show the run tree in your own UI.
+- Each event from `client.events()` or `session.events()` has the `threadId` it belongs to. The `RUN_STARTED` event of a child run has the `parentRunId` of the run that started it. Use them to show the run tree in your own UI.
 - When the server sends `harness.gap`, some events are gone. The view stops its read, loads the snapshot and the transcript again, then reads on from the new snapshot. So no turn shows twice after the gap. See [Write a client in any language](./protocol#when-events-are-missing).
 
 ## Show a question
@@ -447,6 +447,8 @@ if (child?.type === 'agent') await view.loadAgent({ id: child.id })
 
 A nested child in that part loads the same way, with its own `loadAgent` call. A background child that still runs keeps getting its new text in the same part.
 
+A terminal screen that prints the old turns only one time (for example Ink `Static`) must load the saved children before its first render. [`examples/harness-cli/src/tui.tsx`](https://github.com/TanStack/ai/blob/main/examples/harness-cli/src/tui.tsx) does this in `loadSavedAgents`.
+
 To show a line when a child ends, listen for `'agent'`:
 
 ```ts group=harness-custom-ui
@@ -497,7 +499,7 @@ const host = createHarnessHost({
       request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
         ? { id: 'user-1' }
         : null,
-    authorize: membersOnly(),
+    policy: membersOnly(),
   },
 })
 

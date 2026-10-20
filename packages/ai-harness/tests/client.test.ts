@@ -36,7 +36,7 @@ describe('createHarnessClient', () => {
           request.headers.get('authorization') === 'Bearer t'
             ? { id: 'u' }
             : null,
-        authorize: () => true,
+        policy: { authorize: () => true },
       },
     })
     const handler = createHarnessHandler({ host, harness: studio })
@@ -236,7 +236,7 @@ describe('createHarnessClient', () => {
     const studio = defineHarness({ name: 'test/client-denied', adapter })
     const host = createHarnessHost({
       persistence: memoryPersistence(),
-      access: { identify: () => null, authorize: () => true },
+      access: { identify: () => null, policy: { authorize: () => true } },
     })
     const handler = createHarnessHandler({ host, harness: studio })
     const client = createHarnessClient<typeof studio>({
@@ -307,6 +307,23 @@ describe('client.events with no from', () => {
     )
     await session.close()
     await host.close()
+  })
+
+  it('throws, with no retry, when the snapshot has no cursor', async () => {
+    let reads = 0
+    const client = createHarnessClient({
+      url: 'http://local/api/harness',
+      threadId: 't',
+      fetch: async () => {
+        reads += 1
+        return Response.json({ status: 'idle' })
+      },
+    })
+
+    await expect(async () => {
+      for await (const _ of client.events()) break
+    }).rejects.toThrow('no string "cursor"')
+    expect(reads).toBe(1)
   })
 })
 

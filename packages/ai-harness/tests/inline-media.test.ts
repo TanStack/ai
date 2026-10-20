@@ -132,6 +132,37 @@ describe('storeInlineMedia', () => {
       refused: 'media_url_not_allowed',
     })
   })
+
+  it('stores nothing when a later part is refused', async () => {
+    const stored: Array<string> = []
+    const checked = await storeInlineMedia(
+      [inlineImage(), urlImage('https://example.com/cat.png')],
+      {
+        options: undefined,
+        putMedia: async (upload) => {
+          stored.push(upload.mimeType)
+          throw new Error('not reached')
+        },
+      },
+    )
+
+    expect(checked).toEqual({ refused: 'media_url_not_allowed' })
+    expect(stored).toEqual([])
+  })
+
+  it('refuses a provider file handle unless media.allowProviderFiles is set', async () => {
+    const file: ContentPart = {
+      type: 'document',
+      source: { type: 'file', value: 'file-abc' },
+    }
+
+    expect(await storeWith().check([file])).toEqual({
+      refused: 'media_url_not_allowed',
+    })
+    expect(await storeWith({ allowProviderFiles: true }).check([file])).toEqual(
+      { parts: [file] },
+    )
+  })
 })
 
 describe('readBodyText', () => {
@@ -182,6 +213,31 @@ describe('applyInput with media from a client', () => {
         source: { type: 'data', value: HELLO, mimeType: 'image/png' },
       },
     ])
+    await host.close()
+  })
+
+  it('treats a retried prompt with inline media as the same input', async () => {
+    const { harness, host, session, calls } = await open()
+    const input = {
+      op: 'prompt' as const,
+      inputId: 'in-1',
+      message: [inlineImage()],
+    }
+
+    const first = await applyInput({ harness, session, input })
+    await session.settled({ inputId: 'in-1' })
+    const again = await applyInput({ harness, session, input })
+
+    // Stored again, the media id would differ, and the retry would be a
+    // conflict.
+    expect(first.status).toBe('accepted')
+    expect(again).toEqual(first)
+    expect(calls).toHaveLength(1)
+    const other = { ...input, message: [inlineImage(), inlineImage()] }
+    expect(await applyInput({ harness, session, input: other })).toMatchObject({
+      status: 'rejected',
+      reason: 'conflict',
+    })
     await host.close()
   })
 

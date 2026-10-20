@@ -9,8 +9,7 @@ import type { SignIn } from '@tanstack/ai-harness/view'
 
 /** The waits of the stopped turn, in order. One resolve answers them all. */
 export function turnWaits(snapshot: SessionSnapshot) {
-  const ids = new Set(snapshot.pendingInterrupts.map(({ id }) => id))
-  return snapshot.pendingWaits.filter(({ waitId }) => ids.has(waitId))
+  return snapshot.pendingWaits.filter(({ turn }) => turn)
 }
 
 const isYes = (text: string) => /^y(es)?$/i.test(text.trim())

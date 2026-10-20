@@ -1,7 +1,8 @@
 import { EventType } from '@tanstack/ai'
 import { emptyUsage } from '../src/usage'
-import type { StreamChunk } from '@tanstack/ai'
-import type { SessionEvent, SessionSnapshot } from '../src'
+import { waitOfInterrupt, waitOfQuestion } from '../src/waits'
+import type { Interrupt, StreamChunk } from '@tanstack/ai'
+import type { PendingQuestion, SessionEvent, SessionSnapshot } from '../src'
 
 let cursor = 0
 
@@ -41,18 +42,36 @@ export const childRun = {
   },
 } as const
 
-/** An idle session snapshot with nothing pending, and `over` on top. */
-export function sessionSnapshot(
-  over: Partial<SessionSnapshot> = {},
-): SessionSnapshot {
+/**
+ * An idle session snapshot with nothing pending, and `over` on top.
+ * `interrupts` are the waits of the stopped turn, and `questions` the
+ * question waits of the log, both in `pendingWaits`.
+ */
+export function sessionSnapshot({
+  interrupts = [],
+  questions = [],
+  ...over
+}: Partial<SessionSnapshot> & {
+  interrupts?: Array<Interrupt>
+  questions?: Array<PendingQuestion>
+} = {}): SessionSnapshot {
   return {
     threadId: 't',
     status: 'idle',
     activeOperations: [],
     queuedTurns: 0,
-    pendingInterrupts: [],
-    pendingQuestions: [],
-    pendingWaits: [],
+    pendingWaits: [
+      ...interrupts.map((interrupt) => ({
+        ...waitOfInterrupt({ interrupt, runId: 'op-1' }),
+        interrupt,
+        turn: true as const,
+      })),
+      ...questions.map(({ secret, url, ...question }) => ({
+        ...waitOfQuestion({ question, runId: 'op-1' }),
+        ...(secret ? { secret: true as const } : {}),
+        ...(url ? { url } : {}),
+      })),
+    ],
     plugins: {},
     usage: emptyUsage(),
     cursor: '0',

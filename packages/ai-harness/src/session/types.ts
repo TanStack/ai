@@ -25,7 +25,8 @@ import type { ConfigOption } from '../config'
 import type { SessionUsage, UsageCall } from '../usage'
 import type { SessionImpl } from './harness-session'
 import type { AgentInputOf, AgentResultOf, AnyAgent } from '../agents'
-import type { Wait } from '../waits'
+import type { PendingWait } from '../waits'
+import type { HandoffRecord } from '../log-records'
 import type { AnyHarness, HarnessAgentsOf } from '../define'
 import type {
   HarnessPersistence,
@@ -40,7 +41,6 @@ import type {
   ChatTurnResult,
   Cursor,
   HarnessInput,
-  PendingQuestion,
   Principal,
   Receipt,
   ResolveOptions,
@@ -76,7 +76,7 @@ export interface AgentModelErrorContext {
   /** The name of the agent. */
   agent: string
   error: { message: string; code?: string; retryAfterMs?: number }
-  /** The attempts of this run that failed before this one. */
+  /** The model calls of this run that failed before this one. */
   retries: number
   /** Aborted when the run is cancelled. */
   signal: AbortSignal
@@ -112,6 +112,17 @@ export interface AgentStartOptions {
    */
   principal?: Principal
   /**
+   * The run that starts the agent, in a tool: `ctx.context.run`. When it
+   * names an agent run of this session that runs, the agent is a child of
+   * that run, as `ctx.harness.agents` starts it. It then counts in the tree
+   * and the budget of that run, and runs for its user. It takes no
+   * `maxConcurrent` slot, so the run can await it. Without it, a start of
+   * `ctx.agents` in a plugin tool that an agent run calls is a child of that
+   * run too, when no other run of the session is in a tool call. `null`: a
+   * top-level run, which takes a `maxConcurrent` slot.
+   */
+  parent?: { runId: string } | null
+  /**
    * The durable name of the run in a group or in a run started with
    * `resume: true`. When the parent runs again, a start with the same key
    * gets the run it started before.
@@ -129,9 +140,13 @@ export interface AgentStartOptions {
    */
   budget?: { maxTokens?: number; maxCost?: number }
   /**
-   * Called when a model call of this run fails. Return `'retry'` to run the
-   * call again, or `'fail'` to fail the run. A function is not stored in the
-   * log: a run that another host takes over runs without it.
+   * Called when a model call of this run fails before it streams output.
+   * Return `'retry'` to call the model again after a short backoff, or
+   * `'fail'` to let the error go on. Only that model call runs again, so a
+   * tool that ran before does not run twice. One model call runs at most 3
+   * times. A tool that throws, or an error of the agent code, does not call
+   * it. A function is not stored in the log: a run that another host takes
+   * over runs without it.
    */
   onModelError?: (
     ctx: AgentModelErrorContext,
@@ -145,12 +160,15 @@ export interface AgentStartOptions {
  * input has no run id. `inputId`: the input id of the run, from its key in
  * the run that starts it, so a run again finds the same child. `ready`: a
  * child that waits for a slot of its group starts when it resolves `true`,
- * and ends cancelled on `false`. A rejection fails the run.
+ * and ends cancelled on `false`. A rejection fails the run. `enter`: a
+ * child of a group enters the group with it, once, as its start admits it
+ * (see `SessionAgents.admitStart`).
  */
 export type AgentRunStartOptions = AgentStartOptions & {
   offered?: { inputId: string; runId?: string }
   inputId?: string
   ready?: Promise<boolean>
+  enter?: (admit?: () => void) => true | Promise<boolean>
 }
 
 /** Start one agent run. `start`, `run`, and `group` of `AgentActions` use it. */
@@ -270,19 +288,13 @@ export interface SessionSnapshot {
    * leave it out.
    */
   waitingInputs?: Array<WaitingInput>
-  /** The interrupts of `pendingWaits`, as the last turn stopped for them. */
-  pendingInterrupts: Array<Interrupt>
-  /**
-   * The questions of `pendingWaits` that a command or a plugin asked,
-   * waiting for `session.answer`.
-   */
-  pendingQuestions: Array<PendingQuestion>
   /**
    * Every wait that is open: the interrupts of the last turn, then the
-   * questions and the human waits, oldest first. Read the kind with
-   * `waitKind`.
+   * waits of the log (background agent runs, questions, human waits),
+   * oldest first. `kind` says what each one waits for. A wait with an
+   * `interrupt` takes `resolve`, the others take `answer`.
    */
-  pendingWaits: Array<Wait>
+  pendingWaits: Array<PendingWait>
   /** The state of each plugin that uses `ctx.state`, by plugin name. */
   plugins: Record<string, unknown>
   /** The token usage of the thread, the same as `session.usage()`. */
@@ -384,6 +396,12 @@ export interface SessionDependencies {
    * a session that no handle holds.
    */
   onIdle?: () => void
+  /**
+   * A `step.sleep` of the session started to wait longer than
+   * `LONG_SLEEP_MS`, and the session has no background job. The host ends
+   * the attempt of a session that only a worker holds (see `sleepUntil`).
+   */
+  onLongSleep?: () => void
   /**
    * The host checks access (`access` on the host). Then an entry with no
    * owner stays without one, and provider keys read env vars only with
@@ -501,6 +519,12 @@ export interface InterruptedTurn {
    * agents, and false for `subagents.router`.
    */
   routed?: { messages: Array<UIMessage>; root: boolean }
+  /**
+   * The part that stopped also handed off. Its record is in the log. The
+   * resolve ends the part after the answered tools, and the target runs (or
+   * the session pauses, for a person).
+   */
+  handoff?: Omit<HandoffRecord, 'runId'>
   /**
    * Who sent the input of the stopped turn. Only this principal's saved
    * credential answers its sign-ins.
