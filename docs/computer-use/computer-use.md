@@ -85,7 +85,7 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 const adapter = anthropicText('claude-opus-5-5')
 ```
 
-Need a full Linux desktop and not a browser page? See [Drivers](./drivers).
+Need a full Linux desktop or your own computer, and not a browser page? See [Drivers](./drivers).
 
 ## One page for each thread
 
@@ -233,4 +233,4 @@ Go to https://tanstack.com/ai and tell me the title of the page.
 
 The model calls `navigate`, reads the screenshot, and answers in the chat. You now have a browser agent.
 
-To control your own machine with no driver package, see [Custom driver](./custom-driver).
+To let the model use your own computer, see [Your own computer](./drivers#your-own-computer). For a machine that no driver controls, see [Custom driver](./custom-driver).

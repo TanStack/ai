@@ -2,32 +2,35 @@
 title: Computer Use Drivers
 id: computer-use-drivers
 order: 2
-description: "Pick the machine that the model uses: a browser page for each thread with Playwright, or a full Linux desktop for each thread in an E2B sandbox."
+description: "Pick the machine that the model uses: a browser page for each thread with Playwright, a full Linux desktop for each thread in an E2B sandbox, or your own computer."
 keywords:
   - tanstack ai
   - computer use
   - driver
   - playwrightComputer
   - e2bComputer
+  - localComputer
   - playwright
   - e2b
   - linux desktop
   - sandbox
+  - robotjs
+  - local desktop
 ---
 
 A browser page is not always enough. Sometimes the model must use a desktop app, a file manager, or a terminal. A driver decides which machine the model uses. Change the driver, and the rest of your [computer use](./computer-use) code stays the same.
 
 ## Pick a driver
 
-|                       | Playwright                                | E2B                                   |
-| --------------------- | ----------------------------------------- | ------------------------------------- |
-| **Machine**           | A browser page for each thread            | A Linux desktop sandbox for each thread |
-| **Environment**       | `browser`                                 | `linux`                               |
-| **Runs on**           | Your server                               | E2B cloud                             |
-| **`navigate` tool**   | Yes                                       | No                                    |
-| **`zoom`**            | Yes                                       | No                                    |
-| **`cursor_position`** | No                                        | Yes                                   |
-| **Setup**             | `playwright-core`, then download Chromium | An E2B API key                        |
+|                       | Playwright                                | E2B                                     | Your own computer                          |
+| --------------------- | ----------------------------------------- | --------------------------------------- | ------------------------------------------ |
+| **Machine**           | A browser page for each thread            | A Linux desktop sandbox for each thread | Your mouse, keyboard, and main screen      |
+| **Environment**       | `browser`                                 | `linux`                                 | `windows`, `mac`, or `linux`               |
+| **Runs on**           | Your server                               | E2B cloud                               | The machine that runs `chat()`             |
+| **`navigate` tool**   | Yes                                       | No                                      | No                                         |
+| **`zoom`**            | Yes                                       | No                                      | Yes                                        |
+| **`cursor_position`** | No                                        | Yes                                     | Yes                                        |
+| **Setup**             | `playwright-core`, then download Chromium | An E2B API key                          | `@jitsi/robotjs`, and permissions on macOS |
 
 When a driver has `zoom` or `cursorPosition`, the Anthropic adapter turns on that action for the model.
 
@@ -166,6 +169,52 @@ const computerUse = createComputerUse({
 
 Your app owns this sandbox. `createComputerUse` never kills it. When you are done, call `await desktop.kill()`.
 
+## Your own computer
+
+If the model must use the apps on the machine that runs `chat()`, use `localComputer()`. The model moves your real mouse, presses your real keys, and reads your main screen.
+
+CAUTION: Watch the model while it uses your computer. It can do what you can do there: read files, send messages, and delete data. If you cannot watch it, use [E2B](#e2b) or a VM.
+
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai-computer-use @tanstack/ai-computer-local @jitsi/robotjs zod
+vue: @tanstack/ai-computer-use @tanstack/ai-computer-local @jitsi/robotjs zod
+solid: @tanstack/ai-computer-use @tanstack/ai-computer-local @jitsi/robotjs zod
+svelte: @tanstack/ai-computer-use @tanstack/ai-computer-local @jitsi/robotjs zod
+preact: @tanstack/ai-computer-use @tanstack/ai-computer-local @jitsi/robotjs zod
+angular: @tanstack/ai-computer-use @tanstack/ai-computer-local @jitsi/robotjs zod
+vanilla: @tanstack/ai-computer-use @tanstack/ai-computer-local @jitsi/robotjs zod
+octane: @tanstack/ai-computer-use @tanstack/ai-computer-local @jitsi/robotjs zod
+
+<!-- ::end:tabs -->
+
+`@jitsi/robotjs` has prebuilt binaries for Windows, macOS, and Linux. If pnpm asks to allow its install script, you can deny it.
+
+1. On macOS, open System Settings > Privacy & Security. Give the Accessibility and Screen Recording permissions to the app that runs Node, for example your terminal.
+2. On Linux, use an X11 session. Wayland is not supported.
+3. Give `localComputer()` to `createComputerUse`.
+
+```ts
+import { createComputerUse } from '@tanstack/ai-computer-use'
+import { localComputer } from '@tanstack/ai-computer-local'
+
+const computerUse = createComputerUse({
+  driver: localComputer(),
+})
+```
+
+`localComputer()` takes these options. Both are optional:
+
+- `display`: the size of the screenshots that the model sees. The driver scales each screenshot down to this size, and scales each click up to the screen. The default is your screen size, scaled down to fit in 1280 x 800. Keep the aspect ratio of your screen.
+- `robot`: the object that moves the mouse and presses the keys. The default is `@jitsi/robotjs`. A test can give a fake with the same methods.
+
+Your computer is one machine:
+
+- Every thread shares it, so it serves one conversation at a time.
+- The model sees only the main screen.
+- There is no `navigate` tool. The model opens the browser on your desktop.
+- There are no `back` and `forward` mouse buttons.
+
 ## Use it in chat
 
 With every driver, `createComputerUse` gives `tools`, `middleware`, and `interrupt`. Give them to `chat()` with the thread id:
@@ -194,4 +243,4 @@ const stream = chat({
 })
 ```
 
-The model now uses a browser page or a full Linux desktop, one for each thread. For a machine that no driver controls, write a [custom driver](./custom-driver).
+The model now uses a browser page or a full Linux desktop for each thread, or your own computer. For a machine that no driver controls, write a [custom driver](./custom-driver).

@@ -2,19 +2,21 @@
 '@tanstack/ai-computer-use': minor
 '@tanstack/ai-computer-playwright': minor
 '@tanstack/ai-computer-e2b': minor
+'@tanstack/ai-computer-local': minor
 '@tanstack/ai': minor
 '@tanstack/openai-base': minor
 '@tanstack/ai-openai': minor
 '@tanstack/ai-anthropic': minor
 ---
 
-Add computer use that runs the same code on OpenAI and on Anthropic. A driver controls the machine, and each thread gets its own machine.
+Add computer use that runs the same code on OpenAI and on Anthropic. A driver controls the machine. The Playwright and E2B drivers give each thread its own machine.
 
 New packages:
 
 - `@tanstack/ai-computer-use` adds `createComputerUse()`. It returns `tools`, a middleware, a safety-check interrupt, and `close`. Each `threadId` gets its own machine, action queue, and approvals. A thread that stays idle for `idleTimeout` (10 minutes by default) closes.
 - `@tanstack/ai-computer-playwright` adds `playwrightComputer()`, which opens one browser page for each thread. `createPlaywrightComputerDriver()` controls one page that you give it. Both add a `navigate` tool that opens `http:` and `https:` URLs.
 - `@tanstack/ai-computer-e2b` adds `e2bComputer()`, which starts one E2B desktop sandbox for each thread. `createE2BComputerDriver()` controls one sandbox that you give it.
+- `@tanstack/ai-computer-local` adds `localComputer()`, which lets the model use the mouse, keyboard, and main screen of the machine that runs `chat()`. It works on Windows, macOS, and Linux with `@jitsi/robotjs`.
 
 Changes in existing packages:
 

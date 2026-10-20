@@ -2408,6 +2408,18 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(vitest@4.1.11)
 
+  packages/ai-computer-local:
+    devDependencies:
+      '@jitsi/robotjs':
+        specifier: ^0.6.24
+        version: 0.6.24
+      '@tanstack/ai-computer-use':
+        specifier: workspace:*
+        version: link:../ai-computer-use
+      '@vitest/coverage-v8':
+        specifier: 4.1.10
+        version: 4.1.10(vitest@4.1.11)
+
   packages/ai-computer-playwright:
     devDependencies:
       '@tanstack/ai-computer-use':
@@ -3718,6 +3730,9 @@ importers:
       '@tanstack/ai-compaction':
         specifier: workspace:*
         version: link:../../packages/ai-compaction
+      '@tanstack/ai-computer-local':
+        specifier: workspace:*
+        version: link:../../packages/ai-computer-local
       '@tanstack/ai-computer-playwright':
         specifier: workspace:*
         version: link:../../packages/ai-computer-playwright
@@ -6501,6 +6516,9 @@ packages:
 
   '@jitl/quickjs-wasmfile-release-sync@0.31.0':
     resolution: {integrity: sha512-hYduecOByj9AsAfsJhZh5nA6exokmuFC8cls39+lYmTCGY51bgjJJJwReEu7Ff7vBWaQCL6TeDdVlnp2WYz0jw==}
+
+  '@jitsi/robotjs@0.6.24':
+    resolution: {integrity: sha512-mJrOMfvrI4aqG8jmGruXC3jtIccCptVM1JIcGXgKRyHqXVJIzz8Eb/L9dsJCIDJ2UFvd7yPcgNX819ZlsrJahg==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -15791,6 +15809,10 @@ packages:
   node-addon-api@7.1.1:
     resolution: {integrity: sha512-5m3bsyrjFWE1xf7nz7YXdN4udnVtXK6/Yfgn5qnahL6bCkf2yKt4k3nuTKAtT4r3IG8JNR2ncsIMdZuAzJjHQQ==}
 
+  node-addon-api@8.9.2:
+    resolution: {integrity: sha512-VijLXbi3UACN69I0JVXJsX4tjACjNoQDgv2gTF6sx2wWEi8tkSg2eX8p5gSIFi8z2+DL3oHmY6OyKce38SDolg==}
+    engines: {node: ^18 || ^20 || >= 21}
+
   node-domexception@1.0.0:
     resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
     engines: {node: '>=10.5.0'}
@@ -22587,6 +22609,11 @@ snapshots:
   '@jitl/quickjs-wasmfile-release-sync@0.31.0':
     dependencies:
       '@jitl/quickjs-ffi-types': 0.31.0
+
+  '@jitsi/robotjs@0.6.24':
+    dependencies:
+      node-addon-api: 8.9.2
+      node-gyp-build: 4.8.4
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -34061,6 +34088,8 @@ snapshots:
     optional: true
 
   node-addon-api@7.1.1: {}
+
+  node-addon-api@8.9.2: {}
 
   node-domexception@1.0.0: {}
 

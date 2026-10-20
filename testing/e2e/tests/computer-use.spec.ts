@@ -12,15 +12,17 @@ import {
   createPlaywrightComputerDriver,
   playwrightComputer,
 } from '@tanstack/ai-computer-playwright'
+import { localComputer } from '@tanstack/ai-computer-local'
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import type { Browser, BrowserContext, Locator, Page } from '@playwright/test'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
+import type { RobotLike } from '@tanstack/ai-computer-local'
 
 /**
  * Computer use from end to end. A real Playwright page is the computer.
  * `createComputerUse` with the Playwright driver runs the actions on it.
  * `playwrightComputer` makes one page for each thread from the `browser`
- * fixture.
+ * fixture. `localComputer` runs on a fake robot, because CI has no desktop.
  *
  * `chat()` runs in the spec process. A mock `fetch` sends the model streams
  * and keeps each request body. No app server and no API key are used.
@@ -609,5 +611,87 @@ test.describe('computer use with playwrightComputer', () => {
 
     await computerUse.close()
     expect(pageB.isClosed()).toBe(true)
+  })
+})
+
+/** A fake robot on a 2560 x 1600 screen. Each call adds one line to `calls`. */
+function fakeRobot() {
+  const screen = { width: 2560, height: 1600 }
+  const calls: Array<string> = []
+  const record =
+    (name: string) =>
+    (...args: Array<string | number | boolean | undefined>) => {
+      calls.push([name, ...args].join(' ').trim())
+    }
+  const robot: RobotLike = {
+    getScreenSize: () => screen,
+    getMousePos: () => ({ x: 0, y: 0 }),
+    moveMouse: record('moveMouse'),
+    mouseClick: record('mouseClick'),
+    mouseToggle: record('mouseToggle'),
+    scrollMouse: record('scrollMouse'),
+    keyToggle: record('keyToggle'),
+    typeString: record('typeString'),
+    screen: {
+      capture: () => ({
+        ...screen,
+        byteWidth: screen.width * 4,
+        bytesPerPixel: 4,
+        image: new Uint8Array(screen.width * screen.height * 4),
+      }),
+    },
+  }
+  return { robot, calls }
+}
+
+/** The size of the first PNG screenshot in a request body. */
+function screenshotSize(body: unknown) {
+  const match = /data:image\/png;base64,([A-Za-z0-9+/=]+)/.exec(
+    JSON.stringify(body),
+  )
+  if (!match?.[1]) throw new Error('The request has no PNG screenshot.')
+  const png = Buffer.from(match[1], 'base64')
+  return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) }
+}
+
+test.describe('computer use with localComputer', () => {
+  test('localComputer clicks on the screen and sends a display-size screenshot', async () => {
+    const { robot, calls } = fakeRobot()
+    const computerUse = createComputerUse({
+      driver: localComputer({ robot }),
+      screenshotDelay: 0,
+    })
+    const model = mockModel([
+      openaiStream('resp_cu_1', [
+        {
+          type: 'computer_call',
+          id: 'cu_local',
+          call_id: 'call_cu_local',
+          status: 'completed',
+          actions: [
+            { type: 'click', button: 'left', x: 640, y: 400 },
+            { type: 'type', text: 'hello' },
+          ],
+          pending_safety_checks: [],
+        },
+      ]),
+      openaiStream('resp_cu_2', [OPENAI_ANSWER]),
+    ])
+
+    await runOpenai(computerUse, model, 'thread-cu-local')
+
+    // The 2560 x 1600 screen fits in 1280 x 800, so each point doubles.
+    expect(calls).toEqual([
+      'moveMouse 1280 800',
+      'mouseClick left',
+      'typeString hello',
+    ])
+    expect(model.bodies).toHaveLength(2)
+    // A desktop has no address, so the `navigate` tool does not go.
+    expect(model.bodies[0]).toMatchObject({ tools: [{ type: 'computer' }] })
+    expect(screenshotSize(model.bodies[1])).toEqual({
+      width: 1280,
+      height: 800,
+    })
   })
 })
