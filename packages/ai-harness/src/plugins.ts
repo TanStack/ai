@@ -734,6 +734,14 @@ export const SESSION_PLUGIN_KEYS: ProviderKeys = {
   adapter: noUser('keys'),
 }
 
+/**
+ * @internal The same, on a host whose keys never fall back to env vars
+ * (access without `envKeys`). `providerKeys()` tells the two apart.
+ */
+export const SESSION_PLUGIN_KEYS_NO_ENV: ProviderKeys = {
+  ...SESSION_PLUGIN_KEYS,
+}
+
 const NO_SESSION: PluginSessionApi = {
   threadId: '',
   principal: undefined,

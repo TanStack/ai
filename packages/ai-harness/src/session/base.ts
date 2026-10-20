@@ -24,7 +24,11 @@ import { runStartOf } from '../log'
 import { createMediaStore } from '../media'
 import { OperationTracing } from '../observability'
 import { pluginStateDeltas } from '../log-records'
-import { SESSION_PLUGIN_CREDENTIALS, SESSION_PLUGIN_KEYS } from '../plugins'
+import {
+  SESSION_PLUGIN_CREDENTIALS,
+  SESSION_PLUGIN_KEYS,
+  SESSION_PLUGIN_KEYS_NO_ENV,
+} from '../plugins'
 import { HARNESS_EVENTS } from '../types'
 import {
   DEFAULT_SUBAGENT_LIMITS,
@@ -517,6 +521,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * `/connect <provider>`, else the env var.
    */
   protected readonly keysOf: (principal: Principal | undefined) => ProviderKeys
+  /** `ctx.keys` of a session plugin: it says if keys read env vars. */
+  protected readonly sessionPluginKeys: ProviderKeys
   /** What session plugins get. A turn plugin gets `pluginServices(turn)`. */
   protected readonly services: PluginServices
   protected readonly media: SessionDependencies['media']
@@ -620,6 +626,9 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     this.hasAccess = deps.access !== undefined
     // Without access, one user runs the host, so the env vars are theirs.
     const envFallback = deps.access?.envKeys ?? true
+    this.sessionPluginKeys = envFallback
+      ? SESSION_PLUGIN_KEYS
+      : SESSION_PLUGIN_KEYS_NO_ENV
     this.keysOf = (principal) =>
       providerKeysFor(this.credentialsOf(principal), onMissing, {
         secrets: this.redactor,
@@ -937,7 +946,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       config: { get: (key) => this.configValue(key) },
       state: (plugin, initial) => this.pluginState(plugin, initial),
       credentials: turn?.run.credentials ?? SESSION_PLUGIN_CREDENTIALS,
-      keys: turn?.run.keys ?? SESSION_PLUGIN_KEYS,
+      keys: turn?.run.keys ?? this.sessionPluginKeys,
       session: this.pluginApi(principal, undefined, operationId),
       sessionWith: (metadataSchema) =>
         this.pluginApi(principal, metadataSchema, operationId),

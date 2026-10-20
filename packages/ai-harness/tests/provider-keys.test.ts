@@ -62,10 +62,18 @@ async function open(options: {
   plugins?: Array<HarnessPlugin>
   agents?: Array<AnyAgent>
   subagents?: Array<AnyAgent>
+  /** A host with access that allows each action, without `envKeys`. */
+  access?: boolean
 }) {
   const persistence = memoryPersistence()
   const credentials = memoryCredentialStore()
-  const host = createHarnessHost({ persistence, credentials })
+  const host = createHarnessHost({
+    persistence,
+    credentials,
+    ...(options.access
+      ? { access: { identify: () => null, authorize: () => true } }
+      : {}),
+  })
   const session = await host.open(
     defineHarness({
       name: 'test/provider-keys',
@@ -388,7 +396,7 @@ describe('providerKeys', () => {
     await close()
   })
 
-  it('lists every provider with its state in the plugin state', async () => {
+  it('lists the env vars in the plugin state, and the keys of the user only in /keys', async () => {
     vi.stubEnv('BETA_TEST_KEY', 'sk-beta-env-4321')
     const { session, close } = await open({
       adapter: mockAdapter([]).adapter,
@@ -409,13 +417,38 @@ describe('providerKeys', () => {
       ].join('\n'),
     )
     await connectWith(session, PASTED_KEY)
+    // Every member reads the state: the key of one user is not in it.
     expect(session.snapshot().plugins['tanstack/provider-keys']).toEqual({
       providers: [
-        { id: 'acme', label: 'Acme', state: 'connected' },
+        { id: 'acme', label: 'Acme', state: 'missing' },
         { id: 'beta', label: 'Beta', state: 'env' },
         { id: 'gamma', label: 'Gamma', state: 'missing' },
       ],
     })
+    expect(await session.command({ name: 'keys' })).toContain(
+      'Acme: connected (key ...5678)',
+    )
+    await close()
+  })
+
+  it('does not show an env var that a host with access does not read', async () => {
+    vi.stubEnv('BETA_TEST_KEY', 'sk-beta-env-4321')
+    const { session, close } = await open({
+      adapter: mockAdapter([]).adapter,
+      plugins: [plugin()],
+      access: true,
+    })
+
+    expect(session.snapshot().plugins['tanstack/provider-keys']).toEqual({
+      providers: [
+        { id: 'acme', label: 'Acme', state: 'missing' },
+        { id: 'beta', label: 'Beta', state: 'missing' },
+        { id: 'gamma', label: 'Gamma', state: 'missing' },
+      ],
+    })
+    expect(await session.command({ name: 'keys' })).toContain(
+      'Beta: missing. Run /connect beta.',
+    )
     await close()
   })
 
