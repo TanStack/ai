@@ -68,14 +68,14 @@ async function openSessions(count: number) {
   const host = createHarnessHost({ persistence: memoryPersistence() })
   cleanups.push(() => host.close())
   const model = recorder('local_pid', (call) => call % 2 === 1)
+  // One plugin object, so the sessions share one stdio server.
+  const tools = mcp({
+    servers: { local: { type: 'stdio', command: 'local-server' } },
+  })
   const harness = defineHarness({
     name: 'test/mcp-reconnect',
     adapter: model.adapter,
-    plugins: () => [
-      mcp({
-        servers: { local: { type: 'stdio', command: 'local-server' } },
-      }),
-    ],
+    plugins: () => [tools],
   })
   const sessions = await Promise.all(
     Array.from({ length: count }, (_, index) =>

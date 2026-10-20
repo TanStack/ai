@@ -534,13 +534,14 @@ if (process.env[childEnv] === '1') {
         lifecycle: { idleCloseMs: 0 },
       })
       cleanups.push(() => host.close())
-      // One harness definition, so one shared setup. The model calls the
-      // tool on the first call of each turn: calls 1 and 3.
+      // One plugin object, so one shared setup. The model calls the tool on
+      // the first call of each turn: calls 1 and 3.
       const model = recorder('local_pid', (call) => call % 2 === 1)
+      const tools = mcp({ servers: { local: stdioServer() } })
       const harness = defineHarness({
         name: 'test/mcp-plugin',
         adapter: model.adapter,
-        plugins: () => [mcp({ servers: { local: stdioServer() } })],
+        plugins: () => [tools],
       })
       const [first, second] = await Promise.all([
         host.open(harness, { threadId: 't-0' }),

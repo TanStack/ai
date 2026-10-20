@@ -38,32 +38,33 @@ import { defineHarness } from '@tanstack/ai-harness'
 import { mcp } from '@tanstack/ai-mcp/harness'
 import { openaiText } from '@tanstack/ai-openai'
 
+// One time, outside `plugins`, so the sessions share the stdio server.
+const tools = mcp({
+  servers: {
+    files: {
+      type: 'stdio',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-filesystem', '.'],
+    },
+    docs: {
+      type: 'http',
+      url: 'https://mcp.example.com/mcp',
+      headers: { authorization: `Bearer ${process.env.DOCS_TOKEN}` },
+    },
+    linear: { type: 'http', url: 'https://mcp.linear.app/mcp', oauth: true },
+  },
+})
+
 export const assistant = defineHarness({
   name: 'acme/assistant',
   adapter: openaiText('gpt-6.1-sol'),
-  plugins: () => [
-    mcp({
-      servers: {
-        files: {
-          type: 'stdio',
-          command: 'npx',
-          args: ['-y', '@modelcontextprotocol/server-filesystem', '.'],
-        },
-        docs: {
-          type: 'http',
-          url: 'https://mcp.example.com/mcp',
-          headers: { authorization: `Bearer ${process.env.DOCS_TOKEN}` },
-        },
-        linear: { type: 'http', url: 'https://mcp.linear.app/mcp', oauth: true },
-      },
-    }),
-  ],
+  plugins: () => [tools],
 })
 ```
 
 The name of a server is the prefix of its tools. A `search` tool of the `docs` server is `docs_search` for the model. To choose other names, see [Rename the tools of a server](#rename-the-tools-of-a-server).
 
-- `stdio`: the server runs as a child process on this machine (Node only). The host starts it one time for each harness, and every session of that harness shares it. It stops when the last session that uses it closes, or at `host.close()`.
+- `stdio`: the server runs as a child process on this machine (Node only). The host starts it one time for each harness, and every session that uses the same `mcp()` object shares it. It stops when the last session that uses it closes, or at `host.close()`. A `plugins` function that calls `mcp()` for each session starts a process for each session.
 - `http`: a server that speaks Streamable HTTP. Send an API key in `headers`. Each session connects on its own.
 - `oauth: true`: the user signs in with `/connect linear`. Each user connects with their own sign-in. See [Sign in to an OAuth server](#3-sign-in-to-an-oauth-server).
 

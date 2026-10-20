@@ -374,7 +374,8 @@ async function sessionPart(
  * `/skills` lists every skill, its folder, and its command.
  *
  * The plugin watches each folder once for each host, and every session of
- * the harness shares the watchers. It reads the folders again at the start
+ * the harness that uses this plugin object shares the watchers. Create it
+ * once, outside the `plugins` factory. It reads the folders again at the start
  * of each turn. A skill that you add, change, or remove while a session runs
  * changes the commands at once, with no restart. When a folder cannot be
  * watched, the plugin warns once, and its skills change at the next turn.
@@ -393,12 +394,14 @@ async function sessionPart(
  * import { join } from 'node:path'
  * import { skills } from '@tanstack/ai-skills/harness'
  *
+ * const agentSkills = skills({
+ *   dirs: ['./.agents/skills', join(homedir(), '.acme', 'skills')],
+ * })
+ *
  * defineHarness({
  *   name: 'acme/agent',
  *   adapter,
- *   plugins: () => [
- *     skills({ dirs: ['./.agents/skills', join(homedir(), '.acme', 'skills')] }),
- *   ],
+ *   plugins: () => [agentSkills],
  * })
  * ```
  */

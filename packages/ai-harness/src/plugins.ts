@@ -40,8 +40,10 @@ import type { UsageCall } from './usage'
  *   as an index, a watcher, or an LSP server stay up across turns.
  * - `turn`: set up for each chat turn, disposed when that turn ends.
  * - `host`: set up once for each harness on a host, and shared by every
- *   session of that harness. Disposed when the last session that uses it
- *   closes, or at `host.close()`. See {@link HostPluginContext}.
+ *   session of that harness that uses the same plugin object. Create the
+ *   plugin once, outside the `plugins` factory, to share it. Disposed when
+ *   the last session that uses it closes, or at `host.close()`. See
+ *   {@link HostPluginContext}.
  */
 export type PluginLifetime = 'session' | 'turn' | 'host'
 
@@ -173,10 +175,10 @@ export interface PluginResources {
 
 /**
  * What the `setup` of a plugin with `lifetime: 'host'` receives. The setup
- * runs once for each harness on a host, so it has no session, no user, no
- * credentials, no keys, and no commands. Open the shared resource here (a
- * pool, a child process, a watcher). A tool reads the user of its call from
- * `ctx.context.run`.
+ * runs once for each harness and plugin object on a host, so it has no
+ * session, no user, no credentials, no keys, and no commands. Open the
+ * shared resource here (a pool, a child process, a watcher). A tool reads
+ * the user of its call from `ctx.context.run`.
  */
 export interface HostPluginContext {
   /** The name of the harness that the plugin is set up for. */
@@ -444,7 +446,9 @@ export interface SessionPluginDefinition<
 
 /**
  * A plugin that is set up once for each harness on a host, and shared by
- * every session of that harness. See {@link HostPluginContext}.
+ * every session of that harness that uses this plugin object. A `plugins`
+ * factory that builds a new object for each session gets a setup for each
+ * session. See {@link HostPluginContext}.
  */
 export interface HostPluginDefinition<
   TMetadata = Record<string, unknown>,

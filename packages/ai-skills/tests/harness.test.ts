@@ -152,10 +152,12 @@ function harnessOf(
       return typeof answer === 'function' ? answer() : answer
     }),
   )
+  // One plugin object, so the sessions of a host share its watchers.
+  const plugin = skills(options)
   const harness = defineHarness({
     name: 'test/skills',
     adapter: fake,
-    plugins: () => [skills(options), ...others],
+    plugins: () => [plugin, ...others],
   })
   return { harness, requests }
 }

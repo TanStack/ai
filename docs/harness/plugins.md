@@ -544,7 +544,8 @@ export const orders = definePlugin({
 })
 ```
 
-- The host sets the plugin up one time for each harness. Every session of that harness shares this setup.
+- The host sets the plugin up one time for each harness and plugin object. Every session of that harness that uses the same object shares this setup.
+- Create the plugin one time, outside the `plugins` function, as `orders` is above. Then use it with `plugins: () => [orders]`. A `plugins` function that calls `definePlugin` or `mcp()` for each session gives each session its own setup.
 - The host cleans it up when the last session that uses it closes, or at `host.close()`.
 - Its setup context has no session, no credentials, no keys, and no commands. It has `harness`, the name of the harness, and `resources`.
 - A tool of the plugin reads the user of its call from `ctx.context.run`. See [Act as the user of a run](#act-as-the-user-of-a-run).

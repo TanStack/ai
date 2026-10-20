@@ -37,14 +37,15 @@ import { defineHarness } from '@tanstack/ai-harness'
 import { openaiText } from '@tanstack/ai-openai'
 import { skills } from '@tanstack/ai-skills/harness'
 
+// One time, outside `plugins`, so the sessions share the folder watchers.
+const agentSkills = skills({
+  dirs: ['./.agents/skills', join(homedir(), '.acme', 'skills')],
+})
+
 export const assistant = defineHarness({
   name: 'acme/assistant',
   adapter: openaiText('gpt-6.1-sol'),
-  plugins: () => [
-    skills({
-      dirs: ['./.agents/skills', join(homedir(), '.acme', 'skills')],
-    }),
-  ],
+  plugins: () => [agentSkills],
 })
 ```
 

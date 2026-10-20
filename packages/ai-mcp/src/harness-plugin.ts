@@ -81,9 +81,11 @@ export type McpServerStatus = {
  * - `/mcp` lists the servers and their status. UIs read the same list from
  *   the plugin state.
  * - A `stdio` server runs as one child process (Node only) for every
- *   session of the harness on the host. It stops when the last of those
- *   sessions closes, or at `host.close()`. The other servers connect for
- *   each session.
+ *   session of the harness on the host that uses this `mcp()` object. It
+ *   stops when the last of those sessions closes, or at `host.close()`.
+ *   Create the plugin once, outside the `plugins` factory: a factory that
+ *   calls `mcp()` for each session starts a process for each session. The
+ *   other servers connect for each session.
  * - An `http` server with `oauth: true` signs in through `/connect <name>`.
  * - When the connection of a server closes, the server is `reconnecting`.
  *   The plugin connects again after 0.5 s, 1 s, 2 s, and so on (at most
@@ -115,15 +117,16 @@ export type McpServerStatus = {
  * ```ts
  * import { mcp } from '@tanstack/ai-mcp/harness'
  *
- * plugins: () => [
- *   mcp({
- *     servers: {
- *       files: { type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '.'] },
- *       docs: { type: 'http', url: 'https://mcp.example.com/mcp', timeoutMs: 10_000 },
- *       notion: { type: 'http', url: 'https://mcp.notion.com/mcp', oauth: true },
- *     },
- *   }),
- * ]
+ * // Once, so the sessions share the stdio process.
+ * const tools = mcp({
+ *   servers: {
+ *     files: { type: 'stdio', command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '.'] },
+ *     docs: { type: 'http', url: 'https://mcp.example.com/mcp', timeoutMs: 10_000 },
+ *     notion: { type: 'http', url: 'https://mcp.notion.com/mcp', oauth: true },
+ *   },
+ * })
+ *
+ * plugins: () => [tools]
  * ```
  */
 export function mcp(options: {
