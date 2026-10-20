@@ -1222,16 +1222,13 @@ export function hostCountsOf<P extends Principal>(host: HarnessHost<P>) {
 /** The `access` of each host that has one. Not public API. */
 const accesses = new WeakMap<object, unknown>()
 
-/**
- * The hosts that other instances can share threads with: a log store that
- * is not `memoryLogStore`, or `ownership` options. Not public API.
- */
+/** The hosts with `ownership` options: many instances. Not public API. */
 const sharedHosts = new WeakSet<object>()
 
 /**
- * @internal Can other instances serve the threads of `host`? Then the HTTP
- * handler needs `media.secret`, so each instance verifies the media URLs of
- * the others.
+ * @internal Does `host` have `ownership` options, so other instances serve
+ * its threads? Then the HTTP handler needs `media`, so each instance
+ * verifies the media URLs of the others.
  */
 export const isSharedHost = (host: object) => sharedHosts.has(host)
 
@@ -3324,8 +3321,7 @@ export function createHarnessHost<P extends Principal = Principal>(
     },
   }
   if (access) accesses.set(host, access)
-  const isMemoryLog = Symbol.for('tanstack.ai.memoryLogStore') in logStore
-  if (options.ownership || !isMemoryLog) sharedHosts.add(host)
+  if (options.ownership) sharedHosts.add(host)
   tenantEventReaders.set(host, ({ tenantId, filter, signal }) =>
     bus.read({
       tenant: { tenantId },

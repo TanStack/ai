@@ -744,13 +744,6 @@ const backendStates = new WeakMap<MemoryLogBackend, LogBackendState>()
 // The methods are `async`, so a thrown error becomes a rejection. They never
 // await, so each call runs to its end before the next one starts, also across
 // the store instances on one backend.
-/**
- * Marks a store of this process, so a harness handler can sign media URLs
- * with a random key on a dev host. Not enumerable, so a wrapper of the store
- * does not copy it. Not public API.
- */
-const MEMORY_LOG_STORE = Symbol.for('tanstack.ai.memoryLogStore')
-
 class MemoryLogStore implements LogStore {
   private readonly backend: LogBackendState
   private readonly listeners: Listeners = new Map()
@@ -758,7 +751,6 @@ class MemoryLogStore implements LogStore {
   constructor(backend: LogBackendState) {
     this.backend = backend
     backend.instances.add(this.listeners)
-    Object.defineProperty(this, MEMORY_LOG_STORE, { value: true })
   }
 
   /**

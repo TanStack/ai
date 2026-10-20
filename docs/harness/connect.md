@@ -50,7 +50,7 @@ export const handler = createHarnessHandler({ host, harness: assistant })
 
 When more than one instance serves the same URL, also set `media: { secret }`. The secret signs media URLs, so every instance must use the same value. Without it, the handler signs with a random key of its own, so a signed URL works only on this instance, until it restarts.
 
-`createHarnessHandler` throws at the start when `media` is not set on a host that other instances can share: a host with a log store that is not `memoryLogStore()`, or with `ownership` options.
+On a host with `ownership` options, `createHarnessHandler` throws at the start when `media` is not set. On another host without `media`, the first handler logs one warning.
 
 ```ts group=harness-connect
 const mediaKey = process.env.MEDIA_KEY

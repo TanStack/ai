@@ -79,8 +79,9 @@ export interface HarnessHandlerOptions<P extends Principal = Principal> {
    * signs with a random key of its own, so a signed URL works only on this
    * server, and only until it restarts. Set it when more than one server
    * answers the same URL, so each server verifies the URLs of the others.
-   * It is required, else the handler throws at the start, on a host with a
-   * log store that is not `memoryLogStore` or with `ownership` options.
+   * On a host with `ownership` options it is required, else the handler
+   * throws at the start. Without it on another host, the first handler
+   * warns once.
    *
    * - `{ secret }`: one key. Use the same value on every server.
    * - `{ keys }`: to rotate keys. The first key signs, and every key
@@ -488,6 +489,9 @@ function watchRevoke<P extends Principal>(
   })()
 }
 
+/** A handler without `media` warned already. One warning per process. */
+let warnedMediaKey = false
+
 /**
  * A fetch handler for a harness. Mount it on a route that ends with any of
  * these paths:
@@ -561,7 +565,7 @@ function watchRevoke<P extends Principal>(
  *
  * Signed media URLs use the keys of `media`. Without it, they work only on
  * this server (see `HarnessHandlerOptions.media`), so it is required on a
- * host that other instances can share. A URL of a deleted file is 404.
+ * host with `ownership` options. A URL of a deleted file is 404.
  *
  * A request body over `media.maxBodyBytes` (default 32 MiB) is 413. Inline
  * media of `POST run` goes to the media store, as in `POST control`. A
@@ -573,8 +577,8 @@ function watchRevoke<P extends Principal>(
  *
  * Throws at the start for a host without `access` and without
  * `openAccess`, for a host with both, for a `stream` value that is not a
- * finite number above 0, and without `media` on a host with a log store
- * that is not `memoryLogStore` or with `ownership` options.
+ * finite number above 0, and without `media` on a host with `ownership`
+ * options.
  *
  * @example
  * ```ts
@@ -590,7 +594,15 @@ export function createHarnessHandler<P extends Principal = Principal>(
   const stream = streamValues('createHarnessHandler', options.stream)
   if (media === undefined && isSharedHost(host)) {
     throw new Error(
-      'createHarnessHandler needs media ({ secret } or { keys }) on a host that other instances can share (a log store that is not memoryLogStore, or ownership options): another instance must verify the media URLs that this one signs. Set the same keys on every instance.',
+      'createHarnessHandler needs media ({ secret } or { keys }) on a host with ownership options: another instance must verify the media URLs that this one signs. Set the same keys on every instance.',
+    )
+  }
+  // ponytail: the handler cannot tell a log store that many instances
+  // share, so a host without ownership gets one warning, not an error.
+  if (media === undefined && !warnedMediaKey) {
+    warnedMediaKey = true
+    console.warn(
+      '[@tanstack/ai-harness] createHarnessHandler has no media ({ secret } or { keys }), so it signs media URLs with a random key of its own. When more than one instance serves this host, set the same media.secret on every instance, else a media URL works only on the instance that signed it.',
     )
   }
 
