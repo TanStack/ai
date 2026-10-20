@@ -110,7 +110,7 @@ const mine: Formatter = {
   command: (file) => `mine ${file}`,
 }
 
-describe('formatOnWrite', () => {
+describe('projectFormatters', () => {
   it.each([
     ['.prettierrc', prettier, 'a.ts', 'npx --no-install prettier --write'],
     [

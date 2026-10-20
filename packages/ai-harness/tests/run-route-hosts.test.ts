@@ -34,7 +34,7 @@ function twoHosts(options: { snapshot?: SnapshotTiming } = {}) {
   }
   const release = gate()
   // RUN_STARTED, then the rest after `release`. By RUN_STARTED, host A holds
-  // the run lease, so host B only reads.
+  // the log, so host B only reads.
   const reply: Reply = () =>
     (async function* () {
       const [started, ...rest] = text('Hello from A.')

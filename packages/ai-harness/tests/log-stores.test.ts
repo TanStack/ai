@@ -114,7 +114,7 @@ const deploy = toolDefinition({
   inputSchema: z.object({ env: z.string() }),
 })
 
-/** A host on `log` only: no run store and no interrupt store. */
+/** A host with only a `log` store. */
 async function openOn(
   log: LogStore,
   replies: Array<Reply>,
