@@ -360,6 +360,61 @@ describe('harnessAgent in a harness session', () => {
     await owner.close()
   })
 
+  it('hides the waits of a child whose host stopped, once another host owns the log', async () => {
+    const deploy = toolDefinition({
+      name: 'deploy',
+      description: 'Deploy. Needs approval.',
+      needsApproval: true,
+      inputSchema: z.object({}),
+    }).server(() => Promise.resolve({ deployed: true }))
+    /** A child that asks to deploy with the tool call `callId`. */
+    const childOf = (callId: string) =>
+      defineHarness({
+        name: 'test/deployer',
+        adapter: mockAdapter([
+          () => toolCall('deploy', {}, callId),
+          () => text('Deployed.'),
+        ]).adapter,
+        tools: [deploy],
+      })
+    // Two hosts on one log backend, with the clock of the store.
+    let clock = Date.now()
+    const logState = memoryLogState({ now: () => clock })
+    const hostOf = () =>
+      createHarnessHost({
+        persistence: { stores: { log: memoryLogStore({ state: logState }) } },
+      })
+    const first = await hostOf().open(lead(childOf('call-a')).harness, {
+      threadId: 't',
+    })
+    void Promise.resolve(first.send('Ship it.')).catch(() => {})
+    await waitFor(() => expect(first.snapshot().pendingWaits).toHaveLength(1))
+
+    // The first host stops while its child waits: it never closes, and its
+    // ownership of the log expires. The next host runs the turn again, and
+    // its model starts a new child that waits too.
+    clock += 10 * 60_000
+    const agent = harnessAgent(childOf('call-b'))
+    const model = mockAdapter([
+      () => toolCall(agent.name, { prompt: 'Do it again.' }, 'call-2'),
+      () => text('Done.'),
+    ])
+    const harness = defineHarness({
+      name: 'test/lead',
+      adapter: model.adapter,
+      subagents: { agents: [agent] },
+    })
+    const host = hostOf()
+    const next = await host.open(harness, { threadId: 't' })
+    const live = [expect.objectContaining({ waitId: 'approval_call-b' })]
+    await waitFor(() => expect(next.snapshot().pendingWaits).toEqual(live))
+    const view = await hostOf().observe(harness, { threadId: 't' })
+    await waitFor(async () =>
+      expect((await view.snapshot()).pendingWaits).toEqual(live),
+    )
+    await host.close()
+  }, 10_000)
+
   it('cancels the child when the run stops while a turn of the child waits', async () => {
     const deploy = toolDefinition({
       name: 'deploy',

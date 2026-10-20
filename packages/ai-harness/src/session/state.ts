@@ -1695,6 +1695,54 @@ export abstract class SessionState<
   }
 
   /**
+   * End the waits of each `harnessAgent` child thread of this session that
+   * no child of this host runs: the host that ran it stopped. No host runs
+   * such a child again, so no answer can reach its waits. Its stopped turn
+   * and its open waits end `cancelled`, in its own thread. Only the owner of
+   * the log ends them.
+   */
+  protected async endOrphanChildWaits(): Promise<void> {
+    const prefix = `${this.threadId}/agent/`
+    const live = [...this.harnessChildren.keys()]
+    const at = Date.now()
+    const records = this.writer.threads().flatMap((thread) => {
+      // A child of a live child is live too.
+      const isLive = live.some(
+        (child) => thread === child || thread.startsWith(`${child}/`),
+      )
+      if (!thread.startsWith(prefix) || isLive) return []
+      const fold = this.writer.stateOf(thread).thread
+      const waitIds = [
+        ...(fold.interrupted?.interrupts ?? []).map(({ id }) => id),
+        ...openWaits(fold.waits).map(({ wait }) => wait.waitId),
+      ]
+      const ended: Array<LogRecord> = [
+        ...(fold.interrupted
+          ? [{ type: 'harness.interrupted', turn: null, thread }]
+          : []),
+        ...openWaits(fold.waits).map(({ wait }) => ({
+          type: 'harness.wait.settled',
+          waitId: wait.waitId,
+          outcome: 'cancelled',
+          at,
+          thread,
+        })),
+        ...waitIds
+          .map(expiryWakeId)
+          .filter((scheduleId) => fold.schedules.has(scheduleId))
+          .map((scheduleId) => ({
+            type: 'harness.schedule.done',
+            scheduleId,
+            thread,
+          })),
+      ]
+      return ended
+    })
+    if (records.length === 0 || !(await this.writer.own())) return
+    await this.writer.append(records)
+  }
+
+  /**
    * Open the live `sign-in` wait of an OAuth login that the command
    * `operationId` runs, once for each connector. The log keeps it, so every
    * host shows it, and the command keeps the session on this host. The wait

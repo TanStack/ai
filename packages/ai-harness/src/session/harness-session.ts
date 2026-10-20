@@ -906,6 +906,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
       await this.recoverBackground(writer)
       // The waits that expired, and the live waits of a host that stopped.
       await this.endStaleWaits()
+      await this.endOrphanChildWaits()
       await this.expireInterrupted()
       // The agent runs whose waits ended while no host could resume them.
       await this.resumeWaitingRuns()
