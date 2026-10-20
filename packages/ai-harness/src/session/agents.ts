@@ -68,7 +68,7 @@ import type { InnerTurnEnd } from '../harness-text'
 import type { AgentResultRecord, RunTreeNode } from '../log-records'
 import { NO_SESSION_CONTEXT, withHarnessChild } from '../agents'
 import { forwardTurn, lastUserInput } from '../harness-text'
-import { wait as backoff } from '../turn'
+import { wait as backoff, isTransientModelError } from '../turn'
 import { addCounts, emptyCounts } from '../usage'
 import { isRecord } from '../utils'
 import { tanstackMetadata } from '@tanstack/ai/adapter-internals'
@@ -97,6 +97,7 @@ import type {
   UserInput,
 } from '../types'
 import type {
+  AgentModelErrorContext,
   AgentRunStartOptions,
   AgentStartFn,
   AgentStartOptions,
@@ -1199,8 +1200,16 @@ export abstract class SessionAgents<
     operation: AgentRunImpl,
     chain: AgentChain,
   ): ChatMiddleware | undefined {
-    const hook = chain.options.onModelError
-    if (!hook) return undefined
+    const option = chain.options.onModelError
+    if (!option) return undefined
+    const hook =
+      typeof option === 'function'
+        ? option
+        : ({ error, retries }: AgentModelErrorContext) =>
+            retries < option.retries &&
+            (option.transientOnly === false || isTransientModelError(error))
+              ? ('retry' as const)
+              : ('fail' as const)
     const { signal } = operation.abortController
     let retries = 0
     return {

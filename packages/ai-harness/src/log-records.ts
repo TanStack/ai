@@ -235,6 +235,8 @@ export type RunTreeNode = RunNode & {
    * that another host takes over runs without them.
    */
   liveOnly?: Array<'onModelError'>
+  /** @internal The `onModelError` start option as data. */
+  onModelError?: { retries: 1 | 2; transientOnly?: boolean }
 }
 
 /**

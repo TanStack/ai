@@ -140,17 +140,24 @@ export interface AgentStartOptions {
    */
   budget?: { maxTokens?: number; maxCost?: number }
   /**
-   * Called when a model call of this run fails before it streams output.
-   * Return `'retry'` to call the model again after a short backoff, or
-   * `'fail'` to let the error go on. Only that model call runs again, so a
-   * tool that ran before does not run twice. One model call runs at most 3
-   * times. A tool that throws, or an error of the agent code, does not call
-   * it. A function is not stored in the log: a run that another host takes
-   * over runs without it.
+   * What to do when a model call of this run fails before it streams
+   * output. Only that model call runs again, after a short backoff (or the
+   * `retryAfterMs` of the error, up to 5 s), so a tool that ran before does
+   * not run twice. One model call runs at most 3 times. A tool that throws,
+   * or an error of the agent code, does not count.
+   *
+   * - `{ retries, transientOnly }`: retry up to `retries` times. With
+   *   `transientOnly` (default `true`), only an error that
+   *   `isTransientModelError` finds transient. The log keeps this form, so
+   *   a run that another host takes over or resumes retries too.
+   * - A function: return `'retry'` or `'fail'`. The log keeps no function:
+   *   a run that another host takes over runs without it.
    */
-  onModelError?: (
-    ctx: AgentModelErrorContext,
-  ) => 'retry' | 'fail' | Promise<'retry' | 'fail'>
+  onModelError?:
+    | { retries: 1 | 2; transientOnly?: boolean }
+    | ((
+        ctx: AgentModelErrorContext,
+      ) => 'retry' | 'fail' | Promise<'retry' | 'fail'>)
 }
 
 /**

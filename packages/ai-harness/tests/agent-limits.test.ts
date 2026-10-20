@@ -749,4 +749,123 @@ describe('per-run limits of an agent run', () => {
     await hostA.close().catch(() => {})
     await hostB.close()
   })
+
+  it('retries with onModelError as data, only a transient error by default', async () => {
+    /** A worker whose model fails first with `message`, then answers. */
+    const failsOnce = (message: string) => {
+      let calls = 0
+      const model = mockAdapter(() => {
+        calls += 1
+        return calls === 1 ? runError(message) : text('done')
+      })
+      const agent = defineAgent({
+        name: 'worker',
+        description: 'Calls a model that fails once',
+        run: (ctx) => ctx.chat({ adapter: model.adapter }),
+      })
+      return { agent, model }
+    }
+    const open = async (agent: ReturnType<typeof failsOnce>['agent']) => {
+      const host = createHarnessHost({ persistence: memoryPersistence() })
+      const session = await host.open(
+        defineHarness({
+          name: 'test/agent-model-error',
+          adapter: mockAdapter([]).adapter,
+          agents: [agent],
+        }),
+        { threadId: THREAD },
+      )
+      return { host, session }
+    }
+
+    const busy = failsOnce('503 overloaded')
+    const first = await open(busy.agent)
+    await expect(
+      first.session.agents.worker.start(undefined, {
+        attach: 'none',
+        onModelError: { retries: 1 },
+      }),
+    ).resolves.toContain('done')
+    expect(busy.model.calls).toHaveLength(2)
+    await first.host.close()
+
+    const denied = failsOnce('invalid api key')
+    const second = await open(denied.agent)
+    await expect(
+      second.session.agents.worker.start(undefined, {
+        attach: 'none',
+        onModelError: { retries: 2 },
+      }),
+    ).rejects.toThrow('invalid api key')
+    expect(denied.model.calls).toHaveLength(1)
+    await second.host.close()
+
+    const retried = failsOnce('invalid api key')
+    const third = await open(retried.agent)
+    await expect(
+      third.session.agents.worker.start(undefined, {
+        attach: 'none',
+        onModelError: { retries: 1, transientOnly: false },
+      }),
+    ).resolves.toContain('done')
+    expect(retried.model.calls).toHaveLength(2)
+    await third.host.close()
+  })
+
+  it('keeps onModelError as data in the log, so the host that takes over retries too', async () => {
+    const persistence = durablePersistence()
+    const { log } = persistence.stores
+    let calls = 0
+    const model = mockAdapter(() => {
+      calls += 1
+      return calls === 1 ? runError('503 overloaded') : text('done')
+    })
+    let attempt = 0
+    const worker = defineAgent({
+      name: 'worker',
+      description: 'Waits on its first attempt, then calls a model',
+      run: async (ctx) => {
+        attempt += 1
+        if (attempt === 1) {
+          await untilAbort(ctx.abortSignal)
+          return 'stopped'
+        }
+        return ctx.chat({ adapter: model.adapter })
+      },
+    })
+    const harness = defineHarness({
+      name: 'test/agent-model-error',
+      adapter: mockAdapter([]).adapter,
+      agents: [worker],
+    })
+    const hostA = createHarnessHost({ persistence })
+    const sessionA = await hostA.open(harness, { threadId: THREAD })
+    const running = sessionA.agents.worker.start(undefined, {
+      resume: true,
+      attach: 'none',
+      onModelError: { retries: 1 },
+    })
+    await waitFor(() => expect(sessionA.agentRuns()[0]?.status).toBe('running'))
+    await stopHost(log, sessionA, running)
+    const inputId = await firstAgentInput(log)
+
+    const hostB = createHarnessHost({ persistence })
+    const sessionB = await hostB.open(harness, { threadId: THREAD })
+    await expect(sessionB.settled({ inputId })).resolves.toMatchObject({
+      outcome: 'completed',
+    })
+    expect(model.calls).toHaveLength(2)
+    const warnings = (await log.read({ logId: LOG }))
+      .map(({ record }) => record.event)
+      .filter(
+        (event) =>
+          isRecord(event) &&
+          event.name === 'harness.plugin.warning' &&
+          isRecord(event.value) &&
+          String(event.value.message).includes('onModelError'),
+      )
+    expect(warnings).toEqual([])
+    await hostA.close().catch(() => {})
+    await hostB.close()
+  })
 })

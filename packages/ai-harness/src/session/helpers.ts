@@ -259,7 +259,7 @@ export const agentKey = (inputId: string) => `agent:${inputId}`
  */
 export const chainFields = (
   first: AgentInputState,
-  node?: Pick<RunTreeNode, 'key' | 'limits' | 'budget'>,
+  node?: Pick<RunTreeNode, 'key' | 'limits' | 'budget' | 'onModelError'>,
 ) => ({
   runInputId: first.inputId,
   target: first.input.agent,
@@ -272,6 +272,7 @@ export const chainFields = (
     ...(node?.key !== undefined ? { key: node.key } : {}),
     ...(node?.limits ? { limits: node.limits } : {}),
     ...(node?.budget ? { budget: node.budget } : {}),
+    ...(node?.onModelError ? { onModelError: node.onModelError } : {}),
   },
   ...(first.principal ? { principal: first.principal } : {}),
   ...(first.input.parentRunId ? { parentRunId: first.input.parentRunId } : {}),
@@ -356,7 +357,12 @@ export function runNodeRecord(node: {
     ...(options?.key !== undefined ? { key: options.key } : {}),
     ...(options?.limits ? { limits: options.limits } : {}),
     ...(options?.budget ? { budget: options.budget } : {}),
-    ...(options?.onModelError ? { liveOnly: ['onModelError' as const] } : {}),
+    ...(typeof options?.onModelError === 'function'
+      ? { liveOnly: ['onModelError' as const] }
+      : {}),
+    ...(typeof options?.onModelError === 'object'
+      ? { onModelError: options.onModelError }
+      : {}),
   }
   return record
 }
