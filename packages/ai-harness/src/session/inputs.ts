@@ -43,7 +43,13 @@ import type { QueuedTurn, WaitingSteer } from './types'
  * How `accept` took an input. `offered`: another host owns the log, and the
  * input waits for that host in the input lane of the log.
  */
-export type Admission = 'new' | 'duplicate' | 'conflict' | 'closed' | 'offered'
+export type Admission =
+  | 'new'
+  | 'duplicate'
+  | 'conflict'
+  | 'closed'
+  | 'offered'
+  | 'deleted'
 
 /** What `accept` stores with an input besides the input itself. */
 interface AcceptOptions {
@@ -736,7 +742,8 @@ export abstract class SessionInputs<
       ...extras,
     })
     const offered = await this.writer.offer(inputId, record)
-    if (offered === 'conflict') return 'conflict'
+    // The thread was deleted: the input is refused with the reason `deleted`.
+    if (offered === 'conflict' || offered === 'deleted') return offered
     this.offeredInputs.add(inputId)
     dropOldest(this.offeredInputs, this.retention.settledOperations)
     return 'offered'

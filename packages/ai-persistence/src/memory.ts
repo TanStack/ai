@@ -697,7 +697,7 @@ class MemoryLogState {
   readonly owners = new Map<string, Ownership>()
   // Kept apart from `owners`, so a pin stays when its owner releases the log.
   readonly affinities = new Map<string, string>()
-  /** The deleted logs. Only an `acquire` lets a write in again. */
+  /** The deleted logs. Only an `acquire` lets a write or an offer in again. */
   readonly deleted = new Set<string>()
   /** When the heartbeat of each host expires, by its host id. */
   readonly hosts = new Map<string, number>()
@@ -1013,6 +1013,8 @@ class MemoryLogStore implements LogStore {
   }: Parameters<LogStore['offer']>[0]) {
     // Copy first, so a record that cannot become JSON stores nothing.
     const copy = copyJson(record)
+    // A late input must not start a deleted log again.
+    if (this.backend.deleted.has(logId)) return 'deleted'
     const lane = this.backend.lanes.get(logId)
     const inputs = lane?.inputs ?? new Map<string, Offer>()
     // A consumed id stays taken too.

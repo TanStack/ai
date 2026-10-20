@@ -635,7 +635,7 @@ interface LogSnapshot {
   state: unknown // JSON
 }
 
-type OfferResult = 'offered' | 'duplicate' | 'conflict'
+type OfferResult = 'offered' | 'duplicate' | 'conflict' | 'deleted'
 
 interface OfferedInput {
   inputId: string
@@ -849,6 +849,8 @@ A client can send an input to any machine, but only the owner of the log runs it
 `offer` keeps the input as a pending offer. The owner consumes it with
 `append({ consumes })`, in the same write as the records of the input.
 
+- If `deleteLog` deleted the log and no host acquired it since, `offer` returns
+  `'deleted'` and stores nothing.
 - If the `inputId` is new, `offer` stores a pending offer with `offeredAt` from the
   store clock. It calls the listeners and returns `'offered'`.
 - The harness of the owner names the log for `listOrphaned`. A log with no owner
@@ -879,7 +881,8 @@ With a snapshot, the owner can also drop the old records.
 - `deleteLog` removes the records, the offers, the snapshot, the truncation point,
   the affinity, and the wake time, and calls the listeners. The epoch counter stays.
   Every fenced write fails until the next `acquire`, also with `UNOWNED_EPOCH`. So a
-  late write cannot bring a deleted transcript back. An `offer` still works.
+  late write cannot bring a deleted transcript back. An `offer` returns `'deleted'`
+  and stores nothing.
 
 ### In SQL
 
@@ -910,6 +913,7 @@ CREATE TABLE log_owner (
   owner_id TEXT,
   expires_at TIMESTAMPTZ,
   released BOOLEAN NOT NULL DEFAULT FALSE,
+  deleted BOOLEAN NOT NULL DEFAULT FALSE, -- set by deleteLog, cleared by acquire
   affinity TEXT,
   wake_at TIMESTAMPTZ
 );
@@ -969,7 +973,7 @@ FROM log_owner WHERE log_id = :log_id FOR UPDATE;
 UPDATE log_owner
 SET epoch = epoch + 1, owner_id = :owner_id, harness = :harness,
   expires_at = now() + :ttl_ms * interval '1 millisecond',
-  released = FALSE, wake_at = NULL
+  released = FALSE, deleted = FALSE, wake_at = NULL
 WHERE log_id = :log_id
 RETURNING epoch;
 -- expired: true when the row that you read had an owner_id that is not
@@ -977,11 +981,13 @@ RETURNING epoch;
 COMMIT;
 ```
 
-`released = FALSE` also opens a deleted log again. For the other methods:
+`deleted = FALSE` opens a deleted log again. For the other methods:
 
 - `setAffinity`, `putSnapshot`, and `truncate` need the owner. Lock the row with
   `SELECT 1 FROM log_owner WHERE log_id = :log_id AND epoch = :epoch AND epoch > 0
   AND NOT released FOR UPDATE`. No row: reject with `OwnershipLostError`.
+- `offer` first reads `deleted` with `SELECT deleted FROM log_owner WHERE log_id =
+  :log_id FOR SHARE`. `TRUE`: return `'deleted'`, and insert nothing.
 - In `listOrphaned`, the harness of a log is `log_owner.harness`. When it is `NULL`,
   use the `harness` of the first offer of the log (the lowest `id`).
 - Use the database clock (`now()`) for each expiry, wake time, and `offeredAt`. The
@@ -1003,9 +1009,10 @@ WHERE o.log_id = :log_id;
 - Keep the snapshot in one more table, with one row per log.
 - `deleteLog` deletes the rows of the log in the other tables. It inserts the
   `log_owner` row when it is missing, and sets `head = 0`, `first_seq = 1`,
-  `released = TRUE`, and no `wake_at` or `affinity`. It keeps `epoch`. The released
-  row refuses every write, also with `UNOWNED_EPOCH`, until the next `acquire`. That
-  owner starts a new log at position 1.
+  `released = TRUE`, `deleted = TRUE`, and no `wake_at` or `affinity`. It keeps
+  `epoch`. The released row refuses every write, also with `UNOWNED_EPOCH`, and
+  `deleted` refuses every offer, until the next `acquire`. That owner starts a new
+  log at position 1.
 - Each record is JSON. Store it as text or as a JSON column. The store does not read
   the records.
 

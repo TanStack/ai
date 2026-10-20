@@ -3048,10 +3048,11 @@ export function createHarnessHost<P extends Principal = Principal>(
         inputId: id,
         record,
       })
-      const receipt: Receipt =
-        offered === 'conflict'
-          ? { inputId: id, status: 'rejected', reason: 'conflict' }
-          : { inputId: id, status: 'queued' }
+      // A thread that another host deleted takes no input.
+      const isRefused = offered === 'conflict' || offered === 'deleted'
+      const receipt: Receipt = isRefused
+        ? { inputId: id, status: 'rejected', reason: offered }
+        : { inputId: id, status: 'queued' }
       return receipt
     },
     async resumePending({ harnesses, close = 'whenIdle', limit = 100 }) {

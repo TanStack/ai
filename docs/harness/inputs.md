@@ -40,6 +40,7 @@ console.log(receipt.status) // 'accepted' or 'queued'
 
 - The same id and the same message: you get the first input's operation, and the model is not called again.
 - The same id and another message: the receipt has `status: 'rejected'` and `reason: 'conflict'`, and `await turn` rejects with `InputRejectedError`.
+- An input to a thread that was deleted: the receipt has `status: 'rejected'` and `reason: 'deleted'`, and `await turn` rejects with `InputRejectedError`. Nothing runs.
 - `send` with `mode: 'steer'` or `mode: 'followUp'`, and `resolve`, take `{ inputId }` too.
 - [`configure`](./thread-settings) and [`reset`](./fork-and-reset#reset-with-a-handoff-note) are inputs too. They take `{ inputId }` and run once per id.
 

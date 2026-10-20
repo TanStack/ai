@@ -2837,6 +2837,30 @@ export function runPersistenceConformance(
         counter.stop()
       })
 
+      it('refuses a late offer to a deleted log until an acquire', async (ctx) => {
+        const store = persistence.stores.log
+        if (!store) return ctx.skip('log store not provided')
+        const logId = await logWith(store, 1)
+        const harness = newHarness()
+        const input = {
+          logId,
+          harness,
+          inputId: 'late',
+          record: { type: 'in' },
+        }
+        await store.deleteLog({ logId })
+
+        expect(await store.offer(input)).toBe('deleted')
+        // The refused offer stored nothing, so no worker wakes for it.
+        expect(await store.offered({ logId })).toEqual([])
+        expect(
+          await store.listOrphaned({ limit: 10, harnesses: [harness] }),
+        ).toEqual([])
+        // An acquire opens the log again.
+        await store.acquire({ logId, harness, ownerId: 'b', ttlMs: LIVE_MS })
+        expect(await store.offer(input)).toBe('offered')
+      })
+
       it('refuses a late UNOWNED_EPOCH write to a deleted log until an acquire', async (ctx) => {
         const store = persistence.stores.log
         if (!store) return ctx.skip('log store not provided')

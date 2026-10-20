@@ -1677,13 +1677,14 @@ export abstract class SessionAgents<
           operation.fail('cancelled', new Error('Session closed.'))
           return
         case 'conflict':
+        case 'deleted':
           this.releaseStart(chain)
           operation.fail(
             'failed',
             new InputRejectedError({
               inputId,
               status: 'rejected',
-              reason: 'conflict',
+              reason: admission,
             }),
           )
           return

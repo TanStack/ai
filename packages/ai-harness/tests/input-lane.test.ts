@@ -831,6 +831,27 @@ describe('host.submit', () => {
     await host.close()
   })
 
+  it('refuses an input to a deleted thread, and offers nothing', async () => {
+    const log = memoryLogStore()
+    const host = createHarnessHost({ persistence: { stores: { log } } })
+    await log.deleteLog({ logId: LOG })
+
+    const receipt = await host.submit({
+      harness: harnessWith(mockAdapter([]).adapter),
+      threadId: THREAD,
+      input: { op: 'prompt', message: 'Write the report.' },
+      inputId: 'in-1',
+    })
+
+    expect(receipt).toEqual({
+      inputId: 'in-1',
+      status: 'rejected',
+      reason: 'deleted',
+    })
+    expect(await waiting(log)).toEqual([])
+    await host.close()
+  })
+
   it('refuses a thread of another harness, and offers nothing', async () => {
     const persistence = memoryPersistence()
     const { adapter } = mockAdapter([() => text('Hi.')])

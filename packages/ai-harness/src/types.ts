@@ -515,6 +515,7 @@ function rejectionMessage(reason: string) {
   if (reason === 'conflict') {
     return 'An earlier input has this inputId and another payload.'
   }
+  if (reason === 'deleted') return 'The thread was deleted.'
   return `The session rejected the input: ${reason}.`
 }
 

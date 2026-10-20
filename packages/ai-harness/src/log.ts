@@ -2103,7 +2103,9 @@ export class SharedLog<TState = unknown> {
         this.offeredHere.delete(inputId)
         throw error
       })
-    if (offered === 'conflict') this.offeredHere.delete(inputId)
+    if (offered === 'conflict' || offered === 'deleted') {
+      this.offeredHere.delete(inputId)
+    }
     return offered
   }
 

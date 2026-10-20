@@ -461,6 +461,11 @@ export abstract class SessionState<
       if (!(error instanceof LogOwnedElsewhereError)) throw error
     }
     const offered = await this.writer.offer(inputId, record)
+    if (offered === 'deleted') {
+      throw new Error(
+        `The thread ${JSON.stringify(this.threadId)} was deleted.`,
+      )
+    }
     if (offered === 'conflict') {
       throw new Error(
         `The input lane has another record with id ${JSON.stringify(inputId)}.`,

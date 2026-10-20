@@ -735,8 +735,10 @@ export class LogTruncatedError extends Error {
  * - `'offered'`: the store keeps the input as a pending offer.
  * - `'duplicate'`: the id was offered before with an equal record.
  * - `'conflict'`: the id was offered before with a different record.
+ * - `'deleted'`: `deleteLog` deleted the log, and no host acquired it since.
+ *   Nothing is stored.
  */
-export type OfferResult = 'offered' | 'duplicate' | 'conflict'
+export type OfferResult = 'offered' | 'duplicate' | 'conflict' | 'deleted'
 
 /** A pending input of a log, from {@link LogStore.offered}. */
 export interface OfferedInput {
@@ -936,6 +938,8 @@ export interface LogStore {
    * Keep `record` as a pending input of the log. Any machine can offer. Only
    * the owner consumes, with `append({ consumes })`.
    *
+   * - A deleted log returns `'deleted'` and stores nothing, until the next
+   *   `acquire`.
    * - An `inputId` that was offered before (pending or consumed) returns
    *   `'duplicate'` when the JSON of the record is equal, else `'conflict'`.
    *   Nothing changes.
@@ -984,7 +988,7 @@ export interface LogStore {
    * affinity, and the wake time of `logId`, and call the listeners. The epoch
    * counter stays. Every fenced write to the log fails until the next
    * `acquire`, also with {@link UNOWNED_EPOCH}, so a late write cannot bring
-   * the deleted records back. An `offer` still works.
+   * the deleted records back. An `offer` returns `'deleted'`.
    */
   deleteLog: (target: { logId: string }) => Promise<void>
 }
