@@ -117,7 +117,8 @@ function imageResult(bytes: Uint8Array) {
     type: 'image',
     source: {
       type: 'data',
-      value: arrayBufferToBase64(bytes.slice().buffer),
+      // Copy the bytes. The ArrayBuffer of a small Node Buffer is a shared pool.
+      value: arrayBufferToBase64(new Uint8Array(bytes).buffer),
       mimeType: 'image/png',
     },
   }

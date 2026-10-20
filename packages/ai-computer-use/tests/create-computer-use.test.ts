@@ -50,6 +50,8 @@ interface DriverOptions {
   failClick?: () => boolean
   /** `click` waits for this promise. */
   clickGate?: Promise<void>
+  /** The bytes that `screenshot` returns. The default is `PNG_BYTES`. */
+  screenshot?: Uint8Array
 }
 
 /** A driver that records its calls in order. */
@@ -63,7 +65,7 @@ function createDriver(options: DriverOptions = {}) {
     environment: 'browser',
     screenshot: async () => {
       calls.push('screenshot')
-      return PNG_BYTES
+      return options.screenshot ?? PNG_BYTES
     },
     click: async () => {
       calls.push('click:start')
@@ -341,6 +343,15 @@ describe('createComputerUse tool', () => {
       screenshotOf(PNG_BASE64),
     )
     expect(computer.calls).toEqual(['click:start', 'click:end', 'screenshot'])
+  })
+
+  it('sends only the screenshot bytes when the driver returns a small Node Buffer', async () => {
+    // Node puts a small Buffer in a shared pool, so its ArrayBuffer holds other data too.
+    const computer = setup({ screenshot: Buffer.from(PNG_BYTES) })
+
+    await expect(computer.execute(CLICK)).resolves.toEqual(
+      screenshotOf(PNG_BASE64),
+    )
   })
 
   it('returns the zoom image and the cursor position as text', async () => {
