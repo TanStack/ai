@@ -2927,18 +2927,41 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         metadata?: unknown
       }
     >()
+    // A failed computer call has no screenshot of its own, so it sends the
+    // newest one. A computer call output has no text, so the failure reasons
+    // go in one user message after the call outputs.
+    let lastScreenshot: ResponseComputerToolCallOutputScreenshot | undefined
+    const failures: Array<string> = []
+    const pushFailures = () => {
+      if (failures.length === 0) return
+      result.push({
+        type: 'message',
+        role: 'user',
+        content: [{ type: 'input_text', text: failures.splice(0).join('\n') }],
+      })
+    }
 
     for (const [index, message] of messages.entries()) {
+      if (message.role !== 'tool') pushFailures()
       result.push(...(insertBefore?.get(index) ?? []))
       // Handle tool messages - convert to FunctionToolCallOutput
       if (message.role === 'tool') {
         const owner = message.toolCallId
           ? userToolCalls.get(message.toolCallId)
           : undefined
+        const error = message.error
         const userOutput = owner
           ? userToolResultItem(owner, message.content, {
-              screenshot: () => this.screenshotOf(message.content),
-              failed: message.error !== undefined,
+              screenshot: () => {
+                if (error !== undefined) {
+                  failures.push(`Computer call ${owner.id} failed: ${error}`)
+                  return lastScreenshot ?? { type: 'computer_screenshot' }
+                }
+                const shot = this.screenshotOf(message.content)
+                if (shot.image_url || shot.file_id) lastScreenshot = shot
+                return shot
+              },
+              failed: error !== undefined,
             })
           : null
         if (userOutput) {
@@ -3171,6 +3194,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       })
     }
 
+    pushFailures()
     result.push(...(insertBefore?.get(messages.length) ?? []))
     return result
   }

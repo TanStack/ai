@@ -77,17 +77,25 @@ const screenshot = [
   },
 ]
 
+/** The user message that gives the model the reason for a failed call. */
+function failureMessage(text: string) {
+  return {
+    type: 'message',
+    role: 'user',
+    content: [{ type: 'input_text', text }],
+  }
+}
+
 async function runLoop(
   execute: (input: unknown) => Promise<unknown>,
   {
     computer = previewTool,
-    call = clickCall,
-  }: { computer?: Tool; call?: Record<string, unknown> } = {},
+    calls = [clickCall],
+  }: { computer?: Tool; calls?: Array<Record<string, unknown>> } = {},
 ) {
-  const create = vi
-    .fn()
-    .mockResolvedValueOnce(completed([call]))
-    .mockResolvedValueOnce(completed([answer]))
+  const create = vi.fn()
+  for (const call of calls) create.mockResolvedValueOnce(completed([call]))
+  create.mockResolvedValueOnce(completed([answer]))
   const client = {
     responses: { create: (params: unknown) => create(params) },
   } as unknown as OpenAI
@@ -145,14 +153,16 @@ describe('computer use loop', () => {
     ]
     const { create, execute } = await runLoop(async () => screenshot, {
       computer: computerUseTool({ type: 'computer' }),
-      call: {
-        type: 'computer_call',
-        id: 'cu_2',
-        call_id: 'call_batch',
-        status: 'completed',
-        actions,
-        pending_safety_checks: [],
-      },
+      calls: [
+        {
+          type: 'computer_call',
+          id: 'cu_2',
+          call_id: 'call_batch',
+          status: 'completed',
+          actions,
+          pending_safety_checks: [],
+        },
+      ],
     })
 
     expect(execute.mock.calls[0]?.[0]).toEqual({
@@ -237,11 +247,48 @@ describe('computer use loop', () => {
 
     const input: Array<Record<string, unknown>> =
       create.mock.calls[1]?.[0].input
-    const output = input.find((item) => item.type === 'computer_call_output')
-    expect(output).toEqual({
-      type: 'computer_call_output',
-      call_id: 'call_cu',
-      output: { type: 'computer_screenshot' },
+    expect(input.slice(-2)).toEqual([
+      {
+        type: 'computer_call_output',
+        call_id: 'call_cu',
+        output: { type: 'computer_screenshot' },
+      },
+      failureMessage(
+        'Computer call call_cu failed: A person did not allow the click.',
+      ),
+    ])
+  })
+
+  it('sends the newest screenshot and the reason for a failed call', async () => {
+    const secondCall = {
+      ...clickCall,
+      id: 'cu_2',
+      call_id: 'call_cu_2',
+      pending_safety_checks: [],
+    }
+    const execute = vi
+      .fn()
+      .mockResolvedValueOnce(screenshot)
+      .mockRejectedValueOnce(new Error('The page has no button there.'))
+    const { create } = await runLoop(execute, {
+      calls: [clickCall, secondCall],
     })
+
+    const input: Array<Record<string, unknown>> =
+      create.mock.calls[2]?.[0].input
+    expect(input.slice(-2)).toEqual([
+      {
+        type: 'computer_call_output',
+        call_id: 'call_cu_2',
+        output: {
+          type: 'computer_screenshot',
+          image_url: 'data:image/png;base64,iVBORw0KGgo=',
+          detail: 'original',
+        },
+      },
+      failureMessage(
+        'Computer call call_cu_2 failed: The page has no button there.',
+      ),
+    ])
   })
 })
