@@ -213,7 +213,9 @@ describe('loopbackLogin edges', () => {
   })
 
   it('stops listening and leaves no timer when onUrl throws', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    // Not vi.getTimerCount(): it counts every timer of the process, and
+    // fetch keep-alive timers of earlier tests land in it under load.
+    const setTimer = vi.spyOn(globalThis, 'setTimeout')
     let redirect = ''
     await expect(
       loopbackLogin(oauth, {
@@ -223,8 +225,9 @@ describe('loopbackLogin edges', () => {
         },
       }),
     ).rejects.toThrow('No browser here.')
-    expect(vi.getTimerCount()).toBe(0)
-    vi.useRealTimers()
+    // The sign-in deadline (10 minutes by default) never started.
+    expect(setTimer).not.toHaveBeenCalledWith(expect.any(Function), 10 * 60_000)
+    setTimer.mockRestore()
     await expect(fetch(redirect)).rejects.toThrow()
   })
 })
