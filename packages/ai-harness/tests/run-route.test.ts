@@ -196,7 +196,7 @@ describe('POST run', () => {
     })
     const session = await host.open(harness, {
       threadId: 't-1',
-      principal: user,
+      user,
     })
     await vi.waitFor(
       () => expect(session.snapshot().pendingWaits).toHaveLength(1),
@@ -293,7 +293,7 @@ describe('POST run', () => {
     expect(deployed).toEqual([])
     const session = await host.open(approvalHarness([]), {
       threadId: 't-1',
-      principal: user,
+      user,
     })
     expect(turnInterrupts(session.snapshot())).toHaveLength(1)
     await host.close()
@@ -398,11 +398,9 @@ describe('GET run', () => {
       activeRun: null,
       interrupts: null,
     })
-    expect(
-      await host.sessions.get({ threadId: 't-1', principal: user }),
-    ).toBeUndefined()
+    expect(await host.sessions.get({ threadId: 't-1', user })).toBeUndefined()
     // The user who creates a thread needs no check.
-    await host.open(harness, { threadId: 't-1', principal: user })
+    await host.open(harness, { threadId: 't-1', user })
     expect((await call('run?threadId=t-1')).status).toBe(403)
     await host.close()
   })
@@ -481,7 +479,7 @@ describe('questions', () => {
       defineHarness({ name: 'test/run-route', adapter }),
       {
         threadId: 't-1',
-        principal: user,
+        user,
       },
     )
     let questions = 0
@@ -668,7 +666,7 @@ describe('join a running turn', () => {
     await host.close()
   })
 
-  it('refuses a join of a thread the principal may not use', async () => {
+  it('refuses a join of a thread the user may not use', async () => {
     let allowed = true
     const { host, call, answer, posted } = await startAsking(() => allowed)
     allowed = false

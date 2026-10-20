@@ -65,7 +65,7 @@ function github(seen: Array<string>, wait: boolean) {
               id: 'github',
               credential: {
                 type: 'api_key',
-                value: `${command.principal?.id}-key`,
+                value: `${command.user?.id}-key`,
               },
             })
             return 'Connected.'
@@ -153,7 +153,7 @@ describe('require with wait', () => {
       }),
       {
         threadId: 't',
-        principal: { id: 'user-1' },
+        user: { id: 'user-1' },
       },
     )
     const signIns: Array<unknown> = []
@@ -213,7 +213,7 @@ describe('require with wait', () => {
       return {
         host,
         open: () =>
-          host.open(harness, { threadId: 't', principal: { id: 'user-1' } }),
+          host.open(harness, { threadId: 't', user: { id: 'user-1' } }),
       }
     }
 
@@ -249,7 +249,7 @@ describe('require with wait', () => {
       }),
       {
         threadId: 't',
-        principal: { id: 'user-1' },
+        user: { id: 'user-1' },
       },
     )
     const turn = await session.send('List my issues.')
@@ -288,7 +288,7 @@ describe('require with wait', () => {
       }),
       {
         threadId: 't',
-        principal: { id: 'user-1' },
+        user: { id: 'user-1' },
       },
     )
     const turn = await session.send('List my issues.', { inputId: 'ask' })
@@ -338,7 +338,7 @@ describe('require with wait', () => {
       }),
       {
         threadId: 't',
-        principal: { id: 'user-1' },
+        user: { id: 'user-1' },
       },
     )
     const turn = session.send('Work.')
@@ -379,16 +379,16 @@ describe('sign-ins in a shared thread', () => {
       }),
       {
         threadId: 't',
-        principal: alice,
+        user: alice,
       },
     )
-    const turn = await session.send('List my issues.', { principal: bob })
+    const turn = await session.send('List my issues.', { user: bob })
     expect(turn.interrupts?.[0]?.reason).toBe('auth_required')
 
     // Saves for alice, while bob's turn waits for bob's sign-in.
     await session.command({ name: 'note' })
     expect(turnInterrupts(session.snapshot())).toHaveLength(1)
-    await session.command({ name: 'connect:github', principal: alice })
+    await session.command({ name: 'connect:github', user: alice })
 
     expect(seen).toEqual([])
     expect(calls).toHaveLength(1)
@@ -436,7 +436,7 @@ describe('sign-ins in a shared thread', () => {
     // Alice opens the thread. Bob's turn waits for bob's sign-in.
     const session = await host.open(harness, {
       threadId: 't',
-      principal: alice,
+      user: alice,
     })
     const asked = await control('bob', {
       op: 'prompt',
@@ -481,8 +481,8 @@ describe('sign-ins in a shared thread', () => {
               whoami: defineCommand({
                 description: 'Who runs this?',
                 run: (_input, command) => {
-                  ran.push(command.principal?.id)
-                  return command.principal?.id
+                  ran.push(command.user?.id)
+                  return command.user?.id
                 },
               }),
             },
@@ -494,12 +494,12 @@ describe('sign-ins in a shared thread', () => {
     const handler = createHarnessHandler({
       host,
       harness,
-      openAccess: { principal: bob },
+      openAccess: { user: bob },
       media: { secret: 'test-secret-of-at-least-32-bytes!' },
     })
     const session = await host.open(harness, {
       threadId: 't',
-      principal: alice,
+      user: alice,
     })
     const receipt = await (
       await handler(
@@ -521,9 +521,7 @@ describe('sign-ins in a shared thread', () => {
           record.type === 'harness.input' &&
           (record['input'] as { op?: string } | undefined)?.op === 'command',
       )
-    expect(commands.map((record) => record['principal'])).toEqual([
-      { id: 'bob' },
-    ])
+    expect(commands.map((record) => record['user'])).toEqual([{ id: 'bob' }])
     await host.close()
   })
 
@@ -540,18 +538,18 @@ describe('sign-ins in a shared thread', () => {
       })
       return {
         host,
-        open: () => host.open(harness, { threadId: 't', principal: alice }),
+        open: () => host.open(harness, { threadId: 't', user: alice }),
       }
     }
     const a = start([() => toolCall('list_issues', {})])
     await (await a.open()).send('List my issues.')
     await a.host.close()
-    // A copy without `principal`, as an older version wrote it.
+    // A copy without `user`, as an older version wrote it.
     const { interrupted } = await storedThreadState(stores.log, {
       threadId: 't',
     })
     if (!interrupted) throw new Error('No stored interrupted turn.')
-    const { principal: _principal, ...old } = interrupted
+    const { user: _user, ...old } = interrupted
     await appendToLog(stores.log, { threadId: 't' }, [
       { type: 'harness.interrupted', turn: old },
     ])

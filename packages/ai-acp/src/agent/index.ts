@@ -32,20 +32,20 @@ import type {
   HarnessHost,
   HarnessSession,
   Operation,
-  Principal,
+  HarnessUser,
   Wait,
 } from '@tanstack/ai-harness'
 
-export interface AcpAgentOptions<P extends Principal = Principal> {
-  host: HarnessHost<P>
+export interface AcpAgentOptions<U extends HarnessUser = HarnessUser> {
+  host: HarnessHost<U>
   harness: AnyHarness
   /**
    * The user that the agent serves: an editor starts the agent for one
-   * local user. Each session opens as this principal, and `session/list`
-   * shows the sessions of this principal. Required when the host has
+   * local user. Each session opens as this user, and `session/list`
+   * shows the sessions of this user. Required when the host has
    * `access`.
    */
-  principal?: P
+  user?: U
   /** Reported in `initialize`. Default `'0.0.0'`. */
   version?: string
   /**
@@ -351,9 +351,9 @@ type WaitAnswer =
  * store of the session. A file the harness refuses (too big, or a type it
  * does not take) fails `session/prompt` with an invalid params error.
  *
- * Each session opens as `principal`. On a host with `access`, the host
- * checks each action, and a session that the principal may not read is not
- * found. Without `principal`, a host with access throws at the start.
+ * Each session opens as `user`. On a host with `access`, the host
+ * checks each action, and a session that the user may not read is not
+ * found. Without `user`, a host with access throws at the start.
  *
  * The agent holds a handle on a session only while the session has work: a
  * new session, or prompts that run or wait in its queue. When the queue is
@@ -369,13 +369,13 @@ type WaitAnswer =
  *
  * ACP v2 is a draft, so this API is experimental too.
  */
-export function createAcpAgent<P extends Principal = Principal>(
-  options: AcpAgentOptions<P>,
+export function createAcpAgent<U extends HarnessUser = HarnessUser>(
+  options: AcpAgentOptions<U>,
 ): AgentApp {
-  const { host, harness, principal } = options
-  if (principal === undefined && host.hasAccess) {
+  const { host, harness, user } = options
+  if (user === undefined && host.hasAccess) {
     throw new Error(
-      'createAcpAgent needs a principal: the host has access. Pass the local user as principal.',
+      'createAcpAgent needs a user: the host has access. Pass the local user as the user option.',
     )
   }
   /**
@@ -401,7 +401,7 @@ export function createAcpAgent<P extends Principal = Principal>(
   const live = (sessionId: string) => {
     const held = handles.get(sessionId)
     if (held) return held
-    const opening = host.open(harness, { threadId: sessionId, principal })
+    const opening = host.open(harness, { threadId: sessionId, user })
     handles.set(sessionId, opening)
     // A failed open holds nothing, so the next request opens again.
     opening.then(
@@ -437,13 +437,13 @@ export function createAcpAgent<P extends Principal = Principal>(
    * Throw unless this agent or the session index knows the id. The agent
    * knows the sessions that it opened in this connection. A subagent
    * child is not a session of its own: ACP reaches it through its parent. A
-   * session that the principal may not read gets the same answer as an
+   * session that the user may not read gets the same answer as an
    * unknown id. It reads the index only: no session opens.
    */
   const checkKnown = async (sessionId: string) => {
     if (handles.has(sessionId) || opened.has(sessionId)) return
     try {
-      const entry = await host.sessions.get({ threadId: sessionId, principal })
+      const entry = await host.sessions.get({ threadId: sessionId, user })
       const isOwnSession =
         entry?.harness === harness.name && entry.parentThreadId === undefined
       if (!isOwnSession) throw RequestError.resourceNotFound(sessionId)
@@ -838,7 +838,7 @@ export function createAcpAgent<P extends Principal = Principal>(
         const cwd = options.cwd ?? process.cwd()
         if (params.cwd && params.cwd !== cwd) return { sessions: [] }
         const page = await host.sessions.list({
-          principal,
+          user,
           harness: harness.name,
           limit: LIST_PAGE_SIZE,
           ...(params.cursor ? { cursor: params.cursor } : {}),
@@ -923,16 +923,16 @@ export function createAcpAgent<P extends Principal = Principal>(
 /**
  * Serve a harness as an ACP v2 agent over a stream. With no stream, it uses
  * stdin and stdout as newline-delimited JSON (for editors that start the
- * agent as a process). The sessions open as `principal`, as in
+ * agent as a process). The sessions open as `user`, as in
  * `createAcpAgent`.
  *
  * @example
  * ```ts
- * serveAcp({ host, harness: assistant, principal: { id: 'local-user' } })
+ * serveAcp({ host, harness: assistant, user: { id: 'local-user' } })
  * ```
  */
-export function serveAcp<P extends Principal = Principal>(
-  options: AcpAgentOptions<P> & { stream?: Stream },
+export function serveAcp<U extends HarnessUser = HarnessUser>(
+  options: AcpAgentOptions<U> & { stream?: Stream },
 ): AgentConnection {
   return createAcpAgent(options).connect(options.stream ?? stdioStream())
 }

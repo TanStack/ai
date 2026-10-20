@@ -15,6 +15,8 @@ keywords:
 
 Your harness serves many users. Ada must not read the threads of Bob, and the company Acme must never see a thread of the company Globex. Give the host `access`. Then the host reads the user of each request, asks you about each action, and keeps each organization apart.
 
+A user here is `{ id, name?, tenantId? }`: who a call acts for. Its type is `HarnessUser`.
+
 ## 1. Turn on access
 
 Give `createHarnessHost` an `access` object and a `sessions` store. The store keeps the owner and the members of each session:
@@ -76,11 +78,11 @@ export const host = createHarnessHost({
   persistence: memoryPersistence(),
   access: {
     identify: ({ request }) => users.get(request.headers.get('authorization') ?? '') ?? null,
-    policy: { authorize: ({ principal, action, session }) => {
+    policy: { authorize: ({ user, action, session }) => {
       const isOwner = session.members.some(
-        (member) => member.userId === principal.id && member.role === 'owner',
+        (member) => member.userId === user.id && member.role === 'owner',
       )
-      if (isOwner || principal.isAdmin) return true
+      if (isOwner || user.isAdmin) return true
       // Everyone in the organization can read every thread of it.
       return action === 'read' || action === 'list'
     } },
@@ -104,9 +106,9 @@ Each action covers these calls:
 | `fork` | Copy the session into a new session. |
 | `transfer` | Move the conversation to another thread, also of another harness, with `host.transfer`. See [Move a conversation to another harness](./handoffs#5-move-a-conversation-to-another-harness). |
 
-- For `answer` and `cancel`, `authorize` also gets `run`: the `runId` and the `principalId` of the user who started that run.
+- For `answer` and `cancel`, `authorize` also gets `run`: the `runId` and the `userId` of the user who started that run.
 - For `answer` and `operator`, `authorize` also gets `wait`: the `waitId` and the `kind` of the [wait](./waits) that the input answers, when the host knows it. A `human` wait takes only `operator`, also for a resolve that ends it.
-- For `cancelSchedule`, `run` is the schedule: the `runId` is the schedule id, and the `principalId` is the user who made it.
+- For `cancelSchedule`, `run` is the schedule: the `runId` is the schedule id, and the `userId` is the user who made it.
 - `host.submit` and `schedule` check an answer or a cancel when you send it, with `run` from the log. A run that the log does not have is refused with `unknown_run`: `submit` returns a `rejected` receipt, and `schedule` throws `InputRejectedError`.
 - A handle checks `read` once, when it opens. Each action that changes the session asks `authorize` again. This includes `cancel` and `send` on an operation or an agent run that the handle returns.
 
@@ -120,8 +122,8 @@ A policy has two more keys. `membersOnly()` sets both. Your own policy can leave
 `authorize` decides only the rule of your app. The host does these checks before it calls it:
 
 - The tenant. A user reaches only the sessions of their own tenant. `authorize` never gets a session of another tenant.
-- A user on every call. With access, `host.open`, `host.fork`, `host.transfer`, and each `host.sessions` method need a `principal`. A call without one throws.
-- One user per handle. `host.open` returns a session that acts only as its `principal`. A call on it that passes another `principal` throws.
+- A user on every call. With access, `host.open`, `host.fork`, `host.transfer`, and each `host.sessions` method need a `user`. A call without one throws.
+- One user per handle. `host.open` returns a session that acts only as its `user`. A call on it that passes another `user` throws.
 - Child threads. The host checks a subagent child as its root thread, so `session` is the root session. A user who cannot read the root gets `403` for the child, and does not learn its root.
 - Missing threads. A read of a thread with no entry answers `404` and starts no session. `GET run?threadId=` answers an empty hydration instead, because `useChat` reads it before the first message.
 
@@ -155,7 +157,7 @@ export const host = createHarnessHost<User>({
     anonymous: ({ tenantId }) => ({ id: 'guest', tenantId, isGuest: true }),
     policy: {
       authorize: (input) =>
-        input.principal.isGuest === true ? input.action === 'read' : members.authorize(input),
+        input.user.isGuest === true ? input.action === 'read' : members.authorize(input),
       listFilter: members.listFilter,
       members: members.members,
     },
@@ -173,7 +175,7 @@ export const host = createHarnessHost<User>({
 Give each user a `tenantId` in `identify`. The tenant keeps each organization apart:
 
 - One `threadId` in two tenants is two sessions, with two index entries and two logs.
-- `host.sessions.list` reads one tenant: the tenant of `principal`. A user with no `tenantId` is in the default tenant.
+- `host.sessions.list` reads one tenant: the tenant of `user`. A user with no `tenantId` is in the default tenant.
 - The log store keeps each session tree under `logIdOf({ tenantId, logId })`, for example `acme:thread-1`. The default tenant gives `:thread-1`. Use `logIdOf` when you read a log yourself.
 - The credentials of a user are kept per tenant. See [Keep organizations apart](./shared-threads#7-keep-organizations-apart).
 
@@ -184,7 +186,7 @@ A cron job, an admin tool, or a queue worker has no request, so `identify` canno
 ```ts group=harness-access
 // Your database knows the owner of each thread.
 export async function nightlyReport(threadId: string, owner: { id: string; tenantId: string }) {
-  const session = await host.open(assistant, { threadId, principal: owner })
+  const session = await host.open(assistant, { threadId, user: owner })
   await session.send('Write the report of today.')
 }
 ```
@@ -193,9 +195,9 @@ Your own routes and an MCP server have a request. Read its user with `host.ident
 
 ```ts group=harness-access
 export async function myThreads(request: Request) {
-  const principal = await host.identify({ request })
-  if (!principal) return new Response('Unauthorized', { status: 401 })
-  const page = await host.sessions.list({ principal, limit: 20 })
+  const user = await host.identify({ request })
+  if (!user) return new Response('Unauthorized', { status: 401 })
+  const page = await host.sessions.list({ user, limit: 20 })
   return Response.json(page.entries.map((entry) => entry.title ?? 'New chat'))
 }
 ```
@@ -222,15 +224,15 @@ export const host = createHarnessHost({
   persistence: memoryPersistence(),
   access: {
     identify: ({ request }) => users.get(request.headers.get('authorization') ?? '') ?? null,
-    policy: { authorize: ({ principal, session }) =>
-      session.members.some((member) => member.userId === principal.id) ||
-      (teams.get(session.threadId)?.has(principal.id) ?? false) },
+    policy: { authorize: ({ user, session }) =>
+      session.members.some((member) => member.userId === user.id) ||
+      (teams.get(session.threadId)?.has(user.id) ?? false) },
   },
 })
 
 export async function removeFromTeam(threadId: string, user: { id: string; tenantId: string }) {
   teams.get(threadId)?.delete(user.id)
-  await host.revoke({ threadId, principal: user })
+  await host.revoke({ threadId, user })
 }
 ```
 
@@ -267,12 +269,12 @@ const host = createHarnessHost({ persistence: memoryPersistence() })
 export const handler = createHarnessHandler({
   host,
   harness: assistant,
-  openAccess: { principal: { id: 'ada' } },
+  openAccess: { user: { id: 'ada' } },
 })
 ```
 
 - `openAccess: true`: every request runs with no user, in the default tenant.
-- `openAccess: { principal }`: every request runs as that one user. Their credentials and keys do the work.
+- `openAccess: { user }`: every request runs as that one user. Their credentials and keys do the work.
 - Without host `access` and without `openAccess`, `createHarnessHandler` throws at the start. So a server never serves every thread to everyone by mistake.
 - On a host with `access`, `openAccess` throws. The host reads the user itself.
 - `handleHarnessSocket` takes the same option.

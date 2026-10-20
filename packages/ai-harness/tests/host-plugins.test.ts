@@ -36,7 +36,7 @@ function countedPlugin() {
             name: 'who',
             description: 'Name the caller',
           }).server<HarnessRunContext>((_input, { context }) => {
-            seen.push(context.run.principal?.id)
+            seen.push(context.run.user?.id)
             return 'ok'
           }),
         ],
@@ -171,11 +171,11 @@ describe('lifetime host', () => {
     const { host, harness } = setup(() => [plugin], 60_000)
     const alice = await host.open(harness, {
       threadId: 'a',
-      principal: { id: 'alice' },
+      user: { id: 'alice' },
     })
     const bob = await host.open(harness, {
       threadId: 'b',
-      principal: { id: 'bob' },
+      user: { id: 'bob' },
     })
 
     await alice.send('who am I?')

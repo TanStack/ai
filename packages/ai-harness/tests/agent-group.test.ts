@@ -57,7 +57,7 @@ async function open(
       adapter: mockAdapter([]).adapter,
       agents,
     }),
-    { threadId: THREAD, principal: alice },
+    { threadId: THREAD, user: alice },
   )
   return { host, session }
 }

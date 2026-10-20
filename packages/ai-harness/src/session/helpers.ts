@@ -37,7 +37,7 @@ import type {
   OfferedHarnessInput,
   MediaKind,
   OperationStatus,
-  Principal,
+  HarnessUser,
   RunContext,
   RunNode,
   ThreadSettings,
@@ -71,7 +71,7 @@ export function jobsOf(
         jobId,
         threadId: thread,
         ...(job.backendId !== undefined ? { backendId: job.backendId } : {}),
-        ...(job.principal ? { principal: { ...job.principal } } : {}),
+        ...(job.user ? { user: { ...job.user } } : {}),
         ...(job.at !== undefined ? { startedAt: job.at } : {}),
         ...(job.label !== undefined ? { label: job.label } : {}),
         running: running.has(jobId),
@@ -256,7 +256,7 @@ export interface OfferedInputRecord extends LogRecord {
   type: 'harness.input'
   inputId: string
   input: OfferedHarnessInput
-  principal?: { id: string; tenantId?: string }
+  user?: { id: string; tenantId?: string }
   /**
    * The id that the owner runs the input with: the AG-UI run id of a turn,
    * or the operation id of an agent run. The host that offered it follows
@@ -273,7 +273,7 @@ export interface OfferedInputRecord extends LogRecord {
 export function offeredInputRecord(offer: {
   inputId: string
   input: OfferedHarnessInput
-  principal: Principal | undefined
+  user: HarnessUser | undefined
   runId?: string
   turn?: TurnExtras
   traceparent?: string
@@ -283,7 +283,7 @@ export function offeredInputRecord(offer: {
     type: 'harness.input',
     inputId: offer.inputId,
     input: offer.input,
-    ...storedPrincipal(offer.principal),
+    ...storedUser(offer.user),
     ...(offer.runId !== undefined ? { runId: offer.runId } : {}),
     ...(Object.keys(named).length > 0 ? { overrides: named } : {}),
     ...(offer.traceparent !== undefined
@@ -349,7 +349,7 @@ export const chainFields = (
     ...(node?.budget ? { budget: node.budget } : {}),
     ...(node?.onModelError ? { onModelError: node.onModelError } : {}),
   },
-  ...(first.principal ? { principal: first.principal } : {}),
+  ...(first.user ? { user: first.user } : {}),
   ...(first.input.parentRunId ? { parentRunId: first.input.parentRunId } : {}),
 })
 
@@ -408,7 +408,7 @@ export function runNodeRecord(node: {
   runId: string
   kind: RunNode['kind']
   inputId: string
-  principal: Principal | undefined
+  user: HarnessUser | undefined
   parentRunId?: string
   agent?: string
   chainInputId?: string
@@ -426,7 +426,7 @@ export function runNodeRecord(node: {
     runId: node.runId,
     kind: node.kind,
     inputId: node.inputId,
-    ...storedPrincipal(node.principal),
+    ...storedUser(node.user),
     ...(parentRunId !== undefined ? { parentRunId } : {}),
     ...(subagentRunId !== undefined ? { subagentRunId } : {}),
     ...(agent !== undefined ? { agent } : {}),
@@ -479,14 +479,14 @@ export const errorText = (error: unknown) =>
 export const cacheObject = (option: PromptCacheOptions | undefined) =>
   typeof option === 'string' ? { retention: option, key: undefined } : option
 
-/** The credential scope of `principal` in a thread, with only the set fields. */
+/** The credential scope of `user` in a thread, with only the set fields. */
 export const scopeOf = (
   threadId: string,
-  principal: Principal | undefined,
+  user: HarnessUser | undefined,
 ): Scope => ({
   threadId,
-  ...(principal ? { userId: principal.id } : {}),
-  ...(principal?.tenantId ? { tenantId: principal.tenantId } : {}),
+  ...(user ? { userId: user.id } : {}),
+  ...(user?.tenantId ? { tenantId: user.tenantId } : {}),
 })
 
 /** The tool call an interrupt waits on: an approval or a client tool. */
@@ -522,20 +522,20 @@ export function withChildRequests(
   })
 }
 
-export const storedPrincipal = (principal: Principal | undefined) =>
-  principal
+export const storedUser = (user: HarnessUser | undefined) =>
+  user
     ? {
-        principal: {
-          id: principal.id,
-          ...(principal.tenantId ? { tenantId: principal.tenantId } : {}),
+        user: {
+          id: user.id,
+          ...(user.tenantId ? { tenantId: user.tenantId } : {}),
         },
       }
     : {}
 
-/** One sender: the same id and tenant, or no principal on both. */
+/** One sender: the same id and tenant, or no user on both. */
 export const isSameSender = (
-  a: Pick<Principal, 'id' | 'tenantId'> | undefined,
-  b: Pick<Principal, 'id' | 'tenantId'> | undefined,
+  a: Pick<HarnessUser, 'id' | 'tenantId'> | undefined,
+  b: Pick<HarnessUser, 'id' | 'tenantId'> | undefined,
 ) => a?.id === b?.id && a?.tenantId === b?.tenantId
 
 /**
@@ -544,8 +544,8 @@ export const isSameSender = (
  */
 export const inputKey = (
   input: unknown,
-  principal: Pick<Principal, 'id' | 'tenantId'> | undefined,
-) => JSON.stringify([input, principal?.id ?? null, principal?.tenantId ?? null])
+  user: Pick<HarnessUser, 'id' | 'tenantId'> | undefined,
+) => JSON.stringify([input, user?.id ?? null, user?.tenantId ?? null])
 
 export const isPlainObject = (
   value: unknown,

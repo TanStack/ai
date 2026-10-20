@@ -43,7 +43,7 @@ const bob = { id: 'bob' }
  * the run.
  */
 function whoami() {
-  const seen: Array<{ principal: string | undefined; context: unknown }> = []
+  const seen: Array<{ user: string | undefined; context: unknown }> = []
   const tool = toolDefinition({
     name: 'whoami',
     description: 'Who runs this?',
@@ -55,7 +55,7 @@ function whoami() {
       tools: [
         tool.server<HarnessRunContext>((_input, toolContext) => {
           const { run, ...context } = toolContext.context
-          seen.push({ principal: run.principal?.id, context })
+          seen.push({ user: run.user?.id, context })
           return Promise.resolve({})
         }),
       ],
@@ -87,21 +87,21 @@ describe('the sender of each input', () => {
     })
     const session = await host.open(harness, {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
     // Bob's open reaches the same live session. Without host access, a call
     // may name another sender.
-    await host.open(harness, { threadId: THREAD, principal: bob })
+    await host.open(harness, { threadId: THREAD, user: bob })
 
-    await session.send('Who am I?', { inputId: 'in-bob', principal: bob })
-    // Without a principal, the input is the opener's.
+    await session.send('Who am I?', { inputId: 'in-bob', user: bob })
+    // Without a user, the input is the opener's.
     await session.send('And now?', { inputId: 'in-default' })
 
-    expect(seen.map((entry) => entry.principal)).toEqual(['bob', 'alice'])
+    expect(seen.map((entry) => entry.user)).toEqual(['bob', 'alice'])
     const inputs = (await persistence.stores.log.read({ logId: LOG }))
       .map((entry): LogRecord => entry.record)
       .filter((record) => record.type === 'harness.input')
-      .map((record) => [record['inputId'], record['principal']])
+      .map((record) => [record['inputId'], record['user']])
     expect(inputs).toEqual([
       ['in-bob', { id: 'bob' }],
       ['in-default', { id: 'alice' }],
@@ -129,11 +129,11 @@ describe('the sender of each input', () => {
       defineHarness({ name: 'test/sender-keys', adapter }),
       {
         threadId: THREAD,
-        principal: alice,
+        user: alice,
       },
     )
 
-    expect((await session.send('Hi.', { principal: bob })).text).toBe(
+    expect((await session.send('Hi.', { user: bob })).text).toBe(
       'answered with bob-key',
     )
     expect((await session.send('Hi.')).text).toBe('answered with alice-key')
@@ -159,13 +159,13 @@ describe('the sender of each input', () => {
         turn: {
           canJoin: (candidate) => {
             candidates.push(candidate)
-            return candidate.principal?.id === alice.id
+            return candidate.user?.id === alice.id
           },
         },
       }),
       {
         threadId: THREAD,
-        principal: alice,
+        user: alice,
       },
     )
 
@@ -173,7 +173,7 @@ describe('the sender of each input', () => {
     await turn.receipt
     await session.send('Mine.', {
       inputId: 'in-bob',
-      principal: bob,
+      user: bob,
       mode: 'steer',
     }).receipt
     release.open()
@@ -183,14 +183,12 @@ describe('the sender of each input', () => {
       outcome: 'completed',
     })
     expect(candidates.length).toBeGreaterThan(0)
-    expect(candidates.every((candidate) => candidate.principal === bob)).toBe(
-      true,
-    )
-    expect(seen.map((entry) => entry.principal)).toEqual(['bob'])
+    expect(candidates.every((candidate) => candidate.user === bob)).toBe(true)
+    expect(seen.map((entry) => entry.user)).toEqual(['bob'])
     await host.close()
   })
 
-  it("keeps bob's message out of alice's turn with turnPrincipal, and alice's own steer joins", async () => {
+  it("keeps bob's message out of alice's turn with turnUser, and alice's own steer joins", async () => {
     const { plugin, seen } = whoami()
     const started = gate()
     const release = gate()
@@ -205,19 +203,19 @@ describe('the sender of each input', () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const session = await host.open(
       defineHarness({
-        name: 'test/sender-turn-principal',
+        name: 'test/sender-turn-user',
         adapter,
         plugins: () => [plugin],
         turn: {
           canJoin: (candidate) => {
             candidates.push(candidate)
-            return candidate.principal?.id === candidate.turnPrincipal?.id
+            return candidate.user?.id === candidate.turnUser?.id
           },
         },
       }),
       {
         threadId: THREAD,
-        principal: alice,
+        user: alice,
       },
     )
 
@@ -228,7 +226,7 @@ describe('the sender of each input', () => {
     const bobs = session.send('Mine.', {
       busy: 'steer',
       inputId: 'in-bob',
-      principal: bob,
+      user: bob,
     })
     await bobs.receipt
     release.open()
@@ -241,9 +239,9 @@ describe('the sender of each input', () => {
     const bobSettled = await session.settled({ inputId: 'in-bob' })
     expect(bobSettled).toMatchObject({ outcome: 'completed' })
     expect(bobSettled.operationId).not.toBe(turn.id)
-    expect(seen.map((entry) => entry.principal)).toEqual(['bob'])
+    expect(seen.map((entry) => entry.user)).toEqual(['bob'])
     expect(candidates).toContainEqual(
-      expect.objectContaining({ principal: bob, turnPrincipal: alice }),
+      expect.objectContaining({ user: bob, turnUser: alice }),
     )
     await host.close()
   })
@@ -267,7 +265,7 @@ describe('the sender of each input', () => {
       }),
       {
         threadId: THREAD,
-        principal: alice,
+        user: alice,
       },
     )
 
@@ -278,7 +276,7 @@ describe('the sender of each input', () => {
     const bobs = session.send('Mine.', {
       busy: 'steer',
       inputId: 'in-bob',
-      principal: bob,
+      user: bob,
     })
     await bobs.receipt
     release.open()
@@ -291,7 +289,7 @@ describe('the sender of each input', () => {
     expect((await session.settled({ inputId: 'in-bob' })).operationId).not.toBe(
       turn.id,
     )
-    expect(seen.map((entry) => entry.principal)).toEqual(['bob'])
+    expect(seen.map((entry) => entry.user)).toEqual(['bob'])
     await host.close()
   })
 
@@ -313,7 +311,7 @@ describe('the sender of each input', () => {
           again: defineCommand({
             description: 'Ask again',
             run: (_input, { session }) => {
-              commandSaw.push(session.principal?.id)
+              commandSaw.push(session.user?.id)
               again = session.send('Again.')
               return 'ok'
             },
@@ -330,20 +328,20 @@ describe('the sender of each input', () => {
       }),
       {
         threadId: THREAD,
-        principal: alice,
+        user: alice,
       },
     )
 
     const turn = session.send('Start.')
     await started.opened
     // Bob runs a command while alice's turn runs.
-    await session.command({ name: 'again', principal: bob })
+    await session.command({ name: 'again', user: bob })
     release.open()
 
     expect(await turn).toEqual({ text: 'First.', media: [] })
     expect(commandSaw).toEqual(['bob'])
     expect(await again).toEqual({ text: 'Again.', media: [] })
-    expect(seen.map((entry) => entry.principal)).toEqual(['bob'])
+    expect(seen.map((entry) => entry.user)).toEqual(['bob'])
     await host.close()
   })
 
@@ -366,7 +364,7 @@ describe('the sender of each input', () => {
           startWriter.server<HarnessRunContext>((_input, toolContext) => {
             ctx.agents.start(writer, undefined, {
               wake: true,
-              principal: toolContext.context.run.principal,
+              user: toolContext.context.run.user,
             })
             return Promise.resolve({})
           }),
@@ -389,13 +387,13 @@ describe('the sender of each input', () => {
       }),
       {
         threadId: THREAD,
-        principal: alice,
+        user: alice,
       },
     )
 
-    await session.send('Start the writer.', { principal: bob })
+    await session.send('Start the writer.', { user: bob })
     await waitFor(() => expect(seen).toHaveLength(1))
-    expect(seen.map((entry) => entry.principal)).toEqual(['bob'])
+    expect(seen.map((entry) => entry.user)).toEqual(['bob'])
     await host.close()
   })
 
@@ -429,7 +427,7 @@ describe('the sender of each input', () => {
         tools: [
           startWriter.server<HarnessRunContext>((_input, toolContext) => {
             started = ctx.agents.start(writer, undefined, {
-              principal: toolContext.context.run.principal,
+              user: toolContext.context.run.user,
             })
             return Promise.resolve({})
           }),
@@ -458,11 +456,11 @@ describe('the sender of each input', () => {
       }),
       {
         threadId: THREAD,
-        principal: alice,
+        user: alice,
       },
     )
 
-    await session.send('Start the writer.', { principal: bob })
+    await session.send('Start the writer.', { user: bob })
     release.open()
 
     expect(await started).toBe('drafted')
@@ -508,7 +506,7 @@ describe('recovery keeps the sender and the context', () => {
           type: 'harness.input',
           inputId: 'in-1',
           input: sent,
-          principal: { id: 'bob', tenantId: 'org' },
+          user: { id: 'bob', tenantId: 'org' },
           at: 1,
         },
       ],
@@ -527,7 +525,7 @@ describe('recovery keeps the sender and the context', () => {
       }),
       {
         threadId: THREAD,
-        principal: alice,
+        user: alice,
       },
     )
 
@@ -539,10 +537,10 @@ describe('recovery keeps the sender and the context', () => {
         inputId: 'in-1',
         message: 'go',
         context: { screen: 'x' },
-        principal: { id: 'bob', tenantId: 'org' },
+        user: { id: 'bob', tenantId: 'org' },
       }),
     ])
-    expect(seen).toEqual([{ principal: 'bob', context: { screen: 'x' } }])
+    expect(seen).toEqual([{ user: 'bob', context: { screen: 'x' } }])
     await host.close()
   })
 
@@ -557,7 +555,7 @@ describe('recovery keeps the sender and the context', () => {
           type: 'harness.input',
           inputId: 'in-1',
           input: sent,
-          principal: { id: 'bob' },
+          user: { id: 'bob' },
           at: 1,
         },
         {
@@ -590,7 +588,7 @@ describe('recovery keeps the sender and the context', () => {
       }),
       {
         threadId: THREAD,
-        principal: alice,
+        user: alice,
       },
     )
 
@@ -602,10 +600,10 @@ describe('recovery keeps the sender and the context', () => {
         inputId: 'in-1',
         message: 'go',
         context: { screen: 'x' },
-        principal: { id: 'bob' },
+        user: { id: 'bob' },
       }),
     ])
-    expect(seen).toEqual([{ principal: 'bob', context: { screen: 'x' } }])
+    expect(seen).toEqual([{ user: 'bob', context: { screen: 'x' } }])
     await host.close()
   })
 })
@@ -644,13 +642,13 @@ describe('the turn where the model is picked', () => {
       }),
       {
         threadId: THREAD,
-        principal: alice,
+        user: alice,
       },
     )
 
     const turn = session.send('Pick for me.', {
       inputId: 'in-1',
-      principal: bob,
+      user: bob,
       context: { plan: 'pro' },
     })
     await turn
@@ -660,9 +658,9 @@ describe('the turn where the model is picked', () => {
       inputId: 'in-1',
       message: 'Pick for me.',
       context: { plan: 'pro' },
-      principal: bob,
+      user: bob,
       run: expect.objectContaining({
-        principal: { id: 'bob' },
+        user: { id: 'bob' },
         runId: turn.id,
         threadId: THREAD,
       }),
@@ -696,19 +694,19 @@ describe('the turn where the model is picked', () => {
       }),
       {
         threadId: THREAD,
-        principal: alice,
+        user: alice,
       },
     )
 
     await session.send('Route me.', {
-      principal: bob,
+      user: bob,
       context: { plan: 'pro' },
     })
 
     expect(seen).toEqual([
       expect.objectContaining({
         input: 'Route me.',
-        principal: bob,
+        user: bob,
         context: { plan: 'pro' },
       }),
     ])
@@ -716,7 +714,7 @@ describe('the turn where the model is picked', () => {
   })
 })
 
-describe('the tenant of a principal', () => {
+describe('the tenant of a user', () => {
   it('scopes credentials by user and tenant', async () => {
     const seen: Array<unknown> = []
     const read = toolDefinition({
@@ -761,13 +759,13 @@ describe('the tenant of a principal', () => {
       }),
       {
         threadId: THREAD,
-        principal: { id: 'u1', tenantId: 'org-a' },
+        user: { id: 'u1', tenantId: 'org-a' },
       },
     )
 
     await session.send('Read it.')
     await session.send('Read it again.', {
-      principal: { id: 'u1', tenantId: 'org-b' },
+      user: { id: 'u1', tenantId: 'org-b' },
     })
 
     expect(seen).toEqual(['org-a-token', 'org-b-token'])

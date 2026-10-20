@@ -50,7 +50,7 @@ const worker = createHarnessWorker({ host: workerHost, harnesses: [assistant] })
 - `pollMs`: how long the worker waits after a look that found no work. The wait doubles after each empty look, up to 30 seconds. The default is 1 000.
 - `signal`: an `AbortSignal` that stops the worker, the same as `stop()`.
 
-Run as many workers as you want, on as many machines. Each thread goes to one of them. Each thread opens in its own tenant, with no principal.
+Run as many workers as you want, on as many machines. Each thread goes to one of them. Each thread opens in its own tenant, with no user.
 
 If a thread fails to open, the worker logs the error and skips that thread for a time. The time doubles after each failure in a row, up to 5 minutes. The other threads still run.
 
@@ -73,7 +73,7 @@ console.log(receipt.status) // 'queued'
 - The input waits until a host owns the thread. That is the host that runs the thread now, or a worker.
 - Pass `inputId` so that a retry is safe. The same id with the same input is a duplicate. The same id with another input gets `rejected` with `conflict`.
 - `input` is any input that runs on the owner: a prompt, a steer, a follow-up, an answer, a cancel, a command, and more.
-- On a host with [`access`](./access), pass `principal`. The input needs the same action as on a handle, else `submit` throws `AccessDeniedError` and stores nothing.
+- On a host with [`access`](./access), pass `user`. The input needs the same action as on a handle, else `submit` throws `AccessDeniedError` and stores nothing.
 - An answer or a cancel is checked with the run that it targets, from the log. A cancel must name its `operationId`. A run that the log does not have gets `rejected` with `unknown_run`. To drop an input that waits, use `cancelInput`.
 
 ## 3. Run an input later
@@ -94,7 +94,7 @@ await session.close()
 - When no host has the thread open, the log store wakes a worker at `at`.
 - A time that passed runs at once.
 - Pass `scheduleId` to pick the id. A second call with the id of a schedule that waits writes nothing.
-- `principal` is who sends the input when it runs. The default is the principal of the open.
+- `user` is who sends the input when it runs. The default is the user of the open.
 
 To stop a schedule that did not run yet:
 

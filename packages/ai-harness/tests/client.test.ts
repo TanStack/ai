@@ -89,7 +89,7 @@ describe('createHarnessClient', () => {
     const handler = createHarnessHandler({
       host,
       harness: studio,
-      openAccess: { principal: { id: 'u' } },
+      openAccess: { user: { id: 'u' } },
     })
     const client = createHarnessClient<typeof studio>({
       url: 'http://local/api/harness',
@@ -124,7 +124,7 @@ describe('createHarnessClient', () => {
     const handler = createHarnessHandler({
       host,
       harness: studio,
-      openAccess: { principal: { id: 'u' } },
+      openAccess: { user: { id: 'u' } },
     })
     const client = createHarnessClient<typeof studio>({
       url: 'http://local/api/harness',
@@ -158,7 +158,7 @@ describe('createHarnessClient', () => {
     const handler = createHarnessHandler({
       host,
       harness: studio,
-      openAccess: { principal: { id: 'u' } },
+      openAccess: { user: { id: 'u' } },
     })
     const client = createHarnessClient<typeof studio>({
       url: 'http://local/api/harness',
@@ -214,7 +214,7 @@ describe('createHarnessClient', () => {
     const handler = createHarnessHandler({
       host,
       harness: studio,
-      openAccess: { principal: { id: 'u' } },
+      openAccess: { user: { id: 'u' } },
     })
     const client = createHarnessClient<typeof studio>({
       url: 'http://local/api/harness',
@@ -268,7 +268,7 @@ describe('client.events with no from', () => {
     const handler = createHarnessHandler({
       host,
       harness,
-      openAccess: { principal: { id: 'u' } },
+      openAccess: { user: { id: 'u' } },
     })
     const client = createHarnessClient<typeof harness>({
       url: 'http://local/api/harness',
@@ -333,7 +333,7 @@ describe('client.events with no from', () => {
 })
 
 describe('client.send to an agent run', () => {
-  it('sends a message to an agent run, as the request principal', async () => {
+  it('sends a message to an agent run, as the request user', async () => {
     const hold = gate()
     const drafter = defineAgent({
       name: 'drafter',
@@ -354,7 +354,7 @@ describe('client.send to an agent run', () => {
     const handler = createHarnessHandler({
       host,
       harness: studio,
-      openAccess: { principal: { id: 'u' } },
+      openAccess: { user: { id: 'u' } },
     })
     const client = createHarnessClient<typeof studio>({
       url: 'http://local/api/harness',
@@ -376,7 +376,7 @@ describe('client.send to an agent run', () => {
       {
         operationId: receipt.operationId,
         status: 'queued',
-        principal: { id: 'u' },
+        user: { id: 'u' },
       },
     ])
     hold.open()

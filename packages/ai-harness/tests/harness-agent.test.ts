@@ -210,11 +210,11 @@ describe('harnessAgent in a harness session', () => {
     })
     const a = await host.open(harness, {
       threadId: 't',
-      principal: { id: 'user-a' },
+      user: { id: 'user-a' },
     })
     const b = await host.open(harness, {
       threadId: 't',
-      principal: { id: 'user-b' },
+      user: { id: 'user-b' },
     })
 
     await expect(a.send('Go.')).resolves.toMatchObject({ text: 'First.' })

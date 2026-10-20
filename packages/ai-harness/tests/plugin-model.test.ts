@@ -45,7 +45,7 @@ async function open(plugins: Array<HarnessPlugin>, main: Array<Reply>) {
       adapter: mockAdapter(main).adapter,
       plugins: () => plugins,
     }),
-    { threadId: THREAD, principal: alice },
+    { threadId: THREAD, user: alice },
   )
   return { host, session, log }
 }
@@ -96,7 +96,7 @@ describe('ctx.model.chat', () => {
         source: 'plugin:test/checker',
         label: 'check',
         runId,
-        principal: alice,
+        user: alice,
       }),
     ])
     await waitFor(() =>

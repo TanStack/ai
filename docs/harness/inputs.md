@@ -118,7 +118,7 @@ const continuedReceipt = await client.continue({ inputId: 'req-43' })
 ```
 
 - `inputId` works as for `send`: a retry with the same id runs once.
-- `continue` takes `overrides`, `principal`, and `context` too, as `send` does. On a host with [`access`](./access), a session acts only as the user that opened it, so leave out `principal`.
+- `continue` takes `overrides`, `user`, and `context` too, as `send` does. On a host with [`access`](./access), a session acts only as the user that opened it, so leave out `user`.
 - When the turn starts, the last message of the transcript must be a user message or a tool result. Else the input is rejected with the reason `nothing_to_continue`, and `await continued` rejects with `InputRejectedError`.
 - A `continue` that a host left after a crash runs on the next host, as a prompt does.
 

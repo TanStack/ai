@@ -59,7 +59,7 @@ function setup() {
       }),
     })
   const share = (userId: string, role: 'member' | 'viewer') =>
-    host.sessions.share({ threadId: 't1', userId, role, principal: olga })
+    host.sessions.share({ threadId: 't1', userId, role, user: olga })
   return { host, harness, handler, call, prompt, share, persistence }
 }
 
@@ -105,7 +105,7 @@ describe('handlers and sockets fail closed', () => {
         harness,
         socket: fakeSocket().socket,
         request: requestAs('olga'),
-        openAccess: { principal: olga },
+        openAccess: { user: olga },
       }),
     ).toThrow('handleHarnessSocket: the host has access')
     await host.close()
@@ -123,7 +123,7 @@ describe('the handler on a host with access', () => {
     expect((await call('cid', 'events?threadId=t-none')).status).toBe(404)
     expect((await call('cid', 'snapshot?threadId=t-none')).status).toBe(404)
     expect(
-      await host.sessions.get({ threadId: 't-none', principal: cid }),
+      await host.sessions.get({ threadId: 't-none', user: cid }),
     ).toBeUndefined()
     await host.close()
   })
@@ -182,7 +182,7 @@ describe('the handler on a host with access', () => {
     await host.sessions.unshare({
       threadId: 't1',
       userId: 'bea',
-      principal: olga,
+      user: olga,
     })
 
     expect((await fetchSigned()).status).toBe(403)
@@ -196,7 +196,7 @@ describe('the handler on a host with access', () => {
     const response = await call('bea', 'events?threadId=t1')
     const reading = readSse(response, () => false)
 
-    host.revoke({ threadId: 't1', principal: bea })
+    host.revoke({ threadId: 't1', user: bea })
 
     // The read ends only when the stream closes.
     await expect(reading).resolves.toBeInstanceOf(Array)
@@ -213,7 +213,7 @@ describe('the handler on a host with access', () => {
     const response = await call('bea', 'events?threadId=t1')
     const reading = readSse(response, () => false)
 
-    host.revoke({ threadId: 't1', principal: bea })
+    host.revoke({ threadId: 't1', user: bea })
 
     await expect(reading).resolves.toBeInstanceOf(Array)
     expect(everyTenant).not.toHaveBeenCalled()
@@ -232,7 +232,7 @@ describe('the handler on a host with access', () => {
         if (frame.type === 'harness.hello') {
           for (const title of ['a', 'b', 'c']) {
             renames.push(
-              host.sessions.rename({ threadId: 't1', title, principal: olga }),
+              host.sessions.rename({ threadId: 't1', title, user: olga }),
             )
           }
         }
@@ -260,8 +260,8 @@ describe('the handler on a host with access', () => {
       createdAt: 1,
       updatedAt: 1,
     })
-    const rename = (threadId: string, title: string, principal = olga) =>
-      host.sessions.rename({ threadId, title, principal })
+    const rename = (threadId: string, title: string, user = olga) =>
+      host.sessions.rename({ threadId, title, user })
     const steps: Array<Promise<unknown>> = []
     const titleOf = (frame: { type: string } | HostEvent) =>
       'entry' in frame ? frame.entry.title : undefined
@@ -279,7 +279,7 @@ describe('the handler on a host with access', () => {
               await host.sessions.unshare({
                 threadId: 't1',
                 userId: 'bea',
-                principal: olga,
+                user: olga,
               })
               await rename('subagent:c1', 'after')
               await rename('b1', 'end', bea)
@@ -351,7 +351,7 @@ describe('a new thread and a deleted thread', () => {
     expect((await remove('cid', 't1')).status).toBe(403)
     expect((await remove('cid', 't-none')).status).toBe(404)
     expect(
-      await host.sessions.get({ threadId: 't1', principal: olga }),
+      await host.sessions.get({ threadId: 't1', user: olga }),
     ).toBeDefined()
     expect((await remove('olga', 't1')).status).toBe(204)
     await host.close()
@@ -361,16 +361,16 @@ describe('a new thread and a deleted thread', () => {
     const { host, harness } = setup()
     const session = await host.open(harness, {
       threadId: 't1',
-      principal: olga,
+      user: olga,
     })
     await session.send('A secret.')
     expect(await session.transcript()).not.toEqual([])
 
-    await host.sessions.delete({ threadId: 't1', principal: olga })
+    await host.sessions.delete({ threadId: 't1', user: olga })
 
     const reopened = await host.open(harness, {
       threadId: 't1',
-      principal: bea,
+      user: bea,
     })
     expect(await reopened.transcript()).toEqual([])
     await host.close()
@@ -431,7 +431,7 @@ describe('the socket on a host with access', () => {
       expect(sent.some((frame) => frame.type === 'harness.hello')).toBe(true),
     )
 
-    host.revoke({ threadId: 't1', principal: bea })
+    host.revoke({ threadId: 't1', user: bea })
 
     await waitFor(() => expect(closed).toEqual([4403]))
     expect(sent.at(-1)).toEqual({

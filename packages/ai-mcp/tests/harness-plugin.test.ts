@@ -65,7 +65,7 @@ async function openWith(
   })
   const session = await host.open(harness, {
     threadId: 't',
-    principal: { id: 'user-1' },
+    user: { id: 'user-1' },
   })
   return { host, session, model }
 }

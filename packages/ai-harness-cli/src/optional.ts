@@ -1,4 +1,4 @@
-import type { AnyHarness, HarnessHost, Principal } from '@tanstack/ai-harness'
+import type { AnyHarness, HarnessHost, HarnessUser } from '@tanstack/ai-harness'
 import type { OpenAccess } from '@tanstack/ai-harness/server'
 
 // The packages behind `--acp`, `--mcp`, and `/mcp` are optional. The
@@ -67,11 +67,11 @@ export interface McpFetchServer {
 
 /** `@tanstack/ai-mcp/harness` */
 export interface McpHarnessModule {
-  createHarnessMcpServer: <P extends Principal>(options: {
-    host: HarnessHost<P>
+  createHarnessMcpServer: <U extends HarnessUser>(options: {
+    host: HarnessHost<U>
     harness: AnyHarness
     /** For a host without access: who the calls run as. */
-    openAccess?: OpenAccess<P>
+    openAccess?: OpenAccess<U>
     threadId?: string
     approvals?: 'ask' | 'auto'
     filePaths?: Array<string>
@@ -85,11 +85,11 @@ export interface McpStdioModule {
 
 /** `@tanstack/ai-acp/agent` */
 export interface AcpAgentModule {
-  serveAcp: <P extends Principal>(options: {
-    host: HarnessHost<P>
+  serveAcp: <U extends HarnessUser>(options: {
+    host: HarnessHost<U>
     harness: AnyHarness
     /** The local user. Required on a host with access. */
-    principal?: P
+    user?: U
   }) => {
     closed: Promise<unknown>
     close: () => void

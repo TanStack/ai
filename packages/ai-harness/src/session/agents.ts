@@ -39,7 +39,7 @@ import {
   inputKey,
   isAgentInput,
   runNodeRecord,
-  storedPrincipal,
+  storedUser,
   isSameSender,
   resetCut,
   referenceNote,
@@ -91,7 +91,7 @@ import type {
   SettlementOutcome,
   MediaRecord,
   Operation,
-  Principal,
+  HarnessUser,
   Receipt,
   RunContext,
   UserInput,
@@ -154,10 +154,10 @@ export abstract class SessionAgents<
       this.feed,
       () => {
         // It acts as the user of the run, as a cancel of the run does.
-        const principal = this.principalOfRun(target)
+        const user = this.userOfRun(target)
         return this.cancel({
           operationId: target,
-          ...(principal ? { principal } : {}),
+          ...(user ? { user } : {}),
         })
       },
       chain?.agent,
@@ -225,7 +225,7 @@ export abstract class SessionAgents<
 
   /**
    * Add a message to the agent run `operationId`, as `AgentRun.send` does.
-   * `principal` is who sent it. A follow-up runs for its sender. An unknown
+   * `user` is who sent it. A follow-up runs for its sender. An unknown
    * run gets `not_running`.
    */
   protected async sendToAgent(options: {
@@ -233,7 +233,7 @@ export abstract class SessionAgents<
     message: UserInput
     mode?: 'steer' | 'followUp'
     inputId?: string
-    principal?: Principal
+    user?: HarnessUser
   }): Promise<Receipt> {
     const { operationId, message } = options
     const inputId = options.inputId ?? createInputId()
@@ -244,7 +244,7 @@ export abstract class SessionAgents<
     if (runInputId === undefined) {
       return { inputId, status: 'rejected', reason: 'not_running' }
     }
-    const principal = options.principal ?? this.principal
+    const user = options.user ?? this.user
     const mode = options.mode ?? 'steer'
     return this.admitting(async () => {
       const admission = await this.accept(
@@ -256,12 +256,12 @@ export abstract class SessionAgents<
           mode,
           run: runInputId,
         },
-        principal,
+        user,
       )
       if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
       // This host owns the log, and no run of this host has the chain.
       if (!chain) return this.reject(inputId, 'not_running')
-      const sent = { inputId, message, ...(principal ? { principal } : {}) }
+      const sent = { inputId, message, ...(user ? { user } : {}) }
       return this.keep({ inputId, ...this.deliver(chain, sent, mode) })
     })
   }
@@ -286,7 +286,7 @@ export abstract class SessionAgents<
   agentRuns(): Array<AgentRunInfo> {
     const { tree } = this.writer.state.thread
     const live = [...this.agentChains.values()].flatMap((chain) =>
-      [...chain.runs, ...chain.followUps].map(({ operation, principal }) => {
+      [...chain.runs, ...chain.followUps].map(({ operation, user }) => {
         // A follow-up that waits has no node in the tree yet.
         const parentRunId = chain.parentRunId ?? chain.turnRunId
         const node: RunTreeNode = tree.get(operation.id) ?? {
@@ -295,12 +295,12 @@ export abstract class SessionAgents<
           status: 'queued',
           ...(parentRunId !== undefined ? { parentRunId } : {}),
         }
-        const { principal: _logged, ...rest } = node
+        const { user: _logged, ...rest } = node
         return agentRunInfo(
           {
             ...rest,
             status: runStatus(operation.status()),
-            ...(principal ? { principal } : {}),
+            ...(user ? { user } : {}),
           },
           chain.agent,
           operation.subagentRunId,
@@ -431,7 +431,7 @@ export abstract class SessionAgents<
       this.endAgentRun(operation, settlement)
       return {
         operation,
-        ...(node.principal ? { principal: node.principal } : {}),
+        ...(node.user ? { user: node.user } : {}),
       }
     })
     const [firstRun, ...later] = entries
@@ -452,9 +452,9 @@ export abstract class SessionAgents<
    * `harness.media` event for each file, and pushes its record to
    * `captured`. The agents read the provider keys of `run` as `ctx.keys`, and
    * their tools read `run` as `ctx.context.run`. Their model calls count in
-   * the usage of `principal`, the user of `run`. With `turn` (the subagents
+   * the usage of `user`, the user of `run`. With `turn` (the subagents
    * of a turn), the agent tools can start them in the background, for
-   * `principal`. A wait of a child (an approval, a question, `step.ask`)
+   * `user`. A wait of a child (an approval, a question, `step.ask`)
    * is a wait of the turn, and the turn's resume continues the child, unless
    * `durability.agentToolWaits` is `false`. A run that the turn starts keeps
    * its plugins until it settles. A tool-mode child gets `ctx.harness`, and
@@ -465,7 +465,7 @@ export abstract class SessionAgents<
   protected binding(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
     captured: Array<MediaRecord>,
-    principal: Principal | undefined,
+    user: HarnessUser | undefined,
     run: RunContext,
     runPlugins?: MountedPlugins,
     turn?: {
@@ -503,7 +503,7 @@ export abstract class SessionAgents<
           {
             ...startOptions,
             ...(resume ? { resume } : {}),
-            ...(principal ? { principal } : {}),
+            ...(user ? { user } : {}),
           },
           undefined,
           {
@@ -551,12 +551,11 @@ export abstract class SessionAgents<
                   this.askInTurn(scope, question, child.resume),
                 ).step
               : NO_SESSION_CONTEXT.step,
-            agents: this.turnChildAgents(operation, principal, turn),
+            agents: this.turnChildAgents(operation, user, turn),
             state: (stateOptions) => this.sharedState(stateOptions),
             handoff,
           },
-          (inner, ctx) =>
-            this.runHarnessChild(inner, ctx, { operation, principal }),
+          (inner, ctx) => this.runHarnessChild(inner, ctx, { operation, user }),
           run,
         )
         return { harness }
@@ -590,7 +589,7 @@ export abstract class SessionAgents<
           : agentMiddleware),
         // A routed root agent gets the thread too, so a reset cuts it as well.
         resetCut,
-        this.usageCounter(operation, principal),
+        this.usageCounter(operation, user),
         this.toolCallTracker(operation),
         // Last, because a later middleware that returns `messages` resets
         // what the model gets. A child's adapter is not known here, so only
@@ -679,10 +678,9 @@ export abstract class SessionAgents<
     )
     // The agent runs for the user who starts it, also after the turn that
     // starts it ends. A child of agent code runs for its parent run's user.
-    // Without either, it runs for the principal that opened the session.
-    const principal =
-      options.principal ?? (parent ? parent.current.principal : this.principal)
-    const sender = principal ? { principal } : {}
+    // Without either, it runs for the user that opened the session.
+    const user = options.user ?? (parent ? parent.current.user : this.user)
+    const sender = user ? { user } : {}
     const fromParent = parent
       ? {
           parentRunId: parent.current.operation.id,
@@ -762,19 +760,19 @@ export abstract class SessionAgents<
    * `ctx.harness.agents` of a tool-mode child of the turn `operation`. Each
    * start counts against the turn's tree budget, one level below the child,
    * as core counts the child's own subagents. Over it, the start throws. The
-   * runs are children of the turn in the run tree, run for `principal`, and
+   * runs are children of the turn in the run tree, run for `user`, and
    * keep the turn plugins.
    */
   protected turnChildAgents(
     operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>,
-    principal: Principal | undefined,
+    user: HarnessUser | undefined,
     turn: { budget: SubagentBudget; plugins?: HeldPlugins },
   ): AgentActions {
     // ponytail: a nested tool-mode child counts at depth 1 too: core passes
     // `extend` down unchanged, so its depth is not known here.
     const budget = turn.budget.child()
     const started: Array<AgentRunImpl> = []
-    const user = principal ? { principal } : {}
+    const asUser = user ? { user } : {}
     return this.agentActions((target, input, options) => {
       // ponytail: a child that waits for a slot of its group counts as
       // active here too.
@@ -788,7 +786,7 @@ export abstract class SessionAgents<
         const run = this.runAgent(
           target,
           input,
-          { ...user, ...admitted },
+          { ...asUser, ...admitted },
           undefined,
           {
             subagentRunId: createSubagentId(),
@@ -810,7 +808,7 @@ export abstract class SessionAgents<
    * Run `harness` as a child session of the run `parent.operation`, for
    * `harnessAgent`: a session of `harness` on the thread
    * `${rootThreadId}/agent/${subagentRunId}`, in the log of the root thread.
-   * The child runs for `parent.principal`, with the keys of that user. Its
+   * The child runs for `parent.user`, with the keys of that user. Its
    * model calls count in the usage and the budget of the parent run. While
    * a turn of the child waits, the snapshot of this session lists its waits,
    * and an answer here continues the child, in the parent run: its receipt
@@ -825,7 +823,7 @@ export abstract class SessionAgents<
     ctx: SubagentRunContext,
     parent: {
       operation: OperationImpl<unknown> | OperationImpl<ChatTurnResult>
-      principal: Principal | undefined
+      user: HarnessUser | undefined
     },
   ): AsyncGenerator<StreamChunk> {
     const open = this.openChild
@@ -835,7 +833,7 @@ export abstract class SessionAgents<
     const used = emptyCounts()
     const session = await open(harness, {
       threadId,
-      principal: parent.principal,
+      user: parent.user,
       child: {
         rootThreadId: this.rootThreadId,
         parentThreadId: this.threadId,
@@ -1166,7 +1164,7 @@ export abstract class SessionAgents<
         runId: operation.id,
         kind: 'agent',
         inputId,
-        principal: chain.current.principal,
+        user: chain.current.user,
         agent: chain.agent,
         chainInputId: chain.runInputId,
         options: chain.options,
@@ -1323,16 +1321,16 @@ export abstract class SessionAgents<
     subagentRunId?: string,
   ): AgentRunImpl {
     // A call on the run itself acts as the user of the run, not as the
-    // principal that opened the session. A handle passes its own principal.
-    const user = (running: string) => {
-      const principal = this.principalOfRun(running)
-      return principal ? { principal } : {}
+    // user that opened the session. A handle passes its own user.
+    const asUserOf = (running: string) => {
+      const user = this.userOfRun(running)
+      return user ? { user } : {}
     }
     const operation = new OperationImpl<unknown>(
       'agent',
       this.feed,
       (running) =>
-        this.cancel({ operationId: running.id, ...user(running.id) }),
+        this.cancel({ operationId: running.id, ...asUserOf(running.id) }),
       agent,
       id,
       startedCursor,
@@ -1350,11 +1348,11 @@ export abstract class SessionAgents<
           options?: {
             mode?: 'steer' | 'followUp'
             inputId?: string
-            principal?: Principal
+            user?: HarnessUser
           },
         ) =>
           this.sendToAgent({
-            ...user(operation.id),
+            ...asUserOf(operation.id),
             ...options,
             operationId: operation.id,
             message,
@@ -1377,7 +1375,7 @@ export abstract class SessionAgents<
       | 'target'
       | 'input'
       | 'options'
-      | 'principal'
+      | 'user'
       | 'parentRunId'
       | 'parentChainInputId'
       | 'release'
@@ -1423,7 +1421,7 @@ export abstract class SessionAgents<
       undefined,
       subagentRunId,
     )
-    const sender = input.principal ? { principal: input.principal } : {}
+    const sender = input.user ? { user: input.user } : {}
     const chain = this.createChain(this.loggedFields(first), {
       operation,
       ...sender,
@@ -1468,7 +1466,7 @@ export abstract class SessionAgents<
       undefined,
       node?.subagentRunId,
     )
-    const sender = input.principal ? { principal: input.principal } : {}
+    const sender = input.user ? { user: input.user } : {}
     const chain = this.createChain(this.loggedFields(input), {
       operation,
       ...sender,
@@ -1686,14 +1684,12 @@ export abstract class SessionAgents<
     sent: AgentMessage,
     mode: 'steer' | 'followUp',
   ) {
-    const { operation: running, principal } = chain.current
+    const { operation: running, user } = chain.current
     // A steer joins only a run of its own sender, so no message runs with
     // another person's credentials. Any other message runs as a follow-up,
     // for its sender.
     const isOwnSteer =
-      mode === 'steer' &&
-      !running.isSettled() &&
-      isSameSender(sent.principal, principal)
+      mode === 'steer' && !running.isSettled() && isSameSender(sent.user, user)
     if (isOwnSteer) {
       chain.steers.push(sent)
       return { status: 'accepted' as const, operationId: running.id }
@@ -1731,7 +1727,7 @@ export abstract class SessionAgents<
     if (!next) return
     chain.current = {
       operation: next.operation,
-      ...(next.principal ? { principal: next.principal } : {}),
+      ...(next.user ? { user: next.user } : {}),
     }
     chain.runs.push(chain.current)
     void this.executeAgent(next.operation, chain, {
@@ -1753,7 +1749,7 @@ export abstract class SessionAgents<
     const { agent: name, target, input, options } = chain
     const { inputId } = start
     // This run is the chain's current run.
-    const { principal } = chain.current
+    const { user } = chain.current
     const { answers } = start
     if (!start.resumed && !start.message && !answers) {
       // A queued start that recovery runs is in the log already. With no
@@ -1771,7 +1767,7 @@ export abstract class SessionAgents<
               ...(options.attach === 'none' ? { attach: 'none' as const } : {}),
               ...(chain.parentRunId ? { parentRunId: chain.parentRunId } : {}),
             },
-            principal,
+            user,
             {
               // An offered run runs as this operation on the owner.
               runId: operation.id,
@@ -1785,7 +1781,7 @@ export abstract class SessionAgents<
                         runId: operation.id,
                         kind: 'agent',
                         inputId,
-                        principal,
+                        user,
                         agent: name,
                         chainInputId: chain.runInputId,
                         options,
@@ -1890,7 +1886,7 @@ export abstract class SessionAgents<
             runId: operation.id,
             kind: 'agent',
             inputId,
-            principal,
+            user,
             agent: name,
             chainInputId: chain.runInputId,
             options,
@@ -1920,7 +1916,8 @@ export abstract class SessionAgents<
       // Only a run that agent code started: core reads a parent run here as
       // a chat run whose child cards it shows.
       ...(chain.parentRunId ? { parentRunId: chain.parentRunId } : {}),
-      ...storedPrincipal(principal),
+      // `RunRecord` is a published type: it keeps the user as `principal`.
+      ...(user ? { principal: storedUser(user).user } : {}),
     })
     if (answers) await runs.update(operation.id, { status: 'running' })
     // The run that started this one: a reader rebuilds the run tree from it.
@@ -1970,7 +1967,7 @@ export abstract class SessionAgents<
       // The run that started this one: agent code, else a turn.
       const parentRunId = chain.parentRunId ?? chain.turnRunId
       const run = this.runContext({
-        principal,
+        user,
         runId: operation.id,
         ...(parentRunId ? { parentRunId } : {}),
         signal: operation.abortController.signal,
@@ -1980,7 +1977,7 @@ export abstract class SessionAgents<
       // not disposed. A follow-up after the turn and its runs gets none.
       const { plugins } = chain
       const runPlugins = plugins?.hold(operation) ? plugins.plugins : undefined
-      const binding = this.binding(operation, [], principal, run, runPlugins)
+      const binding = this.binding(operation, [], user, run, runPlugins)
       const durable = options.resume ? this.resumable(inputId, run) : undefined
       const harnessContext: HarnessAgentContext = withHarnessChild(
         {
@@ -1990,8 +1987,7 @@ export abstract class SessionAgents<
           // A background run does not answer a turn, so it cannot hand off.
           handoff: NO_SESSION_CONTEXT.handoff,
         },
-        (inner, ctx) =>
-          this.runHarnessChild(inner, ctx, { operation, principal }),
+        (inner, ctx) => this.runHarnessChild(inner, ctx, { operation, user }),
         run,
       )
       const stream = runAgentStream(
@@ -2152,7 +2148,7 @@ export abstract class SessionAgents<
     }
     // The run settled already: a note that fails must not leave it open.
     const note = (ended: 'finished' | 'failed', result: unknown) =>
-      this.noteAgentEnd(name, ended, result, options, principal).catch(
+      this.noteAgentEnd(name, ended, result, options, user).catch(
         (error: unknown) => this.warnSession('harness:agents', error),
       )
     // A recoverable close: the run stops as on a crash, and the next host
@@ -2251,7 +2247,7 @@ export abstract class SessionAgents<
     subagentRunId: string
     interrupts: ReadonlyArray<Interrupt>
   }) {
-    const { principal } = chain.current
+    const { user } = chain.current
     // First, so an answer that comes at once finds the run here.
     this.holdWaitingRun({ operation, chain, inputId, subagentRunId })
     await this.runStore.update(operation.id, { status: 'interrupted' })
@@ -2261,7 +2257,7 @@ export abstract class SessionAgents<
         const wait = waitOfInterrupt({
           interrupt,
           runId: operation.id,
-          ...storedPrincipal(principal),
+          ...storedUser(user),
         })
         const expiresAt = expiryOf(wait.kind, wait.expiresAt, at)
         return {
@@ -2333,7 +2329,7 @@ export abstract class SessionAgents<
       runId,
       this.runStart(runId),
     )
-    const sender = input.principal ? { principal: input.principal } : {}
+    const sender = input.user ? { user: input.user } : {}
     const chain = this.createChain(this.loggedFields(first), {
       operation,
       ...sender,
@@ -2425,8 +2421,8 @@ export abstract class SessionAgents<
       const connector = opened && signInOf(interruptOf(opened))?.connector
       if (!connector) continue
       // Another user's credential never answers this sign-in.
-      const principal = wait.principal ?? this.principal
-      if (!(await this.credentialsOf(principal).get(connector))) continue
+      const user = wait.user ?? this.user
+      if (!(await this.credentialsOf(user).get(connector))) continue
       await this.resolve({
         resume: [
           {
@@ -2436,7 +2432,7 @@ export abstract class SessionAgents<
           },
         ],
         inputId: `sign-in:${wait.waitId}`,
-        ...(principal ? { principal } : {}),
+        ...(user ? { user } : {}),
       })
     }
   }
@@ -2505,14 +2501,14 @@ export abstract class SessionAgents<
       // Another call started it during the wait for the log.
       if (isRunning()) continue
       // Recovery must not run it again.
-      this.admitted.set(input.inputId, inputKey(input.input, input.principal))
+      this.admitted.set(input.inputId, inputKey(input.input, input.user))
       this.warnLiveOnly(runId)
       const operation = this.agentOperation(
         first.input.agent,
         runId,
         this.runStart(runId),
       )
-      const sender = input.principal ? { principal: input.principal } : {}
+      const sender = input.user ? { user: input.user } : {}
       const chain = this.createChain(this.loggedFields(first), {
         operation,
         ...sender,
@@ -2564,14 +2560,14 @@ export abstract class SessionAgents<
   /**
    * Tell the main model how an agent ended: a transcript note (unless
    * `attach: 'none'`), and a new chat turn when `wake` is set. The wake turn
-   * runs as `principal`, the user who started the agent.
+   * runs as `user`, the user who started the agent.
    */
   protected async noteAgentEnd(
     name: string,
     ended: 'finished' | 'failed',
     result: unknown,
     options: AgentStartOptions,
-    principal?: Principal,
+    user?: HarnessUser,
   ): Promise<void> {
     const note = referenceNote(name, result, ended)
     if ((options.attach ?? 'reference') === 'reference') {
@@ -2583,7 +2579,7 @@ export abstract class SessionAgents<
           op: 'followUp',
           message: `Background agent ${name} ${ended}: ${note}`,
         },
-        { ...(principal ? { principal } : {}), wake: true },
+        { ...(user ? { user } : {}), wake: true },
       ).receipt.then(
         // A refused wake (the thread waits for an interrupt) is reported.
         (receipt) => {
@@ -2605,7 +2601,7 @@ export abstract class SessionAgents<
     inputId?: string
     wake?: boolean
     /** Who started the agent. The wake turn runs as this user. */
-    principal?: Principal
+    user?: HarnessUser
     /** Why it failed. Default: the host stopped. */
     error?: InputSettlement['error']
   }): Promise<void> {
@@ -2646,7 +2642,7 @@ export abstract class SessionAgents<
       'failed',
       error.message,
       { wake: stopped.wake === true },
-      stopped.principal,
+      stopped.user,
     )
   }
 
@@ -2715,7 +2711,7 @@ function agentRunInfo(
     ...(node.parentRunId !== undefined
       ? { parentRunId: node.parentRunId }
       : {}),
-    ...(node.principal ? { principal: node.principal } : {}),
+    ...(node.user ? { user: node.user } : {}),
     ...(node.budget ? { budget: node.budget } : {}),
     ...(node.result !== undefined ? { result: node.result } : {}),
     ...(node.error ? { error: node.error } : {}),

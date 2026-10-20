@@ -43,8 +43,8 @@ function setup(options: { media?: MediaOptions; secret?: string } = {}) {
       access: {
         identify: ({ request }) => identify(request),
         policy: {
-          authorize: ({ principal, session }) =>
-            session.threadId.startsWith(principal.id),
+          authorize: ({ user, session }) =>
+            session.threadId.startsWith(user.id),
         },
       },
     })
@@ -281,8 +281,8 @@ describe('media upload and signed URLs', () => {
           identify: () => null,
           ...(anonymous ? { anonymous: () => ({ id: 'guest' }) } : {}),
           policy: {
-            authorize: ({ principal, action }) =>
-              canRead && principal.id === 'guest' && action === 'read',
+            authorize: ({ user, action }) =>
+              canRead && user.id === 'guest' && action === 'read',
           },
         },
       })
@@ -395,7 +395,7 @@ describe('media upload and signed URLs', () => {
     const record = await upload('user-1-a')
     const { path } = await signedPath(record)
 
-    await host.sessions.delete({ threadId: 'user-1-a', principal: user })
+    await host.sessions.delete({ threadId: 'user-1-a', user })
     const response = await fetchSigned(path)
 
     expect(response.status).toBe(404)
@@ -414,11 +414,11 @@ describe('media upload and signed URLs', () => {
     await host.close()
   })
 
-  it('serves an unsigned GET only to a principal that can open the thread', async () => {
+  it('serves an unsigned GET only to a user that can open the thread', async () => {
     const { host, harness, call, upload, fetchSigned } = setup()
     await host.open(harness, {
       threadId: 'someone-else',
-      principal: { id: 'someone' },
+      user: { id: 'someone' },
     })
     const record = await upload('user-1-a')
     const path = `media?threadId=user-1-a&id=${record.id}`

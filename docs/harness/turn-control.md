@@ -195,7 +195,7 @@ A `session.tool()` turn takes no messages. It runs no model, so nothing could an
 
 A turn that `routing` sends to root agents takes messages, the same as the main model. The root agents get them at each model call.
 
-A joined message runs with the credentials of the sender of the turn. So without `turn.canJoin`, a waiting message joins the running turn only when the same person sent both. A message from another person waits and runs as its own turn after the running one, as its sender. Joins are a prefix, so it also holds back the messages that wait after it. Set `canJoin` to choose your own rule. Compare `principal` with `turnPrincipal` to keep one person's message out of another person's turn. See [Keep other people out of a running turn](./shared-threads#5-keep-other-people-out-of-a-running-turn).
+A joined message runs with the credentials of the sender of the turn. So without `turn.canJoin`, a waiting message joins the running turn only when the same person sent both. A message from another person waits and runs as its own turn after the running one, as its sender. Joins are a prefix, so it also holds back the messages that wait after it. Set `canJoin` to choose your own rule. Compare `user` with `turnUser` to keep one person's message out of another person's turn. See [Keep other people out of a running turn](./shared-threads#5-keep-other-people-out-of-a-running-turn).
 
 `onJoin` runs before the model call that the joined messages reach. It can return messages, which come after the joined ones, and records, which land in the same append as the join.
 

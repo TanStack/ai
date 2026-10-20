@@ -1,9 +1,9 @@
 import type { SessionMember } from '@tanstack/ai-persistence'
-import type { Principal } from './types'
+import type { HarnessUser } from './types'
 import type { WaitKind } from './waits'
 
 /**
- * What a principal tries to do with a session.
+ * What a user tries to do with a session.
  *
  * - `read`: stream, snapshot, transcript, media, and child runs.
  * - `list`: see the session in a list of sessions.
@@ -49,8 +49,8 @@ export interface AccessSession {
 /** The run that an `answer` or `cancel` targets: who started it. */
 export interface AccessRun {
   runId: string
-  /** The id of the principal who started the run. */
-  principalId?: string
+  /** The id of the user who started the run. */
+  userId?: string
 }
 
 /** The wait that an `answer` or `operator` action answers. */
@@ -60,8 +60,8 @@ export interface AccessWait {
 }
 
 /** What `authorize` gets for one action. */
-export interface AuthorizeInput<P extends Principal = Principal> {
-  principal: P
+export interface AuthorizeInput<U extends HarnessUser = HarnessUser> {
+  user: U
   action: AccessAction
   session: AccessSession
   /** The run that an `answer` or `cancel` targets, when the host knows it. */
@@ -70,9 +70,9 @@ export interface AuthorizeInput<P extends Principal = Principal> {
   wait?: AccessWait
 }
 
-/** Decide if a principal may do one action. Return `false` to refuse. */
-export type Authorize<P extends Principal = Principal> = (
-  input: AuthorizeInput<P>,
+/** Decide if a user may do one action. Return `false` to refuse. */
+export type Authorize<U extends HarnessUser = HarnessUser> = (
+  input: AuthorizeInput<U>,
 ) => boolean | Promise<boolean>
 
 /**
@@ -94,19 +94,19 @@ export interface AccessMembers {
  * The rules of a host: the `policy` of {@link HarnessAccess}.
  * {@link membersOnly} returns one, or write your own with only `authorize`.
  */
-export interface AccessPolicy<P extends Principal = Principal> {
+export interface AccessPolicy<U extends HarnessUser = HarnessUser> {
   /**
-   * What a principal may do. Called for every action. The harness checks
+   * What a user may do. Called for every action. The harness checks
    * the tenant before it calls this.
    */
-  authorize: Authorize<P>
+  authorize: Authorize<U>
   /**
    * A filter that `host.sessions.list` passes to the sessions store, so a
    * page holds only sessions that the user can list. `authorize` still
    * checks each entry. Without it, the store gives every session of the
    * tenant, and `authorize` drops the others, so a page can come back short.
    */
-  listFilter?: (principal: P) => { memberId?: string }
+  listFilter?: (user: U) => { memberId?: string }
   /**
    * Turn on `host.sessions.share` and `unshare`, which change the members
    * list of a session, and set the members of a fork. Without it, `share`
@@ -118,7 +118,7 @@ export interface AccessPolicy<P extends Principal = Principal> {
 
 /**
  * Who may use the sessions of a host, and what they may do. The type of the
- * principal comes from the return value of `identify`.
+ * user comes from the return value of `identify`.
  *
  * @example
  * access: {
@@ -126,17 +126,17 @@ export interface AccessPolicy<P extends Principal = Principal> {
  *   policy: membersOnly(),
  * }
  */
-export interface HarnessAccess<P extends Principal = Principal> {
+export interface HarnessAccess<U extends HarnessUser = HarnessUser> {
   /**
    * Who is calling: your own login check, once per request. Return null to
    * refuse with 401.
    */
-  identify: (input: { request: Request }) => P | null | Promise<P | null>
+  identify: (input: { request: Request }) => U | null | Promise<U | null>
   /**
    * What each user may do: `membersOnly()`, or your own
    * `{ authorize, listFilter?, members? }`.
    */
-  policy: AccessPolicy<P>
+  policy: AccessPolicy<U>
   /**
    * A guest for a signed media URL with no login, for example an `<img>`
    * that sends no cookies. The handler calls it only on the signed media
@@ -150,7 +150,7 @@ export interface HarnessAccess<P extends Principal = Principal> {
    */
   anonymous?: (input: {
     tenantId: string | undefined
-  }) => P | null | Promise<P | null>
+  }) => U | null | Promise<U | null>
   /**
    * Let keyed (BYOK) adapters and `ctx.keys` fall back to the server's env
    * vars. Default `false` when access is on.
@@ -160,7 +160,7 @@ export interface HarnessAccess<P extends Principal = Principal> {
 
 /**
  * Thrown when the host refuses an action: `authorize` returned `false`, or
- * `host.revoke` took the access of the handle's principal. The HTTP handler
+ * `host.revoke` took the access of the handle's user. The HTTP handler
  * answers it with 403. Catch it with `instanceof AccessDeniedError`.
  */
 export class AccessDeniedError extends Error {
@@ -218,7 +218,7 @@ export function ownerOf(session: Pick<AccessSession, 'members'>) {
 
 function allows(
   role: Role,
-  { principal, action, run }: AuthorizeInput,
+  { user, action, run }: AuthorizeInput,
   operators: ReadonlyArray<Role>,
 ) {
   switch (action) {
@@ -232,7 +232,7 @@ function allows(
       return operators.includes(role)
     case 'answer':
     case 'cancel': {
-      const startedTheRun = run?.principalId === principal.id
+      const startedTheRun = run?.userId === user.id
       return role === 'owner' || (role === 'member' && startedTheRun)
     }
     case 'configure':
@@ -280,11 +280,11 @@ export function membersOnly(
   const operators = options.operator?.roles ?? ['operator']
   return {
     authorize: (input) => {
-      const role = roleOf(input.session, input.principal.id)
+      const role = roleOf(input.session, input.user.id)
       if (role === undefined) return false
       return allows(role, input, operators)
     },
-    listFilter: (principal) => ({ memberId: principal.id }),
+    listFilter: (user) => ({ memberId: user.id }),
     members: { fork: options.fork?.members ?? 'self' },
   }
 }

@@ -30,7 +30,7 @@ import {
   errorText,
   cacheObject,
   toolCallOf,
-  storedPrincipal,
+  storedUser,
   turnContext,
   withRun,
   settingTools,
@@ -76,7 +76,7 @@ import type {
   SettlementOutcome,
   MediaRecord,
   Operation,
-  Principal,
+  HarnessUser,
   RunContext,
   TurnInfo,
   UserInput,
@@ -91,7 +91,7 @@ export abstract class SessionTurn<
 > extends SessionAgents<THarness> {
   /**
    * Run the plugin command `name`. Its `input` is checked against the
-   * command's schema. `principal` is who runs it. Default: the principal that
+   * command's schema. `user` is who runs it. Default: the user that
    * opened the session. The log keeps it, and the command gets that user's
    * credentials. `inputId` means the same as in `send`: a second command
    * with the same id is a duplicate.
@@ -102,7 +102,7 @@ export abstract class SessionTurn<
    * ```
    */
   command(
-    options: CommandOptions & { principal?: Principal; inputId?: string },
+    options: CommandOptions & { user?: HarnessUser; inputId?: string },
   ): Operation<unknown> {
     const { name, input } = options
     const operation = new OperationImpl<unknown>(
@@ -111,10 +111,10 @@ export abstract class SessionTurn<
       (target) => this.cancel({ operationId: target.id }),
     )
     this.track(operation)
-    const principal = options.principal ?? this.principal
+    const user = options.user ?? this.user
     // A store write that throws (the log) still ends the command.
     const inputId = options.inputId ?? createInputId()
-    this.executeCommand(operation, name, input, principal, inputId).catch(
+    this.executeCommand(operation, name, input, user, inputId).catch(
       (error: unknown) => this.failOperation(operation, error),
     )
     return operation
@@ -124,7 +124,7 @@ export abstract class SessionTurn<
     operation: OperationImpl<unknown>,
     name: string,
     input: unknown,
-    principal: Principal | undefined,
+    user: HarnessUser | undefined,
     inputId: string,
   ): Promise<void> {
     // The log keeps the input for replay, so a command must not take a secret
@@ -132,7 +132,7 @@ export abstract class SessionTurn<
     const admission = await this.accept(
       inputId,
       { op: 'command', name, input },
-      principal,
+      user,
     )
     // The owner runs it, or it ran before. Its result is in the events.
     if (admission !== 'new') {
@@ -176,7 +176,7 @@ export abstract class SessionTurn<
       name,
       command: entry.command,
       input: checked,
-      principal,
+      user,
       inputId,
     })
   }
@@ -191,7 +191,7 @@ export abstract class SessionTurn<
     inputId: string
     name: string
     input: unknown
-    principal: Principal | undefined
+    user: HarnessUser | undefined
   }): boolean {
     const entry = this.threadPlugins()?.commands.get(input.name)
     if (!entry) return false
@@ -215,14 +215,14 @@ export abstract class SessionTurn<
     name,
     command,
     input,
-    principal,
+    user,
     inputId,
   }: {
     operation: OperationImpl<unknown>
     name: string
     command: AnyCommand
     input: unknown
-    principal: Principal | undefined
+    user: HarnessUser | undefined
     inputId: string
   }) {
     operation.setStatus('running')
@@ -231,12 +231,12 @@ export abstract class SessionTurn<
         runId: operation.id,
         kind: 'command',
         inputId,
-        principal,
+        user,
       }),
     ])
     this.publishStarted(operation)
     const run = this.runContext({
-      principal,
+      user,
       runId: operation.id,
       signal: operation.abortController.signal,
     })
@@ -266,8 +266,8 @@ export abstract class SessionTurn<
         command.run(input, {
           signal,
           // The command acts for its sender, also while another user's turn runs.
-          session: this.pluginApi(principal, undefined, operation.id),
-          ...(principal ? { principal } : {}),
+          session: this.pluginApi(user, undefined, operation.id),
+          ...(user ? { user } : {}),
           credentials: run.credentials,
           run,
           step,
@@ -336,12 +336,12 @@ export abstract class SessionTurn<
     if (!next) return this.checkIdle()
     this.activeTurn = next.operation
     this.activeResume = next.resume !== undefined
-    this.turnPrincipal = next.principal
+    this.turnUser = next.user
     this.turnConfig = this.configSnapshot()
     const ended = () => {
       this.activeResume = false
       this.activeTurn = undefined
-      this.turnPrincipal = undefined
+      this.turnUser = undefined
       this.turnConfig = undefined
       for (const end of this.turnEnds) end()
       this.turnEnds.clear()
@@ -374,7 +374,7 @@ export abstract class SessionTurn<
           runId: operation.id,
           kind: 'turn',
           inputId,
-          principal: turn.principal,
+          user: turn.user,
         }),
       ])
       await this.refreshInterrupted(undefined, false)
@@ -441,11 +441,7 @@ export abstract class SessionTurn<
         }
       } else if (!isAdded && sent !== undefined) {
         const messages = isOperator
-          ? await this.operatorMessages(
-              id,
-              sent,
-              turn.principal ?? this.principal,
-            )
+          ? await this.operatorMessages(id, sent, turn.user ?? this.user)
           : [{ ...(await this.userMessage(sent, turn.wake)), id }]
         await this.addToTurn({ messages })
         // A view shows the reply live, as the text of a model, with its
@@ -492,10 +488,10 @@ export abstract class SessionTurn<
   private async operatorMessages(
     id: string,
     content: UserInput,
-    principal: Principal | undefined,
+    user: HarnessUser | undefined,
   ): Promise<Array<ModelMessage>> {
     // The id of the operator. A session with no user has none.
-    const operator = principal?.id ?? true
+    const operator = user?.id ?? true
     const parts = typeof content === 'string' ? [] : content
     const files = parts.filter((part) => part.type !== 'text')
     if (files.length === 0) {
@@ -593,7 +589,7 @@ export abstract class SessionTurn<
             runId: operation.id,
             kind: 'turn',
             inputId: turn.inputId,
-            principal: turn.principal,
+            user: turn.user,
           }),
         ])
       } catch (error) {
@@ -629,7 +625,7 @@ export abstract class SessionTurn<
     // What plugins and the router see of this turn. A turn that recovery
     // runs again gets the message its input sent.
     const sentMessage = turn.message ?? turn.sentMessage
-    const sender = turn.principal ?? this.principal
+    const sender = turn.user ?? this.user
     const runParent = turn.answers?.runId ?? turn.parentRunId
     /** `run.handoff`: the handoff of this turn, once it has `routing`. */
     let turnHandoff: RunContext['handoff'] = NO_SESSION_CONTEXT.handoff
@@ -637,7 +633,7 @@ export abstract class SessionTurn<
     // its turn plugins get the credentials and keys of its sender. A sign-in
     // wait of one of its tools stops this turn only.
     const run = this.runContext({
-      principal: sender,
+      user: sender,
       runId: operation.id,
       ...(runParent ? { parentRunId: runParent } : {}),
       signal: operation.abortController.signal,
@@ -650,7 +646,7 @@ export abstract class SessionTurn<
       ...(turn.inputId ? { inputId: turn.inputId } : {}),
       ...(sentMessage !== undefined ? { message: sentMessage } : {}),
       ...(turn.context !== undefined ? { context: turn.context } : {}),
-      ...(sender ? { principal: sender } : {}),
+      ...(sender ? { user: sender } : {}),
       ...(turn.overrides ? { overrides: turn.overrides } : {}),
       run,
     }
@@ -737,7 +733,7 @@ export abstract class SessionTurn<
               humans: this.harness.routing.humans === true,
               tool: this.harness.routing.handoffs !== false,
               append: (record) =>
-                this.appendHandoff(record, storedPrincipal(sender).principal),
+                this.appendHandoff(record, storedUser(sender).user),
               publish: (record) =>
                 operation.publish(
                   customEvent(HARNESS_EVENTS.handoff, { ...record }),
@@ -905,7 +901,7 @@ export abstract class SessionTurn<
           ...(sentMessage !== undefined ? { input: sentMessage } : {}),
           operationId: operation.id,
           ...(turn.inputId ? { inputId: turn.inputId } : {}),
-          ...(sender ? { principal: sender } : {}),
+          ...(sender ? { user: sender } : {}),
           ...(turn.context !== undefined ? { context: turn.context } : {}),
           adapter,
           // Its model calls are for this turn, and count under `router`.
@@ -1224,7 +1220,7 @@ export abstract class SessionTurn<
                 interrupts,
                 ...(messages ? { routed: { messages, root: isRootPart } } : {}),
                 ...(handoff ? { handoff } : {}),
-                ...storedPrincipal(sender),
+                ...storedUser(sender),
                 ...(turn.context !== undefined
                   ? { context: turn.context }
                   : {}),
@@ -1604,7 +1600,7 @@ export abstract class SessionTurn<
               : {}),
             runId: operation.id,
             interrupts,
-            ...storedPrincipal(sender),
+            ...storedUser(sender),
             ...(turn.context !== undefined ? { context: turn.context } : {}),
           }
         : undefined

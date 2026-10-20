@@ -591,11 +591,11 @@ describe('the plugin session API and inspect', () => {
       }),
       {
         threadId: 't',
-        principal: { id: 'u1' },
+        user: { id: 'u1' },
       },
     )
     expect(api.threadId).toBe('t')
-    expect(api.principal).toEqual({ id: 'u1' })
+    expect(api.user).toEqual({ id: 'u1' })
     await session.send('hello')
     expect(
       (await api.transcript()).map((m: { content: string }) => m.content),
@@ -881,7 +881,7 @@ describe('session events', () => {
 })
 
 describe('the turns that a session plugin starts', () => {
-  it('run as the owner, or as the principal that the plugin passes, not as the sender of the running turn', async () => {
+  it('run as the owner, or as the user that the plugin passes, not as the sender of the running turn', async () => {
     let api: PluginSessionApi | undefined
     const notes = definePlugin({
       name: 'test/notes',
@@ -904,10 +904,10 @@ describe('the turns that a session plugin starts', () => {
       plugins: () => [notes],
     })
     // Olga opens the thread first, so she owns it.
-    await host.open(harness, { threadId: 't', principal: { id: 'olga' } })
+    await host.open(harness, { threadId: 't', user: { id: 'olga' } })
     const bea = await host.open(harness, {
       threadId: 't',
-      principal: { id: 'bea' },
+      user: { id: 'bea' },
     })
     const turn = bea.send('Start a job.')
     await waitFor(() => expect(turn.status()).toBe('running'))
@@ -917,9 +917,9 @@ describe('the turns that a session plugin starts', () => {
     await api.note('The job of olga ended.', { wake: true })
     await api.note('The job of carl ended.', {
       wake: true,
-      principal: { id: 'carl' },
+      user: { id: 'carl' },
     })
-    api.send('Go on, carl.', { principal: { id: 'carl' } })
+    api.send('Go on, carl.', { user: { id: 'carl' } })
     release.open()
     await turn
     await waitFor(() => expect(calls).toHaveLength(4))
@@ -931,7 +931,7 @@ describe('the turns that a session plugin starts', () => {
     })
     const senders = [...sessionOf(state, 't').inputs.values()].map((logged) => [
       logged.input.op,
-      logged.principal?.id,
+      logged.user?.id,
     ])
     expect(senders).toEqual([
       ['prompt', 'bea'],

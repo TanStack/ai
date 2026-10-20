@@ -1708,7 +1708,7 @@ describe('createHarnessMcpServer access', () => {
     await expect(
       createHarnessMcpServer({ host, harness: greeter() }),
     ).rejects.toThrow(
-      'createHarnessMcpServer needs host access ({ identify, policy }) or openAccess: true or { principal }.',
+      'createHarnessMcpServer needs host access ({ identify, policy }) or openAccess: true or { user }.',
     )
   })
 
@@ -1716,7 +1716,7 @@ describe('createHarnessMcpServer access', () => {
     const server = createHarnessMcpServer({
       host: accessHost(),
       harness: greeter(),
-      openAccess: { principal: olga },
+      openAccess: { user: olga },
     })
 
     await expect(server).rejects.toThrow(
@@ -1724,10 +1724,10 @@ describe('createHarnessMcpServer access', () => {
     )
   })
 
-  it('runs every call as the openAccess principal', async () => {
+  it('runs every call as the openAccess user', async () => {
     const ana = { id: 'ana', tenantId: 'globex' }
     const { server, host } = await serve(greeter(), {
-      openAccess: { principal: ana },
+      openAccess: { user: ana },
     })
     const { client } = await connect(server)
 
@@ -1736,7 +1736,7 @@ describe('createHarnessMcpServer access', () => {
       arguments: { threadId: 't-ana', message: 'Hi' },
     })
     expect(
-      await host.sessions.get({ threadId: 't-ana', principal: ana }),
+      await host.sessions.get({ threadId: 't-ana', user: ana }),
     ).toMatchObject({
       tenantId: 'globex',
       members: [{ userId: 'ana', role: 'owner' }],
@@ -1781,13 +1781,13 @@ describe('createHarnessMcpServer access', () => {
       text: 'Hello.',
     })
     expect(
-      await host.sessions.get({ threadId: 't1', principal: olga }),
+      await host.sessions.get({ threadId: 't1', user: olga }),
     ).toMatchObject({ members: [{ userId: 'olga', role: 'owner' }] })
     await host.sessions.share({
       threadId: 't1',
       userId: 'bea',
       role: 'viewer',
-      principal: olga,
+      user: olga,
     })
 
     const stranger = await asCid.callTool({

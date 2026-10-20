@@ -143,7 +143,7 @@ describe('client reads and actions', () => {
     const { host, harness, handler } = setup()
     await host.open(harness, {
       threadId: 'someone-else',
-      principal: { id: 'other' },
+      user: { id: 'other' },
     })
     const statusOf = async (path: string) =>
       (await handler(new Request(`http://local/api/harness/${path}`))).status
@@ -174,7 +174,7 @@ describe('client reads and actions', () => {
     })
     await host.open(harness, {
       threadId: 'someone-else',
-      principal: { id: 'other' },
+      user: { id: 'other' },
     })
     const handler = createHarnessHandler({ host, harness })
     const client = createHarnessClient({
@@ -227,7 +227,7 @@ describe('client reads and actions', () => {
     })
     const session = await host.open(harness, {
       threadId: 'thread-a',
-      principal: user,
+      user,
     })
     const run = session.agents.writer.start(undefined, { attach: 'none' })
     await run
@@ -269,7 +269,7 @@ describe('client reads and actions', () => {
     // With host access, a thread with no session has no events to read.
     const opened = await host.open(harness, {
       threadId: 'thread-r',
-      principal: user,
+      user,
     })
     const states: Array<string> = []
     const reader = new AbortController()

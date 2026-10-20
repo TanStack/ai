@@ -412,7 +412,7 @@ describe('the note of a background job', () => {
       logId: 'log',
       threadId: 't',
       runId: 'run-a',
-      principal: { id: 'user-a' },
+      user: { id: 'user-a' },
     }
 
     await bash?.execute?.(
@@ -426,7 +426,7 @@ describe('the note of a background job', () => {
     // still the work of user-a.
     expect(note).toHaveBeenCalledWith(
       expect.stringContaining('Background job bash-1 ended.'),
-      { wake: true, principal: { id: 'user-a' } },
+      { wake: true, user: { id: 'user-a' } },
     )
   })
 })

@@ -124,7 +124,7 @@ async function openWithApi(persistence: HarnessPersistence) {
   })
   const session = await host.open(harness, {
     threadId: 'p1',
-    principal: { id: 'u1' },
+    user: { id: 'u1' },
   })
   const api = apis[0]
   if (!api) throw new Error('The probe plugin was not set up.')
@@ -151,10 +151,10 @@ describe('host.sessions', () => {
     ])
     const session = await host.open(harness, {
       threadId: 't1',
-      principal: { id: 'u1', name: 'Ada', tenantId: 'org-1' },
+      user: { id: 'u1', name: 'Ada', tenantId: 'org-1' },
     })
 
-    const read = { threadId: 't1', principal: { id: 'u1', tenantId: 'org-1' } }
+    const read = { threadId: 't1', user: { id: 'u1', tenantId: 'org-1' } }
     expect(await host.sessions.get(read)).toEqual({
       tenantId: 'org-1',
       threadId: 't1',
@@ -163,7 +163,7 @@ describe('host.sessions', () => {
       createdAt: expect.any(Number),
       updatedAt: expect.any(Number),
     })
-    // The entry is in the tenant of the principal only.
+    // The entry is in the tenant of the user only.
     expect(await host.sessions.get({ threadId: 't1' })).toBeUndefined()
 
     await session.send('first')
@@ -182,11 +182,11 @@ describe('host.sessions', () => {
 
   it('keeps the first owner when another user opens the thread again', async () => {
     const { persistence, host, harness } = hostWith()
-    await host.open(harness, { threadId: 't1', principal: { id: 'alice' } })
+    await host.open(harness, { threadId: 't1', user: { id: 'alice' } })
     await host.close()
     const next = createHarnessHost({ persistence })
 
-    await next.open(harness, { threadId: 't1', principal: { id: 'bob' } })
+    await next.open(harness, { threadId: 't1', user: { id: 'bob' } })
 
     expect(await next.sessions.get({ threadId: 't1' })).toMatchObject({
       members: [{ userId: 'alice', role: 'owner' }],
@@ -240,7 +240,7 @@ describe('host.sessions', () => {
   it('updates the title, pin, and metadata from app code, and nothing for an unknown thread', async () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const harness = chipsHarness()
-    await host.open(harness, { threadId: 't1', principal: { id: 'u1' } })
+    await host.open(harness, { threadId: 't1', user: { id: 'u1' } })
 
     const updated = await host.sessions.update({
       harness,
@@ -409,7 +409,7 @@ describe('host.sessions', () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     const { persistence, host, harness } = hostWith()
     vi.setSystemTime(1000)
-    await host.open(harness, { threadId: 't1', principal: { id: 'u1' } })
+    await host.open(harness, { threadId: 't1', user: { id: 'u1' } })
     await host.sessions.rename({ threadId: 't1', title: 'Old title' })
 
     await host.sessions.delete({ threadId: 't1' })
@@ -470,7 +470,7 @@ describe('host.sessions', () => {
     const { persistence, host, harness } = hostWith()
     const session = await host.open(harness, {
       threadId: 't1',
-      principal: { id: 'u1' },
+      user: { id: 'u1' },
     })
     await session.configure({ settings: { instructions: 'Be brief.' } })
     await session.send('first')
@@ -666,8 +666,8 @@ describe('tenants', () => {
       name: 'test/tenants',
       adapter: mockAdapter(() => text('answer')).adapter,
     })
-    const a = await host.open(harness, { threadId: 't1', principal: ada })
-    const b = await host.open(harness, { threadId: 't1', principal: bo })
+    const a = await host.open(harness, { threadId: 't1', user: ada })
+    const b = await host.open(harness, { threadId: 't1', user: bo })
 
     await a.send('from a')
     await b.send('from b')
@@ -682,18 +682,18 @@ describe('tenants', () => {
       ['assistant', 'answer'],
     ])
     expect(
-      await host.sessions.get({ threadId: 't1', principal: ada }),
+      await host.sessions.get({ threadId: 't1', user: ada }),
     ).toMatchObject({
       tenantId: 'org-a',
       members: [{ userId: 'ada', role: 'owner' }],
     })
-    expect(
-      await host.sessions.get({ threadId: 't1', principal: bo }),
-    ).toMatchObject({
-      tenantId: 'org-b',
-      members: [{ userId: 'bo', role: 'owner' }],
-    })
-    const listed = await host.sessions.list({ principal: ada })
+    expect(await host.sessions.get({ threadId: 't1', user: bo })).toMatchObject(
+      {
+        tenantId: 'org-b',
+        members: [{ userId: 'bo', role: 'owner' }],
+      },
+    )
+    const listed = await host.sessions.list({ user: ada })
     expect(listed.entries.map((entry) => entry.tenantId)).toEqual(['org-a'])
     const logOf = (tenantId: string) =>
       logMessageStore({ store: log, tenantId }).loadThread('t1')
@@ -757,7 +757,7 @@ describe('child sessions', () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const session = await host.open(harness, {
       threadId: 'lead',
-      principal: { id: 'alice' },
+      user: { id: 'alice' },
     })
 
     await session.send('Notes, please')

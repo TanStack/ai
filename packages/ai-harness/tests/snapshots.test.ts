@@ -103,7 +103,7 @@ describe('log snapshots on a host', () => {
     const handler = createHarnessHandler({
       host,
       harness,
-      openAccess: { principal: { id: 'u' } },
+      openAccess: { user: { id: 'u' } },
     })
     const client = createHarnessClient({
       url: 'http://local/api/harness',

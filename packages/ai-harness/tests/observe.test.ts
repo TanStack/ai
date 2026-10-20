@@ -12,7 +12,7 @@ import {
 import { createHarnessHandler, handleHarnessSocket } from '../src/server'
 import { hostCountsOf } from '../src/host'
 import { fakeSocket, mockAdapter, readSse, text, toolCall } from './helpers'
-import type { HarnessHostOptions, Principal, SessionEvent } from '../src'
+import type { HarnessHostOptions, HarnessUser, SessionEvent } from '../src'
 
 /**
  * `vi.waitFor` with more time: CI runs these tests slower, for example under
@@ -73,10 +73,10 @@ function setup(options: Pick<HarnessHostOptions, 'access'> = {}) {
   const writes = () =>
     spies.reduce((total, spy) => total + spy.mock.calls.length, 0)
   /** Open the thread, run one turn, and close the handle: the session closes. */
-  const seed = async (principal?: Principal) => {
+  const seed = async (user?: HarnessUser) => {
     const session = await host.open(harness, {
       threadId: THREAD,
-      ...(principal ? { principal } : {}),
+      ...(user ? { user } : {}),
     })
     await session.send('Hello.')
     await session.close()
@@ -239,8 +239,8 @@ describe('host.observe with access', () => {
       createdAt: 1,
       updatedAt: 1,
     })
-    const observe = (threadId: string, principal: Principal) =>
-      host.observe(harness, { threadId, principal })
+    const observe = (threadId: string, user: HarnessUser) =>
+      host.observe(harness, { threadId, user })
 
     await expect(observe(THREAD, cid)).rejects.toBeInstanceOf(AccessDeniedError)
     await expect(observe('subagent:run-1', cid)).rejects.toBeInstanceOf(
@@ -251,7 +251,7 @@ describe('host.observe with access', () => {
       AccessDeniedError,
     )
     expect(
-      await host.sessions.get({ threadId: 't-none', principal: olga }),
+      await host.sessions.get({ threadId: 't-none', user: olga }),
     ).toBeUndefined()
     const child = await observe('subagent:run-1', olga)
     expect(await child.transcript()).toEqual([])

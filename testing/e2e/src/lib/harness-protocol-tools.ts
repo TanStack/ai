@@ -26,7 +26,7 @@ export const askName = toolDefinition({
   inputSchema: z.object({}),
 })
 
-/** Returns the id of the principal that the turn runs as. */
+/** Returns the id of the user that the turn runs as. */
 export const whoami = toolDefinition({
   name: 'whoami',
   description: 'Show who runs this turn.',

@@ -173,7 +173,7 @@ function secretValues(credential: Credential) {
 }
 
 /**
- * Scope credentials to one principal and thread.
+ * Scope credentials to one user and thread.
  *
  * A read finds the user's own credential first, then the tenant's (saved
  * without a `userId`). A save or a delete changes the user's own only. A

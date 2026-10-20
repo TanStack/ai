@@ -24,7 +24,7 @@ import type {
   Cursor,
   HarnessInput,
   Operation,
-  Principal,
+  HarnessUser,
   Receipt,
   ResetOptions,
   ResolveOptions,
@@ -86,7 +86,7 @@ export abstract class SessionRequests<
    * steer that joins the running turn uses the overrides of that turn, and
    * its own are ignored.
    *
-   * `principal` is who sent the message. Default: the principal that opened
+   * `user` is who sent the message. Default: the user that opened
    * the session. The log keeps it, and the turn runs with its credentials
    * and provider keys. A steer that joins the running turn runs with the
    * credentials of that turn's sender.
@@ -180,7 +180,7 @@ export abstract class SessionRequests<
     const overrides = options?.overrides
     const systemPreamble = options?.systemPreamble
     const ephemeral = options?.ephemeral
-    const principal = options?.principal ?? this.principal
+    const user = options?.user ?? this.user
     const context = options?.context
     const wake = options?.wake === true
     const busy =
@@ -191,7 +191,7 @@ export abstract class SessionRequests<
           : 'queue'
     const stored: HarnessInput =
       input.op === 'followUp' && wake ? { ...input, wake: true } : input
-    const known = this.knownTurn(inputId, stored, principal)
+    const known = this.knownTurn(inputId, stored, user)
     if (known) return known
     const runId = options?.runId
     // A prompt that this host offered comes back from the lane when no live
@@ -213,7 +213,7 @@ export abstract class SessionRequests<
     this.bindTurn(inputId, operation)
     const traceparent = options?.traceparent
     void this.admitting(() =>
-      this.accept(inputId, stored, principal, {
+      this.accept(inputId, stored, user, {
         // An offered turn runs as the operation of this host.
         runId: operation.id,
         turn: { overrides, systemPreamble, ephemeral },
@@ -255,7 +255,7 @@ export abstract class SessionRequests<
               operation,
               message,
               inputId,
-              principal,
+              user,
               operator: true,
             })
             return
@@ -285,7 +285,7 @@ export abstract class SessionRequests<
             status: isWaiting && !running ? 'queued' : 'accepted',
             operationId: running?.id ?? operation.id,
           })
-          const sent = { principal, context, ...(wake ? { wake } : {}) }
+          const sent = { user, context, ...(wake ? { wake } : {}) }
           if (running) {
             this.steerQueue.push({
               inputId,
@@ -336,7 +336,7 @@ export abstract class SessionRequests<
    *
    * `args` is typed from the input schema of a harness tool. A plugin tool
    * takes any `args`, and its input schema checks them. `inputId` and
-   * `principal` mean the same as in `send`.
+   * `user` mean the same as in `send`.
    *
    * @example
    * ```ts
@@ -350,23 +350,23 @@ export abstract class SessionRequests<
     args?: HarnessToolInput<THarness, TName>
     meta?: Record<string, unknown>
     inputId?: string
-    principal?: Principal
+    user?: HarnessUser
   }): Operation<ChatTurnResult> {
     const { name, args, meta } = options
     const inputId = options.inputId ?? createInputId()
-    const principal = options.principal ?? this.principal
+    const user = options.user ?? this.user
     const input: HarnessInput = {
       op: 'tool',
       name,
       ...(args !== undefined ? { args } : {}),
       ...(meta ? { meta } : {}),
     }
-    const known = this.knownTurn(inputId, input, principal)
+    const known = this.knownTurn(inputId, input, user)
     if (known) return known
     const operation = this.createTurnOperation()
     this.bindTurn(inputId, operation)
     void this.admitting(() =>
-      this.accept(inputId, input, principal).then(
+      this.accept(inputId, input, user).then(
         (admission) => {
           if (admission !== 'new') {
             this.answerDuplicate(operation, inputId, admission)
@@ -392,7 +392,7 @@ export abstract class SessionRequests<
           this.enqueueTurn({
             operation,
             inputId,
-            principal,
+            user,
             tool: { name, args, ...(meta ? { meta } : {}) },
           })
         },
@@ -420,7 +420,7 @@ export abstract class SessionRequests<
    * Start a chat turn from the stored transcript, with no new message. While
    * a turn runs, it queues. When it starts, the transcript must end with a
    * user or a tool message. Else the input is rejected with
-   * `'nothing_to_continue'`. `inputId`, `overrides`, `principal`,
+   * `'nothing_to_continue'`. `inputId`, `overrides`, `user`,
    * `context`, and `ephemeral` mean the same as in `prompt`. Each model call
    * gets the `ephemeral` messages after the transcript.
    *
@@ -435,18 +435,18 @@ export abstract class SessionRequests<
   continue(options?: {
     inputId?: string
     overrides?: TurnOverrides
-    principal?: Principal
+    user?: HarnessUser
     context?: unknown
     ephemeral?: ReadonlyArray<ModelMessage>
   }): Operation<ChatTurnResult> {
     const inputId = options?.inputId ?? createInputId()
-    const principal = options?.principal ?? this.principal
+    const user = options?.user ?? this.user
     const context = options?.context
     const input: HarnessInput = {
       op: 'continue',
       ...(context !== undefined ? { context } : {}),
     }
-    const known = this.knownTurn(inputId, input, principal)
+    const known = this.knownTurn(inputId, input, user)
     if (known) return known
     const operation = this.createTurnOperation()
     this.bindTurn(inputId, operation)
@@ -455,7 +455,7 @@ export abstract class SessionRequests<
       ...(options?.ephemeral ? { ephemeral: options.ephemeral } : {}),
     }
     void this.admitting(() =>
-      this.accept(inputId, input, principal, { turn }).then(
+      this.accept(inputId, input, user, { turn }).then(
         (admission) => {
           if (admission !== 'new') {
             this.answerDuplicate(operation, inputId, admission)
@@ -473,7 +473,7 @@ export abstract class SessionRequests<
             inputId,
             overrides: options?.overrides,
             ephemeral: options?.ephemeral,
-            principal,
+            user,
             context,
             isContinue: true,
           })
@@ -501,7 +501,7 @@ export abstract class SessionRequests<
    *
    * While a turn runs, the reset waits and applies when that turn ends,
    * before the next queued turn. A thread that waits for interrupts is
-   * refused with `'pending_interrupts'`: resolve them first. `principal` and
+   * refused with `'pending_interrupts'`: resolve them first. `user` and
    * `inputId` mean the same as in `prompt`.
    *
    * @example
@@ -510,24 +510,24 @@ export abstract class SessionRequests<
    * ```
    */
   async reset(
-    options?: ResetOptions & { principal?: Principal },
+    options?: ResetOptions & { user?: HarnessUser },
   ): Promise<Receipt> {
     return this.admitting(async () => {
       const note = options?.note
       const inputId = options?.inputId ?? createInputId()
-      const principal = options?.principal ?? this.principal
+      const user = options?.user ?? this.user
       // An empty note is no note: the model never gets an empty message.
       const text = note?.trim() ? note : undefined
       const admission = await this.accept(
         inputId,
         { op: 'reset', ...(text !== undefined ? { note: text } : {}) },
-        principal,
+        user,
       )
       if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
       const isRunning = this.activeTurn !== undefined
       if (this.waitsForInterrupts())
         return this.reject(inputId, 'pending_interrupts')
-      const operation = this.queueReset(inputId, text, principal, 'front')
+      const operation = this.queueReset(inputId, text, user, 'front')
       return this.keep({
         inputId,
         status: isRunning ? 'queued' : 'accepted',
@@ -538,7 +538,7 @@ export abstract class SessionRequests<
 
   /**
    * Answer the interrupts of the last turn. One resume must answer every open
-   * interrupt of that turn (the AG-UI rule). `principal` is who answers: the
+   * interrupt of that turn (the AG-UI rule). `user` is who answers: the
    * log keeps it. The turn that continues still runs as the user who sent
    * it, with that user's credentials.
    *
@@ -549,9 +549,7 @@ export abstract class SessionRequests<
    * })
    * ```
    */
-  resolve(
-    options: ResolveOptions & { principal?: Principal },
-  ): Promise<Receipt> {
+  resolve(options: ResolveOptions & { user?: HarnessUser }): Promise<Receipt> {
     return this.resolveForRun(options)
   }
 
@@ -592,12 +590,12 @@ export abstract class SessionRequests<
     }
     return this.admitting(async () => {
       const inputId = options.inputId ?? createInputId()
-      const principal = options.principal ?? this.principal
+      const user = options.user ?? this.user
       const runId = options.runId
       const admission = await this.accept(
         inputId,
         { op: 'resolve', resume },
-        principal,
+        user,
         runId !== undefined ? { runId } : {},
       )
       if (admission !== 'new') {
@@ -716,7 +714,7 @@ export abstract class SessionRequests<
         resume,
         inputId,
         answers,
-        principal: answers.principal ?? principal,
+        user: answers.user ?? user,
         context: answers.context,
       }
       if (isEnding) this.queue.unshift(turn)
@@ -733,8 +731,8 @@ export abstract class SessionRequests<
    * Stop the operation `operationId`, or the running turn without it. A turn
    * that waits in the queue never runs. Refused with `'not_running'` when
    * nothing runs or the operation ended. `inputId` means the same as in
-   * `send`: a second cancel with the same id is a duplicate. `principal` is
-   * who cancels. Default: the principal that opened the session. The log
+   * `send`: a second cancel with the same id is a duplicate. `user` is
+   * who cancels. Default: the user that opened the session. The log
    * keeps it.
    *
    * @example
@@ -743,14 +741,14 @@ export abstract class SessionRequests<
    * ```
    */
   async cancel(
-    options?: CancelOptions & { inputId?: string; principal?: Principal },
+    options?: CancelOptions & { inputId?: string; user?: HarnessUser },
   ): Promise<Receipt> {
     const operationId = options?.operationId
     const inputId = options?.inputId ?? createInputId()
     const admission = await this.accept(
       inputId,
       { op: 'cancel', operationId },
-      options?.principal,
+      options?.user,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const target = operationId
@@ -837,25 +835,25 @@ export abstract class SessionRequests<
 
   /**
    * @internal Cancel the queued and running work that the user `userId`
-   * started: `host.sessions.unshare` and `host.revoke` stop it. `principal`
+   * started: `host.sessions.unshare` and `host.revoke` stop it. `user`
    * is who cancels, and the log keeps it.
    */
   async cancelWorkOf({
     userId,
-    principal,
+    user,
   }: {
     userId: string
-    principal: Principal | undefined
+    user: HarnessUser | undefined
   }): Promise<void> {
     const theirs = [...this.operations.values()].filter(
       (operation) =>
         !operation.isSettled() &&
-        this.startedBy(operation.id).principalId === userId,
+        this.startedBy(operation.id).userId === userId,
     )
     for (const operation of theirs) {
       await this.cancel({
         operationId: operation.id,
-        ...(principal ? { principal } : {}),
+        ...(user ? { user } : {}),
       })
     }
   }
@@ -864,8 +862,8 @@ export abstract class SessionRequests<
    * Cancel an input that waits, so it never runs, also after a restart. It
    * settles `aborted`. An input that started, or that joins the running
    * turn now, is refused with `not_waiting`: stop it with
-   * `cancel({ operationId })`. `principal` is who cancels. Default: the
-   * principal that opened the session. The log keeps it.
+   * `cancel({ operationId })`. `user` is who cancels. Default: the
+   * user that opened the session. The log keeps it.
    *
    * @example
    * ```ts
@@ -875,7 +873,7 @@ export abstract class SessionRequests<
    */
   cancelInput(options: {
     inputId: string
-    principal?: Principal
+    user?: HarnessUser
   }): Promise<Receipt> {
     return this.applyCancelInput(options)
   }
@@ -886,18 +884,18 @@ export abstract class SessionRequests<
    */
   protected override async applyCancelInput({
     inputId: target,
-    principal,
+    user,
     controlId,
   }: {
     inputId: string
-    principal?: Principal
+    user?: HarnessUser
     controlId?: string
   }): Promise<Receipt> {
     const inputId = controlId ?? createInputId()
     const admission = await this.accept(
       inputId,
       { op: 'cancelInput', inputId: target },
-      principal,
+      user,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const taken = this.takeWaiting(target) ?? this.takeQueuedContinue(target)
@@ -925,7 +923,7 @@ export abstract class SessionRequests<
    * turns. An input that started, or that joins the running turn now, is
    * refused with `not_waiting`. The log keeps the delivery, and a restart
    * honors it.
-   * `principal` is who moves it. Default: the principal that opened the
+   * `user` is who moves it. Default: the user that opened the
    * session. The log keeps it.
    *
    * @example
@@ -937,7 +935,7 @@ export abstract class SessionRequests<
   setDelivery(options: {
     inputId: string
     delivery: WaitingInput['delivery']
-    principal?: Principal
+    user?: HarnessUser
   }): Promise<Receipt> {
     return this.applySetDelivery(options)
   }
@@ -949,19 +947,19 @@ export abstract class SessionRequests<
   protected override async applySetDelivery({
     inputId: target,
     delivery,
-    principal,
+    user,
     controlId,
   }: {
     inputId: string
     delivery: WaitingInput['delivery']
-    principal?: Principal
+    user?: HarnessUser
     controlId?: string
   }): Promise<Receipt> {
     const inputId = controlId ?? createInputId()
     const admission = await this.accept(
       inputId,
       { op: 'setDelivery', inputId: target, delivery },
-      principal,
+      user,
     )
     if (admission !== 'new') return this.duplicateReceipt(inputId, admission)
     const current = this.inputs().find((input) => input.inputId === target)
@@ -996,8 +994,8 @@ export abstract class SessionRequests<
     const connectors = waiting.map(signInConnector)
     if (waiting.length === 0) return
     // Another user's credential never answers this sign-in.
-    const principal = stopped?.principal ?? this.principal
-    const credentials = this.credentialsOf(principal)
+    const user = stopped?.user ?? this.user
+    const credentials = this.credentialsOf(user)
     for (const connector of connectors) {
       if (!connector || !(await credentials.get(connector))) return
     }
@@ -1009,7 +1007,7 @@ export abstract class SessionRequests<
         payload: { connector: connectors[index] },
       })),
       inputId: `sign-in:${waiting.map((item) => item.id).join(',')}`,
-      ...(principal ? { principal } : {}),
+      ...(user ? { user } : {}),
     })
   }
 
@@ -1042,24 +1040,24 @@ export abstract class SessionRequests<
       this.checkIdle()
       return
     }
-    const principal = stopped.principal ?? this.principal
+    const user = stopped.user ?? this.user
     await this.resolve({
       resume,
       inputId: `expired:${interrupts.map((item) => item.id).join(',')}`,
-      ...(principal ? { principal } : {}),
+      ...(user ? { user } : {}),
     })
   }
 
   /**
-   * The session API of plugins. With `principal` (a command, a turn plugin),
+   * The session API of plugins. With `user` (a command, a turn plugin),
    * it acts for that user. Without it (a session plugin), it acts for the
-   * owner of the session entry, else for the principal that opened the
-   * session. A `principal` option of `send` and `note` wins: a plugin passes
+   * owner of the session entry, else for the user that opened the
+   * session. A `user` option of `send` and `note` wins: a plugin passes
    * the user whose work the turn continues. With `operationId` (a command, a
    * turn plugin), its questions belong to that operation.
    */
   protected override pluginApi(
-    principal?: Principal,
+    user?: HarnessUser,
     metadataSchema?: SchemaInput,
     operationId?: string,
   ): PluginSessionApi {
@@ -1068,10 +1066,10 @@ export abstract class SessionRequests<
     // the session read its entry, so it is read at each call. A turn of
     // `send` or `note` never follows the sender of the running turn: that
     // user did not start the work of the plugin.
-    const owner = () => principal ?? this.owner ?? this.principal
+    const owner = () => user ?? this.owner ?? this.user
     return {
       threadId: this.threadId,
-      get principal() {
+      get user() {
         return owner()
       },
       snapshot: () => this.snapshot(),
@@ -1079,14 +1077,14 @@ export abstract class SessionRequests<
       send: (text, options) =>
         this.startTurn(
           { op: 'prompt', message: text, busy: 'queue' },
-          { principal: options?.principal ?? owner() },
+          { user: options?.user ?? owner() },
         ),
       note: async (text, options) => {
         await this.addNote(text)
         if (options?.wake) {
           const receipt = await this.startTurn(
             { op: 'followUp', message: text },
-            { principal: options.principal ?? owner(), wake: true },
+            { user: options.user ?? owner(), wake: true },
           ).receipt
           if (receipt.status === 'rejected')
             throw new InputRejectedError(receipt)
@@ -1133,7 +1131,7 @@ export abstract class SessionRequests<
         // The OAuth login of a command is a live wait of that command.
         if (operationId !== undefined) this.openSignIn(info, operationId)
       },
-      setConfig: (change) => this.setConfig({ ...change, principal: owner() }),
+      setConfig: (change) => this.setConfig({ ...change, user: owner() }),
       settings: () => this.settings(),
     }
   }
@@ -1232,11 +1230,11 @@ export abstract class SessionRequests<
       this.feed,
       (target) => {
         // A cancel on the turn itself acts as its sender, not as the
-        // principal that opened the session. A handle passes its own.
-        const principal = this.principalOfRun(target.id)
+        // user that opened the session. A handle passes its own.
+        const user = this.userOfRun(target.id)
         return this.cancel({
           operationId: target.id,
-          ...(principal ? { principal } : {}),
+          ...(user ? { user } : {}),
         })
       },
       undefined,
@@ -1305,13 +1303,13 @@ export abstract class SessionRequests<
   protected knownTurn(
     inputId: string,
     input: HarnessInput,
-    principal: Principal | undefined,
+    user: HarnessUser | undefined,
   ) {
-    const payload = inputKey(input, principal)
+    const payload = inputKey(input, user)
     const local = this.admitted.get(inputId)
     const logged = this.writer.state.inputs.get(inputId)
     const stored =
-      local ?? (logged ? inputKey(logged.input, logged.principal) : undefined)
+      local ?? (logged ? inputKey(logged.input, logged.user) : undefined)
     if (stored === undefined) return undefined
     if (stored !== payload) {
       const refused = this.createTurnOperation()
@@ -1358,7 +1356,7 @@ export abstract class SessionRequests<
   protected queueReset(
     inputId: string,
     note: string | undefined,
-    principal: Principal | undefined,
+    user: HarnessUser | undefined,
     at: 'front' | 'end',
   ) {
     const operation = new OperationImpl<ChatTurnResult>(
@@ -1371,7 +1369,7 @@ export abstract class SessionRequests<
     const turn: QueuedTurn = {
       operation,
       inputId,
-      principal,
+      user,
       reset: note !== undefined ? { note } : {},
     }
     this.queue.splice(

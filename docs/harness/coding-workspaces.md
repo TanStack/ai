@@ -142,7 +142,7 @@ import type { HarnessSession } from '@tanstack/ai-harness'
 
 export function listJobs(session: HarnessSession) {
   for (const job of session.jobs()) {
-    console.log(`${job.jobId}: ${job.label ?? 'job'}, started by ${job.principal?.id ?? 'the agent'}`)
+    console.log(`${job.jobId}: ${job.label ?? 'job'}, started by ${job.user?.id ?? 'the agent'}`)
   }
 }
 ```
@@ -151,7 +151,7 @@ Each entry has:
 
 - `jobId` and `threadId`: the job, and the thread of the workspace that runs it.
 - `label`: the command, or the name of the tool that `session.background()` moved.
-- `principal` and `startedAt`: who moved the call to the background, and when the job started.
+- `user` and `startedAt`: who moved the call to the background, and when the job started.
 - `running`: `true` when this host runs the job. A job of another host, or one that a crash stopped, has `false`.
 - `backendId`: the id of the process in the workspace backend, when it has one.
 

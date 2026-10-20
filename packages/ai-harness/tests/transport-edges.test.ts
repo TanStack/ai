@@ -70,8 +70,7 @@ function setup(replies: Parameters<typeof mockAdapter>[0] = []) {
         request.headers.get('authorization') === 'Bearer good' ? user : null,
       // A user may use the threads whose id starts with the user id.
       policy: {
-        authorize: ({ principal, session }) =>
-          session.threadId.startsWith(principal.id),
+        authorize: ({ user, session }) => session.threadId.startsWith(user.id),
       },
     },
   })
@@ -107,7 +106,7 @@ describe('HTTP handler edges', () => {
     const { host, harness, call } = setup()
     await host.open(harness, {
       threadId: 'someone-else',
-      principal: { id: 'someone' },
+      user: { id: 'someone' },
     })
     const statusOf = async (path: string, init?: RequestInit) =>
       (await call(path, init)).status
@@ -250,11 +249,11 @@ describe('HTTP handler edges', () => {
 })
 
 describe('WebSocket edges', () => {
-  it('refuses a thread the principal cannot access', async () => {
+  it('refuses a thread the user cannot access', async () => {
     const { host, harness } = setup()
     await host.open(harness, {
       threadId: 'user-2-x',
-      principal: { id: 'user-2' },
+      user: { id: 'user-2' },
     })
     const { socket, sent, closed, receive } = fakeSocket()
     handleHarnessSocket({ host, harness, socket, request: upgrade })
@@ -469,7 +468,7 @@ describe('protocol parsing and inputs', () => {
     ])
     const session = await host.open(harness, {
       threadId: 'user-1-apply',
-      principal: user,
+      user,
     })
 
     const first = await applyInput({
@@ -679,7 +678,7 @@ describe('an operation that waits for cancel', () => {
     const { host, harness } = setup([untilAborted()])
     const session = await host.open(harness, {
       threadId: 'user-1-cancel',
-      principal: user,
+      user,
     })
     const operation = session.send('wait')
     await waitFor(() => expect(session.snapshot().status).toBe('running'))
@@ -774,7 +773,7 @@ describe('presence hooks', () => {
     await waitFor(() => expect(left).toHaveLength(2))
     expect(connected).toEqual([
       {
-        principal: user,
+        user,
         threadId: 't-sse',
         harness: 'test/presence',
         connectionId: expect.any(String),
@@ -796,7 +795,7 @@ describe('presence hooks', () => {
     const reading = readSse(await call('events?threadId=t-revoke'), () => false)
     await waitFor(() => expect(connected).toHaveLength(1))
 
-    host.revoke({ threadId: 't-revoke', principal: user })
+    host.revoke({ threadId: 't-revoke', user })
     await reading
 
     await waitFor(() =>
@@ -840,7 +839,7 @@ describe('presence hooks', () => {
     await waitFor(() => expect(left).toHaveLength(2))
     const revoking = open()
     await waitFor(() => expect(connected).toHaveLength(3))
-    host.revoke({ threadId: 't-ws', principal: user })
+    host.revoke({ threadId: 't-ws', user })
 
     await waitFor(() => expect(revoking.closed).toEqual([4403]))
     expect(
@@ -929,7 +928,7 @@ describe('presence hooks', () => {
     expect(await run.text()).toContain('RUN_FINISHED')
     const view = await host.observe(harness, {
       threadId: 't-run',
-      principal: user,
+      user,
     })
     const controller = new AbortController()
     const events = view.events({ from: '0', signal: controller.signal })

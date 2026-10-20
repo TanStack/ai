@@ -101,7 +101,7 @@ describe('session usage totals', () => {
       }),
       {
         threadId: THREAD,
-        principal: alice,
+        user: alice,
       },
     )
     const events = await readEvents(session)
@@ -150,12 +150,12 @@ describe('session usage totals', () => {
       }),
       {
         threadId: THREAD,
-        principal: alice,
+        user: alice,
       },
     )
 
     await session.send('Hi.')
-    await session.send('Hello.', { principal: bob })
+    await session.send('Hello.', { user: bob })
 
     const usage = session.usage()
     expect(usage.total).toEqual({
@@ -202,7 +202,7 @@ describe('session usage totals', () => {
       }),
       {
         threadId: THREAD,
-        principal: alice,
+        user: alice,
       },
     )
 
@@ -230,7 +230,7 @@ describe('usage totals after a restart', () => {
     const host = createHarnessHost({ persistence })
     const session = await host.open(harness(first.adapter), {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
     await session.send('Find it.')
     const before = session.usage()
@@ -244,7 +244,7 @@ describe('usage totals after a restart', () => {
     const next = createHarnessHost({ persistence })
     const reopened = await next.open(harness(model('main-model', []).adapter), {
       threadId: THREAD,
-      principal: alice,
+      user: alice,
     })
     expect(reopened.usage()).toEqual(before)
     expect(reopened.usage().total.totalTokens).toBe(45)
@@ -278,7 +278,7 @@ describe('usage of each run', () => {
         adapter: model('main-model', []).adapter,
         agents: [lead, worker],
       }),
-      { threadId: THREAD, principal: alice },
+      { threadId: THREAD, user: alice },
     )
 
     const run = session.agents.lead.start(undefined, { attach: 'none' })
@@ -374,7 +374,7 @@ describe('usage totals of an odd key', () => {
 
     addUsage(totals, {
       model: 'm',
-      principal: { id: '__proto__' },
+      user: { id: '__proto__' },
       usage: {
         promptTokens: 1,
         completionTokens: 2,

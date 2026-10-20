@@ -206,11 +206,11 @@ const ada = { id: 'ada', tenantId: 'acme' }
 const olga = { id: 'olga', tenantId: 'acme' }
 
 export async function addOperator(threadId: string) {
-  await deskHost.sessions.share({ threadId, userId: 'olga', role: 'operator', principal: ada })
+  await deskHost.sessions.share({ threadId, userId: 'olga', role: 'operator', user: ada })
 }
 
 export async function reply(threadId: string, text: string) {
-  const session = await deskHost.open(desk, { threadId, principal: olga })
+  const session = await deskHost.open(desk, { threadId, user: olga })
   await session.send(text, { as: 'operator' })
 }
 ```
@@ -263,15 +263,15 @@ export const billingHandler = createHarnessHandler({ host: deskHost, harness: bi
 
 // Mount on POST /api/move-to-billing?threadId=...
 export async function moveToBilling(request: Request) {
-  const principal = await deskHost.identify({ request })
-  if (!principal) return new Response('Unauthorized', { status: 401 })
+  const user = await deskHost.identify({ request })
+  if (!user) return new Response('Unauthorized', { status: 401 })
   const threadId = new URL(request.url).searchParams.get('threadId')
   if (!threadId) return new Response('Missing threadId', { status: 400 })
   const result = await deskHost.transfer({
     from: { harness: desk, threadId },
     to: { harness: billingDesk },
     envelope: { note: 'Refund for order 42. The user waits.', messages: 'summary' },
-    principal,
+    user,
     transferId: `refund-${threadId}`,
   })
   return new Response(result.threadId)
@@ -281,7 +281,7 @@ export async function moveToBilling(request: Request) {
 `envelope.note` is the first message of the target. `envelope.messages` picks what comes after it:
 
 - `'none'` (default): no message.
-- `'summary'`: one summary message. The model of the source harness writes it, with the keys of the principal. The summary call stops after 2 minutes, and then the transfer fails. Its usage counts in the source thread under the source `transfer`. See [Usage of the router and transfers](./usage#usage-of-the-router-and-transfers).
+- `'summary'`: one summary message. The model of the source harness writes it, with the keys of the user. The summary call stops after 2 minutes, and then the transfer fails. Its usage counts in the source thread under the source `transfer`. See [Usage of the router and transfers](./usage#usage-of-the-router-and-transfers).
 - `'all'`: the settled transcript, with new message ids and a copy of each media file.
 
 Only settled messages move. A tool call with no result yet stays behind. Plugin state, shared state, credentials, waits, settings, and plugin config never move. The source thread keeps running.
@@ -307,9 +307,9 @@ await billingClient.send('Hi, I am still here.')
 
 ### Rules of a transfer
 
-- Both threads are in the tenant of `principal`. A transfer to another tenant cannot be named.
-- With access, the principal needs `transfer` on the source. With `membersOnly()`, only the owner has it. A target that exists needs `send` too.
-- A new target has the principal as its only member, the owner. A thread that exists must belong to `to.harness`.
+- Both threads are in the tenant of `user`. A transfer to another tenant cannot be named.
+- With access, the user needs `transfer` on the source. With `membersOnly()`, only the owner has it. A target that exists needs `send` too.
+- A new target has the user as its only member, the owner. A thread that exists must belong to `to.harness`.
 - A retry with the same `transferId` makes no second thread and copies nothing again.
 - If another host owns the target log, the transfer throws `LogOwnedElsewhereError`.
 

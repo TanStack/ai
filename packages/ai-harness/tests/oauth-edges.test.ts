@@ -372,10 +372,10 @@ describe('oauthConnector edges', () => {
       plugins: () => [connector(fake, seen)],
     })
     await (
-      await host.open(harness, { threadId: 't1', principal: { id: 'u1' } })
+      await host.open(harness, { threadId: 't1', user: { id: 'u1' } })
     ).send('who')
     await (
-      await host.open(harness, { threadId: 't2', principal: { id: 'u2' } })
+      await host.open(harness, { threadId: 't2', user: { id: 'u2' } })
     ).send('who')
     expect(seen).toEqual(['fresh', 'key-1'])
     expect(
@@ -532,7 +532,7 @@ describe('oauthConnector refresh races', () => {
     const open = (threadId: string) =>
       host.open(tokenHarness(endpoint.fake, calls), {
         threadId,
-        principal: { id: 'u1' },
+        user: { id: 'u1' },
       })
     const [first, second] = await Promise.all([open('t1'), open('t2')])
     const sending = Promise.all([first.send('who'), second.send('who')])
@@ -564,7 +564,7 @@ describe('oauthConnector refresh races', () => {
       hosts.map((host) =>
         host.open(tokenHarness(endpoint.fake, calls), {
           threadId: 't',
-          principal: { id: 'u1' },
+          user: { id: 'u1' },
         }),
       ),
     )
@@ -626,7 +626,7 @@ describe('oauthConnector refresh races', () => {
     })
     const session = await host.open(tokenHarness(endpoint.fake, calls), {
       threadId: 't',
-      principal: { id: 'u1', tenantId: 'acme' },
+      user: { id: 'u1', tenantId: 'acme' },
     })
     await session.send('who')
     expect(calls.seen).toEqual(['fresh-1'])

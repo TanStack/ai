@@ -143,7 +143,7 @@ describe('session.jobs', () => {
     const host = createHarnessHost({ persistence: memoryPersistence() })
     const session = await host.open(harness, {
       threadId: 't',
-      principal: { id: 'ada' },
+      user: { id: 'ada' },
     })
     expect(session.jobs()).toEqual([])
 
@@ -155,7 +155,7 @@ describe('session.jobs', () => {
     const job = {
       jobId: 'call-1',
       threadId: 't',
-      principal: { id: 'ada' },
+      user: { id: 'ada' },
       startedAt: expect.any(Number),
       label: 'writer',
       running: true,

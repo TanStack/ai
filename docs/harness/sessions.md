@@ -37,7 +37,7 @@ const host = createHarnessHost({ persistence: memoryPersistence() })
 
 const session = await host.open(assistant, {
   threadId: 'chat-1',
-  principal: { id: 'ada' },
+  user: { id: 'ada' },
 })
 await session.send('Plan a trip to Lisbon.')
 console.log((await host.sessions.get({ threadId: 'chat-1' }))?.members) // [{ userId: 'ada', role: 'owner' }]
@@ -68,19 +68,19 @@ const durableHost = createHarnessHost({
 - The store needs `getVersioned` and `upsertIf`, else `createHarnessHost` throws. The host changes an entry with compare-and-set, so two hosts never lose each other's changes.
 - To write your own store, read the [`SessionIndexStore` contract](../persistence/store-reference#sessionindexstore).
 
-Each method of `host.sessions` takes one object with a `threadId` or filters, and a `principal`. The tenant of `principal` picks the entries. On a host with `access`, the `principal` is required, and the host checks each call. See [Access and tenants](./access).
+Each method of `host.sessions` takes one object with a `threadId` or filters, and a `user`. The tenant of `user` picks the entries. On a host with `access`, the `user` is required, and the host checks each call. See [Access and tenants](./access).
 
 ## List the sessions of a user
 
 ```ts group=harness-sessions
-const page = await host.sessions.list({ principal: { id: 'ada' }, limit: 20 })
+const page = await host.sessions.list({ user: { id: 'ada' }, limit: 20 })
 for (const entry of page.entries) {
   console.log(entry.threadId, entry.title ?? 'New chat')
 }
 
 if (page.truncated) {
   const next = await host.sessions.list({
-    principal: { id: 'ada' },
+    user: { id: 'ada' },
     limit: 20,
     cursor: page.cursor,
   })
@@ -91,14 +91,14 @@ if (page.truncated) {
 - The newest `updatedAt` comes first.
 - By default, the list has only top-level sessions. Pass `parentThreadId: 'chat-1'` to get the child sessions of `chat-1`.
 - With `limit`, a page that has more entries after it has `truncated: true` and a `cursor`. Pass the `cursor` to get the next page.
-- A list reads one tenant: the tenant of `principal`. Without a `tenantId`, the default tenant.
-- Without host `access`, the list has every session of that tenant. With `membersOnly()`, it has only the sessions where `principal` is a member. With your own `authorize`, it has the sessions that `authorize` lets `principal` list.
+- A list reads one tenant: the tenant of `user`. Without a `tenantId`, the default tenant.
+- Without host `access`, the list has every session of that tenant. With `membersOnly()`, it has only the sessions where `user` is a member. With your own `authorize`, it has the sessions that `authorize` lets `user` list.
 
 To find sessions, add filters. All filters must match, and `limit` and `cursor` page the filtered list:
 
 ```ts group=harness-sessions
 const found = await host.sessions.list({
-  principal: { id: 'ada' },
+  user: { id: 'ada' },
   search: 'trip',
   harness: 'acme/assistant',
   metadata: { project: 'p-1' },
@@ -129,7 +129,7 @@ await fork.send('Plan a trip to Porto.')
 - `at: { through: id }` copies the messages up to and including `id`.
 - `at: { before: id }` copies the messages before `id`. A fork before the first message has no messages, but it keeps the settings.
 - The host picks the new thread id. The new entry has the title of the old one plus ` (fork)`. A thread without a title gives a fork without a title.
-- With a `principal` and host `access`, the user who forks owns the fork. `members` picks who else is in it. See [Fork a shared thread](./shared-threads#6-fork-a-shared-thread). Without access and without `members`, the fork keeps the owner and the members of the old thread.
+- With a `user` and host `access`, the user who forks owns the fork. `members` picks who else is in it. See [Fork a shared thread](./shared-threads#6-fork-a-shared-thread). Without access and without `members`, the fork keeps the owner and the members of the old thread.
 - If the transcript has no message with that id, `fork` throws.
 - If the index entry of the thread names another harness, `fork` throws. One host can run more than one harness. To move a chat to another harness, use [`host.transfer`](./handoffs#5-move-a-conversation-to-another-harness).
 
@@ -255,7 +255,7 @@ void watch()
 - `status`: `running` (an operation runs), `waiting` (a question or an approval waits for an answer), or `idle`. `at` is the time of the change.
 - `session`: the host wrote an entry, for a new session, the end of a turn, a rename, an update, or a fork. `entry` is the new entry.
 - `session-deleted`: the host removed an entry. `entry` is the removed entry.
-- `revoked`: `host.revoke` or `unshare` took the access of the user `principalId` to `threadId`. See [Use your own access tables](./access#use-your-own-access-tables).
+- `revoked`: `host.revoke` or `unshare` took the access of the user `userId` to `threadId`. See [Use your own access tables](./access#use-your-own-access-tables).
 
 Each host reports only the sessions that are open in it. For those sessions, the status also counts the turns and the questions that another host writes to the same log. A session with no status event is not open, so show it as idle.
 

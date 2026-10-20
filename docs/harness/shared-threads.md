@@ -69,12 +69,12 @@ The owner adds a member from your server code:
 ```ts group=harness-shared-threads
 const ada = { id: 'ada', tenantId: 'acme' }
 
-await host.open(assistant, { threadId: 'team-thread', principal: ada })
+await host.open(assistant, { threadId: 'team-thread', user: ada })
 await host.sessions.share({
   threadId: 'team-thread',
   userId: 'bob',
   role: 'member',
-  principal: ada,
+  user: ada,
 })
 ```
 
@@ -97,7 +97,7 @@ await client.sessions.unshare({ threadId: 'team-thread', userId: 'bob' })
 ```
 
 - `share` adds a member, or changes the role of a member. It resolves to the changed entry.
-- `unshare` removes a member: `host.sessions.unshare({ threadId, userId, principal })` on the server, or `client.sessions.unshare({ threadId, userId })` from the browser. It resolves to the changed entry.
+- `unshare` removes a member: `host.sessions.unshare({ threadId, userId, user })` on the server, or `client.sessions.unshare({ threadId, userId })` from the browser. It resolves to the changed entry.
 - Only the owner can share. Another user gets `AccessDeniedError`, and the handler answers `403`.
 - The owner cannot be removed.
 
@@ -137,7 +137,7 @@ On the server, open one handle for each person. A handle acts only as its user:
 
 ```ts group=harness-shared-threads
 const bob = { id: 'bob', tenantId: 'acme' }
-const bobSession = await host.open(assistant, { threadId: 'team-thread', principal: bob })
+const bobSession = await host.open(assistant, { threadId: 'team-thread', user: bob })
 
 await bobSession.send('Summarize the open issues.')
 ```
@@ -211,17 +211,17 @@ A message with `busy: 'steer'` can join the turn that runs now. A joined message
 - A message from another person waits. It runs as its own turn after the running one, as its sender.
 - The waiting messages join as a prefix, in the order they arrived. So a message that waits also holds back the messages that wait after it.
 
-Set `canJoin` to choose your own rule. It gets the sender of the waiting message as `principal`, and the sender of the running turn as `turnPrincipal`. This harness keeps the default rule, and it also lets your build bot join any turn:
+Set `canJoin` to choose your own rule. It gets the sender of the waiting message as `user`, and the sender of the running turn as `turnUser`. This harness keeps the default rule, and it also lets your build bot join any turn:
 
 ```ts group=harness-shared-threads
 export const team = defineHarness({
   name: 'acme/team',
   adapter: openaiText('gpt-6.1-sol'),
   turn: {
-    canJoin: ({ principal, turnPrincipal }) =>
-      principal?.id === 'build-bot' ||
-      (principal?.id === turnPrincipal?.id &&
-        principal?.tenantId === turnPrincipal?.tenantId),
+    canJoin: ({ user, turnUser }) =>
+      user?.id === 'build-bot' ||
+      (user?.id === turnUser?.id &&
+        user?.tenantId === turnUser?.tenantId),
   },
 })
 ```
@@ -239,7 +239,7 @@ const fork = await host.sessions.fork({
   threadId: 'team-thread',
   at: { through: first.id },
   members: 'all',
-  principal: bob,
+  user: bob,
 })
 console.log(fork.members[0]) // { userId: 'bob', role: 'owner' }
 ```
@@ -309,9 +309,9 @@ export const presenceHost = createHarnessHost({
     policy: membersOnly(),
   },
   presence: {
-    onConnect: ({ threadId, connectionId, principal }) => {
+    onConnect: ({ threadId, connectionId, user }) => {
       const streams = online.get(threadId) ?? new Map<string, string>()
-      streams.set(connectionId, principal?.id ?? 'guest')
+      streams.set(connectionId, user?.id ?? 'guest')
       online.set(threadId, streams)
     },
     onDisconnect: ({ threadId, connectionId }) => {
@@ -322,10 +322,10 @@ export const presenceHost = createHarnessHost({
 
 // GET /api/who?threadId=team-thread: the users who have the thread open.
 export async function whoIsHere(request: Request) {
-  const principal = users.get(request.headers.get('authorization') ?? '')
+  const user = users.get(request.headers.get('authorization') ?? '')
   const threadId = new URL(request.url).searchParams.get('threadId') ?? ''
   // Only a user who can read the thread sees the list. Another user gets AccessDeniedError.
-  const entry = principal && (await presenceHost.sessions.get({ threadId, principal }))
+  const entry = user && (await presenceHost.sessions.get({ threadId, user }))
   if (!entry) return new Response('Not found', { status: 404 })
   return Response.json([...new Set(online.get(threadId)?.values())])
 }

@@ -38,7 +38,7 @@ import {
   dropOldest,
   jobsOf,
   scopeOf,
-  storedPrincipal,
+  storedUser,
   notOpenMessages,
   tapFeed,
 } from './helpers'
@@ -90,7 +90,7 @@ import type {
   InputSettlement,
   OnEvent,
   Operation,
-  Principal,
+  HarnessUser,
   Receipt,
   RunContext,
   SessionEvent,
@@ -254,7 +254,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   readonly registry: AgentRegistryView
 
   protected readonly harness: THarness
-  /** The tenant of this session: the tenant of the principal that opened it. */
+  /** The tenant of this session: the tenant of the user that opened it. */
   protected readonly tenantId: string | undefined
   /** The id of the log of this session in the store, with the tenant. */
   protected readonly storeLogId: string
@@ -265,9 +265,9 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * session are in its log (see `runStore`).
    */
   protected readonly persistence: HarnessPersistence
-  protected readonly principal: Principal | undefined
+  protected readonly user: HarnessUser | undefined
   /** The owner of the index entry, once the session read it. */
-  protected owner: Principal | undefined
+  protected owner: HarnessUser | undefined
   /** The session log writer, once `open()` opened it. It is also the feed. */
   protected logWriter: LogWriter | undefined
   /** The session log writer. Throws before `open()` opened it. */
@@ -382,7 +382,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /** Running tool calls that support `detach`: id to the move. */
   protected readonly detachable = new Map<
     string,
-    (principal: Principal | undefined) => void
+    (user: HarnessUser | undefined) => void
   >()
   protected activeTurn: OperationImpl<ChatTurnResult> | undefined
   /** The open skipped recovery: another host owned the thread then. */
@@ -412,7 +412,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /** Work inputs that are being stored and are not queued yet. */
   protected inputsInFlight = 0
   /** Who sent the input of the running turn. */
-  protected turnPrincipal: Principal | undefined
+  protected turnUser: HarnessUser | undefined
   /**
    * The last turn stopped for these interrupts. `routed`: a routed turn
    * stopped. The resolve continues its saved plan. The log keeps a copy, so
@@ -510,19 +510,19 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    */
   protected readonly declinedSignIns = new Set<string>()
   /**
-   * The credentials of one principal: the user of a run. A save there can
+   * The credentials of one user: the user of a run. A save there can
    * answer that user's sign-ins. With `canWait`, a `require` with `wait` can
    * stop the run for the sign-in.
    */
   protected readonly credentialsOf: (
-    principal: Principal | undefined,
+    user: HarnessUser | undefined,
     canWait?: (id: string) => boolean,
   ) => CredentialsAccess
   /**
-   * The model provider keys of one principal: saved with
+   * The model provider keys of one user: saved with
    * `/connect <provider>`, else the env var.
    */
-  protected readonly keysOf: (principal: Principal | undefined) => ProviderKeys
+  protected readonly keysOf: (user: HarnessUser | undefined) => ProviderKeys
   /** `ctx.keys` of a session plugin: it says if keys read env vars. */
   protected readonly sessionPluginKeys: ProviderKeys
   /** What session plugins get. A turn plugin gets `pluginServices(turn)`. */
@@ -570,7 +570,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       ...(deps.tenantId !== undefined ? { tenantId: deps.tenantId } : {}),
       options: this.harness.media,
     })
-    this.principal = deps.principal
+    this.user = deps.user
     this.retention = deps.retention
     this.hostPlugins = deps.hostPlugins
     this.inputRecords = new InputRecords(deps.retention.settledOperations)
@@ -613,10 +613,10 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     const refreshes = deps.refreshes ?? refreshFlights()
     // A child of `harnessAgent` reads the credentials of its root thread, so
     // it runs with the keys of the user of the run that started it.
-    this.credentialsOf = (principal, canWait) =>
+    this.credentialsOf = (user, canWait) =>
       credentialsFor(
         deps.credentials,
-        scopeOf(this.rootThreadId, principal),
+        scopeOf(this.rootThreadId, user),
         onMissing,
         {
           ...(canWait ? { canWait } : {}),
@@ -631,8 +631,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     this.sessionPluginKeys = envFallback
       ? SESSION_PLUGIN_KEYS
       : SESSION_PLUGIN_KEYS_NO_ENV
-    this.keysOf = (principal) =>
-      providerKeysFor(this.credentialsOf(principal), onMissing, {
+    this.keysOf = (user) =>
+      providerKeysFor(this.credentialsOf(user), onMissing, {
         secrets: this.redactor,
         envFallback,
       })
@@ -651,17 +651,17 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
-   * @internal `run` and `start` of the agent `name`, for `principal` when
+   * @internal `run` and `start` of the agent `name`, for `user` when
    * given. `session.agents` and `session.agent` use it, and so does the
-   * handle of `host.open`, which passes its own principal.
+   * handle of `host.open`, which passes its own user.
    */
-  agentHandle(name: string, principal?: Principal): DynamicAgentHandle {
-    const user = principal ? { principal } : {}
+  agentHandle(name: string, user?: HarnessUser): DynamicAgentHandle {
+    const asUser = user ? { user } : {}
     return {
       run: (input?: unknown, options?: AgentRunOptions) =>
-        this.runAgent(name, input, { ...options, ...user, wake: false }),
+        this.runAgent(name, input, { ...options, ...asUser, wake: false }),
       start: (input?: unknown, options?: AgentStartOptions) =>
-        this.runAgent(name, input, { ...options, ...user }),
+        this.runAgent(name, input, { ...options, ...asUser }),
     }
   }
 
@@ -882,12 +882,12 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
-   * Who sent the input of the running turn, else the principal that opened
+   * Who sent the input of the running turn, else the user that opened
    * the session. Turns run one at a time, so one value is enough. It never
    * picks credentials or keys: those come from the run context of each run.
    */
-  protected sender(): Principal | undefined {
-    return this.turnPrincipal ?? this.principal
+  protected sender(): HarnessUser | undefined {
+    return this.turnUser ?? this.user
   }
 
   /**
@@ -897,19 +897,19 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * routed turn. Without it, `run.handoff` rejects.
    */
   protected runContext(options: {
-    principal: Principal | undefined
+    user: HarnessUser | undefined
     runId: string
     parentRunId?: string
     signal: AbortSignal
     canWait?: (id: string) => boolean
     handoff?: RunContext['handoff']
   }): RunContext {
-    const { principal } = storedPrincipal(options.principal)
+    const { user } = storedUser(options.user)
     const { runId } = options
     const logId = this.storeLogId
     return {
       ...(this.tenantId !== undefined ? { tenantId: this.tenantId } : {}),
-      principal,
+      user,
       logId,
       threadId: this.threadId,
       runId,
@@ -919,20 +919,20 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       // same key, so the other system refuses the second side effect.
       idempotencyKey: (step, scope) => `${logId}:${scope ?? runId}:${step}`,
       signal: options.signal,
-      credentials: this.credentialsOf(options.principal, options.canWait),
-      keys: this.keysOf(options.principal),
+      credentials: this.credentialsOf(options.user, options.canWait),
+      keys: this.keysOf(options.user),
       handoff: options.handoff ?? NO_SESSION_CONTEXT.handoff,
     }
   }
 
   /**
    * What plugins get from the session. A session plugin has no user: its
-   * `credentials` and `keys` throw, its `session.principal` is the principal
-   * that opened the session, and its agents run for that principal. A turn
+   * `credentials` and `keys` throw, its `session.user` is the user
+   * that opened the session, and its agents run for that user. A turn
    * plugin gets its `turn`: they are all of the run of that turn.
    */
   protected pluginServices(turn?: TurnInfo): PluginServices {
-    const principal = turn?.principal
+    const user = turn?.user
     const operationId = turn?.operationId
     return {
       emit: (plugin, name, value) => this.emitPluginEvent(plugin, name, value),
@@ -949,10 +949,10 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       state: (plugin, initial) => this.pluginState(plugin, initial),
       credentials: turn?.run.credentials ?? SESSION_PLUGIN_CREDENTIALS,
       keys: turn?.run.keys ?? this.sessionPluginKeys,
-      session: this.pluginApi(principal, undefined, operationId),
+      session: this.pluginApi(user, undefined, operationId),
       sessionWith: (metadataSchema) =>
-        this.pluginApi(principal, metadataSchema, operationId),
-      agents: this.pluginAgents(principal),
+        this.pluginApi(user, metadataSchema, operationId),
+      agents: this.pluginAgents(user),
       commandsChanged: () =>
         this.feed.publish(
           'session',
@@ -963,18 +963,18 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   }
 
   /**
-   * `ctx.agents` of a plugin. The runs are for `principal`, else for the
-   * principal that opened the session. A `principal` option of `start` wins.
+   * `ctx.agents` of a plugin. The runs are for `user`, else for the
+   * user that opened the session. A `user` option of `start` wins.
    * With no `parent` option, a start in a tool call of an agent run is a
    * child of that run (see `toolCallRun`).
    */
-  protected pluginAgents(principal?: Principal): AgentActions {
-    const user = principal ? { principal } : {}
+  protected pluginAgents(user?: HarnessUser): AgentActions {
+    const asUser = user ? { user } : {}
     return this.agentActions((target, input, options) => {
       const runId =
         options.parent === undefined ? this.toolCallRun() : undefined
       return this.runAgent(target, input, {
-        ...user,
+        ...asUser,
         ...options,
         ...(runId !== undefined ? { parent: { runId } } : {}),
       })
@@ -1386,7 +1386,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
    * Track a background job of this host. The log also has its start and
    * end, so recovery can note a job that a crash stopped. The record goes
    * to `threadId`, the thread of the workspace that runs the job.
-   * `principal` is who moved the job to the background. `label` is the
+   * `user` is who moved the job to the background. `label` is the
    * command or the tool name.
    */
   protected logJob(
@@ -1394,12 +1394,12 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       jobId: string
       backendId?: string
       threadId?: string
-      principal?: Principal
+      user?: HarnessUser
       label?: string
     },
     ended: boolean,
   ) {
-    const { jobId, backendId, threadId, principal, label } = job
+    const { jobId, backendId, threadId, user, label } = job
     if (ended) this.liveJobs.delete(jobId)
     else this.liveJobs.add(jobId)
     const isOtherThread = threadId !== undefined && threadId !== this.threadId
@@ -1410,7 +1410,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       ...(!ended ? { at: Date.now() } : {}),
       ...(!ended && backendId !== undefined ? { backendId } : {}),
       ...(!ended && label !== undefined ? { label } : {}),
-      ...storedPrincipal(principal),
+      ...storedUser(user),
       ...(isOtherThread ? { thread: threadId } : {}),
     }
     // No one waits for a job record. A failed log write fails the session.
@@ -1428,7 +1428,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     start: AgentStartFn,
   ): Promise<Array<unknown>>
   protected abstract pluginApi(
-    principal?: Principal,
+    user?: HarnessUser,
     metadataSchema?: SchemaInput,
     operationId?: string,
   ): PluginSessionApi
@@ -1451,28 +1451,28 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
   /** See `SessionRequests.applyCancelInput`. */
   protected abstract applyCancelInput(options: {
     inputId: string
-    principal?: Principal
+    user?: HarnessUser
     controlId?: string
   }): Promise<Receipt>
   /** See `SessionRequests.applySetDelivery`. */
   protected abstract applySetDelivery(options: {
     inputId: string
     delivery: 'steer' | 'queue'
-    principal?: Principal
+    user?: HarnessUser
     controlId?: string
   }): Promise<Receipt>
   /** See `SessionState.applyConfig`. */
   protected abstract applyConfig(options: {
     key: string
     value: unknown
-    principal?: Principal
+    user?: HarnessUser
     controlId?: string
   }): Promise<Receipt>
   /** See `SessionState.applyAnswer`. */
   protected abstract applyAnswer(options: {
     questionId: string
     value: unknown
-    principal?: Principal
+    user?: HarnessUser
     controlId?: string
     ref?: string
   }): Promise<Receipt>

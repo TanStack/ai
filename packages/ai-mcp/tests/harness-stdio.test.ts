@@ -65,7 +65,7 @@ describe('createHarnessMcpServer over stdio', () => {
         ]),
       )
       expect(errors).toHaveBeenCalledWith(
-        'createHarnessMcpServer: a host with access reads the user of each HTTP request, so it cannot serve over stdio. For one local user, use a host without access and openAccess: { principal }.',
+        'createHarnessMcpServer: a host with access reads the user of each HTTP request, so it cannot serve over stdio. For one local user, use a host without access and openAccess: { user }.',
       )
     } finally {
       await served.close()

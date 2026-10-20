@@ -42,7 +42,7 @@ import type {
   HarnessRunContext,
   HarnessSession,
   Operation,
-  Principal,
+  HarnessUser,
 } from '../src'
 import type { Reply } from './helpers'
 import type { ViewMessage } from '../src/view/types'
@@ -54,7 +54,7 @@ const waitFor = <T>(check: () => T | Promise<T>) =>
 const THREAD = 't1'
 const NAME = 'test/human-handoff'
 
-interface User extends Principal {
+interface User extends HarnessUser {
   tenantId: string
 }
 const olga: User = { id: 'olga', tenantId: 'acme' }
@@ -113,7 +113,7 @@ async function hostOn(
   })
   const session = await host.open(harness, {
     threadId: THREAD,
-    principal: olga,
+    user: olga,
   })
   return { host, session }
 }
@@ -166,7 +166,7 @@ describe('a handoff to a person', () => {
         waitId: expect.any(String),
         kind: 'human',
         runId: turn.id,
-        principal: { id: 'olga', tenantId: 'acme' },
+        user: { id: 'olga', tenantId: 'acme' },
         message: 'The user asks for a person.',
       },
     ])
@@ -391,8 +391,7 @@ describe('an operator reply', () => {
         policy: membersOnly(),
       },
     })
-    const open = (principal: User) =>
-      host.open(harness, { threadId: THREAD, principal })
+    const open = (user: User) => host.open(harness, { threadId: THREAD, user })
     const owner = await open(olga)
     for (const [userId, role] of [
       ['bea', 'operator'],
@@ -402,7 +401,7 @@ describe('an operator reply', () => {
         threadId: THREAD,
         userId,
         role,
-        principal: olga,
+        user: olga,
       })
     }
     return { host, harness, main, owner, open }
@@ -549,7 +548,7 @@ describe('an operator reply', () => {
           message: 'From the protocol.',
           as: 'operator',
         }),
-        principal: bea,
+        user: bea,
       }),
     ).toMatchObject({ status: 'accepted' })
 

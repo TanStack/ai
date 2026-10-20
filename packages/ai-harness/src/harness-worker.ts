@@ -2,7 +2,7 @@ import { sweepOf } from './host'
 import type { OrphanedLog } from '@tanstack/ai-persistence'
 import type { AnyHarness } from './define'
 import type { HarnessHost } from './host'
-import type { Principal } from './types'
+import type { HarnessUser } from './types'
 
 /** The longest wait between two looks for work, in milliseconds. */
 const MAX_POLL_MS = 30_000
@@ -10,9 +10,9 @@ const MAX_POLL_MS = 30_000
 const MAX_FAILURE_BACKOFF_MS = 5 * 60_000
 
 /** Options for {@link createHarnessWorker}. */
-export interface HarnessWorkerPoolOptions<P extends Principal = Principal> {
+export interface HarnessWorkerPoolOptions<U extends HarnessUser = HarnessUser> {
   /** The host that runs the threads. */
-  host: HarnessHost<P>
+  host: HarnessHost<U>
   /** The harnesses whose threads the worker runs, matched by name. */
   harnesses: ReadonlyArray<AnyHarness>
   /** At most how many threads the worker runs at the same time. Default 8. */
@@ -36,7 +36,7 @@ export interface HarnessWorkerPoolOptions<P extends Principal = Principal> {
  * the thread when its work ended. Many workers on many machines can run
  * against one log store: each log goes to one of them.
  *
- * Each thread opens in its own tenant, with no principal. `await
+ * Each thread opens in its own tenant, with no user. `await
  * worker.stop()` stops the looks, and waits until the threads that the
  * worker runs end their work and close. To stop the work at once, call
  * `host.close({ recoverable: true })`: the next host runs it again.
@@ -51,13 +51,13 @@ export interface HarnessWorkerPoolOptions<P extends Principal = Principal> {
  * process.on('SIGTERM', () => void worker.stop())
  * ```
  */
-export function createHarnessWorker<P extends Principal>({
+export function createHarnessWorker<U extends HarnessUser>({
   host,
   harnesses,
   concurrency = 8,
   signal,
   pollMs = 1_000,
-}: HarnessWorkerPoolOptions<P>) {
+}: HarnessWorkerPoolOptions<U>) {
   if (!Number.isInteger(concurrency) || concurrency < 1) {
     throw new RangeError(
       `createHarnessWorker: concurrency must be a whole number of 1 or more, got ${concurrency}.`,

@@ -78,7 +78,7 @@ export type HarnessRecord =
       type: 'harness.input'
       inputId: string
       input: HarnessInput
-      principal?: { id: string; tenantId?: string }
+      user?: { id: string; tenantId?: string }
       at: number
       /** The W3C `traceparent` of the caller. */
       traceparent?: string
@@ -130,18 +130,18 @@ export type HarnessRecord =
     }
   | ({ type: 'harness.usage' } & UsageCall)
   /**
-   * A revert that stands, or `null` when it ended. `principal` is who
+   * A revert that stands, or `null` when it ended. `user` is who
    * reverted, on the record of `session.revert`.
    */
   | {
       type: 'harness.revert'
       revert: RevertState | null
-      principal?: { id: string; tenantId?: string }
+      user?: { id: string; tenantId?: string }
     }
   /**
    * A background job started, or it ended. `backendId` is the id of its
    * process in the workspace backend, so a later host can stop it.
-   * `principal` is who moved a running call to the background
+   * `user` is who moved a running call to the background
    * (`session.background`). A start has `at`, its time in epoch ms, and
    * `label`, the command or the tool name.
    */
@@ -150,7 +150,7 @@ export type HarnessRecord =
       jobId: string
       ended: boolean
       backendId?: string
-      principal?: { id: string; tenantId?: string }
+      user?: { id: string; tenantId?: string }
       at?: number
       label?: string
     }
@@ -275,7 +275,7 @@ export interface ProjectOptions {
 export interface InputState {
   inputId: string
   input: HarnessInput
-  principal?: { id: string; tenantId?: string }
+  user?: { id: string; tenantId?: string }
   at: number
   /** The position of the input record. The events of its run come after it. */
   seq: number
@@ -304,7 +304,7 @@ export interface InputState {
  */
 export interface JobState {
   backendId?: string
-  principal?: { id: string; tenantId?: string }
+  user?: { id: string; tenantId?: string }
   at?: number
   label?: string
 }
@@ -607,7 +607,7 @@ export function foldEntry(
       state.inputs.set(record.inputId, {
         inputId: record.inputId,
         input: record.input,
-        ...(record.principal ? { principal: record.principal } : {}),
+        ...(record.user ? { user: record.user } : {}),
         ...(record.traceparent ? { traceparent: record.traceparent } : {}),
         at: record.at,
         seq: entry.seq,
@@ -744,12 +744,12 @@ export function foldEntry(
       // A moved call logs a second start with its backend id. The first
       // start keeps who moved it and when.
       const job = state.jobs.get(record.jobId) ?? {}
-      const { backendId, principal, at, label } = record
+      const { backendId, user, at, label } = record
       state.jobs.set(record.jobId, {
         ...job,
         ...(backendId !== undefined ? { backendId } : {}),
         ...(label !== undefined ? { label } : {}),
-        ...(job.principal === undefined && principal ? { principal } : {}),
+        ...(job.user === undefined && user ? { user } : {}),
         ...(job.at === undefined && at !== undefined ? { at } : {}),
       })
       return
@@ -1224,13 +1224,13 @@ export async function loggedTargetOf({
   const inputs = [...state.sessions.values()].flatMap((session) => [
     ...session.inputs.values(),
   ])
-  const by = (principal: { id: string } | undefined) =>
-    principal ? { principalId: principal.id } : {}
+  const by = (user: { id: string } | undefined) =>
+    user ? { userId: user.id } : {}
   /** The operation `operationId`, and who sent the input that started it. */
   const startedBy = (operationId: string): AccessRun | null => {
     const first = inputs.find((logged) => logged.operationId === operationId)
     if (!first && !root.thread.runs.has(operationId)) return null
-    return { runId: operationId, ...by(first?.principal) }
+    return { runId: operationId, ...by(first?.user) }
   }
   switch (input.op) {
     case 'answer': {
@@ -1238,9 +1238,9 @@ export async function loggedTargetOf({
       if (!wait) return { run: null }
       const answered = { waitId: wait.waitId, kind: wait.kind }
       // A wait of the session belongs to no run.
-      if (wait.principal || wait.runId === 'session') {
+      if (wait.user || wait.runId === 'session') {
         return {
-          run: { runId: wait.runId, ...by(wait.principal) },
+          run: { runId: wait.runId, ...by(wait.user) },
           wait: answered,
         }
       }
@@ -1254,7 +1254,7 @@ export async function loggedTargetOf({
     case 'cancelInput': {
       const logged = inputs.find((item) => item.inputId === input.inputId)
       return {
-        run: logged ? { runId: input.inputId, ...by(logged.principal) } : null,
+        run: logged ? { runId: input.inputId, ...by(logged.user) } : null,
       }
     }
     case 'resolve': {
@@ -1271,9 +1271,7 @@ export async function loggedTargetOf({
       const [first] = logged
       if (!first) {
         return {
-          run: stopped
-            ? { runId: stopped.runId, ...by(stopped.principal) }
-            : null,
+          run: stopped ? { runId: stopped.runId, ...by(stopped.user) } : null,
           ...answered,
         }
       }
@@ -1284,8 +1282,8 @@ export async function loggedTargetOf({
         logged.every((wait) => wait.runId === first.runId)
       if (!isOneRun) return { run: null, ...answered }
       return {
-        run: first.principal
-          ? { runId: first.runId, ...by(first.principal) }
+        run: first.user
+          ? { runId: first.runId, ...by(first.user) }
           : startedBy(first.runId),
         ...answered,
       }
@@ -2817,7 +2815,7 @@ export function logMessageStore(options: {
   store: LogStore
   project?: ProjectOptions
   /**
-   * The tenant of the threads: the `principal.tenantId` of `host.open`.
+   * The tenant of the threads: the `user.tenantId` of `host.open`.
    * Default: the default tenant.
    */
   tenantId?: string

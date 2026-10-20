@@ -26,7 +26,7 @@ import {
   notifyListeners,
   offeredInputRecord,
   SHUTDOWN_REASON,
-  storedPrincipal,
+  storedUser,
   tapFeed,
   toolCallOf,
 } from './helpers'
@@ -236,7 +236,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
    */
   async endThread(): Promise<void> {
     const run = this.runContext({
-      principal: undefined,
+      user: undefined,
       runId: `end:${this.threadId}`,
       signal: this.lifetime.signal,
     })
@@ -419,7 +419,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
       throw new RangeError(`schedule: at must be a finite number, got ${at}.`)
     }
     const scheduleId = options.scheduleId ?? createScheduleId()
-    const principal = options.principal ?? this.principal
+    const user = options.user ?? this.user
     await this.inSchedules(async () => {
       if (this.writer.state.thread.schedules.has(scheduleId)) return
       await this.writer.append([
@@ -428,7 +428,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
           scheduleId,
           at,
           input,
-          ...storedPrincipal(principal),
+          ...storedUser(user),
         },
       ])
     })
@@ -462,10 +462,10 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
   scheduleRun(scheduleId: string): AccessRun | undefined {
     const schedule = this.writer.state.thread.schedules.get(scheduleId)
     if (!schedule) return undefined
-    const { principal } = schedule
+    const { user } = schedule
     return {
       runId: scheduleId,
-      ...(principal ? { principalId: principal.id } : {}),
+      ...(user ? { userId: user.id } : {}),
     }
   }
 
@@ -567,7 +567,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
           offeredInputRecord({
             inputId,
             input: schedule.input,
-            principal: schedule.principal,
+            user: schedule.user,
           }),
         )
         if (offered === 'conflict') {
@@ -877,7 +877,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
     const taken: Array<string> = []
     const isTaken = (input: InputState) => {
       if (this.admitted.has(input.inputId)) return true
-      this.admitted.set(input.inputId, inputKey(input.input, input.principal))
+      this.admitted.set(input.inputId, inputKey(input.input, input.user))
       taken.push(input.inputId)
       return false
     }
@@ -941,12 +941,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
         if (isOpen && input.abortRequested) {
           await this.settle({ inputId: input.inputId, outcome: 'aborted' })
         } else if (isOpen) {
-          this.queueReset(
-            input.inputId,
-            input.input.note,
-            input.principal,
-            'end',
-          )
+          this.queueReset(input.inputId, input.input.note, input.user, 'end')
         }
         continue
       }
@@ -964,7 +959,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
             inputId: input.inputId,
             name: input.input.name,
             input: input.input.input,
-            principal: input.principal,
+            user: input.user,
           })
         if (isReplayed) continue
         await this.settle({
@@ -989,7 +984,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
               {
                 inputId: input.inputId,
                 message: input.input.message,
-                ...(input.principal ? { principal: input.principal } : {}),
+                ...(input.user ? { user: input.user } : {}),
               },
               input.input.mode ?? 'steer',
             )
@@ -1053,7 +1048,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
           this.enqueueTurn({
             operation,
             inputId: input.inputId,
-            principal: input.principal,
+            user: input.user,
             context: input.input.context,
             ...this.recoveredExtras(input.inputId, decision.overrides),
             isContinue: true,
@@ -1067,7 +1062,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
           this.enqueueTurn({
             operation,
             inputId: input.inputId,
-            principal: input.principal,
+            user: input.user,
             tool: { name, args, ...(meta ? { meta } : {}) },
           })
           continue
@@ -1079,7 +1074,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
           this.enqueueTurn({
             operation,
             inputId: input.inputId,
-            principal: input.principal,
+            user: input.user,
             message: input.input.message,
             operator: true,
           })
@@ -1088,7 +1083,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
         const steer: WaitingSteer = {
           inputId: input.inputId,
           message: input.input.message,
-          principal: input.principal,
+          user: input.user,
           context: input.input.context,
           ...this.recoveredExtras(input.inputId, decision.overrides),
           ...(input.input.op === 'followUp' && input.input.wake
@@ -1155,7 +1150,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
             agent: first.input.agent,
             inputId: input.inputId,
             wake: first.input.detached,
-            ...(input.principal ? { principal: input.principal } : {}),
+            ...(input.user ? { user: input.user } : {}),
             ...(isResumable
               ? {
                   error: {
@@ -1305,7 +1300,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
           inputId: input.inputId,
           resume: input.input.resume,
           answers: this.interrupted,
-          principal: this.interrupted.principal ?? input.principal,
+          user: this.interrupted.user ?? input.user,
           context: this.interrupted.context,
           ...this.recoveredExtras(input.inputId, decision.overrides),
         })
@@ -1365,7 +1360,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
       this.enqueueTurn({
         operation,
         inputId: input.inputId,
-        principal: input.principal,
+        user: input.user,
         ...('message' in sent ? { sentMessage: sent.message } : {}),
         ...('context' in sent ? { context: sent.context } : {}),
         // An operator reply runs no model.

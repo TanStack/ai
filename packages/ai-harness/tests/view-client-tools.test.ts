@@ -50,7 +50,7 @@ describe('session view client tools', () => {
     const handler = createHarnessHandler({
       host,
       harness,
-      openAccess: { principal: { id: 'u' } },
+      openAccess: { user: { id: 'u' } },
     })
     const controls: Array<unknown> = []
     const client = createHarnessClient({

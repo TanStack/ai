@@ -16,7 +16,7 @@ const BLUE_DOT = Buffer.from(
   'base64',
 )
 
-/** The media routes of the protocol handler, as the e2e principal. */
+/** The media routes of the protocol handler, as the e2e user. */
 function mediaApi(
   request: APIRequestContext,
   testId: string,

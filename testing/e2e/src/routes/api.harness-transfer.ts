@@ -9,7 +9,7 @@ import {
 } from '@tanstack/ai-harness'
 import { createHarnessHandler } from '@tanstack/ai-harness/server'
 import { memoryPersistence } from '@tanstack/ai-persistence'
-import type { HarnessHost, Principal } from '@tanstack/ai-harness'
+import type { HarnessHost, HarnessUser } from '@tanstack/ai-harness'
 import type { LogStore } from '@tanstack/ai-persistence'
 
 /**
@@ -84,7 +84,7 @@ function harnessWith(name: string, answers: Array<string>) {
   })
 }
 
-interface User extends Principal {
+interface User extends HarnessUser {
   tenantId: string
 }
 const USERS: Record<string, User> = {
@@ -134,7 +134,7 @@ async function run() {
   try {
     const source = await host.open(support, {
       threadId: sourceId,
-      principal: USERS.olga,
+      user: USERS.olga,
     })
     await source.send('Hi.')
     await source.send('I want a refund.')
@@ -147,7 +147,7 @@ async function run() {
 
     // A user of another tenant cannot move the thread.
     const otherTenant = await host
-      .transfer({ ...options, principal: USERS.gus })
+      .transfer({ ...options, user: USERS.gus })
       .then(
         () => 'allowed',
         (error: unknown) =>
@@ -170,15 +170,15 @@ async function run() {
       return linesOf(messages)
     }
     const entryOf = (threadId: string) =>
-      host.sessions.get({ threadId, principal: USERS.olga })
+      host.sessions.get({ threadId, user: USERS.olga })
 
-    const first = await host.transfer({ ...options, principal: USERS.olga })
+    const first = await host.transfer({ ...options, user: USERS.olga })
     const afterFirst = {
       messages: (await transcriptOf(first.threadId)).length,
       records: (await transfersIn(log, first.threadId)).length,
     }
     // A retry with the same transferId.
-    const second = await host.transfer({ ...options, principal: USERS.olga })
+    const second = await host.transfer({ ...options, user: USERS.olga })
 
     const result = {
       otherTenant,
@@ -188,10 +188,9 @@ async function run() {
       targetTranscript: await transcriptOf(first.threadId),
       targetEntry: await entryOf(first.threadId),
       sourceEntry: await entryOf(sourceId),
-      threads: (await host.sessions.list({ principal: USERS.olga })).entries
+      threads: (await host.sessions.list({ user: USERS.olga })).entries.length,
+      globexThreads: (await host.sessions.list({ user: USERS.gus })).entries
         .length,
-      globexThreads: (await host.sessions.list({ principal: USERS.gus }))
-        .entries.length,
       transfers: {
         afterFirst,
         target: await transfersIn(log, first.threadId),

@@ -607,7 +607,7 @@ export function permissions(
       const root = options.root
       // The rules of the tenant of the session: the tenant of its opener.
       const scope = (): SavedPermissionsScope => {
-        const tenantId = ctx.session.principal?.tenantId
+        const tenantId = ctx.session.user?.tenantId
         return tenantId !== undefined ? { tenantId } : {}
       }
       const savedKey = () => savedKeyOf(root, scope().tenantId)

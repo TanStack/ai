@@ -123,7 +123,7 @@ console.log(`Resumed ${resumed.length} threads`, resumed)
 3. Takes each log. If two hosts sweep at the same time, each log goes to one of them.
 4. Opens the thread. The recovery steps in [What happens after a crash](#what-happens-after-a-crash) run its pending work, then the inputs that wait run.
 
-It resolves with the threads that it took, as `{ threadId, harness, tenantId }` entries. Each thread opens in its own tenant, with no principal.
+It resolves with the threads that it took, as `{ threadId, harness, tenantId }` entries. Each thread opens in its own tenant, with no user.
 
 If a thread that the sweep took does not open, the host gives it back with a wake in 30 seconds. The next sweep or worker tries it again.
 

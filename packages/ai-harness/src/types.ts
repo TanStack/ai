@@ -75,7 +75,7 @@ export type BusyPolicy = 'queue' | 'steer' | 'reject'
 export type SendOptions = {
   to?: undefined
   inputId?: string
-  principal?: Principal
+  user?: HarnessUser
   context?: unknown
   overrides?: TurnOverrides
   ephemeral?: ReadonlyArray<ModelMessage>
@@ -117,7 +117,7 @@ export interface AgentSendOptions {
   /** Default `'steer'`. See `AgentRun.send`. */
   mode?: 'steer' | 'followUp'
   inputId?: string
-  principal?: Principal
+  user?: HarnessUser
 }
 
 /** Kinds of work a session runs. */
@@ -218,7 +218,7 @@ export interface OnEvent {
  * `context` is JSON data the client sends with a message, for example the
  * screen the user is on. It is stored with the input, so a turn that runs
  * again after a restart sees the same value. It is client data: do not trust
- * it. Who sent the input is the principal from `authorize`, not a field here.
+ * it. Who sent the input is the user from `authorize`, not a field here.
  *
  * In `cancelInput` and `setDelivery`, `inputId` is the input that waits.
  *
@@ -357,7 +357,7 @@ export interface HandoffEnvelope {
    *
    * - `'none'` (default): no message.
    * - `'summary'`: one summary message. The model of the source harness
-   *   writes it, with the keys of the principal. Its usage counts in the
+   *   writes it, with the keys of the user. Its usage counts in the
    *   source thread.
    * - `'all'`: the transcript, with a copy of each media file it uses.
    */
@@ -365,7 +365,7 @@ export interface HandoffEnvelope {
 }
 
 /** The options of `host.transfer`. */
-export interface TransferOptions<P extends Principal = Principal> {
+export interface TransferOptions<U extends HarnessUser = HarnessUser> {
   /** The thread to move the conversation from, and its harness. */
   from: { harness: AnyHarness; threadId: string }
   /**
@@ -378,7 +378,7 @@ export interface TransferOptions<P extends Principal = Principal> {
    * Who makes the transfer. Its `tenantId` is the tenant of both threads.
    * Required when the host has `access`.
    */
-  principal?: P
+  user?: U
   /**
    * The id of the transfer, so a retry is safe: a second call with the same
    * id makes no second thread and copies nothing again. Default: a new id.
@@ -422,7 +422,7 @@ export type ThreadSettingsChange = {
 }
 
 // The options that a session, a client, and a view source share. A session
-// takes more: `principal` (who acts), and an `inputId` on every input.
+// takes more: `user` (who acts), and an `inputId` on every input.
 
 /** What `resolve` takes: the answers to the interrupts of the last turn. */
 export interface ResolveOptions {
@@ -519,12 +519,15 @@ function rejectionMessage(reason: string) {
   return `The session rejected the input: ${reason}.`
 }
 
-/** Who sent an input, from the host's `authorize`. */
-export interface Principal {
+/**
+ * A user: who a call acts for, for example who sent an input. On a host
+ * with `access`, it is what `identify` returns.
+ */
+export interface HarnessUser {
   id: string
   name?: string
   /**
-   * The organization of the principal. The credential scope gets it, so two
+   * The organization of the user. The credential scope gets it, so two
    * organizations' credentials for one user stay apart.
    */
   tenantId?: string
@@ -550,12 +553,12 @@ export interface Principal {
  */
 export interface RunContext {
   /**
-   * The tenant of the session: the tenant of the principal that opened it.
+   * The tenant of the session: the tenant of the user that opened it.
    * `undefined` in the default tenant.
    */
   tenantId?: string
   /** The user who started this run. `undefined` in a session with no user. */
-  principal: { id: string; tenantId?: string } | undefined
+  user: { id: string; tenantId?: string } | undefined
   /**
    * The id of the log of the session in the `LogStore`: the tenant and the
    * root thread of the session tree, from `logIdOf`.
@@ -630,8 +633,8 @@ export interface TurnInfo {
   message?: UserInput
   /** The `context` of the input. Client data: do not trust it. */
   context?: unknown
-  /** Who sent the input. Default: the principal that opened the session. */
-  principal?: Principal
+  /** Who sent the input. Default: the user that opened the session. */
+  user?: HarnessUser
   /** The settings of this turn only. Not kept after a restart. */
   overrides?: TurnOverrides
   /** The run of this turn: its user, and that user's credentials and keys. */
@@ -708,16 +711,16 @@ export interface AgentRun<TResult> extends Operation<TResult> {
    * runs as a follow-up. `mode: 'followUp'` runs the agent again after the
    * run ends, on the run's transcript with the message added, with its
    * first input and options. A run that ended starts again at once. The
-   * receipt names the run that gets the message. `principal` is who sends
+   * receipt names the run that gets the message. `user` is who sends
    * it. Default: the user of the run. On a handle of `host.open`, the
-   * principal of the handle, after its access check.
+   * user of the handle, after its access check.
    */
   send: (
     message: UserInput,
     options?: {
       mode?: 'steer' | 'followUp'
       inputId?: string
-      principal?: Principal
+      user?: HarnessUser
     },
   ) => Promise<Receipt>
 }
@@ -751,7 +754,7 @@ export interface RunNode {
   /** The agent name, for `kind: 'agent'`. */
   agent?: string
   /** Who the run runs for. */
-  principal?: { id: string; tenantId?: string }
+  user?: { id: string; tenantId?: string }
   /** The durable name of the run in its parent (`AgentStartOptions.key`). */
   key?: string
   /** The limits of the run (`AgentStartOptions.limits`). */
@@ -813,7 +816,7 @@ export interface AuthRequest {
 export interface UsageUpdate {
   /** `provider/model`. */
   model: string
-  /** The principal id of the sender, when known. */
+  /** The user id of the sender, when known. */
   sender?: string
   /**
    * `plugin:<name>` for a call of `ctx.model.chat`, and `router` for a call

@@ -12,7 +12,7 @@ import type {
   HarnessHost,
   HarnessPersistence,
   HarnessSession,
-  Principal,
+  HarnessUser,
   UserInput,
 } from '@tanstack/ai-harness'
 import type { CredentialStore } from '@tanstack/ai/byok'
@@ -36,7 +36,7 @@ function needs(flag: string, name: string): Error {
   )
 }
 
-export interface RunCliOptions<P extends Principal = Principal> {
+export interface RunCliOptions<U extends HarnessUser = HarnessUser> {
   /** Where sessions keep state. Default: in memory. Do not set it with `host`. */
   persistence?: HarnessPersistence
   /**
@@ -47,17 +47,17 @@ export interface RunCliOptions<P extends Principal = Principal> {
   /**
    * Your own host, so the CLI keeps its hooks: ownership, recovery, and stores.
    * You own it: the CLI does not close it. Do not set it with `persistence`
-   * or `credentials`. With host `access`, give `principal` too. `--serve`
+   * or `credentials`. With host `access`, give `user` too. `--serve`
    * then reads the user of each request with `access.identify`, and `--mcp`
    * refuses to start, as stdio has no login.
    */
-  host?: HarnessHost<P>
+  host?: HarnessHost<U>
   /**
-   * Who uses the CLI. Sessions open as this principal in every mode, so
+   * Who uses the CLI. Sessions open as this user in every mode, so
    * credentials and provider keys are theirs. On a host without access,
    * `--serve` runs each request with the token as them.
    */
-  principal?: P
+  user?: U
   /** Default: `process.argv.slice(2)`. */
   argv?: ReadonlyArray<string>
   stdin?: NodeJS.ReadStream
@@ -155,9 +155,9 @@ function attachingSource(session: HarnessSession) {
  * process.exitCode = await runCli(studio)
  * ```
  */
-export async function runCli<P extends Principal = Principal>(
+export async function runCli<U extends HarnessUser = HarnessUser>(
   harness: AnyHarness,
-  options: RunCliOptions<P> = {},
+  options: RunCliOptions<U> = {},
 ): Promise<number> {
   const stdout = options.stdout ?? process.stdout
   const stderr = options.stderr ?? process.stderr
@@ -184,13 +184,13 @@ export async function runCli<P extends Principal = Principal>(
     )
     return EXIT.failed
   }
-  const host: HarnessHost<P> =
+  const host: HarnessHost<U> =
     options.host ??
     createHarnessHost({
       ...(options.persistence ? { persistence: options.persistence } : {}),
       ...(options.credentials ? { credentials: options.credentials } : {}),
     })
-  const { principal } = options
+  const { user } = options
   const approvals = args.yes ? 'auto' : 'ask'
   // The session modes cancel the turn of their session. The other modes
   // have no turn of their own, so a signal stops them at once.
@@ -210,7 +210,7 @@ export async function runCli<P extends Principal = Principal>(
         'serveAcp',
       )
       if (!acp) throw needs('--acp', '@tanstack/ai-acp')
-      const connection = acp.serveAcp({ host, harness, principal })
+      const connection = acp.serveAcp({ host, harness, user })
       const code = await Promise.race([
         connection.closed.then(() => EXIT.ok),
         stop.stopped,
@@ -227,7 +227,7 @@ export async function runCli<P extends Principal = Principal>(
       // A host with access reads the user of each HTTP request.
       if (host.hasAccess) {
         throw new Error(
-          '--mcp serves over stdio, which has no login, so it cannot use a host with access. Give runCli a host without access, and the local user as principal.',
+          '--mcp serves over stdio, which has no login, so it cannot use a host with access. Give runCli a host without access, and the local user as the user option.',
         )
       }
       const [mcp, stdio] = await Promise.all([
@@ -245,7 +245,7 @@ export async function runCli<P extends Principal = Principal>(
         host,
         harness,
         // One local user: every call runs as them.
-        openAccess: principal ? { principal } : true,
+        openAccess: user ? { user } : true,
         threadId: args.thread,
         approvals,
         // A local client can attach the files of the working folder by path.
@@ -273,7 +273,7 @@ export async function runCli<P extends Principal = Principal>(
         ...(mediaKey !== undefined ? { mediaKey } : {}),
         threadId: args.thread,
         approvals,
-        ...(principal ? { principal } : {}),
+        ...(user ? { user } : {}),
       })
       stderr.write(`Serving ${harness.name} at ${server.url}\n`)
       if (!args.token && !env.HARNESS_TOKEN) stderr.write(`Token: ${token}\n`)
@@ -284,7 +284,7 @@ export async function runCli<P extends Principal = Principal>(
 
     session = await host.open(harness, {
       threadId: args.thread,
-      ...(principal ? { principal } : {}),
+      ...(user ? { user } : {}),
     })
     cancel = cancelTurn(session)
     // Relative to the working folder, as a relative --media-dir is.

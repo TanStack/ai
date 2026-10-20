@@ -87,7 +87,7 @@ async function openOn(
       adapter: model.adapter,
       ...config,
     }),
-    { threadId: THREAD, principal: alice },
+    { threadId: THREAD, user: alice },
   )
   return { host, session, calls: model.calls }
 }

@@ -266,19 +266,14 @@ export function mcpConnector(options: McpConnectorOptions) {
       // one person's sign-in, client, and tools never serve another
       // person's turn.
       const connections = new Map<string, Connection>()
-      const keyOf = (principal: RunContext['principal']) =>
-        principal
-          ? JSON.stringify([principal.tenantId ?? null, principal.id])
-          : ''
+      const keyOf = (user: RunContext['user']) =>
+        user ? JSON.stringify([user.tenantId ?? null, user.id]) : ''
       const close = async (connection: Connection | undefined) => {
         await connection?.client?.close().catch(() => {})
       }
-      /** Set the sign-in of `principal`, and drop its old client and tools. */
-      const signedIn = async (
-        principal: RunContext['principal'],
-        connected: boolean,
-      ) => {
-        const key = keyOf(principal)
+      /** Set the sign-in of `user`, and drop its old client and tools. */
+      const signedIn = async (user: RunContext['user'], connected: boolean) => {
+        const key = keyOf(user)
         const old = connections.get(key)
         connections.set(key, { connected })
         await close(old)
@@ -295,7 +290,7 @@ export function mcpConnector(options: McpConnectorOptions) {
             // Read after `discoverTools`, which finds the state of the
             // turn's user.
             text: (turn: TurnInfo) =>
-              connections.get(keyOf(turn.run.principal))?.connected
+              connections.get(keyOf(turn.run.user))?.connected
                 ? ''
                 : `${label} is not connected. If the user asks for ${label}, tell them to run /connect ${id}.`,
           },
@@ -303,8 +298,8 @@ export function mcpConnector(options: McpConnectorOptions) {
         // Runs for each turn, with the run of that turn: its user and that
         // user's credentials.
         discoverTools: async (turn: TurnInfo) => {
-          const { principal, credentials } = turn.run
-          const key = keyOf(principal)
+          const { user, credentials } = turn.run
+          const key = keyOf(user)
           let connection = connections.get(key)
           if (!connection) {
             connection = { connected: (await credentials.get(id)) !== null }
@@ -445,7 +440,7 @@ export function mcpConnector(options: McpConnectorOptions) {
               } finally {
                 receiver.close()
               }
-              await signedIn(run.principal, true)
+              await signedIn(run.user, true)
               return `Connected to ${label}.`
             },
           }),
@@ -453,7 +448,7 @@ export function mcpConnector(options: McpConnectorOptions) {
             description: `Sign out of ${label}`,
             run: async (_input, { run }) => {
               await run.credentials.delete(id)
-              await signedIn(run.principal, false)
+              await signedIn(run.user, false)
               return `Disconnected from ${label}.`
             },
           }),

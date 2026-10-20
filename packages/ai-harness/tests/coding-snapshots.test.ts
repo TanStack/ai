@@ -26,7 +26,7 @@ import {
   toolCall,
 } from './helpers'
 import type { LogStore } from '@tanstack/ai-persistence'
-import type { HarnessPersistence, HarnessSession, Principal } from '../src'
+import type { HarnessPersistence, HarnessSession, HarnessUser } from '../src'
 import type { WorkspaceBackend } from '../src/first-party/coding/backend'
 import type { Reply } from './helpers'
 
@@ -86,7 +86,7 @@ async function open(options: {
   backend?: WorkspaceBackend
   workspace?: boolean
   threadId?: string
-  principal?: Principal
+  user?: HarnessUser
 }) {
   const changes = options.changes ?? []
   const change = toolDefinition({
@@ -121,7 +121,7 @@ async function open(options: {
     }),
     {
       threadId: options.threadId ?? THREAD,
-      principal: options.principal,
+      user: options.user,
     },
   )
   return {
@@ -615,11 +615,11 @@ describe.skipIf(!hasGit)('snapshots of many runs', () => {
   it('gives two tenants on one root and one thread id two repositories', async () => {
     const first = await open({
       replies: [() => text('Hi.')],
-      principal: { id: 'user', tenantId: 'acme' },
+      user: { id: 'user', tenantId: 'acme' },
     })
     const second = await open({
       replies: [() => text('Hi.')],
-      principal: { id: 'user', tenantId: 'globex' },
+      user: { id: 'user', tenantId: 'globex' },
     })
 
     expect(await readdir(dataDir)).toHaveLength(2)

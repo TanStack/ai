@@ -8,7 +8,7 @@ import type {
   HarnessInput,
   Operation,
   OperationKind,
-  Principal,
+  HarnessUser,
   SendOptions,
   UserInput,
 } from '../types'
@@ -23,11 +23,11 @@ export interface HandleGuard {
     run?: AccessRun,
     wait?: AccessWait,
   ) => Promise<void>
-  /** `host.revoke` took the access of the principal of the handle. */
+  /** `host.revoke` took the access of the user of the handle. */
   isRevoked: () => boolean
   /**
    * Call `listener` when `host.revoke` (or `unshare`) takes the access of
-   * the principal of the handle. Returns a function that stops the calls.
+   * the user of the handle. Returns a function that stops the calls.
    */
   onRevoke: (listener: () => void) => () => void
 }
@@ -286,7 +286,7 @@ type Session<THarness extends AnyHarness> = SessionImpl<THarness>
 
 /**
  * A handle to the shared session of a thread, that `host.open` returns,
- * bound to `principal`: a call that passes no `principal` acts as it. It has
+ * bound to `user`: a call that passes no `user` acts as it. It has
  * every member of the session, and `this` stays the session.
  *
  * `close()` (or `await using`) releases only this handle: `lease` counts the
@@ -300,18 +300,18 @@ type Session<THarness extends AnyHarness> = SessionImpl<THarness>
  *
  * With `guard` (the host has access), each action asks `authorize` first. An
  * input is checked before the session stores it. A call that passes another
- * principal throws. After `host.revoke`, every call throws
+ * user throws. After `host.revoke`, every call throws
  * `AccessDeniedError`. Reads ask `authorize` once, when the host opens the
  * handle, and again when it opens the session again.
  */
 export function sessionHandle<THarness extends AnyHarness>({
   session,
-  principal,
+  user,
   guard,
   lease,
 }: {
   session: Session<THarness>
-  principal: Principal | undefined
+  user: HarnessUser | undefined
   guard?: HandleGuard
   lease: HandleLease<THarness>
 }) {
@@ -359,20 +359,20 @@ export function sessionHandle<THarness extends AnyHarness>({
     return laterOperation({ kind, agent, opening, call })
   }
   /** Who acts in a call that passes `passed`. */
-  const actor = (passed: Principal | undefined) => {
-    if (passed === undefined) return principal
-    const isOther = guard !== undefined && !isSameSender(passed, principal)
+  const actor = (passed: HarnessUser | undefined) => {
+    if (passed === undefined) return user
+    const isOther = guard !== undefined && !isSameSender(passed, user)
     if (isOther) {
       throw new Error(
-        `This handle acts as ${JSON.stringify(principal?.id)}. Open another handle for ${JSON.stringify(passed.id)}.`,
+        `This handle acts as ${JSON.stringify(user?.id)}. Open another handle for ${JSON.stringify(passed.id)}.`,
       )
     }
     return passed
   }
-  /** `options`, with the principal that acts. */
-  const as = <T extends { principal?: Principal }>(options: T) => {
-    const acting = actor(options.principal)
-    return acting ? { ...options, principal: acting } : options
+  /** `options`, with the user that acts. */
+  const as = <T extends { user?: HarnessUser }>(options: T) => {
+    const acting = actor(options.user)
+    return acting ? { ...options, user: acting } : options
   }
   /** `call` on `target`, which stores an input: the session checks it first. */
   const checkedOn = <T>(
@@ -403,7 +403,7 @@ export function sessionHandle<THarness extends AnyHarness>({
   const wrapped = new WeakMap<object, unknown>()
   /**
    * `operation`, with its `cancel` and `send` through this handle: they act
-   * as the principal of the handle, after `authorize` allows them.
+   * as the user of the handle, after `authorize` allows them.
    */
   const guarded = <T extends Operation<unknown>>(operation: T): T => {
     const known = wrapped.get(operation)
@@ -473,18 +473,14 @@ export function sessionHandle<THarness extends AnyHarness>({
       storingOperation(
         'agent',
         (target) =>
-          target
-            .agentHandle(name, actor(options?.principal))
-            .run(input, options),
+          target.agentHandle(name, actor(options?.user)).run(input, options),
         name,
       ),
     start: (input?: unknown, options?: AgentStartOptions) =>
       storingOperation(
         'agent',
         (target) =>
-          target
-            .agentHandle(name, actor(options?.principal))
-            .start(input, options),
+          target.agentHandle(name, actor(options?.user)).start(input, options),
         name,
       ),
   })

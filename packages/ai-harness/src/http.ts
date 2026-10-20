@@ -55,31 +55,32 @@ import type { ControlFrame, HarnessErrorCode, HostFrame } from './protocol'
 import type { HarnessStreamOptions, SseFrame, StreamValues } from './sse'
 import type { HarnessSession } from './session/index'
 import type { ObservedSession } from './session/observed-session'
-import type { Cursor, Principal, SessionEvent, UserInput } from './types'
+import type { Cursor, HarnessUser, SessionEvent, UserInput } from './types'
 
 /**
- * Who a handler or a socket serves when its host has no `access`. `true`:
- * each request runs with no principal, in the default tenant (one user).
- * `{ principal }`: each request runs as that principal, for example the one
- * local user of a CLI.
+ * Who a handler or a socket serves when its host has no `access`. Only for
+ * a host without `access`: a host with `access` reads the user of each
+ * request with `identify`, so leave `openAccess` out there.
+ *
+ * - `true`: each request runs with no user, in the default tenant.
+ * - `{ user }`: each request runs as that one user, for example the local
+ *   user of a CLI.
  */
-export type OpenAccess<P extends Principal = Principal> =
-  | true
-  | { principal: P }
+export type OpenAccess<U extends HarnessUser = HarnessUser> = true | { user: U }
 
-export interface HarnessHandlerOptions<P extends Principal = Principal> {
+export interface HarnessHandlerOptions<U extends HarnessUser = HarnessUser> {
   /**
    * The host. With `access`, `access.identify` reads the user of each
    * request, and the host checks each action.
    */
-  host: HarnessHost<P>
+  host: HarnessHost<U>
   harness: AnyHarness
   /**
    * For a host without `access` only: who the requests run as. Without
    * host access and without this option, the handler throws at the start,
    * so a server never serves every thread to everyone by mistake.
    */
-  openAccess?: OpenAccess<P>
+  openAccess?: OpenAccess<U>
   /**
    * How the handler signs media URLs (HMAC SHA-256). Without it, the handler
    * signs with a random key of its own, so a signed URL works only on this
@@ -401,18 +402,18 @@ async function mediaResponse(
 
 /**
  * Who sends each request of a server of `host`: the host's
- * `access.identify`, else the `openAccess` principal. The HTTP handler, the
+ * `access.identify`, else the `openAccess` user. The HTTP handler, the
  * socket, and `createHarnessMcpServer` share it, so the rule stays one rule.
  * Throws for a host without access and without `openAccess`, and for a host
  * with access and `openAccess`. `of` resolves to `null` for a request that
- * `identify` refuses. `fixed` is the principal of a host without access.
+ * `identify` refuses. `fixed` is the user of a host without access.
  *
  * @param call - The name of the caller, for the errors.
  */
-export function requestUsers<P extends Principal>(
+export function requestUsers<U extends HarnessUser>(
   call: string,
-  host: HarnessHost<P>,
-  openAccess: OpenAccess<P> | undefined,
+  host: HarnessHost<U>,
+  openAccess: OpenAccess<U> | undefined,
 ) {
   if (host.hasAccess && openAccess !== undefined) {
     throw new Error(
@@ -421,16 +422,16 @@ export function requestUsers<P extends Principal>(
   }
   if (!host.hasAccess && openAccess === undefined) {
     throw new Error(
-      `${call} needs host access ({ identify, policy }) or openAccess: true or { principal }.`,
+      `${call} needs host access ({ identify, policy }) or openAccess: true or { user }.`,
     )
   }
-  const fixed = openAccess === true ? undefined : openAccess?.principal
+  const fixed = openAccess === true ? undefined : openAccess?.user
   const of = async (
     request: Request,
-  ): Promise<{ principal: P | undefined } | null> => {
-    if (!host.hasAccess) return { principal: fixed }
-    const principal = await host.identify({ request })
-    return principal === null ? null : { principal }
+  ): Promise<{ user: U | undefined } | null> => {
+    if (!host.hasAccess) return { user: fixed }
+    const user = await host.identify({ request })
+    return user === null ? null : { user }
   }
   return { fixed, of }
 }
@@ -441,58 +442,58 @@ export function requestUsers<P extends Principal>(
  * host refuses such a thread as it refuses a stranger, and a read of it is
  * not found. Throws `AccessDeniedError` for a stranger.
  */
-async function observeToRead<P extends Principal>(
-  host: HarnessHost<P>,
+async function observeToRead<U extends HarnessUser>(
+  host: HarnessHost<U>,
   harness: AnyHarness,
-  { threadId, principal }: { threadId: string; principal: P | undefined },
+  { threadId, user }: { threadId: string; user: U | undefined },
 ) {
-  const user = principal ? { principal } : {}
+  const asUser = user ? { user } : {}
   try {
-    return await host.observe(harness, { threadId, ...user })
+    return await host.observe(harness, { threadId, ...asUser })
   } catch (error) {
     if (!(error instanceof AccessDeniedError)) throw error
     // `sessions.get` refuses a stranger too, and has no entry to give for a
     // thread that does not exist. Only the refused path reads it.
-    const entry = await host.sessions.get({ threadId, ...user })
+    const entry = await host.sessions.get({ threadId, ...asUser })
     if (entry === undefined) return undefined
     throw error
   }
 }
 
-/** `event` is the revoke of `principal` on the thread `threadId`. */
+/** `event` is the revoke of `user` on the thread `threadId`. */
 const isRevokeOf = (
   event: HostEvent,
-  principal: Principal | undefined,
+  user: HarnessUser | undefined,
   threadId: string,
 ) =>
   event.type === 'revoked' &&
-  principal !== undefined &&
-  event.principalId === principal.id &&
-  event.tenantId === principal.tenantId &&
+  user !== undefined &&
+  event.userId === user.id &&
+  event.tenantId === user.tenantId &&
   event.threadId === threadId
 
 /**
  * Call `onRevoke` when `host.revoke` (or `unshare`) takes the access of
- * `principal` to the thread. The watch ends when `signal` aborts.
+ * `user` to the thread. The watch ends when `signal` aborts.
  */
-function watchRevoke<P extends Principal>(
-  host: HarnessHost<P>,
+function watchRevoke<U extends HarnessUser>(
+  host: HarnessHost<U>,
   {
-    principal,
+    user,
     threadId,
     signal,
-  }: { principal: P | undefined; threadId: string; signal: AbortSignal },
+  }: { user: U | undefined; threadId: string; signal: AbortSignal },
   onRevoke: () => void,
 ) {
-  if (principal === undefined) return
-  const isRevoke = (event: HostEvent) => isRevokeOf(event, principal, threadId)
-  // Only the revokes of this principal, from the bus of its tenant: the
+  if (user === undefined) return
+  const isRevoke = (event: HostEvent) => isRevokeOf(event, user, threadId)
+  // Only the revokes of this user, from the bus of its tenant: the
   // filter runs before the queue, so other events cost this watch nothing,
   // and the first revoke ends the watch, so its queue does not fill.
   // A host that `createHarnessHost` did not make has `host.events()`.
   const readTenant = tenantEventsOf(host)
   const events = readTenant
-    ? readTenant({ tenantId: principal.tenantId, filter: isRevoke, signal })
+    ? readTenant({ tenantId: user.tenantId, filter: isRevoke, signal })
     : host.events({ signal })
   void (async () => {
     for await (const event of events) {
@@ -548,7 +549,7 @@ let warnedMediaKey = false
  *   the tenant of the URL.
  * - `GET  .../sessions?limit=&cursor=&parentThreadId=`: one page of the
  *   session index, newest first: the sessions that `host.sessions.list`
- *   gives this principal. Default: top-level sessions only.
+ *   gives this user. Default: top-level sessions only.
  * - `POST .../sessions`: change a session. The body is
  *   `{ op: 'rename', threadId, title }`, `{ op: 'update', threadId, title?,
  *   pinned?, metadata? }` (each field replaces the stored one, and the
@@ -563,9 +564,9 @@ let warnedMediaKey = false
  *   (`invalid_metadata`, with `issues`) for metadata the schema refuses, 404
  *   for a thread with no entry, and 409 (`other_harness`) for an update or a
  *   fork of a thread that another harness runs.
- * - `GET  .../host-events`: the `host.events()` that this principal may
+ * - `GET  .../host-events`: the `host.events()` that this user may
  *   read, as SSE: status changes, session index changes, and the revokes of
- *   this principal. First the current status of each open session.
+ *   this user. First the current status of each open session.
  *
  * The `GET` routes of a thread, except `describe`, read with `host.observe`:
  * they open no session, mount no plugins, and write nothing.
@@ -576,7 +577,7 @@ let warnedMediaKey = false
  * Only `GET run?threadId=` answers such a thread with an empty hydration, as
  * a `ChatClient` reads it before the first message.
  * The streams of a user close when `host.revoke` or `unshare` takes their
- * access. Each chat input runs as the principal of its request.
+ * access. Each chat input runs as the user of its request.
  *
  * Signed media URLs use the keys of `media`. Without it, they work only on
  * this server (see `HarnessHandlerOptions.media`), so it is required on a
@@ -600,8 +601,8 @@ let warnedMediaKey = false
  * const handler = createHarnessHandler({ host, harness: assistant })
  * ```
  */
-export function createHarnessHandler<P extends Principal = Principal>(
-  options: HarnessHandlerOptions<P>,
+export function createHarnessHandler<U extends HarnessUser = HarnessUser>(
+  options: HarnessHandlerOptions<U>,
 ) {
   const { host, harness, media } = options
   const usersOf = requestUsers(
@@ -625,15 +626,15 @@ export function createHarnessHandler<P extends Principal = Principal>(
     )
   }
 
-  const openFor = (principal: P | undefined, threadId: string) =>
-    host.open(harness, { threadId, ...(principal ? { principal } : {}) })
+  const openFor = (user: U | undefined, threadId: string) =>
+    host.open(harness, { threadId, ...(user ? { user } : {}) })
 
   /**
    * `openFor` for `POST run`, which passes its run id. Only the session class
    * takes it, and `host.open` gives a handle of that class.
    */
-  const openForRun = async (principal: P | undefined, threadId: string) => {
-    const session = await openFor(principal, threadId)
+  const openForRun = async (user: U | undefined, threadId: string) => {
+    const session = await openFor(user, threadId)
     if (session instanceof SessionImpl) return session
     throw new Error(
       'The host gave a session of another copy of @tanstack/ai-harness. Install one copy of the package.',
@@ -641,28 +642,28 @@ export function createHarnessHandler<P extends Principal = Principal>(
   }
 
   /** The view of a thread for a read route. See `observeToRead`. */
-  const viewFor = (principal: P | undefined, threadId: string) =>
-    observeToRead(host, harness, { threadId, principal })
+  const viewFor = (user: U | undefined, threadId: string) =>
+    observeToRead(host, harness, { threadId, user })
 
   /**
    * Open a thread for `describe`, which needs its plugins. With access, a
    * thread with no entry is not found, so a read never starts a session:
    * `undefined`.
    */
-  const openToRead = async (principal: P | undefined, threadId: string) => {
+  const openToRead = async (user: U | undefined, threadId: string) => {
     const isMissing =
       hasAccess &&
       (await host.sessions.get({
         threadId,
-        ...(principal ? { principal } : {}),
+        ...(user ? { user } : {}),
       })) === undefined
-    return isMissing ? undefined : openFor(principal, threadId)
+    return isMissing ? undefined : openFor(user, threadId)
   }
 
-  /** The stream watch that ends a stream of `principal` on its revoke. */
+  /** The stream watch that ends a stream of `user` on its revoke. */
   const closeOnRevoke =
-    (principal: P | undefined, threadId: string) => (reader: AbortController) =>
-      watchRevoke(host, { principal, threadId, signal: reader.signal }, () =>
+    (user: U | undefined, threadId: string) => (reader: AbortController) =>
+      watchRevoke(host, { user, threadId, signal: reader.signal }, () =>
         reader.abort(),
       )
 
@@ -730,8 +731,8 @@ export function createHarnessHandler<P extends Principal = Principal>(
    * Serve a signed media URL. The signature proves only that this handler
    * made the URL. `identify` reads the user of the request, as on the other
    * routes, else `access.anonymous` gives a guest. The read is checked as
-   * that principal, so a user who lost access (unshare, revoke) is refused.
-   * A principal of another tenant is refused too.
+   * that user, so a user who lost access (unshare, revoke) is refused.
+   * A user of another tenant is refused too.
    */
   const serveSigned = async (request: Request, url: URL) => {
     const param = (name: string) => url.searchParams.get(name) ?? ''
@@ -746,17 +747,17 @@ export function createHarnessHandler<P extends Principal = Principal>(
       // `verify` compares in constant time.
       (await signer.verify(signed(payload), param('sig')))
     if (!isValid) return forbidden()
-    const user = await usersOf(request)
+    const caller = await usersOf(request)
     // Only here, after the signature: a guest reaches no other route.
-    const guest = user
+    const guest = caller
       ? null
       : await accessOf(host)?.anonymous?.({
           tenantId: payload.tenantId === '' ? undefined : payload.tenantId,
         })
-    if (!user && !guest) return json({ error: 'unauthorized' }, 401)
-    const principal = user ? user.principal : (guest ?? undefined)
-    if ((principal?.tenantId ?? '') !== payload.tenantId) return forbidden()
-    const view = await viewFor(principal, payload.threadId)
+    if (!caller && !guest) return json({ error: 'unauthorized' }, 401)
+    const user = caller ? caller.user : (guest ?? undefined)
+    if ((user?.tenantId ?? '') !== payload.tenantId) return forbidden()
+    const view = await viewFor(user, payload.threadId)
     if (!view) return json({ error: 'not found' }, 404)
     return mediaResponse(request, view, payload.id)
   }
@@ -769,7 +770,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
    */
   const joinTurn = async (
     request: Request,
-    principal: P | undefined,
+    user: U | undefined,
     runId: string,
   ) => {
     const { searchParams } = new URL(request.url)
@@ -780,7 +781,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
     const named = searchParams.get('threadId')
     const running = await sessionOfTurn(host, {
       harness,
-      tenantId: principal?.tenantId,
+      tenantId: user?.tenantId,
       operationId: runId,
     })
     const turn = running?.operation(runId)
@@ -789,7 +790,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
       const { threadId } = running
       // The view checks the read. The turn keeps its session busy, so the
       // session does not close on idle while the turn streams.
-      const view = await viewFor(principal, threadId)
+      const view = await viewFor(user, threadId)
       if (!view) return json({ error: 'unknown run' }, 404)
       const startedCursor = running
         .snapshot()
@@ -798,7 +799,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
       return cursorResponse(
         (signal) => turn.events({ from, signal }),
         stream,
-        closeOnRevoke(principal, threadId),
+        closeOnRevoke(user, threadId),
       )
     }
     // Another instance runs the turn: the log of the thread has its run
@@ -811,7 +812,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
       )
     }
     const threadId = named
-    const view = await viewFor(principal, threadId)
+    const view = await viewFor(user, threadId)
     if (!view) return json({ error: 'unknown run' }, 404)
     const { record, start } = await storedRunOf(view, runId)
     const isChatTurn =
@@ -832,23 +833,23 @@ export function createHarnessHandler<P extends Principal = Principal>(
           runId,
         ),
       stream,
-      closeOnRevoke(principal, threadId),
+      closeOnRevoke(user, threadId),
     )
   }
 
   /**
-   * The `host.events()` that `principal` may read. With access, a thread
+   * The `host.events()` that `user` may read. With access, a thread
    * needs the `read` action. The decision of each thread is kept for the
    * stream, until a revoke or a delete of that thread. A revoke of this
-   * principal drops every kept decision: the child threads of the revoked
+   * user drops every kept decision: the child threads of the revoked
    * thread are read through it. An index change of the thread drops only a
    * decision that is not `true` (for example after a share), so the index
    * changes of each turn read no store. `accepts` reads no store, so the
    * host event bus runs it before the queue. `mayWatch` runs after the
    * queue.
    */
-  const watchedEvents = (principal: P | undefined) => {
-    const user = principal ? { principal } : {}
+  const watchedEvents = (user: U | undefined) => {
+    const asUser = user ? { user } : {}
     const decisions = new Map<string, Promise<boolean>>()
     /** The threads whose kept decision is `true`. */
     const readable = new Set<string>()
@@ -860,7 +861,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
       const known = decisions.get(threadId)
       if (known) return known
       const decision: Promise<boolean> = host.sessions
-        .get({ threadId, ...user })
+        .get({ threadId, ...asUser })
         .then(
           (entry) => {
             // A revoke while the read ran dropped this decision.
@@ -874,10 +875,10 @@ export function createHarnessHandler<P extends Principal = Principal>(
       return decision
     }
     const accepts = (event: HostEvent) => {
-      if (tenantOfHostEvent(event) !== principal?.tenantId) return false
+      if (tenantOfHostEvent(event) !== user?.tenantId) return false
       if (event.type === 'revoked') {
         // A user hears of their own revokes only.
-        const isOwn = event.principalId === principal?.id
+        const isOwn = event.userId === user?.id
         // ponytail: all of them, not only the children of the thread.
         if (isOwn) {
           decisions.clear()
@@ -911,9 +912,9 @@ export function createHarnessHandler<P extends Principal = Principal>(
         if (parent !== undefined) return mayRead(parent)
         // The entry of a root is gone: decide on the removed one.
         const access = accessOf(host)
-        return principal !== undefined && access !== undefined
+        return user !== undefined && access !== undefined
           ? access.policy.authorize({
-              principal,
+              user,
               action: 'read',
               session: event.entry,
             })
@@ -926,12 +927,12 @@ export function createHarnessHandler<P extends Principal = Principal>(
 
   const handle = async (
     request: Request,
-    principal: P | undefined,
+    user: U | undefined,
     requestId: string,
   ) => {
     const url = new URL(request.url)
     const route = url.pathname.split('/').at(-1)
-    const user = principal ? { principal } : {}
+    const asUser = user ? { user } : {}
 
     if (request.method === 'GET' && route === 'capabilities') {
       return json(capabilitiesOf(harness, { socket: options.socket === true }))
@@ -940,13 +941,13 @@ export function createHarnessHandler<P extends Principal = Principal>(
     if (request.method === 'POST' && route === 'run') {
       const params = await chatParamsFromRequestBody(await readJson(request))
       const message = lastUserInput(params.messages)
-      const session = await openForRun(principal, params.threadId)
+      const session = await openForRun(user, params.threadId)
       // The turn runs as the request's run id, so an AG-UI client matches
       // its events and interrupts. The run id is the input id too, so a
-      // retried request runs once. It runs as this request's principal.
-      const ids = { inputId: params.runId, runId: params.runId, ...user }
+      // retried request runs once. It runs as this request's user.
+      const ids = { inputId: params.runId, runId: params.runId, ...asUser }
       const lastEventId = request.headers.get('Last-Event-ID')
-      const watch = closeOnRevoke(principal, params.threadId)
+      const watch = closeOnRevoke(user, params.threadId)
       return withSession(session, async (keep) => {
         if (params.resume && params.resume.length > 0) {
           const answers = { resume: params.resume, ...ids }
@@ -1033,10 +1034,10 @@ export function createHarnessHandler<P extends Principal = Principal>(
     if (request.method === 'GET' && route === 'run') {
       // The `joinRun` of a ChatClient after a reload names the run only.
       const runId = resolveResumeRunId(request)
-      if (runId) return await joinTurn(request, principal, runId)
+      if (runId) return await joinTurn(request, user, runId)
       const threadId = url.searchParams.get('threadId')
       if (!threadId) return json({ error: 'threadId is required' }, 400)
-      const view = await viewFor(principal, threadId)
+      const view = await viewFor(user, threadId)
       // A ChatClient hydrates a new thread before its first message, and a
       // non-OK answer is an error there. A new thread has nothing to load.
       if (!view) {
@@ -1048,7 +1049,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
     if (request.method === 'GET' && route === 'events') {
       const threadId = url.searchParams.get('threadId')
       if (!threadId) return json({ error: 'threadId is required' }, 400)
-      const view = await viewFor(principal, threadId)
+      const view = await viewFor(user, threadId)
       if (!view) return json({ error: 'not found' }, 404)
       const from =
         request.headers.get('Last-Event-ID') ??
@@ -1067,7 +1068,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
       return sseResponse(
         async function* (signal) {
           const left = presenceOf(host)?.connect({
-            ...connectionOf(principal, threadId, harness),
+            ...connectionOf(user, threadId, harness),
             transport: 'sse',
             resumed: from !== undefined,
           })
@@ -1090,14 +1091,10 @@ export function createHarnessHandler<P extends Principal = Principal>(
         requestId,
         stream,
         (reader) =>
-          watchRevoke(
-            host,
-            { principal, threadId, signal: reader.signal },
-            () => {
-              isRevoked = true
-              reader.abort()
-            },
-          ),
+          watchRevoke(host, { user, threadId, signal: reader.signal }, () => {
+            isRevoked = true
+            reader.abort()
+          }),
         () => {
           isFailed = true
         },
@@ -1107,8 +1104,8 @@ export function createHarnessHandler<P extends Principal = Principal>(
     if (request.method === 'GET' && route === 'host-events') {
       const refused = versionOf(url)
       if (refused) return versionRefused(refused, requestId)
-      const { accepts, mayWatch } = watchedEvents(principal)
-      // The events of the principal's tenant only, from the host event bus.
+      const { accepts, mayWatch } = watchedEvents(user)
+      // The events of the user's tenant only, from the host event bus.
       // A host that `createHarnessHost` did not make has `host.events()`.
       const readTenant = tenantEventsOf(host)
       // The hello of `host-events` names no thread.
@@ -1121,7 +1118,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
           yield { data: hello }
           const events = readTenant
             ? readTenant({
-                tenantId: principal?.tenantId,
+                tenantId: user?.tenantId,
                 filter: accepts,
                 signal,
               })
@@ -1145,18 +1142,20 @@ export function createHarnessHandler<P extends Principal = Principal>(
       if (typeof threadId !== 'string')
         return json({ error: 'threadId is required' }, 400)
       const input = parseHarnessInput('input' in body ? body.input : undefined)
-      const session = await openFor(principal, threadId)
+      const session = await openFor(user, threadId)
       const traceparent = request.headers.get('traceparent')
       const traced = traceparent ? { traceparent } : {}
       return withSession(session, async () =>
-        json(await applyInput({ harness, session, input, ...user, ...traced })),
+        json(
+          await applyInput({ harness, session, input, ...asUser, ...traced }),
+        ),
       )
     }
 
     if (request.method === 'GET' && route === 'transcript') {
       const threadId = url.searchParams.get('threadId')
       if (!threadId) return json({ error: 'threadId is required' }, 400)
-      const view = await viewFor(principal, threadId)
+      const view = await viewFor(user, threadId)
       if (!view) return json({ error: 'not found' }, 404)
       return json(await view.transcript())
     }
@@ -1165,7 +1164,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
     if (request.method === 'GET' && route === 'describe') {
       const threadId = url.searchParams.get('threadId')
       if (!threadId) return json({ error: 'threadId is required' }, 400)
-      const session = await openToRead(principal, threadId)
+      const session = await openToRead(user, threadId)
       if (!session) return json({ error: 'not found' }, 404)
       return withSession(session, () =>
         json(describeForClient(harness, session)),
@@ -1184,7 +1183,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
       if (!threadId) return json({ error: 'threadId is required' }, 400)
       if (!run)
         return json({ error: 'subagentRunId or runId is required' }, 400)
-      const view = await viewFor(principal, threadId)
+      const view = await viewFor(user, threadId)
       if (!view) return json({ error: 'not found' }, 404)
       return json(await view.agentTranscript(run))
     }
@@ -1192,7 +1191,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
     if (request.method === 'GET' && route === 'snapshot') {
       const threadId = url.searchParams.get('threadId')
       if (!threadId) return json({ error: 'threadId is required' }, 400)
-      const view = await viewFor(principal, threadId)
+      const view = await viewFor(user, threadId)
       if (!view) return json({ error: 'not found' }, 404)
       return json(await view.snapshot())
     }
@@ -1214,10 +1213,10 @@ export function createHarnessHandler<P extends Principal = Principal>(
           .map(([name, value]) => [name.slice('metadata.'.length), value]),
       )
       // The host lists the entries of this harness in the tenant of this
-      // principal, and only the ones that it may list.
+      // user, and only the ones that it may list.
       return json(
         await host.sessions.list({
-          ...user,
+          ...asUser,
           harness: harness.name,
           metadata,
           ...(limit ? { limit: Number(limit) } : {}),
@@ -1231,7 +1230,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
     if (request.method === 'POST' && route === 'sessions') {
       const op = parseSessionOp(await readJson(request))
       if (!op) return json({ error: 'not a valid sessions op' }, 400)
-      const target = { threadId: op.threadId, ...user }
+      const target = { threadId: op.threadId, ...asUser }
       const entry = await host.sessions.get(target)
       if (!entry) return json({ error: 'not found' }, 404)
       /** A changed entry, or 404 when the entry went away meanwhile. */
@@ -1296,7 +1295,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
       const name = url.searchParams.get('name')
       if (!threadId || !name)
         return json({ error: 'threadId and name are required' }, 400)
-      const session = await openFor(principal, threadId)
+      const session = await openFor(user, threadId)
       return withSession(session, async () =>
         json(
           await session.putMedia({
@@ -1316,7 +1315,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
       const id = url.searchParams.get('id')
       if (!threadId || !id)
         return json({ error: 'threadId and id are required' }, 400)
-      const view = await viewFor(principal, threadId)
+      const view = await viewFor(user, threadId)
       if (!view) return json({ error: 'not found' }, 404)
       if (route === 'media') return mediaResponse(request, view, id)
       if (!(await view.getMedia({ id }))) {
@@ -1324,7 +1323,7 @@ export function createHarnessHandler<P extends Principal = Principal>(
       }
       const expiresAt = Date.now() + SIGNED_URL_TTL_MS
       const payload: SignedMedia = {
-        tenantId: principal?.tenantId ?? '',
+        tenantId: user?.tenantId ?? '',
         threadId,
         id,
         exp: String(expiresAt),
@@ -1349,9 +1348,9 @@ export function createHarnessHandler<P extends Principal = Principal>(
     try {
       // A bad signature is 403 before `identify` runs.
       if (isSignedMedia) return await serveSigned(request, url)
-      const user = await usersOf(request)
-      if (!user) return json({ error: 'unauthorized' }, 401)
-      return await handle(request, user.principal, requestId)
+      const caller = await usersOf(request)
+      if (!caller) return json({ error: 'unauthorized' }, 401)
+      return await handle(request, caller.user, requestId)
     } catch (error) {
       return failed(error)
     }
@@ -1417,8 +1416,8 @@ async function* followOperation(
   }
 }
 
-export interface HarnessSocketOptions<P extends Principal = Principal> {
-  host: HarnessHost<P>
+export interface HarnessSocketOptions<U extends HarnessUser = HarnessUser> {
+  host: HarnessHost<U>
   harness: AnyHarness
   socket: WebSocketLike
   /**
@@ -1427,7 +1426,7 @@ export interface HarnessSocketOptions<P extends Principal = Principal> {
    */
   request: Request
   /** For a host without `access` only. See `HarnessHandlerOptions`. */
-  openAccess?: OpenAccess<P>
+  openAccess?: OpenAccess<U>
   /**
    * The values of the socket: the heartbeat, the slow-client close, and the
    * buffer size. A value that you do not set keeps its default. See
@@ -1439,17 +1438,15 @@ export interface HarnessSocketOptions<P extends Principal = Principal> {
 /** The close code of a socket after an `unsupported_version` error frame. */
 const UNSUPPORTED_VERSION_CLOSE_CODE = 4400
 
-/** What the presence hooks get of a stream of `principal` on `threadId`. */
-const connectionOf = <P extends Principal>(
-  principal: P | undefined,
+/** What the presence hooks get of a stream of `user` on `threadId`. */
+const connectionOf = <U extends HarnessUser>(
+  user: U | undefined,
   threadId: string,
   harness: AnyHarness,
 ) => ({
-  ...(principal ? { principal } : {}),
+  ...(user ? { user } : {}),
   threadId,
-  ...(principal?.tenantId !== undefined
-    ? { tenantId: principal.tenantId }
-    : {}),
+  ...(user?.tenantId !== undefined ? { tenantId: user.tenantId } : {}),
   harness: harness.name,
 })
 
@@ -1490,8 +1487,8 @@ const errorMessage = (error: unknown) =>
  * handleHarnessSocket({ host, harness: assistant, socket, request })
  * ```
  */
-export function handleHarnessSocket<P extends Principal = Principal>(
-  options: HarnessSocketOptions<P>,
+export function handleHarnessSocket<U extends HarnessUser = HarnessUser>(
+  options: HarnessSocketOptions<U>,
 ) {
   const { host, harness, socket, request } = options
   const usersOf = requestUsers(
@@ -1539,10 +1536,10 @@ export function handleHarnessSocket<P extends Principal = Principal>(
     once: true,
   })
   /** The held session, opened by the first input that needs it. */
-  const hold = (threadId: string, principal: P | undefined) => {
+  const hold = (threadId: string, user: U | undefined) => {
     if (held) return held
     const opening = host
-      .open(harness, { threadId, ...(principal ? { principal } : {}) })
+      .open(harness, { threadId, ...(user ? { user } : {}) })
       .then((session) => {
         // The socket holds the handle until it closes.
         const release = () => void session.close()
@@ -1652,9 +1649,9 @@ export function handleHarnessSocket<P extends Principal = Principal>(
     const requestId = requestIdOf(data) ?? socketId
     frames = frames.then(async () => {
       try {
-        const user = await who
-        if (!user) return refuse('unauthorized', requestId)
-        const { principal } = user
+        const caller = await who
+        if (!caller) return refuse('unauthorized', requestId)
+        const { user } = caller
         let frame: ControlFrame
         try {
           frame = parseControlFrame(data)
@@ -1674,7 +1671,7 @@ export function handleHarnessSocket<P extends Principal = Principal>(
           const { threadId } = frame
           subscribed = observeToRead(host, harness, {
             threadId,
-            principal,
+            user,
           }).then(
             (view) => ({ threadId, view }),
             (error: unknown) => {
@@ -1684,18 +1681,14 @@ export function handleHarnessSocket<P extends Principal = Principal>(
           )
           const subscription = await subscribed
           if (!subscription) return refuse('forbidden', requestId)
-          watchRevoke(
-            host,
-            { principal, threadId, signal: reader.signal },
-            () => {
-              endReason = 'revoked'
-              refuse('forbidden', requestId)
-            },
-          )
+          watchRevoke(host, { user, threadId, signal: reader.signal }, () => {
+            endReason = 'revoked'
+            refuse('forbidden', requestId)
+          })
           const left = reader.signal.aborted
             ? undefined
             : presenceOf(host)?.connect({
-                ...connectionOf(principal, threadId, harness),
+                ...connectionOf(user, threadId, harness),
                 transport: 'websocket',
                 resumed: frame.from !== undefined,
               })
@@ -1744,12 +1737,12 @@ export function handleHarnessSocket<P extends Principal = Principal>(
           void send({ type: 'harness.snapshot', snapshot })
           return
         }
-        const session = await hold(subscription.threadId, principal)
+        const session = await hold(subscription.threadId, user)
         const receipt = await applyInput({
           harness,
           session,
           input: frame.input,
-          ...(principal ? { principal } : {}),
+          ...(user ? { user } : {}),
           ...(frame.traceparent ? { traceparent: frame.traceparent } : {}),
         })
         void send({

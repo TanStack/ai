@@ -29,7 +29,7 @@ export const assistant = defineHarness({
 const host = createHarnessHost({ persistence: memoryPersistence() })
 const session = await host.open(assistant, {
   threadId: 'team-thread',
-  principal: { id: 'ada' },
+  user: { id: 'ada' },
 })
 
 await session.send('Summarize the open tickets.')
@@ -43,7 +43,7 @@ The totals have four groups. `snapshot().usage` has the same data:
 
 - `total`: every model call of the thread.
 - `byModel`: the calls of each model, keyed by `provider/model`, for example `openai/gpt-6.1-sol`.
-- `bySender`: the calls of each person, keyed by the principal id. It has only the calls of a known sender, so its sum can be less than `total`.
+- `bySender`: the calls of each person, keyed by the user id. It has only the calls of a known sender, so its sum can be less than `total`.
 - `bySource`: the model calls that are not a turn or an agent run, keyed by their source: `plugin:<name>`, `router`, or `transfer`. See [Usage of plugins](#usage-of-plugins).
 
 Each entry has `calls`, `promptTokens`, `completionTokens`, `totalTokens`, `cachedTokens`, and `cacheWriteTokens`. If a provider reported a cost, the entry also has `cost`. The harness adds the costs that the providers report, in their currency. It uses no price list of its own.
@@ -154,7 +154,7 @@ Read the totals of the sender before you send a prompt. This route refuses a pro
 const BUDGET_USD = 5
 
 export async function send(threadId: string, userId: string, text: string) {
-  const thread = await host.open(assistant, { threadId, principal: { id: userId } })
+  const thread = await host.open(assistant, { threadId, user: { id: userId } })
   const spent = thread.usage().bySender[userId]?.cost ?? 0
   if (spent >= BUDGET_USD) {
     return { error: 'You used your budget for this thread.' }

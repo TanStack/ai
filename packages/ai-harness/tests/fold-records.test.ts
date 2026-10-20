@@ -26,7 +26,7 @@ describe('foldThreadRecord', () => {
         type: 'harness.settings',
         settings: { instructions: 'Be short.' },
         inputId: 'in-1',
-        principal: { id: 'u-1' },
+        user: { id: 'u-1' },
       },
     ])
     expect(state.settings).toEqual({ instructions: 'Be short.' })
@@ -92,7 +92,7 @@ describe('foldThreadRecord', () => {
     const turn = {
       runId: 'run-1',
       interrupts: [],
-      principal: { id: 'u-1', tenantId: 'org-1' },
+      user: { id: 'u-1', tenantId: 'org-1' },
       context: { page: 'home' },
     }
     const stopped = fold([{ type: 'harness.interrupted', turn }])
@@ -316,7 +316,7 @@ describe('foldThreadRecord', () => {
         type: 'harness.transferred',
         transferId: 'tr-2',
         from: { harness: 'support', threadId: 't0' },
-        principal: { id: 'olga' },
+        user: { id: 'olga' },
         at: 3,
       },
     ])
@@ -326,7 +326,7 @@ describe('foldThreadRecord', () => {
         'tr-2',
         {
           from: { harness: 'support', threadId: 't0' },
-          principal: { id: 'olga' },
+          user: { id: 'olga' },
           at: 3,
         },
       ],

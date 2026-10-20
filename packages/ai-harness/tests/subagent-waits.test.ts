@@ -23,7 +23,7 @@ async function open(harness: AnyHarness) {
   const host = createHarnessHost({ persistence: memoryPersistence() })
   const session = await host.open(harness, {
     threadId: 't',
-    principal: { id: 'user-1' },
+    user: { id: 'user-1' },
   })
   return { host, session }
 }

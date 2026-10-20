@@ -81,7 +81,7 @@ async function openRouting(options: {
         ...(options.humans ? { humans: true } : {}),
       },
     }),
-    { threadId: THREAD, principal: USER },
+    { threadId: THREAD, user: USER },
   )
   return { host, session, log, main, credentials }
 }

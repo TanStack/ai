@@ -55,7 +55,7 @@ function openDemo(
 ) {
   return host.open(connectorHarness(url, model), {
     threadId,
-    principal: { id: 'user-1' },
+    user: { id: 'user-1' },
   })
 }
 
@@ -237,7 +237,7 @@ describe('mcpConnector with a saved sign-in', () => {
           }),
         ],
       }),
-      { threadId: 't', principal: { id: 'user-1' } },
+      { threadId: 't', user: { id: 'user-1' } },
     )
     await session.send('hi')
     expect(await credentials.get({ scope, id: 'demo' })).toMatchObject({
@@ -273,7 +273,7 @@ describe('mcpConnector with a saved sign-in', () => {
           }),
         ],
       }),
-      { threadId: 't', principal: { id: 'user-1' } },
+      { threadId: 't', user: { id: 'user-1' } },
     )
 
     const seen = await promptAndCollect(session, 'hi')
@@ -347,7 +347,7 @@ describe('mcpConnector with a saved sign-in', () => {
     })
     const sessions = await Promise.all(
       ['t1', 't2'].map((threadId) =>
-        host.open(harness, { threadId, principal: { id: 'user-1' } }),
+        host.open(harness, { threadId, user: { id: 'user-1' } }),
       ),
     )
     const sending = Promise.all(sessions.map((session) => session.send('hi')))
@@ -386,7 +386,7 @@ describe('mcpConnector with a saved sign-in', () => {
       }),
       {
         threadId: 't',
-        principal: { id: 'user-1' },
+        user: { id: 'user-1' },
       },
     )
     const seen = await promptAndCollect(session, 'hi')
@@ -428,7 +428,7 @@ describe('mcpConnector /connect', () => {
       }),
       {
         threadId: 't',
-        principal: { id: 'user-1' },
+        user: { id: 'user-1' },
       },
     )
     const browser = approveSignIns(session, 'code-1')
@@ -549,7 +549,7 @@ describe('mcpConnector /connect', () => {
           }),
         ],
       }),
-      { threadId: 't', principal: { id: 'user-1' } },
+      { threadId: 't', user: { id: 'user-1' } },
     )
     const connecting = session.command({ name: 'connect:demo' })
     await firstRequest
@@ -714,7 +714,7 @@ describe('mcpConnector client options', () => {
       }),
       {
         threadId: 't',
-        principal: { id: 'user-1' },
+        user: { id: 'user-1' },
       },
     )
     await session.send('hi')
@@ -757,7 +757,7 @@ describe('mcpConnector client options', () => {
       }),
       {
         threadId: 't',
-        principal: { id: 'user-1' },
+        user: { id: 'user-1' },
       },
     )
     const seen = await promptAndCollect(session, 'hi')

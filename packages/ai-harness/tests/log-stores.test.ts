@@ -118,7 +118,7 @@ const deploy = toolDefinition({
 async function openOn(
   log: LogStore,
   replies: Array<Reply>,
-  principal?: { id: string; tenantId: string },
+  user?: { id: string; tenantId: string },
 ) {
   const execute = vi.fn(async () => ({ ok: true }))
   const { adapter } = mockAdapter(replies)
@@ -129,7 +129,7 @@ async function openOn(
       adapter,
       tools: [deploy.server(execute)],
     }),
-    { threadId: THREAD, ...(principal ? { principal } : {}) },
+    { threadId: THREAD, ...(user ? { user } : {}) },
   )
   return { host, session, execute }
 }

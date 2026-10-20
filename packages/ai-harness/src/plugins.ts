@@ -213,9 +213,9 @@ export interface PluginServices {
   sessionWith: (metadataSchema: SchemaInput) => PluginSessionApi
   /**
    * `ctx.agents` of a plugin. The runs are for the user of a turn plugin's
-   * turn. In a session plugin, they are for the principal that opened the
+   * turn. In a session plugin, they are for the user that opened the
    * session: to start an agent for the user of a tool call, pass
-   * `principal: ctx.context.run.principal` to `start`.
+   * `user: ctx.context.run.user` to `start`.
    */
   agents: AgentActions
   /** Called after `ctx.commands` adds or removes a command. */
@@ -744,7 +744,7 @@ export const SESSION_PLUGIN_KEYS_NO_ENV: ProviderKeys = {
 
 const NO_SESSION: PluginSessionApi = {
   threadId: '',
-  principal: undefined,
+  user: undefined,
   snapshot: unavailable('ctx.session'),
   send: unavailable('ctx.session'),
   note: unavailable('ctx.session'),

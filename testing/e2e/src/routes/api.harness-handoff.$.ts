@@ -13,7 +13,7 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 import type {
   HarnessHost,
   HarnessSession,
-  Principal,
+  HarnessUser,
 } from '@tanstack/ai-harness'
 import type { SessionView } from '@tanstack/ai-harness/view'
 
@@ -176,7 +176,7 @@ const triage = defineAgent({
   },
 })
 
-interface User extends Principal {
+interface User extends HarnessUser {
   tenantId: string
 }
 const USERS: Record<string, User> = {
@@ -242,13 +242,13 @@ async function start(request: Request) {
   try {
     const owner = await host.open(harness, {
       threadId,
-      principal: USERS.olga,
+      user: USERS.olga,
     })
     await host.sessions.share({
       threadId,
       userId: 'bea',
       role: 'operator',
-      principal: USERS.olga,
+      user: USERS.olga,
     })
     const handoffs: Array<unknown> = []
     owner.onEvent('CUSTOM', ({ event }) => {

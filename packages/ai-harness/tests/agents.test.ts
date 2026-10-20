@@ -430,7 +430,7 @@ describe('agents', () => {
     const secrets = definePlugin({
       name: 'test/secrets',
       setup: () => ({
-        discoverTools: (turn) => [tool(`secret_${turn.principal?.id}`)],
+        discoverTools: (turn) => [tool(`secret_${turn.user?.id}`)],
       }),
     })
     const lead = mockAdapter([
@@ -451,11 +451,11 @@ describe('agents', () => {
     })
     const olga = await host.open(harness, {
       threadId: 't',
-      principal: { id: 'olga' },
+      user: { id: 'olga' },
     })
     const bea = await host.open(harness, {
       threadId: 't',
-      principal: { id: 'bea' },
+      user: { id: 'bea' },
     })
 
     await olga.send('Get help.')

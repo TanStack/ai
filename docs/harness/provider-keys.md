@@ -72,7 +72,7 @@ export const assistant = defineHarness({
 const host = createHarnessHost({ persistence: memoryPersistence() })
 const session = await host.open(assistant, {
   threadId: 'ada-chat',
-  principal: { id: 'ada' },
+  user: { id: 'ada' },
 })
 ```
 
@@ -141,7 +141,7 @@ After `/connect:openai`, send the message again.
 `/connect:<id>` saves the key in the credential store of the host, as an `api_key` credential with the provider id. The store keeps it for the user who runs the command:
 
 - CLI: pass the store to `runCli(harness, { credentials })`.
-- Hosted app: your database or your secrets manager. Each signed-in user is a principal, so each user has their own keys. Pass the store to `createHarnessHost({ credentials })`.
+- Hosted app: your database or your secrets manager. Each signed-in person is a user, so each user has their own keys. Pass the store to `createHarnessHost({ credentials })`.
 - No `credentials`: the keys stay in memory until the process stops.
 
 To write a store, see [Write a store for production](../advanced/server-keys#write-a-store-for-production). Your own routes can read the same keys with `storedProviderKeys`.

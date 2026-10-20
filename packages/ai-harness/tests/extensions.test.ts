@@ -403,7 +403,7 @@ describe('adapter override and credentials', () => {
       }),
       {
         threadId: 't',
-        principal: { id: 'user-1' },
+        user: { id: 'user-1' },
       },
     )
 

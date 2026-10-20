@@ -6,7 +6,7 @@
 
 Run a harness tool with no model turn, add host records from a client, and add a per-run system preamble.
 
-- `session.tool({ name, args?, meta?, inputId?, principal? })` runs one harness tool with no model
+- `session.tool({ name, args?, meta?, inputId?, user? })` runs one harness tool with no model
   turn, for example from a schedule or a webhook. The call goes through the
   same middleware, input check, and `permissions()` rules as a model call, and
   the call and its result join the transcript. A tool that asks for approval

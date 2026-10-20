@@ -84,7 +84,7 @@ async function open(options: {
     }),
     {
       threadId: 't',
-      principal: { id: 'user-1' },
+      user: { id: 'user-1' },
     },
   )
   const events: Array<SessionEvent> = []

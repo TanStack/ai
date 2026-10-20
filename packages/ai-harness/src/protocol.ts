@@ -16,7 +16,7 @@ import type {
   Cursor,
   HarnessInput,
   Operation,
-  Principal,
+  HarnessUser,
   Receipt,
   UserInput,
 } from './types'
@@ -292,7 +292,7 @@ export function parseControlFrame(data: string): ControlFrame {
  * only the agents in `expose.agents`. It can run only the commands in
  * `expose.commands` and the tools in `expose.tools`, and change only the
  * settings in `expose.settings` and the config keys in `expose.config`.
- * Resolves to the receipt. `principal` is who sent the input, from the
+ * Resolves to the receipt. `user` is who sent the input, from the
  * login of the request, never from the input itself. A chat input runs with
  * its credentials. Rejects with `AccessDeniedError` when the host refuses
  * the input.
@@ -307,29 +307,29 @@ export function parseControlFrame(data: string): ControlFrame {
  *
  * @example
  * ```ts
- * const receipt = await applyInput({ harness, session, input, principal })
+ * const receipt = await applyInput({ harness, session, input, user })
  * ```
  */
 export async function applyInput({
   harness,
   session,
   input,
-  principal,
+  user,
   traceparent,
 }: {
   harness: AnyHarness
   session: HarnessSession
   input: HarnessInput
-  principal?: Principal
+  user?: HarnessUser
   /** A W3C `traceparent` of the caller, for a message to the session. */
   traceparent?: string
 }): Promise<Receipt> {
   // The log keeps who sent each input, for every input kind.
-  const user = principal ? { principal } : {}
+  const asUser = user ? { user } : {}
   const traced = traceparent === undefined ? {} : { traceparent }
   const id = {
     ...(input.inputId === undefined ? {} : { inputId: input.inputId }),
-    ...user,
+    ...asUser,
   }
   const sent = {
     ...id,
@@ -398,7 +398,7 @@ export async function applyInput({
     case 'resolve':
       return session.resolve({ resume: input.resume, ...id })
     case 'cancel':
-      return session.cancel({ operationId: input.operationId, ...user })
+      return session.cancel({ operationId: input.operationId, ...asUser })
     // It runs no new code, so it needs no `expose` entry, like `cancel`. It
     // stores no input, so there is no sender to keep.
     case 'background':
@@ -406,12 +406,12 @@ export async function applyInput({
         input.toolCallId !== undefined ? { toolCallId: input.toolCallId } : {},
       )
     case 'cancelInput':
-      return session.cancelInput({ inputId: input.inputId, ...user })
+      return session.cancelInput({ inputId: input.inputId, ...asUser })
     case 'setDelivery':
       return session.setDelivery({
         inputId: input.inputId,
         delivery: input.delivery,
-        ...user,
+        ...asUser,
       })
     case 'command': {
       // A command can change the session, for example `/mode bypass`.
@@ -424,7 +424,7 @@ export async function applyInput({
         name: input.name,
         input: input.input,
         inputId,
-        ...user,
+        ...asUser,
       })
       // ponytail: a command has no receipt, so it is accepted at once. A
       // command that the host refuses fails with a `RUN_ERROR` event.
@@ -438,13 +438,17 @@ export async function applyInput({
       return session.answer({
         questionId: input.questionId,
         value: input.value,
-        ...user,
+        ...asUser,
       })
     case 'config':
       if (!(harness.expose?.config ?? []).includes(input.key)) {
         return notExposed
       }
-      return session.setConfig({ key: input.key, value: input.value, ...user })
+      return session.setConfig({
+        key: input.key,
+        value: input.value,
+        ...asUser,
+      })
     case 'tool': {
       if (!(harness.expose?.tools ?? []).includes(input.name)) {
         return notExposed
@@ -471,7 +475,7 @@ export async function applyInput({
         return await session.append({
           records: input.records,
           ...(input.inputId !== undefined ? { inputId: input.inputId } : {}),
-          ...user,
+          ...asUser,
         })
       } catch (error) {
         const inputId = input.inputId ?? createInputId()
@@ -514,7 +518,7 @@ export async function applyInput({
       const options: AgentRunStartOptions = {
         wake: input.detached === true,
         inputId,
-        ...user,
+        ...asUser,
       }
       const operation = handle.start(input.input, options)
       return { inputId, status: 'accepted', operationId: operation.id }
