@@ -31,19 +31,19 @@ export const assistant = defineHarness({
 const host = createHarnessHost({
   persistence: memoryPersistence(),
   access: {
-    identify: ({ request }) =>
+    getUser: ({ request }) =>
       request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
         ? { id: 'user-1' }
         : null,
-    policy: membersOnly(),
+    rules: membersOnly(),
   },
 })
 
 export const handler = createHarnessHandler({ host, harness: assistant })
 ```
 
-- `identify` reads the user of each request. `null` answers `401`.
-- `authorize` decides each action. A refused action answers `403`. `membersOnly()` lets a user use the threads they opened and the threads shared with them.
+- `getUser` reads the user of each request. `null` answers `401`.
+- `isAllowed` decides each action. A refused action answers `403`. `membersOnly()` lets a user use the threads they opened and the threads shared with them.
 - A host with no `access` needs `openAccess` on the handler, else `createHarnessHandler` throws at the start. See [Serve with no login](./access#serve-with-no-login).
 
 [Access and tenants](./access) has the full rules.
@@ -69,7 +69,7 @@ export const rotatingHandler = createHarnessHandler({
 
 - Each key must be at least 32 bytes. A shorter key throws at the start.
 - To change the key, put the new key first in `keys` and keep the old key after it. A URL that the old key signed works until it expires (1 hour). Then remove the old key.
-- A signed URL works only for this harness, in the tenant of the user who got it. Each request still needs a user from `identify` that can read the thread, so send the login with it. For a request with no login, see [Serve media to a request with no login](./access#serve-media-to-a-request-with-no-login). When the thread is deleted, its URLs answer `404`.
+- A signed URL works only for this harness, in the tenant of the user who got it. Each request still needs a user from `getUser` that can read the thread, so send the login with it. For a request with no login, see [Serve media to a request with no login](./access#serve-media-to-a-request-with-no-login). When the thread is deleted, its URLs answer `404`.
 
 A request body over `media.maxBodyBytes` (default 32 MiB) answers `413`. See [Files inside a client message](./media#files-inside-a-client-message).
 
@@ -107,7 +107,7 @@ A cursor is a position in the log of the thread. It works on every instance that
 
 To run more than one instance behind one URL, give every instance the same log store.
 
-Sometimes the events after a cursor are gone. A host with `logRecords: 'since-snapshot'` drops old records (see [Drop the records before a snapshot](./lifecycle#drop-the-records-before-a-snapshot)), and before its log opens, a session keeps only its newest events in memory. A reader whose cursor is in the lost part gets one `CUSTOM` event first:
+Sometimes the events after a cursor are gone. A host with `keepLogRecords: 'since-snapshot'` drops old records (see [Drop the records before a snapshot](./lifecycle#drop-the-records-before-a-snapshot)), and before its log opens, a session keeps only its newest events in memory. A reader whose cursor is in the lost part gets one `CUSTOM` event first:
 
 - Its name is `harness.gap` (`HARNESS_EVENTS.gap`).
 - Its value is an `EventGap`: `{ from, resumeAt, reason }`. `reason` is `truncated` or `evicted`. Its cursor is `resumeAt`.
@@ -217,11 +217,11 @@ export const studio = defineHarness({
 const host = createHarnessHost({
   persistence: memoryPersistence(),
   access: {
-    identify: ({ request }) =>
+    getUser: ({ request }) =>
       request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
         ? { id: 'user-1' }
         : null,
-    policy: membersOnly(),
+    rules: membersOnly(),
   },
 })
 
@@ -259,7 +259,7 @@ The id of the run is the `operationId` in the receipt of `client.agents.drafter.
 - `mode: 'steer'` (the default): the message joins the next model call of the run.
 - `mode: 'followUp'`: the agent runs again after the run ends. `receipt.operationId` is the id of the new run.
 
-`send` with `to` posts an `agentMessage` input to `POST control`. It runs as the user that `identify` returned. The input looks like this:
+`send` with `to` posts an `agentMessage` input to `POST control`. It runs as the user that `getUser` returned. The input looks like this:
 
 ```json
 { "op": "agentMessage", "operationId": "op-agent-m1x2-3", "message": "Add a title.", "mode": "followUp" }
@@ -399,11 +399,11 @@ export const writer = defineHarness({
 const host = createHarnessHost({
   persistence: memoryPersistence(),
   access: {
-    identify: ({ request }) =>
+    getUser: ({ request }) =>
       request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
         ? { id: 'user-1' }
         : null,
-    policy: membersOnly(),
+    rules: membersOnly(),
   },
 })
 
@@ -468,8 +468,8 @@ export function onUpgrade(socket: WebSocketLike, request: Request) {
 
 The client sends `{ type: 'harness.subscribe', threadId }` first, and the host answers with a `harness.hello` frame. After that, each `harness.input` frame gets a `harness.receipt`, and every event arrives as a `harness.event` frame with its cursor.
 
-- The host reads the user from the upgrade request with `identify`, the same as for HTTP. Every input on the socket runs as that user.
-- A user that `identify` refuses gets an `unauthorized` error frame, and the socket closes.
+- The host reads the user from the upgrade request with `getUser`, the same as for HTTP. Every input on the socket runs as that user.
+- A user that `getUser` refuses gets an `unauthorized` error frame, and the socket closes.
 - The socket handles the frames of one connection in the order they came. So a prompt with a large image reaches the session before the frame after it.
 - A user who cannot read the thread, or who loses access later, gets a `forbidden` error frame, and the socket closes.
 - A frame over `media.maxBodyBytes` (default 32 MiB) gets an error frame, and the socket closes with code `1009`. Your WebSocket server reads the whole frame before this check, so the check does not cap memory. Set the frame limit of your server too, for example `maxPayload` of `ws`.

@@ -513,9 +513,9 @@ describe('media in results', () => {
     const host = createHarnessHost({
       persistence: memoryPersistence(),
       access: {
-        identify: ({ request }) =>
+        getUser: ({ request }) =>
           users.get(request.headers.get('x-user') ?? '') ?? null,
-        policy: membersOnly(),
+        rules: membersOnly(),
       },
     })
     cleanups.push(() => host.close())

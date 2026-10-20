@@ -34,16 +34,16 @@ function setup(options: { media?: MediaOptions; secret?: string } = {}) {
     media: options.media,
   })
   const persistence = memoryPersistence()
-  /** A host on the shared stores. `identify` reads the user of a request. */
+  /** A host on the shared stores. `getUser` reads the user of a request. */
   const hostWith = (
-    identify: (request: Request) => { id: string; tenantId?: string } | null,
+    getUser: (request: Request) => { id: string; tenantId?: string } | null,
   ) =>
     createHarnessHost({
       persistence,
       access: {
-        identify: ({ request }) => identify(request),
-        policy: {
-          authorize: ({ user, session }) =>
+        getUser: ({ request }) => getUser(request),
+        rules: {
+          isAllowed: ({ user, session }) =>
             session.threadId.startsWith(user.id),
         },
       },
@@ -268,7 +268,7 @@ describe('media upload and signed URLs', () => {
     await host.close()
   })
 
-  it('serves a signed URL with no login to the guest of access.anonymous, and only that route', async () => {
+  it('serves a signed URL with no login to the guest of access.getGuestUser, and only that route', async () => {
     const { host, harness, persistence, upload, signedPath, fetchSigned } =
       setup({ secret: SHARED })
     const record = await upload('user-1-a')
@@ -278,10 +278,10 @@ describe('media upload and signed URLs', () => {
       const guestHost = createHarnessHost({
         persistence,
         access: {
-          identify: () => null,
-          ...(anonymous ? { anonymous: () => ({ id: 'guest' }) } : {}),
-          policy: {
-            authorize: ({ user, action }) =>
+          getUser: () => null,
+          ...(anonymous ? { getGuestUser: () => ({ id: 'guest' }) } : {}),
+          rules: {
+            isAllowed: ({ user, action }) =>
               canRead && user.id === 'guest' && action === 'read',
           },
         },

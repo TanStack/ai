@@ -59,8 +59,8 @@ function setup(options: Pick<HarnessHostOptions, 'access'> = {}) {
   })
   const host = createHarnessHost({
     persistence,
-    log: { coalesceMs: 0 },
-    lifecycle: { idleCloseMs: 0 },
+    log: { bufferStreamWriteMs: 0 },
+    lifecycle: { closeIdleSessionsAfterMs: 0 },
     ...options,
   })
   const { sessions, metadata } = persistence.stores
@@ -141,8 +141,8 @@ describe('host.observe snapshot', () => {
     })
     const host = createHarnessHost({
       persistence: memoryPersistence(),
-      log: { coalesceMs: 0 },
-      lifecycle: { idleCloseMs: 0 },
+      log: { bufferStreamWriteMs: 0 },
+      lifecycle: { closeIdleSessionsAfterMs: 0 },
     })
     const session = await host.open(harness, { threadId: THREAD })
     await session.send('Deploy.')
@@ -227,7 +227,7 @@ describe('host.observe with access', () => {
 
   it('refuses a stranger and a thread with no entry, and checks a child through its root', async () => {
     const { host, harness, persistence, seed } = setup({
-      access: { identify: () => null, policy: membersOnly() },
+      access: { getUser: () => null, rules: membersOnly() },
     })
     await seed(olga)
     await persistence.stores.sessions.upsert({

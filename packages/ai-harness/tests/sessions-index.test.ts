@@ -626,7 +626,7 @@ describe('host.sessions', () => {
     const { log, metadata } = memoryPersistence().stores
     const host = createHarnessHost({
       persistence: { stores: { log, metadata } },
-      lifecycle: { idleCloseMs: 0 },
+      lifecycle: { closeIdleSessionsAfterMs: 0 },
     })
     const { harness } = hostWith()
     const session = await host.open(harness, { threadId: 't1' })

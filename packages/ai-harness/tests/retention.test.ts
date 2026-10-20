@@ -42,8 +42,8 @@ function privateSetSize(owner: object, name: string) {
 describe('retention', () => {
   it('keeps a turn in the window while many agent runs settle', async () => {
     const { host, session } = await openWith({
-      settledOperations: 5,
-      settledAgentRuns: 2,
+      keepSettledOperations: 5,
+      keepSettledAgentRuns: 2,
     })
     const first = session.send('Hi', { inputId: 't-0' })
     await first
@@ -70,7 +70,7 @@ describe('retention', () => {
   })
 
   it('keeps the receipt of a turn while many inputs with no turn end', async () => {
-    const { host, session } = await openWith({ settledOperations: 3 })
+    const { host, session } = await openWith({ keepSettledOperations: 3 })
     const first = session.send('Hi', { inputId: 't-0' })
     await first
     for (let index = 0; index < 10; index += 1) {
@@ -86,8 +86,8 @@ describe('retention', () => {
     await host.close()
   })
 
-  it('forgets agent runs past settledAgentRuns, and still lists them from the log', async () => {
-    const { host, session } = await openWith({ settledAgentRuns: 3 })
+  it('forgets agent runs past keepSettledAgentRuns, and still lists them from the log', async () => {
+    const { host, session } = await openWith({ keepSettledAgentRuns: 3 })
     const ids: Array<string> = []
     for (let index = 0; index < 10; index += 1) {
       const run = session.agents.writer.run()
@@ -107,8 +107,8 @@ describe('retention', () => {
 
   it('keeps the ids of forgotten operations only as long as both windows, and the log refuses the id after', async () => {
     const { host, session } = await openWith({
-      settledOperations: 2,
-      settledAgentRuns: 1,
+      keepSettledOperations: 2,
+      keepSettledAgentRuns: 1,
     })
     await (session as unknown as SessionImpl).sendForRun('Hi', {
       runId: 'run-0',
@@ -135,7 +135,7 @@ describe('retention', () => {
   })
 
   it('settles a duplicate of an input past the window from the log, and keeps no follower', async () => {
-    const { host, session } = await openWith({ settledOperations: 1 })
+    const { host, session } = await openWith({ keepSettledOperations: 1 })
     await session.send('Hi', { inputId: 't-0' })
     // The next turn pushes the first one out of the window.
     await session.send('Hi', { inputId: 't-1' })

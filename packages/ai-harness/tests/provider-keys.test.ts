@@ -62,7 +62,7 @@ async function open(options: {
   plugins?: Array<HarnessPlugin>
   agents?: Array<AnyAgent>
   subagents?: Array<AnyAgent>
-  /** A host with access that allows each action, without `envKeys`. */
+  /** A host with access that allows each action, without `allowServerEnvKeys`. */
   access?: boolean
 }) {
   const persistence = memoryPersistence()
@@ -71,7 +71,7 @@ async function open(options: {
     persistence,
     credentials,
     ...(options.access
-      ? { access: { identify: () => null, policy: { authorize: () => true } } }
+      ? { access: { getUser: () => null, rules: { isAllowed: () => true } } }
       : {}),
   })
   const session = await host.open(

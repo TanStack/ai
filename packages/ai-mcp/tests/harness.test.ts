@@ -405,9 +405,9 @@ function accessHost() {
   const host = createHarnessHost({
     persistence: memoryPersistence(),
     access: {
-      identify: ({ request }) =>
+      getUser: ({ request }) =>
         users.get(request.headers.get('x-user') ?? '') ?? null,
-      policy: membersOnly(),
+      rules: membersOnly(),
     },
   })
   cleanups.push(() => host.close())
@@ -531,7 +531,7 @@ describe('createHarnessMcpServer', () => {
     // A session that no handle holds closes at once when it is idle.
     const host = createHarnessHost({
       persistence: memoryPersistence(),
-      lifecycle: { idleCloseMs: 0 },
+      lifecycle: { closeIdleSessionsAfterMs: 0 },
     })
     cleanups.push(() => host.close())
     const harness = defineHarness({
@@ -1708,7 +1708,7 @@ describe('createHarnessMcpServer access', () => {
     await expect(
       createHarnessMcpServer({ host, harness: greeter() }),
     ).rejects.toThrow(
-      'createHarnessMcpServer needs host access ({ identify, policy }) or openAccess: true or { user }.',
+      'createHarnessMcpServer needs host access ({ getUser, rules }) or openAccess: true or { user }.',
     )
   })
 
@@ -1720,7 +1720,7 @@ describe('createHarnessMcpServer access', () => {
     })
 
     await expect(server).rejects.toThrow(
-      'createHarnessMcpServer: the host has access, so access.identify reads the user of each request. Remove openAccess.',
+      'createHarnessMcpServer: the host has access, so access.getUser reads the user of each request. Remove openAccess.',
     )
   })
 
@@ -1744,7 +1744,7 @@ describe('createHarnessMcpServer access', () => {
     expect(await host.sessions.get({ threadId: 't-ana' })).toBeUndefined()
   })
 
-  it('answers a request that identify refuses with a 401 bearer challenge', async () => {
+  it('answers a request that getUser refuses with a 401 bearer challenge', async () => {
     const server = await createHarnessMcpServer({
       host: accessHost(),
       harness: greeter(),

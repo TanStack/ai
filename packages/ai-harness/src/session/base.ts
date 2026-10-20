@@ -573,12 +573,12 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     this.user = deps.user
     this.retention = deps.retention
     this.hostPlugins = deps.hostPlugins
-    this.inputRecords = new InputRecords(deps.retention.settledOperations)
+    this.inputRecords = new InputRecords(deps.retention.keepSettledOperations)
     this.notifyHost = deps.onEvent
     this.feed = tapFeed(
       new SessionFeed({
         threadId: deps.threadId,
-        eventBytes: deps.retention.eventBytes,
+        eventBytes: deps.retention.maxEventBytesInMemory,
       }),
       deps.onEvent,
       this.eventListeners,
@@ -627,7 +627,7 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
       )
     this.hasAccess = deps.access !== undefined
     // Without access, one user runs the host, so the env vars are theirs.
-    const envFallback = deps.access?.envKeys ?? true
+    const envFallback = deps.access?.allowServerEnvKeys ?? true
     this.sessionPluginKeys = envFallback
       ? SESSION_PLUGIN_KEYS
       : SESSION_PLUGIN_KEYS_NO_ENV
@@ -684,8 +684,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     const isRun = operation.kind === 'agent'
     const window = isRun ? this.settledRuns : this.settledIds
     const limit = isRun
-      ? this.retention.settledAgentRuns
-      : this.retention.settledOperations
+      ? this.retention.keepSettledAgentRuns
+      : this.retention.keepSettledOperations
     const settled = () => {
       window.add(operation.id)
       for (const old of dropOldest(window, limit)) this.forget(old)
@@ -699,8 +699,8 @@ export abstract class SessionBase<THarness extends AnyHarness = AnyHarness> {
     this.operations.delete(id)
     this.chainOf.delete(id)
     this.retiredIds.add(id)
-    const { settledOperations, settledAgentRuns } = this.retention
-    dropOldest(this.retiredIds, settledOperations + settledAgentRuns)
+    const { keepSettledOperations, keepSettledAgentRuns } = this.retention
+    dropOldest(this.retiredIds, keepSettledOperations + keepSettledAgentRuns)
     this.inputRecords.forgetOperation(id)
     if (chain) this.forgetRun(chain, id)
   }

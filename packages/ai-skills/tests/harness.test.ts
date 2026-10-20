@@ -579,7 +579,7 @@ describe('skills()', () => {
     const dir = await tempDir()
     await addSkill(dir, 'alpha')
     const { harness } = harnessOf({ dirs: [dir] })
-    const host = hostOf({ idleCloseMs: 0 })
+    const host = hostOf({ closeIdleSessionsAfterMs: 0 })
     const first = await openOn(host, harness, 't-0')
     const second = await openOn(host, harness, 't-1')
     const shared = closedFlag(watchersOf(dir)[0]?.value)

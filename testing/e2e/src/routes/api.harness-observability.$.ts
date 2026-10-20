@@ -31,7 +31,7 @@ import type {
  *   returns the run id and the thread id.
  *   - `wire`: one host on a log runs one turn.
  *   - `gap`: a first host runs one turn with a snapshot after each record
- *     and `logRecords: 'since-snapshot'`, so the log keeps only the records
+ *     and `keepLogRecords: 'since-snapshot'`, so the log keeps only the records
  *     after the snapshot. Then it stops, and a second host serves the
  *     thread.
  *   - `tree`: the `lead` agent runs `helper` and `nester` in a parallel
@@ -254,8 +254,8 @@ async function gap(threadId: string): Promise<Setup> {
   const persistence = memoryPersistence()
   const options: HarnessHostOptions = {
     persistence,
-    log: { snapshot: { afterBytes: 1 } },
-    lifecycle: { retention: { logRecords: 'since-snapshot' } },
+    log: { saveSnapshotAfter: { bytes: 1 } },
+    lifecycle: { retention: { keepLogRecords: 'since-snapshot' } },
   }
   const first = createHarnessHost(options)
   const session = await first.open(harness, { threadId })

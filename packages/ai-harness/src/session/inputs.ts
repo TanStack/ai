@@ -747,7 +747,7 @@ export abstract class SessionInputs<
     // The thread was deleted: the input is refused with the reason `deleted`.
     if (offered === 'conflict' || offered === 'deleted') return offered
     this.offeredInputs.add(inputId)
-    dropOldest(this.offeredInputs, this.retention.settledOperations)
+    dropOldest(this.offeredInputs, this.retention.keepSettledOperations)
     return 'offered'
   }
 

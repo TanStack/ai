@@ -110,7 +110,7 @@ fal.ai: missing. Run /connect fal.
 OpenRouter: missing. Run /connect openrouter.
 ```
 
-In your own UI, read the providers from `session.snapshot().plugins['tanstack/provider-keys'].providers`. Each entry has an `id`, a `label`, and a `state`: `env` or `missing`. Every member of a thread reads this list, so it shows only the env vars that the session reads, not the keys of one user. A host with access reads no env vars without `envKeys: true`. To show the keys of the user, run `/keys`.
+In your own UI, read the providers from `session.snapshot().plugins['tanstack/provider-keys'].providers`. Each entry has an `id`, a `label`, and a `state`: `env` or `missing`. Every member of a thread reads this list, so it shows only the env vars that the session reads, not the keys of one user. A host with access reads no env vars without `allowServerEnvKeys: true`. To show the keys of the user, run `/keys`.
 
 ### Sign in with OpenRouter
 
@@ -154,7 +154,7 @@ The key that a user pastes can be a Claude OAuth token (`sk-ant-oat...`). `creat
 
 If the user has no saved key, the session reads the env var of the provider, for example `OPENAI_API_KEY`. A saved key wins over the env var. So you can develop with a `.env` file, and your users connect in the app.
 
-On a host with [`access`](./access), the session does not read the env vars. Each user must connect their own key, so no user spends the key of your server. To let users fall back to the env var, set `envKeys: true` in `access`.
+On a host with [`access`](./access), the session does not read the env vars. Each user must connect their own key, so no user spends the key of your server. To let users fall back to the env var, set `allowServerEnvKeys: true` in `access`.
 
 ## Use the key of the user in an agent
 
@@ -201,5 +201,5 @@ Outside a harness, `ctx.keys` reads the env var. See [Keys inside agents](../adv
 
 - `/connect:<id>` for OpenAI, Anthropic, xAI, fal, and OpenRouter in the harness that you ship, with no `.env` file.
 - One key for each user, in your credential store.
-- The env var as a fallback while you develop, and no fallback on a host with access unless you set `envKeys`.
+- The env var as a fallback while you develop, and no fallback on a host with access unless you set `allowServerEnvKeys`.
 - Agents and plugins that use the key of the user of each run.

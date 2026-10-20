@@ -58,7 +58,7 @@ function sharing(ready?: () => Promise<void>) {
 async function openOn(
   persistence: HarnessPersistence,
   harness: ReturnType<typeof sharing>,
-  log?: { snapshot: { afterBytes: number } },
+  log?: { saveSnapshotAfter: { bytes: number } },
 ) {
   const host = createHarnessHost({ persistence, ...(log ? { log } : {}) })
   const session = await host.open(harness, { threadId: THREAD })
@@ -135,7 +135,7 @@ describe('ctx.harness.state', () => {
     const persistence = memoryPersistence()
     const { log } = persistence.stores
     const { host, session } = await openOn(persistence, sharing(), {
-      snapshot: { afterBytes: 1 },
+      saveSnapshotAfter: { bytes: 1 },
     })
     await session.agents.adder.start({ name: 'a' }, { attach: 'none' })
     await host.close()

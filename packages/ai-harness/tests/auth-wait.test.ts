@@ -410,10 +410,10 @@ describe('sign-ins in a shared thread', () => {
       persistence,
       credentials,
       access: {
-        identify: ({ request }) => ({
+        getUser: ({ request }) => ({
           id: request.headers.get('x-user') ?? '',
         }),
-        policy: { authorize: () => true },
+        rules: { isAllowed: () => true },
       },
     })
     const harness = defineHarness({

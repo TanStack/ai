@@ -10,7 +10,7 @@ import type {
 } from '../src/access'
 import type { HarnessUser } from '../src/types'
 
-const { authorize } = membersOnly()
+const { isAllowed } = membersOnly()
 
 const members: ReadonlyArray<SessionMember> = [
   { userId: 'mia', role: 'member' },
@@ -145,7 +145,7 @@ describe('membersOnly roles', () => {
     '$who: $action is $allowed',
     async ({ id, target, action, allowed }) => {
       const run = { runId: 'run-1', userId: id }
-      const decision = await authorize({
+      const decision = await isAllowed({
         user: { id },
         action,
         session: target,
@@ -208,7 +208,7 @@ describe('membersOnly runs for answer and cancel', () => {
   it.each(rows)(
     '$who: $action on $target is $allowed',
     async ({ id, action, run, allowed }) => {
-      const decision = await authorize({
+      const decision = await isAllowed({
         user: { id },
         action,
         session,
@@ -223,7 +223,7 @@ describe('membersOnly operator roles', () => {
   it('gives the operator action to the roles in operator.roles', async () => {
     const owners = membersOnly({ operator: { roles: ['owner', 'operator'] } })
     const can = (id: string) =>
-      owners.authorize({ user: { id }, action: 'operator', session })
+      owners.isAllowed({ user: { id }, action: 'operator', session })
     expect(await can('olga')).toBe(true)
     expect(await can('oto')).toBe(true)
     expect(await can('mia')).toBe(false)
@@ -252,7 +252,7 @@ describe('membersOnly list filter and members', () => {
   })
 
   it('lists only the sessions of the member', () => {
-    expect(membersOnly().listFilter({ id: 'mia' })).toEqual({
+    expect(membersOnly().filterSessionList({ id: 'mia' })).toEqual({
       memberId: 'mia',
     })
   })
@@ -263,13 +263,13 @@ interface AppUser extends HarnessUser {
 }
 
 describe('membersOnly with a wider user type', () => {
-  it('works as the authorize of an access object', async () => {
+  it('works as the rules of an access object', async () => {
     const access: HarnessAccess<AppUser> = {
-      identify: () => null,
-      policy: membersOnly(),
+      getUser: () => null,
+      rules: membersOnly(),
     }
     const user: AppUser = { id: 'mia', plan: 'pro' }
-    const decision = await access.policy.authorize({
+    const decision = await access.rules.isAllowed({
       user,
       action: 'send',
       session,

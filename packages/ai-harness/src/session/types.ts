@@ -441,9 +441,9 @@ export interface SessionDependencies {
   /**
    * The host checks access (`access` on the host). Then an entry with no
    * owner stays without one, and provider keys read env vars only with
-   * `envKeys`.
+   * `allowServerEnvKeys`.
    */
-  access?: { envKeys: boolean }
+  access?: { allowServerEnvKeys: boolean }
   /**
    * Open a session of `harness` on a child thread of this log, for
    * `harnessAgent`. The host sets it.

@@ -121,9 +121,9 @@ async function run() {
   const host: HarnessHost<User> = createHarnessHost({
     persistence,
     access: {
-      identify: ({ request }): User | null =>
+      getUser: ({ request }): User | null =>
         USERS[request.headers.get('authorization') ?? ''] ?? null,
-      policy: membersOnly(),
+      rules: membersOnly(),
     },
   })
   const support = harnessWith('e2e/harness-transfer-support', [

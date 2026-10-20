@@ -48,7 +48,7 @@ export interface RunCliOptions<U extends HarnessUser = HarnessUser> {
    * Your own host, so the CLI keeps its hooks: ownership, recovery, and stores.
    * You own it: the CLI does not close it. Do not set it with `persistence`
    * or `credentials`. With host `access`, give `user` too. `--serve`
-   * then reads the user of each request with `access.identify`, and `--mcp`
+   * then reads the user of each request with `access.getUser`, and `--mcp`
    * refuses to start, as stdio has no login.
    */
   host?: HarnessHost<U>

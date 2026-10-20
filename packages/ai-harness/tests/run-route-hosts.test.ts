@@ -48,16 +48,16 @@ function twoHosts(options: { snapshot?: SnapshotTiming } = {}) {
     const host = createHarnessHost({
       persistence: persistenceOf(reads),
       log: {
-        coalesceMs: 0,
-        ...(options.snapshot ? { snapshot: options.snapshot } : {}),
+        bufferStreamWriteMs: 0,
+        ...(options.snapshot ? { saveSnapshotAfter: options.snapshot } : {}),
       },
       access: {
-        identify: ({ request }) => ({
+        getUser: ({ request }) => ({
           id: request.headers.get('x-user') ?? 'user-1',
         }),
         // A user may use the threads whose id starts with the user id.
-        policy: {
-          authorize: ({ user, session }) =>
+        rules: {
+          isAllowed: ({ user, session }) =>
             session.threadId.startsWith(user.id),
         },
       },
@@ -148,7 +148,7 @@ describe('a run on a durable host, across instances', () => {
   it('reads the log on host B from the start of the run, not from the start of the log', async () => {
     const { a, b, post, release, close, logState, readsOfB } = twoHosts({
       // Host A writes a snapshot at each write, so host B folds from it.
-      snapshot: { afterBytes: 1 },
+      snapshot: { bytes: 1 },
     })
     // Records before the run, so the run does not start at the log start.
     const history = Array.from({ length: 20 }, (_, n) => ({

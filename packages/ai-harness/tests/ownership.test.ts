@@ -95,7 +95,7 @@ describe('ownership of a log by two hosts', () => {
     const a = await openOn(
       logA,
       [after(release.opened, 'from A'), () => text('for B')],
-      { ownership: { ttlMs: 100, renewMs: 20 } },
+      { ownership: { expiresAfterMs: 100, renewEveryMs: 20 } },
     )
     const b = await openOn(logB, [() => text('from B')])
     const turn = a.session.send('go', { inputId: 'in-a' })
@@ -290,7 +290,7 @@ describe('a host that lost the log and takes it back', () => {
       logId: LOG,
       harness: 'test/ownership',
       ownerId: 'host-b',
-      ttlMs: CRASHING_OWNERSHIP.ttlMs,
+      ttlMs: CRASHING_OWNERSHIP.expiresAfterMs,
     })
     if (owned === null) throw new Error('B did not get the log.')
     const head = (await log.read({ logId: LOG })).at(-1)?.seq ?? 0
@@ -327,7 +327,7 @@ describe('a host that lost the log and takes it back', () => {
     })
     const release = gate()
     const a = await openOn(log, [after(release.opened, 'done')], {
-      ownership: { ttlMs: 200, renewMs: 50 },
+      ownership: { expiresAfterMs: 200, renewEveryMs: 50 },
     })
     const turn = a.session.send('go', { inputId: 'in-1' })
     await waitFor(() => expect(a.calls).toHaveLength(1))
@@ -363,7 +363,7 @@ describe('renewals', () => {
     const { adapter } = mockAdapter(after(release.opened, 'done'))
     const host = createHarnessHost({
       persistence: { stores: { log } },
-      ownership: { ttlMs: 60_000, renewMs },
+      ownership: { expiresAfterMs: 60_000, renewEveryMs: renewMs },
     })
     const harness = defineHarness({ name: 'test/ownership', adapter })
     const threads = ['t1', 't2', 't3']
@@ -411,7 +411,7 @@ describe('renewals', () => {
     const { host, session } = await openOn(
       log,
       [after(release.opened, 'done')],
-      { ownership: { ttlMs: 60_000, renewMs: 10 } },
+      { ownership: { expiresAfterMs: 60_000, renewEveryMs: 10 } },
     )
 
     const turn = session.send('go')
@@ -433,7 +433,7 @@ describe('renewals', () => {
     const ownership = new HostOwnership({
       store: log,
       ownerId: 'host-1',
-      timing: { ttlMs: 60_000, renewMs: 10 },
+      timing: { expiresAfterMs: 60_000, renewEveryMs: 10 },
     })
     const lost = vi.fn()
     ownership.onLost(LOG, lost)
@@ -458,7 +458,7 @@ describe('renewals', () => {
     const ownership = new HostOwnership({
       store: log,
       ownerId: 'host-1',
-      timing: { ...CRASHING_OWNERSHIP, ttlMs: 20, renewMs: 40 },
+      timing: { ...CRASHING_OWNERSHIP, expiresAfterMs: 20, renewEveryMs: 40 },
     })
     const lost = vi.fn()
     ownership.onLost(LOG, lost)
@@ -544,12 +544,12 @@ describe('the run context', () => {
 })
 
 describe('ownership timing', () => {
-  it('renews at a third of ttlMs when only ttlMs is set', async () => {
+  it('renews at a third of expiresAfterMs when only expiresAfterMs is set', async () => {
     const intervals = vi.spyOn(globalThis, 'setInterval')
     const ownership = new HostOwnership({
       store: memoryLogStore(),
       ownerId: 'host-1',
-      timing: { ttlMs: 6_000 },
+      timing: { expiresAfterMs: 6_000 },
     })
     await ownership.acquire(LOG, 'test/ownership')
 
@@ -558,23 +558,23 @@ describe('ownership timing', () => {
     intervals.mockRestore()
   })
 
-  it('refuses a renewMs that is not less than ttlMs', () => {
+  it('refuses a renewEveryMs that is not less than expiresAfterMs', () => {
     expect(() =>
       createHarnessHost({
         persistence: memoryPersistence(),
-        ownership: { ttlMs: 5_000, renewMs: 5_000 },
+        ownership: { expiresAfterMs: 5_000, renewEveryMs: 5_000 },
       }),
     ).toThrow(RangeError)
     expect(() =>
       createHarnessHost({
         persistence: memoryPersistence(),
-        ownership: { renewMs: 30_000 },
+        ownership: { renewEveryMs: 30_000 },
       }),
-    ).toThrow('must be less than ownership.ttlMs')
+    ).toThrow('must be less than ownership.expiresAfterMs')
     expect(() =>
       createHarnessHost({
         persistence: memoryPersistence(),
-        ownership: { ttlMs: 0 },
+        ownership: { expiresAfterMs: 0 },
       }),
     ).toThrow('more than 0')
   })

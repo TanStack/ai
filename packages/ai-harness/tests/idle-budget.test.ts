@@ -50,7 +50,7 @@ describe('an idle session', () => {
     const harness = defineHarness({ name: 'test/idle-budget', adapter })
     const host = createHarnessHost({
       persistence,
-      lifecycle: { idleCloseMs: 1_000 },
+      lifecycle: { closeIdleSessionsAfterMs: 1_000 },
     })
     const session = await host.open(harness, { threadId: 't1' })
     await session.send('hi')

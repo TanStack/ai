@@ -67,11 +67,11 @@ describe('harnessText({ url })', () => {
     const host = createHarnessHost({
       persistence: memoryPersistence(),
       access: {
-        identify: ({ request }) =>
+        getUser: ({ request }) =>
           request.headers.get('authorization') === 'Bearer t'
             ? { id: 'u' }
             : null,
-        policy: { authorize: () => true },
+        rules: { isAllowed: () => true },
       },
     })
     const handler = createHarnessHandler({

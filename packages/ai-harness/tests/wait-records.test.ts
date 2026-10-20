@@ -359,7 +359,7 @@ describe('a human wait', () => {
     const persistence = memoryPersistence()
     const host = createHarnessHost({
       persistence,
-      access: { identify: (): User | null => null, policy: membersOnly() },
+      access: { getUser: (): User | null => null, rules: membersOnly() },
     })
     const harness = harnessWith()
     const open = (user: User) => host.open(harness, { threadId: THREAD, user })
@@ -453,7 +453,7 @@ describe('a human wait', () => {
     // Another host that does not own the log.
     const submitter = createHarnessHost({
       persistence,
-      access: { identify: (): User | null => null, policy: membersOnly() },
+      access: { getUser: (): User | null => null, rules: membersOnly() },
     })
     const submit = (user: User) =>
       submitter.submit({

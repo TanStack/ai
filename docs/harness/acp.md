@@ -51,7 +51,7 @@ serveAcp({ host, harness: assistant, version: '1.0.0' })
 - Each ACP session is one harness session. The ACP session id is the thread id.
 - `user` is the user of the editor, for example `serveAcp({ host, harness: assistant, user: { id: 'ada' } })`. Every session opens as that user, so `/connect` saves keys for them. On a host with [`access`](./access), `user` is required.
 - The prompts of a session run one after another, in the order that the editor sent them. A prompt with a large file keeps its place while the file uploads. The harness `busy` setting does not apply.
-- The agent holds a session only while a prompt runs or waits. An idle session closes after the host `lifecycle.idleCloseMs`, and the next prompt opens it again.
+- The agent holds a session only while a prompt runs or waits. An idle session closes after the host `lifecycle.closeIdleSessionsAfterMs`, and the next prompt opens it again.
 - `version` is the version that `initialize` reports. Default: `'0.0.0'`.
 - `cwd` is the working directory that the session list shows for each session. Default: `process.cwd()`.
 - Use a persistent store instead of `memoryPersistence()` if a session must stay after the process stops.

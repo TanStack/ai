@@ -62,11 +62,11 @@ export const assistant = defineHarness({
 const host = createHarnessHost({
   persistence: memoryPersistence(),
   access: {
-    identify: ({ request }) =>
+    getUser: ({ request }) =>
       request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
         ? { id: 'user-1' }
         : null,
-    policy: membersOnly(),
+    rules: membersOnly(),
   },
 })
 
@@ -104,14 +104,14 @@ These routes are enough for a full client. [Connect clients to a harness](./conn
 
 - `200`: the receipt, `{ inputId, status, operationId?, reason? }`.
 - `400`: `{ error }`. The input has a bad shape, or `threadId` is missing.
-- `401`: `identify` returned `null`.
+- `401`: `getUser` returned `null`.
 - `403`: `{ error: 'forbidden' }`. The host refused the action.
 
 A `rejected` receipt is still `200`. Its `reason` says why, for example `not_exposed`.
 
 ### The WebSocket
 
-The first frame from the client must be `harness.subscribe`. The host reads the user from the upgrade request, with `identify`. A browser cannot set headers on a WebSocket, so `identify` must read a cookie or a token in the URL.
+The first frame from the client must be `harness.subscribe`. The host reads the user from the upgrade request, with `getUser`. A browser cannot set headers on a WebSocket, so `getUser` must read a cookie or a token in the URL.
 
 ```ts group=harness-protocol-socket-client
 import type { ControlFrame, HostFrame } from '@tanstack/ai-harness/server'
@@ -152,7 +152,7 @@ The socket closes with these codes:
 
 | Code | Why | What the client does |
 | --- | --- | --- |
-| `4401` | `identify` refused the user. | Sign in again. |
+| `4401` | `getUser` refused the user. | Sign in again. |
 | `4403` | The user cannot read the thread, or lost access. | Stop. |
 | `4400` | The server does not speak the `v` of the subscribe. | Stop. Use a client of the version of the server. |
 | `4408` | The client read too slowly. See [Stream values](#stream-values). | Subscribe again from the last cursor. |
@@ -324,7 +324,7 @@ A `harness.error` frame has a `code` and a `requestId`. `message` is for people,
 
 | `code` | Why | Does the stream close? |
 | --- | --- | --- |
-| `unauthorized` | `identify` refused the user. | Yes. |
+| `unauthorized` | `getUser` refused the user. | Yes. |
 | `forbidden` | The user cannot read the thread, or lost access. On the socket, also when the host refuses one input. | Yes. When the host refuses one input, no. |
 | `invalid_frame` | The frame is not valid JSON, has an unknown `type` or a bad `input`, comes before `harness.subscribe`, or is a second `harness.subscribe`. | No. |
 | `unsupported_version` | The server does not speak the `v` that you sent. | Yes. |

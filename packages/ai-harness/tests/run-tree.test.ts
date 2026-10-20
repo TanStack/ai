@@ -329,7 +329,7 @@ describe('the run tree of a session', () => {
     const { log } = persistence.stores
     const { runId } = await runLead(persistence, {
       persistence,
-      log: { snapshot: { afterBytes: 1 } },
+      log: { saveSnapshotAfter: { bytes: 1 } },
     })
     const head = (await log.read({ logId: LOG })).at(-1)?.seq
     await waitFor(async () =>

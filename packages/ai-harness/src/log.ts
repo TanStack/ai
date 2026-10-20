@@ -915,9 +915,9 @@ export const SNAPSHOT_AFTER_MS = 300_000
 /** When the owner of a log writes a snapshot: at the first limit it meets. */
 export interface SnapshotTiming {
   /** Default {@link SNAPSHOT_AFTER_BYTES}. */
-  afterBytes?: number
+  bytes?: number
   /** Default {@link SNAPSHOT_AFTER_MS}. */
-  afterMs?: number
+  ms?: number
 }
 
 /**
@@ -1518,9 +1518,9 @@ export interface LogReader<TState = unknown> {
  * - When a write fails for another reason (another writer took the
  *   position, or the store failed twice), every session of the log gets
  *   `onFailure`, and every later write rejects.
- * - The owner writes a snapshot of the whole fold after `afterBytes` of new
- *   records, or `afterMs` after the first record with no snapshot. With
- *   `logRecords: 'since-snapshot'`, it then truncates the records before it.
+ * - The owner writes a snapshot of the whole fold after `bytes` of new
+ *   records, or `ms` after the first record with no snapshot. With
+ *   `keepLogRecords: 'since-snapshot'`, it then truncates the records before it.
  */
 export class SharedLog<TState = unknown> {
   /** The id of the log in the store. See {@link logIdOf}. */
@@ -1643,9 +1643,8 @@ export class SharedLog<TState = unknown> {
     this.logId = options.logId
     this.rootThread = options.rootThread
     this.state = options.state
-    this.snapshotAfterBytes =
-      options.snapshot?.afterBytes ?? SNAPSHOT_AFTER_BYTES
-    this.snapshotAfterMs = options.snapshot?.afterMs ?? SNAPSHOT_AFTER_MS
+    this.snapshotAfterBytes = options.snapshot?.bytes ?? SNAPSHOT_AFTER_BYTES
+    this.snapshotAfterMs = options.snapshot?.ms ?? SNAPSHOT_AFTER_MS
     this.logRecords = options.logRecords ?? 'all'
     this.snapshotSeq = options.state.snapshotSeq ?? 0
     this.coalesceMs = options.coalesceMs

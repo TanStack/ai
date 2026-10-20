@@ -46,11 +46,11 @@ const users = new Map([
   ['Bearer e2e-token-carol', { id: 'carol', tenantId: 'e2e' }],
   ['Bearer e2e-token-mallory', { id: 'mallory', tenantId: 'other' }],
 ])
-const identify = ({ request }: { request: Request }) =>
+const getUser = ({ request }: { request: Request }) =>
   users.get(request.headers.get('authorization') ?? '') ?? null
 // Test only: each user may do each action on each thread of their tenant.
-// The host checks the tenant before it calls `authorize`.
-const tenantAccess = { identify, policy: { authorize: () => true } }
+// The host checks the tenant before it calls `isAllowed`.
+const tenantAccess = { getUser, rules: { isAllowed: () => true } }
 // One host for every test. Each test uses its own thread ids.
 const host = createHarnessHost({
   persistence: memoryPersistence(),
@@ -68,7 +68,7 @@ const durableHost = createHarnessHost({
 // the `x-harness-access: members` header.
 const membersHost = createHarnessHost({
   persistence: memoryPersistence(),
-  access: { identify, policy: membersOnly() },
+  access: { getUser, rules: membersOnly() },
 })
 // A host that closes a session as soon as no handle holds it and it is idle.
 // A request picks it with the `x-harness-idle: close` header, so a read
@@ -76,7 +76,7 @@ const membersHost = createHarnessHost({
 const idleHost = createHarnessHost({
   persistence: memoryPersistence(),
   access: tenantAccess,
-  lifecycle: { idleCloseMs: 0 },
+  lifecycle: { closeIdleSessionsAfterMs: 0 },
 })
 // On the durable host, an `app.signal` record that a client appends becomes
 // a user message. The host without a log does not read it.
@@ -334,7 +334,7 @@ function harnessFor(request: Request) {
 
 function handlerFor(request: Request) {
   const { harness, host: hostOf } = harnessFor(request)
-  // The `access.identify` of the host reads the user of each request.
+  // The `access.getUser` of the host reads the user of each request.
   return createHarnessHandler({
     host: hostOf,
     harness,
@@ -351,7 +351,7 @@ function handlerFor(request: Request) {
  * Here the test picks it, so a test can fork onto a thread that has messages.
  */
 async function forkThread(request: Request) {
-  const user = identify({ request })
+  const user = getUser({ request })
   if (!user) return Response.json({ error: 'unauthorized' }, { status: 401 })
   const { harness, host: hostOf } = harnessFor(request)
   const body: { threadId: string; newThreadId: string; at?: string } =

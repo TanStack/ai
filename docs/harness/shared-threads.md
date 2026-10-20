@@ -17,7 +17,7 @@ Several people work in one thread: a team in one chat, or a customer and a suppo
 
 ## 1. Turn on members
 
-Use `membersOnly()` as the `policy` of the host `access`. [Access and tenants](./access) explains `identify`:
+Use `membersOnly()` as the `rules` of the host `access`. [Access and tenants](./access) explains `getUser`:
 
 ```ts group=harness-shared-threads
 import { createHarnessHost, defineHarness, membersOnly } from '@tanstack/ai-harness'
@@ -39,8 +39,8 @@ const users = new Map([
 export const host = createHarnessHost({
   persistence: memoryPersistence(),
   access: {
-    identify: ({ request }) => users.get(request.headers.get('authorization') ?? '') ?? null,
-    policy: membersOnly(),
+    getUser: ({ request }) => users.get(request.headers.get('authorization') ?? '') ?? null,
+    rules: membersOnly(),
   },
 })
 
@@ -305,8 +305,8 @@ const online = new Map<string, Map<string, string>>()
 export const presenceHost = createHarnessHost({
   persistence: memoryPersistence(),
   access: {
-    identify: ({ request }) => users.get(request.headers.get('authorization') ?? '') ?? null,
-    policy: membersOnly(),
+    getUser: ({ request }) => users.get(request.headers.get('authorization') ?? '') ?? null,
+    rules: membersOnly(),
   },
   presence: {
     onConnect: ({ threadId, connectionId, user }) => {

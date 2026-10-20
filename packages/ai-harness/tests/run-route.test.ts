@@ -67,7 +67,7 @@ async function withStoredRun() {
   return { persistence, stored }
 }
 
-/** A handler for `user`. `authorize` decides each action. */
+/** A handler for `user`. `isAllowed` decides each action. */
 function setup(
   harness: AnyHarness,
   authorize: () => boolean = () => true,
@@ -75,7 +75,7 @@ function setup(
 ) {
   const host = createHarnessHost({
     persistence,
-    access: { identify: () => user, policy: { authorize } },
+    access: { getUser: () => user, rules: { isAllowed: authorize } },
   })
   const handler = createHarnessHandler({ host, harness })
   const call = (path: string, body?: object) =>
@@ -304,10 +304,10 @@ describe('POST run', () => {
     const host = createHarnessHost({
       persistence: memoryPersistence(),
       access: {
-        identify: ({ request }) => ({
+        getUser: ({ request }) => ({
           id: request.headers.get('x-user') ?? '',
         }),
-        policy: { authorize: () => true },
+        rules: { isAllowed: () => true },
       },
     })
     const handler = createHarnessHandler({

@@ -58,13 +58,13 @@ const THREAD = 't1'
 /** A host with access, and a harness whose turns are `replies`. */
 function accessHost({
   replies = () => text('ok'),
-  policy = membersOnly(),
-  envKeys,
+  rules = membersOnly(),
+  allowServerEnvKeys,
   adapter,
 }: {
   replies?: Array<Reply> | Reply
-  policy?: AccessPolicy<User>
-  envKeys?: boolean
+  rules?: AccessPolicy<User>
+  allowServerEnvKeys?: boolean
   adapter?: AnyTextAdapter | ReturnType<typeof acmeAdapter>['adapter']
 } = {}) {
   const persistence = memoryPersistence()
@@ -72,9 +72,9 @@ function accessHost({
   const host = createHarnessHost({
     persistence,
     access: {
-      identify: (): User | null => null,
-      policy,
-      ...(envKeys !== undefined ? { envKeys } : {}),
+      getUser: (): User | null => null,
+      rules,
+      ...(allowServerEnvKeys !== undefined ? { allowServerEnvKeys } : {}),
     },
   })
   const harness = defineHarness({
@@ -334,7 +334,7 @@ describe('host access with membersOnly()', () => {
 
   it("forks with the source's members by default under membersOnly({ fork: { members: 'all' } })", async () => {
     const { host, harness, open } = accessHost({
-      policy: membersOnly({ fork: { members: 'all' } }),
+      rules: membersOnly({ fork: { members: 'all' } }),
     })
     const owner = await open(olga)
     await owner.send('Hi.')
@@ -464,7 +464,7 @@ describe('host access with your own access tables', () => {
   it('closes the handles of a revoked user and tells host.events() readers', async () => {
     const table = tableAccess('olga', 'bea')
     const { host, open } = accessHost({
-      policy: { authorize: table.authorize },
+      rules: { isAllowed: table.authorize },
     })
     await open(olga)
     const member = await open(bea)
@@ -495,9 +495,9 @@ describe('host access with your own access tables', () => {
     await host.close()
   })
 
-  it('refuses share without access.policy.members', async () => {
+  it('refuses share without access.rules.members', async () => {
     const { host, open } = accessHost({
-      policy: { authorize: tableAccess('olga').authorize },
+      rules: { isAllowed: tableAccess('olga').authorize },
     })
     await open(olga)
 
@@ -509,7 +509,7 @@ describe('host access with your own access tables', () => {
         user: olga,
       }),
     ).rejects.toThrow(
-      'host.sessions.share needs access.policy.members (membersOnly() has it). With your own access tables, change them and call host.revoke.',
+      'host.sessions.share needs access.rules.members (membersOnly() has it). With your own access tables, change them and call host.revoke.',
     )
     await host.close()
   })
@@ -557,8 +557,8 @@ const asking = definePlugin({
 function twoAccessHosts(replies: Array<Reply>) {
   const persistence = memoryPersistence()
   const access = {
-    identify: (): User | null => null,
-    policy: { authorize: ownRunsOnly },
+    getUser: (): User | null => null,
+    rules: { isAllowed: ownRunsOnly },
   }
   const owner = createHarnessHost({ persistence, access })
   const submitter = createHarnessHost({ persistence, access })
@@ -637,7 +637,7 @@ describe('access to the inputs of the input lane', () => {
   it('checks a scheduled cancel against the run it targets', async () => {
     const release = gate()
     const { host, open, log } = accessHost({
-      policy: { authorize: ownRunsOnly },
+      rules: { isAllowed: ownRunsOnly },
       replies: [after(release.opened, 'bea done')],
     })
     const member = await open(bea)
@@ -667,7 +667,7 @@ describe('access to the inputs of the input lane', () => {
 
   it('lets a user cancel only a schedule that the user made', async () => {
     const { host, open, log } = accessHost({
-      policy: { authorize: ownRunsOnly },
+      rules: { isAllowed: ownRunsOnly },
     })
     const member = await open(bea)
     const other = await open(olga)
@@ -697,8 +697,8 @@ describe('a resolve of the waits of background agent runs', () => {
   function cleaningHosts() {
     const persistence = memoryPersistence()
     const access = {
-      identify: (): User | null => null,
-      policy: { authorize: ownRunsOnly },
+      getUser: (): User | null => null,
+      rules: { isAllowed: ownRunsOnly },
     }
     const owner = createHarnessHost({ persistence, access })
     const submitter = createHarnessHost({ persistence, access })
@@ -860,7 +860,7 @@ describe('host access and users', () => {
     })
     const host = createHarnessHost({
       persistence: memoryPersistence(),
-      access: { identify: (): User | null => null, policy: membersOnly() },
+      access: { getUser: (): User | null => null, rules: membersOnly() },
     })
     const harness = defineHarness({
       name: 'test/access-resume',
@@ -904,7 +904,7 @@ describe('host access and users', () => {
 })
 
 describe('provider keys with host access', () => {
-  it('does not read env vars without envKeys', async () => {
+  it('does not read env vars without allowServerEnvKeys', async () => {
     vi.stubEnv('ACME_TEST_KEY', 'sk-acme-env-0000')
     const keyed = acmeAdapter()
     const { host, open } = accessHost({ adapter: keyed.adapter })
@@ -917,10 +917,13 @@ describe('provider keys with host access', () => {
     await host.close()
   })
 
-  it('reads env vars with envKeys: true', async () => {
+  it('reads env vars with allowServerEnvKeys: true', async () => {
     vi.stubEnv('ACME_TEST_KEY', 'sk-acme-env-0000')
     const keyed = acmeAdapter()
-    const { host, open } = accessHost({ adapter: keyed.adapter, envKeys: true })
+    const { host, open } = accessHost({
+      adapter: keyed.adapter,
+      allowServerEnvKeys: true,
+    })
     const owner = await open(olga)
 
     expect(await owner.send('Hi.')).toEqual({
@@ -938,7 +941,7 @@ it('needs stores.sessions for host access', () => {
       persistence: {
         stores: { log: memoryLogStore() },
       },
-      access: { identify: () => null, policy: membersOnly() },
+      access: { getUser: () => null, rules: membersOnly() },
     }),
   ).toThrow(
     'Host access needs stores.sessions: each session keeps its owner and members there.',

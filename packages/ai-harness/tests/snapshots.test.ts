@@ -56,7 +56,7 @@ const snapshotOf = (persistence: ReturnType<typeof memoryPersistence>) =>
 describe('log snapshots on a host', () => {
   it('opens a new host from the snapshot, and reads only the records after it', async () => {
     const persistence = memoryPersistence()
-    await seed({ persistence, log: { snapshot: { afterBytes: 1 } } })
+    await seed({ persistence, log: { saveSnapshotAfter: { bytes: 1 } } })
     const snapshot = await snapshotOf(persistence)
     if (!snapshot) throw new Error('The first host wrote a snapshot.')
     // A host with the default limits adds a turn, and no snapshot.
@@ -92,8 +92,8 @@ describe('log snapshots on a host', () => {
     const persistence = memoryPersistence()
     const options: HarnessHostOptions = {
       persistence,
-      log: { snapshot: { afterBytes: 1 } },
-      lifecycle: { retention: { logRecords: 'since-snapshot' } },
+      log: { saveSnapshotAfter: { bytes: 1 } },
+      lifecycle: { retention: { keepLogRecords: 'since-snapshot' } },
     }
     await seed(options)
     const snapshot = await snapshotOf(persistence)
@@ -176,8 +176,8 @@ describe('log snapshots on a host', () => {
     })
     const options: HarnessHostOptions = {
       persistence,
-      log: { snapshot: { afterBytes: 1 } },
-      lifecycle: { retention: { logRecords: 'since-snapshot' } },
+      log: { saveSnapshotAfter: { bytes: 1 } },
+      lifecycle: { retention: { keepLogRecords: 'since-snapshot' } },
     }
     await seed(options, withSteps)
     await expect(
@@ -233,8 +233,8 @@ describe('log snapshots on a host', () => {
     })
     const options: HarnessHostOptions = {
       persistence,
-      log: { snapshot: { afterBytes: 1 } },
-      lifecycle: { retention: { logRecords: 'since-snapshot' } },
+      log: { saveSnapshotAfter: { bytes: 1 } },
+      lifecycle: { retention: { keepLogRecords: 'since-snapshot' } },
     }
     await seed(options, withFiles)
     const snapshot = await snapshotOf(persistence)

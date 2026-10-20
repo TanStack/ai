@@ -152,7 +152,7 @@ describe('harnessText', () => {
     // A session that no handle holds closes at once when it is idle.
     const host = createHarnessHost({
       persistence: memoryPersistence(),
-      lifecycle: { idleCloseMs: 0 },
+      lifecycle: { closeIdleSessionsAfterMs: 0 },
     })
     const adapter = harnessText(studio, {
       host,
@@ -185,7 +185,7 @@ describe('harnessText', () => {
     // Only a handle keeps an idle session open.
     const host = createHarnessHost({
       persistence: memoryPersistence(),
-      lifecycle: { idleCloseMs: 0 },
+      lifecycle: { closeIdleSessionsAfterMs: 0 },
     })
     const threadId = innerThreadOf('outer-kept', studio.name)
     const held = await host.open(
@@ -358,7 +358,7 @@ describe('harnessText', () => {
     // The inner session closes after each call, so each call opens it.
     const innerHost = createHarnessHost({
       persistence: memoryPersistence(),
-      lifecycle: { idleCloseMs: 0 },
+      lifecycle: { closeIdleSessionsAfterMs: 0 },
     })
     const lead = defineHarness({
       name: 'test/lead',
@@ -386,7 +386,7 @@ describe('harnessText', () => {
     const studio = defineHarness({ name: 'test/inner', adapter: inner.adapter })
     const host = createHarnessHost({
       persistence: memoryPersistence(),
-      access: { identify: () => null, policy: membersOnly() },
+      access: { getUser: () => null, rules: membersOnly() },
     })
     // The inner session runs on the host of the outer thread.
     const lead = defineHarness({
@@ -430,7 +430,7 @@ describe('harnessText', () => {
     const studio = defineHarness({ name: 'test/inner', adapter: inner.adapter })
     const host = createHarnessHost({
       persistence: memoryPersistence(),
-      access: { identify: () => null, policy: membersOnly() },
+      access: { getUser: () => null, rules: membersOnly() },
     })
     const lead = defineHarness({
       name: 'test/lead',

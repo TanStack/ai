@@ -440,7 +440,7 @@ export interface HarnessClientSessions<THarness extends AnyHarness> {
   /**
    * Add the user `userId` to the members of one of your sessions with
    * `role`, or change the role of a member. The server needs
-   * `access.policy.members`, and you need the `share` action. Resolves to
+   * `access.rules.members`, and you need the `share` action. Resolves to
    * the changed entry.
    */
   share: (change: {

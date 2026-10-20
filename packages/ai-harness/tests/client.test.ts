@@ -37,11 +37,11 @@ describe('createHarnessClient', () => {
     const host = createHarnessHost({
       persistence: memoryPersistence(),
       access: {
-        identify: ({ request }) =>
+        getUser: ({ request }) =>
           request.headers.get('authorization') === 'Bearer t'
             ? { id: 'u' }
             : null,
-        policy: { authorize: () => true },
+        rules: { isAllowed: () => true },
       },
     })
     const handler = createHarnessHandler({ host, harness: studio })
@@ -241,7 +241,7 @@ describe('createHarnessClient', () => {
     const studio = defineHarness({ name: 'test/client-denied', adapter })
     const host = createHarnessHost({
       persistence: memoryPersistence(),
-      access: { identify: () => null, policy: { authorize: () => true } },
+      access: { getUser: () => null, rules: { isAllowed: () => true } },
     })
     const handler = createHarnessHandler({ host, harness: studio })
     const client = createHarnessClient<typeof studio>({
@@ -397,9 +397,9 @@ describe('client.sessions share and unshare', () => {
     const host = createHarnessHost({
       persistence: memoryPersistence(),
       access: {
-        identify: ({ request }) =>
+        getUser: ({ request }) =>
           users.get(request.headers.get('x-user') ?? '') ?? null,
-        policy: membersOnly(),
+        rules: membersOnly(),
       },
     })
     const handler = createHarnessHandler({ host, harness: studio })

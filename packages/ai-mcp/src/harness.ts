@@ -61,7 +61,7 @@ export type { McpServerConfig, McpServerStatus } from './harness-plugin'
 export interface HarnessMcpServerOptions<U extends HarnessUser = HarnessUser> {
   /**
    * The host that runs the sessions, from `createHarnessHost`. With
-   * `access`, `access.identify` reads the user of each HTTP request, and the
+   * `access`, `access.getUser` reads the user of each HTTP request, and the
    * host checks each tool call of that user.
    */
   host: HarnessHost<U>
@@ -205,7 +205,7 @@ const attachmentsSchema: JSONSchema = {
  *
  * Who makes the calls:
  *
- * - A host with `access`: the user that `access.identify` finds for each
+ * - A host with `access`: the user that `access.getUser` finds for each
  *   HTTP request. `null` gets a 401. A refused action is a tool error. Each
  *   spec 2025 session belongs to its user, and `handle` replaces the
  *   `authInfo` of its options for that. Such a server needs HTTP: over stdio
@@ -280,7 +280,7 @@ export async function createHarnessMcpServer<
 
   /**
    * Who makes a tool call or a resource read: on a host with access, the
-   * user that `identify` found for its request. Else the `openAccess` one.
+   * user that `getUser` found for its request. Else the `openAccess` one.
    */
   const userOf = (context: Record<string, unknown>) => {
     if (!access) return fixed
@@ -828,12 +828,12 @@ export async function createHarnessMcpServer<
 
   /**
    * Serves one MCP HTTP request. On a host with access, the calls of the
-   * request run as the user that `identify` finds for it, and `null` gets a
+   * request run as the user that `getUser` finds for it, and `null` gets a
    * 401 with a bearer challenge.
    */
   const handle = async (request: Request, handleOptions?: MCPHandleOptions) => {
     if (!access) return server.handle(request, handleOptions)
-    // stdio has no request with a login, so `identify` cannot find a user.
+    // stdio has no request with a login, so `getUser` cannot find a user.
     if (isServedOverStdio(served)) {
       throw new Error(
         'createHarnessMcpServer: a host with access reads the user of each HTTP request, so it cannot serve over stdio. For one local user, use a host without access and openAccess: { user }.',

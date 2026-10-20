@@ -386,9 +386,9 @@ describe('an operator reply', () => {
     const host = createHarnessHost({
       persistence: memoryPersistence(),
       access: {
-        identify: ({ request }): User | null =>
+        getUser: ({ request }): User | null =>
           tokens[request.headers.get('authorization') ?? ''] ?? null,
-        policy: membersOnly(),
+        rules: membersOnly(),
       },
     })
     const open = (user: User) => host.open(harness, { threadId: THREAD, user })

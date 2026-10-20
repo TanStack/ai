@@ -275,7 +275,10 @@ describe('durable session log', () => {
       streamsThenWaits('m-live', ['Hello, ', 'wor'], release.opened),
     ])
     const harness = defineHarness({ name: 'test/crash-mid-text', adapter })
-    const first = createHarnessHost({ persistence, log: { coalesceMs: 5 } })
+    const first = createHarnessHost({
+      persistence,
+      log: { bufferStreamWriteMs: 5 },
+    })
     const session = await first.open(harness, { threadId: THREAD })
     const turn = session.send('say hello')
 
@@ -353,7 +356,7 @@ describe('durable session log', () => {
     ])
     const host = createHarnessHost({
       persistence: durablePersistence(log),
-      log: { coalesceMs: 60_000 },
+      log: { bufferStreamWriteMs: 60_000 },
     })
     const session = await host.open(
       defineHarness({ name: 'test/batch', adapter }),

@@ -48,7 +48,10 @@ const waitFor = <T>(
 /** A memory host. A session closes as soon as its last handle closes and it is idle. */
 function setup() {
   const persistence = memoryPersistence()
-  const host = createHarnessHost({ persistence, lifecycle: { idleCloseMs: 0 } })
+  const host = createHarnessHost({
+    persistence,
+    lifecycle: { closeIdleSessionsAfterMs: 0 },
+  })
   return { persistence, host }
 }
 

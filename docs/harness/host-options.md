@@ -58,11 +58,11 @@ const host = createHarnessHost({
   persistence: memoryPersistence(),
   access: {
     // Your own login check. Return null when nobody is logged in.
-    identify: async ({ request }) => {
+    getUser: async ({ request }) => {
       const id = request.headers.get('x-user-id')
       return id ? { id } : null
     },
-    policy: membersOnly(),
+    rules: membersOnly(),
   },
 })
 ```
@@ -74,7 +74,7 @@ Each option is optional. Leave out an option to get its default.
 | Option | What it does | Default | Read more |
 | --- | --- | --- | --- |
 | `persistence` | Where the host saves the state of each session. | In memory. Lost when the process stops. | [Durable sessions](./durable-sessions) |
-| `access` | Who can use which session. `identify` finds the user of a request. `policy` decides what that user can do. | No checks. One user. | [Access and tenants](./access) |
+| `access` | Who can use which session. `getUser` finds the user of a request. `rules` decide what that user can do. | No checks. One user. | [Access and tenants](./access) |
 | `credentials` | Where the API keys and sign-in tokens of your users are saved. | In memory. | [Connect model providers](./provider-keys#where-the-keys-are-stored) |
 | `log` | How often the host writes streamed text to the log, and when it saves a snapshot. | Text every 100 ms. A snapshot after 1 MB or 5 minutes. | [Session log](./session-log#tune-how-text-streams-into-the-log) |
 | `ownership` | How servers share the sessions. One server runs a session at a time. | Ownership lasts 30 s and renews every 10 s. Sessions are not pinned to a server. | [Durable sessions](./durable-sessions#one-host-drives-a-thread) |

@@ -153,7 +153,7 @@ describe('signals in print mode', () => {
     // A session that no handle holds closes at once when it is idle.
     const host = createHarnessHost({
       persistence: memoryPersistence(),
-      lifecycle: { idleCloseMs: 0 },
+      lifecycle: { closeIdleSessionsAfterMs: 0 },
     })
     const close = vi.spyOn(host, 'close')
     const cli = startCli(harness, { argv: ['-p', 'hi'], host })
@@ -183,7 +183,7 @@ describe('signals in a custom ui', () => {
     // A session that no handle holds closes at once when it is idle.
     const host = createHarnessHost({
       persistence: memoryPersistence(),
-      lifecycle: { idleCloseMs: 0 },
+      lifecycle: { closeIdleSessionsAfterMs: 0 },
     })
     let shown = false
     const cli = startCli(harness, {

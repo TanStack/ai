@@ -325,7 +325,7 @@ describe('the workspace binding in the session log', () => {
     // event loop for some hundred ms does not let it expire.
     const live = createHarnessHost({
       persistence,
-      ownership: { hostId: 'pod-a', ttlMs: 1_000, renewMs: 100 },
+      ownership: { hostId: 'pod-a', expiresAfterMs: 1_000, renewEveryMs: 100 },
     })
     const harness = defineHarness({
       name: 'test/workspace-binding',

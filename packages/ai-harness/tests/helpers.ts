@@ -130,8 +130,8 @@ export async function storedRun(
  * `ownershipExpired()`, another host can take its logs and recover its work.
  */
 export const CRASHING_OWNERSHIP = {
-  ttlMs: 200,
-  renewMs: 60_000,
+  expiresAfterMs: 200,
+  renewEveryMs: 60_000,
   [UNCHECKED_TIMING]: true,
 }
 

@@ -200,7 +200,7 @@ describe('subagents.router', () => {
     const { host, session, log } = await openRouted({
       agent,
       pick: 'writer',
-      ownership: { renewMs: 5 },
+      ownership: { renewEveryMs: 5 },
     })
     const renew = vi.spyOn(log, 'renew')
 

@@ -531,7 +531,7 @@ if (process.env[childEnv] === '1') {
     it('runs one stdio child for two sessions, and stops it when the last one closes', async () => {
       const host = createHarnessHost({
         persistence: memoryPersistence(),
-        lifecycle: { idleCloseMs: 0 },
+        lifecycle: { closeIdleSessionsAfterMs: 0 },
       })
       cleanups.push(() => host.close())
       // One plugin object, so one shared setup. The model calls the tool on

@@ -711,7 +711,7 @@ describe('write failures', () => {
       store,
       ownership: hostOwnership(store, {
         ...CRASHING_OWNERSHIP,
-        ttlMs: 20,
+        expiresAfterMs: 20,
       }),
       harness: HARNESS,
       logId: LOG,
@@ -1181,11 +1181,11 @@ describe('snapshots', () => {
     expect(state.messages).toEqual([user('u1', 'one'), user('u2', 'two')])
   })
 
-  it('writes a snapshot of the whole fold after afterBytes of new records', async () => {
+  it('writes a snapshot of the whole fold after `bytes` of new records', async () => {
     const store = memoryLogStore()
     const writer = newWriter(store, {
       project,
-      snapshot: { afterBytes: 300, afterMs: 60_000 },
+      snapshot: { bytes: 300, ms: 60_000 },
     })
 
     await writer.append([tick(1)])
@@ -1202,13 +1202,13 @@ describe('snapshots', () => {
     })
   })
 
-  it('writes a snapshot afterMs after the first new record', async () => {
+  it('writes a snapshot `ms` after the first new record', async () => {
     vi.useFakeTimers()
     try {
       const store = memoryLogStore()
       // A busy session keeps the log, so the timer finds the epoch.
       const writer = newWriter(store, {
-        snapshot: { afterBytes: 1_000_000, afterMs: 1_000 },
+        snapshot: { bytes: 1_000_000, ms: 1_000 },
         isBusy: () => true,
       })
 
@@ -1230,7 +1230,7 @@ describe('snapshots', () => {
     try {
       const store = memoryLogStore()
       const writer = newWriter(store, {
-        snapshot: { afterBytes: 1_000_000, afterMs: 1_000 },
+        snapshot: { bytes: 1_000_000, ms: 1_000 },
       })
 
       await writer.append([tick(1)])
@@ -1256,9 +1256,9 @@ describe('snapshots', () => {
         await inner.putSnapshot(snapshot)
       },
     })
-    const reader = newWriter(watched, { snapshot: { afterBytes: 1 } })
+    const reader = newWriter(watched, { snapshot: { bytes: 1 } })
     const other = newWriter(silentStore(inner), {
-      snapshot: { afterBytes: 1_000_000 },
+      snapshot: { bytes: 1_000_000 },
     })
 
     await other.commit({ messages: [user('u1', 'from the other host')] })
@@ -1272,7 +1272,7 @@ describe('snapshots', () => {
 
   it('opens from the snapshot and reads only the records after it', async () => {
     const inner = memoryLogStore()
-    const writer = newWriter(inner, { snapshot: { afterBytes: 1 } })
+    const writer = newWriter(inner, { snapshot: { bytes: 1 } })
     await writer.commit({ messages: [user('u1', 'one')] })
     await writer.commit({ messages: [user('u1', 'one'), user('u2', 'two')] })
     await writer.rest()
@@ -1297,7 +1297,7 @@ describe('snapshots', () => {
 
   it('counts usage once after two loads from one snapshot', async () => {
     const store = memoryLogStore()
-    const writer = newWriter(store, { snapshot: { afterBytes: 1 } })
+    const writer = newWriter(store, { snapshot: { bytes: 1 } })
     const usage: LogRecord = {
       type: 'harness.usage',
       model: 'm',
@@ -1322,7 +1322,7 @@ describe('snapshots', () => {
   it("truncates the records before each snapshot with logRecords 'since-snapshot'", async () => {
     const store = memoryLogStore()
     const writer = newWriter(store, {
-      snapshot: { afterBytes: 1 },
+      snapshot: { bytes: 1 },
       logRecords: 'since-snapshot',
     })
 
@@ -1343,7 +1343,7 @@ describe('snapshots', () => {
 
   it("keeps every record with logRecords 'all'", async () => {
     const store = memoryLogStore()
-    const writer = newWriter(store, { snapshot: { afterBytes: 1 } })
+    const writer = newWriter(store, { snapshot: { bytes: 1 } })
 
     await writer.append([tick(1)])
     await writer.append([tick(2)])
@@ -1356,7 +1356,7 @@ describe('snapshots', () => {
   it('sends one gap event to a reader whose cursor is before the cut, then the stored events', async () => {
     const store = memoryLogStore()
     const first = newWriter(store, {
-      snapshot: { afterBytes: 1 },
+      snapshot: { bytes: 1 },
       logRecords: 'since-snapshot',
     })
     first.publish('op-a', textStart('m1'))
@@ -1402,7 +1402,7 @@ describe('snapshots', () => {
     // This host never hears of the writes, so its fold stays at 0.
     const reader = newWriter(silentStore(inner))
     const owner = newWriter(inner, {
-      snapshot: { afterBytes: 1 },
+      snapshot: { bytes: 1 },
       logRecords: 'since-snapshot',
     })
     await owner.commit({ messages: [user('u1', 'one')] })
@@ -1470,7 +1470,7 @@ describe('snapshots', () => {
       coalesceMs: 0,
       eventBytes: EVENT_BYTES,
       reduce,
-      snapshot: { afterBytes: 1 },
+      snapshot: { bytes: 1 },
     })
     const writer = log.view(THREAD, hooksOf())
     for (let index = 0; index < 5; index += 1)
@@ -1855,7 +1855,7 @@ describe('a log shared by sessions', () => {
       store,
       ownership: hostOwnership(store, {
         ...CRASHING_OWNERSHIP,
-        ttlMs: 20,
+        expiresAfterMs: 20,
       }),
       harness: HARNESS,
       logId: SHARED,

@@ -973,7 +973,7 @@ describe('the input lane while idle', () => {
       after(release.opened, 'One.'),
       () => text('Two.'),
     ])
-    const options = { log: { coalesceMs: 0 } }
+    const options = { log: { bufferStreamWriteMs: 0 } }
     const owner = await hostOn(
       counted(a),
       harnessWith(ownerModel.adapter),

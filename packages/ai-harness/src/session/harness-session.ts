@@ -115,7 +115,7 @@ export interface HarnessSession<
   /**
    * Release this handle. The session stays open while another handle holds
    * it. When no handle holds it and it is idle, the host closes it after
-   * `lifecycle.idleCloseMs`. A second call does nothing. A call on the handle
+   * `lifecycle.closeIdleSessionsAfterMs`. A second call does nothing. A call on the handle
    * after the session closed opens it again. To stop the work of every
    * session, call `host.close()`.
    *
@@ -455,7 +455,7 @@ export class SessionImpl<THarness extends AnyHarness = AnyHarness>
   }
 
   /**
-   * @internal The run that `authorize` gets for a cancel of the schedule
+   * @internal The run that `isAllowed` gets for a cancel of the schedule
    * `scheduleId`: the schedule, and who made it. `undefined` for an id that
    * the thread does not know.
    */

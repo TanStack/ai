@@ -200,7 +200,7 @@ it('refuses a plugin whose metadata the harness does not have', () => {
   })
 })
 
-it('types the user of the host from what access.identify returns', () => {
+it('types the user of the host from what access.getUser returns', () => {
   type User = { id: string; tenantId: string; role: 'admin' | 'user' }
   // The app's own login check, as `verifySession(request)` in an app.
   const userOf = async (request: Request): Promise<User | null> =>
@@ -209,9 +209,9 @@ it('types the user of the host from what access.identify returns', () => {
       : null
   const host = createHarnessHost({
     access: {
-      identify: ({ request }) => userOf(request),
-      policy: {
-        authorize: ({ user }) => {
+      getUser: ({ request }) => userOf(request),
+      rules: {
+        isAllowed: ({ user }) => {
           expectTypeOf(user).toEqualTypeOf<User>()
           return user.role === 'admin'
         },
@@ -229,7 +229,7 @@ it('types the user of the host from what access.identify returns', () => {
   // membersOnly() fits any user type.
   expectTypeOf(
     createHarnessHost({
-      access: { identify: () => user, policy: membersOnly() },
+      access: { getUser: () => user, rules: membersOnly() },
     }),
   ).toEqualTypeOf<HarnessHost<User>>()
   // Without access, the user is the plain one.

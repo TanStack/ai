@@ -58,7 +58,7 @@ function untilAborted<T>(promise: Promise<T>, signal: AbortSignal) {
 /**
  * The state of one provider, and its `/keys` line. The key shows masked only.
  * Without a user, only the env var counts. An env var counts only when the
- * keys of the session read env vars (`envKeys`).
+ * keys of the session read env vars (`allowServerEnvKeys`).
  */
 async function describeKey(
   user: { credentials: CredentialsAccess; keys: ProviderKeys } | undefined,
@@ -97,7 +97,7 @@ async function describeKey(
  * host opens the browser), else it asks the user to paste the key. The key
  * is saved in the credential store of the user who runs `/connect`. A
  * `keyedAdapter(...)` for that provider then uses it. The env var still works
- * when no key is saved, unless the host has access without `envKeys`. Keys
+ * when no key is saved, unless the host has access without `allowServerEnvKeys`. Keys
  * show masked only (the last 4 characters). The plugin state lists only the
  * env vars that the session reads, as every member reads it.
  *

@@ -178,8 +178,8 @@ const users = new Map([
 export const deskHost = createHarnessHost({
   persistence: memoryPersistence(),
   access: {
-    identify: ({ request }) => users.get(request.headers.get('authorization') ?? '') ?? null,
-    policy: membersOnly(),
+    getUser: ({ request }) => users.get(request.headers.get('authorization') ?? '') ?? null,
+    rules: membersOnly(),
   },
 })
 
@@ -263,7 +263,7 @@ export const billingHandler = createHarnessHandler({ host: deskHost, harness: bi
 
 // Mount on POST /api/move-to-billing?threadId=...
 export async function moveToBilling(request: Request) {
-  const user = await deskHost.identify({ request })
+  const user = await deskHost.getUserOfRequest({ request })
   if (!user) return new Response('Unauthorized', { status: 401 })
   const threadId = new URL(request.url).searchParams.get('threadId')
   if (!threadId) return new Response('Missing threadId', { status: 400 })

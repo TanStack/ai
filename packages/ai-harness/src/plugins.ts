@@ -736,7 +736,7 @@ export const SESSION_PLUGIN_KEYS: ProviderKeys = {
 
 /**
  * @internal The same, on a host whose keys never fall back to env vars
- * (access without `envKeys`). `providerKeys()` tells the two apart.
+ * (access without `allowServerEnvKeys`). `providerKeys()` tells the two apart.
  */
 export const SESSION_PLUGIN_KEYS_NO_ENV: ProviderKeys = {
   ...SESSION_PLUGIN_KEYS,

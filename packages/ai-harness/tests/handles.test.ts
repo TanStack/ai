@@ -42,12 +42,12 @@ function droppedWarnings() {
     )
 }
 
-/** The warnings of a host past `maxOpen` that `console.warn` got. */
+/** The warnings of a host past `maxOpenSessions` that `console.warn` got. */
 function fullWarnings() {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
   return () =>
     warn.mock.calls.filter(([message]) =>
-      String(message).includes('lifecycle.maxOpen'),
+      String(message).includes('lifecycle.maxOpenSessions'),
     )
 }
 
@@ -58,7 +58,7 @@ afterEach(() => {
 
 describe('handle.close', () => {
   it('keeps the session open while another handle holds it, and closes it with the last handle', async () => {
-    const { host, isOpen, open } = setup({ idleCloseMs: 0 })
+    const { host, isOpen, open } = setup({ closeIdleSessionsAfterMs: 0 })
     const first = await open('t1')
     const second = await open('t1')
 
@@ -74,7 +74,7 @@ describe('handle.close', () => {
   })
 
   it('releases the handle with await using', async () => {
-    const { host, isOpen, open } = setup({ idleCloseMs: 0 })
+    const { host, isOpen, open } = setup({ closeIdleSessionsAfterMs: 0 })
     {
       await using session = await open('t1')
       await session.send('Hello.')
@@ -86,8 +86,8 @@ describe('handle.close', () => {
 })
 
 describe('the idle close', () => {
-  it('closes a session that no handle holds after idleCloseMs', async () => {
-    const { host, isOpen, open } = setup({ idleCloseMs: 1000 })
+  it('closes a session that no handle holds after closeIdleSessionsAfterMs', async () => {
+    const { host, isOpen, open } = setup({ closeIdleSessionsAfterMs: 1000 })
     const session = await open('t1')
     vi.useFakeTimers()
 
@@ -100,7 +100,7 @@ describe('the idle close', () => {
   })
 
   it('stops the wait when a new handle opens', async () => {
-    const { host, isOpen, open } = setup({ idleCloseMs: 1000 })
+    const { host, isOpen, open } = setup({ closeIdleSessionsAfterMs: 1000 })
     const first = await open('t1')
     vi.useFakeTimers()
     await first.close()
@@ -120,7 +120,7 @@ describe('the idle close', () => {
 describe('a dropped handle', () => {
   it('is released when the garbage collector drops it, with one warning per session', async () => {
     const warnings = droppedWarnings()
-    const { host, isOpen, open } = setup({ idleCloseMs: 0 })
+    const { host, isOpen, open } = setup({ closeIdleSessionsAfterMs: 0 })
     const first = await open('t1')
     const second = await open('t1')
 
@@ -136,7 +136,7 @@ describe('a dropped handle', () => {
 
   it('gives no warning and no second release after close()', async () => {
     const warnings = droppedWarnings()
-    const { host, isOpen, open } = setup({ idleCloseMs: 0 })
+    const { host, isOpen, open } = setup({ closeIdleSessionsAfterMs: 0 })
     const closed = await open('t1')
     const held = await open('t1')
 
@@ -151,7 +151,7 @@ describe('a dropped handle', () => {
 
   it('gives no warning after host.close(), which closed its session', async () => {
     const warnings = droppedWarnings()
-    const { host, open } = setup({ idleCloseMs: 0 })
+    const { host, open } = setup({ closeIdleSessionsAfterMs: 0 })
     const session = await open('t1')
     await session.send('Hello.')
 
@@ -164,7 +164,7 @@ describe('a dropped handle', () => {
 
 describe('a call after handle.close', () => {
   it('throws, and a new host.open works', async () => {
-    const { host, isOpen, open } = setup({ idleCloseMs: 0 })
+    const { host, isOpen, open } = setup({ closeIdleSessionsAfterMs: 0 })
     const session = await open('t1')
     await session.close()
     expect(isOpen('t1')).toBe(false)
@@ -220,9 +220,9 @@ describe('a live handle whose session closed under it', () => {
   })
 })
 
-describe('maxOpen', () => {
+describe('maxOpenSessions', () => {
   it('closes the least recently used idle session that no handle holds', async () => {
-    const { host, isOpen, open } = setup({ maxOpen: 2 })
+    const { host, isOpen, open } = setup({ maxOpenSessions: 2 })
     await (await open('a')).close()
     await (await open('b')).close()
     // `a` is used again, so `b` is the least recently used.
@@ -239,7 +239,7 @@ describe('maxOpen', () => {
 
   it('opens past the limit with one warning when every session is held', async () => {
     const warnings = fullWarnings()
-    const { host, isOpen, open } = setup({ maxOpen: 1 })
+    const { host, isOpen, open } = setup({ maxOpenSessions: 1 })
     const held = [await open('a')]
 
     held.push(await open('b'), await open('c'))
@@ -268,7 +268,7 @@ describe('host.close', () => {
 
 describe('the HTTP handler', () => {
   it('releases the handles of 10 000 reads, so no session stays open', async () => {
-    const { host, harness } = setup({ idleCloseMs: 0 })
+    const { host, harness } = setup({ closeIdleSessionsAfterMs: 0 })
     const handler = createHarnessHandler({ host, harness, openAccess: true })
     const statuses = new Set<number>()
 
@@ -294,7 +294,9 @@ describe('the HTTP handler', () => {
   }, 60_000)
 
   it('holds no handle for an event stream, so the session still closes on idle', async () => {
-    const { host, harness, isOpen, open } = setup({ idleCloseMs: 0 })
+    const { host, harness, isOpen, open } = setup({
+      closeIdleSessionsAfterMs: 0,
+    })
     const handler = createHarnessHandler({ host, harness, openAccess: true })
     const session = await open('t1')
     await session.send('Hello.')
@@ -315,7 +317,7 @@ describe('the HTTP handler', () => {
   })
 
   it('releases the handle of a run stream when the turn ends', async () => {
-    const { host, harness, isOpen } = setup({ idleCloseMs: 0 })
+    const { host, harness, isOpen } = setup({ closeIdleSessionsAfterMs: 0 })
     const handler = createHarnessHandler({ host, harness, openAccess: true })
     const response = await handler(
       new Request(`${BASE}/run`, {

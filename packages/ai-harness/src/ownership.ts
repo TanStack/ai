@@ -22,22 +22,22 @@ export interface OwnershipOptions {
    * the pinned error. When you do not set it, threads are not pinned, and
    * every host can continue every thread.
    *
-   * A host with an id sends a heartbeat to the log store each `renewMs`,
+   * A host with an id sends a heartbeat to the log store each `renewEveryMs`,
    * also when it owns no log. A pin counts while its host is alive: when no
-   * heartbeat came for `ttlMs`, other hosts take its threads.
+   * heartbeat came for `expiresAfterMs`, other hosts take its threads.
    */
   hostId?: string
   /**
    * How long the host owns a log after each renewal, in milliseconds of the
    * store clock. Default 30 000.
    */
-  ttlMs?: number
+  expiresAfterMs?: number
   /**
    * How often the host renews every log it owns, in milliseconds. It must be
-   * less than `ttlMs`. Default 10 000, or a third of `ttlMs` when you set
-   * only `ttlMs`.
+   * less than `expiresAfterMs`. Default 10 000, or a third of `expiresAfterMs` when you set
+   * only `expiresAfterMs`.
    */
-  renewMs?: number
+  renewEveryMs?: number
 }
 
 /**
@@ -48,22 +48,22 @@ export interface OwnershipOptions {
 export const UNCHECKED_TIMING = Symbol('harness.uncheckedTiming')
 
 /**
- * The `ttlMs` and `renewMs` of `timing`, with the defaults. Throws a
- * `RangeError` for a value that is not more than 0, and when `renewMs` is
- * not less than `ttlMs`: then each ownership expires before its renewal,
+ * The `expiresAfterMs` and `renewEveryMs` of `timing`, with the defaults. Throws a
+ * `RangeError` for a value that is not more than 0, and when `renewEveryMs` is
+ * not less than `expiresAfterMs`: then each ownership expires before its renewal,
  * and other hosts take the logs of this host while it runs.
  */
 function ownershipTiming(timing: OwnershipOptions = {}) {
-  const ttlMs = timing.ttlMs ?? OWNERSHIP.ttlMs
+  const ttlMs = timing.expiresAfterMs ?? OWNERSHIP.ttlMs
   const renewMs =
-    timing.renewMs ??
-    (timing.ttlMs === undefined
+    timing.renewEveryMs ??
+    (timing.expiresAfterMs === undefined
       ? OWNERSHIP.renewMs
       : Math.max(1, Math.floor(ttlMs / 3)))
   if (UNCHECKED_TIMING in timing) return { ttlMs, renewMs }
   for (const [name, value] of [
-    ['ttlMs', ttlMs],
-    ['renewMs', renewMs],
+    ['expiresAfterMs', ttlMs],
+    ['renewEveryMs', renewMs],
   ] as const) {
     if (!Number.isFinite(value) || value <= 0) {
       throw new RangeError(
@@ -73,7 +73,7 @@ function ownershipTiming(timing: OwnershipOptions = {}) {
   }
   if (renewMs >= ttlMs) {
     throw new RangeError(
-      `ownership.renewMs (${renewMs}) must be less than ownership.ttlMs (${ttlMs}). Else the ownership of a log expires before its renewal, and other hosts take it.`,
+      `ownership.renewEveryMs (${renewMs}) must be less than ownership.expiresAfterMs (${ttlMs}). Else the ownership of a log expires before its renewal, and other hosts take it.`,
     )
   }
   return { ttlMs, renewMs }

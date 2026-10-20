@@ -66,11 +66,11 @@ function setup(replies: Parameters<typeof mockAdapter>[0] = []) {
   const host = createHarnessHost({
     persistence: memoryPersistence(),
     access: {
-      identify: ({ request }) =>
+      getUser: ({ request }) =>
         request.headers.get('authorization') === 'Bearer good' ? user : null,
       // A user may use the threads whose id starts with the user id.
-      policy: {
-        authorize: ({ user, session }) => session.threadId.startsWith(user.id),
+      rules: {
+        isAllowed: ({ user, session }) => session.threadId.startsWith(user.id),
       },
     },
   })
@@ -713,9 +713,9 @@ describe('presence hooks', () => {
     const host = createHarnessHost({
       persistence: memoryPersistence(),
       access: {
-        identify: ({ request }) =>
+        getUser: ({ request }) =>
           request.headers.get('authorization') === 'Bearer good' ? user : null,
-        policy: { authorize: () => true },
+        rules: { isAllowed: () => true },
       },
       presence: {
         onConnect: (event) => {

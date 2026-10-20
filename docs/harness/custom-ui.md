@@ -495,11 +495,11 @@ export const assistant = defineHarness({
 const host = createHarnessHost({
   persistence: memoryPersistence(),
   access: {
-    identify: ({ request }) =>
+    getUser: ({ request }) =>
       request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
         ? { id: 'user-1' }
         : null,
-    policy: membersOnly(),
+    rules: membersOnly(),
   },
 })
 

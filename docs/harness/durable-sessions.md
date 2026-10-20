@@ -38,15 +38,15 @@ A thread that runs for weeks has a long log, and a new host reads all of it to o
 ```ts group=harness-durable
 const snapshotHost = createHarnessHost({
   persistence: memoryPersistence(),
-  log: { snapshot: { afterBytes: 500_000, afterMs: 60_000 } },
+  log: { saveSnapshotAfter: { bytes: 500_000, ms: 60_000 } },
 })
 ```
 
-- `afterBytes`: after this many bytes of new records, as the JSON length of the records. The default is 1 000 000.
-- `afterMs`: this long after the first record that no snapshot has. The default is 300 000 (5 minutes).
+- `bytes`: after this many bytes of new records, as the JSON length of the records. The default is 1 000 000.
+- `ms`: this long after the first record that no snapshot has. The default is 300 000 (5 minutes).
 - The first limit that the log reaches wins. Only the owner writes snapshots. The type is `SnapshotTiming`.
 
-To also drop the old records, set `lifecycle.retention.logRecords` to `'since-snapshot'`. See [Drop the records before a snapshot](./lifecycle#drop-the-records-before-a-snapshot).
+To also drop the old records, set `lifecycle.retention.keepLogRecords` to `'since-snapshot'`. See [Drop the records before a snapshot](./lifecycle#drop-the-records-before-a-snapshot).
 
 ## Limit attempts and time
 
@@ -130,7 +130,7 @@ If a thread that the sweep took does not open, the host gives it back with a wak
 The `close` option sets what happens to a session that the sweep opened:
 
 - `'whenIdle'` (default): the session closes when its work ends. If the app opened the same thread too, the session stays open.
-- `'never'`: the session closes like any session that no handle holds, after `lifecycle.idleCloseMs`. See [When a session closes](./lifecycle#when-a-session-closes).
+- `'never'`: the session closes like any session that no handle holds, after `lifecycle.closeIdleSessionsAfterMs`. See [When a session closes](./lifecycle#when-a-session-closes).
 
 Call it once at boot, or from a cron route or a Durable Object alarm. To run this work all the time, on as many machines as you want, use a worker. See [Run background work on workers](./workers).
 
@@ -287,13 +287,13 @@ Set the timing with the `ownership` option of the host:
 ```ts group=harness-durable
 const ownedHost = createHarnessHost({
   persistence: memoryPersistence(),
-  ownership: { ttlMs: 60_000, renewMs: 20_000 },
+  ownership: { expiresAfterMs: 60_000, renewEveryMs: 20_000 },
 })
 ```
 
-- `ttlMs`: how long the ownership lasts after each renewal. The default is 30 000. After it, another host can take the thread.
-- `renewMs`: how often the timer renews. The default is 10 000. When you set only `ttlMs`, the default is a third of `ttlMs`. It must be less than `ttlMs`, else `createHarnessHost` throws a `RangeError`.
-- `hostId`: a stable id for this host, for example the machine or pod name. With it, a thread whose coding tools use a folder on this host stays on this host. Other hosts refuse its tool calls. The host sends a heartbeat to the log store each `renewMs`. When no heartbeat came for `ttlMs`, other hosts can take its threads. See [A folder on one server](./coding-workspaces#a-folder-on-one-server).
+- `expiresAfterMs`: how long the ownership lasts after each renewal. The default is 30 000. After it, another host can take the thread.
+- `renewEveryMs`: how often the timer renews. The default is 10 000. When you set only `expiresAfterMs`, the default is a third of `expiresAfterMs`. It must be less than `expiresAfterMs`, else `createHarnessHost` throws a `RangeError`.
+- `hostId`: a stable id for this host, for example the machine or pod name. With it, a thread whose coding tools use a folder on this host stays on this host. Other hosts refuse its tool calls. The host sends a heartbeat to the log store each `renewEveryMs`. When no heartbeat came for `expiresAfterMs`, other hosts can take its threads. See [A folder on one server](./coding-workspaces#a-folder-on-one-server).
 
 An input that waits for the owner keeps its JSON overrides (`model`, `modelOptions`, `reasoning`, and `promptCache`). The `adapter` and `tools` overrides are objects, so the owner runs the input without them.
 

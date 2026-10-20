@@ -48,12 +48,12 @@ function countedPlugin() {
 
 function setup(
   plugins: () => ReadonlyArray<HarnessPlugin>,
-  idleCloseMs = 0,
+  closeIdleSessionsAfterMs = 0,
   name = 'test/host-plugins',
 ) {
   const host = createHarnessHost({
     persistence: memoryPersistence(),
-    lifecycle: { idleCloseMs },
+    lifecycle: { closeIdleSessionsAfterMs },
   })
   const harness = defineHarness({
     name,
@@ -69,7 +69,7 @@ describe('lifetime host', () => {
     const second = countedPlugin()
     const host = createHarnessHost({
       persistence: memoryPersistence(),
-      lifecycle: { idleCloseMs: 0 },
+      lifecycle: { closeIdleSessionsAfterMs: 0 },
     })
     // Two definitions under one name, with other plugin options, as an app
     // that builds its harness for each request does.

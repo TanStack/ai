@@ -341,7 +341,7 @@ describe('ACP agent handlers', () => {
   it('holds no handle on an idle session, and opens it again at the next prompt', async () => {
     // A session that no handle holds closes at once when it is idle.
     const { harness, host, editor, running, states, textOf } = setup({
-      lifecycle: { idleCloseMs: 0 },
+      lifecycle: { closeIdleSessionsAfterMs: 0 },
     })
     close = () => host.close()
     const isOpen = (threadId: string) => host.isOpen(harness, { threadId })
@@ -384,7 +384,7 @@ describe('ACP agent handlers', () => {
     // Only a log store: `host.sessions.get` finds no session.
     const host = createHarnessHost({
       persistence: { stores: { log: memoryPersistence().stores.log } },
-      lifecycle: { idleCloseMs: 0 },
+      lifecycle: { closeIdleSessionsAfterMs: 0 },
     })
     close = () => host.close()
     await editor.connectWith(createAcpAgent({ host, harness }), async (ctx) => {
@@ -901,7 +901,7 @@ describe('ACP agent handlers', () => {
 
   it('resumes a session without opening it: it opens at its first prompt', async () => {
     const { harness, host, editor, idle, textOf } = setup({
-      lifecycle: { idleCloseMs: 0 },
+      lifecycle: { closeIdleSessionsAfterMs: 0 },
     })
     close = () => host.close()
     await (await host.open(harness, { threadId: 'kept-session' })).close()
@@ -932,8 +932,8 @@ describe('ACP agent handlers', () => {
     const bea = { id: 'bea', tenantId: 'acme' }
     // The agent runs for one local user, so no request is identified.
     const access: HarnessAccess = {
-      identify: () => null,
-      policy: membersOnly(),
+      getUser: () => null,
+      rules: membersOnly(),
     }
 
     it('throws at the start without a user', () => {

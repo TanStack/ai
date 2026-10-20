@@ -113,7 +113,9 @@ describe('host.fork of the transcript', () => {
   it('closes a source that only the fork opened, and keeps one the app has open', async () => {
     const persistence = durablePersistence()
     // A session that no handle holds closes at once when it is idle.
-    const { harness, host } = setup(persistence, { idleCloseMs: 0 })
+    const { harness, host } = setup(persistence, {
+      closeIdleSessionsAfterMs: 0,
+    })
     const source = await host.open(harness, { threadId: SOURCE })
     await source.send('one')
     await host.fork(harness, { threadId: SOURCE, newThreadId: FORK })

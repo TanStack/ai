@@ -199,7 +199,7 @@ export abstract class SessionState<
       }
       // A new entry belongs to its opener. Without access, an entry with no
       // owner goes to the next opener with a user too. With access, it
-      // stays without an owner: `authorize` decides who may open it.
+      // stays without an owner: `isAllowed` decides who may open it.
       const isClaim =
         parent === undefined &&
         user !== undefined &&

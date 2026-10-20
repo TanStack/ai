@@ -44,7 +44,7 @@ describe('createHarnessMcpServer over stdio', () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
     const host = createHarnessHost({
       persistence: memoryPersistence(),
-      access: { identify: () => null, policy: membersOnly() },
+      access: { getUser: () => null, rules: membersOnly() },
     })
     const server = await createHarnessMcpServer({
       host,

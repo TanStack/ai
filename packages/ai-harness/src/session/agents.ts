@@ -280,7 +280,7 @@ export abstract class SessionAgents<
 
   /**
    * The agent runs of this session, oldest first: the running ones, and the
-   * settled ones in the window of `lifecycle.retention.settledAgentRuns`. It
+   * settled ones in the window of `lifecycle.retention.keepSettledAgentRuns`. It
    * also lists the runs in the log, so it works after a restart.
    */
   agentRuns(): Array<AgentRunInfo> {

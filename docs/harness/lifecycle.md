@@ -43,21 +43,21 @@ export async function reply(threadId: string, message: string) {
 - After the release, each call on the handle throws `This handle is closed.` Call `host.open` again to get a new handle.
 - A release does not stop work. A turn that runs goes on until it ends.
 - If you drop a handle with no release, the garbage collector releases it, and the host logs one warning.
-- A handle that you did not release holds its session. The session can still close under it, for example when its log fails or a [delete](#delete-a-thread-for-good) runs. Then the next call on the handle opens the session again. On a host with [`access`](./access), `authorize` checks that call again.
+- A handle that you did not release holds its session. The session can still close under it, for example when its log fails or a [delete](#delete-a-thread-for-good) runs. Then the next call on the handle opens the session again. On a host with [`access`](./access), `isAllowed` checks that call again.
 
 ## When a session closes
 
-The host closes a session when no handle holds it and it was idle for `lifecycle.idleCloseMs`. Set the limits on the host:
+The host closes a session when no handle holds it and it was idle for `lifecycle.closeIdleSessionsAfterMs`. Set the limits on the host:
 
 ```ts group=harness-lifecycle
 const busyHost = createHarnessHost({
   persistence: memoryPersistence(),
-  lifecycle: { idleCloseMs: 30_000, maxOpen: 200 },
+  lifecycle: { closeIdleSessionsAfterMs: 30_000, maxOpenSessions: 200 },
 })
 ```
 
-- `idleCloseMs`: how long an idle session with no handle stays open, in milliseconds. The default is 60 000. `0` closes it at once. A session is not idle while a background job of this host runs, for example a `bash` job.
-- `maxOpen`: how many sessions the host keeps open. The default is 500. An open past the limit first closes the least recently used sessions that are idle and that no handle holds.
+- `closeIdleSessionsAfterMs`: how long an idle session with no handle stays open, in milliseconds. The default is 60 000. `0` closes it at once. A session is not idle while a background job of this host runs, for example a `bash` job.
+- `maxOpenSessions`: how many sessions the host keeps open. The default is 500. An open past the limit first closes the least recently used sessions that are idle and that no handle holds.
 - If every open session is busy or held, the open goes on, and the host logs one warning.
 - A close cleans up the plugins of the session. The transcript and the other data stay in the stores, so the next open continues the thread. A workspace that `bind` gave the thread closes with `'moved'`, so an owned sandbox stays.
 - The idle timer does not keep the Node process alive.
@@ -136,23 +136,23 @@ A thread can run for weeks. Each turn and each agent run that settles leaves its
 const leanHost = createHarnessHost({
   persistence: memoryPersistence(),
   lifecycle: {
-    retention: { settledOperations: 200, settledAgentRuns: 100, eventBytes: 2_000_000 },
+    retention: { keepSettledOperations: 200, keepSettledAgentRuns: 100, maxEventBytesInMemory: 2_000_000 },
   },
 })
 ```
 
 | Limit | Default | Past the limit |
 | --- | --- | --- |
-| `settledOperations` | 500 | `session.operation(id)` is `undefined` for the oldest settled turns, commands, and resets. |
-| `settledAgentRuns` | 500 | `session.agentRun(id)` and `session.agentRuns()` leave out the oldest settled agent runs. |
-| `eventBytes` | 8 000 000 | `session.events()` keeps the newest events, by the JSON length of each event. A reader with an older cursor reads the older events from the log. |
+| `keepSettledOperations` | 500 | `session.operation(id)` is `undefined` for the oldest settled turns, commands, and resets. |
+| `keepSettledAgentRuns` | 500 | `session.agentRun(id)` and `session.agentRuns()` leave out the oldest settled agent runs. |
+| `maxEventBytesInMemory` | 8 000 000 | `session.events()` keeps the newest events, by the JSON length of each event. A reader with an older cursor reads the older events from the log. |
 
 The log keeps what memory drops:
 
 - `session.settled({ inputId })` of an old input reads the log.
 - `agentRun(id)` and `agentRuns()` also find the runs in the log.
 - `events({ from })` reads the older events from the log.
-- `eventBytes` also bounds the log tail that the host keeps in memory.
+- `maxEventBytesInMemory` also bounds the log tail that the host keeps in memory.
 
 ### Drop the records before a snapshot
 
@@ -161,7 +161,7 @@ The log store keeps every record by default. To keep it small, let the owner dro
 ```ts group=harness-lifecycle
 const trimmedHost = createHarnessHost({
   persistence: memoryPersistence(),
-  lifecycle: { retention: { logRecords: 'since-snapshot' } },
+  lifecycle: { retention: { keepLogRecords: 'since-snapshot' } },
 })
 ```
 

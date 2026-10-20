@@ -44,7 +44,7 @@ await session.append({ records: [{ type: 'app.signal', text: 'The build failed.'
 
 ### Keep records after a truncate
 
-With [`logRecords: 'since-snapshot'`](./lifecycle#drop-the-records-before-a-snapshot), the store drops the records before each snapshot. A plugin can make the snapshot keep the last records of its own types with `keepRecords`, and read them back with `ctx.session.keptRecords(type)`:
+With [`keepLogRecords: 'since-snapshot'`](./lifecycle#drop-the-records-before-a-snapshot), the store drops the records before each snapshot. A plugin can make the snapshot keep the last records of its own types with `keepRecords`, and read them back with `ctx.session.keptRecords(type)`:
 
 ```ts group=harness-session-log
 import { defineCommand, definePlugin } from '@tanstack/ai-harness'
@@ -117,12 +117,12 @@ export const watcher = defineHarness({
 const watcherHost = createHarnessHost({
   persistence: memoryPersistence(),
   access: {
-    identify: ({ request }) =>
+    getUser: ({ request }) =>
       request.headers.get('authorization') === `Bearer ${process.env.HARNESS_TOKEN}`
         ? { id: 'ci-bot' }
         : null,
     // The CI bot is the only user, so it can use every thread.
-    policy: { authorize: ({ user }) => user.id === 'ci-bot' },
+    rules: { isAllowed: ({ user }) => user.id === 'ci-bot' },
   },
 })
 
@@ -214,12 +214,12 @@ console.log(agentNodes.map((record) => [record.runId, record.agent, record.paren
 
 ## Tune how text streams into the log
 
-A host merges streamed text and tool call arguments for `log.coalesceMs` milliseconds (default 100) before it appends them. A message start or end, a tool call start or end, and your own records append at once.
+A host merges streamed text and tool call arguments for `log.bufferStreamWriteMs` milliseconds (default 100) before it appends them. A message start or end, a tool call start or end, and your own records append at once.
 
 ```ts group=harness-session-log
 const smoothHost = createHarnessHost({
   persistence: memoryPersistence(),
-  log: { coalesceMs: 250 },
+  log: { bufferStreamWriteMs: 250 },
 })
 ```
 

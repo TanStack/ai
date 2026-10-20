@@ -1295,7 +1295,7 @@ describe('a workspace for each thread', () => {
     ])
     const host = createHarnessHost({
       persistence: memoryPersistence(),
-      lifecycle: { idleCloseMs: 0 },
+      lifecycle: { closeIdleSessionsAfterMs: 0 },
     })
     const session = await openThread(host, owned, adapter, 'a')
     await session.send('read')

@@ -60,7 +60,7 @@ import type { Cursor, HarnessUser, SessionEvent, UserInput } from './types'
 /**
  * Who a handler or a socket serves when its host has no `access`. Only for
  * a host without `access`: a host with `access` reads the user of each
- * request with `identify`, so leave `openAccess` out there.
+ * request with `getUser`, so leave `openAccess` out there.
  *
  * - `true`: each request runs with no user, in the default tenant.
  * - `{ user }`: each request runs as that one user, for example the local
@@ -70,7 +70,7 @@ export type OpenAccess<U extends HarnessUser = HarnessUser> = true | { user: U }
 
 export interface HarnessHandlerOptions<U extends HarnessUser = HarnessUser> {
   /**
-   * The host. With `access`, `access.identify` reads the user of each
+   * The host. With `access`, `access.getUser` reads the user of each
    * request, and the host checks each action.
    */
   host: HarnessHost<U>
@@ -402,11 +402,11 @@ async function mediaResponse(
 
 /**
  * Who sends each request of a server of `host`: the host's
- * `access.identify`, else the `openAccess` user. The HTTP handler, the
+ * `access.getUser`, else the `openAccess` user. The HTTP handler, the
  * socket, and `createHarnessMcpServer` share it, so the rule stays one rule.
  * Throws for a host without access and without `openAccess`, and for a host
  * with access and `openAccess`. `of` resolves to `null` for a request that
- * `identify` refuses. `fixed` is the user of a host without access.
+ * `getUser` refuses. `fixed` is the user of a host without access.
  *
  * @param call - The name of the caller, for the errors.
  */
@@ -417,12 +417,12 @@ export function requestUsers<U extends HarnessUser>(
 ) {
   if (host.hasAccess && openAccess !== undefined) {
     throw new Error(
-      `${call}: the host has access, so access.identify reads the user of each request. Remove openAccess.`,
+      `${call}: the host has access, so access.getUser reads the user of each request. Remove openAccess.`,
     )
   }
   if (!host.hasAccess && openAccess === undefined) {
     throw new Error(
-      `${call} needs host access ({ identify, policy }) or openAccess: true or { user }.`,
+      `${call} needs host access ({ getUser, rules }) or openAccess: true or { user }.`,
     )
   }
   const fixed = openAccess === true ? undefined : openAccess?.user
@@ -430,7 +430,7 @@ export function requestUsers<U extends HarnessUser>(
     request: Request,
   ): Promise<{ user: U | undefined } | null> => {
     if (!host.hasAccess) return { user: fixed }
-    const user = await host.identify({ request })
+    const user = await host.getUserOfRequest({ request })
     return user === null ? null : { user }
   }
   return { fixed, of }
@@ -544,7 +544,7 @@ let warnedMediaKey = false
  *   to the file, relative to the handler. It works for 1 hour.
  * - `GET  .../media?threadId=&id=[&tenantId=&exp=&sig=]`: the bytes, with
  *   `Range` support. A bad or expired signature is 403. A signed request
- *   still needs a user from `identify`, or a guest from `access.anonymous`
+ *   still needs a user from `getUser`, or a guest from `access.getGuestUser`
  *   (401 without one), and it needs the `read` action on the thread, in
  *   the tenant of the URL.
  * - `GET  .../sessions?limit=&cursor=&parentThreadId=`: one page of the
@@ -558,7 +558,7 @@ let warnedMediaKey = false
  *   (it deletes the thread and its child threads, as
  *   `host.sessions.delete` does), `{ op: 'fork', threadId, before }`
  *   or `{ op: 'fork', threadId, through }` with a message id, and with
- *   `access.policy.members`, `{ op: 'share', threadId, userId, role }` and
+ *   `access.rules.members`, `{ op: 'share', threadId, userId, role }` and
  *   `{ op: 'unshare', threadId, userId }`. Rename, update, fork, share, and
  *   unshare answer with the entry, delete with 204. 400
  *   (`invalid_metadata`, with `issues`) for metadata the schema refuses, 404
@@ -571,7 +571,7 @@ let warnedMediaKey = false
  * The `GET` routes of a thread, except `describe`, read with `host.observe`:
  * they open no session, mount no plugins, and write nothing.
  *
- * With host `access`, `access.identify` reads the user of each request
+ * With host `access`, `access.getUser` reads the user of each request
  * (`null` is 401), and the host checks each action: a refused action is 403.
  * A read of a thread with no entry is 404, and it does not start a session.
  * Only `GET run?threadId=` answers such a thread with an empty hydration, as
@@ -729,8 +729,8 @@ export function createHarnessHandler<U extends HarnessUser = HarnessUser>(
 
   /**
    * Serve a signed media URL. The signature proves only that this handler
-   * made the URL. `identify` reads the user of the request, as on the other
-   * routes, else `access.anonymous` gives a guest. The read is checked as
+   * made the URL. `getUser` reads the user of the request, as on the other
+   * routes, else `access.getGuestUser` gives a guest. The read is checked as
    * that user, so a user who lost access (unshare, revoke) is refused.
    * A user of another tenant is refused too.
    */
@@ -751,7 +751,7 @@ export function createHarnessHandler<U extends HarnessUser = HarnessUser>(
     // Only here, after the signature: a guest reaches no other route.
     const guest = caller
       ? null
-      : await accessOf(host)?.anonymous?.({
+      : await accessOf(host)?.getGuestUser?.({
           tenantId: payload.tenantId === '' ? undefined : payload.tenantId,
         })
     if (!caller && !guest) return json({ error: 'unauthorized' }, 401)
@@ -913,7 +913,7 @@ export function createHarnessHandler<U extends HarnessUser = HarnessUser>(
         // The entry of a root is gone: decide on the removed one.
         const access = accessOf(host)
         return user !== undefined && access !== undefined
-          ? access.policy.authorize({
+          ? access.rules.isAllowed({
               user,
               action: 'read',
               session: event.entry,
@@ -1346,7 +1346,7 @@ export function createHarnessHandler<U extends HarnessUser = HarnessUser>(
       url.pathname.split('/').at(-1) === 'media' &&
       url.searchParams.has('sig')
     try {
-      // A bad signature is 403 before `identify` runs.
+      // A bad signature is 403 before `getUser` runs.
       if (isSignedMedia) return await serveSigned(request, url)
       const caller = await usersOf(request)
       if (!caller) return json({ error: 'unauthorized' }, 401)
@@ -1421,7 +1421,7 @@ export interface HarnessSocketOptions<U extends HarnessUser = HarnessUser> {
   harness: AnyHarness
   socket: WebSocketLike
   /**
-   * The upgrade request. With host `access`, `access.identify` reads the
+   * The upgrade request. With host `access`, `access.getUser` reads the
    * user from it.
    */
   request: Request
@@ -1461,7 +1461,7 @@ const errorMessage = (error: unknown) =>
 /**
  * Serve the session tier over one WebSocket. The first frame must be
  * `harness.subscribe`. The user comes from the upgrade `request`, with the
- * same rules as `createHarnessHandler`: a user that `identify` refuses gets
+ * same rules as `createHarnessHandler`: a user that `getUser` refuses gets
  * an `unauthorized` error frame and the socket closes. The host checks each
  * input. When `host.revoke` or `unshare` takes the access of the user, the
  * socket sends a `forbidden` error frame and closes.

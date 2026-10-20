@@ -241,7 +241,7 @@ When the work makes media, the results of `chat`, `approve`, `reject`, `resolve`
 
 ## Serve it over HTTP
 
-Several people use the server over HTTP, so each request needs its user. Give the host [`access`](./access), and leave out `openAccess`. The server then reads the user of each HTTP request with `identify`:
+Several people use the server over HTTP, so each request needs its user. Give the host [`access`](./access), and leave out `openAccess`. The server then reads the user of each HTTP request with `getUser`:
 
 ```ts group=harness-mcp-server-http
 import { createHarnessHost, defineHarness, membersOnly } from '@tanstack/ai-harness'
@@ -260,8 +260,8 @@ const users = new Map([['Bearer token-ada', { id: 'ada', tenantId: 'acme' }]])
 const host = createHarnessHost({
   persistence: memoryPersistence(),
   access: {
-    identify: ({ request }) => users.get(request.headers.get('authorization') ?? '') ?? null,
-    policy: membersOnly(),
+    getUser: ({ request }) => users.get(request.headers.get('authorization') ?? '') ?? null,
+    rules: membersOnly(),
   },
 })
 
@@ -271,9 +271,9 @@ const server = await createHarnessMcpServer({ host, harness: assistant })
 export const handleMcp = (request: Request) => server.fetch(request)
 ```
 
-Each request runs as its user, and the host checks each tool call. A user reaches only the threads and the media that `authorize` allows.
+Each request runs as its user, and the host checks each tool call. A user reaches only the threads and the media that `isAllowed` allows.
 
-- A request that `identify` refuses gets `401`. A refused action comes back as a tool error.
+- A request that `getUser` refuses gets `401`. A refused action comes back as a tool error.
 - A server on a host with `access` works over HTTP only. Over stdio, it throws.
 - It opens no session at the start, so it lists only the agents of the harness definition. The commands and the agents that plugins add get no tool on this server.
 

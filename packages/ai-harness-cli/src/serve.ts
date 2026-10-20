@@ -11,7 +11,7 @@ import type { McpHarnessModule } from './optional'
 
 export interface ServeOptions<U extends HarnessUser = HarnessUser> {
   /**
-   * The host. With `access`, `access.identify` reads the user of each
+   * The host. With `access`, `access.getUser` reads the user of each
    * request that has the token.
    */
   host: HarnessHost<U>
@@ -21,7 +21,7 @@ export interface ServeOptions<U extends HarnessUser = HarnessUser> {
   /**
    * Every request must send `Authorization: Bearer <token>`. Only a signed
    * media URL needs no token. On a host with access, the handler still reads
-   * its user with `identify`.
+   * its user with `getUser`.
    */
   token: string
   /**
@@ -62,7 +62,7 @@ async function mcpServer<U extends HarnessUser>(
     threadId: options.threadId,
     approvals: options.approvals,
   }
-  // On a host with access, `identify` reads the user of each request.
+  // On a host with access, `getUser` reads the user of each request.
   if (withAccess) return mcp.createHarnessMcpServer(shared)
   return mcp.createHarnessMcpServer({
     ...shared,
@@ -131,7 +131,7 @@ async function send(res: ServerResponse, response: Response): Promise<void> {
  * Serve the harness session protocol over HTTP (capabilities, run, events,
  * control, snapshot). With `@tanstack/ai-mcp` installed, `/mcp` serves the
  * harness as an MCP server. Every request needs the bearer token, except a
- * signed media URL. Then on a host with access, `identify` reads the user of
+ * signed media URL. Then on a host with access, `getUser` reads the user of
  * the request, and the host checks each action. Without access, each
  * request runs as `user`.
  */

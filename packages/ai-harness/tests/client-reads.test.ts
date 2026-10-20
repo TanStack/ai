@@ -33,9 +33,9 @@ const accessHost = () =>
   createHarnessHost({
     persistence: memoryPersistence(),
     access: {
-      identify: () => user,
-      policy: {
-        authorize: ({ session }) => session.threadId !== 'someone-else',
+      getUser: () => user,
+      rules: {
+        isAllowed: ({ session }) => session.threadId !== 'someone-else',
       },
     },
   })

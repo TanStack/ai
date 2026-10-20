@@ -42,9 +42,9 @@ function setup() {
   const host = createHarnessHost({
     persistence,
     access: {
-      identify: ({ request }) =>
+      getUser: ({ request }) =>
         users.get(request.headers.get('x-user') ?? '') ?? null,
-      policy: membersOnly(),
+      rules: membersOnly(),
     },
   })
   const handler = createHarnessHandler({ host, harness })
@@ -77,7 +77,7 @@ describe('handlers and sockets fail closed', () => {
     const harness = defineHarness({ name: 'test/open' })
 
     expect(() => createHarnessHandler({ host, harness })).toThrow(
-      'createHarnessHandler needs host access ({ identify, policy }) or openAccess: true',
+      'createHarnessHandler needs host access ({ getUser, rules }) or openAccess: true',
     )
     expect(() =>
       handleHarnessSocket({
@@ -87,7 +87,7 @@ describe('handlers and sockets fail closed', () => {
         request: requestAs('olga'),
       }),
     ).toThrow(
-      'handleHarnessSocket needs host access ({ identify, policy }) or openAccess: true',
+      'handleHarnessSocket needs host access ({ getUser, rules }) or openAccess: true',
     )
   })
 
@@ -97,7 +97,7 @@ describe('handlers and sockets fail closed', () => {
     expect(() =>
       createHarnessHandler({ host, harness, openAccess: true }),
     ).toThrow(
-      'createHarnessHandler: the host has access, so access.identify reads the user of each request. Remove openAccess.',
+      'createHarnessHandler: the host has access, so access.getUser reads the user of each request. Remove openAccess.',
     )
     expect(() =>
       handleHarnessSocket({
@@ -378,7 +378,7 @@ describe('a new thread and a deleted thread', () => {
 })
 
 describe('the socket on a host with access', () => {
-  it('refuses a request that identify refuses, and a stranger to a thread', async () => {
+  it('refuses a request that getUser refuses, and a stranger to a thread', async () => {
     const { host, harness, prompt } = setup()
     await prompt('olga', 't1')
     const nobody = fakeSocket()

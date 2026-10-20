@@ -63,9 +63,9 @@ function accessHost() {
   return createHarnessHost({
     persistence: memoryPersistence(),
     access: {
-      identify: ({ request }) =>
+      getUser: ({ request }) =>
         users.get(request.headers.get('x-user') ?? '') ?? null,
-      policy: membersOnly(),
+      rules: membersOnly(),
     },
   })
 }
@@ -768,7 +768,7 @@ describe('serve mode', () => {
     await host.close()
   })
 
-  it('reads the user of each request with identify on a host with access, behind the token', async () => {
+  it('reads the user of each request with getUser on a host with access, behind the token', async () => {
     const host = accessHost()
     const server = await serve({
       host,

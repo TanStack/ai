@@ -29,7 +29,7 @@ Give every server the same log store. Then any server can take a request for any
 - A [worker](./workers) runs the threads that no server has open: submitted inputs, schedules, and the work that a deploy cut.
 - Set the same `media: { secret }` on the handler of each server, so each server checks the media URLs of the others. See [Serve the session over HTTP](./connect#serve-the-session-over-http).
 - Stop each server with `host.close({ recoverable: true })`. A worker takes its cut work at once. See [Stop a host for a deploy](./durable-sessions#stop-a-host-for-a-deploy).
-- If your agents use the [coding tools](./coding-tools) on the disk of a server, set `ownership: { hostId }` on each host. Then a thread stays on the server that has its folder, while that server sends heartbeats. Use an id that stays the same after a restart, like the pod name of a StatefulSet, and keep a restart shorter than `ownership.ttlMs`. See [Move a thread to another server](./coding-workspaces#5-move-a-thread-to-another-server).
+- If your agents use the [coding tools](./coding-tools) on the disk of a server, set `ownership: { hostId }` on each host. Then a thread stays on the server that has its folder, while that server sends heartbeats. Use an id that stays the same after a restart, like the pod name of a StatefulSet, and keep a restart shorter than `ownership.expiresAfterMs`. See [Move a thread to another server](./coding-workspaces#5-move-a-thread-to-another-server).
 
 ## Build a worker artifact
 
@@ -72,7 +72,7 @@ The worker keeps the conversation of its thread between calls. Workers get the e
 
 ## Use a harness on another machine
 
-On the other machine, serve the harness with `createHarnessHandler`. Check the bearer token in `identify` of the host `access`. See [Serve the session over HTTP](./connect#serve-the-session-over-http).
+On the other machine, serve the harness with `createHarnessHandler`. Check the bearer token in `getUser` of the host `access`. See [Serve the session over HTTP](./connect#serve-the-session-over-http).
 
 Here, use it as a model:
 
@@ -166,7 +166,7 @@ Check these before you run many servers or long threads.
 Across servers and restarts:
 
 - A [`harnessAgent`](./subagents#call-a-harness-as-a-child) child waits only in memory. Its parent run waits on the same host. Another host, or a crash, does not resume it. After a crash, the next owner of the log ends the waits of the child.
-- A [log snapshot](./durable-sessions#keep-a-long-log-fast-to-open) holds the full fold of the thread, so it grows with the thread. To keep the log small, drop the old records with [`logRecords: 'since-snapshot'`](./lifecycle#drop-the-records-before-a-snapshot).
+- A [log snapshot](./durable-sessions#keep-a-long-log-fast-to-open) holds the full fold of the thread, so it grows with the thread. To keep the log small, drop the old records with [`keepLogRecords: 'since-snapshot'`](./lifecycle#drop-the-records-before-a-snapshot).
 - `host.resumePending` opens the threads that it takes one at a time. A `GET run` by run id looks through the open sessions one at a time too.
 
 Users and plugins:

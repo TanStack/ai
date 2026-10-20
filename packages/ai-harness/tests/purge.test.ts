@@ -41,7 +41,7 @@ function setup(withIndex = true) {
   const stores = persistenceOf(withIndex)
   const host = createHarnessHost({
     persistence: stores.persistence,
-    lifecycle: { idleCloseMs: 0 },
+    lifecycle: { closeIdleSessionsAfterMs: 0 },
   })
   const harness = defineHarness({
     name: 'test/purge',
@@ -176,7 +176,7 @@ describe('host.sessions.delete', () => {
     const { persistence } = persistenceOf(true)
     const host = createHarnessHost({
       persistence,
-      access: { identify: () => null, policy: membersOnly() },
+      access: { getUser: () => null, rules: membersOnly() },
     })
     const ann = { id: 'ann', tenantId: 'acme' }
 

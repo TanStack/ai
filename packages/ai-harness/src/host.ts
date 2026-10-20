@@ -123,12 +123,12 @@ export interface HarnessHostOptions<U extends HarnessUser = HarnessUser> {
   /** Where sessions keep their state. Default: in memory, lost on restart. */
   persistence?: HarnessPersistence
   /**
-   * Who may use the sessions, and what they may do: `identify` reads the
-   * user of a request, and `authorize` decides each action. The user
-   * type of the host comes from what `identify` returns. With it, every
+   * Who may use the sessions, and what they may do: `getUser` reads the
+   * user of a request, and `isAllowed` decides each action. The user
+   * type of the host comes from what `getUser` returns. With it, every
    * public host call needs a `user`, a session is reached only from
    * its own tenant, and keyed adapters do not read env vars unless
-   * `envKeys` is `true`. It needs `stores.sessions`, where each session
+   * `allowServerEnvKeys` is `true`. It needs `stores.sessions`, where each session
    * keeps its owner and members. Without it, there is no check: one user
    * runs the host.
    *
@@ -136,8 +136,8 @@ export interface HarnessHostOptions<U extends HarnessUser = HarnessUser> {
    * ```ts
    * const host = createHarnessHost({
    *   access: {
-   *     identify: async ({ request }) => getUser(request),
-   *     policy: membersOnly(),
+   *     getUser: async ({ request }) => findUser(request),
+   *     rules: membersOnly(),
    *   },
    * })
    * ```
@@ -158,30 +158,30 @@ export interface HarnessHostOptions<U extends HarnessUser = HarnessUser> {
      * milliseconds. Boundaries (a message start or end, a tool call, a run
      * event) append at once. Default 100.
      */
-    coalesceMs?: number
+    bufferStreamWriteMs?: number
     /**
      * When the owner of a log saves a snapshot of its whole fold (every
      * thread of the session tree) in the log store, at the first limit it
      * meets. A new host opens from the snapshot, and reads only the records
      * after it.
      *
-     * - `afterBytes`: after this many bytes of new records, as the JSON
+     * - `bytes`: after this many bytes of new records, as the JSON
      *   length of each. Default 1 000 000.
-     * - `afterMs`: this many milliseconds after the first record with no
+     * - `ms`: this many milliseconds after the first record with no
      *   snapshot. Default 300 000 (5 minutes).
      */
-    snapshot?: SnapshotTiming
+    saveSnapshotAfter?: SnapshotTiming
   }
   /**
    * How this host owns the threads it writes to. A host owns a thread from
-   * its first write until the thread has no work. `ttlMs`: how long the
+   * its first write until the thread has no work. `expiresAfterMs`: how long the
    * ownership lasts after each renewal (default 30000 ms). After it, another
-   * host can take the thread. `renewMs`: how often one timer renews every
+   * host can take the thread. `renewEveryMs`: how often one timer renews every
    * thread that the host owns (default 10000 ms). `hostId`: a stable id
    * for this host, for example the machine or pod name. With it, a thread
    * that uses a local folder is pinned to this host, and another host
-   * refuses the thread. The host sends a heartbeat each `renewMs`. When no
-   * heartbeat came for `ttlMs`, the pin does not count, and another host
+   * refuses the thread. The host sends a heartbeat each `renewEveryMs`. When no
+   * heartbeat came for `expiresAfterMs`, the pin does not count, and another host
    * can reattach the thread. Leave it out for the defaults: no pins.
    */
   ownership?: OwnershipOptions
@@ -282,13 +282,13 @@ export interface HostLifecycleOptions {
    * in milliseconds. Then the host closes it, and the next `host.open`
    * opens it again. `0` closes it at once. Default 60 000.
    */
-  idleCloseMs?: number
+  closeIdleSessionsAfterMs?: number
   /**
    * How many sessions the host keeps open. An open past it first closes the
    * least recently used sessions that no handle holds and that are idle.
    * When there are none, the open goes on, with one warning. Default 500.
    */
-  maxOpen?: number
+  maxOpenSessions?: number
   /** How much each session keeps in memory, and which records a log keeps. */
   retention?: RetentionLimits
 }
@@ -305,27 +305,27 @@ export interface RetentionLimits {
    * Past it, `session.operation(id)` is `undefined` for the oldest, and
    * `settled()` of its input reads the log. Default 500.
    */
-  settledOperations?: number
+  keepSettledOperations?: number
   /**
    * How many settled agent runs a session keeps. Past it, `agentRun(id)`
    * and `agentRuns()` leave out the oldest, except what the log has.
    * Default 500.
    */
-  settledAgentRuns?: number
+  keepSettledAgentRuns?: number
   /**
    * How many bytes of events a session keeps in memory for `events()`, as
    * the JSON length of each event. A reader whose cursor is older reads
    * the older events from the log. Default 8 000 000.
    */
-  eventBytes?: number
+  maxEventBytesInMemory?: number
   /**
    * Which records the log store keeps. `'all'` (the default) keeps every
-   * record. `'since-snapshot'`: after each snapshot (see `log.snapshot`),
+   * record. `'since-snapshot'`: after each snapshot (see `log.saveSnapshotAfter`),
    * the owner truncates the records before it. A reader whose cursor is
    * before the cut then gets one `harness.gap` event, and goes on from the
    * first stored record.
    */
-  logRecords?: LogRecordRetention
+  keepLogRecords?: LogRecordRetention
 }
 
 /** {@link RetentionLimits} with every default filled in. */
@@ -363,7 +363,7 @@ export interface OpenSessionOptions<U extends HarnessUser = HarnessUser> {
  * when the host has `access`. Without `access`, leave it out. Its
  * `tenantId` picks the tenant (without it, the default tenant), as in
  * `host.open`. A method never reads or changes the entries of another
- * tenant. With host `access`, each method asks `authorize` first: `get` reads, `list`
+ * tenant. With host `access`, each method asks `isAllowed` first: `get` reads, `list`
  * lists, `rename` and `update` configure, `delete` deletes, `fork` forks, and
  * `share` and `unshare` share. A refused action throws `AccessDeniedError`.
  * A child thread is checked through its root thread.
@@ -373,7 +373,7 @@ export interface HostSessions<U extends HarnessUser = HarnessUser> {
    * The entries of the tenant of `user`, newest `updatedAt` first.
    * Default: only top-level sessions (`parentThreadId: null`). Pass a thread
    * id to get its child sessions. With access, only the entries that
-   * `authorize` lets the user list.
+   * `isAllowed` lets the user list.
    *
    * @example
    * ```ts
@@ -471,7 +471,7 @@ export interface HostSessions<U extends HarnessUser = HarnessUser> {
    * `members` picks who can use the fork. `'self'`: the user who forks is
    * the owner and the only member. `'all'`: that user is the owner, and the
    * other members keep their roles (the old owner becomes a `member`). With
-   * access, the default is `access.policy.members.fork` (see `membersOnly()`),
+   * access, the default is `access.rules.members.fork` (see `membersOnly()`),
    * else `'self'`. Without access and without `members`, the fork gets the owner
    * and members of the old thread.
    *
@@ -495,7 +495,7 @@ export interface HostSessions<U extends HarnessUser = HarnessUser> {
   }) => Promise<SessionIndexEntry>
   /**
    * Add the user `userId` to the members of a thread with `role`, or change
-   * the role of a member. Needs `access.policy.members` (`membersOnly()` has it),
+   * the role of a member. Needs `access.rules.members` (`membersOnly()` has it),
    * and the `share` action (the owner). The role of the owner does not
    * change. Resolves to the changed entry, or `undefined` for a thread that
    * has no entry.
@@ -513,7 +513,7 @@ export interface HostSessions<U extends HarnessUser = HarnessUser> {
   }) => Promise<SessionIndexEntry | undefined>
   /**
    * Remove the user `userId` from the members of a thread. Needs
-   * `access.policy.members`, and the `share` action. The running and queued work
+   * `access.rules.members`, and the `share` action. The running and queued work
    * that the user started on the thread stops, on any host, their schedules
    * do not run, and `host.revoke` runs for the user. When that work does
    * not stop, it rejects after the member is removed: call `host.revoke`
@@ -629,7 +629,7 @@ export interface ResumePendingOptions {
    * What happens to a session that the sweep opened. `'whenIdle'`
    * (default): it closes as soon as its pending work ends, unless the app
    * opened the thread too. `'never'`: it closes like any session that no
-   * handle holds, after `lifecycle.idleCloseMs`.
+   * handle holds, after `lifecycle.closeIdleSessionsAfterMs`.
    */
   close?: 'whenIdle' | 'never'
   /**
@@ -673,7 +673,7 @@ export interface SubmitOptions<U extends HarnessUser = HarnessUser> {
 
 /**
  * Runs sessions for one or more harnesses in this process. `U` is the
- * user type: what `access.identify` returns.
+ * user type: what `access.getUser` returns.
  */
 export interface HarnessHost<U extends HarnessUser = HarnessUser> {
   /**
@@ -688,7 +688,7 @@ export interface HarnessHost<U extends HarnessUser = HarnessUser> {
    * Release the handle with `session.close()`, or with `await using`. Then
    * each call on the handle throws: call `host.open` again. The session
    * closes when no handle holds it and it was idle for
-   * `lifecycle.idleCloseMs`. When the session closes under a live handle
+   * `lifecycle.closeIdleSessionsAfterMs`. When the session closes under a live handle
    * (its log failed, or `host.sessions.delete` ran), the next call on the
    * handle opens it again. Throws after `host.close()`.
    *
@@ -697,7 +697,7 @@ export interface HarnessHost<U extends HarnessUser = HarnessUser> {
    * that exists needs the `read` action, else the open throws
    * `AccessDeniedError`. A new thread
    * gets the user as its owner. Then each action of the handle asks
-   * `authorize`, and the handle acts only as its user.
+   * `isAllowed`, and the handle acts only as its user.
    *
    * @example
    * ```ts
@@ -884,7 +884,7 @@ export interface HarnessHost<U extends HarnessUser = HarnessUser> {
    * event, so the user's streams close. On a host with access, the open
    * handles and `host.observe` views of that user on the thread throw
    * `AccessDeniedError` from now on, their running `events()` reads end
-   * with it, and a new `host.open` asks `authorize` again. The running and
+   * with it, and a new `host.open` asks `isAllowed` again. The running and
    * queued work of the user on the thread is cancelled on any host, and
    * their schedules do not run. Resolves when the cancels are sent, and
    * rejects when they could not be sent: the access is gone already, so
@@ -921,11 +921,11 @@ export interface HarnessHost<U extends HarnessUser = HarnessUser> {
     user?: U
   }) => Promise<void>
   /**
-   * The user of `request`, from `access.identify`, or `null` when
-   * `identify` refuses it. Network code other than the HTTP handler (an MCP
+   * The user of `request`, from `access.getUser`, or `null` when
+   * `getUser` refuses it. Network code other than the HTTP handler (an MCP
    * server, your own route) uses it. Throws on a host with no `access`.
    */
-  identify: (options: { request: Request }) => Promise<U | null>
+  getUserOfRequest: (options: { request: Request }) => Promise<U | null>
   /** `true` when the host was made with `access`, so every call needs a user. */
   readonly hasAccess: boolean
   /**
@@ -1337,7 +1337,7 @@ export const isSharedHost = (host: object) => sharedHosts.has(host)
 
 /**
  * @internal The `access` of `host`, or `undefined` for a host with no
- * checks. The HTTP handler reads `identify` from it.
+ * checks. The HTTP handler reads `getUser` from it.
  */
 export function accessOf<U extends HarnessUser>(host: HarnessHost<U>) {
   // The host stored its own access under its own key, so it has type U.
@@ -1351,7 +1351,7 @@ const revokedKey = (
   userId: string,
 ) => `${logIdOf({ tenantId, logId: threadId })}\u0000${userId}`
 
-/** Only the `memberId` of an `access.policy.listFilter` result. */
+/** Only the `memberId` of an `access.rules.filterSessionList` result. */
 const memberFilterOf = (filter: { memberId?: string } | undefined) =>
   filter?.memberId === undefined ? {} : { memberId: filter.memberId }
 
@@ -1472,7 +1472,7 @@ export function throughOuterThread(
 /**
  * Create a host for harness sessions. Every option is optional: a local app
  * with one user needs none. With `access`, the user type of
- * the host is what `access.identify` returns, and each call is checked (see
+ * the host is what `access.getUser` returns, and each call is checked (see
  * `HarnessHostOptions.access`). Throws when `access` has no
  * `stores.sessions` to keep the owner and members in.
  *
@@ -1558,13 +1558,13 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
     emit(event)
   }
   const index = sessionIndex(sessionStore, emit)
-  const coalesceMs = options.log?.coalesceMs ?? 100
+  const coalesceMs = options.log?.bufferStreamWriteMs ?? 100
   const limits = options.lifecycle?.retention
   const retention = {
-    settledOperations: limits?.settledOperations ?? 500,
-    settledAgentRuns: limits?.settledAgentRuns ?? 500,
-    eventBytes: limits?.eventBytes ?? 8_000_000,
-    logRecords: limits?.logRecords ?? 'all',
+    keepSettledOperations: limits?.keepSettledOperations ?? 500,
+    keepSettledAgentRuns: limits?.keepSettledAgentRuns ?? 500,
+    maxEventBytesInMemory: limits?.maxEventBytesInMemory ?? 8_000_000,
+    keepLogRecords: limits?.keepLogRecords ?? 'all',
   }
   const hostId = `host-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`
   /** The logs that this host owns. One timer renews them all. */
@@ -1628,12 +1628,14 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
         rootThread,
         state,
         coalesceMs,
-        eventBytes: retention.eventBytes,
+        eventBytes: retention.maxEventBytesInMemory,
         ...(project ? { project } : {}),
         ...(reduce ? { reduce } : {}),
         keep,
-        ...(options.log?.snapshot ? { snapshot: options.log.snapshot } : {}),
-        logRecords: retention.logRecords,
+        ...(options.log?.saveSnapshotAfter
+          ? { snapshot: options.log.saveSnapshotAfter }
+          : {}),
+        logRecords: retention.keepLogRecords,
         // The next open folds the log again.
         onIdle: () => {
           if (logs.get(logId) === loaded) logs.delete(logId)
@@ -1688,8 +1690,9 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
   }
   /** The closes of sessions that left the cache, by key. */
   const closing = new Map<string, Promise<void>>()
-  const idleCloseMs = options.lifecycle?.idleCloseMs ?? 60_000
-  const maxOpen = options.lifecycle?.maxOpen ?? 500
+  const closeIdleSessionsAfterMs =
+    options.lifecycle?.closeIdleSessionsAfterMs ?? 60_000
+  const maxOpenSessions = options.lifecycle?.maxOpenSessions ?? 500
   /** `host.close()` ran: no session opens any more. */
   let isClosed = false
   /**
@@ -1697,7 +1700,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
    * used key first. Each open session has one.
    */
   const holds = new Map<string, Hold>()
-  /** The open went past `maxOpen` with no session to close, and warned. */
+  /** The open went past `maxOpenSessions` with no session to close, and warned. */
   let warnedFull = false
 
   const hostClosed = () =>
@@ -1801,7 +1804,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
     if (held.timer !== undefined || !isUnused(key, session)) {
       return Promise.resolve()
     }
-    const delay = sweptOnly.has(key) ? 0 : idleCloseMs
+    const delay = sweptOnly.has(key) ? 0 : closeIdleSessionsAfterMs
     if (delay <= 0) return closeIdle(key, session)
     const timer = setTimeout(() => {
       held.timer = undefined
@@ -1846,7 +1849,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
    * no handle holds and that are idle. When none is, warn once.
    */
   const makeRoom = () => {
-    let excess = sessions.size + 1 - maxOpen
+    let excess = sessions.size + 1 - maxOpenSessions
     if (excess <= 0) {
       warnedFull = false
       return
@@ -1862,7 +1865,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
     if (excess <= 0 || warnedFull) return
     warnedFull = true
     console.warn(
-      `[@tanstack/ai-harness] The host has ${sessions.size} open sessions, more than lifecycle.maxOpen (${maxOpen}), and each one is busy or held by a handle. Release handles with session.close().`,
+      `[@tanstack/ai-harness] The host has ${sessions.size} open sessions, more than lifecycle.maxOpenSessions (${maxOpenSessions}), and each one is busy or held by a handle. Release handles with session.close().`,
     )
   }
 
@@ -1900,7 +1903,9 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
         return log.view(sessionThread, hooks)
       },
     },
-    ...(access ? { access: { envKeys: access.envKeys === true } } : {}),
+    ...(access
+      ? { access: { allowServerEnvKeys: access.allowServerEnvKeys === true } }
+      : {}),
     openChild: openChildIn(ids, harness, tenantId),
     ...(options.observability ? { observability: options.observability } : {}),
   })
@@ -2232,7 +2237,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
   }
 
   /**
-   * Throw `AccessDeniedError` unless `authorize` lets `user` do
+   * Throw `AccessDeniedError` unless `isAllowed` lets `user` do
    * `action` on the thread of `entry`. Without access, it allows all. The
    * entries are read in the tenant of the user, so a session of
    * another tenant is never found.
@@ -2263,14 +2268,14 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
       threadId,
       members: [],
     }
-    const isAllowed = await access.policy.authorize({
+    const allowed = await access.rules.isAllowed({
       user,
       action,
       session,
       ...(run ? { run } : {}),
       ...(wait ? { wait } : {}),
     })
-    if (!isAllowed) throw new AccessDeniedError({ action, threadId })
+    if (!allowed) throw new AccessDeniedError({ action, threadId })
   }
 
   /**
@@ -2303,14 +2308,14 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
     return source
   }
 
-  /** `share` and `unshare` change the members list: `access.policy.members`. */
+  /** `share` and `unshare` change the members list: `access.rules.members`. */
   const checkShare = async (
     call: string,
     target: { threadId: string; user?: U | undefined },
   ) => {
-    if (!access?.policy.members) {
+    if (!access?.rules.members) {
       throw new Error(
-        `${call} needs access.policy.members (membersOnly() has it). With your own access tables, change them and call host.revoke.`,
+        `${call} needs access.rules.members (membersOnly() has it). With your own access tables, change them and call host.revoke.`,
       )
     }
     await checkEntry(call, 'share', target)
@@ -3087,13 +3092,13 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
       }
     },
     hasAccess: access !== undefined,
-    async identify({ request }) {
+    async getUserOfRequest({ request }) {
       if (!access) {
         throw new Error(
-          'host.identify needs host access ({ identify, policy }).',
+          'host.getUserOfRequest needs host access ({ getUser, rules }).',
         )
       }
-      return await access.identify({ request })
+      return await access.getUser({ request })
     },
     async submit({ harness, threadId, input, user, inputId }) {
       if (isClosed) throw hostClosed()
@@ -3271,11 +3276,11 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
           tenantId,
           // The store keeps only the sessions that the filter names, so a
           // page stays full. Only `memberId`: no filter names a tenant.
-          ...memberFilterOf(access.policy.listFilter?.(checked)),
+          ...memberFilterOf(access.rules.filterSessionList?.(checked)),
         })
         const allowed = await Promise.all(
           page.entries.map(async (session) =>
-            access.policy.authorize({
+            access.rules.isAllowed({
               user: checked,
               action: 'list',
               session,
@@ -3380,7 +3385,7 @@ export function createHarnessHost<U extends HarnessUser = HarnessUser>(
         }
         const mode =
           members ??
-          (access ? (access.policy.members?.fork ?? 'self') : undefined)
+          (access ? (access.rules.members?.fork ?? 'self') : undefined)
         const people = forkedMembers(source, user, mode)
         const now = Date.now()
         // A sibling of the old thread, not a child: no parentThreadId.

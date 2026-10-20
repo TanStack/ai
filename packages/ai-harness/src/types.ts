@@ -218,7 +218,7 @@ export interface OnEvent {
  * `context` is JSON data the client sends with a message, for example the
  * screen the user is on. It is stored with the input, so a turn that runs
  * again after a restart sees the same value. It is client data: do not trust
- * it. Who sent the input is the user from `authorize`, not a field here.
+ * it. Who sent the input is the user from `isAllowed`, not a field here.
  *
  * In `cancelInput` and `setDelivery`, `inputId` is the input that waits.
  *
@@ -521,7 +521,7 @@ function rejectionMessage(reason: string) {
 
 /**
  * A user: who a call acts for, for example who sent an input. On a host
- * with `access`, it is what `identify` returns.
+ * with `access`, it is what `getUser` returns.
  */
 export interface HarnessUser {
   id: string

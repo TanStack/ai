@@ -234,9 +234,9 @@ async function start(request: Request) {
   const host: HarnessHost<User> = createHarnessHost({
     persistence: memoryPersistence(),
     access: {
-      identify: ({ request: incoming }): User | null =>
+      getUser: ({ request: incoming }): User | null =>
         USERS[incoming.headers.get('authorization') ?? ''] ?? null,
-      policy: membersOnly(),
+      rules: membersOnly(),
     },
   })
   try {

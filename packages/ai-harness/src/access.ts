@@ -59,7 +59,7 @@ export interface AccessWait {
   kind: WaitKind
 }
 
-/** What `authorize` gets for one action. */
+/** What `isAllowed` gets for one action. */
 export interface AuthorizeInput<U extends HarnessUser = HarnessUser> {
   user: U
   action: AccessAction
@@ -91,22 +91,22 @@ export interface AccessMembers {
 }
 
 /**
- * The rules of a host: the `policy` of {@link HarnessAccess}.
- * {@link membersOnly} returns one, or write your own with only `authorize`.
+ * The rules of a host: `rules` in {@link HarnessAccess}.
+ * {@link membersOnly} returns one, or write your own with only `isAllowed`.
  */
 export interface AccessPolicy<U extends HarnessUser = HarnessUser> {
   /**
    * What a user may do. Called for every action. The harness checks
    * the tenant before it calls this.
    */
-  authorize: Authorize<U>
+  isAllowed: Authorize<U>
   /**
    * A filter that `host.sessions.list` passes to the sessions store, so a
-   * page holds only sessions that the user can list. `authorize` still
+   * page holds only sessions that the user can list. `isAllowed` still
    * checks each entry. Without it, the store gives every session of the
-   * tenant, and `authorize` drops the others, so a page can come back short.
+   * tenant, and `isAllowed` drops the others, so a page can come back short.
    */
-  listFilter?: (user: U) => { memberId?: string }
+  filterSessionList?: (user: U) => { memberId?: string }
   /**
    * Turn on `host.sessions.share` and `unshare`, which change the members
    * list of a session, and set the members of a fork. Without it, `share`
@@ -118,12 +118,12 @@ export interface AccessPolicy<U extends HarnessUser = HarnessUser> {
 
 /**
  * Who may use the sessions of a host, and what they may do. The type of the
- * user comes from the return value of `identify`.
+ * user comes from the return value of `getUser`.
  *
  * @example
  * access: {
- *   identify: ({ request }) => getUser(request),
- *   policy: membersOnly(),
+ *   getUser: ({ request }) => findUser(request),
+ *   rules: membersOnly(),
  * }
  */
 export interface HarnessAccess<U extends HarnessUser = HarnessUser> {
@@ -131,35 +131,35 @@ export interface HarnessAccess<U extends HarnessUser = HarnessUser> {
    * Who is calling: your own login check, once per request. Return null to
    * refuse with 401.
    */
-  identify: (input: { request: Request }) => U | null | Promise<U | null>
+  getUser: (input: { request: Request }) => U | null | Promise<U | null>
   /**
    * What each user may do: `membersOnly()`, or your own
-   * `{ authorize, listFilter?, members? }`.
+   * `{ isAllowed, filterSessionList?, members? }`.
    */
-  policy: AccessPolicy<U>
+  rules: AccessPolicy<U>
   /**
    * A guest for a signed media URL with no login, for example an `<img>`
    * that sends no cookies. The handler calls it only on the signed media
-   * route, after the signature checks out, and only when `identify` finds no
-   * user. `tenantId` is the tenant of the URL. `authorize` then decides
+   * route, after the signature checks out, and only when `getUser` finds no
+   * user. `tenantId` is the tenant of the URL. `isAllowed` then decides
    * `read` for the guest. Return null, or leave it out, to answer 401. A
    * guest never reaches another route.
    *
    * @example
-   * anonymous: ({ tenantId }) => ({ id: 'guest', tenantId, isGuest: true })
+   * getGuestUser: ({ tenantId }) => ({ id: 'guest', tenantId, isGuest: true })
    */
-  anonymous?: (input: {
+  getGuestUser?: (input: {
     tenantId: string | undefined
   }) => U | null | Promise<U | null>
   /**
    * Let keyed (BYOK) adapters and `ctx.keys` fall back to the server's env
    * vars. Default `false` when access is on.
    */
-  envKeys?: boolean
+  allowServerEnvKeys?: boolean
 }
 
 /**
- * Thrown when the host refuses an action: `authorize` returned `false`, or
+ * Thrown when the host refuses an action: `isAllowed` returned `false`, or
  * `host.revoke` took the access of the handle's user. The HTTP handler
  * answers it with 403. Catch it with `instanceof AccessDeniedError`.
  */
@@ -245,7 +245,7 @@ function allows(
 
 /**
  * Ready-made access rules: only the members of a session may use it, each
- * with the limits of the member's role. Use it as the `policy` of `access`.
+ * with the limits of the member's role. Use it as the `rules` of `access`.
  *
  * - Owner: every action but `operator`.
  * - Member: read, list, send, and fork. Answer and cancel only the runs
@@ -257,11 +257,11 @@ function allows(
  *
  * `operator.roles` changes who has `operator`.
  *
- * The owner is the member with the role `owner`. `authorize` does not check
+ * The owner is the member with the role `owner`. `isAllowed` does not check
  * the tenant: the host does that before it calls it. For a child thread, the
  * host passes the root session, so it has no special rules for children.
  *
- * It also lists only the sessions of a member (`listFilter`), and turns on
+ * It also lists only the sessions of a member (`filterSessionList`), and turns on
  * `host.sessions.share` and `unshare` (`members`).
  *
  * @param options - `fork.members` sets who is a member of a forked session.
@@ -270,8 +270,8 @@ function allows(
  *
  * @example
  * access: {
- *   identify: ({ request }) => getUser(request),
- *   policy: membersOnly({ fork: { members: 'self' } }),
+ *   getUser: ({ request }) => findUser(request),
+ *   rules: membersOnly({ fork: { members: 'self' } }),
  * }
  */
 export function membersOnly(
@@ -279,12 +279,12 @@ export function membersOnly(
 ): Required<AccessPolicy> {
   const operators = options.operator?.roles ?? ['operator']
   return {
-    authorize: (input) => {
+    isAllowed: (input) => {
       const role = roleOf(input.session, input.user.id)
       if (role === undefined) return false
       return allows(role, input, operators)
     },
-    listFilter: (user) => ({ memberId: user.id }),
+    filterSessionList: (user) => ({ memberId: user.id }),
     members: { fork: options.fork?.members ?? 'self' },
   }
 }

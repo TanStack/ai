@@ -108,7 +108,7 @@ describe('session.background', () => {
     })
     const host = createHarnessHost({
       persistence: memoryPersistence(),
-      lifecycle: { idleCloseMs: 0 },
+      lifecycle: { closeIdleSessionsAfterMs: 0 },
     })
     const session = await host.open(harness, { threadId: 't' })
 

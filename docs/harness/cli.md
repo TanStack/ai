@@ -149,7 +149,7 @@ await host.close()
 - You own the host, so the CLI does not close it. Close it yourself when `runCli` returns. Without `host`, the CLI builds a host and closes it.
 - Give `host`, or `persistence` and `credentials`, not both. With both, `runCli` writes `Give runCli a host, or persistence and credentials, not both.` and returns code 1.
 - Line mode, `-p`, your own `ui`, `--acp`, and `--mcp` open their sessions as `user`, so `/connect` saves keys for that user.
-- `--serve` checks the token first. On a host without `access`, each request then runs as `user`. On a host with [`access`](./access), `identify` reads the user of each request.
+- `--serve` checks the token first. On a host without `access`, each request then runs as `user`. On a host with [`access`](./access), `getUser` reads the user of each request.
 - On a host with `access`, give `user` too. `--mcp` does not start on such a host, because stdio has no login.
 
 ## Commands in line mode

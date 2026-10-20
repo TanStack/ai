@@ -254,7 +254,7 @@ const host = createHarnessHost({
 - Keep the id the same after a restart. On Kubernetes, use the pod name of a StatefulSet. Do not use `HOSTNAME` of a Deployment pod: it changes at each restart, and the threads of the old pod stay pinned to it.
 - Without `hostId`, threads are not pinned, and every server calls `bind` again. Use this when every server sees the same folder, for example on a shared disk.
 
-The server sends a heartbeat to the log store each `ownership.renewMs`. When no heartbeat came for `ownership.ttlMs` (default 30 seconds), its pins do not count. Then the next server that gets work for the thread calls `reattach` with the old binding. Give a new workspace there, for example a fresh clone, to move the thread. Keep a restart shorter than `ttlMs`, or raise `ttlMs`.
+The server sends a heartbeat to the log store each `ownership.renewEveryMs`. When no heartbeat came for `ownership.expiresAfterMs` (default 30 seconds), its pins do not count. Then the next server that gets work for the thread calls `reattach` with the old binding. Give a new workspace there, for example a fresh clone, to move the thread. Keep a restart shorter than `ttlMs`, or raise `ttlMs`.
 
 To move the threads of a server at once, unpin them with `host.unpin`. Its ownership must have expired first:
 

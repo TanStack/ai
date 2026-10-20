@@ -92,7 +92,7 @@ if (page.truncated) {
 - By default, the list has only top-level sessions. Pass `parentThreadId: 'chat-1'` to get the child sessions of `chat-1`.
 - With `limit`, a page that has more entries after it has `truncated: true` and a `cursor`. Pass the `cursor` to get the next page.
 - A list reads one tenant: the tenant of `user`. Without a `tenantId`, the default tenant.
-- Without host `access`, the list has every session of that tenant. With `membersOnly()`, it has only the sessions where `user` is a member. With your own `authorize`, it has the sessions that `authorize` lets `user` list.
+- Without host `access`, the list has every session of that tenant. With `membersOnly()`, it has only the sessions where `user` is a member. With your own `isAllowed`, it has the sessions that `isAllowed` lets `user` list.
 
 To find sessions, add filters. All filters must match, and `limit` and `cursor` page the filtered list:
 

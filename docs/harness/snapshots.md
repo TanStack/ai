@@ -106,7 +106,7 @@ if (firstAnswer?.id) await session.revert({ messageId: firstAnswer.id })
 await session.unrevert()
 ```
 
-- A revert uses the last 500 steps of the thread. The log snapshot keeps them, so a revert also works with [`logRecords: 'since-snapshot'`](./lifecycle#drop-the-records-before-a-snapshot).
+- A revert uses the last 500 steps of the thread. The log snapshot keeps them, so a revert also works with [`keepLogRecords: 'since-snapshot'`](./lifecycle#drop-the-records-before-a-snapshot).
 - A revert touches only the files that the tool calls after that message changed. Each file goes back to its state before the first of these calls. A file that did not exist then is removed.
 - Other files stay as they are. Your own edits between the hidden turns stay too.
 - `unrevert()` touches only the same files. It puts them back as they were when the revert started, with your edits.
