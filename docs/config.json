@@ -998,7 +998,7 @@
           "label": "Lifecycle and retention",
           "to": "harness/lifecycle",
           "addedAt": "2026-10-17",
-          "updatedAt": "2026-10-19"
+          "updatedAt": "2026-10-20"
         },
         {
           "label": "Run side effects once",
@@ -1051,7 +1051,7 @@
           "label": "Write a plugin",
           "to": "harness/plugins",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-19"
+          "updatedAt": "2026-10-20"
         },
         {
           "label": "Track usage and cost",
@@ -1159,13 +1159,13 @@
           "label": "Add skills",
           "to": "harness/skills",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-19"
+          "updatedAt": "2026-10-20"
         },
         {
           "label": "Use MCP servers",
           "to": "harness/mcp",
           "addedAt": "2026-10-13",
-          "updatedAt": "2026-10-19"
+          "updatedAt": "2026-10-20"
         },
         {
           "label": "Use from any MCP client",
