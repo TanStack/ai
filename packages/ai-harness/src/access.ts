@@ -135,6 +135,20 @@ export interface HarnessAccess<
    */
   identify: (input: { request: Request }) => P | null | Promise<P | null>
   /**
+   * A guest for a signed media URL with no login, for example an `<img>`
+   * that sends no cookies. The handler calls it only on the signed media
+   * route, after the signature checks out, and only when `identify` finds no
+   * user. `tenantId` is the tenant of the URL. `authorize` then decides
+   * `read` for the guest. Return null, or leave it out, to answer 401. A
+   * guest never reaches another route.
+   *
+   * @example
+   * anonymous: ({ tenantId }) => ({ id: 'guest', tenantId, isGuest: true })
+   */
+  anonymous?: (input: {
+    tenantId: string | undefined
+  }) => P | null | Promise<P | null>
+  /**
    * Let keyed (BYOK) adapters and `ctx.keys` fall back to the server's env
    * vars. Default `false` when access is on.
    */

@@ -131,6 +131,40 @@ The host keeps only the `id` and the `tenantId` of a user in the log. So `author
 
 A signed media URL is no login. The handler runs `identify` for it too, and checks `read` for that user, in the tenant of the URL. A request with no user gets `401`. So load the file with a request that sends the login, for example an `<img>` on the same site, which sends its cookies.
 
+### Serve media to a request with no login
+
+An `<img>` on another site sends no cookies, so `identify` finds no user. Give `access` an `anonymous` function. It returns a guest for that request, and `authorize` decides `read` for the guest:
+
+```ts group=harness-access-guest
+import { createHarnessHost, membersOnly } from '@tanstack/ai-harness'
+import { memoryPersistence } from '@tanstack/ai-persistence'
+
+interface User {
+  id: string
+  tenantId?: string
+  isGuest?: boolean
+}
+
+const members = membersOnly()
+
+export const host = createHarnessHost<User>({
+  persistence: memoryPersistence(),
+  access: {
+    ...members,
+    identify: () => null,
+    // `tenantId` is the tenant of the signed URL.
+    anonymous: ({ tenantId }) => ({ id: 'guest', tenantId, isGuest: true }),
+    authorize: (input) =>
+      input.principal.isGuest === true ? input.action === 'read' : members.authorize(input),
+  },
+})
+```
+
+- The handler calls `anonymous` only for a signed media URL, after the signature checks out, and only when `identify` finds no user.
+- The guest gets nothing else. Every other route still needs a user from `identify`.
+- Without `anonymous`, or when it returns `null`, the request gets `401`.
+- The guest needs the tenant of the URL, else the request gets `403`.
+
 ## Keep tenants apart
 
 Give each user a `tenantId` in `identify`. The tenant keeps each organization apart:

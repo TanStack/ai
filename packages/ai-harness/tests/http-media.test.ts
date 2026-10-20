@@ -118,6 +118,7 @@ function setup(options: { media?: MediaOptions; secret?: string } = {}) {
   return {
     host,
     harness,
+    persistence,
     calls,
     hostWith,
     handlerWith,
@@ -262,6 +263,49 @@ describe('media upload and signed URLs', () => {
     expect((await fetchSigned(path, elsewhere.handler)).status).toBe(403)
     await stranger.other.close()
     await elsewhere.other.close()
+    await host.close()
+  })
+
+  it('serves a signed URL with no login to the guest of access.anonymous, and only that route', async () => {
+    const { host, harness, persistence, upload, signedPath, fetchSigned } =
+      setup({ secret: SHARED })
+    const record = await upload('user-1-a')
+    const { path } = await signedPath(record)
+    /** A handler whose host gives a guest, and lets it read when `canRead`. */
+    const guestHandler = (canRead: boolean, anonymous = true) => {
+      const guestHost = createHarnessHost({
+        persistence,
+        access: {
+          identify: () => null,
+          ...(anonymous ? { anonymous: () => ({ id: 'guest' }) } : {}),
+          authorize: ({ principal, action }) =>
+            canRead && principal.id === 'guest' && action === 'read',
+        },
+      })
+      const handler = createHarnessHandler({
+        host: guestHost,
+        harness,
+        media: { secret: SHARED },
+      })
+      return { guestHost, handler }
+    }
+    const allowed = guestHandler(true)
+    const refused = guestHandler(false)
+    const without = guestHandler(true, false)
+
+    const served = await fetchSigned(path, allowed.handler, {})
+    expect(served.status).toBe(200)
+    expect(await served.text()).toBe('hello')
+    expect((await fetchSigned(path, refused.handler, {})).status).toBe(403)
+    expect((await fetchSigned(path, without.handler, {})).status).toBe(401)
+    // The guest exists only on the signed media route.
+    expect(
+      (await fetchSigned('transcript?threadId=user-1-a', allowed.handler, {}))
+        .status,
+    ).toBe(401)
+    for (const entry of [allowed, refused, without]) {
+      await entry.guestHost.close()
+    }
     await host.close()
   })
 

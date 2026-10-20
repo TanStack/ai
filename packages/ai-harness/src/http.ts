@@ -535,8 +535,9 @@ let warnedMediaKey = false
  *   to the file, relative to the handler. It works for 1 hour.
  * - `GET  .../media?threadId=&id=[&tenantId=&exp=&sig=]`: the bytes, with
  *   `Range` support. A bad or expired signature is 403. A signed request
- *   still needs a user from `identify` (401 without one), and that user
- *   needs the `read` action on the thread, in the tenant of the URL.
+ *   still needs a user from `identify`, or a guest from `access.anonymous`
+ *   (401 without one), and it needs the `read` action on the thread, in
+ *   the tenant of the URL.
  * - `GET  .../sessions?limit=&cursor=&parentThreadId=`: one page of the
  *   session index, newest first: the sessions that `host.sessions.list`
  *   gives this principal. Default: top-level sessions only.
@@ -708,8 +709,9 @@ export function createHarnessHandler<P extends Principal = Principal>(
   /**
    * Serve a signed media URL. The signature proves only that this handler
    * made the URL. `identify` reads the user of the request, as on the other
-   * routes, and the read is checked as that user, so a user who lost access
-   * (unshare, revoke) is refused. A user of another tenant is refused too.
+   * routes, else `access.anonymous` gives a guest. The read is checked as
+   * that principal, so a user who lost access (unshare, revoke) is refused.
+   * A principal of another tenant is refused too.
    */
   const serveSigned = async (request: Request, url: URL) => {
     const param = (name: string) => url.searchParams.get(name) ?? ''
@@ -725,8 +727,14 @@ export function createHarnessHandler<P extends Principal = Principal>(
       (await signer.verify(signed(payload), param('sig')))
     if (!isValid) return forbidden()
     const user = await usersOf(request)
-    if (!user) return json({ error: 'unauthorized' }, 401)
-    const { principal } = user
+    // Only here, after the signature: a guest reaches no other route.
+    const guest = user
+      ? null
+      : await accessOf(host)?.anonymous?.({
+          tenantId: payload.tenantId === '' ? undefined : payload.tenantId,
+        })
+    if (!user && !guest) return json({ error: 'unauthorized' }, 401)
+    const principal = user ? user.principal : (guest ?? undefined)
     if ((principal?.tenantId ?? '') !== payload.tenantId) return forbidden()
     const view = await viewFor(principal, payload.threadId)
     if (!view) return json({ error: 'not found' }, 404)
