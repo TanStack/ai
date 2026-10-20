@@ -8,7 +8,7 @@ import {
   getAnthropicCredentialFromEnv,
 } from '../utils/client'
 import type Anthropic_SDK from '@anthropic-ai/sdk'
-import type { FileMetadata } from '@anthropic-ai/sdk/resources/beta/files'
+import type { BetaFileMetadata } from '@anthropic-ai/sdk/resources/beta/files'
 import type { FileHandle, FileUploadInput } from '@tanstack/ai/adapters'
 import type { AnthropicClientConfig } from '../utils/client'
 
@@ -55,7 +55,7 @@ export class AnthropicFilesAdapter extends BaseFilesAdapter<'anthropic'> {
   }
 }
 
-function toFileHandle(file: FileMetadata): FileHandle<'anthropic'> {
+function toFileHandle(file: BetaFileMetadata): FileHandle<'anthropic'> {
   return {
     id: file.id,
     provider: 'anthropic',

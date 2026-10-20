@@ -92,11 +92,19 @@ interface ModelMeta<
      * every request, with or without thinking. Absent: it accepts one.
      */
     forced_tool_choice?: false
+    /**
+     * Computer use has three kinds, one for each version that a model
+     * accepts: `computer_use` (`computer_20241022` and `computer_20250124`),
+     * `computer_use_20251124`, and `computer_toolset`
+     * (`computer_toolset_20260801`).
+     */
     tools?: Array<
       | 'web_search'
       | 'web_fetch'
       | 'code_execution'
       | 'computer_use'
+      | 'computer_use_20251124'
+      | 'computer_toolset'
       | 'bash'
       | 'text_editor'
       | 'memory'
@@ -155,7 +163,7 @@ const CLAUDE_OPUS_4_6 = {
       'web_search',
       'web_fetch',
       'code_execution',
-      'computer_use',
+      'computer_use_20251124',
       'bash',
       'text_editor',
       'memory',
@@ -195,7 +203,7 @@ const CLAUDE_OPUS_4_5 = {
       'web_search',
       'web_fetch',
       'code_execution',
-      'computer_use',
+      'computer_use_20251124',
       'bash',
       'text_editor',
       'memory',
@@ -238,7 +246,7 @@ const CLAUDE_SONNET_4_6 = {
       'web_search',
       'web_fetch',
       'code_execution',
-      'computer_use',
+      'computer_use_20251124',
       'bash',
       'text_editor',
       'memory',
@@ -393,7 +401,7 @@ const CLAUDE_OPUS_4_7 = {
       'web_search',
       'web_fetch',
       'code_execution',
-      'computer_use',
+      'computer_use_20251124',
       'bash',
       'text_editor',
       'memory',
@@ -437,7 +445,8 @@ const CLAUDE_OPUS_4_8 = {
       'web_search',
       'web_fetch',
       'code_execution',
-      'computer_use',
+      'computer_use_20251124',
+      'computer_toolset',
       'bash',
       'text_editor',
       'memory',
@@ -484,7 +493,8 @@ const CLAUDE_FABLE_5 = {
       'web_search',
       'web_fetch',
       'code_execution',
-      'computer_use',
+      'computer_use_20251124',
+      'computer_toolset',
       'bash',
       'text_editor',
       'memory',
@@ -529,7 +539,8 @@ const CLAUDE_SONNET_5 = {
       'web_search',
       'web_fetch',
       'code_execution',
-      'computer_use',
+      'computer_use_20251124',
+      'computer_toolset',
       'bash',
       'text_editor',
       'memory',
@@ -577,7 +588,8 @@ const CLAUDE_OPUS_5 = {
       'web_search',
       'web_fetch',
       'code_execution',
-      'computer_use',
+      'computer_use_20251124',
+      'computer_toolset',
       'bash',
       'text_editor',
       'memory',
@@ -645,7 +657,8 @@ const CLAUDE_FABLE_5_1 = {
       'web_search',
       'web_fetch',
       'code_execution',
-      'computer_use',
+      'computer_use_20251124',
+      'computer_toolset',
       'bash',
       'text_editor',
       'memory',
@@ -681,12 +694,12 @@ const CLAUDE_OPUS_5_5 = {
     input: ['text', 'image', 'document'],
     forced_tool_choice: false,
     mid_conversation_channels: { tools: true, systemPrompts: true },
-    // No 'computer_use': this model accepts only `computer_toolset_20260801`,
-    // and `computerUseTool()` sends the older versions, which return a 400.
+    // Computer use only through `computer_toolset_20260801`.
     tools: [
       'web_search',
       'web_fetch',
       'code_execution',
+      'computer_toolset',
       'bash',
       'text_editor',
       'memory',
@@ -728,12 +741,12 @@ const CLAUDE_SONNET_5_5 = {
     forced_tool_choice: false,
     extended_thinking: false,
     adaptive_thinking: true,
-    // No 'computer_use': this model accepts only `computer_toolset_20260801`,
-    // and `computerUseTool()` sends the older versions, which return a 400.
+    // Computer use only through `computer_toolset_20260801`.
     tools: [
       'web_search',
       'web_fetch',
       'code_execution',
+      'computer_toolset',
       'bash',
       'text_editor',
       'memory',
@@ -771,12 +784,12 @@ const CLAUDE_HAIKU_5_5 = {
     input: ['text', 'image', 'document'],
     extended_thinking: false,
     adaptive_thinking: true,
-    // No 'computer_use': this model accepts only `computer_toolset_20260801`,
-    // and `computerUseTool()` sends the older versions, which return a 400.
+    // Computer use only through `computer_toolset_20260801`.
     tools: [
       'web_search',
       'web_fetch',
       'code_execution',
+      'computer_toolset',
       'bash',
       'text_editor',
       'memory',

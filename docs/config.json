@@ -323,7 +323,7 @@
           "label": "Provider Tools",
           "to": "tools/provider-tools",
           "addedAt": "2026-04-21",
-          "updatedAt": "2026-09-24"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Provider Skills",
@@ -1215,7 +1215,7 @@
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-09"
+          "updatedAt": "2026-10-19"
         },
         {
           "label": "Google Gemini",

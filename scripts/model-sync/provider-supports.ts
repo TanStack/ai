@@ -17,11 +17,12 @@ export interface ProviderSupportsInput {
   reasoningMandatory?: boolean
 }
 
+// New Claude models take computer use only through the computer toolset.
 const ANTHROPIC_SERVER_TOOLS = [
   'web_search',
   'web_fetch',
   'code_execution',
-  'computer_use',
+  'computer_toolset',
   'bash',
   'text_editor',
   'memory',

@@ -618,30 +618,84 @@ equivalent — see [Provider Skills](../tools/provider-skills.md).
 
 ### `computerUseTool`
 
-Allows Claude to observe a virtual desktop (screenshots) and interact with it
-via keyboard and mouse events. Provide the screen resolution so Claude can
-calculate accurate coordinates.
+Claude can look at a screen and use the mouse and the keyboard. Your app owns the screen: it runs each action that Claude asks for and sends back a screenshot.
+
+1. Pick the version that your model takes:
+
+   | Version | Models |
+   | --- | --- |
+   | `computer_toolset_20260801` | Claude Opus 5.5, Sonnet 5.5, Haiku 5.5, Fable 5.1, Fable 5, Opus 5, Sonnet 5, Opus 4.8 |
+   | `computer_20251124` | Claude Fable 5.1, Fable 5, Opus 5, Sonnet 5, Opus 4.8, Opus 4.7, Opus 4.6, Sonnet 4.6, Opus 4.5 |
+   | `computer_20250124` | Claude Sonnet 4.5, Haiku 4.5, Opus 4.1 |
+
+2. Give the tool an `execute` that runs each action on your screen.
+3. Return a screenshot for the `screenshot` action, and `"OK"` for the other actions.
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { anthropicText } from "@tanstack/ai-anthropic";
 import { computerUseTool } from "@tanstack/ai-anthropic/tools";
 
+// Your screen, for example a virtual machine. Replace these two functions.
+async function runAction(input: { action: string }): Promise<void> {
+  console.log("run", input);
+}
+async function takeScreenshot(): Promise<string> {
+  return ""; // A PNG, as base64.
+}
+
+const computer = {
+  ...computerUseTool({
+    type: "computer_toolset_20260801",
+    configs: { zoom: { enabled: false } },
+  }),
+  // Every version calls `execute` with the action in `input.action`.
+  execute: async (input: { action: string }) => {
+    if (input.action === "screenshot") {
+      const value = await takeScreenshot();
+      return [
+        {
+          type: "image",
+          source: { type: "data", value, mimeType: "image/png" },
+        },
+      ];
+    }
+    await runAction(input);
+    return "OK";
+  },
+};
+
 const stream = chat({
-  adapter: anthropicText("claude-sonnet-4-6"),
-  messages: [{ role: "user", content: "Open the browser and go to example.com" }],
-  tools: [
-    computerUseTool({
-      type: "computer_20250124",
-      name: "computer",
-      display_width_px: 1024,
-      display_height_px: 768,
-    }),
-  ],
+  adapter: anthropicText("claude-opus-5-5"),
+  messages: [{ role: "user", content: "Open the display settings." }],
+  tools: [computer],
+  // Claude can ask for several actions in one turn. Run them in order.
+  toolExecution: "sequential",
 });
 ```
 
-**Supported models:** Claude Sonnet 3.5 and above, with two exceptions. `claude-opus-5-fast` takes no provider tools. Claude Opus 5.5, Claude Sonnet 5.5, and Claude Haiku 5.5 accept only the `computer_toolset_20260801` toolset, which the adapter does not offer yet. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+The earlier versions also take a name and the screen size:
+
+```typescript
+import { computerUseTool } from "@tanstack/ai-anthropic/tools";
+
+const computer = computerUseTool({
+  type: "computer_20251124",
+  name: "computer",
+  display_width_px: 1280,
+  display_height_px: 800,
+});
+```
+
+Good to know:
+
+- The adapter sends the beta header that an earlier version needs. The toolset needs no beta header.
+- With the toolset, Claude calls each action as its own tool. The adapter gives you each call as one `computer` call, and sends it back in the form that Claude sent. So one `execute` works for every version.
+- The toolset turns on `zoom` by default. To let Claude zoom, remove `configs` and return an image for the `zoom` action too.
+- Send screenshots that fit the image limits of the model. The toolset does not make a large screenshot smaller. It refuses it. Claude gives coordinates in the pixels of your screenshots.
+- If an action fails, answer each later action of the same turn with `Not executed: an earlier computer action in this turn failed.`
+
+A version that your model does not take is a type error. `claude-opus-5-fast` takes no provider tools. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
 
 ### `bashTool`
 
