@@ -18,16 +18,20 @@ export interface ProviderSupportsInput {
 }
 
 // New Claude models take computer use only through the computer toolset.
+// `computer` is the generic tool from `@tanstack/ai-computer-use`. Every
+// model with a computer version gets it.
 const ANTHROPIC_SERVER_TOOLS = [
   'web_search',
   'web_fetch',
   'code_execution',
+  'computer',
   'computer_toolset',
   'bash',
   'text_editor',
   'memory',
 ] as const
 
+// `computer` goes with `computer_use`, as in the Claude list above.
 const OPENAI_SERVER_TOOLS = [
   'web_search',
   'web_search_preview',
@@ -36,6 +40,7 @@ const OPENAI_SERVER_TOOLS = [
   'code_interpreter',
   'mcp',
   'computer_use',
+  'computer',
   'local_shell',
   'shell',
   'apply_patch',

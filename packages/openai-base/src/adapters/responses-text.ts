@@ -36,6 +36,7 @@ import {
 } from '../utils/json-object-mode'
 import { toResponsesToolChoice } from '../tools/tool-choice'
 import { getOpenAIProviderToolKind } from '../tools/openai-provider-tool'
+import { resolveComputerUseTool } from '../tools/computer-use-tool'
 import { convertToolsToResponsesFormat } from './responses-tool-converter'
 import {
   hostedShellCallIds,
@@ -518,8 +519,18 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   }
 
   async *chatStream(
-    options: TextOptions<TProviderOptions>,
+    chatOptions: TextOptions<TProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
+    // A portable computer tool becomes the native computer tool of the model.
+    // The request and the stream both read the native tool.
+    const options = chatOptions.tools
+      ? {
+          ...chatOptions,
+          tools: chatOptions.tools.map((tool) =>
+            resolveComputerUseTool(tool, chatOptions.model),
+          ),
+        }
+      : chatOptions
     // Key streamed state by output item ID because argument deltas reference
     // `item_id`. The state separately retains `call_id`, which is the public
     // tool-call ID and the correlation key for function_call_output.

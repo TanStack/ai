@@ -323,7 +323,7 @@
           "label": "Provider Tools",
           "to": "tools/provider-tools",
           "addedAt": "2026-04-21",
-          "updatedAt": "2026-10-19"
+          "updatedAt": "2026-10-20"
         },
         {
           "label": "Provider Skills",
@@ -920,6 +920,32 @@
       "tab": "guides"
     },
     {
+      "label": "Computer Use",
+      "children": [
+        {
+          "label": "Computer Use",
+          "to": "computer-use/computer-use",
+          "addedAt": "2026-10-20"
+        },
+        {
+          "label": "Drivers",
+          "to": "computer-use/drivers",
+          "addedAt": "2026-10-20"
+        },
+        {
+          "label": "Safety Checks",
+          "to": "computer-use/safety-checks",
+          "addedAt": "2026-10-20"
+        },
+        {
+          "label": "Custom Driver",
+          "to": "computer-use/custom-driver",
+          "addedAt": "2026-10-20"
+        }
+      ],
+      "tab": "guides"
+    },
+    {
       "label": "Sandboxes",
       "tab": "guides",
       "children": [
@@ -1209,13 +1235,13 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-19"
+          "updatedAt": "2026-10-20"
         },
         {
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-10-19"
+          "updatedAt": "2026-10-20"
         },
         {
           "label": "Google Gemini",

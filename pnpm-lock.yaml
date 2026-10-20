@@ -2164,7 +2164,7 @@ importers:
         version: link:../openai-base
       openai:
         specifier: ^7.30.0
-        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.11.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.1.10
@@ -2183,7 +2183,7 @@ importers:
         version: link:../openai-base
       openai:
         specifier: ^7.30.0
-        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.11.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -2251,7 +2251,7 @@ importers:
         version: link:../openai-base
       openai:
         specifier: ^7.30.0
-        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.11.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -2396,6 +2396,46 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(vitest@4.1.11)
 
+  packages/ai-computer-e2b:
+    devDependencies:
+      '@e2b/desktop':
+        specifier: ^2.5.0
+        version: 2.5.0
+      '@tanstack/ai-computer-use':
+        specifier: workspace:*
+        version: link:../ai-computer-use
+      '@vitest/coverage-v8':
+        specifier: 4.1.10
+        version: 4.1.10(vitest@4.1.11)
+
+  packages/ai-computer-playwright:
+    devDependencies:
+      '@tanstack/ai-computer-use':
+        specifier: workspace:*
+        version: link:../ai-computer-use
+      '@vitest/coverage-v8':
+        specifier: 4.1.10
+        version: 4.1.10(vitest@4.1.11)
+      playwright-core:
+        specifier: ^1.57.0
+        version: 1.57.0
+
+  packages/ai-computer-use:
+    dependencies:
+      '@tanstack/ai-utils':
+        specifier: workspace:^
+        version: link:../ai-utils
+    devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@vitest/coverage-v8':
+        specifier: 4.1.10
+        version: 4.1.10(vitest@4.1.11)
+      zod:
+        specifier: ^4.2.0
+        version: 4.6.5
+
   packages/ai-devtools:
     dependencies:
       '@tanstack/ai':
@@ -2531,7 +2571,7 @@ importers:
         version: link:../openai-base
       openai:
         specifier: ^7.30.0
-        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.11.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -2578,7 +2618,7 @@ importers:
         version: link:../openai-base
       openai:
         specifier: ^7.30.0
-        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.11.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.1.10
@@ -2688,7 +2728,7 @@ importers:
         version: link:../openai-base
       openai:
         specifier: ^7.30.0
-        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.11.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -2710,7 +2750,7 @@ importers:
         version: link:../openai-base
       openai:
         specifier: ^7.30.0
-        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.11.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -2887,7 +2927,7 @@ importers:
         version: link:../openai-base
       openai:
         specifier: ^7.30.0
-        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.11.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -3436,7 +3476,7 @@ importers:
         version: link:../openai-base
       openai:
         specifier: ^7.30.0
-        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.11.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.1.10
@@ -3453,7 +3493,7 @@ importers:
     devDependencies:
       '@google/genai':
         specifier: ^2.10.0
-        version: 2.10.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.3.6))
+        version: 2.10.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.6.5))
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../ai
@@ -3549,7 +3589,7 @@ importers:
         version: link:../ai-utils
       openai:
         specifier: ^7.30.0
-        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6)
+        version: 7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.11.2)(ws@8.21.3)(zod@4.3.6)
     devDependencies:
       '@tanstack/ai':
         specifier: workspace:*
@@ -3678,6 +3718,12 @@ importers:
       '@tanstack/ai-compaction':
         specifier: workspace:*
         version: link:../../packages/ai-compaction
+      '@tanstack/ai-computer-playwright':
+        specifier: workspace:*
+        version: link:../../packages/ai-computer-playwright
+      '@tanstack/ai-computer-use':
+        specifier: workspace:*
+        version: link:../../packages/ai-computer-use
       '@tanstack/ai-elevenlabs':
         specifier: workspace:*
         version: link:../../packages/ai-elevenlabs
@@ -5346,6 +5392,14 @@ packages:
 
   '@dimforge/rapier3d-compat@0.12.0':
     resolution: {integrity: sha512-uekIGetywIgopfD97oDL5PfeezkFpNhwlzlaEYNOA0N6ghdsOvh/HYjSMek5Q2O1PYvRSDFcqFVJl4r4ZBwOow==}
+
+  '@e2b/desktop@2.5.0':
+    resolution: {integrity: sha512-2RgSRF+YQMNdJeIFNmbBG1CV0beEmLfgMR5BdK3y2oP+VyH/8ymNUjXohpufIIhiVRmY3kaWWQ4LhH2b6ih7rA==}
+    engines: {node: '>=22.19.0'}
+
+  '@e2b/dockerfile-utils@0.1.1':
+    resolution: {integrity: sha512-eDmlWRMrJNzSUbBOf6Y/qTChd1Ys/o3YY8PK6tRQmwkV2u7z3ZS2cak/YJB07odHMT/Z6HJKoUElR/b0N6bHUw==}
+    engines: {node: '>=22'}
 
   '@electric-sql/pglite-socket@0.1.3':
     resolution: {integrity: sha512-LAciWM0M1dCL8hlsxu2venbVZcdxema0BtDfpWYVqr+Y468UADw0pFWidhKw1M8sfJ8rdLT71tjMmnirf/IZRQ==}
@@ -13205,6 +13259,10 @@ packages:
     resolution: {integrity: sha512-P+50lx1nOYpgCFyE1xuz6JVN/TqJivMUiH7v+RW0CUSfb4+NCu8IkC5KruT2sNPgp6aexddQQ77+OZKGpZZJ+Q==}
     engines: {node: '>=20.18.1 <21 || >=22'}
 
+  e2b@2.56.0:
+    resolution: {integrity: sha512-67vAYTERArdKrPujKnAVZuiIKLFX3vQT2gh1+TFphwEmYcXfU2iGKraRxpwn9qWIdUPFVym+KOo+QFhnySWYNQ==}
+    engines: {node: '>=22.19.0'}
+
   eastasianwidth@0.2.0:
     resolution: {integrity: sha512-I88TYZWc9XiYHRQ4/3c5rjjfgkjhLyW2luGIheGERbNQ6OY7yTybanSpDXZa8y7VUP9YmDcYa+eyq4ca7iLqWA==}
 
@@ -15973,8 +16031,14 @@ packages:
   openapi-fetch@0.14.1:
     resolution: {integrity: sha512-l7RarRHxlEZYjMLd/PR0slfMVse2/vvIAGm75/F7J6MlQ8/b9uUQmUF2kCPrQhJqMXSxmYWObVgeYXbFYzZR+A==}
 
+  openapi-fetch@0.17.0:
+    resolution: {integrity: sha512-PsbZR1wAPcG91eEthKhN+Zn92FMHxv+/faECIwjXdxfTODGSGegYv0sc1Olz+HYPvKOuoXfp+0pA2XVt2cI0Ig==}
+
   openapi-typescript-helpers@0.0.15:
     resolution: {integrity: sha512-opyTPaunsklCBpTK8JGef6mfPhLSnyy5a0IN9vKtx3+4aExf+KxEqYwIy3hqkedXIB97u357uLMJsOnm3GVjsw==}
+
+  openapi-typescript-helpers@0.1.0:
+    resolution: {integrity: sha512-OKTGPthhivLw/fHz6c3OPtg72vi86qaMlqbJuVJ23qOvQ+53uw1n7HdmkJFibloF7QEjDrDkzJiOJuockM/ljw==}
 
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
@@ -17950,6 +18014,10 @@ packages:
 
   undici@8.10.2:
     resolution: {integrity: sha512-/y4/bH9YNU5hi9NIrpOuvGXFcxrj3CMrV+/AYpowAYTpHn8gX/XPFjNy766FPoYY0miQhdW977JFWKGNhBdwyQ==}
+    engines: {node: '>=22.19.0'}
+
+  undici@8.11.2:
+    resolution: {integrity: sha512-u4UB2/IrKdU6lFxumHmmo1a3fCQO5tzQllRorfoRS63txhrB7xTpSn1PftwC4qEHkOaqP95fCWW4lJzwErwzhQ==}
     engines: {node: '>=22.19.0'}
 
   unenv@2.0.0-rc.24:
@@ -20964,7 +21032,7 @@ snapshots:
   '@blaxel/core@0.3.11(@cfworker/json-schema@4.1.1)(@hey-api/openapi-ts@0.99.0(magicast@0.5.2)(typescript@7.0.2))':
     dependencies:
       '@hey-api/client-fetch': 0.10.2(@hey-api/openapi-ts@0.99.0(magicast@0.5.2)(typescript@7.0.2))
-      '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.3.6)
+      '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.6.5)
       archiver: 7.0.1
       axios: 1.18.1(debug@4.4.3(supports-color@7.2.0))(supports-color@7.2.0)
       dockerfile-ast: 0.7.1
@@ -20975,7 +21043,7 @@ snapshots:
       uuid: 11.1.1
       ws: 8.21.0
       yaml: 2.9.0
-      zod: 4.3.6
+      zod: 4.6.5
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - '@hey-api/openapi-ts'
@@ -21339,6 +21407,12 @@ snapshots:
       - supports-color
 
   '@dimforge/rapier3d-compat@0.12.0': {}
+
+  '@e2b/desktop@2.5.0':
+    dependencies:
+      e2b: 2.56.0
+
+  '@e2b/dockerfile-utils@0.1.1': {}
 
   '@electric-sql/pglite-socket@0.1.3(@electric-sql/pglite@0.4.3)':
     dependencies:
@@ -22602,7 +22676,7 @@ snapshots:
       node-fetch: 2.7.0
       nopt: 8.1.0
       semver: 7.8.5
-      tar: 7.5.16
+      tar: 7.5.22
     transitivePeerDependencies:
       - encoding
       - supports-color
@@ -22688,8 +22762,8 @@ snapshots:
   '@mistralai/mistralai@2.2.0':
     dependencies:
       ws: 8.21.0
-      zod: 4.3.6
-      zod-to-json-schema: 3.25.2(zod@4.3.6)
+      zod: 4.6.5
+      zod-to-json-schema: 3.25.2(zod@4.6.5)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -22702,11 +22776,11 @@ snapshots:
       eventsource-parser: 3.1.1
       jose: 6.2.12
       pkce-challenge: 5.0.1
-      zod: 4.3.6
+      zod: 4.6.5
 
   '@modelcontextprotocol/core@2.1.0':
     dependencies:
-      zod: 4.3.6
+      zod: 4.6.5
 
   '@modelcontextprotocol/ext-apps@1.7.4(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(supports-color@7.2.0)(zod@4.2.1))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)(zod@3.25.76)':
     dependencies:
@@ -22812,12 +22886,11 @@ snapshots:
       '@cfworker/json-schema': 4.1.1
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   '@modelcontextprotocol/server@2.1.0':
     dependencies:
       '@modelcontextprotocol/core': 2.1.0
-      zod: 4.3.6
+      zod: 4.6.5
 
   '@msgpack/msgpack@3.1.3': {}
 
@@ -23077,7 +23150,7 @@ snapshots:
 
   '@openrouter/sdk@0.13.20':
     dependencies:
-      zod: 4.3.6
+      zod: 4.6.5
 
   '@opentelemetry/api-logs@0.217.0':
     dependencies:
@@ -28553,7 +28626,7 @@ snapshots:
       async-sema: 3.1.1
       bindings: 1.5.0
       estree-walker: 2.0.2
-      glob: 13.0.0
+      glob: 13.0.6
       graceful-fs: 4.2.11
       node-gyp-build: 4.8.4
       picomatch: 4.0.7
@@ -28577,7 +28650,7 @@ snapshots:
       tar-stream: 3.1.7
       undici: 7.28.0
       xdg-app-paths: 5.1.0
-      zod: 4.3.6
+      zod: 4.6.5
     transitivePeerDependencies:
       - bare-abort-controller
       - react-native-b4a
@@ -29787,7 +29860,7 @@ snapshots:
       parse5: 7.3.0
       parse5-htmlparser2-tree-adapter: 7.1.0
       parse5-parser-stream: 7.1.2
-      undici: 7.29.0
+      undici: 7.29.1
       whatwg-mimetype: 4.0.0
 
   chokidar@4.0.3:
@@ -30499,6 +30572,20 @@ snapshots:
       undici: 7.29.1
     optionalDependencies:
       undici8: undici@8.10.2
+
+  e2b@2.56.0:
+    dependencies:
+      '@bufbuild/protobuf': 2.15.0
+      '@connectrpc/connect': 2.2.0(@bufbuild/protobuf@2.15.0)
+      '@connectrpc/connect-web': 2.2.0(@bufbuild/protobuf@2.15.0)(@connectrpc/connect@2.2.0(@bufbuild/protobuf@2.15.0))
+      '@e2b/dockerfile-utils': 0.1.1
+      chalk: 5.6.2
+      compare-versions: 6.1.1
+      glob: 13.0.6
+      openapi-fetch: 0.17.0
+      platform: 1.3.6
+      tar: 7.5.22
+      undici: 8.11.2
 
   eastasianwidth@0.2.0: {}
 
@@ -34324,11 +34411,11 @@ snapshots:
       is-docker: 2.2.1
       is-wsl: 2.2.0
 
-  openai@7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.10.2)(ws@8.21.3)(zod@4.3.6):
+  openai@7.30.0(@aws-sdk/credential-provider-node@3.972.58)(@smithy/signature-v4@5.5.2)(undici@8.11.2)(ws@8.21.3)(zod@4.3.6):
     optionalDependencies:
       '@aws-sdk/credential-provider-node': 3.972.58
       '@smithy/signature-v4': 5.5.2
-      undici: 8.10.2
+      undici: 8.11.2
       ws: 8.21.3
       zod: 4.3.6
 
@@ -34336,7 +34423,13 @@ snapshots:
     dependencies:
       openapi-typescript-helpers: 0.0.15
 
+  openapi-fetch@0.17.0:
+    dependencies:
+      openapi-typescript-helpers: 0.1.0
+
   openapi-typescript-helpers@0.0.15: {}
+
+  openapi-typescript-helpers@0.1.0: {}
 
   optionator@0.9.4:
     dependencies:
@@ -37277,6 +37370,8 @@ snapshots:
   undici@8.10.2:
     optional: true
 
+  undici@8.11.2: {}
+
   unenv@2.0.0-rc.24:
     dependencies:
       pathe: 2.0.3
@@ -38325,7 +38420,6 @@ snapshots:
   zod-to-json-schema@3.25.2(zod@4.6.5):
     dependencies:
       zod: 4.6.5
-    optional: true
 
   zod@3.25.76: {}
 

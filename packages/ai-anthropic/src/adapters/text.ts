@@ -21,6 +21,7 @@ import {
   convertComputerUseToolToAdapterFormat,
   isComputerToolset,
   joinComputerToolsetCall,
+  resolveComputerUseTool,
   splitComputerToolsetCall,
 } from '../tools/computer-use-tool'
 import {
@@ -585,10 +586,18 @@ export class AnthropicTextAdapter<
   }
 
   async *chatStream(
-    options: TextOptions<TProviderOptions>,
+    chatOptions: TextOptions<TProviderOptions>,
   ): AsyncIterable<AdapterYieldChunk> {
+    let options = chatOptions
     const { logger } = options
     try {
+      // The rest of the request sees the native computer tool.
+      options = {
+        ...options,
+        tools: options.tools?.map((tool) =>
+          resolveComputerUseTool(tool, this.model),
+        ),
+      }
       const requestParams = this.mapCommonOptionsToAnthropic(options)
 
       logger.request(
@@ -684,7 +693,14 @@ export class AnthropicTextAdapter<
   async structuredOutput(
     options: StructuredOutputOptions<TProviderOptions>,
   ): Promise<StructuredOutputResult<unknown>> {
-    const { chatOptions, outputSchema } = options
+    const { outputSchema } = options
+    // The betas and the history see the native computer tool.
+    const chatOptions = {
+      ...options.chatOptions,
+      tools: options.chatOptions.tools?.map((tool) =>
+        resolveComputerUseTool(tool, this.model),
+      ),
+    }
     const { logger } = chatOptions
 
     // `structuredOutput()` issues a non-streaming `messages.create({ stream:

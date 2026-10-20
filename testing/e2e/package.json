@@ -26,6 +26,8 @@
     "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-cloudflare": "workspace:*",
     "@tanstack/ai-compaction": "workspace:*",
+    "@tanstack/ai-computer-playwright": "workspace:*",
+    "@tanstack/ai-computer-use": "workspace:*",
     "@tanstack/ai-elevenlabs": "workspace:*",
     "@tanstack/ai-fal": "workspace:*",
     "@tanstack/ai-gemini": "workspace:*",

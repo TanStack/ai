@@ -1,5 +1,8 @@
 import { brandProviderTool } from '@tanstack/ai'
+import { getComputerUseToolMetadata } from '@tanstack/ai/adapter-internals'
+import { ANTHROPIC_MODEL_TOOLS } from '../model-meta'
 import { getAnthropicProviderToolMetadata } from './anthropic-provider-tool'
+import type { ComputerUseToolMetadata } from '@tanstack/ai/adapter-internals'
 import type {
   BetaComputerToolset20260801,
   BetaToolComputerUse20241022,
@@ -108,4 +111,67 @@ export function computerUseTool(config: ComputerUseToolConfig) {
     // models that accept it.
     metadata: { ...config, __kind: 'anthropic.computer_use' },
   })
+}
+
+/** The native tool for the newest computer version in the model's kinds. */
+function nativeComputerTool(
+  { display, capabilities }: ComputerUseToolMetadata,
+  kinds: ReadonlyArray<string>,
+) {
+  if (kinds.includes('computer_toolset')) {
+    // The toolset type has no display size field.
+    return computerUseTool({
+      type: 'computer_toolset_20260801',
+      configs: {
+        zoom: { enabled: capabilities.zoom },
+        cursor_position: { enabled: capabilities.cursorPosition },
+      },
+    })
+  }
+  const size = {
+    display_width_px: display.width,
+    display_height_px: display.height,
+  }
+  if (kinds.includes('computer_use_20251124')) {
+    return computerUseTool({
+      type: 'computer_20251124',
+      name: COMPUTER_TOOL_NAME,
+      ...size,
+      enable_zoom: capabilities.zoom,
+    })
+  }
+  if (kinds.includes('computer_use')) {
+    return computerUseTool({
+      type: 'computer_20250124',
+      name: COMPUTER_TOOL_NAME,
+      ...size,
+    })
+  }
+  return undefined
+}
+
+/**
+ * Turn the generic computer tool from `@tanstack/ai-computer-use` into the
+ * native computer tool of the model. The tool keeps its name `computer` and
+ * its `execute`. Every other tool comes back unchanged.
+ *
+ * The version is the newest one in the model meta: `computer_toolset_20260801`,
+ * then `computer_20251124`, then `computer_20250124`.
+ *
+ * @param tool - A tool from the chat tool list.
+ * @param model - The Anthropic model id of the request.
+ * @throws Error when the model has no computer version, or the model id is
+ *   not in the model meta.
+ */
+export function resolveComputerUseTool(tool: Tool, model: string) {
+  const computer = getComputerUseToolMetadata(tool)
+  if (!computer) return tool
+  const native = nativeComputerTool(
+    computer,
+    ANTHROPIC_MODEL_TOOLS[model] ?? [],
+  )
+  if (!native) {
+    throw new Error(`Model "${model}" does not support computer use.`)
+  }
+  return { ...tool, metadata: native.metadata }
 }

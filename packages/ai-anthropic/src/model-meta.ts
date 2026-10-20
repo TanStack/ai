@@ -96,12 +96,14 @@ interface ModelMeta<
      * Computer use has three kinds, one for each version that a model
      * accepts: `computer_use` (`computer_20241022` and `computer_20250124`),
      * `computer_use_20251124`, and `computer_toolset`
-     * (`computer_toolset_20260801`).
+     * (`computer_toolset_20260801`). `computer` is the generic tool from
+     * `@tanstack/ai-computer-use`. Every model with a computer version has it.
      */
     tools?: Array<
       | 'web_search'
       | 'web_fetch'
       | 'code_execution'
+      | 'computer'
       | 'computer_use'
       | 'computer_use_20251124'
       | 'computer_toolset'
@@ -163,6 +165,7 @@ const CLAUDE_OPUS_4_6 = {
       'web_search',
       'web_fetch',
       'code_execution',
+      'computer',
       'computer_use_20251124',
       'bash',
       'text_editor',
@@ -203,6 +206,7 @@ const CLAUDE_OPUS_4_5 = {
       'web_search',
       'web_fetch',
       'code_execution',
+      'computer',
       'computer_use_20251124',
       'bash',
       'text_editor',
@@ -246,6 +250,7 @@ const CLAUDE_SONNET_4_6 = {
       'web_search',
       'web_fetch',
       'code_execution',
+      'computer',
       'computer_use_20251124',
       'bash',
       'text_editor',
@@ -286,6 +291,7 @@ const CLAUDE_SONNET_4_5 = {
       'web_search',
       'web_fetch',
       'code_execution',
+      'computer',
       'computer_use',
       'bash',
       'text_editor',
@@ -326,6 +332,7 @@ const CLAUDE_HAIKU_4_5 = {
       'web_search',
       'web_fetch',
       'code_execution',
+      'computer',
       'computer_use',
       'bash',
       'text_editor',
@@ -366,6 +373,7 @@ const CLAUDE_OPUS_4_1 = {
       'web_search',
       'web_fetch',
       'code_execution',
+      'computer',
       'computer_use',
       'bash',
       'text_editor',
@@ -401,6 +409,7 @@ const CLAUDE_OPUS_4_7 = {
       'web_search',
       'web_fetch',
       'code_execution',
+      'computer',
       'computer_use_20251124',
       'bash',
       'text_editor',
@@ -445,6 +454,7 @@ const CLAUDE_OPUS_4_8 = {
       'web_search',
       'web_fetch',
       'code_execution',
+      'computer',
       'computer_use_20251124',
       'computer_toolset',
       'bash',
@@ -493,6 +503,7 @@ const CLAUDE_FABLE_5 = {
       'web_search',
       'web_fetch',
       'code_execution',
+      'computer',
       'computer_use_20251124',
       'computer_toolset',
       'bash',
@@ -539,6 +550,7 @@ const CLAUDE_SONNET_5 = {
       'web_search',
       'web_fetch',
       'code_execution',
+      'computer',
       'computer_use_20251124',
       'computer_toolset',
       'bash',
@@ -588,6 +600,7 @@ const CLAUDE_OPUS_5 = {
       'web_search',
       'web_fetch',
       'code_execution',
+      'computer',
       'computer_use_20251124',
       'computer_toolset',
       'bash',
@@ -657,6 +670,7 @@ const CLAUDE_FABLE_5_1 = {
       'web_search',
       'web_fetch',
       'code_execution',
+      'computer',
       'computer_use_20251124',
       'computer_toolset',
       'bash',
@@ -699,6 +713,7 @@ const CLAUDE_OPUS_5_5 = {
       'web_search',
       'web_fetch',
       'code_execution',
+      'computer',
       'computer_toolset',
       'bash',
       'text_editor',
@@ -746,6 +761,7 @@ const CLAUDE_SONNET_5_5 = {
       'web_search',
       'web_fetch',
       'code_execution',
+      'computer',
       'computer_toolset',
       'bash',
       'text_editor',
@@ -789,6 +805,7 @@ const CLAUDE_HAIKU_5_5 = {
       'web_search',
       'web_fetch',
       'code_execution',
+      'computer',
       'computer_toolset',
       'bash',
       'text_editor',
@@ -1152,6 +1169,32 @@ export type AnthropicChatModelToolCapabilitiesByName = {
   [CLAUDE_SONNET_5_5.id]: typeof CLAUDE_SONNET_5_5.supports.tools
   [CLAUDE_HAIKU_5_5.id]: typeof CLAUDE_HAIKU_5_5.supports.tools
 }
+
+/**
+ * Runtime map from chat model name to its tool kinds, for the text adapter.
+ * `satisfies` keeps it equal to {@link AnthropicChatModelToolCapabilitiesByName}.
+ * An unknown name gives `undefined`.
+ */
+export const ANTHROPIC_MODEL_TOOLS: Readonly<
+  Record<string, ReadonlyArray<string>>
+> = {
+  [CLAUDE_OPUS_4_6.id]: CLAUDE_OPUS_4_6.supports.tools,
+  [CLAUDE_OPUS_4_5.id]: CLAUDE_OPUS_4_5.supports.tools,
+  [CLAUDE_SONNET_4_6.id]: CLAUDE_SONNET_4_6.supports.tools,
+  [CLAUDE_SONNET_4_5.id]: CLAUDE_SONNET_4_5.supports.tools,
+  [CLAUDE_HAIKU_4_5.id]: CLAUDE_HAIKU_4_5.supports.tools,
+  [CLAUDE_OPUS_4_1.id]: CLAUDE_OPUS_4_1.supports.tools,
+  [CLAUDE_OPUS_4_7.id]: CLAUDE_OPUS_4_7.supports.tools,
+  [CLAUDE_OPUS_4_8.id]: CLAUDE_OPUS_4_8.supports.tools,
+  [CLAUDE_FABLE_5.id]: CLAUDE_FABLE_5.supports.tools,
+  [CLAUDE_SONNET_5.id]: CLAUDE_SONNET_5.supports.tools,
+  [CLAUDE_OPUS_5.id]: CLAUDE_OPUS_5.supports.tools,
+  [CLAUDE_OPUS_5_FAST.id]: CLAUDE_OPUS_5_FAST.supports.tools,
+  [CLAUDE_FABLE_5_1.id]: CLAUDE_FABLE_5_1.supports.tools,
+  [CLAUDE_OPUS_5_5.id]: CLAUDE_OPUS_5_5.supports.tools,
+  [CLAUDE_SONNET_5_5.id]: CLAUDE_SONNET_5_5.supports.tools,
+  [CLAUDE_HAIKU_5_5.id]: CLAUDE_HAIKU_5_5.supports.tools,
+} satisfies AnthropicChatModelToolCapabilitiesByName
 
 /**
  * Type-only map from chat model name to its supported input modalities.

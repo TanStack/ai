@@ -92,6 +92,31 @@ assistant message; the agent loop never tries to run it client-side.
 
 OpenAI `applyPatchTool`, `localShellTool`, `computerUseTool`, and `shellTool({ environment: { type: "local" } })` are different. The model returns the call, and your app runs it. See [OpenAI adapter](../adapters/openai.md#applypatchtool) and [`computerUseTool`](../adapters/openai.md#computerusetool).
 
+To run computer use actions on a browser or a desktop without your own action code, use `createComputerUse` from `@tanstack/ai-computer-use`. The same `tool` works with OpenAI and Anthropic. See [Computer use](../computer-use/computer-use.md).
+
+```typescript
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { createComputerUse } from '@tanstack/ai-computer-use'
+import { createPlaywrightComputerDriver } from '@tanstack/ai-computer-playwright'
+import { chromium } from 'playwright'
+
+const browser = await chromium.launch()
+const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
+
+const { tool, middleware, interrupt } = createComputerUse({
+  driver: createPlaywrightComputerDriver({ page }),
+})
+
+const stream = chat({
+  adapter: openaiText('gpt-6.1-sol'),
+  messages: [{ role: 'user', content: 'Open example.com' }],
+  tools: [tool],
+  middleware: [middleware],
+  interrupts: [interrupt],
+})
+```
+
 ### Read web search sources
 
 OpenAI and Gemini web search calls expose a common `metadata.sources` array on

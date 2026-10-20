@@ -620,6 +620,8 @@ equivalent — see [Provider Skills](../tools/provider-skills.md).
 
 Claude can look at a screen and use the mouse and the keyboard. Your app owns the screen: it runs each action that Claude asks for and sends back a screenshot.
 
+To run the actions on a browser or a desktop without your own action code, use `createComputerUse` from `@tanstack/ai-computer-use`. It runs each action on a Playwright page or an E2B desktop, and the adapter picks the tool version for your model. See [Computer use](../computer-use/computer-use.md). The rest of this section shows how to run the actions yourself.
+
 1. Pick the version that your model takes:
 
    | Version | Models |

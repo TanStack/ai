@@ -995,6 +995,8 @@ const stream = chat({
 Lets the model observe a virtual desktop via screenshots and interact with
 it using keyboard and mouse events.
 
+To run the actions on a browser or a desktop without your own action code, use `createComputerUse` from `@tanstack/ai-computer-use`. It runs each action on a Playwright page or an E2B desktop. See [Computer use](../computer-use/computer-use.md). For the approval of safety checks, see [Safety checks](../computer-use/safety-checks.md). The rest of this section shows how to run the actions yourself.
+
 The model asks for actions, for example a click and then some typing. Your app runs the actions, then returns a screenshot of the screen. Add an `execute` to the tool that does this:
 
 ```typescript
