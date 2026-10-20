@@ -77,8 +77,6 @@ export interface HandleLease<THarness extends AnyHarness> {
    * Throws at once when the host is closed.
    */
   reopen: () => Promise<SessionImpl<THarness>>
-  /** One more holder: the session does not close on idle while it is held. */
-  hold: () => void
   /**
    * One holder less. `dropped`: the garbage collector dropped the handle,
    * so the host warns. Resolves after the close that the release starts.
@@ -273,8 +271,8 @@ function laterOperation<TSession, TOperation extends Operation<unknown>>({
 
 /**
  * The members that read the stored state of the session. On a session that
- * closed, they open it again. The other members that return a value at once
- * read the last state of the session.
+ * closed under a live handle, they open it again. The other members that
+ * return a value at once read the last state of the session.
  */
 const REOPENING_READS: ReadonlySet<PropertyKey> = new Set([
   'transcript',
@@ -293,10 +291,12 @@ type Session<THarness extends AnyHarness> = SessionImpl<THarness>
  *
  * `close()` (or `await using`) releases only this handle: `lease` counts the
  * handles, and the host closes the session when none holds it and it is
- * idle. A handle that its holder drops is released by the garbage
- * collector, with a warning. A call on a handle whose session closed opens
- * it again through `lease`. A call through a released handle holds the
- * session while it runs.
+ * idle. After `close()`, every call on the handle throws. A handle that its
+ * holder drops is released by the garbage collector, with a warning.
+ *
+ * A live handle holds its session, but the session can still close under
+ * it (its log failed, or `host.sessions.delete` ran). The next call opens
+ * it again through `lease`.
  *
  * With `guard` (the host has access), each action asks `authorize` first. An
  * input is checked before the session stores it. A call that passes another
@@ -322,7 +322,11 @@ export function sessionHandle<THarness extends AnyHarness>({
     isReleased: false,
     release: (options) => lease.release(options),
   }
+  /** Throws when this handle is closed, or a revoke took its access. */
   const live = (action: AccessAction) => {
+    if (token.isReleased) {
+      throw new Error('This handle is closed. Call host.open again.')
+    }
     if (guard?.isRevoked()) throw new AccessDeniedError({ action, threadId })
   }
   /** The open session, or `undefined` when it closed. */
@@ -331,30 +335,14 @@ export function sessionHandle<THarness extends AnyHarness>({
     if (current) last = current
     return current
   }
+  /** The open session. On a session that closed, open it again. */
+  const opened = async () => open() ?? (last = await lease.reopen())
   /**
-   * A released handle holds the session while a call runs. The function it
-   * returns lets go, once.
+   * Run `call` on the open session. On a session that closed, open it again.
+   * An open session gets the call in this tick.
    */
-  const holdForCall = () => {
-    if (!token.isReleased) return () => {}
-    lease.hold()
-    let isHeld = true
-    return () => {
-      if (!isHeld) return
-      isHeld = false
-      void lease.release()
-    }
-  }
-  /** Run `call` on the open session. On a session that closed, open it again. */
-  const run = async <T>(call: (target: Session<THarness>) => Promise<T>) => {
-    const done = holdForCall()
-    try {
-      const target = open() ?? (last = await lease.reopen())
-      return await call(target)
-    } finally {
-      done()
-    }
-  }
+  const run = async <T>(call: (target: Session<THarness>) => Promise<T>) =>
+    call(open() ?? (last = await lease.reopen()))
   /**
    * `run` for a call that returns an operation at once. On a session that
    * closed, the operation waits for the open.
@@ -364,38 +352,11 @@ export function sessionHandle<THarness extends AnyHarness>({
     call: (target: Session<THarness>) => T,
     agent?: string,
   ) => {
-    const done = holdForCall()
-    const target = open()
-    try {
-      if (target) {
-        const operation = call(target)
-        operation.then(done, done)
-        return operation
-      }
-      const opening = lease.reopen().then((reopened) => {
-        last = reopened
-        return reopened
-      })
-      opening.catch(done)
-      return laterOperation({
-        kind,
-        agent,
-        opening,
-        call: (reopened) => {
-          try {
-            const operation = call(reopened)
-            operation.then(done, done)
-            return operation
-          } catch (error) {
-            done()
-            throw error
-          }
-        },
-      })
-    } catch (error) {
-      done()
-      throw error
-    }
+    const current = open()
+    if (current) return call(current)
+    // Called at once, so a closed host throws at once.
+    const opening = lease.reopen().then((reopened) => (last = reopened))
+    return laterOperation({ kind, agent, opening, call })
   }
   /** Who acts in a call that passes `passed`. */
   const actor = (passed: Principal | undefined) => {
@@ -539,23 +500,15 @@ export function sessionHandle<THarness extends AnyHarness>({
     return lease.release()
   }
   type EventsOptions = Parameters<Session<THarness>['events']>[0]
-  /** `events` of a session that closed, or of a released handle. */
-  async function* heldEvents(options: EventsOptions) {
-    // A released handle holds the session while it reads.
-    const done = holdForCall()
-    try {
-      const target = open() ?? (last = await lease.reopen())
-      yield* target.events(options)
-    } finally {
-      done()
-    }
+  /** `events` of a session that closed: it opens again first. */
+  async function* reopenedEvents(options: EventsOptions) {
+    yield* (await opened()).events(options)
   }
   const events = (options?: EventsOptions) => {
     live('read')
-    const target = open()
-    const isHeld = target !== undefined && !token.isReleased
+    const current = open()
     const read = (next?: EventsOptions) =>
-      isHeld ? target.events(next) : heldEvents(next)
+      current ? current.events(next) : reopenedEvents(next)
     if (!guard) return read(options)
     // A revoke ends a read that runs now, not only the next call.
     return untilRevoked({
@@ -623,8 +576,12 @@ export function sessionHandle<THarness extends AnyHarness>({
       setConfig: (options: Parameters<Session<THarness>['setConfig']>[0]) =>
         storing('configure', (target) => target.setConfig(as(options))),
       agents,
-      agent: (name: string) =>
-        (open() ?? last).agent(name) === undefined ? undefined : agentOf(name),
+      agent: (name: string) => {
+        live('read')
+        return (open() ?? last).agent(name) === undefined
+          ? undefined
+          : agentOf(name)
+      },
       // These store no input, so the handle asks `authorize` itself.
       revert: (options: Parameters<Session<THarness>['revert']>[0]) =>
         acting('send', (target) => target.revert(as(options))),

@@ -1,10 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { memoryPersistence } from '@tanstack/ai-persistence'
+import {
+  LogConflictError,
+  memoryLogStore,
+  memoryPersistence,
+} from '@tanstack/ai-persistence'
 import { createHarnessHost, defineHarness } from '../src'
 import { createHarnessHandler } from '../src/server'
 import { hostCountsOf } from '../src/host'
 import { finalizeHandle } from '../src/session/handle'
-import { mockAdapter, readSse, text } from './helpers'
+import { mockAdapter, readSse, text, wrapLogStore } from './helpers'
 import type { HostLifecycleOptions } from '../src'
 
 /**
@@ -158,29 +162,60 @@ describe('a dropped handle', () => {
   })
 })
 
-describe('a call after the session closed', () => {
-  it('opens the session again, and the turn runs', async () => {
-    const { host, calls, isOpen, open } = setup({ idleCloseMs: 0 })
+describe('a call after handle.close', () => {
+  it('throws, and a new host.open works', async () => {
+    const { host, isOpen, open } = setup({ idleCloseMs: 0 })
     const session = await open('t1')
     await session.close()
     expect(isOpen('t1')).toBe(false)
 
+    const closed = 'This handle is closed. Call host.open again.'
+    expect(() => session.send('Hello.')).toThrow(closed)
+    expect(() => session.transcript()).toThrow(closed)
+    expect(() => session.events()).toThrow(closed)
+    expect(() => session.snapshot()).toThrow(closed)
+    // A second close still does nothing.
+    await session.close()
+    expect(isOpen('t1')).toBe(false)
+
+    const next = await open('t1')
+    expect((await next.send('Hello.')).text).toBe('Hello back.')
+    await next.close()
+    await host.close()
+  })
+})
+
+describe('a live handle whose session closed under it', () => {
+  it('opens the session again, and the turn runs', async () => {
+    const inner = memoryLogStore()
+    // While `isBroken`, the store refuses each append, as when another host
+    // took the log: the session stops.
+    let isBroken = false
+    const log = wrapLogStore(inner, {
+      append: (batch) =>
+        isBroken
+          ? Promise.reject(new LogConflictError(batch.logId, batch.seq))
+          : inner.append(batch),
+    })
+    const { adapter, calls } = mockAdapter(() => text('Hello back.'))
+    const harness = defineHarness({ name: 'test/handles', adapter })
+    const host = createHarnessHost({ persistence: { stores: { log } } })
+    const session = await host.open(harness, { threadId: 't1' })
+    isBroken = true
+    await Promise.resolve(session.send('Lost.')).catch(() => {})
+    await waitFor(() =>
+      expect(host.isOpen(harness, { threadId: 't1' })).toBe(false),
+    )
+    isBroken = false
+
     const turn = session.send('Hello.')
     // The operation exists once the session opened again.
     expect(() => turn.id).toThrow('Await operation.receipt')
-    const receipt = await turn.receipt
-
-    expect(receipt.status).toBe('accepted')
-    expect(turn.id).toMatch(/^op-chat-/)
+    expect((await turn.receipt).status).toBe('accepted')
     expect((await turn).text).toBe('Hello back.')
-    expect(calls).toHaveLength(1)
-    const transcript = await session.transcript()
-    expect(transcript.map((message) => message.content)).toEqual([
-      'Hello.',
-      'Hello back.',
-    ])
-    // The released handle held the session only for its calls.
-    await waitFor(() => expect(isOpen('t1')).toBe(false))
+    expect(calls.length).toBeGreaterThan(0)
+    expect(host.isOpen(harness, { threadId: 't1' })).toBe(true)
+    await session.close()
     await host.close()
   })
 })

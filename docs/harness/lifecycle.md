@@ -40,9 +40,10 @@ export async function reply(threadId: string, message: string) {
 
 - The handles of one thread share one live session. A release lets go of this handle only.
 - `await session.close()` also releases the handle. A second call does nothing.
+- After the release, each call on the handle throws `This handle is closed.` Call `host.open` again to get a new handle.
 - A release does not stop work. A turn that runs goes on until it ends.
 - If you drop a handle with no release, the garbage collector releases it, and the host logs one warning.
-- A call on a handle after its session closed opens the session again. On a host with [`access`](./access), `authorize` checks that call again.
+- A handle that you did not release holds its session. The session can still close under it, for example when its log fails or a [delete](#delete-a-thread-for-good) runs. Then the next call on the handle opens the session again. On a host with [`access`](./access), `authorize` checks that call again.
 
 ## When a session closes
 
@@ -202,8 +203,8 @@ const deleteHost = createHarnessHost({
 
 A host that does not know the harness of a thread still deletes the data. It warns, and the plugins do not end the thread: an owned sandbox stays.
 
-- On a host with `access`, `delete` needs the `delete` action. A child thread is checked through its root thread.
-- A handle that calls again after the delete opens a new, empty thread.
+- On a host with `access`, `delete` needs the `delete` action. A child thread is checked through its root thread. A thread with no index entry throws `AccessDeniedError`.
+- While the delete runs, an open of the thread throws. After the delete, a handle that you did not release opens a new, empty thread on its next call.
 - A host without `stores.sessions` still closes the open sessions of the thread and deletes its data. It has no index entries, so it finds no child threads.
 - `host.events()` yields a `session-deleted` event. See [Show a live status](./sessions#show-a-live-status).
 

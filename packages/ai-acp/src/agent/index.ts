@@ -805,10 +805,12 @@ export function createAcpAgent<P extends Principal = Principal>(
           )
         }
         connected = true
-        // The handles of the sessions go with the connection.
-        void connection.closed.then(() =>
-          Promise.all([...handles.keys()].map(release)),
-        )
+        // The handles of the sessions go with the connection. A session
+        // with a prompt that runs keeps its handle until that prompt ends:
+        // a closed handle throws.
+        void connection.closed.then(() => {
+          for (const sessionId of handles.keys()) releaseIfIdle(sessionId)
+        })
       })
       .onRequest('initialize', () => {
         return {
