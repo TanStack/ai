@@ -929,6 +929,8 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         started: boolean // Track if TOOL_CALL_START has been emitted
       }
     >()
+    // Index and id of the latest tool call delta, to place deltas without an index
+    let latestToolCall: { index: number; id: string } | undefined
 
     // Reasoning lifecycle (driven by extractReasoning() hook — see method
     // docs). The base wire format (OpenAI Chat Completions) has no reasoning,
@@ -1103,7 +1105,19 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         // Handle tool calls - they come in as deltas
         if (deltaToolCalls) {
           for (const toolCallDelta of deltaToolCalls) {
-            const index = toolCallDelta.index
+            // Some providers (Gemini's compatibility endpoint, for example)
+            // omit `index`. Then a delta with a new id starts the next call,
+            // and one without an id continues the latest call.
+            const index =
+              typeof toolCallDelta.index === 'number'
+                ? toolCallDelta.index
+                : latestToolCall === undefined
+                  ? 0
+                  : toolCallDelta.id &&
+                      latestToolCall.id &&
+                      toolCallDelta.id !== latestToolCall.id
+                    ? latestToolCall.index + 1
+                    : latestToolCall.index
 
             // Initialize or update the tool call in progress
             let toolCall = toolCallsInProgress.get(index)
@@ -1121,6 +1135,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             if (toolCallDelta.id) {
               toolCall.id = toolCallDelta.id
             }
+            latestToolCall = { index, id: toolCall.id }
             if (toolCallDelta.function?.name) {
               toolCall.name = toolCallDelta.function.name
             }
