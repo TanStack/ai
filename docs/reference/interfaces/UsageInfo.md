@@ -3,7 +3,7 @@ id: UsageInfo
 title: UsageInfo
 ---
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:554
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:553
 
 Token usage statistics passed to the onUsage hook.
 Extracted from the RUN_FINISHED chunk when usage data is present.

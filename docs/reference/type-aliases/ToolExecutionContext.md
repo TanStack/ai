@@ -111,10 +111,10 @@ The answer to the input request that this tool call raised in the
 previous run. It is set only when the run resumes an `mcp_input`
 interrupt for this tool call.
 
-### threadId?
+### threadId
 
 ```ts
-optional threadId?: string;
+threadId: string;
 ```
 
 The thread id of the chat run. `chat()` sets it to the same value as

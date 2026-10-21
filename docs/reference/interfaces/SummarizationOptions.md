@@ -119,10 +119,10 @@ Defined in: packages/ai/src/types.ts:2141
 
 ***
 
-### threadId?
+### threadId
 
 ```ts
-optional threadId?: string;
+threadId: string;
 ```
 
 Defined in: packages/ai/src/types.ts:2156

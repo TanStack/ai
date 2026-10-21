@@ -7,7 +7,7 @@ title: getVideoJobStatus
 function getVideoJobStatus<TAdapter>(options): Promise<VideoJobStatusResult>;
 ```
 
-Defined in: packages/ai/src/activities/generateVideo/index.ts:949
+Defined in: packages/ai/src/activities/generateVideo/index.ts:932
 
 **`Experimental`**
 

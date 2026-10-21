@@ -3,7 +3,7 @@ id: IterationInfo
 title: IterationInfo
 ---
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:502
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:501
 
 Information passed to onIteration at the start of each agent loop iteration.
 
@@ -15,7 +15,7 @@ Information passed to onIteration at the start of each agent loop iteration.
 iteration: number;
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:504
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:503
 
 0-based iteration index
 
@@ -27,6 +27,6 @@ Defined in: packages/ai/src/activities/chat/middleware/types.ts:504
 messageId: string;
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:506
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:505
 
 The assistant message ID created for this iteration

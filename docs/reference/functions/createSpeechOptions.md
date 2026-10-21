@@ -7,7 +7,7 @@ title: createSpeechOptions
 function createSpeechOptions<TAdapter, TStream>(options): TTSActivityOptions<TAdapter, TStream>;
 ```
 
-Defined in: packages/ai/src/activities/generateSpeech/index.ts:475
+Defined in: packages/ai/src/activities/generateSpeech/index.ts:472
 
 Create typed options for the generateSpeech() function without executing.
 

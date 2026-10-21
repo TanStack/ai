@@ -17,4 +17,4 @@ type ChatResumeGenericResolution =
 };
 ```
 
-Defined in: packages/ai/src/activities/chat/middleware/types.ts:401
+Defined in: packages/ai/src/activities/chat/middleware/types.ts:400

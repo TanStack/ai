@@ -442,16 +442,16 @@ SystemPrompt
 
 ***
 
-### threadId?
+### threadId
 
 ```ts
-optional threadId?: string;
+threadId: string;
 ```
 
 Defined in: packages/ai/src/types.ts:1446
 
-Thread ID for AG-UI protocol run correlation.
-When provided, this will be used in RunStartedEvent and RunFinishedEvent.
+Thread ID for AG-UI protocol run correlation. Required. It is used in
+RunStartedEvent and RunFinishedEvent.
 
 ***
 
