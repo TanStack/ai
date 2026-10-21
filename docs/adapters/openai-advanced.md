@@ -632,7 +632,7 @@ const previewTool = computerUseTool({
 
 The model returns a `local_shell` tool call. Your app runs the command. Then your app sends the output back on the next request. `localShellTool()` takes no arguments. Add it to `tools`.
 
-Match `toolName` on `TOOL_CALL_START`. Read `input` on the `TOOL_CALL_END` with the same `toolCallId`. `input.command` is the command. `input.env` is the environment variables.
+Match `toolCallName` on `TOOL_CALL_START`. Read `input` on the `TOOL_CALL_END` with the same `toolCallId`. `input.command` is the command. `input.env` is the environment variables.
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -647,7 +647,7 @@ const stream = chat({
 
 let localShellCallId: string | undefined;
 for await (const chunk of stream) {
-  if (chunk.type === "TOOL_CALL_START" && chunk.toolName === "local_shell") {
+  if (chunk.type === "TOOL_CALL_START" && chunk.toolCallName === "local_shell") {
     localShellCallId = chunk.toolCallId;
   }
   if (chunk.type === "TOOL_CALL_END" && chunk.toolCallId === localShellCallId) {
@@ -666,7 +666,7 @@ Send the command output as the tool result. Use `{ output: string }`, or a strin
 
 If your app must run the commands, pass `environment: { type: "local" }`. Then:
 
-- Match `toolName` on `TOOL_CALL_START`. Read `input` on the `TOOL_CALL_END` with the same `toolCallId`.
+- Match `toolCallName` on `TOOL_CALL_START`. Read `input` on the `TOOL_CALL_END` with the same `toolCallId`.
 - `input.commands` is the command list.
 - `input.timeout_ms` is the time limit.
 - `input.max_output_length` is the output limit.
@@ -684,7 +684,7 @@ const stream = chat({
 
 let shellCallId: string | undefined;
 for await (const chunk of stream) {
-  if (chunk.type === "TOOL_CALL_START" && chunk.toolName === "shell") {
+  if (chunk.type === "TOOL_CALL_START" && chunk.toolCallName === "shell") {
     shellCallId = chunk.toolCallId;
   }
   if (chunk.type === "TOOL_CALL_END" && chunk.toolCallId === shellCallId) {
@@ -750,7 +750,7 @@ For the skill shape, the `version` string format, and the Anthropic equivalent, 
 
 The model returns an `apply_patch` tool call. Your app applies the diff. Then your app sends the result back. `applyPatchTool()` takes no arguments. Add it to `tools`.
 
-Match `toolName` on `TOOL_CALL_START`. Read `input` on the `TOOL_CALL_END` with the same `toolCallId`:
+Match `toolCallName` on `TOOL_CALL_START`. Read `input` on the `TOOL_CALL_END` with the same `toolCallId`:
 
 - `input.operation` is one file change.
 - `operation.type` is `create_file`, `update_file`, or `delete_file`.
@@ -770,7 +770,7 @@ const stream = chat({
 
 let patchCallId: string | undefined;
 for await (const chunk of stream) {
-  if (chunk.type === "TOOL_CALL_START" && chunk.toolName === "apply_patch") {
+  if (chunk.type === "TOOL_CALL_START" && chunk.toolCallName === "apply_patch") {
     patchCallId = chunk.toolCallId;
   }
   if (chunk.type === "TOOL_CALL_END" && chunk.toolCallId === patchCallId) {
