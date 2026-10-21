@@ -94,7 +94,8 @@ function moveTo(x: number, y: number) {
 /**
  * Create a driver for a Linux desktop in a sandbox from `@tanstack/ai-sandbox`.
  *
- * The image must have `xdotool`, `scrot`, and `xdpyinfo`. When no X display
+ * The image must have `xdotool`, `xdpyinfo`, and `scrot` or ImageMagick
+ * `import`. When no X display
  * runs on `:0`, the driver starts `Xvfb`, and `startxfce4` when the image has
  * it. The E2B `desktop` template has all of these.
  */
@@ -113,14 +114,25 @@ export async function createSandboxComputerDriver({
   }
   const xdotool = (args: string) => run(`${X} xdotool ${args}`)
 
-  const missing = await run(
-    'for t in xdotool scrot xdpyinfo; do command -v $t >/dev/null || echo $t; done',
+  // Prints each missing tool. `@import` means no scrot, but ImageMagick
+  // `import` takes the screenshots, like on Amazon Linux.
+  const found = (
+    await run(
+      'for t in xdotool xdpyinfo; do command -v $t >/dev/null || echo $t; done; command -v scrot >/dev/null || { command -v import >/dev/null && echo @import || echo scrot; }',
+    )
   )
-  if (missing.trim() !== '') {
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+  const missing = found.filter((tool) => tool !== '@import')
+  if (missing.length > 0) {
     throw new Error(
-      `The sandbox has no desktop tools: ${missing.trim().split(/\s+/).join(', ')}. Use a desktop image, like the E2B "desktop" template.`,
+      `The sandbox has no desktop tools: ${missing.join(', ')}. Use a desktop image, like the E2B "desktop" template.`,
     )
   }
+  const capture = found.includes('@import')
+    ? 'import -window root'
+    : 'scrot --pointer'
 
   const running = await sandbox.process.exec(`${X} xdpyinfo >/dev/null 2>&1`)
   if (running.exitCode !== 0) {
@@ -152,7 +164,7 @@ export async function createSandboxComputerDriver({
       // One round trip: capture, print as base64, delete. Not `status`: zsh
       // (the Daytona shell) makes it read-only.
       const base64 = await run(
-        `${X} scrot --pointer ${file} && base64 -w0 ${file}; code=$?; rm -f ${file}; exit $code`,
+        `${X} ${capture} ${file} && base64 -w0 ${file}; code=$?; rm -f ${file}; exit $code`,
       )
       return base64ToUint8Array(base64.trim())
     },

@@ -155,7 +155,7 @@ CAUTION: Set the provider timeout above `idleTimeout` plus the longest time that
 
 ### The sandbox image
 
-The image must have `xdotool`, `scrot`, and `xdpyinfo`. When no X display runs, the driver starts one with `Xvfb`. It also starts `startxfce4` when the image has it.
+The image must have `xdotool`, `xdpyinfo`, and `scrot`. Without `scrot`, the driver takes screenshots with ImageMagick `import`, but they do not show the mouse pointer. When no X display runs, the driver starts one with `Xvfb`. It also starts `startxfce4` when the image has it.
 
 The E2B `desktop` template has all of these. For Docker, Daytona, and the other providers, use an image with the tools. On Debian or Ubuntu:
 

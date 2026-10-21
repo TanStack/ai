@@ -55,7 +55,7 @@ The default `display` is 1024 x 768. When a thread closes or goes idle, `createC
 
 ## The sandbox image
 
-The image must have `xdotool`, `scrot`, and `xdpyinfo`. When no X display runs on `:0`, the driver also needs `Xvfb` to start one. It starts `startxfce4` too, when the image has it.
+The image must have `xdotool`, `xdpyinfo`, and `scrot`. Without `scrot`, the driver takes screenshots with ImageMagick `import`, but they do not show the mouse pointer. When no X display runs on `:0`, the driver also needs `Xvfb` to start one. It starts `startxfce4` too, when the image has it.
 
 - **E2B:** use the `desktop` template. It has all of these.
 - **Docker, Daytona, and the others:** use an image with the tools. On Debian or Ubuntu:

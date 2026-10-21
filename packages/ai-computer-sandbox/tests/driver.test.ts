@@ -34,7 +34,7 @@ function fakeSandbox({ running = true, missing = [], size }: FakeOptions = {}) {
     if (command.endsWith('xdpyinfo')) {
       return ok(size ? XDPYINFO.replace('1024x768', size) : XDPYINFO)
     }
-    if (command.includes('scrot')) return ok(`${PNG_BASE64}\n`)
+    if (command.includes('base64 -w0')) return ok(`${PNG_BASE64}\n`)
     if (command.endsWith('getmouselocation')) {
       return ok('x:12 y:34 screen:0 window:1\n')
     }
@@ -103,6 +103,16 @@ describe('createSandboxComputerDriver', () => {
     const { sandbox } = fakeSandbox({ missing: ['xdotool', 'scrot'] })
     await expect(createSandboxComputerDriver({ sandbox })).rejects.toThrow(
       'The sandbox has no desktop tools: xdotool, scrot.',
+    )
+  })
+
+  it('takes screenshots with ImageMagick import when the image has no scrot', async () => {
+    const fake = fakeSandbox({ missing: ['@import'] })
+    const driver = await createSandboxComputerDriver({ sandbox: fake.sandbox })
+    fake.calls.length = 0
+    expect(await driver.screenshot()).toEqual(PNG)
+    expect(fake.calls[0]).toMatch(
+      /^exec DISPLAY=:0 import -window root \/tmp\/tanstack-screenshot-\S+\.png && base64 -w0 /,
     )
   })
 

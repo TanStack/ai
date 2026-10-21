@@ -45,11 +45,25 @@ const providers: Record<string, () => Promise<SandboxProvider>> = {
   'upstash-box': async () =>
     (await import('@tanstack/ai-sandbox-upstash-box')).upstashBoxSandbox(),
   vercel: async () =>
-    (await import('@tanstack/ai-sandbox-vercel')).vercelSandbox(),
+    (await import('@tanstack/ai-sandbox-vercel')).vercelSandbox({
+      teamId: process.env.VERCEL_TEAM_ID ?? process.env.VERCEL_TEAM,
+    }),
 }
 
-const INSTALL =
-  'S=; [ "$(id -u)" = 0 ] || S=sudo; $S apt-get update -qq && $S env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends xvfb xdotool scrot x11-utils xterm'
+// Debian and Ubuntu: apt-get. Alpine (Blaxel): apk. Amazon Linux (Vercel): dnf has no xdotool or
+// scrot, so build xdotool, and the driver takes screenshots with ImageMagick.
+const INSTALL = `S=; [ "$(id -u)" = 0 ] || S=sudo
+if command -v apt-get >/dev/null; then
+  $S apt-get update -qq && $S env DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends xvfb xdotool scrot x11-utils xterm
+elif command -v dnf >/dev/null; then
+  $S dnf -y -q install gcc make git libXtst-devel libXinerama-devel libxkbcommon-devel libXi-devel xorg-x11-server-Xvfb xdpyinfo xterm ImageMagick \\
+    && rm -rf /tmp/xdotool && git clone -q --depth 1 https://github.com/jordansissel/xdotool /tmp/xdotool \\
+    && make -s -C /tmp/xdotool WITHOUT_RPATH_FIX=1 && $S make -s -C /tmp/xdotool install PREFIX=/usr WITHOUT_RPATH_FIX=1 && $S ldconfig
+elif command -v apk >/dev/null; then
+  $S apk add -q --no-cache xvfb xdotool scrot xdpyinfo xterm font-misc-misc
+else
+  echo "No apt-get, dnf, or apk" >&2; exit 1
+fi`
 
 const [name, flag] = process.argv.slice(2)
 const makeProvider = name ? providers[name] : undefined
@@ -82,8 +96,9 @@ try {
   )
   console.log('display', driver.display)
 
+  // Open a terminal to type into. The E2B template has xfce4-terminal, not xterm.
   await sandbox.process.spawn(
-    'command -v xterm >/dev/null && DISPLAY=:0 xterm -geometry 80x20+50+50 >/dev/null 2>&1',
+    'export DISPLAY=:0; if command -v xterm >/dev/null; then xterm -geometry 80x20+50+50; else xfce4-terminal --geometry=80x20+50+50; fi >/dev/null 2>&1',
   )
   await new Promise((resolve) => setTimeout(resolve, 1500))
 
