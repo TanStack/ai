@@ -10,9 +10,10 @@ import type { APIRequestContext } from '@playwright/test'
  * `/api/coding-tools` runs one harness turn in a temp folder that the test
  * makes. aimock gives one tool call, and the tool works on real files. Each
  * test checks the `TOOL_CALL_RESULT` that the client gets, and the files
- * after the turn. No `permissions()` is mounted, so no tool waits for
- * approval. Only `coding-format-ask` mounts `permissions()`: there the
- * write asks before it runs, and the route rejects the approval.
+ * after the turn. The `coding-diffs` test checks the `FileChanged` events
+ * instead. No `permissions()` is mounted, so no tool waits for approval.
+ * Only `coding-format-ask` mounts `permissions()`: there the write asks
+ * before it runs, and the route rejects the approval.
  */
 
 type Chunk = {
@@ -20,6 +21,7 @@ type Chunk = {
   delta?: string
   content?: string
   name?: string
+  value?: unknown
   outcome?: {
     type: string
     interrupts?: Array<{ reason?: string; message?: string }>
@@ -181,6 +183,39 @@ test.describe('Coding tools', () => {
     })
     expect(await read('notes.txt')).toBe('alpha\nbeta\n')
     expect(await read('other.txt')).toBe('mine\n')
+  })
+
+  test('write_file sends FileChanged with its patch, and snapshots() sends it for the file that bash wrote', async ({
+    request,
+    testId,
+  }) => {
+    await writeFile(file('a.txt'), 'one\n')
+
+    // write_file changes a.txt and sends its event. Then bash writes b.txt.
+    // bash sends no event, so snapshots() sends one at the end of the step.
+    const chunks = await post(request, 'coding-diffs', testId)
+    const changes = chunks.find(
+      (chunk) => chunk.name === 'e2e.file-changes',
+    )?.value
+    expect(changes).toEqual([
+      {
+        path: file('a.txt'),
+        change: 'updated',
+        patch: expect.stringContaining('-one\n+two\n'),
+        additions: 1,
+        deletions: 1,
+        toolCallId: expect.any(String),
+      },
+      {
+        path: file('b.txt'),
+        change: 'created',
+        // Only `+hi`: on Windows, `echo` also writes a space and `\r`.
+        patch: expect.stringContaining('+hi'),
+        additions: 1,
+        deletions: 0,
+        toolCallId: expect.any(String),
+      },
+    ])
   })
 
   test('in acceptEdits mode, the write asks before it runs, with its formatter, and a reject keeps the file unwritten', async ({

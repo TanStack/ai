@@ -3,9 +3,14 @@ import { tmpdir } from 'node:os'
 import { join, resolve, sep } from 'node:path'
 import { createFileRoute } from '@tanstack/react-router'
 import { toServerSentEventsResponse } from '@tanstack/ai'
-import { createHarnessHost, defineHarness } from '@tanstack/ai-harness'
+import {
+  createHarnessHost,
+  defineHarness,
+  definePlugin,
+} from '@tanstack/ai-harness'
 import { permissions } from '@tanstack/ai-harness/plugins'
 import {
+  FileChanged,
   formatter,
   snapshots,
   workspaceTools,
@@ -13,6 +18,7 @@ import {
 import { sandboxWorkspaceBackend } from '@tanstack/ai-sandbox/harness'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
+import type { FileChange } from '@tanstack/ai-harness/plugins/coding'
 import { createTextAdapter } from '@/lib/providers'
 
 /**
@@ -27,7 +33,7 @@ async function* codingTurn(
   scenario: string,
   root: string,
   adapter: AnyTextAdapter,
-): AsyncGenerator<StreamChunk> {
+) {
   const formatAsk = scenario === 'coding-format-ask'
   const host = createHarnessHost()
   try {
@@ -78,10 +84,7 @@ async function* codingTurn(
  * notes.txt. Between them, the user edits other.txt. Then a revert to the
  * first prompt puts back the files of both turns.
  */
-async function* revertTurns(
-  root: string,
-  adapter: AnyTextAdapter,
-): AsyncGenerator<StreamChunk> {
+async function* revertTurns(root: string, adapter: AnyTextAdapter) {
   const dataDir = await mkdtemp(join(tmpdir(), 'e2e-snapshots-'))
   const host = createHarnessHost()
   try {
@@ -116,10 +119,7 @@ async function* revertTurns(
  * local-process sandbox on `root`. The tools see `/workspace`, and the
  * sandbox maps it to `root`.
  */
-async function* sandboxTurn(
-  root: string,
-  adapter: AnyTextAdapter,
-): AsyncGenerator<StreamChunk> {
+async function* sandboxTurn(root: string, adapter: AnyTextAdapter) {
   const sandbox = await localProcessSandbox({ dir: root }).create({})
   const host = createHarnessHost()
   try {
@@ -144,6 +144,49 @@ async function* sandboxTurn(
     await host.close()
     // With `dir`, destroy keeps the folder.
     await sandbox.destroy()
+  }
+}
+
+/**
+ * The `coding-diffs` scenario: one turn with `snapshots()`. The model
+ * writes a.txt with `write_file`, then b.txt with `bash`. The chunks of a
+ * turn have no plugin events, so a plugin keeps the `FileChanged` events,
+ * and a last `e2e.file-changes` chunk gives them.
+ */
+async function* diffsTurn(root: string, adapter: AnyTextAdapter) {
+  const dataDir = await mkdtemp(join(tmpdir(), 'e2e-snapshots-'))
+  const changes: Array<FileChange> = []
+  const host = createHarnessHost()
+  try {
+    const session = await host.open(
+      defineHarness({
+        name: 'e2e/coding-tools-diffs',
+        adapter,
+        plugins: () => [
+          workspaceTools({ root }),
+          snapshots({ root, dataDir }),
+          definePlugin({
+            name: 'e2e/file-changes',
+            setup: (ctx) => {
+              ctx.on(FileChanged, (change) => changes.push(change))
+            },
+          }),
+        ],
+      }),
+      {
+        threadId: 'coding-diffs',
+      },
+    )
+    yield* session.send('[coding-diffs] run test').stream()
+    yield {
+      type: 'CUSTOM',
+      name: 'e2e.file-changes',
+      value: changes,
+      timestamp: Date.now(),
+    } satisfies StreamChunk
+  } finally {
+    await host.close()
+    await rm(dataDir, { recursive: true, force: true })
   }
 }
 
@@ -180,13 +223,18 @@ export const Route = createFileRoute('/api/coding-tools')({
           undefined,
           typeof testId === 'string' ? testId : undefined,
         )
-        return toServerSentEventsResponse(
-          scenario === 'coding-revert'
-            ? revertTurns(root, adapter)
-            : scenario === 'coding-sandbox'
-              ? sandboxTurn(root, adapter)
-              : codingTurn(scenario, root, adapter),
-        )
+        switch (scenario) {
+          case 'coding-revert':
+            return toServerSentEventsResponse(revertTurns(root, adapter))
+          case 'coding-sandbox':
+            return toServerSentEventsResponse(sandboxTurn(root, adapter))
+          case 'coding-diffs':
+            return toServerSentEventsResponse(diffsTurn(root, adapter))
+          default:
+            return toServerSentEventsResponse(
+              codingTurn(scenario, root, adapter),
+            )
+        }
       },
     },
   },
