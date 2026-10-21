@@ -16,6 +16,8 @@ keywords:
 
 You have a chat app. You want the model to do a task on a web page for the user, for example fill in a form or find a price. Computer use gives the model a screen, a mouse, and a keyboard. Each conversation gets its own browser page. The same code runs on OpenAI and on Anthropic.
 
+To build a full app step by step, with the screenshots in the chat, open the [Computer Use tutorial](../tutorials/computer-use).
+
 ## Install
 
 <!-- ::start:tabs variant="package-manager" mode="install" -->

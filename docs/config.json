@@ -13,13 +13,13 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-29"
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "Quick Start",
           "to": "getting-started/quick-start",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-09-17"
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "Quick Start: React Native",
@@ -85,6 +85,11 @@
           "label": "Build an MCP Server",
           "to": "tutorials/mcp-server",
           "addedAt": "2026-09-22"
+        },
+        {
+          "label": "Computer Use",
+          "to": "tutorials/computer-use",
+          "addedAt": "2026-10-21"
         }
       ]
     },
@@ -126,6 +131,11 @@
           "label": "MCP Server",
           "to": "framework/react/examples/mcp-server",
           "addedAt": "2026-09-22"
+        },
+        {
+          "label": "Computer Use",
+          "to": "framework/react/examples/computer-use",
+          "addedAt": "2026-10-21"
         }
       ]
     },
@@ -925,7 +935,8 @@
         {
           "label": "Computer Use",
           "to": "computer-use/computer-use",
-          "addedAt": "2026-10-20"
+          "addedAt": "2026-10-20",
+          "updatedAt": "2026-10-21"
         },
         {
           "label": "Drivers",
