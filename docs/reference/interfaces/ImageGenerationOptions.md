@@ -3,7 +3,7 @@ id: ImageGenerationOptions
 title: ImageGenerationOptions
 ---
 
-Defined in: packages/ai/src/types.ts:2343
+Defined in: packages/ai/src/types.ts:2344
 
 Options for image generation.
 These are the common options supported across providers.
@@ -26,7 +26,7 @@ These are the common options supported across providers.
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: packages/ai/src/types.ts:2375
+Defined in: packages/ai/src/types.ts:2376
 
 Effective abort signal composed by the activity from caller `abortSignal`
 and/or `timeout`. Adapters should forward this to the provider SDK when
@@ -40,7 +40,7 @@ supported. Request-specific — never store on a global client config.
 logger: InternalLogger;
 ```
 
-Defined in: packages/ai/src/types.ts:2369
+Defined in: packages/ai/src/types.ts:2370
 
 Internal logger threaded from the generateImage() entry point. Adapters must
 call logger.request() before the SDK call and logger.errors() in catch blocks.
@@ -53,7 +53,7 @@ call logger.request() before the SDK call and logger.errors() in catch blocks.
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2348
+Defined in: packages/ai/src/types.ts:2349
 
 The model to use for image generation
 
@@ -65,7 +65,7 @@ The model to use for image generation
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: packages/ai/src/types.ts:2364
+Defined in: packages/ai/src/types.ts:2365
 
 Model-specific options for image generation
 
@@ -77,7 +77,7 @@ Model-specific options for image generation
 optional numberOfImages?: number;
 ```
 
-Defined in: packages/ai/src/types.ts:2360
+Defined in: packages/ai/src/types.ts:2361
 
 Number of images to generate (default: 1)
 
@@ -89,7 +89,7 @@ Number of images to generate (default: 1)
 prompt: MediaPrompt;
 ```
 
-Defined in: packages/ai/src/types.ts:2358
+Defined in: packages/ai/src/types.ts:2359
 
 Description of the desired image(s): a plain string, or an ordered array
 of content parts for image-conditioned generation (image-to-image,
@@ -107,6 +107,6 @@ multimodal `contents`, OpenAI `images.edit()`, fal `image_url` /
 optional size?: TSize;
 ```
 
-Defined in: packages/ai/src/types.ts:2362
+Defined in: packages/ai/src/types.ts:2363
 
 Image size in WIDTHxHEIGHT format (e.g., "1024x1024")

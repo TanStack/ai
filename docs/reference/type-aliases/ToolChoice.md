@@ -14,7 +14,7 @@ type ToolChoice<TName> =
 };
 ```
 
-Defined in: packages/ai/src/types.ts:1254
+Defined in: packages/ai/src/types.ts:1255
 
 How the model uses the tools of a call.
 - `'auto'`: the model decides.

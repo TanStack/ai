@@ -3,7 +3,7 @@ id: RunStartedEvent
 title: RunStartedEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1570
+Defined in: packages/ai/src/types.ts:1571
 
 Emitted when a run starts.
 This is the first event in any streaming response.

@@ -3,7 +3,7 @@ id: TextMessageStartEvent
 title: TextMessageStartEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1650
+Defined in: packages/ai/src/types.ts:1651
 
 Emitted when a text message starts.
 

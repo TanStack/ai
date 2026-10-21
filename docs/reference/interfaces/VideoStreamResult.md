@@ -3,7 +3,7 @@ id: VideoStreamResult
 title: VideoStreamResult
 ---
 
-Defined in: packages/ai/src/types.ts:2637
+Defined in: packages/ai/src/types.ts:2638
 
 **`Experimental`**
 
@@ -21,7 +21,7 @@ and sets `url`. Use `withGenerationPersistence` with `artifactUrl`.
 body: ReadableStream<Uint8Array<ArrayBufferLike>>;
 ```
 
-Defined in: packages/ai/src/types.ts:2641
+Defined in: packages/ai/src/types.ts:2642
 
 **`Experimental`**
 
@@ -35,7 +35,7 @@ The video bytes. Read once, with backpressure. Never buffer it whole.
 contentType: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2643
+Defined in: packages/ai/src/types.ts:2644
 
 **`Experimental`**
 
@@ -49,7 +49,7 @@ MIME type of `body`, e.g. `video/mp4`.
 jobId: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2639
+Defined in: packages/ai/src/types.ts:2640
 
 **`Experimental`**
 
@@ -63,7 +63,7 @@ Job identifier
 optional url?: undefined;
 ```
 
-Defined in: packages/ai/src/types.ts:2645
+Defined in: packages/ai/src/types.ts:2646
 
 **`Experimental`**
 
@@ -75,6 +75,6 @@ Defined in: packages/ai/src/types.ts:2645
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: packages/ai/src/types.ts:2644
+Defined in: packages/ai/src/types.ts:2645
 
 **`Experimental`**

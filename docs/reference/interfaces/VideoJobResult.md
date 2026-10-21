@@ -3,7 +3,7 @@ id: VideoJobResult
 title: VideoJobResult
 ---
 
-Defined in: packages/ai/src/types.ts:2578
+Defined in: packages/ai/src/types.ts:2579
 
 **`Experimental`**
 
@@ -19,7 +19,7 @@ Result of creating a video generation job.
 optional artifacts?: PersistedArtifactRef[];
 ```
 
-Defined in: packages/ai/src/types.ts:2588
+Defined in: packages/ai/src/types.ts:2589
 
 **`Experimental`**
 
@@ -35,7 +35,7 @@ refs for persisted prompt INPUTS (e.g. a start frame).
 jobId: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2580
+Defined in: packages/ai/src/types.ts:2581
 
 **`Experimental`**
 
@@ -49,7 +49,7 @@ Unique job identifier for polling status
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2582
+Defined in: packages/ai/src/types.ts:2583
 
 **`Experimental`**
 

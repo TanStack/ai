@@ -9,7 +9,7 @@ type TaggedCustomEvent<T> =
 | StructuredOutputCompleteEvent<T>;
 ```
 
-Defined in: packages/ai/src/types.ts:2122
+Defined in: packages/ai/src/types.ts:2123
 
 Discriminated union of the orchestrator-tagged `CUSTOM` events. Each variant
 has a literal `name`, so a single narrow on `chunk.name` yields a typed

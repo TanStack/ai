@@ -3,7 +3,7 @@ id: TextCompletionChunk
 title: TextCompletionChunk
 ---
 
-Defined in: packages/ai/src/types.ts:2128
+Defined in: packages/ai/src/types.ts:2129
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: packages/ai/src/types.ts:2128
 content: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2131
+Defined in: packages/ai/src/types.ts:2132
 
 ***
 
@@ -23,7 +23,7 @@ Defined in: packages/ai/src/types.ts:2131
 optional finishReason?: "length" | "stop" | "content_filter" | null;
 ```
 
-Defined in: packages/ai/src/types.ts:2133
+Defined in: packages/ai/src/types.ts:2134
 
 ***
 
@@ -33,7 +33,7 @@ Defined in: packages/ai/src/types.ts:2133
 id: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2129
+Defined in: packages/ai/src/types.ts:2130
 
 ***
 
@@ -43,7 +43,7 @@ Defined in: packages/ai/src/types.ts:2129
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2130
+Defined in: packages/ai/src/types.ts:2131
 
 ***
 
@@ -53,7 +53,7 @@ Defined in: packages/ai/src/types.ts:2130
 optional role?: "assistant";
 ```
 
-Defined in: packages/ai/src/types.ts:2132
+Defined in: packages/ai/src/types.ts:2133
 
 ***
 
@@ -63,4 +63,4 @@ Defined in: packages/ai/src/types.ts:2132
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: packages/ai/src/types.ts:2134
+Defined in: packages/ai/src/types.ts:2135

@@ -7,4 +7,4 @@ title: PersistedArtifactRole
 type PersistedArtifactRole = "input" | "output";
 ```
 
-Defined in: packages/ai/src/types.ts:2396
+Defined in: packages/ai/src/types.ts:2397

@@ -3,7 +3,7 @@ id: ToolCallStartEvent
 title: ToolCallStartEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1672
+Defined in: packages/ai/src/types.ts:1673
 
 Emitted when a tool call starts.
 
@@ -22,7 +22,7 @@ Emitted when a tool call starts.
 optional metadata?: Record<string, any>;
 ```
 
-Defined in: packages/ai/src/types.ts:1678
+Defined in: packages/ai/src/types.ts:1679
 
 Provider-specific metadata to carry into the ToolCall.
 
@@ -40,4 +40,4 @@ Omit.metadata
 type: "TOOL_CALL_START";
 ```
 
-Defined in: packages/ai/src/types.ts:1676
+Defined in: packages/ai/src/types.ts:1677

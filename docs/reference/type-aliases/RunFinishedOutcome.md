@@ -7,4 +7,4 @@ title: RunFinishedOutcome
 type RunFinishedOutcome = AGUIRunFinishedOutcome;
 ```
 
-Defined in: packages/ai/src/types.ts:1586
+Defined in: packages/ai/src/types.ts:1587

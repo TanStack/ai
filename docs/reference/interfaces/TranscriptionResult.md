@@ -3,7 +3,7 @@ id: TranscriptionResult
 title: TranscriptionResult
 ---
 
-Defined in: packages/ai/src/types.ts:3201
+Defined in: packages/ai/src/types.ts:3202
 
 Result of audio transcription.
 
@@ -15,7 +15,7 @@ Result of audio transcription.
 optional artifacts?: PersistedArtifactRef[];
 ```
 
-Defined in: packages/ai/src/types.ts:3219
+Defined in: packages/ai/src/types.ts:3220
 
 Persisted artifact references for generated assets, when available
 
@@ -27,7 +27,7 @@ Persisted artifact references for generated assets, when available
 optional duration?: number;
 ```
 
-Defined in: packages/ai/src/types.ts:3211
+Defined in: packages/ai/src/types.ts:3212
 
 Duration of the audio in seconds
 
@@ -39,7 +39,7 @@ Duration of the audio in seconds
 id: string;
 ```
 
-Defined in: packages/ai/src/types.ts:3203
+Defined in: packages/ai/src/types.ts:3204
 
 Unique identifier for the transcription
 
@@ -51,7 +51,7 @@ Unique identifier for the transcription
 optional language?: string;
 ```
 
-Defined in: packages/ai/src/types.ts:3209
+Defined in: packages/ai/src/types.ts:3210
 
 Language detected or specified
 
@@ -63,7 +63,7 @@ Language detected or specified
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:3205
+Defined in: packages/ai/src/types.ts:3206
 
 Model used for transcription
 
@@ -75,7 +75,7 @@ Model used for transcription
 optional segments?: TranscriptionSegment[];
 ```
 
-Defined in: packages/ai/src/types.ts:3213
+Defined in: packages/ai/src/types.ts:3214
 
 Detailed segments with timing, if available
 
@@ -87,7 +87,7 @@ Detailed segments with timing, if available
 text: string;
 ```
 
-Defined in: packages/ai/src/types.ts:3207
+Defined in: packages/ai/src/types.ts:3208
 
 The full transcribed text
 
@@ -99,7 +99,7 @@ The full transcribed text
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: packages/ai/src/types.ts:3217
+Defined in: packages/ai/src/types.ts:3218
 
 Token usage information (if provided by the adapter)
 
@@ -111,6 +111,6 @@ Token usage information (if provided by the adapter)
 optional words?: TranscriptionWord[];
 ```
 
-Defined in: packages/ai/src/types.ts:3215
+Defined in: packages/ai/src/types.ts:3216
 
 Word-level timestamps, if available

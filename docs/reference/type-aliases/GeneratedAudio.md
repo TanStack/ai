@@ -7,7 +7,7 @@ title: GeneratedAudio
 type GeneratedAudio = GeneratedMediaSource & object;
 ```
 
-Defined in: packages/ai/src/types.ts:2500
+Defined in: packages/ai/src/types.ts:2501
 
 A single generated audio output
 

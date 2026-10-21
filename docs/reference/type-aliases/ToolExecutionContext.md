@@ -111,15 +111,16 @@ The answer to the input request that this tool call raised in the
 previous run. It is set only when the run resumes an `mcp_input`
 interrupt for this tool call.
 
-### threadId
+### threadId?
 
 ```ts
-threadId: string;
+optional threadId?: string;
 ```
 
 The thread id of the chat run. `chat()` sets it to the same value as
 `ctx.threadId` in middleware. A tool can use it to keep its own state
-for each conversation.
+for each conversation. It is missing when a tool runs outside a chat,
+for example from an MCP server, WebMCP, or a direct `execute()` call.
 
 ### toolCallId?
 

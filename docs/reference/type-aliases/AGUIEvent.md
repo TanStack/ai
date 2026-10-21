@@ -38,6 +38,6 @@ type AGUIEvent =
   | SubagentErrorEvent;
 ```
 
-Defined in: packages/ai/src/types.ts:2037
+Defined in: packages/ai/src/types.ts:2038
 
 Union of all AG-UI events.

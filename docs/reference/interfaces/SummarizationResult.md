@@ -3,7 +3,7 @@ id: SummarizationResult
 title: SummarizationResult
 ---
 
-Defined in: packages/ai/src/types.ts:2170
+Defined in: packages/ai/src/types.ts:2171
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: packages/ai/src/types.ts:2170
 id: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2171
+Defined in: packages/ai/src/types.ts:2172
 
 ***
 
@@ -23,7 +23,7 @@ Defined in: packages/ai/src/types.ts:2171
 model: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2172
+Defined in: packages/ai/src/types.ts:2173
 
 ***
 
@@ -33,7 +33,7 @@ Defined in: packages/ai/src/types.ts:2172
 summary: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2173
+Defined in: packages/ai/src/types.ts:2174
 
 ***
 
@@ -43,4 +43,4 @@ Defined in: packages/ai/src/types.ts:2173
 usage: TokenUsage;
 ```
 
-Defined in: packages/ai/src/types.ts:2174
+Defined in: packages/ai/src/types.ts:2175

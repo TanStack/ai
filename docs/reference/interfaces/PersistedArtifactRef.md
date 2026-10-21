@@ -3,7 +3,7 @@ id: PersistedArtifactRef
 title: PersistedArtifactRef
 ---
 
-Defined in: packages/ai/src/types.ts:2405
+Defined in: packages/ai/src/types.ts:2406
 
 ## Properties
 
@@ -13,7 +13,7 @@ Defined in: packages/ai/src/types.ts:2405
 artifactId: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2407
+Defined in: packages/ai/src/types.ts:2408
 
 ***
 
@@ -23,7 +23,7 @@ Defined in: packages/ai/src/types.ts:2407
 createdAt: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2413
+Defined in: packages/ai/src/types.ts:2414
 
 ***
 
@@ -33,7 +33,7 @@ Defined in: packages/ai/src/types.ts:2413
 mimeType: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2411
+Defined in: packages/ai/src/types.ts:2412
 
 ***
 
@@ -43,7 +43,7 @@ Defined in: packages/ai/src/types.ts:2411
 name: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2410
+Defined in: packages/ai/src/types.ts:2411
 
 ***
 
@@ -53,7 +53,7 @@ Defined in: packages/ai/src/types.ts:2410
 role: PersistedArtifactRole;
 ```
 
-Defined in: packages/ai/src/types.ts:2406
+Defined in: packages/ai/src/types.ts:2407
 
 ***
 
@@ -63,7 +63,7 @@ Defined in: packages/ai/src/types.ts:2406
 runId: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2409
+Defined in: packages/ai/src/types.ts:2410
 
 ***
 
@@ -73,7 +73,7 @@ Defined in: packages/ai/src/types.ts:2409
 size: number;
 ```
 
-Defined in: packages/ai/src/types.ts:2412
+Defined in: packages/ai/src/types.ts:2413
 
 ***
 
@@ -83,7 +83,7 @@ Defined in: packages/ai/src/types.ts:2412
 source: object;
 ```
 
-Defined in: packages/ai/src/types.ts:2429
+Defined in: packages/ai/src/types.ts:2430
 
 #### activity
 
@@ -135,7 +135,7 @@ provider: string;
 optional sourceUrl?: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2420
+Defined in: packages/ai/src/types.ts:2421
 
 Where these bytes were fetched FROM — the provider's original result URL,
 or a caller-supplied prompt URL when `allowInputUrl` opted that in. Usually
@@ -150,7 +150,7 @@ instead.
 threadId: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2408
+Defined in: packages/ai/src/types.ts:2409
 
 ***
 
@@ -160,7 +160,7 @@ Defined in: packages/ai/src/types.ts:2408
 optional url?: string;
 ```
 
-Defined in: packages/ai/src/types.ts:2428
+Defined in: packages/ai/src/types.ts:2429
 
 Durable app-origin URL that serves this artifact's persisted bytes (your
 `GET` route around `retrieveArtifact` / `retrieveBlob`). Stamped by

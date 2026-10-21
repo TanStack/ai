@@ -3,7 +3,7 @@ id: StateDeltaEvent
 title: StateDeltaEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1746
+Defined in: packages/ai/src/types.ts:1747
 
 Emitted to provide an incremental state update.
 

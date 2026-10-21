@@ -3,7 +3,7 @@ id: ReasoningMessageEndEvent
 title: ReasoningMessageEndEvent
 ---
 
-Defined in: packages/ai/src/types.ts:1976
+Defined in: packages/ai/src/types.ts:1977
 
 Emitted when a reasoning message ends.
 
