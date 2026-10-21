@@ -162,6 +162,12 @@ function createSummarizeAdapter(
         fetch: (input, init) =>
           fetch(String(input).replace('/anthropic/v1/', '/v1/'), init),
       }),
+    'neon-responses': () =>
+      createNeonSummarize('gpt-6-1-sol', DUMMY_KEY, {
+        api: 'responses',
+        baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
+      }),
   }
   return factories[provider]?.()
 }

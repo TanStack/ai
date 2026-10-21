@@ -56,6 +56,25 @@ type ChatCompletionsModel = Exclude<
   NeonAnthropicModel | NeonResponsesOnlyModel
 >
 
+/** Client options for automatic routing, including a runtime model selection. */
+export type NeonDefaultTextConfig<TModel extends NeonChatModel> = [
+  TModel,
+] extends [NeonAnthropicModel]
+  ? NeonAnthropicTextConfig
+  : [TModel] extends [NeonResponsesOnlyModel]
+    ? Omit<NeonResponsesApiConfig, 'api'> & { api?: 'responses' }
+    : [TModel] extends [ChatCompletionsModel]
+      ? NeonChatApiConfig
+      : Omit<NeonChatApiConfig, 'api'> & NeonAnthropicTextConfig
+
+/** Each member of a model union keeps the adapter of its default route. */
+export type NeonDefaultTextAdapter<TModel extends NeonChatModel> =
+  TModel extends NeonAnthropicModel
+    ? NeonAnthropicTextAdapter<TModel>
+    : TModel extends NeonResponsesOnlyModel
+      ? NeonResponsesTextAdapter<TModel>
+      : NeonTextAdapter<TModel>
+
 function isAnthropicModel(model: string): model is NeonAnthropicModel {
   return anthropicModels.has(model)
 }
@@ -126,26 +145,16 @@ export function buildNeonText(
  * `config.baseURL` is the branch host. It defaults to
  * `NEON_AI_GATEWAY_BASE_URL`.
  */
-export function createNeonText<TModel extends NeonAnthropicModel>(
-  model: TModel,
-  apiKey: string,
-  config?: NeonAnthropicTextConfig,
-): NeonAnthropicTextAdapter<TModel>
-export function createNeonText<TModel extends NeonResponsesOnlyModel>(
-  model: TModel,
-  apiKey: string,
-  config?: Omit<NeonResponsesApiConfig, 'api'> & { api?: 'responses' },
-): NeonResponsesTextAdapter<TModel>
 export function createNeonText<TModel extends NeonResponsesModel>(
   model: TModel,
   apiKey: string,
   config: NeonResponsesApiConfig,
 ): NeonResponsesTextAdapter<TModel>
-export function createNeonText<TModel extends ChatCompletionsModel>(
+export function createNeonText<TModel extends NeonChatModel>(
   model: TModel,
   apiKey: string,
-  config?: NeonChatApiConfig,
-): NeonTextAdapter<TModel>
+  config?: NeonDefaultTextConfig<NoInfer<TModel>>,
+): NeonDefaultTextAdapter<TModel>
 export function createNeonText(
   model: NeonChatModel,
   apiKey: string,
@@ -164,22 +173,14 @@ export function createNeonText(
  * const adapter = neonText('gemini-3-8-flash')
  * ```
  */
-export function neonText<TModel extends NeonAnthropicModel>(
-  model: TModel,
-  config?: NeonAnthropicTextConfig,
-): NeonAnthropicTextAdapter<TModel>
-export function neonText<TModel extends NeonResponsesOnlyModel>(
-  model: TModel,
-  config?: Omit<NeonResponsesApiConfig, 'api'> & { api?: 'responses' },
-): NeonResponsesTextAdapter<TModel>
 export function neonText<TModel extends NeonResponsesModel>(
   model: TModel,
   config: NeonResponsesApiConfig,
 ): NeonResponsesTextAdapter<TModel>
-export function neonText<TModel extends ChatCompletionsModel>(
+export function neonText<TModel extends NeonChatModel>(
   model: TModel,
-  config?: NeonChatApiConfig,
-): NeonTextAdapter<TModel>
+  config?: NeonDefaultTextConfig<NoInfer<TModel>>,
+): NeonDefaultTextAdapter<TModel>
 export function neonText(model: NeonChatModel, config?: AnyNeonTextConfig) {
   return buildNeonText(model, getNeonTokenFromEnv(), config)
 }

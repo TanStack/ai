@@ -44,7 +44,7 @@ function flattenContent(target: unknown): boolean {
   return true
 }
 
-/** The JSON text with each choice's array content flattened, or `undefined` when nothing changed. */
+/** Repair Neon content and usage fields, or return `undefined` when unchanged. */
 function rewrite(json: string): string | undefined {
   let body: unknown
   try {
@@ -58,6 +58,19 @@ function rewrite(json: string): string | undefined {
     if (!isRecord(choice)) continue
     if (flattenContent(choice.message)) changed = true
     if (flattenContent(choice.delta)) changed = true
+  }
+  // Gemini reports reasoning tokens at the root of usage. The inherited
+  // Chat Completions parser reads the standard nested field, including on
+  // usage-only chunks whose choices array is empty.
+  if (isRecord(body.usage) && typeof body.usage.reasoning_tokens === 'number') {
+    const details = isRecord(body.usage.completion_tokens_details)
+      ? body.usage.completion_tokens_details
+      : {}
+    body.usage.completion_tokens_details = {
+      ...details,
+      reasoning_tokens: details.reasoning_tokens ?? body.usage.reasoning_tokens,
+    }
+    changed = true
   }
   return changed ? JSON.stringify(body) : undefined
 }

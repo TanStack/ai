@@ -85,6 +85,44 @@ describe('normalizeNeonContent', () => {
     expect(body.choices[0].message.reasoning_content).toBe('Hmm.')
   })
 
+  it.each([0, 272])(
+    'normalizes top-level reasoning usage (%s tokens)',
+    async (reasoningTokens) => {
+      const usage = {
+        prompt_tokens: 180,
+        completion_tokens: 7,
+        total_tokens: 187 + reasoningTokens,
+        reasoning_tokens: reasoningTokens,
+        completion_tokens_details: { audio_tokens: 2 },
+      }
+      const fetch = normalizeNeonContent(async () =>
+        Response.json({ choices: [], usage }),
+      )
+      const body = await (await fetch('https://x')).json()
+      expect(body.usage.completion_tokens_details).toEqual({
+        audio_tokens: 2,
+        reasoning_tokens: reasoningTokens,
+      })
+    },
+  )
+
+  it('preserves standard nested reasoning usage when both fields exist', async () => {
+    const fetch = normalizeNeonContent(async () =>
+      Response.json({
+        choices: [],
+        usage: {
+          reasoning_tokens: 272,
+          completion_tokens_details: { reasoning_tokens: 0, audio_tokens: 2 },
+        },
+      }),
+    )
+    const body = await (await fetch('https://x')).json()
+    expect(body.usage.completion_tokens_details).toEqual({
+      reasoning_tokens: 0,
+      audio_tokens: 2,
+    })
+  })
+
   it('leaves string content and error responses alone', async () => {
     const plain = chunk({ content: 'Hi' })
     const fetch = normalizeNeonContent(async () => sseResponse([plain]))
@@ -100,7 +138,20 @@ describe('normalizeNeonContent', () => {
     const adapter = createNeonText('gemini-3-8-flash', 'nt-test', {
       baseURL: HOST,
       fetch: async () =>
-        sseResponse([arrayDelta, chunk({}, 'stop'), 'data: [DONE]\n\n']),
+        sseResponse([
+          arrayDelta,
+          chunk({}, 'stop'),
+          `data: ${JSON.stringify({
+            choices: [],
+            usage: {
+              prompt_tokens: 180,
+              completion_tokens: 7,
+              total_tokens: 459,
+              reasoning_tokens: 272,
+            },
+          })}\n\n`,
+          'data: [DONE]\n\n',
+        ]),
     })
 
     const events: Array<{ type: string; delta?: string }> = []
@@ -115,6 +166,11 @@ describe('normalizeNeonContent', () => {
 
     const types = events.map((event) => event.type)
     expect(types).not.toContain(EventType.RUN_ERROR)
+    expect(
+      events.find((event) => event.type === EventType.RUN_FINISHED),
+    ).toMatchObject({
+      usage: { completionTokensDetails: { reasoningTokens: 272 } },
+    })
     expect(
       events.find((event) => event.type === EventType.TEXT_MESSAGE_CONTENT)
         ?.delta,

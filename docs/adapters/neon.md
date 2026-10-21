@@ -206,7 +206,7 @@ const result = await summarize({
 })
 ```
 
-Summarize uses the same endpoint as `neonText` for the model.
+Summarize uses the same endpoint and route options as `neonText` for the model. With `api: "responses"`, `modelOptions` accepts Responses options such as `max_output_tokens`.
 
 ## Models
 

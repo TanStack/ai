@@ -72,6 +72,39 @@ describe('neon summarize adapter', () => {
     expect(body.temperature).toBe(0.3)
   })
 
+  it('uses Responses token options for an explicit Responses route', async () => {
+    const bodies: Array<any> = []
+    const adapter = createNeonSummarize('gpt-6-1-sol', 'nt-test', {
+      api: 'responses',
+      baseURL: HOST,
+      fetch: async (input, init) => {
+        expect(new Request(input).url).toBe(`${HOST}/openai/v1/responses`)
+        bodies.push(JSON.parse(String(init?.body)))
+        return new Response('', {
+          headers: { 'content-type': 'text/event-stream' },
+        })
+      },
+    })
+    await adapter.summarize({
+      model: 'gpt-6-1-sol',
+      text: 'A long text.',
+      maxLength: 50,
+      logger,
+      modelOptions: { max_output_tokens: 100 },
+    })
+    await adapter.summarize({
+      model: 'gpt-6-1-sol',
+      text: 'A long text.',
+      maxLength: 50,
+      logger,
+    })
+    expect(bodies.map((body) => body.max_output_tokens)).toEqual([100, 50])
+    for (const body of bodies) {
+      expect(body).not.toHaveProperty('max_tokens')
+      expect(body).not.toHaveProperty('temperature')
+    }
+  })
+
   it('drops the default temperature for a model that rejects it', async () => {
     const { body } = await summarizeBody('gpt-5-5')
     expect(body).not.toHaveProperty('temperature')

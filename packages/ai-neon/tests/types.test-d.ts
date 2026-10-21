@@ -1,6 +1,12 @@
 import { chat, summarize } from '@tanstack/ai'
 import { expectTypeOf } from 'vitest'
-import { createNeonText, neonText, neonSummarize } from '../src'
+import {
+  createNeonText,
+  createNeonSummarize,
+  neonText,
+  neonSummarize,
+  NEON_CHAT_MODELS,
+} from '../src'
 import type {
   NeonAnthropicTextAdapter,
   NeonResponsesTextAdapter,
@@ -94,4 +100,46 @@ void summarize({
 void summarize({
   adapter: neonSummarize('claude-opus-5-5'),
   text: 'A long text.',
+})
+
+// A runtime selection from the full catalog keeps automatic routing.
+for (const model of NEON_CHAT_MODELS) {
+  chat({ adapter: createNeonText(model, 'k'), messages })
+  chat({ adapter: neonText(model), messages })
+  void summarize({ adapter: neonSummarize(model), text: 'A long text.' })
+  // @ts-expect-error not every member of the model union supports Chat Completions
+  createNeonText(model, 'k', { api: 'chat' })
+  // @ts-expect-error not every member of the model union supports Responses
+  neonText(model, { api: 'responses' })
+}
+
+// Summarize enforces the same model/route pairs as chat.
+// @ts-expect-error Gemini does not support Responses
+createNeonSummarize('gemini-3-8-flash', 'k', { api: 'responses' })
+// @ts-expect-error Claude uses Anthropic Messages
+neonSummarize('claude-opus-5-5', { api: 'responses' })
+// @ts-expect-error a Responses-only model cannot select Chat Completions
+neonSummarize('gpt-5-3-codex', { api: 'chat' })
+
+void summarize({
+  adapter: createNeonSummarize('gpt-6-1-sol', 'k', { api: 'responses' }),
+  text: 'A long text.',
+  modelOptions: { max_output_tokens: 100, truncation: 'auto' },
+})
+void summarize({
+  adapter: neonSummarize('gpt-6-1-sol', { api: 'responses' }),
+  text: 'A long text.',
+  // @ts-expect-error Responses uses max_output_tokens
+  modelOptions: { max_tokens: 100 },
+})
+void summarize({
+  adapter: neonSummarize('gpt-6-1-sol'),
+  text: 'A long text.',
+  modelOptions: { max_tokens: 100 },
+})
+void summarize({
+  adapter: neonSummarize('gpt-6-1-sol'),
+  text: 'A long text.',
+  // @ts-expect-error Chat Completions uses max_tokens
+  modelOptions: { max_output_tokens: 100 },
 })

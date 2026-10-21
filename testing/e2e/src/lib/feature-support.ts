@@ -379,6 +379,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'cloudflare',
     'neon',
     'neon-anthropic',
+    'neon-responses',
   ]),
   'summarize-stream': new Set([
     'openai',
@@ -400,6 +401,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'cloudflare',
     'neon',
     'neon-anthropic',
+    'neon-responses',
   ]),
   // Embedding (Promise-based `embed()` activity, no streaming). aimock 1.34
   // natively mocks OpenAI's /v1/embeddings (JSON fixture in

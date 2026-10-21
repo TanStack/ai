@@ -145,9 +145,9 @@ Some models think without sending any text back. Then the part stays empty. See 
 
 | Adapter | Sent as |
 | --- | --- |
-| OpenAI, Azure OpenAI, Grok, Bedrock Responses | `reasoning: { effort, summary }` |
-| OpenAI Chat Completions, Groq, LLM Gateway, Lovable, Bedrock chat, Cloudflare, Neon | `reasoning_effort` |
-| Anthropic | adaptive thinking with the effort, or a thinking budget |
+| OpenAI, Azure OpenAI, Grok, Bedrock Responses, Neon Responses | `reasoning: { effort, summary }` |
+| OpenAI Chat Completions, Groq, LLM Gateway, Lovable, Bedrock chat, Cloudflare, Neon Chat Completions | `reasoning_effort` |
+| Anthropic, Neon Claude | adaptive thinking with the effort, or a thinking budget |
 | Gemini | `thinkingConfig.thinkingLevel` or `thinkingConfig.thinkingBudget` |
 | OpenRouter, Vercel AI Gateway | the gateway's `reasoning` object |
 | Mistral | `reasoning_effort` or `prompt_mode` |
