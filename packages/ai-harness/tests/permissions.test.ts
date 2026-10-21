@@ -1163,6 +1163,17 @@ async function approvalInView() {
 }
 
 describe('permissions() answered from a session view', () => {
+  it('shows the tool, the args, and the tool call of the approval', async () => {
+    const { approval, close } = await approvalInView()
+
+    expect(approval).toMatchObject({
+      tool: 'read_file',
+      args: { path: '.env' },
+      toolCallId: 'c1',
+    })
+    await close()
+  })
+
   it.each(['always', { answer: 'always' }])(
     'runs the call and saves the rule for approve({ payload: %j })',
     async (payload) => {
