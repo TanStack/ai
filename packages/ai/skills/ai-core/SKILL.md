@@ -116,7 +116,11 @@ native computer tool of the model. Pick the machine with a driver package:
 | The real screen of the server machine | `localComputer()` from `@tanstack/ai-computer-local` (needs `@jitsi/robotjs`)            |
 
 ```typescript
-import { chat } from '@tanstack/ai'
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { createComputerUse } from '@tanstack/ai-computer-use'
 import { sandboxComputer } from '@tanstack/ai-computer-sandbox'
@@ -129,14 +133,19 @@ const computerUse = createComputerUse({
   }),
 })
 
-const stream = chat({
-  adapter: anthropicText('claude-opus-5-5'),
-  messages,
-  threadId, // required: without a stable threadId, each request gets a new machine
-  tools: computerUse.tools,
-  middleware: [computerUse.middleware],
-  interrupts: [computerUse.interrupt],
-})
+export async function POST(request: Request) {
+  const { messages, threadId } = await chatParamsFromRequest(request)
+  const stream = chat({
+    adapter: anthropicText('claude-opus-5-5'),
+    messages,
+    // Required: without a stable threadId, each request gets a new machine.
+    threadId,
+    tools: computerUse.tools,
+    middleware: [computerUse.middleware],
+    interrupts: [computerUse.interrupt],
+  })
+  return toServerSentEventsResponse(stream)
+}
 ```
 
 On the client, register `computerSafetyCheck` (from `@tanstack/ai-computer-use`)
