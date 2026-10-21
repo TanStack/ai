@@ -14,14 +14,24 @@ This test uses real provider accounts and can cost money.
 pnpm --filter @tanstack/ai-computer-sandbox-smoke smoke <provider> [--install]
 ```
 
+With OrbStack, run `docker` with `DOCKER_HOST=unix://$HOME/.orbstack/run/docker.sock`.
+
 `--install` installs the desktop tools with `apt-get` before the test. Use it when the image has no desktop.
 
 | Provider                                    | Desktop                                                                                | Command                      |
 | ------------------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------- |
 | `docker`                                    | Build the image first: `pnpm --filter @tanstack/ai-computer-sandbox-smoke build:image` | `smoke docker`               |
 | `e2b`                                       | The E2B `desktop` template                                                             | `smoke e2b`                  |
-| `daytona`                                   | Set `DAYTONA_SNAPSHOT` to a snapshot of `Dockerfile`, or install                       | `smoke daytona --install`    |
+| `daytona`                                   | The default image has XFCE. Install the tools at start                                 | `smoke daytona --install`    |
 | `blaxel`                                    | Set `DESKTOP_IMAGE` to a pushed copy of `Dockerfile`                                   | `smoke blaxel`               |
 | `boxd`, `railway`, `sprites`, `upstash-box` | Install at start                                                                       | `smoke <provider> --install` |
-| `vercel`                                    | Not supported: the image has no `apt-get`                                              |                              |
+| `vercel`                                    | Not tried. The image is Amazon Linux, and `--install` uses `apt-get`                   |                              |
 | `cloudflare`                                | Not in this script: it runs only in a Worker                                           |                              |
+
+## Results
+
+| Provider  | Result                   | Date       |
+| --------- | ------------------------ | ---------- |
+| `docker`  | Passed                   | 2026-10-21 |
+| `daytona` | Passed, with `--install` | 2026-10-21 |
+| Others    | Not run: no account keys |            |
