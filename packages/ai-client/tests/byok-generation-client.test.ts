@@ -31,6 +31,8 @@ describe('GenerationClient byok', () => {
       { prompt: 'hello' },
       {
         signal: expect.any(AbortSignal),
+        threadId: 'thread-1',
+        runId: expect.any(String),
         headers: { 'x-byok-elevenlabs': ELEVENLABS_KEY },
       },
     )
@@ -204,6 +206,8 @@ describe('GenerationClient byok', () => {
       { prompt: 'hello' },
       {
         signal: expect.any(AbortSignal),
+        threadId: 'thread-1',
+        runId: expect.any(String),
         headers: { 'x-byok-elevenlabs': ELEVENLABS_KEY },
       },
     )

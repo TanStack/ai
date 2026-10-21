@@ -156,7 +156,7 @@ Makes music or sound effects from a prompt. Guide: [Audio Generation](./audio-ge
 | `duration` | `number` | Length in seconds |
 | `modelOptions` | `Record<string, any>` | Model-specific options |
 
-This example also shows a `fetcher` with Bring Your Own Key (BYOK). The user's key goes in `x-byok-*` headers. With a `fetcher`, spread `options.headers` onto your request so the keys reach the server:
+This example also shows a `fetcher` with Bring Your Own Key (BYOK). The user's key goes in `x-byok-*` headers. With a `fetcher`, spread `headers` from the second argument onto your request so the keys reach the server:
 
 ```tsx
 import { useGenerateAudio } from '@tanstack/ai-react'
@@ -169,17 +169,13 @@ export function AudioGenerator() {
   const { generate, result, isLoading, error } = useGenerateAudio({
     byok,
     byokProvider: () => 'fal',
-    fetcher: async (input, options) => {
-      return fetch('/api/generate/audio', {
+    fetcher: (input, { threadId, signal, headers }) =>
+      fetch('/api/generate/audio', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...options?.headers,
-        },
+        headers: { 'Content-Type': 'application/json', ...headers },
         body: JSON.stringify({ ...input, threadId }),
-        signal: options?.signal,
-      })
-    },
+        signal,
+      }),
     threadId,
   })
 
@@ -404,7 +400,7 @@ Every hook takes these options:
 | Option | Type | Description |
 | --- | --- | --- |
 | `connection` | `ConnectConnectionAdapter` | Streaming transport (SSE, HTTP stream, or custom) |
-| `fetcher` | `(input, options) => Promise<Result \| Response>` | An async function, or a server function that returns an SSE `Response`. `options` holds `signal` and `headers`. |
+| `fetcher` | `(input, options) => Promise<Result \| Response>` | An async function, or a server function that returns an SSE `Response`. `options` holds `signal`, `threadId`, `runId`, and `headers`. |
 | `body` | `Record<string, any>` | Extra fields sent with each `connection` request |
 | `threadId` | `string` | Required. A stable name for this generation slot. |
 | `persistence` | `boolean` | `true` restores the last run for `threadId` from the server when the component mounts |

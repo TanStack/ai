@@ -297,10 +297,10 @@ export class GenerationClient<
 
       if (this.fetcher) {
         // Direct fetch path
-        const result = await this.fetcher(
-          input,
-          headers === undefined ? { signal } : { signal, headers },
-        )
+        const result = await this.fetcher(input, {
+          ...this.createRunContext(runId, headers),
+          signal,
+        })
         if (!ownsRun(this.abortController, abortController)) return
         if (result instanceof Response) {
           // Server function returned SSE Response — parse stream

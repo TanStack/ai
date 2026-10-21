@@ -157,7 +157,7 @@ describe('GenerationClient', () => {
       expect(states).toEqual([true, false])
     })
 
-    it('should pass abort signal to fetcher', async () => {
+    it('should pass abort signal, threadId and runId to fetcher', async () => {
       const fetcherSpy = vi.fn(
         async (
           _input: { prompt: string },
@@ -180,7 +180,11 @@ describe('GenerationClient', () => {
       expect(fetcherSpy).toHaveBeenCalledTimes(1)
       expect(fetcherSpy).toHaveBeenCalledWith(
         { prompt: 'test' },
-        { signal: expect.any(AbortSignal) },
+        {
+          signal: expect.any(AbortSignal),
+          threadId: 'thread-1',
+          runId: expect.any(String),
+        },
       )
     })
 
@@ -1431,7 +1435,11 @@ describe('GenerationClient', () => {
 
       expect(fetcherSpy).toHaveBeenCalledWith(
         { prompt: 'sunset' },
-        { signal: expect.any(AbortSignal) },
+        {
+          signal: expect.any(AbortSignal),
+          threadId: 'thread-1',
+          runId: expect.any(String),
+        },
       )
       expect(client.getResult()).toEqual({ id: '1' })
     })

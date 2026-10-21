@@ -149,7 +149,8 @@ const threadId = 'transcription'
 
 export function Transcriber() {
   const { generate, result, isLoading } = useTranscription({
-    fetcher: (input) => transcribeFn({ data: { ...input, threadId } }),
+    fetcher: (input, { threadId }) =>
+      transcribeFn({ data: { ...input, threadId } }),
     threadId,
   })
   // Render the same way as in the quick setup.
@@ -189,7 +190,7 @@ const threadId = 'transcription'
 
 export function Transcriber() {
   const { generate, result, isLoading } = useTranscription({
-    fetcher: (input) => {
+    fetcher: (input, { threadId }) => {
       if (typeof input.audio !== 'string') {
         throw new Error('Expected base64 or data URL audio')
       }

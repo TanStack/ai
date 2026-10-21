@@ -284,6 +284,10 @@ export const GENERATION_EVENTS = {
 export interface GenerationFetcherOptions {
   /** AbortSignal that is triggered when the user calls `stop()` */
   signal: AbortSignal
+  /** The client's thread id. Pass it to the server generation call. */
+  threadId: string
+  /** The id of this run. */
+  runId: string
   /** Extra request headers for this run (e.g. BYOK keys). */
   headers?: Record<string, string>
 }
@@ -300,7 +304,7 @@ export interface GenerationFetcherOptions {
  */
 export type GenerationFetcher<TInput, TResult> = (
   input: TInput,
-  options?: GenerationFetcherOptions,
+  options: GenerationFetcherOptions,
 ) => Promise<TResult | Response>
 
 /**

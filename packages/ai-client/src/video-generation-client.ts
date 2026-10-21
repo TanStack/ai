@@ -383,10 +383,10 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     const { signal } = abortController
 
     // Fetcher returns a completed result directly, or a Response with SSE body
-    const result = await this.fetcher(
-      input,
-      headers === undefined ? { signal } : { signal, headers },
-    )
+    const result = await this.fetcher(input, {
+      ...this.createRunContext(runId, headers),
+      signal,
+    })
     if (!ownsRun(this.abortController, abortController)) return
 
     if (result instanceof Response) {

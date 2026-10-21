@@ -183,7 +183,8 @@ const threadId = 'image-studio'
 
 export function ImageGenerator() {
   const { generate, result, isLoading } = useGenerateImage({
-    fetcher: (input) => generateImageFn({ data: { ...input, threadId } }),
+    fetcher: (input, { threadId }) =>
+      generateImageFn({ data: { ...input, threadId } }),
     threadId,
   })
   // Render the same way as in the quick setup.
@@ -225,7 +226,8 @@ const threadId = 'image-studio'
 
 export function ImageGenerator() {
   const { generate, result, isLoading } = useGenerateImage({
-    fetcher: (input) => generateImageStreamFn({ data: { ...input, threadId } }),
+    fetcher: (input, { threadId }) =>
+      generateImageStreamFn({ data: { ...input, threadId } }),
     threadId,
   })
   // Render the same way as in the quick setup.

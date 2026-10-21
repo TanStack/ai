@@ -103,7 +103,8 @@ const threadId = 'video-studio'
 
 export function VideoGenerator() {
   const { generate, result, isLoading } = useGenerateVideo({
-    fetcher: (input) => generateVideoFn({ data: { ...input, threadId } }),
+    fetcher: (input, { threadId }) =>
+      generateVideoFn({ data: { ...input, threadId } }),
     threadId,
   })
   // Render the same way as in the quick setup.
@@ -145,7 +146,8 @@ const threadId = 'video-studio'
 
 export function VideoGenerator() {
   const { generate, result, jobId, videoStatus, isLoading } = useGenerateVideo({
-    fetcher: (input) => generateVideoStreamFn({ data: { ...input, threadId } }),
+    fetcher: (input, { threadId }) =>
+      generateVideoStreamFn({ data: { ...input, threadId } }),
     threadId,
   })
   // Render the same way as in the quick setup.

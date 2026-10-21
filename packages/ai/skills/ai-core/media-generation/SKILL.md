@@ -119,12 +119,15 @@ import { openaiImage } from '@tanstack/ai-openai'
 import type { OpenAIImageModel } from '@tanstack/ai-openai'
 
 export const generateImageStreamFn = createServerFn({ method: 'POST' })
-  .inputValidator((data: { prompt: string; model?: OpenAIImageModel }) => data)
+  .inputValidator(
+    (data: { prompt: string; model?: OpenAIImageModel; threadId: string }) =>
+      data,
+  )
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       generateImage({
         adapter: openaiImage(data.model ?? 'gpt-image-1'),
-        threadId: 'thread-1',
+        threadId: data.threadId,
         prompt: data.prompt,
         stream: true,
       }),
@@ -138,7 +141,8 @@ import { generateImageStreamFn } from '../lib/server-functions'
 
 function ImageGenerator() {
   const { generate, result, isLoading } = useGenerateImage({
-    fetcher: (input) => generateImageStreamFn({ data: input }),
+    fetcher: (input, { threadId }) =>
+      generateImageStreamFn({ data: { ...input, threadId } }),
     threadId: 'product-123-hero',
   })
 
