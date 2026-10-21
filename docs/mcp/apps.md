@@ -20,6 +20,8 @@ An MCP App is a widget returned with a tool result. Render that widget in the ch
 
 TanStack AI reads the widget during the `chat()` run and puts it on the assistant message as a `ui-resource` part. Render that part with `MCPAppResource`.
 
+> **Want the model to write the widget?** [Generative UI](../generative-ui/index) builds on MCP Apps. The model authors a UI during the chat, and the host stores, builds, and serves it as a `ui://` resource.
+
 ## Quick setup
 
 You need a chat with an MCP server first. If you do not have one, start with [MCP Server Tools](../tools/mcp). This setup uses React. Preact has the same API.
