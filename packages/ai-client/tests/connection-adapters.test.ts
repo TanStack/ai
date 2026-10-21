@@ -11,6 +11,8 @@ import {
 import { UnsupportedResponseStreamError } from '../src'
 import type { StreamChunk } from '@tanstack/ai/client'
 
+const RUN_CONTEXT = { threadId: 'thread-1', runId: 'run-1' }
+
 describe('connection-adapters', () => {
   let originalFetch: typeof fetch
   let fetchMock: ReturnType<typeof vi.fn>
@@ -157,9 +159,12 @@ describe('connection-adapters', () => {
       const adapter = fetchServerSentEvents('/api/chat')
       const chunks: Array<StreamChunk> = []
 
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         chunks.push(chunk)
       }
 
@@ -197,9 +202,12 @@ describe('connection-adapters', () => {
       const adapter = fetchServerSentEvents('/api/chat')
       const chunks: Array<StreamChunk> = []
 
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         chunks.push(chunk)
       }
 
@@ -245,9 +253,12 @@ describe('connection-adapters', () => {
 
       const adapter = fetchServerSentEvents('/api/chat')
       const chunks: Array<StreamChunk> = []
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         chunks.push(chunk)
       }
 
@@ -288,9 +299,12 @@ describe('connection-adapters', () => {
       const adapter = fetchServerSentEvents('/api/chat')
       const chunks: Array<StreamChunk> = []
 
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         chunks.push(chunk)
       }
 
@@ -322,9 +336,12 @@ describe('connection-adapters', () => {
 
       await expect(
         (async () => {
-          for await (const _ of adapter.connect([
-            { role: 'user', content: 'Hello' },
-          ])) {
+          for await (const _ of adapter.connect(
+            [{ role: 'user', content: 'Hello' }],
+            undefined,
+            undefined,
+            RUN_CONTEXT,
+          )) {
             // Consume
           }
         })(),
@@ -344,9 +361,12 @@ describe('connection-adapters', () => {
 
       await expect(
         (async () => {
-          for await (const _ of adapter.connect([
-            { role: 'user', content: 'Hello' },
-          ])) {
+          for await (const _ of adapter.connect(
+            [{ role: 'user', content: 'Hello' }],
+            undefined,
+            undefined,
+            RUN_CONTEXT,
+          )) {
             // Consume
           }
         })(),
@@ -365,9 +385,12 @@ describe('connection-adapters', () => {
 
       await expect(
         (async () => {
-          for await (const _ of adapter.connect([
-            { role: 'user', content: 'Hello' },
-          ])) {
+          for await (const _ of adapter.connect(
+            [{ role: 'user', content: 'Hello' }],
+            undefined,
+            undefined,
+            RUN_CONTEXT,
+          )) {
             // Consume
           }
         })(),
@@ -389,9 +412,12 @@ describe('connection-adapters', () => {
 
       await expect(
         (async () => {
-          for await (const _ of adapter.connect([
-            { role: 'user', content: 'Hello' },
-          ])) {
+          for await (const _ of adapter.connect(
+            [{ role: 'user', content: 'Hello' }],
+            undefined,
+            undefined,
+            RUN_CONTEXT,
+          )) {
             // Consume
           }
         })(),
@@ -414,9 +440,12 @@ describe('connection-adapters', () => {
 
       const adapter = fetchServerSentEvents('/api/chat')
       const consume = async () => {
-        for await (const _ of adapter.connect([
-          { role: 'user', content: 'Hello' },
-        ])) {
+        for await (const _ of adapter.connect(
+          [{ role: 'user', content: 'Hello' }],
+          undefined,
+          undefined,
+          RUN_CONTEXT,
+        )) {
           // Consume
         }
       }
@@ -448,9 +477,12 @@ describe('connection-adapters', () => {
         headers: { Authorization: 'Bearer token' },
       })
 
-      for await (const _ of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         // Consume
       }
 
@@ -482,9 +514,12 @@ describe('connection-adapters', () => {
 
       const adapter = fetchServerSentEvents('/api/chat', { headers })
 
-      for await (const _ of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         // Consume
       }
 
@@ -525,6 +560,8 @@ describe('connection-adapters', () => {
       for await (const _ of adapter.connect(
         [{ role: 'user', content: 'Hello' }],
         { key: 'value' },
+        undefined,
+        RUN_CONTEXT,
       )) {
         // Consume
       }
@@ -551,9 +588,12 @@ describe('connection-adapters', () => {
         fetchClient: customFetch,
       })
 
-      for await (const _ of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         // Consume
       }
 
@@ -576,9 +616,12 @@ describe('connection-adapters', () => {
 
       const adapter = fetchServerSentEvents(() => '/api/dynamic')
 
-      for await (const _ of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         // Consume
       }
 
@@ -602,9 +645,12 @@ describe('connection-adapters', () => {
         headers: { 'X-Custom': 'dynamic' },
       }))
 
-      for await (const _ of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         // Consume
       }
 
@@ -629,9 +675,12 @@ describe('connection-adapters', () => {
         headers: { 'X-Async': 'token' },
       }))
 
-      for await (const _ of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         // Consume
       }
 
@@ -659,6 +708,8 @@ describe('connection-adapters', () => {
       for await (const _ of adapter.connect(
         [{ role: 'user', content: 'Hello' }],
         { key: 'value' },
+        undefined,
+        RUN_CONTEXT,
       )) {
         // Consume
       }
@@ -708,7 +759,12 @@ describe('connection-adapters', () => {
       const adapter = fetchServerSentEvents('/api/generate')
       const chunks: Array<StreamChunk> = []
 
-      for await (const chunk of adapter.connect([], { prompt: 'test' })) {
+      for await (const chunk of adapter.connect(
+        [],
+        { prompt: 'test' },
+        undefined,
+        RUN_CONTEXT,
+      )) {
         chunks.push(chunk)
       }
 
@@ -818,9 +874,12 @@ describe('connection-adapters', () => {
       const adapter = fetchHttpStream('/api/chat')
       const chunks: Array<StreamChunk> = []
 
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         chunks.push(chunk)
       }
 
@@ -852,9 +911,12 @@ describe('connection-adapters', () => {
 
       await expect(
         (async () => {
-          for await (const _ of adapter.connect([
-            { role: 'user', content: 'Hello' },
-          ])) {
+          for await (const _ of adapter.connect(
+            [{ role: 'user', content: 'Hello' }],
+            undefined,
+            undefined,
+            RUN_CONTEXT,
+          )) {
             // Consume
           }
         })(),
@@ -874,9 +936,12 @@ describe('connection-adapters', () => {
 
       await expect(
         (async () => {
-          for await (const _ of adapter.connect([
-            { role: 'user', content: 'Hello' },
-          ])) {
+          for await (const _ of adapter.connect(
+            [{ role: 'user', content: 'Hello' }],
+            undefined,
+            undefined,
+            RUN_CONTEXT,
+          )) {
             // Consume
           }
         })(),
@@ -899,9 +964,12 @@ describe('connection-adapters', () => {
         fetchClient: customFetch,
       })
 
-      for await (const _ of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         // Consume
       }
 
@@ -921,9 +989,12 @@ describe('connection-adapters', () => {
 
       await expect(
         (async () => {
-          for await (const _ of adapter.connect([
-            { role: 'user', content: 'Hello' },
-          ])) {
+          for await (const _ of adapter.connect(
+            [{ role: 'user', content: 'Hello' }],
+            undefined,
+            undefined,
+            RUN_CONTEXT,
+          )) {
             // Consume
           }
         })(),
@@ -955,9 +1026,12 @@ describe('connection-adapters', () => {
       try {
         await expect(
           (async () => {
-            for await (const _ of adapter.connect([
-              { role: 'user', content: 'Hello' },
-            ])) {
+            for await (const _ of adapter.connect(
+              [{ role: 'user', content: 'Hello' }],
+              undefined,
+              undefined,
+              RUN_CONTEXT,
+            )) {
               // Consume
             }
           })(),
@@ -988,9 +1062,12 @@ describe('connection-adapters', () => {
         headers: { Authorization: 'Bearer token' },
       })
 
-      for await (const _ of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         // Consume
       }
 
@@ -1019,6 +1096,8 @@ describe('connection-adapters', () => {
       for await (const _ of adapter.connect(
         [{ role: 'user', content: 'Hello' }],
         { key: 'value' },
+        undefined,
+        RUN_CONTEXT,
       )) {
         // Consume
       }
@@ -1043,9 +1122,12 @@ describe('connection-adapters', () => {
 
       const adapter = fetchHttpStream(() => '/api/dynamic')
 
-      for await (const _ of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const _ of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         // Consume
       }
 
@@ -1088,7 +1170,12 @@ describe('connection-adapters', () => {
       const adapter = fetchHttpStream('/api/generate')
       const chunks: Array<StreamChunk> = []
 
-      for await (const chunk of adapter.connect([], { prompt: 'test' })) {
+      for await (const chunk of adapter.connect(
+        [],
+        { prompt: 'test' },
+        undefined,
+        RUN_CONTEXT,
+      )) {
         chunks.push(chunk)
       }
 
@@ -1115,9 +1202,12 @@ describe('connection-adapters', () => {
       const adapter = stream(streamFactory)
       const chunks: Array<StreamChunk> = []
 
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         chunks.push(chunk)
       }
 
@@ -1143,6 +1233,8 @@ describe('connection-adapters', () => {
       for await (const _ of adapter.connect(
         [{ role: 'user', content: 'Hello' }],
         data,
+        undefined,
+        RUN_CONTEXT,
       )) {
         // Consume
       }
@@ -1336,9 +1428,12 @@ describe('connection-adapters', () => {
       const adapter = rpcStream(rpcCall)
       const chunks: Array<StreamChunk> = []
 
-      for await (const chunk of adapter.connect([
-        { role: 'user', content: 'Hello' },
-      ])) {
+      for await (const chunk of adapter.connect(
+        [{ role: 'user', content: 'Hello' }],
+        undefined,
+        undefined,
+        RUN_CONTEXT,
+      )) {
         chunks.push(chunk)
       }
 
@@ -1368,6 +1463,8 @@ describe('connection-adapters', () => {
       for await (const _ of adapter.connect(
         [{ role: 'user', content: 'Hello' }],
         data,
+        undefined,
+        RUN_CONTEXT,
       )) {
         // Consume
       }

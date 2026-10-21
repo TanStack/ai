@@ -6,6 +6,8 @@ import {
   xhrServerSentEvents,
 } from '../src/connection-adapters'
 
+const RUN_CONTEXT = { threadId: 'thread-1', runId: 'run-1' }
+
 type XhrEventHandler = ((event: ProgressEvent) => void) | null
 
 function createProgressEvent(): ProgressEvent {
@@ -177,7 +179,9 @@ describe('xhr connection adapters', () => {
     it('parses SSE data frames without a space after the colon', async () => {
       const { xhr, xhrFactory } = createFakeXhrFactory()
       const adapter = xhrServerSentEvents('/api/chat', { xhrFactory })
-      const iterator = adapter.connect([])[Symbol.asyncIterator]()
+      const iterator = adapter
+        .connect([], undefined, undefined, RUN_CONTEXT)
+        [Symbol.asyncIterator]()
       const nextChunk = iterator.next()
       await nextTick()
 
@@ -198,7 +202,9 @@ describe('xhr connection adapters', () => {
     it('throws a SyntaxError on malformed JSON', async () => {
       const { xhr, xhrFactory } = createFakeXhrFactory()
       const adapter = xhrServerSentEvents('/api/chat', { xhrFactory })
-      const iterator = adapter.connect([])[Symbol.asyncIterator]()
+      const iterator = adapter
+        .connect([], undefined, undefined, RUN_CONTEXT)
+        [Symbol.asyncIterator]()
       const nextChunk = iterator.next()
       await nextTick()
 
@@ -210,7 +216,9 @@ describe('xhr connection adapters', () => {
     it('throws a meaningful error for non-2xx status', async () => {
       const { xhr, xhrFactory } = createFakeXhrFactory()
       const adapter = xhrServerSentEvents('/api/chat', { xhrFactory })
-      const iterator = adapter.connect([])[Symbol.asyncIterator]()
+      const iterator = adapter
+        .connect([], undefined, undefined, RUN_CONTEXT)
+        [Symbol.asyncIterator]()
       const nextChunk = iterator.next()
       await nextTick()
 
@@ -226,7 +234,9 @@ describe('xhr connection adapters', () => {
     it('throws status error instead of yielding or parsing body chunks when status is non-2xx before progress', async () => {
       const { xhr, xhrFactory } = createFakeXhrFactory()
       const adapter = xhrServerSentEvents('/api/chat', { xhrFactory })
-      const iterator = adapter.connect([])[Symbol.asyncIterator]()
+      const iterator = adapter
+        .connect([], undefined, undefined, RUN_CONTEXT)
+        [Symbol.asyncIterator]()
       const nextChunk = iterator.next()
       await nextTick()
 
@@ -246,7 +256,7 @@ describe('xhr connection adapters', () => {
       abortController.abort()
       const adapter = xhrServerSentEvents('/api/chat', { xhrFactory })
       const iterator = adapter
-        .connect([], undefined, abortController.signal)
+        .connect([], undefined, abortController.signal, RUN_CONTEXT)
         [Symbol.asyncIterator]()
 
       await expect(iterator.next()).resolves.toEqual({
@@ -268,7 +278,7 @@ describe('xhr connection adapters', () => {
       )
       const adapter = xhrServerSentEvents('/api/chat', { xhrFactory })
       const iterator = adapter
-        .connect([], undefined, abortController.signal)
+        .connect([], undefined, abortController.signal, RUN_CONTEXT)
         [Symbol.asyncIterator]()
       const nextChunk = iterator.next()
       await nextTick()
@@ -301,7 +311,7 @@ describe('xhr connection adapters', () => {
       const successIterator = xhrServerSentEvents('/api/chat', {
         xhrFactory: success.xhrFactory,
       })
-        .connect([], undefined, successAbortController.signal)
+        .connect([], undefined, successAbortController.signal, RUN_CONTEXT)
         [Symbol.asyncIterator]()
       const successNext = successIterator.next()
       await nextTick()
@@ -331,7 +341,7 @@ describe('xhr connection adapters', () => {
       const failureIterator = xhrServerSentEvents('/api/chat', {
         xhrFactory: failure.xhrFactory,
       })
-        .connect([], undefined, failureAbortController.signal)
+        .connect([], undefined, failureAbortController.signal, RUN_CONTEXT)
         [Symbol.asyncIterator]()
       const failureNext = failureIterator.next()
       await nextTick()
@@ -356,7 +366,9 @@ describe('xhr connection adapters', () => {
     it('throws StreamTruncatedError on trailing unterminated SSE data', async () => {
       const { xhr, xhrFactory } = createFakeXhrFactory()
       const adapter = xhrServerSentEvents('/api/chat', { xhrFactory })
-      const iterator = adapter.connect([])[Symbol.asyncIterator]()
+      const iterator = adapter
+        .connect([], undefined, undefined, RUN_CONTEXT)
+        [Symbol.asyncIterator]()
       const nextChunk = iterator.next()
       await nextTick()
 
@@ -371,7 +383,9 @@ describe('xhr connection adapters', () => {
     it('parses split newline-delimited JSON across progress events', async () => {
       const { xhr, xhrFactory } = createFakeXhrFactory()
       const adapter = xhrHttpStream('/api/chat', { xhrFactory })
-      const iterator = adapter.connect([])[Symbol.asyncIterator]()
+      const iterator = adapter
+        .connect([], undefined, undefined, RUN_CONTEXT)
+        [Symbol.asyncIterator]()
       const nextChunk = iterator.next()
       await nextTick()
 
@@ -388,7 +402,9 @@ describe('xhr connection adapters', () => {
     it('throws a SyntaxError for malformed newline-delimited JSON', async () => {
       const { xhr, xhrFactory } = createFakeXhrFactory()
       const adapter = xhrHttpStream('/api/chat', { xhrFactory })
-      const iterator = adapter.connect([])[Symbol.asyncIterator]()
+      const iterator = adapter
+        .connect([], undefined, undefined, RUN_CONTEXT)
+        [Symbol.asyncIterator]()
       const nextChunk = iterator.next()
       await nextTick()
 
@@ -400,7 +416,9 @@ describe('xhr connection adapters', () => {
     it('throws status error instead of yielding or parsing body chunks when status is non-2xx before progress', async () => {
       const { xhr, xhrFactory } = createFakeXhrFactory()
       const adapter = xhrHttpStream('/api/chat', { xhrFactory })
-      const iterator = adapter.connect([])[Symbol.asyncIterator]()
+      const iterator = adapter
+        .connect([], undefined, undefined, RUN_CONTEXT)
+        [Symbol.asyncIterator]()
       const nextChunk = iterator.next()
       await nextTick()
 
@@ -420,7 +438,7 @@ describe('xhr connection adapters', () => {
       abortController.abort()
       const adapter = xhrHttpStream('/api/chat', { xhrFactory })
       const iterator = adapter
-        .connect([], undefined, abortController.signal)
+        .connect([], undefined, abortController.signal, RUN_CONTEXT)
         [Symbol.asyncIterator]()
 
       await expect(iterator.next()).resolves.toEqual({

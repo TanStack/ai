@@ -4,6 +4,8 @@ import {
   fetchServerSentEvents,
 } from '../src/connection-adapters'
 
+const RUN_CONTEXT = { threadId: 'thread-1', runId: 'run-1' }
+
 const chunk = { type: 'RUN_STARTED', threadId: 'thread', runId: 'run' }
 
 describe.each([
@@ -26,7 +28,11 @@ describe.each([
     const adapter = createAdapter('/chat', {
       fetchClient: async () => new Response(body),
     })
-    return { body, cancel, stream: adapter.connect([]) }
+    return {
+      body,
+      cancel,
+      stream: adapter.connect([], undefined, undefined, RUN_CONTEXT),
+    }
   }
 
   it('cancels the response when JSON parsing fails', async () => {

@@ -1319,23 +1319,28 @@ function buildRunAgentInputBody(
 ) {
   // Precedence (later spreads win): static adapter `body` is the base,
   // overridden by `runContext.forwardedProps`, overridden by per-message `data`.
+  if (!runContext) {
+    throw new Error(
+      'Connection adapter: connect() and send() need a run context with a threadId. ChatClient and the generation clients pass one. Pass it when you call the adapter yourself.',
+    )
+  }
   const wireMessages = uiMessagesToWire(messages)
   const forwardedProps = {
     ...options.body,
-    ...(runContext?.forwardedProps ?? {}),
+    ...(runContext.forwardedProps ?? {}),
     ...data,
   }
 
   return {
-    threadId: runContext?.threadId ?? generateRunId('thread'),
-    runId: runContext?.runId ?? generateRunId('run'),
-    ...(runContext?.parentRunId !== undefined && {
+    threadId: runContext.threadId,
+    runId: runContext.runId ?? generateRunId('run'),
+    ...(runContext.parentRunId !== undefined && {
       parentRunId: runContext.parentRunId,
     }),
-    ...(runContext?.resume !== undefined && { resume: runContext.resume }),
+    ...(runContext.resume !== undefined && { resume: runContext.resume }),
     state: {},
     messages: wireMessages,
-    tools: runContext?.clientTools ?? [],
+    tools: runContext.clientTools ?? [],
     context: [],
     forwardedProps,
   }
@@ -2057,7 +2062,7 @@ function readXhrLines(
 
 interface ConfiguredXhrRequest {
   xhr: XMLHttpRequest
-  body: string
+  body: string | null
 }
 
 function createConfiguredXhrRequest(
@@ -2090,14 +2095,15 @@ function createConfiguredXhrRequest(
     xhr.setRequestHeader(name, value)
   }
 
-  const requestBody = buildRunAgentInputBody(
-    messages,
-    data,
-    runContext,
-    options,
-  )
+  // A read-only join is a bodyless GET; a run POSTs the RunAgentInput payload.
+  const body =
+    method === 'GET'
+      ? null
+      : JSON.stringify(
+          buildRunAgentInputBody(messages, data, runContext, options),
+        )
 
-  return { xhr, body: JSON.stringify(requestBody) }
+  return { xhr, body }
 }
 
 async function resolveXhrConnectionOptions(
@@ -2136,8 +2142,7 @@ function xhrEventSource(
       await lines.next()
       return
     }
-    // A read-only join is a bodyless GET; a run POSTs the RunAgentInput payload.
-    request.xhr.send(method === 'GET' ? null : request.body)
+    request.xhr.send(request.body)
     try {
       yield* parseLines(lines)
     } finally {
