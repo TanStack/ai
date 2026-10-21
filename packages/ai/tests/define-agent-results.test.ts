@@ -104,7 +104,6 @@ function parentAgent(name: string, child: DefinedAgent) {
     description: `Starts ${child.name}`,
     run: (ctx) =>
       ctx.chat({
-        threadId: ctx.threadId,
         adapter,
         subagents: { agents: [child] },
       }),
@@ -127,7 +126,7 @@ function textAgent(name: string) {
   return defineAgent({
     name,
     description: `The ${name} agent`,
-    run: (ctx) => ctx.chat({ threadId: ctx.threadId, adapter }),
+    run: (ctx) => ctx.chat({ adapter }),
   })
 }
 
@@ -205,8 +204,7 @@ describe('defineAgent promise results', () => {
     const agent = defineAgent({
       name: 'titler',
       description: 'Writes a title',
-      run: (ctx) =>
-        ctx.chat({ threadId: ctx.threadId, adapter, stream: false }),
+      run: (ctx) => ctx.chat({ adapter, stream: false }),
     })
 
     const chunks = await runParent(agent)
@@ -313,8 +311,7 @@ describe('agent run context', () => {
     const agent = defineAgent({
       name: 'helper',
       description: 'Uses ctx.chat',
-      run: (ctx) =>
-        ctx.chat({ threadId: ctx.threadId, adapter: child.adapter }),
+      run: (ctx) => ctx.chat({ adapter: child.adapter }),
     })
 
     const chunks = await runParent(agent, {
@@ -343,7 +340,6 @@ describe('agent run context', () => {
       inputSchema: z.object({ prompt: z.string() }),
       run: (ctx) =>
         ctx.generateImage({
-          threadId: ctx.threadId,
           adapter,
           prompt: ctx.input.prompt,
           size: '1024x1024',
@@ -432,7 +428,6 @@ describe('nested children', () => {
       description: 'Makes an image',
       run: (ctx) =>
         ctx.generateImage({
-          threadId: ctx.threadId,
           adapter: imageAdapter(generateImages),
           prompt: 'a cat',
           size: '1024x1024',

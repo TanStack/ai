@@ -335,7 +335,6 @@ export const writer = defineAgent({
     ctx.chat({
       adapter: await ctx.keys.adapter(gpt),
       messages: [{ role: "user", content: "Write a short draft." }],
-      threadId: ctx.threadId,
       stream: false,
     }),
 });

@@ -69,29 +69,30 @@ export type TTSProviderOptions<TAdapter> = TAdapter extends {
 export type TTSActivityOptions<
   TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
   TStream extends boolean = false,
-> = TTSActivityOptionsBase<TAdapter, TStream> &
-  (
-    | {
-        /** The text to convert to speech */
-        text: string
-        turns?: undefined
-      }
-    | {
-        text?: undefined
-        /**
-         * Multi-voice dialogue turns, one per line of the script. Mutually
-         * exclusive with `text`.
-         *
-         * Only adapters that declare `capabilities.maxSpeakers` accept these
-         * (ElevenLabs 10 voices, Gemini 2); anything else throws before the
-         * request leaves the process.
-         */
-        turns: Array<TTSTurn>
-      }
-  )
+> = TTSActivityOptionsBase<TAdapter, TStream> & TTSTextOrTurns
+
+/** The text of a speech request: `text` or `turns`, never both. */
+export type TTSTextOrTurns =
+  | {
+      /** The text to convert to speech */
+      text: string
+      turns?: undefined
+    }
+  | {
+      text?: undefined
+      /**
+       * Multi-voice dialogue turns, one per line of the script. Mutually
+       * exclusive with `text`.
+       *
+       * Only adapters that declare `capabilities.maxSpeakers` accept these
+       * (ElevenLabs 10 voices, Gemini 2); anything else throws before the
+       * request leaves the process.
+       */
+      turns: Array<TTSTurn>
+    }
 
 /** Shared half of {@link TTSActivityOptions} — everything except text/turns. */
-interface TTSActivityOptionsBase<
+export interface TTSActivityOptionsBase<
   TAdapter extends TTSAdapter<string, TTSProviderOptions<TAdapter>>,
   TStream extends boolean = false,
 > {

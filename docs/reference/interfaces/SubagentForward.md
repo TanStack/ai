@@ -3,7 +3,7 @@ id: SubagentForward
 title: SubagentForward
 ---
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:25
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:88
 
 The fields a child `chat()` needs, in one spread:
 `chat({ adapter, messages, ...ctx.forward })`.
@@ -16,7 +16,7 @@ The fields a child `chat()` needs, in one spread:
 abortController: AbortController;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:36
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:99
 
 Aborts when the parent run or the subagent group stops.
 
@@ -28,7 +28,7 @@ Aborts when the parent run or the subagent group stops.
 parentRunId: string;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:28
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:91
 
 ***
 
@@ -38,7 +38,7 @@ Defined in: packages/ai/src/activities/chat/agents/bound.ts:28
 optional parentSubagentRunId?: string;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:33
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:96
 
 The subagentRunId of the child that started this one, for a nested child.
 
@@ -50,7 +50,7 @@ The subagentRunId of the child that started this one, for a nested child.
 optional promptCache?: PromptCacheRetention;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:38
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:101
 
 The prompt cache retention of the parent call, when it has one.
 
@@ -62,7 +62,7 @@ The prompt cache retention of the parent call, when it has one.
 optional resume?: RunAgentResumeItem[];
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:34
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:97
 
 ***
 
@@ -72,7 +72,7 @@ Defined in: packages/ai/src/activities/chat/agents/bound.ts:34
 runId: string;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:27
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:90
 
 ***
 
@@ -82,7 +82,7 @@ Defined in: packages/ai/src/activities/chat/agents/bound.ts:27
 subagentName: string;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:31
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:94
 
 The agent name. Middleware reads it as `ctx.subagentName`.
 
@@ -94,7 +94,7 @@ The agent name. Middleware reads it as `ctx.subagentName`.
 subagentRunId: string;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:29
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:92
 
 ***
 
@@ -104,4 +104,4 @@ Defined in: packages/ai/src/activities/chat/agents/bound.ts:29
 threadId: string;
 ```
 
-Defined in: packages/ai/src/activities/chat/agents/bound.ts:26
+Defined in: packages/ai/src/activities/chat/agents/bound.ts:89

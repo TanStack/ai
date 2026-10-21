@@ -518,6 +518,30 @@ type TextActivityOptionsWithContext<
 > &
   TypedChatFields<TTools, TInterrupts, TContext, TMiddleware>
 
+/**
+ * The `chat()` options of `ctx.chat` on a subagent. `threadId` is optional:
+ * the child run fills it.
+ */
+export type BoundTextActivityOptions<
+  TAdapter extends AnyTextAdapter,
+  TSchema extends SchemaInput | undefined,
+  TStream extends boolean,
+  TTools extends TextActivityOptions<TAdapter, TSchema, TStream, any>['tools'],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    [],
+  TContext = unknown,
+  TMiddleware extends Array<unknown> | undefined = undefined,
+  TAgents extends ReadonlyArray<DefinedAgent> = ReadonlyArray<DefinedAgent>,
+> = Omit<
+  TextActivityOptions<TAdapter, TSchema, TStream, any, TAgents>,
+  'tools' | 'middleware' | 'context' | 'interrupts' | 'toolChoice' | 'threadId'
+> & { threadId?: string } & TypedChatFields<
+    TTools,
+    TInterrupts,
+    TContext,
+    TMiddleware
+  >
+
 /** The `chat()` fields whose types come from the tools and middleware. */
 type TypedChatFields<
   TTools,

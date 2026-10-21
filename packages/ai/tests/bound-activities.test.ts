@@ -104,6 +104,16 @@ describe('createBoundActivities', () => {
     })
   })
 
+  it('lets a generation call pass its own threadId', () => {
+    const { activities } = bound()
+    const call = activities.generateImage as unknown as (
+      options: object,
+    ) => Recorded
+    expect(call({ prompt: 'x', threadId: 'mine' }).options.threadId).toBe(
+      'mine',
+    )
+  })
+
   it('passes only middleware to embed, and the signal plus middleware to rerank and decide', () => {
     const { activities, controller } = bound()
     const embed = (

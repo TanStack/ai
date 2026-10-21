@@ -224,7 +224,6 @@ const heroImage = defineAgent({
     ctx.generateImage({
       adapter: openaiImage('gpt-image-2.5-sunburst'),
       prompt: `${ctx.input.prompt}. Brand colors: blue and white.`,
-      threadId: ctx.threadId,
       size: '1536x1024',
     }),
 })

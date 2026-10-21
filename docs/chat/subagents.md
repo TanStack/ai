@@ -37,7 +37,7 @@ import { openaiText } from '@tanstack/ai-openai'
 const researcher = defineAgent({
   name: 'researcher',
   description: 'Looks up facts and sources',
-  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol'), threadId: ctx.threadId }),
+  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol') }),
 })
 
 export async function POST(request: Request) {
@@ -149,7 +149,7 @@ const messages = [{ role: 'user' as const, content: 'Capital of France?' }]
 const researcher = defineAgent({
   name: 'researcher',
   description: 'Looks up facts and sources',
-  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol'), threadId: ctx.threadId }),
+  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol') }),
 })
 
 const stream = chat({
@@ -259,7 +259,7 @@ import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
 const writer = defineAgent({
   name: 'writer',
   description: 'Writes and edits drafts',
-  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol'), threadId: ctx.threadId }),
+  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol') }),
 })
 
 // A continued child loads from this store. Use a durable backend in production.
@@ -400,7 +400,7 @@ import { openaiText } from '@tanstack/ai-openai'
 const researcher = defineAgent({
   name: 'researcher',
   description: 'Looks up facts',
-  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol'), threadId: ctx.threadId }),
+  run: (ctx) => ctx.chat({ adapter: openaiText('gpt-6.1-sol') }),
 })
 
 const stream = chat({

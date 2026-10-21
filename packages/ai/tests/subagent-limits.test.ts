@@ -85,7 +85,6 @@ describe('subagent limits', () => {
       description: 'Calls a grandchild',
       run: (ctx) =>
         ctx.chat({
-          threadId: ctx.threadId,
           adapter: callsInOneTurn('grandchild', ['g1']).adapter,
           subagents: { agents: [grandchild] },
         }),
@@ -141,7 +140,6 @@ describe('subagent limits', () => {
       run: (ctx) => {
         vi.setSystemTime(5_000)
         return ctx.chat({
-          threadId: ctx.threadId,
           adapter: callsInOneTurn('grandchild', ['g1']).adapter,
           subagents: { agents: [grandchild] },
         })
@@ -228,7 +226,6 @@ describe('subagent limits', () => {
       description: 'Calls a grandchild',
       run: (ctx) =>
         ctx.chat({
-          threadId: ctx.threadId,
           adapter: callsInOneTurn('grandchild', ['g1']).adapter,
           subagents: { agents: [grandchild] },
         }),
