@@ -208,7 +208,7 @@ export const exampleEnv = permissions({
 - `websearch` has no rule, so it runs.
 - The path rules above also apply. For example, `read_file` asks for a `.env` file.
 - The coding tools check the real path of a link too, and the stricter decision wins. So a link `notes` to `.env` asks, like `.env`.
-- The rules decide a path outside `root` and the real path of a link before the call runs. A coding tool never asks while it runs.
+- The rules decide a path outside `root` and the real path of a link before the call runs. A coding tool never asks while it runs. In a [code mode program](./code-mode#run-the-coding-tools-in-a-program), a call asks before it starts, and the program waits.
 - `grep` skips each file that `read_file` asks about or denies, also after an `always` answer. A note gives the number of skipped files.
 - Your `rules` come after these rules, so they win. `{ tool: 'webfetch', decision: 'allow' }` lets `webfetch` run without a question.
 
@@ -255,6 +255,7 @@ The plugin decides every call of a model message before any of them runs. Each c
 - A reject can carry a `message` for the model: `{ answer: 'reject', message: 'Use pnpm, not npm.' }`. The model gets your message as the tool error.
 - Any other answer rejects the call. This includes `'y'` and `'yes'`.
 - The `schema` of the wait describes these answers, so a client can show a form for it.
+- A call in a [code mode program](./code-mode#answer-the-question) asks with a wait of kind `question`, and the turn does not stop. Answer it with `session.answer({ questionId, value })`.
 
 ### What `always` saves
 
@@ -382,8 +383,61 @@ export const planTools = definePlugin({
 - Pass what a call touches as a third argument, for example `decide('read_file', 'default', { paths: [file] })`. Then the path rules and `root` apply too.
 - Read it when the plugin runs, not in `setup`. Then `permissions()` can come before or after your plugin.
 - Saved `always` answers are not part of it. They can only allow, so a check that needs `'allow'` stays strict.
-- [Code mode](./code-mode) uses this answer to pick the tools that move into a program. With `default: 'ask'`, a tool with no rule stays a normal tool call.
-- `PermissionRules`, `PermissionResources`, `PermissionDecisionCapability`, and `decidePermission` come from `@tanstack/ai-harness`. They load no Node module, so a plugin for an edge runtime can use them. The plugins themselves come from `@tanstack/ai-harness/plugins`, which is Node only.
+- [Code mode](./code-mode#3-choose-which-tools-move) uses this answer to pick the tools that move into a program. With `default: 'ask'`, its default pick keeps a tool with no rule as a normal tool call.
+
+### Decide a call that your plugin runs
+
+Your plugin runs a call itself, outside the tool calls of the model. For example, a command deploys, and the rules for `deploy` must apply. Read the decision for the call with `PermissionCallCapability`:
+
+```ts
+import {
+  PermissionCallCapability,
+  PermissionRules,
+  defineCommand,
+  definePlugin,
+} from '@tanstack/ai-harness'
+
+declare function deploy(target: string): Promise<string>
+
+export const deployPlugin = definePlugin({
+  name: 'acme/deploy',
+  optionalRequires: [PermissionCallCapability],
+  setup: (ctx) => ({
+    contribute: [PermissionRules.item({ tool: 'deploy', decision: 'ask', kind: 'execute' })],
+    commands: {
+      deploy: defineCommand({
+        description: 'Deploy to production',
+        run: async (_input: unknown, { step }) => {
+          const decide = ctx.getOptional(PermissionCallCapability)
+          // Without permissions(), the call runs, as a direct call does.
+          const checked = decide
+            ? await decide({ tool: 'deploy', args: { target: 'production' } })
+            : { decision: 'allow' as const }
+          if (checked.decision === 'deny') return checked.error
+          if (checked.decision === 'ask') {
+            const reply = await step.ask({
+              name: 'approve',
+              message: checked.message,
+              schema: checked.schema,
+            })
+            const refusal = await checked.settle(reply)
+            if (refusal !== undefined) return refusal
+          }
+          return step.do('deploy', () => deploy('production'))
+        },
+      }),
+    },
+  }),
+})
+```
+
+- The decision is the same as for a direct call of the tool. It uses the mode, `root`, every rule, the saved `always` answers, and the paths or commands of `args`.
+- `deny` has the `error` that the model gets for a direct call. A call whose paths or commands cannot be read is a `deny`.
+- `ask` has the `message` and the `schema` of the approval. Ask the user with them, then give the reply to `settle`.
+- `settle` saves an `always` answer, as for a direct call. It resolves to the error text of a reject. When the call can run, it resolves to `undefined`.
+- [Code mode](./code-mode#run-the-coding-tools-in-a-program) reads it for each call in a program.
+
+`PermissionRules`, `PermissionResources`, `PermissionDecisionCapability`, `PermissionCallCapability`, and `decidePermission` come from `@tanstack/ai-harness`. They load no Node module, so a plugin for an edge runtime can use them. The plugins themselves come from `@tanstack/ai-harness/plugins`, which is Node only.
 
 ## Known limits
 

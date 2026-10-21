@@ -256,7 +256,7 @@ export const trustTests = permissions({
 
 - Paths match from `root`. Give `permissions()` and `workspaceTools()` the same `root`.
 - A rule also matches the real path of a link, and the stricter decision wins. So a link `notes` to `.env` asks, and a `deny` for `secrets/**` also stops a link to `secrets`.
-- The rules decide every path before the call runs. A tool never asks while it runs.
+- The rules decide every path before the call runs, so a tool never asks while it runs. In a [code mode program](./code-mode#run-the-coding-tools-in-a-program), a call that asks makes the program wait, and the turn does not stop.
 - `bash` splits a command at `&&`, `||`, `;`, `|`, and new lines. Every part must be allowed.
 - A command with `$(`, a backtick, or a heredoc never gets an allow.
 
@@ -272,7 +272,7 @@ The tools refuse a path outside `root`. To let the user approve it, set `outside
 export const askOutside = workspaceTools({ root, outside: 'ask' })
 ```
 
-`permissions()` decides the outside path before the call runs. The path is a part of the one [approval](./permissions#answer-an-approval) of the call: the turn stops, and you answer with `resolve`. The tool never stops in the middle of a call to ask.
+`permissions()` decides the outside path before the call runs. The path is a part of the one [approval](./permissions#answer-an-approval) of the call, so the tool never stops in the middle of a call to ask. For a direct call, the turn stops, and you answer with `resolve`. In a [code mode program](./code-mode#answer-the-question), the program waits, and you answer with `session.answer`.
 
 - `once` allows this call. `always` also saves an allow rule for the path.
 - `reject` stops the call. The call does not run, so nothing is read or written.
