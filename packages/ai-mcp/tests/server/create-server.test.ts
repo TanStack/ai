@@ -1314,6 +1314,38 @@ describe('createMCPServer', () => {
     )
   })
 
+  it('serves an extension that setup registers, on spec 2026 and spec 2025', async () => {
+    const extensionId = 'com.example/greetings'
+    const server = createMCPServer({
+      name: 'greeter',
+      version: '1.0.0',
+      tools: [echoTool()],
+      setup: (built) => {
+        built.server.registerCapabilities({ extensions: { [extensionId]: {} } })
+        built.server.setRequestHandler(
+          'greetings/get',
+          { params: z.object({ name: z.string() }) },
+          ({ name }) => ({ text: `Hello, ${name}` }),
+        )
+      },
+    })
+
+    for (const era of ['2026', '2025'] as const) {
+      await withClient(server, { era }, async (client) => {
+        expect(client.getServerCapabilities()?.extensions).toEqual({
+          [extensionId]: {},
+        })
+        const greeting = await client.request(
+          { method: 'greetings/get', params: { name: 'Ada' } },
+          z.object({ text: z.string() }),
+        )
+        expect(greeting).toEqual({ text: 'Hello, Ada' })
+        const listed = await client.listTools()
+        expect(listed.tools.map((tool) => tool.name)).toEqual(['echo'])
+      })
+    }
+  })
+
   it('reports SDK errors to onerror', async () => {
     const onerror = vi.fn()
     const server = createMCPServer({

@@ -136,6 +136,14 @@ export type MCPServerOptions = {
   onerror?: (error: Error) => void
   sample?: (request: SampleRequest) => Promise<unknown>
   waitUntil?: (promise: Promise<unknown>) => void
+  /**
+   * Runs on every SDK `McpServer` this server builds, after the tools,
+   * resources, and prompts are registered and before the server connects.
+   * Declare more capabilities with `server.server.registerCapabilities` and
+   * add request handlers with `server.server.setRequestHandler`, for example
+   * to serve an MCP extension.
+   */
+  setup?: (server: McpServer) => void
 }
 
 /**
@@ -201,6 +209,8 @@ type LegacySessions = Map<string, LegacySession>
  * A spec 2025 client gets no session unless `options.sessions` is `'memory'`.
  * `options.sample` is the model adapter for `ctx.context.sample` on spec 2026.
  * `options.waitUntil` receives the task promise so a worker can stay alive.
+ * `options.setup` gets each SDK `McpServer` before it connects, so it can add
+ * capabilities and request handlers, such as an MCP extension.
  *
  * The result has `fetch(request)`, `handle(request, options)`, `tools`,
  * `resources`, and `prompts`. `handle` takes a token your own middleware
@@ -481,6 +491,7 @@ function buildMcpServer(input: {
   if (input.era === '2025') {
     registerLegacyTaskMethods(server, input.taskStore, input.owner)
   }
+  input.options.setup?.(server)
   return server
 }
 

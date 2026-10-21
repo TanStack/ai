@@ -131,6 +131,15 @@ export interface MCPClient<
     options?: { signal?: AbortSignal },
   ) => Promise<TypedCallToolResult<TServer['tools'][TName]['output']>>
   /**
+   * Sends one request with the SDK `Client.request`, with the same
+   * arguments. Use it for a method this client has no helper for, such as
+   * a method of an MCP extension. Pass a result schema as the second
+   * argument for a method that is not in the MCP spec.
+   *
+   * Optional so an existing hand-rolled `MCPClient` keeps compiling.
+   */
+  request?: Client['request']
+  /**
    * The ORIGINAL connection descriptor this client was created from — the
    * `transport` input and `prefix` passed to `createMCPClient`. Used by
    * `createMcpAppCallHandler` to reconnect per-call (serverless-safe) without
@@ -478,6 +487,13 @@ class MCPClientImpl<
     // The client does not check the wire value against that type.
     return result as TypedCallToolResult<TServer['tools'][TName]['output']>
   }
+
+  // The SDK method is overloaded. The arguments pass through unchanged, so
+  // the cast to the SDK type is safe.
+  request = (async (...args: Parameters<Client['request']>) => {
+    if (this.#closed) throw new MCPConnectionError('MCP client is closed')
+    return this.#client.request(...args)
+  }) as Client['request']
 
   async close(): Promise<void> {
     if (this.#closed) return
