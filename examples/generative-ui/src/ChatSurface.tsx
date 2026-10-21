@@ -1,5 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useChat, fetchServerSentEvents, useMcpAppBridge } from '@tanstack/ai-react'
+import {
+  useChat,
+  fetchServerSentEvents,
+  useMcpAppBridge,
+} from '@tanstack/ai-react'
 import { MCPAppResource } from '@tanstack/ai-react/mcp-apps'
 import {
   GenerativeUIRenderer,
@@ -68,8 +72,14 @@ function renderInline(line: string): React.ReactNode[] {
   let key = 0
   while ((match = regex.exec(line)) !== null) {
     if (match.index > last) tokens.push(line.slice(last, match.index))
-    if (match[1] !== undefined) tokens.push(<strong key={key++}>{match[1]}</strong>)
-    else if (match[2] !== undefined) tokens.push(<code key={key++} className="chat-inline-code">{match[2]}</code>)
+    if (match[1] !== undefined)
+      tokens.push(<strong key={key++}>{match[1]}</strong>)
+    else if (match[2] !== undefined)
+      tokens.push(
+        <code key={key++} className="chat-inline-code">
+          {match[2]}
+        </code>,
+      )
     last = regex.lastIndex
   }
   if (last < line.length) tokens.push(line.slice(last))
@@ -85,9 +95,17 @@ function parseGraph(argsJson: string): GraphDocument | null {
   } catch {
     return null // still streaming / incomplete
   }
-  if (!raw || typeof raw !== 'object' || !(raw as any).specVersion || !(raw as any).root) return null
+  if (
+    !raw ||
+    typeof raw !== 'object' ||
+    !(raw as any).specVersion ||
+    !(raw as any).root
+  )
+    return null
   const validation = validateGraph(raw, { repair: true })
-  return validation.valid && validation.graph ? validation.graph : LiveDriver.processModelOutput(raw)
+  return validation.valid && validation.graph
+    ? validation.graph
+    : LiveDriver.processModelOutput(raw)
 }
 
 const sandboxUrl = (pin: ArtifactPin, instanceId: string) =>
@@ -115,7 +133,9 @@ export function ChatSurface() {
     fetch('/api/providers')
       .then((r) => r.json())
       .then((d) => {
-        const usable = (d.providers ?? []).filter((p: string) => CHAT_PROVIDERS.includes(p))
+        const usable = (d.providers ?? []).filter((p: string) =>
+          CHAT_PROVIDERS.includes(p),
+        )
         if (usable.length) {
           setProviders(usable)
           setProvider(usable[0])
@@ -125,10 +145,24 @@ export function ChatSurface() {
   }, [])
 
   const { messages, sendMessage, isLoading } = useChat({
-    connection: fetchServerSentEvents('/api/chat', async () => ({ body: { provider: providerRef.current } })),
-    onCustomEvent: (eventType: string, data: any, context: { toolCallId?: string }) => {
+    connection: fetchServerSentEvents('/api/chat', async () => ({
+      body: { provider: providerRef.current },
+    })),
+    onCustomEvent: (
+      eventType: string,
+      data: any,
+      context: { toolCallId?: string },
+    ) => {
       if (eventType === 'genui:artifact' && context.toolCallId && data?.pin) {
-        setFramePins((p) => ({ ...p, [context.toolCallId!]: { ...data.pin, title: data.title, kind: data.kind, dataSource: data.dataSource } }))
+        setFramePins((p) => ({
+          ...p,
+          [context.toolCallId!]: {
+            ...data.pin,
+            title: data.title,
+            kind: data.kind,
+            dataSource: data.dataSource,
+          },
+        }))
       }
     },
   })
@@ -141,7 +175,11 @@ export function ChatSurface() {
     // Our html-fragment artifacts don't call server tools; this endpoint is a
     // required nominal (only hit if a widget invokes tools/call).
     callEndpoint: '/api/mcp-apps-call',
-    chat: { sendMessage: async (content: string) => { await sendMessage(content) } },
+    chat: {
+      sendMessage: async (content: string) => {
+        await sendMessage(content)
+      },
+    },
     onLink: (url: string) => window.open(url, '_blank', 'noopener,noreferrer'),
   })
 
@@ -160,7 +198,10 @@ export function ChatSurface() {
         if (part.name === 'render_ui') {
           const g = parseGraph(part.arguments)
           if (g) graphPart[g.graphId] = part.id
-        } else if (part.name === 'create_artifact' || part.name === 'revise_artifact') {
+        } else if (
+          part.name === 'create_artifact' ||
+          part.name === 'revise_artifact'
+        ) {
           const pin = framePins[part.id]
           if (pin) framePartByArtifact[pin.artifactId] = part.id
         }
@@ -171,8 +212,12 @@ export function ChatSurface() {
 
   function handleIntent(intent: IntentPayload) {
     if (intent.intentClass === 'local') return
-    const payload = intent.payload !== undefined ? ` · ${JSON.stringify(intent.payload)}` : ''
-    setNotices((n) => [...n, `intent · ${intent.intent}${payload} · routed to agent (${intent.intentClass})`])
+    const payload =
+      intent.payload !== undefined ? ` · ${JSON.stringify(intent.payload)}` : ''
+    setNotices((n) => [
+      ...n,
+      `intent · ${intent.intent}${payload} · routed to agent (${intent.intentClass})`,
+    ])
   }
 
   function send(text: string) {
@@ -217,7 +262,11 @@ export function ChatSurface() {
       </div>
 
       {expandedGraph && (
-        <ExpandedGraphOverlay graph={expandedGraph} onIntent={handleIntent} onClose={() => setExpandedGraph(null)} />
+        <ExpandedGraphOverlay
+          graph={expandedGraph}
+          onIntent={handleIntent}
+          onClose={() => setExpandedGraph(null)}
+        />
       )}
 
       <div className="border-t border-white/5 bg-[#070b14]/80 backdrop-blur">
@@ -233,7 +282,11 @@ export function ChatSurface() {
                   send(input)
                 }
               }}
-              placeholder={providers.length ? 'Message the generative-UI agent…' : 'Set OPENAI_API_KEY or ANTHROPIC_API_KEY in .env.local to chat live'}
+              placeholder={
+                providers.length
+                  ? 'Message the generative-UI agent…'
+                  : 'Set OPENAI_API_KEY or ANTHROPIC_API_KEY in .env.local to chat live'
+              }
               className="chat-composer-input"
               disabled={isLoading}
             />
@@ -247,19 +300,41 @@ export function ChatSurface() {
                   aria-label="Model provider"
                 >
                   {providers.map((p) => (
-                    <option key={p} value={p}>{p}</option>
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
                   ))}
                 </select>
               )}
-              <button type="button" onClick={() => send(input)} disabled={isLoading || !input.trim()} className="chat-send" aria-label="Send">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-                  <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+              <button
+                type="button"
+                onClick={() => send(input)}
+                disabled={isLoading || !input.trim()}
+                className="chat-send"
+                aria-label="Send"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden
+                >
+                  <path
+                    d="M5 12h14M13 6l6 6-6 6"
+                    stroke="currentColor"
+                    strokeWidth="2.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
               </button>
             </div>
           </div>
           <p className="text-center text-[11px] text-slate-600 mt-2">
-            Two tiers, one conversation — render_ui composes a catalog graph; create_artifact builds a sandboxed frame. Both inline, numbers host-side.
+            Two tiers, one conversation — render_ui composes a catalog graph;
+            create_artifact builds a sandboxed frame. Both inline, numbers
+            host-side.
           </p>
         </div>
       </div>
@@ -267,25 +342,43 @@ export function ChatSurface() {
   )
 }
 
-function Hero({ starters, onSend }: { starters: Array<string>; onSend: (s: string) => void }) {
+function Hero({
+  starters,
+  onSend,
+}: {
+  starters: Array<string>
+  onSend: (s: string) => void
+}) {
   return (
     <div className="pt-10 sm:pt-16">
       <div className="flex items-center gap-2.5 mb-5">
         <BrandMark />
-        <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-slate-500">Open Generative UI · Draft 0.2</span>
+        <span className="text-[11px] font-mono uppercase tracking-[0.2em] text-slate-500">
+          Open Generative UI · Draft 0.2
+        </span>
       </div>
       <h1 className="font-display text-3xl sm:text-4xl font-semibold text-white tracking-tight leading-[1.1]">
         The agent, talking in a<br className="hidden sm:block" /> richer medium.
       </h1>
       <p className="mt-4 text-slate-400 text-[15px] leading-relaxed max-w-xl">
-        Ask for a comparison, a calculator, a chord diagram, or a data monitor. The reply renders
-        inline — a catalog graph when structure wins, or a sandboxed custom artifact when craft does.
+        Ask for a comparison, a calculator, a chord diagram, or a data monitor.
+        The reply renders inline — a catalog graph when structure wins, or a
+        sandboxed custom artifact when craft does.
       </p>
       <div className="mt-8">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-3">Try asking</p>
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-3">
+          Try asking
+        </p>
         <div className="flex flex-wrap gap-2">
           {starters.map((s) => (
-            <button key={s} type="button" onClick={() => onSend(s)} className="chat-suggest">{s}</button>
+            <button
+              key={s}
+              type="button"
+              onClick={() => onSend(s)}
+              className="chat-suggest"
+            >
+              {s}
+            </button>
           ))}
         </div>
       </div>
@@ -299,14 +392,21 @@ interface LatestMap {
 }
 
 /** Keeps one bad graph/artifact render from taking down the whole conversation. */
-class RenderErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: unknown }> {
+class RenderErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { error: unknown }
+> {
   state: { error: unknown } = { error: null }
   static getDerivedStateFromError(error: unknown) {
     return { error }
   }
   render() {
     if (this.state.error) {
-      return <div className="chat-assistant-error"><Prose text="This view failed to render." /></div>
+      return (
+        <div className="chat-assistant-error">
+          <Prose text="This view failed to render." />
+        </div>
+      )
     }
     return this.props.children
   }
@@ -355,7 +455,10 @@ function MessageRow({
           // external MCP server widgets.
           if (part.type === 'ui-resource') {
             return (
-              <div className="chat-graph-frame animate-surface-rise" key={part.toolCallId ?? `uir-${i}`}>
+              <div
+                className="chat-graph-frame animate-surface-rise"
+                key={part.toolCallId ?? `uir-${i}`}
+              >
                 <div className="chat-graph-meta">
                   <span className="chat-graph-dot" />
                   <span className="font-mono">{part.resource?.uri}</span>
@@ -364,7 +467,11 @@ function MessageRow({
                 </div>
                 {/* The MCP-Apps-native guest sizes the iframe via
                     ui/notifications/size-changed, so no fixed height is needed. */}
-                <MCPAppResource part={part} sandbox={MCP_SANDBOX} bridge={mcpBridge} />
+                <MCPAppResource
+                  part={part}
+                  sandbox={MCP_SANDBOX}
+                  bridge={mcpBridge}
+                />
               </div>
             )
           }
@@ -372,18 +479,42 @@ function MessageRow({
           // ---- Tier N: render_ui graph ----
           if (part.name === 'render_ui') {
             const graph = parseGraph(part.arguments)
-            if (!graph || latest.graphPart[graph.graphId] !== part.id) return null
+            if (!graph || latest.graphPart[graph.graphId] !== part.id)
+              return null
             return (
-              <div className="chat-graph-frame animate-surface-rise" key={part.id}>
+              <div
+                className="chat-graph-frame animate-surface-rise"
+                key={part.id}
+              >
                 <div className="chat-graph-meta">
                   <span className="chat-graph-dot" />
                   <span className="font-mono">{graph.graphId}</span>
                   <span className="text-slate-600">·</span>
                   <span>rev {graph.revision}</span>
-                  {graph.revision > 1 && <span className="chat-revised-badge">revised in place</span>}
-                  <button type="button" className="chat-expand-btn" onClick={() => onExpand(graph)} title="Expand" aria-label="Expand">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden>
-                      <path d="M9 3H3v6M15 21h6v-6M3 3l7 7M21 21l-7-7" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                  {graph.revision > 1 && (
+                    <span className="chat-revised-badge">revised in place</span>
+                  )}
+                  <button
+                    type="button"
+                    className="chat-expand-btn"
+                    onClick={() => onExpand(graph)}
+                    title="Expand"
+                    aria-label="Expand"
+                  >
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      aria-hidden
+                    >
+                      <path
+                        d="M9 3H3v6M15 21h6v-6M3 3l7 7M21 21l-7-7"
+                        stroke="currentColor"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
                     </svg>
                   </button>
                 </div>
@@ -397,18 +528,27 @@ function MessageRow({
           // react-tsx keeps our FrameArtifactRenderer (needs a serving origin for
           // its import map + built bundle); html-fragment renders via the
           // ui-resource part above (the MCP Apps path), so skip its pin here.
-          if (part.name === 'create_artifact' || part.name === 'revise_artifact') {
+          if (
+            part.name === 'create_artifact' ||
+            part.name === 'revise_artifact'
+          ) {
             const pin = framePins[part.id]
             if (!pin) {
               return (
                 <div key={part.id} className="chat-graph-frame">
-                  <div className="chat-graph-meta"><span className="chat-graph-dot" /><span>building artifact…</span></div>
+                  <div className="chat-graph-meta">
+                    <span className="chat-graph-dot" />
+                    <span>building artifact…</span>
+                  </div>
                 </div>
               )
             }
             if (pin.kind === 'html-fragment') return null
-            if (latest.framePartByArtifact[pin.artifactId] !== part.id) return null
-            return <FrameArtifactPart key={part.id} pin={pin} onIntent={onIntent} />
+            if (latest.framePartByArtifact[pin.artifactId] !== part.id)
+              return null
+            return (
+              <FrameArtifactPart key={part.id} pin={pin} onIntent={onIntent} />
+            )
           }
           return null
         })}
@@ -424,7 +564,13 @@ function MessageRow({
  * real time. `subscribeData` is memoized on the source identity so the frame
  * subscribes once per binding, not on every chat re-render.
  */
-function FrameArtifactPart({ pin, onIntent }: { pin: FramePin; onIntent: (i: IntentPayload) => void }) {
+function FrameArtifactPart({
+  pin,
+  onIntent,
+}: {
+  pin: FramePin
+  onIntent: (i: IntentPayload) => void
+}) {
   const ds = pin.dataSource
   const dsKey = ds ? `${ds.name}:${JSON.stringify(ds.params ?? {})}` : ''
   const subscribeData = useMemo(() => {
@@ -458,7 +604,14 @@ function FrameArtifactPart({ pin, onIntent }: { pin: FramePin; onIntent: (i: Int
       protocol={ds ? 'ogui/1' : 'mcp-app'}
       subscribeData={subscribeData}
       onIntent={async (d) => {
-        onIntent({ graphId: pin.artifactId, nodeId: '', intent: d.intent, intentClass: d.intentClass, payload: d.payload, state: d.state } as IntentPayload)
+        onIntent({
+          graphId: pin.artifactId,
+          nodeId: '',
+          intent: d.intent,
+          intentClass: d.intentClass,
+          payload: d.payload,
+          state: d.state,
+        } as IntentPayload)
         return { ok: true, result: { acknowledged: true } }
       }}
     />
@@ -468,18 +621,43 @@ function FrameArtifactPart({ pin, onIntent }: { pin: FramePin; onIntent: (i: Int
 /** First text part's content (the assistant's prose / the user's message). */
 function textOf(message: any): string {
   const parts: Array<any> = message.parts ?? []
-  const t = parts.filter((p) => p.type === 'text').map((p) => p.content).join('')
+  const t = parts
+    .filter((p) => p.type === 'text')
+    .map((p) => p.content)
+    .join('')
   if (t) return t
   return typeof message.content === 'string' ? message.content : ''
 }
 
-function ExpandedGraphOverlay({ graph, onIntent, onClose }: { graph: GraphDocument; onIntent: (i: IntentPayload) => void; onClose: () => void }) {
+function ExpandedGraphOverlay({
+  graph,
+  onIntent,
+  onClose,
+}: {
+  graph: GraphDocument
+  onIntent: (i: IntentPayload) => void
+  onClose: () => void
+}) {
   return (
-    <div className="chat-overlay" role="dialog" aria-modal="true" onClick={onClose}>
+    <div
+      className="chat-overlay"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
       <div className="chat-overlay-panel" onClick={(e) => e.stopPropagation()}>
         <div className="chat-overlay-bar">
-          <span className="font-mono text-[11px] text-slate-400">{graph.graphId} · rev {graph.revision}</span>
-          <button type="button" className="chat-overlay-close" onClick={onClose} aria-label="Close">✕</button>
+          <span className="font-mono text-[11px] text-slate-400">
+            {graph.graphId} · rev {graph.revision}
+          </span>
+          <button
+            type="button"
+            className="chat-overlay-close"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            ✕
+          </button>
         </div>
         <div className="chat-overlay-body">
           <GenerativeUIRenderer graph={graph} onIntent={onIntent} />
@@ -493,13 +671,19 @@ function TypingRow() {
   return (
     <div className="flex gap-3">
       <BrandMark />
-      <div className="chat-typing"><span /><span /><span /></div>
+      <div className="chat-typing">
+        <span />
+        <span />
+        <span />
+      </div>
     </div>
   )
 }
 
 function BrandMark() {
   return (
-    <div className="chat-avatar" aria-hidden><span>◇</span></div>
+    <div className="chat-avatar" aria-hidden>
+      <span>◇</span>
+    </div>
   )
 }

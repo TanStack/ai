@@ -22,28 +22,51 @@ try {
   const list = Array.isArray(tools) ? tools : Object.values(tools ?? {})
   const create = list.find((t) => t?.name === 'create_artifact')
   ok('server lists create_artifact', !!create)
-  if (process.env.DEBUG) console.log('RAW TOOL:', JSON.stringify(create, null, 1))
+  if (process.env.DEBUG)
+    console.log('RAW TOOL:', JSON.stringify(create, null, 1))
   // The client stamps the SEP-1865 _meta.ui.resourceUri as metadata.mcp.uiResourceUri
   // (this is exactly what the host's emitUiResourceIfLinked reads to render).
   const uri =
     create?.metadata?.mcp?.uiResourceUri ??
     create?._meta?.ui?.resourceUri ??
     create?._meta?.['ui/resourceUri']
-  ok(`create_artifact is UI-linked (_meta.ui.resourceUri = ${uri})`, uri === 'ui://genui/last')
+  ok(
+    `create_artifact is UI-linked (_meta.ui.resourceUri = ${uri})`,
+    uri === 'ui://genui/last',
+  )
 
   const res = await client.callTool('create_artifact', {
-    title: 'Emaj7', source: FRAGMENT, fallbackText: 'Emaj7 open voicing chord diagram.',
+    title: 'Emaj7',
+    source: FRAGMENT,
+    fallbackText: 'Emaj7 open voicing chord diagram.',
   })
   const text = JSON.stringify(res)
-  ok('create_artifact call succeeded', !text.includes('Build failed') && !res?.isError)
+  ok(
+    'create_artifact call succeeded',
+    !text.includes('Build failed') && !res?.isError,
+  )
 
   const read = await client.readResource('ui://genui/last')
   const content = read?.contents?.[0]
-  ok('ui://genui/last is text/html;profile=mcp-app', content?.mimeType === 'text/html;profile=mcp-app')
-  ok('resource HTML carries the authored fragment', typeof content?.text === 'string' && content.text.includes('Emaj7'))
-  ok('resource HTML is MCP-Apps-native (guest adapter inlined)', typeof content?.text === 'string' && /__ogui|ext-apps|PostMessage|mcp/i.test(content.text))
+  ok(
+    'ui://genui/last is text/html;profile=mcp-app',
+    content?.mimeType === 'text/html;profile=mcp-app',
+  )
+  ok(
+    'resource HTML carries the authored fragment',
+    typeof content?.text === 'string' && content.text.includes('Emaj7'),
+  )
+  ok(
+    'resource HTML is MCP-Apps-native (guest adapter inlined)',
+    typeof content?.text === 'string' &&
+      /__ogui|ext-apps|PostMessage|mcp/i.test(content.text),
+  )
 
-  console.log(process.exitCode ? '\nFAIL' : '\nPASS — external MCP hosts can render generative UI from this server')
+  console.log(
+    process.exitCode
+      ? '\nFAIL'
+      : '\nPASS — external MCP hosts can render generative UI from this server',
+  )
 } finally {
   await client.close?.()
 }

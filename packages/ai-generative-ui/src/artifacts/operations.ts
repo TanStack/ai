@@ -60,9 +60,17 @@ export function createFrameArtifacts(ctx: FrameArtifactsContext) {
     data?: unknown
     dataSource?: ArtifactRecord['dataSource']
   }): Promise<ArtifactToolResult> {
-    const build = await ctx.builder.build({ kind: partial.kind, source: partial.source, registry })
+    const build = await ctx.builder.build({
+      kind: partial.kind,
+      source: partial.source,
+      registry,
+    })
     if (!build.ok) {
-      return { error: 'build-failed', buildLog: build.buildLog, diagnostics: build.diagnostics ?? [] }
+      return {
+        error: 'build-failed',
+        buildLog: build.buildLog,
+        diagnostics: build.diagnostics ?? [],
+      }
     }
 
     let builtRef: string | undefined
@@ -72,7 +80,8 @@ export function createFrameArtifacts(ctx: FrameArtifactsContext) {
       builtRef = `store://assets/${hashContent(build.code)}`
     }
 
-    const registryVersion = partial.kind === 'react-tsx' ? registry.version : undefined
+    const registryVersion =
+      partial.kind === 'react-tsx' ? registry.version : undefined
     const record: ArtifactRecord = {
       artifactId: partial.artifactId,
       revision: partial.revision,
@@ -88,13 +97,21 @@ export function createFrameArtifacts(ctx: FrameArtifactsContext) {
       data: partial.data,
       dataSource: partial.dataSource,
       provenance: { driver: 'live', ...ctx.provenance },
-      ownership: { ownerId: ctx.ownerId ?? 'anon', scope: partial.scope, channelId: ctx.channelId },
+      ownership: {
+        ownerId: ctx.ownerId ?? 'anon',
+        scope: partial.scope,
+        channelId: ctx.channelId,
+      },
       trustTier: 'untrusted',
       createdAt: now(),
       supersedes: partial.supersedes,
     }
     await ctx.store.save(record, builtCode)
-    return { artifactId: record.artifactId, revision: record.revision, url: pageUrl(record.artifactId) }
+    return {
+      artifactId: record.artifactId,
+      revision: record.revision,
+      url: pageUrl(record.artifactId),
+    }
   }
 
   return {
@@ -115,7 +132,12 @@ export function createFrameArtifacts(ctx: FrameArtifactsContext) {
 
     async revise(input: ReviseArtifactInput): Promise<ArtifactToolResult> {
       const prev = await ctx.store.latest(input.artifactId)
-      if (!prev) return { error: 'build-failed', buildLog: `Unknown artifact ${input.artifactId}`, diagnostics: [] }
+      if (!prev)
+        return {
+          error: 'build-failed',
+          buildLog: `Unknown artifact ${input.artifactId}`,
+          diagnostics: [],
+        }
       return buildAndSave({
         artifactId: prev.artifactId,
         revision: prev.revision + 1,
@@ -131,11 +153,19 @@ export function createFrameArtifacts(ctx: FrameArtifactsContext) {
       })
     },
 
-    read(input: { artifactId: string; revision?: number }): Promise<ArtifactRecord | undefined> {
+    read(input: {
+      artifactId: string
+      revision?: number
+    }): Promise<ArtifactRecord | undefined> {
       return ctx.store.get(input.artifactId, input.revision)
     },
 
-    list(input: { scope?: ArtifactRecord['ownership']['scope']; query?: string } = {}): Promise<Array<ArtifactRecord>> {
+    list(
+      input: {
+        scope?: ArtifactRecord['ownership']['scope']
+        query?: string
+      } = {},
+    ): Promise<Array<ArtifactRecord>> {
       return ctx.store.list({ scope: input.scope, query: input.query })
     },
   }

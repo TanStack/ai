@@ -46,7 +46,11 @@ describe('Compute Registry (§5.3)', () => {
       return Math.round(amount * rate * 100) / 100
     })
 
-    const result = registry.execute('currencyConvert', { amount: 50, rate: 1.08 }, {})
+    const result = registry.execute(
+      'currencyConvert',
+      { amount: 50, rate: 1.08 },
+      {},
+    )
     expect(result).toBe(54)
   })
 
@@ -84,7 +88,13 @@ describe('Compute Registry (§5.3)', () => {
     // Finance (400000 - 50000) over 30yr @ 6.5%; 50000 balloon due in year 15.
     const result = defaultComputeRegistry.execute(
       'balloonLoan',
-      { loanAmount: 400000, annualInterestRate: 6.5, termYears: 30, balloonAmount: 50000, balloonYear: 15 },
+      {
+        loanAmount: 400000,
+        annualInterestRate: 6.5,
+        termYears: 30,
+        balloonAmount: 50000,
+        balloonYear: 15,
+      },
       {},
     )
     // Monthly payment is lower than the no-balloon loan because less is financed.
@@ -100,7 +110,11 @@ describe('Compute Registry (§5.3)', () => {
   })
 
   it('applies a percentage to a value', () => {
-    const result = defaultComputeRegistry.execute('percentOf', { value: 80, percent: 8.25 }, {})
+    const result = defaultComputeRegistry.execute(
+      'percentOf',
+      { value: 80, percent: 8.25 },
+      {},
+    )
     expect(result.amount).toBe(6.6)
     expect(result.total).toBe(86.6)
   })
@@ -108,7 +122,9 @@ describe('Compute Registry (§5.3)', () => {
   it('render_ui composition guidance embeds the live compute catalog and worked wiring', () => {
     const guidance = renderUICompositionGuidance()
     // Catalog families a producer needs
-    expect(guidance).toContain('Layout: Stack, Columns, Section, Tabs, Timeline')
+    expect(guidance).toContain(
+      'Layout: Stack, Columns, Section, Tabs, Timeline',
+    )
     // The actual compute catalog (so a model binds to functions that exist)
     expect(guidance).toContain(describeComputeForPrompt())
     expect(guidance).toContain('loanPayment')

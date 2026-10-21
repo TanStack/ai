@@ -1,10 +1,11 @@
-@import "tailwindcss";
+@import 'tailwindcss';
 @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Hanken+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @source "../src";
 @source "../../../packages/ai-generative-ui/src";
 
 @theme {
-  --font-sans: 'Hanken Grotesk', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-sans:
+    'Hanken Grotesk', ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
   --font-display: 'Bricolage Grotesque', 'Hanken Grotesk', sans-serif;
 }
@@ -71,8 +72,16 @@
   body {
     background-color: #05080f;
     background-image:
-      radial-gradient(55rem 38rem at 82% -12%, rgba(37, 99, 235, 0.14), transparent 60%),
-      radial-gradient(48rem 38rem at -8% 6%, rgba(99, 102, 241, 0.10), transparent 55%);
+      radial-gradient(
+        55rem 38rem at 82% -12%,
+        rgba(37, 99, 235, 0.14),
+        transparent 60%
+      ),
+      radial-gradient(
+        48rem 38rem at -8% 6%,
+        rgba(99, 102, 241, 0.1),
+        transparent 55%
+      );
     background-attachment: fixed;
     color: #f8fafc;
     font-family: var(--font-sans);
@@ -124,7 +133,11 @@
   justify-content: center;
   font-size: 13px;
   color: #c7d2fe;
-  background: linear-gradient(140deg, rgba(37, 99, 235, 0.35), rgba(139, 92, 246, 0.3));
+  background: linear-gradient(
+    140deg,
+    rgba(37, 99, 235, 0.35),
+    rgba(139, 92, 246, 0.3)
+  );
   border: 1px solid rgba(129, 140, 248, 0.25);
   box-shadow: 0 2px 10px -2px rgba(79, 70, 229, 0.4);
 }
@@ -133,7 +146,11 @@
   max-width: 80%;
   padding: 0.6rem 0.95rem;
   border-radius: 1.1rem 1.1rem 0.3rem 1.1rem;
-  background: linear-gradient(160deg, rgba(79, 70, 229, 0.9), rgba(67, 56, 202, 0.82));
+  background: linear-gradient(
+    160deg,
+    rgba(79, 70, 229, 0.9),
+    rgba(67, 56, 202, 0.82)
+  );
   border: 1px solid rgba(129, 140, 248, 0.35);
   color: #f1f5ff;
   font-size: 14.5px;
@@ -183,7 +200,11 @@
   border-radius: 1rem;
   border: 1px solid rgba(148, 163, 184, 0.12);
   background:
-    radial-gradient(40rem 20rem at 100% -40%, rgba(37, 99, 235, 0.07), transparent 70%),
+    radial-gradient(
+      40rem 20rem at 100% -40%,
+      rgba(37, 99, 235, 0.07),
+      transparent 70%
+    ),
     rgba(9, 13, 22, 0.72);
   padding: 0.9rem 0.95rem 1rem;
   box-shadow: 0 14px 40px -24px rgba(0, 0, 0, 0.9);
@@ -235,7 +256,9 @@
   border: 1px solid rgba(148, 163, 184, 0.18);
   background: rgba(148, 163, 184, 0.06);
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 .chat-expand-btn:hover {
   color: #e2e8f0;
@@ -322,8 +345,16 @@
   animation-delay: 0.32s;
 }
 @keyframes chat-bounce {
-  0%, 80%, 100% { opacity: 0.3; transform: translateY(0); }
-  40% { opacity: 1; transform: translateY(-4px); }
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-4px);
+  }
 }
 
 /* Composer */
@@ -335,7 +366,9 @@
   border-radius: 1.1rem;
   background: rgba(11, 17, 32, 0.9);
   border: 1px solid rgba(148, 163, 184, 0.14);
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
 }
 .chat-composer:focus-within {
   border-color: rgba(99, 102, 241, 0.6);
@@ -386,7 +419,9 @@
   background: linear-gradient(140deg, #4f46e5, #6366f1);
   border: 1px solid rgba(129, 140, 248, 0.5);
   cursor: pointer;
-  transition: filter 0.15s, opacity 0.15s;
+  transition:
+    filter 0.15s,
+    opacity 0.15s;
 }
 .chat-send:hover:not(:disabled) {
   filter: brightness(1.12);
@@ -411,7 +446,10 @@
   border: 1px solid rgba(148, 163, 184, 0.12);
   color: #cbd5e1;
   cursor: pointer;
-  transition: transform 0.15s, border-color 0.15s, background 0.15s;
+  transition:
+    transform 0.15s,
+    border-color 0.15s,
+    background 0.15s;
 }
 .chat-starter:hover {
   transform: translateY(-1px);
@@ -443,7 +481,9 @@
   padding: 0.4rem 0.75rem;
   border-radius: 999px;
   cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 .chat-suggest:hover {
   color: #e2e8f0;

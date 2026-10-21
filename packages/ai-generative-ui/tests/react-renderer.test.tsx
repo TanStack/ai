@@ -73,7 +73,9 @@ describe('GenerativeUIRenderer React Component', () => {
     })
 
     expect(container.textContent).toContain('Dinner Bill Splitter')
-    expect(container.textContent).toContain('Calculated Totals (Computed by Host Code)')
+    expect(container.textContent).toContain(
+      'Calculated Totals (Computed by Host Code)',
+    )
 
     // 100 subtotal, 20% tip = $20 tip, $120 total, $30 per person
     expect(container.textContent).toContain('Tip Amount')
@@ -105,10 +107,14 @@ describe('GenerativeUIRenderer React Component', () => {
     const svg = container.querySelector('svg')
     expect(svg).toBeDefined()
 
-    const interactiveNote = container.querySelector('[id="note-b-5"]') as SVGElement
+    const interactiveNote = container.querySelector(
+      '[id="note-b-5"]',
+    ) as SVGElement
     expect(interactiveNote).toBeDefined()
     expect(interactiveNote.getAttribute('role')).toBe('button')
-    expect(interactiveNote.getAttribute('aria-label')).toContain('B — Perfect 5th')
+    expect(interactiveNote.getAttribute('aria-label')).toContain(
+      'B — Perfect 5th',
+    )
 
     await act(async () => {
       interactiveNote.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -174,7 +180,9 @@ describe('GenerativeUIRenderer React Component', () => {
     expect(container.textContent).toContain('Ingredients')
 
     // Stepper seeded from props.value and increments despite having no bind.
-    const plus = Array.from(container.querySelectorAll('button')).find((b) => b.textContent === '+')
+    const plus = Array.from(container.querySelectorAll('button')).find(
+      (b) => b.textContent === '+',
+    )
     expect(plus).toBeDefined()
     expect(container.textContent).toContain('4')
     await act(async () => {
@@ -183,7 +191,9 @@ describe('GenerativeUIRenderer React Component', () => {
     expect(container.textContent).toContain('5')
 
     // Bind-less, id-less checklist items toggle independently and persist.
-    const boxes = Array.from(container.querySelectorAll('input[type="checkbox"]')) as Array<HTMLInputElement>
+    const boxes = Array.from(
+      container.querySelectorAll('input[type="checkbox"]'),
+    ) as Array<HTMLInputElement>
     expect(boxes.length).toBe(2)
     const [first, second] = boxes
     if (!first || !second) throw new Error('expected two checkboxes')
@@ -226,13 +236,37 @@ describe('GenerativeUIRenderer React Component', () => {
           output: 'loan',
         },
         children: [
-          { id: 'amt', type: 'NumberInput', props: { label: 'Loan', value: 400000 }, bind: { value: 'loanAmount' } },
-          { id: 'rate', type: 'NumberInput', props: { label: 'Rate', value: 6.5 }, bind: { value: 'annualInterestRate' } },
-          { id: 'term', type: 'NumberInput', props: { label: 'Term', value: 30 }, bind: { value: 'termYears' } },
+          {
+            id: 'amt',
+            type: 'NumberInput',
+            props: { label: 'Loan', value: 400000 },
+            bind: { value: 'loanAmount' },
+          },
+          {
+            id: 'rate',
+            type: 'NumberInput',
+            props: { label: 'Rate', value: 6.5 },
+            bind: { value: 'annualInterestRate' },
+          },
+          {
+            id: 'term',
+            type: 'NumberInput',
+            props: { label: 'Term', value: 30 },
+            bind: { value: 'termYears' },
+          },
           // Mistake 1: the binding path sits in props.value as a literal string.
-          { id: 'mo', type: 'Metric', props: { label: 'Monthly Payment', value: 'loan.monthlyPayment' } },
+          {
+            id: 'mo',
+            type: 'Metric',
+            props: { label: 'Monthly Payment', value: 'loan.monthlyPayment' },
+          },
           // Mistake 2: metric binds to a drifted output name; the leaf resolves.
-          { id: 'tot', type: 'Metric', props: { label: 'Total Paid' }, bind: { value: 'wrongName.totalPaid' } },
+          {
+            id: 'tot',
+            type: 'Metric',
+            props: { label: 'Total Paid' },
+            bind: { value: 'wrongName.totalPaid' },
+          },
         ],
       },
     }

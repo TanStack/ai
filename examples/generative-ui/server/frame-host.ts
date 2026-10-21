@@ -11,8 +11,16 @@
 import { resolve } from 'node:path'
 import { createRequire } from 'node:module'
 import { transformWithEsbuild } from 'vite'
-import { FRAGMENT_GUEST_SOURCE, FRAME_FIXTURES, REFERENCE_REGISTRY, makeReactBuilder } from '@tanstack/ai-generative-ui'
-import { createBlobArtifactStore, createFrameArtifacts } from '@tanstack/ai-generative-ui/artifacts'
+import {
+  FRAGMENT_GUEST_SOURCE,
+  FRAME_FIXTURES,
+  REFERENCE_REGISTRY,
+  makeReactBuilder,
+} from '@tanstack/ai-generative-ui'
+import {
+  createBlobArtifactStore,
+  createFrameArtifacts,
+} from '@tanstack/ai-generative-ui/artifacts'
 import { createFsBlobStore } from './fs-blob-store'
 
 const EXAMPLE_ROOT = resolve(import.meta.dirname, '..')
@@ -22,7 +30,8 @@ const DATA_DIR = resolve(EXAMPLE_ROOT, '.data', 'artifacts')
 const localRequire = createRequire(import.meta.url)
 let esbuildCache: any = null
 function esbuildBundler(): any {
-  if (!esbuildCache) esbuildCache = createRequire(localRequire.resolve('vite'))('esbuild')
+  if (!esbuildCache)
+    esbuildCache = createRequire(localRequire.resolve('vite'))('esbuild')
   return esbuildCache
 }
 
@@ -34,7 +43,11 @@ export function getFragmentGuestScript(): Promise<string> {
   if (!guestScript) {
     guestScript = (async () => {
       const r = await esbuildBundler().build({
-        stdin: { contents: FRAGMENT_GUEST_SOURCE, loader: 'js', resolveDir: EXAMPLE_ROOT },
+        stdin: {
+          contents: FRAGMENT_GUEST_SOURCE,
+          loader: 'js',
+          resolveDir: EXAMPLE_ROOT,
+        },
         bundle: true,
         format: 'iife',
         platform: 'browser',
@@ -51,7 +64,9 @@ export function getFragmentGuestScript(): Promise<string> {
 /** esbuild build-at-write: TSX → ESM, classic JSX, imports left bare for the import map. */
 export const reactBuilder = makeReactBuilder(async ({ source }) => {
   const hasReact = /\bimport\s+(\*\s+as\s+)?React\b/.test(source)
-  const prepared = hasReact ? source : `import * as React from 'react';\n${source}`
+  const prepared = hasReact
+    ? source
+    : `import * as React from 'react';\n${source}`
   try {
     const out = await transformWithEsbuild(prepared, 'artifact.tsx', {
       loader: 'tsx',
@@ -65,7 +80,11 @@ export const reactBuilder = makeReactBuilder(async ({ source }) => {
     return { code: out.code }
   } catch (err: any) {
     const e = err?.errors?.[0]
-    return { error: e?.text ?? String(err), line: e?.location?.line, column: e?.location?.column }
+    return {
+      error: e?.text ?? String(err),
+      line: e?.location?.line,
+      column: e?.location?.column,
+    }
   }
 })
 
@@ -100,20 +119,43 @@ export function seedFixtures(): Promise<Array<LibraryEntry>> {
     seeded = (async () => {
       const existing = await store.list()
       const byTitleKind = new Map(
-        existing.filter((r) => r.provenance.driver === 'fixture').map((r) => [`${r.title}::${r.kind}`, r]),
+        existing
+          .filter((r) => r.provenance.driver === 'fixture')
+          .map((r) => [`${r.title}::${r.kind}`, r]),
       )
       const index: Array<LibraryEntry> = []
       for (const fx of Object.values(FRAME_FIXTURES)) {
         const found = byTitleKind.get(`${fx.title}::${fx.kind}`)
         if (found) {
-          index.push({ fixtureId: fx.id, artifactId: found.artifactId, revision: found.revision, title: found.title, kind: found.kind })
+          index.push({
+            fixtureId: fx.id,
+            artifactId: found.artifactId,
+            revision: found.revision,
+            title: found.title,
+            kind: found.kind,
+          })
           continue
         }
-        const res = await artifacts.create({ kind: fx.kind, title: fx.title, source: fx.source, fallbackText: fx.fallbackText, data: fx.data, dataSource: fx.dataSource })
+        const res = await artifacts.create({
+          kind: fx.kind,
+          title: fx.title,
+          source: fx.source,
+          fallbackText: fx.fallbackText,
+          data: fx.data,
+          dataSource: fx.dataSource,
+        })
         if ('artifactId' in res) {
-          index.push({ fixtureId: fx.id, artifactId: res.artifactId, revision: res.revision, title: fx.title, kind: fx.kind })
+          index.push({
+            fixtureId: fx.id,
+            artifactId: res.artifactId,
+            revision: res.revision,
+            title: fx.title,
+            kind: fx.kind,
+          })
         } else {
-          console.error(`[frame] fixture ${fx.id} failed to build:\n${res.buildLog}`)
+          console.error(
+            `[frame] fixture ${fx.id} failed to build:\n${res.buildLog}`,
+          )
         }
       }
       return index

@@ -1,15 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import {
-  validateGraph,
-  isValidSvgPath,
-  CANONICAL_FIXTURES,
-} from '../src/index'
+import { validateGraph, isValidSvgPath, CANONICAL_FIXTURES } from '../src/index'
 
 describe('Schema Validator and Bounded Repair (§9.3)', () => {
   it('validates all 9 canonical fixtures successfully', () => {
     for (const [name, fixture] of Object.entries(CANONICAL_FIXTURES)) {
       const result = validateGraph(fixture, { repair: false })
-      expect(result.valid, `Fixture "${name}" should be schema-valid: ${result.errors.join(', ')}`).toBe(true)
+      expect(
+        result.valid,
+        `Fixture "${name}" should be schema-valid: ${result.errors.join(', ')}`,
+      ).toBe(true)
       expect(result.errors).toHaveLength(0)
       expect(result.graph?.fallbackText).toBeDefined()
       expect(result.graph?.fallbackText.length).toBeGreaterThan(0)
@@ -37,7 +36,9 @@ describe('Schema Validator and Bounded Repair (§9.3)', () => {
     expect(result.valid).toBe(true)
     expect(result.graph?.root.type).toBe('Stack')
     expect(result.graph?.root.children?.[0]?.id).toBe('n_child')
-    expect(result.repairs.some((r) => r.includes('Degraded unknown container'))).toBe(true)
+    expect(
+      result.repairs.some((r) => r.includes('Degraded unknown container')),
+    ).toBe(true)
   })
 
   it('degrades unknown leaf node to Text', () => {
@@ -57,7 +58,9 @@ describe('Schema Validator and Bounded Repair (§9.3)', () => {
     const result = validateGraph(unknownLeaf, { repair: true })
     expect(result.valid).toBe(true)
     expect(result.graph?.root.type).toBe('Text')
-    expect(result.repairs.some((r) => r.includes('Degraded unknown leaf'))).toBe(true)
+    expect(
+      result.repairs.some((r) => r.includes('Degraded unknown leaf')),
+    ).toBe(true)
   })
 
   it('repairs inverted slider min/max bounds', () => {
@@ -79,7 +82,9 @@ describe('Schema Validator and Bounded Repair (§9.3)', () => {
     expect(result.valid).toBe(true)
     expect(result.graph?.root.props?.min).toBe(10)
     expect(result.graph?.root.props?.max).toBe(100)
-    expect(result.repairs.some((r) => r.includes('Swapped inverted Slider'))).toBe(true)
+    expect(
+      result.repairs.some((r) => r.includes('Swapped inverted Slider')),
+    ).toBe(true)
   })
 
   it('validates SVG path grammar and drops malicious/broken paths (§6.4.1)', () => {
@@ -113,7 +118,11 @@ describe('Schema Validator and Bounded Repair (§9.3)', () => {
     const shapes = result.graph?.root.props?.shapes
     expect(shapes).toHaveLength(1)
     expect(shapes[0].kind).toBe('circle')
-    expect(result.repairs.some((r) => r.includes('Dropped invalid or unsafe SVG path'))).toBe(true)
+    expect(
+      result.repairs.some((r) =>
+        r.includes('Dropped invalid or unsafe SVG path'),
+      ),
+    ).toBe(true)
   })
 
   it('synthesizes missing fallbackText', () => {
@@ -133,7 +142,11 @@ describe('Schema Validator and Bounded Repair (§9.3)', () => {
     const result = validateGraph(missingFallback, { repair: true })
     expect(result.valid).toBe(true)
     expect(result.graph?.fallbackText).toContain('Total is $45.00')
-    expect(result.repairs.some((r) => r.includes('Synthesized missing fallbackText'))).toBe(true)
+    expect(
+      result.repairs.some((r) =>
+        r.includes('Synthesized missing fallbackText'),
+      ),
+    ).toBe(true)
   })
 
   it('normalizes vector shapes accidentally placed in Scene children into props.shapes', () => {
@@ -164,6 +177,8 @@ describe('Schema Validator and Bounded Repair (§9.3)', () => {
     expect(result.graph?.root.props?.shapes[0].kind).toBe('rect')
     expect(result.graph?.root.props?.shapes[1].kind).toBe('line')
     expect(result.graph?.root.props?.shapes[2].kind).toBe('circle')
-    expect(result.repairs.some((r) => r.includes('Normalized 3 vector shape(s)'))).toBe(true)
+    expect(
+      result.repairs.some((r) => r.includes('Normalized 3 vector shape(s)')),
+    ).toBe(true)
   })
 })

@@ -21,8 +21,12 @@ export function App() {
           <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-500 flex items-center justify-center text-[11px] font-bold text-white">
             ◇
           </div>
-          <span className="text-xs font-semibold text-slate-200 font-display tracking-tight">Open Generative UI</span>
-          <span className="text-[10px] font-mono text-slate-500 hidden sm:inline">Draft 0.2</span>
+          <span className="text-xs font-semibold text-slate-200 font-display tracking-tight">
+            Open Generative UI
+          </span>
+          <span className="text-[10px] font-mono text-slate-500 hidden sm:inline">
+            Draft 0.2
+          </span>
         </div>
 
         <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-white/5 border border-white/5 text-xs">
@@ -30,7 +34,9 @@ export function App() {
             type="button"
             onClick={() => setSurface('chat')}
             className={`px-3 py-1 rounded-md transition-colors font-medium ${
-              surface === 'chat' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+              surface === 'chat'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
             Chat
@@ -39,27 +45,41 @@ export function App() {
             type="button"
             onClick={() => setSurface('playground')}
             className={`px-3 py-1 rounded-md transition-colors font-medium ${
-              surface === 'playground' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+              surface === 'playground'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
             Playground
-            <span className="ml-1.5 text-[9px] text-slate-500 uppercase tracking-wide hidden sm:inline">test bench</span>
+            <span className="ml-1.5 text-[9px] text-slate-500 uppercase tracking-wide hidden sm:inline">
+              test bench
+            </span>
           </button>
           <button
             type="button"
             onClick={() => setSurface('frame')}
             className={`px-3 py-1 rounded-md transition-colors font-medium ${
-              surface === 'frame' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
+              surface === 'frame'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white'
             }`}
           >
             Frame
-            <span className="ml-1.5 text-[9px] text-slate-500 uppercase tracking-wide hidden sm:inline">tier F</span>
+            <span className="ml-1.5 text-[9px] text-slate-500 uppercase tracking-wide hidden sm:inline">
+              tier F
+            </span>
           </button>
         </div>
       </div>
 
       <div className="flex-1 min-h-0">
-        {surface === 'chat' ? <ChatSurface /> : surface === 'playground' ? <Playground /> : <FrameSurface />}
+        {surface === 'chat' ? (
+          <ChatSurface />
+        ) : surface === 'playground' ? (
+          <Playground />
+        ) : (
+          <FrameSurface />
+        )}
       </div>
     </div>
   )

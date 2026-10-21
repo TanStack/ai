@@ -57,7 +57,8 @@ interface ProviderResult {
 // JSON inside assistant text. Embedding the graph as fenced text taught the
 // model to reply in that same textual format (and dump JSON into the chat)
 // instead of calling the tool. A stable id ties each call to its result.
-const toolCallId = (g: GraphDocument) => `render_${g.graphId}_${g.revision}`.replace(/[^A-Za-z0-9_]/g, '_')
+const toolCallId = (g: GraphDocument) =>
+  `render_${g.graphId}_${g.revision}`.replace(/[^A-Za-z0-9_]/g, '_')
 
 function buildAnthropicMessages(turns: ChatTurn[]): any[] {
   const msgs: any[] = []
@@ -68,7 +69,16 @@ function buildAnthropicMessages(turns: ChatTurn[]): any[] {
       if (t.content) content.push({ type: 'text', text: t.content })
       content.push({ type: 'tool_use', id, name: 'render_ui', input: t.graph })
       msgs.push({ role: 'assistant', content })
-      msgs.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: 'UI rendered to the user.' }] })
+      msgs.push({
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: id,
+            content: 'UI rendered to the user.',
+          },
+        ],
+      })
     } else {
       msgs.push({ role: t.role, content: t.content || '' })
     }
@@ -84,9 +94,19 @@ function buildOpenAIMessages(system: string, turns: ChatTurn[]): any[] {
       msgs.push({
         role: 'assistant',
         content: t.content || null,
-        tool_calls: [{ id, type: 'function', function: { name: 'render_ui', arguments: JSON.stringify(t.graph) } }],
+        tool_calls: [
+          {
+            id,
+            type: 'function',
+            function: { name: 'render_ui', arguments: JSON.stringify(t.graph) },
+          },
+        ],
       })
-      msgs.push({ role: 'tool', tool_call_id: id, content: 'UI rendered to the user.' })
+      msgs.push({
+        role: 'tool',
+        tool_call_id: id,
+        content: 'UI rendered to the user.',
+      })
     } else {
       msgs.push({ role: t.role, content: t.content || '' })
     }
@@ -112,7 +132,8 @@ async function callProvider(
 
   if (provider === 'anthropic') {
     const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured in .env.local')
+    if (!apiKey)
+      throw new Error('ANTHROPIC_API_KEY not configured in .env.local')
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -133,12 +154,17 @@ async function callProvider(
             input_schema: toolDef.parameters,
           },
         ],
-        tool_choice: toolChoice === 'required' ? { type: 'tool', name: 'render_ui' } : { type: 'auto' },
+        tool_choice:
+          toolChoice === 'required'
+            ? { type: 'tool', name: 'render_ui' }
+            : { type: 'auto' },
       }),
     })
 
     if (!response.ok) {
-      throw new Error(`Anthropic error (${response.status}): ${await response.text()}`)
+      throw new Error(
+        `Anthropic error (${response.status}): ${await response.text()}`,
+      )
     }
 
     const json = await response.json()
@@ -155,7 +181,8 @@ async function callProvider(
   // OpenAI-compatible providers (openai, gemini, xai, openrouter)
   const endpoints: Record<string, string> = {
     openai: 'https://api.openai.com/v1/chat/completions',
-    gemini: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+    gemini:
+      'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
     xai: 'https://api.x.ai/v1/chat/completions',
     openrouter: 'https://openrouter.ai/api/v1/chat/completions',
   }
@@ -166,7 +193,8 @@ async function callProvider(
     openrouter: 'OPENROUTER_API_KEY',
   }
   const apiKey = process.env[keyNames[provider]!]
-  if (!apiKey) throw new Error(`${keyNames[provider]} not configured in .env.local`)
+  if (!apiKey)
+    throw new Error(`${keyNames[provider]} not configured in .env.local`)
 
   const response = await fetch(endpoints[provider]!, {
     method: 'POST',
@@ -178,20 +206,27 @@ async function callProvider(
       model,
       messages: buildOpenAIMessages(system, turns),
       tools: [{ type: 'function', function: toolDef }],
-      tool_choice: toolChoice === 'required' ? { type: 'function', function: { name: 'render_ui' } } : 'auto',
+      tool_choice:
+        toolChoice === 'required'
+          ? { type: 'function', function: { name: 'render_ui' } }
+          : 'auto',
     }),
   })
 
   if (!response.ok) {
-    throw new Error(`${provider} error (${response.status}): ${await response.text()}`)
+    throw new Error(
+      `${provider} error (${response.status}): ${await response.text()}`,
+    )
   }
 
   const json = await response.json()
   const message = json.choices?.[0]?.message
-  const text = typeof message?.content === 'string' ? message.content.trim() : ''
+  const text =
+    typeof message?.content === 'string' ? message.content.trim() : ''
   const toolCall = message?.tool_calls?.[0]
   const argsStr = toolCall?.function?.arguments
-  const rawGraph = typeof argsStr === 'string' ? JSON.parse(argsStr) : (argsStr ?? null)
+  const rawGraph =
+    typeof argsStr === 'string' ? JSON.parse(argsStr) : (argsStr ?? null)
   return { text, rawGraph }
 }
 
@@ -244,10 +279,16 @@ function generativeUiApiPlugin(): Plugin {
               [{ role: 'user', content: prompt }],
               'required',
             )
-            if (!rawGraph) throw new Error('Model did not return a valid render_ui tool call')
+            if (!rawGraph)
+              throw new Error(
+                'Model did not return a valid render_ui tool call',
+              )
 
             const validation = validateGraph(rawGraph, { repair: true })
-            const graph = validation.valid && validation.graph ? validation.graph : LiveDriver.processModelOutput(rawGraph)
+            const graph =
+              validation.valid && validation.graph
+                ? validation.graph
+                : LiveDriver.processModelOutput(rawGraph)
 
             res.setHeader('Content-Type', 'application/json')
             res.end(JSON.stringify({ graph, repairs: validation.repairs }))
@@ -261,7 +302,10 @@ function generativeUiApiPlugin(): Plugin {
 
         // Live data-source stream: subscribes to a named host source and emits
         // SSE values the client pushes into the mounted frame (real-time views).
-        if (req.method === 'GET' && (req.url || '').split('?')[0] === '/api/live') {
+        if (
+          req.method === 'GET' &&
+          (req.url || '').split('?')[0] === '/api/live'
+        ) {
           try {
             handleLive(req, res)
           } catch (err: any) {

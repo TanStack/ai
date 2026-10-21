@@ -20,7 +20,12 @@ import { REFERENCE_REGISTRY } from '../frame/registry'
 import { createFrameArtifacts } from './operations'
 import type { FrameArtifactsContext } from './operations'
 import { artifactResourceUri, MCP_APP_MIME_TYPE } from './resource-uri'
-import type { ArtifactRecord, ArtifactToolResult, CreateArtifactInput, ReviseArtifactInput } from '../frame/types'
+import type {
+  ArtifactRecord,
+  ArtifactToolResult,
+  CreateArtifactInput,
+  ReviseArtifactInput,
+} from '../frame/types'
 
 export interface GenerativeUiArtifactsOptions extends FrameArtifactsContext {
   /**
@@ -55,7 +60,9 @@ export interface GenerativeUiArtifactsOptions extends FrameArtifactsContext {
  * isn't already present on the request (so it composes with a host that already
  * declares some of these).
  */
-export function generativeUiArtifacts(options: GenerativeUiArtifactsOptions): ChatMiddleware {
+export function generativeUiArtifacts(
+  options: GenerativeUiArtifactsOptions,
+): ChatMiddleware {
   const registry = options.registry ?? REFERENCE_REGISTRY
   const ops = createFrameArtifacts({ ...options, registry })
   const emitPins = options.emitPins !== false
@@ -63,12 +70,17 @@ export function generativeUiArtifacts(options: GenerativeUiArtifactsOptions): Ch
   const emitUiResource = options.emitUiResource === true
 
   const defs = getArtifactToolDefinitions(registry)
-  const descOf = (name: string) => defs.find((d) => d.name === name)?.description ?? name
-  const schemaOf = (name: string) => defs.find((d) => d.name === name)?.parameters ?? { type: 'object' }
+  const descOf = (name: string) =>
+    defs.find((d) => d.name === name)?.description ?? name
+  const schemaOf = (name: string) =>
+    defs.find((d) => d.name === name)?.parameters ?? { type: 'object' }
 
   async function emitPin(ctx: any, res: ArtifactToolResult): Promise<void> {
     if ('error' in res) return
-    const rec = await ops.read({ artifactId: res.artifactId, revision: res.revision })
+    const rec = await ops.read({
+      artifactId: res.artifactId,
+      revision: res.revision,
+    })
 
     if (emitPins) {
       ctx?.emitCustomEvent?.(pinEvent, {
@@ -85,7 +97,8 @@ export function generativeUiArtifacts(options: GenerativeUiArtifactsOptions): Ch
     // Standard MCP Apps path: emit a `ui-resource` part the SDK reconciles into
     // a UIResourcePart (toolCallId is stamped downstream from the tool context).
     if (emitUiResource && rec && options.renderShell) {
-      const portable = rec.kind === 'html-fragment' || options.includeReactTsx === true
+      const portable =
+        rec.kind === 'html-fragment' || options.includeReactTsx === true
       if (portable) {
         ctx?.emitCustomEvent?.('ui-resource', {
           resource: {
@@ -125,7 +138,12 @@ export function generativeUiArtifacts(options: GenerativeUiArtifactsOptions): Ch
     inputSchema: schemaOf('list_artifacts'),
   }).server(async (args: any) => {
     const recs = await ops.list(args ?? {})
-    return recs.map((r) => ({ artifactId: r.artifactId, revision: r.revision, title: r.title, kind: r.kind }))
+    return recs.map((r) => ({
+      artifactId: r.artifactId,
+      revision: r.revision,
+      title: r.title,
+      kind: r.kind,
+    }))
   })
 
   const readTool = toolDefinition({

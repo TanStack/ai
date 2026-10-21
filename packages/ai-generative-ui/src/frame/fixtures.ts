@@ -331,21 +331,24 @@ export const FRAME_FIXTURES: Record<string, FrameFixture> = {
     id: 'chord-card-fragment',
     kind: 'html-fragment',
     title: 'Emaj7 — open voicing',
-    fallbackText: 'Emaj7 open voicing, fingered 0-2-1-1-0-0 (low to high): open E, B at 2nd fret, D# at 1st, G# at 1st, open B, open E.',
+    fallbackText:
+      'Emaj7 open voicing, fingered 0-2-1-1-0-0 (low to high): open E, B at 2nd fret, D# at 1st, G# at 1st, open B, open E.',
     source: CHORD_CARD_FRAGMENT_SOURCE,
   },
   'chord-card-tsx': {
     id: 'chord-card-tsx',
     kind: 'react-tsx',
     title: 'Emaj7 — open voicing',
-    fallbackText: 'Emaj7 open voicing, fingered 0-2-1-1-0-0 (low to high): open E, B at 2nd fret, D# at 1st, G# at 1st, open B, open E.',
+    fallbackText:
+      'Emaj7 open voicing, fingered 0-2-1-1-0-0 (low to high): open E, B at 2nd fret, D# at 1st, G# at 1st, open B, open E.',
     source: CHORD_CARD_TSX_SOURCE,
   },
   'spend-monitor': {
     id: 'spend-monitor',
     kind: 'react-tsx',
     title: 'Spend monitor',
-    fallbackText: 'Spend this cycle totals $7,420. Compute $3,120/$3,000 (104%, over), Storage $980/$1,500, Bandwidth $1,460/$1,600, AI tokens $1,860/$2,000.',
+    fallbackText:
+      'Spend this cycle totals $7,420. Compute $3,120/$3,000 (104%, over), Storage $980/$1,500, Bandwidth $1,460/$1,600, AI tokens $1,860/$2,000.',
     source: SPEND_MONITOR_TSX_SOURCE,
     data: SPEND_MONITOR_DATA,
   },
@@ -353,7 +356,8 @@ export const FRAME_FIXTURES: Record<string, FrameFixture> = {
     id: 'live-spend-monitor',
     kind: 'react-tsx',
     title: 'Live spend monitor',
-    fallbackText: 'A live spend monitor: a running total and a feed of recent transactions that update in real time as the host streams new data.',
+    fallbackText:
+      'A live spend monitor: a running total and a feed of recent transactions that update in real time as the host streams new data.',
     source: LIVE_SPEND_MONITOR_TSX_SOURCE,
     data: LIVE_SPEND_MONITOR_DATA,
     dataSource: { name: 'spendFeed' },

@@ -27,7 +27,12 @@ import {
   renderUICompositionGuidance,
   type FrameTheme,
 } from '@tanstack/ai-generative-ui'
-import { getFragmentGuestScript, reactBuilder, registry, store } from './frame-host'
+import {
+  getFragmentGuestScript,
+  reactBuilder,
+  registry,
+  store,
+} from './frame-host'
 import { dataSources } from './data-sources'
 
 // Light theme injected into html-fragment MCP-Apps documents (fragments also
@@ -108,10 +113,16 @@ function readJsonBody(req: IncomingMessage): Promise<any> {
 }
 
 /** Handle POST /api/chat: run chat() and stream SSE to the Node response. */
-export async function handleChat(req: IncomingMessage, res: ServerResponse): Promise<void> {
+export async function handleChat(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
   const body = await readJsonBody(req)
   const params = await chatParamsFromRequestBody(body)
-  const provider = typeof params.forwardedProps?.provider === 'string' ? params.forwardedProps.provider : 'openai'
+  const provider =
+    typeof params.forwardedProps?.provider === 'string'
+      ? params.forwardedProps.provider
+      : 'openai'
 
   const abortController = new AbortController()
   req.on('close', () => abortController.abort())
@@ -131,7 +142,8 @@ export async function handleChat(req: IncomingMessage, res: ServerResponse): Pro
         // Additive: also emit the standard MCP Apps ui-resource part for
         // html-fragment artifacts so they render through the SDK's MCPAppResource.
         emitUiResource: true,
-        renderShell: (rec) => buildFragmentDocument(rec, FRAGMENT_THEME, { guestScript }),
+        renderShell: (rec) =>
+          buildFragmentDocument(rec, FRAGMENT_THEME, { guestScript }),
       }),
     ],
     tools: [renderUiTool()],

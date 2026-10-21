@@ -22,7 +22,8 @@ export function handleLive(req: IncomingMessage, res: ServerResponse): void {
   if (raw) {
     try {
       const parsed = JSON.parse(raw)
-      if (parsed && typeof parsed === 'object') params = parsed as Record<string, unknown>
+      if (parsed && typeof parsed === 'object')
+        params = parsed as Record<string, unknown>
     } catch {
       // Ignore malformed params; the source gets {}.
     }

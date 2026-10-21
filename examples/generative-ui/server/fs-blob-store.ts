@@ -31,9 +31,14 @@ async function bodyToString(body: BlobBody): Promise<string> {
   if (typeof body === 'string') return body
   if (body instanceof Uint8Array) return Buffer.from(body).toString('utf8')
   if (body instanceof ArrayBuffer) return Buffer.from(body).toString('utf8')
-  if (ArrayBuffer.isView(body)) return Buffer.from(body.buffer, body.byteOffset, body.byteLength).toString('utf8')
+  if (ArrayBuffer.isView(body))
+    return Buffer.from(body.buffer, body.byteOffset, body.byteLength).toString(
+      'utf8',
+    )
   if (typeof (body as Blob).text === 'function') return (body as Blob).text()
-  throw new Error('fs-blob-store: unsupported blob body (streams not supported)')
+  throw new Error(
+    'fs-blob-store: unsupported blob body (streams not supported)',
+  )
 }
 
 async function walk(dir: string): Promise<Array<string>> {
@@ -56,13 +61,23 @@ export function createFsBlobStore(baseDir: string): BlobStore {
   const pathFor = (key: string) => join(baseDir, keyToRel(key))
 
   return {
-    async put(key: string, body: BlobBody, options?: BlobPutOptions): Promise<BlobRecord> {
+    async put(
+      key: string,
+      body: BlobBody,
+      options?: BlobPutOptions,
+    ): Promise<BlobRecord> {
       const content = await bodyToString(body)
       const path = pathFor(key)
       await mkdir(dirname(path), { recursive: true })
       await writeFile(path, content, 'utf8')
       const now = Date.now()
-      return { key, size: Buffer.byteLength(content), contentType: options?.contentType, createdAt: now, updatedAt: now }
+      return {
+        key,
+        size: Buffer.byteLength(content),
+        contentType: options?.contentType,
+        createdAt: now,
+        updatedAt: now,
+      }
     },
 
     async get(key: string): Promise<BlobObject | null> {
@@ -77,7 +92,10 @@ export function createFsBlobStore(baseDir: string): BlobStore {
           text: async () => content,
           arrayBuffer: async () => {
             const buf = Buffer.from(content, 'utf8')
-            return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
+            return buf.buffer.slice(
+              buf.byteOffset,
+              buf.byteOffset + buf.byteLength,
+            )
           },
         }
       } catch {
@@ -88,7 +106,12 @@ export function createFsBlobStore(baseDir: string): BlobStore {
     async head(key: string): Promise<BlobRecord | null> {
       try {
         const info = await stat(pathFor(key))
-        return { key, size: info.size, createdAt: info.birthtimeMs, updatedAt: info.mtimeMs }
+        return {
+          key,
+          size: info.size,
+          createdAt: info.birthtimeMs,
+          updatedAt: info.mtimeMs,
+        }
       } catch {
         return null
       }

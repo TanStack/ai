@@ -3,7 +3,13 @@
  * Graph Document validator with §9.3 bounded repair rules.
  */
 
-import type { GraphDocument, UINode, SceneShape, GraphProvenance, ComputeBinding } from './types'
+import type {
+  GraphDocument,
+  UINode,
+  SceneShape,
+  GraphProvenance,
+  ComputeBinding,
+} from './types'
 import { KNOWN_CATALOG_TYPES } from './schema'
 
 export interface ValidationResult {
@@ -21,17 +27,25 @@ const SVG_PATH_REGEX = /^[ \t\r\n]*([MmLlHhVvCcSsQqTtAaZz][ \t\r\n,0-9.-]*)+$/
 
 export function isValidSvgPath(d: string): boolean {
   if (!d || typeof d !== 'string') return false
-  if (d.includes('<') || d.includes('>') || d.toLowerCase().includes('script')) return false
+  if (d.includes('<') || d.includes('>') || d.toLowerCase().includes('script'))
+    return false
   return SVG_PATH_REGEX.test(d.trim())
 }
 
-export function validateGraph(input: unknown, options: ValidationOptions = {}): ValidationResult {
+export function validateGraph(
+  input: unknown,
+  options: ValidationOptions = {},
+): ValidationResult {
   const repair = options.repair ?? true
   const errors: Array<string> = []
   const repairs: Array<string> = []
 
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    return { valid: false, errors: ['GraphDocument must be a non-null object'], repairs }
+    return {
+      valid: false,
+      errors: ['GraphDocument must be a non-null object'],
+      repairs,
+    }
   }
 
   const raw = input as Record<string, unknown>
@@ -39,9 +53,13 @@ export function validateGraph(input: unknown, options: ValidationOptions = {}): 
   // Spec version check
   if (raw.specVersion !== '0.1') {
     if (repair) {
-      repairs.push(`Repaired specVersion from ${String(raw.specVersion)} to "0.1"`)
+      repairs.push(
+        `Repaired specVersion from ${String(raw.specVersion)} to "0.1"`,
+      )
     } else {
-      errors.push(`Invalid specVersion: expected "0.1", received ${String(raw.specVersion)}`)
+      errors.push(
+        `Invalid specVersion: expected "0.1", received ${String(raw.specVersion)}`,
+      )
     }
   }
 
@@ -104,9 +122,18 @@ export function validateGraph(input: unknown, options: ValidationOptions = {}): 
     } else {
       provenance = {
         driver: driver as 'fixture' | 'programmatic' | 'live',
-        agentId: typeof rawProvenance.agentId === 'string' ? rawProvenance.agentId : undefined,
-        runId: typeof rawProvenance.runId === 'string' ? rawProvenance.runId : undefined,
-        sourceId: typeof rawProvenance.sourceId === 'string' ? rawProvenance.sourceId : undefined,
+        agentId:
+          typeof rawProvenance.agentId === 'string'
+            ? rawProvenance.agentId
+            : undefined,
+        runId:
+          typeof rawProvenance.runId === 'string'
+            ? rawProvenance.runId
+            : undefined,
+        sourceId:
+          typeof rawProvenance.sourceId === 'string'
+            ? rawProvenance.sourceId
+            : undefined,
       }
     }
   }
@@ -158,12 +185,19 @@ export function validateGraph(input: unknown, options: ValidationOptions = {}): 
     if (!KNOWN_CATALOG_TYPES.has(type)) {
       if (repair) {
         if (Array.isArray(nodeRaw.children) && nodeRaw.children.length > 0) {
-          repairs.push(`Degraded unknown container type "${type}" at ${path} to "Stack"`)
+          repairs.push(
+            `Degraded unknown container type "${type}" at ${path} to "Stack"`,
+          )
           type = 'Stack'
         } else {
-          repairs.push(`Degraded unknown leaf type "${type}" at ${path} to "Text"`)
+          repairs.push(
+            `Degraded unknown leaf type "${type}" at ${path} to "Text"`,
+          )
           type = 'Text'
-          props = { content: `[Unsupported component: ${type}]`, variant: 'caption' }
+          props = {
+            content: `[Unsupported component: ${type}]`,
+            variant: 'caption',
+          }
         }
       } else {
         errors.push(`Unknown catalog node type "${type}" at ${path}`)
@@ -183,7 +217,9 @@ export function validateGraph(input: unknown, options: ValidationOptions = {}): 
           max = temp
           repairs.push(`Swapped inverted Slider min/max at ${path}`)
         } else {
-          errors.push(`Slider min (${min}) cannot exceed max (${max}) at ${path}`)
+          errors.push(
+            `Slider min (${min}) cannot exceed max (${max}) at ${path}`,
+          )
         }
       }
       props.min = min
@@ -192,7 +228,9 @@ export function validateGraph(input: unknown, options: ValidationOptions = {}): 
       if (!props.viewBox || typeof props.viewBox !== 'string') {
         if (props.width && props.height) {
           props.viewBox = `0 0 ${props.width} ${props.height}`
-          repairs.push(`Derived Scene viewBox "${props.viewBox}" from width/height at ${path}`)
+          repairs.push(
+            `Derived Scene viewBox "${props.viewBox}" from width/height at ${path}`,
+          )
         } else if (repair) {
           props.viewBox = '0 0 400 300'
           repairs.push(`Defaulted missing Scene viewBox at ${path}`)
@@ -203,17 +241,32 @@ export function validateGraph(input: unknown, options: ValidationOptions = {}): 
 
       // Bounded Repair (§9.3): absorb vector shapes placed into children into props.shapes
       if (Array.isArray(nodeRaw.children) && nodeRaw.children.length > 0) {
-        const potentialShapes = (nodeRaw.children as Array<Record<string, unknown>>).filter(
+        const potentialShapes = (
+          nodeRaw.children as Array<Record<string, unknown>>
+        ).filter(
           (c) =>
             c &&
             typeof c === 'object' &&
-            (c.kind || ['group', 'rect', 'circle', 'line', 'polygon', 'path', 'text'].includes(String(c.type || '').toLowerCase())),
+            (c.kind ||
+              [
+                'group',
+                'rect',
+                'circle',
+                'line',
+                'polygon',
+                'path',
+                'text',
+              ].includes(String(c.type || '').toLowerCase())),
         )
 
         if (potentialShapes.length > 0) {
           const convertedShapes: Array<unknown> = potentialShapes.map((c) => {
-            const kind = (c.kind || String(c.type || '').toLowerCase()) as string
-            const childProps = c.props && typeof c.props === 'object' ? (c.props as Record<string, unknown>) : {}
+            const kind = (c.kind ||
+              String(c.type || '').toLowerCase()) as string
+            const childProps =
+              c.props && typeof c.props === 'object'
+                ? (c.props as Record<string, unknown>)
+                : {}
             const { type: _t, props: _p, ...rest } = c
             return {
               kind,
@@ -224,13 +277,23 @@ export function validateGraph(input: unknown, options: ValidationOptions = {}): 
 
           const existingShapes = Array.isArray(props.shapes) ? props.shapes : []
           props.shapes = [...existingShapes, ...convertedShapes]
-          repairs.push(`Normalized ${potentialShapes.length} vector shape(s) from Scene children into props.shapes at ${path}`)
-          nodeRaw.children = (nodeRaw.children as Array<unknown>).filter((c) => !potentialShapes.includes(c as Record<string, unknown>))
+          repairs.push(
+            `Normalized ${potentialShapes.length} vector shape(s) from Scene children into props.shapes at ${path}`,
+          )
+          nodeRaw.children = (nodeRaw.children as Array<unknown>).filter(
+            (c) => !potentialShapes.includes(c as Record<string, unknown>),
+          )
         }
       }
 
       if (Array.isArray(props.shapes)) {
-        props.shapes = validateSceneShapes(props.shapes, path, repairs, errors, repair)
+        props.shapes = validateSceneShapes(
+          props.shapes,
+          path,
+          repairs,
+          errors,
+          repair,
+        )
       } else {
         props.shapes = []
       }
@@ -267,7 +330,10 @@ export function validateGraph(input: unknown, options: ValidationOptions = {}): 
     }
 
     if (nodeRaw.on && typeof nodeRaw.on === 'object') {
-      cleanNode.on = nodeRaw.on as Record<string, string | { intent: string; payload?: unknown }>
+      cleanNode.on = nodeRaw.on as Record<
+        string,
+        string | { intent: string; payload?: unknown }
+      >
     }
 
     return cleanNode
@@ -287,12 +353,26 @@ export function validateGraph(input: unknown, options: ValidationOptions = {}): 
       if (!s || typeof s !== 'object') continue
 
       const kind = String(s.kind ?? s.type ?? '').toLowerCase()
-      if (!['group', 'rect', 'circle', 'line', 'polygon', 'path', 'text'].includes(kind)) {
+      if (
+        ![
+          'group',
+          'rect',
+          'circle',
+          'line',
+          'polygon',
+          'path',
+          'text',
+        ].includes(kind)
+      ) {
         if (canRepair) {
-          repairsList.push(`Dropped unknown Scene shape kind "${kind}" at ${path}.shapes[${i}]`)
+          repairsList.push(
+            `Dropped unknown Scene shape kind "${kind}" at ${path}.shapes[${i}]`,
+          )
           continue
         } else {
-          errorsList.push(`Unknown Scene shape kind "${kind}" at ${path}.shapes[${i}]`)
+          errorsList.push(
+            `Unknown Scene shape kind "${kind}" at ${path}.shapes[${i}]`,
+          )
           continue
         }
       }
@@ -310,7 +390,9 @@ export function validateGraph(input: unknown, options: ValidationOptions = {}): 
         const pathData = typeof s.d === 'string' ? s.d : ''
         if (!isValidSvgPath(pathData)) {
           if (canRepair) {
-            repairsList.push(`Dropped invalid or unsafe SVG path shape at ${path}.shapes[${i}]`)
+            repairsList.push(
+              `Dropped invalid or unsafe SVG path shape at ${path}.shapes[${i}]`,
+            )
             continue
           } else {
             errorsList.push(`Invalid SVG path data at ${path}.shapes[${i}]`)
@@ -320,7 +402,13 @@ export function validateGraph(input: unknown, options: ValidationOptions = {}): 
       }
 
       if (kind === 'group' && Array.isArray(s.children)) {
-        s.children = validateSceneShapes(s.children, `${path}.shapes[${i}]`, repairsList, errorsList, canRepair)
+        s.children = validateSceneShapes(
+          s.children,
+          `${path}.shapes[${i}]`,
+          repairsList,
+          errorsList,
+          canRepair,
+        )
       }
 
       // oxlint-disable-next-line eslint-js/no-restricted-syntax -- shape kind and geometry validated dynamically above
@@ -337,10 +425,14 @@ export function validateGraph(input: unknown, options: ValidationOptions = {}): 
 
   // Fallback text check and repair
   let fallbackText: string
-  if (typeof raw.fallbackText === 'string' && raw.fallbackText.trim().length > 0) {
+  if (
+    typeof raw.fallbackText === 'string' &&
+    raw.fallbackText.trim().length > 0
+  ) {
     fallbackText = raw.fallbackText
   } else if (repair) {
-    fallbackText = extractedText.length > 0 ? `${title}: ${extractedText.join(' ')}` : title
+    fallbackText =
+      extractedText.length > 0 ? `${title}: ${extractedText.join(' ')}` : title
     repairs.push(`Synthesized missing fallbackText: "${fallbackText}"`)
   } else {
     fallbackText = ''

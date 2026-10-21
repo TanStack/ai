@@ -6,7 +6,11 @@
  * Adding a module is a host release action, never a runtime request (§7.3.2).
  */
 
-import type { BuildDiagnostic, ModuleRegistry, ModuleRegistryEntry } from './types'
+import type {
+  BuildDiagnostic,
+  ModuleRegistry,
+  ModuleRegistryEntry,
+} from './types'
 
 /** Pinned version of the reference registry; recorded on artifacts (§3.1). */
 export const REFERENCE_REGISTRY_VERSION = 'runtime-2026.10'
@@ -61,7 +65,8 @@ export const REFERENCE_REGISTRY: ModuleRegistry = {
       name: '@ogui/bridge',
       version: '0.2.0',
       url: `/sandbox/_runtime/${REFERENCE_REGISTRY_VERSION}/ogui-bridge.js`,
-      description: 'useHostState, useIntent, useTheme — the §6 bridge as React imports.',
+      description:
+        'useHostState, useIntent, useTheme — the §6 bridge as React imports.',
     },
     {
       name: '@host/ui',
@@ -74,7 +79,10 @@ export const REFERENCE_REGISTRY: ModuleRegistry = {
 }
 
 /** Look up a registry entry by exact specifier name. */
-export function getRegistryEntry(registry: ModuleRegistry, name: string): ModuleRegistryEntry | undefined {
+export function getRegistryEntry(
+  registry: ModuleRegistry,
+  name: string,
+): ModuleRegistryEntry | undefined {
   return registry.modules.find((m) => m.name === name)
 }
 
@@ -121,7 +129,11 @@ export function extractImports(source: string): Array<string> {
 export function checkImports(
   source: string,
   registry: ModuleRegistry,
-): { ok: boolean; externals: Array<string>; diagnostics: Array<BuildDiagnostic> } {
+): {
+  ok: boolean
+  externals: Array<string>
+  diagnostics: Array<BuildDiagnostic>
+} {
   const diagnostics: Array<BuildDiagnostic> = []
   const externals = new Set<string>()
   const allowed = new Set(registry.modules.map((m) => m.name))
@@ -150,7 +162,11 @@ export function checkImports(
     })
   }
 
-  return { ok: diagnostics.length === 0, externals: [...externals], diagnostics }
+  return {
+    ok: diagnostics.length === 0,
+    externals: [...externals],
+    diagnostics,
+  }
 }
 
 /**
@@ -158,7 +174,9 @@ export function checkImports(
  * Fed into the create_artifact tool description / system prompt.
  */
 export function describeRegistryForPrompt(registry: ModuleRegistry): string {
-  const lines = registry.modules.map((m) => `- \`${m.name}\` (v${m.version}) — ${m.description}`)
+  const lines = registry.modules.map(
+    (m) => `- \`${m.name}\` (v${m.version}) — ${m.description}`,
+  )
   return [
     `Module registry ${registry.version}. In a react-tsx artifact you may import ONLY these specifiers (any other import fails the build):`,
     ...lines,

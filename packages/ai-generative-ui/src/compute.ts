@@ -24,7 +24,11 @@ export interface ComputeDescriptor {
 const round2 = (n: number) => Math.round(n * 100) / 100
 
 /** Resolve the first defined value among a set of alias keys. */
-function pick(inputs: Record<string, any>, keys: Array<string>, fallback = 0): number {
+function pick(
+  inputs: Record<string, any>,
+  keys: Array<string>,
+  fallback = 0,
+): number {
   for (const k of keys) {
     if (inputs[k] !== undefined && inputs[k] !== null && inputs[k] !== '') {
       return Number(inputs[k])
@@ -41,7 +45,11 @@ export class ComputeRegistry {
     this.registerDefaults()
   }
 
-  register(name: string, fn: ComputeFunction, descriptor?: ComputeDescriptor): this {
+  register(
+    name: string,
+    fn: ComputeFunction,
+    descriptor?: ComputeDescriptor,
+  ): this {
     this.functions.set(name, fn)
     if (descriptor) this.descriptors.set(name, descriptor)
     return this
@@ -61,13 +69,22 @@ export class ComputeRegistry {
 
   /** Catalog of registered functions, for prompting a model (§7.3). */
   describe(): Array<{ name: string } & ComputeDescriptor> {
-    return Array.from(this.descriptors.entries()).map(([name, d]) => ({ name, ...d }))
+    return Array.from(this.descriptors.entries()).map(([name, d]) => ({
+      name,
+      ...d,
+    }))
   }
 
-  execute(name: string, inputs: Record<string, any>, state: Record<string, any>): any {
+  execute(
+    name: string,
+    inputs: Record<string, any>,
+    state: Record<string, any>,
+  ): any {
     const fn = this.functions.get(name)
     if (!fn) {
-      console.warn(`[GenerativeUI] Compute function "${name}" not found in host registry`)
+      console.warn(
+        `[GenerativeUI] Compute function "${name}" not found in host registry`,
+      )
       return undefined
     }
     return fn(inputs, state)
@@ -80,7 +97,10 @@ export class ComputeRegistry {
       (inputs) => {
         const subtotal = pick(inputs, ['subtotal', 'amount', 'bill'])
         const tipPercent = pick(inputs, ['tipPercent', 'tip', 'gratuity'], 18)
-        const splitCount = Math.max(1, Math.round(pick(inputs, ['splitCount', 'guests', 'people'], 1)))
+        const splitCount = Math.max(
+          1,
+          Math.round(pick(inputs, ['splitCount', 'guests', 'people'], 1)),
+        )
         const tipAmount = round2(subtotal * (tipPercent / 100))
         const total = round2(subtotal + tipAmount)
         return {
@@ -93,17 +113,28 @@ export class ComputeRegistry {
         }
       },
       {
-        description: 'Split a bill: applies a tip percentage to a subtotal and divides across guests.',
+        description:
+          'Split a bill: applies a tip percentage to a subtotal and divides across guests.',
         inputs: ['subtotal', 'tipPercent', 'splitCount'],
-        output: '{ subtotal, tipPercent, splitCount, tipAmount, total, perPerson }',
+        output:
+          '{ subtotal, tipPercent, splitCount, tipAmount, total, perPerson }',
       },
     )
 
     // U4: Fixed-rate loan / mortgage — standard amortized monthly payment.
     const loanPaymentFn: ComputeFunction = (inputs) => {
       const principal = pick(inputs, ['loanAmount', 'principal', 'amount'])
-      const annualRatePct = pick(inputs, ['annualInterestRate', 'interestRate', 'rate', 'apr'])
-      const termYears = pick(inputs, ['termYears', 'years', 'term', 'loanTerm'], 30)
+      const annualRatePct = pick(inputs, [
+        'annualInterestRate',
+        'interestRate',
+        'rate',
+        'apr',
+      ])
+      const termYears = pick(
+        inputs,
+        ['termYears', 'years', 'term', 'loanTerm'],
+        30,
+      )
       const monthlyRate = annualRatePct / 100 / 12
       const months = Math.max(1, Math.round(termYears * 12))
       const monthlyPayment =
@@ -119,7 +150,8 @@ export class ComputeRegistry {
       }
     }
     const loanPaymentDesc: ComputeDescriptor = {
-      description: 'Monthly payment for a fixed-rate amortized loan or mortgage.',
+      description:
+        'Monthly payment for a fixed-rate amortized loan or mortgage.',
       inputs: ['loanAmount', 'annualInterestRate', 'termYears'],
       output: '{ monthlyPayment, totalPaid, totalInterest, months }',
     }
@@ -130,10 +162,27 @@ export class ComputeRegistry {
     // (loanAmount - balloonAmount); the balloon is due at balloonYear.
     const balloonLoanFn: ComputeFunction = (inputs) => {
       const principal = pick(inputs, ['loanAmount', 'principal', 'amount'])
-      const annualRatePct = pick(inputs, ['annualInterestRate', 'interestRate', 'rate', 'apr'])
-      const termYears = pick(inputs, ['termYears', 'years', 'term', 'loanTerm'], 30)
-      const balloonAmount = pick(inputs, ['balloonAmount', 'balloon', 'balloonPayment'])
-      const balloonYear = pick(inputs, ['balloonYear', 'balloonDueYear', 'dueYear'], termYears)
+      const annualRatePct = pick(inputs, [
+        'annualInterestRate',
+        'interestRate',
+        'rate',
+        'apr',
+      ])
+      const termYears = pick(
+        inputs,
+        ['termYears', 'years', 'term', 'loanTerm'],
+        30,
+      )
+      const balloonAmount = pick(inputs, [
+        'balloonAmount',
+        'balloon',
+        'balloonPayment',
+      ])
+      const balloonYear = pick(
+        inputs,
+        ['balloonYear', 'balloonDueYear', 'dueYear'],
+        termYears,
+      )
       const financed = Math.max(0, principal - balloonAmount)
       const monthlyRate = annualRatePct / 100 / 12
       const months = Math.max(1, Math.round(termYears * 12))
@@ -141,7 +190,10 @@ export class ComputeRegistry {
         monthlyRate === 0
           ? financed / months
           : (financed * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -months))
-      const paymentMonths = Math.max(1, Math.round(Math.min(balloonYear, termYears) * 12))
+      const paymentMonths = Math.max(
+        1,
+        Math.round(Math.min(balloonYear, termYears) * 12),
+      )
       const totalMonthly = monthlyPayment * paymentMonths
       const totalPaid = totalMonthly + balloonAmount
       return {
@@ -155,8 +207,15 @@ export class ComputeRegistry {
     const balloonLoanDesc: ComputeDescriptor = {
       description:
         'Balloon loan/mortgage: monthly payment amortizes (loanAmount - balloonAmount) over the term, with the balloonAmount due as a lump sum at balloonYear.',
-      inputs: ['loanAmount', 'annualInterestRate', 'termYears', 'balloonAmount', 'balloonYear'],
-      output: '{ monthlyPayment, balloonDue, balloonYear, totalPaid, totalInterest }',
+      inputs: [
+        'loanAmount',
+        'annualInterestRate',
+        'termYears',
+        'balloonAmount',
+        'balloonYear',
+      ],
+      output:
+        '{ monthlyPayment, balloonDue, balloonYear, totalPaid, totalInterest }',
     }
     this.register('balloonLoan', balloonLoanFn, balloonLoanDesc)
     this.register('balloonMortgage', balloonLoanFn, balloonLoanDesc)
@@ -165,10 +224,18 @@ export class ComputeRegistry {
     this.register(
       'savingsGrowth',
       (inputs) => {
-        const principal = pick(inputs, ['principal', 'initial', 'startingBalance'], 1000)
+        const principal = pick(
+          inputs,
+          ['principal', 'initial', 'startingBalance'],
+          1000,
+        )
         const annualRate = pick(inputs, ['annualRate', 'rate', 'apy'], 5) / 100
         const years = pick(inputs, ['years', 'term'], 5)
-        const monthlyContribution = pick(inputs, ['monthlyContribution', 'contribution', 'monthly'], 100)
+        const monthlyContribution = pick(
+          inputs,
+          ['monthlyContribution', 'contribution', 'monthly'],
+          100,
+        )
         const monthlyRate = annualRate / 12
         const months = Math.max(0, Math.round(years * 12))
         let futureValue = principal
@@ -184,7 +251,8 @@ export class ComputeRegistry {
         }
       },
       {
-        description: 'Future value of savings with compound interest and recurring monthly contributions.',
+        description:
+          'Future value of savings with compound interest and recurring monthly contributions.',
         inputs: ['principal', 'annualRate', 'years', 'monthlyContribution'],
         output: '{ futureValue, totalContributions, totalInterest }',
       },
@@ -200,7 +268,8 @@ export class ComputeRegistry {
         return { amount, total: round2(value + amount), base: value, percent }
       },
       {
-        description: 'Apply a percentage to a value — tax, discount, tip, or commission.',
+        description:
+          'Apply a percentage to a value — tax, discount, tip, or commission.',
         inputs: ['value', 'percent'],
         output: '{ amount, total, base, percent }',
       },
@@ -215,7 +284,8 @@ export class ComputeRegistry {
         return round2(total)
       },
       {
-        description: 'Sum an array of numbers. Pass the array as the "items" input.',
+        description:
+          'Sum an array of numbers. Pass the array as the "items" input.',
         inputs: ['items'],
         output: 'number (the total)',
       },

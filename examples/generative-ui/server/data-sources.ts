@@ -20,8 +20,18 @@ interface Txn {
 }
 
 const MERCHANTS = [
-  'Figma', 'Vercel', 'AWS', 'GitHub', 'Linear', 'Notion', 'Datadog',
-  'OpenAI', 'Anthropic', 'Cloudflare', 'Stripe fee', 'Fly.io',
+  'Figma',
+  'Vercel',
+  'AWS',
+  'GitHub',
+  'Linear',
+  'Notion',
+  'Datadog',
+  'OpenAI',
+  'Anthropic',
+  'Cloudflare',
+  'Stripe fee',
+  'Fly.io',
 ]
 
 let txnSeq = 0
@@ -31,18 +41,25 @@ export const dataSources = new DataSourceRegistry()
 dataSources.register(
   'spendFeed',
   (params, emit) => {
-    const currency = typeof params.currency === 'string' ? params.currency : 'USD'
+    const currency =
+      typeof params.currency === 'string' ? params.currency : 'USD'
     const intervalMs = Math.max(400, Number(params.intervalMs) || 1500)
     let total = 0
     const recent: Array<Txn> = []
 
     const tick = () => {
       const amount = Math.round(20 + Math.random() * 480)
-      const label = MERCHANTS[Math.floor(Math.random() * MERCHANTS.length)] ?? 'Charge'
+      const label =
+        MERCHANTS[Math.floor(Math.random() * MERCHANTS.length)] ?? 'Charge'
       total += amount
       recent.unshift({ id: `txn_${++txnSeq}`, label, amount })
       if (recent.length > 6) recent.pop()
-      emit({ currency, total, recent: [...recent], updatedAt: new Date().toISOString() })
+      emit({
+        currency,
+        total,
+        recent: [...recent],
+        updatedAt: new Date().toISOString(),
+      })
     }
 
     // Seed one transaction immediately so the view has something live at once,

@@ -13,7 +13,10 @@ export const MCP_APP_MIME_TYPE = 'text/html;profile=mcp-app'
 export const ARTIFACT_URI_AUTHORITY = 'genui'
 
 /** `ui://genui/<artifactId>@<revision>` for a pinned revision. */
-export function artifactResourceUri(artifactId: string, revision: number): string {
+export function artifactResourceUri(
+  artifactId: string,
+  revision: number,
+): string {
   return `ui://${ARTIFACT_URI_AUTHORITY}/${artifactId}@${revision}`
 }
 
@@ -23,7 +26,9 @@ export function artifactResourceTemplate(): string {
 }
 
 /** Parse a `ui://genui/<id>@<rev>` URI, or `null` if it isn't one of ours. */
-export function parseArtifactResourceUri(uri: string): { artifactId: string; revision: number } | null {
+export function parseArtifactResourceUri(
+  uri: string,
+): { artifactId: string; revision: number } | null {
   const prefix = `ui://${ARTIFACT_URI_AUTHORITY}/`
   if (!uri.startsWith(prefix)) return null
   const rest = uri.slice(prefix.length)

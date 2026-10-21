@@ -14,7 +14,14 @@ export type SemanticPaintRole =
   | 'surface'
   | 'none'
 
-export type SemanticTone = 'info' | 'warning' | 'danger' | 'neutral' | 'primary' | 'secondary' | 'accent'
+export type SemanticTone =
+  | 'info'
+  | 'warning'
+  | 'danger'
+  | 'neutral'
+  | 'primary'
+  | 'secondary'
+  | 'accent'
 
 export interface GraphProvenance {
   driver: 'fixture' | 'programmatic' | 'live'
@@ -250,7 +257,14 @@ export interface ChoiceProps {
 }
 
 // 6.4 Vector Scenes (Scene)
-export type SceneShapeKind = 'group' | 'rect' | 'circle' | 'line' | 'polygon' | 'path' | 'text'
+export type SceneShapeKind =
+  | 'group'
+  | 'rect'
+  | 'circle'
+  | 'line'
+  | 'polygon'
+  | 'path'
+  | 'text'
 
 export interface BaseSceneShape {
   kind: SceneShapeKind

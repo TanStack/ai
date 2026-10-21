@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import {
-  FixtureDriver,
-  ProgrammaticDriver,
-  LiveDriver,
-} from '../src/index'
+import { FixtureDriver, ProgrammaticDriver, LiveDriver } from '../src/index'
 
 describe('UIDriver Implementations (§7)', () => {
   it('FixtureDriver returns all canonical fixtures by scenario ID', async () => {

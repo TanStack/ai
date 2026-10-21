@@ -9,15 +9,27 @@
  * library surface, not this.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
 import { createFrameHost } from '../frame/bridge'
 import { FRAME_THEME_TOKEN_NAMES } from '../frame/shell'
 import type { IntentDispatch } from '../frame/bridge'
-import type { ArtifactPin, BridgeEnvelope, FrameErrorPayload, FrameTheme } from '../frame/types'
+import type {
+  ArtifactPin,
+  BridgeEnvelope,
+  FrameErrorPayload,
+  FrameTheme,
+} from '../frame/types'
 
 /** Read the host's own `--ui-*` tokens off a DOM node (default theme source, §5.2). */
 export function readHostTheme(from?: Element | null): FrameTheme {
-  const el = from ?? (typeof document !== 'undefined' ? document.documentElement : null)
+  const el =
+    from ?? (typeof document !== 'undefined' ? document.documentElement : null)
   const tokens: Record<string, string> = {}
   let mode: 'light' | 'dark' = 'light'
   if (el && typeof getComputedStyle === 'function') {
@@ -62,7 +74,9 @@ export interface FrameArtifactRendererProps {
   initialState?: Record<string, unknown>
   onStateChange?: (state: Record<string, unknown>) => void
   /** Route submit/action intents through the host (§6.3). */
-  onIntent?: (dispatch: IntentDispatch) => Promise<{ ok: boolean; result?: unknown; error?: string }> | void
+  onIntent?: (
+    dispatch: IntentDispatch,
+  ) => Promise<{ ok: boolean; result?: unknown; error?: string }> | void
   onError?: (err: FrameErrorPayload) => void
   title?: string
   minHeight?: number
@@ -122,7 +136,10 @@ export function FrameArtifactRenderer(props: FrameArtifactRendererProps) {
   const bridgeRef = useRef<any>(null)
   // Latest live value, buffered until the mcp-app bridge is initialized
   // (sendToolResult requires post-init); flushed from `oninitialized`.
-  const liveDataRef = useRef<{ has: boolean; value: unknown }>({ has: false, value: undefined })
+  const liveDataRef = useRef<{ has: boolean; value: unknown }>({
+    has: false,
+    value: undefined,
+  })
   const bridgeInitRef = useRef<boolean>(false)
 
   const send = useCallback((env: BridgeEnvelope) => {
@@ -190,56 +207,101 @@ export function FrameArtifactRenderer(props: FrameArtifactRendererProps) {
         import('@modelcontextprotocol/ext-apps'),
       ])
       if (cancelled) return
-      const mod: any = { AppBridge: bridgeMod.AppBridge, PostMessageTransport: rootMod.PostMessageTransport }
+      const mod: any = {
+        AppBridge: bridgeMod.AppBridge,
+        PostMessageTransport: rootMod.PostMessageTransport,
+      }
       const theme = themeRef.current()
       const bridgeInstance = new mod.AppBridge(
         null,
         { name: 'generative-ui-host', version: '0.2.0' },
         { openLinks: {} },
-        { hostContext: { theme: theme.mode, styles: { variables: theme.tokens } } },
+        {
+          hostContext: {
+            theme: theme.mode,
+            styles: { variables: theme.tokens },
+          },
+        },
       )
       bridge = bridgeInstance
       bridgeRef.current = bridgeInstance
       bridgeInstance.oncalltool = async (params: any) => {
-        const outcome = await onIntent?.({ intentClass: 'action', intent: params.name, payload: params.arguments, state: stateRef.current })
+        const outcome = await onIntent?.({
+          intentClass: 'action',
+          intent: params.name,
+          payload: params.arguments,
+          state: stateRef.current,
+        })
         const result = outcome?.result ?? {}
-        return { content: [{ type: 'text', text: JSON.stringify(result) }], structuredContent: result && typeof result === 'object' ? result : undefined }
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          structuredContent:
+            result && typeof result === 'object' ? result : undefined,
+        }
       }
       bridgeInstance.onmessage = async ({ content }: any) => {
-        const text = (content ?? []).filter((c: any) => c.type === 'text').map((c: any) => c.text).join('')
-        void onIntent?.({ intentClass: 'submit', intent: 'message', payload: text, state: stateRef.current })
+        const text = (content ?? [])
+          .filter((c: any) => c.type === 'text')
+          .map((c: any) => c.text)
+          .join('')
+        void onIntent?.({
+          intentClass: 'submit',
+          intent: 'message',
+          payload: text,
+          state: stateRef.current,
+        })
         return {}
       }
       bridgeInstance.onopenlink = async ({ url }: any) => {
-        try { window.open(url, '_blank', 'noopener,noreferrer') } catch {}
+        try {
+          window.open(url, '_blank', 'noopener,noreferrer')
+        } catch {}
         return {}
       }
       bridgeInstance.onupdatemodelcontext = async (params: any) => {
-        if (params?.structuredContent && typeof params.structuredContent === 'object') {
+        if (
+          params?.structuredContent &&
+          typeof params.structuredContent === 'object'
+        ) {
           stateRef.current = params.structuredContent
           onStateChange?.(stateRef.current)
         }
         return {}
       }
       bridgeInstance.onsizechange = (params: any) => {
-        if (typeof params?.height === 'number') setHeight(Math.max(minHeight, params.height))
+        if (typeof params?.height === 'number')
+          setHeight(Math.max(minHeight, params.height))
       }
       bridgeInstance.oninitialized = () => {
         bridgeInitRef.current = true
         if (data !== undefined) {
-          const args = data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : { value: data }
-          try { void bridgeInstance.sendToolInput({ arguments: args }) } catch {}
+          const args =
+            data && typeof data === 'object' && !Array.isArray(data)
+              ? (data as Record<string, unknown>)
+              : { value: data }
+          try {
+            void bridgeInstance.sendToolInput({ arguments: args })
+          } catch {}
         }
         // Flush any live value that arrived before the bridge was ready
         // (sendToolResult is only valid after initialized — ext-apps contract).
         if (liveDataRef.current.has) {
-          try { void bridgeInstance.sendToolResult({ structuredContent: asStructured(liveDataRef.current.value) }) } catch {}
+          try {
+            void bridgeInstance.sendToolResult({
+              structuredContent: asStructured(liveDataRef.current.value),
+            })
+          } catch {}
         }
       }
       const iframe = iframeRef.current
       if (!iframe?.contentWindow || cancelled) return
       try {
-        await bridgeInstance.connect(new mod.PostMessageTransport(iframe.contentWindow, iframe.contentWindow))
+        await bridgeInstance.connect(
+          new mod.PostMessageTransport(
+            iframe.contentWindow,
+            iframe.contentWindow,
+          ),
+        )
       } catch (err) {
         onError?.({ message: `MCP Apps bridge failed: ${String(err)}` })
       }
@@ -248,7 +310,9 @@ export function FrameArtifactRenderer(props: FrameArtifactRendererProps) {
       cancelled = true
       bridgeRef.current = null
       bridgeInitRef.current = false
-      try { bridge?.close?.() } catch {}
+      try {
+        bridge?.close?.()
+      } catch {}
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pin.artifactId, pin.revision, url, protocol])
@@ -261,7 +325,11 @@ export function FrameArtifactRenderer(props: FrameArtifactRendererProps) {
       if (protocol === 'mcp-app') {
         liveDataRef.current = { has: true, value }
         if (bridgeInitRef.current && bridgeRef.current) {
-          try { void bridgeRef.current.sendToolResult({ structuredContent: asStructured(value) }) } catch {}
+          try {
+            void bridgeRef.current.sendToolResult({
+              structuredContent: asStructured(value),
+            })
+          } catch {}
         }
       } else {
         hostRef.current?.pushData(value)
@@ -277,7 +345,9 @@ export function FrameArtifactRenderer(props: FrameArtifactRendererProps) {
     if (!subscribeData) return
     const unsubscribe = subscribeData((value) => pushLive(value))
     return () => {
-      try { unsubscribe?.() } catch {}
+      try {
+        unsubscribe?.()
+      } catch {}
     }
     // Re-subscribe when the frame remounts (new revision) or the source changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -320,7 +390,8 @@ export function FrameArtifactRenderer(props: FrameArtifactRendererProps) {
             padding: '6px 10px',
             fontSize: 11,
             color: 'var(--gui-text-muted, var(--ui-muted, #6b7280))',
-            borderBottom: '1px solid var(--gui-border, var(--ui-border, #eef2f7))',
+            borderBottom:
+              '1px solid var(--gui-border, var(--ui-border, #eef2f7))',
           }}
         >
           <span aria-hidden>▢</span>
@@ -329,7 +400,13 @@ export function FrameArtifactRenderer(props: FrameArtifactRendererProps) {
         </div>
       )}
       {errored && (
-        <div style={{ padding: '10px 12px', fontSize: 13, color: 'var(--gui-danger, var(--ui-negative, #dc2626))' }}>
+        <div
+          style={{
+            padding: '10px 12px',
+            fontSize: 13,
+            color: 'var(--gui-danger, var(--ui-negative, #dc2626))',
+          }}
+        >
           This view failed to render. {errored.message}
         </div>
       )}

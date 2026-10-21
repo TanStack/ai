@@ -27,7 +27,9 @@ export function preflightReactImports(
     return {
       result: {
         ok: false,
-        buildLog: check.diagnostics.map((d) => `import error: ${d.message}`).join('\n'),
+        buildLog: check.diagnostics
+          .map((d) => `import error: ${d.message}`)
+          .join('\n'),
         diagnostics: check.diagnostics,
       },
       externals: check.externals,
@@ -42,15 +44,23 @@ export function preflightReactImports(
  * `ArtifactBuilder`. The `transform` only needs to turn TSX into ESM JS,
  * treating the given `externals` as external imports.
  */
-export function makeReactBuilder(transform: (input: {
-  source: string
-  externals: Array<string>
-}) => Promise<{ code: string } | { error: string; line?: number; column?: number }>): ArtifactBuilder {
+export function makeReactBuilder(
+  transform: (input: {
+    source: string
+    externals: Array<string>
+  }) => Promise<
+    { code: string } | { error: string; line?: number; column?: number }
+  >,
+): ArtifactBuilder {
   return {
     async build({ kind, source, registry }): Promise<BuildResult> {
       if (kind !== 'react-tsx') {
         // html-fragment is not compiled; the shell inlines the source (§7.1).
-        return { ok: true, code: source, buildLog: 'html-fragment: no build step' }
+        return {
+          ok: true,
+          code: source,
+          buildLog: 'html-fragment: no build step',
+        }
       }
       const pre = preflightReactImports(source, registry)
       if (pre.result) return pre.result
@@ -59,10 +69,17 @@ export function makeReactBuilder(transform: (input: {
         return {
           ok: false,
           buildLog: out.error,
-          diagnostics: [{ message: out.error, line: out.line, column: out.column }],
+          diagnostics: [
+            { message: out.error, line: out.line, column: out.column },
+          ],
         }
       }
-      return { ok: true, code: out.code, buildLog: 'built ok', externals: pre.externals }
+      return {
+        ok: true,
+        code: out.code,
+        buildLog: 'built ok',
+        externals: pre.externals,
+      }
     },
   }
 }

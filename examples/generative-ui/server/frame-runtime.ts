@@ -241,7 +241,10 @@ export const RUNTIME_SHIMS: Record<string, string> = {
  * `entry` is the stdin source; `external` keeps the shared React instance
  * out of the bundle so the import map resolves it to the single `react.js`.
  */
-export const RUNTIME_NPM: Record<string, { entry: string; external: Array<string> }> = {
+export const RUNTIME_NPM: Record<
+  string,
+  { entry: string; external: Array<string> }
+> = {
   // One self-contained bundle holding the single React instance plus react-dom's
   // createRoot. Zero externals → no `__require` shim; React ships CJS so the API
   // is re-exported explicitly via destructuring (each becomes a static named

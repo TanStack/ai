@@ -17,8 +17,15 @@ const timeout = setTimeout(() => controller.abort(), 8000)
 
 const events = []
 try {
-  const res = await fetch(url, { headers: { accept: 'text/event-stream' }, signal: controller.signal })
-  ok('GET /api/live responds 200 text/event-stream', res.ok && (res.headers.get('content-type') || '').includes('text/event-stream'))
+  const res = await fetch(url, {
+    headers: { accept: 'text/event-stream' },
+    signal: controller.signal,
+  })
+  ok(
+    'GET /api/live responds 200 text/event-stream',
+    res.ok &&
+      (res.headers.get('content-type') || '').includes('text/event-stream'),
+  )
 
   const reader = res.body.getReader()
   const decoder = new TextDecoder()
@@ -33,11 +40,19 @@ try {
       buffer = buffer.slice(idx + 2)
       const line = chunk.split('\n').find((l) => l.startsWith('data:'))
       if (line) {
-        try { events.push(JSON.parse(line.slice(5).trim())) } catch { /* skip */ }
+        try {
+          events.push(JSON.parse(line.slice(5).trim()))
+        } catch {
+          /* skip */
+        }
       }
     }
   }
-  try { await reader.cancel() } catch { /* ignore */ }
+  try {
+    await reader.cancel()
+  } catch {
+    /* ignore */
+  }
 } catch (err) {
   if (err?.name !== 'AbortError') throw err
 } finally {
@@ -45,10 +60,23 @@ try {
   controller.abort()
 }
 
-ok(`received ${events.length} live emissions (wanted ${WANT})`, events.length >= WANT)
-ok('each emission carries a running total', events.every((e) => typeof e?.total === 'number'))
+ok(
+  `received ${events.length} live emissions (wanted ${WANT})`,
+  events.length >= WANT,
+)
+ok(
+  'each emission carries a running total',
+  events.every((e) => typeof e?.total === 'number'),
+)
 const totals = events.map((e) => e?.total)
 ok(`total changes over time (${totals.join(' → ')})`, new Set(totals).size > 1)
-ok('each emission lists recent transactions', events.every((e) => Array.isArray(e?.recent)))
+ok(
+  'each emission lists recent transactions',
+  events.every((e) => Array.isArray(e?.recent)),
+)
 
-console.log(process.exitCode ? '\nFAIL' : '\nPASS — live data streams into the host for real-time views')
+console.log(
+  process.exitCode
+    ? '\nFAIL'
+    : '\nPASS — live data streams into the host for real-time views',
+)

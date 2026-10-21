@@ -11,7 +11,7 @@ import type {
   SceneShape,
   SemanticPaintRole,
 } from '../types'
-import type { ComputeRegistry} from '../compute';
+import type { ComputeRegistry } from '../compute'
 import { defaultComputeRegistry } from '../compute'
 
 export interface GenerativeUIRendererProps {
@@ -38,20 +38,28 @@ function resolveStatePath(obj: unknown, path: string): unknown {
   const parts = path.split('.')
   let curr: unknown = obj
   for (const p of parts) {
-    if (curr === null || curr === undefined || typeof curr !== 'object') return undefined
+    if (curr === null || curr === undefined || typeof curr !== 'object')
+      return undefined
     curr = (curr as Record<string, unknown>)[p]
   }
   return curr
 }
 
-function setStatePath(obj: Record<string, unknown>, path: string, value: unknown): Record<string, unknown> {
+function setStatePath(
+  obj: Record<string, unknown>,
+  path: string,
+  value: unknown,
+): Record<string, unknown> {
   const parts = path.split('.')
   const copy: Record<string, unknown> = { ...obj }
   let curr: Record<string, unknown> = copy
   for (let i = 0; i < parts.length - 1; i++) {
     const p = parts[i]
     if (!p) continue
-    curr[p] = curr[p] && typeof curr[p] === 'object' ? { ...(curr[p] as Record<string, unknown>) } : {}
+    curr[p] =
+      curr[p] && typeof curr[p] === 'object'
+        ? { ...(curr[p] as Record<string, unknown>) }
+        : {}
     curr = curr[p] as Record<string, unknown>
   }
   const lastKey = parts[parts.length - 1]
@@ -93,7 +101,11 @@ function resolveBinding(state: unknown, path: string): unknown {
 function resolveDisplayValue(val: any, state: unknown): any {
   if (typeof val === 'string' && PATH_LIKE.test(val)) {
     const resolved = resolveBinding(state, val)
-    if (resolved !== undefined && resolved !== null && typeof resolved !== 'object') {
+    if (
+      resolved !== undefined &&
+      resolved !== null &&
+      typeof resolved !== 'object'
+    ) {
       return resolved
     }
   }
@@ -107,7 +119,9 @@ function resolveDisplayValue(val: any, state: unknown): any {
  */
 function valueBindPath(node: Pick<UINode, 'id' | 'bind'>): string {
   const explicit = node.bind?.value
-  return typeof explicit === 'string' && explicit ? explicit : `${node.id}.value`
+  return typeof explicit === 'string' && explicit
+    ? explicit
+    : `${node.id}.value`
 }
 
 /**
@@ -124,20 +138,30 @@ function collectInitialBoundState(
   const seed = p.value ?? p.defaultValue ?? p.default
   if (seed !== undefined) {
     const path = valueBindPath(node)
-    if (resolveStatePath(next, path) === undefined) next = setStatePath(next, path, seed)
+    if (resolveStatePath(next, path) === undefined)
+      next = setStatePath(next, path, seed)
   }
   // Checklist: seed its state object from each item's defaultDone. Mirrors the
   // renderer's implicit `${id}.state` path and index-based item keys.
   if (node.type === 'Checklist') {
-    const statePath = (typeof node.bind?.state === 'string' && node.bind.state) || `${node.id}.state`
+    const statePath =
+      (typeof node.bind?.state === 'string' && node.bind.state) ||
+      `${node.id}.state`
     const items = node.props?.items
-    if (Array.isArray(items) && resolveStatePath(next, statePath) === undefined) {
+    if (
+      Array.isArray(items) &&
+      resolveStatePath(next, statePath) === undefined
+    ) {
       const checklistState: Record<string, boolean> = {}
       items.forEach((item, idx) => {
-        const key = item && typeof item === 'object' && typeof item.id === 'string' ? item.id : String(idx)
+        const key =
+          item && typeof item === 'object' && typeof item.id === 'string'
+            ? item.id
+            : String(idx)
         checklistState[key] = Boolean(item?.defaultDone)
       })
-      if (Object.keys(checklistState).length > 0) next = setStatePath(next, statePath, checklistState)
+      if (Object.keys(checklistState).length > 0)
+        next = setStatePath(next, statePath, checklistState)
     }
   }
   node.children?.forEach((child) => {
@@ -186,7 +210,11 @@ export function GenerativeUIRenderer({
               // the state root so scalar-style bindings a live model may emit
               // (e.g. output "monthlyPayment") resolve too.
               let next = setStatePath(prev, output, result)
-              if (result && typeof result === 'object' && !Array.isArray(result)) {
+              if (
+                result &&
+                typeof result === 'object' &&
+                !Array.isArray(result)
+              ) {
                 for (const [k, v] of Object.entries(result)) {
                   next = setStatePath(next, k, v)
                 }
@@ -209,7 +237,12 @@ export function GenerativeUIRenderer({
   }, [])
 
   const fireIntent = useCallback(
-    (nodeId: string, intent: string, intentClass: 'local' | 'submit' | 'action', payload?: unknown) => {
+    (
+      nodeId: string,
+      intent: string,
+      intentClass: 'local' | 'submit' | 'action',
+      payload?: unknown,
+    ) => {
       onIntent?.({
         graphId: graph.graphId,
         nodeId,
@@ -229,7 +262,9 @@ export function GenerativeUIRenderer({
     >
       <header className="mb-6 flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[var(--gui-text)] leading-tight">{graph.title}</h2>
+          <h2 className="text-2xl font-semibold tracking-[-0.02em] text-[var(--gui-text)] leading-tight">
+            {graph.title}
+          </h2>
         </div>
         <span className="shrink-0 inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-[var(--gui-text-muted)] bg-[var(--gui-surface-muted)] border border-[var(--gui-border)] rounded-full px-2.5 py-1 mt-1">
           <span className="w-1.5 h-1.5 rounded-full bg-[var(--gui-positive-solid)]" />
@@ -263,7 +298,13 @@ interface NodeRendererProps {
   computeRegistry?: ComputeRegistry
 }
 
-function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistry }: NodeRendererProps) {
+function NodeRenderer({
+  node,
+  state,
+  onStateChange,
+  onFireIntent,
+  computeRegistry,
+}: NodeRendererProps) {
   const { id, type, props = {}, children, bind = {}, on = {} } = node
 
   // Resolve bound props from state (tolerant of compute output-name drift)
@@ -279,9 +320,16 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
   // 6.1 Layout Components
   if (type === 'Stack') {
     const isHorizontal = resolvedProps.direction === 'horizontal'
-    const gapClass = resolvedProps.gap === 'sm' ? 'gap-2' : resolvedProps.gap === 'lg' ? 'gap-6' : 'gap-4'
+    const gapClass =
+      resolvedProps.gap === 'sm'
+        ? 'gap-2'
+        : resolvedProps.gap === 'lg'
+          ? 'gap-6'
+          : 'gap-4'
     return (
-      <div className={`flex ${isHorizontal ? 'flex-row' : 'flex-col'} ${gapClass}`}>
+      <div
+        className={`flex ${isHorizontal ? 'flex-row' : 'flex-col'} ${gapClass}`}
+      >
         {children?.map((child) => (
           <NodeRenderer
             key={child.id}
@@ -298,7 +346,8 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
 
   if (type === 'Columns') {
     const count = resolvedProps.count ?? 2
-    const gridCols = count === 4 ? 'grid-cols-4' : count === 3 ? 'grid-cols-3' : 'grid-cols-2'
+    const gridCols =
+      count === 4 ? 'grid-cols-4' : count === 3 ? 'grid-cols-3' : 'grid-cols-2'
     return (
       <div className={`grid ${gridCols} gap-4`}>
         {children?.map((child) => (
@@ -316,10 +365,15 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
   }
 
   if (type === 'Section') {
-    const titleProp = resolvedProps.title ?? resolvedProps.label ?? resolvedProps.heading
+    const titleProp =
+      resolvedProps.title ?? resolvedProps.label ?? resolvedProps.heading
     const rawTitle = typeof titleProp === 'string' ? titleProp : ''
-    const recommended = resolvedProps.highlighted === true || /\(?\s*recommended\s*\)?/i.test(rawTitle)
-    const cleanTitle = rawTitle.replace(/\s*\(?\s*recommended\s*\)?/i, '').trim()
+    const recommended =
+      resolvedProps.highlighted === true ||
+      /\(?\s*recommended\s*\)?/i.test(rawTitle)
+    const cleanTitle = rawTitle
+      .replace(/\s*\(?\s*recommended\s*\)?/i, '')
+      .trim()
     return (
       <section
         className={`relative rounded-xl border p-5 h-full transition-shadow ${
@@ -331,7 +385,9 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
         {(cleanTitle || recommended) && (
           <div className="flex items-center justify-between gap-2 flex-wrap">
             {cleanTitle && (
-              <h3 className="font-semibold text-[var(--gui-text)] text-[15px] tracking-[-0.01em]">{cleanTitle}</h3>
+              <h3 className="font-semibold text-[var(--gui-text)] text-[15px] tracking-[-0.01em]">
+                {cleanTitle}
+              </h3>
             )}
             {recommended && (
               <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.06em] text-[var(--gui-accent-strong)] bg-[var(--gui-accent-surface)] rounded-full px-2 py-0.5">
@@ -340,8 +396,14 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
             )}
           </div>
         )}
-        {resolvedProps.subtitle && <p className="text-[13px] text-[var(--gui-text-muted)] mt-0.5 mb-1">{resolvedProps.subtitle}</p>}
-        <div className={`space-y-3 ${cleanTitle || recommended || resolvedProps.subtitle ? 'mt-4' : ''}`}>
+        {resolvedProps.subtitle && (
+          <p className="text-[13px] text-[var(--gui-text-muted)] mt-0.5 mb-1">
+            {resolvedProps.subtitle}
+          </p>
+        )}
+        <div
+          className={`space-y-3 ${cleanTitle || recommended || resolvedProps.subtitle ? 'mt-4' : ''}`}
+        >
           {children?.map((child) => (
             <NodeRenderer
               key={child.id}
@@ -360,7 +422,10 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
   if (type === 'Tabs') {
     const tabs: Array<{ id: string; label: string }> = resolvedProps.tabs || []
     const tabKey = bind.tab || `_tab_${id}`
-    const activeTab = (resolveStatePath(state, tabKey) as string) || resolvedProps.defaultTab || tabs[0]?.id
+    const activeTab =
+      (resolveStatePath(state, tabKey) as string) ||
+      resolvedProps.defaultTab ||
+      tabs[0]?.id
 
     return (
       <div className="space-y-3">
@@ -385,7 +450,9 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
         </div>
         <div>
           {children
-            ?.filter((child) => !child.props?.tabId || child.props.tabId === activeTab)
+            ?.filter(
+              (child) => !child.props?.tabId || child.props.tabId === activeTab,
+            )
             .map((child) => (
               <NodeRenderer
                 key={child.id}
@@ -453,7 +520,11 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
       state,
     )
     if (variant === 'heading') {
-      return <h4 className="font-semibold text-[var(--gui-text)] text-[15px] tracking-[-0.01em]">{content}</h4>
+      return (
+        <h4 className="font-semibold text-[var(--gui-text)] text-[15px] tracking-[-0.01em]">
+          {content}
+        </h4>
+      )
     }
     if (variant === 'caption') {
       return <p className="text-xs text-[var(--gui-text-muted)]">{content}</p>
@@ -465,7 +536,11 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
         </pre>
       )
     }
-    return <p className="text-sm text-[var(--gui-text-secondary)] whitespace-pre-line leading-relaxed">{content}</p>
+    return (
+      <p className="text-sm text-[var(--gui-text-secondary)] whitespace-pre-line leading-relaxed">
+        {content}
+      </p>
+    )
   }
 
   if (type === 'Callout') {
@@ -479,18 +554,39 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
             ? 'bg-[var(--gui-positive-surface)] border-[var(--gui-positive-border)] text-[var(--gui-positive)]'
             : 'bg-[var(--gui-accent-surface)] border-[var(--gui-accent-border)] text-[var(--gui-accent-strong)]'
     const accent =
-      tone === 'warning' ? 'bg-[var(--gui-warning)]' : tone === 'danger' ? 'bg-[var(--gui-danger-solid)]' : tone === 'success' ? 'bg-[var(--gui-positive-solid)]' : 'bg-[var(--gui-accent)]'
-    const icon = tone === 'warning' ? '!' : tone === 'danger' ? '✕' : tone === 'success' ? '✓' : 'i'
+      tone === 'warning'
+        ? 'bg-[var(--gui-warning)]'
+        : tone === 'danger'
+          ? 'bg-[var(--gui-danger-solid)]'
+          : tone === 'success'
+            ? 'bg-[var(--gui-positive-solid)]'
+            : 'bg-[var(--gui-accent)]'
+    const icon =
+      tone === 'warning'
+        ? '!'
+        : tone === 'danger'
+          ? '✕'
+          : tone === 'success'
+            ? '✓'
+            : 'i'
 
     return (
-      <div className={`relative flex gap-3 p-4 pl-5 rounded-xl border text-sm overflow-hidden ${colors}`}>
+      <div
+        className={`relative flex gap-3 p-4 pl-5 rounded-xl border text-sm overflow-hidden ${colors}`}
+      >
         <span className={`absolute left-0 top-0 bottom-0 w-1 ${accent}`} />
-        <span className={`shrink-0 w-5 h-5 rounded-full ${accent} text-[var(--gui-on-accent)] text-[11px] font-bold flex items-center justify-center mt-0.5`}>
+        <span
+          className={`shrink-0 w-5 h-5 rounded-full ${accent} text-[var(--gui-on-accent)] text-[11px] font-bold flex items-center justify-center mt-0.5`}
+        >
           {icon}
         </span>
         <div className="min-w-0">
-          {resolvedProps.title && <div className="font-semibold mb-0.5">{resolvedProps.title}</div>}
-          <div className="text-[13px] leading-relaxed opacity-90">{resolvedProps.text ?? resolvedProps.content ?? resolvedProps.body}</div>
+          {resolvedProps.title && (
+            <div className="font-semibold mb-0.5">{resolvedProps.title}</div>
+          )}
+          <div className="text-[13px] leading-relaxed opacity-90">
+            {resolvedProps.text ?? resolvedProps.content ?? resolvedProps.body}
+          </div>
         </div>
       </div>
     )
@@ -517,17 +613,28 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
       resolvedProps.value ?? resolvedProps.content ?? resolvedProps.text,
       state,
     )
-    const hasValue = metricValue !== undefined && metricValue !== null && metricValue !== ''
+    const hasValue =
+      metricValue !== undefined && metricValue !== null && metricValue !== ''
     return (
       <div className="bg-[var(--gui-surface)] border border-[var(--gui-border)] rounded-xl p-4 flex flex-col gap-1.5 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
-        <div className="text-[11px] font-medium uppercase tracking-[0.07em] text-[var(--gui-text-muted)]">{resolvedProps.label}</div>
-        <div className={`text-[28px] leading-none font-semibold tracking-[-0.02em] tabular-nums ${hasValue ? toneClass : 'text-[var(--gui-text-faint)]'}`}>
+        <div className="text-[11px] font-medium uppercase tracking-[0.07em] text-[var(--gui-text-muted)]">
+          {resolvedProps.label}
+        </div>
+        <div
+          className={`text-[28px] leading-none font-semibold tracking-[-0.02em] tabular-nums ${hasValue ? toneClass : 'text-[var(--gui-text-faint)]'}`}
+        >
           {hasValue ? metricValue : '—'}
-          {hasValue && resolvedProps.unit && <span className="text-sm text-[var(--gui-text-muted)] font-normal ml-1 tracking-normal">{resolvedProps.unit}</span>}
+          {hasValue && resolvedProps.unit && (
+            <span className="text-sm text-[var(--gui-text-muted)] font-normal ml-1 tracking-normal">
+              {resolvedProps.unit}
+            </span>
+          )}
         </div>
         {deltaStr && (
           <div className="mt-0.5">
-            <span className={`inline-flex items-center gap-1 text-[11px] font-semibold rounded-md border px-1.5 py-0.5 tabular-nums ${deltaClass}`}>
+            <span
+              className={`inline-flex items-center gap-1 text-[11px] font-semibold rounded-md border px-1.5 py-0.5 tabular-nums ${deltaClass}`}
+            >
               {deltaUp && <span className="text-[8px]">▲</span>}
               {deltaDown && <span className="text-[8px]">▼</span>}
               {deltaStr}
@@ -542,12 +649,24 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
     // Bounded repair (§9.3): accept the catalog shape {key,label} as well as the
     // common model drifts toward TanStack/HTML naming (accessor/accessorKey/field,
     // header/title) so a live graph still renders rather than showing an empty shell.
-    const rawColumns = (resolvedProps.columns as Array<Record<string, unknown>>) || []
-    const columns: Array<{ key: string; label: string }> = rawColumns.map((c) => {
-      const key = String(c.key ?? c.accessor ?? c.accessorKey ?? c.field ?? c.dataIndex ?? c.label ?? c.header ?? '')
-      const label = String(c.label ?? c.header ?? c.title ?? c.name ?? key)
-      return { key, label }
-    })
+    const rawColumns =
+      (resolvedProps.columns as Array<Record<string, unknown>>) || []
+    const columns: Array<{ key: string; label: string }> = rawColumns.map(
+      (c) => {
+        const key = String(
+          c.key ??
+            c.accessor ??
+            c.accessorKey ??
+            c.field ??
+            c.dataIndex ??
+            c.label ??
+            c.header ??
+            '',
+        )
+        const label = String(c.label ?? c.header ?? c.title ?? c.name ?? key)
+        return { key, label }
+      },
+    )
     const rows: Array<Record<string, unknown>> =
       (resolvedProps.rows as Array<Record<string, unknown>>) ||
       (resolvedProps.data as Array<Record<string, unknown>>) ||
@@ -560,7 +679,10 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
           <thead>
             <tr className="bg-[var(--gui-surface-sunken)] border-b border-[var(--gui-border)]">
               {columns.map((col) => (
-                <th key={col.key} className="px-4 py-2.5 text-left font-semibold text-[11px] uppercase tracking-[0.05em] text-[var(--gui-text-muted)]">
+                <th
+                  key={col.key}
+                  className="px-4 py-2.5 text-left font-semibold text-[11px] uppercase tracking-[0.05em] text-[var(--gui-text-muted)]"
+                >
                   {col.label}
                 </th>
               ))}
@@ -568,9 +690,15 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
           </thead>
           <tbody>
             {rows.map((row, i) => (
-              <tr key={i} className="border-b border-[var(--gui-border-subtle)] last:border-0 hover:bg-[var(--gui-accent-surface)] transition-colors">
+              <tr
+                key={i}
+                className="border-b border-[var(--gui-border-subtle)] last:border-0 hover:bg-[var(--gui-accent-surface)] transition-colors"
+              >
                 {columns.map((col, ci) => (
-                  <td key={col.key} className={`px-4 py-2.5 tabular-nums ${ci === 0 ? 'font-medium text-[var(--gui-text)]' : 'text-[var(--gui-text-secondary)]'}`}>
+                  <td
+                    key={col.key}
+                    className={`px-4 py-2.5 tabular-nums ${ci === 0 ? 'font-medium text-[var(--gui-text)]' : 'text-[var(--gui-text-secondary)]'}`}
+                  >
                     {String(row[col.key] ?? '')}
                   </td>
                 ))}
@@ -590,13 +718,25 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
       <div className="space-y-2">
         {items.map((item, idx) => {
           const text = typeof item === 'string' ? item : (item as any)?.text
-          const subtitle = typeof item === 'object' && item !== null ? (item as any)?.subtitle : undefined
+          const subtitle =
+            typeof item === 'object' && item !== null
+              ? (item as any)?.subtitle
+              : undefined
           return (
-            <div key={idx} className="flex gap-2 text-sm text-[var(--gui-text-secondary)] items-start">
-              <span className="font-semibold text-[var(--gui-text-muted)]">{isOrdered ? `${idx + 1}.` : '•'}</span>
+            <div
+              key={idx}
+              className="flex gap-2 text-sm text-[var(--gui-text-secondary)] items-start"
+            >
+              <span className="font-semibold text-[var(--gui-text-muted)]">
+                {isOrdered ? `${idx + 1}.` : '•'}
+              </span>
               <div>
                 <div>{text}</div>
-                {subtitle && <div className="text-xs text-[var(--gui-text-muted)]">{subtitle}</div>}
+                {subtitle && (
+                  <div className="text-xs text-[var(--gui-text-muted)]">
+                    {subtitle}
+                  </div>
+                )}
               </div>
             </div>
           )
@@ -606,7 +746,8 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
   }
 
   if (type === 'Chart') {
-    const data: Array<{ label: string; value: number }> = resolvedProps.data || []
+    const data: Array<{ label: string; value: number }> =
+      resolvedProps.data || []
     const maxValue = Math.max(...data.map((d) => d.value), 1)
     const PLOT_HEIGHT = 156
 
@@ -619,9 +760,15 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
         )}
         <div className="flex items-end gap-2.5" style={{ height: PLOT_HEIGHT }}>
           {data.map((d, i) => {
-            const barHeight = Math.max(4, Math.round((d.value / maxValue) * (PLOT_HEIGHT - 24)))
+            const barHeight = Math.max(
+              4,
+              Math.round((d.value / maxValue) * (PLOT_HEIGHT - 24)),
+            )
             return (
-              <div key={i} className="group flex-1 h-full flex flex-col justify-end items-center gap-1.5">
+              <div
+                key={i}
+                className="group flex-1 h-full flex flex-col justify-end items-center gap-1.5"
+              >
                 <span className="text-[11px] font-semibold text-[var(--gui-text-secondary)] tabular-nums transition-colors group-hover:text-[var(--gui-accent)]">
                   {d.value}
                 </span>
@@ -635,7 +782,10 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
         </div>
         <div className="flex gap-2.5 mt-2.5 pt-2.5 border-t border-[var(--gui-border-subtle)]">
           {data.map((d, i) => (
-            <span key={i} className="flex-1 text-center text-[11px] text-[var(--gui-text-muted)] font-medium truncate">
+            <span
+              key={i}
+              className="flex-1 text-center text-[11px] text-[var(--gui-text-muted)] font-medium truncate"
+            >
               {d.label}
             </span>
           ))}
@@ -645,12 +795,19 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
   }
 
   if (type === 'Map') {
-    const markers: Array<{ id: string; label: string; note?: string; lat?: number; lng?: number }> =
-      resolvedProps.markers || []
+    const markers: Array<{
+      id: string
+      label: string
+      note?: string
+      lat?: number
+      lng?: number
+    }> = resolvedProps.markers || []
     const geoMarkers = markers.filter(
       (m) => typeof m.lat === 'number' && typeof m.lng === 'number',
     )
-    const selectedMarker = bind.selected ? resolveStatePath(state, bind.selected) : undefined
+    const selectedMarker = bind.selected
+      ? resolveStatePath(state, bind.selected)
+      : undefined
 
     const selectMarker = (m: { id: string; label: string }) => {
       if (bind.selected) onStateChange(bind.selected, m.id)
@@ -661,7 +818,11 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
     const W = 560
     const H = 280
     const PAD = 42
-    let projected: Array<{ m: (typeof markers)[number]; x: number; y: number }> = []
+    let projected: Array<{
+      m: (typeof markers)[number]
+      x: number
+      y: number
+    }> = []
     if (geoMarkers.length > 0) {
       const lats = geoMarkers.map((m) => m.lat as number)
       const lngs = geoMarkers.map((m) => m.lng as number)
@@ -673,22 +834,39 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
       const lngSpan = maxLng - minLng || 0.02
       projected = geoMarkers.map((m) => ({
         m,
-        x: PAD + ((((m.lng as number) - minLng) / lngSpan) * (W - 2 * PAD)),
-        y: PAD + ((((maxLat - (m.lat as number)) / latSpan) * (H - 2 * PAD))),
+        x: PAD + (((m.lng as number) - minLng) / lngSpan) * (W - 2 * PAD),
+        y: PAD + ((maxLat - (m.lat as number)) / latSpan) * (H - 2 * PAD),
       }))
     }
     const routeD = projected
-      .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
+      .map(
+        (p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`,
+      )
       .join(' ')
 
     return (
       <div className="rounded-xl border border-[var(--gui-border)] bg-[var(--gui-surface)] overflow-hidden">
         {projected.length > 0 ? (
           <div className="relative bg-[var(--gui-surface-muted)]">
-            <svg viewBox={`0 0 ${W} ${H}`} className="w-full block" role="img" aria-label={resolvedProps.title || 'Route map'}>
+            <svg
+              viewBox={`0 0 ${W} ${H}`}
+              className="w-full block"
+              role="img"
+              aria-label={resolvedProps.title || 'Route map'}
+            >
               <defs>
-                <pattern id={`grid-${id}`} width="28" height="28" patternUnits="userSpaceOnUse">
-                  <path d="M 28 0 L 0 0 0 28" fill="none" stroke="var(--gui-border)" strokeWidth="1" />
+                <pattern
+                  id={`grid-${id}`}
+                  width="28"
+                  height="28"
+                  patternUnits="userSpaceOnUse"
+                >
+                  <path
+                    d="M 28 0 L 0 0 0 28"
+                    fill="none"
+                    stroke="var(--gui-border)"
+                    strokeWidth="1"
+                  />
                 </pattern>
                 <linearGradient id={`land-${id}`} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="var(--gui-surface-sunken)" />
@@ -726,10 +904,16 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
                       }
                     }}
                   >
-                    <circle r={isSel ? 15 : 12} fill="var(--gui-accent)" opacity={isSel ? 0.18 : 0.1} />
+                    <circle
+                      r={isSel ? 15 : 12}
+                      fill="var(--gui-accent)"
+                      opacity={isSel ? 0.18 : 0.1}
+                    />
                     <circle
                       r={isSel ? 11 : 9}
-                      fill={isSel ? 'var(--gui-accent-strong)' : 'var(--gui-accent)'}
+                      fill={
+                        isSel ? 'var(--gui-accent-strong)' : 'var(--gui-accent)'
+                      }
                       stroke="var(--gui-surface)"
                       strokeWidth="2.5"
                     />
@@ -761,19 +945,29 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
                 type="button"
                 onClick={() => selectMarker(m)}
                 className={`w-full flex items-start gap-3 text-left px-4 py-2.5 transition-colors ${
-                  isSel ? 'bg-[var(--gui-accent-surface)]' : 'hover:bg-[var(--gui-surface-sunken)]'
+                  isSel
+                    ? 'bg-[var(--gui-accent-surface)]'
+                    : 'hover:bg-[var(--gui-surface-sunken)]'
                 }`}
               >
                 <span
                   className={`shrink-0 mt-0.5 w-5 h-5 rounded-full text-[11px] font-bold text-[var(--gui-on-accent)] flex items-center justify-center ${
-                    isSel ? 'bg-[var(--gui-accent-strong)]' : 'bg-[var(--gui-accent)]'
+                    isSel
+                      ? 'bg-[var(--gui-accent-strong)]'
+                      : 'bg-[var(--gui-accent)]'
                   }`}
                 >
                   {i + 1}
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-sm font-medium text-[var(--gui-text)]">{m.label}</span>
-                  {m.note && <span className="block text-xs text-[var(--gui-text-muted)] mt-0.5">{m.note}</span>}
+                  <span className="block text-sm font-medium text-[var(--gui-text)]">
+                    {m.label}
+                  </span>
+                  {m.note && (
+                    <span className="block text-xs text-[var(--gui-text-muted)] mt-0.5">
+                      {m.note}
+                    </span>
+                  )}
                 </span>
               </button>
             )
@@ -784,13 +978,19 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
   }
 
   if (type === 'Diagram') {
-    const hotspots: Array<{ id: string; label: string; explanation: string }> = resolvedProps.hotspots || []
-    const selectedPath = (typeof bind.selected === 'string' && bind.selected) || `${id}.selected`
+    const hotspots: Array<{ id: string; label: string; explanation: string }> =
+      resolvedProps.hotspots || []
+    const selectedPath =
+      (typeof bind.selected === 'string' && bind.selected) || `${id}.selected`
     const selectedPart = resolveStatePath(state, selectedPath)
 
     return (
       <div className="border border-[var(--gui-border)] rounded-xl p-4 bg-[var(--gui-surface)] space-y-3">
-        {resolvedProps.title && <h4 className="font-semibold text-[var(--gui-text)] text-sm">{resolvedProps.title}</h4>}
+        {resolvedProps.title && (
+          <h4 className="font-semibold text-[var(--gui-text)] text-sm">
+            {resolvedProps.title}
+          </h4>
+        )}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {hotspots.map((spot) => (
             <button
@@ -812,7 +1012,9 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
         </div>
         {selectedPart && (
           <div className="p-3 bg-[var(--gui-surface-sunken)] rounded border border-[var(--gui-border)] text-xs text-[var(--gui-text-secondary)]">
-            <strong>{hotspots.find((h) => h.id === selectedPart)?.label}:</strong>{' '}
+            <strong>
+              {hotspots.find((h) => h.id === selectedPart)?.label}:
+            </strong>{' '}
             {hotspots.find((h) => h.id === selectedPart)?.explanation}
           </div>
         )}
@@ -853,11 +1055,14 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
 
   const inputClass =
     'w-full px-3.5 py-2 text-sm rounded-lg border border-[var(--gui-border)] bg-[var(--gui-surface)] text-[var(--gui-text)] focus:outline-none focus:ring-2 focus:ring-[var(--gui-accent-ring)] focus:border-[var(--gui-accent-border)] transition-shadow'
-  const labelClass = 'block text-[13px] font-medium text-[var(--gui-text-secondary)] mb-1.5'
+  const labelClass =
+    'block text-[13px] font-medium text-[var(--gui-text-secondary)] mb-1.5'
 
   if (type === 'TextInput') {
     const vp = valueBindPath(node)
-    const val = (resolveStatePath(state, vp) ?? resolvedProps.value ?? '') as string
+    const val = (resolveStatePath(state, vp) ??
+      resolvedProps.value ??
+      '') as string
     return (
       <div>
         <label className={labelClass}>{resolvedProps.label}</label>
@@ -874,7 +1079,9 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
 
   if (type === 'NumberInput') {
     const vp = valueBindPath(node)
-    const val = (resolveStatePath(state, vp) ?? resolvedProps.value ?? 0) as number
+    const val = (resolveStatePath(state, vp) ??
+      resolvedProps.value ??
+      0) as number
     return (
       <div>
         <label className={labelClass}>{resolvedProps.label}</label>
@@ -896,8 +1103,11 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
 
   if (type === 'Select') {
     const vp = valueBindPath(node)
-    const val = (resolveStatePath(state, vp) ?? resolvedProps.value ?? '') as string
-    const options: Array<{ value: string; label: string }> = resolvedProps.options || []
+    const val = (resolveStatePath(state, vp) ??
+      resolvedProps.value ??
+      '') as string
+    const options: Array<{ value: string; label: string }> =
+      resolvedProps.options || []
 
     return (
       <div>
@@ -922,14 +1132,20 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
     const max = resolvedProps.max ?? 100
     const step = resolvedProps.step ?? 1
     const vp = valueBindPath(node)
-    const val = (resolveStatePath(state, vp) ?? resolvedProps.value ?? min) as number
+    const val = (resolveStatePath(state, vp) ??
+      resolvedProps.value ??
+      min) as number
     const pct = max > min ? ((Number(val) - min) / (max - min)) * 100 : 0
 
     return (
       <div>
         <div className="flex justify-between items-center mb-2">
-          <label className="text-[13px] font-medium text-[var(--gui-text-secondary)]">{resolvedProps.label}</label>
-          <span className="text-[13px] font-semibold text-[var(--gui-accent)] tabular-nums bg-[var(--gui-accent-surface)] rounded-md px-2 py-0.5">{val}</span>
+          <label className="text-[13px] font-medium text-[var(--gui-text-secondary)]">
+            {resolvedProps.label}
+          </label>
+          <span className="text-[13px] font-semibold text-[var(--gui-accent)] tabular-nums bg-[var(--gui-accent-surface)] rounded-md px-2 py-0.5">
+            {val}
+          </span>
         </div>
         <input
           type="range"
@@ -959,7 +1175,9 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
     const max = resolvedProps.max ?? 100
     const step = resolvedProps.step ?? 1
     const vp = valueBindPath(node)
-    const val = (resolveStatePath(state, vp) ?? resolvedProps.value ?? min) as number
+    const val = (resolveStatePath(state, vp) ??
+      resolvedProps.value ??
+      min) as number
     const stepBtn =
       'w-9 h-9 rounded-lg border border-[var(--gui-border)] bg-[var(--gui-surface)] text-lg font-semibold text-[var(--gui-text-secondary)] flex items-center justify-center hover:bg-[var(--gui-surface-sunken)] hover:border-[var(--gui-border)] active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100'
 
@@ -975,7 +1193,9 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
           >
             −
           </button>
-          <span className="text-base font-semibold w-10 text-center tabular-nums text-[var(--gui-text)]">{val}</span>
+          <span className="text-base font-semibold w-10 text-center tabular-nums text-[var(--gui-text)]">
+            {val}
+          </span>
           <button
             type="button"
             className={stepBtn}
@@ -1008,12 +1228,19 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
 
   if (type === 'Checklist') {
     const items: Array<{ id?: string; label: string; defaultDone?: boolean }> =
-      (resolvedProps.items as Array<{ id?: string; label: string; defaultDone?: boolean }>) || []
+      (resolvedProps.items as Array<{
+        id?: string
+        label: string
+        defaultDone?: boolean
+      }>) || []
     // Fall back to an implicit state path and index-based item keys so a live
     // model that omits bind.state and item ids still gets working checkboxes.
-    const statePath = (typeof bind.state === 'string' && bind.state) || `${id}.state`
+    const statePath =
+      (typeof bind.state === 'string' && bind.state) || `${id}.state`
     const rawState = resolveStatePath(state, statePath)
-    const checklistState = (rawState && typeof rawState === 'object' ? rawState : {}) as Record<string, boolean>
+    const checklistState = (
+      rawState && typeof rawState === 'object' ? rawState : {}
+    ) as Record<string, boolean>
 
     return (
       <div className="space-y-2">
@@ -1024,7 +1251,9 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
             <label
               key={itemKey}
               className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-[13px] cursor-pointer transition-colors ${
-                isDone ? 'bg-[var(--gui-surface-sunken)] border-[var(--gui-border)] line-through text-[var(--gui-text-muted)]' : 'bg-[var(--gui-surface)] border-[var(--gui-border)] text-[var(--gui-text-secondary)] hover:border-[var(--gui-border)]'
+                isDone
+                  ? 'bg-[var(--gui-surface-sunken)] border-[var(--gui-border)] line-through text-[var(--gui-text-muted)]'
+                  : 'bg-[var(--gui-surface)] border-[var(--gui-border)] text-[var(--gui-text-secondary)] hover:border-[var(--gui-border)]'
               }`}
             >
               <input
@@ -1032,9 +1261,15 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
                 className="w-4 h-4 rounded border-[var(--gui-border)] text-[var(--gui-accent)] focus:ring-[var(--gui-accent-ring)]"
                 checked={isDone}
                 onChange={(e) => {
-                  const updated = { ...checklistState, [itemKey]: e.target.checked }
+                  const updated = {
+                    ...checklistState,
+                    [itemKey]: e.target.checked,
+                  }
                   onStateChange(statePath, updated)
-                  onFireIntent(id, 'toggleChecklist', 'local', { itemId: itemKey, done: e.target.checked })
+                  onFireIntent(id, 'toggleChecklist', 'local', {
+                    itemId: itemKey,
+                    done: e.target.checked,
+                  })
                 }}
               />
               <span>{item.label}</span>
@@ -1062,7 +1297,9 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
         type="button"
         disabled={resolvedProps.disabled}
         className={`px-4 py-2 rounded-lg font-medium text-xs transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${btnClass} ${
-          isSelected ? 'ring-2 ring-[var(--gui-accent-ring)] ring-offset-2 font-bold' : ''
+          isSelected
+            ? 'ring-2 ring-[var(--gui-accent-ring)] ring-offset-2 font-bold'
+            : ''
         }`}
         onClick={() => {
           if (bind.selected) {
@@ -1080,37 +1317,70 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
               const output = (action as any).output || 'result'
               const resolvedInputs: Record<string, unknown> = {}
               for (const [inKey, stateKey] of Object.entries(inputs)) {
-                resolvedInputs[inKey] = typeof stateKey === 'string' ? resolveStatePath(state, stateKey) ?? stateKey : stateKey
+                resolvedInputs[inKey] =
+                  typeof stateKey === 'string'
+                    ? (resolveStatePath(state, stateKey) ?? stateKey)
+                    : stateKey
               }
-              const result = computeRegistry.execute(compName, resolvedInputs, state)
+              const result = computeRegistry.execute(
+                compName,
+                resolvedInputs,
+                state,
+              )
               if (result !== undefined) {
                 onStateChange(output, result)
-                if (result && typeof result === 'object' && !Array.isArray(result)) {
-                  for (const [k, v] of Object.entries(result)) onStateChange(k, v)
+                if (
+                  result &&
+                  typeof result === 'object' &&
+                  !Array.isArray(result)
+                ) {
+                  for (const [k, v] of Object.entries(result))
+                    onStateChange(k, v)
                 }
               }
             }
-            const intentName = (action as any).intent || (action as any).action || 'click'
-            onFireIntent(id, intentName, 'action', (action as any).payload || (action as any).inputs)
+            const intentName =
+              (action as any).intent || (action as any).action || 'click'
+            onFireIntent(
+              id,
+              intentName,
+              'action',
+              (action as any).payload || (action as any).inputs,
+            )
           } else {
             onFireIntent(id, 'click', 'action', resolvedProps)
           }
         }}
       >
-        {resolvedProps.label ?? resolvedProps.text ?? resolvedProps.title ?? resolvedProps.content ?? 'Continue'}
+        {resolvedProps.label ??
+          resolvedProps.text ??
+          resolvedProps.title ??
+          resolvedProps.content ??
+          'Continue'}
       </button>
     )
   }
 
   if (type === 'Choice') {
-    const options: Array<{ id: string; label: string; description?: string; tone?: string }> = resolvedProps.options || []
+    const options: Array<{
+      id: string
+      label: string
+      description?: string
+      tone?: string
+    }> = resolvedProps.options || []
 
     return (
       <div className="space-y-2">
-        {resolvedProps.label && <div className="text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--gui-text-muted)] mb-1">{resolvedProps.label}</div>}
+        {resolvedProps.label && (
+          <div className="text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--gui-text-muted)] mb-1">
+            {resolvedProps.label}
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {options.map((opt) => {
-            const danger = opt.tone === 'danger' || /reject|cancel|abort|decline|deny/i.test(opt.id + ' ' + opt.label)
+            const danger =
+              opt.tone === 'danger' ||
+              /reject|cancel|abort|decline|deny/i.test(opt.id + ' ' + opt.label)
             return (
               <button
                 key={opt.id}
@@ -1125,15 +1395,26 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
                   if (typeof action === 'string') {
                     onFireIntent(id, action, 'action', { choiceId: opt.id })
                   } else if (action && typeof action === 'object') {
-                    onFireIntent(id, action.intent, 'action', { ...(action.payload || {}), choiceId: opt.id })
+                    onFireIntent(id, action.intent, 'action', {
+                      ...(action.payload || {}),
+                      choiceId: opt.id,
+                    })
                   }
                 }}
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm font-semibold text-[var(--gui-text)]">{opt.label}</span>
-                  {opt.description && <span className="block text-[13px] text-[var(--gui-text-muted)] mt-1 leading-snug">{opt.description}</span>}
+                  <span className="block text-sm font-semibold text-[var(--gui-text)]">
+                    {opt.label}
+                  </span>
+                  {opt.description && (
+                    <span className="block text-[13px] text-[var(--gui-text-muted)] mt-1 leading-snug">
+                      {opt.description}
+                    </span>
+                  )}
                 </span>
-                <span className={`shrink-0 mt-0.5 text-[var(--gui-text-faint)] transition-all group-hover:translate-x-0.5 ${danger ? 'group-hover:text-[var(--gui-danger)]' : 'group-hover:text-[var(--gui-accent)]'}`}>
+                <span
+                  className={`shrink-0 mt-0.5 text-[var(--gui-text-faint)] transition-all group-hover:translate-x-0.5 ${danger ? 'group-hover:text-[var(--gui-danger)]' : 'group-hover:text-[var(--gui-accent)]'}`}
+                >
                   →
                 </span>
               </button>
@@ -1207,7 +1488,11 @@ function NodeRenderer({ node, state, onStateChange, onFireIntent, computeRegistr
   }
 
   // Degradation for unknown leaf nodes
-  return <div className="text-xs text-[var(--gui-text-muted)] italic">[Unsupported node: {type}]</div>
+  return (
+    <div className="text-xs text-[var(--gui-text-muted)] italic">
+      [Unsupported node: {type}]
+    </div>
+  )
 }
 
 function SceneShapeRenderer({
@@ -1226,15 +1511,22 @@ function SceneShapeRenderer({
     payload?: unknown,
   ) => void
 }) {
-  const { kind, id, label, fill, stroke, strokeWidth, opacity, bind, on } = shape
+  const { kind, id, label, fill, stroke, strokeWidth, opacity, bind, on } =
+    shape
 
   const rawFill = fill || (kind !== 'line' ? (shape as any).paint : undefined)
-  const rawStroke = stroke || (kind === 'line' ? (shape as any).paint || 'neutral' : undefined)
-  const fillColor = rawFill ? ((PAINT_ROLES as Record<string, string>)[rawFill] ?? rawFill) : 'none'
-  const strokeColor = rawStroke ? ((PAINT_ROLES as Record<string, string>)[rawStroke] ?? rawStroke) : 'none'
+  const rawStroke =
+    stroke || (kind === 'line' ? (shape as any).paint || 'neutral' : undefined)
+  const fillColor = rawFill
+    ? ((PAINT_ROLES as Record<string, string>)[rawFill] ?? rawFill)
+    : 'none'
+  const strokeColor = rawStroke
+    ? ((PAINT_ROLES as Record<string, string>)[rawStroke] ?? rawStroke)
+    : 'none'
 
   const isInteractive = Boolean(bind?.selected || on?.select)
-  const isSelected = bind?.selected && id ? resolveStatePath(state, bind.selected) === id : false
+  const isSelected =
+    bind?.selected && id ? resolveStatePath(state, bind.selected) === id : false
 
   const handleInteraction = () => {
     if (!isInteractive) return
@@ -1427,7 +1719,12 @@ function WidgetRenderer({
   props: Record<string, any>
   state: Record<string, unknown>
   onStateChange: (path: string, value: unknown) => void
-  onFireIntent: (nodeId: string, intent: string, intentClass: 'local' | 'submit' | 'action', payload?: unknown) => void
+  onFireIntent: (
+    nodeId: string,
+    intent: string,
+    intentClass: 'local' | 'submit' | 'action',
+    payload?: unknown,
+  ) => void
   computeRegistry: ComputeRegistry
 }) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
@@ -1456,7 +1753,8 @@ function WidgetRenderer({
     const out: Record<string, string> = {}
     if (!el) return out
     const cs = getComputedStyle(el)
-    for (const name of BRIDGE_TOKENS) out[name] = cs.getPropertyValue(name).trim()
+    for (const name of BRIDGE_TOKENS)
+      out[name] = cs.getPropertyValue(name).trim()
     return out
   }
 
@@ -1478,11 +1776,19 @@ function WidgetRenderer({
           post({
             type: 'gui:compute:result',
             id: m.id,
-            result: computeRegistry.execute(m.name, m.inputs ?? {}, stateRef.current),
+            result: computeRegistry.execute(
+              m.name,
+              m.inputs ?? {},
+              stateRef.current,
+            ),
           })
           break
         case 'gui:getState':
-          post({ type: 'gui:getState:result', id: m.id, result: resolveStatePath(stateRef.current, m.path) })
+          post({
+            type: 'gui:getState:result',
+            id: m.id,
+            result: resolveStatePath(stateRef.current, m.path),
+          })
           break
         case 'gui:setState':
           if (typeof m.path === 'string') onStateChange(m.path, m.value)
@@ -1491,7 +1797,9 @@ function WidgetRenderer({
           onFireIntent(
             nodeId,
             typeof m.intent === 'string' ? m.intent : 'widgetIntent',
-            m.intentClass === 'local' || m.intentClass === 'submit' ? m.intentClass : 'action',
+            m.intentClass === 'local' || m.intentClass === 'submit'
+              ? m.intentClass
+              : 'action',
             m.payload,
           )
           break
@@ -1503,7 +1811,10 @@ function WidgetRenderer({
 
   // Push a fresh state snapshot when host state changes elsewhere.
   useEffect(() => {
-    iframeRef.current?.contentWindow?.postMessage({ type: 'gui:state', state }, '*')
+    iframeRef.current?.contentWindow?.postMessage(
+      { type: 'gui:state', state },
+      '*',
+    )
   }, [state])
 
   return (
@@ -1531,7 +1842,9 @@ function WidgetRenderer({
 export function GenerativeUITextFallback({ graph }: { graph: GraphDocument }) {
   return (
     <div className="font-mono text-xs bg-[var(--gui-surface-inverse)] text-[var(--gui-text-on-inverse)] p-4 rounded-lg border border-[var(--gui-border)]">
-      <div className="font-bold text-[var(--gui-warning)] mb-1">{graph.title}</div>
+      <div className="font-bold text-[var(--gui-warning)] mb-1">
+        {graph.title}
+      </div>
       <div className="text-[var(--gui-text-faint)]">{graph.fallbackText}</div>
     </div>
   )

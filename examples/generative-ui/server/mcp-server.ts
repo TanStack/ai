@@ -29,10 +29,17 @@ const LAST_URI = 'ui://genui/last'
 const THEME: FrameTheme = {
   mode: 'light',
   tokens: {
-    '--ui-bg': '#ffffff', '--ui-surface': '#ffffff', '--ui-surface-2': '#f8fafc',
-    '--ui-text': '#0f172a', '--ui-muted': '#64748b', '--ui-border': '#e5e7eb',
-    '--ui-accent': '#2563eb', '--ui-accent-text': '#ffffff', '--ui-positive': '#16a34a',
-    '--ui-negative': '#dc2626', '--ui-radius': '14px',
+    '--ui-bg': '#ffffff',
+    '--ui-surface': '#ffffff',
+    '--ui-surface-2': '#f8fafc',
+    '--ui-text': '#0f172a',
+    '--ui-muted': '#64748b',
+    '--ui-border': '#e5e7eb',
+    '--ui-accent': '#2563eb',
+    '--ui-accent-text': '#ffffff',
+    '--ui-positive': '#16a34a',
+    '--ui-negative': '#dc2626',
+    '--ui-radius': '14px',
   },
 }
 
@@ -49,9 +56,20 @@ const createArtifactTool = toolDefinition({
     additionalProperties: false,
     required: ['title', 'source', 'fallbackText'],
     properties: {
-      title: { type: 'string', description: 'Short human title for the artifact.' },
-      source: { type: 'string', description: 'A self-contained HTML/SVG fragment: markup + optional inline <style>/<script>.' },
-      fallbackText: { type: 'string', description: 'Plain-text description for accessibility and degradation.' },
+      title: {
+        type: 'string',
+        description: 'Short human title for the artifact.',
+      },
+      source: {
+        type: 'string',
+        description:
+          'A self-contained HTML/SVG fragment: markup + optional inline <style>/<script>.',
+      },
+      fallbackText: {
+        type: 'string',
+        description:
+          'Plain-text description for accessibility and degradation.',
+      },
     },
   },
   // SEP-1865 linkage: the host renders ui://genui/last after this tool runs.
@@ -59,18 +77,37 @@ const createArtifactTool = toolDefinition({
 }).server(async (args: any) => {
   const res = await artifacts.create({ ...args, kind: 'html-fragment' })
   if ('error' in res) {
-    return { content: [{ type: 'text' as const, text: `Build failed:\n${res.buildLog}` }], isError: true }
+    return {
+      content: [
+        { type: 'text' as const, text: `Build failed:\n${res.buildLog}` },
+      ],
+      isError: true,
+    }
   }
   last = { artifactId: res.artifactId, revision: res.revision }
-  return { content: [{ type: 'text' as const, text: `Rendered "${args.title}" (${res.artifactId}@${res.revision}).` }] }
+  return {
+    content: [
+      {
+        type: 'text' as const,
+        text: `Rendered "${args.title}" (${res.artifactId}@${res.revision}).`,
+      },
+    ],
+  }
 })
 
 const EMPTY: ArtifactRecord = {
-  artifactId: 'none', revision: 1, contentHash: '', kind: 'html-fragment',
-  title: 'No artifact yet', fallbackText: 'No artifact generated yet.',
-  source: '<p style="padding:16px;color:var(--ui-muted,#64748b)">No artifact generated yet.</p>',
-  provenance: { driver: 'live' }, ownership: { ownerId: 'mcp', scope: 'private' },
-  trustTier: 'untrusted', createdAt: '',
+  artifactId: 'none',
+  revision: 1,
+  contentHash: '',
+  kind: 'html-fragment',
+  title: 'No artifact yet',
+  fallbackText: 'No artifact generated yet.',
+  source:
+    '<p style="padding:16px;color:var(--ui-muted,#64748b)">No artifact generated yet.</p>',
+  provenance: { driver: 'live' },
+  ownership: { ownerId: 'mcp', scope: 'private' },
+  trustTier: 'untrusted',
+  createdAt: '',
 }
 
 const lastResource = resourceDefinition({
@@ -79,8 +116,13 @@ const lastResource = resourceDefinition({
   mimeType: MCP_APP_MIME_TYPE,
 }).read(async () => {
   const guestScript = await getFragmentGuestScript()
-  const rec = last ? (await store.get(last.artifactId, last.revision)) ?? EMPTY : EMPTY
-  return { text: buildFragmentDocument(rec, THEME, { guestScript }), mimeType: MCP_APP_MIME_TYPE }
+  const rec = last
+    ? ((await store.get(last.artifactId, last.revision)) ?? EMPTY)
+    : EMPTY
+  return {
+    text: buildFragmentDocument(rec, THEME, { guestScript }),
+    mimeType: MCP_APP_MIME_TYPE,
+  }
 })
 
 /** The generative-UI MCP server. `.fetch(request)` serves it over HTTP. */

@@ -51,15 +51,23 @@ export function validateInbound(
   data: unknown,
   expected: { artifactId: string; instanceId: string },
 ): EnvelopeCheck {
-  if (!data || typeof data !== 'object') return { ok: false, reason: 'not an object' }
+  if (!data || typeof data !== 'object')
+    return { ok: false, reason: 'not an object' }
   const e = data as Record<string, unknown>
-  if (e.ns !== FRAME_PROTOCOL) return { ok: false, reason: `bad ns: ${String(e.ns)}` }
-  if (typeof e.type !== 'string' || !FRAME_TO_HOST.has(e.type as FrameMessageType)) {
+  if (e.ns !== FRAME_PROTOCOL)
+    return { ok: false, reason: `bad ns: ${String(e.ns)}` }
+  if (
+    typeof e.type !== 'string' ||
+    !FRAME_TO_HOST.has(e.type as FrameMessageType)
+  ) {
     return { ok: false, reason: `unknown or non-frame type: ${String(e.type)}` }
   }
-  if (e.artifactId !== expected.artifactId) return { ok: false, reason: 'artifactId mismatch' }
-  if (e.instanceId !== expected.instanceId) return { ok: false, reason: 'instanceId mismatch' }
-  if (!e.payload || typeof e.payload !== 'object') return { ok: false, reason: 'missing payload' }
+  if (e.artifactId !== expected.artifactId)
+    return { ok: false, reason: 'artifactId mismatch' }
+  if (e.instanceId !== expected.instanceId)
+    return { ok: false, reason: 'instanceId mismatch' }
+  if (!e.payload || typeof e.payload !== 'object')
+    return { ok: false, reason: 'missing payload' }
 
   // Light per-type payload checks; anything malformed is dropped.
   const p = e.payload as Record<string, unknown>
@@ -67,18 +75,23 @@ export function validateInbound(
     case 'frame.ready':
       break
     case 'frame.resize':
-      if (typeof p.height !== 'number' || !isFinite(p.height)) return { ok: false, reason: 'resize.height' }
+      if (typeof p.height !== 'number' || !isFinite(p.height))
+        return { ok: false, reason: 'resize.height' }
       break
     case 'frame.error':
-      if (typeof p.message !== 'string') return { ok: false, reason: 'error.message' }
+      if (typeof p.message !== 'string')
+        return { ok: false, reason: 'error.message' }
       break
     case 'frame.state.set':
-      if (!p.state || typeof p.state !== 'object') return { ok: false, reason: 'state.set.state' }
+      if (!p.state || typeof p.state !== 'object')
+        return { ok: false, reason: 'state.set.state' }
       break
     case 'frame.intent.submit':
     case 'frame.intent.action':
-      if (typeof p.intent !== 'string') return { ok: false, reason: 'intent.intent' }
-      if (!p.state || typeof p.state !== 'object') return { ok: false, reason: 'intent.state' }
+      if (typeof p.intent !== 'string')
+        return { ok: false, reason: 'intent.intent' }
+      if (!p.state || typeof p.state !== 'object')
+        return { ok: false, reason: 'intent.state' }
       break
   }
   return {
@@ -112,7 +125,9 @@ export interface FrameHostCallbacks {
    * Route a submit/action intent through the host (§6.3). Action intents go to
    * the host's approval machinery; the returned value becomes host.intent.result.
    */
-  onIntent?: (dispatch: IntentDispatch) => Promise<{ ok: boolean; result?: unknown; error?: string }> | void
+  onIntent?: (
+    dispatch: IntentDispatch,
+  ) => Promise<{ ok: boolean; result?: unknown; error?: string }> | void
   onReady?: () => void
   onResize?: (height: number) => void
   onError?: (err: FrameErrorPayload) => void
@@ -131,7 +146,11 @@ export function createFrameHost(
   ctx: { artifactId: string; instanceId: string },
   cb: FrameHostCallbacks,
 ) {
-  const envelope = <P>(type: FrameMessageType, payload: P, requestId?: string): BridgeEnvelope<P> => ({
+  const envelope = <P>(
+    type: FrameMessageType,
+    payload: P,
+    requestId?: string,
+  ): BridgeEnvelope<P> => ({
     ns: FRAME_PROTOCOL,
     type,
     artifactId: ctx.artifactId,
@@ -175,10 +194,17 @@ export function createFrameHost(
       case 'frame.intent.action': {
         const ip = payload as FrameIntentPayload
         const intentClass = type === 'frame.intent.submit' ? 'submit' : 'action'
-        const outcome = await cb.onIntent?.({ intentClass, intent: ip.intent, payload: ip.payload, state: ip.state })
+        const outcome = await cb.onIntent?.({
+          intentClass,
+          intent: ip.intent,
+          payload: ip.payload,
+          state: ip.state,
+        })
         if (requestId) {
           const res = outcome ?? { ok: true }
-          cb.send(envelope('host.intent.result', { requestId, ...res }, requestId))
+          cb.send(
+            envelope('host.intent.result', { requestId, ...res }, requestId),
+          )
         }
         return
       }
@@ -190,8 +216,10 @@ export function createFrameHost(
     handleMessage,
     /** Proactively (re)send host.init — usually triggered by frame.ready. */
     init: sendInit,
-    pushTheme: (theme: FrameTheme) => cb.send(envelope('host.theme', { theme })),
-    pushState: (state: Record<string, unknown>) => cb.send(envelope('host.state', { state })),
+    pushTheme: (theme: FrameTheme) =>
+      cb.send(envelope('host.theme', { theme })),
+    pushState: (state: Record<string, unknown>) =>
+      cb.send(envelope('host.state', { state })),
     pushData: (data: unknown) => cb.send(envelope('host.data', { data })),
   }
 }

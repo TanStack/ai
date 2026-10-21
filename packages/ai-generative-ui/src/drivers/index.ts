@@ -47,7 +47,9 @@ export class ProgrammaticDriver implements UIDriver {
       const graph = this.builder(request)
       const res = validateGraph(graph)
       if (!res.valid || !res.graph) {
-        throw new Error(`[ProgrammaticDriver] Built invalid graph: ${res.errors.join(', ')}`)
+        throw new Error(
+          `[ProgrammaticDriver] Built invalid graph: ${res.errors.join(', ')}`,
+        )
       }
       return res.graph
     }
@@ -83,12 +85,28 @@ export class ProgrammaticDriver implements UIDriver {
     const rootNodes: Array<UINode> = []
 
     return {
-      addText(content: string, variant: 'body' | 'heading' | 'caption' = 'body') {
-        rootNodes.push({ id: `n_${nextId++}`, type: 'Text', props: { content, variant } })
+      addText(
+        content: string,
+        variant: 'body' | 'heading' | 'caption' = 'body',
+      ) {
+        rootNodes.push({
+          id: `n_${nextId++}`,
+          type: 'Text',
+          props: { content, variant },
+        })
         return this
       },
-      addMetric(label: string, value: string | number, delta?: string, tone?: 'positive' | 'negative' | 'neutral') {
-        rootNodes.push({ id: `n_${nextId++}`, type: 'Metric', props: { label, value, delta, tone } })
+      addMetric(
+        label: string,
+        value: string | number,
+        delta?: string,
+        tone?: 'positive' | 'negative' | 'neutral',
+      ) {
+        rootNodes.push({
+          id: `n_${nextId++}`,
+          type: 'Metric',
+          props: { label, value, delta, tone },
+        })
         return this
       },
       addButton(label: string, intent: string, payload?: unknown) {

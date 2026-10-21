@@ -35,7 +35,8 @@ export function FrameSurface() {
       .catch((e) => setError(String(e)))
   }, [])
 
-  const push = (line: Omit<LogLine, 't'>) => setLog((l) => [{ t: Date.now(), ...line }, ...l].slice(0, 40))
+  const push = (line: Omit<LogLine, 't'>) =>
+    setLog((l) => [{ t: Date.now(), ...line }, ...l].slice(0, 40))
 
   const sandboxUrl = (pin: ArtifactPin, instanceId: string) =>
     `/sandbox/${pin.artifactId}/${pin.revision}?i=${encodeURIComponent(instanceId)}`
@@ -45,22 +46,37 @@ export function FrameSurface() {
       <div className="mx-auto max-w-6xl px-6 py-8 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
         <div className="min-w-0">
           <div className="mb-5">
-            <h2 className="text-lg font-semibold text-slate-900 font-display tracking-tight">Frame tier</h2>
+            <h2 className="text-lg font-semibold text-slate-900 font-display tracking-tight">
+              Frame tier
+            </h2>
             <p className="text-sm text-slate-500 mt-1 max-w-prose">
-              Tier F artifacts (Draft 0.2): model- or constructor-authored source — a hand-tuned SVG fragment, or a
-              React component using TanStack Table &amp; Charts — compiled at write time and served into a sandboxed,
-              theme-matched iframe. Numbers stay host-authoritative; interactions leave only as structured intents.
+              Tier F artifacts (Draft 0.2): model- or constructor-authored
+              source — a hand-tuned SVG fragment, or a React component using
+              TanStack Table &amp; Charts — compiled at write time and served
+              into a sandboxed, theme-matched iframe. Numbers stay
+              host-authoritative; interactions leave only as structured intents.
             </p>
           </div>
 
-          {error && <div className="text-sm text-rose-600 mb-4">Failed to load library: {error}</div>}
+          {error && (
+            <div className="text-sm text-rose-600 mb-4">
+              Failed to load library: {error}
+            </div>
+          )}
 
           <div className="space-y-6">
             {artifacts.map((a) => (
               <div key={a.artifactId}>
                 <div className="flex items-baseline gap-2 mb-2">
-                  <span className="text-xs font-mono text-slate-400">{a.kind}</span>
-                  <a href={`/a/${a.artifactId}`} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline ml-auto">
+                  <span className="text-xs font-mono text-slate-400">
+                    {a.kind}
+                  </span>
+                  <a
+                    href={`/a/${a.artifactId}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-indigo-600 hover:underline ml-auto"
+                  >
                     open standalone ↗
                   </a>
                 </div>
@@ -69,24 +85,42 @@ export function FrameSurface() {
                   sandboxUrl={sandboxUrl}
                   title={a.title}
                   minHeight={120}
-                  onStateChange={(s) => push({ kind: 'state', label: a.title, detail: JSON.stringify(s) })}
+                  onStateChange={(s) =>
+                    push({
+                      kind: 'state',
+                      label: a.title,
+                      detail: JSON.stringify(s),
+                    })
+                  }
                   onIntent={async (d) => {
-                    push({ kind: d.intentClass, label: `${d.intent} · ${a.title}`, detail: JSON.stringify(d.payload ?? {}) })
+                    push({
+                      kind: d.intentClass,
+                      label: `${d.intent} · ${a.title}`,
+                      detail: JSON.stringify(d.payload ?? {}),
+                    })
                     // Simulate the host's approval machinery resolving (§6.3).
                     return { ok: true, result: { acknowledged: true } }
                   }}
                 />
               </div>
             ))}
-            {artifacts.length === 0 && !error && <div className="text-sm text-slate-400">Building fixtures…</div>}
+            {artifacts.length === 0 && !error && (
+              <div className="text-sm text-slate-400">Building fixtures…</div>
+            )}
           </div>
         </div>
 
         <aside className="lg:sticky lg:top-4 self-start">
           <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-            <div className="px-3 py-2 border-b border-slate-100 text-xs font-semibold text-slate-600">Bridge traffic</div>
+            <div className="px-3 py-2 border-b border-slate-100 text-xs font-semibold text-slate-600">
+              Bridge traffic
+            </div>
             <div className="max-h-[70vh] overflow-auto divide-y divide-slate-50">
-              {log.length === 0 && <div className="px-3 py-3 text-xs text-slate-400">Interact with a frame — state writes and intents appear here.</div>}
+              {log.length === 0 && (
+                <div className="px-3 py-3 text-xs text-slate-400">
+                  Interact with a frame — state writes and intents appear here.
+                </div>
+              )}
               {log.map((l, i) => (
                 <div key={i} className="px-3 py-2 text-xs">
                   <div className="flex items-center gap-1.5">
@@ -101,9 +135,13 @@ export function FrameSurface() {
                     >
                       {l.kind}
                     </span>
-                    <span className="text-slate-700 font-medium truncate">{l.label}</span>
+                    <span className="text-slate-700 font-medium truncate">
+                      {l.label}
+                    </span>
                   </div>
-                  <div className="mt-1 font-mono text-[10px] text-slate-500 break-all">{l.detail}</div>
+                  <div className="mt-1 font-mono text-[10px] text-slate-500 break-all">
+                    {l.detail}
+                  </div>
                 </div>
               ))}
             </div>

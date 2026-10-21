@@ -16,9 +16,19 @@ import { resolve } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { createRequire } from 'node:module'
 import type { Plugin } from 'vite'
-import { buildCsp, buildShellDocument, type ArtifactRecord, type FrameTheme } from '@tanstack/ai-generative-ui'
+import {
+  buildCsp,
+  buildShellDocument,
+  type ArtifactRecord,
+  type FrameTheme,
+} from '@tanstack/ai-generative-ui'
 import { RUNTIME_NPM, RUNTIME_SHIMS } from './frame-runtime'
-import { getFragmentGuestScript, registry, seedFixtures, store } from './frame-host'
+import {
+  getFragmentGuestScript,
+  registry,
+  seedFixtures,
+  store,
+} from './frame-host'
 import { mcpServer } from './mcp-server'
 
 /** Bridge a Node request → web Request → mcpServer.fetch → Node response. */
@@ -26,16 +36,20 @@ async function handleMcp(req: any, res: any): Promise<void> {
   const chunks: Array<Buffer> = []
   for await (const c of req) chunks.push(c as Buffer)
   const headers = new Headers()
-  for (const [k, v] of Object.entries(req.headers)) if (typeof v === 'string') headers.set(k, v)
+  for (const [k, v] of Object.entries(req.headers))
+    if (typeof v === 'string') headers.set(k, v)
   const method = req.method || 'GET'
   const request = new Request(`http://${req.headers.host}${req.url}`, {
     method,
     headers,
-    body: method === 'GET' || method === 'HEAD' ? undefined : Buffer.concat(chunks),
+    body:
+      method === 'GET' || method === 'HEAD' ? undefined : Buffer.concat(chunks),
   })
   const response = await mcpServer.fetch(request)
   res.statusCode = response.status
-  response.headers.forEach((value: string, key: string) => res.setHeader(key, value))
+  response.headers.forEach((value: string, key: string) =>
+    res.setHeader(key, value),
+  )
   if (response.body) {
     const reader = response.body.getReader()
     for (;;) {
@@ -197,7 +211,10 @@ export function frameApiPlugin(): Plugin {
             // own ogui/1 bridge client — the ext-apps direct transport can't reliably
             // deliver host→frame messages into a sandboxed opaque-origin iframe
             // ("Ignoring message from unknown source"), which live push depends on.
-            const guestScript = rec.kind === 'react-tsx' && !rec.dataSource ? await getFragmentGuestScript() : undefined
+            const guestScript =
+              rec.kind === 'react-tsx' && !rec.dataSource
+                ? await getFragmentGuestScript()
+                : undefined
             const html = buildShellDocument({
               record: rec,
               instanceId,
@@ -210,7 +227,15 @@ export function frameApiPlugin(): Plugin {
               guestScript,
             })
             res.setHeader('Content-Type', 'text/html; charset=utf-8')
-            res.setHeader('Content-Security-Policy', buildCsp({ kind: rec.kind, appOrigin, connectGrants: rec.networkGrants, nonce }))
+            res.setHeader(
+              'Content-Security-Policy',
+              buildCsp({
+                kind: rec.kind,
+                appOrigin,
+                connectGrants: rec.networkGrants,
+                nonce,
+              }),
+            )
             res.setHeader('X-Content-Type-Options', 'nosniff')
             res.setHeader('Referrer-Policy', 'no-referrer')
             res.setHeader('Cache-Control', 'private, no-store')
@@ -247,7 +272,8 @@ export function frameApiPlugin(): Plugin {
 
 /** Minimal standalone page: host chrome + the sandboxed frame (§4.1). */
 function standalonePage(rec: ArtifactRecord): string {
-  const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]!))
+  const esc = (s: string) =>
+    s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!)
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(rec.title)}</title>
 <style>body{margin:0;font:14px ui-sans-serif,system-ui;background:#f1f5f9;color:#0f172a}
 .wrap{max-width:720px;margin:40px auto;padding:0 20px}

@@ -35,7 +35,11 @@ export class DataSourceRegistry {
   private readonly sources = new Map<string, DataSource>()
   private readonly descriptors = new Map<string, DataSourceDescriptor>()
 
-  register(name: string, source: DataSource, descriptor?: DataSourceDescriptor): this {
+  register(
+    name: string,
+    source: DataSource,
+    descriptor?: DataSourceDescriptor,
+  ): this {
     this.sources.set(name, source)
     if (descriptor) this.descriptors.set(name, descriptor)
     return this
@@ -55,7 +59,10 @@ export class DataSourceRegistry {
 
   /** Catalog of registered sources, for prompting a model. */
   describe(): Array<{ name: string } & DataSourceDescriptor> {
-    return Array.from(this.descriptors.entries()).map(([name, d]) => ({ name, ...d }))
+    return Array.from(this.descriptors.entries()).map(([name, d]) => ({
+      name,
+      ...d,
+    }))
   }
 
   /**
@@ -64,10 +71,16 @@ export class DataSourceRegistry {
    * model naming a source that doesn't exist degrades to a static view rather
    * than throwing.
    */
-  subscribe(name: string, params: Record<string, any>, emit: (data: unknown) => void): () => void {
+  subscribe(
+    name: string,
+    params: Record<string, any>,
+    emit: (data: unknown) => void,
+  ): () => void {
     const source = this.sources.get(name)
     if (!source) {
-      console.warn(`[GenerativeUI] Data source "${name}" not found in host registry`)
+      console.warn(
+        `[GenerativeUI] Data source "${name}" not found in host registry`,
+      )
       return () => {}
     }
     return source(params, emit)

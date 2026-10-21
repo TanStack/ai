@@ -52,7 +52,10 @@ export interface CspOptions {
  * `<script>` must run (§7.1) and its content is unknown at serve time.
  */
 export function buildCsp(opts: CspOptions): string {
-  const connect = opts.connectGrants && opts.connectGrants.length ? opts.connectGrants.join(' ') : "'none'"
+  const connect =
+    opts.connectGrants && opts.connectGrants.length
+      ? opts.connectGrants.join(' ')
+      : "'none'"
   // Single-origin POC: a sandboxed iframe (allow-scripts, no allow-same-origin)
   // has an opaque origin, so `'self'` matches nothing and would block the
   // built bundle + runtime modules. Allow the serving origin explicitly. A
@@ -285,7 +288,11 @@ function themeStyle(theme: FrameTheme): string {
   return `:root{${decls}}`
 }
 
-function bridgeClient(record: ArtifactRecord, instanceId: string, appOrigin: string): string {
+function bridgeClient(
+  record: ArtifactRecord,
+  instanceId: string,
+  appOrigin: string,
+): string {
   return BRIDGE_CLIENT_TEMPLATE.replace(/__NS__/g, FRAME_PROTOCOL)
     .replace(/__ARTIFACT_ID__/g, record.artifactId)
     .replace(/__INSTANCE_ID__/g, instanceId)
@@ -324,7 +331,11 @@ export interface FragmentDocumentOptions {
   guestScript?: string
 }
 
-export function buildFragmentDocument(record: ArtifactRecord, theme?: FrameTheme, opts: FragmentDocumentOptions = {}): string {
+export function buildFragmentDocument(
+  record: ArtifactRecord,
+  theme?: FrameTheme,
+  opts: FragmentDocumentOptions = {},
+): string {
   const themeCss = theme ? themeStyle(theme) : ''
   const guest = opts.guestScript ? `<script>${opts.guestScript}</script>` : ''
   // Center the authored content; the host iframe sizes it once the guest adapter
@@ -348,7 +359,8 @@ ${guest}
  */
 export function buildShellDocument(opts: ShellOptions): string {
   const { record, instanceId, appOrigin, theme } = opts
-  const nonceAttr = record.kind === 'react-tsx' && opts.nonce ? ` nonce="${opts.nonce}"` : ''
+  const nonceAttr =
+    record.kind === 'react-tsx' && opts.nonce ? ` nonce="${opts.nonce}"` : ''
   const csp = buildCsp({
     kind: record.kind,
     appOrigin,

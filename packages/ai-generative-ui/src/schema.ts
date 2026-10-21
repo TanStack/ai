@@ -7,7 +7,15 @@ export const GRAPH_DOCUMENT_SCHEMA = {
   $schema: 'http://json-schema.org/draft-07/schema#',
   title: 'GraphDocument',
   type: 'object',
-  required: ['specVersion', 'graphId', 'revision', 'title', 'fallbackText', 'provenance', 'root'],
+  required: [
+    'specVersion',
+    'graphId',
+    'revision',
+    'title',
+    'fallbackText',
+    'provenance',
+    'root',
+  ],
   properties: {
     specVersion: { type: 'string', enum: ['0.1'] },
     graphId: { type: 'string' },
@@ -50,7 +58,10 @@ export const GRAPH_DOCUMENT_SCHEMA = {
               required: ['name', 'inputs', 'output'],
               properties: {
                 name: { type: 'string' },
-                inputs: { type: 'object', additionalProperties: { type: 'string' } },
+                inputs: {
+                  type: 'object',
+                  additionalProperties: { type: 'string' },
+                },
                 output: { type: 'string' },
               },
             },

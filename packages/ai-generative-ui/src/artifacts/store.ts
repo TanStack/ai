@@ -32,7 +32,10 @@ export interface FrameArtifactStore {
   /** Persist a revision (and its built bundle, if any). */
   save: (record: ArtifactRecord, builtCode?: string) => Promise<ArtifactRecord>
   /** A pinned revision, or the latest when `revision` is omitted (§3.3). */
-  get: (artifactId: string, revision?: number) => Promise<ArtifactRecord | undefined>
+  get: (
+    artifactId: string,
+    revision?: number,
+  ) => Promise<ArtifactRecord | undefined>
   /** The highest revision of an artifact. */
   latest: (artifactId: string) => Promise<ArtifactRecord | undefined>
   /** All revisions of one artifact, ascending. */
@@ -46,7 +49,11 @@ export interface FrameArtifactStore {
 function matches(rec: ArtifactRecord, filter: FrameArtifactFilter): boolean {
   if (filter.scope && rec.ownership.scope !== filter.scope) return false
   if (filter.ownerId && rec.ownership.ownerId !== filter.ownerId) return false
-  if (filter.query && !rec.title.toLowerCase().includes(filter.query.toLowerCase())) return false
+  if (
+    filter.query &&
+    !rec.title.toLowerCase().includes(filter.query.toLowerCase())
+  )
+    return false
   return true
 }
 
@@ -57,7 +64,9 @@ function byNewest(a: ArtifactRecord, b: ArtifactRecord): number {
 
 /** Strip the `store://assets/` prefix a record's `builtRef` carries. */
 function builtHashOf(record: ArtifactRecord): string | undefined {
-  return record.builtRef ? record.builtRef.replace('store://assets/', '') : undefined
+  return record.builtRef
+    ? record.builtRef.replace('store://assets/', '')
+    : undefined
 }
 
 /* -------------------------------------------------------------------------- */
@@ -80,11 +89,14 @@ export function createInMemoryFrameArtifactStore(): FrameArtifactStore {
       let revs = byId.get(record.artifactId)
       if (!revs) byId.set(record.artifactId, (revs = new Map()))
       if (revs.has(record.revision)) {
-        throw new Error(`Revision ${record.revision} of ${record.artifactId} already exists (§3.2).`)
+        throw new Error(
+          `Revision ${record.revision} of ${record.artifactId} already exists (§3.2).`,
+        )
       }
       revs.set(record.revision, record)
       const hash = builtHashOf(record)
-      if (hash && builtCode != null && !built.has(hash)) built.set(hash, builtCode)
+      if (hash && builtCode != null && !built.has(hash))
+        built.set(hash, builtCode)
       return record
     },
     async get(artifactId, revision) {
@@ -97,7 +109,9 @@ export function createInMemoryFrameArtifactStore(): FrameArtifactStore {
     },
     async revisions(artifactId) {
       const revs = byId.get(artifactId)
-      return revs ? [...revs.values()].sort((a, b) => a.revision - b.revision) : []
+      return revs
+        ? [...revs.values()].sort((a, b) => a.revision - b.revision)
+        : []
     },
     async list(filter = {}) {
       const out: Array<ArtifactRecord> = []
@@ -120,10 +134,14 @@ export function createInMemoryFrameArtifactStore(): FrameArtifactStore {
 const META_PREFIX = 'genui/meta/'
 const BUILT_PREFIX = 'genui/built/'
 const pad = (n: number) => String(n).padStart(8, '0')
-const metaKey = (artifactId: string, revision: number) => `${META_PREFIX}${artifactId}/${pad(revision)}.json`
+const metaKey = (artifactId: string, revision: number) =>
+  `${META_PREFIX}${artifactId}/${pad(revision)}.json`
 const builtKey = (hash: string) => `${BUILT_PREFIX}${hash}.js`
 
-async function readRecord(blobs: BlobStore, key: string): Promise<ArtifactRecord | undefined> {
+async function readRecord(
+  blobs: BlobStore,
+  key: string,
+): Promise<ArtifactRecord | undefined> {
   const obj = await blobs.get(key)
   if (!obj) return undefined
   try {
@@ -134,7 +152,10 @@ async function readRecord(blobs: BlobStore, key: string): Promise<ArtifactRecord
 }
 
 /** Enumerate every meta blob key under a prefix, following list pagination. */
-async function listKeys(blobs: BlobStore, prefix: string): Promise<Array<string>> {
+async function listKeys(
+  blobs: BlobStore,
+  prefix: string,
+): Promise<Array<string>> {
   const keys: Array<string> = []
   let cursor: string | undefined
   do {
@@ -157,7 +178,9 @@ export function createBlobArtifactStore(blobs: BlobStore): FrameArtifactStore {
     return keys.sort() // zero-padded → lexical === numeric
   }
 
-  const latestRec = async (artifactId: string): Promise<ArtifactRecord | undefined> => {
+  const latestRec = async (
+    artifactId: string,
+  ): Promise<ArtifactRecord | undefined> => {
     const keys = await revisionKeys(artifactId)
     const last = keys[keys.length - 1]
     return last ? readRecord(blobs, last) : undefined
@@ -167,14 +190,19 @@ export function createBlobArtifactStore(blobs: BlobStore): FrameArtifactStore {
     async save(record, builtCode) {
       const key = metaKey(record.artifactId, record.revision)
       if (await blobs.get(key)) {
-        throw new Error(`Revision ${record.revision} of ${record.artifactId} already exists (§3.2).`)
+        throw new Error(
+          `Revision ${record.revision} of ${record.artifactId} already exists (§3.2).`,
+        )
       }
       const hash = builtHashOf(record)
       if (hash && builtCode != null) {
         const bk = builtKey(hash)
-        if (!(await blobs.head(bk))) await blobs.put(bk, builtCode, { contentType: 'text/javascript' })
+        if (!(await blobs.head(bk)))
+          await blobs.put(bk, builtCode, { contentType: 'text/javascript' })
       }
-      await blobs.put(key, JSON.stringify(record), { contentType: 'application/json' })
+      await blobs.put(key, JSON.stringify(record), {
+        contentType: 'application/json',
+      })
       return record
     },
     async get(artifactId, revision) {
@@ -185,7 +213,9 @@ export function createBlobArtifactStore(blobs: BlobStore): FrameArtifactStore {
     async revisions(artifactId) {
       const keys = await revisionKeys(artifactId)
       const recs = await Promise.all(keys.map((k) => readRecord(blobs, k)))
-      return recs.filter((r): r is ArtifactRecord => Boolean(r)).sort((a, b) => a.revision - b.revision)
+      return recs
+        .filter((r): r is ArtifactRecord => Boolean(r))
+        .sort((a, b) => a.revision - b.revision)
     },
     async list(filter = {}) {
       const keys = await listKeys(blobs, META_PREFIX)
@@ -197,7 +227,9 @@ export function createBlobArtifactStore(blobs: BlobStore): FrameArtifactStore {
         const prev = latestByeId.get(id)
         if (!prev || k > prev) latestByeId.set(id, k)
       }
-      const recs = await Promise.all([...latestByeId.values()].map((k) => readRecord(blobs, k)))
+      const recs = await Promise.all(
+        [...latestByeId.values()].map((k) => readRecord(blobs, k)),
+      )
       return recs
         .filter((r): r is ArtifactRecord => Boolean(r))
         .filter((r) => matches(r, filter))
